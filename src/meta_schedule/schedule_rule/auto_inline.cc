@@ -61,15 +61,8 @@ class AutoInlineNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  ScheduleRule Clone() final {
+  ScheduleRule Clone() const final {
     ObjectPtr<AutoInlineNode> n = make_object<AutoInlineNode>(*this);
-    n->into_producer = into_producer;
-    n->into_consumer = into_consumer;
-    n->inline_const_tensor = inline_const_tensor;
-    n->disallow_if_then_else = disallow_if_then_else;
-    n->require_injective = require_injective;
-    n->require_ordered = require_ordered;
-    n->disallow_op = disallow_op;
     return ScheduleRule(n);
   }
 

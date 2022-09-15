@@ -58,7 +58,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  ScheduleRule Clone() final {
+  ScheduleRule Clone() const final {
     ObjectPtr<RandomComputeLocationNode> n = make_object<RandomComputeLocationNode>(*this);
     return ScheduleRule(n);
   }

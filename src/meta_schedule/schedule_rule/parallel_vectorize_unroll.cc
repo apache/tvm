@@ -80,14 +80,9 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  ScheduleRule Clone() final {
+  ScheduleRule Clone() const final {
     ObjectPtr<ParallelizeVectorizeUnrollNode> n =
         make_object<ParallelizeVectorizeUnrollNode>(*this);
-    n->max_jobs_per_core = this->max_jobs_per_core;
-    n->max_vectorize_extent = this->max_vectorize_extent;
-    n->unroll_max_steps = this->unroll_max_steps;
-    n->unroll_explicit = this->unroll_explicit;
-    n->max_parallel_extent_ = this->max_parallel_extent_;
     return ScheduleRule(n);
   }
 

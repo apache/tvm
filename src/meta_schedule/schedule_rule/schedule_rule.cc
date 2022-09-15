@@ -33,7 +33,7 @@ Array<tir::Schedule> PyScheduleRuleNode::Apply(const tir::Schedule& sch,
   return f_apply(sch, block);
 }
 
-ScheduleRule PyScheduleRuleNode::Clone() {
+ScheduleRule PyScheduleRuleNode::Clone() const {
   ICHECK(f_clone != nullptr) << "PyScheduleRule's Clone method not implemented!";
   return f_clone();
 }

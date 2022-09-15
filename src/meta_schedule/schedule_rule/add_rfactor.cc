@@ -37,12 +37,8 @@ class AddRFactorNode : public ScheduleRuleNode {
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv);
 
   // Inherited from ScheduleRuleNode
-  ScheduleRule Clone() final {
+  ScheduleRule Clone() const final {
     ObjectPtr<AddRFactorNode> n = make_object<AddRFactorNode>(*this);
-    n->max_jobs_per_core = this->max_jobs_per_core;
-    n->max_innermost_factor = this->max_innermost_factor;
-    n->max_parallel_extent_ = this->max_parallel_extent_;
-    n->max_parallel_basic_ = this->max_parallel_basic_;
     return ScheduleRule(n);
   }
 

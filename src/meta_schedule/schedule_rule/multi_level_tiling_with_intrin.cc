@@ -63,6 +63,13 @@ class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
     return res;
   }
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<MultiLevelTilingWithIntrinNode> n =
+        make_object<MultiLevelTilingWithIntrinNode>(*this);
+    return ScheduleRule(n);
+  }
+
   // Override ApplySubRules to tile the inner loops according to the given tensor intrinsic, then
   // tile the outerloops.
   virtual std::vector<State> ApplySubRules(std::vector<State> states) {

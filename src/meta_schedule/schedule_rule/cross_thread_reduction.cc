@@ -114,11 +114,8 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  ScheduleRule Clone() final {
+  ScheduleRule Clone() const final {
     ObjectPtr<CrossThreadReductionNode> n = make_object<CrossThreadReductionNode>(*this);
-    n->thread_extents = thread_extents;
-    n->max_threads_per_block = max_threads_per_block;
-    n->warp_size = warp_size;
     return ScheduleRule(n);
   }
 

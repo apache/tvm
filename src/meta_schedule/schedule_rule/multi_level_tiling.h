@@ -156,7 +156,7 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) override;
 
   // Inherited from ScheduleRuleNode
-  ScheduleRule Clone() override;
+  ScheduleRule Clone() const override;
 
  protected:
   virtual std::vector<State> ApplySubRules(std::vector<State> states);

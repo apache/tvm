@@ -178,11 +178,8 @@ class AutoBindNode : public ScheduleRuleNode {
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final;
 
   // Inherited from ScheduleRuleNode
-  ScheduleRule Clone() final {
+  ScheduleRule Clone() const final {
     ObjectPtr<AutoBindNode> n = make_object<AutoBindNode>(*this);
-    n->max_threads_per_block_ = this->max_threads_per_block_;
-    n->max_threadblocks_ = this->max_threadblocks_;
-    n->thread_extents_ = this->thread_extents_;
     return ScheduleRule(n);
   }
 

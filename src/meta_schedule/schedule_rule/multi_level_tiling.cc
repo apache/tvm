@@ -105,19 +105,8 @@ Array<Schedule> MultiLevelTilingNode::Apply(const Schedule& sch, const BlockRV& 
 }
 
 // Inherited from ScheduleRuleNode
-ScheduleRule MultiLevelTilingNode::Clone() {
+ScheduleRule MultiLevelTilingNode::Clone() const {
   ObjectPtr<MultiLevelTilingNode> n = make_object<MultiLevelTilingNode>(*this);
-  n->structure = this->structure;
-  n->tile_binds = this->tile_binds;
-  n->max_innermost_factor = this->max_innermost_factor;
-  n->vector_load_lens = this->vector_load_lens;
-  n->reuse_read_ = this->reuse_read_;
-  n->reuse_write_ = this->reuse_write_;
-  n->s_indices_ = this->s_indices_;
-  n->r_indices_ = this->r_indices_;
-  n->thread_warp_size_ = this->thread_warp_size_;
-  n->max_threads_per_block_ = this->max_threads_per_block_;
-  n->logging_func = this->logging_func;
   return ScheduleRule(n);
 }
 

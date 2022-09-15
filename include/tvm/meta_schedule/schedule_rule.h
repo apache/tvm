@@ -64,7 +64,7 @@ class ScheduleRuleNode : public runtime::Object {
    * \brief Deep clone the schedule rule.
    * \return The cloned schedule rule.
    */
-  virtual ScheduleRule Clone() = 0;
+  virtual ScheduleRule Clone() const = 0;
 
   static constexpr const char* _type_key = "meta_schedule.ScheduleRule";
   TVM_DECLARE_BASE_OBJECT_INFO(ScheduleRuleNode, Object);
@@ -275,7 +275,7 @@ class PyScheduleRuleNode : public ScheduleRuleNode {
 
   void InitializeWithTuneContext(const TuneContext& context) final;
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block) final;
-  ScheduleRule Clone() final;
+  ScheduleRule Clone() const final;
 
   static constexpr const char* _type_key = "meta_schedule.PyScheduleRule";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyScheduleRuleNode, ScheduleRuleNode);
