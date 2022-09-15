@@ -35,6 +35,7 @@ from ..relay.backend import executor_factory
 from ..relay.backend.name_transforms import to_c_variable_style, prefix_generated_name
 from ..relay import param_dict
 from ..tir import expr
+import numpy as np
 
 # This should be kept identical to runtime::symbol::tvm_module_main
 MAIN_FUNC_NAME_STR = "__tvm_main__"
@@ -47,7 +48,7 @@ class UnsupportedInModelLibraryFormatError(Exception):
 
 
 def generate_c_interface_header(
-    module_name, inputs, outputs, pools, io_pool_allocations, devices, workspace_size, include_path
+    module_name, inputs, outputs, pools, io_pool_allocations, devices, workspace_size, include_path, input_sizes, output_sizes
 ):
     """Generate C Interface header to be included in MLF"""
     mangled_name = to_c_variable_style(prefix_generated_name(module_name))
@@ -55,7 +56,7 @@ def generate_c_interface_header(
 
     interface_c_create = tvm._ffi.get_global_func("runtime.InterfaceCCreate")
     interface_c_module = interface_c_create(
-        module_name, inputs, outputs, pools, io_pool_allocations, devices, workspace_size
+        module_name, inputs, outputs, pools, io_pool_allocations, devices, workspace_size, input_sizes, output_sizes
     )
 
     with open(metadata_header, "w") as header_file:
@@ -277,6 +278,18 @@ def _build_function_memory_map(function_metadata):
             main_func_metadata.io_sizes[target]
         )
 
+        # Now, we also add the information about the size of each input and output of the main function (in bytes)
+        input_dict = {}
+        for input_param in main_func_metadata.relay_primfuncs[target].params:
+            input_dict[input_param.name_hint] = int(_shape_to_size(input_param.checked_type.shape,input_param.checked_type.dtype))
+        target_main_entries[int(target.kind.device_type)]["inputs"] = input_dict
+
+        output_dict = {}
+        # For output, we dont have the name of the output, so we enumerate them
+        for i, output_type in enumerate(main_func_metadata.relay_primfuncs[target].ret_type.fields):
+            output_dict[i] = int(_shape_to_size(output_type.shape,output_type.dtype))
+        target_main_entries[int(target.kind.device_type)]["outputs"] = output_dict
+
     ret = {
         "operator_functions": func_entries,
         "main": list(target_main_entries.values()),
@@ -427,6 +440,12 @@ def _export_graph_model_library_format(
                     "workspace_size_bytes"
                 ]
             )
+            inputs_sizes = metadata["modules"][mod.libmod_name]["memory"]["functions"]["main"][0]["inputs"]
+            # Here, we merge the output sizes with the actual output names
+            output_sizes = {}
+            for key in metadata["modules"][mod.libmod_name]["memory"]["functions"]["main"][0]["outputs"].keys():
+                output_sizes[outputs[key]] = metadata["modules"][mod.libmod_name]["memory"]["functions"]["main"][0]["outputs"][key]
+
             generate_c_interface_header(
                 mod.libmod_name,
                 inputs,
@@ -436,6 +455,8 @@ def _export_graph_model_library_format(
                 devices,
                 workspace_size,
                 include_path,
+                inputs_sizes,
+                output_sizes
             )
 
         is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
@@ -459,7 +480,7 @@ class NonStaticShapeError(Exception):
 
 def _shape_to_size(shape, dtype):
     bits_per_item = int(
-        re.match(r"((float)|(int))(?P<width_bits>[0-9]+)", dtype).group("width_bits")
+        re.match(r"((float)|(int)|(uint))(?P<width_bits>[0-9]+)", dtype).group("width_bits")
     )
     assert bits_per_item is not None, f"don't know how to compute size of type {dtype}"
     total_bits = bits_per_item
