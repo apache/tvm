@@ -3381,6 +3381,17 @@ def float_infinity():
     return func
 
 
+def nested_dict_annotation_value():
+    @T.prim_func
+    def func():
+        for i in T.serial(
+            10, annotations={"graph_op_attrs": {"strides": [1, 1], "padding": [2, 2, 2, 2]}}
+        ):
+            T.evaluate(0)
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3423,6 +3434,7 @@ ir_generator = tvm.testing.parameter(
     decl_buffer,
     allocate_and_decl_buffer,
     float_infinity,
+    nested_dict_annotation_value,
 )
 
 

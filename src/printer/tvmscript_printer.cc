@@ -77,13 +77,17 @@ enum class ExprPrecedence : int {
  */
 class BufferUsageFinder : public StmtExprVisitor {
  public:
-  static Map<Var, Array<Buffer>> FindUsage(Map<Var, Array<Buffer>> usage, Stmt body) {
-    BufferUsageFinder visitor(std::move(usage));
+  static Map<Var, Array<Buffer>> FindUsage(Var target_var, Map<Var, Array<Buffer>> usage,
+                                           Stmt body) {
+    BufferUsageFinder visitor(target_var, std::move(usage));
     visitor.VisitStmt(body);
     return std::move(visitor.usage_);
   }
 
   void VisitExpr_(const VarNode* op) final {
+    if (target_var_.get() != op) {
+      return;
+    }
     Var var = GetRef<Var>(op);
     if (!usage_.count(var)) {
       usage_.Set(var, {});
@@ -107,9 +111,13 @@ class BufferUsageFinder : public StmtExprVisitor {
   }
 
  private:
-  explicit BufferUsageFinder(Map<Var, Array<Buffer>> usage) : usage_(usage) {}
+  explicit BufferUsageFinder(Var target_var, Map<Var, Array<Buffer>> usage)
+      : target_var_(target_var), usage_(usage) {}
 
   void VisitBuffer(const Buffer& buffer) {
+    if (!target_var_.same_as(buffer->data)) {
+      return;
+    }
     if (buffers_visited_.count(buffer.get())) {
       return;
     }
@@ -123,6 +131,8 @@ class BufferUsageFinder : public StmtExprVisitor {
     usage_.Set(buffer->data, arr);
   }
 
+  // The var to search
+  Var target_var_;
   // The search result.
   Map<Var, Array<Buffer>> usage_;
   // The buffers that have been visited so far, to avoid duplicate
@@ -277,6 +287,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintIterVar(const IterVarNode* op);
   Doc PrintRange(const RangeNode* op);
   Doc PrintArray(const ArrayNode* op);
+  Doc PrintMap(const MapNode* op);
   Doc PrintBuffer(const BufferNode* op);
   Doc PrintBufferIndices(const Array<PrimExpr>& indices);
   Doc PrintNonHeaderBufferDeclarations(const Array<Buffer>& aliasing_buffers);
@@ -731,6 +742,8 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
     return PrintIRModule(Downcast<IRModule>(node));
   } else if (node->IsInstance<ArrayNode>()) {
     return PrintArray(node.as<ArrayNode>());
+  } else if (node->IsInstance<MapNode>()) {
+    return PrintMap(node.as<MapNode>());
   } else if (node->IsInstance<BufferNode>()) {
     return PrintBuffer(node.as<BufferNode>());
   } else if (node->IsInstance<StringObj>()) {
@@ -965,7 +978,8 @@ Doc TVMScriptPrinter::VisitExpr_(const ReduceNode* op, ExprPrecedence* out_prece
 
 Doc TVMScriptPrinter::VisitStmt_(const LetStmtNode* op) {
   if (!buffer_var_usage_.count(op->var)) {
-    buffer_var_usage_ = BufferUsageFinder::FindUsage(std::move(buffer_var_usage_), op->body);
+    buffer_var_usage_ =
+        BufferUsageFinder::FindUsage(op->var, std::move(buffer_var_usage_), op->body);
   }
   Array<Buffer> buffer_usage = buffer_var_usage_.Get(op->var).value_or({});
 
@@ -1106,7 +1120,8 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
   var_not_in_headers_.insert(op->buffer_var.get());
 
   if (!buffer_var_usage_.count(op->buffer_var)) {
-    buffer_var_usage_ = BufferUsageFinder::FindUsage(std::move(buffer_var_usage_), op->body);
+    buffer_var_usage_ =
+        BufferUsageFinder::FindUsage(op->buffer_var, std::move(buffer_var_usage_), op->body);
   }
   Array<Buffer> buffer_usage = buffer_var_usage_.Get(op->buffer_var).value_or({});
 
@@ -1194,7 +1209,8 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
   var_not_in_headers_.insert(alloc->buffer_var.get());
 
   if (!buffer_var_usage_.count(alloc->buffer_var)) {
-    buffer_var_usage_ = BufferUsageFinder::FindUsage(std::move(buffer_var_usage_), alloc->body);
+    buffer_var_usage_ =
+        BufferUsageFinder::FindUsage(alloc->buffer_var, std::move(buffer_var_usage_), alloc->body);
   }
   Array<Buffer> buffer_usage = buffer_var_usage_.Get(alloc->buffer_var).value_or({});
 
@@ -1756,6 +1772,25 @@ Doc TVMScriptPrinter::PrintArray(const ArrayNode* op) {
   }
   doc << ']';
   return doc;
+}
+
+Doc TVMScriptPrinter::PrintMap(const MapNode* op) {
+  Doc res;
+  std::vector<std::pair<String, ObjectRef>> items;
+  items.reserve(op->size());
+  for (auto it = op->begin(); it != op->end(); ++it) {
+    items.emplace_back(Print(it->first).str(), it->second);
+  }
+  sort(items.begin(), items.end());
+  res << "{";
+  for (size_t i = 0; i < items.size(); ++i) {
+    if (i != 0) {
+      res << ", ";
+    }
+    res << items[i].first << ": " << Print(items[i].second);
+  }
+  res << "}";
+  return res;
 }
 
 Doc TVMScriptPrinter::PrintIterVar(const IterVarNode* op) {
