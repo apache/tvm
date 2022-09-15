@@ -29,6 +29,7 @@ namespace tvm {
 namespace meta_schedule {
 
 class TuneContext;
+class Postproc;
 
 /*!
  * \brief Rules to apply a postprocessor to a schedule.
@@ -54,12 +55,21 @@ class PostprocNode : public runtime::Object {
    */
   virtual bool Apply(const tir::Schedule& sch) = 0;
 
+  /*!
+   * \brief Clone the postprocessor.
+   * \return The cloned postprocessor.
+   */
+  virtual Postproc Clone() const = 0;
+
   static constexpr const char* _type_key = "meta_schedule.Postproc";
   TVM_DECLARE_BASE_OBJECT_INFO(PostprocNode, Object);
 };
 
-/*! \brief The postprocessor with customized methods on the python-side. */
-class PyPostprocNode : public PostprocNode {
+/*!
+ * \brief Managed reference to PostprocNode
+ * \sa PostprocNode
+ */
+class Postproc : public runtime::ObjectRef {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
@@ -73,48 +83,27 @@ class PyPostprocNode : public PostprocNode {
    */
   using FApply = runtime::TypedPackedFunc<bool(const tir::Schedule&)>;
   /*!
+   * \brief Clone the postprocessor.
+   * \return The cloned postprocessor.
+   */
+  using FClone = runtime::TypedPackedFunc<Postproc()>;
+  /*!
    * \brief Get the postprocessor function as string with name.
    * \return The string of the postprocessor function.
    */
   using FAsString = runtime::TypedPackedFunc<String()>;
-
-  /*! \brief The packed function to the `InitializeWithTuneContext` function. */
-  FInitializeWithTuneContext f_initialize_with_tune_context;
-  /*! \brief The packed function to the `Apply` function. */
-  FApply f_apply;
-  /*! \brief The packed function to the `AsString` function. */
-  FAsString f_as_string;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_initialize_with_tune_context` is not visited
-    // `f_apply` is not visited
-    // `f_as_string` is not visited
-  }
-
-  void InitializeWithTuneContext(const TuneContext& context) final;
-  bool Apply(const tir::Schedule& sch) final;
-
-  static constexpr const char* _type_key = "meta_schedule.PyPostproc";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyPostprocNode, PostprocNode);
-};
-
-/*!
- * \brief Managed reference to PostprocNode
- * \sa PostprocNode
- */
-class Postproc : public runtime::ObjectRef {
- public:
   /*!
    * \brief Create a postprocessor with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
    * \param f_apply The packed function of `Apply`.
+   * \param f_clone The packed function of `Clone`.
    * \param f_as_string The packed function of `AsString`.
    * \return The postprocessor created.
    */
-  TVM_DLL static Postproc PyPostproc(
-      PyPostprocNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
-      PyPostprocNode::FApply f_apply,                                             //
-      PyPostprocNode::FAsString f_as_string);
+  TVM_DLL static Postproc PyPostproc(FInitializeWithTuneContext f_initialize_with_tune_context,  //
+                                     FApply f_apply,                                             //
+                                     FClone f_clone,                                             //
+                                     FAsString f_as_string);
   /*!
    * \brief Create a postprocessor that checks if all loops are static
    * \return The postprocessor created
@@ -162,6 +151,37 @@ class Postproc : public runtime::ObjectRef {
    */
   TVM_DLL static Postproc RewriteLayout();
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Postproc, ObjectRef, PostprocNode);
+};
+
+/*! \brief The postprocessor with customized methods on the python-side. */
+class PyPostprocNode : public PostprocNode {
+ public:
+  using FInitializeWithTuneContext = Postproc::FInitializeWithTuneContext;
+  using FApply = Postproc::FApply;
+  using FClone = Postproc::FClone;
+  using FAsString = Postproc::FAsString;
+  /*! \brief The packed function to the `InitializeWithTuneContext` function. */
+  FInitializeWithTuneContext f_initialize_with_tune_context;
+  /*! \brief The packed function to the `Apply` function. */
+  FApply f_apply;
+  /*! \brief The packed function to the `Clone` function. */
+  FClone f_clone;
+  /*! \brief The packed function to the `AsString` function. */
+  FAsString f_as_string;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    // `f_initialize_with_tune_context` is not visited
+    // `f_apply` is not visited
+    // `f_clone` is not visited
+    // `f_as_string` is not visited
+  }
+
+  void InitializeWithTuneContext(const TuneContext& context) final;
+  bool Apply(const tir::Schedule& sch) final;
+  Postproc Clone() const final;
+
+  static constexpr const char* _type_key = "meta_schedule.PyPostproc";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PyPostprocNode, PostprocNode);
 };
 
 }  // namespace meta_schedule
