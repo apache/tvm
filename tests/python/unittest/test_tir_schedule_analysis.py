@@ -103,23 +103,17 @@ def test_suggest_index_map_bijective():
 
 def test_suggest_index_map_winograd():
     """use case in winograd conv where the indices are complicated"""
-    i0_0_i1_0_i2_0_i3_0_i0_1_i1_1_i2_1_i3_1_fused, i3_3_fused, i4_0, i4_1 = _make_vars(
-        "i0_0_i1_0_i2_0_i3_0_i0_1_i1_1_i2_1_i3_1_fused", "i3_3_fused", "i4_0", "i4_1"
-    )
-    eps = floordiv(i0_0_i1_0_i2_0_i3_0_i0_1_i1_1_i2_1_i3_1_fused, 336) * 2 + floordiv(
-        floormod(i0_0_i1_0_i2_0_i3_0_i0_1_i1_1_i2_1_i3_1_fused, 16), 8
-    )
-    nu = floordiv(floormod(i0_0_i1_0_i2_0_i3_0_i0_1_i1_1_i2_1_i3_1_fused, 336), 112) * 2 + floordiv(
-        floormod(i0_0_i1_0_i2_0_i3_0_i0_1_i1_1_i2_1_i3_1_fused, 8), 4
-    )
-    co = floormod(i0_0_i1_0_i2_0_i3_0_i0_1_i1_1_i2_1_i3_1_fused, 4) * 32 + i3_3_fused
+    fused_outer, i3_3_fused, i4_0, i4_1 = _make_vars("fused_outer", "i3_3_fused", "i4_0", "i4_1")
+    eps = floordiv(fused_outer, 336) * 2 + floordiv(floormod(fused_outer, 16), 8)
+    nu = floordiv(floormod(fused_outer, 336), 112) * 2 + floordiv(floormod(fused_outer, 8), 4)
+    co = floormod(fused_outer, 4) * 32 + i3_3_fused
     ci = (i4_0 * 32) + i4_1
     buffer = decl_buffer(shape=[6, 6, 128, 128])
     index_map = suggest_index_map(
         buffer=buffer,
         indices=[eps, nu, co, ci],
         loops=_make_loops(
-            loop_vars=[i0_0_i1_0_i2_0_i3_0_i0_1_i1_1_i2_1_i3_1_fused, i3_3_fused, i4_0, i4_1],
+            loop_vars=[fused_outer, i3_3_fused, i4_0, i4_1],
             extents=[1008, 32, 4, 32],
         ),
         predicate=True,
