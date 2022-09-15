@@ -33,7 +33,9 @@ namespace codegen {
 runtime::Module InterfaceCCreate(std::string module_name, Array<String> inputs,
                                  Array<String> outputs, Array<tir::usmp::AllocatedPoolInfo> pools,
                                  Map<String, tir::usmp::PoolAllocation> io_pool_allocations,
-                                 Array<String> devices, int workspace_size);
+                                 Array<String> devices, int workspace_size,
+                                 Map<String, IntImm> input_sizes,
+                                 Map<String, IntImm> output_sizes);
 
 namespace {
 
@@ -54,7 +56,7 @@ TEST(InterfaceAPI, ContainsHeaderGuards) {
                      << "#endif // TVMGEN_ULTIMATE_CAT_SPOTTER_H_\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 0, {"input": 0}, {"output": 0});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(upper_header_guard.str()));
@@ -75,7 +77,7 @@ TEST(InterfaceAPI, ContainsRunFunction) {
                << ");\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 0, {"input": 0}, {"output": 0});
   std::string header_source = test_module->GetSource();
   ASSERT_THAT(header_source, HasSubstr(run_function.str()));
 }
@@ -96,7 +98,7 @@ TEST(InterfaceAPI, ContainsRunFunctionWithDevices) {
                << ");\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {"device"}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {"device"}, 0, {"input": 0}, {"output": 0});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(run_function.str()));
@@ -121,7 +123,7 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspacePools) {
   tir::usmp::AllocatedPoolInfo allocated_pool_info =
       tir::usmp::AllocatedPoolInfo(pool_info, 100000);
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
-                                                 {allocated_pool_info}, {}, {}, 0);
+                                                 {allocated_pool_info}, {}, {}, 0, {"input": 0}, {"output": 0});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(run_function.str()));
@@ -153,7 +155,7 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspaceAndConstantPools) {
       tir::usmp::AllocatedPoolInfo(const_info, 100000);
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
-                       {allocated_pool_info, allocated_const_info}, {}, {}, 0);
+                       {allocated_pool_info, allocated_const_info}, {}, {}, 0, {"input": 0}, {"output": 0});
   std::string header_source = test_module->GetSource();
   ASSERT_THAT(header_source, HasSubstr(run_function.str()));
   ASSERT_THAT(
@@ -190,7 +192,7 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspacePoolsAndDevices) {
   tir::usmp::AllocatedPoolInfo allocated_pool_info =
       tir::usmp::AllocatedPoolInfo(pool_info, 100000);
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
-                                                 {allocated_pool_info}, {}, {"device"}, 0);
+                                                 {allocated_pool_info}, {}, {"device"}, 0, {"input": 0}, {"output": 0});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(run_function.str()));
@@ -233,7 +235,7 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspaceIO) {
   tir::usmp::PoolAllocation pool_allocation_output{pool_info, 2000};
   runtime::Module test_module = InterfaceCCreate(
       "ultimate_cat_spotter", {"input"}, {"output"}, {allocated_pool_info},
-      {{"input", pool_allocation_input}, {"output", pool_allocation_output}}, {}, 0);
+      {{"input", pool_allocation_input}, {"output", pool_allocation_output}}, {}, 0, {"input": 0}, {"output": 0});
   std::string header_source = test_module->GetSource();
   std::cout << header_source << "\n";
   ASSERT_THAT(header_source, HasSubstr(run_function_with_map_functions.str()));
@@ -241,6 +243,11 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspaceIO) {
 
 TEST(InterfaceAPI, ContainsInputStructSingle) {
   std::stringstream input_struct;
+
+  input_size_macro << "/*!\n"
+                   << " * \\brief Input tensor input size (in bytes) for TVM module \"ultimate_cat_spotter\" \n"
+                   << " */\n"
+                   << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT 537\n";
 
   input_struct << "/*!\n"
                << " * \\brief Input tensor pointers for TVM module \"ultimate_cat_spotter\" \n"
@@ -250,14 +257,26 @@ TEST(InterfaceAPI, ContainsInputStructSingle) {
                << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 0, {"input": 537}, {"output": 0});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(input_struct.str()));
+
+  ASSERT_THAT(header_source, HasSubstr(input_size_macro.str()));
 }
 
 TEST(InterfaceAPI, ContainsInputStructMany) {
   std::stringstream input_struct;
+
+  input1_size_macro << "/*!\n"
+                   << " * \\brief Input tensor input1 size (in bytes) for TVM module \"ultimate_cat_spotter\" \n"
+                   << " */\n"
+                   << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT1 765\n";
+
+  input2_size_macro << "/*!\n"
+                   << " * \\brief Input tensor input2 size (in bytes) for TVM module \"ultimate_cat_spotter\" \n"
+                   << " */\n"
+                   << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT2 127\n";
 
   input_struct << "struct tvmgen_ultimate_cat_spotter_inputs {\n"
                << "  void* input1;\n"
@@ -265,14 +284,26 @@ TEST(InterfaceAPI, ContainsInputStructMany) {
                << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input1", "input2"}, {"output"}, {}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input1", "input2"}, {"output"}, {}, {}, {}, 0, {"input1": 765, "input2": 127}, {"output": 0});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(input_struct.str()));
+  ASSERT_THAT(header_source, HasSubstr(input1_size_macro.str()));
+  ASSERT_THAT(header_source, HasSubstr(input2_size_macro.str()));
 }
 
 TEST(InterfaceAPI, ContainsInputStructSanitised) {
   std::stringstream input_struct;
+
+  input1_size_macro << "/*!\n"
+                   << " * \\brief Input tensor input_1 size (in bytes) for TVM module \"ultimate_cat_spotter\" \n"
+                   << " */\n"
+                   << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT_1 765\n";
+
+  input2_size_macro << "/*!\n"
+                   << " * \\brief Input tensor input_2 size (in bytes) for TVM module \"ultimate_cat_spotter\" \n"
+                   << " */\n"
+                   << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT_2 127\n";
 
   input_struct << "struct tvmgen_ultimate_cat_spotter_inputs {\n"
                << "  void* input_1;\n"
@@ -280,20 +311,27 @@ TEST(InterfaceAPI, ContainsInputStructSanitised) {
                << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input+1", "input+2"}, {"output"}, {}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input+1", "input+2"}, {"output"}, {}, {}, {}, 0, {"input+1": 765, "input+2": 127}, {"output": 0});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(input_struct.str()));
+  ASSERT_THAT(header_source, HasSubstr(input1_size_macro.str()));
+  ASSERT_THAT(header_source, HasSubstr(input2_size_macro.str()));
 }
 
 TEST(InterfaceAPI, ContainsInputStructClash) {
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input+", "input-"}, {"output"}, {}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input+", "input-"}, {"output"}, {}, {}, {}, 0, {"input+": 0, "input-": 0}, {"output": 0});
   ASSERT_THROW(test_module->GetSource(), InternalError);
 }
 
 TEST(InterfaceAPI, ContainsOutputStructSingle) {
   std::stringstream output_struct;
+
+  output_size_macro << "/*!\n"
+                   << " * \\brief Output tensor output size (in bytes) for TVM module \"ultimate_cat_spotter\" \n"
+                   << " */\n"
+                   << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_OUTPUT 543\n";
 
   output_struct << "/*!\n"
                 << " * \\brief Output tensor pointers for TVM module \"ultimate_cat_spotter\" \n"
@@ -303,14 +341,25 @@ TEST(InterfaceAPI, ContainsOutputStructSingle) {
                 << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 0, {"input": 0}, {"output": 543});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(output_struct.str()));
+  ASSERT_THAT(header_source, HasSubstr(output_size_macro.str()));
 }
 
 TEST(InterfaceAPI, ContainsOutputStructMany) {
   std::stringstream output_struct;
+
+  output1_size_macro << "/*!\n"
+                   << " * \\brief Output tensor output1 size (in bytes) for TVM module \"ultimate_cat_spotter\" \n"
+                   << " */\n"
+                   << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_OUTPUT1 345\n";
+
+  output2_size_macro << "/*!\n"
+                   << " * \\brief Output tensor output2 size (in bytes) for TVM module \"ultimate_cat_spotter\" \n"
+                   << " */\n"
+                   << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_OUTPUT2 984\n";
 
   output_struct << "struct tvmgen_ultimate_cat_spotter_outputs {\n"
                 << "  void* output1;\n"
@@ -318,14 +367,26 @@ TEST(InterfaceAPI, ContainsOutputStructMany) {
                 << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output1", "output2"}, {}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output1", "output2"}, {}, {}, {}, 0, {"input": 0}, {"output1": 345, "output2": 984});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(output_struct.str()));
+  ASSERT_THAT(header_source, HasSubstr(output1_size_macro.str()));
+  ASSERT_THAT(header_source, HasSubstr(output2_size_macro.str()));
 }
 
 TEST(InterfaceAPI, ContainsOutputStructSanitised) {
   std::stringstream output_struct;
+
+  output1_size_macro << "/*!\n"
+                   << " * \\brief Output tensor output_1 size (in bytes) for TVM module \"ultimate_cat_spotter\" \n"
+                   << " */\n"
+                   << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_OUTPUT_1 345\n";
+
+  output2_size_macro << "/*!\n"
+                   << " * \\brief Output tensor output_2 size (in bytes) for TVM module \"ultimate_cat_spotter\" \n"
+                   << " */\n"
+                   << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_OUTPUT_2 984\n";
 
   output_struct << "struct tvmgen_ultimate_cat_spotter_outputs {\n"
                 << "  void* output_1;\n"
@@ -333,15 +394,17 @@ TEST(InterfaceAPI, ContainsOutputStructSanitised) {
                 << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output+1", "output-2"}, {}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output+1", "output-2"}, {}, {}, {}, 0, {"input": 0}, {"output+1": 345, "output-2": 984});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(output_struct.str()));
+  ASSERT_THAT(header_source, HasSubstr(output1_size_macro.str()));
+  ASSERT_THAT(header_source, HasSubstr(output2_size_macro.str()));
 }
 
 TEST(InterfaceAPI, ContainsOutputStructClash) {
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output+", "output-"}, {}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output+", "output-"}, {}, {}, {}, 0, {"input": 0}, {"output+": 0, "output-": 0});
   ASSERT_THROW(test_module->GetSource(), InternalError);
 }
 
@@ -355,7 +418,7 @@ TEST(InterfaceAPI, NoDeviceAPIStructIfNoDevices) {
                 << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 0, {"input": 0}, {"output": 0});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, Not(HasSubstr(device_struct.str())));
@@ -372,7 +435,7 @@ TEST(InterfaceAPI, ContainsDeviceStructSingle) {
                 << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {"device"}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {"device"}, 0, {"input": 0}, {"output": 0});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(device_struct.str()));
@@ -387,7 +450,7 @@ TEST(InterfaceAPI, ContainsDeviceStructMany) {
                 << "};\n\n";
 
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {},
-                                                 {}, {"device1", "device2"}, 0);
+                                                 {}, {"device1", "device2"}, 0, {"input": 0}, {"output": 0});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(device_struct.str()));
@@ -402,7 +465,7 @@ TEST(InterfaceAPI, ContainsDeviceStructSanitised) {
                 << "};\n\n";
 
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {},
-                                                 {}, {"device+1", "device+2"}, 0);
+                                                 {}, {"device+1", "device+2"}, 0, {"input": 0}, {"output": 0});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(device_struct.str()));
@@ -416,7 +479,7 @@ TEST(InterfaceAPI, ContainsDeviceStructClash) {
 
 TEST(InterfaceAPI, ContainsWorkspaceSize) {
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 765432);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 765432, {"input": 0}, {"output": 0});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source,
@@ -442,7 +505,7 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructSingle) {
       << "};\n\n";
 
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
-                                                 {allocated_pool_info}, {}, {}, 0);
+                                                 {allocated_pool_info}, {}, {}, 0, {"input": 0}, {"output": 0});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(workspace_struct.str()));
@@ -476,7 +539,7 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructMany) {
 
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
-                       {allocated_pool_info1, allocated_pool_info2}, {}, {}, 0);
+                       {allocated_pool_info1, allocated_pool_info2}, {}, {}, 0, {"input": 0}, {"output": 0});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(workspace_struct.str()));
@@ -512,7 +575,7 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructSanitized) {
       << "};\n\n";
 
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
-                                                 {allocated_pool_info}, {}, {}, 0);
+                                                 {allocated_pool_info}, {}, {}, 0, {"input": 0}, {"output": 0});
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(workspace_struct.str()));
@@ -535,7 +598,7 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructClash) {
 
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
-                       {allocated_pool_info1, allocated_pool_info2}, {}, {}, 0);
+                       {allocated_pool_info1, allocated_pool_info2}, {}, {}, 0, {"input": 0}, {"output": 0});
   ASSERT_THROW(test_module->GetSource(), InternalError);
 }
 
