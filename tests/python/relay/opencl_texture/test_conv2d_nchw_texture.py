@@ -577,7 +577,6 @@ def test_residual_block(target, dtype):
         "global.texture-weight",
         "global.texture",
         "global.texture-weight",
-        "global",
         "global.texture",
         "global.texture-weight",
         "",
