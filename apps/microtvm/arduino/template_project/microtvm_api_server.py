@@ -62,13 +62,13 @@ class BoardAutodetectFailed(Exception):
 PROJECT_TYPES = ["example_project", "host_driven"]
 
 PROJECT_OPTIONS = [
-    server.ProjectOption(
-        "arduino_board",
-        required=["build", "flash", "open_transport"],
-        choices=list(BOARD_PROPERTIES),
-        type="str",
-        help="Name of the Arduino board to build for.",
-    ),
+    # server.ProjectOption(
+    #     "arduino_board",
+    #     required=["build", "flash", "open_transport"],
+    #     choices=list(BOARD_PROPERTIES),
+    #     type="str",
+    #     help="Name of the Arduino board to build for.",
+    # ),
     server.ProjectOption(
         "arduino_cli_cmd",
         required=(
@@ -89,19 +89,19 @@ PROJECT_OPTIONS = [
         type="int",
         help="Port to use for connecting to hardware.",
     ),
-    server.ProjectOption(
-        "project_type",
-        required=["generate_project"],
-        choices=tuple(PROJECT_TYPES),
-        type="str",
-        help="Type of project to generate.",
-    ),
-    server.ProjectOption(
-        "verbose",
-        optional=["build", "flash"],
-        type="bool",
-        help="Run arduino-cli compile and upload with verbose output.",
-    ),
+    # server.ProjectOption(
+    #     "project_type",
+    #     required=["generate_project"],
+    #     choices=tuple(PROJECT_TYPES),
+    #     type="str",
+    #     help="Type of project to generate.",
+    # ),
+    # server.ProjectOption(
+    #     "verbose",
+    #     optional=["build", "flash"],
+    #     type="bool",
+    #     help="Run arduino-cli compile and upload with verbose output.",
+    # ),
     server.ProjectOption(
         "warning_as_error",
         optional=["build", "flash"],

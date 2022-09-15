@@ -758,6 +758,40 @@ def write_with_timeout(fd, data, timeout_sec):  # pylint: disable=invalid-name
 
     return num_written
 
+def default_project_options() -> typing.List[ProjectOption]:
+    return [
+        ProjectOption(
+            "verbose",
+            optional=["build", "flash"],
+            type="bool",
+            help="Run build with verbose output.",
+        ),
+        ProjectOption(
+            "project_type",
+            required=["generate_project"],
+            type="str",
+            help="Type of project to generate.",
+        ),
+        ProjectOption(
+            "board",
+            required=["generate_project"],
+            type="str",
+            help="Name of the board to build for.",
+        ),
+        ProjectOption(
+            "cmsis_path",
+            optional=["generate_project"],
+            type="str",
+            help="Path to the CMSIS directory.",
+        ),
+        ProjectOption(
+            "heap_size_bytes",
+            optional=["generate_project"],
+            type="int",
+            # TODO: fix help message
+            help="Sets the value for HEAP_SIZE_BYTES passed to K_HEAP_DEFINE() to service TVM memory allocation requests.",
+        ),
+    ]
 
 def main(handler: ProjectAPIHandler, argv: typing.List[str] = None):
     """Start a Project API server.

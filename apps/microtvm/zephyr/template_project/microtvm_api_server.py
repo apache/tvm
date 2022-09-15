@@ -200,8 +200,8 @@ def _get_board_mem_size_bytes(options):
         pathlib.Path(get_zephyr_base(options))
         / "boards"
         / "arm"
-        / options["zephyr_board"]
-        / (options["zephyr_board"] + ".yaml")
+        / options["board"]
+        / (options["board"] + ".yaml")
     )
     try:
         with open(board_file_path) as f:
@@ -216,7 +216,7 @@ DEFAULT_HEAP_SIZE_BYTES = 216 * 1024
 
 
 def _get_recommended_heap_size_bytes(options):
-    prop = BOARD_PROPERTIES[options["zephyr_board"]]
+    prop = BOARD_PROPERTIES[options["board"]]
     if "recommended_heap_size_bytes" in prop:
         return prop["recommended_heap_size_bytes"]
     return DEFAULT_HEAP_SIZE_BYTES
@@ -298,7 +298,7 @@ if IS_TEMPLATE:
             PROJECT_TYPES.append(d.name)
 
 
-PROJECT_OPTIONS = [
+PROJECT_OPTIONS = server.default_project_options() + [
     server.ProjectOption(
         "extra_files_tar",
         optional=["generate_project"],
@@ -323,19 +323,19 @@ PROJECT_OPTIONS = [
         type="int",
         help=("When used with OpenOCD targets, serial # of the attached board to use."),
     ),
-    server.ProjectOption(
-        "project_type",
-        choices=tuple(PROJECT_TYPES),
-        required=["generate_project"],
-        type="str",
-        help="Type of project to generate.",
-    ),
-    server.ProjectOption(
-        "verbose",
-        optional=["generate_project"],
-        type="bool",
-        help="Run build with verbose output.",
-    ),
+    # server.ProjectOption(
+    #     "project_type",
+    #     choices=tuple(PROJECT_TYPES),
+    #     required=["generate_project"],
+    #     type="str",
+    #     help="Type of project to generate.",
+    # ),
+    # server.ProjectOption(
+    #     "verbose",
+    #     optional=["generate_project"],
+    #     type="bool",
+    #     help="Run build with verbose output.",
+    # ),
     server.ProjectOption(
         "west_cmd",
         optional=["generate_project"],
@@ -354,13 +354,13 @@ PROJECT_OPTIONS = [
         type="str",
         help="Path to the zephyr base directory.",
     ),
-    server.ProjectOption(
-        "zephyr_board",
-        required=["generate_project"],
-        choices=list(BOARD_PROPERTIES),
-        type="str",
-        help="Name of the Zephyr board to build for.",
-    ),
+    # server.ProjectOption(
+    #     "board",
+    #     required=["generate_project"],
+    #     choices=list(BOARD_PROPERTIES),
+    #     type="str",
+    #     help="Name of the Zephyr board to build for.",
+    # ),
     server.ProjectOption(
         "config_main_stack_size",
         optional=["generate_project"],
@@ -379,12 +379,12 @@ PROJECT_OPTIONS = [
         type="str",
         help="Extra definitions added project compile.",
     ),
-    server.ProjectOption(
-        "cmsis_path",
-        optional=["generate_project"],
-        type="str",
-        help="Path to the CMSIS directory.",
-    ),
+    # server.ProjectOption(
+    #     "cmsis_path",
+    #     optional=["generate_project"],
+    #     type="str",
+    #     help="Path to the CMSIS directory.",
+    # ),
     server.ProjectOption(
         "arm_fvp_path",
         optional=["generate_project", "open_transport"],
@@ -397,12 +397,12 @@ PROJECT_OPTIONS = [
         type="bool",
         help="Run on the FVP emulator instead of hardware.",
     ),
-    server.ProjectOption(
-        "heap_size_bytes",
-        optional=["generate_project"],
-        type="int",
-        help="Sets the value for HEAP_SIZE_BYTES passed to K_HEAP_DEFINE() to service TVM memory allocation requests.",
-    ),
+    # server.ProjectOption(
+    #     "heap_size_bytes",
+    #     optional=["generate_project"],
+    #     type="int",
+    #     help="Sets the value for HEAP_SIZE_BYTES passed to K_HEAP_DEFINE() to service TVM memory allocation requests.",
+    # ),
 ]
 
 
@@ -456,7 +456,7 @@ class Handler(server.ProjectAPIHandler):
     }
 
     def _create_prj_conf(self, project_dir, options):
-        zephyr_board = options["zephyr_board"]
+        zephyr_board = options["board"]
         with open(project_dir / "prj.conf", "w") as f:
             f.write(
                 "# For UART used from main().\n"
@@ -549,15 +549,15 @@ class Handler(server.ProjectAPIHandler):
         if options.get("west_cmd"):
             cmake_args += f"set(WEST {options['west_cmd']})\n"
 
-        if self._is_qemu(options["zephyr_board"], options.get("use_fvp")):
+        if self._is_qemu(options["board"], options.get("use_fvp")):
             # Some boards support more than one emulator, so ensure QEMU is set.
             cmake_args += f"set(EMU_PLATFORM qemu)\n"
 
-        if self._is_fvp(options["zephyr_board"], options.get("use_fvp")):
+        if self._is_fvp(options["board"], options.get("use_fvp")):
             cmake_args += "set(EMU_PLATFORM armfvp)\n"
             cmake_args += "set(ARMFVP_FLAGS -I)\n"
 
-        cmake_args += f"set(BOARD {options['zephyr_board']})\n"
+        cmake_args += f"set(BOARD {options['board']})\n"
 
         enable_cmsis = self._cmsis_required(mlf_extracted_path)
         if enable_cmsis:
@@ -567,7 +567,7 @@ class Handler(server.ProjectAPIHandler):
         return cmake_args
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
-        zephyr_board = options["zephyr_board"]
+        zephyr_board = options["board"]
 
         # Check Zephyr version
         version = self._get_platform_version(get_zephyr_base(options))
