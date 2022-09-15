@@ -39,8 +39,8 @@ def {{ method_name }}() {
     node('{{ node }}') {
       ws({{ per_exec_ws(ws) }}) {
         try {
-          docker_init({{ docker_image }})
           init_git()
+          docker_init({{ docker_image }})
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM={{ platform }}',
@@ -71,8 +71,8 @@ def {{ method_name }}() {
   '{{ name }} {{ shard_index }} of {{ num_shards }}': {
     node('{{ node }}') {
       ws({{ per_exec_ws(ws) }}) {
-        docker_init({{ docker_image }})
         init_git()
+        docker_init({{ docker_image }})
         timeout(time: max_time, unit: 'MINUTES') {
           withEnv([
             'TVM_NUM_SHARDS={{ num_shards }}',
@@ -95,8 +95,8 @@ def {{ method_name }}() {
       ws({{ per_exec_ws(ws) }}) {
         timeout(time: max_time, unit: 'MINUTES') {
           try {
-            docker_init({{ docker_image }})
             init_git()
+            docker_init({{ docker_image }})
             withEnv(['PLATFORM={{ platform }}'], {
               {{ caller() | indent(width=8) | trim }}
             })
@@ -120,8 +120,8 @@ def {{ method_name }}() {
         ws({{ per_exec_ws(ws) }}) {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
-              docker_init({{ docker_image }})
               init_git()
+              docker_init({{ docker_image }})
               withEnv(['PLATFORM={{ platform }}',
               'TEST_STEP_NAME={{ name }}',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -138,28 +138,6 @@ def {{ method_name }}() {
       Utils.markStageSkippedForConditional('{{ name }}')
     }
   },
-{% endmacro %}
-
-{% macro bash_retry() %}
-retry() {
-  local max_retries=\$1
-  shift
-  local n=0
-  local backoff_max=30
-  until [ "\$n" -ge \$max_retries ]
-  do
-      "\$@" && break
-      n=\$((n+1))
-      if [ "\$n" -eq \$max_retries ]; then
-          echo "failed to update after attempt \$n / \$max_retries, giving up"
-          exit 1
-      fi
-
-      WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-      echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-      sleep \$WAIT
-  done
-}
 {% endmacro %}
 
 {% macro deploy_step(name, feature_flag, ws) %}
@@ -182,7 +160,7 @@ retry() {
 sh(
             script: """
               set -eux
-              {{ bash_retry() | indent(width=14) }}
+              . ci/scripts/retry.sh
               {% for filename in filenames %}
               md5sum {{ filename }}
               retry 3 aws s3 cp --no-progress {{ filename }} s3://${s3_prefix}/{{ tag }}/{{ filename }}
@@ -199,7 +177,7 @@ sh(
 sh(
             script: """
               set -eux
-              {{ bash_retry() | indent(width=14) }}
+              . ci/scripts/retry.sh
               {% for filename in filenames %}
               retry 3 aws s3 cp --no-progress s3://${s3_prefix}/{{ tag }}/{{ filename }} {{ filename }}
               md5sum {{ filename }}

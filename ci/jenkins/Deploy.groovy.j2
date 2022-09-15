@@ -30,10 +30,11 @@ def update_docker(ecr_image, hub_image) {
   sh(
     script: """
     set -eux
+    . ci/scripts/retry.sh
     docker tag \
       ${ecr_image} \
       ${hub_image}
-    docker push ${hub_image}
+    retry 5 docker push ${hub_image}
     """,
     label: "Update ${hub_image} on Docker Hub",
   )
@@ -144,9 +145,10 @@ def deploy() {
                 sh(
                   script: """
                     set -eux
+                    . ci/scripts/retry.sh
                     docker pull tlcpackstaging/{{ image.name }}:${tag}
                     docker tag tlcpackstaging/{{ image.name }}:${tag} tlcpack/{{ image.name.replace("_", "-") }}:${tag}
-                    docker push tlcpack/{{ image.name.replace("_", "-") }}:${tag}
+                    retry 5 docker push tlcpack/{{ image.name.replace("_", "-") }}:${tag}
                   """,
                   label: 'Tag tlcpackstaging/{{ image.name }} image to tlcpack',
                 )
