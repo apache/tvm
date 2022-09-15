@@ -1654,6 +1654,26 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
     }
   }
 
+  if (op->op.same_as(tir::builtin::if_then_else())) {
+    // Simplify nested if_then_else
+    // if (cond) { if (inner_cond) { inner_then_expr } else { inner_else_expr } } else { else_expr }
+    // => if (cond && inner_cond) { inner_then_expr } else { else_expr }
+    const PrimExpr& cond = op->args[0];
+    const PrimExpr& then_expr = op->args[1];
+    const PrimExpr& else_expr = op->args[2];
+    const CallNode* inner_call = then_expr.as<CallNode>();
+    if (inner_call != nullptr && inner_call->op.same_as(tir::builtin::if_then_else())) {
+      const PrimExpr& inner_cond = inner_call->args[0];
+      const PrimExpr& inner_then_expr = inner_call->args[1];
+      const PrimExpr& inner_else_expr = inner_call->args[2];
+      // Only check constant cases to avoid recursion
+      if (is_const_number(inner_else_expr) && is_const_number(else_expr) &&
+          analyzer_->CanProve(inner_else_expr == else_expr)) {
+        return if_then_else(cond && inner_cond, inner_then_expr, else_expr);
+      }
+    }
+  }
+
   return ret;
 }
 
