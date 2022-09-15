@@ -46,20 +46,43 @@ class InterfaceCNode : public runtime::ModuleNode {
   InterfaceCNode(std::string module_name, Array<String> inputs, Array<String> outputs,
                  Array<tir::usmp::AllocatedPoolInfo> pools,
                  Map<String, tir::usmp::PoolAllocation> io_pool_allocations, Array<String> devices,
-                 int workspace_size)
+                 int workspace_size,
+                 Map<String,IntImm> input_sizes,
+                 Map<String,IntImm> output_sizes)
       : module_name_(module_name),
         inputs_(inputs),
         outputs_(outputs),
         devices_(devices),
         pools_(FilterExternalPools(pools)),
         io_pool_allocations_(io_pool_allocations),
-        workspace_size_(workspace_size) {}
+        workspace_size_(workspace_size),
+        input_sizes_(input_sizes),
+        output_sizes_(output_sizes) {}
   const char* type_key() const final { return "h"; }
 
   std::string GetSource(const std::string& format) final {
     std::stringstream code;
 
     EmitUpperHeaderGuard(code);
+
+    // Emit macros for input sizes
+    for(auto const& it : input_sizes_)
+    {
+      auto input_name = std::string(it.first);
+      std::replace( input_name.begin(), input_name.end(), ':', '_');
+      auto input_size = it.second->value;
+      EmitIntegerValueMacro(code, "Input tensor " + input_name + " size (in bytes)", input_name, input_size);
+    }
+
+    // Emit macros for output sizes
+    for(auto const& it : output_sizes_)
+    {
+      auto output_name = std::string(it.first);
+      std::replace( output_name.begin(), output_name.end(), ':', '_');
+      auto output_size = it.second->value;
+      EmitIntegerValueMacro(code, "Output tensor " + output_name + " size (in bytes)", output_name, output_size);
+    }
+
     EmitBrief(code, "Input tensor pointers");
     EmitStruct(code, "inputs", inputs_);
     EmitBrief(code, "Output tensor pointers");
@@ -277,14 +300,18 @@ class InterfaceCNode : public runtime::ModuleNode {
   Array<tir::usmp::AllocatedPoolInfo> pools_;
   Map<String, tir::usmp::PoolAllocation> io_pool_allocations_;
   int workspace_size_;
+  Map<String,IntImm> input_sizes_;
+  Map<String,IntImm> output_sizes_;
 };
 
 runtime::Module InterfaceCCreate(std::string module_name, Array<String> inputs,
                                  Array<String> outputs, Array<tir::usmp::AllocatedPoolInfo> pools,
                                  Map<String, tir::usmp::PoolAllocation> io_pool_allocations,
-                                 Array<String> devices, int workspace_size) {
+                                 Array<String> devices, int workspace_size,
+                                 Map<String,IntImm> input_sizes,
+                                 Map<String,IntImm> output_sizes) {
   auto n = make_object<InterfaceCNode>(module_name, inputs, outputs, pools, io_pool_allocations,
-                                       devices, workspace_size);
+                                       devices, workspace_size, input_sizes, output_sizes);
   return runtime::Module(n);
 }
 
