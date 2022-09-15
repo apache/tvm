@@ -68,6 +68,8 @@ class InterfaceCNode : public runtime::ModuleNode {
     for (auto const& it : input_sizes_) {
       auto input_name = std::string(it.first);
       std::replace(input_name.begin(), input_name.end(), ':', '_');
+      std::replace(input_name.begin(), input_name.end(), '+', '_');
+      std::replace(input_name.begin(), input_name.end(), '-', '_');
       auto input_size = it.second->value;
       EmitIntegerValueMacro(code, "Input tensor " + input_name + " size (in bytes)", input_name,
                             input_size);
@@ -77,6 +79,8 @@ class InterfaceCNode : public runtime::ModuleNode {
     for (auto const& it : output_sizes_) {
       auto output_name = std::string(it.first);
       std::replace(output_name.begin(), output_name.end(), ':', '_');
+      std::replace(output_name.begin(), output_name.end(), '+', '_');
+      std::replace(output_name.begin(), output_name.end(), '-', '_');
       auto output_size = it.second->value;
       EmitIntegerValueMacro(code, "Output tensor " + output_name + " size (in bytes)", output_name,
                             output_size);
