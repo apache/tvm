@@ -150,14 +150,12 @@ class IndexMapNode : public Object {
 
   bool SEqualReduce(const IndexMapNode* other, SEqualReducer equal) const {
     return equal.DefEqual(initial_indices, other->initial_indices) &&
-           equal(final_indices, other->final_indices) &&
-           equal(inverse_index_map, other->inverse_index_map);
+           equal(final_indices, other->final_indices);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce.DefHash(initial_indices);
     hash_reduce(final_indices);
-    hash_reduce(inverse_index_map);
   }
 
   static constexpr const char* _type_key = "tir.IndexMap";
