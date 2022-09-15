@@ -54,8 +54,13 @@ TEST(InterfaceAPI, ContainsHeaderGuards) {
                      << "#endif\n\n"
                      << "#endif // TVMGEN_ULTIMATE_CAT_SPOTTER_H_\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
+
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {},
-                                                 {}, {}, 0, {"input" : 0}, {"output" : 0});
+                                                 {}, {}, 0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(upper_header_guard.str()));
@@ -75,8 +80,13 @@ TEST(InterfaceAPI, ContainsRunFunction) {
                << "  struct tvmgen_ultimate_cat_spotter_outputs* outputs\n"
                << ");\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
+
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {},
-                                                 {}, {}, 0, {"input" : 0}, {"output" : 0});
+                                                 {}, {}, 0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
   ASSERT_THAT(header_source, HasSubstr(run_function.str()));
 }
@@ -96,8 +106,13 @@ TEST(InterfaceAPI, ContainsRunFunctionWithDevices) {
                << "  struct tvmgen_ultimate_cat_spotter_devices* devices\n"
                << ");\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
+
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {},
-                                                 {}, {"device"}, 0, {"input" : 0}, {"output" : 0});
+                                                 {}, {"device"}, 0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(run_function.str()));
@@ -118,12 +133,17 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspacePools) {
                << "  struct tvmgen_ultimate_cat_spotter_workspace_pools* workspace_pools\n"
                << ");\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
+
   PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info =
       tir::usmp::AllocatedPoolInfo(pool_info, 100000);
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {allocated_pool_info}, {}, {},
-                       0, {"input" : 0}, {"output" : 0});
+                       0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(run_function.str()));
@@ -144,6 +164,11 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspaceAndConstantPools) {
                << "  struct tvmgen_ultimate_cat_spotter_workspace_pools* workspace_pools\n"
                << ");\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
+
   PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool", {});
   PoolInfo const_info = ConstantPoolInfo(
       "my_constant_pool", {},
@@ -155,7 +180,7 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspaceAndConstantPools) {
       tir::usmp::AllocatedPoolInfo(const_info, 100000);
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
                                                  {allocated_pool_info, allocated_const_info}, {},
-                                                 {}, 0, {"input" : 0}, {"output" : 0});
+                                                 {}, 0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
   ASSERT_THAT(header_source, HasSubstr(run_function.str()));
   ASSERT_THAT(
@@ -188,12 +213,17 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspacePoolsAndDevices) {
                << "  struct tvmgen_ultimate_cat_spotter_devices* devices\n"
                << ");\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
+
   PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info =
       tir::usmp::AllocatedPoolInfo(pool_info, 100000);
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {allocated_pool_info}, {},
-                       {"device"}, 0, {"input" : 0}, {"output" : 0});
+                       {"device"}, 0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(run_function.str()));
@@ -229,6 +259,11 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspaceIO) {
       << "  struct tvmgen_ultimate_cat_spotter_workspace_pools* workspace_pools\n"
       << ");\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
+
   PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info =
       tir::usmp::AllocatedPoolInfo(pool_info, 100000);
@@ -237,17 +272,18 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspaceIO) {
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {allocated_pool_info},
                        {{"input", pool_allocation_input}, {"output", pool_allocation_output}}, {},
-                       0, {"input" : 0}, {"output" : 0});
+                       0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
   std::cout << header_source << "\n";
   ASSERT_THAT(header_source, HasSubstr(run_function_with_map_functions.str()));
 }
 
+
 TEST(InterfaceAPI, ContainsInputStructSingle) {
   std::stringstream input_struct;
+  std::stringstream input_size_macro;
 
-  input_size_macro
-      << "/*!\n"
+  input_size_macro << "/*!\n"
       << " * \\brief Input tensor input size (in bytes) for TVM module \"ultimate_cat_spotter\" \n"
       << " */\n"
       << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT 537\n";
@@ -259,8 +295,13 @@ TEST(InterfaceAPI, ContainsInputStructSingle) {
                << "  void* input;\n"
                << "};\n\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),537));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
+
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {},
-                                                 {}, {}, 0, {"input" : 537}, {"output" : 0});
+                                                 {}, {}, 0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(input_struct.str()));
@@ -268,8 +309,11 @@ TEST(InterfaceAPI, ContainsInputStructSingle) {
   ASSERT_THAT(header_source, HasSubstr(input_size_macro.str()));
 }
 
+
 TEST(InterfaceAPI, ContainsInputStructMany) {
   std::stringstream input_struct;
+  std::stringstream input1_size_macro;
+  std::stringstream input2_size_macro;
 
   input1_size_macro
       << "/*!\n"
@@ -288,9 +332,15 @@ TEST(InterfaceAPI, ContainsInputStructMany) {
                << "  void* input2;\n"
                << "};\n\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input1",IntImm(DataType::Int(32),765));
+  input_sizes.Set("input2",IntImm(DataType::Int(32),127));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
+
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input1", "input2"}, {"output"}, {}, {}, {}, 0,
-                       {"input1" : 765, "input2" : 127}, {"output" : 0});
+                       input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(input_struct.str()));
@@ -300,6 +350,8 @@ TEST(InterfaceAPI, ContainsInputStructMany) {
 
 TEST(InterfaceAPI, ContainsInputStructSanitised) {
   std::stringstream input_struct;
+  std::stringstream input1_size_macro;
+  std::stringstream input2_size_macro;
 
   input1_size_macro << "/*!\n"
                     << " * \\brief Input tensor input_1 size (in bytes) for TVM module "
@@ -318,9 +370,15 @@ TEST(InterfaceAPI, ContainsInputStructSanitised) {
                << "  void* input_2;\n"
                << "};\n\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input+1",IntImm(DataType::Int(32),765));
+  input_sizes.Set("input+2",IntImm(DataType::Int(32),127));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
+
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input+1", "input+2"}, {"output"}, {}, {}, {}, 0,
-                       {"input+1" : 765, "input+2" : 127}, {"output" : 0});
+                       input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(input_struct.str()));
@@ -329,14 +387,21 @@ TEST(InterfaceAPI, ContainsInputStructSanitised) {
 }
 
 TEST(InterfaceAPI, ContainsInputStructClash) {
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input+",IntImm(DataType::Int(32),0));
+  input_sizes.Set("input-",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
+
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input+", "input-"}, {"output"}, {}, {}, {}, 0,
-                       {"input+" : 0, "input-" : 0}, {"output" : 0});
+                       input_sizes, output_sizes);
   ASSERT_THROW(test_module->GetSource(), InternalError);
 }
 
 TEST(InterfaceAPI, ContainsOutputStructSingle) {
   std::stringstream output_struct;
+  std::stringstream output_size_macro;
 
   output_size_macro << "/*!\n"
                     << " * \\brief Output tensor output size (in bytes) for TVM module "
@@ -351,8 +416,13 @@ TEST(InterfaceAPI, ContainsOutputStructSingle) {
                 << "  void* output;\n"
                 << "};\n\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),543));
+
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {},
-                                                 {}, {}, 0, {"input" : 0}, {"output" : 543});
+                                                 {}, {}, 0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(output_struct.str()));
@@ -361,6 +431,8 @@ TEST(InterfaceAPI, ContainsOutputStructSingle) {
 
 TEST(InterfaceAPI, ContainsOutputStructMany) {
   std::stringstream output_struct;
+  std::stringstream output1_size_macro;
+  std::stringstream output2_size_macro;
 
   output1_size_macro << "/*!\n"
                      << " * \\brief Output tensor output1 size (in bytes) for TVM module "
@@ -379,9 +451,15 @@ TEST(InterfaceAPI, ContainsOutputStructMany) {
                 << "  void* output2;\n"
                 << "};\n\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output1",IntImm(DataType::Int(32),345));
+  output_sizes.Set("output2",IntImm(DataType::Int(32),984));
+
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output1", "output2"}, {}, {}, {}, 0,
-                       {"input" : 0}, {"output1" : 345, "output2" : 984});
+                       input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(output_struct.str()));
@@ -391,6 +469,8 @@ TEST(InterfaceAPI, ContainsOutputStructMany) {
 
 TEST(InterfaceAPI, ContainsOutputStructSanitised) {
   std::stringstream output_struct;
+  std::stringstream output1_size_macro;
+  std::stringstream output2_size_macro;
 
   output1_size_macro << "/*!\n"
                      << " * \\brief Output tensor output_1 size (in bytes) for TVM module "
@@ -409,9 +489,15 @@ TEST(InterfaceAPI, ContainsOutputStructSanitised) {
                 << "  void* output_2;\n"
                 << "};\n\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output+1",IntImm(DataType::Int(32),345));
+  output_sizes.Set("output-2",IntImm(DataType::Int(32),984));
+
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output+1", "output-2"}, {}, {}, {}, 0,
-                       {"input" : 0}, {"output+1" : 345, "output-2" : 984});
+                       input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(output_struct.str()));
@@ -420,9 +506,14 @@ TEST(InterfaceAPI, ContainsOutputStructSanitised) {
 }
 
 TEST(InterfaceAPI, ContainsOutputStructClash) {
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output+",IntImm(DataType::Int(32),0));
+  output_sizes.Set("output-",IntImm(DataType::Int(32),0));
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output+", "output-"}, {}, {}, {}, 0,
-                       {"input" : 0}, {"output+" : 0, "output-" : 0});
+                       input_sizes, output_sizes);
   ASSERT_THROW(test_module->GetSource(), InternalError);
 }
 
@@ -435,8 +526,12 @@ TEST(InterfaceAPI, NoDeviceAPIStructIfNoDevices) {
                 << "struct tvmgen_ultimate_cat_spotter_devices {\n"
                 << "};\n\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {},
-                                                 {}, {}, 0, {"input" : 0}, {"output" : 0});
+                                                 {}, {}, 0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, Not(HasSubstr(device_struct.str())));
@@ -452,8 +547,12 @@ TEST(InterfaceAPI, ContainsDeviceStructSingle) {
                 << "  void* device;\n"
                 << "};\n\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {},
-                                                 {}, {"device"}, 0, {"input" : 0}, {"output" : 0});
+                                                 {}, {"device"}, 0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(device_struct.str()));
@@ -467,9 +566,13 @@ TEST(InterfaceAPI, ContainsDeviceStructMany) {
                 << "  void* device2;\n"
                 << "};\n\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {},
-                       {"device1", "device2"}, 0, {"input" : 0}, {"output" : 0});
+                       {"device1", "device2"}, 0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(device_struct.str()));
@@ -483,23 +586,35 @@ TEST(InterfaceAPI, ContainsDeviceStructSanitised) {
                 << "  void* device_2;\n"
                 << "};\n\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {},
-                       {"device+1", "device+2"}, 0, {"input" : 0}, {"output" : 0});
+                       {"device+1", "device+2"}, 0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(device_struct.str()));
 }
 
 TEST(InterfaceAPI, ContainsDeviceStructClash) {
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {},
-                                                 {}, {"device+", "device-"}, 0);
+                                                 {}, {"device+", "device-"}, 0, input_sizes, output_sizes);
   ASSERT_THROW(test_module->GetSource(), InternalError);
 }
 
 TEST(InterfaceAPI, ContainsWorkspaceSize) {
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {},
-                                                 {}, {}, 765432, {"input" : 0}, {"output" : 0});
+                                                 {}, {}, 765432, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source,
@@ -524,9 +639,13 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructSingle) {
       << "  void* my_memory_pool;\n"
       << "};\n\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {allocated_pool_info}, {}, {},
-                       0, {"input" : 0}, {"output" : 0});
+                       0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(workspace_struct.str()));
@@ -558,9 +677,13 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructMany) {
       << "  void* my_memory_pool_2;\n"
       << "};\n\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
                                                  {allocated_pool_info1, allocated_pool_info2}, {},
-                                                 {}, 0, {"input" : 0}, {"output" : 0});
+                                                 {}, 0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(workspace_struct.str()));
@@ -595,9 +718,13 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructSanitized) {
       << "  void* my_memory_pool_1;\n"
       << "};\n\n";
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {allocated_pool_info}, {}, {},
-                       0, {"input" : 0}, {"output" : 0});
+                       0, input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(workspace_struct.str()));
@@ -618,9 +745,13 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructClash) {
   tir::usmp::AllocatedPoolInfo allocated_pool_info2 =
       tir::usmp::AllocatedPoolInfo(pool_info2, 200000);
 
+  Map<String,IntImm> input_sizes;
+  input_sizes.Set("input",IntImm(DataType::Int(32),0));
+  Map<String,IntImm> output_sizes;
+  output_sizes.Set("output",IntImm(DataType::Int(32),0));
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
                                                  {allocated_pool_info1, allocated_pool_info2}, {},
-                                                 {}, 0, {"input" : 0}, {"output" : 0});
+                                                 {}, 0, input_sizes, output_sizes);
   ASSERT_THROW(test_module->GetSource(), InternalError);
 }
 
