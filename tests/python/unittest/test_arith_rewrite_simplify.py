@@ -992,5 +992,15 @@ def test_sub_bufferload():
     ck.verify(expr, 0.0)
 
 
+def test_if_then_else_simplify():
+    ck = RewriteChecker()
+    x = te.var("x", "int32")
+    z = tvm.tir.if_then_else(x < 5, tvm.tir.if_then_else(x > 1, 1, 0), 0)
+    ck.verify(z, tvm.tir.if_then_else(tvm.tir.And(tvm.tir.LT(x, 5), tvm.tir.LT(1, x)), 1, 0))
+
+    z = tvm.tir.if_then_else(x > 2, tvm.tir.if_then_else(x > 1, 1, 0), 0)
+    ck.verify(z, tvm.tir.if_then_else(tvm.tir.LT(2, x), 1, 0))
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
