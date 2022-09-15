@@ -50,6 +50,8 @@ def test_software_pipeline_with_cache_read(hexagon_launcher):
     sch.annotate(i, "software_pipeline_order", [0, 1])
     sch.annotate(i, "software_pipeline_async_stages", [0])
 
+    tvm.lower(sch.mod["main"]).show()
+
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
     func = tvm.build(sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon))
 

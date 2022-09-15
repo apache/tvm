@@ -46,11 +46,21 @@ class AsyncDMALowerer : public StmtExprMutator {
     //   dtype=int32
     // )
     if (op->attr_key == tir::attr::async_wait_queue_scope) {
+      // get queue ID
+      auto queue_id_node = op->value.as<IntImmNode>();
+      ICHECK(queue_id_node);
+      int queue_id = queue_id_node->value;
+
+      // abort if we have not seen this queue ID in `copy` transform
+      if (queue_ids.find(queue_id) == queue_ids.end()) {
+        return StmtExprMutator::VisitStmt_(op);
+      }
+
       auto async_wait = op->body.as<AttrStmtNode>();
       ICHECK(async_wait && async_wait->attr_key == tir::attr::async_wait_inflight_count);
 
       auto call_dma_wait =
-          Evaluate(Call(DataType::Int(32), builtin::dma_wait(), {op->value, async_wait->value}));
+          Evaluate(Call(DataType::Int(32), builtin::dma_wait(), {queue_id, async_wait->value}));
 
       // concatenate the call with the body and return
       return SeqStmt({call_dma_wait, async_wait->body});
@@ -71,59 +81,77 @@ class AsyncDMALowerer : public StmtExprMutator {
       //   dtype=int32
       // )
     } else if (op->attr_key == tir::attr::async_commit_queue_scope) {
+      // get queue ID
+      auto queue_id_node = op->value.as<IntImmNode>();
+      ICHECK(queue_id_node);
+      int queue_id = queue_id_node->value;
+
+      // save queue ID for inspection in `wait` transform
+      queue_ids.insert(queue_id);
+
+      // walk the graph to verify this is a mem copy ...
+      // 1) async_commit_queue_scope contains async_scope
       auto async_scope = op->body.as<AttrStmtNode>();
       ICHECK(async_scope && async_scope->attr_key == tir::attr::async_scope);
 
+      // 2) async_scope contains single for loop
       auto for_loop = async_scope->body.as<ForNode>();
       if (!for_loop) {
         return StmtExprMutator::VisitStmt_(op);
       }
 
+      // 3) for loop contains buffer store with single index
       auto bufferstorenode = for_loop->body.as<BufferStoreNode>();
-      if (!bufferstorenode) {
+      if (!bufferstorenode || bufferstorenode->indices.size() != 1) {
         return StmtExprMutator::VisitStmt_(op);
       }
 
-      ICHECK(bufferstorenode->indices.size() == 1);
-
+      // 4) buffer store value is a buffer load with single index
       auto bufferloadnode = bufferstorenode->value.as<BufferLoadNode>();
-      if (!bufferloadnode) {
+      if (!bufferloadnode || bufferloadnode->indices.size() != 1) {
         return StmtExprMutator::VisitStmt_(op);
       }
 
-      ICHECK(bufferloadnode->indices.size() == 1);
-
+      // get store buffer and assert that it is contiguous
       auto bufferstore = bufferstorenode->buffer.as<BufferNode>();
       ICHECK(bufferstore && bufferstore->strides.empty());
 
+      // get load buffer and assert that it is contiguous
       auto bufferload = bufferloadnode->buffer.as<BufferNode>();
       ICHECK(bufferload && bufferload->strides.empty());
 
-      // map loop variable to zero
+      // we will be replacing the entire for loop including its index
+      // with a DMA copy instrinsic that spans the entire index space of the for loop
+      // so we will need to repace the for loop index with value zero in the buffer indices
       Map<Var, PrimExpr> loop_var_remap = {{for_loop->loop_var, IntImm(DataType::Int(32), 0)}};
 
-      Array<PrimExpr> store_indices = bufferstorenode->indices;
-      store_indices.MutateByApply([&](PrimExpr expr) {
+      // map loop variable to zero for the store index & simplify
+      Array<PrimExpr> store_index = bufferstorenode->indices;
+      store_index.MutateByApply([&](PrimExpr expr) {
         arith::Analyzer analyzer;
         return analyzer.Simplify(Substitute(std::move(expr), loop_var_remap));
       });
 
-      Array<PrimExpr> load_indices = bufferloadnode->indices;
-      load_indices.MutateByApply([&](PrimExpr expr) {
+      // map loop variable to zero for the load index & simplify
+      Array<PrimExpr> load_index = bufferloadnode->indices;
+      load_index.MutateByApply([&](PrimExpr expr) {
         arith::Analyzer analyzer;
         return analyzer.Simplify(Substitute(std::move(expr), loop_var_remap));
       });
 
       return Evaluate(Call(DataType::Int(32), builtin::dma_copy(),
-                           {op->value,
+                           {queue_id,
                             Call(DataType::Handle(), builtin::address_of(),
-                                 {BufferLoad(bufferstorenode->buffer, store_indices)}),
+                                 {BufferLoad(bufferstorenode->buffer, store_index)}),
                             Call(DataType::Handle(), builtin::address_of(),
-                                 {BufferLoad(bufferloadnode->buffer, load_indices)}),
+                                 {BufferLoad(bufferloadnode->buffer, load_index)}),
                             for_loop->extent * bufferloadnode->dtype.bytes()}));
     }
     return StmtExprMutator::VisitStmt_(op);
   }
+
+ private:
+  std::set<int> queue_ids;
 };
 
 namespace transform {
