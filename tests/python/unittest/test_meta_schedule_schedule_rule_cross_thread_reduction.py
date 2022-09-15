@@ -19,6 +19,7 @@
 import tvm
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing import te_workload
+from tvm.meta_schedule.testing.schedule_rule import get_rules
 from tvm.meta_schedule.testing.space_generation import check_sketches
 from tvm.script import tir as T
 from tvm.target import Target
@@ -283,9 +284,7 @@ def test_gpu_softmax_mn():
         mod=mod,
         target=Target("nvidia/geforce-rtx-3090", host="llvm"),
         space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=[
-            ms.schedule_rule.CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512])
-        ],
+        sch_rules=get_rules("cuda", ms.schedule_rule.CrossThreadReduction),
         task_name="test",
     ).generate_design_space()
     check_sketches(
@@ -481,9 +480,7 @@ def test_gpu_softmax_mn_after_inline():
         mod=mod,
         target=Target("nvidia/geforce-rtx-3090", host="llvm"),
         space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=[
-            ms.schedule_rule.CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512])
-        ],
+        sch_rules=get_rules("cuda", ms.schedule_rule.CrossThreadReduction),
         task_name="test",
     ).generate_design_space()
     check_sketches(
@@ -559,9 +556,7 @@ def test_gpu_batch_norm_bmn():
         mod=mod,
         target=Target("nvidia/geforce-rtx-3090", host="llvm"),
         space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=[
-            ms.schedule_rule.CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512])
-        ],
+        sch_rules=get_rules("cuda", ms.schedule_rule.CrossThreadReduction),
         task_name="test",
     ).generate_design_space()
     check_sketches(
@@ -657,9 +652,7 @@ def test_gpu_argmax():
         mod=mod,
         target=Target("nvidia/geforce-rtx-3090", host="llvm"),
         space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=[
-            ms.schedule_rule.CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512])
-        ],
+        sch_rules=get_rules("cuda", ms.schedule_rule.CrossThreadReduction),
         task_name="test",
     ).generate_design_space()
     check_sketches(
