@@ -25,20 +25,13 @@ import tvm
 from test_clml.infrastructure import skip_runtime_test, build_and_run, Device
 
 
-def _build_and_run_network(mod, params, inputs, data, device, atol, rtol):
+def _build_and_run_network(mod, params, inputs, data, device, atol, rtol, tvm_log=""):
     """Helper function to build and run a network."""
 
     outputs = []
     for clml in [True, False]:
         outputs.append(
-            build_and_run(
-                mod,
-                data,
-                1,
-                params,
-                device,
-                enable_clml=clml,
-            )[0]
+            build_and_run(mod, data, 1, params, device, enable_clml=clml, tune_log=tvm_log)[0][0]
         )
     return outputs
 
@@ -55,11 +48,7 @@ def _get_keras_model(keras_model, inputs_dict, data):
     def get_bottom_top_model(model, layer_name):
         layer = model.get_layer(layer_name)
         bottom_input = model.layers[0].input
-        bottom_output = bottom_input
-        for layer in model.layers:
-            bottom_output = layer(bottom_output)
-            if layer.name == layer_name:
-                break
+        bottom_output = layer.output
         bottom_model = Model(bottom_input, bottom_output)
         return bottom_model
 
@@ -81,6 +70,9 @@ def test_mobilenet():
 
     def get_model():
         from tensorflow.keras.applications import MobileNet
+        import tensorflow as tf
+
+        tf.keras.backend.clear_session()
 
         mobilenet = MobileNet(
             include_top=True, weights=None, input_shape=(224, 224, 3), classes=1000
@@ -106,32 +98,113 @@ def test_mobilenet():
     )
 
     # test
-    print("OpenCL:", outputs[0][0].asnumpy().shape)
-    print("CLML:", outputs[1][0].asnumpy().shape)
+    print("OpenCL:", outputs[0].asnumpy().shape)
+    print("CLML:", outputs[1].asnumpy().shape)
 
-    opencl_sort = np.argsort(outputs[1][0].asnumpy()).flatten()
-    clml_sort = np.argsort(outputs[0][0].asnumpy()).flatten()
+    opencl_sort = np.argsort(outputs[1].asnumpy()).flatten()
+    clml_sort = np.argsort(outputs[0].asnumpy()).flatten()
 
     tvm.testing.assert_allclose(opencl_sort[:10], clml_sort[:10], rtol=1e-5, atol=1e-5)
 
 
-"""
-    tvm.testing.assert_allclose(
-         ref_outputs, outputs[1][0].asnumpy(), rtol=1e-5, atol=1e-5)
-    print("OpenCL to Keras looks good")
-    tvm.testing.assert_allclose(
-         outputs[0][0].asnumpy(), outputs[1][0].asnumpy(), rtol=1e-5, atol=1e-5)
-    print("OpenCL to CLML looks good")
-    exit(0)
+def test_inception_v3():
+    Device.load("test_config.json")
 
-    tvm.testing.assert_allclose(
-         ref_outputs.transpose(0, 3, 1, 2), outputs[1][0].asnumpy(), rtol=1e-5, atol=1e-5)
-    print("OpenCL to Keras looks good")
-    tvm.testing.assert_allclose(
-         outputs[0][0].asnumpy(), outputs[1][0].asnumpy(), rtol=1e-5, atol=1e-5)
-    print("OpenCL to CLML looks good")
-"""
+    if skip_runtime_test():
+        return
+
+    device = Device()
+    dtype = "float16"
+
+    def get_model():
+        from tensorflow.keras.applications import InceptionV3
+        import tensorflow as tf
+
+        tf.keras.backend.clear_session()
+
+        inceptionV3 = InceptionV3(
+            include_top=True, weights=None, input_shape=(299, 299, 3), classes=1000
+        )
+        inputs = {inceptionV3.input_names[0]: ((1, 3, 299, 299), "float16")}
+
+        data = {}
+        np.random.seed(0)
+        for name, (shape, dtype) in inputs.items():
+            if dtype == "uint8":
+                low, high = 0, 1
+            else:
+                low, high = -2, 1
+            data[name] = np.random.uniform(low, high, shape).astype(dtype)
+
+        mod, params, ref_outputs = _get_keras_model(inceptionV3, inputs, data)
+        return mod, params, inputs, data, ref_outputs
+
+    mod, params, inputs, input_data, ref_outputs = get_model()
+    outputs = _build_and_run_network(
+        mod, params, inputs, input_data, device=device, atol=1e-5, rtol=1e-5
+    )
+
+    opencl_sort = np.argsort(outputs[1].asnumpy()).flatten()
+    clml_sort = np.argsort(outputs[0].asnumpy()).flatten()
+
+    tvm.testing.assert_allclose(opencl_sort[:5], clml_sort[:5], rtol=1e-5, atol=1e-5)
+
+
+def test_resnet50v2():
+    Device.load("test_config.json")
+
+    if skip_runtime_test():
+        return
+
+    device = Device()
+    dtype = "float16"
+
+    def get_model():
+        from tensorflow.keras.applications import ResNet50V2
+        import tensorflow as tf
+
+        tf.keras.backend.clear_session()
+
+        model = ResNet50V2(include_top=True, weights=None, input_shape=(224, 224, 3), classes=1000)
+        inputs_dict = {model.input_names[0]: ((1, 3, 224, 224), "float32")}
+
+        data = {}
+        np.random.seed(0)
+
+        for name, (shape, dtype) in inputs_dict.items():
+            if dtype == "uint8":
+                low, high = 0, 1
+            else:
+                low, high = -1, 1
+            data[name] = np.random.uniform(low, high, shape).astype(dtype)
+
+        """Convert Keras graph to relay."""
+        inputs = {}
+        for name, (shape, _) in inputs_dict.items():
+            inputs[model.input_names[0]] = shape
+
+        ref_outputs = model.predict(data["input_1"].transpose(0, 2, 3, 1))
+
+        mod, params = relay.frontend.from_keras(model, inputs, layout="NCHW")
+
+        return mod, params, inputs, data, ref_outputs
+
+    mod, params, inputs, input_data, ref_outputs = get_model()
+    outputs = _build_and_run_network(
+        mod, params, inputs, input_data, device=device, atol=1e-5, rtol=1e-5
+    )
+
+    # test
+    print("OpenCL:", outputs[0].asnumpy().shape)
+    print("CLML:", outputs[1].asnumpy().shape)
+
+    opencl_sort = np.argsort(outputs[1].asnumpy()).flatten()
+    clml_sort = np.argsort(outputs[0].asnumpy()).flatten()
+
+    tvm.testing.assert_allclose(opencl_sort[:10], clml_sort[:10], rtol=1e-5, atol=1e-5)
 
 
 if __name__ == "__main__":
     test_mobilenet()
+    test_resnet50v2()
+    test_inception_v3()

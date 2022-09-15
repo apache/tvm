@@ -455,15 +455,14 @@ std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_
 /******** Reduction Block Related ********/
 
 /*!
- * \brief Convert the `init` and `body` of the input block to BufferStores
- * \param self The schedule state
- * \param block The block to be analyzed
- * \return The BufferStores of the `init` and `body` of the input block
- * \throw ScheduleError If the `init` or `body` is not BufferStore, or they don't write to the same
- * buffer
+ * \brief Get the init values and the BufferStore updates from the input reduction block
+ * \param self The schedule state, used for error reporting
+ * \param block The block from which the init values and BufferStore updates are extracted from
+ * \return The extracted init values and BufferStore updates
+ * \throw ScheduleError If rfactor or cross-thread reduction cannot be applied to the block
  */
-std::pair<BufferStore, BufferStore> GetBufferStoresFromReductionBlock(
-    const Optional<ScheduleState>& self, const Block& block);
+std::pair<Array<PrimExpr>, Array<BufferStore>> GetInitValuesAndUpdatesFromReductionBlock(
+    const Optional<ScheduleState>& self, Block block);
 
 /*!
  * \brief Check whether the input array of IterVars only contains data-parallel and reduction block
@@ -484,16 +483,17 @@ bool ContainsOnlyDataParAndReductionBlockIter(const Array<IterVar>& iters);
 bool ReductionIterNotIndexOutputBuffer(const Block& block);
 
 /*!
- * \brief Given a reduction identity and a reduction combiner, detect the corresponding commutative
- * reducer, and extract the combiner lhs and combiner rhs
+ * \brief Given a list of reduction identities and a list of reduction combiners, detect the
+ * corresponding commutative reducer, and extract the combiner LHS values and combiner RHS values
  * \param self The schedule state
- * \param identity The reduction identity to be analyzed
- * \param combiner The reduction combiner to be analyzed
- * \return The corresponding CommReducer, the combiner lhs and the combiner rhs
+ * \param identities The reduction identities to be analyzed
+ * \param combiners The reduction combiners to be analyzed
+ * \return The corresponding CommReducer, combiner LHS values and combiner RHS values
  * \throw ScheduleError If no corresponding commutative reducer can be matched
  */
-std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs(
-    const Optional<ScheduleState>& self, const PrimExpr& identity, const BufferStore& combiner);
+std::tuple<CommReducer, Array<PrimExpr>, Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
+    const Optional<ScheduleState>& self, const Array<PrimExpr>& identities,
+    const Array<BufferStore>& combiners);
 
 /******** Commutative Reducer ********/
 
@@ -502,20 +502,20 @@ std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs(
  * \return The list of the registered reducer-getter functions
  * \sa ReducerRegistry
  */
-std::vector<runtime::TypedPackedFunc<CommReducer(DataType)>> GetReducerGetters();
+std::vector<runtime::TypedPackedFunc<Optional<CommReducer>(Array<PrimExpr>)>> GetReducerGetters();
 
 /*!
- * \brief Given the input identity and the combiner BufferStore of a reduction, extract the
- * corresponding commutative reducer and its lhs, rhs if possible.
- * \param identity The identity of the reduction
- * \param combiner The combiner of the reduction
+ * \brief Given the input identities and the combiner BufferStores of a reduction, extract the
+ * corresponding commutative reducer, LHS values and RHS values, if possible.
+ * \param identities The identities of the reduction
+ * \param combiners The combiners of the reduction
  * \param result_reducer The extracted CommReducer
- * \param lhs The extracted lhs of the reducer
- * \param rhs The extracted rhs of the reducer
+ * \param lhs The extracted LHS values of the reducer
+ * \param rhs The extracted RHS values of the reducer
  * \return A boolean indicating whether a corresponding commutative reducer is found
  */
-bool FromIdentityCombiner(const PrimExpr& identity, const BufferStore& combiner,
-                          CommReducer* result_reducer, PrimExpr* lhs, PrimExpr* rhs);
+bool FromIdentityCombiner(const Array<PrimExpr>& identities, const Array<BufferStore>& combiners,
+                          CommReducer* result_reducer, Array<PrimExpr>* lhs, Array<PrimExpr>* rhs);
 
 /******** Misc ********/
 
