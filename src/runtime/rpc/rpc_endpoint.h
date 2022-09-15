@@ -70,6 +70,12 @@ class RPCEndpoint {
  public:
   /*! \brief virtual destructor */
   ~RPCEndpoint();
+
+  /*!
+   *  \brief The server shutdown cleanup function.
+   */
+  void Shutdown();
+
   /*!
    *  \brief The server loop that server runs to handle RPC calls.
    */
@@ -177,8 +183,6 @@ class RPCEndpoint {
   RPCCode HandleUntilReturnEvent(bool client_mode, RPCSession::FEncodeReturn setreturn);
   // Initalization
   void Init();
-  // Shutdown
-  void Shutdown();
   // Internal channel.
   std::unique_ptr<RPCChannel> channel_;
 
