@@ -3381,6 +3381,15 @@ def float_infinity():
     return func
 
 
+def minimal_i32_literal():
+    @T.prim_func
+    def func() -> None:
+        T.evaluate(T.int32(-2147483648))
+        T.evaluate(-T.int64(2147483648))
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3423,6 +3432,7 @@ ir_generator = tvm.testing.parameter(
     decl_buffer,
     allocate_and_decl_buffer,
     float_infinity,
+    minimal_i32_literal,
 )
 
 
