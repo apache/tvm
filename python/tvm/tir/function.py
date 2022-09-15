@@ -271,6 +271,12 @@ class IndexMap(Object):
         Variables representing the indices prior to remapping.
     final_indices : List[PrimExpr]
         Expressions defining the indices after remapping.
+    inverse_index_map : Union[Callable, Optional[IndexMap]]
+        The optional pre-defined inverse index map.
+        When this is defined, IndexMap::Inverse will return the pre-defined inverse index map.
+        Otherwise, the inverse index map will be computed on the fly.
+        It is the user's responsibility to ensure the correctness of the pre-defined inverse
+        index map.
     """
 
     initial_indices: List[Var]
@@ -281,11 +287,19 @@ class IndexMap(Object):
     # Stage.transform_layout for more details.
     AXIS_SEPARATOR = "axis_separator"
 
-    def __init__(self, initial_indices, final_indices):
-        self.__init_handle_by_constructor__(_ffi_api.IndexMap, initial_indices, final_indices)
+    def __init__(self, initial_indices, final_indices, inverse_index_map):
+        if isinstance(inverse_index_map, Callable):
+            inverse_index_map = IndexMap.from_func(inverse_index_map)
+        self.__init_handle_by_constructor__(
+            _ffi_api.IndexMap, initial_indices, final_indices, inverse_index_map
+        )
 
     @staticmethod
-    def from_func(mapping_function: Callable, ndim: Optional[int] = None):
+    def from_func(
+        mapping_function: Callable,
+        ndim: Optional[int] = None,
+        inverse_index_map: Union[Callable, Optional["IndexMap"]] = None,
+    ):
         """Create an index map from a function
 
         Parameters
@@ -305,6 +319,13 @@ class IndexMap(Object):
             mapping_function does not use variadic arguments, ndim is
             optional.
 
+        inverse_index_map : Union[Callable, Optional[IndexMap]]
+            The optional pre-defined inverse index map.
+            When this is defined, IndexMap::Inverse will return the pre-defined inverse index map.
+            Otherwise, the inverse index map will be computed on the fly.
+            It is the user's responsibility to ensure the correctness of the pre-defined inverse
+            index map.
+
         Returns
         -------
         index_map: IndexMap
@@ -312,7 +333,9 @@ class IndexMap(Object):
             Returns an IndexMap representing the `mapping_function`.
 
         """
-        index_map, axis_separators = IndexMap.from_func_with_separators(mapping_function, ndim)
+        index_map, axis_separators = IndexMap.from_func_with_separators(
+            mapping_function, ndim, inverse_index_map
+        )
         assert not axis_separators, (
             "The mapping_function provided to IndexMap.from_func "
             "may not return IndexMap.AXIS_SEPARATOR.  "
@@ -321,7 +344,11 @@ class IndexMap(Object):
         return index_map
 
     @staticmethod
-    def from_func_with_separators(mapping_function: Callable, ndim: Optional[int] = None):
+    def from_func_with_separators(
+        mapping_function: Callable,
+        ndim: Optional[int] = None,
+        inverse_index_map: Union[Callable, Optional["IndexMap"]] = None,
+    ):
         """Create an index map from a function
 
         Parameters
@@ -340,6 +367,13 @@ class IndexMap(Object):
             variadic argument `*args`, ndim must be specified.  If
             mapping_function does not use variadic arguments, ndim is
             optional.
+
+        inverse_index_map : Union[Callable, Optional[IndexMap]]
+            The optional pre-defined inverse index map.
+            When this is defined, IndexMap::Inverse will return the pre-defined inverse index map.
+            Otherwise, the inverse index map will be computed on the fly.
+            It is the user's responsibility to ensure the correctness of the pre-defined inverse
+            index map.
 
         Returns
         -------
@@ -401,7 +435,7 @@ class IndexMap(Object):
                     f"Instead received {val} of type {type(val)}."
                 )
 
-        return IndexMap(initial_indices, final_indices), axis_separators
+        return IndexMap(initial_indices, final_indices, inverse_index_map), axis_separators
 
     def is_equivalent_to(self, other_map: "IndexMap") -> bool:
         """Return if the index maps are equivalent.
