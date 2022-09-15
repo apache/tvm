@@ -66,6 +66,16 @@ class ScheduleRule(Object):
             self, sch, block
         )
 
+    def clone(self) -> "ScheduleRule":
+        """Deep clone the schedule rule.
+
+        Returns
+        -------
+        cloned_rule : ScheduleRule
+            The cloned schedule rule.
+        """
+        return _ffi_api.ScheduleRuleClone(self)  # type: ignore # pylint: disable=no-member
+
 
 @register_object("meta_schedule.PyScheduleRule")
 class _PyScheduleRule(ScheduleRule):
@@ -80,6 +90,7 @@ class _PyScheduleRule(ScheduleRule):
         self,
         f_initialize_with_tune_context: Callable = None,
         f_apply: Callable = None,
+        f_clone: Callable = None,
         f_as_string: Callable = None,
     ):
         """Constructor."""
@@ -88,6 +99,7 @@ class _PyScheduleRule(ScheduleRule):
             _ffi_api.ScheduleRulePyScheduleRule,  # type: ignore # pylint: disable=no-member
             f_initialize_with_tune_context,
             f_apply,
+            f_clone,
             f_as_string,
         )
 
@@ -102,7 +114,7 @@ class PyScheduleRule:
 
     _tvm_metadata = {
         "cls": _PyScheduleRule,
-        "methods": ["_initialize_with_tune_context", "apply", "__str__"],
+        "methods": ["_initialize_with_tune_context", "apply", "clone", "__str__"],
     }
 
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
@@ -135,6 +147,16 @@ class PyScheduleRule:
         return _ffi_api.ScheduleRuleApply(  #  type: ignore # pylint: disable=no-member
             self, sch, block
         )
+
+    def clone(self) -> ScheduleRule:
+        """Deep clone the schedule rule.
+
+        Returns
+        -------
+        cloned_rule : ScheduleRule
+            The cloned schedule rule.
+        """
+        return _ffi_api.ScheduleRuleClone(self)  #  type: ignore # pylint: disable=no-member
 
     def __str__(self) -> str:
         """Get the schedule rule as string with name.

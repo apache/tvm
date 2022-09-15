@@ -113,6 +113,15 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     return {tmp_sch, sch};
   }
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() final {
+    ObjectPtr<CrossThreadReductionNode> n = make_object<CrossThreadReductionNode>(*this);
+    n->thread_extents = thread_extents;
+    n->max_threads_per_block = max_threads_per_block;
+    n->warp_size = warp_size;
+    return ScheduleRule(n);
+  }
+
  private:
   /*!
    * \brief Check whether the input block is in thread scope, i.e., some of its outer loop is

@@ -36,6 +36,16 @@ class AddRFactorNode : public ScheduleRuleNode {
   // Inherited from ScheduleRuleNode
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv);
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() final {
+    ObjectPtr<AddRFactorNode> n = make_object<AddRFactorNode>(*this);
+    n->max_jobs_per_core = this->max_jobs_per_core;
+    n->max_innermost_factor = this->max_innermost_factor;
+    n->max_parallel_extent_ = this->max_parallel_extent_;
+    n->max_parallel_basic_ = this->max_parallel_basic_;
+    return ScheduleRule(n);
+  }
+
  public:
   /*!
    * \brief The maximum number of jobs to be launched per core.

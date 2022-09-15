@@ -79,6 +79,18 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
     return {sch};
   }
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() final {
+    ObjectPtr<ParallelizeVectorizeUnrollNode> n =
+        make_object<ParallelizeVectorizeUnrollNode>(*this);
+    n->max_jobs_per_core = this->max_jobs_per_core;
+    n->max_vectorize_extent = this->max_vectorize_extent;
+    n->unroll_max_steps = this->unroll_max_steps;
+    n->unroll_explicit = this->unroll_explicit;
+    n->max_parallel_extent_ = this->max_parallel_extent_;
+    return ScheduleRule(n);
+  }
+
  public:
   /*!
    * \brief The maximum number of jobs to be launched per CPU core. It sets the

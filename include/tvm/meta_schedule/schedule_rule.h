@@ -34,6 +34,7 @@ namespace tvm {
 namespace meta_schedule {
 
 class TuneContext;
+class ScheduleRule;
 
 /*! \brief Rules to modify a block in a schedule. */
 class ScheduleRuleNode : public runtime::Object {
@@ -58,6 +59,12 @@ class ScheduleRuleNode : public runtime::Object {
    */
   virtual runtime::Array<tir::Schedule> Apply(const tir::Schedule& sch,
                                               const tir::BlockRV& block) = 0;
+
+  /*!
+   * \brief Deep clone the schedule rule.
+   * \return The cloned schedule rule.
+   */
+  virtual ScheduleRule Clone() = 0;
 
   static constexpr const char* _type_key = "meta_schedule.ScheduleRule";
   TVM_DECLARE_BASE_OBJECT_INFO(ScheduleRuleNode, Object);
@@ -84,6 +91,11 @@ class PyScheduleRuleNode : public ScheduleRuleNode {
    * \return The string of the schedule rule.
    */
   using FAsString = runtime::TypedPackedFunc<String()>;
+  /*!
+   * \brief The function type of `Clone` method.
+   * \return The cloned schedule rule.
+   */
+  using FClone = runtime::TypedPackedFunc<ScheduleRule()>;
 
   /*! \brief The packed function to the `InitializeWithTuneContext` function. */
   FInitializeWithTuneContext f_initialize_with_tune_context;
@@ -91,15 +103,19 @@ class PyScheduleRuleNode : public ScheduleRuleNode {
   FApply f_apply;
   /*! \brief The packed function to the `AsString` function. */
   FAsString f_as_string;
+  /*! \brief The packed function to the `Clone` function. */
+  FClone f_clone;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `f_initialize_with_tune_context` is not visited
     // `f_apply` is not visited
     // `f_as_string` is not visited
+    // `f_clone` is not visited
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block) final;
+  ScheduleRule Clone() final;
 
   static constexpr const char* _type_key = "meta_schedule.PyScheduleRule";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyScheduleRuleNode, ScheduleRuleNode);
@@ -255,6 +271,7 @@ class ScheduleRule : public runtime::ObjectRef {
   TVM_DLL static ScheduleRule PyScheduleRule(
       PyScheduleRuleNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
       PyScheduleRuleNode::FApply f_apply,                                             //
+      PyScheduleRuleNode::FClone f_clone,                                             //
       PyScheduleRuleNode::FAsString f_as_string);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ScheduleRule, ObjectRef, ScheduleRuleNode);
 };
