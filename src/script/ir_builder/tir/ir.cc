@@ -173,6 +173,74 @@ BlockFrame Block(String name, bool no_realize) {
   return BlockFrame(n);
 }
 
+#define TVM_TIR_IR_BUILDER_FOR_FRAME(Method, Kind)                                                \
+  ForFrame Method(PrimExpr start, PrimExpr stop, Optional<Map<String, ObjectRef>> annotations) {  \
+    PrimExpr min = start;                                                                         \
+    PrimExpr extent = arith::Analyzer().Simplify(stop - start);                                   \
+    ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();                                      \
+    int bits = std::max(min.dtype().bits(), extent.dtype().bits());                               \
+    n->vars = {Var("v", DataType::Int(bits))};                                                    \
+    n->doms = {Range::FromMinExtent(min, extent)};                                                \
+    n->f_make_for_loop = [annotations](Array<Var> vars, Array<Range> doms, tvm::tir::Stmt body) { \
+      ICHECK_EQ(vars.size(), 1);                                                                  \
+      ICHECK_EQ(doms.size(), 1);                                                                  \
+      return tvm::tir::For(vars[0], doms[0]->min, doms[0]->extent, Kind, body, NullOpt,           \
+                           annotations.value_or(Map<String, ObjectRef>()));                       \
+    };                                                                                            \
+    return ForFrame(n);                                                                           \
+  }
+
+TVM_TIR_IR_BUILDER_FOR_FRAME(Serial, tvm::tir::ForKind::kSerial);
+TVM_TIR_IR_BUILDER_FOR_FRAME(Parallel, tvm::tir::ForKind::kParallel);
+TVM_TIR_IR_BUILDER_FOR_FRAME(Vectorized, tvm::tir::ForKind::kVectorized);
+TVM_TIR_IR_BUILDER_FOR_FRAME(Unroll, tvm::tir::ForKind::kUnrolled);
+
+#undef TVM_TIR_IR_BUILDER_FOR_FRAME
+
+ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
+                       Optional<Map<String, ObjectRef>> annotations) {
+  using namespace tvm::tir;
+  PrimExpr min = start;
+  PrimExpr extent = arith::Analyzer().Simplify(stop - start);
+  ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();
+  int bits = std::max(min.dtype().bits(), extent.dtype().bits());
+  n->vars = {Var("v", DataType::Int(bits))};
+  n->doms = {Range::FromMinExtent(min, extent)};
+  n->f_make_for_loop = [annotations, thread](Array<Var> vars, Array<Range> doms, Stmt body) -> For {
+    ICHECK_EQ(vars.size(), 1);
+    ICHECK_EQ(doms.size(), 1);
+    IterVar iter_var(Range(nullptr), Var("iter", DataType::Int(32)), IterVarType::kThreadIndex,
+                     thread);
+    return For(vars[0], doms[0]->min, doms[0]->extent, ForKind::kThreadBinding, body, iter_var,
+               annotations.value_or(Map<String, ObjectRef>()));
+  };
+  return ForFrame(n);
+}
+
+ForFrame Grid(Array<PrimExpr> extents) {
+  using namespace tvm::tir;
+  ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();
+  n->vars.reserve(extents.size());
+  n->doms.reserve(extents.size());
+  for (const auto& extent : extents) {
+    DataType dtype = extent.dtype();
+    n->vars.push_back(Var("v", extent.dtype()));
+    n->doms.push_back(Range(make_const(dtype, 0), extent));
+  }
+  n->f_make_for_loop = [](Array<Var> vars, Array<Range> doms, Stmt body) -> Stmt {
+    ICHECK_EQ(vars.size(), doms.size());
+    int n = vars.size();
+    for (int i = n - 1; i >= 0; --i) {
+      Range dom = doms[i];
+      Var var = vars[i];
+      body = For(var, dom->min, dom->extent, ForKind::kSerial, std::move(body),
+                 /*thread_binding=*/NullOpt, /*annotations=*/{});
+    }
+    return body;
+  };
+  return ForFrame(n);
+}
+
 void Evaluate(PrimExpr value) { AddToParent(tvm::tir::Evaluate(value)); }
 
 using tvm::script::ir_builder::details::Namer;
@@ -235,6 +303,14 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.MatchBuffer").set_body_typed(MatchBuf
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.PreflattenedBuffer").set_body_typed(PreflattenedBuffer);
 
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Block").set_body_typed(Block);
+
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Serial").set_body_typed(Serial);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Parallel").set_body_typed(Parallel);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Vectorized").set_body_typed(Vectorized);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Unroll").set_body_typed(Unroll);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.ThreadBinding").set_body_typed(ThreadBinding);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Grid").set_body_typed(Grid);
+
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Evaluate").set_body_typed(Evaluate);
 
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Int8").set_body_typed(Int8);

@@ -142,6 +142,59 @@ void PreflattenedBuffer(Buffer postflattened_buffer, Array<PrimExpr> shape,
 BlockFrame Block(String name, bool no_realize = false);
 
 /*!
+ * \brief The serial For statement.
+ * \param start The minimum value of iteration.
+ * \param stop The maximum value of iteration.
+ * \param annotations The optional annotations of the For statement.
+ * \return The ForFrame.
+ */
+ForFrame Serial(PrimExpr start, PrimExpr stop,
+                Optional<Map<String, ObjectRef>> annotations = NullOpt);
+/*!
+ * \brief The parallel For statement.
+ * \param start The minimum value of iteration.
+ * \param stop The maximum value of iteration.
+ * \param annotations The optional annotations of the For statement.
+ * \return The ForFrame.
+ */
+ForFrame Parallel(PrimExpr start, PrimExpr stop,
+                  Optional<Map<String, ObjectRef>> annotations = NullOpt);
+/*!
+ * \brief The vectorized For statement.
+ * \param start The minimum value of iteration.
+ * \param stop The maximum value of iteration.
+ * \param annotations The optional annotations of the For statement.
+ * \return The ForFrame.
+ */
+ForFrame Vectorized(PrimExpr start, PrimExpr stop,
+                    Optional<Map<String, ObjectRef>> annotations = NullOpt);
+/*!
+ * \brief The unrolled For statement.
+ * \param start The minimum value of iteration.
+ * \param stop The maximum value of iteration.
+ * \param annotations The optional annotations of the For statement.
+ * \return The ForFrame.
+ */
+ForFrame Unroll(PrimExpr start, PrimExpr stop,
+                Optional<Map<String, ObjectRef>> annotations = NullOpt);
+/*!
+ * \brief The thread-binding For statement.
+ * \param start The minimum value of iteration.
+ * \param stop The maximum value of iteration.
+ * \param thread The thread for loop variable to bind.
+ * \param annotations The optional annotations of the For statement.
+ * \return The ForFrame.
+ */
+ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
+                       Optional<Map<String, ObjectRef>> annotations = NullOpt);
+/*!
+ * \brief The grid For statement.
+ * \param extents The extents of the iteration.
+ * \return The ForFrame.
+ */
+ForFrame Grid(Array<PrimExpr> extents);
+
+/*!
  * \brief Evaluate the input expression.
  * \param value The input expression to evaluate.
  */

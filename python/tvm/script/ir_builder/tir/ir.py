@@ -344,6 +344,172 @@ def block(name: str = "", no_realize: bool = False) -> frame.BlockFrame:
     return _ffi_api.Block(name, no_realize)  # pylint: disable=no-member # type: ignore
 
 
+def serial(
+    start: PrimExpr, stop: PrimExpr = None, *, annotations: Dict[str, Any] = None
+) -> frame.ForFrame:
+    """The serial For statement.
+
+    Parameters
+    ----------
+    start : PrimExpr
+        The minimum value of iteration.
+
+    stop : PrimExpr
+        The maximum value of iteration.
+
+    annotations : Dict[str, Any]
+        The optional annotations of the For statement.
+
+    Returns
+    -------
+    res : frame.ForFrame
+        The ForFrame.
+    """
+    if stop is None:
+        stop = start
+        start = 0
+    return _ffi_api.Serial(start, stop, annotations)  # pylint: disable=no-member # type: ignore
+
+
+def parallel(
+    start: PrimExpr, stop: PrimExpr = None, *, annotations: Dict[str, Any] = None
+) -> frame.ForFrame:
+    """The parallel For statement.
+
+    Parameters
+    ----------
+    start : PrimExpr
+        The minimum value of iteration.
+
+    stop : PrimExpr
+        The maximum value of iteration.
+
+    annotations : Dict[str, Any]
+        The optional annotations of the For statement.
+
+    Returns
+    -------
+    res : frame.ForFrame
+        The ForFrame.
+    """
+    if stop is None:
+        stop = start
+        start = 0
+    return _ffi_api.Parallel(start, stop, annotations)  # pylint: disable=no-member # type: ignore
+
+
+def vectorized(
+    start: PrimExpr, stop: PrimExpr = None, *, annotations: Dict[str, Any] = None
+) -> frame.ForFrame:
+    """The vectorized For statement.
+
+    Parameters
+    ----------
+    start : PrimExpr
+        The minimum value of iteration.
+
+    stop : PrimExpr
+        The maximum value of iteration.
+
+    annotations : Dict[str, Any]
+        The optional annotations of the For statement.
+
+    Returns
+    -------
+    res : frame.ForFrame
+        The ForFrame.
+    """
+    if stop is None:
+        stop = start
+        start = 0
+    return _ffi_api.Vectorized(start, stop, annotations)  # pylint: disable=no-member # type: ignore
+
+
+def unroll(
+    start: PrimExpr, stop: PrimExpr = None, *, annotations: Dict[str, Any] = None
+) -> frame.ForFrame:
+    """The unrolled For statement.
+
+    Parameters
+    ----------
+    start : PrimExpr
+        The minimum value of iteration.
+
+    stop : PrimExpr
+        The maximum value of iteration.
+
+    annotations : Dict[str, Any]
+        The optional annotations of the For statement.
+
+    Returns
+    -------
+    res : frame.ForFrame
+        The ForFrame.
+    """
+    if stop is None:
+        stop = start
+        start = 0
+    return _ffi_api.Unroll(start, stop, annotations)  # pylint: disable=no-member # type: ignore
+
+
+def thread_binding(
+    start: PrimExpr,
+    stop: PrimExpr = None,
+    thread: str = None,
+    *,
+    annotations: Dict[str, Any] = None,
+) -> frame.ForFrame:
+    """The thread-binding For statement.
+
+    Parameters
+    ----------
+    start : PrimExpr
+        The minimum value of iteration.
+
+    stop : PrimExpr
+        The maximum value of iteration.
+
+    thread : str
+        The thread for loop variable to bind.
+
+    annotations : Dict[str, Any]
+        The optional annotations of the For statement.
+
+    Returns
+    -------
+    res : frame.ForFrame
+        The ForFrame.
+    """
+    if thread is None:
+        if not isinstance(stop, str):
+            raise ValueError("Thread cannot be None for thread_binding")
+        thread = stop
+        stop = start
+        start = 0
+    elif stop is None:
+        stop = start
+        start = 0
+    return _ffi_api.ThreadBinding(  # pylint: disable=no-member # type: ignore
+        start, stop, thread, annotations
+    )
+
+
+def grid(*extents: PrimExpr) -> frame.ForFrame:
+    """The grid For statement.
+
+    Parameters
+    ----------
+    extents : PrimExpr
+        The extents of the iteration.
+
+    Returns
+    -------
+    res : frame.ForFrame
+        The ForFrame.
+    """
+    return _ffi_api.Grid(extents)  # pylint: disable=no-member # type: ignore
+
+
 def evaluate(value: PrimExpr) -> None:
     """Evaluate the input expression.
 
@@ -677,6 +843,12 @@ __all__ = [
     "match_buffer",
     "preflattened_buffer",
     "block",
+    "serial",
+    "parallel",
+    "vectorized",
+    "unroll",
+    "thread_binding",
+    "grid",
     "evaluate",
     "int8",
     "int16",

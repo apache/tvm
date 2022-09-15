@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """IRBuilder for TIR"""
+from typing import List, Union
 
 from tvm._ffi import register_object as _register_object
+from tvm.tir import Var
 
 from ..base import IRBuilderFrame
 
@@ -34,3 +36,10 @@ class PrimFuncFrame(TIRFrame):
 @_register_object("script.ir_builder.tir.BlockFrame")
 class BlockFrame(TIRFrame):
     ...
+
+
+@_register_object("script.ir_builder.tir.ForFrame")
+class ForFrame(TIRFrame):
+    def __enter__(self) -> Union[Var, List[Var]]:
+        super().__enter__()
+        return self.vars if len(self.vars) > 1 else self.vars[0]
