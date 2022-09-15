@@ -208,7 +208,14 @@ def test_export_model_library_format_c(
                 {
                     "constants_size_bytes": json_constants_size_bytes,
                     "device": 1,
+                    "inputs": {
+                        "a": 2,
+                        "b": 8,
+                    },
                     "io_size_bytes": 18,
+                    "outputs": {
+                        "0": 8
+                    },
                     "workspace_size_bytes": 0,
                 }
             ]
@@ -295,7 +302,14 @@ def test_export_model_library_format_llvm():
                 {
                     "constants_size_bytes": 8,
                     "device": 1,
+                    "inputs": {
+                        "a": 2,
+                        "b": 8,
+                    },
                     "io_size_bytes": 18,
+                    "outputs": {
+                        "0": 8
+                    },
                     "workspace_size_bytes": 0,
                 }
             ]
@@ -373,7 +387,15 @@ def test_export_model_library_format_workspace(executor, runtime):
             {
                 "constants_size_bytes": 0,
                 "device": 1,
+                "inputs": {
+                    "p0": 802816,
+                    "p1": 2304,
+                    "p2": 512
+                },
                 "io_size_bytes": 1207040,
+                "outputs": {
+                    "0": 401408
+                },
                 "workspace_size_bytes": 2466816,
             }
         ]
@@ -459,7 +481,21 @@ def test_export_byoc_c_module():
                 {
                     "constants_size_bytes": 0,
                     "device": 1,
+                    "inputs": {
+                        "w0": 400,
+                        "w1": 400,
+                        "w2": 400,
+                        "w3": 400,
+                        "w4": 400,
+                        "w5": 400,
+                        "w6": 400,
+                        "w7": 400,
+                        "x": 400
+                    },
                     "io_size_bytes": 4800,
+                    "outputs": {
+                        "0": 1200
+                    },
                     "workspace_size_bytes": 1200,
                 }
             ]
@@ -523,7 +559,14 @@ def test_multiple_relay_modules_graph():
             {
                 "constants_size_bytes": 0,
                 "device": 1,
+                "inputs": {
+                    "data": 12288,
+                    "weight": 600
+                },
                 "io_size_bytes": 143960,
+                "outputs": {
+                    "0": 131072
+                },
                 "workspace_size_bytes": 158088,
             }
         ]

@@ -286,8 +286,12 @@ def _build_function_memory_map(function_metadata):
 
         output_dict = {}
         # For output, we dont have the name of the output, so we enumerate them
-        for i, output_type in enumerate(main_func_metadata.relay_primfuncs[target].ret_type.fields):
-            output_dict[i] = int(_shape_to_size(output_type.shape,output_type.dtype))
+        if isinstance(main_func_metadata.relay_primfuncs[target].ret_type,tvm.ir.type.TupleType):
+            for i, output_type in enumerate(main_func_metadata.relay_primfuncs[target].ret_type.fields):
+                output_dict[i] = int(_shape_to_size(output_type.shape,output_type.dtype))
+        else:
+            output_type = main_func_metadata.relay_primfuncs[target].ret_type
+            output_dict[0] = int(_shape_to_size(output_type.shape,output_type.dtype))
         target_main_entries[int(target.kind.device_type)]["outputs"] = output_dict
 
     ret = {
