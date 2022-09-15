@@ -265,6 +265,7 @@ class ScheduleRule : public runtime::ObjectRef {
    * \brief Create a schedule rule with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
    * \param f_apply The packed function of `Apply`.
+   * \param f_clone The packed function of `Clone`.
    * \param f_as_string The packed function of `AsString`.
    * \return The schedule rule created.
    */
