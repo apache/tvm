@@ -31,7 +31,6 @@ echo $TZ > /etc/timezone
 apt-get update && apt-install-and-clear -y --no-install-recommends \
     apt-transport-https \
     ca-certificates \
-    cmake \
     curl \
     g++ \
     gdb \

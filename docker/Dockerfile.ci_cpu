@@ -25,6 +25,9 @@ RUN apt-get update --fix-missing
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
+COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
+RUN bash /install/ubuntu_install_cmake_source.sh
+
 COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
 RUN bash /install/ubuntu_install_googletest.sh
 
@@ -40,9 +43,6 @@ RUN bash /install/ubuntu_install_python_package.sh
 
 COPY install/ubuntu1804_install_llvm.sh /install/ubuntu1804_install_llvm.sh
 RUN bash /install/ubuntu1804_install_llvm.sh
-
-COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
-RUN bash /install/ubuntu_install_cmake_source.sh
 
 COPY install/ubuntu_install_dnnl.sh /install/ubuntu_install_dnnl.sh
 RUN bash /install/ubuntu_install_dnnl.sh
