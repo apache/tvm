@@ -108,9 +108,13 @@ TVM_DECLARE_LOGICAL_OP(Not);
 template <typename Op>
 inline IntervalSet Combine(Analyzer* analyzer, IntervalSet a, IntervalSet b, DataType dtype) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
-    PrimExpr res = TryConstFold<Op>(a->min_value, b->min_value);
-    if (!res.defined()) res = Op(a->min_value, b->min_value);
-    return IntervalSet::SinglePoint(res);
+    PrimExpr expr;
+    if (auto res = TryConstFold<Op>(a->min_value, b->min_value)) {
+      expr = res.value();
+    } else {
+      expr = Op(a->min_value, b->min_value);
+    }
+    return IntervalSet::SinglePoint(expr);
   }
   if (is_logical_op<Op>::value) {
     return IntervalSet(make_const(dtype, 0), make_const(dtype, 1));

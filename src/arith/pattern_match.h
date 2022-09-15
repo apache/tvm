@@ -330,8 +330,7 @@ class PBinaryExpr : public Pattern<PBinaryExpr<OpType, TA, TB>> {
   PrimExpr Eval() const {
     PrimExpr lhs = a_.Eval();
     PrimExpr rhs = b_.Eval();
-    PrimExpr ret = TryConstFold<OpType>(lhs, rhs);
-    if (ret.defined()) return ret;
+    if (auto ret = TryConstFold<OpType>(lhs, rhs)) return ret.value();
     return OpType(lhs, rhs);
   }
 
