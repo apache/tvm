@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-09-14T11:22:31.582192
+// Generated at 2022-09-15T16:03:21.407877
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -213,7 +213,7 @@ def cancel_previous_build() {
 
 def checkout_trusted_files() {
   // trust everything from branch builds
-  if (!env.BRANCH_NAME.startsWith('PR-')) {
+  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
     return;
   }
 

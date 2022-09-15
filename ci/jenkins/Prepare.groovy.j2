@@ -101,7 +101,7 @@ def cancel_previous_build() {
 
 def checkout_trusted_files() {
   // trust everything from branch builds
-  if (!env.BRANCH_NAME.startsWith('PR-')) {
+  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
     return;
   }
 
