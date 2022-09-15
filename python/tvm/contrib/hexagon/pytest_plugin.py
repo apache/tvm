@@ -248,8 +248,7 @@ def hexagon_launcher(
     finally:
         if android_serial_num == ["simulator"]:
             launcher.stop_server(cleanup=(not hexagon_debug))
-
-        if not hexagon_debug:
+        elif not hexagon_debug:
             launcher.cleanup_directory()
 
 
