@@ -110,11 +110,5 @@ RUN bash /install/ubuntu_install_ethosu_driver_stack.sh
 COPY install/ubuntu_install_vela.sh /install/ubuntu_install_vela.sh
 RUN bash /install/ubuntu_install_vela.sh
 
-#Install CSI-NN2
-COPY install/ubuntu_download_csinn2_compute_lib.sh /install/ubuntu_download_csinn2_compute_lib.sh
-RUN bash /install/ubuntu_download_csinn2_compute_lib.sh
-
 # Update PATH
 ENV PATH /opt/arm/gcc-arm-none-eabi/bin:/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4:$PATH
-ENV PATH /opt/csi-nn2/tools/gcc-toolchain/bin:$PATH
-ENV PATH /opt/csi-nn2/tools/qemu/bin:$PATH

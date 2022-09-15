@@ -84,10 +84,28 @@ COPY install/ubuntu_install_zephyr_sdk.sh /install/ubuntu_install_zephyr_sdk.sh
 RUN bash /install/ubuntu_install_zephyr.sh
 ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr
 
-#Install CSI-NN2
+# Download RISC-V gcc toolchain (linux)
+COPY install/ubuntu_download_xuantie_gcc_linux.sh /install/ubuntu_download_xuantie_gcc_linux.sh
+RUN bash /install/ubuntu_download_xuantie_gcc_linux.sh /opt/riscv/riscv64-unknown-linux-gnu
+
+# Download RISC-V gcc toolchain (baremetal)
+COPY install/ubuntu_download_xuantie_gcc_newlib.sh /install/ubuntu_download_xuantie_gcc_newlib.sh
+RUN bash /install/ubuntu_download_xuantie_gcc_newlib.sh /opt/riscv/riscv64-unknown-elf
+
+# Install RISC-V QEMU
+COPY install/ubuntu_download_xuantie_qemu.sh /install/ubuntu_download_xuantie_qemu.sh
+RUN bash /install/ubuntu_download_xuantie_qemu.sh /opt/riscv/qemu/
+
+# Install CSI-NN2
 COPY install/ubuntu_download_csinn2_compute_lib.sh /install/ubuntu_download_csinn2_compute_lib.sh
 RUN bash /install/ubuntu_download_csinn2_compute_lib.sh
 
+# Build spike (riscv-isa-sim) and proxy kernel (pk)
+COPY install/ubuntu_install_spike_sim.sh /install/ubuntu_install_spike_sim.sh
+RUN bash /install/ubuntu_install_spike_sim.sh /opt/riscv/riscv64-unknown-elf/
+
 # Update PATH
-ENV PATH /opt/csi-nn2/tools/gcc-toolchain/bin:$PATH
-ENV PATH /opt/csi-nn2/tools/qemu/bin:$PATH
+ENV PATH /opt/riscv/riscv64-unknown-linux-gnu/bin:$PATH
+ENV PATH /opt/riscv/riscv64-unknown-elf/bin:$PATH
+ENV PATH /opt/riscv/qemu/bin:$PATH
+ENV PATH /opt/riscv/spike/bin:$PATH
