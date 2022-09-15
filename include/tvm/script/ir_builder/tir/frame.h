@@ -190,13 +190,19 @@ class BlockFrame : public TIRFrame {
 /*!
  * \brief A frame that represents the for loop.
  *
- * \sa BlockInitFrame
+ * \sa ForFrame
  */
 class ForFrameNode : public TIRFrameNode {
  public:
-  /*! \brief The for loop generating function type. */
-  using FMakeForLoop =
-      runtime::TypedPackedFunc<tvm::tir::Stmt(Array<tvm::tir::Var>, Array<Range>, tvm::tir::Stmt)>;
+  /*!
+   * \brief Functions that generate loop nests.
+   * \param loop_vars The loop variables, from outer to inner
+   * \param loop_extents The loop extents that correspond to loop variables
+   * \param loop_body The loop body
+   * \return A stmt, the loop nest
+   */
+  using FMakeForLoop = runtime::TypedPackedFunc<tvm::tir::Stmt(
+      Array<tvm::tir::Var> loop_vars, Array<Range> loop_extents, tvm::tir::Stmt loop_body)>;
   /*! \brief The loop variable. */
   Array<tvm::tir::Var> vars;
   /*! \brief The domains of iteration. */
