@@ -82,7 +82,7 @@ class HexagonBufferManager {
   //! \brief Returns whether the HexagonBufferManager has any allocations.
   bool empty() {
     std::lock_guard<std::mutex> lock(map_mutex_);
-    return hexagon_buffer_map_.empty(); 
+    return hexagon_buffer_map_.empty();
   }
 
  private:
