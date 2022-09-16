@@ -169,6 +169,7 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
         "ci_arm",
         "ci_hexagon",
         "ci_riscv",
+        "ci_adreno",
     }
 
     if image in sccache_images and os.getenv("USE_SCCACHE", "1") == "1":
@@ -683,6 +684,19 @@ generated = [
                 "run full Python tests",
                 [
                     "./tests/scripts/task_riscv_microtvm.sh",
+                ],
+            ),
+        },
+    ),
+    generate_command(
+        name="adreno",
+        help="Run Adreno build and test(s)",
+        post_build=["./tests/scripts/task_build_adreno_bins.sh"],
+        options={
+            "test": (
+                "run Adreno API/Python tests",
+                [
+                    "./tests/scripts/task_python_adreno.sh " + os.environ.get("ANDROID_SERIAL", ""),
                 ],
             ),
         },

@@ -899,8 +899,8 @@ requires_opencl = Feature(
     "OpenCL",
     cmake_flag="USE_OPENCL",
     target_kind_enabled="opencl",
-    target_kind_hardware="opencl",
-    parent_features="gpu",
+    target_kind_hardware="opencl" if "RPC_TARGET" not in os.environ else None,
+    parent_features="gpu" if "RPC_TARGET" not in os.environ else None,
 )
 
 # Mark a test as requiring the rocm runtime

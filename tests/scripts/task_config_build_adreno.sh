@@ -16,23 +16,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+set -euxo pipefail
 
-if [ -z ${1+x} ]; then
-    version=3.18.4
-else
-    version=$1
-fi
+BUILD_DIR=$1
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
+cp ../cmake/config.cmake .
 
-v=$(echo $version | sed 's/\(.*\)\..*/\1/g')
-echo "Installing cmake $version ($v)"
-wget https://cmake.org/files/v${v}/cmake-${version}.tar.gz
-tar xvf cmake-${version}.tar.gz
-cd cmake-${version}
-./bootstrap
-make -j$(nproc)
-make install
-cd ..
-rm -rf cmake-${version} cmake-${version}.tar.gz
+echo set\(USE_OPENCL ON\) >> config.cmake
+echo set\(USE_CLML ON\) >> config.cmake
+echo set\(USE_RPC ON\) >> config.cmake
+echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
+echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
+echo set\(USE_LLVM ON\) >> config.cmake

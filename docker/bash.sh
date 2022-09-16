@@ -453,6 +453,12 @@ if [ -f "${REPO_DIR}/.git" ]; then
     fi
 fi
 
+if [[ "${DOCKER_IMAGE_NAME}" == *"ci_adreno"* && ! -z "${ADRENO_OPENCL}" ]]; then
+    DOCKER_MOUNT+=( --volume ${ADRENO_OPENCL}:/adreno-opencl)
+    DOCKER_ENV+=( --env ADRENO_OPENCL=/adreno-opencl )
+    DOCKER_ENV+=( --net=host)
+fi
+
 # Print arguments.
 echo "REPO_DIR: ${REPO_DIR}"
 echo "DOCKER CONTAINER NAME: ${DOCKER_IMAGE_NAME}"
