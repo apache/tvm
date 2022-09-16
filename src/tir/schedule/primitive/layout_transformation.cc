@@ -884,7 +884,7 @@ class TransformationPaddingExpressionError : public ScheduleError {
 
  private:
   struct Visitor : ExprVisitor {
-    Visitor(const Buffer& buffer) : buffer_(buffer) {}
+    explicit Visitor(const Buffer& buffer) : buffer_(buffer) {}
 
     void VisitExpr_(const BufferLoadNode* op) final {
       if (!op->buffer.same_as(buffer_)) {
