@@ -268,7 +268,7 @@ def extract_param_base_addresses(mod, buffer_info, scratch_region_map) -> List[u
         size_bytes = element_size_bytes * np.prod(list(buffer.shape))
         base_addresses.append(
             util.BaseAddress(
-                param.name,
+                param.name.replace("-", "_"),
                 idx,
                 _get_region(buffer_info[param].btype, param, scratch_region_map),
                 size_bytes,

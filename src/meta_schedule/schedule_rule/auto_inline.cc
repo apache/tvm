@@ -60,6 +60,12 @@ class AutoInlineNode : public ScheduleRuleNode {
     return {sch};
   }
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<AutoInlineNode> n = make_object<AutoInlineNode>(*this);
+    return ScheduleRule(n);
+  }
+
  public:
   /*! \brief If allows to inline a block into its producer */
   bool into_producer;

@@ -154,6 +154,30 @@ def test_set_axis_separator_subregion(use_sugared_transform):
     tvm.ir.assert_structural_equal(element_wise_subregion_match_set_axis_separator, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
+class TestIndexedLookup(tvm.testing.CompareBeforeAfter):
+    def transform(self):
+        def func(mod):
+            sch = tir.Schedule(mod)
+            sch.set_axis_separator('block', 'B', [1])
+            return sch.mod
+        return func
+
+    @T.prim_func
+    def before():
+        A = T.alloc_buffer([4,4], dtype="int32")
+        B = T.alloc_buffer([1,1], dtype="int32")
+        for j in T.serial(4):
+            with T.block('block'):
+                A[B[0,0],j] = 0
+
+    @T.prim_func
+    def expected():
+        A = T.alloc_buffer([4,4], dtype="int32")
+        B = T.alloc_buffer([1,1], dtype="int32", axis_separators=[1])
+        for j in T.serial(4):
+            with T.block('block'):
+                A[B[0,0],j] = 0
+
 
 if __name__ == "__main__":
     tvm.testing.main()

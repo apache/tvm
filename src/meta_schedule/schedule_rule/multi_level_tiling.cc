@@ -104,6 +104,12 @@ Array<Schedule> MultiLevelTilingNode::Apply(const Schedule& sch, const BlockRV& 
   return results;
 }
 
+// Inherited from ScheduleRuleNode
+ScheduleRule MultiLevelTilingNode::Clone() const {
+  ObjectPtr<MultiLevelTilingNode> n = make_object<MultiLevelTilingNode>(*this);
+  return ScheduleRule(n);
+}
+
 std::vector<State> MultiLevelTilingNode::ApplySubRules(std::vector<State> states) {
   states = SubRule(std::move(states), [&](State state) { return TileLoopNest(std::move(state)); });
   states = SubRule(std::move(states), [&](State state) { return AddWriteReuse(std::move(state)); });

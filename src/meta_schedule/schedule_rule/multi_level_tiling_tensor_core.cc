@@ -137,6 +137,13 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
   // Override Apply to apply tensorization-specific analysis before applying sub-rules
   Array<Schedule> Apply(const Schedule& sch, const BlockRV& block_rv) final;
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<MultiLevelTilingTensorCoreNode> n =
+        make_object<MultiLevelTilingTensorCoreNode>(*this);
+    return ScheduleRule(n);
+  }
+
   /*!
    * \brief Transform and tensorize with the given tensor intrin
    * \param state The state of the meta schedule rule
@@ -321,7 +328,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
   // Add local stage and double buffering
   for (int i = 0; i < 2; ++i) {
     const tir::BlockRV cache_read = state->read_reuse.at(i);
-    sch->Annotate(cache_read, tir::attr::manifest_shared_memory_local_stage, Bool(true));
+    sch->Annotate(cache_read, tir::attr::manifest_shared_memory_local_stage, Integer(1));
     sch->Annotate(cache_read, tir::attr::double_buffer_scope, Integer(0));
   }
 
@@ -529,7 +536,7 @@ inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorizat
                        state->intrin_group.compute_intrin);
   state->sch->Annotate(state->block_rv, tir::attr::meta_schedule_auto_tensorize_init,
                        state->intrin_group.init_intrin);
-  state->sch->Annotate(state->block_rv, tir::attr::warp_execution, Bool(true));
+  state->sch->Annotate(state->block_rv, tir::attr::warp_execution, Integer(1));
   return {std::move(state)};
 }
 
