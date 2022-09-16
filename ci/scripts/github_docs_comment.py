@@ -23,10 +23,10 @@ def build_docs_url(base_url_docs, pr_number, build_number):
     return f"{base_url_docs}/PR-{str(pr_number)}/{str(build_number)}/docs/index.html"
 
 
-def find_target_url(pr_head: Dict[str, Any]):
+def find_jenkins_job(pr_head: Dict[str, Any]):
     for status in pr_head["statusCheckRollup"]["contexts"]["nodes"]:
         if status.get("context", "") == "tvm-ci/pr-head":
-            return status["targetUrl"]
+            return status
 
     raise RuntimeError(f"Unable to find tvm-ci/pr-head status in {pr_head}")
 
@@ -41,7 +41,12 @@ def get_pr_and_build_numbers(target_url):
 
 def get_doc_url(pr: Dict[str, Any], base_docs_url: str = "https://pr-docs.tlcpack.ai") -> str:
     pr_head = pr["commits"]["nodes"][0]["commit"]
-    target_url = find_target_url(pr_head)
+    status = find_jenkins_job(pr_head)
+
+    if status["state"].lower() != "success":
+        return None
+
+    target_url = status["targetUrl"]
     pr_and_build = get_pr_and_build_numbers(target_url)
 
     commit_sha = pr_head["oid"]

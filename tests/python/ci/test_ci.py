@@ -137,7 +137,25 @@ TEST_DATA_SKIPPED_BOT = {
         "jenkins_prefix": "ci.tlcpack.ai",
         "common_main_build": """{"build_number": "4115", "state": "failed"}""",
         "commit_sha": "sha1234",
-        "expected_body": "Unable to run tests bot because main failed to pass CI at sha1234.",
+        "expected_body": "Unable to determine skipped tests because CI on main in sha1234 failed",
+    },
+    "unable-to-run-pending": {
+        "main_xml_file": "unittest/file1.xml",
+        "main_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                    <testsuites>
+                    </testsuites>
+                    """,
+        "pr_xml_file": "unittest/file2.xml",
+        "pr_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                    <testsuites>
+                    </testsuites>
+                    """,
+        "target_url": "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
+        "s3_prefix": "tvm-jenkins-artifacts-prod",
+        "jenkins_prefix": "ci.tlcpack.ai",
+        "common_main_build": """{"build_number": "4115", "state": "pending"}""",
+        "commit_sha": "sha1234",
+        "expected_body": "Unable to determine skipped tests because CI on main in sha1234 is pending",
     },
 }
 # pylint: enable=line-too-long
@@ -238,6 +256,7 @@ def test_docs_comment(target_url, base_url, commit_sha, expected_body):
                                 "nodes": [
                                     {
                                         "context": "tvm-ci/pr-head",
+                                        "state": "success",
                                         "targetUrl": target_url,
                                     }
                                 ]
@@ -253,6 +272,77 @@ def test_docs_comment(target_url, base_url, commit_sha, expected_body):
         base_docs_url=base_url,
     )
     assert_in(expected_body, comment)
+
+
+@tvm.testing.skip_if_wheel_test
+@parameterize_named(
+    none=dict(
+        pr_data={
+            "isDraft": False,
+            "title": "abc",
+            "user": {
+                "login": "someone-else",
+            },
+            "labels": [],
+        },
+        expected_comment="No users to @ found in tags <sub>See",
+    ),
+    basic=dict(
+        pr_data={
+            "isDraft": False,
+            "title": "[abc] abc",
+            "user": {
+                "login": "someone-else",
+            },
+            "labels": [],
+        },
+        expected_comment="cc @someone <sub>See",
+    ),
+    draft=dict(
+        pr_data={
+            "isDraft": True,
+        },
+        expected_comment=None,
+    ),
+)
+def test_tag_teams_comment_entrypoint(caplog, pr_data, expected_comment):
+    """
+    Test github_tag_teams.py's entrypoint used in github_pr_comment.py
+    """
+    github = scripts.git_utils.GitHubRepo(
+        user="apache",
+        repo="tvm",
+        token=scripts.git_utils.DRY_RUN,
+        test_data={
+            "[1] POST - https://api.github.com/graphql": {
+                "title": 1,
+            },
+            "[2] POST - https://api.github.com/graphql": {
+                "data": {
+                    "repository": {
+                        "issue": {
+                            "body": "- abc: @someone",
+                            "comments": {
+                                "nodes": [],
+                            },
+                        }
+                    }
+                }
+            },
+        },
+    )
+
+    with caplog.at_level(logging.INFO):
+        comment = scripts.github_tag_teams.get_tags(
+            pr_data=pr_data,
+            github=github,
+            team_issue=1234,
+        )
+
+    if expected_comment is None:
+        assert comment is None
+    else:
+        assert_in(expected_comment, comment)
 
 
 @tvm.testing.skip_if_wheel_test
@@ -456,11 +546,12 @@ def test_update_branch(tmpdir_factory, statuses, expected_rc, expected_output):
             """
         <!---bot-comment-->
 
-        Thanks for contributing to TVM! Please refer to the contributing guidelines https://tvm.apache.org/docs/contribute/ for useful information and tips. Please request code reviews from [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers) by @-ing them in a comment.
+        Thanks for contributing to TVM! Please refer to the [contributing guidelines](https://tvm.apache.org/docs/contribute/) for useful information and tips. Please request code reviews from [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers) by @-ing them in a comment.
 
         <!--bot-comment-ccs-start-->
          * the cc<!--bot-comment-ccs-end--><!--bot-comment-skipped-tests-start-->
-         * the skipped tests<!--bot-comment-skipped-tests-end--><!--bot-comment-docs-start-->
+         * the skipped tests
+            some more info<!--bot-comment-skipped-tests-end--><!--bot-comment-docs-start-->
          * the docs<!--bot-comment-docs-end-->
         """
         ).strip(),
@@ -475,7 +566,7 @@ def test_update_branch(tmpdir_factory, statuses, expected_rc, expected_output):
                     """
         <!---bot-comment-->
 
-        Thanks for contributing to TVM! Please refer to the contributing guidelines https://tvm.apache.org/docs/contribute/ for useful information and tips. Please request code reviews from [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers) by @-ing them in a comment.
+        Thanks for contributing to TVM! Please refer to the [contributing guidelines](https://tvm.apache.org/docs/contribute/) for useful information and tips. Please request code reviews from [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers) by @-ing them in a comment.
 
         <!--bot-comment-ccs-start-->
          * the cc<!--bot-comment-ccs-end--><!--bot-comment-something-tests-start-->
@@ -490,13 +581,14 @@ def test_update_branch(tmpdir_factory, statuses, expected_rc, expected_output):
             """
         <!---bot-comment-->
 
-        Thanks for contributing to TVM! Please refer to the contributing guidelines https://tvm.apache.org/docs/contribute/ for useful information and tips. Please request code reviews from [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers) by @-ing them in a comment.
+        Thanks for contributing to TVM! Please refer to the [contributing guidelines](https://tvm.apache.org/docs/contribute/) for useful information and tips. Please request code reviews from [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers) by @-ing them in a comment.
 
         <!--bot-comment-ccs-start-->
          * the cc<!--bot-comment-ccs-end--><!--bot-comment-something-tests-start-->
          * something else<!--bot-comment-something-tests-end--><!--bot-comment-docs-start-->
          * the docs<!--bot-comment-docs-end--><!--bot-comment-skipped-tests-start-->
-         * the skipped tests<!--bot-comment-skipped-tests-end-->
+         * the skipped tests
+            some more info<!--bot-comment-skipped-tests-end-->
         """
         ).strip(),
     ),
@@ -549,7 +641,7 @@ def test_pr_comment(tmpdir_factory, pr_author, comments, expected):
     comments = {
         "ccs": "the cc",
         "docs": "the docs",
-        "skipped-tests": "the skipped tests",
+        "skipped-tests": "the skipped tests\nsome more info",
     }
     proc = run_script(
         [
@@ -559,6 +651,8 @@ def test_pr_comment(tmpdir_factory, pr_author, comments, expected):
             json.dumps(data),
             "--test-comments",
             json.dumps(comments),
+            "--run-url",
+            "https://example.com/1234",
             "--pr",
             "1234",
         ],

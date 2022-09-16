@@ -201,6 +201,10 @@ def determine_users_to_cc(
 
 
 def get_tags(pr_data: Dict[str, Any], github: GitHubRepo, team_issue: int) -> str:
+    if pr_data["isDraft"]:
+        logging.info("PR is a draft, skipping")
+        return None
+
     to_cc = determine_users_to_cc(
         issue=pr_data, github=github, team_issue=team_issue, issue_data=None
     )
@@ -208,7 +212,7 @@ def get_tags(pr_data: Dict[str, Any], github: GitHubRepo, team_issue: int) -> st
     logging.info(f"Users to cc based on labels: {to_cc}")
     description = "<sub>See [#10317](https://github.com/apache/tvm/issues/10317) for details</sub>"
     if len(to_cc) == 0:
-        return "No users to tag found in teams " + description
+        return "No users to @ found in tags " + description
 
     return "cc " + ", ".join([f"@{user}" for user in to_cc]) + " " + description
 

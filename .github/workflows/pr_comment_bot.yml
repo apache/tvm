@@ -36,20 +36,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.number }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
         run: |
           set -eux
-          python ci/scripts/github_pr_comment.py --pr "$PR_NUMBER"
+          RUN_URL=https://github.com/apache/tvm/actions/runs/$GITHUB_RUN_ID
+          python ci/scripts/github_pr_comment.py --pr "$PR_NUMBER" --run-url "$RUN_URL"
       - name: Comment bot comment (status)
         if: ${{ github.event.state }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           URL: ${{ github.event.target_url }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
         run: |
           set -eux
+          RUN_URL=https://github.com/apache/tvm/actions/runs/$GITHUB_RUN_ID
           if [[ "$URL" == *"PR-"* ]]; then
             echo "PR status, sending comment"
             PR_NUMBER=$(echo $URL | sed 's/.*PR-//g' | sed 's/\/.*//g')
-            python ci/scripts/github_pr_comment.py --pr "$PR_NUMBER"
+            python ci/scripts/github_pr_comment.py --pr "$PR_NUMBER" --run-url "$RUN_URL"
           else
             echo "Not a PR status, skipping"
           fi

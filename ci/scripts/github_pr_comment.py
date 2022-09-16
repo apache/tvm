@@ -18,6 +18,7 @@
 import argparse
 import os
 import json
+import logging
 
 from git_utils import git, GitHubRepo, parse_remote, DRY_RUN
 from cmd_utils import init_log
@@ -34,6 +35,7 @@ PR_QUERY = """
           body
           state
           number
+          isDraft
           author {
             login
           }
@@ -86,6 +88,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=help)
     parser.add_argument("--remote", default="origin", help="ssh remote to parse")
     parser.add_argument("--pr", required=True)
+    parser.add_argument("--run-url", required=True, help="URL of the current GitHub Actions run")
     parser.add_argument("--test-data", help="(testing) mock GitHub API data")
     parser.add_argument("--test-comments", help="(testing) testing comments")
     parser.add_argument(
@@ -121,21 +124,46 @@ if __name__ == "__main__":
     )
 
     pr_data = pr_data["data"]["repository"]["pullRequest"]
-    commenter = BotCommentBuilder(github=github, data=pr_data)
+    commenter = BotCommentBuilder(github=github, data=pr_data, run_url=args.run_url)
 
+    commenters = {
+        "ccs": (
+            get_tags,
+            {
+                "pr_data": pr_data,
+                "github": github,
+                "team_issue": 10317,
+            },
+        ),
+        "skipped-tests": (
+            get_skipped_tests_comment,
+            {
+                "pr": pr_data,
+                "github": github,
+            },
+        ),
+        "docs": (
+            get_doc_url,
+            {
+                "pr": pr_data,
+            },
+        ),
+    }
+    items = {}
+    logging.info(f"Dispatching to {commenters.keys()}")
+
+    test_comments = None
     if args.test_comments is not None:
         test_comments = json.loads(args.test_comments)
-        skipped_tests = test_comments["skipped-tests"]
-        ccs = test_comments["ccs"]
-        docs_info = test_comments["docs"]
-    else:
-        skipped_tests = get_skipped_tests_comment(pr_data, github=github)
-        ccs = get_tags(pr_data, github, team_issue=10317)
-        docs_info = get_doc_url(pr_data)
 
-    items = {
-        "ccs": ccs,
-        "skipped-tests": skipped_tests,
-        "docs": docs_info,
-    }
+    for tag, (callable, args) in commenters.items():
+        if test_comments is not None:
+            items[tag] = test_comments[tag]
+        else:
+            try:
+                items[tag] = callable(**args)
+            except Exception as e:
+                logging.exception(e)
+                items[tag] = None
+
     commenter.post_items(items=items.items())

@@ -112,7 +112,12 @@ def build_comment(
     jenkins_prefix,
 ):
     if common_main_build["state"] != "success":
-        return f"Unable to run tests bot because main failed to pass CI at {common_commit_sha}."
+        status = f'is {common_main_build["state"]}'
+        if common_main_build["state"] == "failed":
+            status = "failed"
+        return (
+            f"Unable to determine skipped tests because CI on main in {common_commit_sha} {status}"
+        )
 
     if len(skipped_list) == 0:
         return f"No additional skipped tests found in this branch for commit {commit_sha}."
