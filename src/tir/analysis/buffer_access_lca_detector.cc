@@ -25,13 +25,11 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include "../../runtime/thread_storage_scope.h"
 #include "../../support/arena.h"
-#include "../../support/utils.h"
 
 namespace tvm {
 namespace tir {
-
-using support::StartsWith;
 
 /*!
  * \brief Detect the lowest common ancestor(LCA) position of Buffer access.
@@ -92,9 +90,12 @@ class LCADetector : public StmtExprVisitor {
     const ScopeInfo* parent_scope = ancestor_scopes_.back();
     auto* current_scope = arena_.make<ScopeInfo>(parent_scope, op, n);
 
-    if (op->thread_binding.defined() &&
-        StartsWith(op->thread_binding.value()->thread_tag, "blockIdx.")) {
-      blockidx_scopes_.push_back(current_scope);
+    if (op->thread_binding.defined()) {
+      const runtime::ThreadScope& scope =
+          runtime::ThreadScope::Create(op->thread_binding.value()->thread_tag);
+      if (scope.rank == 0) {
+        blockidx_scopes_.push_back(current_scope);
+      }
     }
 
     ancestor_scopes_.push_back(current_scope);
@@ -126,7 +127,8 @@ class LCADetector : public StmtExprVisitor {
     if (op->attr_key == attr::thread_extent) {
       const auto* iter = op->node.as<IterVarNode>();
       ICHECK_NOTNULL(iter);
-      if (StartsWith(iter->thread_tag, "blockIdx.")) {
+      const runtime::ThreadScope& scope = runtime::ThreadScope::Create(iter->thread_tag);
+      if (scope.rank == 0) {
         blockidx_scopes_.push_back(ancestor_scopes_.back());
       }
     }
@@ -178,7 +180,9 @@ class LCADetector : public StmtExprVisitor {
 
   void UpdateWithBlockidx() {
     for (const auto& it : buffer_lca_) {
-      if (GetRef<Buffer>(it.first).scope() == "global") {
+      const runtime::StorageScope& scope =
+          runtime::StorageScope::Create(GetRef<Buffer>(it.first).scope());
+      if (scope.rank == runtime::StorageRank::kGlobal) {
         const ScopeInfo*& lca = buffer_lca_[it.first];
         for (const ScopeInfo* blockidx_scope : blockidx_scopes_) {
           lca = LowestCommonAncestor(lca, blockidx_scope);
