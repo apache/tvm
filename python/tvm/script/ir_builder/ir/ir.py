@@ -21,4 +21,4 @@ from .frame import IRModuleFrame
 
 
 def ir_module() -> IRModuleFrame:
-    return _ffi_api.IRModule()  # pylint: disable=no-member # type: ignore
+    return _ffi_api.IRModule()  # type: ignore[attr-defined] # pylint: disable=no-member
