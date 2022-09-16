@@ -99,9 +99,11 @@ class Session:
         try:
             func = self._rpc.get_function("device_api.hexagon.release_resources")
             func()
-        except RuntimeError:
-            # do nothing, as we are shutting down
-            ...
+        except RuntimeError as exception:
+            print(
+                "Exception occurred while calling release_resources() during Session __exit__: ",
+                exception,
+            )
         finally:
             # close session to the tracker
             del self._rpc

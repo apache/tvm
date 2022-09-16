@@ -152,7 +152,7 @@ TEST_F(HexagonDeviceAPITest, DISABLED_alloc_free_diff_dev) {
 // "Release" resources for runtime
 // Verify the runtime buffer cannot be freed, but the non-runtime buffer can
 // This test should be run last
-TEST_F(HexagonDeviceAPITest, z_leak_resources) {
+TEST_F(HexagonDeviceAPITest, leak_resources) {
   hexapi->ReleaseResources();
   void* pre_runtime_buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
   CHECK(pre_runtime_buf != nullptr);
