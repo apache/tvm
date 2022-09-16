@@ -1058,6 +1058,50 @@ def requires_nvcc_version(major_version, minor_version=0, release_version=0):
     return inner
 
 
+def requires_cuda_compute_version(major_version, minor_version=0):
+    """Mark a test as requiring at least a compute architecture
+
+    Unit test marked with this decorator will run only if the CUDA
+    compute architecture of the GPU is at least `(major_version,
+    minor_version)`.
+
+    This also marks the test as requiring a cuda support.
+
+    Parameters
+    ----------
+    major_version: int
+
+        The major version of the (major,minor) version tuple.
+
+    minor_version: int
+
+        The minor version of the (major,minor) version tuple.
+    """
+    min_version = (major_version, minor_version)
+    try:
+        arch = tvm.contrib.nvcc.get_target_compute_version()
+        compute_version = tvm.contrib.nvcc.parse_compute_version(arch)
+    except ValueError:
+        # No GPU present.  This test will be skipped from the
+        # requires_cuda() marks as well.
+        compute_version = (0, 0)
+
+    min_version_str = ".".join(str(v) for v in min_version)
+    compute_version_str = ".".join(str(v) for v in compute_version)
+    requires = [
+        pytest.mark.skipif(
+            compute_version < min_version,
+            reason=f"Requires CUDA compute >= {min_version_str}, but have {compute_version_str}",
+        ),
+        *requires_cuda.marks(),
+    ]
+
+    def inner(func):
+        return _compose([func], requires)
+
+    return inner
+
+
 def skip_if_32bit(reason):
     def decorator(*args):
         if "32bit" in platform.architecture()[0]:
