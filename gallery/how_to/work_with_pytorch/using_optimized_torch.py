@@ -95,7 +95,7 @@ testing.assert_allclose(ret1.detach().numpy(), ret2.detach().numpy(), atol=1e-5,
 testing.assert_allclose(ret1.detach().numpy(), ret3.detach().numpy(), atol=1e-5, rtol=1e-5)
 
 ######################################################################
-# Optimize Resnet18 by MetaSchedule
+# Optimize Resnet18
 # ------------------------------
 # In the following, we will show that our approach is able to
 # accelerate common models, such as Resnet18.
@@ -103,48 +103,20 @@ testing.assert_allclose(ret1.detach().numpy(), ret3.detach().numpy(), atol=1e-5,
 # We will tune our model on the GPU.
 target_cuda = "nvidia/geforce-rtx-3070"
 
-# For PyTorch users, the nn.Module could be written as usual, except for
+# For PyTorch users, the code could be written as usual, except for
 # applying "optimize_torch" function on the resnet18 model.
 
+resnet18_tvm = optimize_torch(
+    resnet18().cuda().eval(), [torch.rand(1, 3, 224, 224).cuda()], target=target_cuda
+)
 
-class MyResNet18(torch.nn.Module):
-    def __init__(self, target):
-        super(MyResNet18, self).__init__()
-        # Here we impose the `optimize_torch` function
-        # The default setting is adapted automatically by the number of operations of the optimized model.
-        self.resnet = optimize_torch(resnet18(), [torch.rand(1, 3, 224, 224)], target=target)
-
-    def forward(self, input):
-        return self.resnet(input)
-
-
-tvm_module_resnet18 = MyResNet18(target_cuda)
-
-
-######################################################################
-# Resnet18 optimized by TorchScript
-# ------------------------------
-# Let us write down a resnet18 model in a standard way.
-
-
-class JitModule(torch.nn.Module):
-    def __init__(self):
-        super(JitModule, self).__init__()
-        # Here we impose the `optimize_for_inference` function
-        # TorchScript also provides a built-in "optimize_for_inference" function to accelerate the inference.
-        self.resnet = torch.jit.optimize_for_inference(torch.jit.script(resnet18().cuda().eval()))
-
-    def forward(self, input):
-        return self.resnet(input)
-
-
-jit_module_resnet18 = JitModule()
+# TorchScript also provides a built-in "optimize_for_inference" function to accelerate the inference.
+resnet18_torch = torch.jit.optimize_for_inference(torch.jit.script(resnet18().cuda().eval()))
 
 
 ######################################################################
 # Compare the performance between two approaches.
 # ------------------------------
-# Using PyTorch's benchmark Compare class, we can have a direct comparison result between two inference models.
 
 results = []
 for i in range(5):
@@ -152,8 +124,8 @@ for i in range(5):
     sub_label = f"[test {i}]"
     results.append(
         benchmark.Timer(
-            stmt="tvm_module_resnet18(test_input)",
-            setup="from __main__ import tvm_module_resnet18",
+            stmt="resnet18_tvm(test_input)",
+            setup="from __main__ import resnet18_tvm",
             globals={"test_input": test_input},
             sub_label=sub_label,
             description="tuning by meta",
@@ -161,8 +133,8 @@ for i in range(5):
     )
     results.append(
         benchmark.Timer(
-            stmt="jit_module_resnet18(test_input)",
-            setup="from __main__ import jit_module_resnet18",
+            stmt="resnet18_torch(test_input)",
+            setup="from __main__ import resnet18_torch",
             globals={"test_input": test_input},
             sub_label=sub_label,
             description="tuning by jit",
@@ -172,6 +144,6 @@ for i in range(5):
 compare = benchmark.Compare(results)
 compare.print()
 
-# In author's environment, the average inference time of `tvm_module_resnet18` is 620.0 us (TVM version is 0.9.0),
-# while the average inference time of `jit_module_resnet18` is 980.0 us (PyTorch version is 1.11.0),
+# In author's environment, the average inference time of `resnet18_tvm` is 620.0 us,
+# while the average inference time of `resnet18_torch` is 980.0 us (PyTorch version is 1.11.0),
 # showing the speedup of around 38%.
