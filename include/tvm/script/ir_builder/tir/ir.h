@@ -182,7 +182,7 @@ Var Opaque(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
 /*!
  * \brief The block axis remapping function.
  * \param kinds The types of the iteration variables.
- * \param binding The binding values of the iteration variables.
+ * \param bindings The binding values of the iteration variables.
  * \param dtype The data types of the iteration variables.
  * \return The iteration variables.
  */
