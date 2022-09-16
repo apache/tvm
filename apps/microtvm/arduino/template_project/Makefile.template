@@ -1,0 +1,34 @@
+MAKE_DIR   		:= $(PWD)
+FQBN       		?= <FQBN>
+VERBOSE_FLAG	?= <VERBOSE_FLAG> 
+BUILD_DIR  		:= $(subst :,.,build)
+
+SRC        	:= $(wildcard *.ino)
+BIN        	:= $(BUILD_DIR)/$(SRC).bin
+ELF        	:= $(BUILD_DIR)/$(SRC).elf
+
+$(info FQBN       is [${FQBN}])
+$(info MAKE_DIR   is [${MAKE_DIR}])
+$(info BUILD_DIR  is [${BUILD_DIR}])
+$(info SRC        is [${SRC}])
+$(info BIN        is [${BIN}])
+$(info DEV_PORT is [${DEV_PORT}])
+
+all: $(ELF) upload
+.PHONY: all
+
+build: $(ELF)
+.PHONY: build
+
+$(ELF): $(SRC)
+	arduino-cli compile --fqbn $(FQBN) --build-path $(BUILD_DIR) $(VFLAG)
+
+upload:
+	@if [ ! -c $(DEV_PORT) ] ; \
+	then echo "---> ERROR: Serial Device not available, please set the SERIAL_DEV environment variable" ; \
+	else echo "---> Uploading sketch\n"; \
+	arduino-cli upload -b $(FQBN) -p $(DEV_PORT) $(VFLAG); \
+	fi
+
+clean:
+	rm -rf build

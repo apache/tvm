@@ -32,7 +32,7 @@ sys.path.pop(0)
 
 
 class TestGenerateProject:
-    DEFAULT_OPTIONS = {"arduino_cli_cmd": "arduino-cli", "arduino_board": "nano33ble"}
+    DEFAULT_OPTIONS = {"arduino_cli_cmd": "arduino-cli", "board": "nano33ble"}
 
     def _set_pathlib_path_exists(self, value):
         with mock.patch.object(Path, "exists") as mock_exists:
@@ -122,7 +122,7 @@ class TestGenerateProject:
         handler._get_fqbn = mock.MagicMock(return_value="arduino:mbed_nano:nano33")
         mock_run.return_value.stdout = bytes(self.BOARD_CONNECTED_V18, "utf-8")
         assert (
-            handler._auto_detect_port({**self.DEFAULT_OPTIONS, "arduino_board": "nano33"})
+            handler._auto_detect_port({**self.DEFAULT_OPTIONS, "board": "nano33"})
             == "/dev/ttyACM1"
         )
 

@@ -46,6 +46,8 @@ BOARDS = API_SERVER_DIR / "boards.json"
 
 ARDUINO_CLI_CMD = shutil.which("arduino-cli")
 
+MAKEFILE_FILENAME = "Makefile"
+
 # Data structure to hold the information microtvm_api_server.py needs
 # to communicate with each of these boards.
 try:
@@ -64,7 +66,6 @@ PROJECT_TYPES = ["example_project", "host_driven"]
 PROJECT_OPTIONS = server.default_project_options(
     project_type={"choices": tuple(PROJECT_TYPES)},
     board={"choices": list(BOARD_PROPERTIES), "required": ["build", "flash", "open_transport"]},
-    verbose={"optional": ["build", "flash"]},
     warning_as_error={"optional": ["build", "flash"]},
 ) + [
     server.ProjectOption(
@@ -160,6 +161,9 @@ class Handler(server.ProjectAPIHandler):
         "src/runtime/crt/microtvm_rpc_server",
         "src/runtime/crt/tab",
     ]
+
+    FQBN_TOKEN = "<FQBN>"
+    VERBOSE_FLAG_TOKEN = "<VFLAG>"
 
     def _remove_unused_components(self, source_dir, project_type):
         unused_components = []
@@ -334,6 +338,22 @@ class Handler(server.ProjectAPIHandler):
         # Recursively change includes
         self._convert_includes(project_dir, source_dir)
 
+        # Populate Makefile
+        with open(project_dir / MAKEFILE_FILENAME, "w") as makefile_f:
+            with open(API_SERVER_DIR / f"{MAKEFILE_FILENAME}.template", "r") as makefile_template_f:
+                for line in makefile_template_f:
+                    if self.FQBN_TOKEN in line:
+                        line = line.replace(self.FQBN_TOKEN, self._get_fqbn(options))
+
+                    if self.VERBOSE_FLAG_TOKEN in line:
+                        if options.get("verbose"):
+                            flag = "--verbose"
+                        else:
+                            flag = ""
+                        line = line.replace(self.VERBOSE_FLAG_TOKEN, flag)
+
+                    makefile_f.write(line)
+
     def _get_arduino_cli_cmd(self, options: dict):
         arduino_cli_cmd = options.get("arduino_cli_cmd", ARDUINO_CLI_CMD)
         assert arduino_cli_cmd, "'arduino_cli_cmd' command not passed and not found by default!"
@@ -373,21 +393,10 @@ class Handler(server.ProjectAPIHandler):
 
     def build(self, options):
         self._check_platform_version(options)
-        BUILD_DIR.mkdir()
-
         compile_cmd = [
-            self._get_arduino_cli_cmd(options),
-            "compile",
-            "./project/",
-            "--fqbn",
-            self._get_fqbn(options),
-            "--build-path",
-            BUILD_DIR.resolve(),
+            "make",
+            "build"
         ]
-
-        if options.get("verbose"):
-            compile_cmd.append("--verbose")
-
         # Specify project to compile
         subprocess.run(compile_cmd, check=True)
 
@@ -455,6 +464,7 @@ class Handler(server.ProjectAPIHandler):
         self._check_platform_version(options)
         port = self._get_arduino_port(options)
 
+        # TODO: add support for flash
         upload_cmd = [
             self._get_arduino_cli_cmd(options),
             "upload",
@@ -470,6 +480,7 @@ class Handler(server.ProjectAPIHandler):
         if options.get("verbose"):
             upload_cmd.append("--verbose")
 
+        import pdb; pdb.set_trace()
         for _ in range(self.FLASH_MAX_RETRIES):
             try:
                 subprocess.run(upload_cmd, check=True, timeout=self.FLASH_TIMEOUT_SEC)
