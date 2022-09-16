@@ -137,6 +137,13 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
   // Override Apply to apply tensorization-specific analysis before applying sub-rules
   Array<Schedule> Apply(const Schedule& sch, const BlockRV& block_rv) final;
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<MultiLevelTilingTensorCoreNode> n =
+        make_object<MultiLevelTilingTensorCoreNode>(*this);
+    return ScheduleRule(n);
+  }
+
   /*!
    * \brief Transform and tensorize with the given tensor intrin
    * \param state The state of the meta schedule rule

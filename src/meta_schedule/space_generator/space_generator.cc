@@ -33,12 +33,18 @@ Array<tir::Schedule> PySpaceGeneratorNode::GenerateDesignSpace(const IRModule& m
   return f_generate_design_space(mod);
 }
 
+SpaceGenerator PySpaceGeneratorNode::Clone() const {
+  ICHECK(f_clone != nullptr) << "PySpaceGenerator's Clone method not implemented!";
+  return f_clone();
+}
+
 SpaceGenerator SpaceGenerator::PySpaceGenerator(
-    PySpaceGeneratorNode::FInitializeWithTuneContext f_initialize_with_tune_context,
-    PySpaceGeneratorNode::FGenerateDesignSpace f_generate_design_space) {
+    FInitializeWithTuneContext f_initialize_with_tune_context,
+    FGenerateDesignSpace f_generate_design_space, FClone f_clone) {
   ObjectPtr<PySpaceGeneratorNode> n = make_object<PySpaceGeneratorNode>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_generate_design_space = std::move(f_generate_design_space);
+  n->f_clone = std::move(f_clone);
   return SpaceGenerator(n);
 }
 
@@ -51,6 +57,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorGenerateDesignSpace")
     .set_body_method<SpaceGenerator>(&SpaceGeneratorNode::GenerateDesignSpace);
 TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorPySpaceGenerator")
     .set_body_typed(SpaceGenerator::PySpaceGenerator);
+TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorClone")
+    .set_body_method<SpaceGenerator>(&SpaceGeneratorNode::Clone);
 
 }  // namespace meta_schedule
 }  // namespace tvm

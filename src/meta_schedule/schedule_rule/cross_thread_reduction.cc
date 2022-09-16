@@ -113,6 +113,12 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     return {tmp_sch, sch};
   }
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<CrossThreadReductionNode> n = make_object<CrossThreadReductionNode>(*this);
+    return ScheduleRule(n);
+  }
+
  private:
   /*!
    * \brief Check whether the input block is in thread scope, i.e., some of its outer loop is
