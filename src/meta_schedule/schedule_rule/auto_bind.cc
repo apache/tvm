@@ -177,6 +177,12 @@ class AutoBindNode : public ScheduleRuleNode {
   // Inherited from ScheduleRuleNode
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final;
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<AutoBindNode> n = make_object<AutoBindNode>(*this);
+    return ScheduleRule(n);
+  }
+
  public:
   /*! \brief The max number of threads per block from Target */
   int64_t max_threads_per_block_ = -1;

@@ -24,8 +24,6 @@ import sys
 from urllib import error
 from xml.etree import ElementTree
 
-import requests
-
 from git_utils import git, GitHubRepo, parse_remote
 from cmd_utils import init_log
 

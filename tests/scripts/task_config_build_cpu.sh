@@ -51,11 +51,11 @@ echo set\(USE_TENSORFLOW_PATH \"/tensorflow\"\) >> config.cmake
 echo set\(USE_FLATBUFFERS_PATH \"/flatbuffers\"\) >> config.cmake
 echo set\(USE_ETHOSN /opt/arm/ethosn-driver\) >> config.cmake
 echo set\(USE_ETHOSN_HW OFF\) >> config.cmake
-echo set\(USE_CMSISNN ON\) >> config.cmake
+echo set\(USE_CMSISNN OFF\) >> config.cmake
 echo set\(USE_VITIS_AI ON\) >> config.cmake
 echo set\(USE_VERILATOR ON\) >> config.cmake
 echo set\(USE_LIBBACKTRACE ON\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
-echo set\(USE_ETHOSU ON\) >> config.cmake
+echo set\(USE_ETHOSU OFF\) >> config.cmake
 echo set\(USE_UMA ON\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake

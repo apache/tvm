@@ -15,6 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utility backend functions."""
+from enum import Enum
+
+
+class CallType(Enum):
+    Packed = 0
+    CPacked = 1
+    Unpacked = 2
 
 
 def _is_valid_modname(mod_name):

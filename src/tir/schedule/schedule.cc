@@ -264,7 +264,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetAxisSeparator")
 /******** (FFI) Padding decomposition ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleDecomposePadding")
     .set_body_method<Schedule>(&ScheduleNode::DecomposePadding);
-
+TVM_REGISTER_GLOBAL("tir.schedule.SchedulePadEinsum")
+    .set_body_method<Schedule>(&ScheduleNode::PadEinsum);
 /******** (FFI) Misc ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleEnterPostproc")
     .set_body_method<Schedule>(&ScheduleNode::EnterPostproc);

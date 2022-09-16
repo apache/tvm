@@ -196,6 +196,12 @@ class VerifyGPUCodeNode : public PostprocNode {
     return true;
   }
 
+  Postproc Clone() const {
+    ObjectPtr<VerifyGPUCodeNode> n = make_object<VerifyGPUCodeNode>(*this);
+    n->target_constraints_ = this->target_constraints_;
+    return Postproc(n);
+  }
+
   static constexpr const char* _type_key = "meta_schedule.VerifyGPUCode";
   TVM_DECLARE_FINAL_OBJECT_INFO(VerifyGPUCodeNode, PostprocNode);
 };

@@ -62,7 +62,7 @@ struct VTCMAllocation : public Allocation {
 
     // allocate nbytes of vtcm on a single page
     HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param(&res_info, /*vtcm_size = */ nbytes,
-                                                          /*b_single_page = */ 1));
+                                                          /*b_single_page = */ 0));
 
     // TODO(HWE): Investigate why a non-zero timeout results in
     // hanging, both in the simulator and on hardware.
@@ -71,13 +71,14 @@ struct VTCMAllocation : public Allocation {
     if (context_id_) {
       data_ = HAP_compute_res_attr_get_vtcm_ptr(&res_info);
       if (!data_) {
-        LOG(ERROR) << "ERROR: Allocated VTCM ptr is null.";
+        LOG(ERROR) << "ERROR: HAP_compute_res_acquire returned nullptr when allocating VTCM.";
         HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
         return;
       }
     } else {
-      LOG(ERROR) << "ERROR: Unable to acquire requeisted resource.";
-      return;
+      LOG(FATAL) << "FATAL: HAP_compute_res_acquire failed to acquire requested VTCM resource.";
+      throw std::runtime_error(
+          "HAP_compute_res_acquire failed to acquire requested VTCM resource.");
     }
   }
   ~VTCMAllocation() {

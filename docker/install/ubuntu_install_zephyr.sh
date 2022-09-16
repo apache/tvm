@@ -21,11 +21,6 @@ set -u
 set -o pipefail
 set -x
 
-export DEBIAN_FRONTEND=noninteractive
-export TZ=Etc/UTC
-sudo ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
-echo $TZ > /etc/timezone
-
 sudo apt-install-and-clear -y --no-install-recommends \
      libsdl2-dev ca-certificates gnupg software-properties-common wget \
      git cmake ninja-build gperf \

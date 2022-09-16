@@ -23,7 +23,7 @@ from tvm._ffi import register_func
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 
-from ...dataflow_pattern import wildcard, is_op, is_constant, is_tuple_get_item
+from ...dataflow_pattern import wildcard, is_op, is_constant, is_tuple_get_item, is_tuple
 from .register import register_pattern_table
 from ..strategy.generic import is_depthwise_conv2d
 
@@ -135,6 +135,7 @@ def clml_pattern_table():
         """Create a convolution pattern."""
         pattern = is_op("nn.conv2d")(wildcard(), is_constant())
         pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
+        pattern = pattern.optional(lambda x: is_op("add")(x, is_constant()))
         pattern = pattern.optional(
             lambda x: is_op("nn.batch_norm")(
                 x, is_constant(), is_constant(), is_constant(), is_constant()
@@ -142,6 +143,7 @@ def clml_pattern_table():
         )
         pattern = pattern.optional(is_tuple_get_item)
         pattern = pattern.optional(is_op("nn.relu"))
+        pattern = pattern.optional(is_op("clip"))
         return pattern
 
     def batch_norm_pattern():
@@ -152,10 +154,24 @@ def clml_pattern_table():
         pattern = is_tuple_get_item(pattern)
         return pattern
 
+    def concat_pattern():
+        """Create a concat pattern.
+
+        Returns
+        -------
+        pattern : dataflow_pattern.AltPattern
+            Denotes the concat pattern.
+        """
+        pattern = is_tuple(None)
+        pattern = is_op("concatenate")(pattern)
+
+        return pattern
+
     def dense_pattern():
         """Create a dense pattern."""
         pattern = is_op("nn.dense")(wildcard(), is_constant())
         pattern = pattern.optional(lambda x: is_op("add")(x, is_constant()))
+        pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
         return pattern
 
     def pad_pattern():
@@ -172,6 +188,13 @@ def clml_pattern_table():
             call = call.args[0]
             if isinstance(call, tvm.relay.expr.TupleGetItem):
                 call = call.tuple_value
+        elif call.op.name == "clip":
+            if call.attrs["a_min"] != 0.0 or call.attrs["a_max"] != 6.0:
+                return False
+            call = call.args[0]
+            if isinstance(call, tvm.relay.expr.TupleGetItem):
+                call = call.tuple_value
+
         while call.op.name != "nn.conv2d":
             call = call.args[0]
         attrs, args = call.attrs, call.args
@@ -194,6 +217,7 @@ def clml_pattern_table():
         ("clml.conv2d", conv_pattern(), check_conv),
         ("clml.dense", dense_pattern()),
         ("clml.pad", pad_pattern()),
+        ("clml.concat", concat_pattern()),
         ("clml.batch_norm", batch_norm_pattern()),
     ]
 
@@ -207,11 +231,18 @@ def _register_external_op_helper(op_name, supported=True):
 
 
 _register_external_op_helper("clip")
-_register_external_op_helper("relu")
+_register_external_op_helper("nn.relu")
 _register_external_op_helper("nn.global_avg_pool2d")
 _register_external_op_helper("nn.global_max_pool2d")
+_register_external_op_helper("nn.avg_pool2d")
+_register_external_op_helper("nn.max_pool2d")
 _register_external_op_helper("nn.softmax")
 _register_external_op_helper("reshape")
+_register_external_op_helper("add")
+_register_external_op_helper("subtract")
+_register_external_op_helper("multiply")
+_register_external_op_helper("minimum")
+_register_external_op_helper("maximum")
 
 
 class OpAttrContext(object):

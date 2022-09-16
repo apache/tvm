@@ -32,6 +32,7 @@ namespace tvm {
 namespace meta_schedule {
 
 class TuneContext;
+class Mutator;
 
 /*! \brief Mutator is designed to mutate the trace to explore the design space. */
 class MutatorNode : public runtime::Object {
@@ -57,12 +58,21 @@ class MutatorNode : public runtime::Object {
   virtual Optional<tir::Trace> Apply(const tir::Trace& trace,
                                      support::LinearCongruentialEngine::TRandState* rand_state) = 0;
 
+  /*!
+   * \brief Clone the mutator.
+   * \return The cloned mutator.
+   */
+  virtual Mutator Clone() const = 0;
+
   static constexpr const char* _type_key = "meta_schedule.Mutator";
   TVM_DECLARE_BASE_OBJECT_INFO(MutatorNode, Object);
 };
 
-/*! \brief The mutator with customized methods on the python-side. */
-class PyMutatorNode : public MutatorNode {
+/*!
+ * \brief Managed reference to MutatorNode
+ * \sa MutatorNode
+ */
+class Mutator : public runtime::ObjectRef {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
@@ -77,38 +87,15 @@ class PyMutatorNode : public MutatorNode {
   using FApply = runtime::TypedPackedFunc<Optional<tir::Trace>(
       const tir::Trace&, support::LinearCongruentialEngine::TRandState rand_state)>;
   /*!
+   * \brief Clone the mutator.
+   * \return The cloned mutator.
+   */
+  using FClone = runtime::TypedPackedFunc<Mutator()>;
+  /*!
    * \brief Get the mutator as string with name.
    * \return The string of the mutator.
    */
   using FAsString = runtime::TypedPackedFunc<String()>;
-
-  /*! \brief The packed function to the `InitializeWithTuneContext` function. */
-  FInitializeWithTuneContext f_initialize_with_tune_context;
-  /*! \brief The packed function to the `Apply` function. */
-  FApply f_apply;
-  /*! \brief The packed function to the `AsString` function. */
-  FAsString f_as_string;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_initialize_with_tune_context` is not visited
-    // `f_apply` is not visited
-    // `f_as_string` is not visited
-  }
-
-  void InitializeWithTuneContext(const TuneContext& context) final;
-  Optional<tir::Trace> Apply(const tir::Trace& trace,
-                             support::LinearCongruentialEngine::TRandState* rand_state) final;
-
-  static constexpr const char* _type_key = "meta_schedule.PyMutator";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyMutatorNode, MutatorNode);
-};
-
-/*!
- * \brief Managed reference to MutatorNode
- * \sa MutatorNode
- */
-class Mutator : public runtime::ObjectRef {
- public:
   /*! \brief Create a Mutator that mutates the decision of instruction Sample-Perfect-Tile */
   TVM_DLL static Mutator MutateTileSize();
   /*!
@@ -136,14 +123,47 @@ class Mutator : public runtime::ObjectRef {
    * \brief Create a mutator with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
    * \param f_apply The packed function of `Apply`.
+   * \param f_clone The packed function of `Clone`.
    * \param f_as_string The packed function of `AsString`.
    * \return The mutator created.
    */
-  TVM_DLL static Mutator PyMutator(
-      PyMutatorNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
-      PyMutatorNode::FApply f_apply,                                             //
-      PyMutatorNode::FAsString f_as_string);
+  TVM_DLL static Mutator PyMutator(FInitializeWithTuneContext f_initialize_with_tune_context,  //
+                                   FApply f_apply,                                             //
+                                   FClone f_clone,                                             //
+                                   FAsString f_as_string);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Mutator, ObjectRef, MutatorNode);
+};
+
+/*! \brief The mutator with customized methods on the python-side. */
+class PyMutatorNode : public MutatorNode {
+ public:
+  using FInitializeWithTuneContext = Mutator::FInitializeWithTuneContext;
+  using FApply = Mutator::FApply;
+  using FClone = Mutator::FClone;
+  using FAsString = Mutator::FAsString;
+  /*! \brief The packed function to the `InitializeWithTuneContext` function. */
+  FInitializeWithTuneContext f_initialize_with_tune_context;
+  /*! \brief The packed function to the `Apply` function. */
+  FApply f_apply;
+  /*! \brief The packed function to the `Clone` function. */
+  FClone f_clone;
+  /*! \brief The packed function to the `AsString` function. */
+  FAsString f_as_string;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    // `f_initialize_with_tune_context` is not visited
+    // `f_apply` is not visited
+    // `f_clone` is not visited
+    // `f_as_string` is not visited
+  }
+
+  void InitializeWithTuneContext(const TuneContext& context) final;
+  Optional<tir::Trace> Apply(const tir::Trace& trace,
+                             support::LinearCongruentialEngine::TRandState* rand_state) final;
+  Mutator Clone() const final;
+
+  static constexpr const char* _type_key = "meta_schedule.PyMutator";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PyMutatorNode, MutatorNode);
 };
 
 }  // namespace meta_schedule

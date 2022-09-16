@@ -327,8 +327,7 @@ PrimExpr operator+(PrimExpr a, PrimExpr b) { return add(a, b); }
 
 PrimExpr add(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::Add>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::Add>(a, b)) return ret.value();
   return tir::Add(a, b, span);
 }
 
@@ -349,23 +348,20 @@ PrimExpr operator-(PrimExpr a, PrimExpr b) { return sub(a, b); }
 
 PrimExpr sub(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::Sub>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::Sub>(a, b)) return ret.value();
   return tir::Sub(a, b, span);
 }
 
 PrimExpr operator*(PrimExpr a, PrimExpr b) { return mul(a, b); }
 PrimExpr mul(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::Mul>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::Mul>(a, b)) return ret.value();
   return tir::Mul(a, b, span);
 }
 
 PrimExpr div(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::Div>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::Div>(a, b)) return ret.value();
   return tir::Div(a, b, span);
 }
 
@@ -377,8 +373,7 @@ PrimExpr truncdiv(PrimExpr a, PrimExpr b, Span span) {
 
 PrimExpr truncmod(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::Mod>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::Mod>(a, b)) return ret.value();
   return tir::Mod(a, b, span);
 }
 
@@ -397,8 +392,7 @@ PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span) {
   ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
   ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::FloorDiv>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::FloorDiv>(a, b)) return ret.value();
   return tir::FloorDiv(a, b, span);
 }
 
@@ -406,8 +400,7 @@ PrimExpr ceildiv(PrimExpr a, PrimExpr b, Span span) {
   ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
   ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::FloorDiv>(a + b - 1, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::FloorDiv>(a + b - 1, b)) return ret.value();
   return tir::FloorDiv(a + b - 1, b, span);
 }
 
@@ -415,8 +408,7 @@ PrimExpr floormod(PrimExpr a, PrimExpr b, Span span) {
   ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
   ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::FloorMod>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::FloorMod>(a, b)) return ret.value();
   return tir::FloorMod(a, b, span);
 }
 
@@ -429,8 +421,7 @@ PrimExpr min(PrimExpr a, PrimExpr b, Span span) {
   if (is_pos_inf(b)) return a;
   if (is_neg_inf(b)) return b;
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::Min>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::Min>(a, b)) return ret.value();
   return tir::Min(a, b, span);
 }
 
@@ -443,8 +434,7 @@ PrimExpr max(PrimExpr a, PrimExpr b, Span span) {
   if (is_pos_inf(b)) return b;
   if (is_neg_inf(b)) return a;
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::Max>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::Max>(a, b)) return ret.value();
   return tir::Max(a, b, span);
 }
 
@@ -475,48 +465,42 @@ PrimExpr likely(PrimExpr cond, Span span) {
 PrimExpr operator>(PrimExpr a, PrimExpr b) { return greater(a, b); }
 PrimExpr greater(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::GT>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::GT>(a, b)) return ret.value();
   return tir::GT(a, b, span);
 }
 
 PrimExpr operator>=(PrimExpr a, PrimExpr b) { return greater_equal(a, b); }
 PrimExpr greater_equal(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::GE>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::GE>(a, b)) return ret.value();
   return tir::GE(a, b, span);
 }
 
 PrimExpr operator<(PrimExpr a, PrimExpr b) { return less(a, b); }
 PrimExpr less(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::LT>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::LT>(a, b)) return ret.value();
   return tir::LT(a, b, span);
 }
 
 PrimExpr operator<=(PrimExpr a, PrimExpr b) { return less_equal(a, b); }
 PrimExpr less_equal(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::LE>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::LE>(a, b)) return ret.value();
   return tir::LE(a, b, span);
 }
 
 PrimExpr operator==(PrimExpr a, PrimExpr b) { return equal(a, b); }
 PrimExpr equal(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::EQ>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::EQ>(a, b)) return ret.value();
   return tir::EQ(a, b, span);
 }
 
 PrimExpr operator!=(PrimExpr a, PrimExpr b) { return not_equal(a, b); }
 PrimExpr not_equal(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  PrimExpr ret = arith::TryConstFold<tir::NE>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::NE>(a, b)) return ret.value();
   return tir::NE(a, b, span);
 }
 
@@ -551,24 +535,21 @@ void type_check_integer_args(const PrimExpr& lhs, const PrimExpr& rhs, const cha
 PrimExpr operator&&(PrimExpr a, PrimExpr b) { return logical_and(a, b); }
 PrimExpr logical_and(PrimExpr a, PrimExpr b, Span span) {
   type_check_boolean_args(a, b, "&& operator (logical AND)");
-  PrimExpr ret = arith::TryConstFold<tir::And>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::And>(a, b)) return ret.value();
   return tir::And(a, b, span);
 }
 
 PrimExpr operator||(PrimExpr a, PrimExpr b) { return logical_or(a, b); }
 PrimExpr logical_or(PrimExpr a, PrimExpr b, Span span) {
   type_check_boolean_args(a, b, "|| operator (logical OR)");
-  PrimExpr ret = arith::TryConstFold<tir::Or>(a, b);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::Or>(a, b)) return ret.value();
   return tir::Or(a, b, span);
 }
 
 PrimExpr operator!(PrimExpr a) { return logical_not(a); }
 PrimExpr logical_not(PrimExpr a, Span span) {
   type_check_boolean_args(a, "! operator (logical NOT)");
-  PrimExpr ret = arith::TryConstFold<tir::Not>(a);
-  if (ret.defined()) return ret;
+  if (auto ret = arith::TryConstFold<tir::Not>(a)) return ret.value();
   return tir::Not(a, span);
 }
 
