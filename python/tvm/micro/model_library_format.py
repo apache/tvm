@@ -294,7 +294,8 @@ def _build_function_memory_map(function_metadata):
             main_func_metadata.io_sizes[target]
         )
 
-        # Now, we also add the information about the size of each input and output of the main function (in bytes)
+        # Now, we also add the information about the size of each input and output of the main 
+        # function (in bytes)
         input_dict = {}
         for input_param in main_func_metadata.relay_primfuncs[target].params:
             if hasattr(input_param, "checked_type"):
