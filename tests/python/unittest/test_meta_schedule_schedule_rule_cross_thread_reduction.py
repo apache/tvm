@@ -752,7 +752,6 @@ def test_gpu_argmax_32():
         sch_rules=get_rules("cuda", ms.schedule_rule.CrossThreadReduction),
         task_name="test",
     ).generate_design_space()
-    print(actual[1].mod.script())
     check_sketches(
         mod,
         sketches=actual,
