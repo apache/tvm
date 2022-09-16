@@ -3,6 +3,7 @@ FQBN       		?= <FQBN>
 VERBOSE_FLAG	?= <VERBOSE_FLAG>
 BUILD_DIR  		:= $(subst :,.,build)
 PORT			?=
+ARUINO_CLI_CMD	?= <ARUINO_CLI_CMD>
 
 SRC        	:= $(wildcard *.ino)
 BIN        	:= $(BUILD_DIR)/$(SRC).bin
@@ -22,12 +23,12 @@ build: $(ELF)
 .PHONY: build
 
 $(ELF): $(SRC)
-	arduino-cli compile --fqbn $(FQBN) --build-path $(BUILD_DIR) $(VFLAG)
+	$(ARUINO_CLI_CMD) compile --fqbn $(FQBN) --build-path $(BUILD_DIR) $(VFLAG)
 
 flash:
 	if [ -z $(PORT) ] ; then \
 	echo "---> ERROR: Please set the device port environment variable PORT"; \
-	else arduino-cli upload --fqbn $(FQBN) --input-dir $(BUILD_DIR) --port $(PORT) $(VFLAG); \
+	else $(ARUINO_CLI_CMD) upload --fqbn $(FQBN) --input-dir $(BUILD_DIR) --port $(PORT) $(VFLAG); \
 	fi
 
 clean:

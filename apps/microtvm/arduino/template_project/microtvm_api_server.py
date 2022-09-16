@@ -70,11 +70,7 @@ PROJECT_OPTIONS = server.default_project_options(
 ) + [
     server.ProjectOption(
         "arduino_cli_cmd",
-        required=(
-            ["generate_project", "build", "flash", "open_transport"]
-            if not ARDUINO_CLI_CMD
-            else None
-        ),
+        required=(["generate_project", "flash", "open_transport"] if not ARDUINO_CLI_CMD else None),
         optional=(
             ["generate_project", "build", "flash", "open_transport"] if ARDUINO_CLI_CMD else None
         ),
@@ -164,6 +160,7 @@ class Handler(server.ProjectAPIHandler):
 
     FQBN_TOKEN = "<FQBN>"
     VERBOSE_FLAG_TOKEN = "<VERBOSE_FLAG>"
+    ARUINO_CLI_CMD_TOKEN = "<ARUINO_CLI_CMD>"
 
     def _remove_unused_components(self, source_dir, project_type):
         unused_components = []
@@ -352,6 +349,10 @@ class Handler(server.ProjectAPIHandler):
                             flag = ""
                         line = line.replace(self.VERBOSE_FLAG_TOKEN, flag)
 
+                    if self.ARUINO_CLI_CMD_TOKEN in line:
+                        line = line.replace(
+                            self.ARUINO_CLI_CMD_TOKEN, self._get_arduino_cli_cmd(options)
+                        )
                     makefile_f.write(line)
 
     def _get_arduino_cli_cmd(self, options: dict):
