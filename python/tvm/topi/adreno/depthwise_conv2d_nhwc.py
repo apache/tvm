@@ -212,7 +212,11 @@ def schedule_depthwise_conv2d_NHWC_HWOI(cfg, s, output):
     cfg.define_knob("unroll_explicit", [0, 1])
 
     cfg.multi_filter(
-        filter=lambda entity: 32
+        filter=lambda entity: (  # pylint: disable=chained-comparison
+            entity["tile_fc"].size[1] * entity["tile_y"].size[1] * entity["tile_x"].size[1]
+        )
+        <= 32
+        and 32
         <= (entity["tile_fc"].size[2] * entity["tile_y"].size[2] * entity["tile_x"].size[2])
         < 1024
     )
