@@ -52,6 +52,32 @@ TuneContext::TuneContext(Optional<IRModule> mod,                                
   data_ = std::move(n);
 }
 
+TuneContext TuneContextNode::Clone() const {
+  ObjectPtr<TuneContextNode> n = make_object<TuneContextNode>(*this);
+  if (this->sch_rules.defined()) {
+    n->sch_rules = Array<ScheduleRule>();
+    for (const ScheduleRule& sch_rule : this->sch_rules) {
+      n->sch_rules.push_back(sch_rule->Clone());
+    }
+  }
+  if (this->postprocs.defined()) {
+    n->postprocs = Array<Postproc>();
+    for (const Postproc& postproc : this->postprocs) {
+      n->postprocs.push_back(postproc->Clone());
+    }
+  }
+  if (this->mutator_probs.defined()) {
+    n->mutator_probs = Map<Mutator, FloatImm>();
+    for (const auto& kv : this->mutator_probs) {
+      n->mutator_probs.Set(kv.first->Clone(), kv.second);
+    }
+  }
+  if (this->space_generator.defined()) n->space_generator = this->space_generator.value()->Clone();
+  if (this->search_strategy.defined()) n->search_strategy = this->search_strategy.value()->Clone();
+  n->Initialize();
+  return TuneContext(n);
+}
+
 void TuneContextNode::Initialize() {
   if (this->space_generator.defined()) {
     this->space_generator.value()->InitializeWithTuneContext(GetRef<TuneContext>(this));

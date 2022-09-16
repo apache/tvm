@@ -53,6 +53,7 @@ class SpaceGeneratorUnionNode : public SpaceGeneratorNode {
     for (const SpaceGenerator& space_generator : this->space_generators) {
       n->space_generators.push_back(space_generator->Clone());
     }
+    return SpaceGenerator(n);
   }
 
   static constexpr const char* _type_key = "meta_schedule.SpaceGeneratorUnion";
