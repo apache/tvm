@@ -24,48 +24,59 @@ from tvm import tir
 from tvm.contrib.hexagon.session import Session
 from tvm.script import tir as T
 
-outer = 16
-inner = 128
+outer = tvm.testing.parameter(8, 16)
+inner = tvm.testing.parameter(64, 128)
+scope = tvm.testing.parameter("global", "global.vtcm")
+dtype = tvm.testing.parameter("uint8", "float16")
 
 
-@T.prim_func
-def plus_one_primfunc(A: T.Buffer[(outer, inner), "uint8"], B: T.Buffer[(outer, inner), "uint8"]):
-    for i in T.serial(outer):
-        for j in T.serial(inner):
-            with T.block("plus_one"):
-                with T.block():
-                    B[i, j] = A[i, j] + T.uint8(1)
+@tvm.testing.fixture
+def compute(outer, inner, dtype):
+    @T.prim_func
+    def plus_one_primfunc(A: T.Buffer[(outer, inner), dtype], B: T.Buffer[(outer, inner), dtype]):
+        for i in T.serial(outer):
+            for j in T.serial(inner):
+                with T.block("compute"):
+                    with T.block():
+                        B[i, j] = A[i, j] + T.cast(1, dtype)
+
+    def plus_one_ref(a):
+        return a + 1
+
+    return plus_one_primfunc, plus_one_ref
 
 
 @tvm.testing.requires_hexagon
-def test_software_pipeline_with_cache_read(hexagon_launcher):
-    sch = tir.Schedule(plus_one_primfunc)
+def test_software_pipeline_with_cache_read(hexagon_launcher, compute, outer, inner, dtype, scope):
+    sch = tir.Schedule(compute[0])
     root = sch.get_block("root")
-    plus_one = sch.get_block("plus_one")
-    cache_read_block = sch.cache_read(plus_one, 0, "global")
+    compute_block = sch.get_block("compute")
+    cache_read_block = sch.cache_read(compute_block, 0, scope)
 
-    i, j = sch.get_loops(plus_one)
+    i, _ = sch.get_loops(compute_block)
     sch.compute_at(cache_read_block, i)
     sch.annotate(i, "software_pipeline_stage", [0, 1])
     sch.annotate(i, "software_pipeline_order", [0, 1])
     sch.annotate(i, "software_pipeline_async_stages", [0])
 
-    tvm.lower(sch.mod["main"]).show()
+    a_np = np.random.uniform(low=0, high=128, size=(outer, inner)).astype(dtype)
+    b_np = np.random.uniform(low=0, high=128, size=(outer, inner)).astype(dtype)
+    ref = compute[1](a_np)
 
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
     func = tvm.build(sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon))
 
     with hexagon_launcher.start_session() as hexagon_session:
-        mod = hexagon_session.load_module(func)
         dev = hexagon_session.device
-
-        a_np = np.random.uniform(low=0, high=128, size=(outer, inner)).astype("uint8")
-        b_np = np.random.uniform(low=0, high=128, size=(outer, inner)).astype("uint8")
-        a = tvm.nd.array(a_np, dev)
-        b = tvm.nd.array(b_np, dev)
+        a = tvm.nd.array(a_np, device=dev)
+        b = tvm.nd.array(b_np, device=dev)
+        mod = hexagon_session.load_module(func)
         mod(a, b)
-        ref = a_np + 1
-        np.testing.assert_equal(b.numpy(), ref)
+
+        if "int" in dtype:
+            np.testing.assert_equal(b.numpy(), ref)
+        else:
+            np.testing.assert_allclose(b.numpy(), ref, rtol=1e-3, atol=1e-3)
 
 
 if __name__ == "__main__":
