@@ -462,7 +462,7 @@ class Handler(server.ProjectAPIHandler):
         self._check_platform_version(options)
         port = self._get_arduino_port(options)
 
-        upload_cmd = ["make", "flash" f"PORT={port}"]
+        upload_cmd = ["make", "flash", f"PORT={port}"]
 
         for _ in range(self.FLASH_MAX_RETRIES):
             try:
