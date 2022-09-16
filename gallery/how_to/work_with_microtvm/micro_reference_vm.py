@@ -143,7 +143,7 @@ Once the VM has been provisioned, tests can be executed using ``poetry``:
 .. code-block:: bash
 
     $ cd apps/microtvm/reference-vm/zephyr
-    $ poetry run python3 ../../../../tests/micro/zephyr/test_zephyr.py --zephyr-board=stm32f746g_disco
+    $ poetry run python3 ../../../../tests/micro/zephyr/test_zephyr.py --board=stm32f746g_disco
 
 If you do not have physical hardware attached, but wish to run the tests using the
 local QEMU emulator running within the VM, run the following commands instead:
@@ -152,7 +152,7 @@ local QEMU emulator running within the VM, run the following commands instead:
 
     $ cd /Users/yourusername/path/to/tvm
     $ cd apps/microtvm/reference-vm/zephyr/
-    $ poetry run pytest ../../../../tests/micro/zephyr/test_zephyr.py --zephyr-board=qemu_x86
+    $ poetry run pytest ../../../../tests/micro/zephyr/test_zephyr.py --board=qemu_x86
 
 
 
