@@ -92,16 +92,16 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
 
   if (ndim == 0) {
     // Allocate storage for a single scalar value.
-    return hexbuffs.AllocateHexagonBuffer(typesize, kHexagonAllocAlignment, mem_scope);
+    return mgr->AllocateHexagonBuffer(typesize, kHexagonAllocAlignment, mem_scope);
   } else if (ndim == 1) {
     // Allocate a single, contiguous memory region.
     size_t nbytes = shape[0] * typesize;
-    return hexbuffs.AllocateHexagonBuffer(nbytes, kHexagonAllocAlignment, mem_scope);
+    return mgr->AllocateHexagonBuffer(nbytes, kHexagonAllocAlignment, mem_scope);
   } else if (ndim == 2) {
     // Allocate the region(s) needed for Hexagon's indirect-tensor format.
     size_t nallocs = shape[0];
     size_t nbytes = shape[1] * typesize;
-    return hexbuffs.AllocateHexagonBuffer(nallocs, nbytes, kHexagonAllocAlignment, mem_scope);
+    return mgr->AllocateHexagonBuffer(nallocs, nbytes, kHexagonAllocAlignment, mem_scope);
   } else {
     return nullptr;  // unreachable
   }
@@ -115,13 +115,13 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignme
   if (alignment < kHexagonAllocAlignment) {
     alignment = kHexagonAllocAlignment;
   }
-  return hexbuffs.AllocateHexagonBuffer(nbytes, alignment, String("global"));
+  return mgr->AllocateHexagonBuffer(nbytes, alignment, String("global"));
 }
 
 void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
   CHECK(ptr) << "buffer pointer is null";
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  hexbuffs.FreeHexagonBuffer(ptr);
+  mgr->FreeHexagonBuffer(ptr);
 }
 
 // WorkSpace: runtime allocations for Hexagon
@@ -137,7 +137,7 @@ void* HexagonDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_
 
 void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  CHECK(hexbuffs.count(data) != 0)
+  CHECK(mgr->count(data) != 0)
       << "Attempt made to free unknown or already freed workspace allocation";
   dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
@@ -161,7 +161,7 @@ void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHan
   CHECK_EQ(to->byte_offset, 0);
   CHECK_EQ(GetDataSize(*from), GetDataSize(*to));
 
-  auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* { return hexbuffs.find(ptr); };
+  auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* { return mgr->find(ptr); };
 
   HexagonBuffer* hex_from_buf = lookup_hexagon_buffer(from->data);
   HexagonBuffer* hex_to_buf = lookup_hexagon_buffer(to->data);
@@ -245,6 +245,18 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.free_nd").set_body([](TVMArgs args, TVMR
   hexapi->FreeVtcmWorkspace(dev, ptr);
   *rv = static_cast<int32_t>(0);
 });
+
+TVM_REGISTER_GLOBAL("device_api.hexagon.acquire_resources")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      HexagonDeviceAPI* api = HexagonDeviceAPI::Global();
+      api->AcquireResources();
+    });
+
+TVM_REGISTER_GLOBAL("device_api.hexagon.release_resources")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      HexagonDeviceAPI* api = HexagonDeviceAPI::Global();
+      api->ReleaseResources();
+    });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = HexagonDeviceAPI::Global();
