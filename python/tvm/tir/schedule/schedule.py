@@ -2390,7 +2390,7 @@ class Schedule(Object):
         if isinstance(buffer, str):
             possible_buffers = {}
             # String lookup requires ensuring that the name is unique
-            for buffer_index, buffer_index_type, buf in iter_buffers():
+            for buffer_index_type, buffer_index, buf in iter_buffers():
                 if buf.name == buffer:
                     possible_buffers[buf] = (buffer_index_type, buffer_index)
 
@@ -2398,12 +2398,12 @@ class Schedule(Object):
             assert (
                 len(possible_buffers) == 1
             ), f"Multiple buffers named '{buffer}' in block '{block_name}'"
-            buffer_obj, (buffer_index, buffer_index_type) = next(iter(possible_buffers.items()))
+            buffer_obj, (buffer_index_type, buffer_index) = next(iter(possible_buffers.items()))
 
         elif isinstance(buffer, Buffer):
             # Buffer lookup has unique id, can break out early
             found = False
-            for buffer_index, buffer_index_type, buffer_obj in iter_buffers():
+            for buffer_index_type, buffer_index, buffer_obj in iter_buffers():
                 if buffer_obj.same_as(buffer):
                     found = True
                     break
