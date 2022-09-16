@@ -20,7 +20,7 @@
 from numbers import Integral
 from typing import Any, Dict, List, Optional, Union, Tuple
 
-from tvm.ir import Type
+from tvm.ir import Range, Type
 from tvm.tir import (
     Buffer,
     BufferLoad,
@@ -342,6 +342,160 @@ def block(name: str = "", no_realize: bool = False) -> frame.BlockFrame:
         The BlockFrame.
     """
     return _ffi_api.Block(name, no_realize)  # pylint: disable=no-member # type: ignore
+
+
+def _as_range(dom: Union[Range, List[PrimExpr]]) -> Range:
+    """The range constructor.
+
+    Parameters
+    ----------
+    dom : Union[Range, List[PrimExpr]]
+        The domain.
+
+    Returns
+    -------
+    res : Range
+        The Range.
+    """
+    if isinstance(dom, Range):
+        return dom
+    if isinstance(dom, (list, tuple)):
+        return Range(dom[0], dom[1])
+    return Range(0, dom)
+
+
+class axis:  # pylint: disable=invalid-name
+    @staticmethod
+    def spatial(
+        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]], binding: PrimExpr, dtype: str = "int32"
+    ) -> Var:
+        """The spatial block axis defining function.
+
+        Parameters
+        ----------
+        dom : Union[Range, List[PrimExpr], Tuple[PrimExpr]]
+            The domain of the iteration variable.
+
+        binding : PrimExpr
+            The binding value of the iteration variable.
+
+        dtype : str
+            The data type of the iteration variable.
+
+        Returns
+        -------
+        res : Var
+            The iteration variable.
+        """
+        return _ffi_api.AxisSpatial(  # pylint: disable=no-member # type: ignore
+            _as_range(dom), binding, dtype
+        )
+
+    @staticmethod
+    def reduce(
+        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]], binding: PrimExpr, dtype: str = "int32"
+    ) -> Var:
+        """The reduced block axis defining function.
+
+        Parameters
+        ----------
+        dom : Union[Range, List[PrimExpr], Tuple[PrimExpr]]
+            The domain of the iteration variable.
+
+        binding : PrimExpr
+            The binding value of the iteration variable.
+
+        dtype : str
+            The data type of the iteration variable.
+
+        Returns
+        -------
+        res : Var
+            The iteration variable.
+        """
+        return _ffi_api.AxisReduce(  # pylint: disable=no-member # type: ignore
+            _as_range(dom), binding, dtype
+        )
+
+    @staticmethod
+    def scan(
+        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]], binding: PrimExpr, dtype: str = "int32"
+    ) -> Var:
+        """The scanning block axis defining function.
+
+        Parameters
+        ----------
+        dom : Union[Range, List[PrimExpr], Tuple[PrimExpr]]
+            The domain of the iteration variable.
+
+        binding : PrimExpr
+            The binding value of the iteration variable.
+
+        dtype : str
+            The data type of the iteration variable.
+
+        Returns
+        -------
+        res : Var
+            The iteration variable.
+        """
+        return _ffi_api.AxisScan(  # pylint: disable=no-member # type: ignore
+            _as_range(dom), binding, dtype
+        )
+
+    @staticmethod
+    def opaque(
+        dom: Union[Range, List[PrimExpr], Tuple[PrimExpr]], binding: PrimExpr, dtype: str = "int32"
+    ) -> Var:
+        """The opaque block axis defining function.
+
+        Parameters
+        ----------
+        dom : Union[Range, List[PrimExpr], Tuple[PrimExpr]]
+            The domain of the iteration variable.
+
+        binding : PrimExpr
+            The binding value of the iteration variable.
+
+        dtype : str
+            The data type of the iteration variable.
+
+        Returns
+        -------
+        res : Var
+            The iteration variable.
+        """
+        return _ffi_api.AxisOpaque(  # pylint: disable=no-member # type: ignore
+            _as_range(dom), binding, dtype
+        )
+
+    @staticmethod
+    def remap(kinds: str, bindings: List[PrimExpr], dtype: str = "int32") -> Union[List[Var], Var]:
+        """The block axis remapping function.
+
+        Parameters
+        ----------
+        kinds : str
+            The types of the iteration variables.
+
+        bindings : List[PrimExpr]
+            The binding values of the iteration variables.
+
+        dtype : str
+            The data types of the iteration variables.
+
+        Returns
+        -------
+        res : Var
+            The iteration variables.
+        """
+        iter_vars = _ffi_api.AxisRemap(  # pylint: disable=no-member # type: ignore
+            kinds, bindings, dtype
+        )
+        return iter_vars[0] if len(iter_vars) == 1 else iter_vars
+
+    S = spatial  # pylint: disable=invalid-name
+    R = reduce  # pylint: disable=invalid-name
 
 
 def serial(
@@ -843,6 +997,7 @@ __all__ = [
     "match_buffer",
     "preflattened_buffer",
     "block",
+    "axis",
     "serial",
     "parallel",
     "vectorized",

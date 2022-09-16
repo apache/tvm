@@ -141,6 +141,55 @@ void PreflattenedBuffer(Buffer postflattened_buffer, Array<PrimExpr> shape,
  */
 BlockFrame Block(String name, bool no_realize = false);
 
+namespace axis {
+
+/*!
+ * \brief The spatial block axis defining function.
+ * \param dom The domain of the iteration variable.
+ * \param binding The binding value of the iteration variable.
+ * \param dtype The data type of the iteration variable.
+ * \return The iteration variable.
+ */
+Var Spatial(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+
+/*!
+ * \brief The reduced block axis defining function.
+ * \param dom The domain of the iteration variable.
+ * \param binding The binding value of the iteration variable.
+ * \param dtype The data type of the iteration variable.
+ * \return The iteration variable.
+ */
+Var Reduce(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+
+/*!
+ * \brief The scanning block axis defining function.
+ * \param dom The domain of the iteration variable.
+ * \param binding The binding value of the iteration variable.
+ * \param dtype The data type of the iteration variable.
+ * \return The iteration variable.
+ */
+Var Scan(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+
+/*!
+ * \brief The opaque block axis defining function.
+ * \param dom The domain of the iteration variable.
+ * \param binding The binding value of the iteration variable.
+ * \param dtype The data type of the iteration variable.
+ * \return The iteration variable.
+ */
+Var Opaque(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+
+/*!
+ * \brief The block axis remapping function.
+ * \param kinds The types of the iteration variables.
+ * \param bindings The binding values of the iteration variables.
+ * \param dtype The data types of the iteration variables.
+ * \return The iteration variables.
+ */
+Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype = DataType::Int(32));
+
+}  // namespace axis
+
 /*!
  * \brief The serial For statement.
  * \param start The minimum value of iteration.
