@@ -70,7 +70,7 @@ class InterfaceCNode : public runtime::ModuleNode {
       std::replace(input_name.begin(), input_name.end(), ':', '_');
       std::replace(input_name.begin(), input_name.end(), '+', '_');
       std::replace(input_name.begin(), input_name.end(), '-', '_');
-      auto input_size = it.second->value;
+      int input_size = it.second->value;
       EmitIntegerValueMacro(code, "Input tensor " + input_name + " size (in bytes)", input_name,
                             input_size);
     }
