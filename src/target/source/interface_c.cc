@@ -74,11 +74,8 @@ class InterfaceCNode : public runtime::ModuleNode {
 
     // Emit macros for output sizes
     for (auto const& it : output_sizes_) {
-      auto output_name = std::string(it.first);
-      std::replace(output_name.begin(), output_name.end(), ':', '_');
-      std::replace(output_name.begin(), output_name.end(), '+', '_');
-      std::replace(output_name.begin(), output_name.end(), '-', '_');
-      auto output_size = it.second->value;
+      std::string output_name = SanitizeName(it.first);
+      int output_size = it.second->value;
       EmitIntegerValueMacro(code, "Output tensor " + output_name + " size (in bytes)", output_name,
                             output_size);
     }
