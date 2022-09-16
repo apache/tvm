@@ -1640,11 +1640,9 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
   if (NeedsMultiLevelTiling(self, block_sref)) {
     // Do not use rfactor/cross-thread-reduction if we have enough parallelism on spatial loops.
     return !(cum_space_len >= cum_reduce_len || cum_space_len > max_parallel_extent);
-  } else if (cum_reduce_len > 1) {
-    // Always try rfactor/cross-thread-reduction for other reduction blocks.
-    return cum_reduce_len > max_parallel_basic;
   } else {
-    return false;
+    // Always try rfactor/cross-thread-reduction for other reduction blocks.
+    return cum_reduce_len > 1;
   }
 }
 
