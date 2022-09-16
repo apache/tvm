@@ -25,6 +25,7 @@ from tvm.tir import (
     Buffer,
     BufferLoad,
     BufferRegion,
+    IntImm,
     PrimExpr,
     StringImm,
     Var,
@@ -342,6 +343,154 @@ def block(name: str = "", no_realize: bool = False) -> frame.BlockFrame:
         The BlockFrame.
     """
     return _ffi_api.Block(name, no_realize)  # pylint: disable=no-member # type: ignore
+
+
+def init() -> frame.BlockInitFrame:
+    """The block initialization statement.
+
+    Returns
+    -------
+    res : frame.BlockInitFrame
+        The BlockInitFrame.
+    """
+    return _ffi_api.Init()  # pylint: disable=no-member # type: ignore
+
+
+def where(predicate: Union[PrimExpr, int]) -> None:
+    """The block predicate statement.
+
+    Parameters
+    ----------
+    predicate : Union[PrimExpr, Literal[0, 1]]
+        The predicate condition.
+    """
+    if isinstance(predicate, bool):
+        predicate = IntImm("bool", predicate)
+    if isinstance(predicate, int):
+        if predicate in [0, 1]:
+            predicate = IntImm("bool", predicate)
+        else:
+            raise ValueError(f"Invalid value for predicate: {predicate}")
+    _ffi_api.Where(predicate)  # pylint: disable=no-member # type: ignore
+
+
+def reads(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
+    """The block buffer region reading statement.
+
+    Parameters
+    ----------
+    buffer_slices : List[Union[BufferRegion, BufferLoad]]
+        The array of buffer regions to read.
+    """
+    if len(buffer_slices) == 1:
+        if isinstance(buffer_slices[0], tuple):
+            buffer_slices = list(buffer_slices[0])
+        elif isinstance(buffer_slices[0], list):
+            buffer_slices = buffer_slices[0]  # type: ignore
+        else:
+            buffer_slices = [buffer_slices[0]]  # type: ignore
+    else:
+        buffer_slices = list(buffer_slices)  # type: ignore
+    _ffi_api.Reads(buffer_slices)  # pylint: disable=no-member # type: ignore
+
+
+def writes(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
+    """The block buffer region writing statement.
+
+    Parameters
+    ----------
+    buffer_slices : List[Union[BufferRegion, BufferLoad]]
+        The array of buffer regions to write.
+    """
+    if len(buffer_slices) == 1:
+        if isinstance(buffer_slices[0], tuple):
+            buffer_slices = list(buffer_slices[0])
+        elif isinstance(buffer_slices[0], list):
+            buffer_slices = buffer_slices[0]  # type: ignore
+        else:
+            buffer_slices = [buffer_slices[0]]
+    else:
+        buffer_slices = list(buffer_slices)  # type: ignore
+    _ffi_api.Writes(buffer_slices)  # pylint: disable=no-member # type: ignore
+
+
+def block_attr(attrs: Dict[str, Any]) -> None:
+    """The block annotation statement.
+
+    Parameters
+    ----------
+    attrs : Dict[str, Any]
+        The annotation of the block.
+    """
+    return _ffi_api.BlockAttrs(attrs)  # pylint: disable=no-member # type: ignore
+
+
+def alloc_buffer(
+    shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral],
+    dtype: str = "float32",
+    data: Var = None,
+    strides: List[PrimExpr] = None,
+    elem_offset: PrimExpr = None,
+    scope: str = "",
+    align: int = -1,
+    offset_factor: int = 0,
+    buffer_type: str = "default",
+    axis_separators: List[int] = None,
+) -> Buffer:
+    """The buffer alllocation function.
+
+    Parameters
+    ----------
+    shape : Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral]
+        The type of the buffer prior to flattening.
+
+    dtype : str
+        The data type in the content of the buffer.
+
+    data : Var
+        The pointer to the head of the data.
+
+    strides : List[PrimExpr]
+        The strides of each dimension.
+
+    elem_offset : PrimExpr
+        The offset in terms of number of dtype elements (including lanes).
+
+    scope : str
+        The optional storage scope of buffer data pointer.
+
+    align : int
+        The alignment requirement of data pointer in bytes.
+
+    offset_factor : int
+        The factor of elem_offset field.
+
+    buffer_type : str
+        The buffer type.
+
+    axis_separators : List[int]
+        The separators between input axes when generating flattened output axes.
+
+    Returns
+    -------
+    res : Buffer
+        The allocated buffer.
+    """
+    shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
+    if strides is None:
+        strides = []
+    return _ffi_api.AllocBuffer(  # pylint: disable=no-member # type: ignore
+        shape,
+        dtype,
+        data,
+        strides,
+        elem_offset,
+        scope,
+        align,
+        offset_factor,
+        buffer_type,
+        axis_separators,
+    )
 
 
 def _as_range(dom: Union[Range, List[PrimExpr]]) -> Range:
@@ -997,6 +1146,12 @@ __all__ = [
     "match_buffer",
     "preflattened_buffer",
     "block",
+    "init",
+    "where",
+    "reads",
+    "writes",
+    "block_attr",
+    "alloc_buffer",
     "axis",
     "serial",
     "parallel",

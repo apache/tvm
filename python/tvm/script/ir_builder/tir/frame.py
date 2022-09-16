@@ -38,6 +38,11 @@ class BlockFrame(TIRFrame):
     ...
 
 
+@_register_object("script.ir_builder.tir.BlockInitFrame")
+class BlockInitFrame(TIRFrame):
+    ...
+
+
 @_register_object("script.ir_builder.tir.ForFrame")
 class ForFrame(TIRFrame):
     def __enter__(self) -> Union[Var, List[Var]]:

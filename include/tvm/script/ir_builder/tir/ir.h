@@ -141,6 +141,55 @@ void PreflattenedBuffer(Buffer postflattened_buffer, Array<PrimExpr> shape,
  */
 BlockFrame Block(String name, bool no_realize = false);
 
+/*!
+ * \brief The block initialization statement.
+ * \return The BlockInitFrame.
+ */
+BlockInitFrame Init();
+
+/*!
+ * \brief The block predicate statement.
+ * \param predicate The predicate condition.
+ */
+void Where(PrimExpr predicate);
+
+/*!
+ * \brief The block buffer region reading statement.
+ * \param buffer_slices The array of buffer regions to read.
+ */
+void Reads(Array<ObjectRef> buffer_slices);
+
+/*!
+ * \brief The block buffer region writing statement.
+ * \param buffer_slices The array of buffer regions to write.
+ */
+void Writes(Array<ObjectRef> buffer_slices);
+
+/*!
+ * \brief The block annotation statement.
+ * \param attrs The annotation of the block.
+ */
+void BlockAttrs(Map<String, ObjectRef> attrs);
+
+/*!
+ * \brief The buffer allocation function.
+ * \param shape The type of the buffer prior to flattening.
+ * \param dtype The data type in the content of the buffer.
+ * \param data The pointer to the head of the data.
+ * \param strides The strides of each dimension.
+ * \param elem_offset The offset in terms of number of dtype elements (including lanes).
+ * \param storage_scope The optional storage scope of buffer data pointer.
+ * \param align The alignment requirement of data pointer in bytes.
+ * \param offset_factor The factor of elem_offset field.
+ * \param buffer_type The buffer type.
+ * \param axis_separators The separators between input axes when generating flattened output axes.
+ * \return The allocated buffer.
+ */
+Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
+                   Optional<Var> data = NullOpt, Array<PrimExpr> strides = {},
+                   PrimExpr elem_offset = PrimExpr(), String storage_scope = "", int align = -1,
+                   int offset_factor = 0, String buffer_type = "default",
+                   Array<IntImm> axis_separators = {});
 namespace axis {
 
 /*!

@@ -188,6 +188,41 @@ class BlockFrame : public TIRFrame {
 };
 
 /*!
+ * \brief A frame that represents the block initialization statment.
+ *
+ * \sa BlockInitFrame
+ */
+class BlockInitFrameNode : public TIRFrameNode {
+ public:
+  void VisitAttrs(tvm::AttrVisitor* v) { TIRFrameNode::VisitAttrs(v); }
+
+  static constexpr const char* _type_key = "script.ir_builder.tir.BlockInitFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(BlockInitFrameNode, TIRFrameNode);
+
+ public:
+  /*!
+   * \brief The method called when entering RAII scope.
+   * \sa tvm::support::With
+   */
+  void EnterWithScope() final;
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
+  void ExitWithScope() final;
+};
+
+/*!
+ * \brief Managed reference to BlockInitFrameNode.
+ *
+ * \sa BlockInitFrameNode
+ */
+class BlockInitFrame : public TIRFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockInitFrame, TIRFrame, BlockInitFrameNode);
+};
+
+/*!
  * \brief A frame that represents the for loop.
  *
  * \sa ForFrame
