@@ -122,8 +122,7 @@ class TestGenerateProject:
         handler._get_fqbn = mock.MagicMock(return_value="arduino:mbed_nano:nano33")
         mock_run.return_value.stdout = bytes(self.BOARD_CONNECTED_V18, "utf-8")
         assert (
-            handler._auto_detect_port({**self.DEFAULT_OPTIONS, "board": "nano33"})
-            == "/dev/ttyACM1"
+            handler._auto_detect_port({**self.DEFAULT_OPTIONS, "board": "nano33"}) == "/dev/ttyACM1"
         )
 
     BAD_CLI_VERSION = "arduino-cli  Version: 0.7.1 Commit: 7668c465 Date: 2019-12-31T18:24:32Z\n"

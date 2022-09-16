@@ -163,7 +163,7 @@ class Handler(server.ProjectAPIHandler):
     ]
 
     FQBN_TOKEN = "<FQBN>"
-    VERBOSE_FLAG_TOKEN = "<VFLAG>"
+    VERBOSE_FLAG_TOKEN = "<VERBOSE_FLAG>"
 
     def _remove_unused_components(self, source_dir, project_type):
         unused_components = []
@@ -393,10 +393,7 @@ class Handler(server.ProjectAPIHandler):
 
     def build(self, options):
         self._check_platform_version(options)
-        compile_cmd = [
-            "make",
-            "build"
-        ]
+        compile_cmd = ["make", "build"]
         # Specify project to compile
         subprocess.run(compile_cmd, check=True)
 
@@ -464,23 +461,8 @@ class Handler(server.ProjectAPIHandler):
         self._check_platform_version(options)
         port = self._get_arduino_port(options)
 
-        # TODO: add support for flash
-        upload_cmd = [
-            self._get_arduino_cli_cmd(options),
-            "upload",
-            "./project",
-            "--fqbn",
-            self._get_fqbn(options),
-            "--input-dir",
-            BUILD_DIR.resolve(),
-            "--port",
-            port,
-        ]
+        upload_cmd = ["make", "flash" f"PORT={port}"]
 
-        if options.get("verbose"):
-            upload_cmd.append("--verbose")
-
-        import pdb; pdb.set_trace()
         for _ in range(self.FLASH_MAX_RETRIES):
             try:
                 subprocess.run(upload_cmd, check=True, timeout=self.FLASH_TIMEOUT_SEC)

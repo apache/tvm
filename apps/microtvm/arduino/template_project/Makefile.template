@@ -1,20 +1,21 @@
 MAKE_DIR   		:= $(PWD)
 FQBN       		?= <FQBN>
-VERBOSE_FLAG	?= <VERBOSE_FLAG> 
+VERBOSE_FLAG	?= <VERBOSE_FLAG>
 BUILD_DIR  		:= $(subst :,.,build)
+PORT			?=
 
 SRC        	:= $(wildcard *.ino)
 BIN        	:= $(BUILD_DIR)/$(SRC).bin
 ELF        	:= $(BUILD_DIR)/$(SRC).elf
 
-$(info FQBN       is [${FQBN}])
-$(info MAKE_DIR   is [${MAKE_DIR}])
-$(info BUILD_DIR  is [${BUILD_DIR}])
-$(info SRC        is [${SRC}])
-$(info BIN        is [${BIN}])
-$(info DEV_PORT is [${DEV_PORT}])
+$(info FQBN       	is [${FQBN}])
+$(info MAKE_DIR   	is [${MAKE_DIR}])
+$(info BUILD_DIR  	is [${BUILD_DIR}])
+$(info SRC        	is [${SRC}])
+$(info BIN        	is [${BIN}])
+$(info PORT 	is [${PORT}])
 
-all: $(ELF) upload
+all: $(ELF) flash
 .PHONY: all
 
 build: $(ELF)
@@ -23,11 +24,10 @@ build: $(ELF)
 $(ELF): $(SRC)
 	arduino-cli compile --fqbn $(FQBN) --build-path $(BUILD_DIR) $(VFLAG)
 
-upload:
-	@if [ ! -c $(DEV_PORT) ] ; \
-	then echo "---> ERROR: Serial Device not available, please set the SERIAL_DEV environment variable" ; \
-	else echo "---> Uploading sketch\n"; \
-	arduino-cli upload -b $(FQBN) -p $(DEV_PORT) $(VFLAG); \
+flash:
+	if [ -z $(PORT) ] ; then \
+	echo "---> ERROR: Please set the device port environment variable PORT"; \
+	else arduino-cli upload --fqbn $(FQBN) --input-dir $(BUILD_DIR) --port $(PORT) $(VFLAG); \
 	fi
 
 clean:
