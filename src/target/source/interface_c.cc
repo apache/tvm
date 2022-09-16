@@ -66,10 +66,7 @@ class InterfaceCNode : public runtime::ModuleNode {
 
     // Emit macros for input sizes
     for (auto const& it : input_sizes_) {
-      auto input_name = std::string(it.first);
-      std::replace(input_name.begin(), input_name.end(), ':', '_');
-      std::replace(input_name.begin(), input_name.end(), '+', '_');
-      std::replace(input_name.begin(), input_name.end(), '-', '_');
+      std::string input_name = SanitizeName(it.first);
       int input_size = it.second->value;
       EmitIntegerValueMacro(code, "Input tensor " + input_name + " size (in bytes)", input_name,
                             input_size);
