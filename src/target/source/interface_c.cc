@@ -67,16 +67,18 @@ class InterfaceCNode : public runtime::ModuleNode {
     // Emit macros for input sizes
     for (auto const& it : input_sizes_) {
       std::string input_name = SanitizeName(it.first);
+      std::string input_macro_name = input_name + "_size";
       int input_size = it.second->value;
-      EmitIntegerValueMacro(code, "Input tensor " + input_name + " size (in bytes)", input_name,
+      EmitIntegerValueMacro(code, "Input tensor " + input_name + " size (in bytes)", input_macro_name,
                             input_size);
     }
 
     // Emit macros for output sizes
     for (auto const& it : output_sizes_) {
       std::string output_name = SanitizeName(it.first);
+      std::string output_macro_name = output_name + "_size";
       int output_size = it.second->value;
-      EmitIntegerValueMacro(code, "Output tensor " + output_name + " size (in bytes)", output_name,
+      EmitIntegerValueMacro(code, "Output tensor " + output_name + " size (in bytes)", output_macro_name,
                             output_size);
     }
 
