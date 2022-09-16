@@ -286,7 +286,7 @@ TEST(InterfaceAPI, ContainsInputStructSingle) {
       << "/*!\n"
       << " * \\brief Input tensor input size (in bytes) for TVM module \"ultimate_cat_spotter\" \n"
       << " */\n"
-      << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT 537\n";
+      << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT_SIZE 537\n";
 
   input_struct << "/*!\n"
                << " * \\brief Input tensor pointers for TVM module \"ultimate_cat_spotter\" \n"
@@ -318,13 +318,13 @@ TEST(InterfaceAPI, ContainsInputStructMany) {
       << "/*!\n"
       << " * \\brief Input tensor input1 size (in bytes) for TVM module \"ultimate_cat_spotter\" \n"
       << " */\n"
-      << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT1 765\n";
+      << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT1_SIZE 765\n";
 
   input2_size_macro
       << "/*!\n"
       << " * \\brief Input tensor input2 size (in bytes) for TVM module \"ultimate_cat_spotter\" \n"
       << " */\n"
-      << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT2 127\n";
+      << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT2_SIZE 127\n";
 
   input_struct << "struct tvmgen_ultimate_cat_spotter_inputs {\n"
                << "  void* input1;\n"
@@ -356,13 +356,13 @@ TEST(InterfaceAPI, ContainsInputStructSanitised) {
                     << " * \\brief Input tensor input_1 size (in bytes) for TVM module "
                        "\"ultimate_cat_spotter\" \n"
                     << " */\n"
-                    << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT_1 765\n";
+                    << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT_1_SIZE 765\n";
 
   input2_size_macro << "/*!\n"
                     << " * \\brief Input tensor input_2 size (in bytes) for TVM module "
                        "\"ultimate_cat_spotter\" \n"
                     << " */\n"
-                    << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT_2 127\n";
+                    << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_INPUT_2_SIZE 127\n";
 
   input_struct << "struct tvmgen_ultimate_cat_spotter_inputs {\n"
                << "  void* input_1;\n"
@@ -379,6 +379,8 @@ TEST(InterfaceAPI, ContainsInputStructSanitised) {
       InterfaceCCreate("ultimate_cat_spotter", {"input+1", "input+2"}, {"output"}, {}, {}, {}, 0,
                        input_sizes, output_sizes);
   std::string header_source = test_module->GetSource();
+
+  std::cout << header_source << std::endl;
 
   ASSERT_THAT(header_source, HasSubstr(input_struct.str()));
   ASSERT_THAT(header_source, HasSubstr(input1_size_macro.str()));
@@ -406,7 +408,7 @@ TEST(InterfaceAPI, ContainsOutputStructSingle) {
                     << " * \\brief Output tensor output size (in bytes) for TVM module "
                        "\"ultimate_cat_spotter\" \n"
                     << " */\n"
-                    << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_OUTPUT 543\n";
+                    << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_OUTPUT_SIZE 543\n";
 
   output_struct << "/*!\n"
                 << " * \\brief Output tensor pointers for TVM module \"ultimate_cat_spotter\" \n"
@@ -437,13 +439,13 @@ TEST(InterfaceAPI, ContainsOutputStructMany) {
                      << " * \\brief Output tensor output1 size (in bytes) for TVM module "
                         "\"ultimate_cat_spotter\" \n"
                      << " */\n"
-                     << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_OUTPUT1 345\n";
+                     << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_OUTPUT1_SIZE 345\n";
 
   output2_size_macro << "/*!\n"
                      << " * \\brief Output tensor output2 size (in bytes) for TVM module "
                         "\"ultimate_cat_spotter\" \n"
                      << " */\n"
-                     << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_OUTPUT2 984\n";
+                     << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_OUTPUT2_SIZE 984\n";
 
   output_struct << "struct tvmgen_ultimate_cat_spotter_outputs {\n"
                 << "  void* output1;\n"
@@ -475,13 +477,13 @@ TEST(InterfaceAPI, ContainsOutputStructSanitised) {
                      << " * \\brief Output tensor output_1 size (in bytes) for TVM module "
                         "\"ultimate_cat_spotter\" \n"
                      << " */\n"
-                     << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_OUTPUT_1 345\n";
+                     << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_OUTPUT_1_SIZE 345\n";
 
   output2_size_macro << "/*!\n"
                      << " * \\brief Output tensor output_2 size (in bytes) for TVM module "
                         "\"ultimate_cat_spotter\" \n"
                      << " */\n"
-                     << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_OUTPUT_2 984\n";
+                     << "#define TVMGEN_ULTIMATE_CAT_SPOTTER_OUTPUT_2_SIZE 984\n";
 
   output_struct << "struct tvmgen_ultimate_cat_spotter_outputs {\n"
                 << "  void* output_1;\n"

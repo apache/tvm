@@ -294,24 +294,34 @@ def _build_function_memory_map(function_metadata):
             main_func_metadata.io_sizes[target]
         )
 
-        # Now, we also add the information about the size of inputs and outputs (in bytes)
+        # Now, we also add the information about the size of each input and output of the main function (in bytes)
         input_dict = {}
         for input_param in main_func_metadata.relay_primfuncs[target].params:
-            input_dict[input_param.name_hint] = int(
-                _shape_to_size(input_param.checked_type.shape, input_param.checked_type.dtype)
-            )
+            if hasattr(input_param,"checked_type"):
+                input_dict[input_param.name_hint] = int(
+                    _shape_to_size(input_param.checked_type.shape, input_param.checked_type.dtype)
+                )
+            else:
+                # TODO: maybe fill checked_type here?
+                input_dict[input_param.name_hint] = 0
         target_main_entries[int(target.kind.device_type)]["inputs"] = input_dict
 
         output_dict = {}
-        # For output, we dont have the name of the output tensor, so we enumerate them
+        # For output, we dont have the name of the output, so we enumerate them
         if isinstance(main_func_metadata.relay_primfuncs[target].ret_type, tvm.ir.type.TupleType):
             for i, output_type in enumerate(
                 main_func_metadata.relay_primfuncs[target].ret_type.fields
             ):
-                output_dict[i] = int(_shape_to_size(output_type.shape, output_type.dtype))
+                if hasattr(output_type,"shape"):
+                    output_dict[i] = int(_shape_to_size(output_type.shape, output_type.dtype))
+                else:
+                    output_dict[i] = 0
         else:
             output_type = main_func_metadata.relay_primfuncs[target].ret_type
-            output_dict[0] = int(_shape_to_size(output_type.shape, output_type.dtype))
+            if hasattr(output_type,"shape"):
+                output_dict[0] = int(_shape_to_size(output_type.shape, output_type.dtype))
+            else:
+                output_dict[0] = 0
         target_main_entries[int(target.kind.device_type)]["outputs"] = output_dict
 
     ret = {
@@ -570,7 +580,7 @@ def _export_operator_model_library_format(mod: build_module.OperatorModule, temp
     """
     targets = []
     for target in mod.ir_module_by_target.keys():
-        if str(target.kind) not in ("llvm", "c", "gemmini"):
+        if str(target.kind) not in ("llvm", "c"):
             raise UnsupportedInModelLibraryFormatError(
                 f"Operator has non-DSO-exportable target {target!s}, which is not yet supported in "
                 "Model Library Format"
