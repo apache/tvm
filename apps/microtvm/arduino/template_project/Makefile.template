@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-MAKE_DIR   		:= $(PWD)
-FQBN       		?= <FQBN>
+MAKE_DIR		:= $(PWD)
+FQBN			?= <FQBN>
 VERBOSE_FLAG	?= <VERBOSE_FLAG>
-BUILD_DIR  		:= $(subst :,.,build)
+BUILD_DIR		:= $(subst :,.,build)
 PORT			?=
 ARUINO_CLI_CMD	?= <ARUINO_CLI_CMD>
 
@@ -26,12 +26,12 @@ SRC        	:= $(wildcard *.ino)
 BIN        	:= $(BUILD_DIR)/$(SRC).bin
 ELF        	:= $(BUILD_DIR)/$(SRC).elf
 
-$(info FQBN       	is [${FQBN}])
-$(info MAKE_DIR   	is [${MAKE_DIR}])
-$(info BUILD_DIR  	is [${BUILD_DIR}])
-$(info SRC        	is [${SRC}])
-$(info BIN        	is [${BIN}])
-$(info PORT 	is [${PORT}])
+$(info FQBN			is [${FQBN}])
+$(info MAKE_DIR		is [${MAKE_DIR}])
+$(info BUILD_DIR	is [${BUILD_DIR}])
+$(info SRC			is [${SRC}])
+$(info BIN			is [${BIN}])
+$(info PORT			is [${PORT}])
 
 all: $(ELF) flash
 .PHONY: all
