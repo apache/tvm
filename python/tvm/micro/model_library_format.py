@@ -297,7 +297,7 @@ def _build_function_memory_map(function_metadata):
         # Now, we also add the information about the size of each input and output of the main function (in bytes)
         input_dict = {}
         for input_param in main_func_metadata.relay_primfuncs[target].params:
-            if hasattr(input_param,"checked_type"):
+            if hasattr(input_param, "checked_type"):
                 input_dict[input_param.name_hint] = int(
                     _shape_to_size(input_param.checked_type.shape, input_param.checked_type.dtype)
                 )
@@ -312,13 +312,13 @@ def _build_function_memory_map(function_metadata):
             for i, output_type in enumerate(
                 main_func_metadata.relay_primfuncs[target].ret_type.fields
             ):
-                if hasattr(output_type,"shape"):
+                if hasattr(output_type, "shape"):
                     output_dict[i] = int(_shape_to_size(output_type.shape, output_type.dtype))
                 else:
                     output_dict[i] = 0
         else:
             output_type = main_func_metadata.relay_primfuncs[target].ret_type
-            if hasattr(output_type,"shape"):
+            if hasattr(output_type, "shape"):
                 output_dict[0] = int(_shape_to_size(output_type.shape, output_type.dtype))
             else:
                 output_dict[0] = 0
