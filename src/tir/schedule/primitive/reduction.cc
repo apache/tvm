@@ -297,60 +297,86 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
  */
 struct ReducerRegistry {
   ReducerRegistry()
-      : reducer_getters{CreateReducerGetter(
-                            /*n_buffers=*/1,
-                            [](const Array<Var>& x, const Array<Var>& y) {
-                              return Array<PrimExpr>{x[0] + y[0]};
-                            },
-                            [](const Array<PrimExpr>& values) {
-                              return Array<PrimExpr>{make_const(values[0]->dtype, 0)};
-                            }),
-                        CreateReducerGetter(
-                            /*n_buffers=*/1,
-                            [](const Array<Var>& x, const Array<Var>& y) {
-                              return Array<PrimExpr>{x[0] * y[0]};
-                            },
-                            [](const Array<PrimExpr>& values) {
-                              return Array<PrimExpr>{make_const(values[0]->dtype, 1)};
-                            }),
-                        CreateReducerGetter(
-                            /*n_buffers=*/1,
-                            [](const Array<Var>& x, const Array<Var>& y) {
-                              return Array<PrimExpr>{min(x[0], y[0])};
-                            },
-                            [](const Array<PrimExpr>& values) {
-                              return Array<PrimExpr>{max_value(values[0]->dtype)};
-                            }),
-                        CreateReducerGetter(
-                            /*n_buffers=*/1,
-                            [](const Array<Var>& x, const Array<Var>& y) {
-                              return Array<PrimExpr>{max(x[0], y[0])};
-                            },
-                            [](const Array<PrimExpr>& values) {
-                              return Array<PrimExpr>{min_value(values[0]->dtype)};
-                            }),
-                        CreateReducerGetter(
-                            /*n_buffers=*/2,
-                            [](const Array<Var>& x, const Array<Var>& y) {
-                              PrimExpr idx = Select(x[1] >= y[1], x[0], y[0]);
-                              PrimExpr val = Select(x[1] >= y[1], x[1], y[1]);
-                              return Array<PrimExpr>{idx, val};
-                            },
-                            [](const Array<PrimExpr>& values) {
-                              return Array<PrimExpr>{make_const(values[0]->dtype, -1),
-                                                     min_value(values[1]->dtype)};
-                            }),
-                        CreateReducerGetter(
-                            /*n_buffers=*/2,
-                            [](const Array<Var>& x, const Array<Var>& y) {
-                              PrimExpr idx = Select(x[1] <= y[1], x[0], y[0]);
-                              PrimExpr val = Select(x[1] <= y[1], x[1], y[1]);
-                              return Array<PrimExpr>{idx, val};
-                            },
-                            [](const Array<PrimExpr>& values) {
-                              return Array<PrimExpr>{make_const(values[0]->dtype, -1),
-                                                     max_value(values[1]->dtype)};
-                            })} {}
+      : reducer_getters{
+            CreateReducerGetter(
+                /*n_buffers=*/1,
+                [](const Array<Var>& x, const Array<Var>& y) {
+                  return Array<PrimExpr>{x[0] + y[0]};
+                },
+                [](const Array<PrimExpr>& values) {
+                  return Array<PrimExpr>{make_const(values[0]->dtype, 0)};
+                }),
+            CreateReducerGetter(
+                /*n_buffers=*/1,
+                [](const Array<Var>& x, const Array<Var>& y) {
+                  return Array<PrimExpr>{x[0] * y[0]};
+                },
+                [](const Array<PrimExpr>& values) {
+                  return Array<PrimExpr>{make_const(values[0]->dtype, 1)};
+                }),
+            CreateReducerGetter(
+                /*n_buffers=*/1,
+                [](const Array<Var>& x, const Array<Var>& y) {
+                  return Array<PrimExpr>{min(x[0], y[0])};
+                },
+                [](const Array<PrimExpr>& values) {
+                  return Array<PrimExpr>{max_value(values[0]->dtype)};
+                }),
+            CreateReducerGetter(
+                /*n_buffers=*/1,
+                [](const Array<Var>& x, const Array<Var>& y) {
+                  return Array<PrimExpr>{max(x[0], y[0])};
+                },
+                [](const Array<PrimExpr>& values) {
+                  return Array<PrimExpr>{min_value(values[0]->dtype)};
+                }),
+            CreateReducerGetter(
+                /*n_buffers=*/2,
+                [](const Array<Var>& x, const Array<Var>& y) {
+                  PrimExpr idx = Select(x[1] >= y[1], x[0], y[0]);
+                  PrimExpr val = Select(x[1] >= y[1], x[1], y[1]);
+                  return Array<PrimExpr>{idx, val};
+                },
+                [](const Array<PrimExpr>& values) {
+                  return Array<PrimExpr>{make_const(values[0]->dtype, -1),
+                                         min_value(values[1]->dtype)};
+                }),
+            CreateReducerGetter(
+                /*n_buffers=*/2,
+                [](const Array<Var>& x, const Array<Var>& y) {
+                  PrimExpr idx =
+                      Select(Or(greater(x[1], y[1]), And(equal(x[1], y[1]), less(x[0], y[0]))),
+                             x[0], y[0]);
+                  PrimExpr val = Select(greater(x[1], y[1]), x[1], y[1]);
+                  return Array<PrimExpr>{idx, val};
+                },
+                [](const Array<PrimExpr>& values) {
+                  return Array<PrimExpr>{make_const(values[0]->dtype, -1),
+                                         min_value(values[1]->dtype)};
+                }),
+            CreateReducerGetter(
+                /*n_buffers=*/2,
+                [](const Array<Var>& x, const Array<Var>& y) {
+                  PrimExpr idx = Select(x[1] <= y[1], x[0], y[0]);
+                  PrimExpr val = Select(x[1] <= y[1], x[1], y[1]);
+                  return Array<PrimExpr>{idx, val};
+                },
+                [](const Array<PrimExpr>& values) {
+                  return Array<PrimExpr>{make_const(values[0]->dtype, -1),
+                                         max_value(values[1]->dtype)};
+                }),
+            CreateReducerGetter(
+                /*n_buffers=*/2,
+                [](const Array<Var>& x, const Array<Var>& y) {
+                  PrimExpr idx = Select(
+                      Or(less(x[1], y[1]), And(equal(x[1], y[1]), less(x[0], y[0]))), x[0], y[0]);
+                  PrimExpr val = Select(less(x[1], y[1]), x[1], y[1]);
+                  return Array<PrimExpr>{idx, val};
+                },
+                [](const Array<PrimExpr>& values) {
+                  return Array<PrimExpr>{make_const(values[0]->dtype, -1),
+                                         max_value(values[1]->dtype)};
+                })} {}
 
   static void RegisterReducer(
       int n_buffers, TypedPackedFunc<Array<PrimExpr>(Array<Var>, Array<Var>)> combiner_getter,
