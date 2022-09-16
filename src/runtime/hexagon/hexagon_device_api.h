@@ -52,12 +52,9 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Ensures resource managers are in a good state for the runtime
   void AcquireResources() {
-    if (runtime_hexbuffs) {
-      LOG(INFO) << "runtime_hexbuffs has already been created";
-    } else {
-      runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
-      LOG(INFO) << "runtime_hexbuffs created";
-    }
+    CHECK_EQ(runtime_hexbuffs, nullptr);
+    runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
+    LOG(INFO) << "runtime_hexbuffs created";
   }
 
   //! \brief Ensures all runtime resources are freed
