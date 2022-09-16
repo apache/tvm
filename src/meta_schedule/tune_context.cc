@@ -74,6 +74,7 @@ TuneContext TuneContextNode::Clone() const {
   }
   if (this->space_generator.defined()) n->space_generator = this->space_generator.value()->Clone();
   if (this->search_strategy.defined()) n->search_strategy = this->search_strategy.value()->Clone();
+  n->rand_state = support::LinearCongruentialEngine(&n->rand_state).ForkSeed();
   n->Initialize();
   return TuneContext(n);
 }
