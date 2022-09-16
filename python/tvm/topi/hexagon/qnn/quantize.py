@@ -25,7 +25,6 @@ Please note the following assumptions made by the implementation:
 
 from tvm import te
 from tvm import tir
-from tvm import topi
 from ..utils import get_layout_transform_fn, saturate
 
 
