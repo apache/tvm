@@ -90,8 +90,6 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
 
   const size_t typesize = (dtype.bits / 8) * dtype.lanes;
 
-  HexagonBufferManager* mgr = runtime_hexbuffs ? runtime_hexbuffs.get() : &hexbuffs;
-
   if (ndim == 0) {
     // Allocate storage for a single scalar value.
     return mgr->AllocateHexagonBuffer(typesize, kHexagonAllocAlignment, mem_scope);
@@ -117,15 +115,12 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignme
   if (alignment < kHexagonAllocAlignment) {
     alignment = kHexagonAllocAlignment;
   }
-  HexagonBufferManager* mgr = runtime_hexbuffs ? runtime_hexbuffs.get() : &hexbuffs;
   return mgr->AllocateHexagonBuffer(nbytes, alignment, String("global"));
 }
 
 void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
   CHECK(ptr) << "buffer pointer is null";
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  HexagonBufferManager* mgr =
-      (runtime_hexbuffs && runtime_hexbuffs->count(ptr) != 0) ? runtime_hexbuffs.get() : &hexbuffs;
   mgr->FreeHexagonBuffer(ptr);
 }
 
@@ -142,8 +137,7 @@ void* HexagonDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_
 
 void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  CHECK(hexbuffs.count(data) != 0 ||
-        (runtime_hexbuffs != nullptr && runtime_hexbuffs->count(data) != 0))
+  CHECK(mgr->count(data) != 0)
       << "Attempt made to free unknown or already freed workspace allocation";
   dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
@@ -167,10 +161,7 @@ void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHan
   CHECK_EQ(to->byte_offset, 0);
   CHECK_EQ(GetDataSize(*from), GetDataSize(*to));
 
-  auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* {
-    return (runtime_hexbuffs && runtime_hexbuffs->count(ptr) != 0) ? runtime_hexbuffs->find(ptr)
-                                                                   : hexbuffs.find(ptr);
-  };
+  auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* { return mgr->find(ptr); };
 
   HexagonBuffer* hex_from_buf = lookup_hexagon_buffer(from->data);
   HexagonBuffer* hex_to_buf = lookup_hexagon_buffer(to->data);
