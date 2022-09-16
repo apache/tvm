@@ -494,5 +494,40 @@ def test_invalid_request(BaseTestHandler):
     }
 
 
+@tvm.testing.requires_micro
+def test_default_project_options():
+    from tvm.micro import project_api
+
+    default_options = project_api.server.default_project_options()
+    names = []
+    for option in default_options:
+        names.append(option.name)
+        if option.name == "verbose":
+            assert "generate_project" in option.optional
+        if option.name in ["project_type", "board"]:
+            assert "generate_project" in option.required
+        if option.name == "warning_as_error":
+            assert "generate_project" in option.optional
+
+    for name in ["verbose", "project_type", "board", "cmsis_path", "warning_as_error"]:
+        assert name in names
+
+
+@tvm.testing.requires_micro
+def test_modified_project_options():
+    from tvm.micro import project_api
+
+    modified_options = project_api.server.default_project_options(
+        verbose={"optional": ["flash"], "required": ["build"]},
+        board={"choices": ["board1", "board2"]},
+    )
+    for option in modified_options:
+        if option.name == "verbose":
+            assert option.optional == ["flash"]
+            assert option.required == ["build"]
+        if option.name == "board":
+            assert option.choices == ["board1", "board2"]
+
+
 if __name__ == "__main__":
     tvm.testing.main()

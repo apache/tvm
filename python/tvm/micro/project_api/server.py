@@ -780,6 +780,21 @@ def write_with_timeout(fd, data, timeout_sec):  # pylint: disable=invalid-name
 
 
 def default_project_options(**kw) -> typing.List[ProjectOption]:
+    """Get default Project Options
+
+    Attributes of any default option can be updated. Here is an example
+    when attribute `optional` from `verbose` option needs to be updates:
+
+        default_project_options(verbose={"optional": ["build"]})
+
+    This will update the `optional` attribute of `verbose` ProjectOption
+    to be `["build"]`.
+
+    Returns
+    -------
+    options: List[ProjectOption]
+        A list of default ProjectOption with modifications.
+    """
     options = [
         ProjectOption(
             "verbose",
@@ -813,9 +828,14 @@ def default_project_options(**kw) -> typing.List[ProjectOption]:
         ),
     ]
     for name, config in kw.items():
+        option_found = False
         for ind, option in enumerate(options):
             if option.name == name:
                 options[ind] = option.replace(**config)
+                option_found = True
+                break
+        if not option_found:
+            raise ValueError("Option {} was not found in default ProjectOptions.".format(name))
 
     return options
 
