@@ -2490,6 +2490,11 @@ class Schedule(Object):
             insert an annotation block to state that the padding contains
             the known value.
 
+            The pad value may not contain instances of BufferLoad,
+            except where it loads a value from the buffer being
+            transformed (e.g. to create a circular buffer with
+            padding that consists of repeated elements).
+
             Note: If applied to an input buffer, the calling scope is
             responsible for ensuring that the pad_value is present.
             Algebraic symplifications, branch elimination, and other

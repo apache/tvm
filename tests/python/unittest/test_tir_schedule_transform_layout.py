@@ -656,5 +656,88 @@ class TestPaddedTransformNonConstantValue(tvm.testing.CompareBeforeAfter):
                 )
 
 
+@pytest.mark.xfail(reason="Not yet implemented")
+class TestPaddedTransformRepeatedBufferElement(tvm.testing.CompareBeforeAfter):
+    """Allow an expression to specify the pad value.
+
+    Like TestPaddedTransformOfInputCreatesAssumption, but the pad
+    value depends on another portion of the buffer.  In this case, the
+    padding at the end of A contains repeated elements from the
+    beginning of A.
+    """
+
+    @pytest.fixture
+    def transform(self):
+        def transform(mod):
+            sch = tir.Schedule(mod)
+
+            A = sch.get(sch.get_block("block")).reads[0].buffer
+            sch.transform_layout(
+                "block",
+                "A",
+                lambda i: [i // 4, i % 4],
+                pad_value=lambda i, j: A[(4 * i + j) % 14],
+            )
+            return sch.mod
+
+        return transform
+
+    def before(A: T.Buffer[14, "int32"]):
+        B = T.alloc_buffer(14, "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi]
+
+    def expected(A: T.Buffer[(4, 4), "int32"]):
+        for i, j in T.grid(4, 4):
+            with T.block("buffer_A_assumption"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                T.assume(
+                    not (vi == 3 and 2 <= vj)
+                    or A[vi, vj] == A[((4 * vi + j) % 14) // 4, ((4 * vi + j) % 14) % 4]
+                )
+
+        B = T.alloc_buffer(14, "int32")
+        for i in T.grid(14):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi // 4, vi % 4]
+
+
+class TestPadValueMayNotReferenceOtherBuffer(tvm.testing.CompareBeforeAfter):
+    """Allow an expression to specify the pad value.
+
+    Like TestPaddedTransformRepeatedBufferElement, but the pad value depends on
+    a different buffer, which is not allowed.
+    """
+
+    @pytest.fixture
+    def transform(self):
+        def transform(mod):
+            sch = tir.Schedule(mod)
+
+            A = sch.get(sch.get_block("block")).reads[0].buffer
+            other = tir.decl_buffer(1, A.dtype, name="other")
+            sch.transform_layout(
+                "block",
+                "A",
+                lambda i: [i // 4, i % 4],
+                pad_value=lambda i, j: other[0],
+            )
+            return sch.mod
+
+        return transform
+
+    def before(A: T.Buffer[14, "int32"]):
+        B = T.alloc_buffer(14, "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi]
+
+    expected = tvm.tir.schedule.schedule.ScheduleError
+
+
 if __name__ == "__main__":
     tvm.testing.main()

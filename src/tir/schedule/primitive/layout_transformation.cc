@@ -869,6 +869,61 @@ class TransformationPaddingTypeError : public ScheduleError {
   DataType pad_value_dtype_;
 };
 
+class TransformationPaddingExpressionError : public ScheduleError {
+ public:
+  static void Check(IRModule mod, Buffer buffer, IndexMap pad_value) {
+    Visitor visitor(buffer);
+    ICHECK_EQ(pad_value->final_indices.size(), 1)
+        << "Internal error: Should be caught by ScheduleError checks prior to this point";
+    visitor(pad_value->final_indices[0]);
+    if (visitor.illegal_load) {
+      throw TransformationPaddingExpressionError(mod, buffer, pad_value,
+                                                 visitor.illegal_load.value());
+    }
+  }
+
+ private:
+  struct Visitor : ExprVisitor {
+    Visitor(const Buffer& buffer) : buffer_(buffer) {}
+
+    void VisitExpr_(const BufferLoadNode* op) final {
+      if (!op->buffer.same_as(buffer_)) {
+        illegal_load = GetRef<BufferLoad>(op);
+      }
+      ExprVisitor::VisitExpr_(op);
+    }
+
+    const Buffer& buffer_;
+    Optional<BufferLoad> illegal_load;
+  };
+
+  TransformationPaddingExpressionError(IRModule mod, Buffer buffer, IndexMap pad_value,
+                                       BufferLoad illegal_load)
+      : mod_(mod), buffer_(buffer), pad_value_(pad_value), illegal_load_(illegal_load) {}
+
+  String FastErrorString() const final {
+    std::ostringstream ss;
+    ss << "ScheduleError: Pad value may not contain load load from " << illegal_load_->buffer->name;
+    return ss.str();
+  }
+
+  String DetailRenderTemplate() const final {
+    std::ostringstream ss;
+    ss << "ScheduleError: Pad value may only contain BufferLoad from the transformed buffer "
+       << buffer_->name << ", but pad_value " << pad_value_ << " contains expression "
+       << illegal_load_;
+    return ss.str();
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+
+  IRModule mod_;
+  Buffer buffer_;
+  IndexMap pad_value_;
+  BufferLoad illegal_load_;
+};
+
 class TransformationIntroducesPaddingError : public ScheduleError {
  public:
   TransformationIntroducesPaddingError(IRModule mod, Buffer buffer, IndexMap index_map,
@@ -921,6 +976,8 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
     if (pad_value.value()->final_indices[0]->dtype != old_buffer->dtype) {
       throw TransformationPaddingTypeError(self->mod, old_buffer, pad_value.value());
     }
+
+    TransformationPaddingExpressionError::Check(self->mod, old_buffer, pad_value.value());
   }
 
   StmtSRef scope_sref = defining_site_sref.defined()
