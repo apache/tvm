@@ -158,7 +158,7 @@ def adb_server_socket() -> str:
 
 @pytest.fixture(scope="session")
 def hexagon_server_process(
-    request, rpc_server_port_for_session, adb_server_socket, skip_rpc
+    request, rpc_server_port_for_session, adb_server_socket, skip_rpc, hexagon_debug
 ) -> HexagonLauncherRPC:
     """Initials and returns hexagon launcher if ANDROID_SERIAL_NUMBER is defined.
     This launcher is started only once per test session.
@@ -194,7 +194,7 @@ def hexagon_server_process(
             yield {"launcher": launcher, "device_adr": device_adr}
         finally:
             if not skip_rpc:
-                launcher.stop_server()
+                launcher.stop_server(cleanup=(not hexagon_debug))
 
 
 def read_device_list():
@@ -221,6 +221,7 @@ def hexagon_launcher(
     tvm_tracker_host,
     tvm_tracker_port,
     adb_server_socket,
+    hexagon_debug,
 ) -> HexagonLauncherRPC:
     """Initials and returns hexagon launcher which reuses RPC info and Android serial number."""
     android_serial_num = android_serial_number()
@@ -246,8 +247,9 @@ def hexagon_launcher(
         yield launcher
     finally:
         if android_serial_num == ["simulator"]:
-            launcher.stop_server()
-        launcher.cleanup_directory()
+            launcher.stop_server(cleanup=(not hexagon_debug))
+        elif not hexagon_debug:
+            launcher.cleanup_directory()
 
 
 @pytest.fixture
@@ -297,6 +299,11 @@ def skip_rpc(request) -> bool:
     return request.config.getoption("--skip-rpc")
 
 
+@pytest.fixture(scope="session")
+def hexagon_debug(request) -> bool:
+    return request.config.getoption("--hexagon-debug")
+
+
 def pytest_addoption(parser):
     parser.addoption("--gtest_args", action="store", default="")
 
@@ -305,6 +312,12 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help="If set true, the RPC server initialization on Android would be skipped",
+    )
+    parser.addoption(
+        "--hexagon-debug",
+        action="store_true",
+        default=False,
+        help="If set true, it will keep the hexagon test directories on the target.",
     )
 
 
