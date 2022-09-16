@@ -32,13 +32,20 @@ bool PyPostprocNode::Apply(const tir::Schedule& sch) {
   return f_apply(sch);
 }
 
+Postproc PyPostprocNode::Clone() const {
+  ICHECK(f_clone != nullptr) << "PyPostproc's Clone method not implemented!";
+  return f_clone();
+}
+
 Postproc Postproc::PyPostproc(
     PyPostprocNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
     PyPostprocNode::FApply f_apply,                                             //
+    PyPostprocNode::FClone f_clone,                                             //
     PyPostprocNode::FAsString f_as_string) {
   ObjectPtr<PyPostprocNode> n = make_object<PyPostprocNode>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
+  n->f_clone = std::move(f_clone);
   n->f_as_string = std::move(f_as_string);
   return Postproc(n);
 }
@@ -58,6 +65,7 @@ TVM_REGISTER_NODE_TYPE(PyPostprocNode);
 TVM_REGISTER_GLOBAL("meta_schedule.PostprocInitializeWithTuneContext")
     .set_body_method<Postproc>(&PostprocNode::InitializeWithTuneContext);
 TVM_REGISTER_GLOBAL("meta_schedule.PostprocApply").set_body_method<Postproc>(&PostprocNode::Apply);
+TVM_REGISTER_GLOBAL("meta_schedule.PostprocClone").set_body_method<Postproc>(&PostprocNode::Clone);
 TVM_REGISTER_GLOBAL("meta_schedule.PostprocPyPostproc").set_body_typed(Postproc::PyPostproc);
 
 }  // namespace meta_schedule

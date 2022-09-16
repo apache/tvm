@@ -627,6 +627,7 @@ class ScheduleNode : public runtime::Object {
                                 BufferIndexType buffer_index_type,
                                 const Array<IntImm>& axis_separators) = 0;
 
+  /******** Schedule: Padding ********/
   /*!
    * \brief Decompose a padding block into a block filling const pad values and a block
    * writing in-bound values.
@@ -635,6 +636,25 @@ class ScheduleNode : public runtime::Object {
    * \return The const pad value filling block.
    */
   virtual BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) = 0;
+
+  /*!
+   * \brief Pad the computation of Einsum.
+   * \param block_rv The block that matches the Einsum pattern.
+   * \param padding The padding for each block iter.
+   * \details This schedule primitives identifies the Einsum pattern in the block body, and find its
+   * producer blocks. It then pads the computation of the Einsum pattern and its producer blocks.
+   * The output buffer and the producer buffer is resized according to the padding size. It requires
+   * the output buffer and the producer buffer to be allocated inside the PrimFunc.
+   *
+   * The padding is a list of non-negative integers, each element corresponds to the padding for
+   * each block iter in the order of block iters. The block and its producer blocks should have
+   * trivial bindings, i.e. each block iter is bound to a single loop variable. After padding, the
+   * block iter extent and the corresponding outer loop is extended by the padding size.
+   *
+   * The size of the producer buffers are infered from the padding size of the Einsum computation.
+   * The producer buffers are padded by the initial value of the corresponding reduction.
+   */
+  virtual void PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) = 0;
 
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */

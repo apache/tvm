@@ -26,11 +26,11 @@ from distutils.version import LooseVersion
 
 import os
 import tempfile
+from packaging import version as package_version
 import pytest
 import numpy as np
 
 from PIL import Image
-from packaging import version as package_version
 
 import tvm
 import tvm.relay.testing.tf as tf_testing

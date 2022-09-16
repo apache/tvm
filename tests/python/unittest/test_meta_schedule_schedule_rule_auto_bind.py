@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 from tvm import meta_schedule as ms
+from tvm.meta_schedule.testing.schedule_rule import get_rules
 from tvm.meta_schedule.testing.space_generation import check_sketches
 from tvm.script import tir as T
 from tvm.target import Target
@@ -83,12 +84,7 @@ def test_cuda_element_wise():
         mod=mod,
         target=Target("nvidia/geforce-rtx-3080", host="llvm"),
         space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=[
-            ms.schedule_rule.AutoBind(
-                max_threadblocks=256,
-                thread_extents=[32, 64, 128, 256, 512, 1024],
-            )
-        ],
+        sch_rules=get_rules("cuda", ms.schedule_rule.AutoBind),
         task_name="test",
     ).generate_design_space()
     check_sketches(
@@ -122,12 +118,7 @@ def test_cuda_reduction_loop_only():
         mod=mod,
         target=Target("nvidia/geforce-rtx-3080", host="llvm"),
         space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=[
-            ms.schedule_rule.AutoBind(
-                max_threadblocks=256,
-                thread_extents=[32, 64, 128, 256, 512, 1024],
-            )
-        ],
+        sch_rules=get_rules("cuda", ms.schedule_rule.AutoBind),
         task_name="test",
     ).generate_design_space()
     check_sketches(
@@ -158,12 +149,7 @@ def test_cuda_zero_dim_add():
         mod=mod,
         target=Target("nvidia/geforce-rtx-3080", host="llvm"),
         space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=[
-            ms.schedule_rule.AutoBind(
-                max_threadblocks=256,
-                thread_extents=[32, 64, 128, 256, 512, 1024],
-            )
-        ],
+        sch_rules=get_rules("cuda", ms.schedule_rule.AutoBind),
         task_name="test",
     ).generate_design_space()
     check_sketches(

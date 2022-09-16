@@ -45,7 +45,7 @@ We do encourage everyone to work anything they are interested in.
 - [Animesh Jain](https://github.com/anijain2305): @anijain2305 - quantization, relay
 - [Chenfan Jia](https://github.com/jcf94): @jcf94 - auto_scheduler
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
-- [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm - ethos-u, memory planner
+- [Manupa Karunaratne](https://github.com/manupak): @manupak - ethos-u, memory planner
 - [Elen Kalda](https://github.com/ekalda): @ekalda - ethos-u, arm
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige - profiling, relay, tir, runtime
@@ -70,7 +70,7 @@ We do encourage everyone to work anything they are interested in.
 - [Giuseppe Rossini](https://github.com/giuseros): @giuseros - aot, arm
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
 - [Christopher Sidebottom](https://github.com/Mousius): @Mousius - arm, ethos-u, relay
-- [Junru Shao](https://github.com/junrushao1994) (PMC): @junrushao1994 - relay, compiler
+- [Junru Shao](https://github.com/junrushao) (PMC): @junrushao - relay, compiler
 - [Haichen Shen](https://github.com/icemelon) (PMC): @icemelon - relay, topi
 - [Chris Sullivan](https://github.com/csullivan): @csullivan - amd backend
 - [Siva Rama Krishna Reddy](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
@@ -85,7 +85,7 @@ We do encourage everyone to work anything they are interested in.
 - [Hao Yu](https://github.com/comaniac): @comaniac (PMC) - relay, byoc, auto_scheduler
 - [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, auto_scheduler, topi, relay
 - [Xiyou Zhou](https://github.com/zxybazh): @zxybazh - relay
-- [wrongtest](https://github.com/wrongtest): @wrongtest - tir, tvm-script, arith
+- [wrongtest](https://github.com/wrongtest-intellif): @wrongtest-intellif - tir, tvm-script, arith
 
 ## Reviewers
 
@@ -120,7 +120,7 @@ We do encourage everyone to work anything they are interested in.
 - [Hua Jiang](https://github.com/huajsj): @huajsj
 - [Ziheng Jiang](https://github.com/ZihengJiang): @ZihengJiang
 - [Hongyi Jin](https://github.com/jinhongyii): @jinhongyii
-- [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm
+- [Manupa Karunaratne](https://github.com/manupak): @manupak
 - [Elen Kalda](https://github.com/ekalda): @ekalda
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Michael J. Klaiber](https://github.com/MichaelJKlaiber/) @MichaelJKlaiber
@@ -162,7 +162,7 @@ We do encourage everyone to work anything they are interested in.
 - [Gustavo Romero](https://github.com/gromero): @gromero
 - [Giuseppe Rossini](https://github.com/giuseros): @giuseros
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel
-- [Junru Shao](https://github.com/junrushao1994): @junrushao1994
+- [Junru Shao](https://github.com/junrushao): @junrushao
 - [Haichen Shen](https://github.com/icemelon): @icemelon
 - [Xingjian Shi](https://github.com/sxjscience): @sxjscience
 - [Yuanjing Shi](https://github.com/shingjan): @shingjan
@@ -187,7 +187,7 @@ We do encourage everyone to work anything they are interested in.
 - [Logan Weber](https://github.com/weberlo): @weberlo
 - [Matt Welsh](https://github.com/mdw-octoml): @mdw-octoml
 - [Jian Weng](https://github.com/were): @were
-- [wrongtest](https://github.com/wrongtest): @wrongtest
+- [wrongtest](https://github.com/wrongtest-intellif): @wrongtest-intellif
 - [Yong Wu](https://github.com/yongwww): @yongwww
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene
 - [Bing Xu](https://github.com/antinucleon): @antinucleon
