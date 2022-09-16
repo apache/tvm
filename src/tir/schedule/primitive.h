@@ -490,7 +490,7 @@ TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int
 TVM_DLL void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
                                   const IndexMap& index_map);
 
-/******** Schedule: Padding decomposition ********/
+/******** Schedule: Padding ********/
 /*!
  * \brief Decompose a padding block into a block filling const pad values and a block
  * writing in-bound values.
@@ -500,6 +500,15 @@ TVM_DLL void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref
  */
 TVM_DLL StmtSRef DecomposePadding(ScheduleState self, const StmtSRef& block_sref,
                                   const StmtSRef& loop_sref);
+
+/*!
+ * \brief Pad the computation of Einsum.
+ * \param self The state of the schedule
+ * \param block_sref The block sref that matches the Einsum pattern.
+ * \param padding The padding for each block iter.
+ */
+TVM_DLL void PadEinsum(ScheduleState self, const StmtSRef& block_sref,
+                       const Array<Integer>& padding);
 
 /******** Schedule: Misc ********/
 

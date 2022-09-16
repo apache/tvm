@@ -278,40 +278,6 @@ class IndexMapNotApplicableToBlockIterError : public ScheduleError {
   IndexMap index_map_;
 };
 
-class NotTrivialBindingError : public ScheduleError {
- public:
-  explicit NotTrivialBindingError(IRModule mod, Block block)
-      : mod_(std::move(mod)), block_(std::move(block)) {}
-
-  static void CheckBlockHasTrivialBinding(const IRModule& mod, const BlockRealize& block_realize,
-                                          std::unordered_set<const VarNode*> outer_loop_vars) {
-    // Step 2: Check all the binding values are loops vars
-    for (const PrimExpr& iter_value : block_realize->iter_values) {
-      const VarNode* loop_var = iter_value.as<VarNode>();
-      if (!loop_var || !outer_loop_vars.count(loop_var)) {
-        throw NotTrivialBindingError(mod, block_realize->block);
-      }
-    }
-  }
-
-  String FastErrorString() const final {
-    return "ScheduleError: The binding values of the block are not variables of outer loops.";
-  }
-
-  String DetailRenderTemplate() const final {
-    std::ostringstream os;
-    os << "The binding values of the {0} are not variables of outer loops.";
-    return os.str();
-  }
-
-  IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
-
- private:
-  IRModule mod_;
-  Block block_;
-};
-
 class OpaqueNewIterTypeError : public ScheduleError {
  public:
   explicit OpaqueNewIterTypeError(IRModule mod, Block block, PrimExpr iter_value)
@@ -363,7 +329,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   }
 
   BlockRealize block_realize = GetBlockRealize(self, block_sref);
-  NotTrivialBindingError::CheckBlockHasTrivialBinding(self->mod, block_realize, loop_vars);
+  CheckBlockHasTrivialBinding(self, block_sref);
 
   // Step 3: Collect information of block iter vars
   Array<PrimExpr> block_vars;      // iter_var->var of each block iter

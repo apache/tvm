@@ -23,6 +23,7 @@ from .batch_matmul import *
 from .conv2d import *
 from .dense import *
 from .injective import *
+from .pad import *
 from .pooling import *
 from .reduce import *
 from .resize2d import *

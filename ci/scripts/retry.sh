@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,15 +17,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+set -eux
 
-# install python and pip, don't modify this, modify install_python_package.sh
-apt-get update
-apt-install-and-clear -y software-properties-common python3.7-dev python3-setuptools python3.7-venv
+retry() {
+  local max_retries=$1
+  shift
+  local n=0
+  until [ "$n" -ge "$max_retries" ]
+  do
+      "$@" && break
+      n=$((n+1))
+      if [ "$n" -eq "$max_retries" ]; then
+          echo "failed to update after attempt $n / $max_retries, giving up"
+          exit 1
+      fi
 
-python3 -mvenv /opt/tvm-venv
-
-# Pin pip and setuptools versions
-/opt/tvm-venv/bin/pip3 install pip==19.3.1 setuptools==58.4.0
+      WAIT=$(python3 -c 'import random; print(random.randint(10, 30))')
+      echo "failed to update $n / $max_retries, waiting $WAIT to try again"
+      sleep "$WAIT"
+  done
+}

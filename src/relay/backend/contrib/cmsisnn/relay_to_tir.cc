@@ -242,8 +242,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
     Target target = CreateTarget(transform::PassContext::Current());
     size_t context_buffer_size;
     if (is_depthwise) {
-      context_buffer_size =
-          DepthwiseConv2dBufferSize(target, input_n, input_c, output_c, filter_w, filter_h);
+      context_buffer_size = DepthwiseConv2dBufferSize(target, input_n, input_c, output_c, filter_w,
+                                                      filter_h, dilation_w, dilation_h);
     } else {
       context_buffer_size = Conv2dBufferSize(target, padding_w, padding_h, input_n, input_h,
                                              input_c, output_h, output_w, stride_w, stride_h,

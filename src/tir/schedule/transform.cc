@@ -103,6 +103,14 @@ ReplaceBufferMutator::ReplaceBufferMutator(const Buffer& old_buffer, Buffer new_
   buffer_var_map_[old_buffer->data.get()] = std::move(new_buffer);
 }
 
+ReplaceBufferMutator::ReplaceBufferMutator(const Map<Buffer, Buffer>& buffer_map,
+                                           Map<Block, Block>* block_sref_reuse)
+    : block_sref_reuse_(block_sref_reuse) {
+  for (const auto& [old_buffer, new_buffer] : buffer_map) {
+    buffer_var_map_[old_buffer->data.get()] = new_buffer;
+  }
+}
+
 PrimExpr ReplaceBufferMutator::VisitExpr_(const VarNode* var) {
   auto it = buffer_var_map_.find(var);
   return it != buffer_var_map_.end() ? it->second->data : GetRef<Var>(var);
@@ -138,9 +146,30 @@ Stmt ReplaceBufferMutator::VisitStmt_(const BlockNode* block) {
     return this->VisitMatchBufferRegion(match_buffer);
   };
   auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
-    auto it = buffer_var_map_.find(buffer_region->buffer->data.get());
-    return it == buffer_var_map_.end() ? buffer_region
-                                       : BufferRegion(it->second, buffer_region->region);
+    auto region = MutateArray(buffer_region->region, [this](const Range& range) {
+      PrimExpr min = VisitExpr(range->min);
+      PrimExpr extent = VisitExpr(range->extent);
+      if (min.same_as(range->min) && extent.same_as(range->extent)) {
+        return range;
+      } else {
+        return Range::FromMinExtent(min, extent);
+      }
+    });
+
+    Buffer buf = [&]() {
+      auto it = buffer_var_map_.find(buffer_region->buffer->data.get());
+      if (it == buffer_var_map_.end()) {
+        return buffer_region->buffer;
+      } else {
+        return it->second;
+      }
+    }();
+
+    if (buf.same_as(buffer_region->buffer) && region.same_as(buffer_region->region)) {
+      return buffer_region;
+    } else {
+      return BufferRegion(buf, region);
+    }
   };
   auto f_mutate_alloc_buffers = [this](const Buffer& buffer) {
     auto it = buffer_var_map_.find(buffer->data.get());

@@ -18,28 +18,77 @@
 
 set -e
 set -u
-# Used for debugging RVM build
-set -x
 set -o pipefail
 
-# install python and pip, don't modify this, modify install_python_package.sh
-apt-get update
-apt-install-and-clear -y python-dev
+set -x
 
-# python 3.6
+if [ -z "${TVM_VENV+x}" ]; then
+    echo "ERROR: expect TVM_VENV env var to be set"
+    exit 2
+fi
+
+apt-get update
+
+# Ensure lsb-release is installed.
+apt-install-and-clear -y \
+    lsb-core
+
+release=$(lsb_release -sc)
+if [ "${release}" == "bionic" ]; then
+    PYTHON_VERSION=3.7
+elif [ "${release}" == "focal" ]; then
+    PYTHON_VERSION=3.8
+else
+    echo "Don't know which version of python to install for lsb-release ${release}"
+    exit 2
+fi
+
+# Install python and pip. Don't modify this to add Python package dependencies,
+# instead modify install_python_package.sh
 apt-install-and-clear -y software-properties-common
+apt-install-and-clear -y \
+    acl \
+    python${PYTHON_VERSION} \
+    python${PYTHON_VERSION}-dev \
+    python3-pip \
+    python${PYTHON_VERSION}-venv
 
-add-apt-repository -y ppa:deadsnakes/ppa
-apt-get update
-apt-install-and-clear -y python-pip python-dev python3.6 python3.6-dev
+update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1
 
-rm -f /usr/bin/python3 && ln -s /usr/bin/python3.6 /usr/bin/python3
+# Allow disabling user site-packages, even with sudo; this makes it harder to repro CI failures
+# locally because it's hard to tell what might be in this directory.
+echo "Defaults env_keep += \"PYTHONNOUSERSITE\"" >/etc/sudoers.d/91-preserve-python-nousersite
+export PYTHONNOUSERSITE=1
 
-# python 3.7
-apt-install-and-clear -y python3.7
+venv_dir="$(python3 -c "import os.path;print(os.path.dirname(\"${TVM_VENV}\"))")"
+mkdir -p "${venv_dir}"
+python3 -mvenv "${TVM_VENV}"
+. "${TVM_VENV}/bin/activate"
 
-# Install pip
-wget -q https://bootstrap.pypa.io/get-pip.py && python3.7 get-pip.py
+# Update pip to match version used to produce requirements-hashed.txt. This step
+# is necessary so that pip's dependency solver is recent.
+pip_spec=$(cat /install/python/bootstrap/lockfiles/constraints-${PYTHON_VERSION}.txt | grep 'pip==')
+pip3 install -U --require-hashes -r <(echo "${pip_spec}") \
+     -c /install/python/bootstrap/lockfiles/constraints-${PYTHON_VERSION}.txt
 
-# Pin pip and setuptools versions
-pip3 install pip==19.3.1 setuptools==58.4.0
+# Python configuration
+pip3 config set global.no-cache-dir true  # Never cache packages
+
+# Now install the remaining base packages.
+pip3 install \
+     --require-hashes \
+     -r /install/python/bootstrap/lockfiles/constraints-${PYTHON_VERSION}.txt
+
+addgroup tvm-venv
+chgrp -R tvm-venv "${TVM_VENV}"
+setfacl -R -d -m group:tvm-venv:rwx "${TVM_VENV}"
+
+# Prevent further use of pip3 via the system.
+# There may be multiple (i.e. from python3-pip apt package and pip3 install -U).
+deactivate
+while [ "$(which pip3)" != "" ]; do
+    rm "$(which pip3)"
+done
+while [ "$(which pip)" != "" ]; do
+    rm "$(which pip)"
+done

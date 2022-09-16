@@ -139,12 +139,6 @@ def _parse_args():
         tracker_key=parsed.rpc_key,
         session_timeout_sec=600,
     )
-    if ARGS.target.kind.name != "llvm" and ARGS.graph_tuner:
-        raise ValueError("GraphTuner only supports llvm target")
-    if ARGS.target.kind.name != "llvm" and ARGS.cpu_flush:
-        raise ValueError("cpu_flush only supports llvm target")
-    if ARGS.target.kind.name == "llvm" and not ARGS.cpu_flush:
-        warnings.warn("cpu_flush is not enabled for llvm target")
     return parsed
 
 
@@ -152,6 +146,13 @@ ARGS = _parse_args()
 
 
 def main():
+    if ARGS.target.kind.name != "llvm" and ARGS.graph_tuner:
+        raise ValueError("GraphTuner only supports llvm target")
+    if ARGS.target.kind.name != "llvm" and ARGS.cpu_flush:
+        raise ValueError("cpu_flush only supports llvm target")
+    if ARGS.target.kind.name == "llvm" and not ARGS.cpu_flush:
+        warnings.warn("cpu_flush is not enabled for llvm target")
+
     log_file = os.path.join(ARGS.work_dir, f"{ARGS.workload}.json")
     graph_opt_sch_file = os.path.join(ARGS.work_dir, f"{ARGS.workload}_graph_opt.log")
     measure_option = autotvm.measure_option(

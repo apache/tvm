@@ -26,18 +26,18 @@ RUN apt-get update --fix-missing
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
+COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
+RUN bash /install/ubuntu_install_cmake_source.sh
+
 COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
 RUN bash /install/ubuntu_install_googletest.sh
 
-COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
-RUN bash /install/ubuntu1804_install_python.sh
-
-COPY install/ubuntu1804_install_python_venv.sh /install/ubuntu1804_install_python_venv.sh
-RUN bash /install/ubuntu1804_install_python_venv.sh
-ENV PATH=/opt/tvm-venv/bin:/opt/zephyr-sdk/sysroots/x86_64-pokysdk-linux/usr/bin:$PATH
-
-# Globally disable pip cache
-RUN pip config set global.no-cache-dir false
+ENV TVM_VENV /venv/apache-tvm-py3.7
+COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
+COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
+RUN bash /install/ubuntu_install_python.sh
+ENV PATH ${TVM_VENV}/bin:$PATH
+ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
@@ -84,10 +84,28 @@ COPY install/ubuntu_install_zephyr_sdk.sh /install/ubuntu_install_zephyr_sdk.sh
 RUN bash /install/ubuntu_install_zephyr.sh
 ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr
 
-#Install CSI-NN2
+# Download RISC-V gcc toolchain (linux)
+COPY install/ubuntu_download_xuantie_gcc_linux.sh /install/ubuntu_download_xuantie_gcc_linux.sh
+RUN bash /install/ubuntu_download_xuantie_gcc_linux.sh /opt/riscv/riscv64-unknown-linux-gnu
+
+# Download RISC-V gcc toolchain (baremetal)
+COPY install/ubuntu_download_xuantie_gcc_newlib.sh /install/ubuntu_download_xuantie_gcc_newlib.sh
+RUN bash /install/ubuntu_download_xuantie_gcc_newlib.sh /opt/riscv/riscv64-unknown-elf
+
+# Install RISC-V QEMU
+COPY install/ubuntu_download_xuantie_qemu.sh /install/ubuntu_download_xuantie_qemu.sh
+RUN bash /install/ubuntu_download_xuantie_qemu.sh /opt/riscv/qemu/
+
+# Install CSI-NN2
 COPY install/ubuntu_download_csinn2_compute_lib.sh /install/ubuntu_download_csinn2_compute_lib.sh
 RUN bash /install/ubuntu_download_csinn2_compute_lib.sh
 
+# Build spike (riscv-isa-sim) and proxy kernel (pk)
+COPY install/ubuntu_install_spike_sim.sh /install/ubuntu_install_spike_sim.sh
+RUN bash /install/ubuntu_install_spike_sim.sh /opt/riscv/riscv64-unknown-elf/
+
 # Update PATH
-ENV PATH /opt/csi-nn2/tools/gcc-toolchain/bin:$PATH
-ENV PATH /opt/csi-nn2/tools/qemu/bin:$PATH
+ENV PATH /opt/riscv/riscv64-unknown-linux-gnu/bin:$PATH
+ENV PATH /opt/riscv/riscv64-unknown-elf/bin:$PATH
+ENV PATH /opt/riscv/qemu/bin:$PATH
+ENV PATH /opt/riscv/spike/bin:$PATH

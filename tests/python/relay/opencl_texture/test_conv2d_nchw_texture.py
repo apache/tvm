@@ -22,13 +22,15 @@ from tvm import relay
 from tvm.relay import testing
 from tvm.contrib import utils
 from utils.adreno_utils import gpu_preprocess, build_run_compare
+import pytest
+
+
+dtype = tvm.testing.parameter("float32")
 
 
 @tvm.testing.requires_opencl
-def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad(target, dtype):
     input_shape = (1, 32, 42, 42)
     filter_shape = (96, 32, 3, 3)
     bias_shape = (1, 96, 1, 1)
@@ -67,10 +69,8 @@ def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad():
 
 
 @tvm.testing.requires_opencl
-def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad_pass():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad_pass(target, dtype):
     input_shape = (1, 32, 40, 40)
     filter_shape = (96, 32, 2, 2)
     bias_shape = (1, 96, 1, 1)
@@ -109,10 +109,8 @@ def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad_pass():
 
 
 @tvm.testing.requires_opencl
-def test_conv2d_inceptionv3_35_35_strides():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_inceptionv3_35_35_strides(target, dtype):
     input_shape = (1, 48, 35, 35)
     filter_shape = (64, 48, 5, 5)
     bias_shape = (1, 64, 1, 1)
@@ -151,10 +149,8 @@ def test_conv2d_inceptionv3_35_35_strides():
 
 
 @tvm.testing.requires_opencl
-def test_conv2d_resnet50_v2_nchw_3c():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_resnet50_v2_nchw_3c(target, dtype):
     input_shape = (1, 3, 224, 224)
     filter_shape = (64, 3, 7, 7)
     bias_shape = (1, 64, 1, 1)
@@ -194,10 +190,8 @@ def test_conv2d_resnet50_v2_nchw_3c():
 
 
 @tvm.testing.requires_opencl
-def test_conv2d_inceptionv3_nchw_3c():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_inceptionv3_nchw_3c(target, dtype):
     input_shape = (1, 3, 299, 299)
     filter_shape = (64, 3, 3, 3)
     bias_shape = (1, 64, 1, 1)
@@ -236,10 +230,8 @@ def test_conv2d_inceptionv3_nchw_3c():
 
 
 @tvm.testing.requires_opencl
-def test_conv2d_1x1_16c16spatial():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_1x1_16c16spatial(target, dtype):
     input_shape = (1, 16, 256, 256)
     filter_shape = (32, 16, 4, 4)
     bias_shape = (1, 32, 1, 1)
@@ -278,10 +270,8 @@ def test_conv2d_1x1_16c16spatial():
 
 
 @tvm.testing.requires_opencl
-def test_conv2d_4x4_16c16pad():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_4x4_16c16pad(target, dtype):
     input_shape = (1, 32, 256, 256)
     filter_shape = (32, 32, 4, 4)
     bias_shape = (1, 32, 1, 1)
@@ -320,10 +310,8 @@ def test_conv2d_4x4_16c16pad():
 
 
 @tvm.testing.requires_opencl
-def test_conv2d_4x4x4_16c16pad():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_4x4x4_16c16pad(target, dtype):
     input_shape = (1, 32, 256, 256)
     filter_shape = (4, 32, 4, 4)
     bias_shape = (1, 4, 1, 1)
@@ -362,10 +350,8 @@ def test_conv2d_4x4x4_16c16pad():
 
 
 @tvm.testing.requires_opencl
-def test_conv2d_yolov3_v2_nchw_3c():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_yolov3_v2_nchw_3c(target, dtype):
     input_shape = (1, 1024, 13, 13)
     filter_shape = (255, 1024, 1, 1)
     A = relay.var("data", shape=input_shape, dtype=dtype)
@@ -397,10 +383,8 @@ def test_conv2d_yolov3_v2_nchw_3c():
 
 
 @tvm.testing.requires_opencl
-def test_conv2d_vgg16_winograd_4d():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_vgg16_winograd_4d(target, dtype):
     input_shape = (1, 512, 28, 28)
     filter_shape = (512, 512, 3, 3)
     bias_shape = (1, 512, 1, 1)
@@ -437,7 +421,7 @@ def test_conv2d_vgg16_winograd_4d():
     stat_file = temp.relpath("stat.log")
     with open(stat_file, "w") as f:
         f.write(
-            '{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256", "conv2d_nchw_winograd.image2d", [["TENSOR", [1, 512, 28, 28], "float16"], ["TENSOR", [512, 512, 3, 3], "float16"], [1, 1], [1, 1, 1, 1], [1, 1], "float16"], {}], "config": {"index": 1591, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 4], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 2]], ["tile_rc", "sp", [-1, 8]]]}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}\n'
+            f'{{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256", "conv2d_nchw_winograd.image2d", [["TENSOR", [1, 512, 28, 28], "{dtype}"], ["TENSOR", [512, 512, 3, 3], "{dtype}"], [1, 1], [1, 1, 1, 1], [1, 1], "{dtype}"], {{}}], "config": {{"index": 1591, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 4], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 2]], ["tile_rc", "sp", [-1, 8]]]}}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}}\n'
         )
     graph = build_run_compare(
         mod, params1, {"data": input_shape}, dtype, target, stat_file=stat_file
@@ -447,10 +431,8 @@ def test_conv2d_vgg16_winograd_4d():
 
 
 @tvm.testing.requires_opencl
-def test_conv2d_winograd_conv():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_winograd_conv(target, dtype):
     input_shape = (1, 4, 3, 3)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     filter_shape3 = (8, 4, 3, 3)
@@ -486,7 +468,7 @@ def test_conv2d_winograd_conv():
     stat_file = temp.relpath("stat.log")
     with open(stat_file, "w") as f:
         f.write(
-            '{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256", "conv2d_nchw_winograd.image2d", [["TENSOR", [1, 4, 3, 3], "float16"], ["TENSOR", [8, 4, 3, 3], "float16"], [1, 1], [1, 1, 1, 1], [1, 1], "float16"], {}], "config": {"index": 1591, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 4], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 2]], ["tile_rc", "sp", [-1, 8]]]}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}\n'
+            f'{{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256", "conv2d_nchw_winograd.image2d", [["TENSOR", [1, 4, 3, 3], "{dtype}"], ["TENSOR", [8, 4, 3, 3], "{dtype}"], [1, 1], [1, 1, 1, 1], [1, 1], "{dtype}"], {{}}], "config": {{"index": 1591, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 4], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 2]], ["tile_rc", "sp", [-1, 8]]]}}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}}\n'
         )
     graph = build_run_compare(
         mod, params1, {"data": input_shape}, dtype, target, stat_file=stat_file
@@ -496,7 +478,9 @@ def test_conv2d_winograd_conv():
 
 
 @tvm.testing.requires_opencl
-def test_residual_block():
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+@pytest.mark.skipif(tvm.testing.utils.IS_IN_CI, reason="failed due to nvidia libOpencl in the CI")
+def test_residual_block(target, dtype):
     """
     - some kind of residual block followed by convolution to have texture after residual block
     - scalar data type verification which should be mapped to global memory scope
@@ -515,9 +499,6 @@ def test_residual_block():
                      |                      <- buffer
                layout_transform (NCHW4c->NCHW)
     """
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
     input_shape = (1, 32, 40, 40)
     filter_shape1 = (32, 32, 2, 2)
     filter_shape2 = (32, 32, 1, 1)
@@ -555,7 +536,7 @@ def test_residual_block():
         kernel_size=(1, 1),
     )
     D = relay.op.add(conv2, D)
-    D = D * relay.const(0.15, "float16")
+    D = D * relay.const(0.15, dtype)
     D = relay.op.nn.relu(D)
 
     conv3 = relay.nn.conv2d(
@@ -607,7 +588,8 @@ def test_residual_block():
 
 
 @tvm.testing.requires_opencl
-def test_concat():
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_concat(target, dtype):
     """
         layout_transform (NCHW->NCHW4c)
                   |                      <- buffer
@@ -619,9 +601,6 @@ def test_concat():
                      |                   <- buffer
                layout_transform (NCHW4c->NCHW)
     """
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
     input_shape = (1, 32, 40, 40)
     filter_shape1 = (96, 32, 2, 2)
     filter_shape2 = (32, 96, 2, 2)
@@ -721,7 +700,8 @@ def test_concat():
 
 
 @tvm.testing.requires_opencl
-def test_pooling_branching_texture_params():
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_pooling_branching_texture_params(target, dtype):
     """
     Verification of the pooling and many branches having textures
                 layout_transform (NCHW->NCHW4c)
@@ -738,9 +718,6 @@ def test_pooling_branching_texture_params():
                              |                   <- buffer
                     layout_transform (NCHW4c->NCHW)
     """
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
     input_shape = (1, 32, 40, 40)
     filter_shape0 = (32, 32, 1, 1)
     filter_shape1 = (32, 32, 2, 2)
@@ -849,7 +826,8 @@ def test_pooling_branching_texture_params():
 
 
 @tvm.testing.requires_opencl
-def test_branching_texture_params():
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_branching_texture_params(target, dtype):
     """
     Verification of passing texture to several consumers markup of relay variables in
     primary functions + on_device
@@ -866,9 +844,6 @@ def test_branching_texture_params():
                             |                   <- buffer
                     layout_transform (NCHW4c->NCHW)
     """
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
     input_shape = (1, 32, 40, 40)
     filter_shape0 = (32, 32, 1, 1)
     filter_shape1 = (32, 32, 2, 2)
@@ -976,7 +951,8 @@ def test_branching_texture_params():
 
 # function repeat, params scope are different in reused functions
 @tvm.testing.requires_opencl
-def test_conv2d_different_lowering_same_op():
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_different_lowering_same_op(target, dtype):
     """
     Use case for verification of caching compiled functions
     Three convolutions following by each other in this case should be
@@ -993,9 +969,6 @@ def test_conv2d_different_lowering_same_op():
                          |                      <- buffer
                     layout_transform (NCHW4c->NCHW)
     """
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
     input_shape = (1, 32, 40, 40)
     filter_shape1 = (32, 32, 1, 1)
     A = relay.var("data", shape=input_shape, dtype=dtype)

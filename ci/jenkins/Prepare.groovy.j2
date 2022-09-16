@@ -33,7 +33,7 @@ def init_git() {
   sh(
     script: """
       set -eux
-      {{ m.bash_retry() }}
+      . ci/scripts/retry.sh
       retry 3 timeout 5m git submodule update --init -f --jobs 0
     """,
     label: 'Update git submodules',
@@ -65,8 +65,8 @@ def docker_init(image) {
     sh(
       script: """
       set -eux
-      {{ m.bash_retry() }}
-      retry 3 docker pull ${image}
+      . ci/scripts/retry.sh
+      retry 5 docker pull ${image}
       """,
       label: 'Pull docker image',
     )

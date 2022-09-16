@@ -108,8 +108,9 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
                         BufferIndexType buffer_index_type,
                         const Array<IntImm>& axis_separators) final;
-  /******** Schedule: Padding decomposition ********/
+  /******** Schedule: Padding ********/
   BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) final;
+  void PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) final;
   /******** Schedule: Misc ********/
   void EnterPostproc() final;
 };

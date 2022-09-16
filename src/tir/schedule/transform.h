@@ -114,7 +114,12 @@ class ReplaceBufferMutator : public StmtExprMutator {
   ReplaceBufferMutator(const Buffer& old_buffer, Buffer new_buffer,
                        Map<Block, Block>* block_sref_reuse);
 
+  ReplaceBufferMutator(const Map<Buffer, Buffer>& buffer_map, Map<Block, Block>* block_sref_reuse);
+
  protected:
+  using StmtExprMutator::VisitExpr_;
+  using StmtExprMutator::VisitStmt_;
+
   PrimExpr VisitExpr_(const VarNode* var) final;
 
   template <typename Node>
@@ -132,7 +137,7 @@ class ReplaceBufferMutator : public StmtExprMutator {
 
   virtual MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer);
 
-  Stmt VisitStmt_(const BlockNode* block) final;
+  Stmt VisitStmt_(const BlockNode* block) override;
 
   /*!
    * \brief A mapping which maps old buffer vars to new buffers, including the buffers defined in
