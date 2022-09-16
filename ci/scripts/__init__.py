@@ -14,28 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Package to enable testing of CI scripts"""
 
-name: Teams
-
-on:
-  issues:
-    types: [opened, edited, reopened, labeled]
-
-concurrency:
-  group: Teams-${{ github.event.pull_request.number }}-${{ github.event.issue.number }}
-  cancel-in-progress: true
-
-jobs:
-  tag-teams:
-    if: github.repository == 'apache/tvm'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Tag people from relevant teams
-        env:
-          PR: ${{ toJson(github.event.pull_request) }}
-          ISSUE: ${{ toJson(github.event.issue) }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -eux
-          python ci/scripts/github_tag_teams.py || echo failed
+from . import github_skipped_tests_comment, github_pr_comment, github_tag_teams, github_docs_comment
