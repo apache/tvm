@@ -334,8 +334,8 @@ def quantize_np(arr_np: numpy.ndarray, dtype: str):
         qmax = 255
         qmin = 0
     elif dtype == "int8":
-        qmax = 128
-        qmin = -127
+        qmax = 127
+        qmin = -128
     else:
         raise RuntimeError(f"Unsupported quantized data type '{dtype}'")
     fmin = numpy.amin(arr_np)
