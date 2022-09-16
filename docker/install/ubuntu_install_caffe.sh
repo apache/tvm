@@ -65,5 +65,4 @@ cd / && rm -rf /caffe_src
 
 PYCAFFE_ROOT=${CAFFE_HOME}/python
 echo "${CAFFE_HOME}/lib" >> /etc/ld.so.conf.d/caffe.conf && ldconfig
-VENV_SITE_PACKAGE=$(pip3 show numpy | grep "Location:" | cut -d ' ' -f 2)
-ln -s ${PYCAFFE_ROOT}/caffe ${VENV_SITE_PACKAGE}/caffe
+ln -s ${PYCAFFE_ROOT}/caffe "${TVM_VENV}/usr/local/lib/python3.7/dist-packages/caffe"
