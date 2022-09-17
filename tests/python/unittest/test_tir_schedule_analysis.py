@@ -101,6 +101,47 @@ def test_suggest_index_map_bijective():
     assert index_map.is_equivalent_to(expected_index_map)
 
 
+def test_suggest_index_map_winograd():
+    """use case in winograd conv where the indices are complicated"""
+    fused_outer, i3_3_fused, i4_0, i4_1 = _make_vars("fused_outer", "i3_3_fused", "i4_0", "i4_1")
+    eps = floordiv(fused_outer, 336) * 2 + floordiv(floormod(fused_outer, 16), 8)
+    nu = floordiv(floormod(fused_outer, 336), 112) * 2 + floordiv(floormod(fused_outer, 8), 4)
+    co = floormod(fused_outer, 4) * 32 + i3_3_fused
+    ci = (i4_0 * 32) + i4_1
+    buffer = decl_buffer(shape=[6, 6, 128, 128])
+    index_map = suggest_index_map(
+        buffer=buffer,
+        indices=[eps, nu, co, ci],
+        loops=_make_loops(
+            loop_vars=[fused_outer, i3_3_fused, i4_0, i4_1],
+            extents=[1008, 32, 4, 32],
+        ),
+        predicate=True,
+    )
+    expected_index_map = IndexMap.from_func(
+        lambda i0, i1, i2, i3: (
+            floordiv(i0, 2),
+            floordiv(i1, 2),
+            floormod(i0, 2),
+            floormod(((i1 * 4) + floordiv(i2, 32)), 8),
+            floormod(i2, 32),
+            floordiv(i3, 32),
+            floormod(i3, 32),
+        )
+    )
+    assert index_map.is_equivalent_to(expected_index_map)
+    inverse_index_map = index_map.inverse(buffer.shape)
+    expected_inverse_index_map = IndexMap.from_func(
+        lambda i0, i1, i2, i3, i4, i5, i6: (
+            ((i0 * 2) + i2),
+            ((i1 * 2) + floordiv(((i3 * 32) + i4), 128)),
+            floormod(((i3 * 32) + i4), 128),
+            ((i5 * 32) + i6),
+        )
+    )
+    assert inverse_index_map.is_equivalent_to(expected_inverse_index_map)
+
+
 @tvm.script.ir_module
 class DenseVNNIModule:
     @T.prim_func
