@@ -73,6 +73,20 @@ void BlockFrameNode::ExitWithScope() {
   }
 }
 
+void BlockInitFrameNode::EnterWithScope() {
+  BlockFrame frame = FindBlockFrame("T.init");
+  if (frame->init.defined()) {
+    LOG(FATAL) << "ValueError: Duplicate block init declaration";
+  }
+  TIRFrameNode::EnterWithScope();
+}
+
+void BlockInitFrameNode::ExitWithScope() {
+  TIRFrameNode::ExitWithScope();
+  BlockFrame frame = FindBlockFrame("T.init");
+  frame->init = AsStmt(stmts);
+}
+
 void ForFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   AddToParent(this->f_make_for_loop(vars, doms, AsStmt(stmts)));
@@ -81,6 +95,7 @@ void ForFrameNode::ExitWithScope() {
 TVM_REGISTER_NODE_TYPE(TIRFrameNode);
 TVM_REGISTER_NODE_TYPE(PrimFuncFrameNode);
 TVM_REGISTER_NODE_TYPE(BlockFrameNode);
+TVM_REGISTER_NODE_TYPE(BlockInitFrameNode);
 TVM_REGISTER_NODE_TYPE(ForFrameNode);
 
 }  // namespace tir

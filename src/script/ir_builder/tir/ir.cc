@@ -173,6 +173,80 @@ BlockFrame Block(String name, bool no_realize) {
   return BlockFrame(n);
 }
 
+BlockInitFrame Init() { return BlockInitFrame(make_object<BlockInitFrameNode>()); }
+
+void Where(PrimExpr predicate) {
+  BlockFrame frame = FindBlockFrame("T.where");
+  if (frame->predicate.defined()) {
+    LOG(FATAL) << "ValueError: Duplicate block predicate declaration, previous one is "
+               << frame->predicate;
+  }
+  frame->predicate = predicate;
+}
+
+void Reads(Array<ObjectRef> buffer_slices) {
+  using namespace tvm::tir;
+  BlockFrame frame = FindBlockFrame("T.reads");
+  if (frame->reads.defined()) {
+    LOG(FATAL) << "ValueError: Duplicate read region declaration, previous one is " << frame->reads;
+  }
+  Array<BufferRegion> reads;
+  for (const ObjectRef& obj : buffer_slices) {
+    if (const auto* buffer_region = obj.as<BufferRegionNode>()) {
+      reads.push_back(GetRef<BufferRegion>(buffer_region));
+    } else if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
+      reads.push_back(BufferRegionFromLoad(GetRef<BufferLoad>(buffer_load)));
+    } else {
+      LOG(FATAL) << "Invalid type for buffer reads.";
+    }
+  }
+  frame->reads = reads;
+}
+
+void Writes(Array<ObjectRef> buffer_slices) {
+  using namespace tvm::tir;
+  BlockFrame frame = FindBlockFrame("T.writes");
+  if (frame->writes.defined()) {
+    LOG(FATAL) << "ValueError: Duplicate write region declaration, previous one is "
+               << frame->writes;
+  }
+  Array<BufferRegion> writes;
+  for (const ObjectRef& obj : buffer_slices) {
+    if (const auto* buffer_region = obj.as<BufferRegionNode>()) {
+      writes.push_back(GetRef<BufferRegion>(buffer_region));
+    } else if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
+      writes.push_back(BufferRegionFromLoad(GetRef<BufferLoad>(buffer_load)));
+    } else {
+      LOG(FATAL) << "Invalid type for buffer writes.";
+    }
+  }
+  frame->writes = writes;
+}
+
+void BlockAttrs(Map<String, ObjectRef> attrs) {
+  BlockFrame frame = FindBlockFrame("T.block_attr");
+  if (frame->annotations.defined()) {
+    LOG(FATAL) << "ValueError: Duplicate block annotations, previous one is " << frame->annotations;
+  }
+  frame->annotations = attrs;
+}
+
+Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype, Optional<Var> data,
+                   Array<PrimExpr> strides, PrimExpr elem_offset, String storage_scope, int align,
+                   int offset_factor, String buffer_type_str, Array<IntImm> axis_separators) {
+  Buffer buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
+                             offset_factor, buffer_type_str, axis_separators);
+  IRBuilder builder = IRBuilder::Current();
+  if (Optional<BlockFrame> frame = builder->GetLastFrame<BlockFrame>()) {
+    frame.value()->alloc_buffers.push_back(buffer);
+  } else if (Optional<PrimFuncFrame> frame = builder->GetLastFrame<PrimFuncFrame>()) {
+    frame.value()->root_alloc_buffers.push_back(buffer);
+  } else {
+    LOG(FATAL) << "ValueError: Block frame or PrimFunc frame not find. Please ensure "
+                  "'T.alloc_buffer' is called under T.block() or T.prim_func()";
+  }
+  return buffer;
+}
 namespace axis {
 
 IterVar PushBlockVar(IterVar iter_var, PrimExpr binding) {
@@ -383,6 +457,12 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.MatchBuffer").set_body_typed(MatchBuf
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.PreflattenedBuffer").set_body_typed(PreflattenedBuffer);
 
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Block").set_body_typed(Block);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Init").set_body_typed(Init);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Where").set_body_typed(Where);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Reads").set_body_typed(Reads);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Writes").set_body_typed(Writes);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.BlockAttrs").set_body_typed(BlockAttrs);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.AllocBuffer").set_body_typed(AllocBuffer);
 
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.AxisSpatial").set_body_typed(axis::Spatial);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.AxisReduce").set_body_typed(axis::Reduce);

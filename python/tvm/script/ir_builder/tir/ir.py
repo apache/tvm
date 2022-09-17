@@ -25,6 +25,7 @@ from tvm.tir import (
     Buffer,
     BufferLoad,
     BufferRegion,
+    IntImm,
     PrimExpr,
     StringImm,
     Var,
@@ -85,7 +86,7 @@ def buffer_decl(
         The declared buffer.
     """
     shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
-    return _ffi_api.BufferDecl(  # pylint: disable=no-member # type: ignore
+    return _ffi_api.BufferDecl(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
         "",
@@ -108,7 +109,7 @@ def prim_func() -> frame.PrimFuncFrame:
     res : frame.PrimFuncFrame
         The PrimFuncFrame.
     """
-    return _ffi_api.PrimFunc()  # pylint: disable=no-member # type: ignore
+    return _ffi_api.PrimFunc()  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def arg(name: str, obj: Union[Var, Buffer]) -> Union[Var, Buffer]:
@@ -127,7 +128,7 @@ def arg(name: str, obj: Union[Var, Buffer]) -> Union[Var, Buffer]:
     res : Union[Var, Buffer]
         The argument.
     """
-    return _ffi_api.Arg(name, obj)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Arg(name, obj)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def func_name(name: str) -> None:
@@ -138,7 +139,7 @@ def func_name(name: str) -> None:
     name : str
         The name of the PrimFunc.
     """
-    _ffi_api.FuncName(name)  # pylint: disable=no-member # type: ignore
+    _ffi_api.FuncName(name)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def func_attr(attrs: Dict[str, Any]) -> None:
@@ -149,7 +150,7 @@ def func_attr(attrs: Dict[str, Any]) -> None:
     attrs : Dict[str, Any]
         The annotations of the PrimFunc.
     """
-    _ffi_api.FuncAttrs(attrs)  # pylint: disable=no-member # type: ignore
+    _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def func_ret(ret_type: Type) -> Type:
@@ -165,7 +166,7 @@ def func_ret(ret_type: Type) -> Type:
     res : Type
         The return type.
     """
-    return _ffi_api.FuncRet(ret_type)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.FuncRet(ret_type)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def match_buffer(
@@ -242,7 +243,7 @@ def match_buffer(
     shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
     if strides is None:
         strides = []
-    return _ffi_api.MatchBuffer(  # pylint: disable=no-member # type: ignore
+    return _ffi_api.MatchBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         param,
         shape,
         dtype,
@@ -310,7 +311,7 @@ def preflattened_buffer(
     shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
     if strides is None:
         strides = []
-    _ffi_api.PreflattenedBuffer(  # pylint: disable=no-member # type: ignore
+    _ffi_api.PreflattenedBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         postflattened,
         shape,
         dtype,
@@ -341,7 +342,155 @@ def block(name: str = "", no_realize: bool = False) -> frame.BlockFrame:
     res : frame.BlockFrame
         The BlockFrame.
     """
-    return _ffi_api.Block(name, no_realize)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Block(name, no_realize)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def init() -> frame.BlockInitFrame:
+    """The block initialization statement.
+
+    Returns
+    -------
+    res : frame.BlockInitFrame
+        The BlockInitFrame.
+    """
+    return _ffi_api.Init()  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def where(predicate: Union[PrimExpr, int]) -> None:
+    """The block predicate statement.
+
+    Parameters
+    ----------
+    predicate : Union[PrimExpr, Literal[0, 1]]
+        The predicate condition.
+    """
+    if isinstance(predicate, bool):
+        predicate = IntImm("bool", predicate)
+    if isinstance(predicate, int):
+        if predicate in [0, 1]:
+            predicate = IntImm("bool", predicate)
+        else:
+            raise ValueError(f"Invalid value for predicate: {predicate}")
+    _ffi_api.Where(predicate)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def reads(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
+    """The block buffer region reading statement.
+
+    Parameters
+    ----------
+    buffer_slices : List[Union[BufferRegion, BufferLoad]]
+        The array of buffer regions to read.
+    """
+    if len(buffer_slices) == 1:
+        if isinstance(buffer_slices[0], tuple):
+            buffer_slices = list(buffer_slices[0])
+        elif isinstance(buffer_slices[0], list):
+            buffer_slices = buffer_slices[0]  # type: ignore[assignment]
+        else:
+            buffer_slices = [buffer_slices[0]]
+    else:
+        buffer_slices = list(buffer_slices)  # type: ignore[assignment]
+    _ffi_api.Reads(buffer_slices)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def writes(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
+    """The block buffer region writing statement.
+
+    Parameters
+    ----------
+    buffer_slices : List[Union[BufferRegion, BufferLoad]]
+        The array of buffer regions to write.
+    """
+    if len(buffer_slices) == 1:
+        if isinstance(buffer_slices[0], tuple):
+            buffer_slices = list(buffer_slices[0])
+        elif isinstance(buffer_slices[0], list):
+            buffer_slices = buffer_slices[0]  # type: ignore[assignment]
+        else:
+            buffer_slices = [buffer_slices[0]]
+    else:
+        buffer_slices = list(buffer_slices)  # type: ignore[assignment]
+    _ffi_api.Writes(buffer_slices)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def block_attr(attrs: Dict[str, Any]) -> None:
+    """The block annotation statement.
+
+    Parameters
+    ----------
+    attrs : Dict[str, Any]
+        The annotation of the block.
+    """
+    return _ffi_api.BlockAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def alloc_buffer(
+    shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral],
+    dtype: str = "float32",
+    data: Var = None,
+    strides: List[PrimExpr] = None,
+    elem_offset: PrimExpr = None,
+    scope: str = "",
+    align: int = -1,
+    offset_factor: int = 0,
+    buffer_type: str = "default",
+    axis_separators: List[int] = None,
+) -> Buffer:
+    """The buffer alllocation function.
+
+    Parameters
+    ----------
+    shape : Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral]
+        The type of the buffer prior to flattening.
+
+    dtype : str
+        The data type in the content of the buffer.
+
+    data : Var
+        The pointer to the head of the data.
+
+    strides : List[PrimExpr]
+        The strides of each dimension.
+
+    elem_offset : PrimExpr
+        The offset in terms of number of dtype elements (including lanes).
+
+    scope : str
+        The optional storage scope of buffer data pointer.
+
+    align : int
+        The alignment requirement of data pointer in bytes.
+
+    offset_factor : int
+        The factor of elem_offset field.
+
+    buffer_type : str
+        The buffer type.
+
+    axis_separators : List[int]
+        The separators between input axes when generating flattened output axes.
+
+    Returns
+    -------
+    res : Buffer
+        The allocated buffer.
+    """
+    shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
+    if strides is None:
+        strides = []
+    return _ffi_api.AllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+        shape,
+        dtype,
+        data,
+        strides,
+        elem_offset,
+        scope,
+        align,
+        offset_factor,
+        buffer_type,
+        axis_separators,
+    )
 
 
 def _as_range(dom: Union[Range, List[PrimExpr]]) -> Range:
@@ -387,7 +536,7 @@ class axis:  # pylint: disable=invalid-name
         res : Var
             The iteration variable.
         """
-        return _ffi_api.AxisSpatial(  # pylint: disable=no-member # type: ignore
+        return _ffi_api.AxisSpatial(  # type: ignore[attr-defined] # pylint: disable=no-member
             _as_range(dom), binding, dtype
         )
 
@@ -413,7 +562,7 @@ class axis:  # pylint: disable=invalid-name
         res : Var
             The iteration variable.
         """
-        return _ffi_api.AxisReduce(  # pylint: disable=no-member # type: ignore
+        return _ffi_api.AxisReduce(  # type: ignore[attr-defined] # pylint: disable=no-member
             _as_range(dom), binding, dtype
         )
 
@@ -439,7 +588,7 @@ class axis:  # pylint: disable=invalid-name
         res : Var
             The iteration variable.
         """
-        return _ffi_api.AxisScan(  # pylint: disable=no-member # type: ignore
+        return _ffi_api.AxisScan(  # type: ignore[attr-defined] # pylint: disable=no-member
             _as_range(dom), binding, dtype
         )
 
@@ -465,7 +614,7 @@ class axis:  # pylint: disable=invalid-name
         res : Var
             The iteration variable.
         """
-        return _ffi_api.AxisOpaque(  # pylint: disable=no-member # type: ignore
+        return _ffi_api.AxisOpaque(  # type: ignore[attr-defined] # pylint: disable=no-member
             _as_range(dom), binding, dtype
         )
 
@@ -489,7 +638,7 @@ class axis:  # pylint: disable=invalid-name
         res : Var
             The iteration variables.
         """
-        iter_vars = _ffi_api.AxisRemap(  # pylint: disable=no-member # type: ignore
+        iter_vars = _ffi_api.AxisRemap(  # type: ignore[attr-defined] # pylint: disable=no-member
             kinds, bindings, dtype
         )
         return iter_vars[0] if len(iter_vars) == 1 else iter_vars
@@ -522,7 +671,7 @@ def serial(
     if stop is None:
         stop = start
         start = 0
-    return _ffi_api.Serial(start, stop, annotations)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Serial(start, stop, annotations)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def parallel(
@@ -549,7 +698,7 @@ def parallel(
     if stop is None:
         stop = start
         start = 0
-    return _ffi_api.Parallel(start, stop, annotations)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Parallel(start, stop, annotations)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def vectorized(
@@ -576,7 +725,7 @@ def vectorized(
     if stop is None:
         stop = start
         start = 0
-    return _ffi_api.Vectorized(start, stop, annotations)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Vectorized(start, stop, annotations)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def unroll(
@@ -603,7 +752,7 @@ def unroll(
     if stop is None:
         stop = start
         start = 0
-    return _ffi_api.Unroll(start, stop, annotations)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Unroll(start, stop, annotations)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def thread_binding(
@@ -643,7 +792,7 @@ def thread_binding(
     elif stop is None:
         stop = start
         start = 0
-    return _ffi_api.ThreadBinding(  # pylint: disable=no-member # type: ignore
+    return _ffi_api.ThreadBinding(  # type: ignore[attr-defined] # pylint: disable=no-member
         start, stop, thread, annotations
     )
 
@@ -661,7 +810,7 @@ def grid(*extents: PrimExpr) -> frame.ForFrame:
     res : frame.ForFrame
         The ForFrame.
     """
-    return _ffi_api.Grid(extents)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Grid(extents)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def evaluate(value: PrimExpr) -> None:
@@ -674,7 +823,7 @@ def evaluate(value: PrimExpr) -> None:
     """
     if isinstance(value, str):
         value = StringImm(value)
-    return _ffi_api.Evaluate(value)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Evaluate(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def int8(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -690,7 +839,7 @@ def int8(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type int8 or casted expression with type int8.
     """
-    return _ffi_api.Int8(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Int8(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def int16(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -706,7 +855,7 @@ def int16(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type int16 or casted expression with type int16.
     """
-    return _ffi_api.Int16(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Int16(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def int32(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -722,7 +871,7 @@ def int32(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type int32 or casted expression with type int32.
     """
-    return _ffi_api.Int32(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Int32(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def int64(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -738,7 +887,7 @@ def int64(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type int64 or casted expression with type int64.
     """
-    return _ffi_api.Int64(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Int64(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def uint8(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -754,7 +903,7 @@ def uint8(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type uint8 or casted expression with type uint8.
     """
-    return _ffi_api.UInt8(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.UInt8(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def uint16(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -770,7 +919,7 @@ def uint16(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type uint16 or casted expression with type uint16.
     """
-    return _ffi_api.UInt16(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.UInt16(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def uint32(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -786,7 +935,7 @@ def uint32(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type uint32 or casted expression with type uint32.
     """
-    return _ffi_api.UInt32(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.UInt32(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def uint64(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -802,7 +951,7 @@ def uint64(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type uint64 or casted expression with type uint64.
     """
-    return _ffi_api.UInt64(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.UInt64(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def float8(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -818,7 +967,7 @@ def float8(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type float8 or casted expression with type float8.
     """
-    return _ffi_api.Float8(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Float8(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def float16(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -834,7 +983,7 @@ def float16(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type float16 or casted expression with type float16.
     """
-    return _ffi_api.Float16(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Float16(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def float32(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -850,7 +999,7 @@ def float32(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type float32 or casted expression with type float32.
     """
-    return _ffi_api.Float32(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Float32(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def float64(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -866,7 +1015,7 @@ def float64(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type float64 or casted expression with type float64.
     """
-    return _ffi_api.Float64(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Float64(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def int32x4(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -882,7 +1031,7 @@ def int32x4(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type int32x4 or casted expression with type int32x4.
     """
-    return _ffi_api.Int32x4(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Int32x4(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def int32x8(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -898,7 +1047,7 @@ def int32x8(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type int32x8 or casted expression with type int32x8.
     """
-    return _ffi_api.Int32x8(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Int32x8(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def int32x16(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -914,7 +1063,7 @@ def int32x16(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type int32x16 or casted expression with type int32x16.
     """
-    return _ffi_api.Int32x16(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Int32x16(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def boolean(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -930,7 +1079,7 @@ def boolean(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type boolean or casted expression with type boolean.
     """
-    return _ffi_api.Boolean(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Boolean(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def handle(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -946,7 +1095,7 @@ def handle(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type handle or casted expression with type handle.
     """
-    return _ffi_api.Handle(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Handle(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def void(expr: Optional[PrimExpr] = None) -> PrimExpr:
@@ -962,7 +1111,7 @@ def void(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type void or casted expression with type void.
     """
-    return _ffi_api.Void(expr)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Void(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def var(dtype, name="") -> Var:
@@ -981,7 +1130,7 @@ def var(dtype, name="") -> Var:
     res : Var
         The result tir.Var.
     """
-    return Var(name, dtype)  # pylint: disable=no-member # type: ignore
+    return Var(name, dtype)  # pylint: disable=no-member
 
 
 # pylint: enable=invalid-name
@@ -997,6 +1146,12 @@ __all__ = [
     "match_buffer",
     "preflattened_buffer",
     "block",
+    "init",
+    "where",
+    "reads",
+    "writes",
+    "block_attr",
+    "alloc_buffer",
     "axis",
     "serial",
     "parallel",
