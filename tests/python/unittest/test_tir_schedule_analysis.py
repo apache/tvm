@@ -277,7 +277,7 @@ def test_get_tensorize_loop_mapping_padding_matmul():
     block = s.get_block("C")
 
     desc = TensorIntrin.get(WMMA_SYNC_16x16x16_f16f16f16_INTRIN).desc
-    info = get_tensorize_loop_mapping(s, block, desc)
+    info = get_tensorize_loop_mapping(s, block, desc, allow_padding=True)
     assert info is not None
     expected_padding = [1, 0, 15]
     actual_padding = info.block_iter_paddings
