@@ -301,9 +301,19 @@ def drive_tune(args):
 
 
 def filter_tasks(
-    tasks: Optional[Union[auto_scheduler.SearchTask, autotvm.task.Task]],
+    tasks: Union[List[auto_scheduler.SearchTask], List[autotvm.task.Task]],
     expr: str,
 ):
+    """Utility to filter a list of tasks (AutoTVM or AutoScheduler) based on
+    a user-supplied string expression.
+
+    Parameters
+    ----------
+    tasks: list
+        A list of extracted AutoTVM or AutoScheduler tasks.
+    expr: str
+        User-supplied expression to be used for filtering.
+    """
     assert isinstance(expr, str), "Expected filter expression of string type"
     assert len(expr) > 0, "Got empty filter expression"
 
@@ -330,7 +340,7 @@ def filter_tasks(
             else:
                 assert isinstance(item, str)
                 idx = int(item)
-                assert idx < len(tasks) and idx >= 0
+                assert 0 <= idx < len(tasks)
                 selected.append(idx)
 
     if do_filter:
@@ -561,10 +571,9 @@ def tune_model(
             logger.info("No tasks have been selected for tuning.")
             return None
         else:
-            logger.info(f"Selected {len(tasks)} for tuning.")
+            logger.info("Selected %s tasks for tuning.", len(tasks))
 
         if enable_autoscheduler:
-
             # Create the autoscheduler tuning options
             tuning_options = auto_scheduler.TuningOptions(
                 num_measure_trials=trials,
