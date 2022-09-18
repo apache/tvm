@@ -19,7 +19,7 @@
 
 from numbers import Integral
 from typing import Any, Dict, List, Optional, Union, Tuple
-import numpy as np
+import numpy as np  # type: ignore
 
 from tvm.ir import Range, Type
 from tvm.runtime import convert, ndarray
