@@ -189,7 +189,6 @@ if __name__ == "__main__":
     parser.add_argument("--wait-time-minutes", required=True, type=int, help="ssh remote to parse")
     parser.add_argument("--cutoff-pr-number", default=0, type=int, help="ssh remote to parse")
     parser.add_argument("--dry-run", action="store_true", help="don't update GitHub")
-    parser.add_argument("--allowlist", help="filter by these PR authors")
     parser.add_argument("--pr-json", help="(testing) data for testing to use instead of GitHub")
     parser.add_argument("--now", help="(testing) custom string for current time")
     args = parser.parse_args()
@@ -207,17 +206,6 @@ if __name__ == "__main__":
         f"  user/repo: {user}/{repo}\n",
         end="",
     )
-
-    # [slow rollout]
-    # This code is here to gate this feature to a limited set of people before
-    # deploying it for everyone to avoid spamming in the case of bugs or
-    # ongoing development.
-    if args.allowlist:
-        author_allowlist = args.allowlist.split(",")
-    else:
-        github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
-        allowlist_issue = github.get("issues/9983")
-        author_allowlist = set(find_reviewers(allowlist_issue["body"]))
 
     if args.pr_json:
         r = json.loads(args.pr_json)
@@ -242,13 +230,8 @@ if __name__ == "__main__":
                 print(
                     f"Skipping #{pr['number']} since it's too old ({pr['number']} <= {cutoff_pr_number})"
                 )
-            elif pr["author"]["login"] not in author_allowlist:
-                # [slow rollout]
-                print(
-                    f"Skipping #{pr['number']} since author {pr['author']['login']} is not in allowlist: {author_allowlist}"
-                )
             else:
-                print(f"Checking #{pr['number']} since author is in {author_allowlist}")
+                print(f"Checking #{pr['number']}")
                 prs_to_check.append(pr)
 
         print(f"Summary: Checking {len(prs_to_check)} of {len(prs)} fetched")

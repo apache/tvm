@@ -348,28 +348,24 @@ class PyTorchOpConverter:
         # - if a dtype is given, start, stop, step are converted to that dtype
         # - if no dtype is given and all args are integral, dtype is int64
         # - if no dtype is given and there is a float arg, dtype is float32
-        if len(inputs) == 5:
-            dtype0 = _get_type(inputs[0], input_types[0])
-            if inputs[1] is not None:
-                dtype = _convert_dtype_value(inputs[1])
-            elif dtype0.startswith("float"):
-                dtype = "float32"
-            else:
-                dtype = "int64"
-            start = _expr.const(0, dtype)
-            stop = _get_value(inputs[0], dtype)
-            step = _expr.const(1, dtype)
-        elif len(inputs) == 7:
-            types = [_get_type(inputs[i], input_types[i]) for i in range(3)]
-            if inputs[3] is not None:
-                dtype = _convert_dtype_value(inputs[3])
+        if len(inputs) in {5, 6, 7}:
+            # inputs look like [_,_,_,dtype,layout,device,requires_grad]
+            # therefore dtype_idx is always the length of inputs minus 4
+            dtype_idx = len(inputs) - 4
+            types = [_get_type(inputs[i], input_types[i]) for i in range(dtype_idx)]
+            if inputs[dtype_idx] is not None:
+                dtype = _convert_dtype_value(inputs[dtype_idx])
             elif any([t.startswith("float") for t in types]):
                 dtype = "float32"
             else:
                 dtype = "int64"
-            start = _get_value(inputs[0], dtype)
-            stop = _get_value(inputs[1], dtype)
-            step = _get_value(inputs[2], dtype)
+
+            # - if len(inputs) == 5, inputs = [stop, dtype, ...]
+            # - if len(inputs) == 6, inputs = [start, stop, dtype, ...]
+            # - if len(inputs) == 7, inputs = [start, stop, step, dtype, ...]
+            start = _get_value(inputs[0], dtype) if len(inputs) > 5 else _expr.const(0, dtype)
+            stop = _get_value(inputs[1 if len(inputs) > 5 else 0], dtype)
+            step = _get_value(inputs[2], dtype) if len(inputs) > 6 else _expr.const(1, dtype)
         else:
             msg = "Unknown number of arguments (%d) to parse." % (len(inputs))
             raise AssertionError(msg)

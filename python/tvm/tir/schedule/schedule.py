@@ -1014,7 +1014,7 @@ class Schedule(Object):
     def cache_read(
         self,
         block: Union[BlockRV, str],
-        read_buffer_index: int,
+        read_buffer_index: Union[int, str, Buffer],
         storage_scope: str,
         consumer_blocks: Optional[List[Union[BlockRV, str]]] = None,
     ) -> BlockRV:
@@ -1029,8 +1029,10 @@ class Schedule(Object):
         block : Union[BlockRV, str]
             The consumer block of the target buffer.
 
-        read_buffer_index: int
-            The index of the buffer in block's read region.
+        buffer: Union[int, str, Buffer]
+            The index of the buffer in block's read region, the unique
+            name of a read buffer in the block, or a Buffer object
+            that is within the blocks read region.
 
         storage_scope: str
             The target storage scope.
@@ -1093,13 +1095,21 @@ class Schedule(Object):
         # Convert any string block names into Block RVs.
         consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
         block = self._normalize_block_arg(block)
+
+        if not isinstance(read_buffer_index, int):
+            _, read_buffer_index, _ = self._normalize_buffer_arg(
+                block, read_buffer_index, required_buffer_type="read"
+            )
         return _ffi_api.ScheduleCacheRead(  # type: ignore # pylint: disable=no-member
             self, block, read_buffer_index, storage_scope, consumer_blocks
         )
 
     @type_checked
     def cache_write(
-        self, block: Union[BlockRV, str], write_buffer_index: int, storage_scope: str
+        self,
+        block: Union[BlockRV, str],
+        write_buffer_index: Union[int, str, Buffer],
+        storage_scope: str,
     ) -> BlockRV:
         """Create a block that reads a buffer region into a write cache. It requires:
 
@@ -1113,7 +1123,9 @@ class Schedule(Object):
             The producer block of the target buffer.
 
         write_buffer_index: int
-            The index of the buffer in block's write region.
+            The index of the buffer in block's write region, the unique
+            name of a write buffer in the block, or a Buffer object
+            that is within the blocks write region.
 
         storage_scope: str
             The target storage scope.
@@ -1168,6 +1180,11 @@ class Schedule(Object):
 
         """
         block = self._normalize_block_arg(block)
+
+        if not isinstance(write_buffer_index, int):
+            _, write_buffer_index, _ = self._normalize_buffer_arg(
+                block, write_buffer_index, required_buffer_type="write"
+            )
         return _ffi_api.ScheduleCacheWrite(  # type: ignore # pylint: disable=no-member
             self, block, write_buffer_index, storage_scope
         )
@@ -2352,7 +2369,10 @@ class Schedule(Object):
         return block
 
     def _normalize_buffer_arg(
-        self, block: BlockRV, buffer: Union[Tuple[str, int], str, Buffer]
+        self,
+        block: BlockRV,
+        buffer: Union[Tuple[str, int], int, str, Buffer],
+        required_buffer_type=None,
     ) -> Tuple[str, int, Buffer]:
 
         block_obj: Block = self.get(block)
@@ -2363,6 +2383,9 @@ class Schedule(Object):
                 yield "read", i, read.buffer
             for i, write in enumerate(block_obj.writes):
                 yield "write", i, write.buffer
+
+        if isinstance(buffer, int):
+            buffer = (required_buffer_type, buffer)
 
         if isinstance(buffer, str):
             possible_buffers = {}
@@ -2404,6 +2427,13 @@ class Schedule(Object):
 
         else:
             raise TypeError(f"Invalid type for argument 'buffer': {type(buffer)}")
+
+        if required_buffer_type is not None:
+            assert buffer_index_type == required_buffer_type, (
+                f"Expected buffer to be read buffer, "
+                f"but {buffer_obj.name} was a {buffer_index_type} buffer "
+                f"in the specified block"
+            )
 
         return (buffer_index_type, buffer_index, buffer_obj)
 
@@ -2752,6 +2782,128 @@ class Schedule(Object):
     def can_decompose_padding(self, block: Union[BlockRV, str], loop: LoopRV) -> bool:
         """Check whether the block match padding pattern and can be decomposed."""
         return _ffi_api.CanDecomposePadding(self, block, loop)  # type: ignore # pylint: disable=no-member
+
+    @type_checked
+    def pad_einsum(self, block: Union[BlockRV, str], padding: List[int]) -> None:
+        """Pad the computation of Einsum.
+
+        This schedule primitives identifies the Einsum pattern in the block body, and find its
+        producer blocks. It then pads the computation of the Einsum pattern and its producer blocks.
+        The output buffer and the producer buffer is resized according to the padding size. It
+        requires the output buffer and the producer buffer to be allocated inside the PrimFunc.
+
+        The padding is a list of non-negative integers, each element corresponds to the padding for
+        each block iter in the order of block iters. The block and it's producer blocks should have
+        trivial bindings, i.e. each block iter is bound to a single loop variable. After padding,
+        thblock iter extent and the corresponding outer loop is extended by the padding size.
+
+        The size of the producer buffers are infered from the padding size of the Einsum
+        computation. The producer buffers are padded by the initial value of the corresponding
+        reduction.
+
+        Parameters
+        ----------
+        block : Union[BlockRV, str]
+            The block that matches the Einsum pattern.
+
+        padding : List[int]
+            The padding for each block iter.
+
+        Examples
+        --------
+
+        Before applying pad-einsum, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_pad_einsum(
+                A: T.Buffer[(128, 127), "float32"],
+                B: T.Buffer[(127, 127), "float32"],
+                C: T.Buffer[(128, 127), "float32"],
+            ) -> None:
+                A_shared = T.alloc_buffer((128, 127), "float32", scope="shared")
+                B_shared = T.alloc_buffer((127, 127), "float32", scope="shared")
+                C_shared = T.alloc_buffer((128, 127), "float32", scope="shared")
+                for i0, i1 in T.grid(128, 127):
+                    with T.block("A"):
+                        i, j = T.axis.remap("SS", [i0, i1])
+                        A_shared[i, j] = A[i, j]
+                for i0, i1 in T.grid(127, 127):
+                    with T.block("B"):
+                        i, j = T.axis.remap("SS", [i0, i1])
+                        B_shared[i, j] = B[i, j]
+                for i0, i1, i2 in T.grid(128, 127, 127):
+                    with T.block("C_shared"):
+                        i, j, k = T.axis.remap("SSR", [i0, i1, i2])
+                        with T.init():
+                            C_shared[i, j] = T.float32(0)
+                        C_shared[i, j] = C_shared[i, j] + A_shared[i, k] * B_shared[k, j]
+                for i0, i1 in T.grid(128, 127):
+                    with T.block("C"):
+                        i, j = T.axis.remap("SS", [i0, i1])
+                        C[i, j] = C_shared[i, j]
+
+        Create the schedule and do pad-einsum with specified block:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_pad_einsum, debug_mask="all")
+            block = sch.get_block("C_shared")
+            sch.pad_einsum(block, [0, 1, 1])
+            print(sch.mod["main"].script())
+
+        After applying decompose-padding, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_pad_einsum(
+                A: T.Buffer[(128, 127), "float32"],
+                B: T.Buffer[(127, 127), "float32"],
+                C: T.Buffer[(128, 127), "float32"],
+            ) -> None:
+                A_shared_padded = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
+                B_shared_padded = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
+                C_shared_padded = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
+                for i0, i1 in T.grid(128, 128):
+                    with T.block("A"):
+                        i, j = T.axis.remap("SS", [i0, i1])
+                        T.reads(A[i, j])
+                        T.writes(A_shared_padded[i, j])
+                        A_shared_padded[i, j] = T.if_then_else(
+                            j < 127, A[i, j], T.float32(0), dtype="float32"
+                        )
+                for i0, i1 in T.grid(128, 128):
+                    with T.block("B"):
+                        i, j = T.axis.remap("SS", [i0, i1])
+                        T.reads(B[i, j])
+                        T.writes(B_shared_padded[i, j])
+                        B_shared_padded[i, j] = T.if_then_else(
+                            i < 127 and j < 127, B[i, j], T.float32(0), dtype="float32"
+                        )
+                for i0, i1, i2 in T.grid(128, 128, 128):
+                    with T.block("C_shared"):
+                        i, j, k = T.axis.remap("SSR", [i0, i1, i2])
+                        T.reads(A_shared_padded[i, k], B_shared_padded[k, j])
+                        T.writes(C_shared_padded[i, j])
+                        with T.init():
+                            C_shared_padded[i, j] = T.float32(0)
+                        C_shared_padded[i, j] = (
+                            C_shared_padded[i, j] + A_shared_padded[i, k] * B_shared_padded[k, j]
+                        )
+                for i0, i1 in T.grid(128, 127):
+                    with T.block("C"):
+                        i, j = T.axis.remap("SS", [i0, i1])
+                        T.reads(C_shared_padded[i, j])
+                        T.writes(C[i, j])
+                        C[i, j] = C_shared_padded[i, j]
+
+        """
+        block = self._normalize_block_arg(block)
+        return _ffi_api.SchedulePadEinsum(  # type: ignore # pylint: disable=no-member
+            self, block, padding
+        )
 
     ########## Schedule: Misc ##########
 

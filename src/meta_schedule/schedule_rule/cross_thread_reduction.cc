@@ -184,6 +184,13 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
    */
   std::tuple<bool, tir::LoopRV, tir::BlockRV, tir::LoopRV> GetComputeTargetLoopAndBlock(
       const tir::Schedule& sch, const tir::BlockRV& block_rv) {
+    // Step 0. Due to technical reason of some primitives (e.g., compute-at), if the block is doing
+    // a tuple reduction, fusion is temporarily not supported.
+    if (sch->Get(block_rv)->writes.size() != 1) {
+      return std::make_tuple(false, tir::LoopRV{nullptr}, tir::BlockRV{nullptr},
+                             tir::LoopRV{nullptr});
+    }
+
     // Step 1. Get all the consumers of the input block.
     Array<tir::BlockRV> consumers = sch->GetConsumers(block_rv);
 

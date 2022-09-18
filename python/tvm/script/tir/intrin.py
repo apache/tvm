@@ -90,6 +90,11 @@ def truncmod(x, y, span):
 
 
 @register
+def truncdiv(x, y, span):
+    return tvm.tir.truncdiv(x, y, span)
+
+
+@register
 def ceildiv(x, y, span):
     return tvm.tir.ceildiv(x, y, span)
 

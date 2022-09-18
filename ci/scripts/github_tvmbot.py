@@ -195,6 +195,7 @@ class PR:
         self.number = number
         self.repo_name = repo
         self.dry_run = dry_run
+        self.has_error = False
 
         if dry_run and raw_data:
             # In test mode there is no need to fetch anything
@@ -468,7 +469,10 @@ class PR:
 
     def trigger_gha_ci(self, sha: str) -> None:
         logging.info(f"POST-ing a workflow_dispatch event to main.yml")
-        r = self.github.post(
+        actions_github = GitHubRepo(
+            user=self.github.user, repo=self.github.repo, token=GH_ACTIONS_TOKEN
+        )
+        r = actions_github.post(
             url="actions/workflows/main.yml/dispatches",
             data={
                 "ref": "main",
@@ -537,9 +541,12 @@ class PR:
 
         workflow_ids = list(set(workflow_ids))
         logging.info(f"Rerunning GitHub Actions workflows with IDs: {workflow_ids}")
-        actions_github = GitHubRepo(
-            user=self.github.user, repo=self.github.repo, token=GH_ACTIONS_TOKEN
-        )
+        if self.dry_run:
+            actions_github = None
+        else:
+            actions_github = GitHubRepo(
+                user=self.github.user, repo=self.github.repo, token=GH_ACTIONS_TOKEN
+            )
         for workflow_id in workflow_ids:
             if self.dry_run:
                 logging.info(f"Dry run, not restarting workflow {workflow_id}")
@@ -576,6 +583,7 @@ class PR:
             comment += "</details>"
 
         pr.comment(comment)
+        pr.has_error = True
         return exception
 
 
@@ -750,6 +758,9 @@ if __name__ == "__main__":
     for name, check in command_to_run.auth:
         if check(pr, comment, args):
             logging.info(f"Passed auth check '{name}', continuing")
+            # Only one authorization check needs to pass (e.g. just mentionable
+            # or PR author), not all of them so quit
+            break
         else:
             logging.info(f"Failed auth check '{name}', quitting")
             # Add a sad face
@@ -767,3 +778,6 @@ if __name__ == "__main__":
 
     # Run the command
     command_to_run.run(pr)
+
+    if pr.has_error:
+        raise RuntimeError("PR commented a failure")

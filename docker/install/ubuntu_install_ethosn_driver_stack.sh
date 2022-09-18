@@ -22,7 +22,7 @@ set -o pipefail
 
 repo_url="https://github.com/Arm-software/ethos-n-driver-stack"
 repo_dir="ethosn-driver"
-repo_revision="22.05"
+repo_revision="22.08"
 install_path="/opt/arm/$repo_dir"
 
 tmpdir=$(mktemp -d)
