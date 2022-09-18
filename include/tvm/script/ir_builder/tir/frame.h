@@ -303,6 +303,138 @@ class AssertFrameNode : public TIRFrameNode {
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Managed reference to AssertFrameNode.
+ *
+ * \sa AssertFrameNode
+ */
+class AssertFrame : public TIRFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AssertFrame, TIRFrame, AssertFrameNode);
+};
+
+/*!
+ * \brief A frame represents the let binding expression, which binds a var.
+ *
+ * \sa LetFrameNode
+ */
+class LetFrameNode : public TIRFrameNode {
+ public:
+  /*! \brief The variable we bind to */
+  tvm::tir::Var var;
+  /*! \brief The value we bind var to */
+  PrimExpr value;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    TIRFrameNode::VisitAttrs(v);
+    v->Visit("var", &var);
+    v->Visit("value", &value);
+  }
+
+  static constexpr const char* _type_key = "script.ir_builder.tir.LetFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(LetFrameNode, TIRFrameNode);
+
+ public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
+  void ExitWithScope() final;
+};
+
+/*!
+ * \brief Managed reference to LetFrameNode.
+ *
+ * \sa LetFrameNode
+ */
+class LetFrame : public TIRFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(LetFrame, TIRFrame, LetFrameNode);
+};
+
+/*!
+ * \brief The LaunchThreadFrameNode.
+ * \note It is used only inside a PrimFunc.
+ */
+class LaunchThreadFrameNode : public TIRFrameNode {
+ public:
+  /*! \brief The extent of environment thread. */
+  PrimExpr extent;
+  /*! \brief The attribute key, could be either virtual_thread or thread_extent. */
+  String attr_key;
+  /*! \brief The iteration variable. */
+  tvm::tir::IterVar iter_var;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    TIRFrameNode::VisitAttrs(v);
+    v->Visit("extent", &extent);
+    v->Visit("attr_key", &attr_key);
+    v->Visit("iter_var", &iter_var);
+  }
+
+  static constexpr const char* _type_key = "script.ir_builder.tir.LaunchThreadFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(LaunchThreadFrameNode, TIRFrameNode);
+
+ public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
+  void ExitWithScope() final;
+};
+
+/*!
+ * \brief Managed reference to LaunchThreadFrameNode.
+ *
+ * \sa LaunchThreadFrameNode
+ */
+class LaunchThreadFrame : public TIRFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(LaunchThreadFrame, TIRFrame,
+                                                    LaunchThreadFrameNode);
+};
+
+/*!
+ * \brief A frame that represents realization.
+ *
+ * \sa RealizeFrame
+ */
+class RealizeFrameNode : public TIRFrameNode {
+ public:
+  /*! \brief The region of buffer access. */
+  tvm::tir::BufferRegion buffer_slice;
+  /*! \brief The storage scope associated with this realization. */
+  String storage_scope;
+  /*! \brief The condition expression. */
+  PrimExpr condition;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    TIRFrameNode::VisitAttrs(v);
+    v->Visit("buffer_slice", &buffer_slice);
+    v->Visit("storage_scope", &storage_scope);
+    v->Visit("condition", &condition);
+  }
+
+  static constexpr const char* _type_key = "script.ir_builder.tir.RealizeFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(RealizeFrameNode, TIRFrameNode);
+
+ public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
+  void ExitWithScope() final;
+};
+
+/*!
+ * \brief Managed reference to RealizeFrameNode.
+ *
+ * \sa RealizeFrameNode
+ */
+class RealizeFrame : public TIRFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RealizeFrame, TIRFrame, RealizeFrameNode);
+};
 }  // namespace tir
 }  // namespace ir_builder
 }  // namespace script
