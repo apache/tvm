@@ -293,6 +293,46 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
 ForFrame Grid(Array<PrimExpr> extents);
 
 /*!
+ * \brief The assertion statement.
+ * \param condition The assertion condition.
+ * \param message The error message when the assertion fails.
+ * \return The AssertFrame.
+ */
+AssertFrame Assert(PrimExpr condition, String message);
+
+/*!
+ * \brief The let binding.
+ * \param var The variable to bind.
+ * \param value The value to be bound.
+ * \return The created LetFrame.
+ */
+LetFrame Let(Var var, PrimExpr value);
+
+/*!
+ * \brief The realization.
+ * \param buffer_slice The region of buffer access.
+ * \param storage_scope The storage scope associated with this realization.
+ * \param condition The condition expression.
+ * \return The result RealizeFrame.
+ */
+RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope, PrimExpr condition);
+
+/*!
+ * \brief Launch a thread.
+ * \param var The iteration variable.
+ * \param extent The extent of environment thread.
+ * \return The result LaunchThreadFrame.
+ */
+LaunchThreadFrame LaunchThread(Var var, PrimExpr extent);
+
+/*!
+ * \brief Bind a var to thread env.
+ * \param thread_tag The thread type tag.
+ * \return The result variable which gets bound to the thread env.
+ */
+Var EnvThread(String thread_tag);
+
+/*!
  * \brief Evaluate the input expression.
  * \param value The input expression to evaluate.
  */
