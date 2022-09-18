@@ -89,6 +89,21 @@ inline BlockFrame FindBlockFrame(const String& method) {
 }
 
 /*!
+ * \brief Check whether the top frame in IRBuilder frame stack is IfFrame.
+ * \param method The method name to be printed when throwing exception.
+ * \return The top frame of IfFrame.
+ */
+inline IfFrame FindIfFrame(const String& method) {
+  if (Optional<IfFrame> frame = IRBuilder::Current()->GetLastFrame<IfFrame>()) {
+    return frame.value();
+  } else {
+    LOG(FATAL) << "ValueError: IfThenElse frame not find. Please ensure '" << method
+               << "' is called under T.if_()";
+  }
+  throw;
+}
+
+/*!
  * \brief Convert BufferLoad to BufferRegion.
  * \param buffer_load The BufferLoad.
  * \return The converted BufferRegion.
