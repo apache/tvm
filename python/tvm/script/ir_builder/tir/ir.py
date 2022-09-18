@@ -26,6 +26,8 @@ from tvm.tir import (
     BufferLoad,
     BufferRegion,
     IntImm,
+    IterVar,
+    Let,
     PrimExpr,
     StringImm,
     Var,
@@ -813,6 +815,130 @@ def grid(*extents: PrimExpr) -> frame.ForFrame:
     return _ffi_api.Grid(extents)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
+def Assert(condition: PrimExpr, message: str) -> frame.AssertFrame:  # pylint: disable=invalid-name
+    """Create an assertion statement.
+
+    Parameters
+    ----------
+    condition : PrimExpr
+        The PrimExpr to test.
+
+    message : str
+        The output error message when the assertion fails.
+
+    Returns
+    -------
+    res : frame.AssertFrame
+        The result AssertFrame.
+    """
+    return _ffi_api.Assert(condition, message)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def let(
+    v: Var,
+    value: PrimExpr,
+    body: PrimExpr = None,
+) -> frame.LetFrame:
+    """Create a new let binding.
+
+    Parameters
+    ----------
+    v : Var
+        The variable to bind.
+
+    value : PrimExpr
+        The value to be bound.
+
+    body : PrimExpr
+        The body expression, None will be used if it was not specified.
+
+    Returns
+    -------
+    res : frame.LetFrame
+        The result LetFrame.
+    """
+    if body is None:
+        return _ffi_api.Let(v, value)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return Let(v, value, body)
+
+
+def realize(
+    buffer_slice: BufferRegion,
+    storage_scope: str,
+    condition: PrimExpr = True,
+) -> frame.RealizeFrame:
+    """Create a realization.
+
+    Parameters
+    ----------
+    buffer_slice : BufferRegion
+        The region of buffer access.
+
+    storage_scope : str
+        The storage scope associated with this realization.
+
+    condition: PrimExpr
+        The condition expression, the default is True.
+
+    Returns
+    -------
+    res : frame.RealizeFrame
+        The result RealizeFrame.
+    """
+    return _ffi_api.Realize(  # type: ignore[attr-defined] # pylint: disable=no-member
+        buffer_slice, storage_scope, condition
+    )
+
+
+def launch_thread(
+    iter_var: IterVar,  # pylint: disable=redefined-outer-name
+    extent: PrimExpr,
+) -> frame.LaunchThreadFrame:
+    """Launch a thread.
+
+    Parameters
+    ----------
+    iter_var : IterVar
+        The iteration variable.
+
+    extent : PrimExpr
+        The extent of environment thread.
+
+    Returns
+    -------
+    res : frame.LaunchThreadFrame
+        The result LaunchThreadFrame.
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+    from tvm.script.ir_builder import tir as T
+    brow = T.env_thread("blockIdx.y")
+    T.launch_thread(brow, 1)
+
+    """
+    return _ffi_api.LaunchThread(iter_var, extent)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def env_thread(thread_tag: str) -> IterVar:
+    """Bind a var to thread env"
+
+    Parameters
+    ----------
+    thread_tag : str
+        The thread type tag.
+
+    Returns
+    -------
+    res : IterVar
+        The result iteration variable gets bound to the thread env.
+
+    """
+    return _ffi_api.EnvThread(thread_tag)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
 def evaluate(value: PrimExpr) -> None:
     """Evaluate the input expression.
 
@@ -1159,6 +1285,11 @@ __all__ = [
     "unroll",
     "thread_binding",
     "grid",
+    "Assert",
+    "let",
+    "realize",
+    "launch_thread",
+    "env_thread",
     "evaluate",
     "int8",
     "int16",
