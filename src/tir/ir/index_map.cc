@@ -93,7 +93,7 @@ std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initia
   // Unpack the map to an array, maintaining the same parameter order.
   Array<PrimExpr> inverse_exprs;
   for (const auto& index : (*this)->initial_indices) {
-    inverse_exprs.push_back(inverse_exprs_map.at(index));
+    inverse_exprs.push_back(analyzer.Simplify(inverse_exprs_map.at(index)));
   }
 
   PrimExpr padding_predicate = padded_iter_map->padding_predicate;
