@@ -1327,6 +1327,18 @@ def test_should_rebuild_docker(tmpdir_factory, changed_files, name, check, expec
         expected="non_empty: FAILED",
         expected_code=1,
     ),
+    user_title=dict(
+        title="[something] a change @someon",
+        body="hello",
+        expected="usernames: FAILED: PR title must not tag",
+        expected_code=1,
+    ),
+    user_body=dict(
+        title="[something] a change",
+        body="hello\n\n cc @someone",
+        expected="usernames: FAILED: PR body must not tag",
+        expected_code=1,
+    ),
 )
 def test_pr_linter(title, body, expected, expected_code):
     """
