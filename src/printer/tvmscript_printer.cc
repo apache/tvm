@@ -1696,7 +1696,8 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
     body << PrintBlockBody(elided_root_block_body.value().get());
   } else {
-    // If we the isn't a skippable root block, just print the body
+    // If this is a non-root block, or is an unskippable root block,
+    // just print it without skipping.
     body << PrintBody(op->body);
   }
 
