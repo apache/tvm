@@ -41,12 +41,12 @@ build: $(ELF)
 .PHONY: build
 
 $(ELF): $(SRC)
-	$(ARUINO_CLI_CMD) compile --fqbn $(FQBN) --build-path $(BUILD_DIR) $(VFLAG)
+	$(ARUINO_CLI_CMD) compile --fqbn $(FQBN) --build-path $(BUILD_DIR) $(VERBOSE_FLAG)
 
 flash:
 	if [ -z $(PORT) ] ; then \
 	echo "---> ERROR: Please set the device port environment variable PORT"; \
-	else $(ARUINO_CLI_CMD) upload --fqbn $(FQBN) --input-dir $(BUILD_DIR) --port $(PORT) $(VFLAG); \
+	else $(ARUINO_CLI_CMD) upload --fqbn $(FQBN) --input-dir $(BUILD_DIR) --port $(PORT) $(VERBOSE_FLAG); \
 	fi
 
 clean:

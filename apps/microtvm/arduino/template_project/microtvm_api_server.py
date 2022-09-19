@@ -404,7 +404,7 @@ class Handler(server.ProjectAPIHandler):
         self._check_platform_version(arduino_cli_cmd, warning_as_error)
         compile_cmd = ["make", "build"]
         # Specify project to compile
-        subprocess.run(compile_cmd, check=True)
+        subprocess.run(compile_cmd, check=True, cwd=API_SERVER_DIR)
 
     POSSIBLE_BOARD_LIST_HEADERS = ("Port", "Protocol", "Type", "Board Name", "FQBN", "Core")
 
@@ -440,7 +440,7 @@ class Handler(server.ProjectAPIHandler):
                 device[col_name] = str_row[column.start() : column.end()].strip()
             yield device
 
-    def _auto_detect_port(self, arduino_cli_cmd: str, board: str):
+    def _auto_detect_port(self, arduino_cli_cmd: str, board: str) -> str:
         list_cmd = [self._get_arduino_cli_cmd(arduino_cli_cmd), "board", "list"]
         list_cmd_output = subprocess.run(
             list_cmd, check=True, stdout=subprocess.PIPE
@@ -488,10 +488,11 @@ class Handler(server.ProjectAPIHandler):
         port = self._get_arduino_port(arduino_cli_cmd, board, port)
 
         upload_cmd = ["make", "flash", f"PORT={port}"]
-
         for _ in range(self.FLASH_MAX_RETRIES):
             try:
-                subprocess.run(upload_cmd, check=True, timeout=self.FLASH_TIMEOUT_SEC)
+                subprocess.run(
+                    upload_cmd, check=True, timeout=self.FLASH_TIMEOUT_SEC, cwd=API_SERVER_DIR
+                )
                 break
 
             # We only catch timeout errors - a subprocess.CalledProcessError
