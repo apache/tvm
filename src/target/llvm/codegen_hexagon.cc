@@ -510,8 +510,13 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   std::vector<std::string> llvm_options_vec = split(llvm_options_str);
   assert(llvm_options_vec.size() >= 1 && llvm_options_vec[0] == "llvm");
   llvm_options_vec.insert(std::next(llvm_options_vec.begin()),
-                          {"-hexagon-small-data-threshold=0", "-unroll-threshold=0",
+                          {"-hexagon-small-data-threshold=0",
                            "-force-target-max-vector-interleave=1", "-hexagon-autohvx=1"});
+
+  // Disable unrolling (bug fix in LLVM 16 for int8 vectors)
+#if TVM_LLVM_VERSION >= 160
+  llvm_options_vec.insert({"-unroll-threshold=0"})
+#endif
 
   // Process extra command line options for LLVM. Make sure it's only
   // done once.
