@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-MAKE_DIR		:= $(PWD)
-FQBN			?= <FQBN>
-VERBOSE_FLAG	?= <VERBOSE_FLAG>
-BUILD_DIR		:= $(subst :,.,build)
-PORT			?=
-ARUINO_CLI_CMD	?= <ARUINO_CLI_CMD>
-BOARD			:= <BOARD>
+MAKE_DIR		    := $(PWD)
+FQBN			    ?= <FQBN>
+VERBOSE_FLAG	    ?= <VERBOSE_FLAG>
+BUILD_DIR		    := $(subst :,.,build)
+PORT			    ?=
+ARUINO_CLI_CMD	    ?= <ARUINO_CLI_CMD>
+BOARD			    := <BOARD>
+BUILD_EXTRA_FLAGS   := <BUILD_EXTRA_FLAGS>
 
 SRC        	:= $(wildcard *.ino)
 BIN        	:= $(BUILD_DIR)/$(SRC).bin
@@ -41,7 +42,10 @@ build: $(ELF)
 .PHONY: build
 
 $(ELF): $(SRC)
-	$(ARUINO_CLI_CMD) compile --fqbn $(FQBN) --build-path $(BUILD_DIR) $(VERBOSE_FLAG)
+	$(ARUINO_CLI_CMD) compile --fqbn $(FQBN) \
+    --build-path $(BUILD_DIR) \
+    --build-properties build.extra_flags="$(BUILD_EXTRA_FLAGS)" \
+    $(VERBOSE_FLAG)
 
 flash:
 	if [ -z $(PORT) ] ; then \

@@ -26,8 +26,8 @@ import tarfile
 import tempfile
 import time
 from string import Template
-
 from packaging import version
+from typing import Union
 
 from tvm.micro.project_api import server
 
@@ -55,6 +55,15 @@ try:
         BOARD_PROPERTIES = json.load(boards)
 except FileNotFoundError:
     raise FileNotFoundError(f"Board file {{{BOARDS}}} does not exist.")
+
+
+def get_cmsis_path(cmsis_path: pathlib.Path) -> pathlib.Path:
+    """Returns CMSIS dependency path"""
+    if cmsis_path:
+        return pathlib.Path(cmsis_path)
+    if os.environ.get("CMSIS_PATH"):
+        return pathlib.Path(os.environ.get("CMSIS_PATH"))
+    assert False, "'cmsis_path' option not passed!"
 
 
 class BoardAutodetectFailed(Exception):
@@ -156,6 +165,7 @@ class Handler(server.ProjectAPIHandler):
     VERBOSE_FLAG_TOKEN = "<VERBOSE_FLAG>"
     ARUINO_CLI_CMD_TOKEN = "<ARUINO_CLI_CMD>"
     BOARD_TOKEN = "<BOARD>"
+    BUILD_EXTRA_FLAGS_TOKEN = "<BUILD_EXTRA_FLAGS>"
 
     def _remove_unused_components(self, source_dir, project_type):
         unused_components = []
@@ -294,12 +304,50 @@ class Handler(server.ProjectAPIHandler):
         # It's probably a standard C/C++ header
         return include_path
 
+    def _cmsis_required(self, project_path: Union[str, pathlib.Path]) -> bool:
+        """Check if CMSIS dependency is required."""
+        project_path = pathlib.Path(project_path)
+        for path in (project_path / "src" / "model").iterdir():
+            if path.is_file():
+                with open(path, "r", encoding="ISO-8859-1") as lib_f:
+                    lib_content = lib_f.read()
+                if any(
+                    header in lib_content
+                    for header in [
+                        "<arm_nnsupportfunctions.h>",
+                        "arm_nn_types.h",
+                        "arm_nnfunctions.h",
+                    ]
+                ):
+                    return True
+        return False
+
+    def _copy_cmsis(self, project_path: Union[str, pathlib.Path], cmsis_path: str):
+        """Copy CMSIS header files to project.
+        Note: We use this CMSIS package:https://www.arduino.cc/reference/en/libraries/arduino_cmsis-dsp/
+        However, the latest release does not include header files that are copied in this function.
+        """
+        (project_path / "include" / "cmsis").mkdir()
+        cmsis_path = get_cmsis_path(cmsis_path)
+        for item in [
+            "arm_nn_types.h",
+            "arm_nn_tables.h",
+            "arm_nnsupportfunctions.h",
+            "arm_nn_math_types.h",
+            "arm_nnfunctions.h",
+        ]:
+            shutil.copy2(
+                cmsis_path / "CMSIS" / "NN" / "Include" / item,
+                project_path / "include" / "cmsis" / item,
+            )
+
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # List all used project options
         board = options["board"]
         verbose = options.get("verbose")
         project_type = options["project_type"]
         arduino_cli_cmd = options.get("arduino_cli_cmd")
+        cmsis_path = options.get("cmsis_path")
 
         # Reference key directories with pathlib
         project_dir = pathlib.Path(project_dir)
@@ -336,6 +384,14 @@ class Handler(server.ProjectAPIHandler):
         # Recursively change includes
         self._convert_includes(project_dir, source_dir)
 
+        # create include directory
+        (project_dir / "include").mkdir()
+        build_extra_flags = "-I./include"
+
+        if self._cmsis_required(project_dir):
+            build_extra_flags += f" -I./include/cmsis"
+            self._copy_cmsis(project_dir, cmsis_path)
+
         # Populate Makefile
         with open(project_dir / MAKEFILE_FILENAME, "w") as makefile_f:
             with open(API_SERVER_DIR / f"{MAKEFILE_FILENAME}.template", "r") as makefile_template_f:
@@ -355,6 +411,8 @@ class Handler(server.ProjectAPIHandler):
                         )
                     if self.BOARD_TOKEN in line:
                         line = line.replace(self.BOARD_TOKEN, board)
+                    if self.BUILD_EXTRA_FLAGS_TOKEN in line:
+                        line = line.replace(self.BUILD_EXTRA_FLAGS_TOKEN, build_extra_flags)
 
                     makefile_f.write(line)
 
