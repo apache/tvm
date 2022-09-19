@@ -34,20 +34,23 @@
 namespace tvm {
 namespace tir {
 
-IndexMap::IndexMap(Array<Var> initial_indices, Array<PrimExpr> final_indices) {
+IndexMap::IndexMap(Array<Var> initial_indices, Array<PrimExpr> final_indices,
+                   Optional<IndexMap> inverse_index_map) {
   auto n = make_object<IndexMapNode>();
   n->initial_indices = std::move(initial_indices);
   n->final_indices = std::move(final_indices);
+  n->inverse_index_map = std::move(inverse_index_map);
   data_ = std::move(n);
 }
 
-IndexMap IndexMap::FromFunc(int ndim, runtime::TypedPackedFunc<Array<PrimExpr>(Array<Var>)> func) {
+IndexMap IndexMap::FromFunc(int ndim, runtime::TypedPackedFunc<Array<PrimExpr>(Array<Var>)> func,
+                            Optional<IndexMap> inverse_index_map) {
   Array<Var> initial_indices;
   initial_indices.reserve(ndim);
   for (int i = 0; i < ndim; ++i) {
     initial_indices.push_back(Var("i" + std::to_string(i), DataType::Int(32)));
   }
-  return IndexMap(initial_indices, func(initial_indices));
+  return IndexMap(initial_indices, func(initial_indices), std::move(inverse_index_map));
 }
 
 std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initial_ranges) const {
@@ -114,6 +117,10 @@ std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initia
 }
 
 IndexMap IndexMap::Inverse(Array<Range> initial_ranges) const {
+  if ((*this)->inverse_index_map.defined()) {
+    // return the pre-defined inverse index map if exists.
+    return Downcast<IndexMap>((*this)->inverse_index_map.value());
+  }
   // Dummy variables to represent the inverse's inputs.
   Array<Var> output_vars;
   for (size_t i = 0; i < (*this)->final_indices.size(); i++) {
@@ -232,7 +239,14 @@ Array<PrimExpr> IndexMapNode::MapShape(const Array<PrimExpr>& shape,
   return output;
 }
 
-String IndexMapNode::ToPythonString() const {
+/*!
+ * \brief Auxilarry function to comvert an index map to lambda expression in Python.
+ * \param initial_indices The initial indices in the index map.
+ * \param final_indices The final indices in the index map.
+ * \return The lambda expression string.
+ */
+std::string IndexMap2PythonLambdaExpr(const Array<Var>& initial_indices,
+                                      const Array<PrimExpr>& final_indices) {
   std::unordered_set<std::string> used_names;
   Map<Var, PrimExpr> var_remap;
   for (const Var& initial_index : initial_indices) {
@@ -259,10 +273,28 @@ String IndexMapNode::ToPythonString() const {
   }
   oss << ": (";
   for (size_t i = 0; i < final_indices.size(); ++i) {
+    if (i != 0) {
+      oss << " ";
+    }
     oss << Substitute(final_indices[i], var_remap);
-    oss << ", ";
+    oss << ",";
   }
   oss << ")";
+  return oss.str();
+}
+
+String IndexMapNode::ToPythonString() const {
+  std::string lambda_expr = IndexMap2PythonLambdaExpr(initial_indices, final_indices);
+  if (!inverse_index_map.defined()) {
+    return String(lambda_expr);
+  }
+  // Also convert the inverse index map.
+  IndexMap inverse = Downcast<IndexMap>(inverse_index_map.value());
+  std::string inverse_lambda_expr =
+      IndexMap2PythonLambdaExpr(inverse->initial_indices, inverse->final_indices);
+  std::ostringstream oss;
+  oss << "tvm.tir.IndexMap.from_func(" << lambda_expr
+      << ", inverse_index_map=" << inverse_lambda_expr << ")";
   return String(oss.str());
 }
 
@@ -275,8 +307,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(IndexMapNode);
 
 TVM_REGISTER_GLOBAL("tir.IndexMap")
-    .set_body_typed([](Array<Var> initial_indices, Array<PrimExpr> final_indices) {
-      return IndexMap(initial_indices, final_indices);
+    .set_body_typed([](Array<Var> initial_indices, Array<PrimExpr> final_indices,
+                       Optional<IndexMap> inverse_index_map) {
+      return IndexMap(initial_indices, final_indices, inverse_index_map);
     });
 
 TVM_REGISTER_GLOBAL("tir.IndexMapMapIndices")

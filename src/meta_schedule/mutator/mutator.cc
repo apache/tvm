@@ -33,13 +33,20 @@ Optional<tir::Trace> PyMutatorNode::Apply(
   return f_apply(trace, *rand_state);
 }
 
+Mutator PyMutatorNode::Clone() const {
+  ICHECK(f_clone != nullptr) << "PyMutator's Clone method not implemented!";
+  return f_clone();
+}
+
 Mutator Mutator::PyMutator(
     PyMutatorNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
     PyMutatorNode::FApply f_apply,                                             //
+    PyMutatorNode::FClone f_clone,                                             //
     PyMutatorNode::FAsString f_as_string) {
   ObjectPtr<PyMutatorNode> n = make_object<PyMutatorNode>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
+  n->f_clone = std::move(f_clone);
   n->f_as_string = std::move(f_as_string);
   return Mutator(n);
 }
@@ -63,6 +70,7 @@ TVM_REGISTER_GLOBAL("meta_schedule.MutatorApply")
       TRandState seed_ = (seed != -1) ? seed : support::LinearCongruentialEngine::DeviceRandom();
       return self->Apply(trace, &seed_);
     });
+TVM_REGISTER_GLOBAL("meta_schedule.MutatorClone").set_body_method<Mutator>(&MutatorNode::Clone);
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorPyMutator").set_body_typed(Mutator::PyMutator);
 
 }  // namespace meta_schedule

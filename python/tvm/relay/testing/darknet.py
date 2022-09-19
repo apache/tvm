@@ -23,9 +23,9 @@ This functions will not be loaded by default.
 These are utility functions used for testing and tutorial file.
 """
 from __future__ import division
+from cffi import FFI
 import numpy as np
 import cv2
-from cffi import FFI
 
 
 def convert_image(image):

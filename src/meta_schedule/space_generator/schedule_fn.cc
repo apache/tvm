@@ -72,6 +72,11 @@ class ScheduleFnNode : public SpaceGeneratorNode {
     throw;
   }
 
+  SpaceGenerator Clone() const final {
+    ObjectPtr<ScheduleFnNode> n = make_object<ScheduleFnNode>(*this);
+    return SpaceGenerator(n);
+  }
+
   static constexpr const char* _type_key = "meta_schedule.ScheduleFn";
   TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleFnNode, SpaceGeneratorNode);
 };

@@ -795,6 +795,12 @@ BlockRV ConcreteScheduleNode::DecomposePadding(const BlockRV& block_rv, const Lo
   return CreateRV<BlockRV>(result);
 }
 
+void ConcreteScheduleNode::PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::PadEinsum(state_, this->GetSRef(block_rv), padding);
+  TVM_TIR_SCHEDULE_END("pad-einsum", this->error_render_level_);
+  this->state_->DebugVerify();
+}
 /******** Schedule: Misc ********/
 
 }  // namespace tir

@@ -3355,7 +3355,7 @@ class OperatorConverter(object):
         non_max_suppression_attrs = {}
         non_max_suppression_attrs["return_indices"] = False
         non_max_suppression_attrs["iou_threshold"] = custom_options["nms_iou_threshold"]
-        non_max_suppression_attrs["force_suppress"] = False
+        non_max_suppression_attrs["force_suppress"] = True
         non_max_suppression_attrs["top_k"] = anchor_boxes
         non_max_suppression_attrs["max_output_size"] = custom_options["max_detections"]
         non_max_suppression_attrs["invalid_to_bottom"] = False

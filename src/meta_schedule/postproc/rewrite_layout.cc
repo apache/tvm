@@ -167,6 +167,11 @@ class RewriteLayoutNode : public PostprocNode {
   // Inherited from PostprocNode
   bool Apply(const tir::Schedule& sch) final { return tir::RewriteLayout(sch); }
 
+  Postproc Clone() const {
+    ObjectPtr<RewriteLayoutNode> n = make_object<RewriteLayoutNode>(*this);
+    return Postproc(n);
+  }
+
   static constexpr const char* _type_key = "meta_schedule.RewriteLayout";
   TVM_DECLARE_FINAL_OBJECT_INFO(RewriteLayoutNode, PostprocNode);
 };

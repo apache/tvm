@@ -145,7 +145,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         ...
 
     @abc.abstractmethod
-    def stop_server(self):
+    def stop_server(self, cleanup=True):
         """Stop the RPC server"""
         ...
 
@@ -509,11 +509,12 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self._copy_binaries()
         self._run_server_script()
 
-    def stop_server(self):
+    def stop_server(self, cleanup=True):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._cleanup_port_forwarding()
         self._terminate_remote()
-        self.cleanup_directory()
+        if cleanup:
+            self.cleanup_directory()
 
 
 class HexagonLauncherSimulator(HexagonLauncherRPC):
@@ -617,7 +618,7 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
     def cleanup_directory(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
 
-    def stop_server(self):
+    def stop_server(self, cleanup=True):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._server_process.terminate()
 
