@@ -18,7 +18,6 @@
 """Test Meta Schedule Database"""
 import os.path as osp
 import tempfile
-from tkinter.messagebox import NO
 from typing import Callable, Optional, List
 
 import tvm
