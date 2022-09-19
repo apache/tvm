@@ -53,11 +53,19 @@ class AsyncDMALowerer : public StmtExprMutator {
 
       // abort if we have not seen this queue ID in `copy` transform
       if (queue_ids.find(queue_id) == queue_ids.end()) {
+        LOG(INFO) << "AsyncDMALowerer exiting because the queue ID observed in the "
+                     "`async_wait_queue_scope` transform has not been previously observed in the "
+                     "`async_commit_queue_scope` transform";
         return StmtExprMutator::VisitStmt_(op);
       }
 
       auto async_wait = op->body.as<AttrStmtNode>();
-      ICHECK(async_wait && async_wait->attr_key == tir::attr::async_wait_inflight_count);
+      if (!async_wait || async_wait->attr_key != tir::attr::async_wait_inflight_count) {
+        LOG(INFO) << "AsyncDMALowerer exiting because the body of the `AttrStmtNode` with key "
+                     "`async_wait_queue_scope` does not contain an `AttrStmtNode` with key "
+                     "`async_wait_inflight_count`";
+        return StmtExprMutator::VisitStmt_(op);
+      }
 
       auto call_dma_wait =
           Evaluate(Call(DataType::Int(32), builtin::dma_wait(), {queue_id, async_wait->value}));
@@ -92,37 +100,50 @@ class AsyncDMALowerer : public StmtExprMutator {
       // walk the graph to verify this is a mem copy ...
       // 1) async_commit_queue_scope contains async_scope
       auto async_scope = op->body.as<AttrStmtNode>();
-      ICHECK(async_scope && async_scope->attr_key == tir::attr::async_scope);
+      if (!async_scope || async_scope->attr_key != tir::attr::async_scope) {
+        LOG(INFO) << "AsyncDMALowerer exiting because the body of the `AttrStmtNode` with key "
+                     "`async_commit_queue_scope` does not contain an `AttrStmtNode` with key "
+                     "`async_scope`";
+        return StmtExprMutator::VisitStmt_(op);
+      }
 
       // 2) async_scope contains single for loop
       auto for_loop = async_scope->body.as<ForNode>();
       if (!for_loop) {
+        LOG(INFO) << "AsyncDMALowerer exiting because the body of the `AttrStmtNode` with key "
+                     "`async_scope` does not contain a single `ForNode`";
         return StmtExprMutator::VisitStmt_(op);
       }
 
       // 3) for loop contains buffer store with single index
       auto bufferstorenode = for_loop->body.as<BufferStoreNode>();
       if (!bufferstorenode || bufferstorenode->indices.size() != 1) {
+        LOG(INFO) << "AsyncDMALowerer exiting because the body of the `ForNode` does not contain a "
+                     "single `BufferStoreNode` with a single index variable";
         return StmtExprMutator::VisitStmt_(op);
       }
 
       // 4) buffer store value is a buffer load with single index
       auto bufferloadnode = bufferstorenode->value.as<BufferLoadNode>();
       if (!bufferloadnode || bufferloadnode->indices.size() != 1) {
+        LOG(INFO) << "AsyncDMALowerer exiting because the value of the `BufferStoreNode` is not a "
+                     "single `BufferLoadNode` with a single index variable";
         return StmtExprMutator::VisitStmt_(op);
       }
 
-      // get store buffer and assert that it is contiguous
+      // get store buffer; assert it exists and is contiguous given it uses a single index
       auto bufferstore = bufferstorenode->buffer.as<BufferNode>();
       ICHECK(bufferstore && bufferstore->strides.empty());
 
-      // get load buffer and assert that it is contiguous
+      // get load buffer; assert it exists and is contiguous given it uses a single index
       auto bufferload = bufferloadnode->buffer.as<BufferNode>();
       ICHECK(bufferload && bufferload->strides.empty());
 
       // we will be replacing the entire for loop including its index
       // with a DMA copy instrinsic that spans the entire index space of the for loop
-      // so we will need to repace the for loop index with value zero in the buffer indices
+      // so we will need to replace the for loop index with value zero in the buffer indices
+      // thus we eliminate the index from the expression so the DMA copy receives the buffer range
+      // base address
       Map<Var, PrimExpr> loop_var_remap = {{for_loop->loop_var, IntImm(DataType::Int(32), 0)}};
 
       // map loop variable to zero for the store index & simplify
