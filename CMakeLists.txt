@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.2)
 project(tvm C CXX)
 
+add_subdirectory("cmake/3rdparty/CCache")
+
 # Utility functions
 include(cmake/utils/Utils.cmake)
 include(cmake/utils/Summary.cmake)

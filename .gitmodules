@@ -16,3 +16,6 @@
 [submodule "3rdparty/cutlass"]
 	path = 3rdparty/cutlass
 	url = https://github.com/NVIDIA/cutlass.git
+[submodule "cmake/3rdparty/CCache"]
+	path = cmake/3rdparty/CCache
+	url = https://github.com/TheLartians/Ccache.cmake
