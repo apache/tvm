@@ -614,7 +614,7 @@ class Array : public ObjectRef {
    */
   template <typename F, typename U = std::invoke_result_t<F, T>>
   Array<U> Map(F fmap) const {
-    return Array(MapHelper(data_, fmap));
+    return Array<U>(MapHelper(data_, fmap));
   }
 
   /*!
