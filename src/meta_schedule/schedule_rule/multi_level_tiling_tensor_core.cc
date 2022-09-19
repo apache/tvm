@@ -499,7 +499,7 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     const tir::BufferRegion& reindexed_buffer_region = tir::GetNthAccessBufferRegion(
         state->sch->state(), GetRef<tir::Block>(block), buffer_index, index_type);
     auto sub_index_map = f_get_sub_index_map(lhs_buffer, reindexed_buffer_region->region);
-    state->sch->TransformLayout(state->block_rv, buffer_index, index_type, sub_index_map);
+    state->sch->TransformLayout(state->block_rv, buffer_index, index_type, sub_index_map, NullOpt);
   };
 
   for (int i = 0, n = block_before_reindex->reads.size(); i < n; ++i) {
