@@ -508,7 +508,7 @@ class PyDatabase:
         """
         # Using self._outer to replace the self pointer
         return _ffi_api.DatabaseQueryTuningRecord(  # type: ignore # pylint: disable=no-member
-            self._outer(), mod, target, workload_name  # pylint: disable=no-member
+            self._outer(), mod, target, workload_name  # type: ignore # pylint: disable=no-member
         )
 
     def query_schedule(
@@ -532,7 +532,7 @@ class PyDatabase:
         """
         # Using self._outer to replace the self pointer
         return _ffi_api.DatabaseQuerySchedule(  # type: ignore # pylint: disable=no-member
-            self._outer(), mod, target, workload_name  # pylint: disable=no-member
+            self._outer(), mod, target, workload_name  # type: ignore # pylint: disable=no-member
         )
 
     def query_ir_module(
@@ -556,7 +556,7 @@ class PyDatabase:
         """
         # Using self._outer to replace the self pointer
         return _ffi_api.DatabaseQueryIRModule(  # type: ignore # pylint: disable=no-member
-            self._outer(), mod, target, workload_name  # pylint: disable=no-member
+            self._outer(), mod, target, workload_name  # type: ignore # pylint: disable=no-member
         )
 
     def __len__(self) -> int:
