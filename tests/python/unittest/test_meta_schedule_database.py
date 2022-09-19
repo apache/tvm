@@ -197,9 +197,11 @@ class PyMemoryDatabaseOverride(ms.database.PyDatabase):
         self, mod: IRModule, target: Target, workload_name: Optional[str] = None
     ) -> Optional[TuningRecord]:
         if self.has_workload(mod):
-            records = self.get_top_k(self.commit_workload(mod), 1)
+            records = self.get_top_k(self.commit_workload(mod), 2)
             if len(records) == 1:
                 return records[0]
+            elif len(records) == 2:
+                return records[1]  # return the 2nd best if there are two records
         return None
 
     def query_schedule(
@@ -521,11 +523,11 @@ def test_meta_schedule_pydatabase_override_query():
 
     commit_record(Schedule(mod).trace, db, 0.514)  # Empty Trace
     record = query(db, mod, target, "record")
-    assert record is not None and record.run_secs[0].value == 0.514
+    assert record is not None and record.run_secs[0].value == 1.14  # Override to 2nd best
     sch_res = query(db, mod, target, "schedule")
-    assert sch_res is not None and tvm.ir.structural_equal(sch_res.mod, mod)
+    assert sch_res is not None and tvm.ir.structural_equal(sch_res.mod, sch.mod)
     mod_res = query(db, mod, target, "ir_module")
-    assert mod_res is not None and tvm.ir.structural_equal(mod_res, mod)
+    assert mod_res is not None and tvm.ir.structural_equal(mod_res, sch.mod)
 
 
 def test_meta_schedule_pydatabase_current():
