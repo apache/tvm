@@ -2244,6 +2244,8 @@ class PyTorchOpConverter:
         return _op.take(weight, indices.astype("int32"), axis=0)
 
     def embedding_bag(self, inputs, _):
+        from .common import fold_constant
+
         assert len(inputs) == 9, "embedding_bag needs 9 arguments"
         (
             weights,
@@ -2281,22 +2283,30 @@ class PyTorchOpConverter:
         mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
         assert mode in mode_map, "unsupported reduction op mode %d." % mode
 
-        if per_sample_weights is not None:
-            assert mode == 0, "per_sample_weights only support for mode sum."
-        else:
-            per_sample_weights = _op.ones_like(indices)
+        # if per_sample_weights is not None:
+        #     assert mode == 0, "per_sample_weights only support for mode sum."
+        # else:
+        #     per_sample_weights = _op.ones_like(indices)
 
         padding_idx = -1 if padding_idx is None else padding_idx
-
-        return _op.embedding_bag(
-            indices,
-            weights,
-            offsets_1d,
-            mode,
-            padding_idx,
-            per_sample_weights,
-            include_last_offset,
-        )
+        print(offsets_1d)
+        offsets_const_fold = fold_constant(offsets_1d)
+        offsets_np = offsets_const_fold.data.numpy()
+        offsets_diff = np.diff(offsets_np)
+        indices_2d = _op.reshape(indices, (-1, offsets_diff[0]))
+        reduce_op = mode_map[mode]
+        gather = _op.take(weights, indices_2d, axis=0)
+        reduced = reduce_op(gather, 1)
+        return reduced, None, None, None
+        # return _op.embedding_bag(
+        #     indices,
+        #     weights,
+        #     offsets_1d,
+        #     mode,
+        #     padding_idx,
+        #     per_sample_weights,
+        #     include_last_offset,
+        # )
 
     def one_hot(self, inputs, input_types):
         indices = inputs[0].astype("int32")
@@ -2541,7 +2551,7 @@ class PyTorchOpConverter:
         )
 
     def numel(self, inputs, input_types):
-        return _op.ndarray_size(inputs[0])
+        return fold_constant(_op.ndarray_size(inputs[0]))
 
     def empty(self, inputs, input_types):
         shape = inputs[0]
