@@ -514,7 +514,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
                            "-force-target-max-vector-interleave=1", "-hexagon-autohvx=1"});
 
   // Disable unrolling (bug fix in LLVM 16 for int8 vectors)
-  // TODO: figure out why unroll is causing significant compile
+  // TODO(joshherr-quic): figure out why unroll is causing significant compile
   // time and binary size issues for bert int8 model among others.
 #if TVM_LLVM_VERSION >= 160
   llvm_options_vec.insert({"-unroll-threshold=0"})
