@@ -724,6 +724,18 @@ Optional<Array<Var>> CheckTrivialBufferIndices(const T& buffer_access) {
   return indices;
 }
 
+/*!
+ * \brief Simplify non-trivial expressions
+ * \param expr The expression to be simplified
+ * \param analyzer The analyzer
+ * \return The simplified expression
+ *
+ * During scheduling, we often need preserve block iters in trivial expressions that can be
+ * simplified to constant values for further scheduling and analysis because simplifing away the
+ * block iters may result in loss of information for further analysis.
+ */
+PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, arith::Analyzer* analyzer);
+
 /*! \brief Necessary information used for tensorization */
 class TensorizeInfoNode : public Object {
  public:
