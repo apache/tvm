@@ -21,6 +21,7 @@ VERBOSE_FLAG	?= <VERBOSE_FLAG>
 BUILD_DIR		:= $(subst :,.,build)
 PORT			?=
 ARUINO_CLI_CMD	?= <ARUINO_CLI_CMD>
+BOARD			:= <BOARD>
 
 SRC        	:= $(wildcard *.ino)
 BIN        	:= $(BUILD_DIR)/$(SRC).bin

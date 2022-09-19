@@ -50,7 +50,7 @@ def tune_model(
     assert isinstance(params, dict)
 
     project_options = {
-        f"{platform}_board": board,
+        "board": board,
         "project_type": "host_driven",
         **(project_options or {}),
     }
@@ -129,7 +129,7 @@ def create_aot_session(
     print(f"Model parameter size: {parameter_size}")
 
     project_options = {
-        f"{platform}_board": board,
+        "board": board,
         "project_type": "host_driven",
         # {} shouldn't be the default value for project options ({}
         # is mutable), so we use this workaround

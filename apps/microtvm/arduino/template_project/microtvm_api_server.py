@@ -65,7 +65,7 @@ PROJECT_TYPES = ["example_project", "host_driven"]
 
 PROJECT_OPTIONS = server.default_project_options(
     project_type={"choices": tuple(PROJECT_TYPES)},
-    board={"choices": list(BOARD_PROPERTIES), "required": ["build", "flash", "open_transport"]},
+    board={"choices": list(BOARD_PROPERTIES)},
     warning_as_error={"optional": ["build", "flash"]},
 ) + [
     server.ProjectOption(
@@ -83,12 +83,6 @@ PROJECT_OPTIONS = server.default_project_options(
         optional=["flash", "open_transport"],
         type="int",
         help="Port to use for connecting to hardware.",
-    ),
-    server.ProjectOption(
-        "warning_as_error",
-        optional=["build", "flash"],
-        type="bool",
-        help="Treat warnings as errors and raise an Exception.",
     ),
 ]
 
@@ -161,6 +155,7 @@ class Handler(server.ProjectAPIHandler):
     FQBN_TOKEN = "<FQBN>"
     VERBOSE_FLAG_TOKEN = "<VERBOSE_FLAG>"
     ARUINO_CLI_CMD_TOKEN = "<ARUINO_CLI_CMD>"
+    BOARD_TOKEN = "<BOARD>"
 
     def _remove_unused_components(self, source_dir, project_type):
         unused_components = []
@@ -300,6 +295,12 @@ class Handler(server.ProjectAPIHandler):
         return include_path
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
+        # List all used project options
+        board = options["board"]
+        verbose = options.get("verbose")
+        project_type = options["project_type"]
+        arduino_cli_cmd = options.get("arduino_cli_cmd")
+
         # Reference key directories with pathlib
         project_dir = pathlib.Path(project_dir)
         project_dir.mkdir()
@@ -309,11 +310,11 @@ class Handler(server.ProjectAPIHandler):
         # Copies files from the template folder to project_dir
         shutil.copy2(API_SERVER_DIR / "microtvm_api_server.py", project_dir)
         shutil.copy2(BOARDS, project_dir / BOARDS.name)
-        self._copy_project_files(API_SERVER_DIR, project_dir, options["project_type"])
+        self._copy_project_files(API_SERVER_DIR, project_dir, project_type)
 
         # Copy standalone_crt into src folder
         self._copy_standalone_crt(source_dir, standalone_crt_dir)
-        self._remove_unused_components(source_dir, options["project_type"])
+        self._remove_unused_components(source_dir, project_type)
 
         # Populate crt-config.h
         crt_config_dir = project_dir / "src" / "standalone_crt" / "crt_config"
@@ -327,7 +328,7 @@ class Handler(server.ProjectAPIHandler):
         shutil.copy2(model_library_format_path, project_dir / MODEL_LIBRARY_FORMAT_RELPATH)
 
         # For AOT, template model.h with metadata to minimize space usage
-        if options["project_type"] == "example_project":
+        if project_type == "example_project":
             self._template_model_header(source_dir, metadata)
 
         self._change_cpp_file_extensions(source_dir)
@@ -340,23 +341,26 @@ class Handler(server.ProjectAPIHandler):
             with open(API_SERVER_DIR / f"{MAKEFILE_FILENAME}.template", "r") as makefile_template_f:
                 for line in makefile_template_f:
                     if self.FQBN_TOKEN in line:
-                        line = line.replace(self.FQBN_TOKEN, self._get_fqbn(options))
+                        line = line.replace(self.FQBN_TOKEN, self._get_fqbn(board))
 
                     if self.VERBOSE_FLAG_TOKEN in line:
-                        if options.get("verbose"):
+                        if verbose:
                             flag = "--verbose"
                         else:
                             flag = ""
                         line = line.replace(self.VERBOSE_FLAG_TOKEN, flag)
-
                     if self.ARUINO_CLI_CMD_TOKEN in line:
                         line = line.replace(
-                            self.ARUINO_CLI_CMD_TOKEN, self._get_arduino_cli_cmd(options)
+                            self.ARUINO_CLI_CMD_TOKEN, self._get_arduino_cli_cmd(arduino_cli_cmd)
                         )
+                    if self.BOARD_TOKEN in line:
+                        line = line.replace(self.BOARD_TOKEN, board)
+
                     makefile_f.write(line)
 
-    def _get_arduino_cli_cmd(self, options: dict):
-        arduino_cli_cmd = options.get("arduino_cli_cmd", ARDUINO_CLI_CMD)
+    def _get_arduino_cli_cmd(self, arduino_cli_cmd: str):
+        if not arduino_cli_cmd:
+            arduino_cli_cmd = ARDUINO_CLI_CMD
         assert arduino_cli_cmd, "'arduino_cli_cmd' command not passed and not found by default!"
         return arduino_cli_cmd
 
@@ -374,9 +378,9 @@ class Handler(server.ProjectAPIHandler):
         return version.parse(str_version)
 
     # This will only be run for build and upload
-    def _check_platform_version(self, options):
+    def _check_platform_version(self, arduino_cli_cmd: str, warning_as_error: bool):
         if not self._version:
-            cli_command = self._get_arduino_cli_cmd(options)
+            cli_command = self._get_arduino_cli_cmd(arduino_cli_cmd)
             self._version = self._get_platform_version(cli_command)
 
         if self._version < MIN_ARDUINO_CLI_VERSION:
@@ -384,16 +388,20 @@ class Handler(server.ProjectAPIHandler):
                 f"Arduino CLI version too old: found {self._version}, "
                 f"need at least {str(MIN_ARDUINO_CLI_VERSION)}."
             )
-            if options.get("warning_as_error") is not None and options["warning_as_error"]:
+            if warning_as_error is not None and warning_as_error:
                 raise server.ServerError(message=message)
             _LOG.warning(message)
 
-    def _get_fqbn(self, options):
-        o = BOARD_PROPERTIES[options["board"]]
+    def _get_fqbn(self, board: str):
+        o = BOARD_PROPERTIES[board]
         return f"{o['package']}:{o['architecture']}:{o['board']}"
 
     def build(self, options):
-        self._check_platform_version(options)
+        # List all used project options
+        arduino_cli_cmd = options.get("arduino_cli_cmd")
+        warning_as_error = options.get("warning_as_error")
+
+        self._check_platform_version(arduino_cli_cmd, warning_as_error)
         compile_cmd = ["make", "build"]
         # Specify project to compile
         subprocess.run(compile_cmd, check=True)
@@ -432,13 +440,13 @@ class Handler(server.ProjectAPIHandler):
                 device[col_name] = str_row[column.start() : column.end()].strip()
             yield device
 
-    def _auto_detect_port(self, options):
-        list_cmd = [self._get_arduino_cli_cmd(options), "board", "list"]
+    def _auto_detect_port(self, arduino_cli_cmd: str, board: str):
+        list_cmd = [self._get_arduino_cli_cmd(arduino_cli_cmd), "board", "list"]
         list_cmd_output = subprocess.run(
             list_cmd, check=True, stdout=subprocess.PIPE
         ).stdout.decode("utf-8")
 
-        desired_fqbn = self._get_fqbn(options)
+        desired_fqbn = self._get_fqbn(board)
         for device in self._parse_connected_boards(list_cmd_output):
             if device["fqbn"] == desired_fqbn:
                 return device["port"]
@@ -446,21 +454,36 @@ class Handler(server.ProjectAPIHandler):
         # If no compatible boards, raise an error
         raise BoardAutodetectFailed()
 
-    def _get_arduino_port(self, options):
+    def _get_arduino_port(self, arduino_cli_cmd: str, board: str, port: int):
         if not self._port:
-            if "port" in options and options["port"]:
-                self._port = options["port"]
+            if port:
+                self._port = port
             else:
-                self._port = self._auto_detect_port(options)
+                self._port = self._auto_detect_port(arduino_cli_cmd, board)
 
         return self._port
+
+    def _get_board_from_makefile(self, makefile_path: pathlib.Path) -> str:
+        """Get Board from generated Makefile."""
+        with open(makefile_path) as makefile_f:
+            line = makefile_f.readline()
+            if "BOARD" in line:
+                board = line.replace(" ", "").replace("\n", "").replace("\r", "").split(":=")[1]
+                return board
+        raise RuntimeError("Board was not found in Makefile: {}".format(makefile_path))
 
     FLASH_TIMEOUT_SEC = 60
     FLASH_MAX_RETRIES = 5
 
     def flash(self, options):
-        self._check_platform_version(options)
-        port = self._get_arduino_port(options)
+        # List all used project options
+        arduino_cli_cmd = options.get("arduino_cli_cmd")
+        warning_as_error = options.get("warning_as_error")
+        port = options.get("port")
+
+        board = self._get_board_from_makefile(API_SERVER_DIR / MAKEFILE_FILENAME)
+        self._check_platform_version(arduino_cli_cmd, warning_as_error)
+        port = self._get_arduino_port(arduino_cli_cmd, board, port)
 
         upload_cmd = ["make", "flash", f"PORT={port}"]
 
@@ -478,6 +501,9 @@ class Handler(server.ProjectAPIHandler):
                 )
 
         else:
+            import pdb
+
+            pdb.set_trace()
             raise RuntimeError(
                 f"Unable to flash Arduino board after {self.FLASH_MAX_RETRIES} attempts"
             )
@@ -486,11 +512,16 @@ class Handler(server.ProjectAPIHandler):
         import serial
         import serial.tools.list_ports
 
+        # List all used project options
+        arduino_cli_cmd = options.get("arduino_cli_cmd")
+        port = options.get("port")
+
         # Zephyr example doesn't throw an error in this case
         if self._serial is not None:
             return
 
-        port = self._get_arduino_port(options)
+        board = self._get_board_from_makefile(API_SERVER_DIR / MAKEFILE_FILENAME)
+        port = self._get_arduino_port(arduino_cli_cmd, board, port)
 
         # It takes a moment for the Arduino code to finish initializing
         # and start communicating over serial

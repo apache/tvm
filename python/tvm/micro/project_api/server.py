@@ -824,6 +824,7 @@ def default_project_options(**kw) -> typing.List[ProjectOption]:
             "warning_as_error",
             optional=["generate_project"],
             type="bool",
+            default=False,
             help="Treat warnings as errors and raise an Exception.",
         ),
     ]

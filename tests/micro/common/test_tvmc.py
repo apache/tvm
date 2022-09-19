@@ -101,9 +101,8 @@ def test_tvmc_model_build_only(platform, board, output_dir):
         platform,
         "--project-option",
         "project_type=host_driven",
+        f"board={board}",
     ]
-    if platform == "zephyr":
-        create_project_cmd.append(f"board={board}")
 
     cmd_result = _run_tvmc(create_project_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
@@ -166,9 +165,8 @@ def test_tvmc_model_run(platform, board, output_dir):
         platform,
         "--project-option",
         "project_type=host_driven",
+        f"board={board}",
     ]
-    if platform == "zephyr":
-        create_project_cmd.append(f"board={board}")
 
     cmd_result = _run_tvmc(create_project_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
