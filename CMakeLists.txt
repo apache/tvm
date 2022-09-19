@@ -72,6 +72,7 @@ tvm_option(USE_PAPI "Use Performance Application Programming Interface (PAPI) to
 tvm_option(USE_GTEST "Use GoogleTest for C++ sanity tests" AUTO)
 tvm_option(USE_CUSTOM_LOGGING "Use user-defined custom logging, tvm::runtime::detail::LogFatalImpl and tvm::runtime::detail::LogMessageImpl must be implemented" OFF)
 tvm_option(USE_ALTERNATIVE_LINKER "Use 'mold' or 'lld' if found when invoking compiler to link artifact" AUTO)
+tvm_option(USE_CCACHE "Use ccache if found when invoking compiler" AUTO)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -490,8 +491,8 @@ if(USE_CCACHE) # True for AUTO, ON, /path/to/ccache
     endif()
     # Set the flag for ccache
     if(DEFINED PATH_TO_CCACHE)
-      set(CXX_COMPILER_LAUNCHER PATH_TO_CCACHE)
-      set(C_COMPILER_LAUNCHER PATH_TO_CCACHE)
+      set(CXX_COMPILER_LAUNCHER "${PATH_TO_CCACHE}")
+      set(C_COMPILER_LAUNCHER "${PATH_TO_CCACHE}")
     endif()
   endif()
 endif(USE_CCACHE)
