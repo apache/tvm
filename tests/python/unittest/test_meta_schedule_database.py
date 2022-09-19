@@ -532,8 +532,8 @@ def test_meta_schedule_pydatabase_override_query():
 
 def test_meta_schedule_pydatabase_current():
     db = PyMemoryDatabaseDefault()  # pylint: disable=invalid-name
-    with db:
-        assert ms.database.PyDatabase.current() == db
+    with db:  # pylint: disable=not-context-manager
+        assert ms.database.Database.current() == db
 
 
 if __name__ == "__main__":

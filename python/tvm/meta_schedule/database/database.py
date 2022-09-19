@@ -559,42 +559,6 @@ class PyDatabase:
             self._outer(), mod, target, workload_name  # pylint: disable=no-member
         )
 
-    def query(
-        self,
-        mod: IRModule,
-        target: Target,
-        *,
-        workload_name: str = "main",
-        kind: Union[
-            Literal["schedule"],
-            Literal["record"],
-            Literal["ir_module"],
-        ] = "schedule",
-    ) -> Union[Schedule, IRModule, TuningRecord]:
-        """Query the database to retrieve the best optimization outcome of the given workload.
-
-        Parameters
-        ----------
-        mod : IRModule
-            The IRModule to be searched for.
-        target : Target
-            The target to be searched for.
-        kind : str = "schedule" | "record" | "ir_module"
-            The kind of the optimization outcome to be returned.
-
-        Returns
-        -------
-        result : Union[Schedule, IRModule, TuningRecord]
-            The best optimization outcome of the given workload.
-        """
-        if kind == "schedule":
-            return self.query_schedule(mod, target, workload_name)
-        if kind == "record":
-            return self.query_tuning_record(mod, target, workload_name)
-        if kind == "ir_module":
-            return self.query_ir_module(mod, target, workload_name)
-        raise ValueError(f'Unknown kind: {kind}. Candidates are: "schedule", "record", "ir_module"')
-
     def __len__(self) -> int:
         """Get the number of records in the database.
 
@@ -604,20 +568,6 @@ class PyDatabase:
             The number of records in the database
         """
         raise NotImplementedError
-
-    def __enter__(self) -> Database:
-        """Entering the scope of the context manager"""
-        _ffi_api.DatabaseEnterWithScope(self.outer())  # type: ignore # pylint: disable=no-member
-        return self  # type: ignore
-
-    def __exit__(self, ptype, value, trace) -> None:
-        """Exiting the scope of the context manager"""
-        _ffi_api.DatabaseExitWithScope(self.outer())  # type: ignore # pylint: disable=no-member
-
-    @staticmethod
-    def current() -> Optional[Database]:
-        """Get the current database under scope."""
-        return _ffi_api.DatabaseCurrent()  # type: ignore # pylint: disable=no-member
 
 
 def create(  # pylint: disable=keyword-arg-before-vararg
