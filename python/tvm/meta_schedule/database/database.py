@@ -507,7 +507,9 @@ class PyDatabase:
             The tuning record corresponding to the given workload.
         """
         # Using self._outer to replace the self pointer
-        _ffi_api.DatabaseQueryTuningRecord(self._outer(), mod, target, workload_name)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseQueryTuningRecord(  # type: ignore # pylint: disable=no-member
+            self._outer(), mod, target, workload_name  # pylint: disable=no-member
+        )
 
     def query_schedule(
         self, mod: IRModule, target: Target, workload_name: Optional[str] = None
@@ -529,7 +531,9 @@ class PyDatabase:
             The schedule corresponding to the given workload.
         """
         # Using self._outer to replace the self pointer
-        _ffi_api.DatabaseQuerySchedule(self._outer(), mod, target, workload_name)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseQuerySchedule(  # type: ignore # pylint: disable=no-member
+            self._outer(), mod, target, workload_name  # pylint: disable=no-member
+        )
 
     def query_ir_module(
         self, mod: IRModule, target: Target, workload_name: Optional[str] = None
@@ -551,7 +555,9 @@ class PyDatabase:
             The IRModule corresponding to the given workload.
         """
         # Using self._outer to replace the self pointer
-        _ffi_api.DatabaseQueryIRModule(self._outer(), mod, target, workload_name)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseQueryIRModule(  # type: ignore # pylint: disable=no-member
+            self._outer(), mod, target, workload_name  # pylint: disable=no-member
+        )
 
     def query(
         self,
@@ -602,7 +608,7 @@ class PyDatabase:
     def __enter__(self) -> Database:
         """Entering the scope of the context manager"""
         _ffi_api.DatabaseEnterWithScope(self.outer())  # type: ignore # pylint: disable=no-member
-        return self
+        return self  # type: ignore
 
     def __exit__(self, ptype, value, trace) -> None:
         """Exiting the scope of the context manager"""
