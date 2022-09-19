@@ -28,7 +28,6 @@
 #include <dmlc/common.h>
 
 #include <functional>
-#include <optional>
 #include <utility>
 
 namespace tvm {
@@ -60,39 +59,26 @@ class With {
  public:
   /*!
    * \brief constructor.
-   *
-   *  Make an empty context.  Can be used by users to conditionally
-   *  enter a context, or used internally to represent a moved-from
-   *  context.
-   */
-  With() : ctx_(std::nullopt) {}
-
-  /*!
-   * \brief constructor.
    *  Enter the scope of the context.
    */
   template <typename... Args>
-  explicit With(Args&&... args) : ctx_(ContextType(std::forward<Args>(args)...)) {
-    ctx_->EnterWithScope();
+  explicit With(Args&&... args) : ctx_(std::forward<Args>(args)...) {
+    ctx_.EnterWithScope();
   }
   /*! \brief destructor, leaves the scope of the context. */
-  ~With() DMLC_THROW_EXCEPTION {
-    if (ctx_.has_value()) {
-      ctx_->ExitWithScope();
-    }
-  }
+  ~With() DMLC_THROW_EXCEPTION { ctx_.ExitWithScope(); }
 
+  // Disable copy and move construction.  `With` is intended only for
+  // use in nested contexts that are exited in the reverse order of
+  // entry.  Allowing context to be copied or moved would break this
+  // expectation.
   With(const With& other) = delete;
   With& operator=(const With& other) = delete;
+  With(With&& other) = delete;
+  With& operator=(With&& other) = delete;
 
-  With(With&& other) { std::swap(ctx_, other.ctx_); }
-  With& operator=(With&& other) {
-    std::swap(ctx_, other.ctx_);
-    return *this;
-  }
-
-  ContextType* get() { return ctx_.has_value() ? &ctx_.value() : nullptr; }
-  const ContextType* get() const { return ctx_.has_value() ? &ctx_.value() : nullptr; }
+  ContextType* get() { return &ctx_; }
+  const ContextType* get() const { return &ctx_; }
 
   ContextType* operator->() { return get(); }
   const ContextType* operator->() const { return get(); }
@@ -103,7 +89,7 @@ class With {
 
  private:
   /*! \brief internal context type. */
-  std::optional<ContextType> ctx_{std::nullopt};
+  ContextType ctx_;
 };
 
 /*!
