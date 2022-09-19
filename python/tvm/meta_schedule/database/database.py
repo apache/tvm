@@ -378,6 +378,9 @@ class _PyDatabase(Database):
         f_commit_tuning_record: Callable = None,
         f_get_top_k: Callable = None,
         f_get_all_tuning_records: Callable = None,
+        f_query_tuning_record: Callable = None,
+        f_query_schedule: Callable = None,
+        f_query_ir_module: Callable = None,
         f_size: Callable = None,
     ):
         """Constructor."""
@@ -389,6 +392,9 @@ class _PyDatabase(Database):
             f_commit_tuning_record,
             f_get_top_k,
             f_get_all_tuning_records,
+            f_query_tuning_record,
+            f_query_schedule,
+            f_query_ir_module,
             f_size,
         )
 
@@ -409,6 +415,9 @@ class PyDatabase:
             "commit_tuning_record",
             "get_top_k",
             "get_all_tuning_records",
+            "query_tuning_record",
+            "query_schedule",
+            "query_ir_module",
             "__len__",
         ],
     }
@@ -478,6 +487,108 @@ class PyDatabase:
         """
         raise NotImplementedError
 
+    def query_tuning_record(
+        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
+    ) -> Optional[TuningRecord]:
+        """Query a tuning record from the database.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        target : Target
+            The target to be searched for.
+        workload_name : Optional[str]
+            The workload name to be searched for.
+
+        Returns
+        -------
+        record : Optional[TuningRecord]
+            The tuning record corresponding to the given workload.
+        """
+        # Using self._outer to replace the self pointer
+        _ffi_api.DatabaseQueryTuningRecord(self._outer(), mod, target, workload_name)  # type: ignore # pylint: disable=no-member
+
+    def query_schedule(
+        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
+    ) -> Optional[Schedule]:
+        """Query a schedule from the database.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        target : Target
+            The target to be searched for.
+        workload_name : Optional[str]
+            The workload name to be searched for.
+
+        Returns
+        -------
+        schedule : Optional[Schedule]
+            The schedule corresponding to the given workload.
+        """
+        # Using self._outer to replace the self pointer
+        _ffi_api.DatabaseQuerySchedule(self._outer(), mod, target, workload_name)  # type: ignore # pylint: disable=no-member
+
+    def query_ir_module(
+        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
+    ) -> Optional[IRModule]:
+        """Query an IRModule from the database.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        target : Target
+            The target to be searched for.
+        workload_name : Optional[str]
+            The workload name to be searched for.
+
+        Returns
+        -------
+        mod : Optional[IRModule]
+            The IRModule corresponding to the given workload.
+        """
+        # Using self._outer to replace the self pointer
+        _ffi_api.DatabaseQueryIRModule(self._outer(), mod, target, workload_name)  # type: ignore # pylint: disable=no-member
+
+    def query(
+        self,
+        mod: IRModule,
+        target: Target,
+        *,
+        workload_name: str = "main",
+        kind: Union[
+            Literal["schedule"],
+            Literal["record"],
+            Literal["ir_module"],
+        ] = "schedule",
+    ) -> Union[Schedule, IRModule, TuningRecord]:
+        """Query the database to retrieve the best optimization outcome of the given workload.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        target : Target
+            The target to be searched for.
+        kind : str = "schedule" | "record" | "ir_module"
+            The kind of the optimization outcome to be returned.
+
+        Returns
+        -------
+        result : Union[Schedule, IRModule, TuningRecord]
+            The best optimization outcome of the given workload.
+        """
+        if kind == "schedule":
+            return self.query_schedule(mod, target, workload_name)
+        if kind == "record":
+            return self.query_tuning_record(mod, target, workload_name)
+        if kind == "ir_module":
+            return self.query_ir_module(mod, target, workload_name)
+        raise ValueError(f'Unknown kind: {kind}. Candidates are: "schedule", "record", "ir_module"')
+
     def __len__(self) -> int:
         """Get the number of records in the database.
 
@@ -487,6 +598,20 @@ class PyDatabase:
             The number of records in the database
         """
         raise NotImplementedError
+
+    def __enter__(self) -> Database:
+        """Entering the scope of the context manager"""
+        _ffi_api.DatabaseEnterWithScope(self.outer())  # type: ignore # pylint: disable=no-member
+        return self
+
+    def __exit__(self, ptype, value, trace) -> None:
+        """Exiting the scope of the context manager"""
+        _ffi_api.DatabaseExitWithScope(self.outer())  # type: ignore # pylint: disable=no-member
+
+    @staticmethod
+    def current() -> Optional[Database]:
+        """Get the current database under scope."""
+        return _ffi_api.DatabaseCurrent()  # type: ignore # pylint: disable=no-member
 
 
 def create(  # pylint: disable=keyword-arg-before-vararg
