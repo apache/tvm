@@ -364,21 +364,29 @@ class PyDatabaseNode : public DatabaseNode {
 
   Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
                                            const String& workload_name) final {
-    ICHECK(f_query_tuning_record != nullptr)
-        << "PyDatabase's QueryTuningRecord method not implemented!";
-    return f_query_tuning_record(mod, target, workload_name);
+    if (f_query_tuning_record == nullptr) {
+      return DatabaseNode::QueryTuningRecord(mod, target, workload_name);
+    } else {
+      return f_query_tuning_record(mod, target, workload_name);
+    }
   }
 
   Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
                                         const String& workload_name) final {
-    ICHECK(f_query_schedule != nullptr) << "PyDatabase's QuerySchedule method not implemented!";
-    return f_query_schedule(mod, target, workload_name);
+    if (f_query_schedule == nullptr) {
+      return DatabaseNode::QuerySchedule(mod, target, workload_name);
+    } else {
+      return f_query_schedule(mod, target, workload_name);
+    }
   }
 
   Optional<IRModule> QueryIRModule(const IRModule& mod, const Target& target,
                                    const String& workload_name) final {
-    ICHECK(f_query_ir_module != nullptr) << "PyDatabase's QueryIRModule method not implemented!";
-    return f_query_ir_module(mod, target, workload_name);
+    if (f_query_ir_module == nullptr) {
+      return DatabaseNode::QueryIRModule(mod, target, workload_name);
+    } else {
+      return f_query_ir_module(mod, target, workload_name);
+    }
   }
 
   int64_t Size() final {
