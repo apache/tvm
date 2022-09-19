@@ -28,12 +28,7 @@ from tvm import te, tir
 def intrin_quad_channel_convolve(tensor_w, channels, kernel_h, kernel_w, suffix):
     """Defines a v7e-m DSP-accelerated four-channel convolution."""
     data_slice = te.placeholder((kernel_h, kernel_w, 4), name="a", dtype="int8")
-
-    if kernel_h * kernel_w % 2 == 1:
-        kernel_length = kernel_h * kernel_w + 1
-    else:
-        kernel_length = kernel_h * kernel_w
-    kernel_slice = te.placeholder((kernel_length, 4), name="b", dtype="int8")
+    kernel_slice = te.placeholder((kernel_h, kernel_w, 4), name="b", dtype="int8")
 
     kh_i = te.reduce_axis((0, kernel_h), name="kh_i")
     kw_i = te.reduce_axis((0, kernel_w), name="kw_i")
@@ -42,10 +37,7 @@ def intrin_quad_channel_convolve(tensor_w, channels, kernel_h, kernel_w, suffix)
         (4,),
         lambda k: te.sum(
             data_slice[kh_i, kw_i, k].astype("int32")
-            * kernel_slice[
-                (2 * ((3 * kh_i + kw_i) // 2)) + ((k % 4) // 2),
-                (2 * ((kh_i + kw_i) % 2)) + (k % 2),
-            ].astype("int32"),
+            * kernel_slice[kh_i, kw_i, k].astype("int32"),
             axis=(kh_i, kw_i),
         ),
         name="c",
@@ -59,7 +51,7 @@ def intrin_quad_channel_convolve(tensor_w, channels, kernel_h, kernel_w, suffix)
         strides=[tensor_w * channels, channels, 1],
     )
     kernel_buf = tir.decl_buffer(
-        kernel_slice.shape, kernel_slice.dtype, name="kernel", offset_factor=1, strides=[4, 1]
+        kernel_slice.shape, kernel_slice.dtype, name="kernel", offset_factor=1, strides=[kernel_w * 4, 4, 1]
     )
     output_buf = tir.decl_buffer(
         output_slice.shape, output_slice.dtype, name="output", offset_factor=1, strides=[1]
@@ -100,31 +92,20 @@ def quad_channel_convolve_impl(tensor_w, channels, kernel_h, kernel_w, suffix):
 
         #define TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP( \
             arranged_kernel, \
-            tensor_v0_c3210, tensor_v1_c3210, \
+            tensor_c3210, \
             sum0, sum1, sum2, sum3) {{ \
           \
-          uint32_t tensor_v0_c20 = __SXTB16(tensor_v0_c3210); \
-          uint32_t tensor_v0_c31 = __SXTB16(__ROR(tensor_v0_c3210, 8)); \
-          uint32_t tensor_v1_c20 = __SXTB16(tensor_v1_c3210); \
-          uint32_t tensor_v1_c31 = __SXTB16(__ROR(tensor_v1_c3210, 8)); \
+          uint32_t kernel_c3210 = *arranged_kernel++; \
           \
-          uint32_t kernel_v1c1_v1c0_v0c1_v0c0 = *arranged_kernel++; \
-          uint32_t kernel_v1c3_v1c2_v0c3_v0c2 = *arranged_kernel++; \
+          uint32_t tensor_c20 = __SXTB16(tensor_c3210); \
+          uint32_t kernel_c20 = __SXTB16(kernel_c3210); \
+          sum_c0 = __builtin_arm_smlabb(tensor_c20, kernel_c20, sum_c0); \
+          sum_c2 = __builtin_arm_smlatt(tensor_c20, kernel_c20, sum_c2); \
           \
-          uint32_t kernel_v10_c0 = __SXTB16(kernel_v1c1_v1c0_v0c1_v0c0); \
-          uint32_t kernel_v10_c1 = __SXTB16(__ROR(kernel_v1c1_v1c0_v0c1_v0c0, 8)); \
-          uint32_t kernel_v10_c2 = __SXTB16(kernel_v1c3_v1c2_v0c3_v0c2); \
-          uint32_t kernel_v10_c3 = __SXTB16(__ROR(kernel_v1c3_v1c2_v0c3_v0c2, 8)); \
-          \
-          uint32_t tensor_v10_c0 = __PKHBT(tensor_v0_c20, tensor_v1_c20, 16); \
-          uint32_t tensor_v10_c1 = __PKHBT(tensor_v0_c31, tensor_v1_c31, 16); \
-          uint32_t tensor_v10_c2 = __PKHTB(tensor_v1_c20, tensor_v0_c20, 16); \
-          uint32_t tensor_v10_c3 = __PKHTB(tensor_v1_c31, tensor_v0_c31, 16); \
-          \
-          sum_c0 = __SMLAD(tensor_v10_c0, kernel_v10_c0, sum_c0); \
-          sum_c1 = __SMLAD(tensor_v10_c1, kernel_v10_c1, sum_c1); \
-          sum_c2 = __SMLAD(tensor_v10_c2, kernel_v10_c2, sum_c2); \
-          sum_c3 = __SMLAD(tensor_v10_c3, kernel_v10_c3, sum_c3); \
+          uint32_t tensor_c31 = __SXTB16(__ROR(tensor_c3210, 8)); \
+          uint32_t kernel_c31 = __SXTB16(__ROR(kernel_c3210, 8)); \
+          sum_c1 = __builtin_arm_smlabb(tensor_c31, kernel_c31, sum_c1); \
+          sum_c3 = __builtin_arm_smlatt(tensor_c31, kernel_c31, sum_c3); \
         }}
 
         /* We do four channels at once to get this speed boost. */
@@ -144,27 +125,38 @@ def quad_channel_convolve_impl(tensor_w, channels, kernel_h, kernel_w, suffix):
           TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
             packed_kernel,
             *tensor,
+            sum_c0, sum_c1, sum_c2, sum_c3)
+          TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
+            packed_kernel,
             *(tensor + {channels // 4}),
             sum_c0, sum_c1, sum_c2, sum_c3)
           TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
             packed_kernel,
             *(tensor + {(2) * channels // 4}),
+            sum_c0, sum_c1, sum_c2, sum_c3)
+          TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
+            packed_kernel,
             *(tensor + {tensor_w * (channels // 4)}),
             sum_c0, sum_c1, sum_c2, sum_c3)
           TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
             packed_kernel,
             *(tensor + {(tensor_w + 1) * (channels // 4)}),
+            sum_c0, sum_c1, sum_c2, sum_c3)
+          TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
+            packed_kernel,
             *(tensor + {(tensor_w + 2) * (channels // 4)}),
             sum_c0, sum_c1, sum_c2, sum_c3)
           TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
             packed_kernel,
             *(tensor + {(2 * tensor_w) * (channels // 4)}),
+            sum_c0, sum_c1, sum_c2, sum_c3)
+          TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
+            packed_kernel,
             *(tensor + {(2 * tensor_w + 1) * (channels // 4)}),
             sum_c0, sum_c1, sum_c2, sum_c3)
           TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
             packed_kernel,
             *(tensor + {(2 * tensor_w + 2) * (channels // 4)}),
-            0,
             sum_c0, sum_c1, sum_c2, sum_c3)
 
           out[0] = sum_c0;

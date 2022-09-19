@@ -82,18 +82,11 @@ def _rearrange_kernel(kernel):
     # zeros if (kernel_w * kernel_h) % 2 == 1, and filling completely otherwise.
     assert (kernel_w * kernel_h) % 2 == 1
 
-    def fcompute(c_o, pos, c_i):
-        channel = (2 * (pos % 2)) + (c_i % 2) + (4 * c_o)
-        true_pos_index = 2 * (pos // 2) + (c_i // 2)
-
-        return tir.if_then_else(
-            true_pos_index < (kernel_h * kernel_w),
-            kernel[true_pos_index // kernel_w, true_pos_index % kernel_w, channel, 0],
-            tir.const(0, "int8"),
-        )
+    def fcompute(c_o, h, w, c_i):
+        return kernel[h, w, 4 * c_o + c_i, 0]
 
     return te.compute(
-        (channels // 4, kernel_h * kernel_w + 1, 4),
+        (channels // 4, kernel_h, kernel_w, 4),
         fcompute,
         name="packed_kernel",
     )
@@ -195,11 +188,7 @@ def depthwise_conv2d_nhwc_dsp_compute(_cfg, data, kernel, strides, padding, dila
         (batch_size, output_h, output_w, channels),
         lambda h, i, j, k: te.sum(
             padded_data[h, (i * stride_h) + kh_i, (j * stride_w) + kw_i, k].astype("int32")
-            * packed_kernel[
-                k // 4,
-                (2 * ((3 * kh_i + kw_i) // 2)) + ((k % 4) // 2),
-                (2 * ((kh_i + kw_i) % 2)) + (k % 2),
-            ].astype("int32"),
+            * packed_kernel[k // 4, kh_i, kw_i, k % 4].astype("int32"),
             axis=(kh_i, kw_i),
         ),
         name="depthwise_conv2d",
