@@ -461,13 +461,17 @@ if(USE_PIPELINE_EXECUTOR)
   list(APPEND RUNTIME_SRCS ${RUNTIME_PIPELINE_SRCS})
 endif(USE_PIPELINE_EXECUTOR)
 
-#Caches the build.
-#Note that ccache-3.x doesn't support nvcc well, so CUDA kernels may never hit the cache and still
-#need to be re-compiled every time. Using ccache 4.0+ can resolve this issue.
+# Caches the build.
+# Note that ccache-3.x doesn't support nvcc well, so CUDA kernels may never hit the cache and still
+# need to be re-compiled every time. Using ccache 4.0+ can resolve this issue.
 
 if(USE_CCACHE) # True for AUTO, ON, /path/to/ccache
   if(DEFINED CXX_COMPILER_LAUNCHER OR DEFINED C_COMPILER_LAUNCHER)
-    message(STATUS "CXX_COMPILER_LAUNCHER or C_COMPILER_LAUNCHER already defined, not using ccache")
+    if("${USE_CCACHE}" STREQUAL "AUTO")
+      message(STATUS "CXX_COMPILER_LAUNCHER or C_COMPILER_LAUNCHER already defined, not using ccache")
+    elseif("${USE_CCACHE}" MATCHES ${IS_TRUE_PATTERN})
+      message(FATAL_ERROR "CXX_COMPILER_LAUNCHER or C_COMPILER_LAUNCHER is already defined, refusing to override with ccache. Either unset or disable ccache.")
+    endif()
   else()
     if("${USE_CCACHE}" STREQUAL "AUTO") # Auto mode
       find_program(CCACHE_FOUND ccache)
