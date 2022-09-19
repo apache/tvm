@@ -65,7 +65,7 @@ PROJECT_TYPES = ["example_project", "host_driven"]
 
 PROJECT_OPTIONS = server.default_project_options(
     project_type={"choices": tuple(PROJECT_TYPES)},
-    board={"choices": list(BOARD_PROPERTIES)},
+    board={"choices": list(BOARD_PROPERTIES), "optional": ["flash", "open_transport"]},
     warning_as_error={"optional": ["build", "flash"]},
 ) + [
     server.ProjectOption(
@@ -480,8 +480,10 @@ class Handler(server.ProjectAPIHandler):
         arduino_cli_cmd = options.get("arduino_cli_cmd")
         warning_as_error = options.get("warning_as_error")
         port = options.get("port")
+        board = options.get("board")
+        if not board:
+            board = self._get_board_from_makefile(API_SERVER_DIR / MAKEFILE_FILENAME)
 
-        board = self._get_board_from_makefile(API_SERVER_DIR / MAKEFILE_FILENAME)
         self._check_platform_version(arduino_cli_cmd, warning_as_error)
         port = self._get_arduino_port(arduino_cli_cmd, board, port)
 
@@ -501,9 +503,6 @@ class Handler(server.ProjectAPIHandler):
                 )
 
         else:
-            import pdb
-
-            pdb.set_trace()
             raise RuntimeError(
                 f"Unable to flash Arduino board after {self.FLASH_MAX_RETRIES} attempts"
             )
@@ -515,12 +514,14 @@ class Handler(server.ProjectAPIHandler):
         # List all used project options
         arduino_cli_cmd = options.get("arduino_cli_cmd")
         port = options.get("port")
+        board = options.get("board")
+        if not board:
+            board = self._get_board_from_makefile(API_SERVER_DIR / MAKEFILE_FILENAME)
 
         # Zephyr example doesn't throw an error in this case
         if self._serial is not None:
             return
 
-        board = self._get_board_from_makefile(API_SERVER_DIR / MAKEFILE_FILENAME)
         port = self._get_arduino_port(arduino_cli_cmd, board, port)
 
         # It takes a moment for the Arduino code to finish initializing
