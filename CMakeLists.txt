@@ -464,42 +464,7 @@ endif(USE_PIPELINE_EXECUTOR)
 # Caches the build.
 # Note that ccache-3.x doesn't support nvcc well, so CUDA kernels may never hit the cache and still
 # need to be re-compiled every time. Using ccache 4.0+ can resolve this issue.
-
-if(USE_CCACHE) # True for AUTO, ON, /path/to/ccache
-  if(DEFINED CXX_COMPILER_LAUNCHER OR DEFINED C_COMPILER_LAUNCHER)
-    if("${USE_CCACHE}" STREQUAL "AUTO")
-      message(STATUS "CXX_COMPILER_LAUNCHER or C_COMPILER_LAUNCHER already defined, not using ccache")
-    elseif("${USE_CCACHE}" MATCHES ${IS_TRUE_PATTERN})
-      message(FATAL_ERROR "CXX_COMPILER_LAUNCHER or C_COMPILER_LAUNCHER is already defined, refusing to override with ccache. Either unset or disable ccache.")
-    endif()
-  else()
-    if("${USE_CCACHE}" STREQUAL "AUTO") # Auto mode
-      find_program(CCACHE_FOUND ccache)
-      if(CCACHE_FOUND)
-        message(STATUS "Found the path to ccache, enabling ccache")
-        set(PATH_TO_CCACHE ccache)
-      else()
-        message(STATUS "Didn't find the path to CCACHE, disabling ccache")
-      endif(CCACHE_FOUND)
-    elseif("${USE_CCACHE}" MATCHES ${IS_TRUE_PATTERN})
-      find_program(CCACHE_FOUND ccache)
-      if(CCACHE_FOUND)
-        message(STATUS "Found the path to ccache, enabling ccache")
-        set(PATH_TO_CCACHE ccache)
-      else()
-        message(FATAL_ERROR "Cannot find ccache. Set USE_CCACHE mode to AUTO or OFF to build without ccache. USE_CCACHE=" "${USE_CCACHE}")
-      endif(CCACHE_FOUND)
-    else() # /path/to/ccache
-      set(PATH_TO_CCACHE USE_CCACHE)
-      message(STATUS "Setting ccache path to " "${PATH_TO_CCACHE}")
-    endif()
-    # Set the flag for ccache
-    if(DEFINED PATH_TO_CCACHE)
-      set(CXX_COMPILER_LAUNCHER "${PATH_TO_CCACHE}")
-      set(C_COMPILER_LAUNCHER "${PATH_TO_CCACHE}")
-    endif()
-  endif()
-endif(USE_CCACHE)
+include(cmake/utils/CCache.cmake)
 
 # Module rules
 include(cmake/modules/VTA.cmake)
