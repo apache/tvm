@@ -21,7 +21,10 @@ import tvm
 import tvm.testing
 from tvm.tir.function import TensorIntrin
 from tvm.tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
-from tvm.tir.tensor_intrin.cuda import WMMA_SYNC_16x16x16_f16f16f32_INTRIN
+from tvm.tir.tensor_intrin.cuda import (
+    WMMA_SYNC_16x16x16_f16f16f16_INTRIN,
+    WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
+)
 
 
 from tvm.tir import Evaluate, For, ForKind, IndexMap, Var, decl_buffer, floordiv, floormod, Schedule
@@ -299,6 +302,30 @@ def test_get_tensorize_loop_mapping_matmul_mma():
         assert s.get(desc_loop_to_sref[desc_loops[0]]) == s.get(i0)
         assert s.get(desc_loop_to_sref[desc_loops[1]]) == s.get(i1)
         assert s.get(desc_loop_to_sref[desc_loops[2]]) == s.get(i2)
+
+
+def test_get_tensorize_loop_mapping_padding_matmul():
+    matmul = create_prim_func(
+        te_workload.matmul_relu(
+            n=127,
+            m=256,
+            k=65,
+            in_dtype="float16",
+            out_dtype="float16",
+        )
+    )
+    s = Schedule(matmul)
+    block = s.get_block("C")
+
+    desc = TensorIntrin.get(WMMA_SYNC_16x16x16_f16f16f16_INTRIN).desc
+    info = get_tensorize_loop_mapping(s, block, desc, allow_padding=True)
+    assert info is not None
+    expected_padding = [1, 0, 15]
+    actual_padding = info.block_iter_paddings
+    assert actual_padding is not None
+    assert len(actual_padding) == len(expected_padding)
+    for actual, expected in zip(actual_padding, expected_padding):
+        assert actual == expected
 
 
 def check_index_map(workload, block_name, intrin_name, expected_index_map):

@@ -1697,7 +1697,8 @@ TensorIntrinDescInfo ExtractTensorIntrinDescInfo(arith::Analyzer* analyzer,
 
 Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
                                                 const tir::StmtSRef& block_sref,
-                                                const tir::PrimFunc& desc_func) {
+                                                const tir::PrimFunc& desc_func,
+                                                bool allow_padding) {
   arith::Analyzer analyzer;
   const tir::BlockRealize& block = tir::GetBlockRealize(self, block_sref);
   // Step 1. Analyze desc_func, extract its block, loops and loop vars
@@ -1729,6 +1730,8 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
   const int n_block_vars = block->iter_values.size();
   const int n_desc_vars = desc_block->iter_values.size();
   const int offset = n_block_vars - n_desc_vars;
+
+  std::unordered_map<int, int> block_index_to_padding;  // padding of each block iter if necessary
 
   if (offset < 0) {
     return NullOpt;
@@ -1780,10 +1783,11 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
 
     // Step 3.2. Find the corresponding iter_value of the target block with a matching iterator type
     PrimExpr block_bind;
-    for (int i = next_block_ind; i >= 0; --i) {
-      if (iter_types_block[i] == iter_type_desc) {
-        next_block_ind = i - 1;
-        block_bind = block->iter_values[i];
+    int current_block_ind = next_block_ind;
+    for (; current_block_ind >= 0; --current_block_ind) {
+      if (iter_types_block[current_block_ind] == iter_type_desc) {
+        next_block_ind = current_block_ind - 1;
+        block_bind = block->iter_values[current_block_ind];
         break;
       }
     }
@@ -1800,14 +1804,29 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
 
       PrimExpr residual = analyzer.Simplify(block_bind - block_loops[i]->loop_var);
       if (UsesVar(residual,
-                  [&block_loop_vars](const VarNode* var) { return block_loop_vars.count(var); }))
+                  [&block_loop_vars](const VarNode* var) { return block_loop_vars.count(var); })) {
         continue;
+      }
+      // padding is allowed only when the block has trivial bindings
+      if (allow_padding && !is_zero(residual)) {
+        allow_padding = false;
+      }
 
       const IntImmNode* int_block_extent = block_loops[i]->extent.as<IntImmNode>();
 
       // Check divisibility
-      if (!int_block_extent || int_block_extent->value % int_desc_extent->value != 0) {
+      if (!int_block_extent) {
         return NullOpt;
+      }
+      int64_t remainder = int_block_extent->value % int_desc_extent->value;
+      if (remainder != 0) {
+        if (allow_padding) {
+          // If the block loop is not divisible by the desc loop, we pad the block loop to make it
+          // divisible if padding is allowed.
+          block_index_to_padding[current_block_ind] = int_desc_extent->value - remainder;
+        } else {
+          return NullOpt;
+        }
       }
 
       ret->loop_map.Set(block_loop_sref, GetRef<tir::For>(desc_loop));
@@ -1818,13 +1837,29 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
   for (int i = 0, n = desc_loops.size(); i < n; ++i) {
     ret->desc_loop_indexer.Set(GetRef<tir::For>(desc_loops[i]), Integer(i));
   }
+  if (!block_index_to_padding.empty()) {
+    if (!allow_padding) {
+      return NullOpt;
+    }
+    Array<Integer> paddings;
+    for (int i = 0, n = block->block->iter_vars.size(); i < n; ++i) {
+      const IterVar& iter_var = block->block->iter_vars[i];
+      if (auto it = block_index_to_padding.find(i); it != block_index_to_padding.end()) {
+        paddings.push_back(IntImm(iter_var->var.dtype(), it->second));
+      } else {
+        paddings.push_back(IntImm(iter_var->var.dtype(), 0));
+      }
+    }
+    ret->block_iter_paddings = std::move(paddings);
+  }
+
   return TensorizeInfo(ret);
 }
 
 TVM_REGISTER_GLOBAL("tir.schedule.IsSpatialPrimFunc").set_body_typed(IsSpatialPrimFunc);
 TVM_REGISTER_GLOBAL("tir.schedule.GetTensorizeLoopMapping")
-    .set_body_typed([](Schedule sch, BlockRV block, PrimFunc desc_func) {
-      return GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block), desc_func);
+    .set_body_typed([](Schedule sch, BlockRV block, PrimFunc desc_func, bool allow_padding) {
+      return GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block), desc_func, allow_padding);
     });
 
 /******** Auto Tensorization ********/
