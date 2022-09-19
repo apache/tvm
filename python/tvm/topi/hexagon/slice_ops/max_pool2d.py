@@ -169,7 +169,7 @@ def STIR_schedule_nhwc_8h2w32c2w_nhwc_8h8w32c(
 
 
 def STIR_schedule_n11c(outs, ins, output_layout: str, input_layout: str):
-    """Schedule for output layout: n11c-1024c, n11c-2048c-2d; input layout: nhwc-8h2w32c2w and nhwc-8h8w32c-2d"""
+    """Schedule for output layout: n11c-1024c, n11c-2048c-2d;"""
 
     # NOTE: This function is a variation of the STIR_schedule_maxpool2d
     # functions.  Most of that function's code comments apply to this function
