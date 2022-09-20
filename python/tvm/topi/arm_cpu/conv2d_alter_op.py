@@ -19,6 +19,8 @@
 
 import logging
 
+import numpy as np
+
 import tvm
 from tvm import te
 from tvm import relay
@@ -251,6 +253,30 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         dispatch_ctx.update(target, new_workload, cfg)
 
         return relay.nn.conv2d(*inputs, **new_attrs)
+
+    if topi_tmpl == "depthwise_conv2d_nhwc_dsp.arm_cpu":
+        assert data_layout == "NHWC" and kernel_layout == "HWOI"
+        channels = get_const_tuple(data.shape)[3]
+        KH, KW, _, _ = get_const_tuple(kernel.shape)
+
+        HWOI_kernel_np = inputs[1].data.numpy()
+        CHW4c_kernel_np = np.zeros((channels // 4, KH, KW, 4), dtype=kernel.dtype)
+        for i in range(channels // 4):
+            CHW4c_kernel_np[i] = HWOI_kernel_np[:, :, 4*i:4*(i+1), 0]
+
+        # Store the same config for the altered operator (workload)
+        new_data = data
+        new_kernel = te.placeholder((KH, KW, channels, 1), dtype=kernel.dtype)
+        new_workload = autotvm.task.args_to_workload(
+            [new_data, new_kernel, strides, padding, dilation, out_dtype],
+            "depthwise_conv2d_nhwc_dsp.arm_cpu",
+        )
+        dispatch_ctx.update(target, new_workload, cfg)
+        return relay.nn.conv2d(
+            inputs[0],
+            relay.Constant(tvm.nd.array(CHW4c_kernel_np.reshape(KH, KW, channels, 1))),
+            **new_attrs
+        )
 
     if topi_tmpl == "conv2d_NCHWc.x86":
         # Converting NCHW to NCHWc.

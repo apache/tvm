@@ -19,10 +19,9 @@
 import random
 import string
 
-from tvm import te
+from tvm import te, tir, topi
 from tvm.topi.utils import traverse_inline, get_const_tuple
 from tvm.topi.nn.pad import pad
-from tvm import tir
 
 from .micro_kernel.quad_channel_convolve import (
     intrin_quad_channel_convolve,
@@ -181,14 +180,14 @@ def depthwise_conv2d_nhwc_dsp_compute(_cfg, data, kernel, strides, padding, dila
         raise RuntimeError()
     _, padded_h, padded_w, _ = padded_data.shape
 
-    packed_kernel = _rearrange_kernel(kernel)
     kh_i = te.reduce_axis((0, kernel_h), name="kh_i")
     kw_i = te.reduce_axis((0, kernel_w), name="kw_i")
+    reshaped_kernel = topi.reshape(kernel, (channels // 4, kernel_h, kernel_w, 4))
     return te.compute(
         (batch_size, output_h, output_w, channels),
         lambda h, i, j, k: te.sum(
             padded_data[h, (i * stride_h) + kh_i, (j * stride_w) + kw_i, k].astype("int32")
-            * packed_kernel[k // 4, kh_i, kw_i, k % 4].astype("int32"),
+            * reshaped_kernel[k // 4, kh_i, kw_i, k % 4].astype("int32"),
             axis=(kh_i, kw_i),
         ),
         name="depthwise_conv2d",
@@ -208,11 +207,10 @@ def depthwise_conv2d_nhwc_dsp_schedule(_cfg, outs):
         # extract tensors
         output = op.output(0)
         padded_data = output.op.input_tensors[0]
-        packed_kernel = output.op.input_tensors[1]
-        kernel = packed_kernel.op.input_tensors[0]
+        reshaped_kernel = output.op.input_tensors[1]
 
         _, _, padded_w, channels = padded_data.shape
-        kernel_h, kernel_w, _, _ = kernel.shape
+        _, kernel_h, kernel_w, _ = reshaped_kernel.shape
         suffix = "".join(random.choices(string.ascii_uppercase, k=8))
 
         b_ax, y_ax, x_ax, c_ax = schedule[output].op.axis
