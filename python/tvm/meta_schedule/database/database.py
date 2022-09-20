@@ -378,6 +378,9 @@ class _PyDatabase(Database):
         f_commit_tuning_record: Callable = None,
         f_get_top_k: Callable = None,
         f_get_all_tuning_records: Callable = None,
+        f_query_tuning_record: Callable = None,
+        f_query_schedule: Callable = None,
+        f_query_ir_module: Callable = None,
         f_size: Callable = None,
     ):
         """Constructor."""
@@ -389,6 +392,9 @@ class _PyDatabase(Database):
             f_commit_tuning_record,
             f_get_top_k,
             f_get_all_tuning_records,
+            f_query_tuning_record,
+            f_query_schedule,
+            f_query_ir_module,
             f_size,
         )
 
@@ -409,6 +415,9 @@ class PyDatabase:
             "commit_tuning_record",
             "get_top_k",
             "get_all_tuning_records",
+            "query_tuning_record",
+            "query_schedule",
+            "query_ir_module",
             "__len__",
         ],
     }
@@ -477,6 +486,78 @@ class PyDatabase:
             All tuning records from the database.
         """
         raise NotImplementedError
+
+    def query_tuning_record(
+        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
+    ) -> Optional[TuningRecord]:
+        """Query a tuning record from the database.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        target : Target
+            The target to be searched for.
+        workload_name : Optional[str]
+            The workload name to be searched for.
+
+        Returns
+        -------
+        record : Optional[TuningRecord]
+            The tuning record corresponding to the given workload.
+        """
+        # Using self._outer to replace the self pointer
+        return _ffi_api.DatabaseQueryTuningRecord(  # type: ignore # pylint: disable=no-member
+            self._outer(), mod, target, workload_name  # type: ignore # pylint: disable=no-member
+        )
+
+    def query_schedule(
+        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
+    ) -> Optional[Schedule]:
+        """Query a schedule from the database.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        target : Target
+            The target to be searched for.
+        workload_name : Optional[str]
+            The workload name to be searched for.
+
+        Returns
+        -------
+        schedule : Optional[Schedule]
+            The schedule corresponding to the given workload.
+        """
+        # Using self._outer to replace the self pointer
+        return _ffi_api.DatabaseQuerySchedule(  # type: ignore # pylint: disable=no-member
+            self._outer(), mod, target, workload_name  # type: ignore # pylint: disable=no-member
+        )
+
+    def query_ir_module(
+        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
+    ) -> Optional[IRModule]:
+        """Query an IRModule from the database.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        target : Target
+            The target to be searched for.
+        workload_name : Optional[str]
+            The workload name to be searched for.
+
+        Returns
+        -------
+        mod : Optional[IRModule]
+            The IRModule corresponding to the given workload.
+        """
+        # Using self._outer to replace the self pointer
+        return _ffi_api.DatabaseQueryIRModule(  # type: ignore # pylint: disable=no-member
+            self._outer(), mod, target, workload_name  # type: ignore # pylint: disable=no-member
+        )
 
     def __len__(self) -> int:
         """Get the number of records in the database.

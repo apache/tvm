@@ -474,9 +474,11 @@ TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const String& 
  * \param buffer_index The index of the buffer in block's read or write region.
  * \param buffer_index_type The type of the buffer index, kRead or kWrite.
  * \param index_map The transformation to apply.
+ * \param pad_value The value to write into padding introduced by the transformation.
  */
 TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-                             BufferIndexType buffer_index_type, const IndexMap& index_map);
+                             BufferIndexType buffer_index_type, const IndexMap& index_map,
+                             const Optional<IndexMap>& pad_value);
 
 /*!
  * \brief Apply a transformation represented by IndexMap to block
