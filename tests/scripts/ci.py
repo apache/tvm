@@ -359,6 +359,7 @@ def generate_command(
         skip_build: bool = False,
         interactive: bool = False,
         docker_image: Optional[str] = None,
+        commands: Optional[List[str]] = None,
         verbose: bool = False,
         **kwargs,
     ) -> None:
@@ -368,6 +369,7 @@ def generate_command(
         skip_build -- skip build and setup scripts
         interactive -- start a shell after running build / test scripts
         docker-image -- manually specify the docker image to use
+        commands -- a shell command to run
         verbose -- run verbose build
         """
         if precheck is not None:
@@ -392,7 +394,11 @@ def generate_command(
             clean_exit(f"{option_flags} cannot be used with --tests")
 
         if tests is not None:
-            scripts.append(f"python3 -m pytest {' '.join(tests)}")
+            scripts.append(f"source tests/scripts/setup-pytest-env.sh")
+            scripts.append(f"run_pytest ctypes ad-hoc-test {' '.join(tests)}")
+
+        if commands is not None:
+            scripts.extend(commands)
 
         # Add named test suites
         for option_name, (_, extra_scripts) in options.items():
@@ -409,6 +415,7 @@ def generate_command(
                 # multiple copies of libtvm.so laying around)
                 "TVM_LIBRARY_PATH": str(REPO_ROOT / get_build_dir(name)),
                 "VERBOSE": "true" if verbose else "false",
+                "PLATFORM": name,
             },
             interactive=interactive,
         )

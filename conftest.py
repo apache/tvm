@@ -21,6 +21,13 @@ import os
 
 from pathlib import Path
 
+try:
+    from xdist.scheduler.loadscope import LoadScopeScheduling
+
+    HAVE_XDIST = True
+except ImportError:
+    HAVE_XDIST = False
+
 pytest_plugins = ["tvm.testing.plugin"]
 IS_IN_CI = os.getenv("CI", "") == "true"
 REPO_ROOT = Path(__file__).resolve().parent
@@ -106,3 +113,27 @@ def pytest_sessionstart():
         import request_hook  # pylint: disable=import-outside-toplevel
 
         request_hook.init()
+
+
+if HAVE_XDIST:
+    @pytest.hookimpl(hookwrapper=True)
+    def pytest_handlecrashitem(crashitem, report, sched):
+        print("yielding")
+        print("yielding", file=sys.stderr)
+        # run the other pytest_handlecrashitem hooks
+        yield
+
+        print("otucome")
+        print("otucome", file=sys.stderr)
+
+        # override the 'rerun' result from pytest-rerunfailures
+        report.outcome = "failed"
+
+        print("longre")
+        print("longre", file=sys.stderr)
+
+        # there doesn't seem to be a good way to extract the segfault backtrace here
+        report.longrepr += "\nThis is likely due to a segfault. See the test run logs for details."
+
+        print("returning")
+        print("returning", file=sys.stderr)
