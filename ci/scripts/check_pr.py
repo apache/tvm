@@ -69,19 +69,17 @@ def trailing_period(s: str):
 title_checks = [
     Check(check=non_empty, error_fn=lambda d: "PR must have a title but title was empty"),
     Check(check=trailing_period, error_fn=lambda d: "PR must not end in a tailing '.'"),
-    # TODO(driazati): enable this check once https://github.com/apache/tvm/issues/12637 is done
-    # Check(
-    #     check=usernames,
-    #     error_fn=lambda d: f"PR title must not tag anyone but found these usernames: {d}",
-    # ),
+    Check(
+        check=usernames,
+        error_fn=lambda d: f"PR title must not tag anyone but found these usernames: {d}",
+    ),
 ]
 body_checks = [
     Check(check=non_empty, error_fn=lambda d: "PR must have a body but body was empty"),
-    # TODO(driazati): enable this check once https://github.com/apache/tvm/issues/12637 is done
-    # Check(
-    #     check=usernames,
-    #     error_fn=lambda d: f"PR body must not tag anyone but found these usernames: {d}",
-    # ),
+    Check(
+        check=usernames,
+        error_fn=lambda d: f"PR body must not tag anyone but found these usernames: {d}",
+    ),
 ]
 
 
