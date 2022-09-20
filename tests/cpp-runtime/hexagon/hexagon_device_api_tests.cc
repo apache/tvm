@@ -164,3 +164,14 @@ TEST_F(HexagonDeviceAPITest, leak_resources) {
   hexapi->FreeDataSpace(hex_dev, pre_runtime_buf);
   hexapi->AcquireResources();
 }
+
+// Ensure thread manager is properly configured and destroyed
+// in Acquire/Release
+TEST_F(HexagonDeviceAPITest, thread_manager) {
+  HexagonThreadManager* threads = hexapi->ThreadManager();
+  CHECK(threads != nullptr);
+  hexapi->ReleaseResources();
+  threads = hexapi->ThreadManager();
+  CHECK(threads == nullptr);
+  hexapi->AcquireResources();
+}
