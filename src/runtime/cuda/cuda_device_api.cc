@@ -255,6 +255,8 @@ TVM_REGISTER_GLOBAL("device_api.cuda_host").set_body([](TVMArgs args, TVMRetValu
 class GPUTimerNode : public TimerNode {
  public:
   virtual void Start() {
+    // This initial cudaEventRecord is sometimes pretty slow (~100us). Does
+    // cudaEventRecord do some stream synchronization?
     CUDA_CALL(cudaEventRecord(start_, CUDAThreadEntry::ThreadLocal()->stream));
   }
   virtual void Stop() { CUDA_CALL(cudaEventRecord(stop_, CUDAThreadEntry::ThreadLocal()->stream)); }
@@ -283,7 +285,7 @@ class GPUTimerNode : public TimerNode {
 
 TVM_REGISTER_OBJECT_TYPE(GPUTimerNode);
 
-TVM_REGISTER_GLOBAL("profiling.timer.gpu").set_body_typed([](Device dev) {
+TVM_REGISTER_GLOBAL("profiling.timer.cuda").set_body_typed([](Device dev) {
   return Timer(make_object<GPUTimerNode>());
 });
 
