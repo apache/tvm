@@ -213,7 +213,7 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy").set_body([](TVMArgs args, TVM
   void* dst = args[1];
   void* src = args[2];
   int size = args[3];
-  ICHECK(size >= 0);
+  ICHECK(size > 0);
 
   int ret = DMA_RETRY;
   do {

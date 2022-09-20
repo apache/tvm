@@ -64,7 +64,10 @@ def test_software_pipeline_with_cache_read(hexagon_launcher, compute, outer, inn
     ref = compute[1](a_np)
 
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
-    func = tvm.build(sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon))
+    with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
+        func = tvm.build(
+            sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
+        )
 
     with hexagon_launcher.start_session() as hexagon_session:
         dev = hexagon_session.device
