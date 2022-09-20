@@ -379,8 +379,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     auto load = GetRef<BufferLoad>(op);
 
     auto fmutate = [this](const PrimExpr& index) { return this->VisitExpr(index); };
-    Array<PrimExpr> indices = op->indices;
-    indices.MutateByApply(fmutate);
+    Array<PrimExpr> indices = op->indices.Map(fmutate);
 
     if (!indices.same_as(op->indices)) {
       auto writer = load.CopyOnWrite();
@@ -428,8 +427,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     auto store = GetRef<BufferStore>(op);
 
     auto fmutate = [this](const PrimExpr& index) { return this->VisitExpr(index); };
-    Array<PrimExpr> indices = op->indices;
-    indices.MutateByApply(fmutate);
+    Array<PrimExpr> indices = op->indices.Map(fmutate);
 
     PrimExpr value = this->VisitExpr(op->value);
 

@@ -115,8 +115,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
  private:
   Stmt VisitStmt_(const BlockNode* op) final {
     // Step.0. Define buffer mappings which is allocated inside the block
-    Array<Buffer> alloc_buffers = MutateArray(
-        op->alloc_buffers,
+    Array<Buffer> alloc_buffers = op->alloc_buffers.Map(
         std::bind(&PrimFuncSpecializer::MutateAllocBuffer, this, std::placeholders::_1));
 
     // Step.1. Recursively visit block body
@@ -124,11 +123,9 @@ class PrimFuncSpecializer : public StmtExprMutator {
     op = stmt.as<BlockNode>();
     ICHECK(op != nullptr);
 
-    Array<BufferRegion> reads = MutateArray(
-        op->reads,
+    Array<BufferRegion> reads = op->reads.Map(
         std::bind(&PrimFuncSpecializer::MutateBufferRegion, this, std::placeholders::_1));
-    Array<BufferRegion> writes = MutateArray(
-        op->writes,
+    Array<BufferRegion> writes = op->writes.Map(
         std::bind(&PrimFuncSpecializer::MutateBufferRegion, this, std::placeholders::_1));
 
     if (alloc_buffers.same_as(op->alloc_buffers) && reads.same_as(op->reads)) {
@@ -200,10 +197,9 @@ class PrimFuncSpecializer : public StmtExprMutator {
 
  private:
   Buffer MutateBuffer(const Buffer& buffer) {
-    Array<PrimExpr> shape =
-        MutateArray(buffer->shape, [this](const PrimExpr& e) { return VisitExpr(e); });
+    Array<PrimExpr> shape = buffer->shape.Map([this](const PrimExpr& e) { return VisitExpr(e); });
     Array<PrimExpr> strides =
-        MutateArray(buffer->strides, [this](const PrimExpr& e) { return VisitExpr(e); });
+        buffer->strides.Map([this](const PrimExpr& e) { return VisitExpr(e); });
 
     PrimExpr elem_offset = VisitExpr(buffer->elem_offset);
 
@@ -242,9 +238,8 @@ class PrimFuncSpecializer : public StmtExprMutator {
 
   BufferRegion MutateBufferRegion(const BufferRegion& buffer_region) {
     auto it = buffer_map_.find(buffer_region->buffer);
-    Array<Range> region =
-        MutateArray(buffer_region->region,
-                    std::bind(&PrimFuncSpecializer::MutateRange, this, std::placeholders::_1));
+    Array<Range> region = buffer_region->region.Map(
+        std::bind(&PrimFuncSpecializer::MutateRange, this, std::placeholders::_1));
     if (it == buffer_map_.end() && region.same_as(buffer_region->region)) {
       return buffer_region;
     } else {
