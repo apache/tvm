@@ -486,6 +486,11 @@ TVM_DLL Pass TextureFlatten();
 TVM_DLL Pass LowerVtcmAlloc();
 
 /*!
+ * \brief Lower Async TIR primitives to DMA copy and wait builtins
+ */
+TVM_DLL Pass LowerAsyncDMA();
+
+/*!
  * \brief Implements a Common Subexpression Elimination (CSE) for TIR
  *        which introduces let-in bindings for duplicated sub-expressions.
  * \param enable_cse_tir Whether common subexpression elimination is enabled.
