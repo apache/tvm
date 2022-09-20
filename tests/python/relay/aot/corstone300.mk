@@ -42,7 +42,7 @@ ETHOSU_PATH=/opt/arm/ethosu
 DRIVER_PATH=${ETHOSU_PATH}/core_driver
 CMSIS_PATH=${ETHOSU_PATH}/cmsis
 PLATFORM_PATH=${ETHOSU_PATH}/core_platform/targets/corstone-300
-PKG_COMPILE_OPTS = -g -Wall -O2 -Wno-incompatible-pointer-types -Wno-format -mcpu=${MCPU}${MCPU_FLAGS} -mthumb -mfloat-abi=${MFLOAT_ABI} -std=gnu99
+PKG_COMPILE_OPTS = -Wall -Ofast -Wno-incompatible-pointer-types -Wno-format -mcpu=${MCPU}${MCPU_FLAGS} -mthumb -mfloat-abi=${MFLOAT_ABI} -std=gnu99
 CMAKE = /opt/arm/cmake/bin/cmake
 CC = arm-none-eabi-gcc
 AR = arm-none-eabi-ar
@@ -64,7 +64,7 @@ DRIVER_CMAKE_FLAGS = -DCMAKE_TOOLCHAIN_FILE=$(ETHOSU_TEST_ROOT)/arm-none-eabi-gc
 	-DETHOSU_LOG_SEVERITY=debug \
 	-DCMAKE_SYSTEM_PROCESSOR=cortex-m55
 
-PKG_LDFLAGS = -lm -specs=nosys.specs -static -T ${AOT_TEST_ROOT}/corstone300.ld
+PKG_LDFLAGS = -lm -specs=nosys.specs -static -Wl,--gc-sections -T ${AOT_TEST_ROOT}/corstone300.ld
 
 $(ifeq VERBOSE,1)
 QUIET ?=
@@ -114,7 +114,7 @@ ${build_dir}/libcmsis_startup.a: $(CMSIS_STARTUP_SRCS)
 
 ${build_dir}/libcmsis_nn.a: $(CMSIS_NN_SRCS)
 	$(QUIET)mkdir -p $(abspath $(build_dir)/libcmsis_nn)
-	$(QUIET)cd $(abspath $(build_dir)/libcmsis_nn) && $(CC) -c $(PKG_CFLAGS) -D${ARM_CPU} $^
+	$(QUIET)cd $(abspath $(build_dir)/libcmsis_nn) && $(CC) -c $(PKG_CFLAGS)  -ffunction-sections -fdata-sections -D${ARM_CPU} $^
 	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libcmsis_nn.a) $(abspath $(build_dir))/libcmsis_nn/*.o
 	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libcmsis_nn.a)
 
