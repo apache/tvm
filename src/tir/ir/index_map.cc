@@ -185,9 +185,8 @@ Array<PrimExpr> IndexMapNode::MapIndices(const Array<PrimExpr>& indices,
     analyzer = &local_analyzer;
   }
 
-  Array<PrimExpr> output = final_indices;
-  output.MutateByApply(
-      [&](const PrimExpr& index) { return analyzer->Simplify(Substitute(index, vmap)); });
+  Array<PrimExpr> output = final_indices.Map(
+      [&](PrimExpr index) { return analyzer->Simplify(Substitute(std::move(index), vmap)); });
 
   return output;
 }
