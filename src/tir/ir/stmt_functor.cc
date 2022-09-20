@@ -183,9 +183,8 @@ class StmtMutator::Internal {
       return arr;
     } else {
       bool allow_cow = false;
-      Array<T> copy = arr;
       std::swap(allow_cow, self->allow_copy_on_write_);
-      copy.MutateByApply(fmutate);
+      Array<T> copy = arr.Map(fmutate);
       std::swap(allow_cow, self->allow_copy_on_write_);
       return copy;
     }
