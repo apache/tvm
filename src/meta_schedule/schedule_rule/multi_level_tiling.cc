@@ -166,7 +166,7 @@ std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
   return results;
 }
 
-Array<tir::LoopRV> MultiLevelTilingNode::SplitLoop(Schedule& sch, BlockRV block, LoopRV loop,
+Array<tir::LoopRV> MultiLevelTilingNode::SplitLoop(const Schedule& sch, BlockRV block, LoopRV loop,
                                                    int n_tiles) const {
   Array<tir::ExprRV> factors = sch->SamplePerfectTile(
       /*loop=*/loop,

@@ -42,10 +42,10 @@ class MultiLevelTilingWideVectorNode : public MultiLevelTilingNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(MultiLevelTilingWideVectorNode, MultiLevelTilingNode);
 
  protected:
-  Array<tir::LoopRV> SplitLoop(Schedule& sch, BlockRV block, LoopRV loop, int n_tiles) const;
+  Array<tir::LoopRV> SplitLoop(const Schedule& sch, BlockRV block, LoopRV loop, int n_tiles) const;
 };
 
-Array<tir::LoopRV> MultiLevelTilingWideVectorNode::SplitLoop(Schedule& sch, BlockRV block_rv,
+Array<tir::LoopRV> MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, BlockRV block_rv,
                                                              LoopRV loop_rv, int n_tiles) const {
   const tir::ForNode* loop = TVM_SREF_TO_FOR(sch->GetSRef(loop_rv));
   const tir::StmtSRef block_sref = sch->GetSRef(block_rv);
