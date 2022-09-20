@@ -823,7 +823,9 @@ def _mx_dot(inputs, attrs):
 
     if rank_b == 1:
         if not out_shape:
-            out_shape = [1,]
+            out_shape = [
+                1,
+            ]
         b = _op.expand_dims(b, axis=1)
     else:
         # Transpose matrix b if needed
