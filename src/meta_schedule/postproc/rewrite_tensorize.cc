@@ -68,6 +68,11 @@ class RewriteTensorizeNode : public PostprocNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
+  Postproc Clone() const {
+    ObjectPtr<RewriteTensorizeNode> n = make_object<RewriteTensorizeNode>(*this);
+    return Postproc(n);
+  }
+
   bool vectorize_init_loop = false;
 
   static constexpr const char* _type_key = "meta_schedule.RewriteTensorize";

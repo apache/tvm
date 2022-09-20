@@ -77,33 +77,34 @@ class PyLogMessage {
     // FATAL not included
   };
 
-  PyLogMessage(const std::string& file, int lineno, PackedFunc logging_func, Level logging_level) {
-    this->logging_func = logging_func;
-    this->logging_level = logging_level;
-  }
+  explicit PyLogMessage(const char* file, int lineno, PackedFunc logging_func, Level logging_level)
+      : file_(file), lineno_(lineno), logging_func_(logging_func), logging_level_(logging_level) {}
+
   TVM_NO_INLINE ~PyLogMessage() {
-    if (this->logging_func.defined()) {
-      logging_func(static_cast<int>(logging_level), stream_.str());
+    if (this->logging_func_.defined()) {
+      logging_func_(static_cast<int>(logging_level_), stream_.str());
     } else {
-      if (logging_level == Level::INFO) {
-        LOG(INFO) << stream_.str();
-      } else if (logging_level == Level::WARNING) {
-        LOG(WARNING) << stream_.str();
-      } else if (logging_level == Level::ERROR) {
-        LOG(ERROR) << stream_.str();
-      } else if (logging_level == Level::DEBUG) {
-        DLOG(INFO) << stream_.str();
+      if (logging_level_ == Level::INFO) {
+        runtime::detail::LogMessage(file_, lineno_).stream() << stream_.str();
+      } else if (logging_level_ == Level::WARNING) {
+        runtime::detail::LogMessage(file_, lineno_).stream() << "Warning: " << stream_.str();
+      } else if (logging_level_ == Level::ERROR) {
+        runtime::detail::LogMessage(file_, lineno_).stream() << "Error: " << stream_.str();
+      } else if (logging_level_ == Level::DEBUG) {
+        runtime::detail::LogMessage(file_, lineno_).stream() << "Debug: " << stream_.str();
       } else {
-        LOG(FATAL) << stream_.str();
+        runtime::detail::LogFatal(file_, lineno_).stream() << stream_.str();
       }
     }
   }
   std::ostringstream& stream() { return stream_; }
 
  private:
+  const char* file_;
+  int lineno_;
   std::ostringstream stream_;
-  PackedFunc logging_func;
-  Level logging_level;
+  PackedFunc logging_func_;
+  Level logging_level_;
 };
 
 /*! \brief The type of the random state */
@@ -403,6 +404,28 @@ inline Array<Integer> AsIntArray(const ObjectRef& obj) {
   }
   return results;
 }
+
+/*! \brief The struct defining comparison function of sorting by mean run seconds. */
+struct SortTuningRecordByMeanRunSecs {
+  static const constexpr double kMaxMeanTime = 1e10;
+
+  static double Mean(const Array<FloatImm>& a) {
+    if (a.empty()) {
+      return kMaxMeanTime;
+    }
+    double sum = 0.0;
+    for (const FloatImm& i : a) {
+      sum += i->value;
+    }
+    return sum / a.size();
+  }
+
+  bool operator()(const TuningRecord& a, const TuningRecord& b) const {
+    double a_time = Mean(a->run_secs.value_or({}));
+    double b_time = Mean(b->run_secs.value_or({}));
+    return a_time < b_time;
+  }
+};
 
 }  // namespace meta_schedule
 }  // namespace tvm

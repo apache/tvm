@@ -487,14 +487,17 @@ void TracedScheduleNode::Unannotate(const BlockRV& block_rv, const String& ann_k
 
 void TracedScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_index,
                                          BufferIndexType buffer_index_type,
-                                         const IndexMap& index_map) {
-  ConcreteScheduleNode::TransformLayout(block_rv, buffer_index, buffer_index_type, index_map);
+                                         const IndexMap& index_map,
+                                         const Optional<IndexMap>& pad_value) {
+  ConcreteScheduleNode::TransformLayout(block_rv, buffer_index, buffer_index_type, index_map,
+                                        pad_value);
   static const InstructionKind& kind = InstructionKind::Get("TransformLayout");
   trace_->Append(
-      /*inst=*/Instruction(/*kind=*/kind,
-                           /*inputs=*/{block_rv},
-                           /*attrs=*/{Integer(buffer_index), Integer(buffer_index_type), index_map},
-                           /*outputs=*/{}));
+      /*inst=*/Instruction(
+          /*kind=*/kind,
+          /*inputs=*/{block_rv},
+          /*attrs=*/{Integer(buffer_index), Integer(buffer_index_type), index_map, pad_value},
+          /*outputs=*/{}));
 }
 
 void TracedScheduleNode::TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) {
@@ -520,7 +523,7 @@ void TracedScheduleNode::SetAxisSeparator(const BlockRV& block_rv, int buffer_in
       /*outputs=*/{}));
 }
 
-/******** Schedule: Padding decomposition ********/
+/******** Schedule: Padding ********/
 BlockRV TracedScheduleNode::DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) {
   BlockRV new_block = ConcreteScheduleNode::DecomposePadding(block_rv, loop_rv);
   static const InstructionKind& kind = InstructionKind::Get("DecomposePadding");
@@ -530,6 +533,16 @@ BlockRV TracedScheduleNode::DecomposePadding(const BlockRV& block_rv, const Loop
       /*attrs=*/{},
       /*outputs=*/{new_block}));
   return new_block;
+}
+
+void TracedScheduleNode::PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) {
+  ConcreteScheduleNode::PadEinsum(block_rv, padding);
+  static const InstructionKind& kind = InstructionKind::Get("PadEinsum");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block_rv},
+      /*attrs=*/{padding},
+      /*outputs=*/{}));
 }
 
 /******** Schedule: Misc ********/

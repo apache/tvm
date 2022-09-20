@@ -33,7 +33,7 @@ def init_git() {
   sh(
     script: """
       set -eux
-      {{ m.bash_retry() }}
+      . ci/scripts/retry.sh
       retry 3 timeout 5m git submodule update --init -f --jobs 0
     """,
     label: 'Update git submodules',
@@ -65,8 +65,8 @@ def docker_init(image) {
     sh(
       script: """
       set -eux
-      {{ m.bash_retry() }}
-      retry 3 docker pull ${image}
+      . ci/scripts/retry.sh
+      retry 5 docker pull ${image}
       """,
       label: 'Pull docker image',
     )
@@ -101,7 +101,7 @@ def cancel_previous_build() {
 
 def checkout_trusted_files() {
   // trust everything from branch builds
-  if (!env.BRANCH_NAME.startsWith('PR-')) {
+  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
     return;
   }
 
@@ -138,7 +138,7 @@ def should_skip_ci(pr_number) {
   }
   withCredentials([string(
     credentialsId: 'tvm-bot-jenkins-reader',
-    variable: 'TOKEN',
+    variable: 'GITHUB_TOKEN',
     )]) {
     // Exit code of 1 means run full CI (or the script had an error, so run
     // full CI just in case). Exit code of 0 means skip CI.
@@ -151,11 +151,30 @@ def should_skip_ci(pr_number) {
   return git_skip_ci_code == 0
 }
 
+def check_pr(pr_number) {
+  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
+    // never skip CI on build sourced from a branch
+    return false
+  }
+  withCredentials([string(
+    credentialsId: 'tvm-bot-jenkins-reader',
+    variable: 'GITHUB_TOKEN',
+    )]) {
+    sh (
+      script: "python3 ci/scripts/check_pr.py --pr ${pr_number}",
+      label: 'Check PR title and body',
+    )
+  }
+
+}
+
 def prepare() {
   stage('Prepare') {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
         init_git()
+
+        check_pr(env.CHANGE_ID)
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(

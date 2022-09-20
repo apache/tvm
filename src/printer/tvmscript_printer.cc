@@ -283,6 +283,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc AllocBufferDeclaration(const Buffer& buf);
   Doc PrintBlockVar(const IterVar& iter_var, const PrimExpr& value);
   Doc PrintBlockVarRemaps();
+  Doc PrintBlockPredicate(const BlockRealizeNode* op);
   Doc PrintBlockVars(const BlockRealizeNode* op);
   Doc PrintBlockAttr(const BlockRealizeNode* op);
   Doc PrintExpandedArray(const ArrayNode* op);
@@ -1417,6 +1418,14 @@ Doc TVMScriptPrinter::PrintBlockVarRemaps() {
   return doc;
 }
 
+Doc TVMScriptPrinter::PrintBlockPredicate(const BlockRealizeNode* op) {
+  Doc doc;
+  if (!is_one(op->predicate)) {
+    doc << Doc::NewLine() << tir_prefix_ << ".where(" << Print(op->predicate) << ")";
+  }
+  return doc;
+}
+
 Doc TVMScriptPrinter::PrintBlockVars(const BlockRealizeNode* op) {
   Doc doc;
   const auto* block_op = op->block.as<BlockNode>();
@@ -1457,10 +1466,7 @@ Doc TVMScriptPrinter::PrintBlockVars(const BlockRealizeNode* op) {
 Doc TVMScriptPrinter::PrintBlockAttr(const BlockRealizeNode* op) {
   const auto* block_op = op->block.as<BlockNode>();
   Doc block_attr_doc;
-  // print predicate, binding, read/write tensor region, annotations
-  if (!is_one(op->predicate)) {
-    block_attr_doc << Doc::NewLine() << tir_prefix_ << ".where(" << Print(op->predicate) << ")";
-  }
+  // print binding, read/write tensor region, annotations
   block_attr_doc << Doc::NewLine() << tir_prefix_ << ".reads("
                  << PrintExpandedArray(block_op->reads.as<ArrayNode>()) << ")";
   block_attr_doc << Doc::NewLine() << tir_prefix_ << ".writes("
@@ -1523,14 +1529,18 @@ Doc TVMScriptPrinter::PrintBlockName(const BlockNode* block_op) {
 Doc TVMScriptPrinter::VisitStmt_(const BlockRealizeNode* op) {
   const auto* block_op = op->block.as<BlockNode>();
   Doc doc = PrintOptionalInfo(GetRef<Stmt>(block_op));
-  // print block name and block vars
+  // print block name
   doc << PrintBlockName(block_op);
+  // Print block predicate.
+  Doc block_predicate = PrintBlockPredicate(op);
+  // Print the variable bindings, valid to use in block attributes and
+  // body
   Doc block_var = PrintBlockVars(op);
-  // print predicate, binding, read/write tensor region, annotations
+  // print read/write tensor region, annotations
   Doc block_attr_doc = PrintBlockAttr(op);
   // print body
   Doc body = PrintBlockBody(block_op);
-  doc << Doc::Indent(4, block_var << block_attr_doc << Doc::NewLine() << body);
+  doc << Doc::Indent(4, block_predicate << block_var << block_attr_doc << Doc::NewLine() << body);
   for (const auto& iter_var : block_op->iter_vars) {
     TryDeallocVar(iter_var->var);
   }

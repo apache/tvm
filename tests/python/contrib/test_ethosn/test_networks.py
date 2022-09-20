@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=wrong-import-position, wrong-import-order
 
 """Arm(R) Ethos(TM)-N integration end-to-end network tests"""
 
@@ -22,12 +23,16 @@ import pytest
 pytest.importorskip("tflite")
 pytest.importorskip("tensorflow")
 
+from distutils.version import LooseVersion
+
+import tflite.Model
+
 from tvm import relay
 from tvm.testing import requires_ethosn
 from tvm.contrib import download
-
+from tvm.relay.op.contrib.ethosn import ethosn_api_version
 import tvm.relay.testing.tf as tf_testing
-import tflite.Model
+
 from . import infrastructure as tei
 
 
@@ -35,16 +40,13 @@ def _get_tflite_model(tflite_model_path, inputs_dict, dtype):
     with open(tflite_model_path, "rb") as f:
         tflite_model_buffer = f.read()
 
-    try:
-        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buffer, 0)
-    except AttributeError:
-        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buffer, 0)
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buffer, 0)
     shape_dict = {}
     dtype_dict = {}
-    for input in inputs_dict:
-        input_shape = inputs_dict[input]
-        shape_dict[input] = input_shape
-        dtype_dict[input] = dtype
+    for value in inputs_dict:
+        input_shape = inputs_dict[value]
+        shape_dict[value] = input_shape
+        dtype_dict[value] = dtype
 
     return relay.frontend.from_tflite(
         tflite_model,
@@ -117,12 +119,16 @@ def _test_image_network(
 
 @requires_ethosn
 def test_mobilenet_v1():
+    """Compare compile hashes for mobilenetv1 with an expected result."""
     # If this test is failing due to a hash mismatch, please notify @lhutton1 and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"50186822915909303e813205db80e032"}
+    if ethosn_api_version() == LooseVersion("3.1.0"):
+        _compile_hash = {"c37fec1f214c7f93ce49ee4e3b587969"}
+    else:
+        _compile_hash = {"50186822915909303e813205db80e032"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
@@ -138,12 +144,16 @@ def test_mobilenet_v1():
 
 @requires_ethosn
 def test_resnet_50_int8():
+    """Compare compile hashes for resnet50 with an expected result."""
     # If this test is failing due to a hash mismatch, please notify @lhutton1 and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"9245965b2c01e7f3d9b478e38a186eb4", "4225fa951c145bb1e48e28cad6a3bdd4"}
+    if ethosn_api_version() == LooseVersion("3.1.0"):
+        _compile_hash = {"12d65aec33594c88b6d0d31dcd5144e6", "6a64d69ccb36dfb6b30dd2abdba4b005"}
+    else:
+        _compile_hash = {"9245965b2c01e7f3d9b478e38a186eb4", "4225fa951c145bb1e48e28cad6a3bdd4"}
     _test_image_network(
         model_url="https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/"
         "models/Quantized/resnet_50_quantized.tflite",
@@ -158,12 +168,16 @@ def test_resnet_50_int8():
 
 @requires_ethosn
 def test_inception_v3():
+    """Compare compile hashes for inceptionv3 with an expected result."""
     # If this test is failing due to a hash mismatch, please notify @lhutton1 and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"a5a2b5d2b618de754bf9a01033a020c0"}
+    if ethosn_api_version() == LooseVersion("3.1.0"):
+        _compile_hash = {"cff892eb15944756f22dad4b83c756d2"}
+    else:
+        _compile_hash = {"a5a2b5d2b618de754bf9a01033a020c0"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/tflite_11_05_08/inception_v3_quant.tgz",
@@ -178,12 +192,16 @@ def test_inception_v3():
 
 @requires_ethosn
 def test_inception_v4():
+    """Compare compile hashes for inceptionv4 with an expected result."""
     # If this test is failing due to a hash mismatch, please notify @lhutton1 and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"61b4ade41898d7cb2451dbdc3340aced"}
+    if ethosn_api_version() == LooseVersion("3.1.0"):
+        _compile_hash = {"2eeae331898f8e94c74868e190077837"}
+    else:
+        _compile_hash = {"61b4ade41898d7cb2451dbdc3340aced"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/inception_v4_299_quant_20181026.tgz",
@@ -198,12 +216,16 @@ def test_inception_v4():
 
 @requires_ethosn
 def test_ssd_mobilenet_v1():
+    """Compare compile hashes for ssdmobilenetv1 with an expected result."""
     # If this test is failing due to a hash mismatch, please notify @lhutton1 and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"789906c7d8ac787809b303d82781fc9d", "6b699f94795785d31b39940a5cf84a81"}
+    if ethosn_api_version() == LooseVersion("3.1.0"):
+        _compile_hash = {"ec2b78852192058f88b64d45c26620d5", "f68cbeaaba03874ea735ce3f5eab9227"}
+    else:
+        _compile_hash = {"789906c7d8ac787809b303d82781fc9d", "6b699f94795785d31b39940a5cf84a81"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip",
