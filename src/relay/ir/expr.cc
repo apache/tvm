@@ -201,6 +201,11 @@ Var WithFields(Var var, Optional<Id> opt_vid, Optional<Type> opt_type_annotation
 TVM_REGISTER_NODE_TYPE(VarNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.Var").set_body_typed([](String str, Type type_annotation) {
+  std::cout << "running var\n";
+  if (str == std::string("test88")) {
+    int* x = nullptr;
+    std::cout << *x;
+  }
   return Var(str, type_annotation);
 });
 

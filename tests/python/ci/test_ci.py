@@ -25,6 +25,7 @@ from pathlib import Path
 
 import pytest
 import tvm.testing
+import tvm.relay
 
 from .test_utils import REPO_ROOT, TempGit, run_script
 
@@ -328,6 +329,12 @@ def test_cc_reviewers(
     )
 
     assert f"After filtering existing reviewers, adding: {expected_reviewers}" in proc.stdout
+
+
+def test_something():
+    # assert 1 == 2
+    a = tvm.relay.Var(name_hint="test88")
+    assert a == 2
 
 
 @parameterize_named(

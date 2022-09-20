@@ -84,7 +84,7 @@ function run_pytest() {
     exit_code=0
     set +e
     TVM_FFI=${ffi_type} python3 -m pytest \
-           -o "junit_suite_name=${suite_name}" \
+           -o "junit_suite_name=${suite_name}" -vvv \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${suite_name}.xml" \
            "--junit-prefix=${ffi_type}" \
            "${extra_args[@]}" || exit_code=$?

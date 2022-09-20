@@ -30,6 +30,7 @@ directory as the test scripts.
      pytest_plugins = ['tvm.testing.plugin']
 
 """
+import sys
 
 import pytest
 import _pytest
@@ -342,6 +343,12 @@ if HAVE_XDIST:
             Scheduler to serializer tests
             """
 
+            def mark_test_pending(self, nodeid):
+                # Empty so it returns a bogus result which is fixed up in
+                # pytest_handlecrashitem in conftest.py
+                print("mark pending: ", nodeid)
+                print("mark pending: ", nodeid, file=sys.stderr)
+
             def _split_scope(self, nodeid):
                 """
                 Returns a specific string for classes of nodeids
@@ -356,8 +363,12 @@ if HAVE_XDIST:
 
                 for nodeid_pattern, suite_name in items.items():
                     if nodeid_pattern in nodeid:
+                        print("split 2scope")
+                        print("split 2scope", file=sys.stderr)
                         return suite_name
 
-                return nodeid
+                print("split scope")
+                print("split scope", file=sys.stderr)
+                return super()._split_scope(nodeid)
 
         return TvmTestScheduler(config, log)
