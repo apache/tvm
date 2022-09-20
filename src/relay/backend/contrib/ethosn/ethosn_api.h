@@ -24,6 +24,7 @@
 #ifndef TVM_RELAY_BACKEND_CONTRIB_ETHOSN_ETHOSN_API_H_
 #define TVM_RELAY_BACKEND_CONTRIB_ETHOSN_ETHOSN_API_H_
 
+#include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
@@ -113,6 +114,16 @@ struct LeakyReLUParams {
   sl::LeakyReluInfo leaky_relu_info;
   sl::TensorInfo input_info;
   sl::TensorInfo output_info;
+};
+
+struct QnnConv2dTransposeParams {
+  sl::ConvolutionInfo conv_info;
+  sl::TensorInfo input_info;
+  sl::TensorInfo weights_info;
+  sl::TensorInfo bias_info;
+  sl::TensorInfo output_info;
+  runtime::NDArray raw_weights;
+  runtime::NDArray raw_bias;
 };
 
 struct ConcatenateParams {
@@ -237,6 +248,9 @@ class EthosnAPI {
   static EthosnError Tanh(const Expr& expr, TanhParams* params);
   /*! \brief Extract the Support Library leaky relu params from an ethos-n leaky relu Relu call. */
   static EthosnError LeakyReLU(const Expr& expr, LeakyReLUParams* params);
+  /*! \brief Extract the Support Library transpose params from a Relay
+   * ethos-n.qnn_conv2d_transpose func */
+  static EthosnError QnnConv2dTranspose(const Expr& expr, QnnConv2dTransposeParams* params);
   /*! \brief Extract the Support Library concatenate params from a Relay qnn.concatenate call */
   static EthosnError Concatenate(const Expr& expr, ConcatenateParams* params);
   /*! \brief Extract the Support Library split params from a Relay split call */
@@ -293,6 +307,15 @@ class EthosnAPI {
   static EthosnError AsConstant(const Expr& expr, T* out);
   static EthosnError AsConstant(const Expr& expr, std::valarray<float>* out);
 };
+
+/*!
+ * \brief Apply constant folding on an expression.
+ *
+ * \param expr The expression to fold.
+ * \param fold_qnn Whether to fold constants for QNN operations.
+ * \returns The new folded expression.
+ */
+Expr FoldConstantExpr(const Expr& expr, bool fold_qnn = true);
 
 }  // namespace ethosn
 }  // namespace contrib

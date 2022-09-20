@@ -367,8 +367,9 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
     tvmc_model = tvmc.load(tflite_mobilenet_v1_0_25_128)
     tvmc_package = tvmc.compile(
         tvmc_model,
-        target="opencl --host=llvm",
+        target="opencl -host=llvm",
         desired_layout="NCHW",
+        dump_code="asm",
     )
     dumps_path = tvmc_package.package_path + ".asm"
 

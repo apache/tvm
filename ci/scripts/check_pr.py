@@ -18,6 +18,7 @@
 import argparse
 import re
 import os
+import json
 import textwrap
 from dataclasses import dataclass
 from typing import Any, List, Callable
@@ -108,10 +109,7 @@ if __name__ == "__main__":
     parser.add_argument("--pr", required=True)
     parser.add_argument("--remote", default="origin", help="ssh remote to parse")
     parser.add_argument(
-        "--pr-body", help="(testing) PR body to use instead of fetching from GitHub"
-    )
-    parser.add_argument(
-        "--pr-title", help="(testing) PR title to use instead of fetching from GitHub"
+        "--pr-data", help="(testing) PR data to use instead of fetching from GitHub"
     )
     args = parser.parse_args()
 
@@ -121,20 +119,17 @@ if __name__ == "__main__":
         print(f"PR was not a number: {args.pr}")
         exit(0)
 
-    if args.pr_body:
-        body = args.pr_body
-        title = args.pr_title
+    if args.pr_data:
+        pr = json.loads(args.pr_data)
     else:
         remote = git(["config", "--get", f"remote.{args.remote}.url"])
         user, repo = parse_remote(remote)
 
         github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
         pr = github.get(f"pulls/{args.pr}")
-        body = pr["body"]
-        title = pr["title"]
 
-    body = body.strip()
-    title = title.strip()
+    body = "" if pr["body"] is None else pr["body"].strip()
+    title = "" if pr["title"] is None else pr["title"].strip()
 
     title_passed = run_checks(checks=title_checks, s=title, name="PR title")
     print("")

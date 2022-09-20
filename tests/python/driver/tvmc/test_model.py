@@ -45,7 +45,9 @@ def test_tvmc_workflow(use_vm, keras_simple):
     )
     input_dict = {"input_1": np.random.uniform(size=(1, 32, 32, 3)).astype("float32")}
 
-    result = tvmc.run(tvmc_package, device="cpu", end_to_end=True, inputs=input_dict)
+    result = tvmc.run(
+        tvmc_package, device="cpu", end_to_end=True, benchmark=True, inputs=input_dict
+    )
     assert type(tvmc_model) is TVMCModel
     assert type(tvmc_package) is TVMCPackage
     assert type(result) is TVMCResult

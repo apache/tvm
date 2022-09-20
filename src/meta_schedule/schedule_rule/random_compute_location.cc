@@ -57,6 +57,12 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
     return {res};
   }
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<RandomComputeLocationNode> n = make_object<RandomComputeLocationNode>(*this);
+    return ScheduleRule(n);
+  }
+
  private:
   bool CheckConditions(const tir::Schedule sch, const tir::BlockRV& block_rv) const {
     tir::StmtSRef block_sref = sch->GetSRef(block_rv);

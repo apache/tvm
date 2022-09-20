@@ -46,6 +46,7 @@ TEST(OpenCLTimerNode, nested_timers) {
     cl_mem cl_buf = clCreateBuffer(workspace->context, CL_MEM_READ_ONLY, BUFF_SIZE * sizeof(cl_int),
                                    NULL, &err);
     OPENCL_CHECK_ERROR(err);
+    queue = workspace->GetQueue(thr->device);
     OPENCL_CALL(clEnqueueWriteBuffer(queue, cl_buf, false, 0, BUFF_SIZE * sizeof(cl_int), tmp_buf,
                                      0, NULL, &ev));
     OPENCL_CALL(clReleaseMemObject(cl_buf));
