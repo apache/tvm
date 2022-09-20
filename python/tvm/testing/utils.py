@@ -933,6 +933,15 @@ requires_vulkan = Feature(
     parent_features="gpu",
 )
 
+# Mark a test as requiring OpenCLML support in build.
+requires_openclml = Feature(
+    "OpenCLML",
+    "CLML",
+    cmake_flag="USE_CLML",
+    target_kind_enabled="opencl",
+)
+
+
 # Mark a test as requiring microTVM to run
 requires_micro = Feature("micro", "MicroTVM", cmake_flag="USE_MICRO")
 

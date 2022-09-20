@@ -38,14 +38,14 @@ sleep 5   # Wait for tracker to bind
 export ANDROID_SERIAL=$1
 
 adb shell "mkdir -p /data/local/tmp/tvm_ci"
-adb push build-adreno-target/tvm_rpc /data/local/tmp/tvm_ci
+adb push build-adreno-target/tvm_rpc /data/local/tmp/tvm_ci/tvm_rpc_ci
 adb push build-adreno-target/libtvm_runtime.so /data/local/tmp/tvm_ci
 
 adb reverse tcp:${TVM_TRACKER_PORT} tcp:${TVM_TRACKER_PORT}
 adb forward tcp:5000 tcp:5000
 adb forward tcp:5001 tcp:5001
 adb forward tcp:5002 tcp:5002
-env adb shell "cd /data/local/tmp/tvm_ci; killall -9 tvm_rpc; sleep 2; LD_LIBRARY_PATH=/data/local/tmp/tvm_ci/ ./tvm_rpc server --host=0.0.0.0 --port=5000 --port-end=5010 --tracker=127.0.0.1:${TVM_TRACKER_PORT} --key=android" &
+env adb shell "cd /data/local/tmp/tvm_ci; killall -9 tvm_rpc_ci; sleep 2; LD_LIBRARY_PATH=/data/local/tmp/tvm_ci/ ./tvm_rpc_ci server --host=0.0.0.0 --port=5000 --port-end=5010 --tracker=127.0.0.1:${TVM_TRACKER_PORT} --key=android" &
 DEVICE_PID=$!
 sleep 5 # Wait for the device connections
 
@@ -57,6 +57,9 @@ make cython3
 
 # OpenCL texture test on Adreno
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-opencl-texture tests/python/relay/opencl_texture
+
+# Adreno CLML test
+run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-openclml tests/python/contrib/test_clml
 
 kill ${TRACKER_PID}
 kill ${DEVICE_PID}
