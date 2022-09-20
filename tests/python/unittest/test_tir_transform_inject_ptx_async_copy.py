@@ -138,7 +138,7 @@ def test_inject_async_copy():
         if not tvm.testing.is_ampere_or_newer():
             continue
 
-        with tvm.transform.PassContext(config={"tir.use_ptx_async_copy": 1}):
+        with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
             mod = tvm.build(tvm.IRModule.from_expr(f), target="cuda")
 
         A_np = np.random.rand(32, 128).astype(dtype)
@@ -166,7 +166,7 @@ def test_inject_async_copy_shared_dyn():
     if not tvm.testing.is_ampere_or_newer():
         return
 
-    with tvm.transform.PassContext(config={"tir.use_ptx_async_copy": 1}):
+    with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
         mod = tvm.build(tvm.IRModule.from_expr(f), target="cuda")
 
     A_np = np.random.rand(32, 128).astype("float16")

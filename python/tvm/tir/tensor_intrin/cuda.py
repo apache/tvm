@@ -36,7 +36,7 @@ def shared_16x32_to_ldmatrix_32x16_layout(i, j):
 
 
 def shared_32x16_to_ldmatrix_32x16_layout(i, j):
-    thread_id = (i % 4) + 4 * (j % 8)
+    thread_id = (i % 16) // 4 + 4 * (j % 8)
     return thread_id, 8 * (j // 8) + (i // 16) * 4 + i % 4
 
 

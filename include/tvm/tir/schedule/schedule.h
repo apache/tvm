@@ -601,9 +601,24 @@ class ScheduleNode : public runtime::Object {
    * \param buffer_index The index of the buffer in block's read or write region.
    * \param buffer_index_type The type of the buffer index, kRead or kWrite.
    * \param index_map The transformation to apply.
+   *
+   * \param pad_value The value to write into padding introduced by
+   *    the transformation.  If the schedule contains a producer block
+   *    for the specified buffer, the pad value will be written as
+   *    part of the producer block if possible, or after the producer
+   *    block otherwise.  Otherwise, if the buffer is an input, will
+   *    insert an annotation block to state that the padding contains
+   *    the known value.
+   *
+   *    Note: If applied to an input buffer, the calling scope is
+   *    responsible for ensuring that the pad_value is present.
+   *    Algebraic symplifications, branch elimination, and other
+   *    optimizations may assume that this precondition is met, and
+   *    may result in incorrect results being returned.
    */
   virtual void TransformLayout(const BlockRV& block_rv, int buffer_index,
-                               BufferIndexType buffer_index_type, const IndexMap& index_map) = 0;
+                               BufferIndexType buffer_index_type, const IndexMap& index_map,
+                               const Optional<IndexMap>& pad_value = NullOpt) = 0;
 
   /*!
    * \brief Apply a transformation represented by IndexMap to block

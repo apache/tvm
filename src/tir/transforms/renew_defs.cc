@@ -96,18 +96,16 @@ class RenewDefMutator : public StmtExprMutator {
 
   Stmt VisitStmt_(const BlockNode* op) final {
     // Step 0. Re-define Itervars
-    Array<IterVar> iter_vars = MutateArray(
-        op->iter_vars, std::bind(&RenewDefMutator::VisitIterVar, this, std::placeholders::_1));
+    Array<IterVar> iter_vars =
+        op->iter_vars.Map(std::bind(&RenewDefMutator::VisitIterVar, this, std::placeholders::_1));
 
     // Step 1. Re-define buffers allocate under the block
-    Array<Buffer> alloc_buffers = MutateArray(
-        op->alloc_buffers,
+    Array<Buffer> alloc_buffers = op->alloc_buffers.Map(
         std::bind(&RenewDefMutator::VisitBuffer, this, std::placeholders::_1, /*define=*/true));
 
     // Step 2. Re-define match_buffers
-    Array<MatchBufferRegion> match_buffers =
-        MutateArray(op->match_buffers,
-                    std::bind(&RenewDefMutator::VisitMatchBuffer, this, std::placeholders::_1));
+    Array<MatchBufferRegion> match_buffers = op->match_buffers.Map(
+        std::bind(&RenewDefMutator::VisitMatchBuffer, this, std::placeholders::_1));
 
     // Step 3. Visit body
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
@@ -115,10 +113,10 @@ class RenewDefMutator : public StmtExprMutator {
     ICHECK(op);
 
     // Step 4. Revisit access region
-    Array<BufferRegion> reads = MutateArray(
-        op->reads, std::bind(&RenewDefMutator::VisitBufferRegion, this, std::placeholders::_1));
-    Array<BufferRegion> writes = MutateArray(
-        op->writes, std::bind(&RenewDefMutator::VisitBufferRegion, this, std::placeholders::_1));
+    Array<BufferRegion> reads =
+        op->reads.Map(std::bind(&RenewDefMutator::VisitBufferRegion, this, std::placeholders::_1));
+    Array<BufferRegion> writes =
+        op->writes.Map(std::bind(&RenewDefMutator::VisitBufferRegion, this, std::placeholders::_1));
 
     // Step 5. Regenerate block. Since the defs are changed, we need to create a new block
     auto n = make_object<BlockNode>(*op);
@@ -203,9 +201,9 @@ class RenewDefMutator : public StmtExprMutator {
     // update data
     Var data = Downcast<Var>(redefine_if_is_var(buffer->data));
     // update shape
-    Array<PrimExpr> shape = MutateArray(buffer->shape, redefine_if_is_var);
+    Array<PrimExpr> shape = buffer->shape.Map(redefine_if_is_var);
     // update strides
-    Array<PrimExpr> strides = MutateArray(buffer->strides, redefine_if_is_var);
+    Array<PrimExpr> strides = buffer->strides.Map(redefine_if_is_var);
     // update elem_offset
     PrimExpr elem_offset = redefine_if_is_var(buffer->elem_offset);
 
@@ -242,10 +240,10 @@ class RenewDefMutator : public StmtExprMutator {
       return Downcast<Buffer>((*it).second);
     }
     Var data = Downcast<Var>(VisitExpr(buffer->data));
-    Array<PrimExpr> shape = MutateArray(
-        buffer->shape, std::bind(&RenewDefMutator::VisitExpr, this, std::placeholders::_1));
-    Array<PrimExpr> strides = MutateArray(
-        buffer->strides, std::bind(&RenewDefMutator::VisitExpr, this, std::placeholders::_1));
+    Array<PrimExpr> shape =
+        buffer->shape.Map(std::bind(&RenewDefMutator::VisitExpr, this, std::placeholders::_1));
+    Array<PrimExpr> strides =
+        buffer->strides.Map(std::bind(&RenewDefMutator::VisitExpr, this, std::placeholders::_1));
     PrimExpr elem_offset = VisitExpr(buffer->elem_offset);
 
     auto n = make_object<BufferNode>(*buffer.get());
@@ -276,9 +274,8 @@ class RenewDefMutator : public StmtExprMutator {
 
   BufferRegion VisitBufferRegion(const BufferRegion& buffer_region) {
     Buffer buffer = VisitBuffer(buffer_region->buffer);
-    Array<Range> region =
-        MutateArray(buffer_region->region,
-                    std::bind(&RenewDefMutator::VisitRange, this, std::placeholders::_1));
+    Array<Range> region = buffer_region->region.Map(
+        std::bind(&RenewDefMutator::VisitRange, this, std::placeholders::_1));
     if (buffer.same_as(buffer_region->buffer) && region.same_as(buffer_region->region)) {
       return buffer_region;
     } else {

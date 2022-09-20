@@ -25,6 +25,7 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include "../../runtime/thread_storage_scope.h"
 #include "../../support/arena.h"
 
 namespace tvm {
@@ -32,7 +33,11 @@ namespace tir {
 
 /*!
  * \brief Detect the lowest common ancestor(LCA) position of Buffer access.
- * \note Only consider BlockNode and ForNode to be the LCA nodes.
+ * \note
+ * - Only consider BlockNode and ForNode to be the LCA nodes.
+ * - In the LCA locator, we are aware of the buffer scope and CUDA hierarchy so that any buffer in
+ * global memory will have its buffer access LCA outside all launch sites of `blockIdx`, in order to
+ * prevent conflicts between buffer memory scopes and CUDA hierarchy.
  */
 class LCADetector : public StmtExprVisitor {
  public:
@@ -51,6 +56,8 @@ class LCADetector : public StmtExprVisitor {
     detector.ancestor_scopes_.push_back(&root);
 
     detector(func->body);
+    detector.UpdateWithBlockidx();
+
     // Prepare the return
     Map<Buffer, Optional<Stmt>> buffer_lca;
     for (const auto& kv : detector.buffer_lca_) {
@@ -82,6 +89,15 @@ class LCADetector : public StmtExprVisitor {
     int n = ancestor_scopes_.size();
     const ScopeInfo* parent_scope = ancestor_scopes_.back();
     auto* current_scope = arena_.make<ScopeInfo>(parent_scope, op, n);
+
+    if (op->thread_binding.defined()) {
+      const runtime::ThreadScope& scope =
+          runtime::ThreadScope::Create(op->thread_binding.value()->thread_tag);
+      if (scope.rank == 0) {
+        blockidx_scopes_.push_back(current_scope);
+      }
+    }
+
     ancestor_scopes_.push_back(current_scope);
     StmtExprVisitor::VisitStmt_(op);
     ancestor_scopes_.pop_back();
@@ -105,6 +121,18 @@ class LCADetector : public StmtExprVisitor {
 
     StmtExprVisitor::VisitStmt_(op);
     ancestor_scopes_.pop_back();
+  }
+
+  void VisitStmt_(const AttrStmtNode* op) final {
+    if (op->attr_key == attr::thread_extent) {
+      const auto* iter = op->node.as<IterVarNode>();
+      ICHECK_NOTNULL(iter);
+      const runtime::ThreadScope& scope = runtime::ThreadScope::Create(iter->thread_tag);
+      if (scope.rank == 0) {
+        blockidx_scopes_.push_back(ancestor_scopes_.back());
+      }
+    }
+    StmtExprVisitor::VisitStmt_(op);
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
@@ -150,6 +178,19 @@ class LCADetector : public StmtExprVisitor {
     }
   }
 
+  void UpdateWithBlockidx() {
+    for (const auto& it : buffer_lca_) {
+      const runtime::StorageScope& scope =
+          runtime::StorageScope::Create(GetRef<Buffer>(it.first).scope());
+      if (scope.rank == runtime::StorageRank::kGlobal) {
+        const ScopeInfo*& lca = buffer_lca_[it.first];
+        for (const ScopeInfo* blockidx_scope : blockidx_scopes_) {
+          lca = LowestCommonAncestor(lca, blockidx_scope);
+        }
+      }
+    }
+  }
+
   static const ScopeInfo* LowestCommonAncestor(const ScopeInfo* lhs, const ScopeInfo* rhs) {
     if (lhs == nullptr) return rhs;
     if (rhs == nullptr) return lhs;
@@ -186,6 +227,8 @@ class LCADetector : public StmtExprVisitor {
   std::unordered_map<const VarNode*, const BufferNode*> buffer_var_map_ = {};
   /*! \brief The match buffers inside blocks. */
   std::unordered_set<const BufferNode*> match_buffers_ = {};
+  /*! \brief The ForNodes/BlockNodes which contain immediate `blockIdx` launch. */
+  std::vector<const ScopeInfo*> blockidx_scopes_ = {};
   /*! \brief Internal arena. */
   support::Arena arena_;
 };

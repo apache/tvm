@@ -102,18 +102,25 @@ def element_wise_subregion_match_set_axis_separator(A: T.Buffer[(128, 128), "flo
 
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
-use_sugared_transform = tvm.testing.parameter(
-    by_dict={"set_axis_separators": False, "transform_layout_sugared": True}
-)
+argument_style = tvm.testing.parameter('set_axis_separators',
+                                      'transform_layout_named',
+                                      'transform_layout_buffer_object',
+                                      )
 
-def test_set_axis_separator(use_sugared_transform):
+
+def test_set_axis_separator(argument_style):
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
 
-    if use_sugared_transform:
+    if argument_style=='set_axis_separators':
         s.set_axis_separator(s.get_block("B"), ("write",0), [1])
-    else:
+    elif argument_style=='transform_layout_named':
         s.transform_layout(block='B', buffer='B', index_map=lambda i,j: [i,IndexMap.AXIS_SEPARATOR,j])
+    elif argument_style =='transform_layout_buffer_object':
+        B = s.get(s.get_block('B')).writes[0].buffer
+        s.transform_layout(block='B', buffer=B, index_map=lambda i,j: [i,IndexMap.AXIS_SEPARATOR,j])
+    else:
+        raise ValueError(f'Unexpected argument_style: {argument_style}')
 
     tvm.ir.assert_structural_equal(element_wise_set_axis_separator, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
@@ -128,28 +135,38 @@ def test_set_scope_fail_on_index_out_of_bound():
         s.set_axis_separator(s.get_block("B"), ("read",-1),[1])
 
 
-def test_set_axis_separator_input_buffer(use_sugared_transform):
+def test_set_axis_separator_input_buffer(argument_style):
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
 
-    if use_sugared_transform:
-        s.transform_layout(block='B', buffer='A', index_map=lambda i,j: [i,IndexMap.AXIS_SEPARATOR,j])
-    else:
+    if argument_style=='set_axis_separators':
         s.set_axis_separator(s.get_block("B"), ("read",0), [1])
+    elif argument_style=='transform_layout_named':
+        s.transform_layout(block='B', buffer='A', index_map=lambda i,j: [i,IndexMap.AXIS_SEPARATOR,j])
+    elif argument_style =='transform_layout_buffer_object':
+        A = s.get(s.get_block('B')).reads[0].buffer
+        s.transform_layout(block='B', buffer=A, index_map=lambda i,j: [i,IndexMap.AXIS_SEPARATOR,j])
+    else:
+        raise ValueError(f'Unexpected argument_style: {argument_style}')
 
 
     tvm.ir.assert_structural_equal(element_wise_set_axis_separator_input_buffer, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
 
-def test_set_axis_separator_subregion(use_sugared_transform):
+def test_set_axis_separator_subregion(argument_style):
     func = element_wise_subregion_match
     s = tir.Schedule(func, debug_mask='all')
 
-    if use_sugared_transform:
-        s.transform_layout(block='B', buffer='B', index_map=lambda i,j: [i,IndexMap.AXIS_SEPARATOR,j])
-    else:
+    if argument_style=='set_axis_separators':
         s.set_axis_separator(s.get_block("B"), ("write",0), [1])
+    elif argument_style=='transform_layout_named':
+        s.transform_layout(block='B', buffer='B', index_map=lambda i,j: [i,IndexMap.AXIS_SEPARATOR,j])
+    elif argument_style =='transform_layout_buffer_object':
+        B = s.get(s.get_block('B')).writes[0].buffer
+        s.transform_layout(block='B', buffer=B, index_map=lambda i,j: [i,IndexMap.AXIS_SEPARATOR,j])
+    else:
+        raise ValueError(f'Unexpected argument_style: {argument_style}')
 
     tvm.ir.assert_structural_equal(element_wise_subregion_match_set_axis_separator, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)

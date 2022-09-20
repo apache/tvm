@@ -731,10 +731,15 @@ class TensorizeInfoNode : public Object {
   Map<tir::StmtSRef, tir::For> loop_map;
   /*! \brief Maps loops in an intrinsic description to its index, outer to inner */
   Map<tir::For, Integer> desc_loop_indexer;
+  /*! \brief Optional padded extents of the block iters when padding is needed to match the
+   * intrinsic description
+   */
+  Optional<Array<Integer>> block_iter_paddings;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("loop_map", &loop_map);
     v->Visit("desc_loop_indexer", &desc_loop_indexer);
+    v->Visit("block_iter_paddings", &block_iter_paddings);
   }
 
   static constexpr const char* _type_key = "tir.schedule.TensorizeInfo";
@@ -751,11 +756,12 @@ class TensorizeInfo : public ObjectRef {
  * \param self The schedule state to be tensorized
  * \param block_sref The target block to match against
  * \param desc_func The prim func describing the computation to be tensorized
+ * \param allow_padding Whether to allow padding the block iters to match the intrinsic description
  * \return TensorizeInfo structure if a valid mapping is found, NullOpt otherwise
  */
 Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
                                                 const tir::StmtSRef& block_sref,
-                                                const tir::PrimFunc& desc_func);
+                                                const tir::PrimFunc& desc_func, bool allow_padding);
 
 /*！\brief Necessary information used to perform transformations for tensorization */
 class AutoTensorizeMappingInfoNode : public Object {
