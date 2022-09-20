@@ -774,6 +774,11 @@ class Array : public ObjectRef {
       for (; it != arr->end(); it++) {
         U mapped = fmap(DowncastNoCheck<T>(*it));
         if (!mapped.same_as(*it)) {
+          // At least one mapped element is different than the
+          // original.  Therefore, prepare the output array,
+          // consisting of any previous elements that had mapped to
+          // themselves (if any), and the element that didn't map to
+          // itself.
           all_identical = false;
           output = ArrayNode::CreateRepeated(arr->size(), U());
           output->InitRange(0, arr->begin(), it);
@@ -795,6 +800,21 @@ class Array : public ObjectRef {
 
     // Normal path for incompatible types, or post-copy path for
     // copy-on-write instances.
+    //
+    // If the types are incompatible, then at this point `output` is
+    // empty, and `it` points to the first element of the input.
+    //
+    // If the types were compatible, then at this point `output`
+    // contains zero or more elements that mapped to themselves
+    // followed by the first element that does not map to itself, and
+    // `it` points to the element just after the first element that
+    // does not map to itself.  Because at least one element has been
+    // changed, we no longer have the opportunity to avoid a copy, so
+    // we don't need to check the result.
+    //
+    // In both cases, `it` points to the next element to be processed,
+    // so we can either start or resume the iteration from that point,
+    // with no further checks on the result.
     for (; it != arr->end(); it++) {
       U mapped = fmap(DowncastNoCheck<T>(*it));
       output->SetItem(it - arr->begin(), std::move(mapped));
