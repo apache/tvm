@@ -45,10 +45,28 @@ class HexagonDeviceAPI final : public DeviceAPI {
   static HexagonDeviceAPI* Global();
 
   //! \brief Constructor
-  HexagonDeviceAPI() {}
+  HexagonDeviceAPI() { mgr = &hexbuffs; }
 
   //! \brief Destructor
   ~HexagonDeviceAPI() {}
+
+  //! \brief Ensures resource managers are in a good state for the runtime
+  void AcquireResources() {
+    CHECK_EQ(runtime_hexbuffs, nullptr);
+    runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
+    LOG(INFO) << "runtime_hexbuffs created";
+    mgr = runtime_hexbuffs.get();
+  }
+
+  //! \brief Ensures all runtime resources are freed
+  void ReleaseResources() {
+    if (runtime_hexbuffs && !runtime_hexbuffs->empty()) {
+      LOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
+    }
+    mgr = &hexbuffs;
+    LOG(INFO) << "runtime_hexbuffs reset";
+    runtime_hexbuffs.reset();
+  }
 
   /*! \brief Currently unimplemented interface to specify the active
    *  Hexagon device.
@@ -138,7 +156,14 @@ class HexagonDeviceAPI final : public DeviceAPI {
   }
 
   //! \brief Manages underlying HexagonBuffer allocations
+  // runtime_hexbuffs is used for runtime allocations.  It is created
+  // with a call to AcquireResources, and destroyed on ReleaseResources.
+  // hexbuffs is used for all allocations outside of the session lifetime.
   HexagonBufferManager hexbuffs;
+  std::unique_ptr<HexagonBufferManager> runtime_hexbuffs;
+
+  //! \brief Current buffer manager
+  HexagonBufferManager* mgr;
 };
 }  // namespace hexagon
 }  // namespace runtime

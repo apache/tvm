@@ -43,6 +43,7 @@ namespace meta_schedule {
 
 class TaskSchedulerNode;
 class MeasureCallback;
+class TuneContext;
 
 /*! \brief The auto tuning context. */
 class TuneContextNode : public runtime::Object {
@@ -99,6 +100,11 @@ class TuneContextNode : public runtime::Object {
 
   /*! \brief Initialize members that needs initialization with tune context. */
   void Initialize();
+  /*!
+   * \brief Clone the tune context.
+   * \return The cloned tune context.
+   */
+  TuneContext Clone() const;
   /*! \brief Set the measure candidates from the SearchStrategy */
   void _SetMeasureCandidates(const Array<MeasureCandidate>& candidates);
   /*!

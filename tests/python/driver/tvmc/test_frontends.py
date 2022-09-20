@@ -237,6 +237,10 @@ def test_load_model___wrong_language__to_onnx(tflite_mobilenet_v1_1_quant):
         tvmc.load(tflite_mobilenet_v1_1_quant, model_format="onnx")
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_load_model__pth(pytorch_resnet18):
     # some CI environments wont offer torch, so skip in case it is not present
     pytest.importorskip("torch")
@@ -432,6 +436,10 @@ def test_import_tensorflow_friendly_message(pb_mobilenet_v1_1_quant, monkeypatch
         _ = tvmc.frontends.load_model(pb_mobilenet_v1_1_quant, model_format="pb")
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_import_torch_friendly_message(pytorch_resnet18, monkeypatch):
     monkeypatch.setattr("importlib.import_module", mock_error_on_name("torch"))
 

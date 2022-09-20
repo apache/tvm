@@ -17,11 +17,13 @@
 
 """Arm(R) Ethos(TM)-N integration reshape tests"""
 
+import numpy as np
+import pytest
+
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
-import numpy as np
-import pytest
+
 from . import infrastructure as tei
 
 

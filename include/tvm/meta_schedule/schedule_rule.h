@@ -34,6 +34,7 @@ namespace tvm {
 namespace meta_schedule {
 
 class TuneContext;
+class ScheduleRule;
 
 /*! \brief Rules to modify a block in a schedule. */
 class ScheduleRuleNode : public runtime::Object {
@@ -59,12 +60,21 @@ class ScheduleRuleNode : public runtime::Object {
   virtual runtime::Array<tir::Schedule> Apply(const tir::Schedule& sch,
                                               const tir::BlockRV& block) = 0;
 
+  /*!
+   * \brief Deep clone the schedule rule.
+   * \return The cloned schedule rule.
+   */
+  virtual ScheduleRule Clone() const = 0;
+
   static constexpr const char* _type_key = "meta_schedule.ScheduleRule";
   TVM_DECLARE_BASE_OBJECT_INFO(ScheduleRuleNode, Object);
 };
 
-/*! \brief The schedule rule with customized methods on the python-side. */
-class PyScheduleRuleNode : public ScheduleRuleNode {
+/*!
+ * \brief Managed reference to ScheduleRuleNode
+ * \sa ScheduleRuleNode
+ */
+class ScheduleRule : public runtime::ObjectRef {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
@@ -84,33 +94,11 @@ class PyScheduleRuleNode : public ScheduleRuleNode {
    * \return The string of the schedule rule.
    */
   using FAsString = runtime::TypedPackedFunc<String()>;
-
-  /*! \brief The packed function to the `InitializeWithTuneContext` function. */
-  FInitializeWithTuneContext f_initialize_with_tune_context;
-  /*! \brief The packed function to the `Apply` function. */
-  FApply f_apply;
-  /*! \brief The packed function to the `AsString` function. */
-  FAsString f_as_string;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_initialize_with_tune_context` is not visited
-    // `f_apply` is not visited
-    // `f_as_string` is not visited
-  }
-
-  void InitializeWithTuneContext(const TuneContext& context) final;
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block) final;
-
-  static constexpr const char* _type_key = "meta_schedule.PyScheduleRule";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyScheduleRuleNode, ScheduleRuleNode);
-};
-
-/*!
- * \brief Managed reference to ScheduleRuleNode
- * \sa ScheduleRuleNode
- */
-class ScheduleRule : public runtime::ObjectRef {
- public:
+  /*!
+   * \brief The function type of `Clone` method.
+   * \return The cloned schedule rule.
+   */
+  using FClone = runtime::TypedPackedFunc<ScheduleRule()>;
   /*!
    * \brief Create an auto-inline rule that inlines spatial blocks if it satisfies some conditions
    * \param into_producer If allows to inline a block into its producer
@@ -249,14 +237,48 @@ class ScheduleRule : public runtime::ObjectRef {
    * \brief Create a schedule rule with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
    * \param f_apply The packed function of `Apply`.
+   * \param f_clone The packed function of `Clone`.
    * \param f_as_string The packed function of `AsString`.
    * \return The schedule rule created.
    */
   TVM_DLL static ScheduleRule PyScheduleRule(
-      PyScheduleRuleNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
-      PyScheduleRuleNode::FApply f_apply,                                             //
-      PyScheduleRuleNode::FAsString f_as_string);
+      FInitializeWithTuneContext f_initialize_with_tune_context,  //
+      FApply f_apply,                                             //
+      FClone f_clone,                                             //
+      FAsString f_as_string);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ScheduleRule, ObjectRef, ScheduleRuleNode);
+};
+
+/*! \brief The schedule rule with customized methods on the python-side. */
+class PyScheduleRuleNode : public ScheduleRuleNode {
+ public:
+  using FInitializeWithTuneContext = ScheduleRule::FInitializeWithTuneContext;
+  using FApply = ScheduleRule::FApply;
+  using FClone = ScheduleRule::FClone;
+  using FAsString = ScheduleRule::FAsString;
+
+  /*! \brief The packed function to the `InitializeWithTuneContext` function. */
+  FInitializeWithTuneContext f_initialize_with_tune_context;
+  /*! \brief The packed function to the `Apply` function. */
+  FApply f_apply;
+  /*! \brief The packed function to the `AsString` function. */
+  FAsString f_as_string;
+  /*! \brief The packed function to the `Clone` function. */
+  FClone f_clone;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    // `f_initialize_with_tune_context` is not visited
+    // `f_apply` is not visited
+    // `f_as_string` is not visited
+    // `f_clone` is not visited
+  }
+
+  void InitializeWithTuneContext(const TuneContext& context) final;
+  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block) final;
+  ScheduleRule Clone() const final;
+
+  static constexpr const char* _type_key = "meta_schedule.PyScheduleRule";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PyScheduleRuleNode, ScheduleRuleNode);
 };
 
 }  // namespace meta_schedule

@@ -97,6 +97,11 @@ class RewriteUnboundBlockNode : public PostprocNode {
   // Inherited from PostprocNode
   bool Apply(const tir::Schedule& sch) final;
 
+  Postproc Clone() const {
+    ObjectPtr<RewriteUnboundBlockNode> n = make_object<RewriteUnboundBlockNode>(*this);
+    return Postproc(n);
+  }
+
  public:
   /*! \brief The max number of threads per block from Target */
   int max_threads_per_block_ = -1;

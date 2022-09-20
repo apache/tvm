@@ -22,6 +22,7 @@ This article is a test script to test darknet models with Relay.
 All the required models and libraries will be downloaded from the internet
 by the script.
 """
+from cffi import FFI
 import numpy as np
 import tvm
 from tvm.contrib import graph_executor
@@ -31,7 +32,6 @@ from tvm.relay.testing.darknet import LAYERTYPE
 from tvm.relay.testing.darknet import __darknetffi__
 from tvm.relay.frontend.darknet import ACTIVATION
 from tvm import relay
-from cffi import FFI
 
 REPO_URL = "https://github.com/dmlc/web-data/blob/main/darknet/"
 DARKNET_LIB = "libdarknet2.0.so"

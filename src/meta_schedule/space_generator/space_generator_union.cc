@@ -47,6 +47,15 @@ class SpaceGeneratorUnionNode : public SpaceGeneratorNode {
     return design_spaces;
   }
 
+  SpaceGenerator Clone() const final {
+    ObjectPtr<SpaceGeneratorUnionNode> n = make_object<SpaceGeneratorUnionNode>(*this);
+    n->space_generators = Array<SpaceGenerator>();
+    for (const SpaceGenerator& space_generator : this->space_generators) {
+      n->space_generators.push_back(space_generator->Clone());
+    }
+    return SpaceGenerator(n);
+  }
+
   static constexpr const char* _type_key = "meta_schedule.SpaceGeneratorUnion";
   TVM_DECLARE_FINAL_OBJECT_INFO(SpaceGeneratorUnionNode, SpaceGeneratorNode);
 };

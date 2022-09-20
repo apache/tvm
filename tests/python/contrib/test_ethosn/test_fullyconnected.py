@@ -114,62 +114,63 @@ def test_fullyconnected(shape, out_channels, dtype, input_zp, input_sc, kernel_z
 
 
 @requires_ethosn
-def test_fullyconnected_failure():
-    """Check Fully Connected error messages."""
-
-    trials = [
-        (
-            (1, 64),
-            (1, 64),
-            0,
-            1024,
-            0,
-            1024,
-            0,
-            1,
-            "uint8",
-            "Overall scale (of the input * weights / output) should be in the range (2^-32, 65536)",
-        ),
+@pytest.mark.parametrize(
+    "shape,weight_shape,err_msg",
+    [
         (
             (1, 1, 1, 64),
             (1, 64),
-            0,
-            1,
-            0,
-            1,
-            0,
-            1,
-            "uint8",
             "Weights tensor must have I dimension equal to the number"
             " of channels of the input tensor.;",
         ),
-        ((1024, 64), (1, 64), 0, 1, 0, 1, 0, 1, "uint8", "batch size=1024, batch size must = 1;"),
-    ]
-
+        ((1024, 64), (1, 64), "batch size=1024, batch size must = 1;"),
+    ],
+)
+def test_fullyconnected_failure(shape, weight_shape, err_msg):
+    """Check Fully Connected error messages."""
     np.random.seed(0)
-    for (
+
+    dtype = "uint8"
+
+    model, _ = _get_model(
         shape,
         weight_shape,
-        input_zp,
-        input_sc,
-        kernel_zp,
-        kernel_sc,
-        output_zp,
-        output_sc,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
         dtype,
-        err_msg,
-    ) in trials:
-        model, _ = _get_model(
-            shape,
-            weight_shape,
-            input_zp,
-            input_sc,
-            kernel_zp,
-            kernel_sc,
-            output_zp,
-            output_sc,
-            dtype,
-        )
-        model = tei.make_ethosn_composite(model, "ethos-n.qnn_fc")
-        mod = tei.make_ethosn_partition(model)
-        tei.test_error(mod, {}, err_msg)
+    )
+    model = tei.make_ethosn_composite(model, "ethos-n.qnn_fc")
+    mod = tei.make_ethosn_partition(model)
+    tei.test_error(mod, {}, err_msg)
+
+
+@requires_ethosn
+def test_fullyconnected_scale_out_of_range():
+    """Check Fully Connected out of range scale error message."""
+    np.random.seed(0)
+
+    input_sc = 1024
+    kernel_sc = 1024
+    output_sc = 1
+
+    model, _ = _get_model(
+        (1, 64),
+        (1, 64),
+        0,
+        input_sc,
+        0,
+        kernel_sc,
+        0,
+        output_sc,
+        "uint8",
+    )
+    model = tei.make_ethosn_composite(model, "ethos-n.qnn_fc")
+    mod = tei.make_ethosn_partition(model)
+    expected_error_msg = (
+        "Overall scale (of the input * weights / output) should be in the range (2^-32, 65536)"
+    )
+    tei.test_error(mod, {}, expected_error_msg)

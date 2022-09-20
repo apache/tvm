@@ -61,7 +61,7 @@ RootNodeContainer::RootNodeContainer(ObjectRef root_node) {
 //     });
 // \endcode
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch([](TracedObject<RootNodeContainer> obj, IRDocsifier p) -> Doc {
+    .set_dispatch<RootNodeContainer>([](TracedObject<RootNodeContainer> obj, IRDocsifier p) -> Doc {
       String top_dispatch_token = p->dispatch_tokens.back();
       ICHECK_NE(top_dispatch_token, "");
       ICHECK(false) << "Printing IR " << top_dispatch_token << " is not implemented.";

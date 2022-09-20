@@ -44,59 +44,59 @@ def _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype):
 
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
-def test_sigmoid(dtype):
-    """Compare Sigmoid output with TVM."""
-
-    trials = [
+@pytest.mark.parametrize(
+    "shape",
+    [
         (1, 16, 16, 16),
         (1, 8, 8),
-    ]
-
+    ],
+)
+def test_sigmoid(dtype, shape):
+    """Compare Sigmoid output with TVM."""
     np.random.seed(0)
-    for shape in trials:
-        inputs = {
-            "a": tvm.nd.array(
-                np.random.randint(
-                    np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype
-                )
-            ),
-        }
-        outputs = []
-        for npu in [False, True]:
-            for _ in range(1, 2):
-                if dtype == "uint8":
-                    input_zp = 0
-                    output_zp = 0
-                else:
-                    input_zp = 127
-                    output_zp = -128
-                model = _get_model(shape, input_zp, 0.02, output_zp, 1.0 / 256.0, dtype)
-                mod = tei.make_module(model, [])
-                outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
 
-        tei.verify(outputs, dtype, 1)
+    inputs = {
+        "a": tvm.nd.array(
+            np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype)
+        ),
+    }
+    outputs = []
+    for npu in [False, True]:
+        for _ in range(1, 2):
+            if dtype == "uint8":
+                input_zp = 0
+                output_zp = 0
+            else:
+                input_zp = 127
+                output_zp = -128
+            model = _get_model(shape, input_zp, 0.02, output_zp, 1.0 / 256.0, dtype)
+            mod = tei.make_module(model, [])
+            outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+
+    tei.verify(outputs, dtype, 1)
 
 
 @requires_ethosn
-@pytest.mark.parametrize("dtype", ["uint8", "int8"])
-def test_sigmoid_failure(dtype):
-    """Check Sigmoid error messages."""
-
-    test_zp = 0 if dtype == "uint8" else -128
-    trials = [
-        ((2, 4, 4, 4), 64, 0.2, test_zp, 1 / 256, "batch size=2, batch size must = 1"),
+@pytest.mark.parametrize(
+    "shape,input_zp,input_sc,output_zp,output_sc,err_msg",
+    [
+        ((2, 4, 4, 4), 64, 0.2, 0, 1 / 256, "batch size=2, batch size must = 1"),
         (
             (1, 4, 4, 4),
             64,
             0.2,
             3,
             1,
-            f"output quantization params=(3, 1), must = ({test_zp}, 1/256)",
+            "output quantization params=(3, 1), must = (0, 1/256)",
         ),
-    ]
+    ],
+)
+def test_sigmoid_failure(shape, input_zp, input_sc, output_zp, output_sc, err_msg):
+    """Check Sigmoid error messages."""
 
-    for shape, input_zp, input_sc, output_zp, output_sc, err_msg in trials:
-        model = _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype)
-        model = tei.make_ethosn_composite(model, "ethos-n.qnn_sigmoid")
-        mod = tei.make_ethosn_partition(model)
-        tei.test_error(mod, {}, err_msg)
+    dtype = "uint8"
+
+    model = _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype)
+    model = tei.make_ethosn_composite(model, "ethos-n.qnn_sigmoid")
+    mod = tei.make_ethosn_partition(model)
+    tei.test_error(mod, {}, err_msg)

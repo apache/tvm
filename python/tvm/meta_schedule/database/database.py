@@ -17,12 +17,16 @@
 """TuningRecord database"""
 from typing import Any, Callable, List, Optional, Union
 
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
+
 from tvm._ffi import register_object
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
 from tvm.target import Target
 from tvm.tir.schedule import Schedule, Trace
-from typing_extensions import Literal  # pylint: disable=wrong-import-order
 
 from .. import _ffi_api
 from ..arg_info import ArgInfo
@@ -374,6 +378,9 @@ class _PyDatabase(Database):
         f_commit_tuning_record: Callable = None,
         f_get_top_k: Callable = None,
         f_get_all_tuning_records: Callable = None,
+        f_query_tuning_record: Callable = None,
+        f_query_schedule: Callable = None,
+        f_query_ir_module: Callable = None,
         f_size: Callable = None,
     ):
         """Constructor."""
@@ -385,6 +392,9 @@ class _PyDatabase(Database):
             f_commit_tuning_record,
             f_get_top_k,
             f_get_all_tuning_records,
+            f_query_tuning_record,
+            f_query_schedule,
+            f_query_ir_module,
             f_size,
         )
 
@@ -405,6 +415,9 @@ class PyDatabase:
             "commit_tuning_record",
             "get_top_k",
             "get_all_tuning_records",
+            "query_tuning_record",
+            "query_schedule",
+            "query_ir_module",
             "__len__",
         ],
     }
@@ -474,6 +487,78 @@ class PyDatabase:
         """
         raise NotImplementedError
 
+    def query_tuning_record(
+        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
+    ) -> Optional[TuningRecord]:
+        """Query a tuning record from the database.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        target : Target
+            The target to be searched for.
+        workload_name : Optional[str]
+            The workload name to be searched for.
+
+        Returns
+        -------
+        record : Optional[TuningRecord]
+            The tuning record corresponding to the given workload.
+        """
+        # Using self._outer to replace the self pointer
+        return _ffi_api.DatabaseQueryTuningRecord(  # type: ignore # pylint: disable=no-member
+            self._outer(), mod, target, workload_name  # type: ignore # pylint: disable=no-member
+        )
+
+    def query_schedule(
+        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
+    ) -> Optional[Schedule]:
+        """Query a schedule from the database.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        target : Target
+            The target to be searched for.
+        workload_name : Optional[str]
+            The workload name to be searched for.
+
+        Returns
+        -------
+        schedule : Optional[Schedule]
+            The schedule corresponding to the given workload.
+        """
+        # Using self._outer to replace the self pointer
+        return _ffi_api.DatabaseQuerySchedule(  # type: ignore # pylint: disable=no-member
+            self._outer(), mod, target, workload_name  # type: ignore # pylint: disable=no-member
+        )
+
+    def query_ir_module(
+        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
+    ) -> Optional[IRModule]:
+        """Query an IRModule from the database.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        target : Target
+            The target to be searched for.
+        workload_name : Optional[str]
+            The workload name to be searched for.
+
+        Returns
+        -------
+        mod : Optional[IRModule]
+            The IRModule corresponding to the given workload.
+        """
+        # Using self._outer to replace the self pointer
+        return _ffi_api.DatabaseQueryIRModule(  # type: ignore # pylint: disable=no-member
+            self._outer(), mod, target, workload_name  # type: ignore # pylint: disable=no-member
+        )
+
     def __len__(self) -> int:
         """Get the number of records in the database.
 
@@ -483,3 +568,38 @@ class PyDatabase:
             The number of records in the database
         """
         raise NotImplementedError
+
+
+def create(  # pylint: disable=keyword-arg-before-vararg
+    kind: Union[
+        Literal[
+            "json",
+            "memory",
+            "union",
+            "ordered_union",
+        ],
+        Callable[[Schedule], bool],
+    ] = "json",
+    *args,
+    **kwargs,
+) -> Database:
+    """Create a Database."""
+    from . import (  # pylint: disable=import-outside-toplevel
+        JSONDatabase,
+        MemoryDatabase,
+        OrderedUnionDatabase,
+        ScheduleFnDatabase,
+        UnionDatabase,
+    )
+
+    if callable(kind):
+        return ScheduleFnDatabase(kind, *args, **kwargs)  # type: ignore
+    if kind == "json":
+        return JSONDatabase(*args, **kwargs)
+    if kind == "memory":
+        return MemoryDatabase(*args, **kwargs)  # type: ignore
+    if kind == "union":
+        return UnionDatabase(*args, **kwargs)  # type: ignore
+    if kind == "ordered_union":
+        return OrderedUnionDatabase(*args, **kwargs)  # type: ignore
+    raise ValueError(f"Unknown Database: {kind}")

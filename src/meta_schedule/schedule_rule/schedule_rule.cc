@@ -33,13 +33,20 @@ Array<tir::Schedule> PyScheduleRuleNode::Apply(const tir::Schedule& sch,
   return f_apply(sch, block);
 }
 
+ScheduleRule PyScheduleRuleNode::Clone() const {
+  ICHECK(f_clone != nullptr) << "PyScheduleRule's Clone method not implemented!";
+  return f_clone();
+}
+
 ScheduleRule ScheduleRule::PyScheduleRule(
     PyScheduleRuleNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
     PyScheduleRuleNode::FApply f_apply,                                             //
+    PyScheduleRuleNode::FClone f_clone,                                             //
     PyScheduleRuleNode::FAsString f_as_string) {
   ObjectPtr<PyScheduleRuleNode> n = make_object<PyScheduleRuleNode>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
+  n->f_clone = std::move(f_clone);
   n->f_as_string = std::move(f_as_string);
   return ScheduleRule(n);
 }
@@ -60,6 +67,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleInitializeWithTuneContext")
     .set_body_method<ScheduleRule>(&ScheduleRuleNode::InitializeWithTuneContext);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleApply")
     .set_body_method<ScheduleRule>(&ScheduleRuleNode::Apply);
+TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleClone")
+    .set_body_method<ScheduleRule>(&ScheduleRuleNode::Clone);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRulePyScheduleRule")
     .set_body_typed(ScheduleRule::PyScheduleRule);
 

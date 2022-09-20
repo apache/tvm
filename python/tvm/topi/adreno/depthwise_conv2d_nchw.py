@@ -33,50 +33,22 @@ from .utils import (
 )
 
 
-@autotvm.register_topi_compute("depthwise_conv2d_nchwc.image2d")
-def depthwise_conv2d_nchwc(cfg, data, kernel, strides, padding, dilation, out_dtype="float16"):
-    """Compute depthwise_conv2d with NCHWc layout"""
-    args = {"shared": False, "accumulator": "float16"}
-    return compute_depthwise_conv2d_NCHWc_KCRSk(
-        data, kernel, strides, padding, dilation, out_dtype, args=args
-    )
-
-
-@autotvm.register_topi_compute("depthwise_conv2d_nchwc_acc32.image2d")
-def depthwise_conv2d_nchwc_acc32(
-    cfg, data, kernel, strides, padding, dilation, out_dtype="float16"
-):
-    """Compute depthwise_conv2d with NCHWc layout"""
-    args = {"shared": False, "accumulator": "float32"}
-    return compute_depthwise_conv2d_NCHWc_KCRSk(
-        data, kernel, strides, padding, dilation, out_dtype, args=args
-    )
-
-
 @autotvm.register_topi_schedule("depthwise_conv2d_nchwc.image2d")
 def schedule_depthwise_conv2d_nchwc(cfg, outs):
-    return schedule_depthwise_conv2d_nchwc_impl(cfg, outs, tag="cast_from_acc16")
-
-
-@autotvm.register_topi_schedule("depthwise_conv2d_nchwc_acc32.image2d")
-def schedule_depthwise_conv2d_nchwc_acc32(cfg, outs):
-    return schedule_depthwise_conv2d_nchwc_impl(cfg, outs, tag="cast_from_acc32")
-
-
-def schedule_depthwise_conv2d_nchwc_impl(cfg, outs, tag):
     """Create the schedule for depthwise conv2d_nchw4c_ohwi4o"""
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == tag:
+        if op.tag == "adreno_dw_conv2d_latest_op":
             schedule_depthwise_conv2d_NCHWc_KCRSk(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)
     return s
 
 
-def compute_depthwise_conv2d_NCHWc_KCRSk(Input, Filter, stride, padding, dilation, out_dtype, args):
+@autotvm.register_topi_compute("depthwise_conv2d_nchwc.image2d")
+def depthwise_conv2d_nchwc(cfg, Input, Filter, stride, padding, dilation, out_dtype):
     """
     Depthwise convolution operator in NCHWc layout.
     Algo:
@@ -183,10 +155,10 @@ def compute_depthwise_conv2d_NCHWc_KCRSk(Input, Filter, stride, padding, dilatio
                     ffb,
                 ]
                 * Filter[ffc // in_filter_channels, ffc % in_filter_channels, ry, rx, ffb]
-            ).astype(args["accumulator"]),
+            ).astype(out_dtype),
             axis=[ry, rx],
         ),
-        tag="depthwise_conv2d_nchwc_kcrsk",
+        tag="depthwise_conv2d_nchwc",
     )
 
     if convert_from4d and not autotvm.GLOBAL_SCOPE.in_tuning:
@@ -198,13 +170,13 @@ def compute_depthwise_conv2d_NCHWc_KCRSk(Input, Filter, stride, padding, dilatio
         return te.compute(
             (batch, out_channles, out_height_orig, out_width_orig),
             lambda n, c, y, x: dummy_cast[n, c // out_channel_block, y, x, c % out_channel_block],
-            tag="cast_from_acc" + args["accumulator"][-2:],
+            tag="adreno_dw_conv2d_latest_op",
         )
     else:
         return te.compute(
             (batch, out_channel_chunks, out_height_orig, out_width_orig, out_channel_block),
             lambda n, ffc, y, x, ffb: conv[n, ffc, y, x, ffb].astype(out_dtype),
-            tag="cast_from_acc" + args["accumulator"][-2:],
+            tag="adreno_dw_conv2d_latest_op",
         )
 
 

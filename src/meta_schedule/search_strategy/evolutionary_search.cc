@@ -431,6 +431,24 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     ICHECK(this->state_ != nullptr);
     this->state_->NotifyRunnerResults(measure_candidates, results);
   }
+
+  SearchStrategy Clone() const final {
+    ObjectPtr<EvolutionarySearchNode> n = make_object<EvolutionarySearchNode>();
+    n->max_trials_per_task = this->max_trials_per_task;
+    n->num_trials_per_iter = this->num_trials_per_iter;
+    n->population_size = this->population_size;
+    n->num_empty_iters_before_early_stop = this->num_empty_iters_before_early_stop;
+    n->init_measured_ratio = this->init_measured_ratio;
+    n->init_min_unmeasured = this->init_min_unmeasured;
+    n->genetic_num_iters = this->genetic_num_iters;
+    n->genetic_mutate_prob = this->genetic_mutate_prob;
+    n->genetic_max_fail_count = this->genetic_max_fail_count;
+    n->eps_greedy = this->eps_greedy;
+    n->context_ = this->context_;
+    n->rand_state_ = this->rand_state_;
+    n->state_ = nullptr;  // cleared the state
+    return SearchStrategy(n);
+  }
 };
 
 std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int num) {
