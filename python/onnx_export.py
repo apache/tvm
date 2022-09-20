@@ -107,12 +107,6 @@ if __name__ == '__main__':
     # dev = tvm.device((str(target)), 0)
     # module = runtime.GraphModule(lib["default"](dev))
     module, dev = load_graph_exec(args.device, dso_name)
-
-    priorbox = PriorBox(cfg, image_size=(480, 640))
-    priors = priorbox.forward()
-    # priors = priors.to(torch.device("cpu"))
-    prior_data = priors
-
     # load image from cv2
     img_raw = cv2.imread(args.input_img)
     face_img = np.float32(img_raw)
@@ -132,6 +126,13 @@ if __name__ == '__main__':
     loc = module.get_output(0).numpy()
     conf = module.get_output(1).numpy()
     landms = module.get_output(2).numpy()
+
+    priorbox = PriorBox(cfg, image_size=(480, 640))
+    priors = priorbox.forward()
+    # priors = priors.to(torch.device("cpu"))
+    prior_data = priors
+
+
 
     boxes = decode(torch.tensor(loc.squeeze(0)), prior_data,
                    cfg["variance"])

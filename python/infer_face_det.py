@@ -195,66 +195,6 @@ def main(args):
     img_raw = cv2.imread(args.input_img)
     face_img_origin = np.float32(img_raw)
     dets = face_detect(img_raw, cfg, priors, module, dev)
-    # face_img = np.float32(img_raw)
-    # face_img_origin = np.float32(img_raw)
-    # scale = np.array([face_img.shape[1], face_img.shape[0], face_img.shape[1], face_img.shape[0]])
-    # face_img = cv2.resize(face_img, (640, 480))
-    # face_img = np.transpose(face_img, (2, 0, 1))
-    # face_img = face_img.astype(dtype)
-    # face_img = np.expand_dims(face_img, 0)
-    # data_tvm = tvm.nd.array(face_img, dev)
-    # module.run()
-    # module_rec.run()
-    # module_rec.run()
-    # module.set_input("input", data_tvm)
-    #
-    # module.run()
-    #
-    # num_inps = module.get_num_outputs()
-    # loc = module.get_output(0).numpy()
-    # conf = module.get_output(1).numpy()
-    # landms = module.get_output(2).numpy()
-    #
-    # boxes = decode(np.array(loc.squeeze(0)), priors,
-    #                cfg["variance"])
-    # boxes = boxes * scale
-    # # boxes = boxes.cpu().numpy()
-    # scores = conf.squeeze(0)[:, 1]
-    # landms = decode_landm(np.array(landms.squeeze(0)),
-    #                       priors,
-    #                       cfg["variance"])
-    # scale1 = np.array([img_raw.shape[1], img_raw.shape[0], img_raw.shape[1], img_raw.shape[0],
-    #                    img_raw.shape[1], img_raw.shape[0], img_raw.shape[1], img_raw.shape[0],
-    #                    img_raw.shape[1], img_raw.shape[0]])
-    #
-    # landms = landms * scale1
-    # # ignore low scores
-    # inds = np.where(scores > 0.5)[0]
-    # boxes = boxes[inds]
-    # landms = landms[inds]
-    # scores = scores[inds]
-    #
-    # # keep top-K before NMS
-    # top_k = 1000
-    # order = scores.argsort()[::-1][:top_k]
-    # boxes = boxes[order]
-    # landms = landms[order]
-    # scores = scores[order]
-    #
-    # # do NMS
-    # nms_threshold = 0.4
-    # dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
-    # keep = py_cpu_nms(dets, nms_threshold)
-    # # keep = nms(dets, args.nms_threshold,force_cpu=args.cpu)
-    # dets = dets[keep, :]
-    # landms = landms[keep]
-    #
-    # # keep top-K faster NMS
-    # keep_top_k = 750
-    # dets = dets[:keep_top_k, :]
-    # landms = landms[:keep_top_k, :]
-    #
-    # dets = np.concatenate((dets, landms), axis=1)
 
     for det in dets:
 
