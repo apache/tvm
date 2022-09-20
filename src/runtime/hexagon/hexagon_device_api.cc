@@ -33,6 +33,7 @@
 
 #include "../workspace_pool.h"
 #include "hexagon_common.h"
+#include "hexagon_user_dma.h"
 
 namespace tvm {
 namespace runtime {
@@ -203,6 +204,30 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVM
   int error_code = hexagon_user_dma_1d_sync(dst, src, size);
   CHECK_EQ(error_code, 0);
 
+  *rv = static_cast<int32_t>(0);
+});
+
+TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int queue_id = args[0];
+  ICHECK(queue_id == 0 && "Hexagon supports just a single asynchronous queue for DMA");
+  void* dst = args[1];
+  void* src = args[2];
+  int size = args[3];
+  ICHECK(size > 0);
+
+  int ret = DMA_RETRY;
+  do {
+    ret = HexagonUserDMA::Get().Copy(dst, src, size);
+  } while (ret == DMA_RETRY);
+  *rv = static_cast<int32_t>(ret);
+});
+
+TVM_REGISTER_GLOBAL("device_api.hexagon.dma_wait").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int queue_id = args[0];
+  ICHECK(queue_id == 0 && "Hexagon supports just a single asynchronous queue for DMA");
+  int inflight = args[1];
+  ICHECK(inflight >= 0);
+  HexagonUserDMA::Get().Wait(inflight);
   *rv = static_cast<int32_t>(0);
 });
 
