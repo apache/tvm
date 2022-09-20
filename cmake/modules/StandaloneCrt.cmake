@@ -15,7 +15,38 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
 if(USE_MICRO)
+
+if(MSVC)
+  # dummy custom target for now so we don't need to edit root CMakeLists.txt when testing various build methods
+  add_custom_target(host_standalone_crt)
+
+#[====[
+  set(CRT_CONFIG, "src/runtime/micro/crt_config.h")
+
+  add_library(host_standalone_crt STATIC
+              src/runtime/crt/microtvm_rpc_common/session.cc
+              src/runtime/crt/microtvm_rpc_common/frame_buffer.cc
+              src/runtime/crt/microtvm_rpc_common/framing.cc
+              src/runtime/crt/microtvm_rpc_common/write_stream.cc)
+
+  target_include_directories(host_standalone_crt PRIVATE 3rdparty/libcrc/include src/runtime/micro)
+]====]
+
+  include_directories(SYSTEM 
+                      3rdparty/libcrc/include 
+                      src/runtime/micro)
+
+  tvm_file_glob(GLOB 
+                HOST_STANDALONE_CRT_SRCS 
+                src/runtime/crt/microtvm_rpc_common/*.cc
+                3rdparty/libcrc/src/*.c)
+
+  list(APPEND RUNTIME_SRCS ${HOST_STANDALONE_CRT_SRCS})
+  
+else()
+
   message(STATUS "Build standalone CRT for microTVM")
   tvm_file_glob(GLOB crt_srcs src/runtime/crt/**)
 
@@ -149,4 +180,6 @@ if(USE_MICRO)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${TVM_CRT_LINKER_LIB})
   endif()
 
-endif(USE_MICRO)
+endif()
+
+endif()

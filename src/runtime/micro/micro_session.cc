@@ -168,6 +168,12 @@ class MicroTransportChannel : public RPCChannel {
   static constexpr const int kNumRandRetries = 10;
   static std::atomic<unsigned int> random_seed;
 
+  #if defined(_MSC_VER)
+  inline int GetRandomNumber(unsigned int* seed) { srand(*seed); }
+  #else
+  inline int GetRandomNumber(unsigned int* seed) { rand_r(seed); }
+  #endif
+
   inline uint8_t GenerateRandomNonce() {
     // NOTE: this is bad concurrent programming but in practice we don't really expect race
     // conditions here, and even if they occur we don't particularly care whether a competing
@@ -176,11 +182,20 @@ class MicroTransportChannel : public RPCChannel {
     // confusion.
     unsigned int seed = random_seed.load();
     if (seed == 0) {
-      seed = (unsigned int)time(nullptr);
+#if defined(_MSC_VER)
+        seed = (unsigned int)time(nullptr);
+        srand(seed);
+#else
+        seed = (unsigned int)time(nullptr);
+#endif
     }
     uint8_t initial_nonce = 0;
     for (int i = 0; i < kNumRandRetries && initial_nonce == 0; ++i) {
+#if defined(_MSC_VER)
+      initial_nonce = rand();
+#else
       initial_nonce = rand_r(&seed);
+#endif
     }
     random_seed.store(seed);
     ICHECK_NE(initial_nonce, 0) << "rand() does not seem to be producing random values";
