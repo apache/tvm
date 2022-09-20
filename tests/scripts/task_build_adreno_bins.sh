@@ -18,6 +18,7 @@
 
 set -e
 set -u
+set -x
 
 output_directory=$(realpath ${PWD}/build-adreno-target)
 rm -rf ${output_directory}
