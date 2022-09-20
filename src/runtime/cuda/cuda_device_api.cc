@@ -252,7 +252,7 @@ TVM_REGISTER_GLOBAL("device_api.cuda_host").set_body([](TVMArgs args, TVMRetValu
   *rv = static_cast<void*>(ptr);
 });
 
-class GPUTimerNode : public TimerNode {
+class CUDATimerNode : public TimerNode {
  public:
   virtual void Start() {
     // This initial cudaEventRecord is sometimes pretty slow (~100us). Does
@@ -266,27 +266,27 @@ class GPUTimerNode : public TimerNode {
     CUDA_CALL(cudaEventElapsedTime(&milliseconds, start_, stop_));
     return milliseconds * 1e6;
   }
-  virtual ~GPUTimerNode() {
+  virtual ~CUDATimerNode() {
     CUDA_CALL(cudaEventDestroy(start_));
     CUDA_CALL(cudaEventDestroy(stop_));
   }
-  GPUTimerNode() {
+  CUDATimerNode() {
     CUDA_CALL(cudaEventCreate(&start_));
     CUDA_CALL(cudaEventCreate(&stop_));
   }
 
-  static constexpr const char* _type_key = "GPUTimerNode";
-  TVM_DECLARE_FINAL_OBJECT_INFO(GPUTimerNode, TimerNode);
+  static constexpr const char* _type_key = "CUDATimerNode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(CUDATimerNode, TimerNode);
 
  private:
   cudaEvent_t start_;
   cudaEvent_t stop_;
 };
 
-TVM_REGISTER_OBJECT_TYPE(GPUTimerNode);
+TVM_REGISTER_OBJECT_TYPE(CUDATimerNode);
 
 TVM_REGISTER_GLOBAL("profiling.timer.cuda").set_body_typed([](Device dev) {
-  return Timer(make_object<GPUTimerNode>());
+  return Timer(make_object<CUDATimerNode>());
 });
 
 TVM_DLL String GetCudaFreeMemory() {

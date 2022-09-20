@@ -89,9 +89,22 @@ TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](Device dev) {
   return Timer(make_object<CPUTimerNode>());
 });
 
+// keep track of which timers are not defined but we have already warned about
+std::set<DLDeviceType> seen_devices;
+std::mutex seen_devices_lock;
+
 Timer Timer::Start(Device dev) {
   auto f = Registry::Get(std::string("profiling.timer.") + DeviceName(dev.device_type));
   if (f == nullptr) {
+    {
+      std::lock_guard<std::mutex> lock(seen_devices_lock);
+      if (seen_devices.find(dev.device_type) == seen_devices.end()) {
+        LOG(WARNING)
+            << "No timer implementation for " << DeviceName(dev.device_type)
+            << ", using default timer instead. It may be inaccurate or have extra overhead.";
+        seen_devices.insert(dev.device_type);
+      }
+    }
     Timer t = DefaultTimer(dev);
     t->Start();
     return t;
