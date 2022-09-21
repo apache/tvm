@@ -840,6 +840,10 @@ class PyTorchOpConverter:
             return qnn_torch.quantized_relu(data, input_zero_point)
         return _op.nn.relu(data)
 
+    def relu6(self, inputs, input_types):
+        data = inputs[0]
+        return _op.tensor.clip(data, 0.0, 6.0)
+
     def prelu(self, inputs, input_types):
         # Reference: https://pytorch.org/docs/stable/generated/torch.nn.PReLU.html#torch.nn.PReLU
         data = inputs[0]
@@ -3477,6 +3481,7 @@ class PyTorchOpConverter:
             "aten::where": self.where,
             "aten::topk": self.topk,
             "aten::relu": self.relu,
+            "aten::relu6": self.relu6,
             "aten::prelu": self.prelu,
             "aten::leaky_relu": self.leaky_relu,
             "aten::elu": self.elu,
