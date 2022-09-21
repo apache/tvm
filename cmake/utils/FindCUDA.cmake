@@ -53,8 +53,14 @@ macro(find_cuda use_cuda use_cudnn)
         ${CUDA_TOOLKIT_ROOT_DIR}/lib/Win32)
     else(MSVC)
       find_library(CUDA_CUDART_LIBRARY cudart
+              PATHS
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
         ${CUDA_TOOLKIT_ROOT_DIR}/lib)
+      if (NOT CUDA_CUDART_LIBRARY)
+        message(STATUS "cannot find cudart")
+        set(CUDA_CUDART_LIBRARY
+                "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libcudart.so")
+      endif ()
     endif(MSVC)
   endif()
 
@@ -80,11 +86,17 @@ macro(find_cuda use_cuda use_cudnn)
         NO_DEFAULT_PATH)
       if(_CUDA_CUDA_LIBRARY)
         set(CUDA_CUDA_LIBRARY ${_CUDA_CUDA_LIBRARY})
+      else()
+        set(CUDA_CUDA_LIBRARY "${CUDA_TOOLKIT_ROOT_DIR}/targets/x86_64-linux/lib/stubs/libcuda.so")
       endif()
       find_library(CUDA_NVRTC_LIBRARY nvrtc
         PATHS ${CUDA_TOOLKIT_ROOT_DIR}
         PATH_SUFFIXES lib lib64 targets/x86_64-linux/lib targets/x86_64-linux/lib/stubs lib64/stubs lib/x86_64-linux-gnu
         NO_DEFAULT_PATH)
+      if (NOT CUDA_NVRTC_LIBRARY)
+        set(CUDA_NVRTC_LIBRARY
+                "${CUDA_TOOLKIT_ROOT_DIR}/targets/x86_64-linux/lib/stubs/libnvrtc.so")
+      endif ()
       find_library(CUDA_CURAND_LIBRARY curand
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
         ${CUDA_TOOLKIT_ROOT_DIR}/lib
