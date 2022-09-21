@@ -427,6 +427,38 @@ TVM_DLL void PreOrderVisit(const ObjectRef& stmt_or_expr,
  * \return The renewed func.
  */
 TVM_DLL PrimFunc RenewDefs(const PrimFunc& func);
+
+/*!
+ * \brief Check if the statement contains the specified node type.
+ *
+ * This utility potentially walks the entire statement, and should
+ * therefore not be used if it could otherwise be merged with another
+ * pass.
+ *
+ * \param stmt The statement to be searched
+ * \return Whether stmt contains Node
+ */
+template <typename Node, typename = std::enable_if_t<std::is_base_of_v<StmtNode, Node>>>
+bool ContainsNode(const Stmt& stmt) {
+  struct Visitor : StmtVisitor {
+    // Early bail-out, if we already found the node.
+    void VisitStmt(const Stmt& stmt) {
+      if (contains_node) {
+        return;
+      }
+      StmtVisitor::VisitStmt(stmt);
+    }
+
+    void VisitStmt_(const Node* block) override { contains_node = true; }
+
+    bool contains_node{false};
+  };
+
+  Visitor visitor;
+  visitor(stmt);
+  return visitor.contains_node;
+}
+
 }  // namespace tir
 }  // namespace tvm
 
