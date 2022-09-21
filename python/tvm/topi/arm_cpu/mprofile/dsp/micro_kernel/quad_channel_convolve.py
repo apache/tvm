@@ -78,10 +78,6 @@ def intrin_quad_channel_convolve(tensor_w, channels, kernel_h, kernel_w, suffix)
 
 
 def quad_channel_convolve_impl(tensor_w, channels, kernel_h, kernel_w, suffix):
-    """Emits C code for quad_channel_convolve. Note that while intrin_quad_channel_convolve supports
-    any kernel size, this function only supports 3x3 kernels (this could be fixed with work)."""
-    assert kernel_h == kernel_w == 3
-
     return textwrap.dedent(
         (
             f"""
@@ -122,42 +118,16 @@ def quad_channel_convolve_impl(tensor_w, channels, kernel_h, kernel_w, suffix):
           uint32_t sum_c2 = 0;
           uint32_t sum_c3 = 0;
 
-          TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
-            packed_kernel,
-            *tensor,
-            sum_c0, sum_c1, sum_c2, sum_c3)
-          TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
-            packed_kernel,
-            *(tensor + {channels // 4}),
-            sum_c0, sum_c1, sum_c2, sum_c3)
-          TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
-            packed_kernel,
-            *(tensor + {(2) * channels // 4}),
-            sum_c0, sum_c1, sum_c2, sum_c3)
-          TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
-            packed_kernel,
-            *(tensor + {tensor_w * (channels // 4)}),
-            sum_c0, sum_c1, sum_c2, sum_c3)
-          TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
-            packed_kernel,
-            *(tensor + {(tensor_w + 1) * (channels // 4)}),
-            sum_c0, sum_c1, sum_c2, sum_c3)
-          TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
-            packed_kernel,
-            *(tensor + {(tensor_w + 2) * (channels // 4)}),
-            sum_c0, sum_c1, sum_c2, sum_c3)
-          TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
-            packed_kernel,
-            *(tensor + {(2 * tensor_w) * (channels // 4)}),
-            sum_c0, sum_c1, sum_c2, sum_c3)
-          TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
-            packed_kernel,
-            *(tensor + {(2 * tensor_w + 1) * (channels // 4)}),
-            sum_c0, sum_c1, sum_c2, sum_c3)
-          TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
-            packed_kernel,
-            *(tensor + {(2 * tensor_w + 2) * (channels // 4)}),
-            sum_c0, sum_c1, sum_c2, sum_c3)
+          #pragma GCC unroll 3
+          for (int i = 0; i < {kernel_h}; i++) {{
+            #pragma GCC unroll 3
+            for (int j = 0; j < {kernel_w}; j++) {{
+              TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
+                packed_kernel,
+                *(tensor + j * {channels // 4} + i * {tensor_w * (channels // 4)}),
+                sum_c0, sum_c1, sum_c2, sum_c3)
+            }}
+          }}
 
           out[0] = sum_c0;
           out[1] = sum_c1;

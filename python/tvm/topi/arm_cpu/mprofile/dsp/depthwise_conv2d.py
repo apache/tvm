@@ -28,69 +28,6 @@ from .micro_kernel.quad_channel_convolve import (
     quad_channel_convolve_impl,
 )
 
-# For depthwise_conv2d, kernels are normally given in HWOI format,
-# which when input_channels = output channels, we will call HWC.
-# This is bad, as we want "related" parts of the kernel to be next
-# to each other, so we can use __SMLAD later.
-#
-# Consider a 3x3 int8 kernel with no bias vector, with eight
-# channels. Let us specify entries in the kernel as H_W_C - i.e.
-# where 0_2_3 represents the rightmost position in the first row
-# of channel 4/8 (4 because of zero indexing). Each [ ] represents
-# a 32-bit integer. We currently store the kernel as:
-#
-# 0 ................................31
-# [ 0_0_0 || 0_0_1 || 0_0_2 || 0_0_3 ] [ 0_0_4 || 0_0_5 || 0_0_6 || 0_0_7 ]
-# [ 0_1_0 || 0_1_1 || 0_1_2 || 0_1_3 ] [ 0_1_4 || 0_1_5 || 0_1_6 || 0_1_7 ]
-# [ 0_2_0 || 0_2_1 || 0_2_2 || 0_2_3 ] [ 0_2_4 || 0_2_5 || 0_2_6 || 0_2_7 ]
-# [ 1_0_0 || 1_0_1 || 1_0_2 || 1_0_3 ] [ 1_0_4 || 1_0_5 || 1_0_6 || 1_0_7 ]
-# [ 1_1_0 || 1_1_1 || 1_1_2 || 1_1_3 ] [ 1_1_4 || 1_1_5 || 1_1_6 || 1_1_7 ]
-# [ 1_2_0 || 1_2_1 || 1_2_2 || 1_2_3 ] [ 1_2_4 || 1_2_5 || 1_2_6 || 1_2_7 ]
-# [ 2_0_0 || 2_0_1 || 2_0_2 || 2_0_3 ] [ 2_0_4 || 2_0_5 || 2_0_6 || 2_0_7 ]
-# [ 2_1_0 || 2_1_1 || 2_1_2 || 2_1_3 ] [ 2_1_4 || 2_1_5 || 2_1_6 || 2_1_7 ]
-# [ 2_2_0 || 2_2_1 || 2_2_2 || 2_2_3 ] [ 2_2_4 || 2_2_5 || 2_2_6 || 2_2_7 ]
-#
-# Let 0x00 be all zeros. We rearrange into:
-#
-# 0 ................................31
-# [ 0_0_0 || 0_0_1 || 0_1_0 || 0_1_1 ] [ 0_0_2 || 0_0_3 || 0_1_2 || 0_1_3 ]
-# [ 0_2_0 || 0_2_1 || 1_0_0 || 1_0_1 ] [ 0_2_2 || 0_2_3 || 1_0_2 || 1_0_3 ]
-# [ 1_1_0 || 1_1_1 || 1_2_0 || 1_2_1 ] [ 1_1_2 || 1_1_3 || 1_2_2 || 1_2_3 ]
-# [ 2_0_0 || 2_0_1 || 2_1_0 || 2_1_1 ] [ 2_0_2 || 2_0_3 || 2_1_2 || 2_1_3 ]
-# [ 2_2_0 || 2_2_1 || 0x000 || 0x000 ] [ 2_2_2 || 2_2_3 || 0x000 || 0x000 ]
-# [ 0_0_4 || 0_0_5 || 0_1_4 || 0_1_5 ] [ 0_0_6 || 0_0_7 || 0_1_6 || 0_1_7 ]
-# [ 0_2_4 || 0_2_5 || 1_0_4 || 1_0_5 ] [ 0_2_6 || 0_2_7 || 1_0_6 || 1_0_7 ]
-# [ 1_1_4 || 1_1_5 || 1_2_4 || 1_2_5 ] [ 1_1_6 || 1_1_7 || 1_2_6 || 1_2_7 ]
-# [ 2_0_4 || 2_0_5 || 2_1_4 || 2_1_5 ] [ 2_0_6 || 2_0_7 || 2_1_6 || 2_1_7 ]
-# [ 2_2_4 || 2_2_5 || 0x000 || 0x000 ] [ 2_2_6 || 2_2_7 || 0x000 || 0x000 ]
-#
-# This saves us six operations comapred to the original ordering, as we
-# do not need halfword packing instructions.
-#
-# This kernel re-arranging function will be used for 3x3 kernels (as that
-# is all this DSP implementation currently supports) but would work with
-# any M*N kernel such that M*N is odd.
-
-
-def _rearrange_kernel(kernel):
-    # Kernel must be HWC format.
-    kernel_h, kernel_w, channels, _ = get_const_tuple(kernel.shape)
-    assert channels % 4 == 0
-
-    # This restriction could be removed by only using tir.if_then_else to add padding
-    # zeros if (kernel_w * kernel_h) % 2 == 1, and filling completely otherwise.
-    assert (kernel_w * kernel_h) % 2 == 1
-
-    def fcompute(c_o, h, w, c_i):
-        return kernel[h, w, 4 * c_o + c_i, 0]
-
-    return te.compute(
-        (channels // 4, kernel_h, kernel_w, 4),
-        fcompute,
-        name="packed_kernel",
-    )
-
-
 def depthwise_conv2d_nhwc_dsp_compute(_cfg, data, kernel, strides, padding, dilation, out_dtype):
     """Compute function for v7e-m DSP instructions of DepthwiseConv2D. Has a lot of requirements
     for use - if not all apply, the fallback implementation will be used instead."""
