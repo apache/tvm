@@ -108,7 +108,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
     return layer_norm;
   };
   return tvm::te::compute(data->shape, layer_norm_func, name, tag);
-};
+}
 
 }  // namespace nn
 }  // namespace topi

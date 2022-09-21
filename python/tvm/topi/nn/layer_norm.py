@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Layer normalization operator."""
-import tvm
-from .. import tag, cpp
+from .. import cpp
 
 
 def layer_norm(data, gamma, beta, axis, epsilon=1e-5):
