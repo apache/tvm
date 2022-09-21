@@ -64,25 +64,10 @@ class ProjectOption(_ProjectOption):
 
         return super().__new__(cls, **kw)
 
-    def replace(self, **kw):
+    def replace(self, kw):
         """Update attributes associated to the project option."""
         updated_option = self
-        for key, val in kw.items():
-            if key == "choices":
-                updated_option = updated_option._replace(choices=val)
-            elif key == "default":
-                updated_option = updated_option._replace(default=val)
-            elif key == "type":
-                updated_option = updated_option._replace(type=val)
-            elif key == "required":
-                updated_option = updated_option._replace(required=val)
-            elif key == "optional":
-                updated_option = updated_option._replace(optional=val)
-            elif key == "help":
-                updated_option = updated_option._replace(help=val)
-            else:
-                raise ValueError("Attribute {} is not supported.".format(key))
-        return updated_option
+        return updated_option._replace(**kw)
 
 
 ServerInfo = collections.namedtuple(
@@ -832,7 +817,7 @@ def default_project_options(**kw) -> typing.List[ProjectOption]:
         option_found = False
         for ind, option in enumerate(options):
             if option.name == name:
-                options[ind] = option.replace(**config)
+                options[ind] = option.replace(config)
                 option_found = True
                 break
         if not option_found:

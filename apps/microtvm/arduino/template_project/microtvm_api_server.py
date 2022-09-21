@@ -161,12 +161,6 @@ class Handler(server.ProjectAPIHandler):
         "src/runtime/crt/tab",
     ]
 
-    FQBN_TOKEN = "<FQBN>"
-    VERBOSE_FLAG_TOKEN = "<VERBOSE_FLAG>"
-    ARUINO_CLI_CMD_TOKEN = "<ARUINO_CLI_CMD>"
-    BOARD_TOKEN = "<BOARD>"
-    BUILD_EXTRA_FLAGS_TOKEN = "<BUILD_EXTRA_FLAGS>"
-
     def _remove_unused_components(self, source_dir, project_type):
         unused_components = []
         if project_type == "example_project":
@@ -304,42 +298,79 @@ class Handler(server.ProjectAPIHandler):
         # It's probably a standard C/C++ header
         return include_path
 
-    def _cmsis_required(self, project_path: Union[str, pathlib.Path]) -> bool:
+    CMSIS_INCLUDE_HEADERS = [
+        "arm_nn_math_types.h",
+        "arm_nn_tables.h",
+        "arm_nn_types.h",
+        "arm_nnfunctions.h",
+        "arm_nnsupportfunctions.h",
+    ]
+
+    def _cmsis_required(self, project_path: pathlib.Path) -> bool:
         """Check if CMSIS dependency is required."""
         project_path = pathlib.Path(project_path)
         for path in (project_path / "src" / "model").iterdir():
             if path.is_file():
+                # Encoding is for reading C generated code which also includes hex numbers
                 with open(path, "r", encoding="ISO-8859-1") as lib_f:
                     lib_content = lib_f.read()
-                if any(
-                    header in lib_content
-                    for header in [
-                        "<arm_nnsupportfunctions.h>",
-                        "arm_nn_types.h",
-                        "arm_nnfunctions.h",
-                    ]
-                ):
+                if any(header in lib_content for header in self.CMSIS_INCLUDE_HEADERS):
                     return True
         return False
 
-    def _copy_cmsis(self, project_path: Union[str, pathlib.Path], cmsis_path: str):
+    def _copy_cmsis(self, project_path: pathlib.Path, cmsis_path: str):
         """Copy CMSIS header files to project.
         Note: We use this CMSIS package:https://www.arduino.cc/reference/en/libraries/arduino_cmsis-dsp/
         However, the latest release does not include header files that are copied in this function.
         """
         (project_path / "include" / "cmsis").mkdir()
         cmsis_path = get_cmsis_path(cmsis_path)
-        for item in [
-            "arm_nn_types.h",
-            "arm_nn_tables.h",
-            "arm_nnsupportfunctions.h",
-            "arm_nn_math_types.h",
-            "arm_nnfunctions.h",
-        ]:
+        for item in self.CMSIS_INCLUDE_HEADERS:
             shutil.copy2(
                 cmsis_path / "CMSIS" / "NN" / "Include" / item,
                 project_path / "include" / "cmsis" / item,
             )
+
+    # These tokens are used in the Makefile.template file.
+    # They are replaced with proper value in generate_project step.
+    FQBN_TOKEN = "<FQBN>"
+    VERBOSE_FLAG_TOKEN = "<VERBOSE_FLAG>"
+    ARUINO_CLI_CMD_TOKEN = "<ARUINO_CLI_CMD>"
+    BOARD_TOKEN = "<BOARD>"
+    BUILD_EXTRA_FLAGS_TOKEN = "<BUILD_EXTRA_FLAGS>"
+
+    def _populate_makefile(
+        self,
+        makefile_template_path: pathlib.Path,
+        makefile_path: pathlib.Path,
+        board: str,
+        verbose: bool,
+        arduino_cli_cmd: str,
+        build_extra_flags: str,
+    ):
+        """Generate Makefile from template."""
+        with open(makefile_path, "w") as makefile_f:
+            with open(makefile_template_path, "r") as makefile_template_f:
+                for line in makefile_template_f:
+                    if self.FQBN_TOKEN in line:
+                        line = line.replace(self.FQBN_TOKEN, self._get_fqbn(board))
+
+                    if self.VERBOSE_FLAG_TOKEN in line:
+                        if verbose:
+                            flag = "--verbose"
+                        else:
+                            flag = ""
+                        line = line.replace(self.VERBOSE_FLAG_TOKEN, flag)
+                    if self.ARUINO_CLI_CMD_TOKEN in line:
+                        line = line.replace(
+                            self.ARUINO_CLI_CMD_TOKEN, self._get_arduino_cli_cmd(arduino_cli_cmd)
+                        )
+                    if self.BOARD_TOKEN in line:
+                        line = line.replace(self.BOARD_TOKEN, board)
+                    if self.BUILD_EXTRA_FLAGS_TOKEN in line:
+                        line = line.replace(self.BUILD_EXTRA_FLAGS_TOKEN, build_extra_flags)
+
+                    makefile_f.write(line)
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # List all used project options
@@ -393,28 +424,14 @@ class Handler(server.ProjectAPIHandler):
             self._copy_cmsis(project_dir, cmsis_path)
 
         # Populate Makefile
-        with open(project_dir / MAKEFILE_FILENAME, "w") as makefile_f:
-            with open(API_SERVER_DIR / f"{MAKEFILE_FILENAME}.template", "r") as makefile_template_f:
-                for line in makefile_template_f:
-                    if self.FQBN_TOKEN in line:
-                        line = line.replace(self.FQBN_TOKEN, self._get_fqbn(board))
-
-                    if self.VERBOSE_FLAG_TOKEN in line:
-                        if verbose:
-                            flag = "--verbose"
-                        else:
-                            flag = ""
-                        line = line.replace(self.VERBOSE_FLAG_TOKEN, flag)
-                    if self.ARUINO_CLI_CMD_TOKEN in line:
-                        line = line.replace(
-                            self.ARUINO_CLI_CMD_TOKEN, self._get_arduino_cli_cmd(arduino_cli_cmd)
-                        )
-                    if self.BOARD_TOKEN in line:
-                        line = line.replace(self.BOARD_TOKEN, board)
-                    if self.BUILD_EXTRA_FLAGS_TOKEN in line:
-                        line = line.replace(self.BUILD_EXTRA_FLAGS_TOKEN, build_extra_flags)
-
-                    makefile_f.write(line)
+        self._populate_makefile(
+            API_SERVER_DIR / f"{MAKEFILE_FILENAME}.template",
+            project_dir / MAKEFILE_FILENAME,
+            board,
+            verbose,
+            arduino_cli_cmd,
+            build_extra_flags,
+        )
 
     def _get_arduino_cli_cmd(self, arduino_cli_cmd: str):
         if not arduino_cli_cmd:
@@ -526,7 +543,7 @@ class Handler(server.ProjectAPIHandler):
         with open(makefile_path) as makefile_f:
             line = makefile_f.readline()
             if "BOARD" in line:
-                board = line.replace(" ", "").replace("\n", "").replace("\r", "").split(":=")[1]
+                board = re.sub(r"\s", "", line).split(":=")[1]
                 return board
         raise RuntimeError("Board was not found in Makefile: {}".format(makefile_path))
 
