@@ -333,6 +333,15 @@ struct ReducerRegistry {
             CreateReducerGetter(
                 /*n_buffers=*/2,
                 [](const Array<Var>& x, const Array<Var>& y) {
+                  return Array<PrimExpr>{x[0] + y[0], x[1] + y[1]};
+                },
+                [](const Array<PrimExpr>& values) {
+                  return Array<PrimExpr>{make_const(values[0]->dtype, 0),
+                                         make_const(values[1]->dtype, 0)};
+                }),
+            CreateReducerGetter(
+                /*n_buffers=*/2,
+                [](const Array<Var>& x, const Array<Var>& y) {
                   PrimExpr idx = Select(x[1] >= y[1], x[0], y[0]);
                   PrimExpr val = Select(x[1] >= y[1], x[1], y[1]);
                   return Array<PrimExpr>{idx, val};

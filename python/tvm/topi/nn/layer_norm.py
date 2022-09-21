@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM operator flatten compute."""
+"""Layer normalization operator."""
 import tvm
 from .. import tag, cpp
 

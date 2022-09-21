@@ -33,7 +33,7 @@ def layer_norm_python(data, gamma, beta, axis, epsilon=1e-5):
     beta: numpy.ndarray
         Optional, R-D with shape (r_0, r_1, ..., r_r) where R == len(axis) and d_{axis_i} == r_i
 
-    axis : list of int
+    axis : int or tuple of ints
         Axis over the normalization applied
 
     epsilon : float

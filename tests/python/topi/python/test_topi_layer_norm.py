@@ -46,7 +46,6 @@ def test_layer_norm(target, dev, shape, axis, episilon=1e-5, dtype="float32", rt
     beta_np = np.random.uniform(size=scale_shape).astype(dtype)
     b_np = tvm.topi.testing.layer_norm_python(data_np, gamma_np, beta_np, axis, episilon)
 
-    print("Running on target: %s" % target)
     with tvm.target.Target(target):
         s_func = tvm.topi.testing.dispatch(target, _layer_norm_schedule)
         s = s_func([B])
