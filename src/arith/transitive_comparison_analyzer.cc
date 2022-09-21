@@ -138,7 +138,7 @@ class TransitiveComparisonAnalyzer::Impl {
    * \param vec The vector to which the Comparison objects should be
    * appended.
    */
-  void AddKnown(const PrimExpr& expr, std::vector<Comparison>& vec);
+  void AddKnown(const PrimExpr& expr, std::vector<Comparison>* vec);
 
   /*! \brief Attempt to compare, starting at the lhs.
    *
@@ -400,11 +400,11 @@ std::function<void()> TransitiveComparisonAnalyzer::EnterConstraint(const PrimEx
 }
 
 void TransitiveComparisonAnalyzer::Impl::AddKnown(const PrimExpr& expr,
-                                                  std::vector<Comparison>& vec) {
+                                                  std::vector<Comparison>* vec) {
   for (const auto& subexpr : ExtractConstraints(expr)) {
     if (tir::SideEffect(expr) <= tir::CallEffectKind::kPure) {
       if (auto cmp = FromExpr(subexpr)) {
-        vec.push_back(cmp.value());
+        vec->push_back(cmp.value());
       }
     }
   }
@@ -431,10 +431,10 @@ void TransitiveComparisonAnalyzer::Impl::Bind(const tir::Var& var, const Range& 
   prev_bindings_.Set(var, range);
 
   if (is_const_int(range->extent, 1)) {
-    AddKnown(var == range->min, knowns_);
+    AddKnown(var == range->min, &knowns_);
   } else {
-    AddKnown(var >= range->min, knowns_);
-    AddKnown(var < range->min + range->extent, knowns_);
+    AddKnown(var >= range->min, &knowns_);
+    AddKnown(var < range->min + range->extent, &knowns_);
   }
 }
 
@@ -445,7 +445,7 @@ void TransitiveComparisonAnalyzer::Impl::Bind(const tir::Var& var, const PrimExp
 
 std::function<void()> TransitiveComparisonAnalyzer::Impl::EnterConstraint(const PrimExpr& expr) {
   size_t old_literal_size = scoped_knowns_.size();
-  AddKnown(expr, scoped_knowns_);
+  AddKnown(expr, &scoped_knowns_);
   size_t new_literal_size = scoped_knowns_.size();
 
   PrimExpr temp = expr;
