@@ -547,5 +547,119 @@ class TestLeftShiftByNegativeValue(BaseBeforeAfter):
     expected = before
 
 
+class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
+    """Remove comparisons that may be proven using multiple others
+
+    For example, the `0 < i` and `i <= j` conditions can be used to prove
+    that `0 < j`.
+    """
+
+    i, j, k = [tvm.tir.Var(name, "int32") for name in "ijk"]
+    zero = tvm.tir.IntImm("int32", 0)
+
+    test_case = tvm.testing.parameter(
+        (tvm.tir.all(zero < i, i <= j), zero < j, True),
+        # Transitive comparisons from LT
+        (tvm.tir.all(i < j, j < k), i < k, True),
+        (tvm.tir.all(i < j, j == k), i < k, True),
+        (tvm.tir.all(i < j, j <= k), i < k, True),
+        (tvm.tir.all(i < j, j > k), i < k, False),
+        (tvm.tir.all(i < j, j >= k), i < k, False),
+        (tvm.tir.all(i < j, j != k), i < k, False),
+        # Transitive comparisons from LE
+        (tvm.tir.all(i <= j, j < k), i < k, True),
+        (tvm.tir.all(i <= j, j == k), i == k, False),
+        (tvm.tir.all(i <= j, j == k), i <= k, True),
+        (tvm.tir.all(i <= j, j <= k), i <= k, True),
+        (tvm.tir.all(i <= j, j <= k), i < k, False),
+        (tvm.tir.all(i <= j, j > k), i < k, False),
+        (tvm.tir.all(i <= j, j >= k), i < k, False),
+        (tvm.tir.all(i <= j, j != k), i < k, False),
+        # Transitive comparisons from GT
+        (tvm.tir.all(i > j, j > k), i > k, True),
+        (tvm.tir.all(i > j, j == k), i > k, True),
+        (tvm.tir.all(i > j, j >= k), i > k, True),
+        (tvm.tir.all(i > j, j < k), i > k, False),
+        (tvm.tir.all(i > j, j <= k), i > k, False),
+        (tvm.tir.all(i > j, j != k), i > k, False),
+        # Transitive comparisons from GE
+        (tvm.tir.all(i >= j, j > k), i > k, True),
+        (tvm.tir.all(i >= j, j == k), i == k, False),
+        (tvm.tir.all(i >= j, j == k), i >= k, True),
+        (tvm.tir.all(i >= j, j >= k), i >= k, True),
+        (tvm.tir.all(i >= j, j >= k), i > k, False),
+        (tvm.tir.all(i >= j, j < k), i > k, False),
+        (tvm.tir.all(i >= j, j <= k), i > k, False),
+        (tvm.tir.all(i >= j, j != k), i > k, False),
+        # GT or LT may be used to prove NE
+        (tvm.tir.all(i == j, j != k), i != k, True),
+        (tvm.tir.all(i == j, j < k), i != k, True),
+        (tvm.tir.all(i == j, j > k), i != k, True),
+        (tvm.tir.all(i == j, j != k), i < k, False),
+        (tvm.tir.all(i == j, j != k), i > k, False),
+        # Because these are integers, x<y is equivalent to x <= y-1,
+        # and may be used in equivalent simplifications.
+        (tvm.tir.all(i < j, j < k), i < k, True),
+        (tvm.tir.all(i <= j - 1, j == k), i < k, True),
+        (tvm.tir.all(i <= j - 1, j <= k), i < k, True),
+        (tvm.tir.all(i <= j - 1, j > k), i < k, False),
+        (tvm.tir.all(i <= j - 1, j >= k), i < k, False),
+        (tvm.tir.all(i <= j - 1, j != k), i < k, False),
+        # Either or both inequalities may have an additive offset.
+        (tvm.tir.all(i <= j + 5, j <= k + 7), i <= k + 12, True),
+        (tvm.tir.all(i <= j + 5, j <= k + 7), i <= k + 11, False),
+        # For floats, x < y + c1 and y < z + c2 implies that x < z + (c1 + c2).
+        # Because this simplification applies to integers, transitive
+        # application of LT or GT can give a tighter constraint.
+        #
+        # i < j + c1, j < k + c2
+        # i <= j + c1 - 1, j <= k + c2 - 1
+        # i + 1 - c1 <= j, j <= k + c2 - 1
+        # i + 1 - c1 <= k + c2 - 1
+        # i <= k + c1 + c2 - 2
+        # i < k + (c1 + c2 - 1)
+        #
+        (tvm.tir.all(i < j + 5, j < k + 7), i < k + 11, True),
+        (tvm.tir.all(i < j + 5, j < k + 7), i < k + 10, False),
+    )
+
+    @tvm.testing.fixture
+    def before(self, test_case):
+        priors, postulate, _ = test_case
+
+        @T.prim_func
+        def func(A: T.Buffer[1, "bool"]):
+            if priors:
+                A[0] = postulate
+
+        return func
+
+    @tvm.testing.fixture
+    def expected(self, test_case):
+        priors, postulate, provable = test_case
+
+        analyzer = tvm.arith.Analyzer()
+        priors = analyzer.canonical_simplify(priors)
+
+        if provable:
+
+            @T.prim_func
+            def func(A: T.Buffer[1, "bool"]):
+                if priors:
+                    A[0] = True
+
+            return func
+
+        else:
+            postulate = analyzer.canonical_simplify(postulate)
+
+            @T.prim_func
+            def func(A: T.Buffer[1, "bool"]):
+                if priors:
+                    A[0] = postulate
+
+            return func
+
+
 if __name__ == "__main__":
     tvm.testing.main()

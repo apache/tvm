@@ -317,6 +317,82 @@ class CanonicalSimplifier {
   Impl* impl_;
 };
 
+/*! \brief Structure for representing result of known
+ *
+ * Values are assigned to allow these flags to be used in bitwise
+ * operations.
+ */
+enum class CompareResult : int {
+  kInconsistent = 0,
+  kEQ = 1,
+  kLT = 2,
+  kLE = 3,
+  kGT = 4,
+  kGE = 5,
+  kNE = 6,
+  kUnknown = 7
+};
+
+inline constexpr CompareResult operator&(CompareResult lhs, CompareResult rhs) {
+  return CompareResult(static_cast<int>(lhs) & static_cast<int>(rhs));
+}
+inline constexpr CompareResult operator|(CompareResult lhs, CompareResult rhs) {
+  return CompareResult(static_cast<int>(lhs) | static_cast<int>(rhs));
+}
+
+/*!
+ * \brief Using previously specified knowns, compare the expressions provided
+ *
+ * Given known expressions [(a OP b), (b OP c), ..., (y OP z)], search
+ * for a known result for `(a OP z)`.
+ */
+class TransitiveComparisonAnalyzer {
+ public:
+  /* \brief Using previously specified knowns, compare the expressions provided
+   *
+   * \param lhs The left-hand side of the comparison
+   *
+   * \param rhs The right-hand side of the comparison
+   *
+   * \return The most specific result that can be proven about the
+   * comparison.  If nothing can be proven, returns kUnknown.
+   */
+  CompareResult TryCompare(const PrimExpr& lhs, const PrimExpr& rhs);
+
+  /*! \brief Bind a variable as being equal to a known expression
+   *
+   * \param var The variable of interest.
+   * \param expr The bound expression
+   * \param allow_override Whether to allow override of existing information.
+   */
+  void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
+
+  /*! \brief Bind a variable as being within a specified range
+   *
+   * \param var The variable of interest.
+   * \param range The known range
+   * \param allow_override Whether to allow override of existing information.
+   */
+  void Bind(const Var& var, const Range& range, bool allow_override = false);
+
+  /*!
+   * \brief Update the internal state to enter constraint.
+   * \param constraint A constraint expression.
+   *
+   * \return an exit function that must be called to cleanup the constraint can be nullptr.
+   */
+  std::function<void()> EnterConstraint(const PrimExpr& constraint);
+
+ private:
+  friend class Analyzer;
+  friend class ConstraintContext;
+  TransitiveComparisonAnalyzer();
+  TVM_DLL ~TransitiveComparisonAnalyzer();
+  class Impl;
+  /*! \brief Internal impl */
+  std::unique_ptr<Impl> impl_{nullptr};
+};
+
 /*!
  * \brief Constraint context.
  *
@@ -437,6 +513,8 @@ class TVM_DLL Analyzer {
   CanonicalSimplifier canonical_simplify;
   /*! \brief sub-analyzer: int set */
   IntSetAnalyzer int_set;
+  /*! \brief sub-analyzer transitive comparisons */
+  TransitiveComparisonAnalyzer transitive_comparisons;
   /*! \brief constructor */
   Analyzer();
   /*!

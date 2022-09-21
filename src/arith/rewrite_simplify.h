@@ -78,8 +78,6 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  protected:
-  /*! \brief internal structure for comparison. */
-  enum CompareResult { kUnknown, kEQ, kGT, kGE, kLT, kLE, kNE };
   // counter to record recursive rewrite depth.
   int recur_depth_{0};
   // internal variable map
@@ -98,6 +96,14 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
    */
   CompareResult TryCompare(const PrimExpr& x, int64_t val);
 
+  /*! Try to compare x against y
+   *
+   * \param x The lhs of the comparison
+   * \param y The rhs of the comparison
+   * \return comparison result.
+   */
+  CompareResult TryCompare(const PrimExpr& x, const PrimExpr& y);
+
   /*!
    * \brief Internal function to check whether or not to inline let.
    * \param op The let expr.
@@ -115,6 +121,9 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   Optional<PrimExpr> TryMatchLiteralConstraint(const PrimExpr& expr) const;
 
  private:
+  CompareResult TryCompareUsingKnownInequalities(const PrimExpr& x, const PrimExpr& y);
+  CompareResult TryCompareUsingConstIntBounds(const PrimExpr& x, const PrimExpr y);
+
   // Whether x >= val
   bool CanProveGreaterEqual(const PrimExpr& x, int64_t val) {
     return analyzer_->CanProveGreaterEqual(x, val);
@@ -124,7 +133,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   // Whether x == val
   bool CanProveEqual(const PrimExpr& x, int64_t val) {
     // TODO(tqchen) refer back to super-analyzer.
-    return TryCompare(x, val) == kEQ;
+    return TryCompare(x, val) == CompareResult::kEQ;
   }
 
   // Recursive rewrite x
