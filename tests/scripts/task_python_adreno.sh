@@ -49,6 +49,8 @@ env adb shell "cd /data/local/tmp/tvm_ci; killall -9 tvm_rpc_ci; sleep 2; LD_LIB
 DEVICE_PID=$!
 sleep 5 # Wait for the device connections
 
+trap "{ kill ${TRACKER_PID}; kill ${DEVICE_PID}; }" 0
+
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
