@@ -2137,5 +2137,92 @@ def test_conv2d_nhwc_dnnl():
             np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
+def test_conv2d_int8_alter_dtype():
+    data_dtype = "uint8"
+    target = "llvm --device arm_cpu -mattr=+v8.2a,+dotprod"
+    dot_product_instr = "sdot"
+
+    # data_dtype = "int8"
+    # target = "llvm -mcpu=cascadelake"
+    # dot_product_instr = "vpdpbusd"
+
+    weight_dtype = "int8"
+
+    def get_conv2d_nchw(
+        d_shape,
+        w_shape,
+        padding,
+        strides=(1, 1),
+    ):
+        out_dtype = "int32"
+
+        data = relay.var("data", shape=d_shape, dtype=data_dtype)
+        weight = relay.var("weight", shape=w_shape, dtype=weight_dtype)
+        out_channel = w_shape[0]
+        return relay.nn.conv2d(
+            data=data,
+            weight=weight,
+            kernel_size=w_shape[2:],
+            channels=out_channel,
+            padding=padding,
+            strides=strides,
+            out_dtype=out_dtype,
+        )
+
+    I, O, H, W = 64, 64, 56, 56
+    kH = kW = 3
+    padding = (1, 1)
+    strides = (1, 1)
+
+    data_shape = (1, I, H, W)
+    weight_shape = (O, I, kH, kW)
+    bias_shape = (1, weight_shape[0], 1, 1)
+
+    bias = relay.var("bias", shape=bias_shape, dtype="int32")
+
+    conv2d = get_conv2d_nchw(data_shape, weight_shape, padding, strides=strides)
+    bias_add = relay.add(conv2d, bias)
+    mod = tvm.IRModule.from_expr(bias_add)
+
+    if data_dtype == "uint8":
+        data_np = np.random.uniform(0, 50, size=data_shape).astype("uint8")
+    else:
+        data_np = np.random.uniform(-10, 10, size=data_shape).astype("int8")
+
+    if weight_dtype == "uint8":
+        weight_np = np.random.uniform(0, 255, size=weight_shape).astype("uint8")
+    else:
+        weight_np = np.random.uniform(-128, 127, size=weight_shape).astype("int8")
+
+    bias_np = np.random.randint(low=-127, high=128, size=bias_shape).astype("int32")
+    params = {"weight": weight_np, "bias": bias_np}
+
+    ref = (
+        relay.create_executor("graph", mod=mod, device=tvm.cpu(0), target="llvm")
+        .evaluate()(*[data_np, weight_np, bias_np])
+        .numpy()
+    )
+
+    dev = tvm.cpu(0)
+
+    with tvm.transform.PassContext(
+        opt_level=3,
+    ):
+        lib = relay.build(mod, target=target, params=params)
+
+    assert dot_product_instr in lib.lib.get_source("asm")
+
+    rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    rt_mod.set_input("data", data_np)
+
+    rt_mod.run()
+
+    out = rt_mod.get_output(0).numpy()
+
+    np.testing.assert_equal(out, ref)
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_conv2d_int8_alter_dtype()
