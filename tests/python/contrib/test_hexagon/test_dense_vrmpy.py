@@ -19,7 +19,6 @@ import numpy as np
 
 import tvm.testing
 from tvm import relay
-from tvm.relay.backend import Executor
 
 
 @tvm.testing.requires_hexagon
@@ -27,29 +26,30 @@ def test_dense_u8u8i32_vrmpy(hexagon_session):
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
 
-    M = 128
-    N = 768
-    K = 768
+    M = 1
+    N = 1000
+    K = 2048
     data_shape = (M, K)
     weight_shape = (N, K)
 
-    dtype = "uint8"
-    data = relay.var("data", shape=data_shape, dtype=dtype)
-    weight = relay.var("weight", shape=weight_shape, dtype=dtype)
+    data_dtype = "uint8"
+    weight_dtype = "int8"
+    data = relay.var("data", shape=data_shape, dtype=data_dtype)
+    weight = relay.var("weight", shape=weight_shape, dtype=weight_dtype)
 
     dense = relay.nn.dense(data, weight, out_dtype="int32")
 
     use_bias = False
 
-    if dtype == "uint8":
-        data_np = np.random.uniform(1, 255, size=data_shape).astype(dtype)
-        weight_np = np.random.uniform(1, 255, size=weight_shape).astype(dtype)
+    if data_dtype == "uint8":
+        data_np = np.random.uniform(0, 255, size=data_shape).astype("uint8")
     else:
-        data_np = np.random.uniform(-128, 127, size=data_shape).astype(dtype)
-        weight_np = np.random.uniform(-128, 127, size=weight_shape).astype(dtype)
+        data_np = np.random.uniform(-128, 127, size=data_shape).astype("int8")
 
-    # data_np = np.ones(data_shape).astype(dtype) * 127
-    # weight_np =  np.ones(weight_shape).astype(dtype) * 127
+    if weight_dtype == "uint8":
+        weight_np = np.random.uniform(0, 255, size=weight_shape).astype("uint8")
+    else:
+        weight_np = np.random.uniform(-128, 127, size=weight_shape).astype("int8")
 
     bias_np = np.random.uniform(1, 10, size=(weight_shape[0],)).astype("int32")
 
@@ -66,10 +66,11 @@ def test_dense_u8u8i32_vrmpy(hexagon_session):
     with tvm.transform.PassContext(
         opt_level=3,
     ):
-        lib = relay.build(mod, target=target, params=params)
+        executor = relay.backend.Executor("graph", {"link-params": True})
+        lib = relay.build(mod, target=target, params=params, executor=executor)
 
     asm = lib.lib.get_source("asm")
-#    assert "vrmpy" in asm
+    assert "vrmpy" in asm
 
     rt_mod = hexagon_session.get_executor_from_factory(lib)
 

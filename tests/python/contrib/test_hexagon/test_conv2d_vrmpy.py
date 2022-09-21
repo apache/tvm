@@ -95,21 +95,15 @@ def test_conv2d_u8u8i32_vrmpy(hexagon_session):
 
     _, _, P, Q = out_ty["main"].body.checked_type.shape
 
-    target_llvm = tvm.target.Target("llvm")
+    ref = (
+        relay.create_executor("graph", mod=mod, device=tvm.cpu(0), target="llvm")
+        .evaluate()(*[data_np, weight_np, bias_np])
+        .numpy()
+    )
 
     with tvm.transform.PassContext(
         opt_level=3,
     ):
-        lib_ref = relay.build(mod, target=target_llvm, params=params)
-
-    # return
-
-    with tvm.transform.PassContext(
-        opt_level=3,
-    ):
-        # opt_mod, _ = relay.optimize(mod, target=target, params=params)
-        # print(opt_mod)
-        # return
         executor = relay.backend.Executor("graph", {"link-params": True})
         lib = relay.build(mod, target=target, params=params, executor=executor)
 
@@ -123,13 +117,5 @@ def test_conv2d_u8u8i32_vrmpy(hexagon_session):
     rt_mod.run()
 
     out = rt_mod.get_output(0).numpy()
-
-    rt_mod_ref = tvm.contrib.graph_executor.GraphModule(lib_ref["default"](tvm.cpu(0)))
-
-    rt_mod_ref.set_input("data", data_np)
-
-    rt_mod_ref.run()
-
-    ref = rt_mod_ref.get_output(0).numpy()
 
     np.testing.assert_equal(out, ref)
