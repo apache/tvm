@@ -326,7 +326,7 @@ class _DefaultHexagon:
             M.RewriteParallelVectorizeUnroll(),
             M.RewriteReductionBlock(),
             # TODO(masahi): Fix RewriteLayout for link-params=True case
-            M.RewriteLayout(),
+            # M.RewriteLayout(),
         ]
 
 
