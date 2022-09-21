@@ -310,7 +310,7 @@ class _DefaultHexagon:
                 ),
             ),
             M.ParallelizeVectorizeUnroll(
-                max_jobs_per_core=-1,
+                max_jobs_per_core=16,
                 max_vectorize_extent=128,
                 unroll_max_steps=[0, 16, 64, 512],
                 unroll_explicit=True,
