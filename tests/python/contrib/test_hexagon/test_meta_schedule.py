@@ -215,6 +215,43 @@ def test_vrmpy_dense(hexagon_launcher):
         verify_dense(sch, target, M, N, K, session)
 
 
+@tvm.script.ir_module
+class Module_vrmpy_auto_tensorize:
+    @T.prim_func
+    def main(X: T.Buffer[(128, 768), "uint8"], packedW: T.Buffer[(24, 192, 32, 4), "uint8"], compute: T.Buffer[(128, 768), "int32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        # with T.block("root")
+        for i0_0_i1_0_0_fused in T.parallel(512, annotations={"pragma_auto_unroll_max_step":64, "pragma_unroll_explicit":1}):
+            for i0_1_init, i1_0_1_init, i0_2_init, i1_0_2_init in T.grid(2, 3, 1, 1):
+                with T.block("compute_o_init"):
+                    i = T.axis.spatial(128, i0_0_i1_0_0_fused // 8 * 2 + i0_1_init + i0_2_init)
+                    j_o = T.axis.spatial(24, i1_0_2_init + i0_0_i1_0_0_fused % 8 * 3 + i1_0_1_init)
+                    T.reads()
+                    T.writes(compute[i, j_o * 32 : j_o * 32 + 32])
+                    for i1_1 in T.vectorized(32):
+                        with T.block("compute_init"):
+                            j_i_init = T.axis.spatial(32, i1_1)
+                            T.reads()
+                            T.writes(compute[i, j_o * 32 + j_i_init])
+                            compute[i, j_o * 32 + j_i_init] = 0
+            for i2_0_0, i0_1, i1_0_1, i2_0_1, i0_2, i1_0_2 in T.grid(32, 2, 3, 6, 1, 1):
+                with T.block("compute_o_update"):
+                    i = T.axis.spatial(128, i0_0_i1_0_0_fused // 8 * 2 + i0_1 + i0_2)
+                    j_o = T.axis.spatial(24, i1_0_2 + i0_0_i1_0_0_fused % 8 * 3 + i1_0_1)
+                    k_o = T.axis.reduce(192, i2_0_0 * 6 + i2_0_1)
+                    T.reads(compute[i, j_o * 32 : j_o * 32 + 32], X[i, k_o * 4 : k_o * 4 + 4], packedW[j_o, k_o, 0 : 32, 0 : 4])
+                    T.writes(compute[i, j_o * 32 : j_o * 32 + 32])
+                    A = T.match_buffer(X[i, k_o * 4 : k_o * 4 + 4], [4], dtype="uint8", offset_factor=1)
+                    B = T.match_buffer(packedW[j_o, k_o, 0 : 32, 0 : 4], [32, 4], dtype="uint8", offset_factor=1)
+                    C = T.match_buffer(compute[i, j_o * 32 : j_o * 32 + 32], [32], dtype="int32", offset_factor=1)
+                    A_u8x4: T.uint8x4 = A[0:4]
+                    A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")
+                    B_i32x32: T.int32x32 = T.reinterpret(B[0, 0:128], dtype="int32x32")
+                    C[0:32] = T.call_llvm_pure_intrin(4390, T.uint32(3), C[0:32], B_i32x32, A_i32, dtype="int32x32")
+
+
 @tvm.testing.requires_hexagon
 def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
     if hexagon_launcher._serial_number == "simulator":
@@ -265,237 +302,112 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
         postproc.RewriteTensorize(vectorize_init_loop=True),
     ]
 
-    # with tempfile.TemporaryDirectory() as work_dir:
-    work_dir = "work"
-    config = ms.TuneConfig(
-        strategy="replay_trace",
-        num_trials_per_iter=32,
-        max_trials_per_task=128,
-        max_trials_global=128,
-    )
+    if True:
+        with tempfile.TemporaryDirectory() as work_dir:
+            config = ms.TuneConfig(
+                strategy="replay_trace",
+                num_trials_per_iter=8,
+                max_trials_per_task=8,
+                max_trials_global=8,
+            )
 
-    sch = ms.tune_tir(
-        mod=workload,
-        target=target,
-        config=config,
-        work_dir=work_dir,
-        sch_rules=lambda: sch_rules,
-        postprocs=lambda: postprocs,
-        builder=get_hexagon_local_builder(),
-        runner=get_hexagon_rpc_runner(hexagon_launcher, number=10),
-    )
-
-    print(sch.mod.script())
+            sch = ms.tune_tir(
+                mod=workload,
+                target=target,
+                config=config,
+                work_dir=work_dir,
+                sch_rules=lambda: sch_rules,
+                postprocs=lambda: postprocs,
+                builder=get_hexagon_local_builder(),
+                runner=get_hexagon_rpc_runner(hexagon_launcher, number=10),
+            )
+    else:
+        sch = tvm.tir.Schedule(Module_vrmpy_auto_tensorize, debug_mask="all")
 
     with hexagon_launcher.start_session() as session:
         verify_dense(sch, target, M, N, K, session)
 
 
 @tvm.testing.requires_hexagon
-def test_conv2d_nhwc_auto_schedule(hexagon_launcher):
+def test_conv2d_relay_auto_schedule(hexagon_launcher):
     if hexagon_launcher._serial_number == "simulator":
         pytest.skip(msg="Tuning on simulator not supported.")
 
-    target_hexagon = tvm.target.hexagon("v69", num_cores=4)
+    target_hexagon = tvm.target.hexagon("v69")
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
-    I = 64
-    O = 64
-    H = 56
-    W = 56
-    kH = 3
-    kW = 3
-
-    dtype = "float16"
+    I, O, H, W = 64, 64, 56, 56
+    kH = kW = 3
 
     strides = (1, 1)
     padding = (1, 1)
 
-    data, kernel, out = te_workload.conv2d_nhwc(
-        1, H, W, I, O, 3, 1, 1, 1, in_dtype="float16", out_dtype="float16"
-    )
-    workload = te.create_prim_func([data, kernel, out])
-    # workload = te.create_prim_func(te_workload.matmul(128, 768, 768))
+    d_shape = (1, H, W, I)
+    w_shape = (kH, kW, I, O)
+    bias_shape = (1, 1, 1, w_shape[3])
+    out_channel = w_shape[3]
 
-    # with tempfile.TemporaryDirectory() as work_dir:
-    work_dir = "work"
+    data = relay.var("data", shape=d_shape, dtype="float16")
+    weight = relay.var("weight", shape=w_shape, dtype="float16")
+    bias = relay.var("bias", shape=bias_shape, dtype="float16")
+    conv2d = relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=(kH, kW),
+        channels=out_channel,
+        padding=padding,
+        strides=strides,
+        out_dtype="float16",
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+    )
+    mod = tvm.IRModule.from_expr(conv2d + bias)
+
+    data_np = np.random.randn(*d_shape).astype("float16")
+    weight_np = np.random.randn(*w_shape).astype("float16")
+    bias_np = np.random.randn(*bias_shape).astype("float16")
+    params = {"weight": weight_np, "bias": bias_np}
+
+    target_llvm = tvm.target.Target("llvm")
+
+    with tvm.transform.PassContext(
+        opt_level=3,
+    ):
+        lib_ref = relay.build(mod, target=target_llvm, params=params)
+
+    rt_mod_ref = tvm.contrib.graph_executor.GraphModule(lib_ref["default"](tvm.cpu(0)))
+
+    rt_mod_ref.set_input("data", data_np)
+
+    rt_mod_ref.run()
+
+    ref = rt_mod_ref.get_output(0).numpy()
+
     config = ms.TuneConfig(
-        # strategy="replay_trace",
-        strategy="evolutionary",
-        num_trials_per_iter=32,
-        max_trials_per_task=32,
-        max_trials_global=32,
+        strategy="replay_trace",
+        num_trials_per_iter=8,
+        max_trials_per_task=8,
+        max_trials_global=8,
     )
 
-    sch = ms.tune_tir(
-        mod=workload,
-        target=target,
-        config=config,
-        work_dir=work_dir,
-        builder=get_hexagon_local_builder(),
-        runner=get_hexagon_rpc_runner(hexagon_launcher, number=10),
-    )
-    print(sch.trace)
-
-    import time
-
-    t1 = time.time()
-    f = tvm.build(sch.mod["main"], [data, kernel, out], target)
-    t2 = time.time()
-
-    # print("compiled in", t2 - t1)
-    # return
-
-    with hexagon_launcher.start_session() as session:
-        # print("session acquired")
-        module = session.load_module(f)
-        dev = session.device
-
-        a_np = np.random.randn(1, I, H, W).astype("float16")
-        w_np = np.random.randn(O, I, kH, kW).astype("float16")
-        c_np = tvm.topi.testing.conv2d_nchw_python(
-            a_np.astype("float32"), w_np.astype("float32"), strides, padding
+    with tempfile.TemporaryDirectory() as work_dir:
+        executor = Executor("graph", {"link-params": True})
+        lib = ms.tune_relay(
+            mod=mod,
+            params=params,
+            target=target,
+            config=config,
+            work_dir=work_dir,
+            builder=get_hexagon_local_builder(),
+            runner=get_hexagon_rpc_runner(hexagon_launcher, number=20),
+            executor=executor,
         )
 
-        data_np = np.zeros(get_const_tuple(data.shape)).astype(dtype)
-        w_np_hwio = np.zeros(get_const_tuple(kernel.shape)).astype(dtype)
+    with hexagon_launcher.start_session() as session:
+        rt_mod = session.get_executor_from_factory(lib)
 
-        for i in range(I):
-            for h in range(H):
-                for w in range(W):
-                    data_np[0, h, w, i] = a_np[0, i, h, w]
+        rt_mod.set_input("data", data_np)
 
-        for o in range(O):
-            for i in range(I):
-                for h in range(kH):
-                    for w in range(kW):
-                        w_np_hwio[h, w, i, o] = w_np[o, i, h, w]
+        rt_mod.run()
 
-        a = tvm.nd.array(data_np.astype(dtype), dev)
-        w = tvm.nd.array(w_np_hwio.astype(dtype), dev)
-
-        c = tvm.nd.array(np.zeros(get_const_tuple(out.shape), dtype=out.dtype), dev)
-
-        module(a, w, c)
-
-        P, Q = c.shape[1:3]
-        evaluator = module.time_evaluator(module.entry_name, dev, number=20)
-        time_ms = evaluator(a, w, c).mean * 1e3
-        gflops = (O * P * Q * I * kH * kW) * 2 / 1e9
-        print("time elapsed: ", time_ms)
-        print("GFLOPS:", gflops / (time_ms / 1e3))
-
-        out_nhwc = c.numpy()
-
-        out = np.zeros(c_np.shape).astype("float16")
-
-        for o in range(O):
-            for h in range(P):
-                for w in range(Q):
-                    out[0, o, h, w] = out_nhwc[0, h, w, o]
-
-        print(np.max(np.abs(out - c_np)), np.mean(np.abs(out - c_np)))
-
-        mx = np.max(np.abs(out - c_np))
-
-        indices = np.where(np.abs(out - c_np) == mx)
-
-        print(out[indices], c_np[indices])
-
-
-# @tvm.testing.requires_hexagon
-# def test_conv2d_relay_auto_schedule(hexagon_launcher):
-#     if hexagon_launcher._serial_number == "simulator":
-#         pytest.skip(msg="Tuning on simulator not supported.")
-
-#     target_hexagon = tvm.target.hexagon("v69", num_cores=4)
-#     target = tvm.target.Target(target_hexagon, host=target_hexagon)
-#     I = 64
-#     O = 64
-#     H = 56
-#     W = 56
-#     kH = 3
-#     kW = 3
-
-#     strides = (1, 1)
-#     padding = (1, 1)
-
-#     d_shape = (1, H, W, I)
-#     w_shape = (kH, kW, I, O)
-#     bias_shape = (w_shape[3],)
-#     out_channel = w_shape[0]
-
-#     data = relay.var("data", shape=d_shape, dtype="float16")
-#     weight = relay.var("weight", shape=w_shape, dtype="float16")
-#     bias = relay.var("bias", shape=bias_shape, dtype="float16")
-#     conv2d = relay.nn.conv2d(
-#         data=data,
-#         weight=weight,
-#         kernel_size=w_shape[2:],
-#         channels=out_channel,
-#         padding=padding,
-#         strides=strides,
-#         out_dtype="float16",
-#         data_layout="NHWC",
-#         weight_layout="HWIO",
-#     )
-
-#     bias_add = relay.nn.bias_add(conv2d, bias)
-
-#     use_bias = True
-
-#     if use_bias:
-#         out = bias_add
-#     else:
-#         out = conv2d
-
-#     mod = tvm.IRModule.from_expr(out)
-
-#     data_np = np.random.randn(*d_shape).astype("float16")
-#     weight_np = np.random.randn(*w_shape).astype("float16")
-#     bias_np = np.random.randn(w_shape[0]).astype("float16")
-#     params = {"weight": weight_np, "bias": bias_np}
-
-#     target_llvm = tvm.target.Target("llvm")
-
-#     with tvm.transform.PassContext(
-#         opt_level=3,
-#     ):
-#         lib_ref = relay.build(mod, target=target_llvm, params=params)
-
-#     rt_mod_ref = tvm.contrib.graph_executor.GraphModule(lib_ref["default"](tvm.cpu(0)))
-
-#     rt_mod_ref.set_input("data", data_np)
-
-#     rt_mod_ref.run()
-
-#     ref = rt_mod_ref.get_output(0).numpy()
-
-#     config = ms.TuneConfig(
-#         strategy="evolutionary",
-#         num_trials_per_iter=32,
-#         max_trials_per_task=32,
-#         max_trials_global=32,
-#     )
-
-#     with tempfile.TemporaryDirectory() as work_dir:
-#         executor = Executor("graph", {"link-params": True})
-#         lib = ms.tune_relay(
-#             mod=mod,
-#             params=params,
-#             target=target,
-#             config=config,
-#             work_dir=work_dir,
-#             builder=get_hexagon_local_builder(),
-#             runner=get_hexagon_rpc_runner(hexagon_launcher, number=20),
-#             executor=executor,
-#         )
-
-#     with hexagon_launcher.start_session() as session:
-#         rt_mod = session.get_executor_from_factory(lib)
-
-#         rt_mod.set_input("data", data_np)
-
-#         rt_mod.run()
-
-#         out = rt_mod.get_output(0).numpy()
-#         print(np.max(np.abs(ref - out)), np.mean(np.abs(ref - out)))
+        out = rt_mod.get_output(0).numpy()
+        print(np.max(np.abs(ref - out)), np.mean(np.abs(ref - out)))
