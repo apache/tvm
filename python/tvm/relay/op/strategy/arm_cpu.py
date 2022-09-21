@@ -119,8 +119,6 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 is_winograd_applicable = (
                     "float" in data.dtype
                     and "float" in kernel.dtype
-                    and kh == 3
-                    and kw == 3
                     and stride_h == 1
                     and stride_w == 1
                     and dilation_h == 1

@@ -165,6 +165,9 @@ class TestDepthwiseConv2d_NHWC_HWOI_DSP(BasicDepthwiseConv2dTests):
         ((1, 3, 3, 256), (3, 3), 256, (1, 1), 1, 1),
         # Asymmetric height and width
         ((1, 25, 5, 64), (3, 3), 64, (1, 1), 1, 1),
+        # Larger kernel
+        ((1, 24, 24, 8), (5, 5), 8, (1, 1), 1, 1),
+        ((1, 24, 24, 8), (3, 5), 8, (1, 1), 1, 1),
     )
     data_layout = tvm.testing.parameter("NHWC")
     dtype = tvm.testing.parameter("int8")
