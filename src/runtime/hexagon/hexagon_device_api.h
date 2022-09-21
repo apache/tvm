@@ -55,26 +55,26 @@ class HexagonDeviceAPI final : public DeviceAPI {
   void AcquireResources() {
     CHECK_EQ(runtime_hexbuffs, nullptr);
     runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
-    LOG(INFO) << "runtime_hexbuffs created";
+    DLOG(INFO) << "runtime_hexbuffs created";
     mgr = runtime_hexbuffs.get();
 
     CHECK_EQ(runtime_threads, nullptr);
     runtime_threads = std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size);
-    LOG(INFO) << "runtime_threads created";
+    DLOG(INFO) << "runtime_threads created";
   }
 
   //! \brief Ensures all runtime resources are freed
   void ReleaseResources() {
     CHECK(runtime_threads) << "runtime_threads was not created in AcquireResources";
     runtime_threads.reset();
-    LOG(INFO) << "runtime_threads reset";
+    DLOG(INFO) << "runtime_threads reset";
 
     CHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
     if (runtime_hexbuffs && !runtime_hexbuffs->empty()) {
-      LOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
+      DLOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
     }
     mgr = &hexbuffs;
-    LOG(INFO) << "runtime_hexbuffs reset";
+    DLOG(INFO) << "runtime_hexbuffs reset";
     runtime_hexbuffs.reset();
   }
 
