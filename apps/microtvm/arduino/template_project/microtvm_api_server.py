@@ -418,7 +418,15 @@ class Handler(server.ProjectAPIHandler):
 
         # create include directory
         (project_dir / "include").mkdir()
-        build_extra_flags = "-I./include "
+
+        # Populate extra_files
+        if extra_files_tar:
+            with tarfile.open(extra_files_tar, mode="r:*") as tf:
+                tf.extractall(project_dir)
+
+        build_extra_flags = '"build.extra_flags='
+        if extra_files_tar:
+            build_extra_flags += "-I./include "
 
         if compile_definitions:
             for item in compile_definitions:
@@ -427,6 +435,12 @@ class Handler(server.ProjectAPIHandler):
         if self._cmsis_required(project_dir):
             build_extra_flags += f"-I./include/cmsis "
             self._copy_cmsis(project_dir, cmsis_path)
+
+        build_extra_flags += '"'
+
+        # Check if build_extra_flags is empty
+        if build_extra_flags == '"build.extra_flags="':
+            build_extra_flags = '""'
 
         # Populate Makefile
         self._populate_makefile(
@@ -437,11 +451,6 @@ class Handler(server.ProjectAPIHandler):
             arduino_cli_cmd,
             build_extra_flags,
         )
-
-        # Populate extra_files
-        if extra_files_tar:
-            with tarfile.open(extra_files_tar, mode="r:*") as tf:
-                tf.extractall(project_dir)
 
     def _get_arduino_cli_cmd(self, arduino_cli_cmd: str):
         if not arduino_cli_cmd:

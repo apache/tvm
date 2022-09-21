@@ -44,7 +44,7 @@ build: $(ELF)
 $(ELF): $(SRC)
 	$(ARUINO_CLI_CMD) compile --fqbn $(FQBN) \
     --build-path $(BUILD_DIR) \
-    --build-properties build.extra_flags="$(BUILD_EXTRA_FLAGS)" \
+    --build-properties $(BUILD_EXTRA_FLAGS) \
     $(VERBOSE_FLAG)
 
 flash:

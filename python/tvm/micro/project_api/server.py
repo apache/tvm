@@ -824,7 +824,8 @@ def default_project_options(**kw) -> typing.List[ProjectOption]:
             optional=["generate_project"],
             type="str",
             default=None,
-            help="If given, during generate_project, uncompress the tarball at this path into the project dir.",
+            help="If given, during generate_project, "
+            "uncompress the tarball at this path into the project dir.",
         ),
     ]
     for name, config in kw.items():
