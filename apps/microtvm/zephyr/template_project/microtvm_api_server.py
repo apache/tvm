@@ -303,12 +303,6 @@ PROJECT_OPTIONS = server.default_project_options(
     verbose={"optional": ["generate_project"]},
 ) + [
     server.ProjectOption(
-        "extra_files_tar",
-        optional=["generate_project"],
-        type="str",
-        help="If given, during generate_project, uncompress the tarball at this path into the project dir.",
-    ),
-    server.ProjectOption(
         "gdbserver_port",
         help=("If given, port number to use when running the local gdbserver."),
         optional=["open_transport"],
@@ -349,12 +343,6 @@ PROJECT_OPTIONS = server.default_project_options(
         optional=["generate_project"],
         type="int",
         help="Sets CONFIG_MAIN_STACK_SIZE for Zephyr board.",
-    ),
-    server.ProjectOption(
-        "compile_definitions",
-        optional=["generate_project"],
-        type="str",
-        help="Extra definitions added project compile.",
     ),
     server.ProjectOption(
         "arm_fvp_path",

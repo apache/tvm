@@ -812,6 +812,20 @@ def default_project_options(**kw) -> typing.List[ProjectOption]:
             default=False,
             help="Treat warnings as errors and raise an Exception.",
         ),
+        ProjectOption(
+            "compile_definitions",
+            optional=["generate_project"],
+            type="str",
+            default=None,
+            help="Extra definitions added project compile.",
+        ),
+        ProjectOption(
+            "extra_files_tar",
+            optional=["generate_project"],
+            type="str",
+            default=None,
+            help="If given, during generate_project, uncompress the tarball at this path into the project dir.",
+        ),
     ]
     for name, config in kw.items():
         option_found = False

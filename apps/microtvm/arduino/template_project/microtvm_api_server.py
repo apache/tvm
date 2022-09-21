@@ -27,7 +27,6 @@ import tempfile
 import time
 from string import Template
 from packaging import version
-from typing import Union
 
 from tvm.micro.project_api import server
 
@@ -379,6 +378,8 @@ class Handler(server.ProjectAPIHandler):
         project_type = options["project_type"]
         arduino_cli_cmd = options.get("arduino_cli_cmd")
         cmsis_path = options.get("cmsis_path")
+        compile_definitions = options.get("compile_definitions")
+        extra_files_tar = options.get("extra_files_tar")
 
         # Reference key directories with pathlib
         project_dir = pathlib.Path(project_dir)
@@ -417,10 +418,14 @@ class Handler(server.ProjectAPIHandler):
 
         # create include directory
         (project_dir / "include").mkdir()
-        build_extra_flags = "-I./include"
+        build_extra_flags = "-I./include "
+
+        if compile_definitions:
+            for item in compile_definitions:
+                build_extra_flags += f"{item} "
 
         if self._cmsis_required(project_dir):
-            build_extra_flags += f" -I./include/cmsis"
+            build_extra_flags += f"-I./include/cmsis "
             self._copy_cmsis(project_dir, cmsis_path)
 
         # Populate Makefile
@@ -432,6 +437,11 @@ class Handler(server.ProjectAPIHandler):
             arduino_cli_cmd,
             build_extra_flags,
         )
+
+        # Populate extra_files
+        if extra_files_tar:
+            with tarfile.open(extra_files_tar, mode="r:*") as tf:
+                tf.extractall(project_dir)
 
     def _get_arduino_cli_cmd(self, arduino_cli_cmd: str):
         if not arduino_cli_cmd:
@@ -453,9 +463,8 @@ class Handler(server.ProjectAPIHandler):
         return version.parse(str_version)
 
     # This will only be run for build and upload
-    def _check_platform_version(self, arduino_cli_cmd: str, warning_as_error: bool):
+    def _check_platform_version(self, cli_command: str, warning_as_error: bool):
         if not self._version:
-            cli_command = self._get_arduino_cli_cmd(arduino_cli_cmd)
             self._version = self._get_platform_version(cli_command)
 
         if self._version < MIN_ARDUINO_CLI_VERSION:
@@ -476,7 +485,8 @@ class Handler(server.ProjectAPIHandler):
         arduino_cli_cmd = options.get("arduino_cli_cmd")
         warning_as_error = options.get("warning_as_error")
 
-        self._check_platform_version(arduino_cli_cmd, warning_as_error)
+        cli_command = self._get_arduino_cli_cmd(arduino_cli_cmd)
+        self._check_platform_version(cli_command, warning_as_error)
         compile_cmd = ["make", "build"]
         # Specify project to compile
         subprocess.run(compile_cmd, check=True, cwd=API_SERVER_DIR)
@@ -559,8 +569,9 @@ class Handler(server.ProjectAPIHandler):
         if not board:
             board = self._get_board_from_makefile(API_SERVER_DIR / MAKEFILE_FILENAME)
 
-        self._check_platform_version(arduino_cli_cmd, warning_as_error)
-        port = self._get_arduino_port(arduino_cli_cmd, board, port)
+        cli_command = self._get_arduino_cli_cmd(arduino_cli_cmd)
+        self._check_platform_version(cli_command, warning_as_error)
+        port = self._get_arduino_port(cli_command, board, port)
 
         upload_cmd = ["make", "flash", f"PORT={port}"]
         for _ in range(self.FLASH_MAX_RETRIES):
