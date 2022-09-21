@@ -554,6 +554,7 @@ def tune_relay(
     postprocs: Optional[FnPostproc] = None,
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
+    executor=None,
 ) -> Union[Module, vm.Executable]:
     """Tune a Relay IRModule with a given target.
 
@@ -581,6 +582,9 @@ def tune_relay(
         The callbacks used during tuning.
     backend : str = "graph"
         The backend to use for relay compilation(graph / vm).
+    executor : relay.backend.Executor
+        The executor to be passed to relay.build(...). In particular, its link-params
+        attribute affects task extration and workload database look up.
 
     Returns
     -------
@@ -596,8 +600,23 @@ def tune_relay(
     target = default_config.target(target)
     # pylint: enable=protected-access,
     # parse the tuning contexts
+
+    if executor is None:
+        executor = relay.backend.Executor("graph")
+
+    if "link-params" in executor.attrs:
+        link_params = executor.attrs["link-params"]
+    else:
+        link_params = False
+
     with Profiler.timeit("TaskExtraction"):
-        extracted_tasks = extract_task_from_relay(mod, target, params)
+        pass_config = {
+            "relay.FuseOps.link_params": link_params,
+            "relay.backend.use_meta_schedule": True,
+            "relay.backend.tir_converter": "default",
+        }
+        extracted_tasks = extract_task_from_relay(mod, target, params, pass_config=pass_config)
+
     database = tune_extracted_tasks(
         extracted_tasks,
         config,
@@ -613,7 +632,7 @@ def tune_relay(
         mutator_probs=mutator_probs,
         num_threads=num_threads,
     )
-    relay_build = {"graph": relay.build, "vm": relay.vm.compile}[backend]
+
     with Profiler.timeit("PostTuningCompilation"):
         with target, autotvm_silencer(), database:
             with PassContext(
@@ -624,4 +643,8 @@ def tune_relay(
                     "relay.backend.tir_converter": "default",
                 },
             ):
-                return relay_build(mod, target=target, params=params)
+                if backend == "graph":
+                    return relay.build(mod, target=target, params=params, executor=executor)
+
+                # Executor is not supported by VM
+                return relay.vm.compile(mod, target=target, params=params)

@@ -21,15 +21,20 @@ import numpy as np
 import tempfile
 
 import tvm.testing
-from tvm import te
+import tvm.topi.testing
+from tvm import te, relay
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.arg_info import TensorInfo
 from tvm.meta_schedule.builder import BuilderInput
+from tvm.meta_schedule import postproc, schedule_rule
 from tvm.script import tir as T
 from tvm.tir import FloatImm
 from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 from tvm.meta_schedule.runner import RunnerInput
 from tvm.contrib.hexagon.meta_schedule import get_hexagon_local_builder, get_hexagon_rpc_runner
+from tvm.relay.backend import Executor
+from tvm.topi.utils import get_const_tuple
+from tvm.meta_schedule.testing import te_workload
 
 MATMUL_N = 16
 MATMUL_M = 32
@@ -166,7 +171,6 @@ def verify_dense(sch, target, M, N, K, hexagon_session):
     print("%f ms, %f GOPS" % (time_ms, gflops / (time_ms / 1e3)))
 
 
-@pytest.mark.skip(reason="xgboost not installed on CI")
 @tvm.testing.requires_hexagon
 def test_vrmpy_dense(hexagon_launcher):
     if hexagon_launcher._serial_number == "simulator":
@@ -209,3 +213,289 @@ def test_vrmpy_dense(hexagon_launcher):
 
     with hexagon_launcher.start_session() as session:
         verify_dense(sch, target, M, N, K, session)
+
+
+@tvm.testing.requires_hexagon
+def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
+    if hexagon_launcher._serial_number == "simulator":
+        pytest.skip(msg="Tuning on simulator not supported.")
+
+    target_hexagon = tvm.target.hexagon("v68")
+    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+
+    M, N, K = 128, 768, 768
+    workload = te.create_prim_func(dense(M, N, K))
+
+    sch_rules = [
+        schedule_rule.AutoInline(
+            into_producer=False,
+            into_consumer=True,
+            inline_const_tensor=True,
+            disallow_if_then_else=True,
+            require_injective=True,
+            require_ordered=True,
+            disallow_op=["tir.exp"],
+        ),
+        schedule_rule.AddRFactor(max_jobs_per_core=16, max_innermost_factor=64),
+        schedule_rule.MultiLevelTilingWithIntrin(
+            VRMPY_u8u8i32_INTRIN,
+            structure="SRSRS",
+            tile_binds=None,
+            max_innermost_factor=64,
+            vector_load_lens=None,
+            reuse_read=None,
+            reuse_write=schedule_rule.ReuseType(
+                req="may",
+                levels=[1, 2],
+                scope="global",
+            ),
+        ),
+        schedule_rule.ParallelizeVectorizeUnroll(
+            max_jobs_per_core=16,
+            max_vectorize_extent=128,
+            unroll_max_steps=[0, 16, 64, 512],
+            unroll_explicit=True,
+        ),
+    ]
+
+    postprocs = [
+        postproc.DisallowDynamicLoop(),
+        postproc.RewriteParallelVectorizeUnroll(),
+        postproc.RewriteReductionBlock(),
+        postproc.RewriteTensorize(vectorize_init_loop=True),
+    ]
+
+    # with tempfile.TemporaryDirectory() as work_dir:
+    work_dir = "work"
+    config = ms.TuneConfig(
+        strategy="replay_trace",
+        num_trials_per_iter=32,
+        max_trials_per_task=128,
+        max_trials_global=128,
+    )
+
+    sch = ms.tune_tir(
+        mod=workload,
+        target=target,
+        config=config,
+        work_dir=work_dir,
+        sch_rules=lambda: sch_rules,
+        postprocs=lambda: postprocs,
+        builder=get_hexagon_local_builder(),
+        runner=get_hexagon_rpc_runner(hexagon_launcher, number=10),
+    )
+
+    print(sch.mod.script())
+
+    with hexagon_launcher.start_session() as session:
+        verify_dense(sch, target, M, N, K, session)
+
+
+@tvm.testing.requires_hexagon
+def test_conv2d_nhwc_auto_schedule(hexagon_launcher):
+    if hexagon_launcher._serial_number == "simulator":
+        pytest.skip(msg="Tuning on simulator not supported.")
+
+    target_hexagon = tvm.target.hexagon("v69", num_cores=4)
+    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+    I = 64
+    O = 64
+    H = 56
+    W = 56
+    kH = 3
+    kW = 3
+
+    dtype = "float16"
+
+    strides = (1, 1)
+    padding = (1, 1)
+
+    data, kernel, out = te_workload.conv2d_nhwc(
+        1, H, W, I, O, 3, 1, 1, 1, in_dtype="float16", out_dtype="float16"
+    )
+    workload = te.create_prim_func([data, kernel, out])
+    # workload = te.create_prim_func(te_workload.matmul(128, 768, 768))
+
+    # with tempfile.TemporaryDirectory() as work_dir:
+    work_dir = "work"
+    config = ms.TuneConfig(
+        # strategy="replay_trace",
+        strategy="evolutionary",
+        num_trials_per_iter=32,
+        max_trials_per_task=32,
+        max_trials_global=32,
+    )
+
+    sch = ms.tune_tir(
+        mod=workload,
+        target=target,
+        config=config,
+        work_dir=work_dir,
+        builder=get_hexagon_local_builder(),
+        runner=get_hexagon_rpc_runner(hexagon_launcher, number=10),
+    )
+    print(sch.trace)
+
+    import time
+
+    t1 = time.time()
+    f = tvm.build(sch.mod["main"], [data, kernel, out], target)
+    t2 = time.time()
+
+    # print("compiled in", t2 - t1)
+    # return
+
+    with hexagon_launcher.start_session() as session:
+        # print("session acquired")
+        module = session.load_module(f)
+        dev = session.device
+
+        a_np = np.random.randn(1, I, H, W).astype("float16")
+        w_np = np.random.randn(O, I, kH, kW).astype("float16")
+        c_np = tvm.topi.testing.conv2d_nchw_python(
+            a_np.astype("float32"), w_np.astype("float32"), strides, padding
+        )
+
+        data_np = np.zeros(get_const_tuple(data.shape)).astype(dtype)
+        w_np_hwio = np.zeros(get_const_tuple(kernel.shape)).astype(dtype)
+
+        for i in range(I):
+            for h in range(H):
+                for w in range(W):
+                    data_np[0, h, w, i] = a_np[0, i, h, w]
+
+        for o in range(O):
+            for i in range(I):
+                for h in range(kH):
+                    for w in range(kW):
+                        w_np_hwio[h, w, i, o] = w_np[o, i, h, w]
+
+        a = tvm.nd.array(data_np.astype(dtype), dev)
+        w = tvm.nd.array(w_np_hwio.astype(dtype), dev)
+
+        c = tvm.nd.array(np.zeros(get_const_tuple(out.shape), dtype=out.dtype), dev)
+
+        module(a, w, c)
+
+        P, Q = c.shape[1:3]
+        evaluator = module.time_evaluator(module.entry_name, dev, number=20)
+        time_ms = evaluator(a, w, c).mean * 1e3
+        gflops = (O * P * Q * I * kH * kW) * 2 / 1e9
+        print("time elapsed: ", time_ms)
+        print("GFLOPS:", gflops / (time_ms / 1e3))
+
+        out_nhwc = c.numpy()
+
+        out = np.zeros(c_np.shape).astype("float16")
+
+        for o in range(O):
+            for h in range(P):
+                for w in range(Q):
+                    out[0, o, h, w] = out_nhwc[0, h, w, o]
+
+        print(np.max(np.abs(out - c_np)), np.mean(np.abs(out - c_np)))
+
+        mx = np.max(np.abs(out - c_np))
+
+        indices = np.where(np.abs(out - c_np) == mx)
+
+        print(out[indices], c_np[indices])
+
+
+# @tvm.testing.requires_hexagon
+# def test_conv2d_relay_auto_schedule(hexagon_launcher):
+#     if hexagon_launcher._serial_number == "simulator":
+#         pytest.skip(msg="Tuning on simulator not supported.")
+
+#     target_hexagon = tvm.target.hexagon("v69", num_cores=4)
+#     target = tvm.target.Target(target_hexagon, host=target_hexagon)
+#     I = 64
+#     O = 64
+#     H = 56
+#     W = 56
+#     kH = 3
+#     kW = 3
+
+#     strides = (1, 1)
+#     padding = (1, 1)
+
+#     d_shape = (1, H, W, I)
+#     w_shape = (kH, kW, I, O)
+#     bias_shape = (w_shape[3],)
+#     out_channel = w_shape[0]
+
+#     data = relay.var("data", shape=d_shape, dtype="float16")
+#     weight = relay.var("weight", shape=w_shape, dtype="float16")
+#     bias = relay.var("bias", shape=bias_shape, dtype="float16")
+#     conv2d = relay.nn.conv2d(
+#         data=data,
+#         weight=weight,
+#         kernel_size=w_shape[2:],
+#         channels=out_channel,
+#         padding=padding,
+#         strides=strides,
+#         out_dtype="float16",
+#         data_layout="NHWC",
+#         weight_layout="HWIO",
+#     )
+
+#     bias_add = relay.nn.bias_add(conv2d, bias)
+
+#     use_bias = True
+
+#     if use_bias:
+#         out = bias_add
+#     else:
+#         out = conv2d
+
+#     mod = tvm.IRModule.from_expr(out)
+
+#     data_np = np.random.randn(*d_shape).astype("float16")
+#     weight_np = np.random.randn(*w_shape).astype("float16")
+#     bias_np = np.random.randn(w_shape[0]).astype("float16")
+#     params = {"weight": weight_np, "bias": bias_np}
+
+#     target_llvm = tvm.target.Target("llvm")
+
+#     with tvm.transform.PassContext(
+#         opt_level=3,
+#     ):
+#         lib_ref = relay.build(mod, target=target_llvm, params=params)
+
+#     rt_mod_ref = tvm.contrib.graph_executor.GraphModule(lib_ref["default"](tvm.cpu(0)))
+
+#     rt_mod_ref.set_input("data", data_np)
+
+#     rt_mod_ref.run()
+
+#     ref = rt_mod_ref.get_output(0).numpy()
+
+#     config = ms.TuneConfig(
+#         strategy="evolutionary",
+#         num_trials_per_iter=32,
+#         max_trials_per_task=32,
+#         max_trials_global=32,
+#     )
+
+#     with tempfile.TemporaryDirectory() as work_dir:
+#         executor = Executor("graph", {"link-params": True})
+#         lib = ms.tune_relay(
+#             mod=mod,
+#             params=params,
+#             target=target,
+#             config=config,
+#             work_dir=work_dir,
+#             builder=get_hexagon_local_builder(),
+#             runner=get_hexagon_rpc_runner(hexagon_launcher, number=20),
+#             executor=executor,
+#         )
+
+#     with hexagon_launcher.start_session() as session:
+#         rt_mod = session.get_executor_from_factory(lib)
+
+#         rt_mod.set_input("data", data_np)
+
+#         rt_mod.run()
+
+#         out = rt_mod.get_output(0).numpy()
+#         print(np.max(np.abs(ref - out)), np.mean(np.abs(ref - out)))
