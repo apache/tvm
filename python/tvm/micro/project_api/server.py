@@ -64,10 +64,10 @@ class ProjectOption(_ProjectOption):
 
         return super().__new__(cls, **kw)
 
-    def replace(self, kw):
+    def replace(self, attributes):
         """Update attributes associated to the project option."""
         updated_option = self
-        return updated_option._replace(**kw)
+        return updated_option._replace(**attributes)
 
 
 ServerInfo = collections.namedtuple(
