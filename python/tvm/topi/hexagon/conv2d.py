@@ -111,16 +111,8 @@ def schedule_conv2d_NCHWc_int8(outs):
             conv_out = op.output(0)
             kernel_vec = conv_out.op.input_tensors[1]
             data_vec = conv_out.op.input_tensors[0]
-            data = (
-                data_vec.op.input_tensors[0]
-                if isinstance(data_vec.op, te.tensor.ComputeOp) and "pad" not in data_vec.op.tag
-                else data_vec
-            )
-            if isinstance(data.op, te.tensor.ComputeOp) and "pad" in data.op.tag:
-                data_pad = data
-                data = data_pad.op.input_tensors[0]
-
             out_width = conv_out.shape[3]
+
             reg_n = 1
             for n in range(31, 0, -1):
                 if out_width % n == 0:
@@ -129,7 +121,7 @@ def schedule_conv2d_NCHWc_int8(outs):
 
             cfg = {"tile_ow": reg_n, "unroll_kw": False}
             args = [s, cfg, data_vec, kernel_vec, conv_out, outs[0]]
-            intrin = dot_vrmpy(data.dtype, kernel_vec.dtype)
+            intrin = dot_vrmpy(data_vec.dtype, kernel_vec.dtype)
 
             conv2d_generic.schedule_conv_NCHWc_cpu_common_int8(
                 *args, int32_lanes=32, int8_elems=4, intrin=intrin, inline_fused=True,

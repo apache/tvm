@@ -86,45 +86,6 @@ def _conv2d_legalize(attrs, inputs, arg_types):
     # Collect the input exprs.
     data, kernel = inputs
 
-    if data_layout == "NHWC" and kernel_layout == "HWIO":
-        # Collect the input tensors.
-        data_tensor, kernel_tensor = arg_types[0], arg_types[1]
-        out_channel = kernel_tensor.shape[0]
-
-        # Dilation not supported yet. Return None if dilation is not (1, 1)
-        dilation = attrs.get_int_tuple("dilation")
-        if not (dilation[0] == 1 and dilation[1] == 1):
-            return None
-
-        # No legalization for depthwise convolutions yet.
-        groups = attrs.get_int("groups")
-        if groups != 1:
-            return None
-
-        # Get the conv attrs
-        new_attrs = {k: attrs[k] for k in attrs.keys()}
-
-        padding = attrs.get_int_tuple("padding")
-        kh, kw = attrs.get_int_tuple("kernel_size")
-        pt, pl, pb, pr = get_pad_tuple(padding, (kh, kw))
-
-        out_channel_vector_length = 64 if output_tensor.dtype == "float16" else 32
-        out_channel = kernel_tensor.shape[3].value
-
-        if out_channel % out_channel_vector_length != 0:
-            new_out_channel = (
-                (out_channel + out_channel_vector_length) // out_channel_vector_length
-            ) * out_channel_vector_length
-            diff = new_out_channel - out_channel
-            kernel = relay.nn.pad(kernel, pad_width=((0, 0), (0, 0), (0, 0), (0, diff)))
-
-            new_attrs["channels"] = new_out_channel
-            out = relay.nn.conv2d(data, kernel, **new_attrs)
-            original_out_shape = [x.value for x in output_tensor.shape]
-            return relay.strided_slice(out, begin=[0, 0, 0, 0], end=original_out_shape)
-        else:
-            return relay.nn.conv2d(data, kernel, **new_attrs)
-
     if data_layout != "NCHW" or kernel_layout != "OIHW":
         return None
 
@@ -134,7 +95,6 @@ def _conv2d_legalize(attrs, inputs, arg_types):
 
     if "int8" in data_tensor.dtype and "int8" in data_tensor.dtype and out_channel % 32 == 0:
         data_dtype = data_tensor.dtype
-        kernel_dtype = kernel_tensor.dtype
 
         # Collect the output tensor.
         output_tensor = arg_types[2]
