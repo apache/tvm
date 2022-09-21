@@ -62,38 +62,10 @@ def conv2d_strategy_hexagon(attrs, inputs, out_type, target):
     if groups == 1:
         if data_layout == "NHWC" and kernel_layout == "HWIO":
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.nn.conv2d_nhwc, need_meta_schedule_layout=True),
+                wrap_compute_conv2d(topi.nn.conv2d_nhwc),
                 wrap_topi_schedule(topi.hexagon.schedule_conv2d_nhwc),
                 name="conv2d_nhwc.hexagon",
             )
-
-            # kernel_h, kernel_w, _, co = get_const_tuple(kernel.shape)
-            # stride_h, stride_w = get_const_tuple(attrs.strides)
-            # dilation_h, dilation_w = get_const_tuple(attrs.dilation)
-
-            # judge_winograd_auto_scheduler = (
-            #     "float" in data.dtype
-            #     and "float" in kernel.dtype
-            #     and kernel_h == 3
-            #     and kernel_w == 3
-            #     and stride_h == 1
-            #     and stride_w == 1
-            #     and dilation_h == 1
-            #     and dilation_w == 1
-            # )
-
-            # # register auto-scheduler implementations
-            # if judge_winograd_auto_scheduler:
-            #     strategy.add_implementation(
-            #         wrap_compute_conv2d(
-            #             topi.nn.conv2d_winograd_nhwc,
-            #             need_meta_schedule_layout=True
-            #         ),
-            #         naive_schedule,  # this implementation should never be picked by autotvm
-            #         name="conv2d_nhwc.winograd",
-            #         plevel=15,
-            #    )
-
         elif data_layout == "NCHW" and kernel_layout == "OIHW":
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.conv2d_nchw),
@@ -128,37 +100,12 @@ def conv2d_strategy_hexagon(attrs, inputs, out_type, target):
     return strategy
 
 
-@conv2d_winograd_without_weight_transfrom_strategy.register("hexagon")
-def conv2d_winograd_without_weight_transfrom_strategy_cpu(attrs, inputs, out_type, target):
-    """conv2d_winograd_without_weight_transfrom cpu strategy"""
-    dilation = attrs.get_int_tuple("dilation")
-    groups = attrs.get_int("groups")
-    layout = attrs.data_layout
-    strides = attrs.get_int_tuple("strides")
-    assert dilation == (1, 1), "Do not support dilate now"
-    assert strides == (1, 1), "Do not support strides now"
-    assert groups == 1, "Do not supoort arbitrary group number"
-    strategy = _op.OpStrategy()
-
-    if layout == "NHWC":
-        strategy.add_implementation(
-            wrap_compute_conv2d(
-                topi.nn.conv2d_winograd_nhwc_without_weight_transform,
-                need_auto_scheduler_layout=False,
-                need_meta_schedule_layout=True,
-            ),
-            naive_schedule,
-            name="ansor.winograd",
-        )
-    return strategy
-
-
 @dense_strategy.register("hexagon")
 def dense_strategy_hexagon(attrs, inputs, out_type, target):
     """Dense strategy for Hexagon"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_dense(topi.nn.dense, need_meta_schedule_layout=True),
+        wrap_compute_dense(topi.nn.dense),
         wrap_topi_schedule(topi.hexagon.schedule_dense),
         name="dense.hexagon",
     )
@@ -262,17 +209,14 @@ def dense_pack_strategy_hexagon(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
 
     if (
-        # inputs[0].dtype == "uint8"
-        # and inputs[1].dtype == "uint8"
-        "int8" in inputs[0].dtype
-        and "int8" in inputs[1].dtype
+        inputs[0].dtype == "uint8"
+        and inputs[1].dtype == "uint8"
         and out_type.dtype == "int32"
         and attrs["weight_layout"] == "NC32n4c"
     ):
         strategy.add_implementation(
             wrap_compute_dense(topi.hexagon.dense.dense_u8u8i32_vrmpy_compute),
             wrap_topi_schedule(topi.hexagon.dense.dense_u8u8i32_vrmpy_schedule),
-            # wrap_topi_schedule(topi.hexagon.dense.schedule_dense),
             name="dense_uint8.hexagon",
             plevel=12,
         )

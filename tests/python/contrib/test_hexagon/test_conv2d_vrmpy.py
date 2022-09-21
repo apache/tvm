@@ -133,8 +133,3 @@ def test_conv2d_u8u8i32_vrmpy(hexagon_session):
     ref = rt_mod_ref.get_output(0).numpy()
 
     np.testing.assert_equal(out, ref)
-
-    # gops = (O * P * Q * I * kH * kW)  * 2 / 1e9
-    # time_ms = rt_mod.benchmark(hexagon_session.device, number=1, repeat=50).mean * 1e3
-
-    # print("time elapsed: ", time_ms)

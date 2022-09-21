@@ -51,31 +51,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     kernel_dtype = kernel_tensor.dtype
     out_dtype = out_type.dtype
 
-    impl, outs = relay.backend.te_compiler.select_implementation(
-        relay.op.get("nn.conv2d"), attrs, tinfos, out_type, target
-    )
-    if impl.name.find("winograd") != -1:
-        if dilation != (1, 1):
-            return None
-
-        assert data_layout == "NHWC" and kernel_layout == "HWIO"
-        N, H, W, CI = get_const_tuple(data_tensor.shape)
-        KH, KW, _, CO = get_const_tuple(kernel_tensor.shape)
-
-        # Pre-compute weight transformation in winograd
-        tile_size = 4
-        # HWIO -> OIHW
-        kernel_transform = relay.transpose(inputs[1], axes=[3, 2, 0, 1])
-        # alpha, alpha, CO, CI
-        weight = relay.nn.contrib_conv2d_winograd_weight_transform(
-            kernel_transform, tile_size=tile_size
-        )
-        new_attrs["tile_size"] = tile_size
-        new_attrs["channels"] = CO
-        return relay.nn.contrib_conv2d_winograd_without_weight_transform(
-            inputs[0], weight, **new_attrs
-        )
-
     if not check_vrmpy_applicable(data_tensor, kernel_tensor) or data_layout != "NCHW" or kernel_layout != "OIHW":
         return None
 
@@ -133,11 +108,7 @@ def _conv2d_legalize(attrs, inputs, arg_types):
         kh, kw = attrs.get_int_tuple("kernel_size")
         pt, pl, pb, pr = get_pad_tuple(padding, (kh, kw))
 
-        # TODO: pad on input channel?
-        in_channel_vector_length = 1
-        in_channel = data_tensor.shape[3].value
-
-        out_channel_vector_length = 64 if output_tensor.dtype == "float16" else 128
+        out_channel_vector_length = 64 if output_tensor.dtype == "float16" else 32
         out_channel = kernel_tensor.shape[3].value
 
         if out_channel % out_channel_vector_length != 0:

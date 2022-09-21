@@ -46,7 +46,7 @@ def schedule_dense(outs):
 
 def dense_u8u8i32_vrmpy_compute(X, packed_w, bias, out_dtype):
     """Compute for uint8 x uint8 -> int32 dense"""
-    # assert X.dtype == "uint8" and packed_w.dtype == "uint8" and out_dtype == "int32"
+    assert X.dtype == "uint8" and packed_w.dtype == "uint8" and out_dtype == "int32"
     m, k = X.shape
     n_o, _, n_i, _ = packed_w.shape
     assert n_i == 32
@@ -63,14 +63,10 @@ def dense_u8u8i32_vrmpy_compute(X, packed_w, bias, out_dtype):
         ),
         tag="dense_u8u8i32_vrmpy",
         name="compute",
-        attrs={"schedule_rule": "meta_schedule.dense_u8u8i32_vrmpy"},
     )
 
     if bias is not None:
         C = te.compute(C.shape, lambda i, j: C[i, j] + bias[j], tag=tag.BROADCAST)
-
-    # a_y, _ = C.op.axis
-    # cfg.define_split("tile_y", a_y, num_outputs=2)
 
     return C
 

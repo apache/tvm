@@ -109,18 +109,11 @@ def _dense_legalize(attrs, inputs, arg_types):
 
     M, K = x_tensor.shape
     N, K = y_tensor.shape
-    try:
-        M = M.value
-        K = K.value
-        N = N.value
-    except AttributeError:
-        # todo: deal with unfixed shape when compiling wdl model
-        return None
 
-    # vec_len = 1024 //
     if dtype == "float16":
         vec_len = 64
-    elif "int8" in dtype:
+    else:
+        assert "int8" in dtype
         vec_len = 32
 
     if N % vec_len != 0:
