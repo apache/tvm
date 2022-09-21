@@ -424,5 +424,162 @@ def test_aot_executor_multiple_conv2d(hexagon_session: Session, aot_host_target,
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 
+@tvm.testing.requires_hexagon
+def test_conv2d_u8u8i32_vrmpy(hexagon_session):
+    def get_conv2d_nchw(
+        d_shape,
+        w_shape,
+        padding,
+        strides=(1, 1),
+        data_dtype = "int8",
+        weight_dtype = "int8"
+    ):
+        out_dtype = "int32"
+
+        data = relay.var("data", shape=d_shape, dtype=data_dtype)
+        weight = relay.var("weight", shape=w_shape, dtype=weight_dtype)
+        out_channel = w_shape[0]
+        return relay.nn.conv2d(
+            data=data,
+            weight=weight,
+            kernel_size=w_shape[2:],
+            channels=out_channel,
+            padding=padding,
+            strides=strides,
+            out_dtype=out_dtype,
+        )
+
+    target_hexagon = tvm.target.hexagon("v68")
+    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+    I, O, H, W = 64, 256, 56, 56
+    kH = kW = 3
+    padding = (1, 1)
+    strides = (1, 1)
+
+    data_shape = (1, I, H, W)
+    weight_shape = (O, I, kH, kW)
+    bias_shape = (weight_shape[0],)
+
+    bias = relay.var("bias", shape=bias_shape, dtype="int32")
+
+    data_dtype = "uint8"
+    weight_dtype = "int8"
+    conv2d = get_conv2d_nchw(data_shape, weight_shape, padding, strides=strides, data_dtype=data_dtype, weight_dtype=weight_dtype)
+    bias_add = relay.nn.bias_add(conv2d, bias)
+
+    use_bias = True
+
+    if use_bias:
+        out = bias_add
+    else:
+        out = conv2d
+
+    mod = tvm.IRModule.from_expr(out)
+
+    if data_dtype == "uint8":
+        data_np = np.random.uniform(0, 255, size=data_shape).astype("uint8")
+    else:
+        data_np = np.random.uniform(-128, 127, size=data_shape).astype("int8")
+
+    if weight_dtype == "uint8":
+        weight_np = np.random.uniform(0, 255, size=weight_shape).astype("uint8")
+    else:
+        weight_np = np.random.uniform(-128, 127, size=weight_shape).astype("int8")
+
+    bias_np = np.random.randint(low=-127, high=128, size=bias_shape).astype("int32")
+    params = {"weight": weight_np, "bias": bias_np}
+
+    ref = (
+        relay.create_executor("graph", mod=mod, device=tvm.cpu(0), target="llvm")
+        .evaluate()(*[data_np, weight_np, bias_np])
+        .numpy()
+    )
+
+    with tvm.transform.PassContext(
+        opt_level=3,
+    ):
+        executor = relay.backend.Executor("graph", {"link-params": True})
+        lib = relay.build(mod, target=target, params=params, executor=executor)
+
+    asm = lib.lib.get_source("asm")
+    assert "vrmpy" in asm
+
+    rt_mod = hexagon_session.get_executor_from_factory(lib)
+
+    rt_mod.set_input("data", data_np)
+
+    rt_mod.run()
+
+    out = rt_mod.get_output(0).numpy()
+
+    np.testing.assert_equal(out, ref)
+
+
+@tvm.testing.requires_hexagon
+def test_dense_u8u8i32_vrmpy(hexagon_session):
+    target_hexagon = tvm.target.hexagon("v68")
+    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+
+    M = 128
+    N = 1000
+    K = 2048
+    data_shape = (M, K)
+    weight_shape = (N, K)
+
+    data_dtype = "uint8"
+    weight_dtype = "int8"
+    data = relay.var("data", shape=data_shape, dtype=data_dtype)
+    weight = relay.var("weight", shape=weight_shape, dtype=weight_dtype)
+
+    dense = relay.nn.dense(data, weight, out_dtype="int32")
+
+    use_bias = False
+
+    if data_dtype == "uint8":
+        data_np = np.random.uniform(0, 255, size=data_shape).astype("uint8")
+    else:
+        data_np = np.random.uniform(-128, 127, size=data_shape).astype("int8")
+
+    if weight_dtype == "uint8":
+        weight_np = np.random.uniform(0, 255, size=weight_shape).astype("uint8")
+    else:
+        weight_np = np.random.uniform(-128, 127, size=weight_shape).astype("int8")
+
+    bias_np = np.random.uniform(1, 10, size=(weight_shape[0],)).astype("int32")
+
+    params = {"weight": weight_np, "bias": bias_np}
+
+    if use_bias:
+        bias = relay.var("bias", shape=(weight_shape[0],), dtype="int32")
+        out = relay.nn.bias_add(dense, bias)
+    else:
+        out = dense
+
+    mod = tvm.IRModule.from_expr(out)
+
+    with tvm.transform.PassContext(
+        opt_level=3,
+    ):
+        executor = relay.backend.Executor("graph", {"link-params": True})
+        lib = relay.build(mod, target=target, params=params, executor=executor)
+
+    asm = lib.lib.get_source("asm")
+    assert "vrmpy" in asm
+
+    rt_mod = hexagon_session.get_executor_from_factory(lib)
+
+    rt_mod.set_input("data", data_np)
+
+    rt_mod.run()
+
+    out = rt_mod.get_output(0).numpy()
+    ref = np.dot(data_np.astype("int32"), weight_np.transpose().astype("int32"))
+
+    if use_bias:
+        ref += bias_np
+
+    np.testing.assert_equal(out, ref)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
