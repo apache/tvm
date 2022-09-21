@@ -19,12 +19,11 @@
 
 import tvm
 from tvm import te
-from tvm.topi.nn.pad import pad
 from .. import nn
 from ..utils import traverse_inline
 from tvm.topi.utils import get_const_tuple
-from tvm.topi.nn.utils import get_pad_tuple
 from .tensor_intrin import dot_vrmpy
+from ..generic import conv2d as conv2d_generic
 
 
 def schedule_conv2d_nhwc(outs):
@@ -128,116 +127,13 @@ def schedule_conv2d_NCHWc_int8(outs):
                     reg_n = n
                     break
 
-            args = [s, data_vec, conv_out, outs[0]]
-            # int8 conv kernel is 7-dim
-            _, _, kh, kw, _, _, n_elems = get_const_tuple(kernel_vec.shape)
-            # assert n_elems == 4
+            cfg = {"tile_ow": reg_n, "unroll_kw": False}
+            args = [s, cfg, data_vec, kernel_vec, conv_out, outs[0]]
             intrin = dot_vrmpy(data.dtype, kernel_vec.dtype)
 
-            inline_fused = True
-
-            schedule_conv_NCHWc_cpu_common_int8(
-                *args, reg_n=reg_n, int32_lanes=32, int8_elems=4, intrin=intrin, inline_fused=inline_fused
+            conv2d_generic.schedule_conv_NCHWc_cpu_common_int8(
+                *args, int32_lanes=32, int8_elems=4, intrin=intrin, inline_fused=True,
             )
 
     traverse_inline(s, outs[0].op, _callback)
-    return s
-
-
-def schedule_conv_NCHWc_cpu_common_int8(
-    s,
-    data_vec,
-    conv_out,
-    last,
-    reg_n,
-    int32_lanes=32,
-    int8_elems=4,
-    intrin=None,
-    inline_fused=True,
-):
-    unroll_kw = False
-    _, _, _, _, ic_bn = get_const_tuple(data_vec.shape)
-    _, _, _, _, oc_bn = get_const_tuple(conv_out.shape)
-
-    # schedule pad
-    if isinstance(s[data_vec].op, te.tensor.ComputeOp) and "pad" in data_vec.op.tag:
-        batch, ic_chunk, ih, iw, ic_block = s[data_vec].op.axis
-        parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
-        # s[data_vec].parallel(parallel_axis)
-        data_vec = data_vec.op.input_tensors[0]
-
-    # schedule 5-D NCHW[x]c conv
-    C, O = conv_out, last
-    CC = s.cache_write(C, "global")
-
-    batch, oc_chunk, oh, ow, oc_block = s[C].op.axis
-    ow_chunk, ow_block = s[C].split(ow, factor=reg_n)
-    s[C].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
-    parallel_axis = s[C].fuse(batch, oc_chunk, oh)
-    s[C].vectorize(oc_block)
-
-    if C == O:
-        s[C].parallel(parallel_axis)
-
-    s[CC].compute_at(s[C], parallel_axis)
-    _, oc_chunk, oh, ow, oc_block = s[CC].op.axis
-    kh, kw, ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
-
-    ow_chunk, ow_block = s[CC].split(ow, factor=reg_n)
-
-    assert oc_bn % int32_lanes == 0, f"oc_bn={oc_bn} % int32_lanes={int32_lanes} != 0"
-    assert (
-        ic_bn % int8_elems == 0
-    ), f"ic_bn={ic_bn} % int8_elems={int8_elems} != 0"  # (u)int8 elements in (u)int32
-
-    oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=int32_lanes)
-
-    if unroll_kw:
-        s[CC].reorder(
-            oc_chunk,
-            oh,
-            ow_chunk,
-            ic_outer,
-            kh,
-            ic_f_inner,
-            kw,
-            ow_block,
-            oc_f_inner,
-            oc_s_inner,
-            ic_s_inner,
-        )
-        s[CC].unroll(kw)
-    else:
-        s[CC].reorder(
-            oc_chunk,
-            oh,
-            ow_chunk,
-            ic_outer,
-            kh,
-            kw,
-            ic_f_inner,
-            ow_block,
-            oc_f_inner,
-            oc_s_inner,
-            ic_s_inner,
-        )
-
-    s[CC].tensorize(oc_s_inner, intrin)
-
-    s[CC].unroll(ow_block)
-    s[CC].unroll(oc_f_inner)
-
-    if C != O:
-        batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
-        ow_chunk, ow_block = s[O].split(ow, factor=reg_n)
-        s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
-        parallel_axis = s[O].fuse(batch, oc_chunk, oh)
-
-        if inline_fused:
-            s[C].compute_at(s[O], ow_block)
-        else:
-            s[C].compute_at(s[O], parallel_axis)
-        s[O].vectorize(oc_block)
-        s[O].parallel(parallel_axis)
-
     return s
