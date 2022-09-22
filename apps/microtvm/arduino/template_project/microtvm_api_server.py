@@ -330,14 +330,6 @@ class Handler(server.ProjectAPIHandler):
                 project_path / "include" / "cmsis" / item,
             )
 
-    # These tokens are used in the Makefile.template file.
-    # They are replaced with proper value in generate_project step.
-    FQBN_TOKEN = "<FQBN>"
-    VERBOSE_FLAG_TOKEN = "<VERBOSE_FLAG>"
-    ARUINO_CLI_CMD_TOKEN = "<ARUINO_CLI_CMD>"
-    BOARD_TOKEN = "<BOARD>"
-    BUILD_EXTRA_FLAGS_TOKEN = "<BUILD_EXTRA_FLAGS>"
-
     def _populate_makefile(
         self,
         makefile_template_path: pathlib.Path,
@@ -348,27 +340,24 @@ class Handler(server.ProjectAPIHandler):
         build_extra_flags: str,
     ):
         """Generate Makefile from template."""
+        flags = {
+            "FQBN": self._get_fqbn(board),
+            "VERBOSE_FLAG": "--verbose" if verbose else "",
+            "ARUINO_CLI_CMD": self._get_arduino_cli_cmd(arduino_cli_cmd),
+            "BOARD": board,
+            "BUILD_EXTRA_FLAGS": build_extra_flags,
+        }
+
         with open(makefile_path, "w") as makefile_f:
             with open(makefile_template_path, "r") as makefile_template_f:
                 for line in makefile_template_f:
-                    if self.FQBN_TOKEN in line:
-                        line = line.replace(self.FQBN_TOKEN, self._get_fqbn(board))
-
-                    if self.VERBOSE_FLAG_TOKEN in line:
-                        if verbose:
-                            flag = "--verbose"
-                        else:
-                            flag = ""
-                        line = line.replace(self.VERBOSE_FLAG_TOKEN, flag)
-                    if self.ARUINO_CLI_CMD_TOKEN in line:
-                        line = line.replace(
-                            self.ARUINO_CLI_CMD_TOKEN, self._get_arduino_cli_cmd(arduino_cli_cmd)
-                        )
-                    if self.BOARD_TOKEN in line:
-                        line = line.replace(self.BOARD_TOKEN, board)
-                    if self.BUILD_EXTRA_FLAGS_TOKEN in line:
-                        line = line.replace(self.BUILD_EXTRA_FLAGS_TOKEN, build_extra_flags)
-
+                    SUBST_TOKEN_RE = re.compile(r"<([A-Z_]+)>")
+                    outs = []
+                    for i, m in enumerate(re.split(SUBST_TOKEN_RE, line)):
+                        if i % 2 == 1:
+                            m = flags[m]
+                        outs.append(m)
+                    line = "".join(outs)
                     makefile_f.write(line)
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
