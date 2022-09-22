@@ -239,7 +239,7 @@ class TensorIntrin : public ObjectRef {
    * \throws This method throws an exception if the TensorIntrin does not exist and allow_missing is
    * false.
    */
-  TVM_DLL static TensorIntrin Get(String name, bool allow_missing = false);
+  TVM_DLL static Optional<TensorIntrin> Get(String name, bool allow_missing = false);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode)
 };
