@@ -19,36 +19,28 @@
 if(USE_MICRO)
 
 if(MSVC)
-  # dummy custom target for now so we don't need to edit root CMakeLists.txt when testing various build methods
-  add_custom_target(host_standalone_crt)
 
-#[====[
+  # When building for Windows, use standard CMake for compatibility with
+  # Visual Studio build tools and not require Make to be on the system.
+
   set(CRT_CONFIG, "src/runtime/micro/crt_config.h")
 
-  add_library(host_standalone_crt STATIC
-              src/runtime/crt/microtvm_rpc_common/session.cc
+  add_library(host_standalone_crt
+              STATIC
+              3rdparty/libcrc/src/crcccitt.c
               src/runtime/crt/microtvm_rpc_common/frame_buffer.cc
               src/runtime/crt/microtvm_rpc_common/framing.cc
+              src/runtime/crt/microtvm_rpc_common/session.cc
               src/runtime/crt/microtvm_rpc_common/write_stream.cc)
 
-  target_include_directories(host_standalone_crt PRIVATE 3rdparty/libcrc/include src/runtime/micro)
-]====]
+  target_include_directories(host_standalone_crt
+                             PRIVATE
+                             3rdparty/libcrc/include
+                             src/runtime/micro)
 
-  include_directories(SYSTEM 
-                      3rdparty/libcrc/include 
-                      src/runtime/micro)
-
-  tvm_file_glob(GLOB 
-                HOST_STANDALONE_CRT_SRCS 
-                src/runtime/crt/microtvm_rpc_common/*.cc
-                3rdparty/libcrc/src/*.c)
-
-  list(APPEND RUNTIME_SRCS ${HOST_STANDALONE_CRT_SRCS})
-  
 else()
 
   message(STATUS "Build standalone CRT for microTVM")
-  tvm_file_glob(GLOB crt_srcs src/runtime/crt/**)
 
   function(tvm_crt_define_targets)
     # Build an isolated build directory, separate from the TVM tree.
