@@ -2145,7 +2145,7 @@ def test_conv2d_int8_alter_dtype():
         data_dtype,
     ):
         out_dtype = "int32"
-        strides=(1, 1)
+        strides = (1, 1)
         padding = (1, 1)
         data = relay.var("data", shape=d_shape, dtype=data_dtype)
         weight = relay.var("weight", shape=w_shape, dtype="int8")
@@ -2171,8 +2171,10 @@ def test_conv2d_int8_alter_dtype():
     bias_np = np.random.randint(low=-127, high=128, size=bias_shape).astype("int32")
     weight_np = np.random.uniform(-128, 127, size=weight_shape).astype("int8")
 
-    for data_dtype, target, dot_product_instr in [("uint8", "llvm --device arm_cpu -mattr=+v8.2a,+dotprod", "sdot"),
-                                                  ("int8", "llvm -mcpu=cascadelake", "vpdpbusd")]:
+    for data_dtype, target, dot_product_instr in [
+        ("uint8", "llvm --device arm_cpu -mattr=+v8.2a,+dotprod", "sdot"),
+        ("int8", "llvm -mcpu=cascadelake", "vpdpbusd"),
+    ]:
         conv2d = get_conv2d_nchw(data_shape, weight_shape, data_dtype)
         bias_add = relay.add(conv2d, bias)
         mod = tvm.IRModule.from_expr(bias_add)
