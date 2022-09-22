@@ -47,7 +47,7 @@ Optional<tir::BlockRV> TileForIntrin(tir::Schedule sch, tir::BlockRV block,
 class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
  protected:
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
-    auto desc_func = tir::TensorIntrin::Get(intrin_name)->desc;
+    auto desc_func = tir::TensorIntrin::Get(intrin_name).value()->desc;
     if (!CheckAutoTensorizeApplicable(sch, block_rv, desc_func)) {
       TVM_PY_LOG(INFO, logging_func) << "The workload cannot be tensorized.";
       return {sch};
