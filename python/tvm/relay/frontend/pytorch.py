@@ -738,6 +738,10 @@ class PyTorchOpConverter:
             dtype = self.default_dtype
         return self.full_impl(data, 0, dtype)
 
+    def zero_(self, inputs, input_types):
+        data = inputs[0]
+        return self.full_impl(self.infer_shape(data), 0, input_types[0])
+
     def zeros_like(self, inputs, input_types):
         data = inputs[0]
         out = _op.zeros_like(data)
@@ -3462,6 +3466,7 @@ class PyTorchOpConverter:
             "aten::ones": self.ones,
             "aten::ones_like": self.ones_like,
             "aten::zeros": self.zeros,
+            "aten::zero_": self.zero_,
             "aten::zeros_like": self.zeros_like,
             "aten::new_ones": self.new_ones,
             "aten::full": self.full,
