@@ -77,7 +77,7 @@ class stringbuf_with_remote_access : public std::stringbuf {
       remaining--;
     } while (remaining > 0);
 
-    // This will return 0 on success, non-zero if underflow occured.
+    // This will return 0 on success, non-zero if underflow occurred.
     return size - remaining;
   }
 };

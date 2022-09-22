@@ -17,10 +17,6 @@
 
 from io import StringIO
 import json
-from pathlib import Path
-import sys
-import tempfile
-from typing import Union
 
 import numpy as np
 import pytest
@@ -50,20 +46,22 @@ def test_kws_autotune_workflow(platform, board, tmp_path):
 
     str_logs = str_io_logs.getvalue().rstrip().split("\n")
     logs = list(map(json.loads, str_logs))
-    assert len(logs) == 2 * TUNING_RUNS_PER_OPERATOR  # Two operators
+
+    # Some tuning tasks don't have any config space, and will only be run once
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        tasks = tvm.autotvm.task.extract_from_program(mod["main"], {}, target)
+    assert len(tasks) <= len(logs) <= len(tasks) * TUNING_RUNS_PER_OPERATOR
 
     # Check we tested both operators
     op_names = list(map(lambda x: x["input"][1], logs))
-    assert op_names[0] == op_names[1] == "dense_nopack.x86"
-    assert op_names[2] == op_names[3] == "dense_pack.x86"
+    assert op_names[0] == op_names[1] == "conv2d_nhwc_spatial_pack.arm_cpu"
 
     # Make sure we tested different code. != does deep comparison in Python 3
     assert logs[0]["config"]["index"] != logs[1]["config"]["index"]
     assert logs[0]["config"]["entity"] != logs[1]["config"]["entity"]
-    assert logs[2]["config"]["index"] != logs[3]["config"]["index"]
-    assert logs[2]["config"]["entity"] != logs[3]["config"]["entity"]
 
     # Compile the best model with AOT and connect to it
+    str_io_logs.seek(0)
     with tvm.micro.testing.create_aot_session(
         platform,
         board,
@@ -79,17 +77,18 @@ def test_kws_autotune_workflow(platform, board, tmp_path):
             np.random.randint(low=-127, high=128, size=(1, 1960), dtype=np.int8) for x in range(3)
         )
 
-        labels = [0, 0, 0]
-
         # Validate perforance across random runs
-        time, acc = tvm.micro.testing.evaluate_model_accuracy(
-            session, aot_executor, samples, labels, runs_per_sample=20
-        )
+        runtimes = [
+            runtime
+            for _, runtime in tvm.micro.testing.predict_labels_aot(
+                session, aot_executor, samples, runs_per_sample=20
+            )
+        ]
         # `time` is the average time taken to execute model inference on the
         # device, measured in seconds. It does not include the time to upload
         # the input data via RPC. On slow boards like the Arduino Due, time
         # is around 0.12 (120 ms), so this gives us plenty of buffer.
-        assert time < 1
+        assert np.median(runtimes) < 1
 
 
 if __name__ == "__main__":

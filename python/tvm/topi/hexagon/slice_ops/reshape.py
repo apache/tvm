@@ -40,13 +40,14 @@ def reshape_compute(inp: te.Tensor, new_shape: tuple) -> te.Tensor:
     return topi.transform.reshape(inp, new_shape)
 
 
-def stir_schedule_nhwc_1024c(
+def stir_sched_nhwc_2d_op(
     out: te.Tensor,
     inp: te.Tensor,
     out_layout: str,
     in_layout: str,
+    c_split: int,
 ) -> tir.Schedule:
-    """Schedule for output layout: nhwc-1024c-2d"""
+    """Schedule for output layout: nc-1024-2d, nc-2048-2d"""
     reshape_func = te.create_prim_func([inp, out])
     sch = tir.Schedule(reshape_func, debug_mask="all")
     compute = sch.get_block("T_reshape")
@@ -57,7 +58,7 @@ def stir_schedule_nhwc_1024c(
     jout, channel = sch.split(j, [None, inp.shape[3]])
     height, width = sch.split(jout, [inp.shape[1], inp.shape[2]])
     channelo, channeli = sch.split(channel, [None, 1024])
-    channelio, channelii = sch.split(channeli, [None, 64])
+    channelio, channelii = sch.split(channeli, [None, c_split])
     sch.reorder(i, height, width, channelo, channelio, channelii)
     sch.vectorize(channelii)
     return sch
@@ -101,8 +102,10 @@ def reshape_stir_schedule(
     sch : tvm.tir.Schedule
         The STIR schedule for slice reshape compute
     """
-    if output_layout == "nhwc-8h2w32c2w-2d":
+    if output_layout in ["nhwc-8h2w32c2w-2d", "nhwc-8h8w32c-2d"]:
         return stir_schedule_nhwc_8h2w32c2w(out, inp, output_layout, input_layout)
     if output_layout == "nc-1024-2d":
-        return stir_schedule_nhwc_1024c(out, inp, output_layout, input_layout)
+        return stir_sched_nhwc_2d_op(out, inp, output_layout, input_layout, 64)
+    if output_layout == "nc-2048-2d":
+        return stir_sched_nhwc_2d_op(out, inp, output_layout, input_layout, 128)
     raise RuntimeError(f"Unexpected layout '{output_layout}'")

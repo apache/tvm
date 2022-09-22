@@ -78,7 +78,7 @@ class BufferInfo(Object):
         )
 
     def set_conflicts(self, conflicts: list):
-        """Sets the the conflicting array of buffer info objects"""
+        """Sets the conflicting array of buffer info objects"""
         _ffi_api.BufferInfoSetConflicts(self, conflicts)
 
 

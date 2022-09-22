@@ -56,23 +56,23 @@ def reshape_helper(
         input_layout,
     )
     with tvm.transform.PassContext(opt_level=3):
-        print("output of tvm.lower", tvm.lower(tir_s.mod, name=func))
         runtime_module = tvm.build(tir_s.mod, target=target, name=func)
 
     mod = hexagon_session.load_module(runtime_module)
 
-    a_numpy = (np.random.uniform(-1, 1, input_shape)).astype(data_type)
+    a_numpy = (np.random.uniform(-10, 10, input_shape)).astype(data_type)
     ref = np.reshape(a_numpy, output_shape)
 
     input_np_transformed = transform_numpy(a_numpy, "nhwc", input_layout)
     ref_np_transformed = transform_numpy(ref, "nhwc", output_layout)
     input_axis_sep = [4]
-    if output_layout == "nhwc-8h2w32c2w-2d":
+    if output_layout in ["nhwc-8h2w32c2w-2d", "nhwc-8h8w32c-2d"]:
         output_axis_sep = [4]
-    elif output_layout == "nc-1024-2d":
+    elif output_layout in ["nc-1024-2d", "nc-2048-2d"]:
         output_axis_sep = [2]
     else:
         raise RuntimeError(f"Unexpected layout '{output_layout}'")
+
     a_tvm = allocate_hexagon_array(
         hexagon_session.device,
         data=input_np_transformed,
@@ -86,11 +86,12 @@ def reshape_helper(
         axis_separators=output_axis_sep,
         mem_scope="global.vtcm",
     )
+
     mod(a_tvm, output)
     np.testing.assert_allclose(output.numpy(), ref_np_transformed, atol=1e-07, rtol=0)
 
 
-batch_flatten_tests = (
+batch_flatten_fp16_tests = (
     ([1, 1, 1, 2048], [1, 2048], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
     ([1, 2, 4, 2048], [1, 2 * 4 * 2048], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
     ([1, 8, 8, 1024], [1, 8 * 8 * 1024], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
@@ -98,14 +99,17 @@ batch_flatten_tests = (
 )
 
 
+batch_flatten_uint8_tests = (
+    ([1, 1, 1, 2048], [1, 2048], "nhwc-2048c-2d", "nc-2048-2d", "uint8"),
+    ([1, 2, 4, 2048], [1, 2 * 4 * 2048], "nhwc-2048c-2d", "nc-2048-2d", "uint8"),
+)
+
+
 class BaseTestBatchFlatten:
-    (
-        input_shape,
-        output_shape,
-        input_layout,
-        output_layout,
-        data_type,
-    ) = tvm.testing.parameters(*batch_flatten_tests)
+    (input_shape, output_shape, input_layout, output_layout, data_type,) = tvm.testing.parameters(
+        *batch_flatten_fp16_tests,
+        *batch_flatten_uint8_tests,
+    )
 
 
 class TestBatchFlatten(BaseTestBatchFlatten):
@@ -132,11 +136,24 @@ class TestBatchFlatten(BaseTestBatchFlatten):
         )
 
 
+reshape_fp16_tests = (
+    ([1, 8, 4, 64], [1, 8, 8, 32], "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", "float16"),
+    ([1, 16, 8, 128], [1, 16, 16, 64], "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", "float16"),
+)
+
+
+reshape_uint8_tests = (
+    ([1, 8, 8, 128], [1, 8, 16, 64], "nhwc-8h8w32c-2d", "nhwc-8h8w32c-2d", "uint8"),
+    ([1, 16, 64, 128], [1, 16, 128, 64], "nhwc-8h8w32c-2d", "nhwc-8h8w32c-2d", "uint8"),
+)
+
+
 class BaseTestReshape(BaseTestBatchFlatten):
     (input_shape, output_shape, input_layout, output_layout, data_type,) = tvm.testing.parameters(
-        *batch_flatten_tests,
-        ([1, 8, 4, 64], [1, 8, 8, 32], "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", "float16"),
-        ([1, 16, 8, 128], [1, 16, 16, 64], "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", "float16"),
+        *batch_flatten_fp16_tests,
+        *batch_flatten_uint8_tests,
+        *reshape_fp16_tests,
+        *reshape_uint8_tests,
     )
 
 

@@ -44,7 +44,7 @@ def conv2d_strategy_rocm(attrs, inputs, out_type, target):
         and padding[1] == padding[3]
     ):
         strategy.add_implementation(
-            wrap_compute_conv2d(topi.rocm.conv2d_nchw_miopen, True),
+            wrap_compute_conv2d(topi.rocm.conv2d_nchw_miopen, need_data_layout=True),
             wrap_topi_schedule(topi.rocm.schedule_conv2d_nchw_miopen),
             name="conv2d_nchw_miopen.rocm",
             plevel=50,

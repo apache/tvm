@@ -14,20 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+""" benchmark_elemwise_add """
 
 import os
 import os.path
 import sys
-import pytest
-import numpy as np
-import logging
 import tempfile
 
-import tvm.testing
+import numpy as np
+import pytest
 import tvm.script
-from tvm.script import tir as T
-from tvm import te
+import tvm.testing
 from tvm.contrib.hexagon.build import HexagonLauncherRPC
+from tvm.script import tir as T
+
 from . import benchmark_util as bu
 
 _SHOULD_SKIP_BENCHMARKS, _SKIP_BENCHMARKS_REASON = bu.skip_bencharks_flag_and_reason()
@@ -90,12 +90,8 @@ print("OUTPUT DIRECTORY: {}".format(_HOST_OUTPUT_DIR))
 print("-" * 80)
 print()
 
-from typing import Tuple
 
-
-def _get_irmod_elemwise_add(
-    _PRIMFUNC_NAME: str, shape: list, dtype: str, mem_scope: str
-) -> tvm.ir.module.IRModule:
+def _get_irmod_elemwise_add(shape: list, dtype: str, mem_scope: str) -> tvm.ir.module.IRModule:
     """
     Return an IRModule containing a single primfunc, expressed as NS-TIR.
 
@@ -113,7 +109,6 @@ def _get_irmod_elemwise_add(
         dim0_size,
         dim1_size,
     ) = shape
-    dtype_str = str(dtype)
 
     if mem_scope == "global.vtcm":
         raise bu.UnsupportedException("This benchmark kernel does not yet support VTCM buffers.")
@@ -124,20 +119,30 @@ def _get_irmod_elemwise_add(
         # Also: The VTCM budget is a very rough estimate, based only on experience.
         # Assuming that it's even reasonable to use a hard-coded estimate AT ALL, this number
         # may need tweaking.
-        estimated_vtcm_budget_bytes = HVX_VECTOR_BYTES * 1024
 
-        dtype_bits = tvm._ffi.runtime_ctypes.DataType(dtype).bits
-        assert dtype_bits % 8 == 0
-        dtype_bytes = dtype_bits // 8
+        # The below code is commented is commented to avoid unreachable error
+        # with pylint. Please enable this once the kernel starts supporting
+        # VTCM buffers
 
-        num_vtcm_tensors = 3
-        estimated_vtcm_needed_bytes = shape[0] * shape[1] * dtype_bytes * num_vtcm_tensors
+        # Code starts below:
+        # ---- ------ -----
+        # estimated_vtcm_budget_bytes = HVX_VECTOR_BYTES * 1024
 
-        if estimated_vtcm_needed_bytes > estimated_vtcm_budget_bytes:
-            raise bu.UnsupportedException("Expect to exceed VTCM budget.")
+        # dtype_bits = tvm._ffi.runtime_ctypes.DataType(dtype).bits
+        # assert dtype_bits % 8 == 0
+        # dtype_bytes = dtype_bits // 8
+
+        # num_vtcm_tensors = 3
+        # estimated_vtcm_needed_bytes = shape[0] * shape[1] * dtype_bytes * num_vtcm_tensors
+
+        # if estimated_vtcm_needed_bytes > estimated_vtcm_budget_bytes:
+        #     raise bu.UnsupportedException("Expect to exceed VTCM budget.")
 
     @tvm.script.ir_module
     class BenchmarkModule:
+        """Elementwise STIR module for benchmarking"""
+
+        # pylint: disable=no-self-argument,invalid-name,missing-function-docstring
         @T.prim_func
         def main(a: T.handle, b: T.handle, c: T.handle):
             # We exchange data between function by handles, which are similar to pointer.
@@ -150,6 +155,8 @@ def _get_irmod_elemwise_add(
             for i in range(dim0_size):
                 for j in range(dim1_size):
                     C[i, j] = A[i, j] + B[i, j]
+
+        # pylint: enable=no-self-argument,invalid-name,missing-function-docstring
 
     return BenchmarkModule
 
@@ -187,12 +194,12 @@ def _benchmark_hexagon_elementwise_add_kernel(
     keys_dict["host_files_dir_path"] = host_files_dir_path
 
     log_file_path = os.path.join(host_files_dir_path, "out.txt")
-    with open(log_file_path, "w") as log_file:
+    with open(log_file_path, "w", encoding="UTF-8") as log_file:
         print(f"CONFIGURATION: {desc}")
         log_file.write(f"CONFIGURATION: {desc}\n")
 
         try:
-            ns_tir_module = _get_irmod_elemwise_add(_PRIMFUNC_NAME, shape, dtype, mem_scope)
+            ns_tir_module = _get_irmod_elemwise_add(shape, dtype, mem_scope)
 
             # Dump the primfunc NS-TIR (as text) to the log file...
             lowered_mod = tvm.lower(ns_tir_module, _PRIMFUNC_NAME)
@@ -201,16 +208,16 @@ def _benchmark_hexagon_elementwise_add_kernel(
             log_file.write("\n")
 
             # Lower the primfunc's IRModule to Hexagon object code...
-            A = tvm.te.placeholder(shape, dtype=dtype)
-            B = tvm.te.placeholder(shape, dtype=dtype)
-            C = tvm.te.placeholder(shape, dtype=dtype)
+            input1 = tvm.te.placeholder(shape, dtype=dtype)
+            input2 = tvm.te.placeholder(shape, dtype=dtype)
+            output = tvm.te.placeholder(shape, dtype=dtype)
 
             built_module: tvm.driver.build_module.OperatorModule = tvm.build(
                 ns_tir_module,
                 [
-                    A,
-                    B,
-                    C,
+                    input1,
+                    input2,
+                    output,
                 ],
                 _SUPER_TARGET,
                 name=_PRIMFUNC_NAME,
@@ -231,9 +238,9 @@ def _benchmark_hexagon_elementwise_add_kernel(
 
             # Generate our testing / validation data...
             (
-                host_numpy_A_data,
-                host_numpy_B_data,
-                host_numpy_C_data_expected,
+                host_numpy_input1_data,
+                host_numpy_input2_data,
+                host_numpy_output_data_expected,
             ) = _get_elemwise_add_reference_value_tensors(shape, dtype)
 
             with hexagon_launcher.start_session() as sess:
@@ -244,25 +251,25 @@ def _benchmark_hexagon_elementwise_add_kernel(
                 )
 
                 # Create the target-side tensors to hold the primfunc's inputs and outputs...
-                A_data = tvm.nd.empty(shape, dtype, sess.device, mem_scope)
-                B_data = tvm.nd.empty(shape, dtype, sess.device, mem_scope)
-                C_data = tvm.nd.empty(shape, dtype, sess.device, mem_scope)
+                input1_data = tvm.nd.empty(shape, dtype, sess.device, mem_scope)
+                input2_data = tvm.nd.empty(shape, dtype, sess.device, mem_scope)
+                output_data = tvm.nd.empty(shape, dtype, sess.device, mem_scope)
 
                 # Populate the primfunc's input tensors...
-                A_data.copyfrom(host_numpy_A_data)
-                B_data.copyfrom(host_numpy_B_data)
+                input1_data.copyfrom(host_numpy_input1_data)
+                input2_data.copyfrom(host_numpy_input2_data)
 
                 # Actually benchmark the primfunc...
                 timer = loaded_hexagon_module.time_evaluator(
                     "main", sess.device, number=10, repeat=1
                 )
-                timing_result = timer(A_data, B_data, C_data)
+                timing_result = timer(input1_data, input2_data, output_data)
 
                 print(f"TIMING RESULT: {timing_result}")
                 log_file.write(f"TIMING RESULT: {timing_result}\n")
 
                 # Verify that the computation actually happened, and produced the correct result.
-                result = C_data.numpy()
+                result = output_data.numpy()
 
                 if dtype == "float16":
                     # These are the closest tolerance we currently expect / require for these
@@ -282,30 +289,30 @@ def _benchmark_hexagon_elementwise_add_kernel(
                 # kill the overall script.
                 try:
                     tvm.testing.assert_allclose(
-                        result, host_numpy_C_data_expected, rel_tolerance, abs_tolerance
+                        result, host_numpy_output_data_expected, rel_tolerance, abs_tolerance
                     )
-                except AssertionError as e:
-                    raise bu.NumericalAccuracyException(str(e))
+                except AssertionError as err:
+                    raise bu.NumericalAccuracyException(str(err))
 
                 _BT.record_success(timing_result, **keys_dict)
 
-        except bu.NumericalAccuracyException as e:
+        except bu.NumericalAccuracyException as err:
             print()
-            print(f"FAIL: Numerical accuracy error. See log file.")
+            print("FAIL: Numerical accuracy error. See log file.")
 
             log_file.write("\n")
-            log_file.write(f"FAIL: {e}\n")
+            log_file.write(f"FAIL: {err}\n")
 
-            _BT.record_fail(**keys_dict, comments=f"Numerical accuracy error. See log file.")
+            _BT.record_fail(**keys_dict, comments="Numerical accuracy error. See log file.")
 
-        except bu.UnsupportedException as e:
+        except bu.UnsupportedException as err:
             print()
-            print(f"SKIP: {e}")
+            print(f"SKIP: {err}")
 
             log_file.write("\n")
-            log_file.write(f"SKIP: {e}\n")
+            log_file.write(f"SKIP: {err}\n")
 
-            _BT.record_skip(**keys_dict, comments=f"Unsupported configuration: {e}")
+            _BT.record_skip(**keys_dict, comments=f"Unsupported configuration: {err}")
 
 
 def _get_elemwise_add_reference_value_tensors(shape: list, dtype: str):
@@ -321,10 +328,10 @@ def _get_elemwise_add_reference_value_tensors(shape: list, dtype: str):
     """
     assert len(shape) == 2
 
-    A = np.ndarray(shape, dtype=dtype)
-    B = np.ndarray(shape, dtype=dtype)
+    input1 = np.ndarray(shape, dtype=dtype)
+    input2 = np.ndarray(shape, dtype=dtype)
 
-    np_dtype = A.dtype
+    np_dtype = input1.dtype
 
     if np_dtype.kind in ["i", "u"]:
         # We allow overflow for integer types because it tends to be well-behaved
@@ -336,8 +343,8 @@ def _get_elemwise_add_reference_value_tensors(shape: list, dtype: str):
 
         for i in range(shape[0]):
             for j in range(shape[1]):
-                A[i, j] = next_value
-                B[i, j] = next_value * 2
+                input1[i, j] = next_value
+                input2[i, j] = next_value * 2
                 next_value += 1
 
     elif np_dtype.kind == "f":
@@ -355,24 +362,25 @@ def _get_elemwise_add_reference_value_tensors(shape: list, dtype: str):
 
         for i in range(shape[0]):
             for j in range(shape[1]):
-                A[i, j] = next_value
-                B[i, j] = next_value + 1
+                input1[i, j] = next_value
+                input2[i, j] = next_value + 1
                 next_value += delta
 
     else:
         assert False, f"Unexpected data type: {np_dtype}"
 
-    C = A + B
+    output = input1 + input2
     return [
-        A,
-        B,
-        C,
+        input1,
+        input2,
+        output,
     ]
 
 
 @pytest.mark.skipif(_SHOULD_SKIP_BENCHMARKS, reason=_SKIP_BENCHMARKS_REASON)
 @tvm.testing.requires_hexagon
 def test_elemwise_add(hexagon_launcher: HexagonLauncherRPC):
+    """Main elementwise add test function"""
     for dtype in [
         "int8",
         "float16",
@@ -413,7 +421,7 @@ def test_elemwise_add(hexagon_launcher: HexagonLauncherRPC):
     print()
 
     tabular_output_filename = os.path.join(_HOST_OUTPUT_DIR, "benchmark-results.csv")
-    with open(tabular_output_filename, "w") as csv_file:
+    with open(tabular_output_filename, "w", encoding="UTF-8") as csv_file:
         _BT.print_csv(csv_file, _CSV_COLUMN_ORDER)
 
     print(f"BENCHMARK RESULTS FILE: {tabular_output_filename}")

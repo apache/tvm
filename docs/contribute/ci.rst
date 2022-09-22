@@ -174,6 +174,29 @@ The images for these containers are hosted in the `tlcpack Docker Hub <https://h
 and referenced in the `Jenkinsfile.j2 <https://github.com/apache/tvm/tree/main/Jenkinsfile.j2>`_. These can be inspected and run
 locally via standard Docker commands.
 
+Adding a new Docker image
+"""""""""""""""""""""""""
+
+New docker images can be added to test TVM on a variety of platforms. Here are the steps for adding
+a new CI image:
+
+1.  Define the ``docker/Dockerfile.ci_foo`` and associated scripts in ``docker/install``. Create a PR containing only these changes (no ``Jenkinsfile`` changes).
+
+    Example: https://github.com/apache/tvm/pull/12230/files
+
+2. A committer verifies the image builds locally and then reviews/approves this PR.
+3. A committer creates the ci-foo repos in https://hub.docker.com/u/tlcpack and https://hub.docker.com/u/tlcpackstaging.
+4. Create a PR to create an ECR repo for the image in tlcpack/ci: https://github.com/tlc-pack/ci/pull/46/files
+5. A committer creates and gets merged a PR to add the image to the ``Jenkinsfile``
+
+    Example: https://github.com/apache/tvm/pull/12369/files.
+
+    **NOTE**: The PR must be opened from a branch in apache/tvm, not from a branch in a forked repo.
+
+6. A committer adds this image to the daily docker rebuild/validation run in tlcpack.
+
+    Example: https://github.com/tlc-pack/tlcpack/pull/131
+
 
 ``ci-docker-staging``
 ^^^^^^^^^^^^^^^^^^^^^

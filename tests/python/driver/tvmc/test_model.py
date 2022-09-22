@@ -45,7 +45,9 @@ def test_tvmc_workflow(use_vm, keras_simple):
     )
     input_dict = {"input_1": np.random.uniform(size=(1, 32, 32, 3)).astype("float32")}
 
-    result = tvmc.run(tvmc_package, device="cpu", end_to_end=True, inputs=input_dict)
+    result = tvmc.run(
+        tvmc_package, device="cpu", end_to_end=True, benchmark=True, inputs=input_dict
+    )
     assert type(tvmc_model) is TVMCModel
     assert type(tvmc_package) is TVMCPackage
     assert type(result) is TVMCResult
@@ -55,6 +57,10 @@ def test_tvmc_workflow(use_vm, keras_simple):
     assert "output_0" in result.outputs.keys()
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 @pytest.mark.parametrize("use_vm", [True, False])
 def test_save_load_model(use_vm, keras_simple, tmpdir_factory):
     pytest.importorskip("onnx")

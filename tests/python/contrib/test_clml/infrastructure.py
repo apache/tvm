@@ -73,11 +73,11 @@ class Device:
 
     connection_type = "tracker"
     host = "localhost"
-    port = 9090
+    port = 9150
     target = "opencl"
     target_host = "llvm -mtriple=aarch64-linux-gnu"
-    device_key = ""
-    cross_compile = ""
+    device_key = "android"
+    cross_compile = "aarch64-linux-android-g++"
 
     def __init__(self):
         """Keep remote device for lifetime of object."""

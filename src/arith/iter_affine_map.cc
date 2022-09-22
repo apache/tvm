@@ -177,8 +177,12 @@ class IterMapRewriter : public ExprMutator {
   using Parent = ExprMutator;
 
   explicit IterMapRewriter(Analyzer* analyzer, const Map<Var, Range>& input_iters,
-                           bool simplify_trivial_iterators, Array<String>* errors)
-      : analyzer_(analyzer), errors_(*errors), padding_predicate_(const_false()) {
+                           IterMapLevel check_level, bool simplify_trivial_iterators,
+                           Array<String>* errors)
+      : analyzer_(analyzer),
+        check_level_(check_level),
+        errors_(*errors),
+        padding_predicate_(const_false()) {
     for (auto kv : input_iters) {
       const Var& var = kv.first;
       const Range& vrng = kv.second;
@@ -419,6 +423,8 @@ class IterMapRewriter : public ExprMutator {
 
   // Internal analyzer
   Analyzer* analyzer_;
+  // Iter map check level
+  IterMapLevel check_level_;
   // Error messages for each unresolved expression.
   Array<String>& errors_;
   // The var map
@@ -651,7 +657,7 @@ class IterMapRewriter : public ExprMutator {
       if (predicate_induced_max.defined())
         predicate_induced_max = predicate_induced_max.value() - base;
     }
-    Optional<IterSumExpr> opt = TryFuseIters(expr);
+    Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_);
     ICHECK(!opt.defined() || opt.value()->args.size() == 1);
     // scale should be 1
     if (opt.defined() && is_one(opt.value()->args[0]->scale)) {
@@ -702,7 +708,7 @@ class IterMapRewriter : public ExprMutator {
   IterSumExpr NormalizeToIterWithOffset(IterSumExpr expr) {
     // We are normalizing a regular iter
     if (expr->args.size() < 1) return expr;
-    Optional<IterSumExpr> opt = TryFuseIters(expr);
+    Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_);
     if (opt.defined()) {
       return opt.value();
     } else {
@@ -735,9 +741,10 @@ class IterMapRewriter : public ExprMutator {
    *    return a corresponding IterSumExpr with extra offset if needed.
    *    Try to normalize IterSum into a fused IterMark
    * \param expr The input sum.
+   * \param check_level The check level if iter mapping.
    * \return The sum with the fused IterMark and extra offset if succeed.
    */
-  Optional<IterSumExpr> TryFuseIters(IterSumExpr expr) {
+  Optional<IterSumExpr> TryFuseIters(IterSumExpr expr, IterMapLevel check_level) {
     // select the iterators in order
     std::vector<bool> visited(expr->args.size(), false);
     std::vector<IterSplitExpr> flattened_iters, grouped_iters;
@@ -758,14 +765,42 @@ class IterMapRewriter : public ExprMutator {
     }
     // check if it can be remapped into a fused pattern.
     PrimExpr expected_extra_base = 0;
+    PrimExpr tail_extent = 0;
     PrimExpr expected_scale = base_scale.value();
     for (size_t i = 0; i < expr->args.size();) {
-      // find j such that expr->args[j] has expected scale
-      size_t j = i == 0 ? base_index : 0;
-      for (; j < expr->args.size(); ++j) {
-        if (!visited[j] && analyzer_->CanProveEqual(expr->args[j]->scale, expected_scale)) break;
+      // find position such that expr->args[j] match expected scale
+      int j = i == 0 ? base_index : expr->args.size() - 1;
+
+      size_t matched_pos = expr->args.size();
+      PrimExpr matched_scale{nullptr};
+      bool is_exact_match{false};
+
+      for (; j >= 0; --j) {
+        if (visited[j]) {
+          continue;
+        }
+        const PrimExpr& cur_scale = expr->args[j]->scale;
+
+        // for bijective mapping, the matched scale must equal to expected scale
+        if (analyzer_->CanProveEqual(cur_scale, expected_scale)) {
+          matched_pos = j;
+          matched_scale = cur_scale;
+          is_exact_match = true;
+          break;
+        }
+        if (check_level != IterMapLevel::Bijective && base_scale.value()->value == 1) {
+          // find the closest scale which is less or equal to expected scale
+          if (analyzer_->CanProveGreaterEqual(expected_scale - cur_scale, 0) &&
+              analyzer_->CanProveGreaterEqual(cur_scale, 0)) {
+            if (matched_pos == expr->args.size() ||
+                analyzer_->CanProveLess(matched_scale - cur_scale, 0)) {
+              matched_pos = j;
+              matched_scale = cur_scale;
+            }
+          }
+        }
       }
-      if (j == expr->args.size()) {
+      if (matched_pos == expr->args.size()) {
         return NullOpt;
       }
       // look for the longest constrained iter started from expr->args[j]
@@ -775,8 +810,8 @@ class IterMapRewriter : public ExprMutator {
       // otherwise we expect the scale of i to be 2*5=10
       Optional<IterSumExpr> constraint_to_match;
       for (const IterSumExpr& iter : constrained_iters_flattened_) {
-        if (IterSplitEqual(expr->args[j], iter->args.back(), false)) {
-          // find a predicate started from expr->args[j]
+        if (IterSplitEqual(expr->args[matched_pos], iter->args.back(), false)) {
+          // find a predicate started from match position
           if (!constraint_to_match ||
               constraint_to_match.value()->args.size() < iter->args.size()) {
             constraint_to_match = iter;
@@ -793,7 +828,7 @@ class IterMapRewriter : public ExprMutator {
           size_t k = 0;
           for (; k < expr->args.size(); ++k) {
             if (!visited[k] && IterSplitEqual(expr->args[k], *it, false)) {
-              if (analyzer_->CanProveEqual((*it)->scale * expected_scale, expr->args[k]->scale))
+              if (analyzer_->CanProveEqual((*it)->scale * matched_scale, expr->args[k]->scale))
                 break;
             }
           }
@@ -806,20 +841,25 @@ class IterMapRewriter : public ExprMutator {
         auto iter = sum_fuse_map_.find(constraint_to_match.value());
         ICHECK(iter != sum_fuse_map_.end());
         const IterMarkWithOffset& iter_matched = iter->second;
-        grouped_iters.emplace_back(iter_matched.mark, expected_scale);
-        expected_extra_base += iter_matched.offset * expected_scale;
-        expected_scale *= iter_matched.mark->extent;
+        grouped_iters.emplace_back(iter_matched.mark, div(matched_scale, base_scale.value()));
+        expected_extra_base += iter_matched.offset * matched_scale;
+        if (!is_exact_match) {
+          tail_extent += expected_scale - matched_scale;
+        }
+        expected_scale = matched_scale * iter_matched.mark->extent;
         // move forward
         i += constraint_to_match.value()->args.size();
       } else {
         // constraint_to_match not found, skip this iterator
-        visited[j] = true;
-        IterSplitExpr arg = expr->args[j];
-        arg.CopyOnWrite()->scale =
-            analyzer_->Simplify(div(expr->args[j]->scale, base_scale.value()));
+        visited[matched_pos] = true;
+        IterSplitExpr arg = expr->args[matched_pos];
+        arg.CopyOnWrite()->scale = analyzer_->Simplify(div(arg->scale, base_scale.value()));
         flattened_iters.push_back(arg);
         grouped_iters.push_back(arg);
-        expected_scale *= expr->args[j]->extent;
+        if (!is_exact_match) {
+          tail_extent += expected_scale - matched_scale;
+        }
+        expected_scale = matched_scale * expr->args[matched_pos]->extent;
         ++i;
       }
     }
@@ -843,7 +883,8 @@ class IterMapRewriter : public ExprMutator {
                          expr->base + expected_extra_base);
     } else {
       // new iter, form a new mark
-      IterMark mark = IterMark(structured_form, div(expected_scale, base_scale.value()));
+      IterMark mark =
+          IterMark(structured_form, div(expected_scale, base_scale.value()) + tail_extent);
       sum_fuse_map_[flattened_form] = IterMarkWithOffset(mark, 0);
       flattened_map_[structured_form] = flattened_form;
       return IterSumExpr({IterSplitExpr(mark, base_scale.value())},
@@ -1086,8 +1127,8 @@ IterMapResult DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range
       constraints.begin(), constraints.end(),
       [](const IterConstraint& a, const IterConstraint& b) { return a.expr_size < b.expr_size; });
 
-  IterMapRewriter rewriter(analyzer, constrained_input_iters, simplify_trivial_iterators,
-                           &result->errors);
+  IterMapRewriter rewriter(analyzer, constrained_input_iters, check_level,
+                           simplify_trivial_iterators, &result->errors);
   // Step0.0: rewrite constraints in the order from size-small ones to size-big ones
   for (const IterConstraint& constraint : constraints) {
     auto res = rewriter.RewriteIterConstraint(constraint.iter, constraint.lower_bound,
@@ -1281,7 +1322,7 @@ IterSumExpr IterMapRewriter::PreprocessDividend(IterMapExpr dividend, PrimExpr o
     } else if (sum->args.size() == 1) {
       return sum;
     }
-    auto opt_fused = TryFuseIters(sum);
+    auto opt_fused = TryFuseIters(sum, check_level_);
     if (!opt_fused) {
       ErrorLogger(this) << "Dividend  " << tvm::PrettyPrint(original_dividend)
                         << ", can't be written as a single fused IterSum";

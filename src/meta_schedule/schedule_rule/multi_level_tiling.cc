@@ -37,7 +37,7 @@ namespace tir {
  * of multi-level tiling, so it's intentionally kept inside this file not in the analysis header
  */
 std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   const BufferNode* write_buffer = block->writes[0]->buffer.get();
   int n = block->reads.size();
   std::vector<int> results(n, -1);
@@ -60,6 +60,8 @@ using tir::BlockRV;
 using tir::IterVarType;
 using tir::LoopRV;
 using tir::Schedule;
+
+TVM_REGISTER_OBJECT_TYPE(StateNode);
 
 State::State(tir::Schedule sch, tir::BlockRV block_rv, Array<Array<tir::LoopRV>> tiles) {
   ObjectPtr<StateNode> node = make_object<StateNode>();
@@ -85,6 +87,7 @@ void MultiLevelTilingNode::InitializeWithTuneContext(const TuneContext& context)
       TVM_PY_LOG(INFO, context->logging_func) << "'thread_warp_size' is not defined in the target";
     }
   }
+  logging_func = context->logging_func;
 }
 
 // Entry of the mega rule; Inherited from ScheduleRuleNode
@@ -133,6 +136,7 @@ std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
         new_state->sch->ReverseComputeAt(consumer_rvs[0], loop_rv, true);
         results.push_back(std::move(new_state));
       }
+      state->write_reuse.emplace(0, consumer_rvs[0]);
       results.push_back(state);
       return results;
     } else {
@@ -146,6 +150,7 @@ std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
   BlockRV write_cache =
       state->sch->CacheWrite(/*block_rv=*/state->block_rv, /*read_buffer_index=*/0,
                              /*storage_scope=*/config.scope);
+  state->write_reuse.emplace(0, write_cache);
   for (int level : levels) {
     State new_state = state->Copy();
     const LoopRV& loop_rv = new_state->tiles[level - 1].back();
@@ -247,20 +252,47 @@ std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const {
       Array<LoopRV> buffer_loops = sch->GetLoops(cache_read_block);
       LoopRV fused = sch->Fuse(Array<LoopRV>{buffer_loops.end() - buffer_ndim,  //
                                              buffer_loops.end()});
-      // Annotate cooperative fetching
-      if (!vector_load_lens.empty()) {
-        int n = vector_load_lens.size();
-        double prob = 1.0 / n;
-        tir::ExprRV vector_load_len =
-            sch->SampleCategorical(support::AsArray<int, Integer>(vector_load_lens),
-                                   Array<FloatImm>(n, FloatImm(DataType::Float(64), prob)));
-        sch->Annotate(cache_read_block, tir::attr::meta_schedule_cooperative_fetch,
-                      vector_load_len);
-      }
+      AnnotateCooperativeFetching(&sch, cache_read_block);
+      new_state->read_reuse.emplace(i, cache_read_block);
     }
     results.push_back(std::move(new_state));
   }
   return results;
+}
+
+void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
+                                                       const tir::BlockRV& block) const {
+  // Filter out invalid vector lanes according to the data type.
+  const tir::BlockNode* block_node = (*sch)->GetSRef(block)->StmtAs<tir::BlockNode>();
+  ICHECK_EQ(block_node->writes.size(), 1);
+  const runtime::DataType dtype = block_node->writes[0]->buffer->dtype;
+  std::function<bool(int)> f_filter = nullptr;
+  if (dtype == runtime::DataType::Float(32)) {
+    f_filter = [&](int vector_len) { return vector_len <= 4; };
+  } else if (dtype == runtime::DataType::Float(16)) {
+    f_filter = [&](int vector_len) {
+      return (vector_len == 1 || vector_len % 2 == 0) && vector_len <= 8;
+    };
+  } else if (dtype == runtime::DataType::Int(8)) {
+    f_filter = [&](int vector_len) { return vector_len <= 16; };
+  }
+  std::vector<int> valid_vector_lens;
+  valid_vector_lens.reserve(vector_load_lens.size());
+  if (f_filter != nullptr) {
+    std::copy_if(vector_load_lens.begin(), vector_load_lens.end(),
+                 std::back_inserter(valid_vector_lens), f_filter);
+  } else {
+    valid_vector_lens = vector_load_lens;
+  }
+
+  if (!valid_vector_lens.empty()) {
+    int n = valid_vector_lens.size();
+    double prob = 1.0 / n;
+    tir::ExprRV vector_load_len =
+        (*sch)->SampleCategorical(support::AsArray<int, Integer>(valid_vector_lens),
+                                  Array<FloatImm>(n, FloatImm(DataType::Float(64), prob)));
+    (*sch)->Annotate(block, tir::attr::meta_schedule_cooperative_fetch, vector_load_len);
+  }
 }
 
 // Constructor

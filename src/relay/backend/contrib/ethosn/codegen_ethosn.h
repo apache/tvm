@@ -46,7 +46,6 @@
 #include "../../../../runtime/contrib/ethosn/ethosn_runtime.h"
 #include "../codegen_c/codegen_c.h"
 #include "ethosn_api.h"
-#include "ethosn_api_version.h"
 #include "ethosn_support_library/Support.hpp"
 #include "ethosn_support_library/SupportQueries.hpp"
 
@@ -207,11 +206,14 @@ class ConstructNetworkVisitor : public MixedModeVisitor, private ErrorReportingP
   EthosnError MakeSigmoidLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeMeanLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeTanhLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeConv2DTransposeLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeConcatenateLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeSplitLayer(const Call& call, sl::TensorsAndId* outs);
   EthosnError MakeDepthToSpaceLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeReluLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeLeakyReLULayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeRequantizeLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeResizeLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
 
   /*! \brief A look-up table from Expr to layers. */
   std::map<Expr, std::vector<std::shared_ptr<sl::Operand>>> operand_table_;
@@ -248,7 +250,6 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
   bool enable_intermediate_compression;
   bool disable_winograd;
   String debug_dir;
-  String compiler_algorithm;
 
   TVM_DECLARE_ATTRS(EthosnCompilerConfigNode, "ext.attrs.EthosnCompilerConfigNode") {
     TVM_ATTR_FIELD(variant).describe("See Ethos-N documentation.").set_default("n78");
@@ -276,7 +277,6 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
     TVM_ATTR_FIELD(enable_intermediate_compression).set_default(true);
     TVM_ATTR_FIELD(disable_winograd).set_default(false);
     TVM_ATTR_FIELD(debug_dir).set_default(".");
-    TVM_ATTR_FIELD(compiler_algorithm).set_default("NonCascadingOnly");
   }
 };
 
@@ -349,6 +349,19 @@ class EthosnCompiler {
    */
   static std::pair<std::vector<uint32_t>, std::vector<uint32_t>> GetInputOutputOrder(
       NetworkWithIDs network, const std::unique_ptr<sl::CompiledNetwork>& compiled_network);
+
+  /*!
+   * \brief Determine the input and output sizes of a compiled network.
+   *
+   * These need to be queried from the compiled network as the compiler can choose
+   * to add additional padding on the input/output in certain cases.
+   *
+   * \param compiled_network The network compiled by the NPU compiler.
+   * \return Pair of vectors of buffer sizes for both the inputs and outputs of the
+   * network.
+   */
+  static std::pair<std::vector<uint32_t>, std::vector<uint32_t>> GetIOSizes(
+      const std::unique_ptr<sl::CompiledNetwork>& compiled_network);
 
   /*!
    * \brief Query interface used to determine if the Ethos-N hardware supports an operation

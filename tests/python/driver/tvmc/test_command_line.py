@@ -21,6 +21,8 @@ import shutil
 
 from pytest_lazyfixture import lazy_fixture
 from unittest import mock
+
+import tvm
 from tvm.driver.tvmc.main import _main
 from tvm.driver.tvmc.model import TVMCException
 from tvm.driver.tvmc import compiler
@@ -157,6 +159,26 @@ def test_tvmc_tune_file_check(capsys, invalid_input):
     )
     on_assert_error = f"'tvmc tune' failed to check invalid FILE: {invalid_input}"
     assert captured.err == expected_err, on_assert_error
+
+
+@mock.patch("tvm.relay.build", side_effect=tvm.relay.build)
+@mock.patch("tvm.driver.tvmc.model.TVMCPackage.__init__", return_value=None)
+def test_tvmc_workspace_pools_check(mock_pkg, mock_relay, keras_simple, tmpdir_factory):
+    pytest.importorskip("tensorflow")
+    tmpdir = tmpdir_factory.mktemp("data")
+
+    # Test model compilation
+    package_path = os.path.join(tmpdir, "keras-tvm.tar")
+    compile_str = (
+        f"tvmc compile --target=llvm --workspace-pools=sram "
+        f"--workspace-pools-targets=sram:llvm "
+        f"--output={package_path} {keras_simple}"
+    )
+    compile_args = compile_str.split(" ")[1:]
+    _main(compile_args)
+    assert os.path.exists(package_path)
+    assert mock_relay.call_count == 1
+    assert mock_relay.call_args_list[0][1]["workspace_memory_pools"].pools[0].pool_name == "sram"
 
 
 @pytest.fixture

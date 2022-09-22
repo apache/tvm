@@ -22,8 +22,7 @@ from tvm import testing
 from tvm import relay
 
 import tvm
-from test_clml.infrastructure import skip_runtime_test, build_and_run
-from test_clml.infrastructure import Device
+from test_clml.infrastructure import skip_runtime_test, build_and_run, Device
 
 
 def _build_and_run_network(mod, params, inputs, data, device, atol, rtol):
@@ -86,7 +85,6 @@ def test_mobilenet():
         mobilenet = MobileNet(
             include_top=True, weights=None, input_shape=(224, 224, 3), classes=1000
         )
-        mobilenet.load_weights("mobilenet_1_0_224_tf.h5")
         inputs = {mobilenet.input_names[0]: ((1, 3, 224, 224), "float32")}
 
         data = {}

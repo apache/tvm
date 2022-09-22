@@ -205,6 +205,14 @@ def schedule_lrn(attrs, outs, target):
         return topi.generic.schedule_lrn(outs)
 
 
+# pad
+@generic_func
+def schedule_pad(attrs, outs, target):
+    """Schedule PAD op"""
+    with target:
+        return schedule_injective(attrs, outs, target)
+
+
 # bitpack
 @generic_func
 def schedule_bitpack(attrs, outs, target):
@@ -223,7 +231,9 @@ get_meta_schedule_original_shape = _ffi.get_global_func(
 # conv2d
 def wrap_compute_conv2d(
     topi_compute,
+    *,
     need_data_layout=False,
+    need_kernel_layout=False,
     need_out_layout=False,
     has_groups=False,
     need_auto_scheduler_layout=False,
@@ -236,6 +246,7 @@ def wrap_compute_conv2d(
         strides = get_const_tuple(attrs.strides)
         dilation = get_const_tuple(attrs.dilation)
         data_layout = attrs.get_str("data_layout")
+        kernel_layout = attrs.get_str("kernel_layout")
         out_layout = attrs.get_str("out_layout")
         out_dtype = attrs.out_dtype
         out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
@@ -244,6 +255,8 @@ def wrap_compute_conv2d(
             args.append(attrs.groups)
         if need_data_layout:
             args.append(data_layout)
+        if need_kernel_layout:
+            args.append(kernel_layout)
         if need_out_layout:
             args.append(out_layout)
         args.append(out_dtype)
@@ -340,13 +353,15 @@ def conv2d_NCHWc_strategy(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     if inputs[0].dtype == "int8" or inputs[0].dtype == "uint8":
         strategy.add_implementation(
-            wrap_compute_conv2d(topi.nn.conv2d_NCHWc_int8, True, True),
+            wrap_compute_conv2d(
+                topi.nn.conv2d_NCHWc_int8, need_data_layout=True, need_out_layout=True
+            ),
             wrap_topi_schedule(topi.generic.schedule_conv2d_NCHWc_int8),
             name="conv2d_NCHWc_int8.generic",
         )
     else:
         strategy.add_implementation(
-            wrap_compute_conv2d(topi.nn.conv2d_NCHWc, True, True),
+            wrap_compute_conv2d(topi.nn.conv2d_NCHWc, need_data_layout=True, need_out_layout=True),
             wrap_topi_schedule(topi.generic.schedule_conv2d_NCHWc),
             name="conv2d_NCHWc.generic",
         )
@@ -360,7 +375,9 @@ def depthwise_conv2d_NCHWc_strategy(attrs, inputs, out_type, target):
     logger.warning("depthwise_conv2d_NCHWc is not optimized for this platform.")
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_conv2d(topi.nn.depthwise_conv2d_NCHWc, True, True),
+        wrap_compute_conv2d(
+            topi.nn.depthwise_conv2d_NCHWc, need_data_layout=True, need_out_layout=True
+        ),
         wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_NCHWc),
         name="depthwise_conv2d_NCHWc.generic",
     )
@@ -1451,6 +1468,34 @@ def wrap_compute_stft(topi_compute):
     return _compute_stft
 
 
+# trilu
+@override_native_generic_func("trilu_strategy")
+def trilu_strategy(attrs, outs, out_type, target):
+    """trilu generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_trilu(topi.trilu),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="trilu.generic",
+    )
+    return strategy
+
+
+def wrap_compute_trilu(topi_compute):
+    """Wrap trilu compute"""
+
+    def _compute_trilu(attrs, inputs, output_type):
+        return [
+            topi_compute(
+                inputs[0],
+                inputs[1],
+                attrs.upper,
+            )
+        ]
+
+    return _compute_trilu
+
+
 # roi_pool
 @generic_func
 def schedule_roi_pool(attrs, outs, target):
@@ -1781,6 +1826,16 @@ def uniform_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+# multinomial
+def wrap_compute_multinomial(topi_compute):
+    """Wrap multinomial topi compute"""
+
+    def _compute_multinomial(attrs, inputs, _):
+        return list(topi_compute(inputs[0], inputs[1], attrs.num_samples))
+
+    return _compute_multinomial
+
+
 # sliding_window
 def wrap_compute_sliding_window():
     """Wrap sliding_window topi compute"""
@@ -1811,6 +1866,18 @@ def normal_strategy(attrs, inputs, out_type, target):
         wrap_compute_uniform(topi.random.normal),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="normal.generic",
+    )
+    return strategy
+
+
+@override_native_generic_func("multinomial_strategy")
+def multinomial_strategy(attrs, inputs, out_type, target):
+    """multinomial generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_multinomial(topi.random.multinomial),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="multinomial.generic",
     )
     return strategy
 

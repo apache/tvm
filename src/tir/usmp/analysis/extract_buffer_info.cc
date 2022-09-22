@@ -92,7 +92,11 @@ class BufferInfoExtractor : public StmtExprVisitor {
   /*!
    * \brief Records the order of calls in the main for stability.
    */
-  std::set<Call> call_order_;
+  std::vector<Call> call_order_;
+  /*!
+   * \brief Lookup to avoid adding duplicates to `call_order_`.
+   */
+  std::unordered_set<Call, ObjectPtrHash, ObjectPtrEqual> call_order_contents_;
   /*!
    * \brief Records first access in-terms of Stmts to each buffer per call
    *
@@ -469,7 +473,10 @@ void BufferInfoExtractor::VisitPrimFunc(const PrimFunc& func, const Call& call) 
                scope_stack_.top().allocate_nodes,
                scope_stack_.top().allocate_const_nodes,
                scope_stack_.top().initial_stmt_of_the_nested_loops};
-  call_order_.insert(call);
+  if (call_order_contents_.count(call) == 0) {
+    call_order_contents_.insert(call);
+    call_order_.push_back(call);
+  }
   scope_stack_.push(si);
   this->VisitStmt(func->body);
   scope_stack_.pop();

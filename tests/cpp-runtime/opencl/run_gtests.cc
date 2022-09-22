@@ -40,7 +40,7 @@ TVM_REGISTER_GLOBAL("opencl.run_gtests").set_body([](TVMArgs args, TVMRetValue* 
   argv.push_back(const_cast<char*>("opencl_run_gtests"));
 
   // add parsed arguments
-  for (int i = 0; i < parsed_args.size(); ++i) {
+  for (size_t i = 0; i < parsed_args.size(); ++i) {
     argv.push_back(const_cast<char*>(parsed_args[i].data()));
   }
 

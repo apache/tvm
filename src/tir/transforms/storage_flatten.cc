@@ -47,6 +47,7 @@
 namespace tvm {
 namespace tir {
 
+using arith::IRVisitorWithAnalyzer;
 using runtime::StorageRank;
 using runtime::StorageScope;
 using runtime::ThreadScope;
@@ -769,7 +770,7 @@ class ThreadScopePropagate : public StmtExprMutator {
 
  private:
   // If the rewritten buffers are part of a buffer_bind_scope, either
-  // as the buffer view or as the the buffer being viewed, then the
+  // as the buffer view or as the buffer being viewed, then the
   // buffer_bind_scope must be rewritten to refer to the updated
   // buffers.
   Stmt HandleBufferBindScope(const AttrStmtNode* op) {

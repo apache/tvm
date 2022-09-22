@@ -439,9 +439,7 @@ std::pair<OpPatternKind, std::string> SubGraphKindAndLabel(const DataflowGraph& 
   bool first = true;
   OpPatternKind max_kind = kElemWise;
   for (PostDfsIndex index : inside) {
-    OpPatternKind sub_kind;
-    std::string sub_label;
-    std::tie(sub_kind, sub_label) = SubExprKindAndLabel(dataflow_graph.index_to_node(index)->ref());
+    auto [sub_kind, sub_label] = SubExprKindAndLabel(dataflow_graph.index_to_node(index)->ref());
     if (!sub_label.empty()) {
       if (first) {
         first = false;
@@ -995,9 +993,7 @@ transform::Pass PartitionForTesting(Integer max_exits, Bool allow_taps, String c
     // Build the overall sub-graph, which will include any "Composite" functions as
     // well as any nodes without a label.
     IndexSet inside(dataflow_graph.size(), node_indexes);
-    OpPatternKind kind;
-    String label;
-    std::tie(kind, label) = SubGraphKindAndLabel(dataflow_graph, inside);
+    auto [kind, label] = SubGraphKindAndLabel(dataflow_graph, inside);
     SubGraph sub_graph(dataflow_graph, inside, kind, label, std::move(nested_sub_graphs));
 
     // Push the overall sub-graph into the final "Compiler" function.

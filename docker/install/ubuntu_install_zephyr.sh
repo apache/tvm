@@ -31,7 +31,8 @@ sudo apt-install-and-clear -y --no-install-recommends \
      git cmake ninja-build gperf \
      ccache dfu-util device-tree-compiler wget \
      python3-dev python3-pip python3-setuptools python3-tk python3-wheel python3-venv \
-     xz-utils file make gcc gcc-multilib g++-multilib apt-transport-https
+     xz-utils file make gcc gcc-multilib g++-multilib apt-transport-https libudev-dev \
+     libmagic1
 
 wget --no-verbose https://apt.kitware.com/keys/kitware-archive-latest.asc
 sudo apt-key add kitware-archive-latest.asc
@@ -64,5 +65,9 @@ chmod o+rwx zephyr/.cache
 
 #/opt/west/bin/pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
 pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
+
+# the requirements above overwrite junintparser with an older version, but it is not
+# used so overwrite it again with the correct version
+pip3 install junitparser==2.4.2
 
 bash /install/ubuntu_install_zephyr_sdk.sh /opt/zephyr-sdk

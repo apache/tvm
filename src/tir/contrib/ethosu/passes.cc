@@ -41,6 +41,13 @@ constexpr const char* kCopyComputeReorderingMaxCopyMovements =
     "tir.contrib.ethos-u.copy_compute_reordering_max_copy_movements";
 TVM_REGISTER_PASS_CONFIG_OPTION(kCopyComputeReorderingMaxCopyMovements, Integer);
 
+/*!
+ * \brief Whether to reorder copies and computes based on cycle count.
+ */
+constexpr const char* kCopyComputeReorderingReorderByCycles =
+    "tir.contrib.ethos-u.copy_compute_reordering_reorder_by_cycles";
+TVM_REGISTER_PASS_CONFIG_OPTION(kCopyComputeReorderingReorderByCycles, Bool);
+
 namespace tir {
 namespace contrib {
 namespace ethosu {
@@ -180,16 +187,16 @@ tvm::transform::Pass HoistAllocates() {
 TVM_REGISTER_GLOBAL("tir.contrib.ethos-u.HoistAllocates").set_body_typed(HoistAllocates);
 
 /*!
- * \brief Reorders copy and compute nodes in such a way that independent DMA copies,
+ * \brief Reorders copy and compute nodes in such a way that independent DMA copies
  * and computes happen in parallel.
- * Copies to buffers with local scope are not reordered, indeed they copy LUT
- * into the SHRAM which already happens in parallel with copying weights into
+ * Copies to buffers with local scope are not reordered since they copy LUT
+ * into the SHRAM and that already happens in parallel with copying weights into
  * the weights encoder.
  */
 class CopyComputeReorderingMutator : public StmtExprMutator {
  public:
-  explicit CopyComputeReorderingMutator(int max_copy_movements)
-      : _max_copy_movements{max_copy_movements} {}
+  explicit CopyComputeReorderingMutator(int max_copy_movements, bool reorder_by_cycles)
+      : _max_copy_movements{max_copy_movements}, _reorder_by_cycles{reorder_by_cycles} {}
 
   PrimFunc operator()(PrimFunc main_func) {
     if (_max_copy_movements > 0) {
@@ -201,6 +208,13 @@ class CopyComputeReorderingMutator : public StmtExprMutator {
   }
 
  private:
+  // A structure to hold a compute op with the corresponding weights/bias copy and LUT copy
+  struct OpWithCopies {
+    Stmt compute_op{};
+    Stmt global_copy{};
+    Stmt local_copy{};
+  };
+
   Stmt VisitStmt_(const SeqStmtNode* op) override {
     if (op->size() <= 1) {
       return StmtExprMutator::VisitStmt_(op);
@@ -210,13 +224,103 @@ class CopyComputeReorderingMutator : public StmtExprMutator {
     std::vector<Stmt> new_seq(seq_stmt->size());
     std::copy(seq_stmt->seq.begin(), seq_stmt->seq.end(), new_seq.begin());
 
-    // Each copy statement to a buffer with global scope is moved up
-    // at most `_max_copy_movements` times.
-    for (size_t index = 0; index < new_seq.size(); ++index) {
-      if (GetStmtType(new_seq[index]) == StmtType::global_copy) {
-        int lower = std::max(0, static_cast<int>(index) - _max_copy_movements);
-        for (int i = index; i > lower && (GetStmtType(new_seq[i - 1]) == StmtType::compute); --i) {
-          std::swap(new_seq[i - 1], new_seq[i]);
+    // Reorder the copies and computes based on the cycle count
+    if (_reorder_by_cycles) {
+      // We can't hide the first copy, so ignore it for the purpose of hiding copies
+      Stmt first_copy{};
+      if (stmt_is_global_copy(new_seq[0]) ||
+          (stmt_is_local_copy(new_seq[0]) && stmt_is_global_copy(new_seq[1]))) {
+        auto copy_position = stmt_is_global_copy(new_seq[0]) ? 0 : 1;
+        first_copy = new_seq[copy_position];
+        new_seq.erase(new_seq.begin() + copy_position);
+      }
+
+      // Build up a list of cells with the compute op and the copy ops that directly preceed it
+      std::vector<OpWithCopies> ops{};
+      for (size_t idx = 0; idx < new_seq.size(); ++idx) {
+        if (stmt_is_compute_op(new_seq[idx])) {
+          OpWithCopies new_op;
+          new_op.compute_op = new_seq[idx];
+          if (idx > 0) {
+            auto prev_op = new_seq[idx - 1];
+            if (!stmt_is_compute_op(prev_op)) {
+              if (stmt_is_local_copy(prev_op)) {
+                new_op.local_copy = prev_op;
+              } else {
+                new_op.global_copy = prev_op;
+              }
+              if (idx > 1) {
+                auto prev_prev_op = new_seq[idx - 2];
+                if (!stmt_is_compute_op(prev_prev_op)) {
+                  if (stmt_is_local_copy(prev_prev_op)) {
+                    new_op.local_copy = prev_prev_op;
+                  } else {
+                    new_op.global_copy = prev_prev_op;
+                  }
+                }
+              }
+            }
+          }
+          ops.push_back(new_op);
+        }
+      }
+
+      // Move the global copies up by one. If in general the computes take longer than the copies,
+      // that should be good enough
+      for (size_t idx = 1; idx < ops.size(); ++idx) {
+        if (ops[idx].global_copy.as<AttrStmtNode>()) {
+          ops[idx - 1].global_copy = ops[idx].global_copy;
+          ops[idx].global_copy = {};
+        }
+      }
+
+      // If there are long copies, try to hide them further
+      for (size_t idx = ops.size() - 1; idx > 0; --idx) {
+        if (ops[idx].global_copy.as<AttrStmtNode>()) {
+          // Check whether the copy is hidden
+          int64_t copy_cycles{GetStmtCycles(ops[idx].global_copy)};
+          int64_t compute_cycles{GetStmtCycles(ops[idx].compute_op)};
+          bool is_hidden = compute_cycles >= copy_cycles;
+
+          // If the previous compute op is not already hiding another copy, move the copy back, so
+          // that it would be hidden by multiple computes
+          while (!is_hidden && !ops[idx - 1].global_copy.as<AttrStmtNode>() && (idx > 0)) {
+            int64_t new_compute_cycles{GetStmtCycles(ops[idx - 1].compute_op)};
+            ops[idx - 1].global_copy = ops[idx].global_copy;
+            ops[idx].global_copy = {};
+            compute_cycles += new_compute_cycles;
+            is_hidden = compute_cycles >= copy_cycles;
+            --idx;
+          }
+        }
+      }
+
+      // Reconstruct the op sequence from the vector of OpWithCopies
+      new_seq.clear();
+      if (first_copy.as<AttrStmtNode>()) {
+        new_seq.push_back(first_copy);
+      }
+      for (auto& op : ops) {
+        if (op.global_copy.as<AttrStmtNode>()) {
+          new_seq.push_back(op.global_copy);
+        }
+        if (op.local_copy.as<EvaluateNode>()) {
+          new_seq.push_back(op.local_copy);
+        }
+        if (op.compute_op.as<AttrStmtNode>()) {
+          new_seq.push_back(op.compute_op);
+        }
+      }
+    } else {
+      // Each copy statement to a buffer with global scope is moved up
+      // at most `_max_copy_movements` times.
+      for (size_t index = 0; index < new_seq.size(); ++index) {
+        if (GetStmtType(new_seq[index]) == StmtType::global_copy) {
+          int lower = std::max(0, static_cast<int>(index) - _max_copy_movements);
+          for (int i = index; i > lower && (GetStmtType(new_seq[i - 1]) == StmtType::compute);
+               --i) {
+            std::swap(new_seq[i - 1], new_seq[i]);
+          }
         }
       }
     }
@@ -226,28 +330,46 @@ class CopyComputeReorderingMutator : public StmtExprMutator {
     return Stmt{seq_stmt_node};
   }
 
+  bool stmt_is_global_copy(const Stmt& stmt) { return GetStmtType(stmt) == StmtType::global_copy; }
+
+  bool stmt_is_local_copy(const Stmt& stmt) { return GetStmtType(stmt) == StmtType::local_copy; }
+
+  bool stmt_is_compute_op(const Stmt& stmt) { return GetStmtType(stmt) == StmtType::compute; }
+
   /*! The maximum number of movements allowed for a copy. */
   int _max_copy_movements;
+  /*! Whether we use the cycle hint to determine the reordering. */
+  bool _reorder_by_cycles;
 };
 
 /*!
- * \brief A pass to reorder copy and compute nodes in such a way that independent DMA copies,
- * and computes happen in parallel.
+ * \brief A pass to reorder copy and compute nodes in such a way that independent DMA copies
+ * and computes happen in parallel. If reorder_by_cycles is set, we will ignore the
+ * max_copy_movements value.
  *
- * \param max_copy_movements: The maximum number of movements allowed for a copy.
+ *  \param max_copy_movements: The maximum number of movements allowed for a copy.
  *  If None, the pass context option tir.contrib.ethos-u.copy_compute_reordering_max_copy_movements
  *  is used if provided, otherwise the default value will be 1.
+ *
+ * \param reorder_by_cycles: Whether to reorder copies and computes by cycles.
+ *  If None, the pass context option tir.contrib.ethos-u.copy_compute_reordering_reorder_by_cycles
+ *  is used if provided, otherwise the default value will be False. If the value is True,
+ *  max_copy_movements will be ignored.
  * \return tvm::transform::Pass
  */
-tvm::transform::Pass CopyComputeReordering(Optional<Integer> max_copy_movements) {
+tvm::transform::Pass CopyComputeReordering(Optional<Integer> max_copy_movements,
+                                           Optional<Bool> reorder_by_cycles) {
   auto pass_func = [=](PrimFunc f, IRModule mod, tvm::transform::PassContext ctx) {
     ICHECK(mod->GetGlobalVars().size() == 1 && mod->ContainGlobalVar("main"))
         << "Expected a single primitive function called 'main'. Please run the "
            "CopyComputeReordering "
            "pass in conjunction with the LowerToTIR() pass.";
-    auto value = max_copy_movements.value_or(
+
+    auto copy_movements = max_copy_movements.value_or(
         ctx->GetConfig(kCopyComputeReorderingMaxCopyMovements, Integer(1)).value());
-    return CopyComputeReorderingMutator(value.IntValue())(f);
+    auto reorder = reorder_by_cycles.value_or(
+        ctx->GetConfig(kCopyComputeReorderingReorderByCycles, Bool(false)).value());
+    return CopyComputeReorderingMutator(copy_movements.IntValue(), reorder)(f);
   };
   return tvm::tir::transform::CreatePrimFuncPass(pass_func, 0,
                                                  "tir.contrib.ethos-u.CopyComputeReordering", {});

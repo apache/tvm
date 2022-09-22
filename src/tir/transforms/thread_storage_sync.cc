@@ -230,6 +230,48 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
   StorageScope sync_scope_;
 };
 
+// There are cases where necessary syncthreads is not inserted by ThreadSyncInserter.
+// For example, syncthreads is needed after async_wait_queue in the second loop below,
+// but since ThreadSyncInserter is not aware of the asynchronous semantics, it cannot tell
+// that the syncthreads is needed there.
+//
+// // Pipeline prologue
+// for i in range(125):
+//    async_commit_queue(0):
+//       async_scope:
+//          shared[(i + 3) % 4] = ...
+// ...
+//
+// // Pipeline Epilogue
+// for i in range(3):
+//    async_wait_queue(0, 2 - i):
+//       local[...] = shared[(i + 125) % 4]
+
+// This class adds syncthreads after all async_wait_queue. That includes syncthreads that
+// can be inserted by ThreadSyncInserter as well, but ThreadSyncInserter will not insert
+// duplicate syncthreads if it finds an existing one at the synchronization point.
+class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
+ public:
+  explicit ThreadSyncAfterWaitQueueInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
+
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    if (op->attr_key == attr::async_wait_queue_scope) {
+      auto sync = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
+                                {StringImm(sync_scope_.to_string())}));
+      auto inner = op->body.as<AttrStmtNode>();
+      ICHECK(inner && inner->attr_key == tir::attr::async_wait_inflight_count);
+      auto zero = make_zero(DataType::Int(32));
+      auto new_body = SeqStmt({sync, inner->body});
+      return AttrStmt(zero, tir::attr::async_wait_queue_scope, op->value,
+                      AttrStmt(zero, tir::attr::async_wait_inflight_count, inner->value, new_body));
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
+ private:
+  StorageScope sync_scope_;
+};
+
 class ThreadSyncInserter : public StmtExprMutator {
  public:
   ThreadSyncInserter(StorageScope sync_scope, const std::unordered_set<const Object*>& syncs)
@@ -384,6 +426,9 @@ class ThreadSyncInserter : public StmtExprMutator {
 
 Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
   StorageScope sync_scope = StorageScope::Create(storage_scope);
+  if (sync_scope.rank == StorageRank::kShared && sync_scope.tag == "") {
+    stmt = ThreadSyncAfterWaitQueueInserter(sync_scope)(stmt);
+  }
   ThreadSyncPlanner planner(sync_scope);
   planner(stmt);
   return ThreadSyncInserter(sync_scope, planner.syncs_inserted_)(std::move(stmt));

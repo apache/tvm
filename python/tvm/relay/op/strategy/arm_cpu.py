@@ -24,7 +24,6 @@ from tvm import relay, topi
 
 from ....auto_scheduler import is_auto_scheduler_enabled
 from ....meta_schedule import is_meta_schedule_enabled
-from ....target import arm_isa
 from ....topi.generic import conv2d as conv2d_generic
 from .. import op as _op
 from .generic import *
@@ -57,15 +56,14 @@ def schedule_concatenate_arm_cpu(_, outs, target):
 def schedule_pool_arm_cpu(attrs, outs, target):
     """schedule pooling ops arm cpu"""
     layout = attrs.layout
-    isa = arm_isa.IsaAnalyzer(target)
     avg_pool = isinstance(attrs, relay.op.op_attrs.AvgPool2DAttrs)
     with target:
         if (
             avg_pool
-            and isa.has_dsp_support
+            and target.features.has_dsp
             and layout in ("NCW", "NCHW")
             or not avg_pool
-            and isa.has_dsp_support
+            and target.features.has_dsp
             and layout in ("NWC", "NHWC")
         ):
             return topi.arm_cpu.schedule_pool(outs, layout)
@@ -86,8 +84,6 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
     kernel_layout = attrs.kernel_layout
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
-
-    isa = arm_isa.IsaAnalyzer(target)
 
     if groups == 1:
         if layout == "NCHW":
@@ -163,7 +159,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 name="conv2d_hwcn.generic",
             )
         elif layout == "NHWC":
-            if isa.has_dsp_support and kernel_layout == "HWOI":
+            if target.features.has_dsp and kernel_layout == "HWOI":
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_dsp),
                     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_dsp),
@@ -239,6 +235,28 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nhwc),
                     name="depthwise_conv2d_nhwc.arm_cpu",
                 )
+
+            # Optimized special case depthwiseConv2D operation. Requires a 3x3 kernel, a
+            # NHWC layout, a HWOI kernel layout (which we rearrange), no dilation, int8 inputs,
+            # int32 output, the same number of input and output channels, and for that channel
+            # count to be divisible by 4. Additional work could remove these restrictions.
+
+            elif (
+                target.features.has_dsp
+                and kernel.shape[0] == kernel.shape[1] == 3
+                and dilation_w == dilation_h == 1
+                and kernel.shape[3] == 1  # channel_multiplier == 1
+                and data.dtype == "int8"
+                and out_type.dtype == "int32"
+                and data.shape[3] % 4 == 0
+                and (padding != "SAME" or data.shape[1] % stride_h == data.shape[2] % stride_w == 0)
+            ):
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nhwc_dsp),
+                    wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nhwc_dsp),
+                    name="depthwise_conv2d_nhwc_dsp.arm_cpu",
+                )
+
             else:
                 logger.warning("depthwise_conv2d with layout NHWC is not optimized for arm cpu.")
                 strategy.add_implementation(
@@ -276,13 +294,15 @@ def conv2d_NCHWc_strategy_arm_cpu(attrs, inputs, out_type, target):
     data, kernel = inputs
     if topi.arm_cpu.is_int8_hw_support(data.dtype, kernel.dtype):
         strategy.add_implementation(
-            wrap_compute_conv2d(topi.arm_cpu.conv2d_NCHWc_int8, True, True),
+            wrap_compute_conv2d(
+                topi.arm_cpu.conv2d_NCHWc_int8, need_data_layout=True, need_out_layout=True
+            ),
             wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NCHWc_int8),
             name="conv2d_NCHWc_int8.arm_cpu",
         )
     else:
         strategy.add_implementation(
-            wrap_compute_conv2d(topi.x86.conv2d_NCHWc, True, True),
+            wrap_compute_conv2d(topi.x86.conv2d_NCHWc, need_data_layout=True, need_out_layout=True),
             wrap_topi_schedule(topi.x86.schedule_conv2d_NCHWc),
             name="conv2d_NCHWc.x86",
         )
@@ -294,7 +314,9 @@ def depthwise_conv2d_NCHWc_strategy_arm_cpu(attrs, inputs, out_type, target):
     """depthwise_conv2d_NCHWc adopted from x86"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_conv2d(topi.x86.depthwise_conv2d_NCHWc, True, True),
+        wrap_compute_conv2d(
+            topi.x86.depthwise_conv2d_NCHWc, need_data_layout=True, need_out_layout=True
+        ),
         wrap_topi_schedule(topi.x86.schedule_depthwise_conv2d_NCHWc),
         name="depthwise_conv2d_NCHWc.x86",
     )
@@ -469,12 +491,13 @@ def schedule_bitserial_dense_arm_cpu(attrs, inputs, out_type, target):
 def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
     """dense arm cpu strategy"""
     strategy = _op.OpStrategy()
-    isa = arm_isa.IsaAnalyzer(target)
-    if isa.has_dsp_support:
+    data, _ = inputs
+
+    if target.features.has_dsp and data.dtype in ["int8", "int16"]:
         strategy.add_implementation(
-            wrap_compute_dense(topi.nn.dense),
+            wrap_compute_dense(topi.arm_cpu.dense_dsp),
             wrap_topi_schedule(topi.arm_cpu.schedule_dense_dsp),
-            name="dense_dsp",
+            name="dense_dsp.arm_cpu",
         )
     else:
         logger.warning("dense is not optimized for arm cpu.")
@@ -500,14 +523,12 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
     if dilation[0] < 1:
         raise ValueError("dilation should be a positive value")
 
-    isa = arm_isa.IsaAnalyzer(target)
-
     if kernel_layout == "WOI":
-        if layout == "NWC" and isa.has_dsp_support:
+        if layout == "NWC" and target.features.has_dsp:
             strategy.add_implementation(
                 wrap_compute_conv1d(topi.arm_cpu.conv1d_nwc_dsp),
                 wrap_topi_schedule(topi.arm_cpu.schedule_conv1d_nwc_dsp),
-                name="conv1d_dsp",
+                name="conv1d_dsp.arm_cpu",
             )
         else:
             raise RuntimeError(

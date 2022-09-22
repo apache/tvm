@@ -28,6 +28,7 @@ import tvm.topi.testing
 _DEVICE = "llvm"
 _BATCH_NORM_IMPLEMENT = {
     "generic": (topi.nn.batch_norm, topi.generic.schedule_batch_norm),
+    "cpu": (topi.nn.batch_norm, topi.x86.schedule_batch_norm),
 }
 
 

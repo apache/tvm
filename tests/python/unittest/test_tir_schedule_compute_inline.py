@@ -556,11 +556,11 @@ def exp_exp_opaque_access_with_tvm_access_ptr(
     for i0 in T.serial(16):
         with T.block("compute_1"):
             i0_2 = T.axis.spatial(16, i0)
-            T.reads(compute_1[i0_2], lookup_table[0:1024])
+            T.reads(lookup_table[0:1024], compute_1[i0_2])
             T.writes(compute[i0_2])
+            T.evaluate(lookup_table.access_ptr("r"))
             compute[i0_2] = T.exp(
                 compute_1[i0_2],
-                lookup_table.access_ptr("r"),
                 dtype="float16",
             )
 
@@ -576,13 +576,54 @@ def exp_exp_opaque_access_with_tvm_access_ptr_inlined(
             i0_1 = T.axis.spatial(16, i0)
             # Do not put the opaque access to new write region when opaque access
             # wrapped with a tvm_access_ptr and the access mask set to "read only"
-            T.reads(x[i0_1], lookup_table[0:1024])
+            T.reads(lookup_table[0:1024], x[i0_1])
             T.writes(compute[i0_1])
+            T.evaluate(lookup_table.access_ptr("r"))
             compute[i0_1] = T.exp(
                 T.exp(x[i0_1], dtype="float16"),
-                lookup_table.access_ptr("r"),
                 dtype="float16",
             )
+
+
+@T.prim_func
+def elementwise_overcomputed_producer(
+    A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(127, 127), "float32"]
+) -> None:
+    B = T.alloc_buffer((128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(127, 127):
+        with T.block("C"):
+            cvi, cvj = T.axis.remap("SS", [i, j])
+            C[cvi, cvj] = B[cvi, cvj] + 1.0
+
+
+@T.prim_func
+def elementwise_overcomputed_producer_reverse_inlined(
+    A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(127, 127), "float32"]
+) -> None:
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.where(i < 127 and j < 127)
+            C[vi, vj] = A[vi, vj] * 2.0 + 1.0
+
+
+@T.prim_func
+def elementwise_producer_not_cover_consumer(
+    A: T.Buffer[(128, 128), "float32"], D: T.Buffer[(256, 128), "float32"]
+) -> None:
+    B = T.alloc_buffer((128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(256, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = T.if_then_else(vi >= 128, B[vi - 128, vj], T.float32(0), dtype="float32")
 
 
 # pylint: enable=no-member,invalid-name,unused-variable
@@ -820,6 +861,26 @@ def test_compute_inline_opaque_access_with_tvm_access_ptr(use_block_name):
     tvm.ir.assert_structural_equal(
         exp_exp_opaque_access_with_tvm_access_ptr_inlined, sch.mod["main"]
     )
+
+
+def test_reverse_compute_inline_overcomputed_producer(use_block_name):
+    """Test reverse compute inline overcomputed producer"""
+    sch = tir.Schedule(elementwise_overcomputed_producer, debug_mask="all")
+    compute = "C" if use_block_name else sch.get_block("C")
+    sch.reverse_compute_inline(compute)
+    tvm.ir.assert_structural_equal(
+        elementwise_overcomputed_producer_reverse_inlined, sch.mod["main"]
+    )
+
+
+def test_reverse_compute_inline_error_producer_not_cover_consumer(use_block_name):
+    """Test reverse compute inline failure when the inlined block iter domains are not covered by
+    its producer
+    """
+    sch = tir.Schedule(elementwise_producer_not_cover_consumer, debug_mask="all")
+    compute = "C" if use_block_name else sch.get_block("C")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.reverse_compute_inline(compute)
 
 
 if __name__ == "__main__":

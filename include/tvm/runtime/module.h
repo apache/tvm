@@ -234,7 +234,7 @@ class TVM_DLL ModuleNode : public Object {
 
  private:
   /*! \brief Cache used by GetImport */
-  std::unordered_map<std::string, std::shared_ptr<PackedFunc> > import_cache_;
+  std::unordered_map<std::string, std::shared_ptr<PackedFunc>> import_cache_;
   std::mutex mutex_;
 };
 

@@ -70,7 +70,7 @@ After you get the TVM runtime library, you can link the compiled library
 
 A model (optimized or not by TVM) can be cross compiled by TVM for
 different architectures such as ``aarch64`` on a ``x64_64`` host. Once the model
-is cross compiled it is neccessary to have a runtime compatible with the target
+is cross compiled it is necessary to have a runtime compatible with the target
 architecture to be able to run the cross compiled model.
 
 

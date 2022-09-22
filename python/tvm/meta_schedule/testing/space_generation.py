@@ -29,7 +29,7 @@ def check_trace(spaces: List[Schedule], expected: List[List[str]]):
     for space in spaces:
         trace = Trace(space.trace.insts, {})
         trace = trace.simplified(remove_postproc=True)
-        str_trace = "\n".join(str(trace).strip().splitlines())
+        str_trace = "\n".join(t[2:] for t in str(trace).strip().splitlines()[2:] if t != "  pass")
         actual_traces.add(str_trace)
         assert str_trace in expected_traces, "\n" + str_trace
     assert len(expected_traces) == len(actual_traces)
@@ -40,6 +40,8 @@ def _find_match_sketch_id(
     sketches: List[Schedule],
     expected_mod: IRModule,
     expected_decision: List[Tuple[str, List[int]]],
+    *,
+    debug_mask="all",
 ) -> Optional[int]:
     for sketch_id, sketch in enumerate(sketches):
         i = 0
@@ -53,13 +55,13 @@ def _find_match_sketch_id(
                 i += 1
         if len(new_decisions) != len(expected_decision):
             continue
-        sch = Schedule(mod, debug_mask="all")
+        sch = Schedule(mod, debug_mask=debug_mask)
         Trace(
             insts=sketch.trace.insts,
             decisions=new_decisions,
         ).apply_to_schedule(sch, remove_postproc=True)
         if structural_equal(sch.mod, expected_mod):
-            verify_trace_roundtrip(sch=sch, mod=mod)
+            verify_trace_roundtrip(sch=sch, mod=mod, debug_mask=debug_mask)
             return sketch_id
     return None
 
@@ -69,6 +71,8 @@ def check_sketches(
     sketches: List[Schedule],
     expected_mods: List[IRModule],
     expected_decisions: List[List[Tuple[str, List[int]]]],
+    *,
+    debug_mask="all",
 ):
     assert len(expected_mods) == len(expected_decisions)
     assert len(sketches) == len(expected_mods)
@@ -79,7 +83,13 @@ def check_sketches(
     for expected_id, (expected_mod, expected_decision) in enumerate(
         zip(expected_mods, expected_decisions)
     ):
-        sketch_id = _find_match_sketch_id(mod, sketches, expected_mod, expected_decision)
+        sketch_id = _find_match_sketch_id(
+            mod,
+            sketches,
+            expected_mod,
+            expected_decision,
+            debug_mask=debug_mask,
+        )
         if sketch_id is None:
             raise AssertionError(
                 f"Expected sketch #{expected_id} doesn't exist in the generated sketches."

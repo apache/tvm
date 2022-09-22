@@ -67,7 +67,7 @@ def matmul_relu_ann1(a: T.handle, b: T.handle, d: T.handle) -> None:
     B = T.match_buffer(b, (1024, 1024))
     C = T.alloc_buffer((1024, 1024))
     D = T.match_buffer(d, (1024, 1024))
-    for i in T.serial(0, 1024, annotations={"test1": "aaa"}):
+    for i in T.serial(0, 1024, annotations={"test1": "aaa", "test4": {"arr": [0, 0], "key": 3}}):
         for j in T.serial(0, 1024, annotations={"test2": 612, "test3": ["aa", 1]}):
             for k in T.serial(0, 1024):
                 with T.block("matmul"):
@@ -92,7 +92,7 @@ def matmul_relu_ann2(a: T.handle, b: T.handle, d: T.handle) -> None:
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
-            T.block_attr({"test1": "aaa"})
+            T.block_attr({"test1": "aaa", "test4": {"arr": [0, 0], "key": 3}})
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
     for i, j in T.grid(1024, 1024):
         with T.block("relu"):
@@ -279,11 +279,13 @@ def test_annotate_unannotate_loop():
     sch.annotate(sch.get_loops(matmul)[0], "test1", "aaa")
     sch.annotate(sch.get_loops(matmul)[1], "test2", 612)
     sch.annotate(sch.get_loops(matmul)[1], "test3", ["aa", 1])
+    sch.annotate(sch.get_loops(matmul)[0], "test4", {"arr": [0, 0], "key": 3})
     tvm.ir.assert_structural_equal(sch.mod["main"], matmul_relu_ann1)
     verify_trace_roundtrip(sch=sch, mod=matmul_relu)
     sch.unannotate(sch.get_loops(matmul)[0], "test1")
     sch.unannotate(sch.get_loops(matmul)[1], "test2")
     sch.unannotate(sch.get_loops(matmul)[1], "test3")
+    sch.unannotate(sch.get_loops(matmul)[0], "test4")
     verify_trace_roundtrip(sch=sch, mod=matmul_relu)
 
 
@@ -294,11 +296,13 @@ def test_annotate_unannotate_block():
     sch.annotate(matmul, "test1", "aaa")
     sch.annotate(relu, "test2", 0.22)
     sch.annotate(relu, "test3", ["aa", 1])
+    sch.annotate(matmul, "test4", {"arr": [0, 0], "key": 3})
     tvm.ir.assert_structural_equal(sch.mod["main"], matmul_relu_ann2)
     verify_trace_roundtrip(sch=sch, mod=matmul_relu)
     sch.unannotate(matmul, "test1")
     sch.unannotate(relu, "test2")
     sch.unannotate(relu, "test3")
+    sch.unannotate(matmul, "test4")
     verify_trace_roundtrip(sch=sch, mod=matmul_relu)
 
 

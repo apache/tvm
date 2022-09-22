@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import sys
 import pytest
 import tvm
 import tvm.testing
@@ -76,12 +75,12 @@ def element_wise_subregion_match(A: T.Buffer[(128, 128), "float32"], C: T.Buffer
     for i, j in T.grid(128, 128):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion0 = T.match_buffer(B[i, j], [], offset_factor=1)
+            B_subregion0 = T.match_buffer(B[vi, vj], [], offset_factor=1)
             B_subregion0[()] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
         with T.block("C"):
             vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion1 = T.match_buffer(B[i, j], [], offset_factor=1)
+            B_subregion1 = T.match_buffer(B[vi, vj], [], offset_factor=1)
             C[vi, vj] = B_subregion1[()] + 1.0
 
 
@@ -92,12 +91,12 @@ def element_wise_subregion_match_set_axis_separator(A: T.Buffer[(128, 128), "flo
     for i, j in T.grid(128, 128):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion0 = T.match_buffer(B[i, j], [], dtype="float32", offset_factor=1, axis_separators=[1])
+            B_subregion0 = T.match_buffer(B[vi, vj], [], dtype="float32", offset_factor=1, axis_separators=[1])
             B_subregion0[()] = A[vi, vj] * T.float32(2)
     for i, j in T.grid(128, 128):
         with T.block("C"):
             vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion1 = T.match_buffer(B[i, j], [], dtype="float32", offset_factor=1, axis_separators=[1])
+            B_subregion1 = T.match_buffer(B[vi, vj], [], dtype="float32", offset_factor=1, axis_separators=[1])
             C[vi, vj] = B_subregion1[()] + T.float32(1)
 
 
@@ -154,6 +153,30 @@ def test_set_axis_separator_subregion(use_sugared_transform):
 
     tvm.ir.assert_structural_equal(element_wise_subregion_match_set_axis_separator, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
+
+class TestIndexedLookup(tvm.testing.CompareBeforeAfter):
+    def transform(self):
+        def func(mod):
+            sch = tir.Schedule(mod)
+            sch.set_axis_separator('block', 'B', [1])
+            return sch.mod
+        return func
+
+    @T.prim_func
+    def before():
+        A = T.alloc_buffer([4,4], dtype="int32")
+        B = T.alloc_buffer([1,1], dtype="int32")
+        for j in T.serial(4):
+            with T.block('block'):
+                A[B[0,0],j] = 0
+
+    @T.prim_func
+    def expected():
+        A = T.alloc_buffer([4,4], dtype="int32")
+        B = T.alloc_buffer([1,1], dtype="int32", axis_separators=[1])
+        for j in T.serial(4):
+            with T.block('block'):
+                A[B[0,0],j] = 0
 
 
 if __name__ == "__main__":

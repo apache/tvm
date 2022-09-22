@@ -42,7 +42,7 @@
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="integration: CPU",
   node="CPU-SMALL",
-  num_shards=6,
+  num_shards=4,
   ws="tvm/integration-python-cpu",
   platform="cpu",
   docker_image="ci_cpu",
@@ -58,7 +58,7 @@
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="python: i386",
   node="CPU-SMALL",
-  num_shards=5,
+  num_shards=3,
   ws="tvm/integration-python-i386",
   platform="i386",
   docker_image="ci_i386",
@@ -85,7 +85,7 @@
   platform="hexagon",
   docker_image="ci_hexagon",
   test_method_names=test_method_names,
-  num_shards=7,
+  num_shards=8,
 ) %}
   {{ m.download_artifacts(tag='hexagon', filenames=tvm_lib, folders=hexagon_api) }}
   add_hexagon_permissions()
@@ -118,7 +118,7 @@
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="topi: GPU",
   node="GPU",
-  num_shards=4,
+  num_shards=3,
   ws="tvm/topi-python-gpu",
   platform="gpu",
   docker_image="ci_gpu",
@@ -186,7 +186,64 @@
     label: 'Run Python frontend tests',
   )
 {% endcall %}
+{% call(shard_index, num_shards) m.sharded_test_step(
+  name="test: Cortex-M",
+  node="CPU-SMALL",
+  ws="tvm/test-cortexm",
+  platform="cortexm",
+  docker_image="ci_cortexm",
+  num_shards=12,
+  test_method_names=test_method_names,
+) %}
+  {{ m.download_artifacts(tag='cortexm', filenames=tvm_lib, folders=microtvm_template_projects) }}
+  add_microtvm_permissions()
+  ci_setup(ci_cortexm)
+  {% if shard_index == 1%}
+  cpp_unittest(ci_cortexm)
+  sh (
+    script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_demo_microtvm.sh",
+    label: 'Run microTVM demos',
+  )
+  {% endif %}
+  sh (
+    script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+    label: 'Run microTVM tests',
+  )
+{% endcall %}
+{% call(shard_index, num_shards) m.sharded_test_step(
+  name="test: RISC-V",
+  node="CPU-SMALL",
+  ws="tvm/test-riscv",
+  platform="riscv",
+  docker_image="ci_riscv",
+  num_shards=1,
+  test_method_names=test_method_names,
+) %}
+  {{ m.download_artifacts(tag='riscv', filenames=tvm_lib, folders=microtvm_template_projects) }}
+  add_microtvm_permissions()
+  ci_setup(ci_riscv)
+  {% if shard_index == 1%}
+  cpp_unittest(ci_cortexm)
+  {% endif %}
+  sh (
+    script: "${docker_run} ${ci_riscv} ./tests/scripts/task_riscv_microtvm.sh",
+    label: 'Run microTVM tests',
+  )
+{% endcall %}
 
+def run_unittest_minimal() {
+  {% call m.test_step_body(
+      name="unittest: CPU MINIMAL",
+      node="CPU-SMALL",
+      ws="tvm/ut-python-cpu-minimal",
+      platform="minimal",
+      docker_image="ci_minimal",
+    ) %}
+      {{ m.download_artifacts(tag='cpu-minimal', filenames=tvm_lib) }}
+      cpp_unittest(ci_minimal)
+      python_unittest(ci_minimal)
+  {% endcall %}
+}
 
 def test() {
 stage('Test') {
@@ -199,6 +256,9 @@ stage('Test') {
     {{ method_name }}()
   },
   {% endfor %}
+  'unittest: CPU MINIMAL': {
+    run_unittest_minimal()
+  },
   {% call m.test_step(
     name="unittest: CPU",
     node="CPU-SMALL",
@@ -214,26 +274,6 @@ stage('Test') {
     sh (
       script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
       label: 'Run VTA tests in TSIM',
-    )
-  {% endcall %}
-  {% call m.test_step(
-    name="test: QEMU",
-    node="CPU-SMALL",
-    ws="tvm/test-qemu",
-    platform="qemu",
-    docker_image="ci_qemu",
-  ) %}
-    {{ m.download_artifacts(tag='qemu', filenames=tvm_lib, folders=microtvm_template_projects) }}
-    add_microtvm_permissions()
-    ci_setup(ci_qemu)
-    cpp_unittest(ci_qemu)
-    sh (
-      script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
-      label: 'Run microTVM tests',
-    )
-    sh (
-      script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
-      label: 'Run microTVM demos',
     )
   {% endcall %}
   {% call m.test_step(

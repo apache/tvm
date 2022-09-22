@@ -92,9 +92,7 @@ std::vector<CandidatePartition> DFPatternPartitionRuleNode::AllCandidates(
       continue;
     }
     IndexSet inside = MatcherToIndexSet(matcher);
-    OpPatternKind kind;
-    String label;
-    std::tie(kind, label) = SubGraphKindAndLabel(dataflow_graph, inside);
+    auto [kind, label] = SubGraphKindAndLabel(dataflow_graph, inside);
     SubGraph sub_graph(dataflow_graph, std::move(inside), kind, std::move(label));
     String rule_name = rule_name_.empty() ? sub_graph->label_ : rule_name_;
     CandidatePartition candidate(std::move(rule_name), std::move(sub_graph), spec);
@@ -256,9 +254,7 @@ std::vector<CandidatePartition> OpCallByKindPartitionRuleNode::AllCandidates(
     auto node = dataflow_graph.index_to_node(index);
     Expr sub_expr = node->ref();
     if (sub_expr->IsInstance<CallNode>()) {
-      OpPatternKind kind;
-      String label;
-      std::tie(kind, label) = SubExprKindAndLabel(sub_expr);
+      auto [kind, label] = SubExprKindAndLabel(sub_expr);
       if (kind <= kOutEWiseFusable) {
         IndexSet inside(dataflow_graph.size(), {index});
         SubGraph sub_graph(dataflow_graph, std::move(inside), kind, std::move(label));
@@ -282,6 +278,66 @@ void OpCallByKindPartitionRuleNode::AppendBodyItems(std::vector<Doc>* body_items
 OpCallByKindPartitionRule::OpCallByKindPartitionRule(String rule_name) {
   auto node = runtime::make_object<OpCallByKindPartitionRuleNode>();
   node->rule_name_ = std::move(rule_name);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_NODE_TYPE(CombinePartitionRuleNode);
+
+void CombinePartitionRuleNode::VisitAttrs(AttrVisitor* v) {
+  // TODO(mbs)
+}
+
+std::vector<CandidatePartition> CombinePartitionRuleNode::AllCandidates(
+    const DataflowGraph& dataflow_graph, const PartitionSpec& spec) const {
+  // We'll accumulate all the candidates here, starting with those from the sub-rule.
+  // Once a candidate is added to this vector it is immutable.
+  std::vector<CandidatePartition> candidates = sub_rule_->AllCandidates(dataflow_graph, spec);
+  VLOG(1) << "running CombinePartitionRule(" << rule_name_ << ") over " << candidates.size()
+          << " sub-candidates";
+  CandidateSet result_set(std::move(candidates));
+
+  size_t num_rounds = 0;
+  AppendAllResultsContext ctxt(&dataflow_graph, max_depth_, &result_set);
+  while (result_set.PrepareForNextRound()) {
+    VLOG_CONTEXT << "round " << ++num_rounds;
+    VLOG(1) << "checking " << result_set.size() << " candidates (" << result_set.first_new_index()
+            << " existing)";
+    for (const auto& combiner_rule : combiner_rules_) {
+      combiner_rule->AppendAllResults(&ctxt);
+    }
+  }
+
+  std::vector<CandidatePartition> result;
+  for (auto& candidate : result_set.MovedCurrentCandidates()) {
+    String rule_name = NestLabels(rule_name_, candidate->rule_name_);
+    CandidatePartition new_candidate = WithRuleName(std::move(candidate), std::move(rule_name));
+    VLOG(2) << "CombinePartitionRule(" << rule_name_ << ") yields " << new_candidate->ToString();
+    result.emplace_back(std::move(new_candidate));
+  }
+  VLOG(1) << "CombinePartitionRule(" << rule_name_ << ") produced " << result.size()
+          << " candidates";
+  return result;
+}
+
+void CombinePartitionRuleNode::AppendBodyItems(std::vector<Doc>* body_items) const {
+  PartitionRuleNode::AppendBodyItems(body_items);
+  body_items->emplace_back();
+  body_items->back() << "sub_rule=" << sub_rule_->ToDoc();
+  for (const auto& combiner_rule : combiner_rules_) {
+    body_items->emplace_back();
+    body_items->back() << "combiner_rule=" << combiner_rule->ToString();
+  }
+  body_items->emplace_back();
+  body_items->back() << "max_depth=" << max_depth_;
+}
+
+CombinePartitionRule::CombinePartitionRule(String rule_name, PartitionRule sub_rule,
+                                           Array<CombinerRule> combiner_rules, size_t max_depth_) {
+  auto node = runtime::make_object<CombinePartitionRuleNode>();
+  node->rule_name_ = std::move(rule_name);
+  node->sub_rule_ = std::move(sub_rule);
+  node->combiner_rules_ = std::move(combiner_rules);
+  node->max_depth_ = max_depth_;
   data_ = std::move(node);
 }
 
@@ -344,9 +400,7 @@ std::vector<CandidatePartition> HostPartitionRuleNode::AllCandidates(
       continue;
     }
     IndexSet inside(dataflow_graph.size(), {index});
-    OpPatternKind kind;
-    String label;
-    std::tie(kind, label) = SubGraphKindAndLabel(dataflow_graph, inside);
+    auto [kind, label] = SubGraphKindAndLabel(dataflow_graph, inside);
     SubGraph sub_graph(dataflow_graph, std::move(inside), kind, label);
     String rule_name = NestLabels(rule_name_, sub_graph->label_);
     // We'll a zero cost for the candidate since we'll never want to actually estimate the cost

@@ -916,7 +916,7 @@ RELAY_REGISTER_OP("nn.max_pool2d_grad")
 
 - **out_grad**: This depends on the `layout` parameter. Output gradient is 4D array of
                 shape (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
-                out_height and out_width are are the output size of the pooling operation,
+                out_height and out_width are the output size of the pooling operation,
                 which are calculated as::
                     out_height = floor((height+padding[0]+padding[2]-pool_size[0])/strides[0])+1
                     out_width = floor((width+padding[1]+padding[3]-pool_size[1])/strides[1])+1
@@ -966,7 +966,7 @@ RELAY_REGISTER_OP("nn.avg_pool2d_grad")
 
 - **out_grad**: This depends on the `layout` parameter. Output gradient is 4D array of
                 shape (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
-                out_height and out_width are are the output size of the pooling operation,
+                out_height and out_width are the output size of the pooling operation,
                 which are calculated as::
                     out_height = floor((height+padding[0]+padding[2]-pool_size[0])/strides[0])+1
                     out_width = floor((width+padding[1]+padding[3]-pool_size[1])/strides[1])+1

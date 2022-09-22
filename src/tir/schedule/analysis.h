@@ -22,6 +22,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/op.h>
 #include <tvm/tir/index_map.h>
+#include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/state.h>
 
 #include <tuple>
@@ -422,11 +423,24 @@ struct ProducerConsumerSplit {
  * \param self The schedule state.
  * \param block The queried block.
  * \param n The index of the queried buffer.
- * \param is_write A boolean flag to indicate querying write buffer or read buffer.
+ * \param index_type The type of the buffer index, kRead or kWrite.
  * \return The buffer of the n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
-Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, bool is_write);
+Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n,
+                          BufferIndexType index_type);
+
+/*!
+ * \brief Get the n-th read or write buffer of the given block.
+ * \param self The schedule state.
+ * \param block The queried block.
+ * \param n The index of the queried buffer.
+ * \param index_type The type of the buffer index, kRead or kWrite.
+ * \return The n-th read/write region of the block.
+ * \throw ScheduleError If the buffer index is out of bound.
+ */
+BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const Block& block, int n,
+                                      BufferIndexType index_type);
 
 /*!
  * \brief Find the defining site of the buffer in the given block and its ancestors
@@ -766,6 +780,16 @@ Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const ScheduleSta
                                                                const StmtSRef& block_sref,
                                                                const PrimFunc& desc_func);
 
+/*!
+ * \brief Perform basic checks for auto tensorization applicability, such as the structure of
+ * arithmetic operations and data types.
+ * \param sch The schedule to be tensorized
+ * \param block_rv The compute block for auto tensorization
+ * \param desc_func The prim func describing the computation to be tensorized
+ * \return true if basic conditions are met.
+ */
+bool CheckAutoTensorizeApplicable(const tir::Schedule& sch, const tir::BlockRV& block_rv,
+                                  const tir::PrimFunc& desc_func);
 }  // namespace tir
 }  // namespace tvm
 

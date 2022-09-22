@@ -25,8 +25,11 @@ from .ndarray import _register_ndarray, NDArrayBase
 ObjectHandle = ctypes.c_void_p
 __init_by_constructor__ = None
 
-"""Maps object type to its constructor"""
+"""Maps object type index to its constructor"""
 OBJECT_TYPE = {}
+
+"""Maps object type to its type index"""
+OBJECT_INDEX = {}
 
 _CLASS_OBJECT = None
 
@@ -42,6 +45,12 @@ def _register_object(index, cls):
         _register_ndarray(index, cls)
         return
     OBJECT_TYPE[index] = cls
+    OBJECT_INDEX[cls] = index
+
+
+def _get_object_type_index(cls):
+    """get the type index of object class"""
+    return OBJECT_INDEX.get(cls)
 
 
 def _return_object(x):

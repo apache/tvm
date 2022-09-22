@@ -96,7 +96,7 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
   StmtSRef block_sref = sch->GetSRef(block_rv);
   bool is_pure_sptial = IsInSpatialPrimFunc(sch, block_sref);
   ScheduleState state = sch->state();
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   BlockRealize realize = GetBlockRealize(state, block_sref);
   // Cond 1. The block has only one write buffer
   if (block->writes.size() != 1) {
@@ -104,7 +104,10 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
   }
   // Cond 2. For a block that generates a constant tensor, ignore all other conditions
   if (inline_const_tensor && block->reads.empty()) {
-    return InlineType::kInlineIntoConsumer;
+    Array<tir::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
+    if (!consumer_srefs.empty() && CanComputeInline(state, block_sref)) {
+      return InlineType::kInlineIntoConsumer;
+    }
   }
   // Cond 3. The block doesn't contain any disallowed operators
   if (!is_pure_sptial && !disallow_op.empty() && HasOp(realize, disallow_op)) {
@@ -143,7 +146,8 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
     Array<tir::StmtSRef> producer_srefs = GetProducers(state, block_sref);
     if (producer_srefs.size() == 1 &&
         tir::IsCompleteBlock(sch->state(), producer_srefs[0], scope_block) &&
-        CanReverseComputeInline(state, block_sref)) {
+        CanReverseComputeInline(state, block_sref) &&
+        !GetAnn<String>(producer_srefs[0], tir::attr::meta_schedule_auto_tensorize).defined()) {
       return InlineType::kInlineIntoProducer;
     }
   }

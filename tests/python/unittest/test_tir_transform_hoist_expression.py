@@ -448,7 +448,7 @@ class TestHoistLetExpr(BaseBeforeAfter):
     def before(A: T.Buffer[(4, 4), "float32"]):
         for i, j in T.grid(4, 4):
             x = T.var("float32")
-            A[i, j] = tir.Let(x, T.cast(i + 1, "float32"), 5.0 * x + T.cast(j, "float32"))
+            A[i, j] = T.Let(x, T.cast(i + 1, "float32"), 5.0 * x + T.cast(j, "float32"))
 
     @T.prim_func
     def expected(A: T.Buffer[(4, 4), "float32"]):
@@ -467,7 +467,7 @@ class TestSuppressHoistLetExpr(BaseBeforeAfter):
     def before(A: T.Buffer[(4, 4), "float32"]):
         for i, j in T.grid(4, 4):
             x = T.var("float32")
-            A[i, j] = tir.Let(x, T.cast(i + 1, "float32"), 5.0 * x + T.cast(j, "float32"))
+            A[i, j] = T.Let(x, T.cast(i + 1, "float32"), 5.0 * x + T.cast(j, "float32"))
 
     expected = before
 

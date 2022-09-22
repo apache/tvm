@@ -32,6 +32,7 @@ from . import scope_builder
 
 from . import transform
 from . import analysis
+from . import collage
 from .build_module import build, create_executor, optimize
 from .transform import build_config
 from . import debug

@@ -1724,6 +1724,54 @@ def qnn_fc_pattern():
     return optional_clip
 
 
+class HardSwishParams:
+    """
+    This class will parse a call to a ethos-u.hard_swish composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.hard_swish"
+
+    def __init__(self, func_body):
+        from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
+        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
+
+        quantize = func_body
+        divide = quantize.args[0]
+        multiply = divide.args[0]
+        clip = multiply.args[1]
+        add = clip.args[0]
+        dequantize = add.args[0]
+
+        self.ifm = TensorParams(
+            dequantize.args[0],
+            scale=dequantize.args[DequantizeArgs.IFM_SCALE.value],
+            zero_point=dequantize.args[DequantizeArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            quantize,
+            scale=quantize.args[QuantizeArgs.OFM_SCALE.value],
+            zero_point=quantize.args[QuantizeArgs.OFM_ZERO_POINT.value],
+        )
+
+    def is_valid(self):
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
+            return False
+        return True
+
+
+def hard_swish_pattern():
+    """Create the pattern for hard swish."""
+    dequantize = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+    add = is_op("add")(dequantize, is_constant())
+    clip = is_op("clip")(add)
+    multiply = is_op("multiply")(dequantize, clip)
+    divide = is_op("divide")(multiply, is_constant())
+    quantize = is_op("qnn.quantize")(divide, is_constant(), is_constant())
+    return quantize
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -1843,6 +1891,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             SqueezeParams.composite_name,
             squeeze_pattern(),
             lambda pat: SqueezeParams(pat).is_valid(),
+        ),
+        (
+            HardSwishParams.composite_name,
+            hard_swish_pattern(),
+            lambda pat: HardSwishParams(pat).is_valid(),
         ),
     ]
 

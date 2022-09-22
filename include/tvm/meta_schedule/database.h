@@ -203,6 +203,33 @@ class DatabaseNode : public runtime::Object {
    * \return The size of the database.
    */
   virtual int64_t Size() = 0;
+  /*!
+   * \brief Query the best record of the given workload from the database.
+   * \param mod The IRModule to be searched for.
+   * \param target The target to be searched for.
+   * \param workload_name The name of the workload to be searched for.
+   * \return The best record of the given workload; NullOpt if not found.
+   */
+  virtual Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
+                                                   const String& workload_name);
+  /*!
+   * \brief Query the best schedule of the given workload from the database.
+   * \param mod The IRModule to be searched for.
+   * \param target The target to be searched for.
+   * \param workload_name The name of the workload to be searched for.
+   * \return The schedule in the best schedule of the given workload; NullOpt if not found.
+   */
+  virtual Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
+                                                const String& workload_name);
+  /*!
+   * \brief Query the best IRModule of the given workload from the database.
+   * \param mod The IRModule to be searched for.
+   * \param target The target to be searched for.
+   * \param workload_name The name of the workload to be searched for.
+   * \return The IRModule in the best IRModule of the given workload; NullOpt if not found.
+   */
+  virtual Optional<IRModule> QueryIRModule(const IRModule& mod, const Target& target,
+                                           const String& workload_name);
 
   static constexpr const char* _type_key = "meta_schedule.Database";
   TVM_DECLARE_BASE_OBJECT_INFO(DatabaseNode, runtime::Object);
@@ -313,6 +340,15 @@ class PyDatabaseNode : public DatabaseNode {
  */
 class Database : public runtime::ObjectRef {
  public:
+  /*! An in-memory database. */
+  TVM_DLL static Database MemoryDatabase();
+  /*!
+   * \brief A database for injecting handcrafted schedule functions.
+   * \param schedule_fn The function to do scheduling, which takes a TIR schedule,
+   * and returns a boolean indicating if the schedule is successful.
+   */
+  TVM_DLL static Database ScheduleFnDatabase(
+      runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn);
   /*!
    * \brief Create a default database that uses JSON file for tuning records.
    * \param path_workload The path to the workload table.
@@ -321,6 +357,22 @@ class Database : public runtime::ObjectRef {
    */
   TVM_DLL static Database JSONDatabase(String path_workload, String path_tuning_record,
                                        bool allow_missing);
+  /*!
+   * \brief A database composed of multiple databases, allowing users to guide IR rewriting using
+   * combined knowledge of those databases. To each query, it returns the best record among all the
+   * databases given.
+   * \param databases The list of databases to be combined.
+   * \return The combined database.
+   */
+  TVM_DLL static Database UnionDatabase(Array<Database, void> databases);
+  /*!
+   * \brief A database composed of multiple databases, allowing users to guide IR rewriting using
+   * combined knowledge of those databases. To each query, it returns the record from the first
+   * database that responds to the query.
+   * \param databases The database to be subsetted.
+   * \return The subsetted database.
+   */
+  TVM_DLL static Database OrderedUnionDatabase(Array<Database, void> databases);
   /*!
    * \brief Create a database with customized methods on the python-side.
    * \param f_has_workload The packed function of `HasWorkload`.
@@ -337,6 +389,13 @@ class Database : public runtime::ObjectRef {
                                      PyDatabaseNode::FGetTopK f_get_top_k,
                                      PyDatabaseNode::FGetAllTuningRecords f_get_all_tuning_records,
                                      PyDatabaseNode::FSize f_size);
+  /*! \return The current Database in the scope. */
+  static Optional<Database> Current();
+  /*! \brief Entering the scope of the context manager */
+  void EnterWithScope();
+  /*! \brief Exiting the scope of the context manager */
+  void ExitWithScope();
+
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Database, runtime::ObjectRef, DatabaseNode);
 };
 

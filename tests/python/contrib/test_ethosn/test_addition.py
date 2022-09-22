@@ -25,11 +25,37 @@ from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 
 
-def _get_model(input_shape, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, dtype):
+def _get_model(
+    lhs_shape,
+    rhs_shape,
+    lhs_zp,
+    lhs_sc,
+    rhs_zp,
+    rhs_sc,
+    out_zp,
+    out_sc,
+    dtype,
+    lhs_is_constant=False,
+    rhs_is_constant=False,
+):
     """Return a model and any parameters it may have"""
 
-    a = relay.var("a", shape=input_shape, dtype=dtype)
-    b = relay.var("b", shape=input_shape, dtype=dtype)
+    iinfo = np.iinfo(dtype)
+    data_min = iinfo.min
+    data_max = iinfo.max
+
+    if lhs_is_constant:
+        a_data = np.random.randint(data_min, data_max + 1, size=lhs_shape, dtype=dtype)
+        a = relay.const(a_data, dtype=dtype)
+    else:
+        a = relay.var("a", shape=lhs_shape, dtype=dtype)
+
+    if rhs_is_constant:
+        b_data = np.random.randint(data_min, data_max + 1, size=rhs_shape, dtype=dtype)
+        b = relay.const(b_data, dtype=dtype)
+    else:
+        b = relay.var("b", shape=rhs_shape, dtype=dtype)
+
     model = relay.qnn.op.add(
         lhs=a,
         rhs=b,
@@ -43,74 +69,156 @@ def _get_model(input_shape, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, dtyp
     return model
 
 
-def _get_addition_qnn_params(dtype, input1_zp, input1_sc, input2_zp, input2_sc):
-    input1_max = input1_sc * (255 - input1_zp)
-    input1_min = -input1_sc * input1_zp
-    input2_max = input2_sc * (255 - input2_zp)
-    input2_min = -input2_sc * input2_zp
+def _get_addition_qnn_params(dtype):
+    iinfo = np.iinfo(dtype)
+    data_min = iinfo.min
+    data_max = iinfo.max
+    lhs_zp = np.random.randint(data_min, data_max)
+    lhs_sc = np.random.random() * 2
+    rhs_zp = np.random.randint(data_min, data_max)
+    rhs_sc = np.random.random() * 2
+
+    input1_max = lhs_sc * (255 - lhs_zp)
+    input1_min = -lhs_sc * lhs_zp
+    input2_max = rhs_sc * (255 - rhs_zp)
+    input2_min = -rhs_sc * rhs_zp
     output_max = input1_max + input2_max
     output_min = input1_min + input2_min
     output_sc = (output_max - output_min) / 255
     output_zp = -int(output_min / output_sc)
-    return output_zp, output_sc
+    return lhs_zp, lhs_sc, rhs_zp, rhs_sc, output_zp, output_sc
 
 
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
-def test_addition(dtype):
-    zp_min = np.iinfo(dtype).min
-    zp_max = np.iinfo(dtype).max
-    trials = [
-        ((1, 22, 9, 9), zp_min + 24, 1.057, zp_max - 3, 0.452),
-        ((1, 27, 21, 16), zp_min + 79, 0.850, 24, 0.380),
-        ((1, 7, 12, 28), zp_min + 125, 1.293, zp_max - 16, 0.320),
-        ((1, 14, 9, 6), zp_min + 14, 0.942, zp_max - 28, 1.562),
-        ((1, 13, 16, 22), zp_min + 15, 0.727, zp_max - 75, 0.461),
-    ]
+@pytest.mark.parametrize("shape", [(1, 22, 9, 9), (1, 27, 21, 16)])
+def test_addition(dtype, shape):
+    """Compare Addition output with TVM."""
     np.random.seed(0)
-    for shape, rhs_zp, rhs_sc, lhs_zp, lhs_sc in trials:
-        outputs = []
-        inputs = {
-            "a": tvm.nd.array(np.random.randint(zp_min, zp_max + 1, size=shape, dtype=dtype)),
-            "b": tvm.nd.array(np.random.randint(zp_min, zp_max + 1, size=shape, dtype=dtype)),
-        }
-        out_zp, out_sc = _get_addition_qnn_params(dtype, lhs_zp, lhs_sc, rhs_zp, rhs_sc)
-        model = _get_model(shape, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, dtype)
-        for npu in [False, True]:
-            mod = tei.make_module(model, [])
-            outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
 
-        tei.verify(outputs, dtype, 2)
+    iinfo = np.iinfo(dtype)
+    data_min = iinfo.min
+    data_max = iinfo.max
+    lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc = _get_addition_qnn_params(dtype)
+
+    outputs = []
+    inputs = {
+        "a": tvm.nd.array(np.random.randint(data_min, data_max + 1, size=shape, dtype=dtype)),
+        "b": tvm.nd.array(np.random.randint(data_min, data_max + 1, size=shape, dtype=dtype)),
+    }
+    model = _get_model(shape, shape, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, dtype)
+    for npu in [False, True]:
+        mod = tei.make_module(model, [])
+        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+
+    tei.verify(outputs, dtype, 1)
 
 
 @requires_ethosn
-def test_addition_failure():
-    trials = [
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+@pytest.mark.parametrize(
+    "lhs_shape,rhs_shape",
+    [
+        ((1, 4, 4, 8), (1, 1, 1, 8)),
+        ((1, 16, 12, 4), (4,)),
+    ],
+)
+def test_addition_to_depthwise_rhs_constant(dtype, lhs_shape, rhs_shape):
+    """Compare addition to depthwise with TVM."""
+    np.random.seed(0)
+
+    iinfo = np.iinfo(dtype)
+    data_min = iinfo.min
+    data_max = iinfo.max
+    lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc = _get_addition_qnn_params(dtype)
+
+    model = _get_model(
+        lhs_shape,
+        rhs_shape,
+        lhs_zp,
+        lhs_sc,
+        rhs_zp,
+        rhs_sc,
+        out_zp,
+        out_sc,
+        dtype,
+        lhs_is_constant=False,
+        rhs_is_constant=True,
+    )
+    inputs = {
+        "a": tvm.nd.array(np.random.randint(data_min, data_max + 1, size=lhs_shape, dtype=dtype))
+    }
+    outputs = []
+    for npu in [False, True]:
+        mod = tei.make_module(model, {})
+        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+    tei.verify(outputs, dtype, 1)
+
+
+@requires_ethosn
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+@pytest.mark.parametrize(
+    "lhs_shape,rhs_shape",
+    [
+        ((1, 8), (1, 20, 15, 8)),
+    ],
+)
+def test_addition_to_depthwise_lhs_constant(dtype, lhs_shape, rhs_shape):
+    """Compare addition to depthwise with TVM."""
+    np.random.seed(0)
+
+    iinfo = np.iinfo(dtype)
+    data_min = iinfo.min
+    data_max = iinfo.max
+    lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc = _get_addition_qnn_params(dtype)
+
+    model = _get_model(
+        lhs_shape,
+        rhs_shape,
+        lhs_zp,
+        lhs_sc,
+        rhs_zp,
+        rhs_sc,
+        out_zp,
+        out_sc,
+        dtype,
+        lhs_is_constant=True,
+        rhs_is_constant=False,
+    )
+    inputs = {
+        "b": tvm.nd.array(np.random.randint(data_min, data_max + 1, size=rhs_shape, dtype=dtype))
+    }
+    outputs = []
+    for npu in [False, True]:
+        mod = tei.make_module(model, {})
+        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+    tei.verify(outputs, dtype, 1)
+
+
+@requires_ethosn
+@pytest.mark.parametrize(
+    "dtype,shape,err_msg",
+    [
         (
-            (2, 4, 4, 4),
             "uint8",
-            0,
-            1,
-            0,
-            1,
-            0,
-            1,
+            (2, 4, 4, 4),
             "batch size=2, batch size must = 1; batch size=2, batch size must = 1",
         ),
         (
-            (1, 4, 4, 4),
             "int16",
-            0,
-            1,
-            0,
-            1,
-            0,
-            1,
-            "dtype='int16', dtype must be either uint8, int8 or int32; dtype='int16', dtype must be either uint8, int8 or int32",
+            (1, 4, 4, 4),
+            "dtype='int16', dtype must be either uint8, int8 or int32; dtype='int16', "
+            "dtype must be either uint8, int8 or int32",
         ),
-    ]
+    ],
+)
+def test_addition_failure(dtype, shape, err_msg):
+    """Check addition error messages."""
+    np.random.seed(0)
 
-    for shape, dtype, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, err_msg in trials:
-        model = _get_model(shape, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, dtype)
-        mod = tei.make_ethosn_partition(model)
-        tei.test_error(mod, {}, err_msg)
+    lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc = _get_addition_qnn_params(dtype)
+
+    model = _get_model(shape, shape, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, dtype)
+    model = tei.make_ethosn_composite(model, "ethos-n.qnn_add")
+    mod = tei.make_ethosn_partition(model)
+    tei.test_error(mod, {}, err_msg)

@@ -23,6 +23,7 @@ loading the tool.
 import logging
 import os
 import sys
+import re
 import importlib
 from abc import ABC
 from abc import abstractmethod
@@ -32,6 +33,7 @@ from pathlib import Path
 import numpy as np
 
 from tvm import relay
+from tvm import parser
 from tvm.driver.tvmc import TVMCException, TVMCImportError
 from tvm.driver.tvmc.model import TVMCModel
 
@@ -294,6 +296,73 @@ class PaddleFrontend(Frontend):
         return relay.frontend.from_paddle(prog, shape_dict=shape_dict, **kwargs)
 
 
+class RelayFrontend(Frontend):
+    """Relay frontend for TVMC"""
+
+    @staticmethod
+    def name():
+        return "relay"
+
+    @staticmethod
+    def suffixes():
+        return ["relay"]
+
+    def load(self, path, shape_dict=None, **kwargs):
+        with open(path, "r", encoding="utf-8") as relay_text:
+            text = relay_text.read()
+        if shape_dict is None:
+            logger.warning(
+                "Specify --input-shapes to ensure that model inputs "
+                "will not be considered as constants."
+            )
+
+        def _validate_text(text):
+            """Check the provided file contents.
+            The relay.txt artifact contained in the MLF is missing the version header and
+            the metadata which is required to use meta[relay.Constant]."""
+
+            if re.compile(r".*\#\[version\.*").match(text) is None:
+                raise TVMCException(
+                    "The relay model does not include the required version information."
+                )
+            if re.compile(r".*meta\[.+\].*", re.DOTALL).match(text):
+                if "#[metadata]" not in text:
+                    raise TVMCException(
+                        "The relay model does not include the required #[metadata] section. "
+                        "Use ir_mod.astext(show_meta_data=True) to export compatible code."
+                    )
+
+        _validate_text(text)
+
+        ir_mod = parser.fromtext(text)
+
+        if shape_dict:
+            input_names = shape_dict.keys()
+        else:
+            input_names = []
+
+        def _gen_params(ir_mod, skip_names=None):
+            """Populate the all the params in the mode with ones."""
+            main_func = ir_mod["main"]
+            shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
+            type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
+            params = {}
+            for name, shape in shape_dict.items():
+                if skip_names and name in skip_names:
+                    continue
+
+                if "int" in type_dict[name]:
+                    data = np.random.randint(128, size=shape, dtype=type_dict[name])
+                else:
+                    data = np.random.uniform(-1, 1, size=shape).astype(type_dict[name])
+                params[name] = data
+            return params
+
+        params = _gen_params(ir_mod, skip_names=input_names)
+
+        return ir_mod, params
+
+
 ALL_FRONTENDS = [
     KerasFrontend,
     OnnxFrontend,
@@ -301,6 +370,7 @@ ALL_FRONTENDS = [
     TFLiteFrontend,
     PyTorchFrontend,
     PaddleFrontend,
+    RelayFrontend,
 ]
 
 

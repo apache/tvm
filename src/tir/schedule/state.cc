@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "./utils.h"
+#include <tvm/arith/int_set.h>
 
+#include "./utils.h"
 namespace tvm {
 namespace tir {
 
@@ -44,13 +45,10 @@ Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,        
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
       /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer.scope()));
-  if (Optional<Array<arith::IntSet>> result = EstimateRegionLowerBound(
-          /*region=*/region->region,
-          /*var_dom=*/var_dom,
-          /*predicate=*/predicate, /*analyzer=*/analyzer)) {
-    return result.value();
-  }
-  return arith::EvalSet(region->region, AsIntSet(var_dom));
+  return EstimateRegionUpperBound(
+      /*region=*/region->region,
+      /*var_dom=*/var_dom,
+      /*predicate=*/predicate, /*analyzer=*/analyzer);
 }
 
 /*!
@@ -210,7 +208,7 @@ class BlockInfoCollector : private StmtVisitor {
     if (is_root_block) {
       // If the block doesn't have outer loops and BlockRealize,
       // then we set the affine binding flag as true only if the block has no block vars
-      const BlockNode* block = TVM_SREF_TO_BLOCK(block, scope_root);
+      const BlockNode* block = TVM_SREF_TO_BLOCK(scope_root);
       if (block->iter_vars.empty()) info.affine_binding = true;
     } else {
       info.affine_binding =
@@ -235,7 +233,7 @@ class BlockInfoCollector : private StmtVisitor {
     block_reads_unbound.reserve(child_block_srefs.size());
     block_writes_unbound.reserve(child_block_srefs.size());
     for (const StmtSRef& block_sref : child_block_srefs) {
-      const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+      const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
       Map<Var, PrimExpr> binding = GetBindings(block2realize_.at(block));
       // Step 1.1. Unbind read regions
       Array<BufferRegion> reads;
@@ -256,7 +254,7 @@ class BlockInfoCollector : private StmtVisitor {
     for (const auto& kv : info.scope->dst2deps) {
       const StmtSRef& consumer_block_sref = kv.first;
       const Array<Dependency>& deps = kv.second;
-      const BlockNode* consumer_block = TVM_SREF_TO_BLOCK(consumer_block, consumer_block_sref);
+      const BlockNode* consumer_block = TVM_SREF_TO_BLOCK(consumer_block_sref);
       const BlockRealize& consumer_realize = block2realize_.at(consumer_block);
       bool& region_cover = self_->block_info.at(consumer_block_sref).region_cover = true;
       // Step 2.1. Extract the path to the scope root
@@ -413,6 +411,7 @@ class StateCreator : private StmtVisitor {
     for (const auto& kv : n->mod->functions) {
       const BaseFunc& base_func = kv.second;
       if (const auto* func = base_func.as<PrimFuncNode>()) {
+        VerifyWellFormed(GetRef<PrimFunc>(func));
         creator.VisitStmt(func->body);
         BlockInfoCollector::Collect(self, func->body);
       }
@@ -852,7 +851,7 @@ class ChildReplacer : private StmtMutator {
       } else if (const auto* realize = stmt.as<BlockRealizeNode>()) {
         // Case 2. stmt is BlockRealize, src_stmt is Block
         if (realize->block.get() == src_stmt) {
-          const auto* tgt_block = TVM_TYPE_AS(tgt_block, tgt_stmt_, BlockNode);
+          const auto* tgt_block = TVM_TYPE_AS(tgt_stmt_, BlockNode);
           ObjectPtr<BlockRealizeNode> new_realize = make_object<BlockRealizeNode>(*realize);
           new_realize->block = GetRef<Block>(tgt_block);
           new_stmt = BlockRealize(std::move(new_realize));
@@ -1045,9 +1044,9 @@ void ScheduleStateNode::Replace(const tir::StmtSRef& _src_sref, const Stmt& tgt_
     // If `g_func` was unique, after the 3 lines above:
     //   `ref_new_func` points to the same unique function that `g_func` points to
     // Update the body of the function the sref belongs to Assign
-    const auto* realize = TVM_TYPE_AS(realize, g_func->body, BlockRealizeNode);
+    const auto* realize = TVM_TYPE_AS(g_func->body, BlockRealizeNode);
     // Make `child_tgt_stmt` the root block
-    const auto* child_block = TVM_TYPE_AS(child_block, child_tgt_stmt, BlockNode);
+    const auto* child_block = TVM_TYPE_AS(child_tgt_stmt, BlockNode);
     ObjectPtr<BlockRealizeNode> new_realize = make_object<BlockRealizeNode>(*realize);
     new_realize->block = GetRef<Block>(child_block);
     new_func->body = BlockRealize(std::move(new_realize));
@@ -1079,7 +1078,7 @@ void ScheduleStateNode::DebugVerify() const {
 /**************** BlockInfo-related ****************/
 
 BlockInfo ScheduleStateNode::GetBlockInfo(const StmtSRef& block_sref) const {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  TVM_SREF_TO_BLOCK(block_sref);
   auto it = this->block_info.find(block_sref);
   CHECK(it != this->block_info.end())
       << "IndexError: Cannot find the corresponding BlockScope to the block sref:\n"

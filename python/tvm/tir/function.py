@@ -195,6 +195,19 @@ class PrimFunc(BaseFunc):
             self, tir_prefix, show_meta
         )  # type: ignore
 
+    def show(self, style: Optional[str] = None) -> None:
+        """
+        A sugar for print highlighted TVM script.
+        Parameters
+        ----------
+        style : str, optional
+            Pygments styles extended by "light" (default) and "dark", by default "light"
+        """
+        from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
+
+        # Use deferred import to avoid circular import while keeping cprint under tvm/script
+        cprint(self, style=style)
+
 
 @tvm._ffi.register_object("tir.TensorIntrin")
 class TensorIntrin(Object):
@@ -213,7 +226,7 @@ class TensorIntrin(Object):
         self.__init_handle_by_constructor__(_ffi_api.TensorIntrin, desc, impl)
 
     @staticmethod
-    def register(name: str, desc: PrimFunc, impl: PrimFunc):
+    def register(name: str, desc: PrimFunc, impl: PrimFunc, override: bool = False):
         """Register a tensor intrinsic with its name.
 
         Parameters
@@ -224,8 +237,12 @@ class TensorIntrin(Object):
             The function to describe the computation.
         impl : PrimFunc
             The function of the implementation for the execution.
+        override: bool
+            Whether override existing intrinsic.
         """
-        return _ffi_api.TensorIntrinRegister(name, TensorIntrin(desc, impl))  # type: ignore
+        return _ffi_api.TensorIntrinRegister(
+            name, TensorIntrin(desc, impl), override
+        )  # type: ignore
 
     @staticmethod
     def get(name: str):
@@ -381,7 +398,7 @@ class IndexMap(Object):
                 raise TypeError(
                     "Expected mapping function to return list of "
                     "either tvm.ir.PrimExpr or IndexMap.AXIS_SEPARATOR.  "
-                    "Instead received {val} of type {type(val)}."
+                    f"Instead received {val} of type {type(val)}."
                 )
 
         return IndexMap(initial_indices, final_indices), axis_separators

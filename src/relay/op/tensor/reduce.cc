@@ -338,7 +338,7 @@ bool GenericReduceRel(const Array<Type>& types, int num_inputs, const Attrs& att
 
   // assign output type and shape
   auto oshape = ReduceShapeImpl(in_shape, param, reporter);
-  reporter->Assign(types[1], TensorType(oshape, DataType::Int(32)));
+  reporter->Assign(types[1], TensorType(oshape, data->shape[0].dtype()));
   return true;
 }
 /*!

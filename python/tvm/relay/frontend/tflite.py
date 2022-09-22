@@ -33,7 +33,7 @@ from .. import qnn as _qnn
 from ..backend.name_transforms import sanitize_name
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
-from .common import lstm_cell, to_int_list, shape_of
+from .common import lstm_cell, to_int_list, shape_of, try_infer_value
 from .tflite_flexbuffer import FlexBufferDecoder
 
 __all__ = ["from_tflite"]
@@ -599,7 +599,21 @@ class OperatorConverter(object):
         if len(input_tensors) == 2:
             shape_tensor = input_tensors[1]
             if self.has_expr(shape_tensor.tensor_idx):
-                target_shape = self.get_expr(shape_tensor.tensor_idx)
+                target_expr = self.get_expr(shape_tensor.tensor_idx)
+                target_value, success = try_infer_value(
+                    target_expr,
+                    parameters={k: _nd.array(np.array(v)) for k, v in self.exp_tab.params.items()},
+                )
+                if success:
+                    # convert to flattened list
+                    from itertools import chain
+
+                    try:
+                        target_shape = list(chain(*target_value))
+                    except TypeError:
+                        target_shape = list(chain(target_value))
+                else:
+                    target_shape = target_expr
             else:
                 target_shape = self.get_tensor_value(shape_tensor)
                 # convert to flattened list
@@ -1277,7 +1291,13 @@ class OperatorConverter(object):
 
         return out
 
-    def _convert_elemwise(self, relay_op, op, ignore_qnn_params=False):
+    def _convert_elemwise(
+        self,
+        relay_op,
+        op,
+        ignore_qnn_params=False,
+        comparison_op=False,
+    ):
         """Generic method to Convert TFLite elemwise"""
         try:
             from tflite.AddOptions import AddOptions
@@ -1302,7 +1322,7 @@ class OperatorConverter(object):
 
         # TFLite format demands equal scale and zero_point tuple parameters for some operations
         # to allow us to use non-quantized operation instead of quantized if ignore_qnn_params=True
-        if ignore_qnn_params:
+        if ignore_qnn_params and not comparison_op:
             assert (
                 lhs_tensor.qnn_params
                 and self.has_same_qnn_params(lhs_tensor, output_tensor)
@@ -1417,12 +1437,7 @@ class OperatorConverter(object):
 
     def convert_greater(self, op):
         """Convert TFLite GREATER"""
-        # Check if the input tensor is quantized, call QNN op
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized GREATER operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.greater, op)
+        return self._convert_elemwise(_op.greater, op, self.is_quantized(op), comparison_op=True)
 
     def convert_squared_difference(self, op):
         """Convert TFLite SQUARED DIFFERENCE"""
@@ -1461,7 +1476,7 @@ class OperatorConverter(object):
 
     def convert_equal(self, op):
         """Convert TFLite EQUAL"""
-        return self._convert_elemwise(_op.equal, op, self.is_quantized(op))
+        return self._convert_elemwise(_op.equal, op, self.is_quantized(op), comparison_op=True)
 
     def convert_not_equal(self, op):
         """Convert TFLite NOT_EQUAL"""

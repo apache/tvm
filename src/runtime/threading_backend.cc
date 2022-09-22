@@ -33,6 +33,9 @@
 #include <sched.h>
 #endif
 #if defined(__hexagon__)
+extern "C" {
+#include <qurt_hvx.h>
+}
 #include <dlfcn.h>
 #include <qurt.h>
 #include <stdlib.h>
@@ -282,7 +285,7 @@ class ThreadGroup::Impl {
     // is not supported in earlier versions of QuRT. In such cases assume 4.
     if (threads == 0) threads = 4;
 #endif
-    std::vector<std::pair<unsigned int, int64_t> > max_freqs;
+    std::vector<std::pair<unsigned int, int64_t>> max_freqs;
 
     for (unsigned int i = 0; i < threads; ++i) {
       int64_t cur_freq = 0;
@@ -381,15 +384,26 @@ int MaxConcurrency() {
 #if defined(_M_X64) || defined(__x86_64__)
       max_concurrency /= 2;  // ignore hyper-threading
 #elif defined(__hexagon__)
+      // Ideally max_concurrency is set to the total count of 128B
+      // HVX units available. This prevenets threads unable to lock
+      // an HVX unit from scheduling work on the Scalar cores instead
+      // of HVX.
+      int num_hvx128_contexts = (qurt_hvx_get_units() >> 8) & 0xFF;
       // With unsigned PDs, getting the number of available hardware threads
-      // is not supported in earlier versions of QuRT. In such cases assume 4.
-      // If running on simulator, set max_concurrency to 1.
+      // is not supported in earlier versions of QuRT. In such cases assume
+      // the number of HVX units available. If running on simulator, set
+      // max_concurrency to 1.
       if (max_concurrency == 0) {
         if (dlsym(RTLD_DEFAULT, "running_in_sim_dev_17bc90206f6cf5a7")) {
           max_concurrency = 1;
         } else {
-          max_concurrency = 4;
+          max_concurrency = num_hvx128_contexts;
         }
+      } else {
+        // If the hardware_concurrency has already set the max_concurrency to
+        // a non-zero value then make sure it is not greater than the number
+        // of HVX units available.
+        max_concurrency = std::min(num_hvx128_contexts, max_concurrency);
       }
 #endif
     }

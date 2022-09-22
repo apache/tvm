@@ -108,7 +108,7 @@ def make_conv_packed_param(qweight, bias, packed_params):
 
 
 def get_weight_quant_params(script_module, packed_param_names):
-    """Retrive and unpack weight parameters from quantized modules"""
+    """Retrieve and unpack weight parameters from quantized modules"""
     import torch
 
     param_name = "_packed_params"
@@ -272,6 +272,7 @@ def _get_quant_param_for_input(input_value):
         "quantized::hardswish": (1, 2),
         "quantized::conv_transpose2d": qconv_indices,
         "quantized::leaky_relu": (3, 4),
+        "aten::sigmoid": (1, 2),
     }
 
     def dfs(current_node):
@@ -395,6 +396,33 @@ def _add_output_quant_params_to_scalar_op(node, graph, input_scale, input_zero_p
     node.addInput(out_zero_point_node.output())
 
 
+def _add_output_quant_params_to_sigmoid_op(node, graph):
+    """
+    Refer to aten/src/ATen/native/quantized/cpu/qsigmoid.cpp,
+    the output scale and zp of sigmoid op are two fixed numbers.
+    So we need to make two new constant nodes in the input IR and
+    add these params to the inputs of sigmoid op.
+    """
+    # pylint: disable=c-extension-no-member
+    import torch
+
+    # suppose scale_type is uint8
+    out_scale = 1.0 / 256
+    out_zero_point = 0
+
+    # create new constant nodes and add them to graph
+    out_scale_node = graph.create("prim::Constant")
+    out_zero_point_node = graph.create("prim::Constant")
+    out_scale_node.insertBefore(node)
+    out_zero_point_node.insertBefore(node)
+    out_scale_node.f_("value", out_scale)
+    out_zero_point_node.i_("value", out_zero_point)
+    out_scale_node.output().setType(torch._C.FloatType.get())
+    out_zero_point_node.output().setType(torch._C.IntType.get())
+    node.addInput(out_scale_node.output())
+    node.addInput(out_zero_point_node.output())
+
+
 def add_input_quant_params_to_op_inputs(graph):
     """
     In Torch, input quant params are not explicitly passed around
@@ -482,6 +510,9 @@ def add_input_quant_params_to_op_inputs(graph):
 
             # see the comments in this function above
             _add_output_quant_params_to_scalar_op(node, graph, inp_scale, inp_zero_point, scalar)
+
+        if operator == "aten::sigmoid":
+            _add_output_quant_params_to_sigmoid_op(node, graph)
 
         for scale, zp in zip(input_scales, input_zero_points):
             node.addInput(scale)
@@ -571,9 +602,12 @@ def quantized_relu(data, input_zero_point):
     return _op.tensor.maximum(data, zp)
 
 
-def quantized_sigmoid(data, input_scale, input_zero_point):
-    output_scale = input_scale
-    output_zero_point = input_zero_point
+def quantized_sigmoid(inputs):
+    data = inputs[0]
+    output_scale = _expr.const(inputs[1])
+    output_zero_point = _expr.const(inputs[2])
+    input_scale = _expr.const(inputs[3])
+    input_zero_point = _expr.const(inputs[4])
     return relay.qnn.op.sigmoid(
         data, input_scale, input_zero_point, output_scale, output_zero_point
     )
@@ -963,7 +997,11 @@ def _leaky_relu(fp32_piggy_back=False):
         alpha = inputs[1]
         output_scale = _expr.const(inputs[3])
         output_zero_point = _expr.const(inputs[4])
-        return relay.qnn.op.leaky_relu(inputs[0], alpha, output_scale, output_zero_point)
+        input_scale = _expr.const(inputs[5])
+        input_zero_point = _expr.const(inputs[6])
+        return relay.qnn.op.leaky_relu(
+            inputs[0], alpha, input_scale, input_zero_point, output_scale, output_zero_point
+        )
 
     def _impl(inputs, _):
         assert len(inputs) == 7, "Input quant params not found in op inputs"

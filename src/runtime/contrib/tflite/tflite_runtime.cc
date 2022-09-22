@@ -95,7 +95,7 @@ void TFLiteRuntime::Init(const std::string& tflite_model_bytes, Device dev) {
   size_t buffer_size = tflite_model_bytes.size();
   // The buffer used to construct the model must be kept alive for
   // dependent interpreters to be used.
-  flatBuffersBuffer_ = std::unique_ptr<char[]>(new char[buffer_size]);
+  flatBuffersBuffer_ = std::make_unique<char[]>(buffer_size);
   std::memcpy(flatBuffersBuffer_.get(), buffer, buffer_size);
   std::unique_ptr<tflite::FlatBufferModel> model =
       tflite::FlatBufferModel::BuildFromBuffer(flatBuffersBuffer_.get(), buffer_size);

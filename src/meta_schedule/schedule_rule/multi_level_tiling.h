@@ -22,6 +22,7 @@
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/tir/schedule/schedule.h>
 
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -93,6 +94,10 @@ class StateNode : public Object {
   tir::BlockRV block_rv;
   /*! \brief The loop tiles */
   Array<Array<tir::LoopRV>> tiles;
+  /*! \brief The mapping from buffer index to read cache block. */
+  std::unordered_map<int, tir::BlockRV> read_reuse;
+  /*! \brief The mapping from buffer index to write cache block. */
+  std::unordered_map<int, tir::BlockRV> write_reuse;
 
   /*!
    * \brief Create a copy of the state. The underlying schedule is copied. Schedule rules that
@@ -148,10 +153,13 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   void InitializeWithTuneContext(const TuneContext& context) final;
 
   // Entry of the mega rule; Inherited from ScheduleRuleNode
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final;
+  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) override;
 
  protected:
   virtual std::vector<State> ApplySubRules(std::vector<State> states);
+
+  // Annotate a block to use cooperative fetching
+  void AnnotateCooperativeFetching(tir::Schedule* sch, const tir::BlockRV& block) const;
 
  public:
   /*!
@@ -178,6 +186,8 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   int thread_warp_size_;
   /*! \brief The maximum number of threads to be used size of a thread warp */
   int max_threads_per_block_;
+  /*! \brief The logging function */
+  PackedFunc logging_func;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("structure", &structure);

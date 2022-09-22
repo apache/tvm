@@ -271,7 +271,7 @@ Store::Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate,
   // annotation tells us otherwise.
   int element_lanes = 1;
   auto pointer_type = tir::GetPointerType(buffer_var->type_annotation);
-  if (pointer_type.first) {
+  if (pointer_type.has_value()) {
     // Currently cannot check element type of array, see Load::Load
     // for details.
 
@@ -279,10 +279,10 @@ Store::Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate,
     // See https://discuss.tvm.apache.org/t/pre-rfc-vectorized-tir-buffers/10615
     // for discussion.
 
-    // ICHECK_EQ(value.dtype().element_of(), pointer_type.second.element_of())
+    // ICHECK_EQ(value.dtype().element_of(), pointer_type->element_of())
     //     << "Type mismatch, cannot store type " << value.dtype() << " into buffer "
-    //     << buffer_var->name_hint << " of type " << pointer_type.second;
-    element_lanes = pointer_type.second.lanes();
+    //     << buffer_var->name_hint << " of type " << pointer_type.value();
+    element_lanes = pointer_type->lanes();
   }
 
   ICHECK((value.dtype().lanes() == element_lanes * index.dtype().lanes()) ||
@@ -506,6 +506,29 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "]";
       p->stream << "\n";
       p->Print(op->body);
+    });
+
+// DeclBuffer
+DeclBuffer::DeclBuffer(Buffer buffer, Stmt body, Span span) {
+  ObjectPtr<DeclBufferNode> node = make_object<DeclBufferNode>();
+  node->buffer = std::move(buffer);
+  node->body = std::move(body);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.DeclBuffer").set_body_typed([](Buffer buffer, Stmt body, Span span) {
+  return DeclBuffer(buffer, body, span);
+});
+
+TVM_REGISTER_NODE_TYPE(DeclBufferNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<DeclBufferNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const DeclBufferNode*>(node.get());
+      p->PrintIndent();
+      p->stream << "decl_buffer " << op->buffer << "\n";
+      p->stream << op->body;
     });
 
 // ProducerRealize

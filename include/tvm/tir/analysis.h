@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/tir/analysis.h
- * \brief Analysis utilitie and passes for TIR.
+ * \brief Analysis utilities and passes for TIR.
  */
 #ifndef TVM_TIR_ANALYSIS_H_
 #define TVM_TIR_ANALYSIS_H_
@@ -220,6 +220,15 @@ TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func,
  */
 TVM_DLL Map<Buffer, Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func);
 
+/*!
+ * \brief Verify if the given TIR is well-formed. The verification includes:
+ *        - Check if expressions not contain vars that is defined outside the block.
+ * \param func The PrimFunc to be verified.
+ * \param assert_mode The indicator if it raises an error when the function is not well-formed.
+ * \return Whether it is a well-formed TIR function.
+ */
+TVM_DLL bool VerifyWellFormed(const PrimFunc& func, bool assert_mode = true);
+
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.
 namespace transform {
@@ -252,6 +261,17 @@ TVM_DLL Pass VerifyMemory();
  * \sa tvm::tir::VerifyGPUCode
  */
 TVM_DLL Pass VerifyGPUCode(Map<String, PrimExpr> constraints);
+
+/*!
+ * \brief Statically check TIR code for out of bounds array access.
+ *
+ * This analysis is conservative: it will only raise errors if it can prove
+ * that out of bounds access occurs. Cases that are uncertain do not raise
+ * errors.
+ *
+ * \returns The pass.
+ */
+TVM_DLL Pass OOBChecker();
 
 }  // namespace transform
 }  // namespace tir

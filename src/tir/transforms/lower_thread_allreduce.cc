@@ -301,9 +301,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // sort according to dim_index
     std::sort(block_threads.begin(), block_threads.end());
     for (auto&& thr_attr : block_threads) {
-      int dim_index, extent;
-      bool is_reduce;
-      std::tie(dim_index, extent, is_reduce) = thr_attr;
+      auto [dim_index, extent, is_reduce] = thr_attr;
+      (void)dim_index;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
       if (is_reduce) {
         contiguous_reduce_extent *= extent;
       } else {
@@ -420,7 +419,19 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
           Buffer buf = shared_bufs[i];
           stores[i] = BufferStore(buf, ret[i], zero_indices);
         }
-        seq.push_back(SeqStmt::Flatten(stores));
+
+        // During the sub-warp reduction, values from inactive threads could be read,
+        // which is an undefined behavior according to the cuda document.
+        //
+        // In practise, the return value are usually 0, which does no harm to sum reduction.
+        // However, the result can be incorrect in max or prod reduction.
+        // Therefore an additional range check has to be performed to ensure the correctness.
+        if (offset * 2 > reduce_extent) {
+          PrimExpr cond = reduce_index + offset < reduce_extent;
+          seq.push_back(IfThenElse(cond, SeqStmt::Flatten(stores)));
+        } else {
+          seq.push_back(SeqStmt::Flatten(stores));
+        }
       }
 
       // Broadcast the reduction result from lane 0 to all other lanes.

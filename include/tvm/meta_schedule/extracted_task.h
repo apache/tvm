@@ -76,20 +76,6 @@ class ExtractedTask : public runtime::ObjectRef {
                                                     ExtractedTaskNode);
 };
 
-/*!
- * \brief The default TE task filter
- * \param args The input/output arguments of the TE compute graph
- * \return NullOpt if the task is filtered out, otherwise the task in PrimFunc
- */
-Optional<tvm::tir::PrimFunc> DefaultTaskFilter(const Array<tvm::te::Tensor, void>& args);
-
-/*!
- * \brief The default TE task filter, with `te.extern` allowed
- * \param args The input/output arguments of the TE compute graph
- * \return NullOpt if the task is filtered out, otherwise the task in PrimFunc
- */
-Optional<tir::PrimFunc> DefaultTaskFilterAllowExtern(const Array<tvm::te::Tensor, void>& args);
-
 }  // namespace meta_schedule
 }  // namespace tvm
 

@@ -42,24 +42,6 @@ std::string dot_to_underscore(std::string s) {
   return s;
 }
 
-std::string CodeGenHybrid::GetUniqueName(std::string prefix) {
-  prefix = dot_to_underscore(prefix);
-  auto it = ids_allocated_.find(prefix);
-  if (it != ids_allocated_.end()) {
-    while (true) {
-      std::ostringstream os;
-      os << prefix << (++it->second);
-      std::string name = os.str();
-      if (ids_allocated_.count(name) == 0) {
-        prefix = name;
-        break;
-      }
-    }
-  }
-  ids_allocated_[prefix] = 0;
-  return prefix;
-}
-
 std::string CodeGenHybrid::Finish() { return stream.str(); }
 
 void CodeGenHybrid::PrintType(DataType t, std::ostream& os) {
@@ -428,7 +410,7 @@ std::string CodeGenHybrid::GetVarID(const VarNode* v) {
   if (id_map_.count(key)) {
     return id_map_[key];
   }
-  return id_map_[key] = GetUniqueName(v->name_hint);
+  return id_map_[key] = ids_allocated->FreshName(v->name_hint);
 }
 
 std::string CodeGenHybrid::GetTensorID(const Tensor& tensor) {
@@ -440,57 +422,57 @@ std::string CodeGenHybrid::GetTensorID(const Tensor& tensor) {
   if (tensor->op->num_outputs() > 1) {
     name_hint += "_v" + std::to_string(tensor->value_index);
   }
-  return id_map_[key] = GetUniqueName(name_hint);
+  return id_map_[key] = ids_allocated->FreshName(name_hint);
 }
 
 void CodeGenHybrid::ReserveKeywords() {
-  GetUniqueName("def");
-  GetUniqueName("for");
-  GetUniqueName("in");
-  GetUniqueName("range");
-  GetUniqueName("True");
-  GetUniqueName("False");
-  GetUniqueName("unroll");
-  GetUniqueName("const_range");
-  GetUniqueName("parallel");
-  GetUniqueName("vectorize");
-  GetUniqueName("bind");
-  GetUniqueName("threadIdx.x");
-  GetUniqueName("threadIdx.y");
-  GetUniqueName("threadIdx.z");
-  GetUniqueName("blockIdx.x");
-  GetUniqueName("blockIdx.y");
-  GetUniqueName("blockIdx.z");
-  GetUniqueName("vthread");
-  GetUniqueName("allocate");
-  GetUniqueName("output_tensor");
-  GetUniqueName("sqrt");
-  GetUniqueName("log");
-  GetUniqueName("tanh");
-  GetUniqueName("power");
-  GetUniqueName("exp");
-  GetUniqueName("sigmoid");
-  GetUniqueName("popcount");
-  GetUniqueName("likely");
-  GetUniqueName("int8");
-  GetUniqueName("int16");
-  GetUniqueName("int32");
-  GetUniqueName("int64");
-  GetUniqueName("uint8");
-  GetUniqueName("uint16");
-  GetUniqueName("uint32");
-  GetUniqueName("uint64");
-  GetUniqueName("float16");
-  GetUniqueName("float32");
-  GetUniqueName("float64");
-  GetUniqueName("ceil_div");
-  GetUniqueName("max_num_threads");
+  ids_allocated->ReserveName("def");
+  ids_allocated->ReserveName("for");
+  ids_allocated->ReserveName("in");
+  ids_allocated->ReserveName("range");
+  ids_allocated->ReserveName("True");
+  ids_allocated->ReserveName("False");
+  ids_allocated->ReserveName("unroll");
+  ids_allocated->ReserveName("const_range");
+  ids_allocated->ReserveName("parallel");
+  ids_allocated->ReserveName("vectorize");
+  ids_allocated->ReserveName("bind");
+  ids_allocated->ReserveName("threadIdx.x");
+  ids_allocated->ReserveName("threadIdx.y");
+  ids_allocated->ReserveName("threadIdx.z");
+  ids_allocated->ReserveName("blockIdx.x");
+  ids_allocated->ReserveName("blockIdx.y");
+  ids_allocated->ReserveName("blockIdx.z");
+  ids_allocated->ReserveName("vthread");
+  ids_allocated->ReserveName("allocate");
+  ids_allocated->ReserveName("output_tensor");
+  ids_allocated->ReserveName("sqrt");
+  ids_allocated->ReserveName("log");
+  ids_allocated->ReserveName("tanh");
+  ids_allocated->ReserveName("power");
+  ids_allocated->ReserveName("exp");
+  ids_allocated->ReserveName("sigmoid");
+  ids_allocated->ReserveName("popcount");
+  ids_allocated->ReserveName("likely");
+  ids_allocated->ReserveName("int8");
+  ids_allocated->ReserveName("int16");
+  ids_allocated->ReserveName("int32");
+  ids_allocated->ReserveName("int64");
+  ids_allocated->ReserveName("uint8");
+  ids_allocated->ReserveName("uint16");
+  ids_allocated->ReserveName("uint32");
+  ids_allocated->ReserveName("uint64");
+  ids_allocated->ReserveName("float16");
+  ids_allocated->ReserveName("float32");
+  ids_allocated->ReserveName("float64");
+  ids_allocated->ReserveName("ceil_div");
+  ids_allocated->ReserveName("max_num_threads");
 }
 
 void CodeGenHybrid::DumpStmt(const Stmt& stmt, const Array<ObjectRef>& inputs,
                              const Array<Tensor>& outputs, const std::string& name) {
   ReserveKeywords();
-  GetUniqueName(name);
+  ids_allocated->ReserveName(name);
 
   stream << "def " << name << "(";
   for (size_t i = 0; i < inputs.size(); ++i) {

@@ -32,7 +32,10 @@
 #include <string>
 #include <vector>
 
+#include "./candidate_function_cache.h"
 #include "./cost.h"
+#include "./cost_estimator.h"
+#include "./name_supply.h"
 #include "./sub_graph.h"
 
 namespace tvm {
@@ -92,6 +95,13 @@ class CandidatePartitionNode : public Object {
    * \brief Returns the target of the partition specification which produced this candidate.
    */
   Target target() const;
+
+  /*!
+   * \brief Return the estimated cost of the candidate partition, using \p cost_estimator and
+   * \p cache.
+   */
+  Cost EstimatedCost(const DataflowGraph& dataflow_graph, const CostEstimator& cost_estimator,
+                     const std::shared_ptr<CandidateFunctionCache>& cache) const;
 
   /*!
    * \brief Returns a brief description of candidate suitable for debugging output.

@@ -32,7 +32,7 @@ namespace relay {
 namespace collage {
 
 String GetSpecName(const Target& target) {
-  if (TargetKind::GetAttrMap<Bool>(tvm::attr::kIsExternalCodegen).get(target->kind, Bool(false))) {
+  if (target.IsExternalCodegen()) {
     return target->kind->name;
   } else {
     return std::string(kTVMSpecNamePrefix) + target->kind->name;

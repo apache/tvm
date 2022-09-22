@@ -36,7 +36,7 @@ Block WithAnnotation(const BlockNode* block, const String& attr_key, const Objec
 Buffer WithScope(const Buffer& buffer, const String& scope) {
   ObjectPtr<BufferNode> new_buffer = make_object<BufferNode>(*buffer.get());
   ObjectPtr<VarNode> new_var = make_object<VarNode>(*buffer->data.get());
-  const auto* ptr_type = TVM_TYPE_AS(ptr_type, buffer->data->type_annotation, PointerTypeNode);
+  const auto* ptr_type = TVM_TYPE_AS(buffer->data->type_annotation, PointerTypeNode);
   new_var->type_annotation = PointerType(ptr_type->element_type, scope);
   new_buffer->data = Var(new_var->name_hint + "_" + scope, new_var->type_annotation);
   new_buffer->name = buffer->name + "_" + scope;
@@ -138,9 +138,30 @@ Stmt ReplaceBufferMutator::VisitStmt_(const BlockNode* block) {
     return this->VisitMatchBufferRegion(match_buffer);
   };
   auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
-    auto it = buffer_var_map_.find(buffer_region->buffer->data.get());
-    return it == buffer_var_map_.end() ? buffer_region
-                                       : BufferRegion(it->second, buffer_region->region);
+    auto region = MutateArray(buffer_region->region, [this](const Range& range) {
+      PrimExpr min = VisitExpr(range->min);
+      PrimExpr extent = VisitExpr(range->extent);
+      if (min.same_as(range->min) && extent.same_as(range->extent)) {
+        return range;
+      } else {
+        return Range::FromMinExtent(min, extent);
+      }
+    });
+
+    Buffer buf = [&]() {
+      auto it = buffer_var_map_.find(buffer_region->buffer->data.get());
+      if (it == buffer_var_map_.end()) {
+        return buffer_region->buffer;
+      } else {
+        return it->second;
+      }
+    }();
+
+    if (buf.same_as(buffer_region->buffer) && region.same_as(buffer_region->region)) {
+      return buffer_region;
+    } else {
+      return BufferRegion(buf, region);
+    }
   };
   auto f_mutate_alloc_buffers = [this](const Buffer& buffer) {
     auto it = buffer_var_map_.find(buffer->data.get());
@@ -220,9 +241,24 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
     }
   }
   if (const auto* block = sref->StmtAs<BlockNode>()) {
-    if (const auto* seq = block->body.as<SeqStmtNode>()) {
+    auto body = block->body;
+    // Peel off AllocateConst nodes at the beginning of the block body.
+    std::vector<const AllocateConstNode*> allocs;
+    while (const auto* alloc = body.as<AllocateConstNode>()) {
+      allocs.push_back(alloc);
+      body = alloc->body;
+    }
+    if (const auto* seq = body.as<SeqStmtNode>()) {
       ObjectPtr<BlockNode> n = make_object<BlockNode>(*block);
-      n->body = RemoveFromSeqStmt(GetRef<SeqStmt>(seq), GetRef<Stmt>(last_stmt));
+      auto new_seq = RemoveFromSeqStmt(GetRef<SeqStmt>(seq), GetRef<Stmt>(last_stmt));
+      // Re-attach AllocateConst nodes
+      auto new_body = new_seq;
+      for (int i = 0; i < static_cast<int>(allocs.size()); ++i) {
+        auto alloc = allocs[allocs.size() - 1 - i];
+        new_body = AllocateConst(alloc->buffer_var, alloc->dtype, alloc->extents, alloc->data,
+                                 new_body, alloc->annotations, alloc->span);
+      }
+      n->body = new_body;
       *src_stmt = GetRef<Stmt>(block);
       *tgt_stmt = Stmt(std::move(n));
       return;
@@ -238,8 +274,8 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
     }
   }
   ICHECK(sref != nullptr && sref->stmt != nullptr);
-  const auto* leaf_block = TVM_SREF_TO_BLOCK(leaf_block, leaf_block_sref);
-  const auto* scope_block = TVM_SREF_TO_BLOCK(scope_block, sref);
+  const auto* leaf_block = TVM_SREF_TO_BLOCK(leaf_block_sref);
+  const auto* scope_block = TVM_SREF_TO_BLOCK(sref);
   throw OnlyLeafError(self->mod, GetRef<Block>(leaf_block), GetRef<Block>(scope_block));
 }
 
@@ -278,9 +314,9 @@ Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::Block
     int64_t total = int_block_extent->value;
     int64_t inner = int_desc_extent->value;
     ICHECK_EQ(total % inner, 0);
-    int64_t outer = int_block_extent->value / int_desc_extent->value;
-    // Do the split
-    Array<LoopRV> split = sch->Split(loop2rv.at(block_loop_sref), {Integer(outer), Integer(inner)});
+    // Do the split. Leave the outer extent as NullOpt (unspecified) so that the split factors
+    // can be used for different extents (needed during tuning).
+    Array<LoopRV> split = sch->Split(loop2rv.at(block_loop_sref), {NullOpt, Integer(inner)});
     ICHECK_EQ(split.size(), 2);
     inner_loops.insert(sch->GetSRef(split[1]).operator->());
     // The inner split will be reordered to the loop domain that is tensorized
