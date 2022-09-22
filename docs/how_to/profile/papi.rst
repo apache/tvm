@@ -71,7 +71,7 @@ is an example:
 
     data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=dev)
     report = vm.profile(
-        [data],
+        data,
         func_name="main",
         collectors=[tvm.runtime.profiling.PAPIMetricCollector()],
     )
