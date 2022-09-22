@@ -37,11 +37,11 @@ using namespace tvm::te;
 
 /*!
  * \brief Layer normalization.
- * \param data N-D tensor with shape [d_0, d_1, ..., d_n]
- * \param gamma R-D tensor with shape [r_0, r_1, ..., r_k] where R == len(axis) and d_{axis_i} ==
- *              r_i
- * \param beta Optional, R-D tensor with shape [r_0, r_1, ..., r_k] where R == len(axis) and
- *             d_{axis_i} == r_i
+ * \param data N-D tensor with shape [d_0, d_1, ..., d_{N-1}]
+ * \param gamma K-D tensor with shape [r_0, r_1, ..., r_{K-1}] where K == len(axis) and
+ *              d_{axis_k} == r_k
+ * \param beta Optional, K-D tensor with shape [r_0, r_1, ..., r_{K-1}] where
+ *             d_{axis_k} == r_k
  * \param axis The axis to normalize over.
  * \param epsilon The epsilon value to avoid division by zero.
  * \param name The name of the operation.

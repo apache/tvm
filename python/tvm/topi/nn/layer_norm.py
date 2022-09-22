@@ -24,13 +24,13 @@ def layer_norm(data, gamma, beta, axis, epsilon=1e-5):
     Parameters
     ----------
     data : tvm.te.Tensor
-        N-D with shape (d_0, d_1, ..., d_n)
+        N-D with shape (d_0, d_1, ..., d_{N-1})
 
     gamma: tvm.te.Tensor
-        R-D with shape (r_0, r_1, ..., r_k) where R == len(axis) and d_{axis_i} == r_i
+        K-D with shape (r_0, r_1, ..., r_{K-1}) where K == len(axis) and d_{axis_k} == r_k
 
     beta: tvm.te.Tensor
-        Optional, R-D with shape (r_0, r_1, ..., r_k) where R == len(axis) and d_{axis_i} == r_i
+        Optional, K-D with shape (r_0, r_1, ..., r_{K-1}) where K == len(axis) and d_{axis_k} == r_k
 
     axis : list of int
         Axis over the normalization applied
@@ -41,6 +41,6 @@ def layer_norm(data, gamma, beta, axis, epsilon=1e-5):
     Returns
     -------
     result : tvm.te.Tensor
-        N-D with shape (d_0, d_1, ..., d_n)
+        N-D with shape (d_0, d_1, ..., d_{N-1})
     """
     return cpp.nn.layer_norm(data, gamma, beta, axis, epsilon)
