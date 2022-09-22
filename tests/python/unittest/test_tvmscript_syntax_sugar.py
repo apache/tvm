@@ -200,7 +200,7 @@ def test_dynamic_shape_gemm():
 @T.prim_func
 def preflattened_buffer_map(A: T.handle, B: T.handle):
     A_1 = T.match_buffer(A, [1])
-    T.preflattened_buffer(A_1, [1], align=T.int32(1), offset_factor=T.int64(2))
+    T.preflattened_buffer(A_1, [1], align=1, offset_factor=2)
     B_1 = T.match_buffer(B, [1])
     T.preflattened_buffer(B_1, [1])
     B_1[0] = A_1[0]
@@ -288,9 +288,9 @@ def test_func_call():
 
     @T.prim_func
     def mma_sync_m16n16k16_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
-        B = T.match_buffer(b, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
-        C = T.match_buffer(c, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
+        A = T.match_buffer(a, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
+        B = T.match_buffer(b, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
+        C = T.match_buffer(c, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
 
         with T.block("root"):
             T.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
@@ -315,9 +315,9 @@ def test_func_call():
 
     @T.prim_func
     def mma_sync_m16n16k16_desc_manual(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
-        B = T.match_buffer(b, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
-        C = T.match_buffer(c, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
+        A = T.match_buffer(a, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
+        B = T.match_buffer(b, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
+        C = T.match_buffer(c, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
 
         with T.block("root"):
             T.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
@@ -341,7 +341,7 @@ def test_func_call():
 
     # The following is an example of an error message from calling an invalid function
 
-    # error: Error occured when invoking the function sqrt:
+    # error: Error occurred when invoking the function sqrt:
     # loop of ufunc does not support argument 0 of type Var which has no callable sqrt method
     #  --> test_tvmscript_syntax_sugar.py:334:19
     #      |

@@ -28,6 +28,7 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
+#include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/trace.h>
 
 namespace tvm {
@@ -203,6 +204,33 @@ class DatabaseNode : public runtime::Object {
    * \return The size of the database.
    */
   virtual int64_t Size() = 0;
+  /*!
+   * \brief Query the best record of the given workload from the database.
+   * \param mod The IRModule to be searched for.
+   * \param target The target to be searched for.
+   * \param workload_name The name of the workload to be searched for.
+   * \return The best record of the given workload; NullOpt if not found.
+   */
+  virtual Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
+                                                   const String& workload_name);
+  /*!
+   * \brief Query the best schedule of the given workload from the database.
+   * \param mod The IRModule to be searched for.
+   * \param target The target to be searched for.
+   * \param workload_name The name of the workload to be searched for.
+   * \return The schedule in the best schedule of the given workload; NullOpt if not found.
+   */
+  virtual Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
+                                                const String& workload_name);
+  /*!
+   * \brief Query the best IRModule of the given workload from the database.
+   * \param mod The IRModule to be searched for.
+   * \param target The target to be searched for.
+   * \param workload_name The name of the workload to be searched for.
+   * \return The IRModule in the best IRModule of the given workload; NullOpt if not found.
+   */
+  virtual Optional<IRModule> QueryIRModule(const IRModule& mod, const Target& target,
+                                           const String& workload_name);
 
   static constexpr const char* _type_key = "meta_schedule.Database";
   TVM_DECLARE_BASE_OBJECT_INFO(DatabaseNode, runtime::Object);
@@ -241,6 +269,33 @@ class PyDatabaseNode : public DatabaseNode {
    */
   using FGetAllTuningRecords = runtime::TypedPackedFunc<Array<TuningRecord>()>;
   /*!
+   * \brief The function type of `QueryTuningRecord` method.
+   * \param mod The IRModule to be searched for.
+   * \param target The target to be searched for.
+   * \param workload_name The name of the workload to be searched for.
+   * \return The best record of the given workload; NullOpt if not found.
+   */
+  using FQueryTuningRecord = runtime::TypedPackedFunc<Optional<TuningRecord>(
+      const IRModule&, const Target&, const String&)>;
+  /*!
+   * \brief The function type of `QuerySchedule` method.
+   * \param mod The IRModule to be searched for.
+   * \param target The target to be searched for.
+   * \param workload_name The name of the workload to be searched for.
+   * \return The schedule in the best schedule of the given workload; NullOpt if not found.
+   */
+  using FQuerySchedule = runtime::TypedPackedFunc<Optional<tir::Schedule>(
+      const IRModule&, const Target&, const String&)>;
+  /*!
+   * \brief The function type of `QueryIRModule` method.
+   * \param mod The IRModule to be searched for.
+   * \param target The target to be searched for.
+   * \param workload_name The name of the workload to be searched for.
+   * \return The IRModule in the best IRModule of the given workload; NullOpt if not found.
+   */
+  using FQueryIRModule =
+      runtime::TypedPackedFunc<Optional<IRModule>(const IRModule&, const Target&, const String&)>;
+  /*!
    * \brief The function type of `Size` method.
    * \return The size of the database.
    */
@@ -256,6 +311,12 @@ class PyDatabaseNode : public DatabaseNode {
   FGetTopK f_get_top_k;
   /*! \brief The packed function to the `GetAllTuningRecords` function. */
   FGetAllTuningRecords f_get_all_tuning_records;
+  /*! \brief The packed function to the `QueryTuningRecord` function. */
+  FQueryTuningRecord f_query_tuning_record;
+  /*! \brief The packed function to the `QuerySchedule` function. */
+  FQuerySchedule f_query_schedule;
+  /*! \brief The packed function to the `QueryIRModule` function. */
+  FQueryIRModule f_query_ir_module;
   /*! \brief The packed function to the `Size` function. */
   FSize f_size;
 
@@ -268,6 +329,9 @@ class PyDatabaseNode : public DatabaseNode {
     // `f_commit_tuning_record` is not visited
     // `f_get_top_k` is not visited
     // `f_get_all_tuning_records` is not visited
+    // `f_query_tuning_record` is not visited
+    // `f_query_schedule` is not visited
+    // `f_query_ir_module` is not visited
     // `f_size` is not visited
   }
 
@@ -298,6 +362,33 @@ class PyDatabaseNode : public DatabaseNode {
     return f_get_all_tuning_records();
   }
 
+  Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
+                                           const String& workload_name) final {
+    if (f_query_tuning_record == nullptr) {
+      return DatabaseNode::QueryTuningRecord(mod, target, workload_name);
+    } else {
+      return f_query_tuning_record(mod, target, workload_name);
+    }
+  }
+
+  Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
+                                        const String& workload_name) final {
+    if (f_query_schedule == nullptr) {
+      return DatabaseNode::QuerySchedule(mod, target, workload_name);
+    } else {
+      return f_query_schedule(mod, target, workload_name);
+    }
+  }
+
+  Optional<IRModule> QueryIRModule(const IRModule& mod, const Target& target,
+                                   const String& workload_name) final {
+    if (f_query_ir_module == nullptr) {
+      return DatabaseNode::QueryIRModule(mod, target, workload_name);
+    } else {
+      return f_query_ir_module(mod, target, workload_name);
+    }
+  }
+
   int64_t Size() final {
     ICHECK(f_size != nullptr) << "PyDatabase's Size method not implemented!";
     return f_size();
@@ -313,6 +404,15 @@ class PyDatabaseNode : public DatabaseNode {
  */
 class Database : public runtime::ObjectRef {
  public:
+  /*! An in-memory database. */
+  TVM_DLL static Database MemoryDatabase();
+  /*!
+   * \brief A database for injecting handcrafted schedule functions.
+   * \param schedule_fn The function to do scheduling, which takes a TIR schedule,
+   * and returns a boolean indicating if the schedule is successful.
+   */
+  TVM_DLL static Database ScheduleFnDatabase(
+      runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn);
   /*!
    * \brief Create a default database that uses JSON file for tuning records.
    * \param path_workload The path to the workload table.
@@ -322,12 +422,31 @@ class Database : public runtime::ObjectRef {
   TVM_DLL static Database JSONDatabase(String path_workload, String path_tuning_record,
                                        bool allow_missing);
   /*!
+   * \brief A database composed of multiple databases, allowing users to guide IR rewriting using
+   * combined knowledge of those databases. To each query, it returns the best record among all the
+   * databases given.
+   * \param databases The list of databases to be combined.
+   * \return The combined database.
+   */
+  TVM_DLL static Database UnionDatabase(Array<Database, void> databases);
+  /*!
+   * \brief A database composed of multiple databases, allowing users to guide IR rewriting using
+   * combined knowledge of those databases. To each query, it returns the record from the first
+   * database that responds to the query.
+   * \param databases The database to be subsetted.
+   * \return The subsetted database.
+   */
+  TVM_DLL static Database OrderedUnionDatabase(Array<Database, void> databases);
+  /*!
    * \brief Create a database with customized methods on the python-side.
    * \param f_has_workload The packed function of `HasWorkload`.
    * \param f_commit_workload The packed function of `CommitWorkload`.
    * \param f_commit_tuning_record The packed function of `CommitTuningRecord`.
    * \param f_get_top_k The packed function of `GetTopK`.
    * \param f_get_all_tuning_records The packed function of `GetAllTuningRecords`.
+   * \param f_query_tuning_record The packed function of `QueryTuningRecord`.
+   * \param f_query_schedule The packed function of `QuerySchedule`.
+   * \param f_query_ir_module The packed function of `QueryIRModule`.
    * \param f_size The packed function of `Size`.
    * \return The created database.
    */
@@ -336,7 +455,17 @@ class Database : public runtime::ObjectRef {
                                      PyDatabaseNode::FCommitTuningRecord f_commit_tuning_record,
                                      PyDatabaseNode::FGetTopK f_get_top_k,
                                      PyDatabaseNode::FGetAllTuningRecords f_get_all_tuning_records,
+                                     PyDatabaseNode::FQueryTuningRecord f_query_tuning_record,
+                                     PyDatabaseNode::FQuerySchedule f_query_schedule,
+                                     PyDatabaseNode::FQueryIRModule f_query_ir_module,
                                      PyDatabaseNode::FSize f_size);
+  /*! \return The current Database in the scope. */
+  static Optional<Database> Current();
+  /*! \brief Entering the scope of the context manager */
+  void EnterWithScope();
+  /*! \brief Exiting the scope of the context manager */
+  void ExitWithScope();
+
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Database, runtime::ObjectRef, DatabaseNode);
 };
 

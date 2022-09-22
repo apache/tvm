@@ -60,6 +60,12 @@ class AutoInlineNode : public ScheduleRuleNode {
     return {sch};
   }
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<AutoInlineNode> n = make_object<AutoInlineNode>(*this);
+    return ScheduleRule(n);
+  }
+
  public:
   /*! \brief If allows to inline a block into its producer */
   bool into_producer;
@@ -96,7 +102,7 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
   StmtSRef block_sref = sch->GetSRef(block_rv);
   bool is_pure_sptial = IsInSpatialPrimFunc(sch, block_sref);
   ScheduleState state = sch->state();
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   BlockRealize realize = GetBlockRealize(state, block_sref);
   // Cond 1. The block has only one write buffer
   if (block->writes.size() != 1) {
@@ -104,7 +110,10 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
   }
   // Cond 2. For a block that generates a constant tensor, ignore all other conditions
   if (inline_const_tensor && block->reads.empty()) {
-    return InlineType::kInlineIntoConsumer;
+    Array<tir::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
+    if (!consumer_srefs.empty() && CanComputeInline(state, block_sref)) {
+      return InlineType::kInlineIntoConsumer;
+    }
   }
   // Cond 3. The block doesn't contain any disallowed operators
   if (!is_pure_sptial && !disallow_op.empty() && HasOp(realize, disallow_op)) {

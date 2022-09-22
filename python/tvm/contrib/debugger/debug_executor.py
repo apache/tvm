@@ -223,7 +223,15 @@ class GraphModuleDebug(graph_executor.GraphModule):
                 output_tensors.append(self._get_node_output(i, j))
         self.debug_datum.update_output_tensors(output_tensors)
 
-    def _run_debug(self, number, repeat, min_repeat_ms, cooldown_interval_ms, repeats_to_cooldown):
+    def _run_debug(
+        self,
+        number,
+        repeat,
+        min_repeat_ms,
+        limit_zero_time_iterations,
+        cooldown_interval_ms,
+        repeats_to_cooldown,
+    ):
         """Execute the node specified with index will be executed.
         Each debug output will be copied to the buffer
         Time consumed for each execution will be set as debug output.
@@ -233,6 +241,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
             number=number,
             repeat=repeat,
             min_repeat_ms=min_repeat_ms,
+            limit_zero_time_iterations=limit_zero_time_iterations,
             cooldown_interval_ms=cooldown_interval_ms,
             repeats_to_cooldown=repeats_to_cooldown,
         )
@@ -272,8 +281,10 @@ class GraphModuleDebug(graph_executor.GraphModule):
         number=10,
         repeat=1,
         min_repeat_ms=1,
+        limit_zero_time_iterations=100,
         cooldown_interval_ms=0,
         repeats_to_cooldown=1,
+        sort_by_time=True,
         **input_dict,
     ):
         """Run forward execution of the graph with debug
@@ -299,12 +310,19 @@ class GraphModuleDebug(graph_executor.GraphModule):
             i.e., When the run time of one `repeat` falls below this time, the `number` parameter
             will be automatically increased.
 
+        limit_zero_time_iterations: int, optional
+            The maximum number of repeats when measured time is equal to 0.
+            It helps to avoid hanging during measurements.
+
         cooldown_interval_ms: int, optional
             The cooldown interval in milliseconds between the number of repeats defined by
             `repeats_to_cooldown`.
 
         repeats_to_cooldown: int, optional
             The number of repeats before the cooldown is activated.
+
+        sort_by_time: bool, optional
+            Whether to sort the debug output by time.
 
         input_dict : dict of str to NDArray
             List of input values to be feed to
@@ -317,6 +335,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
             number=number,
             repeat=repeat,
             min_repeat_ms=min_repeat_ms,
+            limit_zero_time_iterations=limit_zero_time_iterations,
             cooldown_interval_ms=cooldown_interval_ms,
             repeats_to_cooldown=repeats_to_cooldown,
         )
@@ -325,10 +344,16 @@ class GraphModuleDebug(graph_executor.GraphModule):
         # Step 3. Dump the Chrome trace to the dump folder
         self.debug_datum.dump_chrome_trace()
         # Step 4. Display the collected information
-        self.debug_datum.display_debug_result()
+        self.debug_datum.display_debug_result(sort_by_time)
 
     def run_individual(
-        self, number, repeat=1, min_repeat_ms=0, cooldown_interval_ms=0, repeats_to_cooldown=1
+        self,
+        number,
+        repeat=1,
+        min_repeat_ms=0,
+        limit_zero_time_iterations=100,
+        cooldown_interval_ms=0,
+        repeats_to_cooldown=1,
     ):
         """Run each operation in the graph and get the time per op for all ops.
 
@@ -351,6 +376,10 @@ class GraphModuleDebug(graph_executor.GraphModule):
             i.e., When the run time of one `repeat` falls below this time, the `number` parameter
             will be automatically increased.
 
+        limit_zero_time_iterations: int, optional
+            The maximum number of repeats when measured time is equal to 0.
+            It helps to avoid hanging during measurements.
+
         cooldown_interval_ms: int, optional
             The cooldown interval in milliseconds between the number of repeats defined by
             `repeats_to_cooldown`.
@@ -364,7 +393,12 @@ class GraphModuleDebug(graph_executor.GraphModule):
         the repeat of the measurement.
         """
         res = self._run_individual(
-            number, repeat, min_repeat_ms, cooldown_interval_ms, repeats_to_cooldown
+            number,
+            repeat,
+            min_repeat_ms,
+            limit_zero_time_iterations,
+            cooldown_interval_ms,
+            repeats_to_cooldown,
         )
         results = []
         offset = 0
@@ -384,6 +418,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         number=10,
         repeat=1,
         min_repeat_ms=0,
+        limit_zero_time_iterations=100,
         cooldown_interval_ms=0,
         repeats_to_cooldown=1,
     ):
@@ -415,6 +450,10 @@ class GraphModuleDebug(graph_executor.GraphModule):
             i.e., When the run time of one `repeat` falls below this time, the `number` parameter
             will be automatically increased.
 
+        limit_zero_time_iterations: int, optional
+            The maximum number of repeats when measured time is equal to 0.
+            It helps to avoid hanging during measurements.
+
         cooldown_interval_ms: int, optional
             The cooldown interval in milliseconds between the number of repeats defined by
             `repeats_to_cooldown`.
@@ -428,7 +467,13 @@ class GraphModuleDebug(graph_executor.GraphModule):
         """
         # Results are returned as serialized strings which we deserialize
         res = self._run_individual_node(
-            index, number, repeat, min_repeat_ms, cooldown_interval_ms, repeats_to_cooldown
+            index,
+            number,
+            repeat,
+            min_repeat_ms,
+            limit_zero_time_iterations,
+            cooldown_interval_ms,
+            repeats_to_cooldown,
         )
         fmt = "@" + ("d" * repeat)
         results = struct.unpack(fmt, res)

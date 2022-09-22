@@ -323,14 +323,6 @@ class IRModuleNode : public Object {
   /*! \brief Helper function for registering a typedef's constructors */
   void RegisterConstructors(const GlobalTypeVar& var, const TypeData& type);
 
-  /*!
-   * \brief Returns a version of \p name which is unique amongst all function definitions in module.
-   *
-   * \param name The original name.
-   * \return Updated name which is unique.
-   */
-  String GetUniqueName(const String& name);
-
   /*! \brief A map from string names to global variables that
    * ensures global uniqueness.
    */
@@ -480,6 +472,15 @@ TVM_DLL String AsText(const ObjectRef& node, bool show_meta_data = true,
 namespace attr {
 
 // Following are attributes for IRModule only.
+
+/*!
+ * \brief Name of the module
+ *
+ * Type: String
+ *
+ * \sa tvm::runtime::String
+ */
+constexpr const char* kModuleName = "mod_name";
 
 /*!
  * \brief Executor targeted by the module

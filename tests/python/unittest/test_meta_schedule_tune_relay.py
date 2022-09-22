@@ -18,7 +18,7 @@
 import logging
 import tempfile
 from os import path as osp
-from typing import List
+from typing import List, Optional
 
 import numpy as np  # type: ignore
 import pytest
@@ -29,7 +29,6 @@ from tvm._ffi import register_func
 from tvm.contrib import graph_executor
 from tvm.ir import IRModule
 from tvm.meta_schedule.testing.relay_workload import get_network
-from tvm.meta_schedule.testing.utils import apply_fixed_schedules
 from tvm.script import tir as T
 from tvm.target.target import Target
 from tvm.tir.schedule import BlockRV, Schedule
@@ -114,20 +113,21 @@ class tvmgen_default_fused_layout_transform_1:
 
 @pytest.mark.skip("Integration test")
 @pytest.mark.parametrize(
-    "model_name, input_shape, target",
+    "model_name, input_shape, target, layout",
     [
-        ("resnet_18", [1, 3, 224, 224], "llvm --num-cores=16"),
-        ("resnet_18", [1, 3, 224, 224], "nvidia/geforce-rtx-3070"),
-        ("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=16"),
-        ("mobilenet_v2", [1, 3, 224, 224], "nvidia/geforce-rtx-3070"),
-        ("bert_base", [1, 64], "llvm --num-cores=16"),
-        ("bert_base", [1, 64], "nvidia/geforce-rtx-3070"),
+        ("resnet_18", [1, 3, 224, 224], "llvm --num-cores=16", "NHWC"),
+        ("resnet_18", [1, 3, 224, 224], "nvidia/geforce-rtx-3070", "NHWC"),
+        ("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=16", "NHWC"),
+        ("mobilenet_v2", [1, 3, 224, 224], "nvidia/geforce-rtx-3070", "NHWC"),
+        ("bert_base", [1, 64], "llvm --num-cores=16", None),
+        ("bert_base", [1, 64], "nvidia/geforce-rtx-3070", None),
     ],
 )
 def test_meta_schedule_tune_relay(
     model_name: str,
     input_shape: List[int],
     target: str,
+    layout: Optional[str],
 ):
     dev = tvm.cpu() if str(target).startswith("llvm") else tvm.cuda()
     if model_name.startswith("bert"):
@@ -135,7 +135,12 @@ def test_meta_schedule_tune_relay(
     else:
         data = tvm.nd.array(np.random.randn(*input_shape).astype("float32"), dev)
 
-    mod, params, (input_name, _, _) = get_network(name=model_name, input_shape=input_shape)
+    mod, params, (input_name, _, _) = get_network(
+        name=model_name,
+        input_shape=input_shape,
+        layout=layout,
+    )
+
     target = Target(target)
     with tempfile.TemporaryDirectory() as work_dir:
         with ms.Profiler() as profiler:
@@ -152,7 +157,7 @@ def test_meta_schedule_tune_relay(
                 work_dir=work_dir,
             )
         print(profiler.table())
-        # Compile without meta-scheduler for correctness check
+        # Compile without meta-schedule for correctness check
         with tvm.transform.PassContext(opt_level=0):
             rt_mod2 = relay.build(mod, target=target, params=params)
 
@@ -245,14 +250,13 @@ def test_meta_schedule_te2primfunc_argument_order():
     database.commit_workload(tvmgen_default_fused_layout_transform_1)
     database.commit_workload(tvmgen_default_fused_nn_contrib_conv2d_NCHWc)
 
-    with ms.ApplyHistoryBest(database):
-        with tvm.transform.PassContext(
-            opt_level=3,
-            config={"relay.backend.use_meta_schedule": True},
-        ):
-            rt_mod1 = relay.build(mod, target=target, params=params)
+    with database, tvm.transform.PassContext(
+        opt_level=3,
+        config={"relay.backend.use_meta_schedule": True},
+    ):
+        rt_mod1 = relay.build(mod, target=target, params=params)
 
-    # Compile without meta-scheduler for correctness check
+    # Compile without meta-schedule for correctness check
     with tvm.transform.PassContext(opt_level=0):
         rt_mod2 = relay.build(mod, target=target, params=params)
 
@@ -307,14 +311,13 @@ def test_meta_schedule_relay_lowering():
                 args_info=[],
             )
         )
-        with ms.ApplyHistoryBest(database):
-            with tvm.transform.PassContext(
-                opt_level=3,
-                config={"relay.backend.use_meta_schedule": True},
-            ):
-                rt_mod1 = relay.build(mod, target=target, params=params)
+        with database, tvm.transform.PassContext(
+            opt_level=3,
+            config={"relay.backend.use_meta_schedule": True},
+        ):
+            rt_mod1 = relay.build(mod, target=target, params=params)
 
-        # Compile without meta-scheduler for correctness check
+        # Compile without meta-schedule for correctness check
         with tvm.transform.PassContext(opt_level=0):
             rt_mod2 = relay.build(mod, target=target, params=params)
 
@@ -454,8 +457,8 @@ def manual_tir_common(do_tune=False):
             )
     else:
 
-        def schedule_fn(task, sch):
-            if "dense" not in task.task_name:
+        def schedule_fn(sch) -> bool:
+            if "dense" not in sch.mod.attrs["task_name"]:
                 return False
 
             block = sch.get_block("compute")
@@ -470,26 +473,25 @@ def manual_tir_common(do_tune=False):
 
             return True
 
-        database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
+        database = ms.database.ScheduleFnDatabase(schedule_fn)
 
-    with ms.ApplyHistoryBest(database):
-        with tvm.transform.PassContext(
-            opt_level=3,
-            config={"relay.backend.use_meta_schedule": True},
-        ):
-            # pylint: disable=W0105
-            """
-            The log should say
-            Warning: Cannot find workload: tvmgen_default_fused_expand_dims
-            Warning: Cannot find workload: tvmgen_default_fused_cast
-            Warning: Cannot find workload: tvmgen_default_fused_cast_1
-            Warning: Cannot find workload: tvmgen_default_fused_nn_batch_matmul
+    with database, tvm.transform.PassContext(
+        opt_level=3,
+        config={"relay.backend.use_meta_schedule": True},
+    ):
+        # pylint: disable=W0105
+        """
+        The log should say
+        Warning: Cannot find workload: tvmgen_default_fused_expand_dims
+        Warning: Cannot find workload: tvmgen_default_fused_cast
+        Warning: Cannot find workload: tvmgen_default_fused_cast_1
+        Warning: Cannot find workload: tvmgen_default_fused_nn_batch_matmul
 
-            This means batch matmul and others are scheduled by TE, and dense (the one not warned)
-            is found in the meta schedule tuning database during ApplyHistoryBest
-            """
-            # pylint: enable=W0105
-            lib = relay.build(relay_mod, target=target, params=params)
+        This means batch matmul and others are scheduled by TE, and dense (the one not warned)
+        is found in the meta schedule tuning database during compilation
+        """
+        # pylint: enable=W0105
+        lib = relay.build(relay_mod, target=target, params=params)
 
     runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
@@ -516,7 +518,7 @@ def test_tune_relay_manual_tir_vnni():
         attrs={"schedule_rule": "meta_schedule.dense_vnni"},
     )
 
-    When the meta scheduler encounters a TensorIR block with the "schedule_rule" annotation,
+    When the MetaSchedule encounters a TensorIR block with the "schedule_rule" annotation,
     it looks up the packed func registry for a function that is associated with the given schedule
     rule key ("meta_schedule.dense_vnni" in this example). The signature of such custom schedule
     functions must be
@@ -540,12 +542,12 @@ def test_tune_relay_manual_tir_vnni():
 
 
 if __name__ == """__main__""":
-    test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "llvm --num-cores=16")
-    test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "nvidia/geforce-rtx-3070")
-    test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=16")
-    test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "nvidia/geforce-rtx-3070")
-    test_meta_schedule_tune_relay("bert_base", [1, 64], "llvm --num-cores=16")
-    test_meta_schedule_tune_relay("bert_base", [1, 64], "nvidia/geforce-rtx-3070")
+    test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "llvm --num-cores=16", None)
+    test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "nvidia/geforce-rtx-3070", "NCHW")
+    test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=16", None)
+    test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "nvidia/geforce-rtx-3070", None)
+    test_meta_schedule_tune_relay("bert_base", [1, 64], "llvm --num-cores=16", None)
+    test_meta_schedule_tune_relay("bert_base", [1, 64], "nvidia/geforce-rtx-3070", None)
     test_meta_schedule_te2primfunc_argument_order()
     test_meta_schedule_relay_lowering()
     test_tune_relay_manual_tir_vnni()

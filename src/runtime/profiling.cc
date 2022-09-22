@@ -89,9 +89,22 @@ TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](Device dev) {
   return Timer(make_object<CPUTimerNode>());
 });
 
+// keep track of which timers are not defined but we have already warned about
+std::set<DLDeviceType> seen_devices;
+std::mutex seen_devices_lock;
+
 Timer Timer::Start(Device dev) {
   auto f = Registry::Get(std::string("profiling.timer.") + DeviceName(dev.device_type));
   if (f == nullptr) {
+    {
+      std::lock_guard<std::mutex> lock(seen_devices_lock);
+      if (seen_devices.find(dev.device_type) == seen_devices.end()) {
+        LOG(WARNING)
+            << "No timer implementation for " << DeviceName(dev.device_type)
+            << ", using default timer instead. It may be inaccurate or have extra overhead.";
+        seen_devices.insert(dev.device_type);
+      }
+    }
     Timer t = DefaultTimer(dev);
     t->Start();
     return t;
@@ -848,8 +861,8 @@ TVM_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
     });
 
 PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, int min_repeat_ms,
-                             int cooldown_interval_ms, int repeats_to_cooldown,
-                             PackedFunc f_preproc) {
+                             int limit_zero_time_iterations, int cooldown_interval_ms,
+                             int repeats_to_cooldown, PackedFunc f_preproc) {
   ICHECK(pf != nullptr);
 
   if (static_cast<int>(dev.device_type) == static_cast<int>(kDLMicroDev)) {
@@ -858,7 +871,8 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
     return (*get_micro_time_evaluator)(pf, dev, number, repeat);
   }
 
-  auto ftimer = [pf, dev, number, repeat, min_repeat_ms, cooldown_interval_ms, repeats_to_cooldown,
+  auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
+                 cooldown_interval_ms, repeats_to_cooldown,
                  f_preproc](TVMArgs args, TVMRetValue* rv) mutable {
     TVMRetValue temp;
     std::ostringstream os;
@@ -872,7 +886,7 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
         f_preproc.CallPacked(args, &temp);
       }
       double duration_ms = 0.0;
-
+      int absolute_zero_times = 0;
       do {
         if (duration_ms > 0.0) {
           const double golden_ratio = 1.618;
@@ -887,8 +901,9 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
         }
         t->Stop();
         int64_t t_nanos = t->SyncAndGetElapsedNanos();
+        if (t_nanos == 0) absolute_zero_times++;
         duration_ms = t_nanos / 1e6;
-      } while (duration_ms < min_repeat_ms);
+      } while (duration_ms < min_repeat_ms && absolute_zero_times < limit_zero_time_iterations);
 
       double speed = duration_ms / 1e3 / number;
       os.write(reinterpret_cast<char*>(&speed), sizeof(speed));

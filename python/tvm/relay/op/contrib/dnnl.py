@@ -33,8 +33,10 @@ it is supported. For example:
 check the attributes of the op and decide if it should be offloaded to DNNL.
 """
 import logging
+from functools import reduce
 
 import tvm.ir
+from tvm.ir import Op
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.expr import GlobalVar
@@ -44,14 +46,14 @@ from tvm.relay.expr import const
 from tvm.relay.analysis import analysis as _analysis
 from tvm.relay import expr as _expr
 
-
+from tvm.relay.expr import Call, TupleGetItem
 from ... import _ffi_api
 from ...dataflow_pattern import wildcard, is_op, is_constant, is_expr, rewrite, DFPatternCallback
 from .register import register_pattern_table
 
 
 logger = logging.getLogger("DNNL")
-supported_post_elts = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", None]
+supported_post_elts = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", "mish", None]
 
 
 def _register_external_op_helper(op_name, supported=True):
@@ -75,6 +77,11 @@ def _register_external_op_helper(op_name, supported=True):
         if any([x.checked_type.dtype == "int64" for x in args]):
             logger.info("DNNL does not support int64.")
             return False
+        # DNNL does not support pooling with ceil_mode = True.
+        if "pool" in op_name:
+            attrs = dict(get_attrs(expr))
+            if "ceil_mode" in attrs.keys() and attrs["ceil_mode"]:
+                return False
         return supported
 
     return _func_wrapper
@@ -89,6 +96,7 @@ _register_external_op_helper("nn.conv3d_transpose")
 _register_external_op_helper("nn.dense")
 _register_external_op_helper("nn.max_pool2d")
 _register_external_op_helper("nn.avg_pool2d")
+_register_external_op_helper("nn.global_avg_pool2d")
 _register_external_op_helper("nn.max_pool3d")
 _register_external_op_helper("nn.avg_pool3d")
 _register_external_op_helper("abs")
@@ -134,6 +142,13 @@ def append_eltwise_ops(op, eltwise):
     elif eltwise == "swish":
         sig_out = is_op("sigmoid")(op)
         op = is_op("multiply")(op, sig_out)
+    elif eltwise == "mish":
+        const1 = wildcard()
+        exp = is_op("exp")(op)
+        add = is_op("add")(exp, const1)
+        log = is_op("log")(add)
+        tanh = is_op("tanh")(log)
+        op = is_op("multiply")(op, tanh)
     elif eltwise:
         op = is_op(eltwise)(op)
     return op
@@ -164,6 +179,120 @@ def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
     else:
         conv_out = conv
     return append_eltwise_ops(conv_out, with_eltwise)
+
+
+def make_conv_bias_sum_relu_pattern(conv_type, has_relu=True):
+    """Create patterns with sum op.
+
+    Parameters
+    ----------
+    conv_type : str
+        Should be nn.conv1d / nn.conv2d / nn.conv3d.
+    has_relu : bool
+        Whether attach relu.
+    Returns
+    -------
+    out : CallPattern
+        Call node sequence.
+    """
+    data1 = wildcard()
+    weight = wildcard()
+    bias = wildcard()
+    data2 = wildcard()
+    out = is_op(conv_type)(data1, weight)
+    out = is_op("add")(out, bias)
+    out = is_op("add")(out, data2)
+    if has_relu:
+        out = is_op("nn.relu")(out)
+    return out
+
+
+def get_op_name(expr):
+    """Get the operator name from an expression."""
+    if isinstance(expr, Op):
+        return expr.name
+    if isinstance(expr, Call):
+        return get_op_name(expr.op)
+    if isinstance(expr, TupleGetItem):
+        return get_op_name(expr.tuple_value)
+    if isinstance(expr, relay.Tuple):
+        return get_op_name(expr.fields[0])
+    return ""
+
+
+def get_args(expr):
+    """Get the arguments from an expression."""
+    if isinstance(expr, Call):
+        return expr.args
+    if isinstance(expr, TupleGetItem):
+        return get_args(expr.tuple_value)
+    if isinstance(expr, relay.Tuple):
+        return [arg for args in map(get_args, expr.fields) for arg in args]
+    return []
+
+
+def get_attrs(expr):
+    """Get the attributes from an expression."""
+    if isinstance(expr, Call):
+        return expr.attrs
+    if isinstance(expr, TupleGetItem):
+        return get_attrs(expr.tuple_value)
+    return {}
+
+
+def make_sum_pattren_predicate(checker):
+    """Check whether the conv_bias_add_sum pattern is as expected."""
+
+    def predicate(expr):
+        if get_op_name(expr) == "nn.relu":
+            expr = expr.args[0]
+        for e, op_name in zip([expr, expr.args[0]], ["sum", "bias_add"]):
+            args = get_args(e)
+            attrs = get_attrs(e.args[0])
+            if not checker(attrs, args, op_name):
+                return False
+        return True
+
+    return predicate
+
+
+def make_bias_add_pattren_predicate(checker):
+    """Check whether the conv_bias pattern is as expected."""
+
+    def predicate(expr):
+        if get_op_name(expr) == "nn.relu":
+            expr = expr.args[0]
+        if get_op_name(expr) == "add":
+            args = get_args(expr)
+            attrs = get_attrs(expr.args[0])
+            if not checker(attrs, args, "bias_add"):
+                return False
+        return True
+
+    return predicate
+
+
+def add_checker(attrs, args, op_name):
+    """Check if add is aligned with elementwise_add and bias_add."""
+    if op_name == "sum":
+        if not isinstance(args[0].op, tvm.ir.op.Op):
+            return False
+        if args[0].op.name != "add":
+            return False
+        if tuple(get_shape(args[0])) != tuple(get_shape(args[1])):
+            return False
+    if op_name == "bias_add":
+        if attrs is None:
+            return False
+        if not isinstance(args[0].op, tvm.ir.op.Op):
+            return False
+        if args[0].op.name != "nn.conv2d":
+            return False
+        channel = dict(attrs)["channels"]
+        const_shape = get_shape(args[1])
+        if channel != reduce(lambda x, y: x * y, const_shape):
+            return False
+    return True
 
 
 def make_dense_pattern(with_bias=True, with_eltwise=None):
@@ -216,7 +345,11 @@ def make_dnnl_pattern(op_name, with_bias, with_eltwise):
     pat_name += "_bias" if with_bias else ""
     pat_name += ("_" + with_eltwise.split(".")[-1]) if with_eltwise else ""
     if "conv" in op_name:
-        dnnl_pattern = (pat_name, make_conv_pattern(op_name, with_bias, with_eltwise))
+        dnnl_pattern = (
+            pat_name,
+            make_conv_pattern(op_name, with_bias, with_eltwise),
+            make_bias_add_pattren_predicate(add_checker),
+        )
     elif op_name == "nn.dense":
         dnnl_pattern = (pat_name, make_dense_pattern(with_bias, with_eltwise))
     else:
@@ -305,8 +438,22 @@ def pattern_table():
     dnnl_patterns = list()
     dnnl_patterns.append(make_qnn_conv2d_pattern())
     dnnl_patterns.append(make_qnn_dense_pattern())
+    dnnl_patterns.append(
+        (
+            "dnnl.conv2d_bias_sum_relu",
+            make_conv_bias_sum_relu_pattern("nn.conv2d"),
+            make_sum_pattren_predicate(add_checker),
+        )
+    )
+    dnnl_patterns.append(
+        (
+            "dnnl.conv2d_bias_sum",
+            make_conv_bias_sum_relu_pattern("nn.conv2d", False),
+            make_sum_pattren_predicate(add_checker),
+        )
+    )
 
-    elt_list = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", None]
+    elt_list = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", "mish", None]
     for with_bias in [True, False]:
         for elt in elt_list:
             if not with_bias and not elt:
@@ -459,6 +606,19 @@ def tag2layout(input_data, is_weight=False, conv_type="Conv1D"):
     return res
 
 
+def legalize_pad_avg_pool(attrs, inputs, types):
+    """Legalize pad->avg_pool2d pattern.
+    Fuse this pattern into one avg_pool2d with padding = (1, 1),
+    and count_include_pad = True"""
+    data = inputs[0]
+    new_attrs = dict(attrs)
+    if isinstance(data, relay.expr.Call) and data.op.name == "nn.pad":
+        new_attrs["padding"] = (1, 1)
+        new_attrs["count_include_pad"] = True
+        return relay.nn.avg_pool2d(data.args[0], **new_attrs)
+    return relay.nn.avg_pool2d(data, **attrs)
+
+
 def legalize_group_conv(attrs, inputs, types):
     """Legalize group conv / conv_transpose calculation.
     Alter weight layout from OIHW to GOIHW / IOHW to GIOHW"""
@@ -575,6 +735,7 @@ class IsComputeIntensiveGraph(ExprVisitor):
                 "nn.dense",
                 "nn.layer_norm",
                 "nn.batch_matmul",
+                "nn.global_avg_pool2d",
             ]
         )
         if isinstance(call.op, tvm.tir.op.Op):
@@ -695,7 +856,8 @@ class LayerNormRewrite(DFPatternCallback):
         added_eps = is_op("add")(mp1, eps)
         deno = is_op("sqrt")(added_eps)
         div_out = is_op("divide")(diff, deno)
-        weighted = is_op("multiply")(div_out, self.gamma)
+        div_out2 = diff * is_op("rsqrt")(added_eps)
+        weighted = is_op("multiply")(div_out | div_out2, self.gamma)
         added_bias = is_op("add")(weighted, self.beta)
         self.pattern = added_bias
 

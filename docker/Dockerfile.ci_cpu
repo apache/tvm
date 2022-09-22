@@ -25,14 +25,18 @@ RUN apt-get update --fix-missing
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
+COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
+RUN bash /install/ubuntu_install_cmake_source.sh
+
 COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
 RUN bash /install/ubuntu_install_googletest.sh
 
-COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
-RUN bash /install/ubuntu1804_install_python.sh
-
-# Globally disable pip cache
-RUN pip config set global.no-cache-dir false
+ENV TVM_VENV /venv/apache-tvm-py3.7
+COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
+COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
+RUN bash /install/ubuntu_install_python.sh
+ENV PATH ${TVM_VENV}/bin:$PATH
+ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
@@ -123,22 +127,6 @@ COPY install/ubuntu_install_androidsdk.sh /install/ubuntu_install_androidsdk.sh
 RUN bash /install/ubuntu_install_androidsdk.sh
 ENV ANDROID_HOME=/opt/android-sdk-linux/
 ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147/
-
-# Install CMSIS_NN
-COPY install/ubuntu_install_cmsis.sh /install/ubuntu_install_cmsis.sh
-RUN bash /install/ubuntu_install_cmsis.sh /opt/arm/ethosu/cmsis
-ENV CMSIS_PATH=/opt/arm/ethosu/cmsis/
-
-# Arm(R) Ethos(TM)-U NPU driver
-COPY install/ubuntu_install_ethosu_driver_stack.sh /install/ubuntu_install_ethosu_driver_stack.sh
-RUN bash /install/ubuntu_install_ethosu_driver_stack.sh
-
-# Install Vela compiler
-COPY install/ubuntu_install_vela.sh /install/ubuntu_install_vela.sh
-RUN bash /install/ubuntu_install_vela.sh
-
-# Update PATH
-ENV PATH /opt/arm/gcc-arm-none-eabi/bin:/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4:$PATH
 
 # PaddlePaddle deps
 COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh

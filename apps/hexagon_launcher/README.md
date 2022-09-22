@@ -118,7 +118,7 @@ mod, params = relay.frontend.from_tflite(
     tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict
 )
 
-target = tvm.target.hexagon('v68', link_params=True)
+target = tvm.target.hexagon('v68')
 with tvm.transform.PassContext(opt_level=3):
     lib = relay.build(mod, tvm.target.Target(target, host=target), params=params, mod_name="default")
 
@@ -172,7 +172,7 @@ A sample output JSON from running the Inception V3 model may look like
 
 When using AoT, the `target` needs to be `llvm`:
 ```
-aot_target = "llvm -keys=hexagon -link-params=0 -mattr=+hvxv69,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp -mcpu=hexagonv69 -mtriple=hexagon"
+aot_target = "llvm -keys=hexagon -mattr=+hvxv69,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp -mcpu=hexagonv69 -mtriple=hexagon"
 aot_host_target = aot_target
 ```
 

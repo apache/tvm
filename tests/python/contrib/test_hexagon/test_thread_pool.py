@@ -15,20 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""Add hexagon thread pool test"""
+
 import numpy as np
 
 import tvm
 import tvm.contrib.hexagon
-from tvm.contrib.hexagon.session import Session
 import tvm.script
 import tvm.testing
-from tvm import te
-
+from tvm.contrib.hexagon.session import Session
 from tvm.script import tir as T
 
 
 @tvm.script.ir_module
 class ElemwiseSumIRModule:
+    """IRModule definition for elementwise sum"""
+
+    # pylint: disable=no-self-argument,invalid-name,missing-function-docstring
     @T.prim_func
     def elemwise_sum_serial(a: T.handle, b: T.handle, c: T.handle, n: T.int32):
         T.func_attr({"global_symbol": "elemwise_sum_serial", "tir.noalias": True})
@@ -51,6 +54,8 @@ class ElemwiseSumIRModule:
                 vi = T.axis.spatial(n, i)
                 C[vi] = A[vi] + B[vi]
 
+    # pylint: enable=no-self-argument,invalid-name,missing-function-docstring
+
 
 def generate_add_test_data(hexagon_session: Session, n=128 * 1024):
     a = tvm.nd.array(np.random.uniform(size=n).astype("float32"), hexagon_session.device)
@@ -67,6 +72,7 @@ def benchmark_func(mod, name, args, hexagon_session):
 
 @tvm.testing.requires_hexagon
 def test_speedup(hexagon_session: Session, capsys):
+    """Test speedup"""
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
     func = tvm.build(
         ElemwiseSumIRModule, target=tvm.target.Target(target_hexagon, host=target_hexagon)
@@ -82,6 +88,7 @@ def test_speedup(hexagon_session: Session, capsys):
 
 @tvm.testing.requires_hexagon
 def test_elemwise_sum_parallel(hexagon_session: Session):
+    """Test parallel elementwise sum"""
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
     func = tvm.build(
         ElemwiseSumIRModule, target=tvm.target.Target(target_hexagon, host=target_hexagon)

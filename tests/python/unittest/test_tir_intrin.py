@@ -203,36 +203,36 @@ class Module:
             [n],
             strides=[stride],
             elem_offset=0,
-            align=128,
+            align=64,
             offset_factor=1,
-            type="auto",
+            buffer_type="auto",
         )
         B_1 = T.match_buffer(
             B,
             [n],
             strides=[stride_1],
             elem_offset=0,
-            align=128,
+            align=64,
             offset_factor=1,
-            type="auto",
+            buffer_type="auto",
         )
         C_1 = T.match_buffer(
             C,
             [n],
             strides=[stride_2],
             elem_offset=0,
-            align=128,
+            align=64,
             offset_factor=1,
-            type="auto",
+            buffer_type="auto",
         )
         d_1 = T.match_buffer(
             d,
             [n],
             strides=[stride_3],
             elem_offset=0,
-            align=128,
+            align=64,
             offset_factor=1,
-            type="auto",
+            buffer_type="auto",
         )
         # body
         for i in T.serial(0, n):

@@ -81,7 +81,7 @@ namespace tvm {
  * The text parser can recover this object by loading from the corresponding
  * location in the meta data section.
  *
- * This is is a design trade-off.
+ * This is a design trade-off.
  * It allows us to embedded any meta data in the text format,
  * while still being able to tweak the text part of the printed IR easily.
  */
@@ -136,7 +136,7 @@ class TextMetaDataContext {
 
  private:
   /*! \brief additional metadata stored in TVM json format */
-  std::unordered_map<String, Array<ObjectRef> > meta_data_;
+  std::unordered_map<String, Array<ObjectRef>> meta_data_;
   /*! \brief map from meta data into its string representation */
   std::unordered_map<ObjectRef, Doc, ObjectPtrHash, ObjectPtrEqual> meta_repr_;
 };

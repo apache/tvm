@@ -250,10 +250,11 @@ TVM_DLL void Unroll(ScheduleState self, const StmtSRef& loop_sref);
  * \param block_sref The consumer block of the target buffer.
  * \param read_buffer_index The index of the buffer in block's read region.
  * \param storage_scope The target storage scope.
+ * \param consumer_blocks Array of blocks that consume the cache.
  * \return The cache stage block.
  */
 TVM_DLL StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buffer_index,
-                           const String& storage_scope);
+                           const String& storage_scope, const Array<StmtSRef> consumer_blocks = {});
 /*!
  * \brief Create a block that writes a buffer region into a write cache. It requires:
  * 1) There is only one block that writes the target buffer.
@@ -298,10 +299,13 @@ TVM_DLL StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buf
  * \param self The schedule state
  * \param block_sref The block to be moved
  * \param loop_sref The loop where the block to be moved to
- * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ * \param index The block index of the loop body subtree blocks:
+ * - `index = -1` means inserted into the last possible insertion point;
+ * - `index = -2` means inserted into the first possible insertion point;
+ * - Otherwise, `index` is a nonnegative number that indicates the insertion point
  */
 TVM_DLL void ComputeAt(ScheduleState self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
-                       bool preserve_unit_loops);
+                       bool preserve_unit_loops, int index = -1);
 /*!
  * \brief Move a consumer block under the specific loop, and regenerate the
  * loops induced by the block so that the buffer region consumed by the consumer block could
@@ -317,9 +321,13 @@ TVM_DLL void ComputeAt(ScheduleState self, const StmtSRef& block_sref, const Stm
  * \param block_sref The block to be moved
  * \param loop_sref The loop where the block to be moved to
  * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ * \param index The block index of the loop body subtree blocks:
+ * - `index = -1` means inserted into the last possible insertion point;
+ * - `index = -2` means inserted into the first possible insertion point;
+ * - Otherwise, `index` is a nonnegative number that indicates the insertion point
  */
 TVM_DLL void ReverseComputeAt(ScheduleState self, const StmtSRef& block_sref,
-                              const StmtSRef& loop_sref, bool preserve_unit_loops);
+                              const StmtSRef& loop_sref, bool preserve_unit_loops, int index = -1);
 /*!
  * \brief Inline a block into its consumer(s). It requires:
  * 1) The block is a complete non-root block, which only produces one buffer
@@ -466,9 +474,11 @@ TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const String& 
  * \param buffer_index The index of the buffer in block's read or write region.
  * \param buffer_index_type The type of the buffer index, kRead or kWrite.
  * \param index_map The transformation to apply.
+ * \param pad_value The value to write into padding introduced by the transformation.
  */
 TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-                             BufferIndexType buffer_index_type, const IndexMap& index_map);
+                             BufferIndexType buffer_index_type, const IndexMap& index_map,
+                             const Optional<IndexMap>& pad_value);
 
 /*!
  * \brief Apply a transformation represented by IndexMap to block
@@ -481,6 +491,26 @@ TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int
  */
 TVM_DLL void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
                                   const IndexMap& index_map);
+
+/******** Schedule: Padding ********/
+/*!
+ * \brief Decompose a padding block into a block filling const pad values and a block
+ * writing in-bound values.
+ * \param block_sref The block sref that match the padding pattern.
+ * \param loop_sref The loop above which the const filling block is inserted before.
+ * \return The padding value filling block sref.
+ */
+TVM_DLL StmtSRef DecomposePadding(ScheduleState self, const StmtSRef& block_sref,
+                                  const StmtSRef& loop_sref);
+
+/*!
+ * \brief Pad the computation of Einsum.
+ * \param self The state of the schedule
+ * \param block_sref The block sref that matches the Einsum pattern.
+ * \param padding The padding for each block iter.
+ */
+TVM_DLL void PadEinsum(ScheduleState self, const StmtSRef& block_sref,
+                       const Array<Integer>& padding);
 
 /******** Schedule: Misc ********/
 

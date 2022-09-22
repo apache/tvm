@@ -727,7 +727,7 @@ This is the conv2d compute schedule:
 
 There are two major changes here:
 
-1) The first change is the farily obvious presence of the the kernel height `rh` and width `rw` iterators, for example:
+1) The first change is the farily obvious presence of the kernel height `rh` and width `rw` iterators, for example:
 
 ```
                   for (rh_1: int32, 0, 3) {

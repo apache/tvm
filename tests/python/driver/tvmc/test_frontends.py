@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import platform
 import pytest
 import builtins
 import importlib
@@ -74,6 +75,10 @@ def test_guess_frontend_onnx():
     assert type(sut) is tvmc.frontends.OnnxFrontend
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_guess_frontend_pytorch():
     # some CI environments wont offer pytorch, so skip in case it is not present
     pytest.importorskip("torch")
@@ -104,6 +109,12 @@ def test_guess_frontend_paddle():
 
     sut = tvmc.frontends.guess_frontend("a_model.pdmodel")
     assert type(sut) is tvmc.frontends.PaddleFrontend
+
+
+def test_guess_frontend_relay():
+
+    sut = tvmc.frontends.guess_frontend("relay.relay")
+    assert type(sut) is tvmc.frontends.RelayFrontend
 
 
 def test_guess_frontend_invalid():
@@ -163,7 +174,7 @@ def verify_load_model__onnx(model, **kwargs):
 def test_load_model__onnx(onnx_resnet50):
     # some CI environments wont offer onnx, so skip in case it is not present
     pytest.importorskip("onnx")
-    tvmc_model = verify_load_model__onnx(onnx_resnet50)
+    tvmc_model = verify_load_model__onnx(onnx_resnet50, freeze_params=False)
     # check whether one known value is part of the params dict
     assert "resnetv24_batchnorm0_gamma" in tvmc_model.params.keys()
     tvmc_model = verify_load_model__onnx(onnx_resnet50, freeze_params=True)
@@ -188,6 +199,13 @@ def test_load_model__paddle(paddle_resnet50):
     pytest.importorskip("paddle")
 
     tvmc_model = tvmc.load(paddle_resnet50, model_format="paddle")
+    assert type(tvmc_model) is TVMCModel
+    assert type(tvmc_model.mod) is IRModule
+    assert type(tvmc_model.params) is dict
+
+
+def test_load_model__relay(relay_text_conv2d):
+    tvmc_model = tvmc.load(relay_text_conv2d, model_format="relay")
     assert type(tvmc_model) is TVMCModel
     assert type(tvmc_model.mod) is IRModule
     assert type(tvmc_model.params) is dict
@@ -219,6 +237,10 @@ def test_load_model___wrong_language__to_onnx(tflite_mobilenet_v1_1_quant):
         tvmc.load(tflite_mobilenet_v1_1_quant, model_format="onnx")
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_load_model__pth(pytorch_resnet18):
     # some CI environments wont offer torch, so skip in case it is not present
     pytest.importorskip("torch")
@@ -232,6 +254,10 @@ def test_load_model__pth(pytorch_resnet18):
     assert "layer1.0.conv1.weight" in tvmc_model.params.keys()
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_load_quantized_model__pth(pytorch_mobilenetv2_quantized):
     # some CI environments wont offer torch, so skip in case it is not present
     pytest.importorskip("torch")
@@ -247,6 +273,10 @@ def test_load_quantized_model__pth(pytorch_mobilenetv2_quantized):
         assert p.dtype in ["int8", "uint8", "int32"]  # int32 for bias
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_load_model___wrong_language__to_pytorch(tflite_mobilenet_v1_1_quant):
     # some CI environments wont offer pytorch, so skip in case it is not present
     pytest.importorskip("torch")
@@ -406,6 +436,10 @@ def test_import_tensorflow_friendly_message(pb_mobilenet_v1_1_quant, monkeypatch
         _ = tvmc.frontends.load_model(pb_mobilenet_v1_1_quant, model_format="pb")
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_import_torch_friendly_message(pytorch_resnet18, monkeypatch):
     monkeypatch.setattr("importlib.import_module", mock_error_on_name("torch"))
 

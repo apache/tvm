@@ -28,6 +28,9 @@
 #include <tvm/parser/parser.h>
 #include <tvm/relay/qnn/transform.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/tir/stmt_functor.h>
+
+#include "../../te/operation/create_primfunc.h"
 
 namespace tvm {
 namespace relay {
@@ -135,8 +138,20 @@ TVM_REGISTER_GLOBAL("relay.ir.StaticMemoryPlan")
       return StaticMemoryPlan(expr_to_storage_info);
     });
 
-// TODO(mbs): Cf GetMemorySizeBytes in aot_executor_codegen.cc, GetMemorySize in
-// graph_plan_memory.cc
+size_t DivRoundUp(size_t size, size_t word_size) { return (size + word_size - 1) / word_size; }
+
+size_t GetMemorySizeBytes(const Array<PrimExpr>& shape, const DataType& dtype) {
+  size_t size = 1;
+  for (IndexExpr dim : shape) {
+    const int64_t* pval = tir::as_const_int(dim);
+    ICHECK(pval != nullptr) << "Cannot allocate memory symbolic tensor shape " << shape;
+    ICHECK_GE(*pval, 0) << "Cannot allocate memory for tensor with negative shape" << *pval;
+    size *= static_cast<size_t>(pval[0]);
+  }
+  size *= DivRoundUp(dtype.bits() * dtype.lanes(), 8);
+  return size;
+}
+
 int64_t CalculateRelayExprSizeBytes(const Type& expr_type) {
   if (expr_type->IsInstance<TupleTypeNode>()) {
     auto tuple_type = Downcast<TupleType>(expr_type);
@@ -149,17 +164,7 @@ int64_t CalculateRelayExprSizeBytes(const Type& expr_type) {
   auto tensor_type = expr_type.as<TensorTypeNode>();
   ICHECK(tensor_type);
   auto shape = tensor_type->shape;
-  int num_of_elements = 1;
-  for (const auto& dim_index_expr : shape) {
-    if (dim_index_expr->IsInstance<IntImmNode>()) {
-      num_of_elements *= dim_index_expr.as<IntImmNode>()->value;
-    } else {
-      // If shape is dynamic, we cannot calculate workspace in compile time.
-      num_of_elements = 0;
-    }
-  }
-  auto element_size = tensor_type->dtype.bytes();
-  return element_size * num_of_elements;
+  return GetMemorySizeBytes(tensor_type->shape, tensor_type->dtype);
 }
 
 TVM_REGISTER_NODE_TYPE(FunctionInfoNode);
@@ -367,6 +372,76 @@ void BindParamsInModule(IRModule mod, Map<String, runtime::NDArray> params) {
   }
   BindParamsInModule(mod, params_tmp);
 }
+
+/*!
+ * \brief A default TE compute to TIR compute.
+ * \param args The inputs/outputs of the TE compute graph.
+ * \param constants The constants bound to TIR
+ * \param allow_extern_op Whether to allow extern operation in TE.
+ * \return The TIR converted; NullOpt if not supported (dynamic shape)
+ */
+Optional<tir::PrimFunc> DefaultTIRConverterImpl(const Array<te::Tensor>& args,
+                                                const Array<runtime::NDArray>& constants,
+                                                bool allow_extern_op) {
+  using namespace ::tvm::te;
+  std::vector<Tensor> stack;
+  std::unordered_set<const TensorNode*> visited;
+  for (const Tensor& v : args) {
+    for (const PrimExpr& e : v->shape) {
+      // Dynamic shape is not supported for now
+      if (!e->IsInstance<IntImmNode>()) {
+        return NullOpt;
+      }
+    }
+    if (!visited.count(v.get())) {
+      visited.insert(v.get());
+      stack.push_back(v);
+    }
+  }
+  while (!stack.empty()) {
+    Tensor tensor = stack.back();
+    stack.pop_back();
+    if (tensor->op->IsInstance<PlaceholderOpNode>()) {
+      // do nothing
+    } else if (tensor->op->IsInstance<ComputeOpNode>() ||
+               (allow_extern_op && tensor->op->IsInstance<ExternOpNode>())) {
+      Array<Tensor> inputs = tensor->op->InputTensors();
+      for (const Tensor& v : inputs) {
+        if (!visited.count(v.get())) {
+          visited.insert(v.get());
+          stack.push_back(v);
+        }
+      }
+    } else {
+      return NullOpt;
+    }
+  }
+  PrimFunc func = te::CreatePrimFuncWithConstants(args, constants);
+  bool dynamic_loop_extent = false;
+  tir::PostOrderVisit(func->body, [&dynamic_loop_extent](const ObjectRef& obj) -> void {
+    if (const auto* loop = obj.as<tir::ForNode>()) {
+      if (!loop->extent->IsInstance<IntImmNode>()) {
+        dynamic_loop_extent = true;
+      }
+    }
+  });
+  if (dynamic_loop_extent) {
+    return NullOpt;
+  }
+  return func;
+}
+
+TVM_REGISTER_GLOBAL("relay.backend.tir_converter.default")
+    .set_body_typed([](const Array<te::Tensor>& args,
+                       const Array<runtime::NDArray>& constants) -> Optional<tir::PrimFunc> {
+      return DefaultTIRConverterImpl(args, constants, false);
+    });
+
+TVM_REGISTER_GLOBAL("relay.backend.tir_converter.allow_extern")
+    .set_body_typed([](const Array<te::Tensor>& args,
+                       const Array<runtime::NDArray>& constants) -> Optional<tir::PrimFunc> {
+      return DefaultTIRConverterImpl(args, constants, true);
+    });
 
 }  // namespace backend
 }  // namespace relay

@@ -348,6 +348,7 @@ def test_ethosu_binary_elementwise(
     ],
 )
 def test_binary_add_with_non_4d_shapes(
+    request,
     accel_type,
     ifm_shape,
     ifm2_shape,
@@ -604,7 +605,9 @@ def test_ethosu_right_shift_binary_elemwise(
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("ifm_shape", [(3, 2), (1, 15, 11, 7), (3, 1, 12), (400,)])
 @pytest.mark.parametrize("ifm_scale, ifm_zp, ofm_scale, ofm_zp", [(1, 0, 1, 0), (0.015, 3, 0.2, 5)])
-def test_ethosu_identity_codegen(ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp, accel_type):
+def test_ethosu_identity_codegen(
+    request, ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp, accel_type
+):
     np.random.seed(0)
 
     def create_model():
@@ -682,7 +685,7 @@ def test_relay_reshape_codegen(ifm_shape, new_shape, accel_type):
         ([5000], [123], [2151]),
     ],
 )
-def test_tflite_slice(accel_type, ifm_shape, begin, size):
+def test_tflite_slice(request, accel_type, ifm_shape, begin, size):
     np.random.seed(0)
 
     @tf.function
@@ -718,6 +721,7 @@ def test_tflite_strided_slice(accel_type, ifm_shape, begin, end):
     [[1, 5, 12, 4], [1, 1, 2], [4, 3, 2], [10, 20], [345]],
 )
 def test_ethosu_unary_elementwise(
+    request,
     accel_type,
     operator_type,
     ifm_shape,
@@ -817,6 +821,21 @@ def test_tflite_tanh(accel_type):
     infra.compare_tvm_with_tflite(
         tanh_func, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
     )
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("ifm_shape", [(1, 5, 5, 3), (1, 12, 9, 1)])
+def test_tflite_hard_swish(accel_type, ifm_shape):
+    np.random.seed(0)
+
+    @tf.function
+    def hard_swish_func(x):
+        op = tf.keras.layers.Lambda(
+            lambda x: x * tf.keras.activations.relu(x + 3.0, max_value=6.0) / 6.0
+        )(x)
+        return op
+
+    infra.compare_tvm_with_tflite(hard_swish_func, [ifm_shape], accel_type, ranges=[(-1, 1)])
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)

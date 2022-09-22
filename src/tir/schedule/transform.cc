@@ -36,7 +36,7 @@ Block WithAnnotation(const BlockNode* block, const String& attr_key, const Objec
 Buffer WithScope(const Buffer& buffer, const String& scope) {
   ObjectPtr<BufferNode> new_buffer = make_object<BufferNode>(*buffer.get());
   ObjectPtr<VarNode> new_var = make_object<VarNode>(*buffer->data.get());
-  const auto* ptr_type = TVM_TYPE_AS(ptr_type, buffer->data->type_annotation, PointerTypeNode);
+  const auto* ptr_type = TVM_TYPE_AS(buffer->data->type_annotation, PointerTypeNode);
   new_var->type_annotation = PointerType(ptr_type->element_type, scope);
   new_buffer->data = Var(new_var->name_hint + "_" + scope, new_var->type_annotation);
   new_buffer->name = buffer->name + "_" + scope;
@@ -103,6 +103,14 @@ ReplaceBufferMutator::ReplaceBufferMutator(const Buffer& old_buffer, Buffer new_
   buffer_var_map_[old_buffer->data.get()] = std::move(new_buffer);
 }
 
+ReplaceBufferMutator::ReplaceBufferMutator(const Map<Buffer, Buffer>& buffer_map,
+                                           Map<Block, Block>* block_sref_reuse)
+    : block_sref_reuse_(block_sref_reuse) {
+  for (const auto& [old_buffer, new_buffer] : buffer_map) {
+    buffer_var_map_[old_buffer->data.get()] = new_buffer;
+  }
+}
+
 PrimExpr ReplaceBufferMutator::VisitExpr_(const VarNode* var) {
   auto it = buffer_var_map_.find(var);
   return it != buffer_var_map_.end() ? it->second->data : GetRef<Var>(var);
@@ -138,9 +146,30 @@ Stmt ReplaceBufferMutator::VisitStmt_(const BlockNode* block) {
     return this->VisitMatchBufferRegion(match_buffer);
   };
   auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
-    auto it = buffer_var_map_.find(buffer_region->buffer->data.get());
-    return it == buffer_var_map_.end() ? buffer_region
-                                       : BufferRegion(it->second, buffer_region->region);
+    auto region = MutateArray(buffer_region->region, [this](const Range& range) {
+      PrimExpr min = VisitExpr(range->min);
+      PrimExpr extent = VisitExpr(range->extent);
+      if (min.same_as(range->min) && extent.same_as(range->extent)) {
+        return range;
+      } else {
+        return Range::FromMinExtent(min, extent);
+      }
+    });
+
+    Buffer buf = [&]() {
+      auto it = buffer_var_map_.find(buffer_region->buffer->data.get());
+      if (it == buffer_var_map_.end()) {
+        return buffer_region->buffer;
+      } else {
+        return it->second;
+      }
+    }();
+
+    if (buf.same_as(buffer_region->buffer) && region.same_as(buffer_region->region)) {
+      return buffer_region;
+    } else {
+      return BufferRegion(buf, region);
+    }
   };
   auto f_mutate_alloc_buffers = [this](const Buffer& buffer) {
     auto it = buffer_var_map_.find(buffer->data.get());
@@ -148,12 +177,12 @@ Stmt ReplaceBufferMutator::VisitStmt_(const BlockNode* block) {
   };
 
   // Step 1. Mutate `match_buffers`. If an old buffer appears as a source of MatchBufferRegion,
-  Array<MatchBufferRegion> match_buffers = MutateArray(block->match_buffers, f_mutate_match_buffer);
+  Array<MatchBufferRegion> match_buffers = block->match_buffers.Map(f_mutate_match_buffer);
   // Step 2. Mutate the read/write region.
-  Array<BufferRegion> reads = MutateArray(block->reads, f_mutate_read_write_region);
-  Array<BufferRegion> writes = MutateArray(block->writes, f_mutate_read_write_region);
+  Array<BufferRegion> reads = block->reads.Map(f_mutate_read_write_region);
+  Array<BufferRegion> writes = block->writes.Map(f_mutate_read_write_region);
   // Step 3. Mutate `alloc_buffers` for the old buffer allocated in this block.
-  Array<Buffer> alloc_buffers = MutateArray(block->alloc_buffers, f_mutate_alloc_buffers);
+  Array<Buffer> alloc_buffers = block->alloc_buffers.Map(f_mutate_alloc_buffers);
   // Step 4. Recursively mutate the block.
   Block mutated_block = Downcast<Block>(StmtMutator::VisitStmt_(block));
 
@@ -220,9 +249,24 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
     }
   }
   if (const auto* block = sref->StmtAs<BlockNode>()) {
-    if (const auto* seq = block->body.as<SeqStmtNode>()) {
+    auto body = block->body;
+    // Peel off AllocateConst nodes at the beginning of the block body.
+    std::vector<const AllocateConstNode*> allocs;
+    while (const auto* alloc = body.as<AllocateConstNode>()) {
+      allocs.push_back(alloc);
+      body = alloc->body;
+    }
+    if (const auto* seq = body.as<SeqStmtNode>()) {
       ObjectPtr<BlockNode> n = make_object<BlockNode>(*block);
-      n->body = RemoveFromSeqStmt(GetRef<SeqStmt>(seq), GetRef<Stmt>(last_stmt));
+      auto new_seq = RemoveFromSeqStmt(GetRef<SeqStmt>(seq), GetRef<Stmt>(last_stmt));
+      // Re-attach AllocateConst nodes
+      auto new_body = new_seq;
+      for (int i = 0; i < static_cast<int>(allocs.size()); ++i) {
+        auto alloc = allocs[allocs.size() - 1 - i];
+        new_body = AllocateConst(alloc->buffer_var, alloc->dtype, alloc->extents, alloc->data,
+                                 new_body, alloc->annotations, alloc->span);
+      }
+      n->body = new_body;
       *src_stmt = GetRef<Stmt>(block);
       *tgt_stmt = Stmt(std::move(n));
       return;
@@ -238,17 +282,21 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
     }
   }
   ICHECK(sref != nullptr && sref->stmt != nullptr);
-  const auto* leaf_block = TVM_SREF_TO_BLOCK(leaf_block, leaf_block_sref);
-  const auto* scope_block = TVM_SREF_TO_BLOCK(scope_block, sref);
+  const auto* leaf_block = TVM_SREF_TO_BLOCK(leaf_block_sref);
+  const auto* scope_block = TVM_SREF_TO_BLOCK(sref);
   throw OnlyLeafError(self->mod, GetRef<Block>(leaf_block), GetRef<Block>(scope_block));
 }
 
 Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::BlockRV& block_rv,
-                                      const String& intrin_name) {
-  Optional<tir::TensorizeInfo> opt_tensorize_info = GetTensorizeLoopMapping(
-      sch->state(), sch->GetSRef(block_rv), tir::TensorIntrin::Get(intrin_name).value()->desc);
+                                      const String& intrin_name, bool allow_padding) {
+  Optional<tir::TensorizeInfo> opt_tensorize_info =
+      GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block_rv),
+                              tir::TensorIntrin::Get(intrin_name).value()->desc, allow_padding);
   if (!opt_tensorize_info) return NullOpt;
   const tir::TensorizeInfoNode* info = opt_tensorize_info.value().get();
+  if (info->block_iter_paddings.defined()) {
+    sch->PadEinsum(block_rv, info->block_iter_paddings.value());
+  }
   // Construct a mapping from tir loops back to LoopRVs
   Map<tir::StmtSRef, LoopRV> loop2rv;
   {

@@ -420,6 +420,6 @@ TEST(DiscoverComplexTypesVisitor, DiscoverComplexTypes) {
 
 TEST(Metadata, TVMConstantInfo) {
   std::vector<tvm::runtime::metadata::MetadataBase> q;
-  std::unique_ptr<TVMConstantInfo[]> ci{new struct TVMConstantInfo[10]};
+  auto ci = std::make_unique<TVMConstantInfo[]>(10);
   EXPECT_TRUE(ci.get() != nullptr);
 }

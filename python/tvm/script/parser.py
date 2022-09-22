@@ -435,11 +435,23 @@ class TVMScriptParser(Transformer):
                 T.evaluate(0)  # 4. This function returns 0
         """
 
+        def check_as_torch_decorator(decorator: Union[ast.Call, ast.Var]):
+            if isinstance(decorator, ast.Call):
+                if len(decorator.params) != 1:
+                    return False
+                func_name = decorator.func_name
+            else:
+                func_name = decorator
+            if isinstance(func_name, ast.Var):
+                return func_name.id.name == "as_torch"
+
         def check_decorator(decorators: List[ast.Expr]) -> bool:
             """Check the decorator is `T.prim_func"""
-            if len(decorators) != 1:
+            if len(decorators) > 2 or len(decorators) == 0:
                 return False
-            d: ast.Expr = decorators[0]
+            if len(decorators) == 2 and not check_as_torch_decorator(decorators[0]):
+                return False
+            d: ast.Expr = decorators[-1]
             return (
                 isinstance(d, ast.Attr)
                 and isinstance(d.object, ast.Var)
@@ -592,7 +604,7 @@ class TVMScriptParser(Transformer):
                     out = func(*args)
                 except Exception as e:
                     self.report_error(
-                        "Error occured when invoking the function "
+                        "Error occurred when invoking the function "
                         + func.__name__
                         + ": \n"
                         + str(e),
@@ -894,6 +906,13 @@ class TVMScriptParser(Transformer):
                 )
             if node.func_name.name in self._unaryop_maker:
                 rhs = self.transform(node.params[0])
+                if node.func_name.name == ast.BuiltinOp.USub and isinstance(
+                    node.params[0], ast.Constant
+                ):
+                    # '-literal' should be parsed together for proper literal type inference
+                    if not isinstance(rhs, (tvm.tir.IntImm, tvm.tir.FloatImm)):
+                        self.report_error("The literal is illegal after -", node.params[0].span)
+                    return tvm.tir.const(-rhs.value)
                 return self._unaryop_maker[node.func_name.name](
                     rhs, span=tvm_span_from_synr(node.span)
                 )

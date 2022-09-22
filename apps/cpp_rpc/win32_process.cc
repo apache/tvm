@@ -178,7 +178,7 @@ void SpawnRPCChild(SOCKET fd, seconds timeout) {
   child_command_line += file_map_path;
 
   // CreateProcessA requires a non const char*, so we copy our std::string
-  std::unique_ptr<char[]> command_line_ptr(new char[child_command_line.size() + 1]);
+  auto command_line_ptr = std::make_unique<char[]>(child_command_line.size() + 1);
   strcpy(command_line_ptr.get(), child_command_line.c_str());
 
   PROCESS_INFORMATION child_process_info;

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """ Tests for Hexagon slice cast ops """
+import pytest
 import numpy as np
 
 import tvm
@@ -75,7 +76,8 @@ class TestCastF16F32Slice2d:
         """
         if hexagon_session._launcher._serial_number != "simulator":
             pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
-        target_hexagon = tvm.target.hexagon("v68")
+
+        target_hexagon = tvm.target.hexagon("v69")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
         cast_input = te.placeholder(input_shape, name="A", dtype=dtype)
         cast_output = sl.cast_f16_f32_compute(cast_input)
@@ -161,7 +163,7 @@ class TestCastF32F16Slice2d:
         if hexagon_session._launcher._serial_number != "simulator":
             pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
 
-        target_hexagon = tvm.target.hexagon("v68")
+        target_hexagon = tvm.target.hexagon("v69")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
         cast_input = te.placeholder(input_shape, name="A", dtype=dtype)
         cast_output = sl.cast_f32_f16_compute(cast_input)

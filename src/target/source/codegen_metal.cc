@@ -55,7 +55,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   // clear previous generated state.
   this->InitFuncState(f);
   // skip the first underscore, so SSA variable starts from _1
-  GetUniqueName("_");
+  name_supply_->FreshName("_");
 
   // add to alloc buffer type.
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
@@ -94,7 +94,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   }
   // Setup normal arguments.
   size_t nargs = f->params.size() - num_buffer;
-  std::string varg = GetUniqueName("arg");
+  std::string varg = name_supply_->FreshName("arg");
   if (nargs != 0) {
     std::string arg_buf_type = static_cast<std::string>(global_symbol.value()) + "_args_t";
     stream << "  constant " << arg_buf_type << "& " << varg << " [[ buffer(" << num_buffer
@@ -127,8 +127,8 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
     decl_stream << "};\n\n";
   }
   // Setup the thread group info.
-  ICHECK_EQ(GetUniqueName("threadIdx"), "threadIdx");
-  ICHECK_EQ(GetUniqueName("blockIdx"), "blockIdx");
+  ICHECK_EQ(name_supply_->FreshName("threadIdx"), "threadIdx");
+  ICHECK_EQ(name_supply_->FreshName("blockIdx"), "blockIdx");
   int work_dim = 0;
   auto thread_axis = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis).value();
 

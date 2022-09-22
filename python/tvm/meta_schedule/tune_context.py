@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from .runner import RunnerResult
     from .schedule_rule import ScheduleRule
     from .search_strategy import MeasureCandidate, SearchStrategy
-    from .space_generator import SCH_FN_TYPE, ScheduleFn, SpaceGenerator
+    from .space_generator import ScheduleFn, ScheduleFnType, SpaceGenerator
     from .tune import TuneConfig
 
 
@@ -55,7 +55,7 @@ class TuneContext(Object):
         The workload to be optimized.
     target : Optional[Target] = None
         The target to be optimized for.
-    space_generator : Union[None, SCH_FN_TYPE, SpaceGenerator] = None
+    space_generator : Union[None, ScheduleFnType, SpaceGenerator] = None
         The design space generator.
     search_strategy : Union[None, TuneConfig, SearchStrategy] = None
         The search strategy.
@@ -108,7 +108,7 @@ class TuneContext(Object):
         mod: Optional[IRModule] = None,
         *,
         target: Optional[Target] = None,
-        space_generator: Union[None, "SCH_FN_TYPE", "ScheduleFn", "SpaceGenerator"] = None,
+        space_generator: Union[None, "ScheduleFnType", "ScheduleFn", "SpaceGenerator"] = None,
         search_strategy: Union[None, "SearchStrategy", "TuneConfig"] = None,
         sch_rules: Union[None, str, List["ScheduleRule"]] = None,
         postprocs: Union[None, str, List["Postproc"]] = None,
@@ -331,3 +331,13 @@ class TuneContext(Object):
                 "Please construct TuneContext with search_strategy"
             )
         return self.search_strategy.notify_runner_results(measure_candidates, results)
+
+    def clone(self) -> "TuneContext":
+        """Clone the TuneContext.
+
+        Returns
+        -------
+        cloned_context : TuneContext
+            The cloned TuneContext.
+        """
+        return _ffi_api.TuneContextClone(self)  # type: ignore # pylint: disable=no-member

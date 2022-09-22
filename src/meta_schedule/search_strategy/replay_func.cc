@@ -100,6 +100,16 @@ class ReplayFuncNode : public SearchStrategyNode {
     ICHECK(this->state_ != nullptr);
     this->state_->NotifyRunnerResults(results);
   }
+
+  SearchStrategy Clone() const final {
+    ObjectPtr<ReplayFuncNode> n = make_object<ReplayFuncNode>();
+    n->num_trials_per_iter = this->num_trials_per_iter;
+    n->max_trials_per_task = this->max_trials_per_task;
+    n->context_ = this->context_;
+    n->rand_state_ = this->rand_state_;
+    n->state_ = nullptr;  // cleared the state
+    return SearchStrategy(n);
+  }
 };
 
 inline Optional<Array<MeasureCandidate>> ReplayFuncNode::State::GenerateMeasureCandidates() {

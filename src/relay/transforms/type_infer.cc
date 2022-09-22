@@ -829,7 +829,7 @@ void EnsureCheckedType(const Expr& e) { AllCheckTypePopulated().VisitExpr(e); }
 
 // TODO(@jroesch): Can we optimize this?
 void AddGlobalTypes(IRModule mod) {
-  std::vector<std::pair<GlobalVar, Function> > updates;
+  std::vector<std::pair<GlobalVar, Function>> updates;
   for (const auto& it : mod->functions) {
     // Currently we don't type check TIR.
     // The inferencer will only check Relay functions
@@ -961,7 +961,7 @@ Pass InferType() {
         // Add all the type annotations to the functions in the model.
         AddGlobalTypes(mod);
 
-        std::vector<std::pair<GlobalVar, Function> > updates;
+        std::vector<std::pair<GlobalVar, Function>> updates;
         for (const auto& it : updated_mod->functions) {
           // Currently we don't type check TIR.
           //

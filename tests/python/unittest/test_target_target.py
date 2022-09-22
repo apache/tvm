@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import json
-import sys
 
 import pytest
 import tvm
@@ -161,6 +160,13 @@ def test_target_string_with_spaces():
 
     assert target.attrs["device_name"] == "Name of GPU with spaces"
     assert target.attrs["device_type"] == "discrete"
+
+
+def test_target_llvm_options():
+    target = tvm.target.Target("llvm -cl-opt='-unroll-threshold:uint=100,-unroll-count:uint=3'")
+    assert sorted(target.attrs["cl-opt"]) == sorted(
+        ["-unroll-threshold:uint=100", "-unroll-count:uint=3"]
+    )
 
 
 def test_target_create():
@@ -468,6 +474,16 @@ def test_target_attr_bool_value():
     assert target2.attrs["supports_float16"] == 0
     target3 = Target("vulkan --supports_float16=false")
     assert target3.attrs["supports_float16"] == 0
+
+
+def test_target_features():
+    target_no_features = Target("cuda")
+    assert target_no_features.features
+    assert not target_no_features.features.is_test
+
+    target_with_features = Target("test")
+    assert target_with_features.features.is_test
+    assert not target_with_features.features.is_missing
 
 
 if __name__ == "__main__":

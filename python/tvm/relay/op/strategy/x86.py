@@ -836,3 +836,15 @@ def concatenate_strategy_cpu(attrs, inputs, out_type, target):
             name="concatenate.generic",
         )
     return strategy
+
+
+@batch_norm_strategy.register(["cpu"])
+def batch_norm_strategy_cpu(attrs, inputs, out_type, target):
+    """batch_norm x86 strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_batch_norm(topi.nn.batch_norm),
+        wrap_topi_schedule(topi.x86.schedule_batch_norm),
+        name="batch_norm.cpu",
+    )
+    return strategy

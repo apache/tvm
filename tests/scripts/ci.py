@@ -165,9 +165,10 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
         "ci_cpu",
         # "ci_wasm",
         # "ci_i386",
-        "ci_qemu",
+        "ci_cortexm",
         "ci_arm",
         "ci_hexagon",
+        "ci_riscv",
     }
 
     if image in sccache_images and os.getenv("USE_SCCACHE", "1") == "1":
@@ -596,6 +597,19 @@ generated = [
         },
     ),
     generate_command(
+        name="minimal",
+        help="Run minimal CPU build and test(s)",
+        options={
+            "cpp": CPP_UNITTEST,
+            "unittest": (
+                "run unit tests",
+                [
+                    "./tests/scripts/task_python_unittest.sh",
+                ],
+            ),
+        },
+    ),
+    generate_command(
         name="i386",
         help="Run i386 build and test(s)",
         options={
@@ -618,8 +632,8 @@ generated = [
         },
     ),
     generate_command(
-        name="qemu",
-        help="Run QEMU build and test(s)",
+        name="cortexm",
+        help="Run Cortex-M build and test(s)",
         options={
             "cpp": CPP_UNITTEST,
             "test": (
@@ -656,6 +670,19 @@ generated = [
                 [
                     "./tests/scripts/task_python_unittest.sh",
                     "./tests/scripts/task_python_arm_compute_library.sh",
+                ],
+            ),
+        },
+    ),
+    generate_command(
+        name="riscv",
+        help="Run RISC-V build and test(s)",
+        options={
+            "cpp": CPP_UNITTEST,
+            "python": (
+                "run full Python tests",
+                [
+                    "./tests/scripts/task_riscv_microtvm.sh",
                 ],
             ),
         },

@@ -16,5 +16,5 @@
 # under the License.
 
 """Allows the tools specified below to be imported directly from tvm.micro.testing"""
-from .evaluation import tune_model, create_aot_session, evaluate_model_accuracy
+from .evaluation import tune_model, create_aot_session, predict_labels_aot
 from .utils import get_supported_boards, get_target

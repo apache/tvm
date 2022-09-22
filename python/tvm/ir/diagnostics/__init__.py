@@ -29,7 +29,7 @@ from ... import get_global_func, register_func, Object
 
 def get_renderer():
     """
-    Get the the diagnostic renderer.
+    Get the diagnostic renderer.
 
     Returns
     -------

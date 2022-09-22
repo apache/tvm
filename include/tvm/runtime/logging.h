@@ -476,12 +476,12 @@ inline bool DebugLoggingEnabled() {
  *
  * To enable file \p relay/foo.cc up to level 2 and \p ir/bar.cc for level 0 only set:
  * \code
- * TVM_LOG_DEBUG="relay/foo.cc=2;ir/bar.cc=0"
+ * TVM_LOG_DEBUG="relay/foo.cc=2,ir/bar.cc=0"
  * \endcode
  *
  * To enable all files up to level 3 but disable \p ir/bar.cc set:
  * \code
- * TVM_LOG_DEBUG="DEFAULT=2;ir/bar.cc=-1"
+ * TVM_LOG_DEBUG="DEFAULT=2,ir/bar.cc=-1"
  * \endcode
  *
  * Any of these settings will also enable DLOG statements.
@@ -540,8 +540,7 @@ std::unique_ptr<std::string> LogCheckFormat(const X& x, const Y& y) {
   std::ostringstream os;
   os << " (" << x << " vs. " << y << ") ";  // CHECK_XX(x, y) requires x and y can be serialized to
                                             // string. Use CHECK(x OP y) otherwise.
-  // no std::make_unique until c++14
-  return std::unique_ptr<std::string>(new std::string(os.str()));
+  return std::make_unique<std::string>(os.str());
 }
 
 // Inline _Pragma in macros does not work reliably on old version of MSVC and

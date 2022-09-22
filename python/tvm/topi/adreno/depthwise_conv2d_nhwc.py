@@ -33,48 +33,22 @@ from .utils import (
 )
 
 
-@autotvm.register_topi_compute("depthwise_conv2d_nhwc.image2d")
-def depthwise_conv2d_nhwc(cfg, data, kernel, strides, padding, dilation, out_dtype="float16"):
-    """Compute depthwise_conv2d with NHWC layout"""
-    args = {"shared": False, "accumulator": "float16"}
-    return compute_depthwise_conv2d_NHWC_HWOI(
-        data, kernel, strides, padding, dilation, out_dtype, args=args
-    )
-
-
-@autotvm.register_topi_compute("depthwise_conv2d_nhwc_acc32.image2d")
-def depthwise_conv2d_nhwc_acc32(cfg, data, kernel, strides, padding, dilation, out_dtype="float16"):
-    """Compute depthwise_conv2d with NHWC layout"""
-    args = {"shared": False, "accumulator": "float32"}
-    return compute_depthwise_conv2d_NHWC_HWOI(
-        data, kernel, strides, padding, dilation, out_dtype, args=args
-    )
-
-
 @autotvm.register_topi_schedule("depthwise_conv2d_nhwc.image2d")
 def schedule_depthwise_conv2d_nhwc(cfg, outs):
-    return schedule_depthwise_conv2d_nhwc_impl(cfg, outs, tag="cast_from_acc16")
-
-
-@autotvm.register_topi_schedule("depthwise_conv2d_nhwc_acc32.image2d")
-def schedule_depthwise_conv2d_nhwc_acc32(cfg, outs):
-    return schedule_depthwise_conv2d_nhwc_impl(cfg, outs, tag="cast_from_acc32")
-
-
-def schedule_depthwise_conv2d_nhwc_impl(cfg, outs, tag):
     """Create the schedule for depthwise conv2d_nchw4c_ohwi4o"""
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == tag:
+        if op.tag == "adreno_dw_conv2d_latest_op":
             schedule_depthwise_conv2d_NHWC_HWOI(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)
     return s
 
 
-def compute_depthwise_conv2d_NHWC_HWOI(Input, Filter, stride, padding, dilation, out_dtype, args):
+@autotvm.register_topi_compute("depthwise_conv2d_nhwc.image2d")
+def depthwise_conv2d_nhwc(cfg, Input, Filter, stride, padding, dilation, out_dtype):
     """
     Depthwise convolution operator in NCHWc layout.
     Algo:
@@ -175,7 +149,7 @@ def compute_depthwise_conv2d_NHWC_HWOI(Input, Filter, stride, padding, dilation,
             (
                 temp[nn, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, ffc, ffb]
                 * Filter[ry, rx, ffc, 0, ffb]
-            ).astype(args["accumulator"]),
+            ).astype(out_dtype),
             axis=[ry, rx],
         ),
         tag="depthwise_conv2d_nhwc",
@@ -190,13 +164,13 @@ def compute_depthwise_conv2d_NHWC_HWOI(Input, Filter, stride, padding, dilation,
         return te.compute(
             (batch, out_height_orig, out_width_orig, out_channles),
             lambda n, y, x, c: dummy_cast[n, y, x, c // out_channel_block, c % out_channel_block],
-            tag="cast_from_acc" + args["accumulator"][-2:],
+            tag="adreno_dw_conv2d_latest_op",
         )
     else:
         return te.compute(
             (batch, out_height_orig, out_width_orig, out_channel_chunks, out_channel_block),
             lambda n, y, x, ffc, ffb: conv[n, y, x, ffc, ffb].astype(out_dtype),
-            tag="cast_from_acc" + args["accumulator"][-2:],
+            tag="adreno_dw_conv2d_latest_op",
         )
 
 
@@ -237,6 +211,15 @@ def schedule_depthwise_conv2d_NHWC_HWOI(cfg, s, output):
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
     cfg.define_knob("unroll_explicit", [0, 1])
 
+    cfg.multi_filter(
+        filter=lambda entity: (  # pylint: disable=chained-comparison
+            entity["tile_fc"].size[1] * entity["tile_y"].size[1] * entity["tile_x"].size[1]
+        )
+        <= 32
+        and 32
+        <= (entity["tile_fc"].size[2] * entity["tile_y"].size[2] * entity["tile_x"].size[2])
+        < 1024
+    )
     if cfg.is_fallback:
         get_default_conv2d_config(cfg, conv.shape[3], conv.shape[1], conv.shape[2])
     ##### space definition end #####
@@ -247,13 +230,17 @@ def schedule_depthwise_conv2d_NHWC_HWOI(cfg, s, output):
     ):  # len(latest.op.axis) == 4:
         # manage scheduling of datacopy
         pad_data, kernel = s[conv].op.input_tensors
-        pack_data = pad_data.op.input_tensors[0]
-        bind_data_copy(s[pack_data])
+        if "pad_temp" in pad_data.op.name:
+            pack_data = pad_data.op.input_tensors[0]
+            bind_data_copy(s[pack_data])
+        else:
+            bind_data_copy(s[pad_data])
         bind_data_copy(s[kernel])
 
     pad_data, kernel = s[conv].op.input_tensors
 
-    s[pad_data].compute_inline()
+    if "pad_temp" in pad_data.op.name:
+        s[pad_data].compute_inline()
 
     s[conv].set_scope("local")
     if latest_blocked == latest and output != latest:

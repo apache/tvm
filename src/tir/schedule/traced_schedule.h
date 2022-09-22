@@ -72,16 +72,17 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void Bind(const LoopRV& loop_rv, const String& thread_axis) final;
   void Unroll(const LoopRV& loop_rv) final;
   /******** Schedule: Insert cache stages ********/
-  BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index,
-                    const String& storage_scope) final;
+  BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index, const String& storage_scope,
+                    const Array<BlockRV> consumer_blocks = {}) final;
   BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
                      const String& storage_scope) final;
   BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
                   BufferIndexType buffer_index_type) final;
   /******** Schedule: Compute location ********/
-  void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops) final;
-  void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
-                        bool preserve_unit_loops) final;
+  void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+                 int index = -1) final;
+  void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+                        int index = -1) final;
   void ComputeInline(const BlockRV& block_rv) final;
   void ReverseComputeInline(const BlockRV& block_rv) final;
   /******** Schedule: Reduction ********/
@@ -102,11 +103,14 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void Unannotate(const BlockRV& block_rv, const String& ann_key) override;
   /******** Schedule: Layout transformation ********/
   void TransformLayout(const BlockRV& block_rv, int buffer_index, BufferIndexType buffer_index_type,
-                       const IndexMap& index_map) override;
+                       const IndexMap& index_map, const Optional<IndexMap>& pad_value) override;
   void TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) override;
   void SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
                         BufferIndexType buffer_index_type,
                         const Array<IntImm>& axis_separators) final;
+  /******** Schedule: Padding ********/
+  BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) final;
+  void PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) final;
   /******** Schedule: Misc ********/
   void EnterPostproc() final;
 };

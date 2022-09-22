@@ -18,8 +18,12 @@
 Meta Schedule design space generators that generates design
 space for generation of measure candidates.
 """
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING, Callable, List, Optional, Union
 
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
 from tvm._ffi import register_object
 from tvm.ir import IRModule
 from tvm.runtime import Object
@@ -34,6 +38,12 @@ if TYPE_CHECKING:
 @register_object("meta_schedule.SpaceGenerator")
 class SpaceGenerator(Object):
     """The abstract design space generator interface."""
+
+    ScheduleFnType = Union[
+        Callable[[Schedule], None],  # No output
+        Callable[[Schedule], Schedule],  # Single output
+        Callable[[Schedule], List[Schedule]],  # Multiple outputs
+    ]
 
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the design space generator with tuning context.
@@ -62,6 +72,19 @@ class SpaceGenerator(Object):
         """
         return _ffi_api.SpaceGeneratorGenerateDesignSpace(self, mod)  # type: ignore # pylint: disable=no-member
 
+    def clone(self) -> "SpaceGenerator":
+        """Clone the design space generator.
+
+        Returns
+        -------
+        cloned_sg : SpaceGenerator
+            The cloned design space generator.
+        """
+        return _ffi_api.SpaceGeneratorClone(self)  # type: ignore # pylint: disable=no-member
+
+
+ScheduleFnType = SpaceGenerator.ScheduleFnType
+
 
 @register_object("meta_schedule.PySpaceGenerator")
 class _PySpaceGenerator(SpaceGenerator):
@@ -76,6 +99,7 @@ class _PySpaceGenerator(SpaceGenerator):
         self,
         f_initialize_with_tune_context: Optional[Callable] = None,
         f_generate_design_space: Optional[Callable] = None,
+        f_clone: Optional[Callable] = None,
     ):
         """Constructor."""
 
@@ -83,6 +107,7 @@ class _PySpaceGenerator(SpaceGenerator):
             _ffi_api.SpaceGeneratorPySpaceGenerator,  # type: ignore # pylint: disable=no-member
             f_initialize_with_tune_context,
             f_generate_design_space,
+            f_clone,
         )
 
 
@@ -96,7 +121,7 @@ class PySpaceGenerator:
 
     _tvm_metadata = {
         "cls": _PySpaceGenerator,
-        "methods": ["_initialize_with_tune_context", "generate_design_space"],
+        "methods": ["_initialize_with_tune_context", "generate_design_space", "clone"],
     }
 
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
@@ -123,3 +148,37 @@ class PySpaceGenerator:
             The generated design spaces, i.e., schedules.
         """
         raise NotImplementedError
+
+    def clone(self) -> SpaceGenerator:
+        """Clone the design space generator.
+
+        Returns
+        -------
+        cloned_sg : SpaceGenerator
+            The cloned design space generator.
+        """
+        raise NotImplementedError
+
+
+def create(  # pylint: disable=keyword-arg-before-vararg
+    kind: Union[
+        Literal["post_order_apply", "union"],
+        ScheduleFnType,
+    ] = "post_order_apply",
+    *args,
+    **kwargs,
+) -> SpaceGenerator:
+    """Create a design space generator."""
+    from . import (  # pylint: disable=import-outside-toplevel
+        PostOrderApply,
+        ScheduleFn,
+        SpaceGeneratorUnion,
+    )
+
+    if callable(kind):
+        return ScheduleFn(kind, *args, **kwargs)  # type: ignore
+    if kind == "post_order_apply":
+        return PostOrderApply(*args, **kwargs)
+    if kind == "union":
+        return SpaceGeneratorUnion(*args, **kwargs)
+    raise ValueError(f"Unknown SpaceGenerator: {kind}")

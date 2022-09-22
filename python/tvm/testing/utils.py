@@ -73,9 +73,10 @@ import logging
 import os
 import pickle
 import platform
-import shutil
 import sys
+import textwrap
 import time
+import shutil
 
 from pathlib import Path
 from typing import Optional, Callable, Union, List, Tuple
@@ -944,6 +945,9 @@ requires_rpc = Feature("rpc", "RPC", cmake_flag="USE_RPC")
 # Mark a test as requiring Arm(R) Ethos(TM)-N to run
 requires_ethosn = Feature("ethosn", "Arm(R) Ethos(TM)-N", cmake_flag="USE_ETHOSN")
 
+# Mark a test as requiring libtorch to run
+requires_libtorch = Feature("libtorch", "LibTorch", cmake_flag="USE_LIBTORCH")
+
 # Mark a test as requiring Hexagon to run
 requires_hexagon = Feature(
     "hexagon",
@@ -958,13 +962,18 @@ requires_hexagon = Feature(
 # Mark a test as requiring the CMSIS NN library
 requires_cmsisnn = Feature("cmsisnn", "CMSIS NN", cmake_flag="USE_CMSISNN")
 
+
+def _corstone300_compile_time_check():
+    if shutil.which("arm-none-eabi-gcc") is None:
+        return "ARM embedded toolchain unavailable"
+    return True
+
+
 # Mark a test as requiring the corstone300 FVP
 requires_corstone300 = Feature(
     "corstone300",
     "Corstone-300",
-    compile_time_check=lambda: (
-        (shutil.which("arm-none-eabi-gcc") is None) or "ARM embedded toolchain unavailable"
-    ),
+    compile_time_check=_corstone300_compile_time_check,
     parent_features="cmsisnn",
 )
 
@@ -1000,15 +1009,10 @@ def _compose(args, decs):
     return decs
 
 
-def slow(fn):
-    @functools.wraps(fn)
-    def wrapper(*args, **kwargs):
-        if SKIP_SLOW_TESTS:
-            pytest.skip("Skipping slow test since RUN_SLOW_TESTS environment variables is 'true'")
-        else:
-            fn(*args, **kwargs)
-
-    return wrapper
+slow = pytest.mark.skipif(
+    SKIP_SLOW_TESTS,
+    reason="Skipping slow test since the SKIP_SLOW_TESTS environment variable is 'true'",
+)
 
 
 def requires_nvcc_version(major_version, minor_version=0, release_version=0):
@@ -1045,6 +1049,50 @@ def requires_nvcc_version(major_version, minor_version=0, release_version=0):
     version_str = ".".join(str(v) for v in min_version)
     requires = [
         pytest.mark.skipif(nvcc_version < min_version, reason=f"Requires NVCC >= {version_str}"),
+        *requires_cuda.marks(),
+    ]
+
+    def inner(func):
+        return _compose([func], requires)
+
+    return inner
+
+
+def requires_cuda_compute_version(major_version, minor_version=0):
+    """Mark a test as requiring at least a compute architecture
+
+    Unit test marked with this decorator will run only if the CUDA
+    compute architecture of the GPU is at least `(major_version,
+    minor_version)`.
+
+    This also marks the test as requiring a cuda support.
+
+    Parameters
+    ----------
+    major_version: int
+
+        The major version of the (major,minor) version tuple.
+
+    minor_version: int
+
+        The minor version of the (major,minor) version tuple.
+    """
+    min_version = (major_version, minor_version)
+    try:
+        arch = tvm.contrib.nvcc.get_target_compute_version()
+        compute_version = tvm.contrib.nvcc.parse_compute_version(arch)
+    except ValueError:
+        # No GPU present.  This test will be skipped from the
+        # requires_cuda() marks as well.
+        compute_version = (0, 0)
+
+    min_version_str = ".".join(str(v) for v in min_version)
+    compute_version_str = ".".join(str(v) for v in compute_version)
+    requires = [
+        pytest.mark.skipif(
+            compute_version < min_version,
+            reason=f"Requires CUDA compute >= {min_version_str}, but have {compute_version_str}",
+        ),
         *requires_cuda.marks(),
     ]
 
@@ -1704,6 +1752,235 @@ def fetch_model_from_url(
     return tvmc_model.mod, tvmc_model.params
 
 
+def xfail_parameterizations(*xfail_params, reason):
+    """
+    Mark tests with a nodeid parameters that exactly matches one in params as
+    xfail. Useful for quickly marking tests as xfail when they have a large
+    combination of parameters.
+    """
+    xfail_params = set(xfail_params)
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(request, *args, **kwargs):
+            if "[" in request.node.name and "]" in request.node.name:
+                # Strip out the test name and the [ and ] brackets
+                params_from_name = request.node.name[len(request.node.originalname) + 1 : -1]
+                if params_from_name in xfail_params:
+                    pytest.xfail(reason=f"xfail on nodeid {request.node.nodeid}: " + reason)
+
+            return func(request, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 def main():
     test_file = inspect.getsourcefile(sys._getframe(1))
     sys.exit(pytest.main([test_file] + sys.argv[1:]))
+
+
+class CompareBeforeAfter:
+    """Utility for comparing before/after of TIR transforms
+
+    A standard framework for writing tests that take a TIR PrimFunc as
+    input, apply a transformation, then either compare against an
+    expected output or assert that the transformation raised an error.
+    A test should subclass CompareBeforeAfter, defining class members
+    `before`, `transform`, and `expected`.  CompareBeforeAfter will
+    then use these members to define a test method and test fixture.
+
+    `transform` may be one of the following.
+
+    - An instance of `tvm.ir.transform.Pass`
+
+    - A method that takes no arguments and returns a `tvm.ir.transform.Pass`
+
+    - A pytest fixture that returns a `tvm.ir.transform.Pass`
+
+    `before` may be any one of the following.
+
+    - An instance of `tvm.tir.PrimFunc`.  This is allowed, but is not
+      the preferred method, as any errors in constructing the
+      `PrimFunc` occur while collecting the test, preventing any other
+      tests in the same file from being run.
+
+    - An TVMScript function, without the ``@T.prim_func`` decoration.
+      The ``@T.prim_func`` decoration will be applied when running the
+      test, rather than at module import.
+
+    - A method that takes no arguments and returns a `tvm.tir.PrimFunc`
+
+    - A pytest fixture that returns a `tvm.tir.PrimFunc`
+
+    `expected` may be any one of the following.  The type of
+    `expected` defines the test being performed.  If `expected`
+    provides a `tvm.tir.PrimFunc`, the result of the transformation
+    must match `expected`.  If `expected` is an exception, then the
+    transformation must raise that exception type.
+
+    - Any option supported for `before`.
+
+    - The `Exception` class object, or a class object that inherits
+      from `Exception`.
+
+    - A method that takes no arguments and returns `Exception` or a
+      class object that inherits from `Exception`.
+
+    - A pytest fixture that returns `Exception` or an class object
+      that inherits from `Exception`.
+
+    Examples
+    --------
+
+    .. python::
+
+        class TestRemoveIf(tvm.testing.CompareBeforeAfter):
+            transform = tvm.tir.transform.Simplify()
+
+            def before(A: T.Buffer[1, "int32"]):
+                if True:
+                    A[0] = 42
+                else:
+                    A[0] = 5
+
+            def expected(A: T.Buffer[1, "int32"]):
+                A[0] = 42
+
+    """
+
+    def __init_subclass__(cls):
+        if hasattr(cls, "before"):
+            cls.before = cls._normalize_before(cls.before)
+        if hasattr(cls, "expected"):
+            cls.expected = cls._normalize_expected(cls.expected)
+        if hasattr(cls, "transform"):
+            cls.transform = cls._normalize_transform(cls.transform)
+
+    @classmethod
+    def _normalize_before(cls, func):
+        if hasattr(func, "_pytestfixturefunction"):
+            return func
+
+        if isinstance(func, tvm.tir.PrimFunc):
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                return func
+
+        elif cls._is_method(func):
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                return func(self)
+
+        else:
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                source_code = "@T.prim_func\n" + textwrap.dedent(inspect.getsource(func))
+                return tvm.script.from_source(source_code)
+
+        return pytest.fixture(inner)
+
+    @classmethod
+    def _normalize_expected(cls, func):
+        if hasattr(func, "_pytestfixturefunction"):
+            return func
+
+        if isinstance(func, tvm.tir.PrimFunc) or (
+            inspect.isclass(func) and issubclass(func, Exception)
+        ):
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                return func
+
+        elif cls._is_method(func):
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                return func(self)
+
+        else:
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                source_code = "@T.prim_func\n" + textwrap.dedent(inspect.getsource(func))
+                return tvm.script.from_source(source_code)
+
+        return pytest.fixture(inner)
+
+    @classmethod
+    def _normalize_transform(cls, transform):
+        if hasattr(transform, "_pytestfixturefunction"):
+            return transform
+
+        if isinstance(transform, tvm.ir.transform.Pass):
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                return transform
+
+        elif cls._is_method(transform):
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                return transform(self)
+
+        else:
+
+            raise TypeError(
+                "Expected transform to be a tvm.ir.transform.Pass, or a method returning a Pass"
+            )
+
+        return pytest.fixture(inner)
+
+    @staticmethod
+    def _is_method(func):
+        sig = inspect.signature(func)
+        return "self" in sig.parameters
+
+    def test_compare(self, before, expected, transform):
+        """Unit test to compare the expected TIR PrimFunc to actual"""
+
+        before_mod = tvm.IRModule.from_expr(before)
+
+        if inspect.isclass(expected) and issubclass(expected, Exception):
+            with pytest.raises(expected):
+                after_mod = transform(before_mod)
+
+                # This portion through pytest.fail isn't strictly
+                # necessary, but gives a better error message that
+                # includes the before/after.
+                after = after_mod["main"]
+                script = tvm.IRModule({"after": after, "before": before}).script()
+                pytest.fail(
+                    msg=(
+                        f"Expected {expected.__name__} to be raised from transformation, "
+                        f"instead received TIR\n:{script}"
+                    )
+                )
+
+        elif isinstance(expected, tvm.tir.PrimFunc):
+            after_mod = transform(before_mod)
+            after = after_mod["main"]
+
+            try:
+                tvm.ir.assert_structural_equal(after, expected)
+            except ValueError as err:
+                script = tvm.IRModule(
+                    {"expected": expected, "after": after, "before": before}
+                ).script()
+                raise ValueError(
+                    f"TIR after transformation did not match expected:\n{script}"
+                ) from err
+
+        else:
+            raise TypeError(
+                f"tvm.testing.CompareBeforeAfter requires the `expected` fixture "
+                f"to return either `Exception`, an `Exception` subclass, "
+                f"or an instance of `tvm.tir.PrimFunc`.  "
+                f"Instead, received {type(exception)}."
+            )

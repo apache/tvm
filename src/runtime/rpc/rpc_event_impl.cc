@@ -37,7 +37,7 @@ PackedFunc CreateEventDrivenServer(PackedFunc fsend, std::string name, std::stri
     return 0;
   });
 
-  std::unique_ptr<CallbackChannel> ch(new CallbackChannel(fsend, frecv));
+  auto ch = std::make_unique<CallbackChannel>(fsend, frecv);
   std::shared_ptr<RPCEndpoint> sess = RPCEndpoint::Create(std::move(ch), name, remote_key);
   return PackedFunc([sess](TVMArgs args, TVMRetValue* rv) {
     int ret = sess->ServerAsyncIOEventHandler(args[0], args[1]);

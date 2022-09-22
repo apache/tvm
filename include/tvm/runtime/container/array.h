@@ -26,10 +26,12 @@
 
 #include <algorithm>
 #include <memory>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "./base.h"
+#include "./optional.h"
 
 namespace tvm {
 namespace runtime {
@@ -247,6 +249,23 @@ class ArrayNode : public Object, public InplaceArrayBase<ArrayNode, ObjectRef> {
   // To specialize make_object<ArrayNode>
   friend ObjectPtr<ArrayNode> make_object<>();
 };
+
+/*! \brief Helper struct for type-checking
+ *
+ * is_valid_iterator<T,IterType>::value will be true if IterType can
+ * be dereferenced into a type that can be stored in an Array<T>, and
+ * false otherwise.
+ */
+template <typename T, typename IterType>
+struct is_valid_iterator
+    : std::bool_constant<std::is_base_of_v<
+          T, std::remove_cv_t<std::remove_reference_t<decltype(*std::declval<IterType>())>>>> {};
+
+template <typename T, typename IterType>
+struct is_valid_iterator<Optional<T>, IterType> : is_valid_iterator<T, IterType> {};
+
+template <typename T, typename IterType>
+inline constexpr bool is_valid_iterator_v = is_valid_iterator<T, IterType>::value;
 
 /*!
  * \brief Array, container representing a contiguous sequence of ObjectRefs.
@@ -575,53 +594,38 @@ class Array : public ObjectRef {
   ArrayNode* GetArrayNode() const { return static_cast<ArrayNode*>(data_.get()); }
 
   /*!
+   * \brief Helper function to apply a map function onto the array.
+   *
+   * \param fmap The transformation function T -> U.
+   *
+   * \tparam F The type of the mutation function.
+   *
+   * \tparam U The type of the returned array, inferred from the
+   * return type of F.  If overridden by the user, must be something
+   * that is convertible from the return type of F.
+   *
+   * \note This function performs copy on write optimization.  If
+   * `fmap` returns an object of type `T`, and all elements of the
+   * array are mapped to themselves, then the returned array will be
+   * the same as the original, and reference counts of the elements in
+   * the array will not be incremented.
+   *
+   * \return The transformed array.
+   */
+  template <typename F, typename U = std::invoke_result_t<F, T>>
+  Array<U> Map(F fmap) const {
+    return Array<U>(MapHelper(data_, fmap));
+  }
+
+  /*!
    * \brief Helper function to apply fmutate to mutate an array.
    * \param fmutate The transformation function T -> T.
    * \tparam F the type of the mutation function.
    * \note This function performs copy on write optimization.
    */
-  template <typename F>
+  template <typename F, typename = std::enable_if_t<std::is_same_v<T, std::invoke_result_t<F, T>>>>
   void MutateByApply(F fmutate) {
-    if (data_ == nullptr) {
-      return;
-    }
-    struct StackFrame {
-      ArrayNode* p;
-      ObjectRef* itr;
-      int64_t i;
-      int64_t size;
-    };
-    std::unique_ptr<StackFrame> s = std::make_unique<StackFrame>();
-    s->p = GetArrayNode();
-    s->itr = s->p->MutableBegin();
-    s->i = 0;
-    s->size = s->p->size_;
-    if (!data_.unique()) {
-      // Loop invariant: keeps iterating when
-      // 1) data is not unique
-      // 2) no elements are actually mutated yet
-      for (; s->i < s->size; ++s->i, ++s->itr) {
-        T new_elem = fmutate(DowncastNoCheck<T>(*s->itr));
-        // do nothing when there is no mutation
-        if (new_elem.same_as(*s->itr)) {
-          continue;
-        }
-        // loop invariant breaks when the first real mutation happens
-        // we copy the elements into a new unique array
-        ObjectPtr<ArrayNode> copy = ArrayNode::CopyFrom(s->p->capacity_, s->p);
-        s->itr = copy->MutableBegin() + (s->i++);
-        *s->itr++ = std::move(new_elem);
-        data_ = std::move(copy);
-        // make sure `data_` is unique and break
-        break;
-      }
-    }
-    // when execution comes to this line, it is guaranteed that either
-    //    1) i == size
-    // or 2) data_.unique() is true
-    for (; s->i < s->size; ++s->i, ++s->itr) {
-      *s->itr = std::move(fmutate(std::move(DowncastNoCheck<T>(std::move(*s->itr)))));
-    }
+    data_ = MapHelper(std::move(data_), fmutate);
   }
 
   /*!
@@ -705,6 +709,118 @@ class Array : public ObjectRef {
       data_ = ArrayNode::CopyFrom(capacity, GetArrayNode());
     }
     return static_cast<ArrayNode*>(data_.get());
+  }
+
+  /*! \brief Helper method for mutate/map
+   *
+   * A helper function used internally by both `Array::Map` and
+   * `Array::MutateInPlace`.  Given an array of data, apply the
+   * mapping function to each element, returning the collected array.
+   * Applies both mutate-in-place and copy-on-write optimizations, if
+   * possible.
+   *
+   * \param data A pointer to the ArrayNode containing input data.
+   * Passed by value to allow for mutate-in-place optimizations.
+   *
+   * \param fmap The mapping function
+   *
+   * \tparam F The type of the mutation function.
+   *
+   * \tparam U The output type of the mutation function.  Inferred
+   * from the callable type given.  Must inherit from ObjectRef.
+   *
+   * \return The mapped array.  Depending on whether mutate-in-place
+   * or copy-on-write optimizations were applicable, may be the same
+   * underlying array as the `data` parameter.
+   */
+  template <typename F, typename U = std::invoke_result_t<F, T>>
+  static ObjectPtr<Object> MapHelper(ObjectPtr<Object> data, F fmap) {
+    if (data == nullptr) {
+      return nullptr;
+    }
+
+    ICHECK(data->IsInstance<ArrayNode>());
+
+    constexpr bool is_same_output_type = std::is_same_v<T, U>;
+
+    if constexpr (is_same_output_type) {
+      if (data.unique()) {
+        // Mutate-in-place path.  Only allowed if the output type U is
+        // the same as type T, we have a mutable this*, and there are
+        // no other shared copies of the array.
+        auto arr = static_cast<ArrayNode*>(data.get());
+        for (auto it = arr->MutableBegin(); it != arr->MutableEnd(); it++) {
+          T mapped = fmap(DowncastNoCheck<T>(std::move(*it)));
+          *it = std::move(mapped);
+        }
+        return data;
+      }
+    }
+
+    constexpr bool compatible_types = is_valid_iterator_v<T, U*> || is_valid_iterator_v<U, T*>;
+
+    ObjectPtr<ArrayNode> output = nullptr;
+    auto arr = static_cast<ArrayNode*>(data.get());
+
+    auto it = arr->begin();
+    if constexpr (compatible_types) {
+      // Copy-on-write path, if the output Array<U> might be
+      // represented by the same underlying array as the existing
+      // Array<T>.  Typically, this is for functions that map `T` to
+      // `T`, but can also apply to functions that map `T` to
+      // `Optional<T>`, or that map `T` to a subclass or superclass of
+      // `T`.
+      bool all_identical = true;
+      for (; it != arr->end(); it++) {
+        U mapped = fmap(DowncastNoCheck<T>(*it));
+        if (!mapped.same_as(*it)) {
+          // At least one mapped element is different than the
+          // original.  Therefore, prepare the output array,
+          // consisting of any previous elements that had mapped to
+          // themselves (if any), and the element that didn't map to
+          // itself.
+          all_identical = false;
+          output = ArrayNode::CreateRepeated(arr->size(), U());
+          output->InitRange(0, arr->begin(), it);
+          output->SetItem(it - arr->begin(), std::move(mapped));
+          it++;
+          break;
+        }
+      }
+      if (all_identical) {
+        return data;
+      }
+    } else {
+      // Path for incompatible types.  The constexpr check for
+      // compatible types isn't strictly necessary, as the first
+      // mapped.same_as(*it) would return false, but we might as well
+      // avoid it altogether.
+      output = ArrayNode::CreateRepeated(arr->size(), U());
+    }
+
+    // Normal path for incompatible types, or post-copy path for
+    // copy-on-write instances.
+    //
+    // If the types are incompatible, then at this point `output` is
+    // empty, and `it` points to the first element of the input.
+    //
+    // If the types were compatible, then at this point `output`
+    // contains zero or more elements that mapped to themselves
+    // followed by the first element that does not map to itself, and
+    // `it` points to the element just after the first element that
+    // does not map to itself.  Because at least one element has been
+    // changed, we no longer have the opportunity to avoid a copy, so
+    // we don't need to check the result.
+    //
+    // In both cases, `it` points to the next element to be processed,
+    // so we can either start or resume the iteration from that point,
+    // with no further checks on the result.
+    for (; it != arr->end(); it++) {
+      U mapped = fmap(DowncastNoCheck<T>(*it));
+      output->SetItem(it - arr->begin(), std::move(mapped));
+    }
+
+    return output;
   }
 };
 

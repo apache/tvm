@@ -280,7 +280,7 @@ tvm_crt_error_t PageMemoryManager_Free(MemoryManagerInterface* interface, void* 
 tvm_crt_error_t PageMemoryManagerCreate(MemoryManagerInterface** interface, uint8_t* memory_pool,
                                         size_t memory_pool_size_bytes,
                                         size_t page_size_bytes_log2) {
-  memset(memory_pool, 0, sizeof(memory_pool_size_bytes));
+  memset(memory_pool, 0, memory_pool_size_bytes);
 
   // Allocate enough space for MAX_PAGES.
   size_t page_size_bytes = 1 << page_size_bytes_log2;

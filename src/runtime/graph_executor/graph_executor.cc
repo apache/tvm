@@ -97,7 +97,9 @@ void GraphExecutor::Init(const std::string& graph_json, tvm::runtime::Module mod
   for (size_t i = 0; i < outputs_.size(); i++) {
     const uint32_t nid = outputs_[i].node_id;
     std::string& name = nodes_[nid].name;
-    output_map_[name] = i;
+    std::stringstream ss;
+    ss << name << ":" << i;
+    output_map_[ss.str()] = i;
   }
 }
 
@@ -519,8 +521,8 @@ void GraphExecutor::SetupOpExecs() {
   }
 }
 
-std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs> >
-GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>& args) {
+std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs>> GraphExecutor::CreateTVMOp(
+    const TVMOpParam& param, const std::vector<DLTensor>& args) {
   std::shared_ptr<GraphExecutor::OpArgs> arg_ptr = std::make_shared<GraphExecutor::OpArgs>();
   // setup address.
   arg_ptr->args = args;
@@ -674,9 +676,7 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
     });
   } else if (name == "get_input_info") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      GraphExecutor::ShapeInfo shape_info;
-      GraphExecutor::DtypeInfo dtype_info;
-      std::tie(shape_info, dtype_info) = this->GetInputInfo();
+      auto [shape_info, dtype_info] = this->GetInputInfo();
       Map<String, ObjectRef> input_info;
       input_info.Set("shape", shape_info);
       input_info.Set("dtype", dtype_info);

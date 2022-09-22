@@ -21,7 +21,7 @@
 
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/type_functor.h>
-#include <tvm/meta_schedule/apply_history_best.h>
+#include <tvm/meta_schedule/database.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/expr.h>
@@ -37,6 +37,7 @@
 #include <tvm/te/schedule_pass.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/index_map.h>
+#include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/transform.h>
 #include <tvm/topi/tags.h>
 
@@ -50,7 +51,6 @@
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
 #include "../transforms/meta_schedule_layout_rewrite.h"
-#include "../transforms/pass_utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -61,16 +61,6 @@ TVM_REGISTER_NODE_TYPE(LoweredOutputNode);
 TVM_REGISTER_NODE_TYPE(CachedFuncNode);
 TVM_REGISTER_NODE_TYPE(CCacheKeyNode);
 TVM_REGISTER_NODE_TYPE(CCacheValueNode);
-
-void ExtractTransformLayout(const meta_schedule::TuningRecord& record) {
-  static tir::InstructionKind kind_transform_layout = tir::InstructionKind::Get("TransformLayout");
-  for (const tir::Instruction& inst : record->trace->insts) {
-    if (inst->kind.same_as(kind_transform_layout)) {
-      ICHECK_EQ(inst->attrs.size(), 3);
-      relay::MetaScheduleLayoutRewriter::LayoutQueuePush(Downcast<tir::IndexMap>(inst->attrs[2]));
-    }
-  }
-}
 
 LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl) {
   auto n = make_object<LoweredOutputNode>();
@@ -137,12 +127,12 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
   explicit LowerToTECompute(Target target)
       : target_(target), device_copy_op_(Op::Get("device_copy")) {}
 
-  Array<te::Tensor> Lower(const Function& relay_func,
-                          std::function<std::string(std::string)> renamer) {
+  Array<te::Tensor> Lower(const Function& relay_func) {
     for (Var param : relay_func->params) {
       Array<tvm::te::Tensor> inputs;
       for (const auto& ttype : FlattenTupleType(param->checked_type())) {
-        tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype);
+        tvm::te::Tensor tensor =
+            tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype, param->vid->name_hint);
         inputs.push_back(tensor);
         fn_inputs_.push_back(tensor);
       }
@@ -319,23 +309,23 @@ class ScheduleBuilder : public ExprVisitor {
     // Whether to use auto_scheduler schedule.
     use_auto_scheduler_ = backend::IsAutoSchedulerEnabled();
     if (backend::IsMetaScheduleEnabled()) {
-      meta_schedule_ctx_ = meta_schedule::ApplyHistoryBest::Current();
-      CHECK(meta_schedule_ctx_.defined()) << "ValueError: `use_meta_schedule` is enabled in Relay "
-                                             "build, but no ApplyHistoryBest context is provided. ";
+      database_ = meta_schedule::Database::Current();
+      CHECK(database_.defined()) << "ValueError: `use_meta_schedule` is enabled in Relay "
+                                    "build, but no `meta_schedule.Database` context is provided. ";
     } else {
-      meta_schedule_ctx_ = NullOpt;
+      database_ = NullOpt;
     }
   }
 
-  CachedFunc Create(const Function& relay_func, std::function<std::string(std::string)> renamer) {
+  CachedFunc Create(const Function& relay_func, GlobalVarSupply global_var_supply) {
     LowerToTECompute lower_te_compute(target_);
-    Array<te::Tensor> tensor_outs = lower_te_compute.Lower(relay_func, renamer);
+    Array<te::Tensor> tensor_outs = lower_te_compute.Lower(relay_func);
     Array<te::Tensor> fn_inputs = lower_te_compute.fn_inputs_;
     VisitExpr(relay_func->body);
 
     // TODO(mbs): This should be the definitive global by which the PrimFunc is known and
     // no other GlobalVar ctors should appear inside the lowering machinery.
-    auto prim_fn_var = GlobalVar(renamer(lower_te_compute.candidate_name_));
+    auto prim_fn_var = global_var_supply->FreshGlobal(lower_te_compute.candidate_name_);
     prim_fn_var->checked_type_ = relay_func->checked_type();
 
     // Fusion over tupled results may leave identity relationships
@@ -361,26 +351,46 @@ class ScheduleBuilder : public ExprVisitor {
           schedule = Downcast<te::Schedule>(obj);
         }
       }
-      if (meta_schedule_ctx_) {
+      if (database_) {
+        using tvm::meta_schedule::TuningRecord;
+        using tvm::tir::IndexMap;
+        using tvm::tir::Instruction;
+        using tvm::tir::InstructionKind;
+        using tvm::tir::PrimFunc;
+        using tvm::tir::Schedule;
+        backend::FTECompilerTIRConverter tir_converter = backend::GetTIRConverter();
         Array<te::Tensor> te_args = Concat(fn_inputs, tensor_outs);
-        if (Optional<tir::PrimFunc> tir_func =
-                meta_schedule_ctx_.value()->te_filter_func(te_args)) {
-          IRModule relay_mod({{prim_fn_var, relay_func}});
-          IRModule tir_mod({{prim_fn_var, tir_func.value()}});
-          if (Optional<IRModule> opt_scheduled_mod = meta_schedule_ctx_.value()->Query(
-                  /*task_name=*/prim_fn_var->name_hint,     //
-                  /*mod=*/relay_mod,                        //
-                  /*target=*/target_,                       //
-                  /*dispatched=*/Array<IRModule>{tir_mod},  //
-                  /*f_take_tuning_record=*/ExtractTransformLayout)) {
-            IRModule scheduled_mod =
-                tir::transform::RemoveWeightLayoutRewriteBlock()(opt_scheduled_mod.value());
-            ICHECK_EQ(scheduled_mod->functions.count(prim_fn_var), 1);
-            prim_func = Downcast<tir::PrimFunc>(scheduled_mod->functions[prim_fn_var]);
+        Array<runtime::NDArray> constants;
+        for (auto [const_node, te_tensor] : lower_te_compute.constant_tensors_) {
+          te_args.push_back(te_tensor);
+          constants.push_back(const_node->data);
+        }
+        if (Optional<PrimFunc> f = tir_converter(te_args, constants)) {
+          if (Optional<TuningRecord> opt_record = database_.value()->QueryTuningRecord(
+                  /*mod=*/backend::PrimFuncToIRModule(f.value()),
+                  /*target=*/target_,
+                  /*workload_name=*/prim_fn_var->name_hint)) {
+            static InstructionKind kind_transform_layout = InstructionKind::Get("TransformLayout");
+            TuningRecord record = opt_record.value();
+            for (const Instruction& inst : record->trace->insts) {
+              if (inst->kind.same_as(kind_transform_layout)) {
+                ICHECK_EQ(inst->attrs.size(), 4);
+                MetaScheduleLayoutRewriter::LayoutQueuePush(Downcast<IndexMap>(inst->attrs[2]));
+              }
+            }
+            Schedule sch = Schedule::Traced(record->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
+                                            tir::ScheduleErrorRenderLevel::kDetail);
+            record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
+            IRModule mod = sch->mod();
+            ICHECK_EQ(mod->functions.size(), 1);
+            mod = tir::transform::RemoveWeightLayoutRewriteBlock()(std::move(mod));
+            prim_func = Downcast<PrimFunc>(mod->Lookup("main"));
+          } else {
+            LOG(WARNING) << "Cannot find workload: " << prim_fn_var->name_hint;
           }
         }
       }
-      // Use TOPI schedule if user specificed, or the function has no auto_scheduler schedule.
+      // Use TOPI schedule if user specified, or the function has no auto_scheduler schedule.
       if (!schedule.defined() && !prim_func.defined()) {
         if (anchor_op_.defined()) {
           auto anchor_impl = lower_te_compute.op_implementations_.find(anchor_op_.operator->());
@@ -402,8 +412,9 @@ class ScheduleBuilder : public ExprVisitor {
       }
     }
 
-    return CachedFunc(target_, prim_fn_var, fn_inputs, tensor_outs, schedule, prim_func, {},
-                      IRModule(Map<GlobalVar, BaseFunc>({})), lower_te_compute.constant_tensors_);
+    IRModule funcs = IRModule(Map<GlobalVar, BaseFunc>({}));
+    return CachedFunc(target_, prim_fn_var, fn_inputs, tensor_outs, schedule, prim_func, {}, funcs,
+                      lower_te_compute.constant_tensors_);
   }
 
   void VisitExpr_(const CallNode* call_node) final {
@@ -417,7 +428,7 @@ class ScheduleBuilder : public ExprVisitor {
     }
 
     int op_pattern = fpattern[op];
-    if (!use_auto_scheduler_ && !meta_schedule_ctx_.defined() && op_pattern >= kCommReduce) {
+    if (!use_auto_scheduler_ && !database_.defined() && op_pattern >= kCommReduce) {
       ICHECK(!anchor_op_.defined() || anchor_op_pattern_ < kCommReduce)
           << "Cannot apply TOPI schedule to a primitive function with two complicated ops"
           << " anchor=" << anchor_op_ << " current=" << op;
@@ -435,7 +446,7 @@ class ScheduleBuilder : public ExprVisitor {
   Attrs anchor_attrs_;
   int anchor_op_pattern_{0};
   bool use_auto_scheduler_;
-  Optional<meta_schedule::ApplyHistoryBest> meta_schedule_ctx_;
+  Optional<meta_schedule::Database> database_;
 };
 
 /*!
@@ -446,8 +457,8 @@ class ScheduleBuilder : public ExprVisitor {
  *  The funcs field in cache is not yet populated.
  */
 CachedFunc PrimFuncFor(const Function& source_func, const Target& target,
-                       std::function<std::string(std::string)> renamer) {
-  return ScheduleBuilder(target).Create(source_func, renamer);
+                       GlobalVarSupply global_var_supply) {
+  return ScheduleBuilder(target).Create(source_func, global_var_supply);
 }
 
 // Creates shape function from functor.
@@ -456,7 +467,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   MakeShapeFunc() {}
 
   CachedFunc Create(const Function& prim_func, const Target& target,
-                    std::function<std::string(std::string)> renamer) {
+                    GlobalVarSupply global_var_supply) {
     VLOG_CONTEXT << "MakeShapeFunc";
     TShapeDataDependent shape_func_param_states;
 
@@ -468,7 +479,8 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
       for (const auto& ttype : FlattenTupleType(param->checked_type())) {
         // Add data placeholder (in case we discover we need it below)
         Shape shape = GetShape(ttype->shape);
-        tvm::te::Tensor data_tensor = tvm::te::placeholder(shape, ttype->dtype);
+        tvm::te::Tensor data_tensor =
+            tvm::te::placeholder(shape, ttype->dtype, "data_" + param->vid->name_hint);
         data_inputs.push_back(data_tensor);
         // Add shape placeholder (in case we discover we need it below)
         int64_t ndim = shape.size();
@@ -476,7 +488,8 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
         if (ndim > 0) {
           sshape.push_back(tvm::Integer(ndim));
         }
-        tvm::te::Tensor shape_tensor = tvm::te::placeholder(sshape, DataType::Int(64));
+        tvm::te::Tensor shape_tensor =
+            tvm::te::placeholder(sshape, DataType::Int(64), "shape_" + param->vid->name_hint);
         shape_inputs.push_back(shape_tensor);
       }
       param_data_[param] = data_inputs;
@@ -527,8 +540,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
 
     // TODO(mbs): This should be the definitive global by which the PrimFunc is known and
     // no  other GlobalVar ctors should appear inside the lowering machinery.
-    auto func_name = renamer(candidate_name);
-    auto prim_fn_gvar = GlobalVar(func_name);
+    auto prim_fn_gvar = global_var_supply->FreshGlobal(candidate_name);
 
     // Gather the result types, again from the p.o.v. of the shape function rather than
     // the primitive it is derived for.
@@ -569,19 +581,10 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     With<PassContext> fresh_pass_ctx_scope(PassContext::Create());
 
     std::unordered_map<te::Tensor, tir::Buffer> binds;
-    IRModule lowered_module = tvm::LowerSchedule(schedule, all_args, func_name, binds);
-
-    // Unfortunately the above machinery creates its own GlobalVars instead of using *the*
-    // GlobalVar we established above. Fix this before the confusion spreads any further.
-    // TODO(mbs): LowerSchedule should be given prim_fn_gvar instead of func_name.
-    IRModule fixed_lowered_module;
-    for (const auto& kv : lowered_module->functions) {
-      GlobalVar global_var =
-          kv.first->name_hint == prim_fn_gvar->name_hint ? prim_fn_gvar : kv.first;
-      fixed_lowered_module->Add(global_var, kv.second);
-    }
+    IRModule lowered_module =
+        tvm::LowerSchedule(schedule, all_args, prim_fn_gvar->name_hint, binds, global_var_supply);
     return CachedFunc(target, prim_fn_gvar, inputs, outputs, schedule, tir::PrimFunc{nullptr},
-                      shape_func_param_states, fixed_lowered_module);
+                      shape_func_param_states, lowered_module);
   }
 
   Array<te::Tensor> VisitExpr(const Expr& expr) final {
@@ -791,15 +794,14 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
 };
 
 CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,
-                        std::function<std::string(std::string)> renamer) {
-  return MakeShapeFunc().Create(prim_func, target, renamer);
+                        GlobalVarSupply global_var_supply) {
+  return MakeShapeFunc().Create(prim_func, target, global_var_supply);
 }
 
-std::pair<Array<te::Tensor>, std::string> LowerTECompute(const Function& source_func, Target target,
-                                                         bool return_inputs) {
+std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompute(
+    const Function& source_func, Target target, bool return_inputs) {
   LowerToTECompute lower_te_compute(target);
-  Array<te::Tensor> outputs =
-      lower_te_compute.Lower(source_func, [](std::string name) { return name; });
+  Array<te::Tensor> outputs = lower_te_compute.Lower(source_func);
   // Following ScheduleBuilder, remove placeholder ops from outputs.
   tvm::Array<te::Tensor> tensor_outs;
   for (const auto& tensor : outputs) {
@@ -807,41 +809,24 @@ std::pair<Array<te::Tensor>, std::string> LowerTECompute(const Function& source_
       tensor_outs.push_back(tensor);
     }
   }
-  if (return_inputs) {
-    return std::make_pair(Concat(lower_te_compute.fn_inputs_, tensor_outs),
-                          lower_te_compute.candidate_name_);
-  }
-  return std::make_pair(tensor_outs, lower_te_compute.candidate_name_);
-}
 
-/*!
- * \brief Get unique name from name.
- * \param name The orginal name.
- * \return Updated name which is unique.
- */
-std::string GetUniqueName(std::string name, std::unordered_map<std::string, int>* name_map_) {
-  for (size_t i = 0; i < name.length(); ++i) {
-    if (name[i] == '.') name[i] = '_';
+  tvm::Array<runtime::NDArray> constants;
+  for (auto [const_node, te_tensor] : lower_te_compute.constant_tensors_) {
+    tensor_outs.push_back(te_tensor);
+    constants.push_back(const_node->data);
   }
-  while (true) {
-    auto it = name_map_->find(name);
-    if (it == name_map_->end()) {
-      (*name_map_)[name] = 1;
-      return name;
-    } else {
-      std::ostringstream os;
-      os << name << "_" << it->second;
-      ++(it->second);
-      name = os.str();
-    }
+
+  if (return_inputs) {
+    return std::make_tuple(Concat(lower_te_compute.fn_inputs_, tensor_outs), constants,
+                           lower_te_compute.candidate_name_);
   }
-  return name;
+  return std::make_tuple(tensor_outs, constants, lower_te_compute.candidate_name_);
 }
 
 TVM_REGISTER_GLOBAL("relay.backend.LowerToTE").set_body_typed([](Function prim_func) {
   auto tgt = tvm::Target("ext_dev");
   LowerToTECompute lower_te_compute(tgt);
-  auto outputs = lower_te_compute.Lower(prim_func, [&](std::string name) { return name; });
+  auto outputs = lower_te_compute.Lower(prim_func);
   return CachedFunc(tgt, GlobalVar(lower_te_compute.candidate_name_), lower_te_compute.fn_inputs_,
                     outputs, te::Schedule(), tir::PrimFunc(), {},
                     IRModule(Map<GlobalVar, BaseFunc>({})), lower_te_compute.constant_tensors_);

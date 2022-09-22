@@ -42,6 +42,11 @@ class MutateThreadBindingNode : public MutatorNode {
   }
   // Inherit from `MutatorNode`
   Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
+  // Inherit from `MutatorNode`
+  Mutator Clone() const final {
+    ObjectPtr<MutateThreadBindingNode> n = make_object<MutateThreadBindingNode>(*this);
+    return Mutator(n);
+  }
 
  private:
   struct Candidate {
@@ -109,12 +114,12 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
   for (const Instruction& inst : trace->insts) {
     if (inst->kind.same_as(inst_sample_categorical)) {
       ICHECK_EQ(inst->outputs.size(), 1);
-      const PrimExprNode* var_rv = TVM_TYPE_AS(var_rv, inst->outputs[0], PrimExprNode);
+      const PrimExprNode* var_rv = TVM_TYPE_AS(inst->outputs[0], PrimExprNode);
       sample_insts[var_rv] = inst.get();
     } else if (is_split_by_sample(inst)) {
       CHECK_EQ(inst->outputs.size(), 2);
       // Only consider the inner loop, which can be bound to threadIdx.x
-      const tir::LoopRVNode* var_rv = TVM_TYPE_AS(var_rv, inst->outputs[1], tir::LoopRVNode);
+      const tir::LoopRVNode* var_rv = TVM_TYPE_AS(inst->outputs[1], tir::LoopRVNode);
       sampled_split_insts[var_rv] = inst.get();
     } else if (is_thread_binding_by_sample(inst)) {
       bind_insts.push_back(inst.get());
@@ -122,12 +127,12 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
   }
 
   for (const InstructionNode* bind_inst : bind_insts) {
-    const auto* loop_rv = TVM_TYPE_AS(loop_rv, bind_inst->inputs[0], tir::LoopRVNode);
+    const auto* loop_rv = TVM_TYPE_AS(bind_inst->inputs[0], tir::LoopRVNode);
     auto split_it = sampled_split_insts.find(loop_rv);
     ICHECK(split_it != sampled_split_insts.end());
     const InstructionNode* split_inst = split_it->second;
 
-    const auto* expr_rv = TVM_TYPE_AS(expr_rv, split_inst->inputs[2], PrimExprNode);
+    const auto* expr_rv = TVM_TYPE_AS(split_inst->inputs[2], PrimExprNode);
     auto sample_it = sample_insts.find(expr_rv);
     ICHECK(sample_it != sample_insts.end());
     const InstructionNode* sample_inst = sample_it->second;

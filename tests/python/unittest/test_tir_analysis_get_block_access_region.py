@@ -156,8 +156,6 @@ def gemm() -> None:
             T.reads(A[vi, vk], B[vj, vk])
             T.writes(C[vi, vj])
             with T.init():
-                T.reads([])
-                T.writes(C[vi, vj])
                 C[vi, vj] = 0
             C[vi, vj] += A[vi, vk] * B[vj, vk]
 

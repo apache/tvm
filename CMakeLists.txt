@@ -113,6 +113,7 @@ tvm_option(USE_VITIS_AI "Build with VITIS-AI Codegen support" OFF)
 tvm_option(SUMMARIZE "Print CMake option summary after configuring" OFF)
 tvm_option(USE_CLML "Build with CLML Codegen support" OFF)
 tvm_option(USE_CLML_GRAPH_EXECUTOR "Build with CLML graph runtime" OFF)
+tvm_option(USE_UMA "Build with UMA support" OFF)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
@@ -201,7 +202,7 @@ else(MSVC)
       set(TVM_VISIBILITY_FLAG "-fvisibility=hidden")
     endif(HIDE_PRIVATE_SYMBOLS)
   endif ()
-  if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND
+  if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND
       CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.0)
     set(CMAKE_CXX_FLAGS "-faligned-new ${CMAKE_CXX_FLAGS}")
   endif()
@@ -287,6 +288,7 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
 tvm_file_glob(GLOB CODEGEN_SRCS
   src/target/*.cc
   src/target/source/*.cc
+  src/target/parsers/*.cc
     )
 
 list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
@@ -303,6 +305,7 @@ tvm_file_glob(GLOB_RECURSE RELAY_PASS_SRCS
 tvm_file_glob(GLOB RELAY_BACKEND_SRCS
     src/relay/backend/*.cc
     src/relay/backend/vm/*.cc
+    src/relay/backend/aot/*.cc
     )
 tvm_file_glob(GLOB_RECURSE RELAY_IR_SRCS
     src/relay/ir/*.cc
@@ -497,19 +500,20 @@ include(cmake/modules/contrib/TensorRT.cmake)
 include(cmake/modules/contrib/VitisAI.cmake)
 include(cmake/modules/contrib/Verilator.cmake)
 include(cmake/modules/contrib/CLML.cmake)
+include(cmake/modules/contrib/UMA.cmake)
 include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
 include(cmake/modules/RustExt.cmake)
 
 include(CheckCXXCompilerFlag)
 if(NOT MSVC)
-  check_cxx_compiler_flag("-std=c++14" SUPPORT_CXX14)
-  set(CMAKE_CXX_FLAGS "-std=c++14 ${CMAKE_CXX_FLAGS}")
-  set(CMAKE_CUDA_STANDARD 14)
+  check_cxx_compiler_flag("-std=c++17" SUPPORT_CXX17)
+  set(CMAKE_CXX_FLAGS "-std=c++17 ${CMAKE_CXX_FLAGS}")
+  set(CMAKE_CUDA_STANDARD 17)
 else()
-  check_cxx_compiler_flag("/std:c++14" SUPPORT_CXX14)
-  set(CMAKE_CXX_FLAGS "/std:c++14 ${CMAKE_CXX_FLAGS}")
-  set(CMAKE_CUDA_STANDARD 14)
+  check_cxx_compiler_flag("/std:c++17" SUPPORT_CXX17)
+  set(CMAKE_CXX_FLAGS "/std:c++17 ${CMAKE_CXX_FLAGS}")
+  set(CMAKE_CUDA_STANDARD 17)
 endif()
 
 set(LIBINFO_FILE ${CMAKE_CURRENT_LIST_DIR}/src/support/libinfo.cc)
@@ -794,3 +798,5 @@ find_and_set_linker(${USE_ALTERNATIVE_LINKER})
 if(${SUMMARIZE})
   print_summary()
 endif()
+
+dump_options_to_file("${TVM_ALL_OPTIONS}")

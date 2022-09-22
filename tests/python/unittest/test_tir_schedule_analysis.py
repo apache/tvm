@@ -21,7 +21,10 @@ import tvm
 import tvm.testing
 from tvm.tir.function import TensorIntrin
 from tvm.tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
-from tvm.tir.tensor_intrin.cuda import WMMA_SYNC_16x16x16_f16f16f32_INTRIN
+from tvm.tir.tensor_intrin.cuda import (
+    WMMA_SYNC_16x16x16_f16f16f16_INTRIN,
+    WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
+)
 
 
 from tvm.tir import Evaluate, For, ForKind, IndexMap, Var, decl_buffer, floordiv, floormod, Schedule
@@ -99,6 +102,47 @@ def test_suggest_index_map_bijective():
         ],
     )
     assert index_map.is_equivalent_to(expected_index_map)
+
+
+def test_suggest_index_map_winograd():
+    """use case in winograd conv where the indices are complicated"""
+    fused_outer, i3_3_fused, i4_0, i4_1 = _make_vars("fused_outer", "i3_3_fused", "i4_0", "i4_1")
+    eps = floordiv(fused_outer, 336) * 2 + floordiv(floormod(fused_outer, 16), 8)
+    nu = floordiv(floormod(fused_outer, 336), 112) * 2 + floordiv(floormod(fused_outer, 8), 4)
+    co = floormod(fused_outer, 4) * 32 + i3_3_fused
+    ci = (i4_0 * 32) + i4_1
+    buffer = decl_buffer(shape=[6, 6, 128, 128])
+    index_map = suggest_index_map(
+        buffer=buffer,
+        indices=[eps, nu, co, ci],
+        loops=_make_loops(
+            loop_vars=[fused_outer, i3_3_fused, i4_0, i4_1],
+            extents=[1008, 32, 4, 32],
+        ),
+        predicate=True,
+    )
+    expected_index_map = IndexMap.from_func(
+        lambda i0, i1, i2, i3: (
+            floordiv(i0, 2),
+            floordiv(i1, 2),
+            floormod(i0, 2),
+            floormod(((i1 * 4) + floordiv(i2, 32)), 8),
+            floormod(i2, 32),
+            floordiv(i3, 32),
+            floormod(i3, 32),
+        )
+    )
+    assert index_map.is_equivalent_to(expected_index_map)
+    inverse_index_map = index_map.inverse(buffer.shape)
+    expected_inverse_index_map = IndexMap.from_func(
+        lambda i0, i1, i2, i3, i4, i5, i6: (
+            ((i0 * 2) + i2),
+            ((i1 * 2) + floordiv(((i3 * 32) + i4), 128)),
+            floormod(((i3 * 32) + i4), 128),
+            ((i5 * 32) + i6),
+        )
+    )
+    assert inverse_index_map.is_equivalent_to(expected_inverse_index_map)
 
 
 @tvm.script.ir_module
@@ -218,9 +262,9 @@ def test_get_tensorize_loop_mapping_conv2d_nchwc_vnni():
 def test_get_tensorize_loop_mapping_matmul_mma():
     @T.prim_func
     def matmul_16x16x16xf16f16f16_desc(
-        A: T.Buffer((16, 16), "float16", align=128, offset_factor=1),
-        B: T.Buffer((16, 16), "float16", align=128, offset_factor=1),
-        C: T.Buffer((16, 16), "float16", align=128, offset_factor=1),
+        A: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
+        B: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
+        C: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
     ) -> None:
         with T.block("root"):
             T.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
@@ -260,17 +304,46 @@ def test_get_tensorize_loop_mapping_matmul_mma():
         assert s.get(desc_loop_to_sref[desc_loops[2]]) == s.get(i2)
 
 
+def test_get_tensorize_loop_mapping_padding_matmul():
+    matmul = create_prim_func(
+        te_workload.matmul_relu(
+            n=127,
+            m=256,
+            k=65,
+            in_dtype="float16",
+            out_dtype="float16",
+        )
+    )
+    s = Schedule(matmul)
+    block = s.get_block("C")
+
+    desc = TensorIntrin.get(WMMA_SYNC_16x16x16_f16f16f16_INTRIN).desc
+    info = get_tensorize_loop_mapping(s, block, desc, allow_padding=True)
+    assert info is not None
+    expected_padding = [1, 0, 15]
+    actual_padding = info.block_iter_paddings
+    assert actual_padding is not None
+    assert len(actual_padding) == len(expected_padding)
+    for actual, expected in zip(actual_padding, expected_padding):
+        assert actual == expected
+
+
 def check_index_map(workload, block_name, intrin_name, expected_index_map):
     s = Schedule(workload)
     block = s.get_block(block_name)
     desc_func = TensorIntrin.get(intrin_name).desc
     info = get_auto_tensorize_mapping_info(s, block, desc_func)
+    if expected_index_map is None:
+        assert info is None
+        return
     assert len(info.mappings) == 1
     assert IndexMap.from_func(expected_index_map).is_equivalent_to(info.mappings[0])
 
 
 def test_get_auto_tensorize_mapping_info_conv2d():
-    conv2d = create_prim_func(te_workload.conv2d_nhwc_f16(4, 16, 16, 64, 64, 3, 1, 1))
+    conv2d = create_prim_func(
+        te_workload.conv2d_nhwc(4, 16, 16, 64, 64, 3, 1, 1, in_dtype="float16", out_dtype="float32")
+    )
     check_index_map(
         conv2d,
         "conv2d_nhwc",
@@ -280,7 +353,9 @@ def test_get_auto_tensorize_mapping_info_conv2d():
 
 
 def test_get_auto_tensorize_mapping_info_conv2d_unit_batch():
-    conv2d = create_prim_func(te_workload.conv2d_nhwc_f16(1, 16, 16, 64, 64, 3, 1, 1))
+    conv2d = create_prim_func(
+        te_workload.conv2d_nhwc(1, 16, 16, 64, 64, 3, 1, 1, in_dtype="float16", out_dtype="float32")
+    )
     check_index_map(
         conv2d,
         "conv2d_nhwc",
@@ -292,10 +367,33 @@ def test_get_auto_tensorize_mapping_info_conv2d_unit_batch():
 
 @pytest.mark.parametrize("b,m,n,k", [(1, 512, 512, 512), (16, 32, 32, 32)])
 def test_get_auto_tensorize_mapping_info_batch_matmul(b, m, n, k):
-    matmul = create_prim_func(te_workload.batch_matmul_nkkm_f16(b, m, n, k))
+    matmul = create_prim_func(
+        te_workload.batch_matmul_nkkm(b, m, n, k, in_dtype="float16", out_dtype="float32")
+    )
     check_index_map(
         matmul, "Z", WMMA_SYNC_16x16x16_f16f16f32_INTRIN, lambda b, m, n, k: (b, m, n, k)
     )
+
+
+@pytest.mark.parametrize(
+    "n,m,k,expected",
+    [
+        (
+            512,
+            512,
+            512,
+            lambda n, m, k: (
+                n,
+                m,
+                k,
+            ),
+        ),
+        (1, 32, 32, None),
+    ],
+)
+def test_get_auto_tensorize_mapping_info_matmul(n, m, k, expected):
+    matmul = create_prim_func(te_workload.matmul(n, m, k, in_dtype="float16", out_dtype="float32"))
+    check_index_map(matmul, "C", WMMA_SYNC_16x16x16_f16f16f32_INTRIN, expected)
 
 
 if __name__ == "__main__":

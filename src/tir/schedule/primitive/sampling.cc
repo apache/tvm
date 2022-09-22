@@ -311,7 +311,7 @@ std::vector<int64_t> SamplePerfectTile(
     support::LinearCongruentialEngine::TRandState* rand_state,  //
     const tir::StmtSRef& loop_sref, int32_t n_splits, int32_t max_innermost_factor,
     Optional<Array<Integer>>* decision) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   const int64_t* extent = GetLoopIntExtent(loop);
   std::vector<int64_t> result;
   if (extent == nullptr) {
@@ -338,7 +338,9 @@ std::vector<int64_t> SamplePerfectTile(
   } else {
     // Case 3. Use fresh new sampling result
     result = SamplePerfectTile(rand_state, *extent, n_splits, max_innermost_factor);
-    ICHECK_LE(result.back(), max_innermost_factor);
+    if (max_innermost_factor != -1) {
+      ICHECK_LE(result.back(), max_innermost_factor);
+    }
   }
   *decision = support::AsArray<int64_t, Integer>(result);
   return result;
@@ -348,9 +350,7 @@ tir::StmtSRef SampleComputeLocation(tir::ScheduleState self,
                                     support::LinearCongruentialEngine::TRandState* rand_state,
                                     const StmtSRef& block_sref, Optional<Integer>* decision) {
   // Step 1. Collect all possible compute-at locations.
-  Array<tir::StmtSRef> location_srefs;
-  std::vector<int> location_indices;
-  std::tie(location_srefs, location_indices) = CollectComputeLocation(self, block_sref);
+  auto [location_srefs, location_indices] = CollectComputeLocation(self, block_sref);
   ICHECK_EQ(location_srefs.size(), location_indices.size());
 
   // Step 2. If there was a previous decision, keep the decision unchanged if it exists in the

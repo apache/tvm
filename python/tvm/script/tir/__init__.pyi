@@ -187,6 +187,18 @@ def match_buffer(
     buffer_type: str = "default",
     axis_separators: Optional[List[int]] = None,
 ) -> Buffer: ...
+def decl_buffer(
+    shape: Sequence[Union[PrimExpr, int]],
+    dtype: str = "float32",
+    data: Var = None,
+    strides: Optional[Sequence[int]] = None,
+    elem_offset: Optional[int] = None,
+    scope: str = "global",
+    align: int = -1,
+    offset_factor: int = 0,
+    buffer_type: str = "default",
+    axis_separators: Optional[List[int]] = None,
+) -> Buffer: ...
 def buffer_decl(
     shape: Sequence[Union[PrimExpr, int]],
     dtype: str = "float32",
@@ -452,14 +464,24 @@ class uint32(PrimExpr):
 class uint64(PrimExpr):
     def __init__(self: uint64, imm: Union[PrimExpr, int]): ...
 
+# use typing.Literal instead for python 3.8 or higher
+import sys
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+
+    SpecialFloatLiteral = Literal["inf", "-inf", "nan"]
+else:
+    SpecialFloatLiteral = str
+
 class float8(PrimExpr):
-    def __init__(self: float8, imm: Union[PrimExpr, int, float]): ...
+    def __init__(self: float8, imm: Union[PrimExpr, int, float, SpecialFloatLiteral]): ...
 
 class float16(PrimExpr):
-    def __init__(self: float16, imm: Union[PrimExpr, int, float]): ...
+    def __init__(self: float16, imm: Union[PrimExpr, int, float, SpecialFloatLiteral]): ...
 
 class float32(PrimExpr):
-    def __init__(self: float32, imm: Union[PrimExpr, int, float]): ...
+    def __init__(self: float32, imm: Union[PrimExpr, int, float, SpecialFloatLiteral]): ...
 
 class float64(PrimExpr):
-    def __init__(self: float64, imm: Union[PrimExpr, int, float]): ...
+    def __init__(self: float64, imm: Union[PrimExpr, int, float, SpecialFloatLiteral]): ...

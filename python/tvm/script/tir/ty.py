@@ -69,6 +69,13 @@ class ConcreteType(TypeGeneric):  # pylint: disable=too-few-public-methods, abst
         return self.type
 
 
+class VoidType(ConcreteType):  # pylint: disable=too-few-public-methods, abstract-method
+    """TVM script typing class for void type"""
+
+    def __init__(self):
+        super().__init__("")
+
+
 class GenericPtrType(TypeGeneric):  # pylint: disable=abstract-method
     """TVM script typing class generator for PtrType
 
@@ -192,16 +199,16 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
             )
 
 
-uint8 = ConcreteType("uint8")
-int8 = ConcreteType("int8")
-int16 = ConcreteType("int16")
-int32 = ConcreteType("int32")
-int64 = ConcreteType("int64")
-float16 = ConcreteType("float16")
-float32 = ConcreteType("float32")
-float64 = ConcreteType("float64")
+# add all floating point and integer datatypes to the module
+for _dtype in ["float", "uint", "int"]:
+    for _size in ["8", "16", "32", "64"]:
+        for _lanes in ["", "x4", "x8", "x16", "x32"]:
+            _name = _dtype + _size + _lanes
+            globals()[_name] = ConcreteType(_name)
+
 boolean = ConcreteType("bool")
 handle = ConcreteType("handle")
+void = VoidType()
 Ptr = GenericPtrType()
 Tuple = GenericTupleType()
 # we don't have 'buffer' type on the cpp side

@@ -30,7 +30,6 @@ from tvm.te import Tensor, create_prim_func
 from tvm.tir import PrimFunc, Schedule
 
 from . import default_config
-from .apply_history_best import ApplyHistoryBest
 from .builder import Builder
 from .cost_model import CostModel
 from .database import Database, TuningRecord
@@ -42,7 +41,7 @@ from .profiler import Profiler
 from .runner import Runner
 from .schedule_rule import ScheduleRule
 from .search_strategy import EvolutionarySearch, ReplayFunc, ReplayTrace
-from .space_generator import SpaceGenerator
+from .space_generator import PostOrderApply, SpaceGenerator
 from .task_scheduler import GradientBased, RoundRobin
 from .tune_context import TuneContext
 from .utils import autotvm_silencer, batch_parameterize_config
@@ -364,6 +363,7 @@ def tune_tir(
     cost_model: Optional[CostModel] = None,
     measure_callbacks: Optional[List[MeasureCallback]] = None,
     space: Optional[FnSpaceGenerator] = None,
+    blocks: Optional[List[str]] = None,
     sch_rules: Optional[FnScheduleRule] = None,
     postprocs: Optional[FnPostproc] = None,
     mutator_probs: Optional[FnMutatorProb] = None,
@@ -392,6 +392,22 @@ def tune_tir(
         The cost model to use.
     measure_callbacks : Optional[List[MeasureCallback]]
         The callbacks used during tuning.
+    space : Optional[FnSpaceGenerator]
+        The space generator to use.
+    blocks : Optional[List[str]]
+        A list of block names specifying blocks to be tuned. Note that if
+        the list is not None, blocks outside this list will not be tuned.
+        Only one of this argument and space may be provided.
+    sch_rules : Optional[FnScheduleRule]
+        The search rules to use.
+    postprocs : Optional[FnPostproc]
+        The postprocessors to use.
+    mutator_probs : Optional[FnMutatorProb]
+        The probability distribution to use different mutators.
+    task_name : str
+        The name of the function to extract schedules from.
+    num_threads : Optional[int]
+        The number of threads to use
 
     Returns
     -------
@@ -406,6 +422,15 @@ def tune_tir(
         log_dir=log_dir,
         params=[{"log_dir": log_dir, "logger_name": __name__ + f".task_{task_name}"}],
     )
+
+    if blocks is not None:
+        assert space is None, "Can not specify blocks to tune when a search space is given."
+        # Create a filter function to identify named blocks.
+        def _f_block_filter(block, target_names) -> bool:
+            return block.name_hint in target_names
+
+        # Create a space generator that targets specific blocks.
+        space = PostOrderApply(f_block_filter=lambda block: _f_block_filter(block, blocks))
 
     # pylint: disable=protected-access
     mod = default_config.mod(mod)
@@ -434,7 +459,7 @@ def tune_tir(
         mutator_probs=mutator_probs,
         num_threads=num_threads,
     )
-    with Profiler.timeit("ApplyHistoryBest"):
+    with Profiler.timeit("PostTuningCompilation"):
         bests: List[TuningRecord] = database.get_top_k(database.commit_workload(mod), top_k=1)
         if not bests:
             return None
@@ -530,7 +555,7 @@ def tune_relay(
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
 ) -> Union[Module, vm.Executable]:
-    """Tune a TIR IRModule with a given target.
+    """Tune a Relay IRModule with a given target.
 
     Parameters
     ----------
@@ -564,6 +589,7 @@ def tune_relay(
     """
     # pylint: disable=import-outside-toplevel
     from tvm import relay
+
     from .relay_integration import extract_task_from_relay
 
     # pylint: disable=protected-access, enable=import-outside-toplevel
@@ -588,13 +614,14 @@ def tune_relay(
         num_threads=num_threads,
     )
     relay_build = {"graph": relay.build, "vm": relay.vm.compile}[backend]
-    with Profiler.timeit("ApplyHistoryBest"):
-        with target, autotvm_silencer(), ApplyHistoryBest(database):
+    with Profiler.timeit("PostTuningCompilation"):
+        with target, autotvm_silencer(), database:
             with PassContext(
                 opt_level=3,
                 config={
                     "relay.backend.use_meta_schedule": True,
                     "relay.backend.use_meta_schedule_dispatch": target.kind.name != "cuda",
+                    "relay.backend.tir_converter": "default",
                 },
             ):
                 return relay_build(mod, target=target, params=params)

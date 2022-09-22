@@ -28,7 +28,6 @@ def compare_fq_to_int(expr, args, allow_rounding_error=False):
     mod = tvm.relay.transform.InferType()(mod)
     mod_int = tvm.relay.transform.FakeQuantizationToInteger()(mod)
     assert not tvm.ir.structural_equal(mod, mod_int)
-
     result = (
         relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
         .evaluate()(*args)
@@ -193,26 +192,33 @@ def test_fake_transpose_quantize_conv():
     compare_fq_to_int(op, [x_np, w_np])
 
 
-def test_fake_transpose_quantize_conv_bias_add():
+@pytest.mark.parametrize("const_bias", [False, True])
+def test_fake_transpose_quantize_conv_bias_add(const_bias):
     x = relay.var("x", shape=[1, 224, 224, 3], dtype="int8")
     w = relay.var("w", shape=[16, 3, 5, 5], dtype="int8")
-    bias = relay.var("bias", shape=[16], dtype="int32")
     one = relay.const(1.0)
     zero = relay.const(0)
+    if const_bias:
+        bias = relay.const(np.random.random(16).astype("float32"))
+    else:
+        bias = relay.qnn.op.dequantize(relay.var("bias", shape=[16], dtype="int32"), one, zero)
 
     x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
     x = relay.transpose(x, [0, 3, 1, 2])
     op = relay.op.nn.conv2d(
         x, relay.qnn.op.dequantize(w, relay.const(0.5), zero), kernel_size=[5, 5]
     )
-    op = relay.op.nn.bias_add(op, relay.qnn.op.dequantize(bias, one, zero))
+    op = relay.op.nn.bias_add(op, bias)
     op = relay.qnn.op.quantize(op, one, zero)
 
     x_np = np.random.randint(-128, 127, size=[1, 224, 224, 3], dtype="int8")
     w_np = np.random.randint(-128, 127, size=[16, 3, 5, 5], dtype="int8")
     bias_np = np.random.randint(-32768, 32767, size=[16], dtype="int32")
+    args = [x_np, w_np]
 
-    compare_fq_to_int(op, [x_np, w_np, bias_np])
+    if not const_bias:
+        args.append(bias_np)
+    compare_fq_to_int(op, args)
 
 
 def test_fake_transpose_quantize_conv_bias_add_per_channel():
@@ -278,15 +284,15 @@ def test_fake_quantize_maxpool():
     compare_fq_to_int(op, [x_np])
 
 
-def test_fake_quantize_adaptive_avgpool1d():
-    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+@pytest.mark.parametrize("output_size", [None, 1])
+def test_fake_quantize_adaptive_avgpool1d(output_size):
+    x = relay.var("x", shape=[1, 128, 768], dtype="int8")
 
-    zero = relay.const(0)
-    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
-    op = relay.op.nn.adaptive_avg_pool1d(x)
-    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(-12))
+    op = relay.op.nn.adaptive_avg_pool1d(x, output_size)
+    op = relay.qnn.op.quantize(op, relay.const(0.5), relay.const(10))
 
-    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+    x_np = np.random.randint(-128, 127, size=[1, 128, 768], dtype="int8")
 
     compare_fq_to_int(op, [x_np], True)
 
@@ -294,10 +300,9 @@ def test_fake_quantize_adaptive_avgpool1d():
 def test_fake_quantize_avgpool():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 
-    zero = relay.const(0)
-    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(-12))
     op = relay.op.nn.avg_pool2d(x, [3, 3])
-    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+    op = relay.qnn.op.quantize(op, relay.const(0.5), relay.const(10))
 
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
@@ -307,10 +312,9 @@ def test_fake_quantize_avgpool():
 def test_fake_quantize_global_avg_pool():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 
-    zero = relay.const(0)
-    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(-12))
     op = relay.op.nn.global_avg_pool2d(x)
-    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+    op = relay.qnn.op.quantize(op, relay.const(0.5), relay.const(10))
 
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
@@ -318,23 +322,36 @@ def test_fake_quantize_global_avg_pool():
 
 
 class TestUnaryQNNOp:
-    def helper_test_fake_quantize_unary_op(self, fp32_op, scale=0.125):
-        x = relay.var("x", shape=[1, 3, 3, 3], dtype="int8")
-        mid_point = relay.const(-128)
+    def helper_test_fake_quantize_unary_op(self, fp32_op, pos_values=False):
+        for dtype in ["int8", "uint8"]:
+            x = relay.var("x", shape=[1, 3, 3, 3], dtype=dtype)
 
-        x = relay.qnn.op.dequantize(x, relay.const(scale), mid_point)
-        op = fp32_op(x)
-        op = relay.qnn.op.quantize(op, relay.const(scale), mid_point)
+            zero = -128 if dtype == "int8" else 0
+            if pos_values:
+                # Use a positive range for quanitzed ops that only work on positive values
+                input_mid_point = relay.const(zero)
+                output_mid_point = relay.const(zero)
+            else:
+                input_mid_point = relay.const(np.random.randint(0, 255) + zero)
+                output_mid_point = relay.const(np.random.randint(0, 255) + zero)
 
-        x_np = np.random.randint(-128, 127, size=[1, 3, 3, 3], dtype="int8")
+            input_scale = relay.const(np.random.rand())
+            output_scale = relay.const(np.random.rand())
 
-        compare_fq_to_int(op, [x_np], True)
+            x = relay.qnn.op.dequantize(x, input_scale, input_mid_point)
+            op = fp32_op(x)
+
+            op = relay.qnn.op.quantize(op, output_scale, output_mid_point, out_dtype=dtype)
+
+            x_np = np.random.randint(0 + zero, 255 + zero, size=[1, 3, 3, 3], dtype=dtype)
+
+            compare_fq_to_int(op, [x_np], True)
 
     def test_sqrt(self):
-        self.helper_test_fake_quantize_unary_op(fp32_op=relay.sqrt)
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.sqrt, pos_values=True)
 
     def test_rsqrt(self):
-        self.helper_test_fake_quantize_unary_op(fp32_op=relay.rsqrt)
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.rsqrt, pos_values=True)
 
     def test_exp(self):
         self.helper_test_fake_quantize_unary_op(fp32_op=relay.exp)
@@ -349,7 +366,7 @@ class TestUnaryQNNOp:
         self.helper_test_fake_quantize_unary_op(fp32_op=relay.tanh)
 
     def test_log(self):
-        self.helper_test_fake_quantize_unary_op(fp32_op=relay.log)
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.log, pos_values=True)
 
 
 def test_fake_quantize_reshape():
@@ -733,6 +750,22 @@ def test_fake_quantize_binary_const(operator):
     x_np = np.random.randint(-25, 25, size=[1, 3, 224, 224], dtype="int8")
 
     compare_fq_to_int(op, [x_np])
+
+
+def test_fake_quantize_subtract_different_output_zp():
+    for dtype in ["uint8"]:
+        x = relay.var("x", shape=[1, 128, 128, 3], dtype=dtype)
+        x = relay.qnn.op.dequantize(x, relay.const(0.1), relay.const(0), axis=1)
+
+        y = relay.const(0.5)
+
+        op = relay.subtract(x, y)
+        op = relay.transpose(op, axes=[0, 3, 1, 2])
+        op = relay.qnn.op.quantize(op, relay.const(0.2), relay.const(128), out_dtype=dtype, axis=1)
+
+        x_np = np.random.randint(0, 255, size=[1, 128, 128, 3], dtype=dtype)
+
+        compare_fq_to_int(op, [x_np], True)
 
 
 def test_fake_quantize_pad():

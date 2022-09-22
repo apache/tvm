@@ -25,10 +25,10 @@ on:
   push:
     branches:
       - main
-
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
   group: CI-${{ github.event.pull_request.number || github.sha }}
@@ -36,6 +36,7 @@ concurrency:
 
 jobs:
   MacOS:
+    if: ${{ github.repository == 'apache/tvm' }}
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v2
@@ -78,6 +79,7 @@ jobs:
           python -m pytest -v tests/python/contrib/test_rpc_server_device.py
 
   Windows:
+    if: ${{ github.repository == 'apache/tvm' }}
     runs-on: windows-2019
     steps:
       - uses: actions/checkout@v2
@@ -96,6 +98,7 @@ jobs:
           python -m pytest -v tests/python/all-platform-minimal-test
 
   Android:
+    if: ${{ github.repository == 'apache/tvm' }}
     runs-on: Ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
@@ -122,7 +125,8 @@ jobs:
       - name: Build android_rpc
         working-directory: apps/android_rpc
         run: |
-          export PATH="${ANDROID_NDK_HOME}:$PATH"
+          set -eux
+          export PATH="${ANDROID_NDK_LATEST_HOME}:$PATH"
           gradle clean build
       - name: Upload android_rpc APK
         uses: actions/upload-artifact@v2
@@ -132,7 +136,8 @@ jobs:
       - name: Build android_deploy
         working-directory: apps/android_deploy
         run: |
-          export PATH="${ANDROID_NDK_HOME}:$PATH"
+          set -eux
+          export PATH="${ANDROID_NDK_LATEST_HOME}:$PATH"
           gradle clean build
       - name: Upload android_deploy APK
         uses: actions/upload-artifact@v2
@@ -142,17 +147,18 @@ jobs:
       - name: Build android_camera
         working-directory: apps/android_camera
         run: |
-          mkdir -p app/src/main/assets/models/
-          export TVM_NDK_CC=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++
           export TVM_HOME=~/work/tvm/tvm
           export PYTHONPATH=$TVM_HOME/python:${PYTHONPATH}
+          set -eux
+          mkdir -p app/src/main/assets/models/
+          export TVM_NDK_CC=${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++
           python3 ${TVM_HOME}/python/gen_requirements.py
           pip3 install -r ${TVM_HOME}/python/requirements/core.txt
           cd models
           pip3 install -r requirements.txt
           python3 prepare_model.py
           cd ..
-          export PATH="${ANDROID_NDK_HOME}:$PATH"
+          export PATH="${ANDROID_NDK_LATEST_HOME}:$PATH"
           gradle clean build
       - name: Upload android_camera APK
         uses: actions/upload-artifact@v2

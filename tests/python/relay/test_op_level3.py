@@ -1344,7 +1344,7 @@ def test_gather_nd(target, dev, executor_kind):
     verify_gather_nd((2, 2, 2), (2, 2, 1), [[[1], [0]], [[0], [1]]], 1, indices_dtype="uint32")
 
 
-def _verify_infiniteness_ops(relay_op, ref_op):
+def _verify_infiniteness_ops(relay_op, ref_op, target="llvm", dev=None):
     for dtype in ["float32", "float16", "float16", "int32", "int16"]:
         shape = (2, 8, 8)
         x = relay.var("x", relay.TensorType(shape, dtype))
@@ -1359,17 +1359,25 @@ def _verify_infiniteness_ops(relay_op, ref_op):
             ] = np.infty
             data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.nan
 
-        op_res = create_executor().evaluate(y, {x: data})
+        op_res = create_executor(target=target, device=dev).evaluate(y, {x: data})
         ref_res = ref_op(data)
         np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
 
+@tvm.testing.requires_gpu
 def test_isfinite():
-    _verify_infiniteness_ops(relay.isfinite, np.isfinite)
+    for target, dev in tvm.testing.enabled_targets():
+        if target not in ["llvm", "cuda"]:
+            continue
+        _verify_infiniteness_ops(relay.isfinite, np.isfinite, target=target, dev=dev)
 
 
+@tvm.testing.requires_gpu
 def test_isinf():
-    _verify_infiniteness_ops(relay.isinf, np.isinf)
+    for target, dev in tvm.testing.enabled_targets():
+        if target not in ["llvm", "cuda"]:
+            continue
+        _verify_infiniteness_ops(relay.isinf, np.isinf, target=target, dev=dev)
 
 
 def test_unravel_index(target, dev, executor_kind):
@@ -1909,6 +1917,26 @@ def test_cumprod(target, dev, executor_kind):
 
 @tvm.testing.parametrize_targets
 def test_scatter_nd(target, dev, executor_kind):
+    def test_scatter_nd_large_shape():
+        def before():
+            data = relay.const(np.zeros((1, 900, 300), dtype="float32"), dtype="float32")
+            indices = relay.const(np.ones((3, 1, 900, 300), dtype="int64"), dtype="int64")
+            update = relay.const(np.ones((1, 900, 300), dtype="float32"), dtype="float32")
+            b = relay.op.scatter_nd(data, indices, update)
+            return relay.Function(relay.analysis.free_vars(b), b)
+
+        passes = tvm.transform.Sequential(
+            [
+                relay.transform.InferType(),
+                relay.transform.FoldConstant(),
+            ]
+        )
+        before_mod = tvm.IRModule.from_expr(before())
+        with tvm.transform.PassContext(opt_level=3):
+            after_mod = passes(before_mod)
+
+    test_scatter_nd_large_shape()
+
     def verify_scatter_nd(
         data_np, indices_np, updates_np, ref_res, mode="add", rtol=1e-5, atol=1e-5
     ):
@@ -2205,6 +2233,35 @@ class TestSTFT:
         verify_func(
             target, dev, func, [data_np, window_np], ref_res, rtol=1e-3, atol=1e-3, kinds=backends
         )
+
+
+def test_trilu(target="llvm", dev=tvm.cpu()):
+    def verify_trilu(data_shape, upper=True, k=0):
+        data = relay.var("data", relay.TensorType(data_shape, "float32"))
+        y = relay.trilu(data, k, upper)
+        mod = tvm.ir.IRModule.from_expr(y)
+
+        data_np = np.random.normal(size=data_shape).astype("float32")
+        tvm_res = (
+            relay.create_executor("graph", mod=mod, device=dev, target=target)
+            .evaluate()(data_np)
+            .numpy()
+        )
+        if upper:
+            np_res = np.triu(data_np, k)
+        else:
+            np_res = np.tril(data_np, k)
+        tvm.testing.assert_allclose(tvm_res, np_res)
+
+    # Test upper and lower triangle
+    verify_trilu((3, 3), True, 0)
+    verify_trilu((3, 3), False, 0)
+    # Test larger matrices with offset.
+    verify_trilu((6, 6), True, 1)
+    verify_trilu((6, 6), False, 2)
+    verify_trilu((6, 6), False, -2)
+    # Test batch size
+    verify_trilu((8, 6, 6), False, -2)
 
 
 if __name__ == "__main__":

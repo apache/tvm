@@ -137,6 +137,9 @@ CONTAINER_NAME=
 # "${REPO_DIR}".  The consistent directory for Jenkins is currently
 # necessary to allow cmake build commands to run in CI after the build
 # steps.
+# TODO(https://github.com/apache/tvm/issues/11952): 
+# Figure out a better way to keep the same path
+# between build and testing stages.
 if [[ -n "${JENKINS_HOME:-}" ]]; then
     REPO_MOUNT_POINT=/workspace
 else
@@ -292,7 +295,7 @@ if [ -n "${EXPANDED_SHORTCUT}" ]; then
     if [ "${CI+x}" == "x" ]; then
         DOCKER_IMAGE_NAME="${EXPANDED_SHORTCUT}"
     else
-        python3 tests/scripts/determine_docker_images.py "$DOCKER_IMAGE_NAME=$EXPANDED_SHORTCUT" 2> /dev/null
+        python3 ci/scripts/determine_docker_images.py "$DOCKER_IMAGE_NAME=$EXPANDED_SHORTCUT" 2> /dev/null
         DOCKER_IMAGE_NAME=$(cat ".docker-image-names/$DOCKER_IMAGE_NAME")
         if [[ "$DOCKER_IMAGE_NAME" == *"tlcpackstaging"* ]]; then
             echo "WARNING: resolved docker image to fallback tag in tlcpackstaging" >&2

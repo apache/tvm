@@ -654,14 +654,16 @@ def test_access_in_let_value():
     @T.prim_func
     def func(A: T.Buffer[(8,), "float32"]):
         for i in range(8):
-            B = T.allocate((1,), "float32", "global")
+            B_data = T.allocate((1,), "float32", "global")
+            B = T.buffer_decl(shape=[1], dtype="float32", data=B_data)
             B[0] = 3.14
             x: T.float32 = T.exp(B[0], dtype="float32")
             A[i] = (x + 1.0) / (x - 1.0)
 
     @T.prim_func
     def func_rewritten(A: T.Buffer[(8,), "float32"]) -> None:
-        B = T.allocate((1,), "float32", "global")
+        B_data = T.allocate((1,), "float32", "global")
+        B = T.buffer_decl(shape=[1], dtype="float32", data=B_data)
         for i in range(8):
             B[0] = 3.14
             x: T.float32 = T.exp(B[0], dtype="float32")
@@ -669,6 +671,140 @@ def test_access_in_let_value():
 
     mod = tvm.tir.transform.StorageRewrite()(tvm.IRModule.from_expr(func))
     tvm.ir.assert_structural_equal(mod["main"], func_rewritten)
+
+
+class BaseCompare(tvm.testing.CompareBeforeAfter):
+    transform = tvm.tir.transform.StorageRewrite()
+
+
+class TestLetBufferRewrite(BaseCompare):
+    """StorageRewrite replaces the bound var of backing allocations
+
+    If StorageRewrite replaces the backing variable of an array, such
+    as when vectorizing the storage type, the variable must be
+    replaced in the LetStmt that defines it.  Currently, StmtMutator
+    only visits usage of variables, and does not visit definitions of
+    variables, so the definition in a LetStmt must be explicitly
+    handled.
+    """
+
+    def before() -> None:
+        A_data: T.Ptr[T.int32] = T.call_extern("dummy_func", dtype="handle")
+        A = T.buffer_decl([8], "int32", data=A_data)
+        A[0:8] = T.broadcast(42, 8)
+
+    def expected() -> None:
+        A_data: T.Ptr[T.int32x8] = T.call_extern("dummy_func", dtype="handle")
+        A = T.buffer_decl([1], "int32x8", data=A_data)
+        A[0] = T.broadcast(42, 8)
+
+
+class TestRewriteInPlaceUseOfNonFlatBuffer(BaseCompare):
+    """A non-flat buffer may be re-used for in-place operations"""
+
+    def before(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]):
+        B_data = T.allocate(
+            [16, 16],
+            dtype="float32",
+            scope="global",
+        )
+        B = T.buffer_decl(
+            [16, 16],
+            dtype="float32",
+            axis_separators=[1],
+            data=B_data,
+        )
+        C_data = T.allocate(
+            [16, 16],
+            dtype="float32",
+            scope="global",
+        )
+        C = T.buffer_decl(
+            [16, 16],
+            dtype="float32",
+            axis_separators=[1],
+            data=C_data,
+        )
+
+        for i, j in T.grid(16, 16):
+            B[i, j] = A[i, j]
+
+        for i, j in T.grid(16, 16):
+            C[i, j] = 2.0 * B[i, j]
+
+        for i, j in T.grid(16, 16):
+            D[i, j] = C[i, j]
+
+    def expected(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]):
+        B_data = T.allocate(
+            [16, 16],
+            dtype="float32",
+            scope="global",
+        )
+        B = T.buffer_decl([16, 16], dtype="float32", axis_separators=[1], data=B_data)
+        C = T.buffer_decl(
+            [16, 16],
+            dtype="float32",
+            axis_separators=[1],
+            data=B.data,
+        )
+
+        for i, j in T.grid(16, 16):
+            B[i, j] = A[i, j]
+
+        for i, j in T.grid(16, 16):
+            C[i, j] = 2.0 * B[i, j]
+
+        for i, j in T.grid(16, 16):
+            D[i, j] = C[i, j]
+
+
+class TestNoRewriteOfSharedNonFlatBuffer(BaseCompare):
+    """In general, sharing of non-flat buffer isn't supported
+
+    The current packing algorithms in StorageRewrite assume a flat
+    memory space, and do not support packing of N-d buffers.  For
+    buffers with axis separators, normal buffer sharing should be
+    disabled.
+
+    Like TestRewriteInPlaceUseOfNonFlatBuffer, except that B and C do
+    not have matching shapes.
+    """
+
+    def before(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]):
+        B_data = T.allocate(
+            [16, 16],
+            dtype="float32",
+            scope="global",
+        )
+        B = T.buffer_decl(
+            [16, 16],
+            dtype="float32",
+            axis_separators=[1],
+            data=B_data,
+        )
+        C_data = T.allocate(
+            [20, 20],
+            dtype="float32",
+            scope="global",
+        )
+        C = T.buffer_decl(
+            [20, 20],
+            dtype="float32",
+            axis_separators=[1],
+            data=C_data,
+        )
+
+        for i, j in T.grid(16, 16):
+            B[i, j] = A[i, j]
+
+        for i, j in T.grid(16, 16):
+            C[i, j] = 2.0 * B[i, j]
+
+        for i, j in T.grid(16, 16):
+            D[i, j] = C[i, j]
+
+    expected = before
 
 
 if __name__ == "__main__":

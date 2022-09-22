@@ -127,6 +127,7 @@ def test_inject_async_copy():
             f = generate_global_to_shared_vectorized_copy(dtype, vec_size)
 
         mod = tvm.IRModule.from_expr(f)
+        mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
         mod = tvm.tir.transform.FlattenBuffer()(mod)
         if vec_size > 1:
             mod = tvm.tir.transform.VectorizeLoop()(mod)
@@ -137,7 +138,7 @@ def test_inject_async_copy():
         if not tvm.testing.is_ampere_or_newer():
             continue
 
-        with tvm.transform.PassContext(config={"tir.use_ptx_async_copy": 1}):
+        with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
             mod = tvm.build(tvm.IRModule.from_expr(f), target="cuda")
 
         A_np = np.random.rand(32, 128).astype(dtype)
@@ -154,6 +155,7 @@ def test_inject_async_copy_shared_dyn():
     f = ptx_global_to_shared_dyn_copy_fp16x8
 
     mod = tvm.IRModule.from_expr(f)
+    mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
     mod = tvm.tir.transform.FlattenBuffer()(mod)
     mod = tvm.tir.transform.VectorizeLoop()(mod)
     mod = tvm.tir.transform.MergeDynamicSharedMemoryAllocations()(mod)
@@ -164,7 +166,7 @@ def test_inject_async_copy_shared_dyn():
     if not tvm.testing.is_ampere_or_newer():
         return
 
-    with tvm.transform.PassContext(config={"tir.use_ptx_async_copy": 1}):
+    with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
         mod = tvm.build(tvm.IRModule.from_expr(f), target="cuda")
 
     A_np = np.random.rand(32, 128).astype("float16")

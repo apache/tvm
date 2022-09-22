@@ -164,6 +164,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tir::transform::CompactBufferAllocation());
           pass_list.push_back(tir::transform::LowerMatchBuffer());
           pass_list.push_back(tir::transform::InjectSoftwarePipeline());
+          pass_list.push_back(tir::transform::LowerOpaqueBlock());
           pass_list.push_back(tir::transform::FlattenBuffer());
           pass_list.push_back(tir::transform::BF16Legalize());
           pass_list.push_back(tir::transform::NarrowDataType(32));
@@ -193,6 +194,12 @@ class VerifyGPUCodeNode : public PostprocNode {
       }
     }
     return true;
+  }
+
+  Postproc Clone() const {
+    ObjectPtr<VerifyGPUCodeNode> n = make_object<VerifyGPUCodeNode>(*this);
+    n->target_constraints_ = this->target_constraints_;
+    return Postproc(n);
   }
 
   static constexpr const char* _type_key = "meta_schedule.VerifyGPUCode";

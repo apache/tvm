@@ -41,7 +41,7 @@ class Device:
 
     Notes
     -----
-        The test configuration will be loaded once when the the class is created. If the configuration
+        The test configuration will be loaded once when the class is created. If the configuration
         changes between tests, any changes will not be picked up.
 
     Parameters

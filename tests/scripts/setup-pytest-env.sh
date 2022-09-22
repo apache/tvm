@@ -39,7 +39,7 @@ function cleanup() {
     set +x
     if [ "${#pytest_errors[@]}" -gt 0 ]; then
         echo "These pytest invocations failed, the results can be found in the Jenkins 'Tests' tab or by scrolling up through the raw logs here."
-        python3 tests/scripts/pytest_wrapper.py "${pytest_errors[@]}"
+        python3 ci/scripts/pytest_wrapper.py "${pytest_errors[@]}"
         exit 1
     fi
     set -x
@@ -47,6 +47,7 @@ function cleanup() {
 trap cleanup 0
 
 function run_pytest() {
+    set -e
     local ffi_type="$1"
     shift
     local test_suite_name="$1"
@@ -58,19 +59,37 @@ function run_pytest() {
         exit 2
     fi
 
+    # Allow unbound variable here.
+    set +u
+    if [[ -z "${TVM_SHARD_INDEX}" ]]; then
+      current_shard="no-shard"
+    else
+      current_shard="shard-${TVM_SHARD_INDEX}"
+    fi
+    set -u
+
     has_reruns=$(python3 -m pytest --help 2>&1 | grep 'reruns=' || true)
     if [ -n "$has_reruns" ]; then
         extra_args+=('--reruns=3')
     fi
 
-    suite_name="${test_suite_name}-${ffi_type}"
+    suite_name="${test_suite_name}-${current_shard}-${ffi_type}"
+
+    DEFAULT_PARALLELISM=1
+
+    if [[ ! "${extra_args[*]}" == *" -n"* ]] && [[ ! "${extra_args[*]}" == *" -dist"* ]]; then
+        extra_args+=("-n=$DEFAULT_PARALLELISM")
+    fi
+
     exit_code=0
+    set +e
     TVM_FFI=${ffi_type} python3 -m pytest \
            -o "junit_suite_name=${suite_name}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${suite_name}.xml" \
            "--junit-prefix=${ffi_type}" \
            "${extra_args[@]}" || exit_code=$?
-    if [ "$exit_code" -ne "0" ]; then
+    # Pytest will return error code -5 if no test is collected.
+    if [ "$exit_code" -ne "0" ] && [ "$exit_code" -ne "5" ]; then
         pytest_errors+=("${suite_name}: $@")
     fi
 }

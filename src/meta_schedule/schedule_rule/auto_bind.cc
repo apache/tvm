@@ -34,6 +34,9 @@ void BindBlockThreadIdx(const tir::Schedule& sch, const tir::BlockRV& block_rv,
   if (block_sref->parent == nullptr) {
     return;
   }
+  if (tir::HasBeenMultiLevelTiled(block_sref)) {
+    return;
+  }
   Array<StmtSRef> loops = tir::GetLoops(block_sref);
   int n = loops.size();
   int i_block_idx = -1;
@@ -42,7 +45,7 @@ void BindBlockThreadIdx(const tir::Schedule& sch, const tir::BlockRV& block_rv,
   int i_spatial_loop = -1;
   for (int i = 0; i < n; ++i) {
     const StmtSRef& loop_sref = loops[i];
-    const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+    const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
     runtime::ThreadScope thread_scope = GetThreadScope(loop);
     if (IsBlockIdx(thread_scope)) {
       if (i_block_idx == -1) {
@@ -173,6 +176,12 @@ class AutoBindNode : public ScheduleRuleNode {
 
   // Inherited from ScheduleRuleNode
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final;
+
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<AutoBindNode> n = make_object<AutoBindNode>(*this);
+    return ScheduleRule(n);
+  }
 
  public:
   /*! \brief The max number of threads per block from Target */

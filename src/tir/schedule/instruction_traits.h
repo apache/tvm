@@ -22,7 +22,9 @@
 #include <tvm/tir/schedule/instruction.h>
 #include <tvm/tir/schedule/schedule.h>
 
+#include <algorithm>
 #include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -428,7 +430,9 @@ TVM_ALWAYS_INLINE Array<ObjectRef> UnpackedInstTraits<TTraits>::_ConvertOutputs(
 /********** PythonAPICall **********/
 
 inline void PythonAPICall::AsPythonString(const ObjectRef& obj, std::ostream& os) {
-  if (const auto* str = obj.as<runtime::StringObj>()) {
+  if (!obj.defined()) {
+    os << "None";
+  } else if (const auto* str = obj.as<runtime::StringObj>()) {
     os << str->data;
   } else if (const auto* int_imm = obj.as<IntImmNode>()) {
     os << int_imm->value;
@@ -447,6 +451,28 @@ inline void PythonAPICall::AsPythonString(const ObjectRef& obj, std::ostream& os
       AsPythonString(e, os);
     }
     os << ']';
+  } else if (const auto* dict = obj.as<MapNode>()) {
+    os << '{';
+    bool is_first = true;
+    std::vector<std::pair<std::string, std::string>> dict_items;
+    for (auto it = dict->begin(); it != dict->end(); ++it) {
+      std::ostringstream ks;
+      AsPythonString(it->first, ks);
+      std::ostringstream vs;
+      AsPythonString(it->second, vs);
+      dict_items.emplace_back(ks.str(), vs.str());
+    }
+    std::sort(dict_items.begin(), dict_items.end(),
+              [](const auto& p1, const auto& p2) { return p1.first < p2.first; });
+    for (const auto& kv : dict_items) {
+      if (is_first) {
+        is_first = false;
+      } else {
+        os << ", ";
+      }
+      os << '\"' << kv.first << "\": " << kv.second;
+    }
+    os << '}';
   } else {
     LOG(FATAL) << "ValueError: Cannot translate type '" << obj->GetTypeKey()
                << "' to python. Its value is: " << obj;

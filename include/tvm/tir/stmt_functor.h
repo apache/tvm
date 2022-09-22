@@ -89,6 +89,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const WhileNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AllocateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AllocateConstNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const DeclBufferNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const StoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const BufferStoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const BufferRealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
@@ -116,6 +117,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(WhileNode);
     IR_STMT_FUNCTOR_DISPATCH(AllocateNode);
     IR_STMT_FUNCTOR_DISPATCH(AllocateConstNode);
+    IR_STMT_FUNCTOR_DISPATCH(DeclBufferNode);
     IR_STMT_FUNCTOR_DISPATCH(StoreNode);
     IR_STMT_FUNCTOR_DISPATCH(AssertStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(ProducerStoreNode);
@@ -159,6 +161,7 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
   void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const AllocateNode* op) override;
   void VisitStmt_(const AllocateConstNode* op) override;
+  void VisitStmt_(const DeclBufferNode* op) override;
   void VisitStmt_(const StoreNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const BufferRealizeNode* op) override;
@@ -260,6 +263,7 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
   Stmt VisitStmt_(const WhileNode* op) override;
   Stmt VisitStmt_(const AllocateNode* op) override;
   Stmt VisitStmt_(const AllocateConstNode* op) override;
+  Stmt VisitStmt_(const DeclBufferNode* op) override;
   Stmt VisitStmt_(const StoreNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
   Stmt VisitStmt_(const BufferRealizeNode* op) override;
@@ -423,6 +427,38 @@ TVM_DLL void PreOrderVisit(const ObjectRef& stmt_or_expr,
  * \return The renewed func.
  */
 TVM_DLL PrimFunc RenewDefs(const PrimFunc& func);
+
+/*!
+ * \brief Check if the statement contains the specified node type.
+ *
+ * This utility potentially walks the entire statement, and should
+ * therefore not be used if it could otherwise be merged with another
+ * pass.
+ *
+ * \param stmt The statement to be searched
+ * \return Whether stmt contains Node
+ */
+template <typename Node, typename = std::enable_if_t<std::is_base_of_v<StmtNode, Node>>>
+bool ContainsNode(const Stmt& stmt) {
+  struct Visitor : StmtVisitor {
+    // Early bail-out, if we already found the node.
+    void VisitStmt(const Stmt& stmt) final {
+      if (contains_node) {
+        return;
+      }
+      StmtVisitor::VisitStmt(stmt);
+    }
+
+    void VisitStmt_(const Node* block) override { contains_node = true; }
+
+    bool contains_node{false};
+  };
+
+  Visitor visitor;
+  visitor(stmt);
+  return visitor.contains_node;
+}
+
 }  // namespace tir
 }  // namespace tvm
 

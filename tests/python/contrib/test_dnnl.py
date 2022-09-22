@@ -252,6 +252,13 @@ def add_activation(activation, out, dic, param_lst):
     elif activation == "gelu":
         out = gelu_helper(out)
         return out, dic, param_lst
+    elif activation == "mish":
+        exp = relay.exp(out)
+        add = relay.add(exp, relay.const(1.0))
+        log = relay.log(add)
+        tanh = relay.tanh(log)
+        out = relay.multiply(out, tanh)
+        return out, dic, param_lst
     else:
         return out, dic, param_lst
 
@@ -441,13 +448,6 @@ def get_layer_norm(x_shape=(1, 49, 64), dtype="float32"):
     gamma = relay.const(np.ones(x_shape[2]).astype(dtype))
     out = relay.nn.layer_norm(input, gamma=gamma, beta=beta)
     return out, dic, param_lst
-
-
-def get_conv2d_bias_sum_relu(x_shape=(1, 32, 8, 8), k_shape=(16, 32, 3, 3), dtype="float32"):
-    conv2d_bias, dic, param_lst = get_conv2d_bias(x_shape, k_shape, dtype=dtype)
-    sum_data = relay.const(np.random.randint(x_shape).astype(dtype))
-    conv2d_bias_sum = relay.add(sum_data, conv2d_bias)
-    return relay.nn.relu(conv2d_bias_sum), dic, param_lst
 
 
 def get_conv3d(
@@ -765,7 +765,7 @@ def test_conv2d_weights_const(run_module, dtype="float32"):
 def test_conv2d_pattern(run_module, dtype="float32"):
     x_shape = (1, 32, 8, 8)
     k_shape = (16, 32, 3, 3)
-    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu"]
+    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu", "mish"]
     for a in activation_lst:
         conv2d, dic, param_lst = get_conv2d(x_shape, k_shape, activation=a, dtype=dtype)
         conv2d = tvm.IRModule.from_expr(conv2d)
@@ -788,6 +788,50 @@ def test_conv2d_pattern(run_module, dtype="float32"):
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
 
+def test_conv2d_bias_sum_relu(run_module, dtype="float32"):
+    x_shape = (1, 32, 8, 8)
+    k_shape = (16, 32, 3, 3)
+
+    def get_conv2d_bn_sum_relu(x_shape, k_shape, dtype="float32"):
+        out, dic, param_lst = get_conv2d_bias(x_shape=x_shape, k_shape=k_shape, dtype=dtype)
+        beta = relay.const(np.zeros(k_shape[0]).astype(dtype))
+        gamma = relay.const(np.ones(k_shape[0]).astype(dtype))
+        moving_mean = relay.const(np.zeros(k_shape[0]).astype(dtype))
+        moving_var = relay.const(np.ones(k_shape[0]).astype(dtype))
+        out, _, _ = relay.nn.batch_norm(
+            out,
+            gamma=gamma,
+            beta=beta,
+            moving_mean=moving_mean,
+            moving_var=moving_var,
+            axis=1,
+            center=True,
+            scale=True,
+            epsilon=1e-5,
+        )
+        sum_in = relay.var("sum_in", shape=x_shape, dtype=dtype)
+        kernel = relay.const(np.random.randint(0, 1, k_shape).astype(dtype))
+        conv_sum = relay.nn.conv2d(
+            sum_in,
+            kernel,
+            channels=k_shape[0],
+            kernel_size=k_shape[2:4],
+            groups=1,
+            padding=(0, 0),
+            strides=(1, 1),
+            dilation=(1, 1),
+        )
+        # sum over two conv2d outputs to meet inplace condition
+        out = relay.add(out, conv_sum)
+        dic["sum_in"] = x_shape
+        return relay.nn.relu(out), dic, param_lst
+
+    conv2d_bn_sum_relu, dic, param_lst = get_conv2d_bn_sum_relu(x_shape, k_shape, dtype=dtype)
+    conv2d_bn_sum_relu = tvm.IRModule.from_expr(conv2d_bn_sum_relu)
+    config = conv2d_bn_sum_relu, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+
 def test_conv2d_transpose(run_module, dtype="float32"):
     x_shape = (1, 32, 8, 8)
     for k_shape, groups in [((32, 16, 3, 3), 1), ((32, 1, 3, 3), 32), ((32, 4, 3, 3), 16)]:
@@ -807,7 +851,7 @@ def test_conv2d_transpose(run_module, dtype="float32"):
 
 
 def test_conv2d_transpose_pattern(run_module, dtype="float32"):
-    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu"]
+    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu", "mish"]
     for a in activation_lst:
         conv2d, dic, param_lst = get_conv2d_transpose(activation=a, dtype=dtype)
         conv2d = tvm.IRModule.from_expr(conv2d)
@@ -840,7 +884,7 @@ def test_conv3d(run_module, dtype="float32"):
 
 
 def test_conv3d_pattern(run_module, dtype="float32"):
-    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu"]
+    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu", "mish"]
     for a in activation_lst:
         conv3d, dic, param_lst = get_conv3d(activation=a, dtype=dtype)
         conv3d = tvm.IRModule.from_expr(conv3d)
@@ -873,7 +917,7 @@ def test_conv3d_transpose(run_module, dtype="float32"):
 
 
 def test_conv3d_transpose_pattern(run_module, dtype="float32"):
-    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu"]
+    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu", "mish"]
     for a in activation_lst:
         conv3d, dic, param_lst = get_conv3d_transpose(activation=a, dtype=dtype)
         conv3d = tvm.IRModule.from_expr(conv3d)
@@ -989,6 +1033,15 @@ def test_pool2d(run_module, dtype="float32"):
                         ),
                         run_module=run_module,
                     )
+
+
+def test_global_avg_pooling2d(run_module, dtype="float32"):
+    x_shape = (1, 3, 32, 32)
+    x = relay.var("x", shape=(x_shape), dtype=dtype)
+    out = relay.nn.global_avg_pool2d(x)
+    out = tvm.IRModule.from_expr(out)
+    config = out, {"x": x_shape}, []
+    run_and_verify_func(config, run_module=run_module)
 
 
 def test_pool3d(run_module, dtype="float32"):
@@ -1186,6 +1239,22 @@ def test_resnetv1_rewrite(run_module, dtype="float32"):
         out = relay.add(left_conv6, right_conv7)
         out = relay.nn.relu(out)
 
+        dic = {"x": data_shape}
+        param_lst = []
+        return out, dic, param_lst
+
+    net, dic, param_lst = get_graph()
+    net = tvm.IRModule.from_expr(net)
+    config = net, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+
+def test_fuse_pad_avg_pool(run_module, dtype="float32"):
+    def get_graph():
+        data_shape = (1, 768, 17, 17)
+        x = relay.var("x", shape=data_shape, dtype=dtype)
+        out = relay.nn.pad(x, pad_width=[[0, 0], [0, 0], [1, 1], [1, 1]])
+        out = relay.nn.avg_pool2d(out, pool_size=[3, 3])
         dic = {"x": data_shape}
         param_lst = []
         return out, dic, param_lst
