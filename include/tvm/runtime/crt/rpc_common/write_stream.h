@@ -31,7 +31,6 @@
 #include <tvm/runtime/crt/error_codes.h>
 #include <tvm/support/ssize.h>
 
-
 namespace tvm {
 namespace runtime {
 namespace micro_rpc {

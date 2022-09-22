@@ -168,7 +168,6 @@ class MicroTransportChannel : public RPCChannel {
   static constexpr const int kNumRandRetries = 10;
   static std::atomic<unsigned int> random_seed;
 
-
   inline uint8_t GenerateRandomNonce() {
     // NOTE: this is bad concurrent programming but in practice we don't really expect race
     // conditions here, and even if they occur we don't particularly care whether a competing
