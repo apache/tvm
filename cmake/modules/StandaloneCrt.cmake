@@ -61,6 +61,7 @@ else()
          "include/tvm/runtime c_*_api.h -> include/tvm/runtime"
          "include/tvm/runtime metadata_types.h -> include/tvm/runtime"
          "include/tvm/runtime/crt *.h -> include/tvm/runtime/crt"
+         "include/tvm/support ssize.h -> include/tvm/support"
          "src/runtime/crt Makefile -> ."
          "src/runtime/crt/include *.h -> include"
          "src/runtime/crt/aot_executor *.c -> src/runtime/crt/aot_executor"

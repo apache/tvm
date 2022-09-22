@@ -29,8 +29,8 @@
 #include <stddef.h>
 #include <sys/types.h>
 #include <tvm/runtime/crt/error_codes.h>
+#include <tvm/support/ssize.h>
 
-#include "../../src/support/ssize.h"
 
 namespace tvm {
 namespace runtime {
