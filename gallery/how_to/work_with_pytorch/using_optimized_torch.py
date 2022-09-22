@@ -20,7 +20,7 @@ Compile PyTorch Models
 **Author**: 
 `Yaoda Zhou <https://github.com/juda>`_
 
-This article is a tutorial to optimize PyTorch models by using `tvm.contrib.torch.optimize_torch`.
+This article is a tutorial to optimize PyTorch models by using decorator `optimize_torch`.
 To follow this tutorial, PyTorch, as well as TorchVision, should be installed.
 """
 
@@ -87,7 +87,7 @@ ret2 = model_loaded(example_input)
 
 # We will show 2 results:
 # (1) we can safely load and save model by showing the result of model
-# after safe and load operations is still the same as original one;
+# after save and load operations is still the same as original one;
 # (2) the model we optimize returns the same result as the original PyTorch model.
 
 ret3 = simple_model(example_input)
@@ -95,12 +95,12 @@ testing.assert_allclose(ret1.detach().numpy(), ret2.detach().numpy(), atol=1e-5,
 testing.assert_allclose(ret1.detach().numpy(), ret3.detach().numpy(), atol=1e-5, rtol=1e-5)
 
 ######################################################################
-# Optimize Resnet18
+# Optimize resnet18
 # ------------------------------
 # In the following, we will show that our approach is able to
-# accelerate common models, such as Resnet18.
+# accelerate common models, such as resnet18.
 
-# We will tune our model on the GPU.
+# We will tune our model for the GPU.
 target_cuda = "nvidia/geforce-rtx-3070"
 
 # For PyTorch users, the code could be written as usual, except for

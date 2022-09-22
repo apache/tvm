@@ -20,7 +20,7 @@ Wrap Your TVMScript as PyTorch Module
 **Author**: 
 `Yaoda Zhou <https://github.com/juda>`_
 
-This article is an introductory tutorial on wrapping the TVMScript code as the PyTorch module.
+This article is a tutorial on wrapping the TVMScript code as the PyTorch module.
 Using the decorator `as_torch`, users can wrap TVMScript code into a PyTorch nn.Module naturally.
 """
 
@@ -68,6 +68,7 @@ inputs = torch.randn(in_channel, width)
 filters = torch.randn(out_channel, kernel_size)
 ret_torch = torch_depthwise(inputs, filters)
 
+
 # The `torch_depthwise` function, in a plain Python code, could be written as:
 
 
@@ -83,9 +84,7 @@ def vanilla_depthwise(input, weight):
 # Then, we plan to optimize the `depthwise` function by leveraging the power of TVM.
 # TVM community proposes an embedded Domain Specific Language in Python called TVMScript,
 # which serves as the high-level frontend for TVM's Tensor IR.
-
 # The depthwise 1D convolution code above can be translated to TVMScript as follows.
-
 # We provide an `as_torch` decorator, which converts the TVMScript code to PyTorch's nn.Module automatically.
 
 
