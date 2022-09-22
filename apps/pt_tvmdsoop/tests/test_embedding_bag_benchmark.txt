@@ -1,0 +1,129 @@
+The elder implementation of embedding_bad written in python can only support
+2d input and no extra parameters can be set.
+As the baseline, for the `3 x 3` input matrix, the result table is:
+
+[--------------------  --------------------]
+                        |  relay  |  pytorch
+1 threads: ---------------------------------
+      2d input: test 0  |  284.1  |    21.1 
+      2d input: test 1  |  283.8  |    21.3 
+      2d input: test 2  |  280.3  |    21.2 
+      2d input: test 3  |  280.7  |    21.2 
+      2d input: test 4  |  282.5  |    21.4 
+
+Times are in microseconds (us).
+
+We run 5 tests for the python implementation and compare it to the pytorch implementation.
+
+We compare it to the c++ implementation, which is more flexible
+via supporting extra parameters.
+We have 5 kinds of tests and each set contains 5 runs.
+The first set is 2d input, which can be directly compared to the python implementation.
+The second set is to reshape the input to the 1d tensor.
+The third set is adding per_sample_weights.
+The fourth set is adding padding_idx.
+The fifth set is adding both per_sample_weights and padding_idx.
+
+                            3 x 3 input
+[--------------------------------  -------------------------------]
+                                               |  relay  |  pytorch
+1 threads: --------------------------------------------------------
+      2d input: test 0                         |  293.0  |    22.2 
+      2d input: test 1                         |  281.5  |    22.1 
+      2d input: test 2                         |  281.4  |    22.5 
+      2d input: test 3                         |  286.9  |    22.5 
+      2d input: test 4                         |  286.1  |    22.2 
+      1d input: test 0                         |  281.9  |    12.9 
+      1d input: test 1                         |  282.4  |    12.9 
+      1d input: test 2                         |  282.7  |    12.9 
+      1d input: test 3                         |  283.8  |    13.1 
+      1d input: test 4                         |  283.9  |    13.0 
+      per_sample_weights: test 0               |  275.4  |    22.3 
+      per_sample_weights: test 1               |  274.5  |    21.5 
+      per_sample_weights: test 2               |  271.1  |    21.4 
+      per_sample_weights: test 3               |  270.6  |    21.5 
+      per_sample_weights: test 4               |  270.3  |    21.5 
+      padding_idx: test 0                      |  270.6  |    21.4 
+      padding_idx: test 1                      |  272.6  |    21.4 
+      padding_idx: test 2                      |  271.5  |    21.3 
+      padding_idx: test 3                      |  271.1  |    21.2 
+      padding_idx: test 4                      |  271.7  |    21.1 
+      per_sample_weights, padding_idx: test 0  |  269.0  |    21.6 
+      per_sample_weights, padding_idx: test 1  |  269.9  |    21.8 
+      per_sample_weights, padding_idx: test 2  |  269.4  |    21.6 
+      per_sample_weights, padding_idx: test 3  |  269.1  |    21.5 
+      per_sample_weights, padding_idx: test 4  |  270.5  |    21.7 
+
+Times are in microseconds (us).
+
+From the table, we can see that the c++ impl is independent to the parameters
+and have a similar speed to the python impl,
+but unfortunately, its speed is 13x slower than pytorch impl.
+
+If we change the input size to `3 x 2` and `2 x 2`, the tables
+show there is no significant change in the running time, but the
+compilation time decreases largely:
+
+                            3 x 2 input
+[--------------------------------  -------------------------------]
+                                               |  relay  |  pytorch
+1 threads: --------------------------------------------------------
+      2d input: test 0                         |  284.2  |    21.9 
+      2d input: test 1                         |  283.1  |    21.3 
+      2d input: test 2                         |  283.8  |    20.8 
+      2d input: test 3                         |  283.7  |    21.0 
+      2d input: test 4                         |  283.3  |    21.0 
+      1d input: test 0                         |  283.8  |    13.1 
+      1d input: test 1                         |  283.4  |    13.3 
+      1d input: test 2                         |  283.2  |    13.1 
+      1d input: test 3                         |  285.0  |    13.4 
+      1d input: test 4                         |  283.9  |    13.3 
+      per_sample_weights: test 0               |  270.3  |    20.5 
+      per_sample_weights: test 1               |  272.6  |    20.6 
+      per_sample_weights: test 2               |  272.9  |    20.6 
+      per_sample_weights: test 3               |  273.5  |    20.7 
+      per_sample_weights: test 4               |  271.9  |    20.4 
+      padding_idx: test 0                      |  277.2  |    20.5 
+      padding_idx: test 1                      |  275.7  |    20.6 
+      padding_idx: test 2                      |  277.7  |    20.6 
+      padding_idx: test 3                      |  277.6  |    20.8 
+      padding_idx: test 4                      |  277.0  |    20.4 
+      per_sample_weights, padding_idx: test 0  |  271.4  |    20.6 
+      per_sample_weights, padding_idx: test 1  |  271.1  |    20.5 
+      per_sample_weights, padding_idx: test 2  |  271.4  |    20.6 
+      per_sample_weights, padding_idx: test 3  |  271.3  |    20.5 
+      per_sample_weights, padding_idx: test 4  |  271.2  |    20.5 
+
+Times are in microseconds (us).
+
+                            2 x 2 input
+[--------------------------------  -------------------------------]
+                                               |  relay  |  pytorch
+1 threads: --------------------------------------------------------
+      2d input: test 0                         |  283.1  |    21.9 
+      2d input: test 1                         |  283.8  |    22.5 
+      2d input: test 2                         |  282.4  |    21.6 
+      2d input: test 3                         |  282.0  |    21.8 
+      2d input: test 4                         |  290.7  |    22.6 
+      1d input: test 0                         |  283.6  |    13.0 
+      1d input: test 1                         |  282.1  |    13.1 
+      1d input: test 2                         |  283.3  |    12.7 
+      1d input: test 3                         |  282.3  |    13.1 
+      1d input: test 4                         |  283.6  |    13.0 
+      per_sample_weights: test 0               |  266.8  |    21.0 
+      per_sample_weights: test 1               |  273.0  |    20.7 
+      per_sample_weights: test 2               |  272.7  |    21.5 
+      per_sample_weights: test 3               |  273.3  |    21.1 
+      per_sample_weights: test 4               |  264.5  |    20.4 
+      padding_idx: test 0                      |  264.9  |    21.5 
+      padding_idx: test 1                      |  270.8  |    20.5 
+      padding_idx: test 2                      |  267.1  |    20.3 
+      padding_idx: test 3                      |  266.9  |    20.3 
+      padding_idx: test 4                      |  265.8  |    20.2 
+      per_sample_weights, padding_idx: test 0  |  275.4  |    21.8 
+      per_sample_weights, padding_idx: test 1  |  279.1  |    21.7 
+      per_sample_weights, padding_idx: test 2  |  282.0  |    21.8 
+      per_sample_weights, padding_idx: test 3  |  277.4  |    21.7 
+      per_sample_weights, padding_idx: test 4  |  274.1  |    21.7 
+
+Times are in microseconds (us).
