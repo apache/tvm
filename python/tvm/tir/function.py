@@ -228,7 +228,7 @@ class TensorIntrin(Object):
         return _ffi_api.TensorIntrinRegister(name, TensorIntrin(desc, impl))  # type: ignore
 
     @staticmethod
-    def get(name: str, allow_missing: bool = False):
+    def get(name: str, allow_missing: bool = False) -> Optional["TensorIntrin"]:
         """Look up a tensor intrinsic by its name.
 
         Parameters
@@ -242,7 +242,7 @@ class TensorIntrin(Object):
 
         Returns
         -------
-        result : TensorIntrin
+        result : Optional[TensorIntrin]
             The TensorIntrin with the specified name, or None if not found.
         """
         return _ffi_api.TensorIntrinGet(name, allow_missing)  # pylint: type: ignore
