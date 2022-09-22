@@ -2137,6 +2137,7 @@ def test_conv2d_nhwc_dnnl():
             np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
+@pytest.mark.skip("Requires cascadelake or ARM v8.2")
 def test_conv2d_int8_alter_dtype():
     def get_conv2d_nchw(
         d_shape,
@@ -2191,27 +2192,23 @@ def test_conv2d_int8_alter_dtype():
 
         dev = tvm.cpu(0)
 
-        try:
-            with tvm.transform.PassContext(
-                opt_level=3,
-            ):
-                lib = relay.build(mod, target=target, params=params)
+        with tvm.transform.PassContext(
+            opt_level=3,
+        ):
+            lib = relay.build(mod, target=target, params=params)
 
-            assert dot_product_instr in lib.lib.get_source("asm")
+        assert dot_product_instr in lib.lib.get_source("asm")
 
-            rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+        rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
-            rt_mod.set_input("data", data_np)
+        rt_mod.set_input("data", data_np)
 
-            rt_mod.run()
+        rt_mod.run()
 
-            out = rt_mod.get_output(0).numpy()
+        out = rt_mod.get_output(0).numpy()
 
-            np.testing.assert_equal(out, ref)
-        except Exception as _:
-            print("skipping target", target)
+        np.testing.assert_equal(out, ref)
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_conv2d_int8_alter_dtype()
+    tvm.testing.main()
