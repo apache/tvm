@@ -442,7 +442,7 @@ template <typename Node, typename = std::enable_if_t<std::is_base_of_v<StmtNode,
 bool ContainsNode(const Stmt& stmt) {
   struct Visitor : StmtVisitor {
     // Early bail-out, if we already found the node.
-    void VisitStmt(const Stmt& stmt) {
+    void VisitStmt(const Stmt& stmt) final {
       if (contains_node) {
         return;
       }
