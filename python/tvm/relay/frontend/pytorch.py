@@ -43,7 +43,7 @@ from .common import AttrCvt, get_relay_op, gru_cell, logger, rnn_cell
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
-from .common import lstm_cell, try_infer_value, unbind
+from .common import lstm_cell, try_infer_value, unbind, fold_constant
 from .pytorch_utils import is_version_greater_than, getattr_attr_name
 
 __all__ = ["from_pytorch"]
@@ -672,7 +672,9 @@ class PyTorchOpConverter:
                 tmp.append(_op.cast(_op.expand_dims(dim, axis=0), "int64"))
             size = _op.concatenate(tmp, axis=0)
 
-        out = _op.full(_expr.const(fill_value, dtype=dtype), size, dtype=dtype)
+        if not isinstance(fill_value, _expr.Constant):
+            fill_value = _expr.const(fill_value, dtype=dtype)
+        out = _op.full(fill_value, size, dtype=dtype)
         if need_reshape:
             out = _op.reshape(out, new_shape)
         return out
@@ -805,6 +807,8 @@ class PyTorchOpConverter:
     def fill_(self, inputs, input_types):
         data = inputs[0]
         fill_value = inputs[1]
+        if not isinstance(fill_value, (bool, int, float, complex)):
+            fill_value = fold_constant(fill_value)
         return self.full_impl(self.infer_shape(data), fill_value, input_types[0])
 
     def linspace(self, inputs, input_types):

@@ -3341,6 +3341,16 @@ def test_forward_fill_():
     verify_model_with_input(test_func, [torch.rand([1, 3, 10, 10]).float()])
 
 
+def test_forward_fill_with_div():
+    """test_forward_fill_with_div"""
+
+    def test_func(x):
+        y = torch.div(torch.tensor(6.0), torch.tensor(2.0))
+        return x.fill_(y)
+
+    verify_model_with_input(test_func, [torch.rand([1, 3, 10, 10]).float()])
+
+
 @tvm.testing.uses_gpu
 def test_forward_linspace():
     """test_forward_linspace"""
