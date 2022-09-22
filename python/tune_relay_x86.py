@@ -109,8 +109,9 @@ input_name = "data"
 
 # Set number of threads used for tuning based on the number of
 # physical CPU cores on your machine.
-num_threads = 1
-os.environ["TVM_NUM_THREADS"] = str(num_threads)
+# use default threads
+# num_threads = 18
+# os.environ["TVM_NUM_THREADS"] = str(num_threads)
 
 
 #################################################################

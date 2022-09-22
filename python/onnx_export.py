@@ -74,8 +74,8 @@ if __name__ == '__main__':
     elif args.device == 'arm':
         target = "llvm -mtriple=aarch64-linux-gnu -mattr=+neon"
     elif args.device == 'arm_cuda':
-        target = tvm.target.Target("cuda", host="llvm -mtriple=aarch64-linux-gnu")
-        set_cuda_target_arch('sm_62')
+        target = tvm.target.Target("cuda -arch=sm_62", host="llvm -mtriple=aarch64-linux-gnu")
+        # set_cuda_target_arch('sm_62')
         os.environ["TVM_NVCC_PATH"] = "/usr/local/cuda-10.1/bin/nvcc"
     elif args.device == "win32":
         #  -mattr=+sse2
@@ -101,7 +101,8 @@ if __name__ == '__main__':
 
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build_module.build(mod, target=target, params=params)
-        lib.export_library(path)
+        # lib.export_library(path, {"cc": "aarch64-linux-gnu-g++"})
+        lib.export_library(path, cc="aarch64-linux-gnu-g++")
 
     # lib = tvm.runtime.load_module(path)
     # dev = tvm.device((str(target)), 0)
