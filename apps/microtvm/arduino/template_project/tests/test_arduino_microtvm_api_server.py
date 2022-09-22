@@ -135,15 +135,14 @@ class TestGenerateProject:
         arduino_cli_cmd = self.DEFAULT_OPTIONS.get("arduino_cli_cmd")
         warning_as_error = self.DEFAULT_OPTIONS.get("warning_as_error")
 
-        handler._check_platform_version(
-            arduino_cli_cmd=arduino_cli_cmd, warning_as_error=warning_as_error
-        )
+        cli_command = handler._get_arduino_cli_cmd(arduino_cli_cmd)
+        handler._check_platform_version(cli_command=cli_command, warning_as_error=warning_as_error)
         assert handler._version == version.parse("0.21.1")
 
         handler = microtvm_api_server.Handler()
         mock_run.return_value.stdout = bytes(self.BAD_CLI_VERSION, "utf-8")
         with pytest.raises(server.ServerError) as error:
-            handler._check_platform_version(arduino_cli_cmd=arduino_cli_cmd, warning_as_error=True)
+            handler._check_platform_version(cli_command=cli_command, warning_as_error=True)
         mock_run.reset_mock()
 
     @mock.patch("subprocess.run")
