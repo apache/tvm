@@ -390,7 +390,7 @@ class TransitiveComparisonAnalyzer {
   TVM_DLL ~TransitiveComparisonAnalyzer();
   class Impl;
   /*! \brief Internal impl */
-  std::unique_ptr<Impl> impl_{nullptr};
+  std::unique_ptr<Impl> impl_;
 };
 
 /*!
