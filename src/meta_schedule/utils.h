@@ -70,6 +70,7 @@ namespace meta_schedule {
 class PyLogMessage {
  public:
   enum class Level : int32_t {
+    CLEAR = -10,
     DEBUG = 10,
     INFO = 20,
     WARNING = 30,
