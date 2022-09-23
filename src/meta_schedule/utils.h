@@ -64,6 +64,17 @@ namespace tvm {
 namespace meta_schedule {
 
 /*!
+ * \brief Whether the tuning is running on ipython kernel.
+ * \return A boolean indicating whether ipython kernel is used.
+ */
+inline bool using_ipython() {
+  bool flag = false;
+  const auto* f_using_ipython = runtime::Registry::Get("meta_schedule.using_ipython");
+  if (f_using_ipython->defined()) flag = (*f_using_ipython)();
+  return flag;
+}
+
+/*!
  * \brief Class to accumulate an log message on the python side. Do not use directly, instead use
  * TVM_PY_LOG(DEBUG), TVM_PY_LOG(INFO), TVM_PY_LOG(WARNING), TVM_PY_ERROR(ERROR).
  */
@@ -83,9 +94,17 @@ class PyLogMessage {
 
   TVM_NO_INLINE ~PyLogMessage() {
     if (this->logging_func_.defined()) {
-      logging_func_(static_cast<int>(logging_level_), stream_.str());
+      if (logging_level_ == Level::CLEAR && !using_ipython()) {
+        // clean up the whole screen
+        runtime::detail::LogMessage(file_, lineno_).stream() << "\033c\033[3J\033[2J\033[0m\033[H";
+      } else {
+        logging_func_(static_cast<int>(logging_level_), stream_.str());
+      }
     } else {
-      if (logging_level_ == Level::INFO) {
+      if (logging_level_ == Level::CLEAR) {
+        // clean up the whole screen
+        runtime::detail::LogMessage(file_, lineno_).stream() << "\033c\033[3J\033[2J\033[0m\033[H";
+      } else if (logging_level_ == Level::INFO) {
         runtime::detail::LogMessage(file_, lineno_).stream() << stream_.str();
       } else if (logging_level_ == Level::WARNING) {
         runtime::detail::LogMessage(file_, lineno_).stream() << "Warning: " << stream_.str();

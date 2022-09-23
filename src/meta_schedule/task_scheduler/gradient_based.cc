@@ -61,11 +61,8 @@ class GradientBasedNode final : public TaskSchedulerNode {
     int total_trials = 0;
     double total_latency = 0.0;
     support::TablePrinter p;
-    bool using_ipython = false;
-    const auto* f_using_ipython = runtime::Registry::Get("meta_schedule.using_ipython");
-    if (f_using_ipython != nullptr) using_ipython = (*f_using_ipython)();
 
-    if (using_ipython) {
+    if (using_ipython()) {
       p.Row() << "ID"
               << "Name"
               << "FLOP"
@@ -94,7 +91,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
       auto row = p.Row();
       int trials = record.trials;
       String task_name = record.task->task_name.value();
-      if (using_ipython && task_name.length() > 23) {
+      if (using_ipython() && task_name.length() > 23) {
         std::string temp = task_name.c_str();
         temp = temp.substr(0, 20) + "...";
         task_name = String(temp);
