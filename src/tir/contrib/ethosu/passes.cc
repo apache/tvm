@@ -29,6 +29,7 @@
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
+#include <iterator>
 #include <unordered_map>
 #include <unordered_set>
 
