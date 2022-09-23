@@ -38,13 +38,17 @@ def _get_model(
     output_sc,
     dtype,
     reverse_inputs=False,
+    constant_data=None,
 ):
     iinfo = np.iinfo(dtype)
     data_min = iinfo.min
     data_max = iinfo.max
 
     x = relay.var("x", shape=shape, dtype=dtype)
-    y_data = np.random.randint(data_min, data_max + 1, size=constant_shape, dtype=dtype)
+    if constant_data:
+        y_data = np.array(constant_data, dtype=dtype).reshape(constant_shape)
+    else:
+        y_data = np.random.randint(data_min, data_max + 1, size=constant_shape, dtype=dtype)
     y = relay.const(y_data, dtype=dtype)
 
     out = relay.qnn.op.mul(
@@ -64,11 +68,12 @@ def _get_model(
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 @pytest.mark.parametrize(
-    "shape,constant_shape", [((1, 4, 4, 8), (1, 1, 1, 8)), ((1, 16, 12, 4), (4,))]
+    "shape,constant_shape",
+    [((1, 4, 4, 8), (1, 1, 1, 8)), ((1, 16, 12, 4), (4,))],
 )
 @pytest.mark.parametrize("reverse_inputs", [False, True])
-def test_multiply(dtype, shape, constant_shape, reverse_inputs):
-    """Compare Multiply output with TVM."""
+def test_multiply_to_depthwise(dtype, shape, constant_shape, reverse_inputs):
+    """Compare Multiply -> Depthwise conversion output with TVM."""
 
     np.random.seed(0)
 
@@ -94,6 +99,53 @@ def test_multiply(dtype, shape, constant_shape, reverse_inputs):
         output_sc,
         dtype,
         reverse_inputs,
+    )
+    inputs = {"x": tvm.nd.array(np.random.randint(data_min, data_max + 1, size=shape, dtype=dtype))}
+    outputs = []
+    for npu in [False, True]:
+        mod = tei.make_module(model, params)
+        outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
+
+    tei.verify(outputs, dtype, 1)
+
+
+@requires_ethosn
+@pytest.mark.parametrize(
+    "shape,constant_shape", [((1, 4, 5, 8), (1, 1, 1, 1)), ((1, 3, 7, 10), None)]
+)
+@pytest.mark.parametrize("reverse_inputs", [False, True])
+def test_multiply_to_reinterpret_quantize(shape, constant_shape, reverse_inputs):
+    """Compare Multiply -> Reinterpret Quantize conversion output with TVM."""
+    np.random.seed(0)
+
+    dtype = "uint8"
+    iinfo = np.iinfo(dtype)
+    data_min = iinfo.min
+    data_max = iinfo.max
+
+    # Multiply can only be offloaded as a reinterpret quantize operation if
+    # it is an identity option. We must choose the quantization and constant
+    # data carefully to make sure that this is the case.
+    input_zp = 0
+    input_sc = 0.007814894430339336
+    input2_zp = 0
+    input2_sc = 0.5
+    output_zp = 0
+    output_sc = 0.9963990449905396
+    constant_data = 255
+
+    model, params = _get_model(
+        shape,
+        constant_shape,
+        input_zp,
+        input_sc,
+        input2_zp,
+        input2_sc,
+        output_zp,
+        output_sc,
+        dtype,
+        reverse_inputs,
+        constant_data,
     )
     inputs = {"x": tvm.nd.array(np.random.randint(data_min, data_max + 1, size=shape, dtype=dtype))}
     outputs = []
@@ -151,13 +203,18 @@ def test_multiply_multiple_inputs_unsupported():
 
 
 @requires_ethosn
-def test_multiply_unsupported_datatype():
-    """Check multiply operator with unsupported datatype is not offloaded."""
+@pytest.mark.parametrize(
+    "dtype,shape,constant_shape",
+    [
+        ("int16", (1, 4, 5, 6), (1, 1, 1, 6)),
+        ("int8", (1, 1, 3), (1, 1, 1, 3)),
+        ("int8", (1, 2, 4, 8), (1, 2, 4, 8)),
+    ],
+)
+def test_multiply_unsupported(dtype, shape, constant_shape):
+    """Check multiply operator with unsupported attributes is not offloaded."""
 
     np.random.seed(0)
-
-    shape = (1, 4, 5, 6)
-    dtype = "int16"
 
     iinfo = np.iinfo(dtype)
     data_min = iinfo.min
@@ -167,20 +224,21 @@ def test_multiply_unsupported_datatype():
     input2_zp = np.random.randint(data_min, data_max)
     input2_sc = np.random.random() * 2
     output_zp, output_sc = tei.get_conv2d_qnn_params(
-        dtype, input_zp, input_sc, input2_zp, input2_sc, 1, 1, shape[3]
+        dtype, input_zp, input_sc, input2_zp, input2_sc, 1, 1, shape[-1]
     )
 
-    x = relay.var("x", shape=shape, dtype=dtype)
-    y = relay.var("y", shape=shape, dtype=dtype)
-    model = relay.qnn.op.mul(
-        x,
-        y,
-        relay.const(input_sc, "float32"),
-        relay.const(input_zp, "int32"),
-        relay.const(input2_sc, "float32"),
-        relay.const(input2_zp, "int32"),
-        relay.const(output_sc, "float32"),
-        relay.const(output_zp, "int32"),
+    model, params = _get_model(
+        shape,
+        constant_shape,
+        input_zp,
+        input_sc,
+        input2_zp,
+        input2_sc,
+        output_zp,
+        output_sc,
+        dtype,
+        reverse_inputs=False,
+        constant_data=False,
     )
 
     expected_host_ops = 1
@@ -189,7 +247,7 @@ def test_multiply_unsupported_datatype():
         mod = tei.make_module(model, {})
         tei.build(
             mod,
-            {},
+            params,
             npu=npu,
             expected_host_ops=expected_host_ops,
             npu_partitions=npu_partitions,

@@ -215,7 +215,7 @@ def pattern_table():
         input_is_right = gen_mul_inputs(is_constant(), wildcard())
         return input_is_left | input_is_right
 
-    def qnn_add_pattern():
+    def qnn_add_pattern(has_constant_input=False):
         add_op = is_op("qnn.add")
         gen_add_inputs = lambda x, y: add_op(
             x,
@@ -227,11 +227,13 @@ def pattern_table():
             is_constant(),
             is_constant(),
         )
-        two_inputs = gen_add_inputs(wildcard(), wildcard())
-        input_is_left = gen_add_inputs(wildcard(), is_constant())
-        input_is_right = gen_add_inputs(is_constant(), wildcard())
 
-        return input_is_left | input_is_right | two_inputs
+        if has_constant_input:
+            input_is_left = gen_add_inputs(wildcard(), is_constant())
+            input_is_right = gen_add_inputs(is_constant(), wildcard())
+            return input_is_left | input_is_right
+        else:
+            return gen_add_inputs(wildcard(), wildcard())
 
     def qnn_conv2d_transpose_pattern():
         pattern = is_op("qnn.conv2d_transpose")(
@@ -299,16 +301,24 @@ def pattern_table():
 
         return _ethosn.leaky_relu(extract)
 
-    def check_mul(extract):
-        """Check if Mul is supported."""
+    def check_mul_to_reinterpret_quantize(extract):
+        """Check if Mul is supported by converting to reinterpret quantize"""
         if not ethosn_available():
             return False
-        # Do not support scalar constants for now
-        check_scalar = lambda i: isinstance(i, tvm.relay.Constant) and len(i.data.shape) == 0
-        if check_scalar(extract.args[0]) or check_scalar(extract.args[1]):
+
+        converted_extract = _ethosn.ConvertQnnMultiplyToReinterpretQuantize(extract)
+        if converted_extract:
+            return _ethosn.reinterpret_quantize(converted_extract)
+        return False
+
+    def check_mul_to_depthwise(extract):
+        """Check if Mul is supported by converting to a depthwise operation."""
+        if not ethosn_available():
             return False
-        extract = _ethosn.ConvertQnnMultiply(extract)
-        return _ethosn.conv2d(extract)
+        converted_extract = _ethosn.ConvertQnnMultiplyToDepthwise(extract)
+        if converted_extract:
+            return _ethosn.conv2d(converted_extract)
+        return False
 
     def check_requantize(extract):
         """Check if requantize is supported."""
@@ -328,19 +338,40 @@ def pattern_table():
         """Check if an addition is supported by Ethos-N."""
         if not ethosn_available():
             return False
-        # Do not support scalar constants for now
-        check_scalar = lambda i: isinstance(i, tvm.relay.Constant) and len(i.data.shape) == 0
-        if check_scalar(extract.args[0]) or check_scalar(extract.args[1]):
-            return False
 
-        inputs = extract.args[0:2]
-        if any([isinstance(i, tvm.relay.Constant) for i in inputs]):
-            extract = _ethosn.ConvertQnnAdd(extract)
-            return _ethosn.conv2d(extract)
         return _ethosn.addition(extract)
 
+    def check_add_to_reinterpret_quantize(extract):
+        """Check if addition can be converted to a reinterpret quantize operation."""
+        if not ethosn_available():
+            return False
+        converted_extract = _ethosn.ConvertQnnAddToReinterpretQuantize(extract)
+        if converted_extract:
+            return _ethosn.reinterpret_quantize(converted_extract)
+        return False
+
+    def check_add_to_depthwise(extract):
+        """Check if addition can be converted to a depthwise operation."""
+        if not ethosn_available():
+            return False
+        converted_extract = _ethosn.ConvertQnnAddToDepthwise(extract)
+        if converted_extract:
+            return _ethosn.conv2d(converted_extract)
+        return False
+
     return [
-        ("ethos-n.qnn_mul", qnn_mul_pattern(), check_mul),
+        (
+            "ethos-n.qnn_mul_to_reinterpret_quantize",
+            qnn_mul_pattern(),
+            check_mul_to_reinterpret_quantize,
+        ),
+        ("ethos-n.qnn_mul_to_depthwise", qnn_mul_pattern(), check_mul_to_depthwise),
+        (
+            "ethos-n.qnn_add_to_reinterpret_quantize",
+            qnn_add_pattern(True),
+            check_add_to_reinterpret_quantize,
+        ),
+        ("ethos-n.qnn_add_to_depthwise", qnn_add_pattern(True), check_add_to_depthwise),
         ("ethos-n.qnn_add", qnn_add_pattern(), check_add),
         ("ethos-n.qnn_conv2d", qnn_conv_pattern(), check_conv2d),
         ("ethos-n.qnn_conv2d_transpose", qnn_conv2d_transpose_pattern(), check_conv2d_transpose),
@@ -353,15 +384,6 @@ def pattern_table():
         ("ethos-n.qnn_resize", qnn_resize_pattern(), check_resize),
         ("ethos-n.qnn_requantize", qnn_requantize_pattern(), check_requantize),
     ]
-
-
-def _is_ethosn_composite(node):
-    if isinstance(node, tvm.relay.expr.Call) and isinstance(node.op, tvm.relay.Function):
-        if "Composite" in node.op.attrs:
-            comp_name = node.op.attrs["Composite"]
-            return comp_name.split(".")[0] == "ethos-n"
-
-    return False
 
 
 @tvm.ir.register_op_attr("nn.max_pool2d", "target.ethos-n")
