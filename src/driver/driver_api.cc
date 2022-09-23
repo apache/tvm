@@ -561,7 +561,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   if (unpacked_api) {
     mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
   } else {
-    mixed_pass_list.push_back(tir::transform::MakePackedAPI(-1));
+    mixed_pass_list.push_back(tir::transform::MakePackedAPI());
   }
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());
 

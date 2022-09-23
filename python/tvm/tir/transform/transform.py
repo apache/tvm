@@ -387,7 +387,7 @@ def LowerCustomDatatypes():
     return _ffi_api.LowerCustomDatatypes()  # type: ignore
 
 
-def MakePackedAPI(num_unpacked_params: int = -1):
+def MakePackedAPI():
     """Transform the PrimFuncs in the module to a packed func API.
 
     Parameters
@@ -402,7 +402,9 @@ def MakePackedAPI(num_unpacked_params: int = -1):
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.MakePackedAPI(num_unpacked_params)  # type: ignore
+    num_unpacked_params: int = -1
+    assert num_unpacked_params == -1
+    return _ffi_api.MakePackedAPI()  # type: ignore
 
 
 def MakeUnpackedAPI():
