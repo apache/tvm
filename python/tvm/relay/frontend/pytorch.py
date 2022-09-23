@@ -43,7 +43,7 @@ from .common import AttrCvt, get_relay_op, gru_cell, logger, rnn_cell
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
-from .common import lstm_cell, try_infer_value, unbind
+from .common import lstm_cell, try_infer_value, unbind, fold_constant
 from .pytorch_utils import is_version_greater_than, getattr_attr_name
 
 __all__ = ["from_pytorch"]
@@ -672,7 +672,9 @@ class PyTorchOpConverter:
                 tmp.append(_op.cast(_op.expand_dims(dim, axis=0), "int64"))
             size = _op.concatenate(tmp, axis=0)
 
-        out = _op.full(_expr.const(fill_value, dtype=dtype), size, dtype=dtype)
+        if not isinstance(fill_value, _expr.Constant):
+            fill_value = _expr.const(fill_value, dtype=dtype)
+        out = _op.full(fill_value, size, dtype=dtype)
         if need_reshape:
             out = _op.reshape(out, new_shape)
         return out
@@ -805,6 +807,8 @@ class PyTorchOpConverter:
     def fill_(self, inputs, input_types):
         data = inputs[0]
         fill_value = inputs[1]
+        if not isinstance(fill_value, (bool, int, float, complex)):
+            fill_value = fold_constant(fill_value)
         return self.full_impl(self.infer_shape(data), fill_value, input_types[0])
 
     def linspace(self, inputs, input_types):
@@ -839,6 +843,10 @@ class PyTorchOpConverter:
             input_zero_point = _expr.const(inputs[2], dtype="int32")
             return qnn_torch.quantized_relu(data, input_zero_point)
         return _op.nn.relu(data)
+
+    def relu6(self, inputs, input_types):
+        data = inputs[0]
+        return _op.tensor.clip(data, 0.0, 6.0)
 
     def prelu(self, inputs, input_types):
         # Reference: https://pytorch.org/docs/stable/generated/torch.nn.PReLU.html#torch.nn.PReLU
@@ -3477,6 +3485,7 @@ class PyTorchOpConverter:
             "aten::where": self.where,
             "aten::topk": self.topk,
             "aten::relu": self.relu,
+            "aten::relu6": self.relu6,
             "aten::prelu": self.prelu,
             "aten::leaky_relu": self.leaky_relu,
             "aten::elu": self.elu,

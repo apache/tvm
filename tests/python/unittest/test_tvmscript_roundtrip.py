@@ -3142,6 +3142,25 @@ def func_root_attr():
     return func_root_attr
 
 
+def func_trivial_root_block():
+    @T.prim_func
+    def func(A: T.Buffer[1, "int32"]):
+        with T.block("root"):
+            A[0] = 0
+
+    return func
+
+
+def func_nested_root_block():
+    @T.prim_func
+    def func(A: T.Buffer[1, "int32"]):
+        with T.block("root"):
+            with T.block("block"):
+                A[0] = 0
+
+    return func
+
+
 def func_T_ptr_let_statement():
     @T.prim_func
     def func_T_ptr_let_statement(
@@ -3418,6 +3437,8 @@ ir_generator = tvm.testing.parameter(
     func_with_target_spec_by_config,
     func_with_target_spec_by_str,
     func_root_attr,
+    func_trivial_root_block,
+    func_nested_root_block,
     func_T_ptr_let_statement,
     func_T_ptr_allocate,
     llvm_intrin_call,

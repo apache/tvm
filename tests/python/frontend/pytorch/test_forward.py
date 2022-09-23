@@ -699,6 +699,15 @@ def test_forward_relu():
 
 
 @tvm.testing.uses_gpu
+def test_forward_relu6():
+    """test_forward_relu6"""
+    torch.set_grad_enabled(False)
+    input_shape = [10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.ReLU6().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_prelu():
     """test_forward_prelu"""
     torch.set_grad_enabled(False)
@@ -3328,6 +3337,16 @@ def test_forward_new_full():
 def test_forward_fill_():
     def test_func(x):
         return x.fill_(3)
+
+    verify_model_with_input(test_func, [torch.rand([1, 3, 10, 10]).float()])
+
+
+def test_forward_fill_with_div():
+    """test_forward_fill_with_div"""
+
+    def test_func(x):
+        y = torch.div(torch.tensor(6.0), torch.tensor(2.0))
+        return x.fill_(y)
 
     verify_model_with_input(test_func, [torch.rand([1, 3, 10, 10]).float()])
 

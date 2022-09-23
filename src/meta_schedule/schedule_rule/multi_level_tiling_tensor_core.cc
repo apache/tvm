@@ -184,7 +184,7 @@ Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
     TensorCoreIntrinGroup intrin_group = intrin_groups[i];
     Optional<tir::AutoTensorizeMappingInfo> mapping_info = tir::GetAutoTensorizeMappingInfo(
         sch->state(), sch->GetSRef(block_rv),
-        tir::TensorIntrin::Get(intrin_groups[i].compute_intrin)->desc);
+        tir::TensorIntrin::Get(intrin_groups[i].compute_intrin).value()->desc);
     if (mapping_info.defined()) {
       intrin_group_to_mapping_info.emplace(i, mapping_info.value());
     }

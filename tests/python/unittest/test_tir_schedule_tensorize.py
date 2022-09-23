@@ -646,5 +646,12 @@ def test_tensorize_dpa4():
         verify_trace_roundtrip(sch=sch, mod=func)
 
 
+def test_tensor_intrin_look_up():
+    intrin_name = 'non_existent_intrin'
+    assert tir.TensorIntrin.get(intrin_name, allow_missing=True) is None
+    with pytest.raises(ValueError):
+        tir.TensorIntrin.get(intrin_name)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
