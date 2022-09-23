@@ -2991,7 +2991,7 @@ InferCorrectLayoutOutput SplitInferCorrectLayout(const Attrs& attrs,
       if (!param->indices_or_sections.as<IntImmNode>()) {
         auto ios = Downcast<Array<Integer>>(param->indices_or_sections);
         Array<Integer> new_ios;
-        for (const auto& v : ios ) {
+        for (const auto& v : ios) {
           const IntImmNode* vint = v.as<IntImmNode>();
           new_ios.push_back(vint->value / factor);
           if (vint->value % factor) {

@@ -1785,8 +1785,13 @@ def test_conv_split_convert_layout():
             weight = relay.layout_transform(weight, "OIHW", "OIHW4o")
             x = relay.layout_transform(x, "NCHW", "NCHW4c")
             y = relay.op.nn.contrib_conv2d_nchwc(
-                x, weight, channels=512, kernel_size=(3, 3), padding=(0, 0),
-                data_layout="NCHW4c", kernel_layout="OIHW4o"
+                x,
+                weight,
+                channels=512,
+                kernel_size=(3, 3),
+                padding=(0, 0),
+                data_layout="NCHW4c",
+                kernel_layout="OIHW4o",
             )
             y = relay.nn.relu(y)
             y = relay.op.split(y, indices_or_sections=[64], axis=1).astuple()
