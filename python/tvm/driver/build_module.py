@@ -263,6 +263,8 @@ def build(
     # TODO(mbs): Both CompilationConfig and TIRToRuntime implement the same host target
     #  defaulting logic, but there's currently no way to get back the decided host.
     if target_host is not None:
+        # did nothing
+        warn = None
         warnings.warn(
             "target_host parameter is going to be deprecated. "
             "Please pass in tvm.target.Target(target, host=target_host) instead."

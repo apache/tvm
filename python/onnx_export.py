@@ -13,6 +13,7 @@ import pickle
 import cv2
 
 from tvm.relay.function import Function
+from tvm.ir import IRModule
 from tvm.relay.expr import Call, Constant, Tuple, GlobalVar, Var, TupleGetItem
 from tvm.relay.op.contrib.tensorrt import partition_for_tensorrt
 import tvm.contrib.graph_executor as runtime
@@ -97,12 +98,23 @@ if __name__ == '__main__':
         shape_dict = {input_name: img.shape}
 
         mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
+        # nmod = IRModule(mod)
+        # nmod.astext(show_meta_data=False)
+        ir_text = mod.astext(show_meta_data=True)
+        print(ir_text)
+
+        with open(os.path.join("./", args.model_name+".rir"), "w") as irf:
+            irf.write(ir_text)
+        mod = tvm.parser.fromtext(ir_text)
         print(mod)
 
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build_module.build(mod, target=target, params=params)
         # lib.export_library(path, {"cc": "aarch64-linux-gnu-g++"})
-        lib.export_library(path, cc="aarch64-linux-gnu-g++")
+        if args.device == "arm_cuda":
+            lib.export_library(path, cc="aarch64-linux-gnu-g++")
+        else:
+            lib.export_library(path)
 
     # lib = tvm.runtime.load_module(path)
     # dev = tvm.device((str(target)), 0)
