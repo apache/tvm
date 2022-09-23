@@ -372,7 +372,7 @@ def make_logging_func(logger: logging.Logger) -> Optional[Callable]:
 
     def logging_func(level: int, msg: str):
         def clear_notebook_output():
-            from IPython.display import clear_output  # pylint: disable=import-outside-toplevel
+            from IPython.display import clear_output  # type: ignore # pylint: disable=import-outside-toplevel
 
             clear_output(wait=True)
 
