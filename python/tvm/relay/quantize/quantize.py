@@ -19,12 +19,74 @@
 import tvm.ir
 import tvm
 from tvm.runtime import Object
+from tvm.contrib import graph_executor
 
 from . import _quantize
-from ._calibrate import calibrate
+from ._calibrate import calibrate, read_calibrate
 from ._partition_conversions import partition_conversions
 from .. import expr as _expr
 from .. import transform as _transform
+import numpy as np
+from tvm import relay
+import os
+import tqdm
+
+def get_consine_similar(m1, m2):
+    m1 = m1.flatten()
+    m2 = m2.flatten()
+    num = float(np.dot(m1, m2))
+    denom = np.linalg.norm(m1) * np.linalg.norm(m2)
+    return 0.5 + 0.5 * (num / denom) if denom != 0 else 0
+
+def calculate_consine_similar(original_mod, quantized_mod, target, params, dataset=None, ifdev=True):
+    """
+    Calculate result's cosine_similarity and generate cosine_similarity.txt in dir.
+    Returns: mean cosine similarity, similarity per batch
+    """
+    print("Calculate consine similarity...")
+    assert dataset
+
+    dev = tvm.device(str(target), 0)
+
+    with tvm.transform.PassContext(opt_level=3):
+        original_lib = relay.build(original_mod, target=target, params=params)
+    
+    with tvm.transform.PassContext(opt_level=3):
+        quantized_lib = relay.build(quantized_mod, target=target, params=params)
+
+    original_module = graph_executor.GraphModule(original_lib["default"](dev))
+    quantized_module = graph_executor.GraphModule(quantized_lib["default"](dev))
+    
+    batch_count = 0
+    cos_similar_result = 0
+    batch_cos_list = []
+    for batch in tqdm.tqdm(dataset):
+        original_module.set_input(**batch)
+        original_module.run()
+        quantized_module.set_input(**batch)
+        quantized_module.run()
+        num_original_outputs = original_module.get_num_outputs()
+        num_quantized_outputs = quantized_module.get_num_outputs()
+        cos_tmp = 0
+        assert num_original_outputs == num_quantized_outputs
+        for j in range(num_original_outputs):
+            original_module_output = original_module.get_output(j).numpy()
+            quantized_module_output = quantized_module.get_output(j).numpy()
+            assert original_module_output.shape == quantized_module_output.shape
+            consine_res_tmp = get_consine_similar(original_module_output, quantized_module_output)
+            cos_tmp += consine_res_tmp
+        cos_similar_result += (cos_tmp / num_original_outputs)
+        batch_cos_list.append(cos_tmp / num_original_outputs)
+        batch_count = batch_count + 1
+    
+    assert os.path.exists(current_qconfig().get_rootdir_name())
+    saved_file_name = "cosine_similarity_dev" if ifdev else "cosine_similarity_calibration"
+    with open(current_qconfig().get_rootdir_name() + "/" + saved_file_name, "w") as f:
+        f.write("Mean similarity: " + str(cos_similar_result/batch_count) + "\n")
+        for i in range(batch_count):
+            f.write("Batch{}".format(i) + ": {}".format(batch_cos_list[i]) + "\n")
+
+    return cos_similar_result / batch_count, batch_cos_list
 
 
 class QAnnotateKind(object):
@@ -35,6 +97,7 @@ class QAnnotateKind(object):
     INPUT = 1
     WEIGHT = 2
     ACTIVATION = 3
+    BIAS = 4
 
 
 def kind2str(kind):
@@ -44,10 +107,21 @@ def kind2str(kind):
         QAnnotateKind.WEIGHT: "weight",
         QAnnotateKind.ACTIVATION: "activation",
         QAnnotateKind.IDENTITY: "identity",
+        QAnnotateKind.BIAS: "bias",
     }
     assert kind in str_map
     return str_map[kind]
 
+def kind2aw(kind):
+    """Convert a `QAnnotateKind` to `activation` or `weight`"""
+    str_map = {
+        QAnnotateKind.INPUT: "activation",
+        QAnnotateKind.WEIGHT: "weight",
+        QAnnotateKind.BIAS: "bias",
+        QAnnotateKind.ACTIVATION: "activation",
+    }
+    assert kind in str_map
+    return str_map[kind]
 
 def _forward_op(ref_call, args):
     """forward the operator of ref_call with provided arguments"""
@@ -70,23 +144,35 @@ class QConfig(Object):
     """
 
     _node_defaults = {
+        "network_name": "Default",
+        "have_prequantized": False,
         "nbit_input": 8,
         "nbit_weight": 8,
         "nbit_activation": 32,
+        "nbit_bias": 32,
         "dtype_input": "int8",
         "dtype_weight": "int8",
         "dtype_activation": "int32",
-        "calibrate_mode": "global_scale",
-        "global_scale": 8.0,
-        "weight_scale": "power2",
-        "skip_dense_layer": True,
-        "skip_conv_layers": [0],
+        "dtype_bias": "int32",
+        "estimator_activation": "MSE",
+        "estimator_weight": "MSE",
+        "estimator_bias": "MSE",
+        "skip_dense_layer": False,
+        "skip_conv_layers": None,
+        "skip_add_layers": None,
         "do_simulation": False,
         "round_for_shift": True,
         "debug_enabled_ops": None,
         "rounding": "UPWARD",
         "calibrate_chunk_by": -1,
         "partition_conversions": "disabled",
+        "quantizer_weight": "Symmetric",
+        "quantizer_activation": "Asymmetric",
+        "quantizer_bias": "Symmetric",
+        "per_channel": True,
+        "opt_method": "grid",
+        "debug_mode": False,
+        "global_scale": 8.0,
     }
 
     # pylint: disable=no-member
@@ -109,6 +195,27 @@ class QConfig(Object):
             if op_name not in name_list:
                 return False
         return True
+    
+    # format: weight + bits + Asym/Sym + estimator + C/F(per-channel or per-filter) + "_" + act + bits + Asym/Sym + estimator 
+    def get_rootdir_name(self):
+        wgt_bits = str(getattr(self, "nbit_weight"))
+        wgt_as = "Asym" if getattr(self, "quantizer_weight") == "Asymmetric" else "Sym"
+        wgt_es = getattr(self, "estimator_weight")
+        wgt_cf = "C" if getattr(self, "per_channel") else "F"
+        act_bits = str(getattr(self, "nbit_input"))
+        act_as = "Asym" if getattr(self, "quantizer_activation") == "Asymmetric" else "Sym"
+        act_es = getattr(self, "estimator_activation")
+        dir_name = "Wgt" + wgt_bits + wgt_as + wgt_es.capitalize() + wgt_cf + "__" + "Act" + act_bits + act_as + act_es.capitalize()
+        return dir_name
+
+    def get_debug_mode(self):
+        return getattr(self, "debug_mode")
+
+    def get_prequantized(self):
+        return getattr(self, "have_prequantized")
+
+    def get_network_name(self):
+        return getattr(self, "network_name")
 
     def get_nbit_by_kind(self, kind):
         name = kind2str(kind)
@@ -117,6 +224,28 @@ class QConfig(Object):
     def get_dtype_by_kind(self, kind):
         name = kind2str(kind)
         return getattr(self, "dtype_" + name)
+    
+    def get_quantizer_by_kind(self, kind):
+        name = kind2aw(kind)
+        return getattr(self, "quantizer_" + name)
+    
+    def get_estimator_by_kind(self, kind):
+        name = kind2aw(kind)
+        return getattr(self, "estimator_" + name)
+    
+    def get_perChannel_by_kind(self, kind):
+        if kind == QAnnotateKind.INPUT:
+            return False
+        elif kind == QAnnotateKind.WEIGHT:
+            return getattr(self, "per_channel")
+        else:
+            return False
+    
+    def get_optMethod(self):
+        return getattr(self, "opt_method")
+
+    def get_thread_num(self):
+        return getattr(self, "num_thread")
 
     def __enter__(self):
         # pylint: disable=protected-access
@@ -209,6 +338,7 @@ class QuantizeContext(object):
     def __init__(self):
         self.qnode_map = dict()
         self._conv2d_counter = 0
+        self._add_counter = 0
         self._stop_quantize = False
 
     def check_to_skip(self, ref_call):
@@ -225,6 +355,15 @@ class QuantizeContext(object):
                 return True
             if ref_call.op.name == "nn.conv2d":
                 self._conv2d_counter += 1
+        
+        if current_qconfig().skip_add_layers is not None:
+            # check skip add layers
+            skipped_indices = [int(x) for x in current_qconfig().skip_add_layers]
+            if self._add_counter in skipped_indices and ref_call.op.name == "add":
+                self._add_counter += 1
+                return True
+            if ref_call.op.name == "add":
+                self._add_counter += 1
 
         return False
 
@@ -262,7 +401,7 @@ def partition():
     return _quantize.QuantizePartition()
 
 
-def annotate():
+def annotate_for_inference():
     """Given a float32 graph, this pass will rewrite the graph and return
     a graph which simulates the error brought by the current quantization
     scheme.
@@ -272,7 +411,19 @@ def annotate():
     ret: tvm.transform.Pass
         The registered pass for quantization annotation.
     """
-    return _quantize.QuantizeAnnotate()
+    return _quantize.QuantizeAnnotateForInference()
+
+def annotate_for_calibration():
+    """Given a float32 graph, this pass will rewrite the graph and return
+    a graph which simulates the error brought by the current quantization
+    scheme.
+
+    Returns
+    -------
+    ret: tvm.transform.Pass
+        The registered pass for quantization calibrate annotation.
+    """
+    return _quantize.QuantizeAnnotateForCalibrate()
 
 
 def realize():
@@ -315,11 +466,14 @@ def prerequisite_optimize(mod, params=None):
     "CanonicalizeOps" optimization before quantization."""
     optimize = tvm.transform.Sequential(
         [
+            _transform.CanonicalizeOps(),
             _transform.SimplifyInference(),
+            _transform.RemoveUnusedFunctions(),
             _transform.FoldConstant(),
             _transform.FoldScaleAxis(),
-            _transform.CanonicalizeOps(),
+            _transform.FoldSumsPass(), # for batchnorm condition
             _transform.FoldConstant(),
+            _transform.InferType(),
         ]
     )
 
@@ -329,12 +483,8 @@ def prerequisite_optimize(mod, params=None):
     mod = optimize(mod)
     return mod
 
-
-def quantize(mod, params=None, dataset=None):
-    """The quantization procedure. Before running the three main
-    procedure of quantization, "annotate", "calibrate" and "realize"
-    , we need to do "SimplifyInference", "FoldScaleAxis", "FoldConstant"
-    first for optimizing.
+def quantize_calibrate(mod, params=None, dataset=None):
+    """The quantization calibrate procedure
 
     Parameters
     ---------
@@ -355,25 +505,69 @@ def quantize(mod, params=None, dataset=None):
     """
     mod = prerequisite_optimize(mod, params)
 
+    # this pass is to quantize every layers in networks for general purpose
+    from ._annotate import annotate_for_calibrate_registry
+    annotate_for_calibrate_registry(mod)
+
     calibrate_pass = tvm.transform.module_pass(
         calibrate(dataset), opt_level=1, name="QuantizeCalibrate"
     )
-    quant_passes = [partition(), annotate(), calibrate_pass, tvm.relay.transform.InferType()]
+    quant_passes = [annotate_for_calibration(), calibrate_pass, tvm.relay.transform.InferType()]
+
+    #quant_passes.append(_transform.FoldConstant())
+    quantize_seq = tvm.transform.Sequential(quant_passes)
+    with tvm.transform.PassContext(
+        opt_level=3, required_pass=["QuantizeAnnotateForCalibrate", "QuantizeCalibrate"]
+    ):
+        with quantize_context():
+            dbg_mod = quantize_seq(mod)
+    
+    # dbg_mod does not fold constant for print weight purpose
+    mod = _transform.FoldConstant()(dbg_mod)
+
+    return mod, dbg_mod
+
+def quantize_inference(mod, params=None):
+    """The quantization calibrate procedure
+
+    Parameters
+    ---------
+    mod: Module
+        The original module.
+
+    params : dict of str to NDArray
+        Input parameters to the graph that do not change
+        during inference time. Used for constant folding.
+
+    dataset: list of dict of Var -> NDArray
+        The calibration dataset.
+
+    Returns
+    -------
+    ret: Function
+        The graph after quantization
+    """   
+
+    mod = prerequisite_optimize(mod, params)
+
+    from ._annotate import annotate_for_inference_registry
+    annotate_for_inference_registry(mod)
+
+    calibrate_read_pass = tvm.transform.module_pass(
+        read_calibrate(), opt_level=1, name="QuantizeCalibrate"
+    )
+    quant_passes = [partition(), annotate_for_inference(), calibrate_read_pass, tvm.relay.transform.InferType()]
     if not current_qconfig().do_simulation:
         quant_passes.append(realize())
-    quant_passes.append(_transform.FoldConstant())
+
     quantize_seq = tvm.transform.Sequential(quant_passes)
     with tvm.transform.PassContext(
         opt_level=3, required_pass=["QuantizeAnnotate", "QuantizeCalibrate", "QuantizeRealize"]
     ):
         with quantize_context():
-            mod = quantize_seq(mod)
+            dbg_mod = quantize_seq(mod)
+    
+    # dbg_mod does not fold constant for print weight purpose
+    mod = _transform.FoldConstant()(dbg_mod)
 
-    q_cfg = current_qconfig()
-    assert q_cfg.partition_conversions in ["disabled", "enabled", "fully_integral"]
-    if q_cfg.partition_conversions != "disabled":
-        quantized_dtypes = {q_cfg.dtype_input, q_cfg.dtype_weight, q_cfg.dtype_activation}
-        ensure_fully_integral = q_cfg.partition_conversions == "fully_integral"
-        return partition_conversions(mod, quantized_dtypes, ensure_fully_integral)
-
-    return mod
+    return mod, dbg_mod

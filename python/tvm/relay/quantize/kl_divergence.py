@@ -16,6 +16,7 @@
 # under the License.
 """Find optimal scale for quantization by minimizing KL-divergence"""
 
+from array import ArrayType
 import ctypes
 import numpy as np
 
@@ -45,7 +46,7 @@ def _find_scale_by_kl(arr, quantized_dtype="int8", num_bins=8001, num_quantized_
 
     hist, hist_edges = np.histogram(arr, bins=num_bins, range=(-thres, thres))
     hist_ptr = get_pointer(hist.astype(np.int32), ctypes.c_int)
-    hist_edges_ptr = get_pointer(hist_edges, ctypes.c_float)
+    hist_edges_ptr = get_pointer(hist_edges.astype(np.float32), ctypes.c_float)
 
     return _quantize.FindScaleByKLMinimization(
         hist_ptr, hist_edges_ptr, num_bins, num_quantized_bins

@@ -39,7 +39,7 @@ TVM_REGISTER_NODE_TYPE(SimulatedQuantizeAttrs);
 
 bool SimulatedQuantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                           const TypeReporter& reporter) {
-  ICHECK_EQ(types.size(), 5);
+  ICHECK_EQ(types.size(), 6);
   const auto param = attrs.as<SimulatedQuantizeAttrs>();
   ICHECK(param != nullptr);
 
@@ -51,33 +51,53 @@ bool SimulatedQuantizeRel(const Array<Type>& types, int num_inputs, const Attrs&
 
   ICHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
 
-  reporter->Assign(types[1], TensorType({}, DataType::Float(32)));  // dom_scale
-  reporter->Assign(types[2], TensorType({}, DataType::Float(32)));  // clip_min
-  reporter->Assign(types[3], TensorType({}, DataType::Float(32)));  // clip_max
-  reporter->Assign(types[4], types[0]);                             // output
+  if(param->kind == QAnnotateKind::kQWeight && param->per_channel){
+    reporter->Assign(types[1], TensorType({data->shape[0], 1, 1, 1}, DataType::Float(32)));  // dom_scale
+    reporter->Assign(types[2], TensorType({}, DataType::Float(32)));  // clip_min
+    reporter->Assign(types[3], TensorType({}, DataType::Float(32)));  // clip_max
+    if(param->asymmetric){
+      reporter->Assign(types[4], TensorType({data->shape[0], 1, 1, 1}, DataType::Float(32)));  // zero_point
+    }
+    else{
+      reporter->Assign(types[4], TensorType({}, DataType::Float(32)));
+    }
+    reporter->Assign(types[5], types[0]);                             // output
+  } else {
+    reporter->Assign(types[1], TensorType({1}, DataType::Float(32)));  // dom_scale
+    reporter->Assign(types[2], TensorType({}, DataType::Float(32)));  // clip_min
+    reporter->Assign(types[3], TensorType({}, DataType::Float(32)));  // clip_max
+    if(param->asymmetric)
+      reporter->Assign(types[4], TensorType({1}, DataType::Float(32)));  // zero_point
+    else
+      reporter->Assign(types[4], TensorType({}, DataType::Float(32)));
+    reporter->Assign(types[5], types[0]);                             // output
+  }
   return true;
 }
 
 RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
     .describe(R"code(simulated quantize op)code" TVM_ADD_FILELINE)
-    .set_num_inputs(4)
+    .set_num_inputs(5)
     .add_argument("data", "Tensor", "The input data.")
-    .add_argument("dom_scale", "Tensor", "The domain scale of input data. It should be a scalar")
+    .add_argument("dom_scale", "Tensor", "The domain scale of input data. It should be a scalar or vector")
     .add_argument("clip_min", "Tensor", "lower bound. It should be a scalar")
     .add_argument("clip_max", "Tensor", "upper bound. It should be a scalar")
+    .add_argument("zero_point", "Tensor", "Zero point for asymmetric quantization")
     .set_attrs_type<SimulatedQuantizeAttrs>()
     .set_support_level(11)
     .add_type_rel("SimulatedQuantize", SimulatedQuantizeRel);
 
 TVM_REGISTER_GLOBAL("relay._quantize.simulated_quantize")
-    .set_body_typed([](Expr data, Expr dom_scale, Expr clip_min, Expr clip_max, int kind, bool sign,
-                       String rounding) {
+    .set_body_typed([](Expr data, Expr dom_scale, Expr clip_min, Expr clip_max, Expr zero_point, int kind,
+                       String rounding, bool per_channel, bool asymmetric, String name) {
       auto attrs = make_object<SimulatedQuantizeAttrs>();
       attrs->kind = kind;
-      attrs->sign = sign;
       attrs->rounding = rounding;
+      attrs->per_channel = per_channel;
+      attrs->asymmetric = asymmetric;
+      attrs->name = name;
       static const Op& op = Op::Get("relay.op.annotation.simulated_quantize");
-      return Call(op, {data, dom_scale, clip_min, clip_max}, Attrs(attrs), {});
+      return Call(op, {data, dom_scale, clip_min, clip_max, zero_point}, Attrs(attrs), {});
     });
 
 /*! \brief Entry to hold the BuildConfig context stack. */
@@ -122,9 +142,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "nbit_input=" << op->nbit_input << ", ";
       p->stream << "nbit_weight=" << op->nbit_weight << ", ";
       p->stream << "nbit_activation=" << op->nbit_activation << ", ";
-      p->stream << "calibrate_mode=" << op->calibrate_mode << ", ";
+      p->stream << "estimator_activation=" << op->estimator_activation << ", ";
       p->stream << "global_scale=" << op->global_scale << ", ";
-      p->stream << "weight_scale=" << op->weight_scale << ", ";
+      p->stream << "estimator_weight=" << op->estimator_weight << ", ";
       p->stream << "skip_conv_layers==" << op->skip_conv_layers << ", ";
       p->stream << "skip_dense_layer==" << op->skip_dense_layer << ", ";
       p->stream << "do_simulation==" << op->do_simulation << ", ";

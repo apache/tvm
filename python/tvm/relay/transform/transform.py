@@ -30,7 +30,6 @@ from tvm.runtime import ndarray as _nd
 from . import _ffi_api
 from ..backend.utils import mangle_module_name
 
-
 def build_config(opt_level=2, required_pass=None, disabled_pass=None, trace=None):
     """Configure the build behavior by setting config variables. This function
     will be deprecated in TVM v0.7. Instead, we should directly use
@@ -1057,6 +1056,22 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
         return create_function_pass(pass_func)
     return create_function_pass
 
+@function_pass(opt_level=3)
+class FoldSumsPass:
+    """Fold consecutive add operations if they have const operand"""
+    def transform_function(self, func, mod, ctx):
+        class ConsecutiveSumsCallback(tvm.relay.dataflow_pattern.DFPatternCallback):
+          def __init__(self):
+              super(ConsecutiveSumsCallback, self).__init__()
+              self.x = tvm.relay.dataflow_pattern.wildcard()
+              self.y = tvm.relay.dataflow_pattern.is_constant()
+              self.z = tvm.relay.dataflow_pattern.is_constant()
+              self.pattern = self.y + self.x + self.z
+
+          def callback(self, pre, post, node_map):
+              return node_map[self.x][0] + (node_map[self.y][0] + node_map[self.z][0])
+
+        return tvm.relay.dataflow_pattern.rewrite(ConsecutiveSumsCallback(), func, mod)
 
 @function_pass(opt_level=1)
 class ChangeBatch:

@@ -77,7 +77,36 @@ TVM_REGISTER_GLOBAL("relay._quantize.make_annotate_expr").set_body_typed([](Expr
   return QAnnotateExpr(expr, static_cast<QAnnotateKind>(kind));
 });
 
-Pass QuantizeAnnotate() {
+Pass QuantizeAnnotateForInference() {
+  // TODO(tvm-teams): since partition has added cast_hint in different
+  // branches, try to remove this in the future.
+  std::function<Expr(const Expr&)> fmulti_ref = [](const Expr& e) {
+    //This is for add quantize node at branch
+    // if (e->IsInstance<TempExprNode>()) {
+    //   const auto* n = e.as<QAnnotateExprNode>();
+    //   ICHECK(n);
+    //   const PackedFunc* f = runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
+    //   Expr ret = (*f)(n->expr, static_cast<int>(kQInput));
+    //   return static_cast<Expr>(QAnnotateExpr(ret, kQInput));
+    // }
+    return e;
+  };
+
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+      [=](Function f, IRModule m, PassContext pc) {
+        auto func = Downcast<Function>(ForwardRewrite(f, "FQAnnotateRewrite", nullptr, fmulti_ref));
+        auto new_params = func->params;
+        for (const auto& x : FreeVars(func)) {
+          new_params.push_back(x);
+        }
+        return WithFields(func, new_params);
+      };
+  return CreateFunctionPass(pass_func, 1, "QuantizeAnnotateForInference", {});
+}
+
+TVM_REGISTER_GLOBAL("relay._quantize.QuantizeAnnotateForInference").set_body_typed(QuantizeAnnotateForInference);
+
+Pass QuantizeAnnotateForCalibrate() {
   // TODO(tvm-teams): since partition has added cast_hint in different
   // branches, try to remove this in the future.
   std::function<Expr(const Expr&)> fmulti_ref = [](const Expr& e) {
@@ -93,17 +122,17 @@ Pass QuantizeAnnotate() {
 
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        auto func = Downcast<Function>(ForwardRewrite(f, "FQAnnotateRewrite", nullptr, fmulti_ref));
+        auto func = Downcast<Function>(ForwardRewrite(f, "FQAnnotateForCalibrateRewrite", nullptr, fmulti_ref));
         auto new_params = func->params;
         for (const auto& x : FreeVars(func)) {
           new_params.push_back(x);
         }
         return WithFields(func, new_params);
       };
-  return CreateFunctionPass(pass_func, 1, "QuantizeAnnotate", {});
+  return CreateFunctionPass(pass_func, 1, "QuantizeAnnotateForCalibrate", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._quantize.QuantizeAnnotate").set_body_typed(QuantizeAnnotate);
+TVM_REGISTER_GLOBAL("relay._quantize.QuantizeAnnotateForCalibrate").set_body_typed(QuantizeAnnotateForCalibrate);
 
 TVM_REGISTER_NODE_TYPE(QAnnotateExprNode);
 

@@ -79,12 +79,11 @@ static float ComputeEntropy(float* p, float* q, size_t size) {
   return ret;
 }
 
-float MinimizeKL(const std::vector<int>& hist, const std::vector<float>& hist_edges, int num_bins,
-                 int num_quantized_bins) {
+void MinimizeKL(const std::vector<int>& hist, const std::vector<float>& hist_edges, 
+                 float* divergence_out, int num_bins, int num_quantized_bins) {
   const int zero_bin_idx = num_bins / 2;
   const int num_half_quantized_bins = num_quantized_bins / 2;
   std::vector<float> thresholds(num_bins / 2 + 1 - num_quantized_bins / 2, 0.f);
-  std::vector<float> divergence(thresholds.size(), 0.f);
   std::vector<float> quantized_bins(num_quantized_bins, 0);
   for (int i = num_quantized_bins / 2; i < zero_bin_idx + 1; ++i) {
     const int p_bin_idx_start = zero_bin_idx - i;
@@ -133,14 +132,11 @@ float MinimizeKL(const std::vector<int>& hist, const std::vector<float>& hist_ed
     q = SmoothDistribution(q);
 
     if (!q.size()) {
-      divergence[i - num_half_quantized_bins] = std::numeric_limits<float>::infinity();
+      divergence_out[i - num_half_quantized_bins] += std::numeric_limits<float>::infinity();
     } else {
-      divergence[i - num_half_quantized_bins] = ComputeEntropy(p.data(), q.data(), p.size());
+      divergence_out[i - num_half_quantized_bins] += ComputeEntropy(p.data(), q.data(), p.size());
     }
   }
-  auto min_divergence_idx =
-      std::distance(divergence.begin(), std::min_element(divergence.begin(), divergence.end()));
-  return thresholds[min_divergence_idx];
 }
 
 class StatsCollector : private ExprMutator {
@@ -174,15 +170,25 @@ class StatsCollector : private ExprMutator {
       // rewrite the annotation
       auto new_attrs = make_object<SimulatedQuantizeAttrs>();
       const Expr& quantize_input = new_call->args[0];                  // expression being quantized
-      auto placeholder = MakeConstantScalar(DataType::Float(32), 0.);  // unused argument
-      Array<Expr> new_args{quantize_input, placeholder, placeholder, placeholder};
+      auto placeholder_scale = MakeConstantTensor(DataType::Float(32), std::vector<int64_t>(1, 1), std::vector<int64_t>(1, 1));  // unused argument
+      //auto placeholder_scale = MakeConstantScalar(DataType::Float(32), 0.);
+      auto placeholder_clip = MakeConstantScalar(DataType::Float(32), 0.);
+      auto placeholder_zero = MakeConstantScalar(DataType::Float(32), 0.);
+      auto placeholder_zero_1 = MakeConstantTensor(DataType::Float(32), std::vector<int64_t>(1, 1), std::vector<int64_t>(1, 1));
+      //auto placeholder = MakeConstantTensor(DataType::Float(32), 0.);
+      Array<Expr> new_args{quantize_input, placeholder_scale, placeholder_clip, placeholder_clip, placeholder_zero};
+      if (attrs->asymmetric)
+        new_args = {quantize_input, placeholder_scale, placeholder_clip, placeholder_clip, placeholder_zero_1};
+
       new_attrs->kind = QAnnotateKind::kQIdentity;
-      new_attrs->sign = attrs->sign;
       new_attrs->rounding = attrs->rounding;
+      new_attrs->per_channel = attrs->per_channel;
+      new_attrs->asymmetric = attrs->asymmetric;
+      new_attrs->name = attrs->name;
       Expr identity_quantize = Call(new_call->op, new_args, Attrs{new_attrs}, {});
 
       // add non-const expressions to profile data
-      if (attrs->kind != QAnnotateKind::kQWeight) {
+      if (attrs->kind != QAnnotateKind::kQWeight && attrs->kind != QAnnotateKind::kQBias) {
         ICHECK(!quantize_input.as<ConstantNode>());
         profile_data_.push_back(identity_quantize);
       }
@@ -192,6 +198,136 @@ class StatsCollector : private ExprMutator {
     }
   }
 };
+
+class QWeightCollector : private ExprMutator {
+ public:
+  QWeightCollector() : simulated_quantize_op_(Op::Get("relay.op.annotation.simulated_quantize")) {}
+
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& simulated_quantize_op_;
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op == simulated_quantize_op_) {
+      auto attrs = new_call->attrs.as<SimulatedQuantizeAttrs>();
+      const Expr& quantize_input = new_call->args[0];                  // expression being quantized
+      // add non-const expressions to profile data
+      if (attrs->kind == QAnnotateKind::kQWeight || attrs->kind == QAnnotateKind::kQBias) {
+        ICHECK(quantize_input.as<ConstantNode>());
+        profile_data_.push_back(new_e);
+      }
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
+
+class QActCollector : private ExprMutator {
+ public:
+  QActCollector() : simulated_quantize_op_(Op::Get("relay.op.annotation.simulated_quantize")) {}
+
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& simulated_quantize_op_;
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op == simulated_quantize_op_) {
+      auto attrs = new_call->attrs.as<SimulatedQuantizeAttrs>();
+      const Expr& quantize_input = new_call->args[0];                  // expression being quantized
+      // add non-const expressions to profile data
+      if (attrs->kind != QAnnotateKind::kQWeight && attrs->kind != QAnnotateKind::kQBias) {
+        ICHECK(!quantize_input.as<ConstantNode>());
+        profile_data_.push_back(new_e);
+      }
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
+
+class QActAllCollector : private ExprMutator {
+ public:
+  QActAllCollector() : simulated_quantize_op_(Op::Get("relay.op.annotation.simulated_quantize")), 
+                       cast_hint_op_(Op::Get("annotation.cast_hint")),
+                       stop_fusion_op_(Op::Get("annotation.stop_fusion")),
+                       split_op_(Op::Get("split")) {}
+
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& simulated_quantize_op_;
+  const Op& cast_hint_op_;
+  const Op& stop_fusion_op_;
+  const Op& split_op_;
+  int count = 0;
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op != simulated_quantize_op_ && new_call->op != cast_hint_op_ && 
+        new_call->op != stop_fusion_op_ && new_call->op != split_op_) {
+      const Expr& quantize_input = new_call->args[0];                  // expression being quantized
+      // add non-const expressions to profile data
+      ICHECK(!quantize_input.as<ConstantNode>());
+      profile_data_.push_back(new_e);
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
+
+
 
 /*
  * \brief Given an annotated graph, create a profile graph to collect profile data from the
@@ -205,18 +341,25 @@ class StatsCollector : private ExprMutator {
  * \return The profile graph.
  */
 Expr CreateStatsCollector(const Expr& expr) { return StatsCollector().Collect(expr); }
+Expr CreateQWeightCollector(const Expr& expr) { return QWeightCollector().Collect(expr); }
+Expr CreateQActCollector(const Expr& expr) { return QActCollector().Collect(expr); }
+Expr CreateQActAllCollector(const Expr& expr) { return QActAllCollector().Collect(expr); }
 
 TVM_REGISTER_GLOBAL("relay._quantize.CreateStatsCollector").set_body_typed(CreateStatsCollector);
+TVM_REGISTER_GLOBAL("relay._quantize.CreateQWeightCollector").set_body_typed(CreateQWeightCollector);
+TVM_REGISTER_GLOBAL("relay._quantize.CreateQActCollector").set_body_typed(CreateQActCollector);
+TVM_REGISTER_GLOBAL("relay._quantize.CreateQActAllCollector").set_body_typed(CreateQActAllCollector);
 
 TVM_REGISTER_GLOBAL("relay._quantize.FindScaleByKLMinimization")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       int* hist_ptr = static_cast<int*>(static_cast<void*>(args[0]));
       float* hist_edges_ptr = static_cast<float*>(static_cast<void*>(args[1]));
-      int num_bins = args[2];
-      int num_quantized_bins = args[3];
+      float* divergence_out_ptr = static_cast<float*>(static_cast<void*>(args[2]));
+      int num_bins = args[3];
+      int num_quantized_bins = args[4];
       std::vector<int> hist(hist_ptr, hist_ptr + num_bins);
       std::vector<float> hist_edges(hist_edges_ptr, hist_edges_ptr + num_bins + 1);
-      ret[0] = MinimizeKL(hist, hist_edges, num_bins, num_quantized_bins);
+      MinimizeKL(hist, hist_edges, divergence_out_ptr, num_bins, num_quantized_bins);
     });
 
 }  // namespace quantize
