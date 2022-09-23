@@ -125,6 +125,17 @@ def log_softmax_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
+@layer_norm_strategy.register(["cuda", "gpu"])
+def layer_norm_strategy_cuda(attrs, inputs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_layer_norm_strategy(topi.nn.layer_norm),
+        wrap_topi_schedule(topi.cuda.schedule_injective),
+        name="layer_norm.cuda",
+    )
+    return strategy
+
+
 @schedule_lrn.register(["cuda", "gpu"])
 def schedule_lrn_cuda(attrs, outs, target):
     """schedule LRN for cuda"""
