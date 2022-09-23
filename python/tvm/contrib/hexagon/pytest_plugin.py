@@ -20,7 +20,10 @@
     values from testing parameters """
 
 import os
+from pathlib import Path
 import random
+import subprocess
+import time
 from typing import Optional, Union
 
 import pytest
@@ -158,12 +161,13 @@ def adb_server_socket() -> str:
 
 @pytest.fixture(scope="session")
 def hexagon_server_process(
-    request, rpc_server_port_for_session, adb_server_socket, skip_rpc, hexagon_debug
+    request, rpc_server_port_for_session, adb_server_socket, skip_rpc, hexagon_debug, sysmon_profile
 ) -> HexagonLauncherRPC:
     """Initials and returns hexagon launcher if ANDROID_SERIAL_NUMBER is defined.
     This launcher is started only once per test session.
     """
     android_serial_num = android_serial_number()
+    adb_device_sub_cmd = ["adb", "-L", adb_server_socket, "-s", android_serial_num[0]]
 
     if android_serial_num is None:
         pytest.skip("ANDROID_SERIAL_NUMBER is not set.")
@@ -188,12 +192,22 @@ def hexagon_server_process(
         else:  # running in a subprocess here
             device_adr = workerinput["device_adr"]
         launcher = HexagonLauncher(serial_number=device_adr, rpc_info=rpc_info)
+
+        sysmon_process = None
         try:
             if not skip_rpc:
+                if sysmon_profile:
+                    sysmon_process = start_sysmon(adb_device_sub_cmd)
                 launcher.start_server()
             yield {"launcher": launcher, "device_adr": device_adr}
         finally:
             if not skip_rpc:
+                if sysmon_profile and sysmon_process is not None:
+                    stop_sysmon(sysmon_process)
+                    retrieve_sysmon(adb_device_sub_cmd)
+                if hexagon_debug:
+                    retrieve_debug_logs(adb_device_sub_cmd, launcher._workspace)
+                    print_cdsp_logs()
                 launcher.stop_server(cleanup=(not hexagon_debug))
 
 
@@ -212,6 +226,77 @@ def pytest_configure_node(node):
     # which pytest-xdist will transfer to the subprocess
     if node.config.iplist is not None:
         node.workerinput["device_adr"] = node.config.iplist.pop()
+
+
+def start_sysmon(adb_device_sub_cmd):
+    hexagon_sdk_root = os.environ.get("HEXAGON_SDK_ROOT", default="")
+    subprocess.call(
+        adb_device_sub_cmd
+        + ["push", f"{hexagon_sdk_root}/tools/utils/sysmon/sysMonApp", "/data/local/tmp/"]
+    )
+    sysmon_process = subprocess.Popen(
+        adb_device_sub_cmd
+        + ["shell", "/data/local/tmp/sysMonApp profiler --debugLevel 0 --samplePeriod 1 --q6 cdsp"],
+        stdin=subprocess.PIPE,
+    )
+    return sysmon_process
+
+
+def stop_sysmon(sysmon_process):
+    sysmon_process.communicate(input=b"\n")
+
+
+def retrieve_sysmon(adb_device_sub_cmd):
+    Path("./sysmon_output/").mkdir(exist_ok=True)
+    subprocess.call(adb_device_sub_cmd + ["pull", "/sdcard/sysmon_cdsp.bin", "./sysmon_output/"])
+    subprocess.call(adb_device_sub_cmd + ["root"])
+    hexagon_sdk_root = os.environ.get("HEXAGON_SDK_ROOT", default="")
+    subprocess.call(
+        f"{hexagon_sdk_root}/tools/utils/sysmon/parser_linux_v2/HTML_Parser/sysmon_parser ./sysmon_output/sysmon_cdsp.bin --outdir ./sysmon_output/",
+        shell=True,
+    )
+
+
+def retrieve_debug_logs(adb_device_sub_cmd, workspace):
+    run_start_time = subprocess.check_output(
+        adb_device_sub_cmd
+        + ["shell", "stat", f"{workspace}/android_bash.sh | grep 'Change' | grep -oe '[0-9].*'"]
+    )
+    run_start_time = run_start_time[:-1].decode("UTF-8")
+    subprocess.call(
+        adb_device_sub_cmd
+        + ["shell", "logcat", "-t", f'"{run_start_time}"', "-f", f"{workspace}/logcat.txt"]
+    )
+    subprocess.call(adb_device_sub_cmd + ["pull", f"{workspace}/logcat.txt", "."])
+
+
+def print_cdsp_logs():
+    crash_count = 0
+    context_lines = 0
+    print_buffer = ""
+    try:
+        with open("./logcat.txt", "r") as fp:
+            for line in fp:
+                if "Process on cDSP CRASHED" in line:
+                    if crash_count <= 5:
+                        print(print_buffer, "\n")
+                    context_lines = 40
+                    print_buffer = ""
+                    crash_count += 1
+                if context_lines > 0 and "platform_qdi_driver" in line:
+                    context_lines -= 1
+                    print_buffer += line[80:]
+
+        if crash_count <= 5:
+            print(print_buffer, "\n")
+
+        print(
+            "There were {} crashes on the cDSP during execution... Crash printing is limited to the first 5.".format(
+                crash_count
+            )
+        )
+    except:
+        print("Unable to parse logcat file.")
 
 
 @pytest.fixture
@@ -235,7 +320,6 @@ def hexagon_launcher(
             "rpc_server_port": rpc_server_port,
             "adb_server_socket": adb_server_socket,
         }
-
     try:
         if android_serial_num == ["simulator"]:
             launcher = HexagonLauncher(serial_number=android_serial_num[0], rpc_info=rpc_info)
@@ -304,6 +388,11 @@ def hexagon_debug(request) -> bool:
     return request.config.getoption("--hexagon-debug")
 
 
+@pytest.fixture(scope="session")
+def sysmon_profile(request) -> bool:
+    return request.config.getoption("--sysmon-profile")
+
+
 def pytest_addoption(parser):
     parser.addoption("--gtest_args", action="store", default="")
 
@@ -317,7 +406,13 @@ def pytest_addoption(parser):
         "--hexagon-debug",
         action="store_true",
         default=False,
-        help="If set true, it will keep the hexagon test directories on the target.",
+        help="If set true, it will keep the hexagon test directories on the target. Additionally logcat logs will be copied from device and cdsp errors printed out.",
+    )
+    parser.addoption(
+        "--sysmon-profile",
+        action="store_true",
+        default=False,
+        help="If set true, it will run sysmon profiler during the tests.",
     )
 
 
