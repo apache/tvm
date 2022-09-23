@@ -119,7 +119,9 @@ const ExprSet SubgraphExtractor::GetSubgraph(const Expr& expr) {
   }
   return subgraph;
 }
+
 const AffineTypeMap SubgraphExtractor::GetAffineTypes() { return affine_types_; }
+
 void SubgraphExtractor::VisitExpr(const Expr& expr) {
   // When looking for fake quantized subgraphs, we only support data-flow regions of the graph,
   // i.e. call nodes/tuples/constants/etc. If we see anything else (like control flow) we
@@ -212,6 +214,17 @@ class SubgraphMutator : public ExprMutator {
       Expr expr;
       if (op == dequantize_op_) {
         expr = GetRef<Expr>(call_node);
+      } else if (op == quantize_op_) {
+        for (size_t i = 1; i <= 2; ++i) {
+          Expr arg = call_node->args[i];
+          if (memo_.count(arg) == 0) {
+            memo_[arg] = arg;
+          }
+        }
+        expr = ExprMutator::VisitExpr_(call_node);
+        // Set the current op to the output type, useful if we can't deduce output parameters
+        // from input parameters
+        affine_types_.Set(expr, out_type_);
       } else {
         expr = ExprMutator::VisitExpr_(call_node);
         // Set the current op to the output type, useful if we can't deduce output parameters

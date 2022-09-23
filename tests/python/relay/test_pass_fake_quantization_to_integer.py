@@ -494,17 +494,28 @@ def test_fake_quantize_transpose_reshape():
     compare_fq_to_int(op, [x_np])
 
 
-def test_fake_quantize_concat():
-    zero = relay.const(0)
+@pytest.mark.parametrize("const", [True, False])
+def test_fake_quantize_concat(const):
+    if const:
+        zero = relay.const(0)
+    else:
+        zero = relay.const(0) * relay.const(1)
+
     inputs = []
     for i in range(4):
+        if const:
+            scale = relay.const(i + 0.5)
+        else:
+            scale = relay.const(i * 1.0) + relay.const(0.5)
         inputs.append(
-            relay.qnn.op.dequantize(
-                relay.var("x%d" % i, shape=[1, 4], dtype="int8"), relay.const(i + 0.5), zero
-            )
+            relay.qnn.op.dequantize(relay.var("x%d" % i, shape=[1, 4], dtype="int8"), scale, zero)
         )
     concat = relay.op.concatenate(inputs, axis=1)
-    out = relay.qnn.op.quantize(concat, relay.const(3.5), zero)
+    if const:
+        out_scale = relay.const(3.5)
+    else:
+        out_scale = relay.const(3.0) + relay.const(0.5)
+    out = relay.qnn.op.quantize(concat, out_scale, zero)
 
     inputs_np = []
     for i in range(4):
