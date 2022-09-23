@@ -197,6 +197,30 @@ def log_softmax_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+def wrap_layer_norm_strategy(topi_compute):
+    """Wrap softmax topi compute"""
+
+    def _compute_layer_norm(attrs, inputs, out_type):
+        axis = attrs.axis
+        epsilon = attrs.epsilon
+        # TODO: forward center and scale
+        # TODO: make list of axis more soon
+        return [topi_compute(inputs[0], inputs[1], inputs[2], [axis], epsilon)]
+
+    return _compute_layer_norm
+
+
+@override_native_generic_func("layer_norm_strategy")
+def layer_norm_strategy(attrs, inputs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_layer_norm_strategy(topi.nn.layer_norm),
+        wrap_topi_schedule(topi.generic.schedule_injective),
+        name="layer_norm.generic",
+    )
+    return strategy
+
+
 # lrn
 @generic_func
 def schedule_lrn(attrs, outs, target):

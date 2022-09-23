@@ -1024,7 +1024,8 @@ RELAY_REGISTER_OP("nn.layer_norm")
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                    NormalizationInferCorrectLayout<LayerNormAttrs>)
     .set_support_level(1)
-    .add_type_rel("LayerNorm", LayerNormRel);
+    .add_type_rel("LayerNorm", LayerNormRel)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
 
 // group_norm
 TVM_REGISTER_NODE_TYPE(GroupNormAttrs);
