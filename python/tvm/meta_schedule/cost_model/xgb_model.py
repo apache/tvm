@@ -592,19 +592,20 @@ class XGBModel(PyCostModel):
         def avg_peak_score(ys_pred: np.ndarray, d_train: "xgb.DMatrix"):  # type: ignore # pylint: disable = unused-argument
             return self.d_train.average_peak_score(ys_pred, self.average_peak_n)
 
-        xgb_custom_callback = XGBoostCustomCallback(
-            early_stopping_rounds=self.early_stopping_rounds,
-            verbose_eval=self.verbose_eval,
-            fevals=[rmse, avg_peak_score],
-            evals=[(self.d_train.dmatrix, "tr")],
-            cvfolds=None,
-        )
         self.booster = xgb.train(
             self.config.to_dict(),
             self.d_train.dmatrix,
             num_boost_round=10000,
             obj=obj,
-            callbacks=[xgb_custom_callback],
+            callbacks=[
+                XGBoostCustomCallback(
+                    early_stopping_rounds=self.early_stopping_rounds,
+                    verbose_eval=self.verbose_eval,
+                    fevals=[rmse, avg_peak_score],
+                    evals=[(self.d_train.dmatrix, "tr")],
+                    cvfolds=None,
+                )
+            ],
         )
 
         del self.d_train
