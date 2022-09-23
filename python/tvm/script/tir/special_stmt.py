@@ -121,8 +121,8 @@ class MatchBuffer(SpecialStmt):
     def __init__(self):
         def match_buffer(
             param,
-            shape,
-            dtype="float32",
+            shape=None,
+            dtype=None,
             data=None,
             strides=None,
             elem_offset=None,
@@ -146,28 +146,64 @@ class MatchBuffer(SpecialStmt):
                 offset_factor, "offset_factor", self.context.report_error, self.node.span
             )
             buffer_name: str = self.node.lhs[0].id.name
-            buffer = tvm.tir.decl_buffer(
-                shape,
-                dtype,
-                buffer_name,
-                data,
-                strides,
-                elem_offset,
-                scope,
-                align,
-                offset_factor,
-                buffer_type,
-                axis_separators,
-                span=span,
-            )
+
             if isinstance(param, tvm.tir.Var):
+                if shape is None:
+                    self.context.report_error(
+                        "Shape must be specified when binding input param",
+                        self.node.rhs.span,
+                    )
+
+                if dtype is None:
+                    dtype = "float32"
+
+                buffer = tvm.tir.decl_buffer(
+                    shape,
+                    dtype,
+                    buffer_name,
+                    data,
+                    strides,
+                    elem_offset,
+                    scope,
+                    align,
+                    offset_factor,
+                    buffer_type,
+                    axis_separators,
+                    span=span,
+                )
                 if param not in self.context.func_params:
                     self.context.report_error(
                         "Can not bind non-input param to buffer", self.node.rhs.params[0].span
                     )
                 self.context.func_buffer_map[param] = buffer
+
             elif isinstance(param, BufferSlice):
                 buffer_region = param.as_buffer_region()
+
+                if shape is None:
+                    shape = [dim.extent for dim in buffer_region.region]
+
+                if dtype is None:
+                    dtype = buffer_region.buffer.dtype
+
+                if elem_offset is None and offset_factor == 0:
+                    offset_factor = 1
+
+                buffer = tvm.tir.decl_buffer(
+                    shape,
+                    dtype,
+                    buffer_name,
+                    data,
+                    strides,
+                    elem_offset,
+                    scope,
+                    align,
+                    offset_factor,
+                    buffer_type,
+                    axis_separators,
+                    span=span,
+                )
+
                 self.context.current_block_scope().match_buffers.append(
                     tvm.tir.MatchBufferRegion(buffer, buffer_region)
                 )
