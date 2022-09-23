@@ -304,27 +304,30 @@ PROJECT_OPTIONS = server.default_project_options(
 ) + [
     server.ProjectOption(
         "gdbserver_port",
-        help=("If given, port number to use when running the local gdbserver."),
         optional=["open_transport"],
         type="int",
+        default=None,
+        help=("If given, port number to use when running the local gdbserver."),
     ),
     server.ProjectOption(
         "nrfjprog_snr",
         optional=["open_transport"],
         type="int",
+        default=None,
         help=("When used with nRF targets, serial # of the attached board to use, from nrfjprog."),
     ),
     server.ProjectOption(
         "openocd_serial",
         optional=["open_transport"],
         type="int",
+        default=None,
         help=("When used with OpenOCD targets, serial # of the attached board to use."),
     ),
     server.ProjectOption(
         "west_cmd",
         optional=["generate_project"],
-        default=WEST_CMD,
         type="str",
+        default=WEST_CMD,
         help=(
             "Path to the west tool. If given, supersedes both the zephyr_base "
             "option and ZEPHYR_BASE environment variable."
@@ -334,32 +337,36 @@ PROJECT_OPTIONS = server.default_project_options(
         "zephyr_base",
         required=(["generate_project", "open_transport"] if not ZEPHYR_BASE else None),
         optional=(["generate_project", "open_transport"] if ZEPHYR_BASE else ["build"]),
-        default=ZEPHYR_BASE,
         type="str",
+        default=ZEPHYR_BASE,
         help="Path to the zephyr base directory.",
     ),
     server.ProjectOption(
         "config_main_stack_size",
         optional=["generate_project"],
         type="int",
+        default=None,
         help="Sets CONFIG_MAIN_STACK_SIZE for Zephyr board.",
     ),
     server.ProjectOption(
         "arm_fvp_path",
         optional=["generate_project", "open_transport"],
         type="str",
+        default=None,
         help="Path to the FVP binary to invoke.",
     ),
     server.ProjectOption(
         "use_fvp",
         optional=["generate_project"],
         type="bool",
+        default=False,
         help="Run on the FVP emulator instead of hardware.",
     ),
     server.ProjectOption(
         "heap_size_bytes",
         optional=["generate_project"],
         type="int",
+        default=None,
         help="Sets the value for HEAP_SIZE_BYTES passed to K_HEAP_DEFINE() to service TVM memory allocation requests.",
     ),
 ]

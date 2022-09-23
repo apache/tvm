@@ -785,6 +785,7 @@ def default_project_options(**kw) -> typing.List[ProjectOption]:
             "verbose",
             optional=["generate_project"],
             type="bool",
+            default=False,
             help="Run build with verbose output.",
         ),
         ProjectOption(
@@ -803,6 +804,7 @@ def default_project_options(**kw) -> typing.List[ProjectOption]:
             "cmsis_path",
             optional=["generate_project"],
             type="str",
+            default=None,
             help="Path to the CMSIS directory.",
         ),
         ProjectOption(

@@ -23,9 +23,10 @@ from unittest import mock
 from packaging import version
 import pytest
 
+import tvm
 from tvm.micro.project_api import server
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, tvm.micro.get_microtvm_template_projects("arduino"))
 import microtvm_api_server
 
 sys.path.pop(0)
@@ -192,3 +193,7 @@ class TestGenerateProject:
         # Version information should be cached and not checked again
         mock_run.assert_called_once()
         assert mock_run.call_args[0][0][0:2] == ["make", "flash"]
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

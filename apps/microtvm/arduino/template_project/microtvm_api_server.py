@@ -82,14 +82,15 @@ PROJECT_OPTIONS = server.default_project_options(
         optional=(
             ["generate_project", "build", "flash", "open_transport"] if ARDUINO_CLI_CMD else None
         ),
-        default=ARDUINO_CLI_CMD,
         type="str",
+        default=ARDUINO_CLI_CMD,
         help="Path to the arduino-cli tool.",
     ),
     server.ProjectOption(
         "port",
         optional=["flash", "open_transport"],
         type="int",
+        default=None,
         help="Port to use for connecting to hardware.",
     ),
 ]
