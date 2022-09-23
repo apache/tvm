@@ -97,11 +97,17 @@ void TensorIntrin::Register(String name, TensorIntrin intrin, bool override) {
   manager->reg.Set(name, intrin);
 }
 
-TensorIntrin TensorIntrin::Get(String name) {
+Optional<TensorIntrin> TensorIntrin::Get(String name, bool allow_missing) {
   const TensorIntrinManager* manager = TensorIntrinManager::Global();
   auto it = manager->reg.find(name);
-  CHECK(it != manager->reg.end()) << "ValueError: TensorIntrin '" << name << "' is not registered";
-  return manager->reg.at(name);
+  if (it == manager->reg.end()) {
+    if (allow_missing) {
+      return NullOpt;
+    } else {
+      LOG(FATAL) << "ValueError: TensorIntrin '" << name << "' is not registered";
+    }
+  }
+  return (*it).second;
 }
 
 TVM_REGISTER_NODE_TYPE(TensorIntrinNode);

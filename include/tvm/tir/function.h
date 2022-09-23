@@ -234,10 +234,13 @@ class TensorIntrin : public ObjectRef {
   /*!
    * \brief Look up TensorIntrin by name. Raises an exception if not found.
    * \param name The name of the TensorIntrin.
+   * \param allow_missing Whether to allow missing tensor intrin. If false, an exception is raised
+   *    if the tensor intrin is not found.
    * \return The TensorIntrin with the specified name.
-   * \throws This method throws an exception if the TensorIntrin does not exist.
+   * \throws This method throws an exception if the TensorIntrin does not exist and allow_missing is
+   * false.
    */
-  TVM_DLL static TensorIntrin Get(String name);
+  TVM_DLL static Optional<TensorIntrin> Get(String name, bool allow_missing = false);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode)
 };
