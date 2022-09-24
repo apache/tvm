@@ -487,7 +487,14 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
   }
 
   IntervalSet VisitExprDefault_(const Object* op) final {
+//    CallNode* callNode = (CallNode*)op;
+    if(op->IsInstance<CallNode>())
+    {
+      auto* callNode = (CallNode*)op;
+      DLOG(WARNING) << "VISIT call node "<<callNode;
+    }
     DLOG(WARNING) << "cannot evaluate set type " << op->GetTypeKey();
+
     return IntervalSet::Everything();
   }
 
