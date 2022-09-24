@@ -38,6 +38,52 @@ def get_consine_similar(m1, m2):
     denom = np.linalg.norm(m1) * np.linalg.norm(m2)
     return 0.5 + 0.5 * (num / denom) if denom != 0 else 0
 
+def profile_data_per_layer(quantized_mod, target, params, dataset, ifdev=True):
+
+    print("Profile data per layer...")
+    func = quantized_mod["main"]
+    func_original = _quantize.CreateStatsCollector(func)
+    func_quantized = _quantize.CreateQActCollector(func)
+    assert dataset
+    assert len(dataset) == 1
+    dev = tvm.device(str(target), 0)
+
+    with tvm.transform.PassContext(opt_level=3):
+        original_lib = relay.build(func_original, target=target, params=params)
+    
+    with tvm.transform.PassContext(opt_level=3):
+        quantized_lib = relay.build(func_quantized, target=target, params=params)
+
+    original_module = graph_executor.GraphModule(original_lib["default"](dev))
+    quantized_module = graph_executor.GraphModule(quantized_lib["default"](dev))
+    
+    per_layer_list = []
+    batch = dataset[0]
+    original_module.set_input(**batch)
+    original_module.run()
+    quantized_module.set_input(**batch)
+    quantized_module.run()
+    num_original_outputs = original_module.get_num_outputs()
+    num_quantized_outputs = quantized_module.get_num_outputs()
+
+    assert num_original_outputs == num_quantized_outputs
+
+    for j in range(num_original_outputs):
+        original_module_output = original_module.get_output(j).numpy()
+        quantized_module_output = quantized_module.get_output(j).numpy()
+        assert original_module_output.shape == quantized_module_output.shape
+        cosine_res_tmp = get_consine_similar(original_module_output, quantized_module_output)
+        per_layer_list.append(cosine_res_tmp)
+    
+    assert os.path.exists(current_qconfig().get_rootdir_name())
+    saved_file_name = "cosine_similarity_dev_pl" if ifdev else "cosine_similarity_calibration_pl"
+    count = 0
+    with open(current_qconfig().get_rootdir_name() + "/" + saved_file_name, "w") as f:
+        for ele in per_layer_list:
+            f.write("Layer{}".format(count) + ": {}".format(ele) + "\n")
+            count = count + 1
+
+
 def calculate_consine_similar(original_mod, quantized_mod, target, params, dataset=None, ifdev=True):
     """
     Calculate result's cosine_similarity and generate cosine_similarity.txt in dir.

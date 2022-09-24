@@ -41,6 +41,9 @@ def simulated_quantize_compute(attrs, inputs, out_type):
     
     if attrs.kind == QAnnotateKind.BIAS:
         return [topi.identity(data)]
+    
+    if attrs.kind == QAnnotateKind.ACTIVATION:
+        return [topi.identity(data)]
 
     # simulate rounding error
     scaled_data = topi.divide(data, scale)
