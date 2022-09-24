@@ -100,11 +100,14 @@ if __name__ == '__main__':
         mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
         # nmod = IRModule(mod)
         # nmod.astext(show_meta_data=False)
-        # ir_text = mod.astext(show_meta_data=True)
-        # print(ir_text)
-        #
-        # with open(os.path.join("./", args.model_name + ".rir"), "w") as irf:
-        #     irf.write(ir_text)
+        ir_text = mod.astext(show_meta_data=True)
+        print(ir_text)
+
+        with open(os.path.join("./", args.model_name + ".rir"), "w") as irf:
+            irf.write(ir_text)
+        params_bytes = relay.save_param_dict(params)
+        with open(os.path.join("./", args.model_name+".params"), "wb") as pf:
+            pf.write(params_bytes)
         # mod = tvm.parser.fromtext(ir_text)
         print(mod)
 

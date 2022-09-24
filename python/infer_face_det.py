@@ -160,7 +160,7 @@ def construct_face_feat_lib(path_dir, cfg, prior, mod_det, mod, device):
         dv = tvm.nd.array(im, device)
 
         tic = time.time()
-        mod.set_input("input.1", dv)
+        mod.set_input("input", dv)
         mod.run()
         rv = mod.get_output(0).numpy()
         print('net forward time: {:.4f}'.format((time.time() - tic) / 1.0))
@@ -217,7 +217,7 @@ def main(args):
         im = np.expand_dims(im, 0)
         im = im.astype("float32")
         data_rec_tvm = tvm.nd.array(im, dev)
-        module_rec.set_input("input.1", data_rec_tvm)
+        module_rec.set_input("input", data_rec_tvm)
         module_rec.run()
         data_feat_tvm = module_rec.get_output(0)
         data_feat = data_feat_tvm.numpy().squeeze(0)

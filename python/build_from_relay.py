@@ -14,6 +14,7 @@ from tvm.relay.function import Function
 from tvm.relay.expr import Call, Constant, Tuple, GlobalVar, Var, TupleGetItem
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 from tvm.relay.op.contrib.tensorrt import partition_for_tensorrt
+from tvm.ir import IRModule
 import tvm.contrib.graph_executor as runtime
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
 
@@ -52,17 +53,21 @@ if __name__ == '__main__':
         target = "llvm -mcpu=skylake"
     print(target)
 
-    mod_path = os.path.join(args.path, "mod.dat")
-    params_path = os.path.join(args.path, "params.dat")
+    # mod_path = os.path.join(args.path, "mod.dat")
+    # params_path = os.path.join(args.path, "params.dat")
+    mod_path = os.path.join("./", args.path+".txt")
+    params_path = os.path.join("./", args.path+".params")
 
     mod = None
     params = None
     dtype = "float32"
-    filename = "yolov7_tiny_"+args.device+fmt
+    filename = args.path+"_"+args.device+fmt
     if not args.eval:
-        with open(mod_path, "rb") as mod_fn:
+        with open(mod_path, "r") as mod_fn:
             mod_raw = mod_fn.read()
-            mod = pickle.loads(mod_raw)
+            mod = tvm.parser.fromtext(mod_raw)
+            # nmod = IRModule(mod)
+            vars = mod.get_global_vars()
             print(mod)
         with open(params_path, "rb") as params_fn:
             params_raw = params_fn.read()
@@ -126,9 +131,13 @@ if __name__ == '__main__':
         lib = tvm.runtime.load_module(os.path.join("./", filename))
         dev = tvm.device(str(target), 0)
         module = runtime.GraphModule(lib["default"](dev))
-        data_tvm = tvm.nd.array((np.zeros(shape=(1, 3, 640, 640))).astype(dtype))
-        module.set_input("images", data_tvm)
+        data_tvm = tvm.nd.array((np.zeros(shape=(1, 3, 112, 112))).astype(dtype))
+        module.set_input("input", data_tvm)
         module.run()
+        num_outs = module.get_num_outputs()
+        for i in range(0, num_outs):
+            oval = module.get_output(i).numpy()
+            print(oval)
         # evaluate
         print("Evaluate inference time cost...")
         ftimer = module.module.time_evaluator("run", dev, number=1, repeat=600)
