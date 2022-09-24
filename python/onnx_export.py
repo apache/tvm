@@ -100,12 +100,12 @@ if __name__ == '__main__':
         mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
         # nmod = IRModule(mod)
         # nmod.astext(show_meta_data=False)
-        ir_text = mod.astext(show_meta_data=True)
-        print(ir_text)
-
-        with open(os.path.join("./", args.model_name+".rir"), "w") as irf:
-            irf.write(ir_text)
-        mod = tvm.parser.fromtext(ir_text)
+        # ir_text = mod.astext(show_meta_data=True)
+        # print(ir_text)
+        #
+        # with open(os.path.join("./", args.model_name + ".rir"), "w") as irf:
+        #     irf.write(ir_text)
+        # mod = tvm.parser.fromtext(ir_text)
         print(mod)
 
         with tvm.transform.PassContext(opt_level=3):
@@ -144,8 +144,6 @@ if __name__ == '__main__':
     priors = priorbox.forward()
     # priors = priors.to(torch.device("cpu"))
     prior_data = priors
-
-
 
     boxes = decode(torch.tensor(loc.squeeze(0)), prior_data,
                    cfg["variance"])
