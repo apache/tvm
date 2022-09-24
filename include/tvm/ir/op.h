@@ -164,15 +164,6 @@ class OpNode : public RelayExprNode {
  */
 class Op : public RelayExpr {
  public:
-  /*! \brief default constructor  */
-  Op() {}
-  /*! \brief constructor from node pointer */
-  explicit Op(ObjectPtr<Object> n) : RelayExpr(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const OpNode* operator->() const;
   /*!
    * \brief Get additional registered attribute about operators.
    *  If nothing has been registered, an empty OpAttrMap will be returned.
@@ -196,8 +187,7 @@ class Op : public RelayExpr {
    */
   TVM_DLL static const Op& Get(const String& op_name);
 
-  /*! \brief specify container node */
-  using ContainerType = OpNode;
+  TVM_DEFINE_OBJECT_REF_METHODS(Op, RelayExpr, OpNode)
 
  private:
   /*!
@@ -370,7 +360,6 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
       ::tvm::OpRegEntry::RegisterOrGet(OpName).set_name()
 
 // implementations
-inline const OpNode* Op::operator->() const { return static_cast<const OpNode*>(get()); }
 
 template <typename ValueType>
 inline OpAttrMap<ValueType> Op::GetAttrMap(const String& key) {
