@@ -346,6 +346,7 @@ class BlockInfoCollector : private StmtVisitor {
               if (!ProducerCoversConsumer(buffer->shape, produced_region, consumed_region,
                                           &analyzer_)) {
                 region_cover = false;
+                self_->block_info.at(consumer_block_sref).region_cover = region_cover;
                 break;
               }
             }
