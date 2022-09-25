@@ -26,13 +26,8 @@ import numpy as np
 import pytest
 import tvm
 import tvm.testing
-from tvm.meta_schedule.cost_model import (
-    PyCostModel,
-    RandomModel,
-    XGBModel,
-    XGBoostCustomCallback,
-    PackSum,
-)
+from tvm.meta_schedule.cost_model import PyCostModel, RandomModel, XGBModel
+from tvm.meta_schedule.cost_model.xgb_model import XGBoostCustomCallback, PackSum
 from tvm.meta_schedule.feature_extractor import RandomFeatureExtractor
 from tvm.meta_schedule.runner import RunnerResult
 from tvm.meta_schedule.search_strategy import MeasureCandidate
