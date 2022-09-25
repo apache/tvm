@@ -1,8 +1,8 @@
 ---
 name: "\U0001F41B Bug report"
-about: To help the developer act on the issues, please include a description of your environment, preferably a minimum script to reproduce the problem.
+about: To help the developer act on the issues, please include a description of your environment, preferably a minimum script to reproduce the problem. Find the list of label tags at TBD.
 title: "[Bug] "
-labels: "type: bug"
+labels: "needs-triage"
 
 ---
 
@@ -25,3 +25,7 @@ Any environment details, such as: Operating System, TVM version, etc
 ### Steps to reproduce
 
 Preferably a minimal script to cause the issue to occur.
+
+### Triage
+
+Please refer to the list of label tags linked above to find the relevant tags to add. 

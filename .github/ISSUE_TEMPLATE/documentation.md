@@ -2,7 +2,7 @@
 name: "\U0001F4C4 Documentation"
 about: Use this template to suggest additions and changes to the documentation.
 title: "[Docs] "
-labels: "type: doc"
+labels: "needs-triage"
 
 ---
 
@@ -19,4 +19,8 @@ Include the title of the document (e.g. "Getting Started with TVM"), and the typ
 If an RFC/discuss post exists, link it here.
 
 Otherwise, specify what actions should be taken to provide additional clarity/readability/reproducibility to the document. Include code snippets from the previous documentation if applicable.
+
+### Triage
+
+Please refer to the list of label tags linked above to find the relevant tags to add. 
 

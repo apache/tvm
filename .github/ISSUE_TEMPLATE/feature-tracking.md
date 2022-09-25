@@ -2,7 +2,7 @@
 name: "\U0001F527 Feature Tracking"
 about: List clear, small actionable items so we can track the progress of the change.
 title: "[Tracking Issue] "
-labels: type:rfc-tracking
+labels: "needs-triage"
 
 ---
 
@@ -12,3 +12,7 @@ Issues that are inactive for a period of time may get closed. We adopt this poli
 
 ### This issue is to track progress for FEATURE NAME
 - [ ] P1. Title of this piece of the feature (PR link if available)
+
+### Triage
+
+Please refer to the list of label tags linked above to find the relevant tags to add. 

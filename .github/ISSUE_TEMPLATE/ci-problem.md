@@ -21,3 +21,7 @@ Provide a link to the specific run that has failed.
 ### Flakiness
 
 Have you seen this multiple times in this branch or in other branches?
+
+### Triage
+
+Please refer to the list of label tags linked above to find the relevant tags to add. 
