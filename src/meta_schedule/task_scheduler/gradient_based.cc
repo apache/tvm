@@ -134,7 +134,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
     int n_tasks = task_records_.size();
     // Round robin
     if (num_rounds_already_ == 0) {
-      TVM_PY_LOG(CLEAR, this->logging_func);
+      TVM_PY_LOG_CLEAR_SCREEN(this->logging_func);
       TVM_PY_LOG(INFO, this->logging_func) << "\n" << this->TuningStatistics();
     }
     if (num_rounds_already_ < n_tasks) {
@@ -201,7 +201,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
     }
     record.best_time_cost_history.push_back(best_time_cost);
     record.trials += results.size();
-    TVM_PY_LOG(CLEAR, this->logging_func);
+    TVM_PY_LOG_CLEAR_SCREEN(this->logging_func);
     TVM_PY_LOG(INFO, this->logging_func)
         << "[Updated] Task #" << task_id << ": " << record.task->task_name << "\n"
         << this->TuningStatistics();
