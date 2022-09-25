@@ -1,6 +1,6 @@
 ---
 name: "\U00002744 Flaky Test"
-about: Report a flaky test, make sure to include links to CI runs, a sample failure log, and the name of the test(s)
+about: Report a flaky test, make sure to include links to CI runs, a sample failure log, and the name of the test(s). Find the list of label tags at TBD.
 title: "[Flaky Test] "
 labels: "needs-triage"
 ---

@@ -1,6 +1,6 @@
 ---
 name: "\U0000274C CI Problem"
-about: To help the developers act on these problems, please give us as many details of the CI failure as possible.
+about: To help the developers act on these problems, please give us as many details of the CI failure as possible. Find the list of label tags at TBD.
 title: "[CI Problem] "
 labels: "needs-triage"
 

@@ -1,6 +1,6 @@
 ---
 name: "\U0001F4C4 Documentation"
-about: Use this template to suggest additions and changes to the documentation.
+about: Use this template to suggest additions and changes to the documentation. Find the list of label tags at TBD.
 title: "[Docs] "
 labels: "needs-triage"
 
