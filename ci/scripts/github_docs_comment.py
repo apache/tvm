@@ -16,29 +16,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
-import logging
-import argparse
-import sys
-from urllib import error
-
-from git_utils import git, GitHubRepo, parse_remote
-from cmd_utils import init_log
-
-DOCS_BOT_MARKER = "<!---docs-bot-comment-->\n\n"
-GITHUB_ACTIONS_BOT_LOGIN = "github-actions[bot]"
+from typing import Dict, Any
 
 
 def build_docs_url(base_url_docs, pr_number, build_number):
     return f"{base_url_docs}/PR-{str(pr_number)}/{str(build_number)}/docs/index.html"
 
 
-def get_pr_comments(github, url):
-    try:
-        return github.get(url)
-    except error.HTTPError as e:
-        logging.exception(f"Failed to retrieve PR comments: {url}: {e}")
-        return []
+def find_target_url(pr_head: Dict[str, Any]):
+    for status in pr_head["statusCheckRollup"]["contexts"]["nodes"]:
+        if status.get("context", "") == "tvm-ci/pr-head":
+            return status["targetUrl"]
+
+    raise RuntimeError(f"Unable to find tvm-ci/pr-head status in {pr_head}")
 
 
 def get_pr_and_build_numbers(target_url):
@@ -49,62 +39,15 @@ def get_pr_and_build_numbers(target_url):
     return {"pr_number": pr_number, "build_number": build_number}
 
 
-def search_for_docs_comment(comments):
-    for comment in comments:
-        if (
-            comment["user"]["login"] == GITHUB_ACTIONS_BOT_LOGIN
-            and DOCS_BOT_MARKER in comment["body"]
-        ):
-            return comment
-    return None
-
-
-if __name__ == "__main__":
-    help = "Add comment with link to docs"
-    parser = argparse.ArgumentParser(description=help)
-    parser.add_argument("--remote", default="origin", help="ssh remote to parse")
-    parser.add_argument("--base-url-docs", default="https://pr-docs.tlcpack.ai")
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=False,
-        help="run but don't send any request to GitHub",
-    )
-    args = parser.parse_args()
-    init_log()
-
-    remote = git(["config", "--get", f"remote.{args.remote}.url"])
-    user, repo = parse_remote(remote)
-
-    target_url = os.environ["TARGET_URL"]
+def get_doc_url(pr: Dict[str, Any], base_docs_url: str = "https://pr-docs.tlcpack.ai") -> str:
+    pr_head = pr["commits"]["nodes"][0]["commit"]
+    target_url = find_target_url(pr_head)
     pr_and_build = get_pr_and_build_numbers(target_url)
 
-    commit_sha = os.environ["COMMIT_SHA"]
+    commit_sha = pr_head["oid"]
 
     docs_url = build_docs_url(
-        args.base_url_docs, pr_and_build["pr_number"], pr_and_build["build_number"]
+        base_docs_url, pr_and_build["pr_number"], pr_and_build["build_number"]
     )
 
-    url = f'issues/{pr_and_build["pr_number"]}/comments'
-    body = f"{DOCS_BOT_MARKER}Built docs for commit {commit_sha} can be found [here]({docs_url})."
-    if not args.dry_run:
-        github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
-
-        # For now, only comment for PRs open by driazati, gigiblender and areusch.
-        get_pr_url = f'pulls/{pr_and_build["pr_number"]}'
-        pull_request_body = github.get(get_pr_url)
-        author = pull_request_body["user"]["login"]
-        if author not in ["driazati", "gigiblender", "areusch"]:
-            logging.info(f"Skipping this action for user {author}")
-            sys.exit(0)
-
-        pr_comments = get_pr_comments(github, url)
-        comment = search_for_docs_comment(pr_comments)
-
-        if comment is not None:
-            comment_url = comment["url"]
-            github.patch(comment_url, {"body": body})
-        else:
-            github.post(url, {"body": body})
-    else:
-        logging.info(f"Dry run, would have posted {url} with data {body}.")
+    return f"Built docs for commit {commit_sha} can be found [here]({docs_url})."

@@ -61,22 +61,43 @@ class GradientBasedNode final : public TaskSchedulerNode {
     int total_trials = 0;
     double total_latency = 0.0;
     support::TablePrinter p;
-    p.Row() << "ID"
-            << "Name"
-            << "FLOP"
-            << "Weight"
-            << "Speed (GFLOPS)"
-            << "Latency (us)"
-            << "Weighted Latency (us)"
-            << "Trials"
-            << "Terminated";
+
+    if (using_ipython()) {
+      p.Row() << "ID"
+              << "Name"
+              << "FLOP"
+              << "Weight"
+              << "GFLOPS"
+              << "Latency (us)"
+              << "Wtd. Latency"
+              << "Trials"
+              << "Terminated";
+    } else {
+      p.Row() << "ID"
+              << "Name"
+              << "FLOP"
+              << "Weight"
+              << "Speed (GFLOPS)"
+              << "Latency (us)"
+              << "Weighted Latency (us)"
+              << "Trials"
+              << "Terminated";
+    }
+
     p.Separator();
+
     for (int i = 0; i < n_tasks; ++i) {
       const TaskRecord& record = task_records_[i];
       auto row = p.Row();
       int trials = record.trials;
+      String task_name = record.task->task_name.value();
+      if (using_ipython() && task_name.length() > 23) {
+        std::string temp = task_name.c_str();
+        temp = temp.substr(0, 20) + "...";
+        task_name = String(temp);
+      }
       row << /*id=*/i                                     //
-          << /*name=*/record.task->task_name.value()      //
+          << /*name=*/task_name                           //
           << /*flops=*/static_cast<int64_t>(record.flop)  //
           << /*weight=*/static_cast<int>(record.weight);
       double latency = 1e9;
@@ -101,9 +122,10 @@ class GradientBasedNode final : public TaskSchedulerNode {
       }
     }
     p.Separator();
-    os << p.AsStr()                                  //
-       << "\nTotal trials: " << total_trials         //
-       << "\nTotal latency (us): " << total_latency  //
+    os << p.AsStr()                                                    //
+       << "\nProgress: " << total_trials / (max_trials * 0.01) << "%"  //
+       << "\nTotal Trials: " << total_trials << " / " << max_trials    //
+       << "\nTotal latency (us): " << total_latency                    //
        << "\n";
     return os.str();
   }
@@ -112,6 +134,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
     int n_tasks = task_records_.size();
     // Round robin
     if (num_rounds_already_ == 0) {
+      TVM_PY_LOG_CLEAR_SCREEN(this->logging_func);
       TVM_PY_LOG(INFO, this->logging_func) << "\n" << this->TuningStatistics();
     }
     if (num_rounds_already_ < n_tasks) {
@@ -178,6 +201,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
     }
     record.best_time_cost_history.push_back(best_time_cost);
     record.trials += results.size();
+    TVM_PY_LOG_CLEAR_SCREEN(this->logging_func);
     TVM_PY_LOG(INFO, this->logging_func)
         << "[Updated] Task #" << task_id << ": " << record.task->task_name << "\n"
         << this->TuningStatistics();

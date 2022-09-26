@@ -400,8 +400,8 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
 
     PrimExpr condition = this->VisitExpr(op->condition);
 
-    Array<PrimExpr> extents = op->extents;
-    extents.MutateByApply([this](const PrimExpr& extent) { return this->VisitExpr(extent); });
+    Array<PrimExpr> extents =
+        op->extents.Map([this](const PrimExpr& extent) { return this->VisitExpr(extent); });
 
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(GetRef<Stmt>(op), true);

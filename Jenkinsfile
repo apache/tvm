@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-09-15T16:03:21.407877
+// Generated at 2022-09-16T08:47:49.743918
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -4205,7 +4205,7 @@ def deploy_docs() {
       script: '''
         cd tvm-site
         git remote add deploy https://$GITHUB_TOKEN:x-oauth-basic@github.com/apache/tvm-site.git
-        git push deploy $DOCS_DEPLOY_BRANCH
+        git push deploy $DOCS_DEPLOY_BRANCH || true
       ''',
       label: 'Upload docs to apache/tvm-site'
     )
@@ -4222,7 +4222,8 @@ def deploy() {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docs") {
           timeout(time: max_time, unit: 'MINUTES') {
-            sh(
+            init_git()
+                    sh(
                       script: """
                         set -eux
                         . ci/scripts/retry.sh

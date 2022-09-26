@@ -477,7 +477,7 @@ def conv2d_alter_int8_common(
     pt, pl, pb, pr = get_pad_tuple(padding, (kh, kw))
 
     if data_tensor.dtype != data_dtype:
-        # How to convert data to int8
+        # How to convert data to uint8
         # Original --> C = A (conv) B
         # A and B are int8
         #   C = (A + 128 - 128) (conv) B
@@ -485,18 +485,20 @@ def conv2d_alter_int8_common(
         # where A' = A + 128
         # and 128 (conv) B is basically a reduce on CRS axis for weights.
         #
-        # How to convert data to uint8
+        # How to convert data to int8
         #   C = (A - 128 + 128) (conv) B
         #   C = (A' conv B) + 128 (conv) B
         # where A' = A - 128
-        if data_dtype == "int8":
-            # shift data to int8
+        if data_dtype == "uint8":
+            # shift data to uint8
             before_shift = relay.add
             after_shift = relay.subtract
+            pad_value = 128
         else:
-            # shift data to uint8
+            # shift data to int8
             before_shift = relay.subtract
             after_shift = relay.add
+            pad_value = -128
 
         if attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWIO":
             adjust_shift = relay.sum(relay.cast(kernel, dtype="int32"), axis=(0, 1, 2))
@@ -514,7 +516,8 @@ def conv2d_alter_int8_common(
 
         # Do external padding as pad value has to be 128.
         if any(padding):
-            data = relay.nn.pad(data, pad_width=pad_width, pad_value=128)
+            data = relay.nn.pad(data, pad_width=pad_width, pad_value=pad_value)
+
         new_attrs["padding"] = (0, 0)
 
         # Multiply 128 to adjust shift.

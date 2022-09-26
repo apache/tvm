@@ -177,12 +177,12 @@ Stmt ReplaceBufferMutator::VisitStmt_(const BlockNode* block) {
   };
 
   // Step 1. Mutate `match_buffers`. If an old buffer appears as a source of MatchBufferRegion,
-  Array<MatchBufferRegion> match_buffers = MutateArray(block->match_buffers, f_mutate_match_buffer);
+  Array<MatchBufferRegion> match_buffers = block->match_buffers.Map(f_mutate_match_buffer);
   // Step 2. Mutate the read/write region.
-  Array<BufferRegion> reads = MutateArray(block->reads, f_mutate_read_write_region);
-  Array<BufferRegion> writes = MutateArray(block->writes, f_mutate_read_write_region);
+  Array<BufferRegion> reads = block->reads.Map(f_mutate_read_write_region);
+  Array<BufferRegion> writes = block->writes.Map(f_mutate_read_write_region);
   // Step 3. Mutate `alloc_buffers` for the old buffer allocated in this block.
-  Array<Buffer> alloc_buffers = MutateArray(block->alloc_buffers, f_mutate_alloc_buffers);
+  Array<Buffer> alloc_buffers = block->alloc_buffers.Map(f_mutate_alloc_buffers);
   // Step 4. Recursively mutate the block.
   Block mutated_block = Downcast<Block>(StmtMutator::VisitStmt_(block));
 
@@ -288,11 +288,15 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
 }
 
 Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::BlockRV& block_rv,
-                                      const String& intrin_name) {
-  Optional<tir::TensorizeInfo> opt_tensorize_info = GetTensorizeLoopMapping(
-      sch->state(), sch->GetSRef(block_rv), tir::TensorIntrin::Get(intrin_name)->desc);
+                                      const String& intrin_name, bool allow_padding) {
+  Optional<tir::TensorizeInfo> opt_tensorize_info =
+      GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block_rv),
+                              tir::TensorIntrin::Get(intrin_name).value()->desc, allow_padding);
   if (!opt_tensorize_info) return NullOpt;
   const tir::TensorizeInfoNode* info = opt_tensorize_info.value().get();
+  if (info->block_iter_paddings.defined()) {
+    sch->PadEinsum(block_rv, info->block_iter_paddings.value());
+  }
   // Construct a mapping from tir loops back to LoopRVs
   Map<tir::StmtSRef, LoopRV> loop2rv;
   {

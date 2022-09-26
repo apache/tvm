@@ -99,7 +99,8 @@ TVM_REGISTER_GLOBAL("script.printer.VarTableDefineByDoc")
           obj, [f = std::move(factory)]() { return f(); }, frame);
     });
 TVM_REGISTER_GLOBAL("script.printer.VarTableGetVarDoc")
-    .set_body_method<VarTable>(&VarTableNode::GetVarDoc);
+    .set_body_method<VarTable, VarTableNode, Optional<ExprDoc>, const ObjectRef&,
+                     const ObjectPath&>(&VarTableNode::GetVarDoc);
 TVM_REGISTER_GLOBAL("script.printer.VarTableIsVarDefined")
     .set_body_method<VarTable>(&VarTableNode::IsVarDefined);
 

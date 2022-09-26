@@ -223,6 +223,24 @@ def func_with_block_predicate() -> None:
             B[ax] = A[ax] + 1.0
 
 
+@T.prim_func
+def inplace_func(data_io: T.Buffer[(64), "int32"]):
+    data_1d = T.alloc_buffer([64], dtype="int32")
+    for i0 in T.serial(64):
+        with T.block("copy_in"):
+            v0 = T.axis.remap("S", [i0])
+            data_1d[v0] = data_io[v0]
+    for i0 in T.serial(1):
+        with T.block("ext_call"):
+            T.reads(data_1d[:64])
+            T.writes(data_1d[:64])
+            T.evaluate(T.call_extern("call_impl", data_1d.data, dtype=""))
+    for i0 in T.serial(64):
+        with T.block("copy_out"):
+            v0 = T.axis.remap("S", [i0])
+            data_io[v0] = data_1d[v0]
+
+
 ########## Expected function after cache_read ##########
 
 
@@ -415,14 +433,14 @@ def cache_read_multi_consumer_target() -> None:
                 vi = T.axis.S(128, i * 16 + j)
                 A[vi] = 1.0
         for j in T.grid(16):
-            with T.block("A"):
-                vi = T.axis.S(128, i * 16 + j)
-                A_global[vi] = A[vi]
-        for j in T.grid(16):
             with T.block("B"):
                 vi = T.axis.S(128, i * 16 + j)
                 B[vi] = A[vi] + 1.0
 
+    for i in T.grid(128):
+        with T.block("A"):
+            vi = T.axis.S(128, i)
+            A_global[vi] = A[vi]
     for i in T.grid(128):
         with T.block("C"):
             vi = T.axis.S(128, i)
@@ -499,6 +517,35 @@ def cache_read_shape_int64(var_A: T.handle, var_C: T.handle) -> None:
             T.reads(B[vi, vj])
             T.writes(C[vi, vj])
             C[vi, vj] = B[vi, vj] + T.float32(1)
+
+
+@T.prim_func
+def cache_read_inplace(data_io: T.Buffer[64, "int32"]) -> None:
+    data_1d = T.alloc_buffer([64], dtype="int32")
+    data_io_local = T.alloc_buffer([64], dtype="int32", scope="local")
+    for ax0 in T.serial(64):
+        with T.block("data_io_local"):
+            v0 = T.axis.spatial(64, ax0)
+            T.reads(data_io[v0])
+            T.writes(data_io_local[v0])
+            data_io_local[v0] = data_io[v0]
+    for i0 in T.serial(64):
+        with T.block("copy_in"):
+            v0 = T.axis.spatial(64, i0)
+            T.reads(data_io_local[v0])
+            T.writes(data_1d[v0])
+            data_1d[v0] = data_io_local[v0]
+    for i0 in T.serial(1):
+        with T.block("ext_call"):
+            T.reads(data_1d[0:64])
+            T.writes(data_1d[0:64])
+            T.evaluate(T.call_extern("call_impl", data_1d.data, dtype=""))
+    for i0 in T.serial(64):
+        with T.block("copy_out"):
+            v0 = T.axis.spatial(64, i0)
+            T.reads(data_1d[v0])
+            T.writes(data_io[v0])
+            data_io[v0] = data_1d[v0]
 
 
 ########## Expected function after cache_write ##########
@@ -874,6 +921,14 @@ def test_cache_read_fail_invalid_storage_scope(use_block_name):
     block_b = "B" if use_block_name else sch.get_block("B")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.cache_read(block_b, 0, "test_scope")
+
+
+def test_inplace_cache_read():
+    sch = tvm.tir.Schedule(inplace_func, debug_mask="all")
+    block = sch.get_block("copy_in")
+    sch.cache_read(block, 0, "local", [block])
+    tvm.ir.assert_structural_equal(cache_read_inplace, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=inplace_func)
 
 
 ########## Testcases for cache_write ##########

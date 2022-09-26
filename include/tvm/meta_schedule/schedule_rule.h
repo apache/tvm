@@ -188,6 +188,21 @@ class ScheduleRule : public runtime::ObjectRef {
       Optional<Map<String, ObjectRef>> reuse_write, bool use_software_pipeline);
 
   /*!
+   * \brief Extension of MultiLevelTiling for backends with wide vectors.
+   * The loop over the innermost spatial axis of the output buffer is always vectorized with the
+   * maximum vector length.
+   * \param structure The tiling structure. 'SSRSRS' is recommended.
+   * \param vector_length_in_bits The length of a vector register in bits.
+   * \param max_innermost_factor The maximum size of the innermost factor. NullOpt means no limit
+   * \param reuse_read Data reuse configuration for reading. NullOpt means no reuse.
+   * \param reuse_write Data reuse configuration for writing. NullOpt means no reuse.
+   * \return The schedule rule created
+   */
+  TVM_DLL static ScheduleRule MultiLevelTilingWideVector(
+      String structure, Integer vector_length_in_bits, Optional<Integer> max_innermost_factor,
+      Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write);
+
+  /*!
    * \brief Create a rule: add-rfactor to some blocks if needed
    * \param max_jobs_per_core The maximum number of jobs to be launched per CPU core. It sets the
    * uplimit of CPU parallelism, i.e. `num_cores * max_jobs_per_core`. Use -1 to disable

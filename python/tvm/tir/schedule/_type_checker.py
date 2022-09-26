@@ -164,7 +164,7 @@ def _dispatcher(type_: Any) -> Tuple[str, List[type]]:
     return "atomic", [type_]
 
 
-def callable_str(subtypes):
+def callable_str(*subtypes):
     if subtypes:
         *arg_types, return_type = subtypes
         arg_str = ", ".join(_type2str(arg_type) for arg_type in arg_types)

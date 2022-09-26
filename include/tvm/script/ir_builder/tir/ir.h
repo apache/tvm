@@ -28,6 +28,7 @@ namespace script {
 namespace ir_builder {
 namespace tir {
 
+using tvm::runtime::NDArray;
 using tvm::tir::Buffer;
 using tvm::tir::Var;
 
@@ -141,6 +142,55 @@ void PreflattenedBuffer(Buffer postflattened_buffer, Array<PrimExpr> shape,
  */
 BlockFrame Block(String name, bool no_realize = false);
 
+/*!
+ * \brief The block initialization statement.
+ * \return The BlockInitFrame.
+ */
+BlockInitFrame Init();
+
+/*!
+ * \brief The block predicate statement.
+ * \param predicate The predicate condition.
+ */
+void Where(PrimExpr predicate);
+
+/*!
+ * \brief The block buffer region reading statement.
+ * \param buffer_slices The array of buffer regions to read.
+ */
+void Reads(Array<ObjectRef> buffer_slices);
+
+/*!
+ * \brief The block buffer region writing statement.
+ * \param buffer_slices The array of buffer regions to write.
+ */
+void Writes(Array<ObjectRef> buffer_slices);
+
+/*!
+ * \brief The block annotation statement.
+ * \param attrs The annotation of the block.
+ */
+void BlockAttrs(Map<String, ObjectRef> attrs);
+
+/*!
+ * \brief The buffer allocation function.
+ * \param shape The type of the buffer prior to flattening.
+ * \param dtype The data type in the content of the buffer.
+ * \param data The pointer to the head of the data.
+ * \param strides The strides of each dimension.
+ * \param elem_offset The offset in terms of number of dtype elements (including lanes).
+ * \param storage_scope The optional storage scope of buffer data pointer.
+ * \param align The alignment requirement of data pointer in bytes.
+ * \param offset_factor The factor of elem_offset field.
+ * \param buffer_type The buffer type.
+ * \param axis_separators The separators between input axes when generating flattened output axes.
+ * \return The allocated buffer.
+ */
+Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
+                   Optional<Var> data = NullOpt, Array<PrimExpr> strides = {},
+                   PrimExpr elem_offset = PrimExpr(), String storage_scope = "", int align = -1,
+                   int offset_factor = 0, String buffer_type = "default",
+                   Array<IntImm> axis_separators = {});
 namespace axis {
 
 /*!
@@ -242,6 +292,142 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
  * \return The ForFrame.
  */
 ForFrame Grid(Array<PrimExpr> extents);
+
+/*!
+ * \brief The assertion statement.
+ * \param condition The assertion condition.
+ * \param message The error message when the assertion fails.
+ * \return The AssertFrame.
+ */
+AssertFrame Assert(PrimExpr condition, String message);
+
+/*!
+ * \brief The let binding.
+ * \param var The variable to bind.
+ * \param value The value to be bound.
+ * \return The created LetFrame.
+ */
+LetFrame Let(Var var, PrimExpr value);
+
+/*!
+ * \brief The realization.
+ * \param buffer_slice The region of buffer access.
+ * \param storage_scope The storage scope associated with this realization.
+ * \param condition The condition expression.
+ * \return The result RealizeFrame.
+ */
+RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope, PrimExpr condition);
+
+/*!
+ * \brief The allocate node.
+ * \param extents The extents of the allocate.
+ * \param dtype The data type of the buffer.
+ * \param storage_scope The storage scope.
+ * \param condition The condition.
+ * \param annotations Additional annotation hints.
+ * \return The created AllocateFrame.
+ */
+AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_scope = "",
+                       Optional<PrimExpr> condition = NullOpt,
+                       Optional<Map<String, ObjectRef>> annotations = NullOpt);
+
+/*!
+ * \brief The allocate constant node.
+ * \param data The data associated with the constant.
+ * \param dtype The data type of the buffer.
+ * \param extents The extents of the allocate.
+ * \param annotations Additional annotation hints.
+ * \return The created AllocateConstFrame.
+ */
+AllocateConstFrame AllocateConst(
+    NDArray data, DataType dtype, Array<PrimExpr> extents,
+    Map<String, ObjectRef> annotations = NullValue<Map<String, ObjectRef>>());
+
+/*!
+ * \brief Create an attribute.
+ * \param node The node to annotate the attribute.
+ * \param attr_key Attribute type key.
+ * \param value The value of the attribute.
+ * \return The result AttrFrame.
+ */
+AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value);
+
+/*!
+ * \brief Create a while loop.
+ * \param condition The termination condition of the loop.
+ * \return The result WhileFrame.
+ */
+WhileFrame While(PrimExpr condition);
+
+/*!
+ * \brief Create an if statement.
+ * \param condition The condition of if statement.
+ * \return The result IfFrame.
+ */
+IfFrame If(PrimExpr condition);
+
+/*!
+ * \brief Create a then.
+ * \return The result ThenFrame.
+ */
+ThenFrame Then();
+
+/*!
+ * \brief Create an else.
+ * \return The result ElseFrame.
+ */
+ElseFrame Else();
+
+/*!
+ * \brief The buffer declaration frame.
+ * \param shape The type of the buffer prior to flattening.
+ * \param dtype The data type in the content of the buffer.
+ * \param buffer_name The name of the buffer.
+ * \param data The pointer to the head of the data.
+ * \param strides The strides of each dimension.
+ * \param elem_offset The offset in terms of number of dtype elements (including lanes).
+ * \param storage_scope The optional storage scope of buffer data pointer.
+ * \param align The alignment requirement of data pointer in bytes.
+ * \param offset_factor The factor of elem_offset field.
+ * \param buffer_type The buffer type.
+ * \param axis_separators The separators between input axes when generating flattened output axes.
+ * \return The declared buffer.
+ */
+DeclBufferFrame DeclBuffer(Array<PrimExpr> shape, DataType dtype, String buffer_name,
+                           Optional<Var> data, Optional<Array<PrimExpr>> strides,
+                           Optional<PrimExpr> elem_offset, String storage_scope, int align,
+                           int offset_factor, String buffer_type,
+                           Optional<Array<IntImm>> axis_separators);
+
+/*!
+ * \brief Launch a thread.
+ * \param var The iteration variable.
+ * \param extent The extent of environment thread.
+ * \return The result LaunchThreadFrame.
+ */
+LaunchThreadFrame LaunchThread(Var var, PrimExpr extent);
+
+/*!
+ * \brief Bind a var to thread env.
+ * \param thread_tag The thread type tag.
+ * \return The result variable which gets bound to the thread env.
+ */
+Var EnvThread(String thread_tag);
+
+/*!
+ * \brief Store data in a buffer.
+ * \param buffer The buffer.
+ * \param value The value to be stored.
+ * \param indices The indices location to be stored.
+ */
+void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
+
+/*!
+ * \brief The prefetch hint for a buffer
+ * \param buffer The buffer to be prefetched.
+ * \param bounds The bounds to be prefetched.
+ */
+void Prefetch(Buffer buffer, Array<Range> bounds);
 
 /*!
  * \brief Evaluate the input expression.

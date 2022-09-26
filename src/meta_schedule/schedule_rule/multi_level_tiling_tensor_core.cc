@@ -184,7 +184,7 @@ Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
     TensorCoreIntrinGroup intrin_group = intrin_groups[i];
     Optional<tir::AutoTensorizeMappingInfo> mapping_info = tir::GetAutoTensorizeMappingInfo(
         sch->state(), sch->GetSRef(block_rv),
-        tir::TensorIntrin::Get(intrin_groups[i].compute_intrin)->desc);
+        tir::TensorIntrin::Get(intrin_groups[i].compute_intrin).value()->desc);
     if (mapping_info.defined()) {
       intrin_group_to_mapping_info.emplace(i, mapping_info.value());
     }
@@ -499,7 +499,7 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     const tir::BufferRegion& reindexed_buffer_region = tir::GetNthAccessBufferRegion(
         state->sch->state(), GetRef<tir::Block>(block), buffer_index, index_type);
     auto sub_index_map = f_get_sub_index_map(lhs_buffer, reindexed_buffer_region->region);
-    state->sch->TransformLayout(state->block_rv, buffer_index, index_type, sub_index_map);
+    state->sch->TransformLayout(state->block_rv, buffer_index, index_type, sub_index_map, NullOpt);
   };
 
   for (int i = 0, n = block_before_reindex->reads.size(); i < n; ++i) {
@@ -515,7 +515,8 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   state->sch->TransformBlockLayout(state->tensor_core_reindex_B, index_map);
   state->sch->TransformBlockLayout(state->block_rv, index_map);
 
-  return tir::TileWithTensorIntrin(state->sch, state->block_rv, intrin_name);
+  return tir::TileWithTensorIntrin(state->sch, state->block_rv, intrin_name,
+                                   /*allow_padding=*/true);
 }
 
 inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorization(

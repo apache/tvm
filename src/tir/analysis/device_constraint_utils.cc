@@ -393,9 +393,8 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
   }
 
   template <typename T>
-  Array<T> VisitItems(Array<T> items) {
-    items.MutateByApply([this](const T& item) { return VisitItem(item.get()); });  // copy-on-write
-    return items;
+  Array<T> VisitItems(const Array<T>& items) {
+    return items.Map([this](T item) -> T { return VisitItem(item.get()); });
   }
 
   Stmt VisitStmt_(const BlockNode* block_node) final {

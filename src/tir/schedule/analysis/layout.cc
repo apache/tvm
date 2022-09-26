@@ -167,20 +167,25 @@ Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& 
     }
     return a.lower_factor > b.lower_factor;
   });
+  // Compute the inverse permutation by argsort
+  std::vector<int> inverse_order = order;
+  std::sort(inverse_order.begin(), inverse_order.end(),
+            [&order](int _a, int _b) -> bool { return order[_a] < order[_b]; });
   // Step 5. Create the indexing mapping
   auto f_alter_layout = [f_flatten_index = std::move(f_flatten_index),  //
-                         split_exprs = std::move(split_exprs),          //
-                         order = std::move(order),                      //
-                         shape = buffer->shape,                         //
+                         &split_exprs,                                  //
+                         &order,                                        //
+                             & shape = buffer->shape,                   //
                          analyzer                                       //
   ](Array<Var> indices) -> Array<PrimExpr> {
     ICHECK_EQ(indices.size(), shape.size());
     for (int i = 0, n = indices.size(); i < n; ++i) {
       analyzer->Bind(indices[i], Range::FromMinExtent(0, shape[i]));
     }
+    // Step 5.1: Fuse all indices into a flattened one
     PrimExpr index = f_flatten_index({indices.begin(), indices.end()});
     int ndim = split_exprs.size();
-    // Step 5.1. Split the flattened index according to `split_exprs`
+    // Step 5.2. Split the flattened index according to `split_exprs`
     std::vector<PrimExpr> split;
     split.reserve(ndim);
     for (int i = ndim - 1; i >= 0; --i) {
@@ -190,7 +195,7 @@ Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& 
       index = floordiv(index, extent);
     }
     std::reverse(split.begin(), split.end());
-    // Step 5.2. Reorder the indexing pattern according to `order`
+    // Step 5.3. Reorder the indexing pattern according to `order`
     Array<PrimExpr> results;
     results.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
@@ -198,7 +203,39 @@ Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& 
     }
     return results;
   };
-  return IndexMap::FromFunc(ndim, f_alter_layout);
+  // Step 6: Create the inverse index mapping.
+  auto f_inverse = [&inverse_order, &split_exprs, &shape = buffer->shape,
+                    analyzer](Array<Var> indices) -> Array<PrimExpr> {
+    ICHECK_EQ(indices.size(), split_exprs.size());
+    // Step 6.1: Reorder the indices according to `inverse_order`. This is the inverse of Step 5.3.
+    // After the inverse permutation, indices[i] corresponds to split_exprs[i]
+    Array<Var> inv_permuted_indices;
+    inv_permuted_indices.reserve(indices.size());
+    for (int i = 0, n = indices.size(); i < n; ++i) {
+      const Var& index = indices[inverse_order[i]];
+      inv_permuted_indices.push_back(index);
+      analyzer->Bind(index, Range::FromMinExtent(0, Integer(split_exprs[i].extent)));
+    }
+
+    // Step 6.2: Fuse all the indices. This is the inverse of Step 5.2.
+    PrimExpr flattened_index = make_const(indices[0]->dtype, 0);
+    int64_t stride = 1;
+    for (int i = static_cast<int>(split_exprs.size()) - 1; i >= 0; --i) {
+      flattened_index = inv_permuted_indices[i] * Integer(stride) + flattened_index;
+      stride *= split_exprs[i].extent;
+    }
+    // Step 6.3: Split the flattened index into multiple indices. This is the inverse of Step 5.1.
+    Array<PrimExpr> result;
+    result.reserve(shape.size());
+    for (int i = static_cast<int>(shape.size()) - 1; i >= 0; --i) {
+      PrimExpr index = analyzer->Simplify(floormod(flattened_index, shape[i]));
+      flattened_index = floordiv(flattened_index, shape[i]);
+      result.push_back(index);
+    }
+    return Array<PrimExpr>(result.rbegin(), result.rend());
+  };
+  IndexMap inverse_index_map = IndexMap::FromFunc(split_exprs.size(), f_inverse);
+  return IndexMap::FromFunc(ndim, f_alter_layout, inverse_index_map);
 }
 
 TVM_REGISTER_GLOBAL("tir.schedule.SuggestIndexMap")
