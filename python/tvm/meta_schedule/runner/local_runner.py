@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Local Runner"""
-import logging
 from contextlib import contextmanager
 from typing import Callable, List, Optional, Union
 
@@ -23,6 +22,7 @@ import tvm
 
 from ...contrib.popen_pool import PopenPoolExecutor
 from ...runtime import Device, Module
+from ..logging import get_logger
 from ..profiler import Profiler
 from ..utils import derived_object, get_global_func_with_default_on_worker
 from .config import EvaluatorConfig
@@ -34,7 +34,7 @@ from .utils import (
     run_evaluator_common,
 )
 
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+logger = get_logger(__name__)  # pylint: disable=invalid-name
 
 
 T_ALLOC_ARGUMENT = Callable[  # pylint: disable=invalid-name

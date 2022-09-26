@@ -16,22 +16,29 @@
 # under the License.
 """Meta Schedule CostModel."""
 import ctypes
-from typing import Callable, List
+from typing import Callable, List, Union
+
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
 
 import numpy as np  # type: ignore
 from tvm._ffi import register_object
-from tvm.meta_schedule.utils import _get_default_str
 from tvm.runtime import Object
 
 from .. import _ffi_api
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
 from ..tune_context import TuneContext
+from ..utils import _get_default_str
 
 
 @register_object("meta_schedule.CostModel")
 class CostModel(Object):
     """Cost model."""
+
+    CostModelType = Union["CostModel", Literal["xgb", "mlp", "random"]]
 
     def load(self, path: str) -> None:
         """Load the cost model from given file location.
@@ -96,6 +103,41 @@ class CostModel(Object):
             results.ctypes.data_as(ctypes.c_void_p),
         )
         return results
+
+    @staticmethod
+    def create(
+        kind: Literal["xgb", "mlp", "random"],
+        *args,
+        **kwargs,
+    ) -> "CostModel":
+        """Create a CostModel.
+
+        Parameters
+        ----------
+        kind : Literal["xgb", "mlp", "random"]
+            The kind of the cost model. Can be "xgb", "mlp", or "random".
+
+        Returns
+        -------
+        cost_model : CostModel
+            The created cost model.
+        """
+        from . import RandomModel, XGBModel  # pylint: disable=import-outside-toplevel
+
+        if kind == "xgb":
+            return XGBModel(*args, **kwargs)  # type: ignore
+        if kind == "random":
+            return RandomModel(*args, **kwargs)  # type: ignore
+        if kind == "mlp":
+            from .mlp_model import (  # type: ignore  # pylint: disable=import-outside-toplevel
+                MLPModel,
+            )
+
+            return MLPModel(*args, **kwargs)  # type: ignore
+        raise ValueError(f"Unknown CostModel: {kind}")
+
+
+create = CostModel.create  # pylint: disable=invalid-name
 
 
 @register_object("meta_schedule.PyCostModel")

@@ -225,7 +225,7 @@ Schedule ConcreteScheduleNode::Copy() {
 /******** Schedule: Schedule: Sampling ********/
 
 void ConcreteScheduleNode::Seed(support::LinearCongruentialEngine::TRandState seed) {
-  support::LinearCongruentialEngine(&rand_state_).Seed(seed);
+  this->rand_state_ = support::LinearCongruentialEngine::NormalizeSeed(seed);
 }
 
 support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {

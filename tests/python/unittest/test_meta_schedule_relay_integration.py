@@ -23,9 +23,13 @@ from tvm import IRModule
 from tvm import meta_schedule as ms
 from tvm import relay, te, tir
 from tvm._ffi import register_func
+from tvm.contrib import graph_executor
+from tvm.ir.transform import PassContext
 from tvm.meta_schedule.testing.relay_workload import get_network
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
+from tvm.meta_schedule.tune_context import _normalize_mod
 from tvm.script import tir as T
+from tvm.target import Target
 
 # pylint: disable=no-member,line-too-long,too-many-nested-blocks,unbalanced-tuple-unpacking,no-self-argument,missing-docstring,invalid-name
 
@@ -60,15 +64,14 @@ def test_meta_schedule_dynamic_loop_extent():
     a = relay.var("a", shape=(1, 8, 8, 512), dtype="float32")
     b = relay.nn.adaptive_avg_pool2d(a, (7, 7), "NHWC")
     mod = IRModule({"main": relay.Function([a], b)})
-    extracted_tasks = ms.extract_task_from_relay(mod, target="llvm", params={})
+    extracted_tasks = ms.relay_integration.extract_tasks(mod, target="llvm", params={})
     assert not extracted_tasks
 
 
-@pytest.mark.xfail(strict=True, reason="See https://github.com/apache/tvm/issues/12732")
 @requires_torch
 def test_meta_schedule_integration_extract_from_resnet():
     mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
-    extracted_tasks = ms.extract_task_from_relay(mod, target="llvm", params=params)
+    extracted_tasks = ms.relay_integration.extract_tasks(mod, target="llvm", params=params)
     expected_task_names = [
         "fused_" + s
         for s in [
@@ -186,7 +189,7 @@ def test_meta_schedule_integration_extract_from_bert_base():
         ),
     }
     mod, params, _ = get_network(name="bert_base", input_shape=[1, 64])
-    extracted_tasks = ms.extract_task_from_relay(mod, target="llvm", params=params)
+    extracted_tasks = ms.relay_integration.extract_tasks(mod, target="llvm", params=params)
     assert len(extracted_tasks) == len(expected)
     for t in extracted_tasks:
         prim_func = None
@@ -199,7 +202,6 @@ def test_meta_schedule_integration_extract_from_bert_base():
         assert expected_shape == shape, t.task_name
 
 
-@pytest.mark.xfail(strict=True, reason="See https://github.com/apache/tvm/issues/12732")
 @requires_torch
 def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
     @register_func("relay.backend.tir_converter.remove_purely_spatial", override=True)
@@ -229,11 +231,14 @@ def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
         return create_prim_func(args)
 
     mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
-    extracted_tasks = ms.extract_task_from_relay(
+    extracted_tasks = ms.relay_integration.extract_tasks(
         mod,
         target="llvm",
         params=params,
-        tir_converter="remove_purely_spatial",
+        pass_config={
+            "relay.backend.use_meta_schedule": True,
+            "relay.backend.tir_converter": "remove_purely_spatial",
+        },
     )
     expected_task_names = [
         "fused_" + s
@@ -266,32 +271,34 @@ def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
 
 @pytest.mark.skip("Too slow on CI")
 def extract_task_qbert():
-    mod, params, _ = load_quantized_bert_base(batch_size=1, seq_len=128)
-    target = "llvm -mcpu=cascadelake"
-    extracted_tasks = ms.extract_task_from_relay(mod, target, params)
-    tune_tasks = list(
-        filter(
-            lambda task: "dense" in task.task_name or "batch_matmul" in task.task_name,
-            extracted_tasks,
+    def _test(mod, params, target):
+        extracted_tasks = ms.relay_integration.extract_tasks(mod, target, params)
+        tune_tasks = list(
+            filter(
+                lambda task: "dense" in task.task_name or "batch_matmul" in task.task_name,
+                extracted_tasks,
+            )
         )
-    )
-    # three int8 dense, two int8 bmm, and one fp32 dense
-    assert len(tune_tasks) == 6
+        # three int8 dense, two int8 bmm, and one fp32 dense
+        assert len(tune_tasks) == 6
 
-    for task in tune_tasks:
-        relay_func = list(task.mod.functions.values())[0]
-        out_type = relay_func.body.checked_type
+        for task in tune_tasks:
+            relay_func = list(task.mod.functions.values())[0]
+            out_type = relay_func.body.checked_type
 
-        if out_type.dtype == "float32":
-            continue
+            if out_type.dtype == "float32":
+                continue
 
-        mod = ms.default_config.mod(task.dispatched[0])
-        sch = tvm.tir.Schedule(mod)
-        block = sch.get_block("compute")
-        annotations = sch.get(block).annotations
+            sch = tvm.tir.Schedule(_normalize_mod(task.dispatched[0]))
+            block = sch.get_block("compute")
+            annotations = sch.get(block).annotations
 
-        assert "schedule_rule" in annotations
-        assert "vnni" in annotations["schedule_rule"]
+            assert "schedule_rule" in annotations
+            assert "vnni" in annotations["schedule_rule"]
+        ...
+
+    mod, params, _ = load_quantized_bert_base(batch_size=1, seq_len=128)
+    _test(mod, params, target="llvm -mcpu=cascadelake")
 
 
 @tvm.testing.skip_if_32bit(reason="Apparently the LLVM version on i386 image is too old")
@@ -322,7 +329,7 @@ def test_extract_task_arm_conv2d_nchwc():
     params = {"weight": weight_np, "bias": bias_np}
 
     target = "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon"
-    extracted_tasks = ms.extract_task_from_relay(relay_mod, target, params)
+    extracted_tasks = ms.relay_integration.extract_tasks(relay_mod, target, params)
     tune_tasks = list(
         filter(
             lambda task: "conv2d" in task.task_name,
@@ -337,6 +344,149 @@ def test_extract_task_arm_conv2d_nchwc():
 
     # Check that the output is in NCHWc layout
     assert list(out_type.shape) == [1, 8, 130, 130, 4]
+
+
+def test_meta_schedule_te2primfunc_argument_order():
+    # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
+    # fmt: off
+    @tvm.script.ir_module
+    class _fused_layout_transform:
+        @T.prim_func
+        def main( # type: ignore
+            placeholder: T.Buffer[(1, 3, 16, 16), "float32"], # type: ignore
+            T_layout_trans: T.Buffer[(1, 1, 16, 16, 3), "float32"], # type: ignore
+        ) -> None: # type: ignore
+            # function attr dict
+            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            # body
+            # with T.block("root")
+            for i0, i1, i2, i3, i4 in T.grid(1, 1, 16, 16, 3):
+                with T.block("T_layout_trans"):
+                    ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                    T.reads(placeholder[ax0, ax1 * 3 + ax4, ax2, ax3])
+                    T.writes(T_layout_trans[ax0, ax1, ax2, ax3, ax4])
+                    T_layout_trans[ax0, ax1, ax2, ax3, ax4] = T.if_then_else(
+                        ax0 < 1 and ax1 * 3 + ax4 < 3 and ax2 < 16 and ax3 < 16, # type: ignore
+                        placeholder[ax0, ax1 * 3 + ax4, ax2, ax3],
+                        T.float32(0),
+                        dtype="float32",
+                    )
+
+    @tvm.script.ir_module
+    class _fused_layout_transform_1:
+        @T.prim_func
+        def main(placeholder: T.Buffer[(1, 2, 16, 16, 4), "float32"], T_layout_trans: T.Buffer[(1, 8, 16, 16), "float32"]) -> None: # type: ignore
+            # function attr dict
+            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            # body
+            # with T.block("root")
+            for i0, i1, i2, i3 in T.grid(1, 8, 16, 16):
+                with T.block("T_layout_trans"):
+                    ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(placeholder[ax0, ax1 // 4, ax2, ax3, ax1 % 4]) # type: ignore
+                    T.writes(T_layout_trans[ax0, ax1, ax2, ax3])
+                    T_layout_trans[ax0, ax1, ax2, ax3] = T.if_then_else(ax0 < 1 and ax1 < 8 and ax2 < 16 and ax3 < 16, placeholder[ax0, ax1 // 4, ax2, ax3, ax1 % 4], T.float32(0), dtype="float32") # type: ignore
+
+    @tvm.script.ir_module
+    class _fused_nn_contrib_conv2d_NCHWc:
+        @T.prim_func
+        def main(placeholder: T.Buffer[(1, 1, 16, 16, 3), "float32"], placeholder_1: T.Buffer[(2, 1, 5, 5, 3, 4), "float32"], conv2d_NCHWc: T.Buffer[(1, 2, 16, 16, 4), "float32"]) -> None: # type: ignore
+            # function attr dict
+            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            # body
+            # with T.block("root")
+            data_pad = T.alloc_buffer([1, 1, 20, 20, 3], dtype="float32")
+            for i0, i1, i2, i3, i4 in T.grid(1, 1, 20, 20, 3):
+                with T.block("data_pad"):
+                    i0_1, i1_1, i2_1, i3_1, i4_1 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                    T.reads(placeholder[i0_1, i1_1, i2_1 - 2, i3_1 - 2, i4_1])
+                    T.writes(data_pad[i0_1, i1_1, i2_1, i3_1, i4_1])
+                    data_pad[i0_1, i1_1, i2_1, i3_1, i4_1] = T.if_then_else(2 <= i2_1 and i2_1 < 18 and 2 <= i3_1 and i3_1 < 18, placeholder[i0_1, i1_1, i2_1 - 2, i3_1 - 2, i4_1], T.float32(0), dtype="float32") # type: ignore # pylint: disable=R1716
+            for i0, i1, i2, i3, i4, i5, i6, i7 in T.grid(1, 2, 16, 16, 4, 3, 5, 5):
+                with T.block("conv2d_NCHWc"):
+                    n, oc_chunk, oh, ow, oc_block, ic, kh, kw = T.axis.remap("SSSSSRRR", [i0, i1, i2, i3, i4, i5, i6, i7])
+                    T.reads(data_pad[n, ic // 3, oh + kh, ow + kw, ic % 3], placeholder_1[oc_chunk, ic // 3, kh, kw, ic % 3, oc_block]) # type: ignore
+                    T.writes(conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block])
+                    T.block_attr({"workload":["conv2d_NCHWc.x86", ["TENSOR", [1, 1, 16, 16, 3], "float32"], ["TENSOR", [2, 1, 5, 5, 3, 4], "float32"], [1, 1], [2, 2, 2, 2], [1, 1], "NCHW3c", "NCHW4c", "float32"]})
+                    with T.init():
+                        conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] = T.float32(0)
+                    conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] + data_pad[n, ic // 3, oh + kh, ow + kw, ic % 3] * placeholder_1[oc_chunk, ic // 3, kh, kw, ic % 3, oc_block] # type: ignore
+
+    # fmt: on
+    # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
+
+    def _create_database():
+        database = ms.database.create("memory")
+
+        def _commit(mod):
+            workload = database.commit_workload(mod)
+            database.commit_tuning_record(
+                ms.database.TuningRecord(
+                    tir.schedule.Trace([], {}),
+                    workload=workload,
+                    run_secs=[0.1],
+                )
+            )
+
+        _commit(_fused_layout_transform)
+        _commit(_fused_layout_transform_1)
+        _commit(_fused_nn_contrib_conv2d_NCHWc)
+        return database
+
+    data_shape = (1, 3, 16, 16)
+    weight_shape = (8, 3, 5, 5)
+
+    def _create_relay_mod():
+        data = relay.var("data", relay.TensorType(data_shape, "float32"))
+        weight = relay.var("weight", relay.TensorType(weight_shape, "float32"))
+        y = relay.nn.conv2d(
+            data,
+            weight,
+            padding=(2, 2),
+            kernel_size=(5, 5),
+            kernel_layout="OIHW",
+            out_dtype="float32",
+        )
+        f = relay.Function([data, weight], y)
+        mod = tvm.IRModule.from_expr(f)
+        mod = relay.transform.InferType()(mod)
+        return mod
+
+    mod = _create_relay_mod()
+    dev = tvm.cpu()
+    target = Target("llvm --num-cores=16")
+    params = {
+        "weight": np.random.rand(*weight_shape).astype("float32"),
+    }
+    data = tvm.nd.array(
+        np.random.rand(*data_shape).astype("float32"),
+        dev,
+    )
+
+    with target, _create_database(), PassContext(
+        opt_level=3,
+        config={
+            "relay.backend.use_meta_schedule": True,
+            "relay.backend.use_meta_schedule_dispatch": 7,
+            "relay.backend.tir_converter": "default",
+        },
+    ):
+        rt_mod1 = relay.build(mod, target=target, params=params)
+
+    # Compile without meta-schedule for correctness check
+    with tvm.transform.PassContext(opt_level=0):
+        rt_mod2 = relay.build(mod, target=target, params=params)
+
+    def get_output(data, lib):
+        module = graph_executor.GraphModule(lib["default"](dev))
+        module.set_input("data", data)
+        module.run()
+        return module.get_output(0).numpy()
+
+    # Check correctness
+    actual_output = get_output(data, rt_mod1)
+    expected_output = get_output(data, rt_mod2)
+    assert np.allclose(actual_output, expected_output, rtol=1e-4, atol=2e-4)
 
 
 if __name__ == "__main__":

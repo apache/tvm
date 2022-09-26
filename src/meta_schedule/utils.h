@@ -44,6 +44,7 @@
 
 #include <algorithm>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../printer/text_printer.h"
@@ -55,8 +56,8 @@
 #include "../tir/schedule/primitive.h"
 #include "../tir/schedule/utils.h"
 
-#define TVM_PY_LOG(logging_level, logging_func)                          \
-  ::tvm::meta_schedule::PyLogMessage(__FILE__, __LINE__, logging_func,   \
+#define TVM_PY_LOG(logging_level, logger)                                \
+  ::tvm::meta_schedule::PyLogMessage(__FILE__, __LINE__, logger,         \
                                      PyLogMessage::Level::logging_level) \
       .stream()
 #define TVM_PY_LOG_CLEAR_SCREEN(logging_func) clear_logging(__FILE__, __LINE__, logging_func)
@@ -81,14 +82,18 @@ class PyLogMessage {
     // FATAL not included
   };
 
-  explicit PyLogMessage(const char* file, int lineno, PackedFunc logging_func, Level logging_level)
-      : file_(file), lineno_(lineno), logging_func_(logging_func), logging_level_(logging_level) {}
+  explicit PyLogMessage(const char* file, int lineno, PackedFunc logger, Level logging_level)
+      : file_(file), lineno_(lineno), logger_(logger), logging_level_(logging_level) {
+    if (this->logger_ != nullptr) {
+      stream_ << "" << file_ << ":" << lineno_ << " ";
+    }
+  }
 
   TVM_NO_INLINE ~PyLogMessage() {
     ICHECK(logging_level_ != Level::CLEAR)
         << "Cannot use CLEAR as logging level in TVM_PY_LOG, please use TVM_PY_LOG_CLEAR_SCREEN.";
-    if (this->logging_func_.defined()) {
-      logging_func_(static_cast<int>(logging_level_), stream_.str());
+    if (this->logger_ != nullptr) {
+      logger_(static_cast<int>(logging_level_), stream_.str());
     } else {
       if (logging_level_ == Level::INFO) {
         runtime::detail::LogMessage(file_, lineno_).stream() << stream_.str();
@@ -109,7 +114,7 @@ class PyLogMessage {
   const char* file_;
   int lineno_;
   std::ostringstream stream_;
-  PackedFunc logging_func_;
+  PackedFunc logger_;
   Level logging_level_;
 };
 
@@ -120,7 +125,9 @@ class PyLogMessage {
 inline bool using_ipython() {
   bool flag = false;
   const auto* f_using_ipython = runtime::Registry::Get("meta_schedule.using_ipython");
-  if (f_using_ipython->defined()) flag = (*f_using_ipython)();
+  if (f_using_ipython) {
+    flag = (*f_using_ipython)();
+  }
   return flag;
 }
 
@@ -458,6 +465,40 @@ struct SortTuningRecordByMeanRunSecs {
     return a_time < b_time;
   }
 };
+
+/*!
+ * \brief The helper function to clone schedule rules, postprocessors, and mutators.
+ * \param src The source space generator.
+ * \param dst The destination space generator.
+ */
+inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
+  if (src->sch_rules.defined()) {
+    Array<ScheduleRule> original = src->sch_rules.value();
+    Array<ScheduleRule> sch_rules;
+    sch_rules.reserve(original.size());
+    for (const ScheduleRule& sch_rule : original) {
+      sch_rules.push_back(sch_rule->Clone());
+    }
+    dst->sch_rules = std::move(sch_rules);
+  }
+  if (src->postprocs.defined()) {
+    Array<Postproc> original = src->postprocs.value();
+    Array<Postproc> postprocs;
+    postprocs.reserve(original.size());
+    for (const Postproc& postproc : original) {
+      postprocs.push_back(postproc->Clone());
+    }
+    dst->postprocs = std::move(postprocs);
+  }
+  if (src->mutator_probs.defined()) {
+    Map<Mutator, FloatImm> original = src->mutator_probs.value();
+    Map<Mutator, FloatImm> mutator_probs;
+    for (const auto& kv : original) {
+      mutator_probs.Set(kv.first->Clone(), kv.second);
+    }
+    dst->mutator_probs = std::move(mutator_probs);
+  }
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

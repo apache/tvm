@@ -49,17 +49,17 @@ class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
     auto desc_func = tir::TensorIntrin::Get(intrin_name).value()->desc;
     if (!CheckAutoTensorizeApplicable(sch, block_rv, desc_func)) {
-      TVM_PY_LOG(INFO, logging_func) << "The workload cannot be tensorized.";
+      TVM_PY_LOG(INFO, logger) << "The workload cannot be tensorized.";
       return {sch};
     }
 
     auto res = MultiLevelTilingNode::Apply(sch->Copy(), block_rv);
 
     if (res.empty()) {
-      TVM_PY_LOG(INFO, logging_func) << "The workload cannot be tensorized.";
+      TVM_PY_LOG(INFO, logger) << "The workload cannot be tensorized.";
       return {sch};
     }
-    TVM_PY_LOG(INFO, logging_func) << "Tensorizing with " << intrin_name;
+    TVM_PY_LOG(INFO, logger) << "Tensorizing with " << intrin_name;
     return res;
   }
 

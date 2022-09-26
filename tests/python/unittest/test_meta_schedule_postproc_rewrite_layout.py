@@ -15,10 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-
 import tvm
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.postproc import RewriteLayout
+import tvm.testing
+from tvm import meta_schedule as ms
 from tvm.script import tir as T
 from tvm.target import Target
 
@@ -27,32 +26,41 @@ def _target() -> Target:
     return Target("cuda", host="llvm")
 
 
-def _create_context(mod, target) -> TuneContext:
-    return TuneContext(
+def _create_context(mod, target) -> ms.TuneContext:
+    ctx = ms.TuneContext(
         mod=mod,
         target=target,
-        postprocs=[
-            RewriteLayout(),
-        ],
+        space_generator=ms.space_generator.PostOrderApply(
+            sch_rules=[],
+            postprocs=[
+                ms.postproc.RewriteLayout(),
+            ],
+            mutator_probs={},
+        ),
         task_name="test",
     )
+    return ctx
 
 
 class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
     def transform(self):
         def inner(mod):
             target = Target("cuda", host="llvm")
-            ctx = TuneContext(
+            ctx = ms.TuneContext(
                 mod=mod,
                 target=target,
-                postprocs=[
-                    RewriteLayout(),
-                ],
+                space_generator=ms.space_generator.PostOrderApply(
+                    sch_rules=[],
+                    postprocs=[
+                        ms.postproc.RewriteLayout(),
+                    ],
+                    mutator_probs={},
+                ),
                 task_name="test",
             )
             sch = tvm.tir.Schedule(mod, debug_mask="all")
             sch.enter_postproc()
-            assert ctx.postprocs[0].apply(sch)
+            assert ctx.space_generator.postprocs[0].apply(sch)
             return sch.mod
 
         return inner
@@ -145,6 +153,55 @@ class TestExtentOne(BaseBeforeAfter):
             with T.block("block"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 T.evaluate(A_global[vi])
+
+
+@T.prim_func
+def tir_matmul(
+    A: T.Buffer[(16, 16), "float32"],
+    B: T.Buffer[(16, 16), "float32"],
+    C: T.Buffer[(16, 16), "float32"],
+) -> None:
+    T.func_attr({"layout_free_buffers": [1]})
+    for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
+        with T.block("matmul"):
+            vi = T.axis.S(16, i0 * 4 + i1)
+            vj = T.axis.S(16, j)
+            vk = T.axis.R(16, k0 * 4 + k1)
+            with T.init():
+                C[vi, vj] = T.float32(0)
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
+
+@T.prim_func
+def rewritten_tir_matmul(
+    A: T.Buffer[(16, 16), "float32"],
+    B: T.Buffer[(16, 16), "float32"],
+    C: T.Buffer[(16, 16), "float32"],
+) -> None:
+    T.func_attr({"layout_free_buffers": [1]})
+    B_reindex = T.alloc_buffer([16, 4, 4], dtype="float32")
+    for ax0, ax1 in T.grid(16, 16):
+        with T.block("layout_rewrite"):
+            i0, i1 = T.axis.remap("SS", [ax0, ax1])
+            T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
+            B_reindex[i1, i0 // 4, i0 % 4] = B[i0, i1]
+    for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
+        with T.block("matmul"):
+            vi = T.axis.spatial(16, i0 * 4 + i1)
+            vj = T.axis.spatial(16, j)
+            vk = T.axis.reduce(16, k0 * 4 + k1)
+            with T.init():
+                C[vi, vj] = T.float32(0)
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B_reindex[vj, vk // 4, vk % 4]
+
+
+def test_layout_rewrite():
+    target = _target()
+    ctx = _create_context(tir_matmul, target)
+    sch = tvm.tir.Schedule(tir_matmul, debug_mask="all")
+    sch.enter_postproc()
+    assert ctx.space_generator.postprocs[0].apply(sch)
+    tvm.ir.assert_structural_equal(sch.mod["main"], rewritten_tir_matmul)
 
 
 if __name__ == "__main__":

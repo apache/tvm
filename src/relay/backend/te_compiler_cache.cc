@@ -48,6 +48,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../printer/text_printer.h"
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
 #include "../transforms/meta_schedule_layout_rewrite.h"
@@ -387,7 +388,18 @@ class ScheduleBuilder : public ExprVisitor {
             mod = tir::transform::RemoveWeightLayoutRewriteBlock()(std::move(mod));
             prim_func = Downcast<PrimFunc>(mod->Lookup("main"));
           } else {
-            LOG(WARNING) << "Cannot find workload: " << prim_fn_var->name_hint;
+            int dispatch = backend::UseMetaScheduleDispatch();
+            // (dispatch & 2): controls whether to print TVMScript for missing TIR
+            // (dispatch & 4): controls whether to raise fatal errors for missing TIR
+            if (dispatch & 2) {
+              LOG(WARNING) << "Cannot find workload: " << prim_fn_var->name_hint << "\n"
+                           << tir::AsTVMScript(f.value());
+            } else {
+              LOG(WARNING) << "Cannot find workload: " << prim_fn_var->name_hint;
+            }
+            if (dispatch & 4) {
+              LOG(FATAL);
+            }
           }
         }
       }

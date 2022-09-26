@@ -18,7 +18,7 @@
 Meta Schedule search strategy that generates the measure
 candidates for measurement.
 """
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING, Callable, List, Optional, Union
 
 # isort: off
 from typing_extensions import Literal
@@ -76,10 +76,16 @@ class MeasureCandidate(Object):
 
 @register_object("meta_schedule.SearchStrategy")
 class SearchStrategy(Object):
-    """
-    Search strategy is the class that generates the measure candidates. It has to be pre-tuned
-    before usage and post-tuned after usage.
-    """
+    """Search strategy is the class that generates the measure candidates."""
+
+    SearchStrategyType = Union[
+        "SearchStrategy",
+        Literal[
+            "replay-func",
+            "replay-trace",
+            "evolutionary",
+        ],
+    ]
 
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the search strategy with tuning context.
@@ -95,6 +101,8 @@ class SearchStrategy(Object):
 
     def pre_tuning(
         self,
+        max_trials: int,
+        num_trials_per_iter: int,
         design_spaces: List[Schedule],
         database: Optional["Database"] = None,
         cost_model: Optional["CostModel"] = None,
@@ -103,6 +111,10 @@ class SearchStrategy(Object):
 
         Parameters
         ----------
+        max_trials : int
+            The maximum number of trials.
+        num_trials_per_iter : int
+            The number of trials per iteration.
         design_spaces : List[Schedule]
             The design spaces used during tuning process.
         database : Optional[Database] = None
@@ -112,6 +124,8 @@ class SearchStrategy(Object):
         """
         _ffi_api.SearchStrategyPreTuning(  # type: ignore # pylint: disable=no-member
             self,
+            max_trials,
+            num_trials_per_iter,
             design_spaces,
             database,
             cost_model,
@@ -160,6 +174,34 @@ class SearchStrategy(Object):
             The cloned search strategy.
         """
         return _ffi_api.SearchStrategyClone(self)  # type: ignore # pylint: disable=no-member
+
+    @staticmethod
+    def create(  # pylint: disable=keyword-arg-before-vararg
+        kind: Literal[
+            "evolutionary",
+            "replay-trace",
+            "replay-func",
+        ] = "evolutionary",
+        *args,
+        **kwargs,
+    ) -> "SearchStrategy":
+        """Create a search strategy."""
+        from . import (  # pylint: disable=import-outside-toplevel
+            EvolutionarySearch,
+            ReplayFunc,
+            ReplayTrace,
+        )
+
+        if kind == "evolutionary":
+            return EvolutionarySearch(*args, **kwargs)
+        if kind == "replay-trace":
+            return ReplayTrace(*args, **kwargs)
+        if kind == "replay-func":
+            return ReplayFunc(*args, **kwargs)  # type: ignore
+        raise ValueError(f"Unknown SearchStrategy: {kind}")
+
+
+create = SearchStrategy.create  # pylint: disable=invalid-name
 
 
 @register_object("meta_schedule.PySearchStrategy")
@@ -223,7 +265,14 @@ class PySearchStrategy:
         """
         raise NotImplementedError
 
-    def pre_tuning(self, design_spaces: List[Schedule]) -> None:
+    def pre_tuning(
+        self,
+        max_trials: int,
+        num_trials_per_iter: int,
+        design_spaces: List[Schedule],
+        database: Optional["Database"] = None,
+        cost_model: Optional["CostModel"] = None,
+    ) -> None:
         """Pre-tuning for the search strategy.
 
         Parameters
@@ -272,28 +321,3 @@ class PySearchStrategy:
             The cloned search strategy.
         """
         raise NotImplementedError
-
-
-def create(  # pylint: disable=keyword-arg-before-vararg
-    kind: Literal[
-        "evolutionary",
-        "replay_trace",
-        "replay_func",
-    ] = "evolutionary",
-    *args,
-    **kwargs,
-) -> SearchStrategy:
-    """Create a search strategy."""
-    from . import (  # pylint: disable=import-outside-toplevel
-        EvolutionarySearch,
-        ReplayFunc,
-        ReplayTrace,
-    )
-
-    if kind == "evolutionary":
-        return EvolutionarySearch(*args, **kwargs)
-    if kind == "replay_trace":
-        return ReplayTrace(*args, **kwargs)
-    if kind == "replay_func":
-        return ReplayFunc(*args, **kwargs)
-    raise ValueError(f"Unknown SearchStrategy: {kind}")

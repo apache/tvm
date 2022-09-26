@@ -15,8 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule Postproc."""
+from typing import TYPE_CHECKING, Callable, List
 
-from typing import TYPE_CHECKING, Callable
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
@@ -69,6 +73,36 @@ class Postproc(Object):
             The cloned postprocessor.
         """
         return _ffi_api.PostprocClone(self)  # type: ignore # pylint: disable=no-member
+
+    @staticmethod
+    def create(kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"]) -> List["Postproc"]:
+        """Create a list of default postprocessors.
+
+        Parameters
+        ----------
+        kind : Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"]
+            The kind of the postprocessors.
+
+        Returns
+        -------
+        postprocs : List[Mutator]
+            The list of postprocessors.
+        """
+        funcs = {
+            # pylint: disable=no-member
+            "llvm": _ffi_api.PostprocDefaultLLVM,  # type: ignore
+            "cuda": _ffi_api.PostprocDefaultCUDA,  # type: ignore
+            "cuda-tensorcore": _ffi_api.PostprocDefaultCUDATensorCore,  # type: ignore
+            "hexagon": _ffi_api.PostprocDefaultHexagon,  # type: ignore
+            # pylint: enable=no-member
+        }
+        for k, v in funcs.items():
+            if k == kind:
+                return v()
+        raise ValueError(f"Unsupported kind {kind} for postproc creation.")
+
+
+create = Postproc.create  # pylint: disable=invalid-name
 
 
 @register_object("meta_schedule.PyPostproc")

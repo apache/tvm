@@ -54,7 +54,7 @@ python python/tvm/meta_schedule/testing/torchbench/run.py \
     --mode tune \
     --model resnet50 \
     --target "nvidia/geforce-rtx-3070" \
-    --work-dir ../workdir \
+    --work-dir /path/to/work/dir/ \
     --num-trials 20000 \
     --rpc-host <rpc tracker host for tuning> \
     --rpc-port <rpc tracker port for tuning> \
@@ -73,7 +73,7 @@ python python/tvm/meta_schedule/testing/torchbench/run.py \
     --mode eval \
     --model resnet50 \
     --target "nvidia/geforce-rtx-3070" \
-    --work-dir ../workdir \
+    --work-dir /path/to/work/dir/ \
     --num-trials 0
 ```
 
@@ -84,13 +84,11 @@ python python/tvm/meta_schedule/testing/torchbench/run.py \
     --mode all \
     --model resnet50 \
     --target "llvm -num-cores 6" \
-    --work-dir ../workdir \
+    --work-dir /path/to/work/dir/ \
     --num-trials 0
 ```
 """
-
 # pylint: disable=logging-format-interpolation
-
 import argparse
 import functools
 import logging
@@ -100,10 +98,9 @@ from typing import Callable, List, Tuple
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
-from scipy.stats import ttest_ind  # type: ignore
-
 import tvm
 import tvm.relay
+from scipy.stats import ttest_ind  # type: ignore
 from tvm import meta_schedule as ms
 from tvm.contrib.graph_executor import GraphModule
 from tvm.meta_schedule.testing.torchbench.utils import (
@@ -147,10 +144,10 @@ class RunMode(Enum):
 
 class ResultComparisonMetric(Enum):
     """
-    This changes how it compares the resultl with the expected value during
+    This changes how it compares the results with the expected value during
     accuracy check.
     - cosine: Use the cosine similarity. It should be greater than 0.99.
-    - allclose-1e-4: Use the max element-wise absolute difference. It should be less than 1e-4.
+    - allclose-1e-4: Use the max elementwise absolute difference. It should be less than 1e-4.
     """
 
     COSINE = "cosine"
@@ -221,15 +218,6 @@ def parse_args():
         """,
     )
     args.add_argument(
-        "--cache-dir",
-        type=str,
-        default=None,
-        help="""
-        The directory to cache the generated network.
-        If not specified, the cache will be disabled.
-        """,
-    )
-    args.add_argument(
         "--num-trials",
         type=int,
         required=True,
@@ -279,7 +267,7 @@ def parse_args():
     args.add_argument(
         "--adaptive-training",
         action="store_true",
-        help="Whether to use adpative training for cost model.",
+        help="Whether to use adaptive training for cost model.",
     )
     args.add_argument(
         "--cpu-flush",
@@ -309,7 +297,8 @@ def parse_args():
 
 
 logging.basicConfig(
-    format="%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    format="%(asctime)s.%(msecs)03d %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 ARGS = parse_args()
@@ -320,11 +309,12 @@ logger.setLevel(logging.INFO)
 
 
 runner = load_torchdynamo_benchmark_runner(  # pylint: disable=invalid-name
-    IS_CUDA, cosine_similarity=ARGS.result_metric == ResultComparisonMetric.COSINE
+    IS_CUDA,
+    cosine_similarity=ARGS.result_metric == ResultComparisonMetric.COSINE,
 )
 
 
-def get_metaschedule_runner() -> ms.runner.PyRunner:
+def get_meta_schedule_runner() -> ms.runner.PyRunner:
     """
     Get the Runner for MetaSchedule.
 
@@ -349,31 +339,8 @@ def get_metaschedule_runner() -> ms.runner.PyRunner:
             alloc_repeat=1,
         )
     else:
-        warnings.warn("Falling back to Metaschedule LocalRunner because --rpc-host isn't provided.")
+        warnings.warn("Falling back to MetaSchedule LocalRunner because --rpc-host isn't provided.")
         return ms.runner.LocalRunner()
-
-
-def get_tune_config() -> ms.TuneConfig:
-    """
-    Get the TuneConfig.
-    """
-    if ARGS.mode.should_tune:
-        max_trials_per_task = ARGS.max_trials_per_task
-        max_trials_global = ARGS.num_trials
-    else:
-        max_trials_per_task = 0
-        max_trials_global = 0
-
-    if max_trials_per_task is None:
-        max_trials_per_task = max_trials_global
-
-    return ms.TuneConfig(
-        strategy="evolutionary",
-        num_trials_per_iter=64,
-        max_trials_per_task=max_trials_per_task,
-        max_trials_global=max_trials_global,
-        adaptive_training=ARGS.adaptive_training,
-    )
 
 
 def get_graph_executor_forward(mod: GraphModule, device: tvm.runtime.Device) -> Callable:
@@ -419,7 +386,7 @@ def get_vm_forward(virtual_machine: VirtualMachine, device: tvm.runtime.Device) 
 
 def create_tvm_task_collection_backend(tasks: List[ms.ExtractedTask]) -> Callable:
     """
-    This torchdynamo backend only collects the extracted tasks from Metaschedule.
+    This torchdynamo backend only collects the extracted tasks from MetaSchedule.
     It doesn't tune the model.
     """
 
@@ -428,7 +395,11 @@ def create_tvm_task_collection_backend(tasks: List[ms.ExtractedTask]) -> Callabl
         shape_list = [(f"inp_{idx}", i.shape) for idx, i in enumerate(example_inputs)]
         ir_mod, params = tvm.relay.frontend.from_pytorch(jit_mod, shape_list)
 
-        extracted_tasks = ms.extract_task_from_relay(ir_mod, ARGS.target, params)
+        extracted_tasks = ms.relay_integration.extract_tasks(
+            mod=ir_mod,
+            target=ARGS.target,
+            params=params,
+        )
         logger.info("Extracted %d tasks", len(extracted_tasks))
         tasks.extend(extracted_tasks)
 
@@ -440,31 +411,21 @@ def create_tvm_task_collection_backend(tasks: List[ms.ExtractedTask]) -> Callabl
 def create_tvm_compilation_backend(database: ms.database.Database) -> Callable:
     """
     This torchdynamo backend compiles the model using history best record from the
-    Metaschedule database.
+    MetaSchedule database.
     """
 
     def backend(graph_module, example_inputs):
-        # pylint: disable=import-outside-toplevel
-        from tvm.ir.transform import PassContext
-
-        # pylint: enable=import-outside-toplevel
-
         jit_mod = torch.jit.trace(graph_module, example_inputs)
         shape_list = [(f"inp_{idx}", i.shape) for idx, i in enumerate(example_inputs)]
         ir_mod, params = tvm.relay.frontend.from_pytorch(jit_mod, shape_list)
 
-        relay_build = {"graph": tvm.relay.build, "vm": tvm.relay.vm.compile}[ARGS.backend]
-        with ARGS.target, ms.utils.autotvm_silencer(), database:
-            with PassContext(
-                opt_level=3,
-                config={
-                    "relay.backend.use_meta_schedule": True,
-                    "relay.backend.use_meta_schedule_dispatch": not IS_CUDA,
-                    "relay.backend.tir_converter": "default",
-                },
-            ):
-                lib = relay_build(ir_mod, target=ARGS.target, params=params)
-
+        lib = ms.relay_integration.compile_relay(
+            database=database,
+            mod=ir_mod,
+            target=ARGS.target,
+            params=params,
+            backend=ARGS.backend,
+        )
         device = tvm.cuda(0) if IS_CUDA else tvm.cpu(0)
 
         if ARGS.backend == "graph":
@@ -503,7 +464,9 @@ def is_output_correct(output: torch.Tensor, expected: torch.Tensor) -> bool:
 
 
 def performance_experiment(
-    model_iter_fn: Callable, model: torch.nn.Module, example_inputs: Tuple[torch.Tensor]
+    model_iter_fn: Callable,
+    model: torch.nn.Module,
+    example_inputs: Tuple[torch.Tensor],
 ) -> str:
     """
     Performs the actual benchmarking
@@ -560,11 +523,11 @@ def main():
     """
     describe()
 
+    database = ms.database.JSONDatabase(work_dir=ARGS.work_dir)
     if not ARGS.mode.should_tune:
-        ms_database = ms.default_config.database(None, ARGS.work_dir)
-        if len(ms_database) == 0:
+        if len(database) == 0:
             raise RuntimeError(
-                "Script is runnig in eval mode while the tuning database is empty. "
+                "Script is running in eval mode while the tuning database is empty. "
                 "Please tune the model first."
             )
 
@@ -573,6 +536,7 @@ def main():
             "Benchmark is running on CUDA, while --cpu-flush is turned on. "
             "This flag will have no effect on CUDA."
         )
+        ARGS.cpu_flush = False
 
     try:
         _, name, model, example_inputs, batch_size = runner.load_model(
@@ -587,16 +551,27 @@ def main():
         logging.exception(f"{ARGS.model} failed to load")
         return
 
-    tuning_tasks: List[ms.ExtractedTask] = []
-    task_collect_ctx = torchdynamo.optimize(create_tvm_task_collection_backend(tuning_tasks))
-    task_collect_ctx(runner.model_iter_fn)(model, example_inputs)
-
-    database = ms.tune_extracted_tasks(
-        extracted_tasks=tuning_tasks,
-        config=get_tune_config(),
-        work_dir=ARGS.work_dir,
-        runner=get_metaschedule_runner(),  # type: ignore
-    )
+    if ARGS.mode.should_tune:
+        extracted_tasks: List[ms.ExtractedTask] = []
+        task_collect_ctx = torchdynamo.optimize(create_tvm_task_collection_backend(extracted_tasks))
+        task_collect_ctx(runner.model_iter_fn)(model, example_inputs)
+        tasks, task_weights = ms.relay_integration.extracted_tasks_to_tune_contexts(
+            extracted_tasks=extracted_tasks,
+            work_dir=ARGS.work_dir,
+        )
+        database = ms.tune.tune_tasks(
+            tasks=tasks,
+            task_weights=task_weights,
+            work_dir=ARGS.work_dir,
+            max_trials_global=ARGS.num_trials,
+            max_trials_per_task=ARGS.num_trials_per_task,
+            runner=get_meta_schedule_runner(),  # type: ignore
+            database=database,
+            cost_model=ms.cost_model.XGBModel(  # type: ignore
+                extractor=ms.feature_extractor.PerStoreFeature(),
+                adaptive_training=ARGS.adaptive_training,
+            ),
+        )
 
     if ARGS.mode.should_eval:
         torchdynamo.reset()

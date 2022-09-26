@@ -16,8 +16,10 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 from tvm import meta_schedule as ms
-from tvm.meta_schedule.testing.schedule_rule import get_rules
-from tvm.meta_schedule.testing.space_generation import check_sketches
+from tvm.meta_schedule.testing.space_generation import (
+    check_sketches,
+    generate_design_space,
+)
 from tvm.script import tir as T
 from tvm.target import Target
 
@@ -80,13 +82,12 @@ def test_cuda_element_wise():
         ("SampleCategorical", 5),
     ]
     mod = element_wise
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("nvidia/geforce-rtx-3080", host="llvm"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=get_rules("cuda", ms.schedule_rule.AutoBind),
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.AutoBind,
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -114,13 +115,12 @@ def test_cuda_reduction_loop_only():
                         C[()] = T.min(C[()], A[k0] / B[k0])
 
     mod = reduction_loop_only
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("nvidia/geforce-rtx-3080", host="llvm"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=get_rules("cuda", ms.schedule_rule.AutoBind),
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.AutoBind,
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -145,13 +145,12 @@ def test_cuda_zero_dim_add():
                     C[()] = A[()] + B[()]
 
     mod = zero_dim_add
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("nvidia/geforce-rtx-3080", host="llvm"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=get_rules("cuda", ms.schedule_rule.AutoBind),
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.AutoBind,
+    )
     check_sketches(
         mod,
         sketches=actual,
