@@ -115,11 +115,11 @@ class tvmgen_default_fused_layout_transform_1:
 @pytest.mark.parametrize(
     "model_name, input_shape, target, layout",
     [
-        ("resnet_18", [1, 3, 224, 224], "llvm --num-cores=16", "NHWC"),
+        ("resnet_18", [1, 3, 224, 224], "llvm --num-cores=12", "NHWC"),
         ("resnet_18", [1, 3, 224, 224], "nvidia/geforce-rtx-3070", "NHWC"),
-        ("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=16", "NHWC"),
+        ("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=12", "NHWC"),
         ("mobilenet_v2", [1, 3, 224, 224], "nvidia/geforce-rtx-3070", "NHWC"),
-        ("bert_base", [1, 64], "llvm --num-cores=16", None),
+        ("bert_base", [1, 64], "llvm --num-cores=12", None),
         ("bert_base", [1, 64], "nvidia/geforce-rtx-3070", None),
     ],
 )
@@ -242,7 +242,7 @@ def test_meta_schedule_te2primfunc_argument_order():
 
     input_name = "data"
     dev = tvm.cpu()
-    target = Target("llvm --num-cores=16")
+    target = Target("llvm --num-cores=12")
     data = tvm.nd.array(data_sample, dev)
 
     database = TestDummyDatabase()
@@ -250,7 +250,7 @@ def test_meta_schedule_te2primfunc_argument_order():
     database.commit_workload(tvmgen_default_fused_layout_transform_1)
     database.commit_workload(tvmgen_default_fused_nn_contrib_conv2d_NCHWc)
 
-    with database, tvm.transform.PassContext(
+    with database, tvm.transform.PassContext(  # pylint: disable=not-context-manager
         opt_level=3,
         config={"relay.backend.use_meta_schedule": True},
     ):
@@ -295,7 +295,7 @@ def test_meta_schedule_relay_lowering():
 
     input_name = "data"
     dev = tvm.cpu()
-    target = Target("llvm --num-cores=16")
+    target = Target("llvm --num-cores=12")
     data = tvm.nd.array(data_sample, dev)
 
     with tempfile.TemporaryDirectory() as work_dir:
@@ -542,11 +542,11 @@ def test_tune_relay_manual_tir_vnni():
 
 
 if __name__ == """__main__""":
-    test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "llvm --num-cores=16", None)
+    test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "llvm --num-cores=12", None)
     test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "nvidia/geforce-rtx-3070", "NCHW")
-    test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=16", None)
+    test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=12", None)
     test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "nvidia/geforce-rtx-3070", None)
-    test_meta_schedule_tune_relay("bert_base", [1, 64], "llvm --num-cores=16", None)
+    test_meta_schedule_tune_relay("bert_base", [1, 64], "llvm --num-cores=12", None)
     test_meta_schedule_tune_relay("bert_base", [1, 64], "nvidia/geforce-rtx-3070", None)
     test_meta_schedule_te2primfunc_argument_order()
     test_meta_schedule_relay_lowering()
