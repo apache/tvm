@@ -54,6 +54,14 @@ IndexMap IndexMap::FromFunc(int ndim, runtime::TypedPackedFunc<Array<PrimExpr>(A
 }
 
 std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initial_ranges) const {
+  if ((*this)->inverse_index_map.defined()) {
+    // return the pre-defined inverse index map if exists.  In this
+    // case, the user-defined inverse is assumed to be correct and
+    // bijective.
+    PrimExpr padding_predicate = Bool(false);
+    return {Downcast<IndexMap>((*this)->inverse_index_map.value()), padding_predicate};
+  }
+
   // Dummy variables to represent the inverse's inputs.
   Array<Var> output_vars;
   for (size_t i = 0; i < (*this)->final_indices.size(); i++) {
@@ -92,8 +100,15 @@ std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initia
 
   // Unpack the map to an array, maintaining the same parameter order.
   Array<PrimExpr> inverse_exprs;
-  for (const auto& index : (*this)->initial_indices) {
-    inverse_exprs.push_back(analyzer.Simplify(inverse_exprs_map.at(index)));
+  for (int i = 0, n = (*this)->initial_indices.size(); i < n; ++i) {
+    Var index = (*this)->initial_indices[i];
+    PrimExpr expr;
+    if (is_one(initial_ranges[i]->extent) && !inverse_exprs_map.count(index)) {
+      expr = initial_ranges[i]->min;
+    } else {
+      expr = inverse_exprs_map.at(index);
+    }
+    inverse_exprs.push_back(analyzer.Simplify(expr));
   }
 
   PrimExpr padding_predicate = padded_iter_map->padding_predicate;
@@ -117,57 +132,12 @@ std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initia
 }
 
 IndexMap IndexMap::Inverse(Array<Range> initial_ranges) const {
-  if ((*this)->inverse_index_map.defined()) {
-    // return the pre-defined inverse index map if exists.
-    return Downcast<IndexMap>((*this)->inverse_index_map.value());
-  }
-  // Dummy variables to represent the inverse's inputs.
-  Array<Var> output_vars;
-  for (size_t i = 0; i < (*this)->final_indices.size(); i++) {
-    PrimExpr index = (*this)->final_indices[i];
-    // TODO(Lunderberg): Better names for these variables.  A variable
-    // that is passed through unmodified (`index` is an element of
-    // `initial_indices`) should use that input index's name.  A pair
-    // of output indices variables split from a single input index
-    // should be named (X.outer,X.inner).
-    std::stringstream ss;
-    ss << "axis" << i;
-    Var var_index(ss.str(), index.dtype());
-    output_vars.push_back(var_index);
-  }
-
-  // Dummy ranges for the extent of each input.
-  Map<Var, Range> input_iters;
-  ICHECK_EQ((*this)->initial_indices.size(), initial_ranges.size());
-  for (size_t i = 0; i < initial_ranges.size(); i++) {
-    input_iters.Set((*this)->initial_indices[i], initial_ranges[i]);
-  }
-
-  // Unpack the output indices into linear combinations of the initial
-  // indices.
+  auto [inverse, padding_predicate] = NonSurjectiveInverse(std::move(initial_ranges));
   arith::Analyzer analyzer;
-  auto iter_map = DetectIterMap((*this)->final_indices, input_iters, /* predicate = */ 1,
-                                /* check_level = */ arith::IterMapLevel::Bijective, &analyzer,
-                                /* simplify_trivial_iterators = */ false);
-  CHECK(iter_map->indices.size()) << "Index transformation was not bijective.";
-
-  // Determine expressions for the input variables, in terms of the
-  // output variables.
-  Map<Var, PrimExpr> inverse_exprs_map = InverseAffineIterMap(
-      iter_map->indices, Array<PrimExpr>(output_vars.begin(), output_vars.end()));
-
-  // Unpack the map to an array, maintaining the same parameter order.
-  Array<PrimExpr> inverse_exprs;
-  for (int i = 0, n = (*this)->initial_indices.size(); i < n; ++i) {
-    Var index = (*this)->initial_indices[i];
-    if (is_one(initial_ranges[i]->extent) && !inverse_exprs_map.count(index)) {
-      inverse_exprs.push_back(initial_ranges[i]->min);
-    } else {
-      inverse_exprs.push_back(inverse_exprs_map.at(index));
-    }
-  }
-
-  return IndexMap(output_vars, inverse_exprs);
+  CHECK(analyzer.CanProve(!padding_predicate))
+      << "Bijective inverse should not contain padding, but inverse of " << *this << " over range "
+      << initial_ranges << " resulted in a padding predicate of " << padding_predicate;
+  return inverse;
 }
 
 Array<PrimExpr> IndexMapNode::MapIndices(const Array<PrimExpr>& indices,
