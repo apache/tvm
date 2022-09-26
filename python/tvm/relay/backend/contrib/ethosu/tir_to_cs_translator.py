@@ -29,6 +29,7 @@ from tvm.tir import stmt_functor
 from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.backend.contrib.ethosu import vela_api
 from tvm.relay.backend.contrib.ethosu.tir import spec
+from tvm.relay.backend.contrib.ethosu.tir import utils as tir_utils
 
 
 class BufferType(Enum):
@@ -254,17 +255,10 @@ def extract_param_base_addresses(mod, buffer_info, scratch_region_map) -> List[u
     assert len(mod.functions.items()) == 1
     primfunc = mod.functions.items()[0][1]
 
+    buffer_map = tir_utils.collect_buffer_map(primfunc.body)
+
     base_addresses = list()
     idx = 0
-
-    buffer_map = {}
-
-    def collect_buffer_map(node):
-        if isinstance(node, (tvm.tir.BufferLoad, tvm.tir.BufferStore)):
-            buf = node.buffer
-            buffer_map[buf.data] = buf
-
-    tvm.tir.stmt_functor.post_order_visit(primfunc.body, collect_buffer_map)
 
     for param in primfunc.params:
         # constants are pooled together and handled specially
