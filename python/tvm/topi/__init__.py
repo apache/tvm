@@ -49,7 +49,7 @@ from .searchsorted import *
 from .stft import *
 from . import generic
 from . import nn
-from . import x86
+#from . import x86
 from . import cuda
 from . import gpu
 from . import arm_cpu
@@ -65,7 +65,7 @@ from . import hls
 from . import random
 from . import hexagon
 from . import adreno
-
+from . import lwc
 # error reporting
 from .utils import InvalidShapeError
 
