@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 from tvm import meta_schedule as ms
-from tvm import te
+from tvm import te, target
 from tvm.meta_schedule.testing import te_workload
 from tvm.meta_schedule.testing.schedule_rule import get_rules
 from tvm.meta_schedule.testing.space_generation import check_sketches
@@ -521,9 +521,115 @@ def test_cuda_sum_with_trivial_block_iter():
     assert not sch.trace.simplified(remove_postproc=True).insts
 
 
+def test_multi_level_tiling_hexagon():
+    @T.prim_func
+    def cpu_conv2d_nhwc(
+        inputs: T.Buffer[(1, 56, 56, 64), "float16"],
+        weight: T.Buffer[(3, 3, 64, 64), "float16"],
+        conv2d_nhwc: T.Buffer[(1, 56, 56, 64), "float16"],
+    ) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        # with T.block("root")
+        PadInput = T.alloc_buffer([1, 58, 58, 64], dtype="float16")
+        for i0, i1, i2, i3 in T.grid(1, 58, 58, 64):
+            with T.block("PadInput"):
+                i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(inputs[i0_1, i1_1 - 1, i2_1 - 1, i3_1])
+                T.writes(PadInput[i0_1, i1_1, i2_1, i3_1])
+                PadInput[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(
+                    1 <= i1_1 and i1_1 < 57 and 1 <= i2_1 and i2_1 < 57,
+                    inputs[i0_1, i1_1 - 1, i2_1 - 1, i3_1],
+                    T.float16(0),
+                    dtype="float16",
+                )
+        for (
+            i0_0,
+            i1_0,
+            i2_0,
+            i3_0,
+            i4_0,
+            i5_0,
+            i6_0,
+            i0_1_1,
+            i1_1_1,
+            i2_1_1,
+            i3_1_1,
+            i4_1,
+            i5_1,
+            i6_1,
+            i0_2,
+            i1_2,
+            i2_2,
+            i3_2,
+        ) in T.grid(1, 1, 2, 1, 3, 3, 16, 1, 14, 2, 1, 1, 1, 4, 1, 4, 14, 64):
+            with T.block("conv2d_nhwc"):
+                n = T.axis.spatial(1, i0_1_1 + i0_2 + i0_0)
+                h = T.axis.spatial(56, i1_0 * 56 + i1_1_1 * 4 + i1_2)
+                w = T.axis.spatial(56, i2_0 * 28 + i2_1_1 * 14 + i2_2)
+                co = T.axis.spatial(64, i3_0 * 64 + i3_1_1 * 64 + i3_2)
+                rh = T.axis.reduce(3, i4_1 + i4_0)
+                rw = T.axis.reduce(3, i5_0 + i5_1)
+                rc = T.axis.reduce(64, i6_0 * 4 + i6_1)
+                T.reads(PadInput[n, h + rh, w + rw, co // 64 * 64 + rc], weight[rh, rw, rc, co])
+                T.writes(conv2d_nhwc[n, h, w, co])
+                T.block_attr({"meta_schedule.tiling_structure": "SRSRS"})
+                with T.init():
+                    conv2d_nhwc[n, h, w, co] = T.float16(0)
+                conv2d_nhwc[n, h, w, co] = (
+                    conv2d_nhwc[n, h, w, co]
+                    + PadInput[n, h + rh, w + rw, co // 64 * 64 + rc] * weight[rh, rw, rc, co]
+                )
+
+    target_hexagon = target.hexagon("v69", num_cores=4)
+
+    I = 64
+    O = 64
+    H = 56
+    W = 56
+
+    mod = te.create_prim_func(
+        te_workload.conv2d_nhwc(1, H, W, I, O, 3, 1, 1, 1, in_dtype="float16", out_dtype="float16")
+    )
+
+    actual = ms.TuneContext(
+        mod=mod,
+        target=Target(target_hexagon, host=target_hexagon),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules=[
+            ms.schedule_rule.MultiLevelTilingWideVector(
+                structure="SRSRS",
+                vector_length_in_bits=1024,
+                max_innermost_factor=64,
+                reuse_read=None,
+                reuse_write=None,
+            )
+        ],
+        task_name="test",
+    ).generate_design_space()
+
+    decision_0 = [
+        ("SamplePerfectTile", [1, 1, 1]),
+        ("SamplePerfectTile", [1, 14, 4]),
+        ("SamplePerfectTile", [2, 2, 14]),
+        ("SamplePerfectTile", [3, 1]),
+        ("SamplePerfectTile", [3, 1]),
+        ("SamplePerfectTile", [16, 4]),
+    ]
+
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[cpu_conv2d_nhwc],
+        expected_decisions=[decision_0],
+    )
+
+
 if __name__ == "__main__":
     test_cpu_matmul()
     test_cpu_matmul_relu()
     test_cuda_matmul()
     test_cuda_matmul_relu()
     test_cuda_sum_with_trivial_block_iter()
+    test_multi_level_tiling_hexagon()

@@ -308,7 +308,14 @@ def setup_and_run(hexagon_session, sch, a, b, c, operations, mem_scope="global")
     a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device, mem_scope=mem_scope)
     b_hexagon = tvm.runtime.ndarray.array(b, device=hexagon_session.device, mem_scope=mem_scope)
     c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device, mem_scope=mem_scope)
-    timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=100, repeat=10)
+
+    # These are reduced for CI but number=100 and repeat=10 does a good job of removing noise.
+    number = 1
+    repeat = 1
+
+    timer = module.time_evaluator(
+        "__tvm_main__", hexagon_session.device, number=number, repeat=repeat
+    )
     time = timer(a_hexagon, b_hexagon, c_hexagon)
     gops = round(operations * 128 * 3 / time.mean / 1e9, 4)
     return gops, c_hexagon.asnumpy()
@@ -338,7 +345,13 @@ def setup_and_run_preallocated(hexagon_session, sch, a, b, c, operations):
         c_vtcm, device=hexagon_session.device, mem_scope="global.vtcm"
     )
 
-    timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=100, repeat=10)
+    # These are reduced for CI but number=100 and repeat=10 does a good job of removing noise.
+    number = 1
+    repeat = 1
+
+    timer = module.time_evaluator(
+        "__tvm_main__", hexagon_session.device, number=number, repeat=repeat
+    )
     time = timer(a_hexagon, b_hexagon, c_hexagon, a_vtcm_hexagon, b_vtcm_hexagon, c_vtcm_hexagon)
     gops = round(operations * 128 * 3 / time.mean / 1e9, 4)
     return gops, c_hexagon.asnumpy()
@@ -372,12 +385,12 @@ def expected_output(operations, input_a, input_b, input_c):
 
 
 class TestMatMulVec:
-
+    # Removed most of these to speedup CI.
     operations = tvm.testing.parameter(
         1024,
-        2048,
-        4096,
-        5 * 2048,  # 3.93MB of total transfer
+        # 2048,
+        # 4096,
+        # 5 * 2048,  # 3.93MB of total transfer
         # 16384, #Only works on 8Gen1 HDK's
         # 5 * 4096,  # 7.86MB of total transfer. Only works on 8Gen1 HDK's
     )

@@ -382,9 +382,16 @@ class CacheLocDetector : public StmtVisitor {
   static void Detect(const ScheduleState& self, const StmtSRef& block_sref,
                      const StmtSRef& scope_sref, CacheStageInfo* info) {
     std::vector<StmtSRef> related_blocks;
-    for (const Dependency& def : self->GetBlockScope(scope_sref)->GetDepsBySrc(block_sref)) {
-      if (def->kind == DepKind::kRAW) {
-        related_blocks.push_back(def->dst);
+    // If consumer is specified, skip detecting the others
+    if (info->consumer_blocks.size() > 0) {
+      for (StmtSRef consumer : info->consumer_blocks) {
+        related_blocks.emplace_back(consumer);
+      }
+    } else {
+      for (const Dependency& def : self->GetBlockScope(scope_sref)->GetDepsBySrc(block_sref)) {
+        if (def->kind == DepKind::kRAW) {
+          related_blocks.push_back(def->dst);
+        }
       }
     }
     if (!related_blocks.empty()) {
@@ -416,28 +423,23 @@ class CacheLocDetector : public StmtVisitor {
 
   void VisitStmt_(const SeqStmtNode* seq_stmt) final {
     bool previous_visited_block = visited_block_;
-    bool previous_visited_related = visited_related_;
-    visited_block_ = visited_related_ = false;
+    visited_block_ = false;
 
-    int pos = -1;
     for (size_t i = 0; i < seq_stmt->size(); ++i) {
       if (loc_pos_ != -1) {
         break;
       }
       VisitStmt(seq_stmt->seq[i]);
       // `pos` can be assigned only once when we visited `block_sref`
-      if (visited_block_ && visited_related_ && pos == -1) {
+      if (visited_block_ && visited_related_ && loc_pos_ == -1) {
         // The offset of insert position from the block
-        pos = i;
+        loc_pos_ = i;
+        return;
+      } else if (visited_related_) {
+        // If meet the target consumer, stop searching
+        visited_block_ = visited_block_ || previous_visited_block;
+        return;
       }
-    }
-    visited_block_ = visited_block_ || previous_visited_block;
-    visited_related_ = visited_related_ || previous_visited_related;
-    // Only we visited the writing block and any one of the related blocks
-    // That means that we have found the lowest ancestor
-    // of the block and any one of the related ones
-    if (visited_block_ && visited_related_ && loc_pos_ == -1) {
-      loc_pos_ = pos;
     }
   }
 
@@ -446,11 +448,12 @@ class CacheLocDetector : public StmtVisitor {
     if (block == scope_sref_->stmt) {
       // The block vistied is the current parent scope
       StmtVisitor::VisitStmt_(block);
-      // Handling cache_read for input buffer
-      if (visited_block_ && visited_related_ && !loc_sref_.defined()) {
+      // Handling cases when insert outside any loop or cache_read for input buffer
+      if (visited_related_ && !loc_sref_.defined()) {
         loc_sref_ = self_->stmt2ref.at(block);
-        if (loc_pos_ == -1) {
-          loc_pos_ = 1;
+        // Handling cache_read for input buffer
+        if (visited_block_ == false && loc_pos_ == -1) {
+          loc_pos_ = 0;
         }
       }
       return;
@@ -980,6 +983,33 @@ class ReIndexRewriter : public StmtExprMutator {
   Region region_;
 };
 
+void CheckRegionCover(const ScheduleState& self, StmtSRef scope_root) {
+  class NotRegionCoverError : public ScheduleError {
+   public:
+    explicit NotRegionCoverError(IRModule mod, Block block) : mod_(mod), block_(block) {}
+    IRModule mod() const final { return mod_; }
+    String FastErrorString() const final {
+      return "ScheduleError: The scope root's region cover is not complete.";
+    }
+    String DetailRenderTemplate() const final {
+      return R"(The scope {0} 's region cover is not complete.
+The region cover property require to hold for every of its child blocks
+)";
+    }
+    Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+    IRModule mod_;
+    Block block_;
+  };
+  BlockScope scope = self->GetBlockScope(scope_root);
+  for (const auto& kv : scope->dst2deps) {
+    const StmtSRef& consumer_block_sref = kv.first;
+    if (!self->block_info.at(consumer_block_sref).region_cover) {
+      const BlockNode* block = TVM_SREF_TO_BLOCK(scope_root);
+      throw NotRegionCoverError(self->mod, GetRef<Block>(block));
+    }
+  }
+}
+
 /******** Implementation ********/
 
 StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buffer_index,
@@ -1002,7 +1032,9 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   Buffer read_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block), read_buffer_index, BufferIndexType::kRead);
-  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
+  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
+  // Check required region cover for cache_read
+  CheckRegionCover(self, scope_sref);
   const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_sref);
 
   // Step 2. Create CacheStageInfo
@@ -1075,7 +1107,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   Buffer write_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block), write_buffer_index, BufferIndexType::kWrite);
-  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
+  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
 
   // Step 2. Creating CacheStageInfo
   CacheStageInfo info;

@@ -173,6 +173,80 @@ BlockFrame Block(String name, bool no_realize) {
   return BlockFrame(n);
 }
 
+BlockInitFrame Init() { return BlockInitFrame(make_object<BlockInitFrameNode>()); }
+
+void Where(PrimExpr predicate) {
+  BlockFrame frame = FindBlockFrame("T.where");
+  if (frame->predicate.defined()) {
+    LOG(FATAL) << "ValueError: Duplicate block predicate declaration, previous one is "
+               << frame->predicate;
+  }
+  frame->predicate = predicate;
+}
+
+void Reads(Array<ObjectRef> buffer_slices) {
+  using namespace tvm::tir;
+  BlockFrame frame = FindBlockFrame("T.reads");
+  if (frame->reads.defined()) {
+    LOG(FATAL) << "ValueError: Duplicate read region declaration, previous one is " << frame->reads;
+  }
+  Array<BufferRegion> reads;
+  for (const ObjectRef& obj : buffer_slices) {
+    if (const auto* buffer_region = obj.as<BufferRegionNode>()) {
+      reads.push_back(GetRef<BufferRegion>(buffer_region));
+    } else if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
+      reads.push_back(BufferRegionFromLoad(GetRef<BufferLoad>(buffer_load)));
+    } else {
+      LOG(FATAL) << "Invalid type for buffer reads.";
+    }
+  }
+  frame->reads = reads;
+}
+
+void Writes(Array<ObjectRef> buffer_slices) {
+  using namespace tvm::tir;
+  BlockFrame frame = FindBlockFrame("T.writes");
+  if (frame->writes.defined()) {
+    LOG(FATAL) << "ValueError: Duplicate write region declaration, previous one is "
+               << frame->writes;
+  }
+  Array<BufferRegion> writes;
+  for (const ObjectRef& obj : buffer_slices) {
+    if (const auto* buffer_region = obj.as<BufferRegionNode>()) {
+      writes.push_back(GetRef<BufferRegion>(buffer_region));
+    } else if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
+      writes.push_back(BufferRegionFromLoad(GetRef<BufferLoad>(buffer_load)));
+    } else {
+      LOG(FATAL) << "Invalid type for buffer writes.";
+    }
+  }
+  frame->writes = writes;
+}
+
+void BlockAttrs(Map<String, ObjectRef> attrs) {
+  BlockFrame frame = FindBlockFrame("T.block_attr");
+  if (frame->annotations.defined()) {
+    LOG(FATAL) << "ValueError: Duplicate block annotations, previous one is " << frame->annotations;
+  }
+  frame->annotations = attrs;
+}
+
+Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype, Optional<Var> data,
+                   Array<PrimExpr> strides, PrimExpr elem_offset, String storage_scope, int align,
+                   int offset_factor, String buffer_type_str, Array<IntImm> axis_separators) {
+  Buffer buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
+                             offset_factor, buffer_type_str, axis_separators);
+  IRBuilder builder = IRBuilder::Current();
+  if (Optional<BlockFrame> frame = builder->GetLastFrame<BlockFrame>()) {
+    frame.value()->alloc_buffers.push_back(buffer);
+  } else if (Optional<PrimFuncFrame> frame = builder->GetLastFrame<PrimFuncFrame>()) {
+    frame.value()->root_alloc_buffers.push_back(buffer);
+  } else {
+    LOG(FATAL) << "ValueError: Block frame or PrimFunc frame not find. Please ensure "
+                  "'T.alloc_buffer' is called under T.block() or T.prim_func()";
+  }
+  return buffer;
+}
 namespace axis {
 
 IterVar PushBlockVar(IterVar iter_var, PrimExpr binding) {
@@ -321,6 +395,143 @@ ForFrame Grid(Array<PrimExpr> extents) {
   return ForFrame(n);
 }
 
+AssertFrame Assert(PrimExpr condition, String message) {
+  ObjectPtr<AssertFrameNode> n = make_object<AssertFrameNode>();
+  n->condition = condition;
+  n->message = tvm::tir::StringImm(message);
+  return AssertFrame(n);
+}
+
+LetFrame Let(Var var, PrimExpr value) {
+  ObjectPtr<LetFrameNode> n = make_object<LetFrameNode>();
+  n->var = var;
+  n->value = value;
+  return LetFrame(n);
+}
+
+LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
+  IterVar iter_var{nullptr};
+
+  if (Optional<PrimFuncFrame> opt_frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
+    if (Optional<IterVar> opt_iter_var = opt_frame.value()->env_threads.Get(var)) {
+      iter_var = opt_iter_var.value();
+    } else {
+      LOG(FATAL) << "ValueError: " << var->name_hint
+                 << " is not an env_thread created using T.env_thread.";
+    }
+  } else {
+    LOG(FATAL) << "LaunchThread can only be used inside a PrimFunc";
+  }
+  ObjectPtr<LaunchThreadFrameNode> n = make_object<LaunchThreadFrameNode>();
+  if (!iter_var->dom.defined()) {
+    const_cast<tvm::tir::IterVarNode*>(iter_var.get())->dom = Range(0, extent);
+  } else if (!arith::Analyzer().CanProveEqual(iter_var->dom->extent, extent)) {
+    LOG(FATAL) << "ValueError: Inconsistent extents of environment thread. "
+               << iter_var->dom->extent << " vs " << extent;
+  }
+  n->iter_var = iter_var;
+  n->extent = extent;
+  n->attr_key = iter_var->thread_tag == "vthread" ? "virtual_thread" : "thread_extent";
+  return LaunchThreadFrame(n);
+}
+
+RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope,
+                     PrimExpr condition) {
+  ObjectPtr<RealizeFrameNode> n = make_object<RealizeFrameNode>();
+  n->buffer_slice = buffer_slice;
+  n->storage_scope = storage_scope;
+  n->condition = condition;
+  return RealizeFrame(n);
+}
+
+AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_scope,
+                       Optional<PrimExpr> condition, Optional<Map<String, ObjectRef>> annotations) {
+  ObjectPtr<AllocateFrameNode> n = make_object<AllocateFrameNode>();
+  n->extents = extents;
+  n->dtype = dtype;
+  n->storage_scope = storage_scope;
+  n->condition = condition.value_or(tvm::Bool(true));
+  n->annotations = annotations.value_or(Map<String, ObjectRef>());
+  n->buffer = BufferDecl(extents, dtype, "", NullOpt, NullOpt, NullOpt, storage_scope, 0, 0,
+                         "default", NullOpt);
+  return AllocateFrame(n);
+}
+
+AllocateConstFrame AllocateConst(tvm::runtime::NDArray data, DataType dtype,
+                                 Array<PrimExpr> extents, Map<String, ObjectRef> annotations) {
+  ObjectPtr<AllocateConstFrameNode> n = make_object<AllocateConstFrameNode>();
+  n->dtype = dtype;
+  n->extents = extents;
+  n->data = data;
+  n->annotations = annotations;
+  n->buffer =
+      BufferDecl(extents, dtype, "", NullOpt, NullOpt, NullOpt, "", 0, 0, "default", NullOpt);
+  return AllocateConstFrame(n);
+}
+
+AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value) {
+  ObjectPtr<AttrFrameNode> n = make_object<AttrFrameNode>();
+  n->node = node;
+  n->attr_key = attr_key;
+  n->value = value;
+  return AttrFrame(n);
+}
+
+WhileFrame While(PrimExpr condition) {
+  ObjectPtr<WhileFrameNode> n = make_object<WhileFrameNode>();
+  n->condition = condition;
+  return WhileFrame(n);
+}
+
+IfFrame If(PrimExpr condition) {
+  ObjectPtr<IfFrameNode> n = make_object<IfFrameNode>();
+  n->condition = condition;
+  n->then_stmts = NullOpt;
+  n->else_stmts = NullOpt;
+  return IfFrame(n);
+}
+
+ThenFrame Then() {
+  ObjectPtr<ThenFrameNode> n = make_object<ThenFrameNode>();
+  return ThenFrame(n);
+}
+
+ElseFrame Else() {
+  ObjectPtr<ElseFrameNode> n = make_object<ElseFrameNode>();
+  return ElseFrame(n);
+}
+
+Var EnvThread(String thread_tag) {
+  IterVar iter_var(Range{nullptr}, Var("", DataType::Int(32)), tvm::tir::IterVarType::kThreadIndex,
+                   thread_tag);
+  Var var = iter_var->var;
+  if (Optional<PrimFuncFrame> opt_frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
+    opt_frame.value()->env_threads.Set(var, iter_var);
+  } else {
+    LOG(FATAL) << "EnvThread can only be used inside a PrimFunc";
+  }
+  return var;
+}
+
+void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
+  AddToParent(tvm::tir::BufferStore(buffer, value, indices));
+}
+
+void Prefetch(Buffer buffer, Array<Range> bounds) {
+  AddToParent(tvm::tir::Prefetch(buffer, bounds));
+}
+
+DeclBufferFrame DeclBuffer(Array<PrimExpr> shape, DataType dtype, String buffer_name,
+                           Optional<Var> data, Optional<Array<PrimExpr>> strides,
+                           Optional<PrimExpr> elem_offset, String storage_scope, int align,
+                           int offset_factor, String buffer_type,
+                           Optional<Array<IntImm>> axis_separators) {
+  ObjectPtr<DeclBufferFrameNode> n = make_object<DeclBufferFrameNode>();
+  n->buffer = BufferDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope,
+                         align, offset_factor, buffer_type, axis_separators);
+  return DeclBufferFrame(n);
+}
+
 void Evaluate(PrimExpr value) { AddToParent(tvm::tir::Evaluate(value)); }
 
 using tvm::script::ir_builder::details::Namer;
@@ -383,6 +594,12 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.MatchBuffer").set_body_typed(MatchBuf
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.PreflattenedBuffer").set_body_typed(PreflattenedBuffer);
 
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Block").set_body_typed(Block);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Init").set_body_typed(Init);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Where").set_body_typed(Where);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Reads").set_body_typed(Reads);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Writes").set_body_typed(Writes);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.BlockAttrs").set_body_typed(BlockAttrs);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.AllocBuffer").set_body_typed(AllocBuffer);
 
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.AxisSpatial").set_body_typed(axis::Spatial);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.AxisReduce").set_body_typed(axis::Reduce);
@@ -397,6 +614,22 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.Unroll").set_body_typed(Unroll);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.ThreadBinding").set_body_typed(ThreadBinding);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Grid").set_body_typed(Grid);
 
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Assert").set_body_typed(Assert);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Let").set_body_typed(Let);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Allocate").set_body_typed(Allocate);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.AllocateConst").set_body_typed(AllocateConst);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Realize").set_body_typed(Realize);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Attr").set_body_typed(Attr);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.While").set_body_typed(While);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.If").set_body_typed(If);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Then").set_body_typed(Then);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Else").set_body_typed(Else);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.DeclBuffer").set_body_typed(DeclBuffer);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.LaunchThread").set_body_typed(LaunchThread);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.EnvThread").set_body_typed(EnvThread);
+
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.BufferStore").set_body_typed(BufferStore);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Prefetch").set_body_typed(Prefetch);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Evaluate").set_body_typed(Evaluate);
 
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Int8").set_body_typed(Int8);

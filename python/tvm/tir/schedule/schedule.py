@@ -2390,7 +2390,7 @@ class Schedule(Object):
         if isinstance(buffer, str):
             possible_buffers = {}
             # String lookup requires ensuring that the name is unique
-            for buffer_index, buffer_index_type, buf in iter_buffers():
+            for buffer_index_type, buffer_index, buf in iter_buffers():
                 if buf.name == buffer:
                     possible_buffers[buf] = (buffer_index_type, buffer_index)
 
@@ -2398,12 +2398,12 @@ class Schedule(Object):
             assert (
                 len(possible_buffers) == 1
             ), f"Multiple buffers named '{buffer}' in block '{block_name}'"
-            buffer_obj, (buffer_index, buffer_index_type) = next(iter(possible_buffers.items()))
+            buffer_obj, (buffer_index_type, buffer_index) = next(iter(possible_buffers.items()))
 
         elif isinstance(buffer, Buffer):
             # Buffer lookup has unique id, can break out early
             found = False
-            for buffer_index, buffer_index_type, buffer_obj in iter_buffers():
+            for buffer_index_type, buffer_index, buffer_obj in iter_buffers():
                 if buffer_obj.same_as(buffer):
                     found = True
                     break
@@ -2443,6 +2443,7 @@ class Schedule(Object):
         block: Union[BlockRV, str],
         buffer: Union[Tuple[str, int], str, Buffer],
         index_map: Union[IndexMap, Callable],
+        pad_value: Optional[Union[int, float, IndexMap, Callable]] = None,
     ) -> None:
         """Apply a transformation represented by IndexMap to buffer
 
@@ -2478,6 +2479,36 @@ class Schedule(Object):
             contains IndexMap.AXIS_SEPARATOR, the SetAxisSeparators
             primitive will be called in addition to the
             TransformLayout primitive.
+
+        pad_value: Optional[Union[int, float, PrimExpr, IndexMap, Callable]]
+
+            The value to be used for any padding introduced by the
+            transformation.  If the schedule contains a producer block
+            for the specified buffer, the pad value will be written as
+            part of the producer block if possible, or after the producer
+            block otherwise.  Otherwise, if the buffer is an input, will
+            insert an annotation block to state that the padding contains
+            the known value.
+
+            The pad value may not contain instances of BufferLoad,
+            except where it loads a value from the buffer being
+            transformed (e.g. to create a circular buffer with
+            padding that consists of repeated elements).
+
+            Note: If applied to an input buffer, the calling scope is
+            responsible for ensuring that the pad_value is present.
+            Algebraic symplifications, branch elimination, and other
+            optimizations may assume that this precondition is met, and
+            may result in incorrect results being returned.
+
+            If None, the transformation may not introduce padding.
+
+            If an int, float or PrimExpr, the transformation is the
+            specific value to be present in the padding.
+
+            If an IndexMap or Callable, the transformation is the
+            value to be present in the padding in terms of the
+            transformed index.
 
         Examples
         --------
@@ -2536,9 +2567,18 @@ class Schedule(Object):
         else:
             axis_separators = []
 
+        if pad_value is None:
+            pass
+        elif callable(pad_value):
+            pad_value = IndexMap.from_func(pad_value, ndim=len(index_map.final_indices))
+        elif not isinstance(pad_value, IndexMap):
+            pad_value = IndexMap.from_func(
+                lambda *indices: pad_value, ndim=len(index_map.final_indices)
+            )
+
         buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
         _ffi_api.ScheduleTransformLayout(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index, buffer_index_type_enum, index_map
+            self, block, buffer_index, buffer_index_type_enum, index_map, pad_value
         )
         if axis_separators:
             _ffi_api.ScheduleSetAxisSeparator(  # type: ignore # pylint: disable=no-member

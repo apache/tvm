@@ -19,11 +19,22 @@ import shutil
 import subprocess
 import json
 import textwrap
+import sys
+import logging
 from pathlib import Path
 
 import pytest
 import tvm.testing
+
 from .test_utils import REPO_ROOT, TempGit, run_script
+
+# pylint: disable=wrong-import-position,wrong-import-order
+sys.path.insert(0, str(REPO_ROOT / "ci"))
+sys.path.insert(0, str(REPO_ROOT / "ci" / "scripts"))
+
+import scripts
+
+# pylint: enable=wrong-import-position,wrong-import-order
 
 
 def parameterize_named(**kwargs):
@@ -71,9 +82,8 @@ TEST_DATA_SKIPPED_BOT = {
         "s3_prefix": "tvm-jenkins-artifacts-prod",
         "jenkins_prefix": "ci.tlcpack.ai",
         "common_main_build": """{"build_number": "4115", "state": "success"}""",
-        "commit_sha": "SHA",
-        "expected_url": "issues/11594/comments",
-        "expected_body": """<!---skipped-tests-comment-->\n\nThe list below shows some tests that ran in main SHA but were skipped in the CI build of SHA:\n```\nunittest -> ctypes.tests.python.unittest.test_auto_scheduler_search_policy#test_sketch_search_policy_cuda_rpc_runner\nunittest -> ctypes.tests.python.unittest.test_roofline#test_estimate_peak_bandwidth[cuda]\n```\nA detailed report of ran tests is [here](https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/testReport/).""",
+        "commit_sha": "sha1234",
+        "expected_body": "The list below shows some tests that ran in main sha1234 but were skipped in the CI build of sha1234:\n```\nunittest -> ctypes.tests.python.unittest.test_auto_scheduler_search_policy#test_sketch_search_policy_cuda_rpc_runner\nunittest -> ctypes.tests.python.unittest.test_roofline#test_estimate_peak_bandwidth[cuda]\n```\nA detailed report of ran tests is [here](https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/testReport/).",
     },
     "no-diff": {
         "main_xml_file": "unittest/file1.xml",
@@ -108,9 +118,8 @@ TEST_DATA_SKIPPED_BOT = {
         "s3_prefix": "tvm-jenkins-artifacts-prod",
         "jenkins_prefix": "ci.tlcpack.ai",
         "common_main_build": """{"build_number": "4115", "state": "success"}""",
-        "commit_sha": "SHA",
-        "expected_url": "issues/11594/comments",
-        "expected_body": """<!---skipped-tests-comment-->\n\nNo additional skipped tests found in this branch for commit SHA.""",
+        "commit_sha": "sha1234",
+        "expected_body": "No additional skipped tests found in this branch for commit sha1234.",
     },
     "unable-to-run": {
         "main_xml_file": "unittest/file1.xml",
@@ -127,9 +136,8 @@ TEST_DATA_SKIPPED_BOT = {
         "s3_prefix": "tvm-jenkins-artifacts-prod",
         "jenkins_prefix": "ci.tlcpack.ai",
         "common_main_build": """{"build_number": "4115", "state": "failed"}""",
-        "commit_sha": "SHA",
-        "expected_url": "issues/11594/comments",
-        "expected_body": """<!---skipped-tests-comment-->\n\nUnable to run tests bot because main failed to pass CI at SHA.""",
+        "commit_sha": "sha1234",
+        "expected_body": "Unable to run tests bot because main failed to pass CI at sha1234.",
     },
 }
 # pylint: enable=line-too-long
@@ -139,6 +147,7 @@ TEST_DATA_SKIPPED_BOT = {
 @parameterize_named(**TEST_DATA_SKIPPED_BOT)
 # pylint: enable=line-too-long
 def test_skipped_tests_comment(
+    caplog,
     tmpdir_factory,
     main_xml_file,
     main_xml_content,
@@ -149,13 +158,11 @@ def test_skipped_tests_comment(
     jenkins_prefix,
     common_main_build,
     commit_sha,
-    expected_url,
     expected_body,
 ):
     """
     Test that a comment with a link to the docs is successfully left on PRs
     """
-    skipped_tests_script = REPO_ROOT / "ci" / "scripts" / "github_skipped_tests_comment.py"
 
     def write_xml_file(root_dir, xml_file, xml_content):
         shutil.rmtree(root_dir, ignore_errors=True)
@@ -165,25 +172,45 @@ def test_skipped_tests_comment(
             f.write(textwrap.dedent(xml_content))
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
-
     pr_test_report_dir = Path(git.cwd) / "pr-reports"
     write_xml_file(pr_test_report_dir, pr_xml_file, pr_xml_content)
     main_test_report_dir = Path(git.cwd) / "main-reports"
     write_xml_file(main_test_report_dir, main_xml_file, main_xml_content)
 
-    proc = run_script(
-        [
-            skipped_tests_script,
-            "--dry-run",
-            f"--s3-prefix={s3_prefix}",
-            f"--jenkins-prefix={jenkins_prefix}",
-            f"--common-main-build={common_main_build}",
-        ],
-        env={"TARGET_URL": target_url, "COMMIT_SHA": commit_sha},
-        cwd=git.cwd,
-    )
-
-    assert_in(f"Dry run, would have posted {expected_url} with data {expected_body}.", proc.stderr)
+    pr_data = {
+        "commits": {
+            "nodes": [
+                {
+                    "commit": {
+                        "oid": commit_sha,
+                        "statusCheckRollup": {
+                            "contexts": {
+                                "nodes": [
+                                    {
+                                        "context": "tvm-ci/pr-head",
+                                        "targetUrl": target_url,
+                                    }
+                                ]
+                            }
+                        },
+                    }
+                }
+            ]
+        }
+    }
+    with caplog.at_level(logging.INFO):
+        comment = scripts.github_skipped_tests_comment.get_skipped_tests_comment(
+            pr=pr_data,
+            github=None,
+            s3_prefix=s3_prefix,
+            jenkins_prefix=jenkins_prefix,
+            common_commit_sha=commit_sha,
+            pr_test_report_dir=pr_test_report_dir,
+            main_test_report_dir=main_test_report_dir,
+            common_main_build=json.loads(common_main_build),
+        )
+    assert_in(expected_body, comment)
+    assert_in(f"with target {target_url}", caplog.text)
 
 
 @tvm.testing.skip_if_wheel_test
@@ -192,27 +219,40 @@ def test_skipped_tests_comment(
         target_url="https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
         base_url="https://pr-docs.tlcpack.ai",
         commit_sha="SHA",
-        expected_url="issues/11594/comments",
-        expected_body="<!---docs-bot-comment-->\n\nBuilt docs for commit SHA can be found "
+        expected_body="Built docs for commit SHA can be found "
         "[here](https://pr-docs.tlcpack.ai/PR-11594/3/docs/index.html).",
     )
 )
-def test_docs_comment(
-    tmpdir_factory, target_url, base_url, commit_sha, expected_url, expected_body
-):
+def test_docs_comment(target_url, base_url, commit_sha, expected_body):
     """
     Test that a comment with a link to the docs is successfully left on PRs
     """
-    docs_comment_script = REPO_ROOT / "ci" / "scripts" / "github_docs_comment.py"
-
-    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
-    proc = run_script(
-        [docs_comment_script, "--dry-run", f"--base-url-docs={base_url}"],
-        env={"TARGET_URL": target_url, "COMMIT_SHA": commit_sha},
-        cwd=git.cwd,
+    pr_data = {
+        "commits": {
+            "nodes": [
+                {
+                    "commit": {
+                        "oid": commit_sha,
+                        "statusCheckRollup": {
+                            "contexts": {
+                                "nodes": [
+                                    {
+                                        "context": "tvm-ci/pr-head",
+                                        "targetUrl": target_url,
+                                    }
+                                ]
+                            }
+                        },
+                    }
+                }
+            ]
+        }
+    }
+    comment = scripts.github_docs_comment.get_doc_url(
+        pr=pr_data,
+        base_docs_url=base_url,
     )
-
-    assert_in(f"Dry run, would have posted {expected_url} with data {expected_body}.", proc.stderr)
+    assert_in(expected_body, comment)
 
 
 @tvm.testing.skip_if_wheel_test
@@ -383,6 +423,149 @@ def test_update_branch(tmpdir_factory, statuses, expected_rc, expected_output):
         raise RuntimeError(
             f"Missing {expected_output}:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}"
         )
+
+
+# pylint: disable=line-too-long
+@parameterize_named(
+    author_gate=dict(
+        pr_author="abc",
+        comments=[],
+        expected="Skipping comment for author abc",
+    ),
+    new_comment=dict(
+        pr_author="driazati",
+        comments=[],
+        expected="No existing comment found",
+    ),
+    update_comment=dict(
+        pr_author="driazati",
+        comments=[
+            {
+                "author": {"login": "github-actions"},
+                "databaseId": "comment456",
+                "body": "<!---bot-comment--> abc",
+            }
+        ],
+        expected="PATCH to https://api.github.com/repos/apache/tvm/issues/comments/comment456",
+    ),
+    new_body=dict(
+        pr_author="driazati",
+        comments=[],
+        expected="Commenting "
+        + textwrap.dedent(
+            """
+        <!---bot-comment-->
+
+        Thanks for contributing to TVM! Please refer to the contributing guidelines https://tvm.apache.org/docs/contribute/ for useful information and tips. Please request code reviews from [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers) by @-ing them in a comment.
+
+        <!--bot-comment-ccs-start-->
+         * the cc<!--bot-comment-ccs-end--><!--bot-comment-skipped-tests-start-->
+         * the skipped tests<!--bot-comment-skipped-tests-end--><!--bot-comment-docs-start-->
+         * the docs<!--bot-comment-docs-end-->
+        """
+        ).strip(),
+    ),
+    update_body=dict(
+        pr_author="driazati",
+        comments=[
+            {
+                "author": {"login": "github-actions"},
+                "databaseId": "comment456",
+                "body": textwrap.dedent(
+                    """
+        <!---bot-comment-->
+
+        Thanks for contributing to TVM! Please refer to the contributing guidelines https://tvm.apache.org/docs/contribute/ for useful information and tips. Please request code reviews from [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers) by @-ing them in a comment.
+
+        <!--bot-comment-ccs-start-->
+         * the cc<!--bot-comment-ccs-end--><!--bot-comment-something-tests-start-->
+         * something else<!--bot-comment-something-tests-end--><!--bot-comment-docs-start-->
+         * the docs<!--bot-comment-docs-end-->
+        """
+                ).strip(),
+            }
+        ],
+        expected="Commenting "
+        + textwrap.dedent(
+            """
+        <!---bot-comment-->
+
+        Thanks for contributing to TVM! Please refer to the contributing guidelines https://tvm.apache.org/docs/contribute/ for useful information and tips. Please request code reviews from [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers) by @-ing them in a comment.
+
+        <!--bot-comment-ccs-start-->
+         * the cc<!--bot-comment-ccs-end--><!--bot-comment-something-tests-start-->
+         * something else<!--bot-comment-something-tests-end--><!--bot-comment-docs-start-->
+         * the docs<!--bot-comment-docs-end--><!--bot-comment-skipped-tests-start-->
+         * the skipped tests<!--bot-comment-skipped-tests-end-->
+        """
+        ).strip(),
+    ),
+)
+# pylint: enable=line-too-long
+def test_pr_comment(tmpdir_factory, pr_author, comments, expected):
+    """
+    Test the PR commenting bot
+    """
+    comment_script = REPO_ROOT / "ci" / "scripts" / "github_pr_comment.py"
+
+    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+    target_url = "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect"
+    commit = {
+        "commit": {
+            "oid": "sha1234",
+            "statusCheckRollup": {
+                "contexts": {
+                    "nodes": [
+                        {
+                            "context": "tvm-ci/pr-head",
+                            "targetUrl": target_url,
+                        }
+                    ]
+                }
+            },
+        }
+    }
+    data = {
+        "[1] POST - https://api.github.com/graphql": {},
+        "[2] POST - https://api.github.com/graphql": {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "number": 1234,
+                        "comments": {
+                            "nodes": comments,
+                        },
+                        "author": {
+                            "login": pr_author,
+                        },
+                        "commits": {
+                            "nodes": [commit],
+                        },
+                    }
+                }
+            }
+        },
+    }
+    comments = {
+        "ccs": "the cc",
+        "docs": "the docs",
+        "skipped-tests": "the skipped tests",
+    }
+    proc = run_script(
+        [
+            comment_script,
+            "--dry-run",
+            "--test-data",
+            json.dumps(data),
+            "--test-comments",
+            json.dumps(comments),
+            "--pr",
+            "1234",
+        ],
+        stderr=subprocess.STDOUT,
+        cwd=git.cwd,
+    )
+    assert_in(expected, proc.stdout)
 
 
 @parameterize_named(
@@ -873,6 +1056,7 @@ def test_github_tag_teams(tmpdir_factory, source_type, data, check):
             "--team-issue-json",
             json.dumps(teams),
         ],
+        stderr=subprocess.STDOUT,
         cwd=git.cwd,
         env=env,
     )

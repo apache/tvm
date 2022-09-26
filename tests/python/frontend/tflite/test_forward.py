@@ -4311,13 +4311,8 @@ def test_forward_matrix_diag():
 # ----------------
 
 
-def test_detection_postprocess():
-    """Detection PostProcess"""
-    tf_model_file = tf_testing.get_workload_official(
-        "http://download.tensorflow.org/models/object_detection/"
-        "ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03.tar.gz",
-        "ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03/tflite_graph.pb",
-    )
+def _test_detection_postprocess(tf_model_file, box_encodings_size, class_predictions_size):
+    """One iteration of detection postProcess with given model and shapes"""
     converter = tf.lite.TFLiteConverter.from_frozen_graph(
         tf_model_file,
         input_arrays=["raw_outputs/box_encodings", "raw_outputs/class_predictions"],
@@ -4328,16 +4323,16 @@ def test_detection_postprocess():
             "TFLite_Detection_PostProcess:3",
         ],
         input_shapes={
-            "raw_outputs/box_encodings": (1, 1917, 4),
-            "raw_outputs/class_predictions": (1, 1917, 91),
+            "raw_outputs/box_encodings": box_encodings_size,
+            "raw_outputs/class_predictions": class_predictions_size,
         },
     )
     converter.allow_custom_ops = True
     converter.inference_type = tf.lite.constants.FLOAT
     tflite_model = converter.convert()
     np.random.seed(0)
-    box_encodings = np.random.uniform(size=(1, 1917, 4)).astype("float32")
-    class_predictions = np.random.uniform(size=(1, 1917, 91)).astype("float32")
+    box_encodings = np.random.uniform(size=box_encodings_size).astype("float32")
+    class_predictions = np.random.uniform(size=class_predictions_size).astype("float32")
     tflite_output = run_tflite_graph(tflite_model, [box_encodings, class_predictions])
     tvm_output = run_tvm_graph(
         tflite_model,
@@ -4380,6 +4375,26 @@ def test_detection_postprocess():
             rtol=1e-5,
             atol=1e-5,
         )
+
+
+def test_detection_postprocess():
+    """Detection PostProcess"""
+    box_encodings_size = (1, 1917, 4)
+    class_predictions_size = (1, 1917, 91)
+    tf_model_file = tf_testing.get_workload_official(
+        "http://download.tensorflow.org/models/object_detection/"
+        "ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03.tar.gz",
+        "ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03/tflite_graph.pb",
+    )
+    _test_detection_postprocess(tf_model_file, box_encodings_size, class_predictions_size)
+
+    box_encodings_size = (1, 2034, 4)
+    class_predictions_size = (1, 2034, 91)
+    tf_model_file = download_testdata(
+        "https://github.com/czh978/models_for_tvm_test/raw/main/tflite_graph_with_postprocess.pb",
+        "tflite_graph_with_postprocess.pb",
+    )
+    _test_detection_postprocess(tf_model_file, box_encodings_size, class_predictions_size)
 
 
 #######################################################################

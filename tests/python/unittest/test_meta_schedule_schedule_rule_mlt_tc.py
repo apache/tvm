@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm
+import tvm.testing
 from tvm import meta_schedule as ms
 from tvm import te
 from tvm.meta_schedule.testing import te_workload
@@ -947,11 +948,145 @@ def test_matmul_relu_non_tensorizable():
     tvm.ir.assert_structural_equal(mod, sch.mod["main"])
 
 
+def test_padded_matmul_relu():
+    # fmt: off
+    @T.prim_func
+    def padded_matmul_relu_0(A: T.Buffer[(127, 127), "float16"], B: T.Buffer[(127, 127), "float16"], compute: T.Buffer[(127, 127), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        # with T.block("root")
+        C_reindex_shared = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
+        C_reindex_shared_wmma_accumulator = T.alloc_buffer([128, 128], dtype="float32", scope="wmma.accumulator")
+        A_reindex_shared = T.alloc_buffer([128, 128], dtype="float16", scope="shared")
+        B_reindex_shared = T.alloc_buffer([128, 128], dtype="float16", scope="shared")
+        A_reindex_shared_wmma_matrix_a = T.alloc_buffer([128, 128], dtype="float16", scope="wmma.matrix_a")
+        B_reindex_shared_wmma_matrix_b = T.alloc_buffer([128, 128], dtype="float16", scope="wmma.matrix_b")
+        for ax0_0_0_ax1_0_0_fused in T.thread_binding(8, thread="blockIdx.y"):
+            for ax0_0_1_ax1_0_1_fused in T.thread_binding(2, thread="blockIdx.x"):
+                for ax0_0_2_ax1_0_2_fused in T.thread_binding(2, thread="threadIdx.y"):
+                    for ax2_0_0 in T.serial(1):
+                        for ax0_ax1_fused in T.serial(4096):
+                            with T.block("A_reindex_shared"):
+                                v0 = T.axis.spatial(128, ax0_0_0_ax1_0_0_fused // 2 * 32 + ax0_ax1_fused // 128)
+                                v1 = T.axis.spatial(128, ax0_ax1_fused % 128)
+                                T.reads(A[v0, v1])
+                                T.writes(A_reindex_shared[v0, v1])
+                                T.block_attr({"buffer_dim_align":[[0, 0, 32, 8]], "meta_schedule.cooperative_fetch":8})
+                                A_reindex_shared[v0, v1] = T.if_then_else(v0 < 127 and v1 < 127, A[v0, v1], T.float16(0), dtype="float16")
+                        for ax0_ax1_fused in T.serial(4096):
+                            with T.block("B_reindex_shared"):
+                                v0 = T.axis.spatial(128, ax0_ax1_fused // 32)
+                                v1 = T.axis.spatial(128, ax0_0_0_ax1_0_0_fused % 2 * 64 + ax0_0_1_ax1_0_1_fused * 32 + ax0_ax1_fused % 32)
+                                T.reads(B[v0, v1])
+                                T.writes(B_reindex_shared[v0, v1])
+                                T.block_attr({"buffer_dim_align":[[0, 0, 32, 8]], "meta_schedule.cooperative_fetch":1})
+                                B_reindex_shared[v0, v1] = T.if_then_else(v0 < 127 and v1 < 127, B[v0, v1], T.float16(0), dtype="float16")
+                        for ax2_0_1 in T.serial(4):
+                            for ax0_0, ax1_0 in T.grid(2, 2):
+                                with T.block("A_reindex_shared_wmma.matrix_a_o"):
+                                    v0_o = T.axis.spatial(8, ax0_0_0_ax1_0_0_fused // 2 * 2 + ax0_0)
+                                    v1_o = T.axis.spatial(8, ax2_0_1 * 2 + ax1_0)
+                                    T.reads(A_reindex_shared[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                                    T.writes(A_reindex_shared_wmma_matrix_a[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                                    T.block_attr({"meta_schedule.auto_tensorize":"wmma_load_16x16x16_f16_a"})
+                                    for ax0_1, ax1_1 in T.grid(16, 16):
+                                        with T.block("A_reindex_shared_wmma.matrix_a"):
+                                            v0_i, v1_i = T.axis.remap("SS", [ax0_1, ax1_1])
+                                            T.reads(A_reindex_shared[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
+                                            T.writes(A_reindex_shared_wmma_matrix_a[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
+                                            A_reindex_shared_wmma_matrix_a[v0_o * 16 + v0_i, v1_o * 16 + v1_i] = A_reindex_shared[v0_o * 16 + v0_i, v1_o * 16 + v1_i]
+                            for ax0_0, ax1_0 in T.grid(2, 1):
+                                with T.block("B_reindex_shared_wmma.matrix_b_o"):
+                                    v0_o = T.axis.spatial(8, ax2_0_1 * 2 + ax0_0)
+                                    v1_o = T.axis.spatial(8, ax0_0_0_ax1_0_0_fused % 2 * 4 + ax0_0_1_ax1_0_1_fused * 2 + ax0_0_2_ax1_0_2_fused)
+                                    T.reads(B_reindex_shared[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                                    T.writes(B_reindex_shared_wmma_matrix_b[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                                    T.block_attr({"meta_schedule.auto_tensorize":"wmma_load_16x16x16_f16_b"})
+                                    for ax0_1, ax1_1 in T.grid(16, 16):
+                                        with T.block("B_reindex_shared_wmma.matrix_b"):
+                                            v0_i, v1_i = T.axis.remap("SS", [ax0_1, ax1_1])
+                                            T.reads(B_reindex_shared[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
+                                            T.writes(B_reindex_shared_wmma_matrix_b[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
+                                            B_reindex_shared_wmma_matrix_b[v0_o * 16 + v0_i, v1_o * 16 + v1_i] = B_reindex_shared[v0_o * 16 + v0_i, v1_o * 16 + v1_i]
+                            for ax0_0_3, ax1_0_3, ax2_0_2, ax0_0_4, ax1_0_4 in T.grid(1, 1, 2, 2, 1):
+                                with T.block("C_o"):
+                                    v0_o = T.axis.spatial(8, ax0_0_0_ax1_0_0_fused // 2 * 2 + ax0_0_3 * 2 + ax0_0_4)
+                                    v1_o = T.axis.spatial(8, ax1_0_4 + ax0_0_0_ax1_0_0_fused % 2 * 4 + ax0_0_1_ax1_0_1_fused * 2 + ax0_0_2_ax1_0_2_fused + ax1_0_3)
+                                    v2_o = T.axis.reduce(8, ax2_0_0 * 8 + ax2_0_1 * 2 + ax2_0_2)
+                                    T.reads(A_reindex_shared_wmma_matrix_a[v0_o * 16 : v0_o * 16 + 16, v2_o * 16 : v2_o * 16 + 16], B_reindex_shared_wmma_matrix_b[v2_o * 16 : v2_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                                    T.writes(C_reindex_shared_wmma_accumulator[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                                    T.block_attr({"meta_schedule.auto_tensorize":"wmma_sync_16x16x16_f16f16f32", "meta_schedule.auto_tensorize_init":"wmma_fill_16x16x16_f32", "warp_execution":1})
+                                    with T.init():
+                                        for ax0_1, ax1_1 in T.grid(16, 16):
+                                            with T.block("C_init"):
+                                                v0_i_init, v1_i_init = T.axis.remap("SS", [ax0_1, ax1_1])
+                                                T.reads()
+                                                T.writes(C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i_init, v1_o * 16 + v1_i_init])
+                                                C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i_init, v1_o * 16 + v1_i_init] = T.float32(0)
+                                    for ax0_1, ax1_1, ax2_1 in T.grid(16, 16, 16):
+                                        with T.block("C"):
+                                            v0_i, v1_i, v2_i = T.axis.remap("SSR", [ax0_1, ax1_1, ax2_1])
+                                            T.reads(C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i], A_reindex_shared_wmma_matrix_a[v0_o * 16 + v0_i, v2_o * 16 + v2_i], B_reindex_shared_wmma_matrix_b[v2_o * 16 + v2_i, v1_o * 16 + v1_i])
+                                            T.writes(C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
+                                            T.block_attr({"meta_schedule.tiling_structure":"SSSRRSRS"})
+                                            C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i] = C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i] + T.cast(A_reindex_shared_wmma_matrix_a[v0_o * 16 + v0_i, v2_o * 16 + v2_i], "float32") * T.cast(B_reindex_shared_wmma_matrix_b[v2_o * 16 + v2_i, v1_o * 16 + v1_i], "float32")
+                    for ax0_0, ax1_0 in T.grid(2, 1):
+                        with T.block("C_reindex_shared_wmma.accumulator_o"):
+                            v0_o = T.axis.spatial(8, ax0_0_0_ax1_0_0_fused // 2 * 2 + ax0_0)
+                            v1_o = T.axis.spatial(8, ax0_0_0_ax1_0_0_fused % 2 * 4 + ax0_0_1_ax1_0_1_fused * 2 + ax0_0_2_ax1_0_2_fused)
+                            T.reads(C_reindex_shared_wmma_accumulator[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                            T.writes(C_reindex_shared[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                            T.block_attr({"meta_schedule.auto_tensorize":"wmma_store_16x16x16_f32_shared"})
+                            for ax0_1, ax1_1 in T.grid(16, 16):
+                                with T.block("C_reindex_shared_wmma.accumulator"):
+                                    v0_i, v1_i = T.axis.remap("SS", [ax0_1, ax1_1])
+                                    T.reads(C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
+                                    T.writes(C_reindex_shared[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
+                                    C_reindex_shared[v0_o * 16 + v0_i, v1_o * 16 + v1_i] = C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i]
+                for ax0, ax1 in T.grid(32, 32):
+                    with T.block("C_reindex_shared"):
+                        T.where(ax0_0_0_ax1_0_0_fused // 2 * 32 + ax0 < 127 and ax0_0_0_ax1_0_0_fused % 2 * 64 + ax0_0_1_ax1_0_1_fused * 32 + ax1 < 127)
+                        v0 = T.axis.spatial(128, ax0_0_0_ax1_0_0_fused // 2 * 32 + ax0)
+                        v1 = T.axis.spatial(128, ax0_0_0_ax1_0_0_fused % 2 * 64 + ax0_0_1_ax1_0_1_fused * 32 + ax1)
+                        T.reads(C_reindex_shared[v0, v1])
+                        T.writes(compute[v0, v1])
+                        T.block_attr({"meta_schedule.cooperative_fetch":4})
+                        compute[v0, v1] = T.max(C_reindex_shared[v0, v1], T.float32(0))
+    # fmt: on
+
+    decision_0 = [
+        ("SamplePerfectTile", [4, 1, 1, 1, 2]),
+        ("SamplePerfectTile", [2, 2, 2, 1, 1]),
+        ("SamplePerfectTile", [1, 4, 2]),
+        ("SampleCategorical", 3),
+        ("SampleCategorical", 3),
+        ("SampleCategorical", 0),
+    ]
+
+    mod = te.create_prim_func(
+        te_workload.matmul_relu(
+            n=127,
+            m=127,
+            k=127,
+            in_dtype="float16",
+            out_dtype="float32",
+        )
+    )
+    actual = ms.TuneContext(
+        mod=mod,
+        target=tvm.target.Target("cuda"),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules=[multi_level_tiling_tensor_core(write_reuse_scope="shared")]
+        + get_rules("cuda", ms.schedule_rule.AutoInline),
+    ).generate_design_space()
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[padded_matmul_relu_0],
+        expected_decisions=[decision_0],
+    )
+
+
 if __name__ == "__main__":
-    test_matmul_relu()
-    test_matmul_relu_with_fallback()
-    test_conv2d()
-    test_conv2d_more_intrin()
-    test_matmul_relu_pipeline()
-    test_matmul_relu_global()
-    test_matmul_relu_non_tensorizable()
+    tvm.testing.main()

@@ -721,6 +721,16 @@ TVM_DLL const Op& texture2d_load();
 TVM_DLL const Op& mem_copy();
 
 /*!
+ * \brief Initiate a non-blocking DMA copy from source to destination
+ */
+TVM_DLL const Op& dma_copy();
+
+/*!
+ * \brief Wait until the number of DMAs in flight is less than or equal to some maximum
+ */
+TVM_DLL const Op& dma_wait();
+
+/*!
  * \brief Provide a true statement that can be used for simplifications
  *
  * Compile-time representation of known constraints about function

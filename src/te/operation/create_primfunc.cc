@@ -256,7 +256,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     // TensorIR will not allow Tensor data structure
     if (value->IsInstance<ArrayNode>()) {
       const auto array_value = Downcast<Array<ObjectRef>>(value);
-      annotations.Set(key, MutateArray(array_value, mutate_attr));
+      annotations.Set(key, array_value.Map(mutate_attr));
     } else {
       annotations.Set(key, mutate_attr(value));
     }

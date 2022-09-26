@@ -374,7 +374,7 @@ class ScheduleBuilder : public ExprVisitor {
             TuningRecord record = opt_record.value();
             for (const Instruction& inst : record->trace->insts) {
               if (inst->kind.same_as(kind_transform_layout)) {
-                ICHECK_EQ(inst->attrs.size(), 3);
+                ICHECK_EQ(inst->attrs.size(), 4);
                 MetaScheduleLayoutRewriter::LayoutQueuePush(Downcast<IndexMap>(inst->attrs[2]));
               }
             }

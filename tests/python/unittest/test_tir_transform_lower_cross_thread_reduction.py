@@ -1002,6 +1002,151 @@ def lowered_argmin_split_init_update_reordered(
                 argmin_v1[i] = cross_thread_argmin_v1[0]
 
 
+@T.prim_func
+def layer_norm_tuple_sum(
+    data: T.Buffer[(128, 768), "float32"],
+    gamma: T.Buffer[768, "float32"],
+    bias: T.Buffer[768, "float32"],
+    T_layer_norm: T.Buffer[(128, 768), "float32"],
+) -> None:
+    data_red_temp_v0 = T.alloc_buffer([128], dtype="float32")
+    data_red_temp_v1 = T.alloc_buffer([128], dtype="float32")
+    for i0_fused in T.thread_binding(128, thread="blockIdx.x"):
+        for i1_0 in T.serial(24):
+            for i1_1 in T.thread_binding(32, thread="threadIdx.x"):
+                with T.block("data_red_temp"):
+                    ax0 = T.axis.spatial(128, i0_fused)
+                    k1 = T.axis.reduce(768, i1_0 * 32 + i1_1)
+                    T.reads(data[ax0, k1])
+                    T.writes(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
+                    with T.init():
+                        data_red_temp_v0[ax0] = T.float32(0)
+                        data_red_temp_v1[ax0] = T.float32(0)
+                    v_data_red_temp_v0: T.float32 = data_red_temp_v0[ax0] + data[ax0, k1]
+                    v_data_red_temp_v1: T.float32 = (
+                        data_red_temp_v1[ax0] + data[ax0, k1] * data[ax0, k1]
+                    )
+                    data_red_temp_v0[ax0] = v_data_red_temp_v0
+                    data_red_temp_v1[ax0] = v_data_red_temp_v1
+    for i0_i1_fused_0 in T.thread_binding(384, thread="blockIdx.x"):
+        for i0_i1_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
+            with T.block("T_layer_norm"):
+                ax0 = T.axis.spatial(128, (i0_i1_fused_0 * 256 + i0_i1_fused_1) // 768)
+                ax1 = T.axis.spatial(768, (i0_i1_fused_0 * 256 + i0_i1_fused_1) % 768)
+                T.reads(
+                    data[ax0, ax1],
+                    data_red_temp_v0[ax0],
+                    data_red_temp_v1[ax0],
+                    gamma[ax1],
+                    bias[ax1],
+                )
+                T.writes(T_layer_norm[ax0, ax1])
+                T_layer_norm[ax0, ax1] = (
+                    data[ax0, ax1] - data_red_temp_v0[ax0] * T.float32(0.0013020833333333333)
+                ) * T.rsqrt(
+                    data_red_temp_v1[ax0] * T.float32(0.0013020833333333333)
+                    - data_red_temp_v0[ax0]
+                    * T.float32(0.0013020833333333333)
+                    * (data_red_temp_v0[ax0] * T.float32(0.0013020833333333333))
+                    + T.float32(1.0000000000000001e-05),
+                    dtype="float32",
+                ) * gamma[
+                    ax1
+                ] + bias[
+                    ax1
+                ]
+
+
+@T.prim_func
+def lowered_layer_norm_tuple_sum(
+    data: T.Buffer[(128, 768), "float32"],
+    gamma: T.Buffer[768, "float32"],
+    bias: T.Buffer[768, "float32"],
+    T_layer_norm: T.Buffer[(128, 768), "float32"],
+) -> None:
+    # with T.block("root")
+    data_red_temp_v0 = T.alloc_buffer([128], dtype="float32")
+    data_red_temp_v1 = T.alloc_buffer([128], dtype="float32")
+    cross_thread_data_red_temp_v0 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    cross_thread_data_red_temp_v1 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    in_thread_data_red_temp_v0 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    in_thread_data_red_temp_v1 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    for i0_fused in T.thread_binding(128, thread="blockIdx.x"):
+        for i1_1 in T.thread_binding(32, thread="threadIdx.x"):
+            with T.block("data_red_temp_in_thread_init"):
+                T.reads()
+                T.writes(in_thread_data_red_temp_v0[0], in_thread_data_red_temp_v1[0])
+                in_thread_data_red_temp_v0[0] = T.float32(0)
+                in_thread_data_red_temp_v1[0] = T.float32(0)
+            for i1_0 in T.serial(24):
+                with T.block("data_red_temp_in_thread"):
+                    ax0 = T.axis.spatial(128, i0_fused)
+                    k1 = T.axis.reduce(768, i1_0 * 32 + i1_1)
+                    T.reads(data[ax0, k1])
+                    T.writes(in_thread_data_red_temp_v0[0], in_thread_data_red_temp_v1[0])
+                    v_data_red_temp_v0: T.float32 = in_thread_data_red_temp_v0[0] + data[ax0, k1]
+                    v_data_red_temp_v1: T.float32 = (
+                        in_thread_data_red_temp_v1[0] + data[ax0, k1] * data[ax0, k1]
+                    )
+                    in_thread_data_red_temp_v0[0] = v_data_red_temp_v0
+                    in_thread_data_red_temp_v1[0] = v_data_red_temp_v1
+            with T.block("data_red_temp_cross_thread"):
+                T.reads(in_thread_data_red_temp_v0[0], in_thread_data_red_temp_v1[0])
+                T.writes(cross_thread_data_red_temp_v0[0], cross_thread_data_red_temp_v1[0])
+                T.attr(
+                    T.comm_reducer(
+                        lambda x0, x1, y0, y1: (x0 + y0, x1 + y1), [T.float32(0), T.float32(0)]
+                    ),
+                    "reduce_scope",
+                    T.reinterpret(T.uint64(0), dtype="handle"),
+                )
+                T.evaluate(
+                    T.tvm_thread_allreduce(
+                        T.uint32(2),
+                        in_thread_data_red_temp_v0[0],
+                        in_thread_data_red_temp_v1[0],
+                        True,
+                        cross_thread_data_red_temp_v0[0],
+                        cross_thread_data_red_temp_v1[0],
+                        i1_1,
+                        dtype="handle",
+                    )
+                )
+            with T.block("data_red_temp_write_back"):
+                ax0 = T.axis.spatial(128, i0_fused)
+                T.reads(cross_thread_data_red_temp_v0[0], cross_thread_data_red_temp_v1[0])
+                T.writes(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
+                data_red_temp_v0[ax0] = cross_thread_data_red_temp_v0[0]
+                data_red_temp_v1[ax0] = cross_thread_data_red_temp_v1[0]
+    for i0_i1_fused_0 in T.thread_binding(384, thread="blockIdx.x"):
+        for i0_i1_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
+            with T.block("T_layer_norm"):
+                ax0 = T.axis.spatial(128, (i0_i1_fused_0 * 256 + i0_i1_fused_1) // 768)
+                ax1 = T.axis.spatial(768, (i0_i1_fused_0 * 256 + i0_i1_fused_1) % 768)
+                T.reads(
+                    data[ax0, ax1],
+                    data_red_temp_v0[ax0],
+                    data_red_temp_v1[ax0],
+                    gamma[ax1],
+                    bias[ax1],
+                )
+                T.writes(T_layer_norm[ax0, ax1])
+                T_layer_norm[ax0, ax1] = (
+                    data[ax0, ax1] - data_red_temp_v0[ax0] * T.float32(0.0013020833333333333)
+                ) * T.rsqrt(
+                    data_red_temp_v1[ax0] * T.float32(0.0013020833333333333)
+                    - data_red_temp_v0[ax0]
+                    * T.float32(0.0013020833333333333)
+                    * (data_red_temp_v0[ax0] * T.float32(0.0013020833333333333))
+                    + T.float32(1.0000000000000001e-05),
+                    dtype="float32",
+                ) * gamma[
+                    ax1
+                ] + bias[
+                    ax1
+                ]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
@@ -1085,6 +1230,10 @@ def test_lower_te():
     tvm.ir.assert_structural_equal(
         mod, orig_mod
     )  # LowerCrossThreadReduction should do nothing on TE
+
+
+def test_layer_norm_tuple_sum():
+    _check(layer_norm_tuple_sum, lowered_layer_norm_tuple_sum)
 
 
 if __name__ == "__main__":
