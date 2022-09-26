@@ -344,14 +344,8 @@ LetStmt PoolAllocationToOffsetConverter::ToLetStmt(const PoolAllocation& pool_al
     let_var_type = PointerType(Downcast<PointerType>(let_var_type)->element_type);
   }
   Var let_var(buffer_var->name_hint + "_let", let_var_type);
-  if (buffer_var->name_hint == "dense") {
-    LOG(INFO) << " Set buffer var: " << let_var;
-  }
   allocate_var_to_let_var_.Set(buffer_var, let_var);
   Stmt new_body = VisitStmt(body);
-  if (buffer_var->name_hint == "dense") {
-    LOG(INFO) << " Erase buffer var: " << let_var;
-  }
   allocate_var_to_let_var_.erase(buffer_var);
   return LetStmt(let_var, address_of_load, new_body);
 }
@@ -404,9 +398,6 @@ PrimExpr PoolAllocationToOffsetConverter::VisitExpr_(const BufferLoadNode* op) {
 
 PrimExpr PoolAllocationToOffsetConverter::VisitExpr_(const VarNode* op) {
   auto it = allocate_var_to_let_var_.find(GetRef<Var>(op));
-  if (op->name_hint == "dense") {
-    LOG(INFO) << "Lookup dense var: " << (it != allocate_var_to_let_var_.end());
-  }
   if (it != allocate_var_to_let_var_.end()) {
     return (*it).second;
   }
