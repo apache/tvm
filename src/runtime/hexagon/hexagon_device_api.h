@@ -182,7 +182,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
   //! \brief Thread manager
   std::unique_ptr<HexagonThreadManager> runtime_threads;
   const unsigned threads{6};
-  const unsigned pipe_size{100};
+  const unsigned pipe_size{1000};
   const unsigned stack_size{0x4000};  // 16KB
 };
 }  // namespace hexagon
