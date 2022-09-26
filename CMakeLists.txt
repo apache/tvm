@@ -72,6 +72,7 @@ tvm_option(USE_PAPI "Use Performance Application Programming Interface (PAPI) to
 tvm_option(USE_GTEST "Use GoogleTest for C++ sanity tests" AUTO)
 tvm_option(USE_CUSTOM_LOGGING "Use user-defined custom logging, tvm::runtime::detail::LogFatalImpl and tvm::runtime::detail::LogMessageImpl must be implemented" OFF)
 tvm_option(USE_ALTERNATIVE_LINKER "Use 'mold' or 'lld' if found when invoking compiler to link artifact" AUTO)
+tvm_option(USE_CCACHE "Use ccache if found when invoking compiler" AUTO)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -459,6 +460,11 @@ if(USE_PIPELINE_EXECUTOR)
   tvm_file_glob(GLOB RUNTIME_PIPELINE_SRCS src/runtime/pipeline/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_PIPELINE_SRCS})
 endif(USE_PIPELINE_EXECUTOR)
+
+# Caches the build.
+# Note that ccache-3.x doesn't support nvcc well, so CUDA kernels may never hit the cache and still
+# need to be re-compiled every time. Using ccache 4.0+ can resolve this issue.
+include(cmake/utils/CCache.cmake)
 
 # Module rules
 include(cmake/modules/VTA.cmake)
