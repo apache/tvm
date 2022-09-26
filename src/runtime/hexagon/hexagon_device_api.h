@@ -149,7 +149,9 @@ class HexagonDeviceAPI final : public DeviceAPI {
    */
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
 
-  HexagonThreadManager* ThreadManager() { return runtime_threads ? runtime_threads.get() : nullptr; }
+  HexagonThreadManager* ThreadManager() {
+    return runtime_threads ? runtime_threads.get() : nullptr;
+  }
 
  protected:
   //! Standard Device API interface to copy data from one storage to another.
