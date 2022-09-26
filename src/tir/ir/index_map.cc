@@ -102,11 +102,13 @@ std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initia
   Array<PrimExpr> inverse_exprs;
   for (int i = 0, n = (*this)->initial_indices.size(); i < n; ++i) {
     Var index = (*this)->initial_indices[i];
+    PrimExpr expr;
     if (is_one(initial_ranges[i]->extent) && !inverse_exprs_map.count(index)) {
-      inverse_exprs.push_back(initial_ranges[i]->min);
+      expr = initial_ranges[i]->min;
     } else {
-      inverse_exprs.push_back(inverse_exprs_map.at(index));
+      expr = inverse_exprs_map.at(index);
     }
+    inverse_exprs.push_back(analyzer.Simplify(expr));
   }
 
   PrimExpr padding_predicate = padded_iter_map->padding_predicate;
