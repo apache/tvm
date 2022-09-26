@@ -116,9 +116,13 @@ if __name__ == '__main__':
 
         dev = remote.device(str(target), 0)
         module = runtime.GraphModule(rlib["default"](dev))
-        data_tvm = tvm.nd.array((np.random.uniform(size=(1, 3, 640, 640))).astype(dtype), dev)
-        module.set_input("images", data_tvm)
+        data_tvm = tvm.nd.array((np.random.uniform(size=(1, 3, 112, 112))).astype(dtype), dev)
+        module.set_input("input", data_tvm)
         module.run()
+        num_outs = module.get_num_outputs()
+        for i in range(0, num_outs):
+            oval = module.get_output(i).numpy()
+            print(oval)
         # evaluate
         print("Evaluate inference time cost...")
         ftimer = module.module.time_evaluator("run", dev, number=1, repeat=300)
