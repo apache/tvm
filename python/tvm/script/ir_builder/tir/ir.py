@@ -1588,7 +1588,7 @@ def max(a: PrimExpr, b: PrimExpr) -> PrimExpr:  # pylint: disable=redefined-buil
     return _ffi_api.max(a, b)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def iter_var(v: Union[Var, str], dom: Range, iter_type: int, thread_tag: str) -> IterVar:
+def iter_var(v: Union[Var, str], dom: Range, iter_type: str, thread_tag: str) -> IterVar:
     """The iteration variable.
 
     Parameters
@@ -1599,7 +1599,7 @@ def iter_var(v: Union[Var, str], dom: Range, iter_type: int, thread_tag: str) ->
     dom : Range
         The domain of the iteration.
 
-    iter_type : int
+    iter_type : str
         The iteration type.
 
     thread_tag : str
