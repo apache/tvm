@@ -318,6 +318,7 @@ TVM_DLL Map<String, String> GetLibInfo() {
       {"USE_CLML", TVM_INFO_USE_CLML},
       {"USE_CLML_GRAPH_EXECUTOR", TVM_INFO_USE_CLML_GRAPH_EXECUTOR},
       {"USE_UMA", TVM_INFO_USE_UMA},
+      {"USE_CCACHE", TVM_INFO_USE_CCACHE},
   };
   return result;
 }

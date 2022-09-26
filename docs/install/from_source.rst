@@ -141,6 +141,8 @@ The configuration of TVM can be modified by editing `config.cmake` and/or by pas
   - On supported platforms, the `Ccache compiler wrapper <https://ccache.dev/>`_ may be helpful for
     reducing TVM's build time.  There are several ways to enable CCache in TVM builds:
 
+    - Leave `USE_CCACHE=AUTO` in `build/config.cmake`. CCache will be used if it is found.
+
     - Ccache's Masquerade mode. This is typically enabled during the Ccache installation process.
       To have TVM use Ccache in masquerade, simply specify the appropriate C/C++ compiler
       paths when configuring TVM's build system.  For example:
