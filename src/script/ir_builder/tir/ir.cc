@@ -534,6 +534,10 @@ DeclBufferFrame DeclBuffer(Array<PrimExpr> shape, DataType dtype, String buffer_
 
 void Evaluate(PrimExpr value) { AddToParent(tvm::tir::Evaluate(value)); }
 
+PrimExpr Ptr(runtime::DataType dtype, String storage_scope) {
+  return tvm::tir::Var("", tvm::PointerType(PrimType(dtype), storage_scope));
+}
+
 using tvm::script::ir_builder::details::Namer;
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
@@ -632,6 +636,8 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.BufferStore").set_body_typed(BufferSt
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Prefetch").set_body_typed(Prefetch);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Evaluate").set_body_typed(Evaluate);
 
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Ptr").set_body_typed(Ptr);
+
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Int8").set_body_typed(Int8);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Int16").set_body_typed(Int16);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Int32").set_body_typed(Int32);
@@ -650,6 +656,11 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.Int32x16").set_body_typed(Int32x16);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Boolean").set_body_typed(Boolean);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Handle").set_body_typed(Handle);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Void").set_body_typed(Void);
+
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.min")
+    .set_body_typed([](PrimExpr a, PrimExpr b) -> PrimExpr { return tvm::min(a, b); });
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.max")
+    .set_body_typed([](PrimExpr a, PrimExpr b) -> PrimExpr { return tvm::max(a, b); });
 }  // namespace tir
 }  // namespace ir_builder
 }  // namespace script
