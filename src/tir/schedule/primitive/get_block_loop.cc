@@ -80,12 +80,28 @@ Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent
 
 Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sref) {
   StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
-  return tir::GetProducers(block_sref, self->GetBlockScope(scope_root));
+  Array<Dependency> edges = self->GetBlockScope(scope_root)->GetDepsByDst(block_sref);
+  std::unordered_set<StmtSRef, ObjectPtrHash, ObjectPtrEqual> results;
+  results.reserve(edges.size());
+  for (const Dependency& edge : edges) {
+    if (edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) {
+      results.emplace(edge->src);
+    }
+  }
+  return Array<StmtSRef>(results.begin(), results.end());
 }
 
 Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sref) {
   StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
-  return tir::GetConsumers(block_sref, self->GetBlockScope(scope_root));
+  Array<Dependency> edges = self->GetBlockScope(scope_root)->GetDepsBySrc(block_sref);
+  std::unordered_set<StmtSRef, ObjectPtrHash, ObjectPtrEqual> results;
+  results.reserve(edges.size());
+  for (const Dependency& edge : edges) {
+    if (edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) {
+      results.emplace(edge->dst);
+    }
+  }
+  return Array<StmtSRef>(results.begin(), results.end());
 }
 
 /******** InstructionKind Registration ********/
