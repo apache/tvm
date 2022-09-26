@@ -23,3 +23,5 @@ from .dequantize import (
     dequantize_compute,
     dequantize_schedule,
 )
+
+from .quantize import quantize_compute, tir_quantize_schedule

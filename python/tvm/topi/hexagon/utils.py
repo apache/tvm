@@ -294,3 +294,8 @@ def get_fixed_point_value(flp: float, dtype: str = "int16") -> Tuple[int, int]:
         fixed_point_value = int(round(flp * scale_f[0]))
 
     return fixed_point_value, exp_scale_factor
+
+
+def saturate(x: te.Tensor, dtype: str):
+    """Saturate value for the specified data type"""
+    return te.max(te.min_value(dtype), te.min(x, te.max_value(dtype)))
