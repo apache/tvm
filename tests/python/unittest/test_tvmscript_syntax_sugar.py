@@ -251,6 +251,31 @@ def test_match_buffer_int64():
     assert_structural_equal(original, after_roundtrip, True)
 
 
+def test_match_buffer_region_has_implicit_shape_dtype():
+    @T.prim_func
+    def explicit_shape_dtype(A: T.Buffer[(16, 64), "int32"]):
+        with T.block():
+            B = T.match_buffer(A[8:16, 32:64], shape=(8, 32), dtype="int32")
+            T.evaluate(0)
+
+    @T.prim_func
+    def implicit_shape_dtype(A: T.Buffer[(16, 64), "int32"]):
+        with T.block():
+            B = T.match_buffer(A[8:16, 32:64])
+            T.evaluate(0)
+
+    assert_structural_equal(explicit_shape_dtype, implicit_shape_dtype)
+
+
+def test_match_buffer_input_requires_shape_arg():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @T.prim_func
+        def func(a: T.handle):
+            A = T.match_buffer(a, dtype="int32")
+            T.evaluate(0)
+
+
 def test_letstmt_bufferload_without_type_annotation():
     # Variable assignment of PrimExpr types uses the dtype of the
     # PrimExpr to determine the variable's dtype.  Parsing of
