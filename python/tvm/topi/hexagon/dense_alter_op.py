@@ -18,10 +18,7 @@
 """Dense alter op functions for ARM"""
 
 import tvm
-from tvm import te
 from tvm import relay
-from tvm import autotvm
-from ..utils import get_const_tuple
 from .. import nn
 from ..nn import dense_alter_layout
 
@@ -137,7 +134,7 @@ def _dense_legalize(attrs, inputs, arg_types):
             tvm.ir.tensor_type.TensorType([N + dn, arg_types[1].shape[1]], arg_types[1].dtype),
         ]
 
-        vrmpy_out = vrmpy_legalize(x, y_, arg_types, relay.nn.dense, new_attrs, False)
+        vrmpy_out = vrmpy_legalize(x, y_, arg_types, relay.nn.dense, new_attrs)
 
         if vrmpy_out is None:
             out_ = relay.nn.dense(x, y_, **new_attrs)
@@ -147,4 +144,4 @@ def _dense_legalize(attrs, inputs, arg_types):
         out = relay.strided_slice(out_, begin=[0, 0], end=[x.value for x in output_tensor.shape])
         return out
 
-    return vrmpy_legalize(inputs[0], inputs[1], arg_types, relay.nn.dense, attrs, False)
+    return vrmpy_legalize(inputs[0], inputs[1], arg_types, relay.nn.dense, attrs)

@@ -14,14 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=invalid-name
 """Schedule for conv2d"""
 
 import tvm
 from tvm import te
 from .. import nn
 from ..utils import traverse_inline
-from tvm.topi.utils import get_const_tuple
 from .tensor_intrin import dot_vrmpy
 from ..generic import conv2d as conv2d_generic
 

@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=invalid-name
 """Schedule for dense operator"""
 
 import tvm
-from tvm.topi.utils import get_const_tuple, traverse_inline
+from tvm.topi.utils import traverse_inline
 from tvm import te
 from .. import tag
 from .tensor_intrin import dot_vrmpy

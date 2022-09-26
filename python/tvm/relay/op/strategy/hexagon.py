@@ -193,7 +193,6 @@ def schedule_reduce_hexagon(attrs, outs, target):
 def conv2d_NCHWc_strategy_hexagon(attrs, inputs, out_type, target):
     """conv2d_NCHWc_ hexagon strategy"""
     strategy = _op.OpStrategy()
-    data, kernel = inputs
     strategy.add_implementation(
         wrap_compute_conv2d(
             topi.hexagon.conv2d_NCHWc_int8, need_data_layout=True, need_out_layout=True
