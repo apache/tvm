@@ -256,13 +256,24 @@ def extract_param_base_addresses(mod, buffer_info, scratch_region_map) -> List[u
 
     base_addresses = list()
     idx = 0
+
+    buffer_map = {}
+
+    def collect_buffer_map(node):
+        if isinstance(node, (tvm.tir.BufferLoad, tvm.tir.BufferStore)):
+            buf = node.buffer
+            buffer_map[buf.data] = buf
+
+    tvm.tir.stmt_functor.post_order_visit(primfunc.body, collect_buffer_map)
+
     for param in primfunc.params:
         # constants are pooled together and handled specially
         # this will change after tir.allocate_const.
         # For now, we are skipping generating buffer addresses here
         if buffer_info[param].btype == BufferType.constant:
             continue
-        buffer = primfunc.buffer_map[param]
+
+        buffer = buffer_map[param]
         dtype = buffer.dtype
         element_size_bytes = np.iinfo(dtype).bits // 8
         size_bytes = element_size_bytes * np.prod(list(buffer.shape))
