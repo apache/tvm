@@ -49,16 +49,16 @@
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:20220908-060034-62bdc91b1'
-ci_gpu = 'tlcpack/ci-gpu:20220908-060034-62bdc91b1'
-ci_cpu = 'tlcpack/ci-cpu:20220908-060034-62bdc91b1'
-ci_minimal = 'tlcpack/ci-minimal:20220908-060034-62bdc91b1'
-ci_wasm = 'tlcpack/ci-wasm:20220908-060034-62bdc91b1'
-ci_i386 = 'tlcpack/ci-i386:20220908-060034-62bdc91b1'
-ci_cortexm = 'tlcpack/ci-cortexm:20220909-090211-cb08a1251'
-ci_arm = 'tlcpack/ci-arm:20220908-060034-62bdc91b1'
-ci_hexagon = 'tlcpack/ci-hexagon:20220908-060034-62bdc91b1'
-ci_riscv = 'tlcpack/ci-riscv:20220908-060034-62bdc91b1'
+ci_lint = 'tlcpack/ci-lint:20220925-060158-71f25b3d6'
+ci_gpu = 'tlcpack/ci-gpu:20220925-060158-71f25b3d6'
+ci_cpu = 'tlcpack/ci-cpu:20220925-060158-71f25b3d6'
+ci_minimal = 'tlcpack/ci-minimal:20220925-060158-71f25b3d6'
+ci_wasm = 'tlcpack/ci-wasm:20220925-060158-71f25b3d6'
+ci_i386 = 'tlcpack/ci-i386:20220925-060158-71f25b3d6'
+ci_cortexm = 'tlcpack/ci-cortexm:20220925-060158-71f25b3d6'
+ci_arm = 'tlcpack/ci-arm:20220925-060158-71f25b3d6'
+ci_hexagon = 'tlcpack/ci-hexagon:20220925-060158-71f25b3d6'
+ci_riscv = 'tlcpack/ci-riscv:20220925-060158-71f25b3d6'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
