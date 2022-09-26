@@ -96,6 +96,7 @@ def schedule_conv2d_transpose_nchw(outs):
 def conv2d_NCHWc_int8(
     data, kernel, stride, padding, dilation, layout, out_layout, out_dtype="int32"
 ):
+    """Compute definition for int8 conv2d in NCHWc layout"""
     n_elems = int(kernel.shape[-1])
     return nn.conv2d_NCHWc_int8(
         data, kernel, stride, padding, dilation, layout, out_layout, out_dtype, n_elems=n_elems
@@ -103,7 +104,7 @@ def conv2d_NCHWc_int8(
 
 
 def schedule_conv2d_NCHWc_int8(outs):
-    """Create schedule for tensors"""
+    """Schedule for int8 conv2d in NCHWc layout using vrmpy tensorization"""
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
@@ -124,7 +125,11 @@ def schedule_conv2d_NCHWc_int8(outs):
             intrin = dot_vrmpy(data_vec.dtype, kernel_vec.dtype)
 
             conv2d_generic.schedule_conv_NCHWc_cpu_common_int8(
-                *args, int32_lanes=32, int8_elems=4, intrin=intrin, inline_fused=True,
+                *args,
+                int32_lanes=32,
+                int8_elems=4,
+                intrin=intrin,
+                inline_fused=True,
             )
 
     traverse_inline(s, outs[0].op, _callback)

@@ -191,6 +191,7 @@ def schedule_reduce_hexagon(attrs, outs, target):
 
 @conv2d_NCHWc_strategy.register("hexagon")
 def conv2d_NCHWc_strategy_hexagon(attrs, inputs, out_type, target):
+    """conv2d_NCHWc_ hexagon strategy"""
     strategy = _op.OpStrategy()
     data, kernel = inputs
     strategy.add_implementation(

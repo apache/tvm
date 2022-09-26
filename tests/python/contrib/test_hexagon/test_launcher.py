@@ -427,12 +427,7 @@ def test_aot_executor_multiple_conv2d(hexagon_session: Session, aot_host_target,
 @tvm.testing.requires_hexagon
 def test_conv2d_u8u8i32_vrmpy(hexagon_session):
     def get_conv2d_nchw(
-        d_shape,
-        w_shape,
-        padding,
-        strides=(1, 1),
-        data_dtype = "int8",
-        weight_dtype = "int8"
+        d_shape, w_shape, padding, strides=(1, 1), data_dtype="int8", weight_dtype="int8"
     ):
         out_dtype = "int32"
 
@@ -464,7 +459,14 @@ def test_conv2d_u8u8i32_vrmpy(hexagon_session):
 
     data_dtype = "uint8"
     weight_dtype = "int8"
-    conv2d = get_conv2d_nchw(data_shape, weight_shape, padding, strides=strides, data_dtype=data_dtype, weight_dtype=weight_dtype)
+    conv2d = get_conv2d_nchw(
+        data_shape,
+        weight_shape,
+        padding,
+        strides=strides,
+        data_dtype=data_dtype,
+        weight_dtype=weight_dtype,
+    )
     bias_add = relay.nn.bias_add(conv2d, bias)
 
     use_bias = True

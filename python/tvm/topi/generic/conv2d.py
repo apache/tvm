@@ -145,9 +145,9 @@ def schedule_conv_NCHWc_cpu_common_int8(
         reg_n = cfg["tile_ow"].size[-1]
 
     if isinstance(cfg["unroll_kw"], (int, bool)):
-        unroll_kw =  cfg["unroll_kw"]
+        unroll_kw = cfg["unroll_kw"]
     else:
-        unroll_kw =  cfg["unroll_kw"].val
+        unroll_kw = cfg["unroll_kw"].val
 
     _, _, _, _, ic_bn = get_const_tuple(data_vec.shape)
     _, _, _, _, oc_bn = get_const_tuple(conv_out.shape)

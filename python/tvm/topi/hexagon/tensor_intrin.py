@@ -73,6 +73,7 @@ register_intrin_lowering(
 
 
 def dot_vrmpy(x_ty, y_ty):
+    """Generates vrmpy instruciton for tensorization."""
     int32_lanes = 32
     num_int8_elements = 4  # 4 int8 elements in int32
     data = te.placeholder((num_int8_elements,), dtype=x_ty, name="data")

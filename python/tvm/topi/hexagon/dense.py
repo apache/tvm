@@ -45,7 +45,7 @@ def schedule_dense(outs):
 
 
 def dense_u8u8i32_vrmpy_compute(X, packed_w, bias, out_dtype):
-    """Compute for uint8 x uint8 -> int32 dense"""
+    """Compute for uint8 x uint8 -> int32 dense using vrmpy"""
     assert X.dtype == "uint8" and packed_w.dtype == "uint8" and out_dtype == "int32"
     m, k = X.shape
     n_o, _, n_i, _ = packed_w.shape
@@ -71,38 +71,38 @@ def dense_u8u8i32_vrmpy_compute(X, packed_w, bias, out_dtype):
     return C
 
 
-def dense_u8u8i32_vrmpy_common(s, C, O):
-    (a_k,) = C.op.reduce_axis
-    a_y = C.op.axis[-2]
-    a_yo, a_yi = s[C].split(a_y, factor=32)
-    a_xo, a_xi = s[C].split(C.op.axis[-1], factor=32)
-    a_ko, a_ki = s[C].split(a_k, factor=4)
-
-    s[C].reorder(a_yo, a_xo, a_yi, a_ko, a_xi, a_ki)
-
-    pc = dot_vrmpy("uint8", "uint8")
-    s[C].tensorize(a_xi, pc)
-
-    if C != O:
-        a_y = O.op.axis[-2]
-        a_yo, a_yi = s[O].split(a_y, factor=32)
-        a_xo, a_xi = s[O].split(O.op.axis[-1], factor=32)
-
-        s[O].reorder(a_yo, a_xo, a_yi, a_xi)
-        s[O].vectorize(a_xi)
-        s[C].compute_at(s[O], a_yi)
-
-
 def dense_u8u8i32_vrmpy_schedule(outs):
+    """Schedule for vrmpy dense"""
     s = te.create_schedule([x.op for x in outs])
     # O: The output of the fused op
     O = outs[0]
+
+    def _schedule_dense(s, C, O):
+        (a_k,) = C.op.reduce_axis
+        a_y = C.op.axis[-2]
+        a_yo, a_yi = s[C].split(a_y, factor=32)
+        a_xo, a_xi = s[C].split(C.op.axis[-1], factor=32)
+        a_ko, a_ki = s[C].split(a_k, factor=4)
+
+        s[C].reorder(a_yo, a_xo, a_yi, a_ko, a_xi, a_ki)
+
+        pc = dot_vrmpy("uint8", "uint8")
+        s[C].tensorize(a_xi, pc)
+
+        if C != O:
+            a_y = O.op.axis[-2]
+            a_yo, a_yi = s[O].split(a_y, factor=32)
+            a_xo, a_xi = s[O].split(O.op.axis[-1], factor=32)
+
+            s[O].reorder(a_yo, a_xo, a_yi, a_xi)
+            s[O].vectorize(a_xi)
+            s[C].compute_at(s[O], a_yi)
 
     def _callback(op):
         if "u8u8i32_vrmpy" in op.tag:
             # C: The output of GEMM
             C = op.output(0)
-            dense_u8u8i32_vrmpy_common(s, C, O)
+            _schedule_dense(s, C, O)
 
     traverse_inline(s, outs[0].op, _callback)
 
