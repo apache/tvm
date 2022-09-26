@@ -435,6 +435,14 @@ void Prefetch(Buffer buffer, Array<Range> bounds);
  */
 void Evaluate(PrimExpr value);
 
+/*!
+ * \brief The pointer declaration function.
+ * \param dtype The data type of the pointer.
+ * \param storage_scope The storage scope of the pointer.
+ * \return The pointer.
+ */
+PrimExpr Ptr(runtime::DataType dtype, String storage_scope = "global");
+
 #define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                             \
   inline PrimExpr FuncName(Optional<PrimExpr> expr = NullOpt) {                        \
     DataType dtype = DType;                                                            \
