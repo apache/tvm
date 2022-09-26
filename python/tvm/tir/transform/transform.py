@@ -390,20 +390,11 @@ def LowerCustomDatatypes():
 def MakePackedAPI():
     """Transform the PrimFuncs in the module to a packed func API.
 
-    Parameters
-    ----------
-    num_unpacked_params : int
-        Number of parameters that we hope to directly pass via normal arguments
-        following the PackedFunc input signature. If it is specified as -1 or it
-        is less than the number of arguments, the pass will packed arguments still.
-
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    num_unpacked_params: int = -1
-    assert num_unpacked_params == -1
     return _ffi_api.MakePackedAPI()  # type: ignore
 
 
