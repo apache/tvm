@@ -172,6 +172,16 @@ if(BUILD_FOR_HEXAGON)
     list(APPEND TVM_RUNTIME_LINKER_LIBS -Wl,--whole-archive ${USE_HEXAGON_SDK}/libs/qhl/prebuilt/hexagon_toolv84_v68/libqhmath.a -Wl,--no-whole-archive)
 
   endif()
+
+  # Hand-written ops
+  file_glob_append(RUNTIME_HEXAGON_SRCS
+    "${TVMRT_SOURCE_DIR}/hexagon/ops/*.cc"
+  )
+
+  set_source_files_properties(
+    "${TVMRT_SOURCE_DIR}/hexagon/ops/conv2d_fp16_hvx.cc"
+    PROPERTIES COMPILE_FLAGS "-mhvx"
+  )
 endif()
 
 if(USE_HEXAGON_RPC)

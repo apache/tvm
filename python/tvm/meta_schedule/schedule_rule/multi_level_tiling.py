@@ -187,3 +187,40 @@ class MultiLevelTilingTensorCore(ScheduleRule):
             reuse_write.as_dict() if reuse_write is not None else None,
             use_software_pipeline,
         )
+
+
+@register_object("meta_schedule.MultiLevelTilingWideVector")
+class MultiLevelTilingWideVector(ScheduleRule):
+    """Extension of MultiLevelTiling for backends with wide vectors. The loop over the innermost
+    spatial axis of the output buffer is always vectorized with the maximum vector length.
+
+    Parameters
+    ----------
+    structure : str
+        The tiling structure. 'SSRSRS' is recommended.
+    vector_length_in_bits: int
+        The length of a vector register in bits.
+    max_innermost_factor : Optional[int]
+        The maximum size of the innermost factor. None means no limit
+    reuse_read : Optional[ReuseType]
+        Data reuse configuration for reading. None means no reuse.
+    reuse_write : Optional[ReuseType]
+        Data reuse configuration for writing. None means no reuse.
+    """
+
+    def __init__(
+        self,
+        structure: str,
+        vector_length_in_bits: int,
+        max_innermost_factor: Optional[int] = None,
+        reuse_read: Optional[ReuseType] = None,
+        reuse_write: Optional[ReuseType] = None,
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.ScheduleRuleMultiLevelTilingWideVector,  # type: ignore # pylint: disable=no-member
+            structure,
+            vector_length_in_bits,
+            max_innermost_factor,
+            reuse_read.as_dict() if reuse_read is not None else None,
+            reuse_write.as_dict() if reuse_write is not None else None,
+        )

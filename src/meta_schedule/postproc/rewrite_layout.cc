@@ -148,7 +148,8 @@ bool RewriteLayout(const Schedule& sch) {
       // Apply schedule
       BlockRV block_rv = sch->GetBlock(block->name_hint, func_name);
       BlockRV cached_block_rv = sch->CacheRead(block_rv, buffer_index, "global");
-      sch->TransformLayout(block_rv, buffer_index, BufferIndexType::kRead, index_map.value());
+      sch->TransformLayout(block_rv, buffer_index, BufferIndexType::kRead, index_map.value(),
+                           NullOpt);
       sch->Annotate(cached_block_rv, attr::meta_schedule_layout_rewrite_preproc, const_true());
     }
   }
@@ -166,6 +167,11 @@ class RewriteLayoutNode : public PostprocNode {
 
   // Inherited from PostprocNode
   bool Apply(const tir::Schedule& sch) final { return tir::RewriteLayout(sch); }
+
+  Postproc Clone() const {
+    ObjectPtr<RewriteLayoutNode> n = make_object<RewriteLayoutNode>(*this);
+    return Postproc(n);
+  }
 
   static constexpr const char* _type_key = "meta_schedule.RewriteLayout";
   TVM_DECLARE_FINAL_OBJECT_INFO(RewriteLayoutNode, PostprocNode);

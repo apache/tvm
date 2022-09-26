@@ -951,6 +951,8 @@ def test_cast_simplify():
         ck.verify(tvm.tir.Cast(dtype1, x == x), tvm.tir.const(1, dtype1))
         for dtype2 in dtypes:
             for i in [0, 1, 2, 3]:
+                if i > 1 and (dtype1 == "bool" or dtype2 == "bool"):
+                    continue
                 ck.verify(tvm.tir.Cast(dtype1, tvm.tir.const(i, dtype2)), tvm.tir.const(i, dtype1))
 
 
@@ -988,6 +990,16 @@ def test_sub_bufferload():
     load = tvm.tir.BufferLoad(buf, [0])
     expr = load - load
     ck.verify(expr, 0.0)
+
+
+def test_if_then_else_simplify():
+    ck = RewriteChecker()
+    x = te.var("x", "int32")
+    z = tvm.tir.if_then_else(x < 5, tvm.tir.if_then_else(x > 1, 1, 0), 0)
+    ck.verify(z, tvm.tir.if_then_else(tvm.tir.And(tvm.tir.LT(x, 5), tvm.tir.LT(1, x)), 1, 0))
+
+    z = tvm.tir.if_then_else(x > 2, tvm.tir.if_then_else(x > 1, 1, 0), 0)
+    ck.verify(z, tvm.tir.if_then_else(tvm.tir.LT(2, x), 1, 0))
 
 
 if __name__ == "__main__":

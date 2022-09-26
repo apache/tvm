@@ -59,6 +59,7 @@
   ::tvm::meta_schedule::PyLogMessage(__FILE__, __LINE__, logging_func,   \
                                      PyLogMessage::Level::logging_level) \
       .stream()
+#define TVM_PY_LOG_CLEAR_SCREEN(logging_func) clear_logging(__FILE__, __LINE__, logging_func)
 
 namespace tvm {
 namespace meta_schedule {
@@ -66,10 +67,13 @@ namespace meta_schedule {
 /*!
  * \brief Class to accumulate an log message on the python side. Do not use directly, instead use
  * TVM_PY_LOG(DEBUG), TVM_PY_LOG(INFO), TVM_PY_LOG(WARNING), TVM_PY_ERROR(ERROR).
+ * \sa TVM_PY_LOG
+ * \sa TVM_PY_LOG_CLEAR_SCREEN
  */
 class PyLogMessage {
  public:
   enum class Level : int32_t {
+    CLEAR = -10,
     DEBUG = 10,
     INFO = 20,
     WARNING = 30,
@@ -77,34 +81,63 @@ class PyLogMessage {
     // FATAL not included
   };
 
-  PyLogMessage(const std::string& file, int lineno, PackedFunc logging_func, Level logging_level) {
-    this->logging_func = logging_func;
-    this->logging_level = logging_level;
-  }
+  explicit PyLogMessage(const char* file, int lineno, PackedFunc logging_func, Level logging_level)
+      : file_(file), lineno_(lineno), logging_func_(logging_func), logging_level_(logging_level) {}
+
   TVM_NO_INLINE ~PyLogMessage() {
-    if (this->logging_func.defined()) {
-      logging_func(static_cast<int>(logging_level), stream_.str());
+    ICHECK(logging_level_ != Level::CLEAR)
+        << "Cannot use CLEAR as logging level in TVM_PY_LOG, please use TVM_PY_LOG_CLEAR_SCREEN.";
+    if (this->logging_func_.defined()) {
+      logging_func_(static_cast<int>(logging_level_), stream_.str());
     } else {
-      if (logging_level == Level::INFO) {
-        LOG(INFO) << stream_.str();
-      } else if (logging_level == Level::WARNING) {
-        LOG(WARNING) << stream_.str();
-      } else if (logging_level == Level::ERROR) {
-        LOG(ERROR) << stream_.str();
-      } else if (logging_level == Level::DEBUG) {
-        DLOG(INFO) << stream_.str();
+      if (logging_level_ == Level::INFO) {
+        runtime::detail::LogMessage(file_, lineno_).stream() << stream_.str();
+      } else if (logging_level_ == Level::WARNING) {
+        runtime::detail::LogMessage(file_, lineno_).stream() << "Warning: " << stream_.str();
+      } else if (logging_level_ == Level::ERROR) {
+        runtime::detail::LogMessage(file_, lineno_).stream() << "Error: " << stream_.str();
+      } else if (logging_level_ == Level::DEBUG) {
+        runtime::detail::LogMessage(file_, lineno_).stream() << "Debug: " << stream_.str();
       } else {
-        LOG(FATAL) << stream_.str();
+        runtime::detail::LogFatal(file_, lineno_).stream() << stream_.str();
       }
     }
   }
   std::ostringstream& stream() { return stream_; }
 
  private:
+  const char* file_;
+  int lineno_;
   std::ostringstream stream_;
-  PackedFunc logging_func;
-  Level logging_level;
+  PackedFunc logging_func_;
+  Level logging_level_;
 };
+
+/*!
+ * \brief Whether the tuning is running on ipython kernel.
+ * \return A boolean indicating whether ipython kernel is used.
+ */
+inline bool using_ipython() {
+  bool flag = false;
+  const auto* f_using_ipython = runtime::Registry::Get("meta_schedule.using_ipython");
+  if (f_using_ipython->defined()) flag = (*f_using_ipython)();
+  return flag;
+}
+
+/*!
+ * \brief A helper function to clear logging output for ipython kernel and console.
+ * \param file The file name.
+ * \param lineno The line number.
+ * \param logging_func The logging function.
+ */
+inline void clear_logging(const char* file, int lineno, PackedFunc logging_func) {
+  if (logging_func.defined() && using_ipython()) {
+    logging_func(static_cast<int>(PyLogMessage::Level::CLEAR), "");
+  } else {
+    // this would clear all logging output in the console
+    runtime::detail::LogMessage(file, lineno).stream() << "\033c\033[3J\033[2J\033[0m\033[H";
+  }
+}
 
 /*! \brief The type of the random state */
 using TRandState = support::LinearCongruentialEngine::TRandState;

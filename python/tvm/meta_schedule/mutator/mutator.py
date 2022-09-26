@@ -58,6 +58,16 @@ class Mutator(Object):
         """
         return _ffi_api.MutatorApply(self, trace, -1)  # type: ignore # pylint: disable=no-member
 
+    def clone(self) -> "Mutator":
+        """Clone the mutator.
+
+        Returns
+        -------
+        mutator : Mutator
+            The cloned mutator.
+        """
+        return _ffi_api.MutatorClone(self)  # type: ignore # pylint: disable=no-member
+
 
 @register_object("meta_schedule.PyMutator")
 class _PyMutator(Mutator):
@@ -72,6 +82,7 @@ class _PyMutator(Mutator):
         self,
         f_initialize_with_tune_context: Callable = None,
         f_apply: Callable = None,
+        f_clone: Callable = None,
         f_as_string: Callable = None,
     ):
         """Constructor."""
@@ -80,6 +91,7 @@ class _PyMutator(Mutator):
             _ffi_api.MutatorPyMutator,  # type: ignore # pylint: disable=no-member
             f_initialize_with_tune_context,
             f_apply,
+            f_clone,
             f_as_string,
         )
 
@@ -94,7 +106,7 @@ class PyMutator:
 
     _tvm_metadata = {
         "cls": _PyMutator,
-        "methods": ["_initialize_with_tune_context", "apply", "__str__"],
+        "methods": ["_initialize_with_tune_context", "apply", "clone", "__str__"],
     }
 
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
@@ -119,6 +131,16 @@ class PyMutator:
         -------
         trace : Optional[Trace]
             None if mutator failed, otherwise return the mutated trace.
+        """
+        raise NotImplementedError
+
+    def clone(self) -> Mutator:
+        """Clone the mutator.
+
+        Returns
+        -------
+        mutator : Mutator
+            The cloned mutator.
         """
         raise NotImplementedError
 

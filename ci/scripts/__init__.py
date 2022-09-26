@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,16 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Package to enable testing of CI scripts"""
 
-set -e
-set -u
-set -o pipefail
-
-# install python and pip, don't modify this, modify install_python_package.sh
-apt-get update
-apt-install-and-clear -y software-properties-common python3.7-dev python3-setuptools python3.7-venv
-
-python3 -mvenv /opt/tvm-venv
-
-# Pin pip and setuptools versions
-/opt/tvm-venv/bin/pip3 install pip==19.3.1 setuptools==58.4.0
+from . import github_skipped_tests_comment, github_pr_comment, github_tag_teams, github_docs_comment

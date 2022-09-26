@@ -36,6 +36,7 @@ namespace meta_schedule {
 
 // Forward declaration
 class TuneContext;
+class SearchStrategy;
 
 /*!
  * \brief The search strategy for measure candidates generation.
@@ -119,12 +120,21 @@ class SearchStrategyNode : public runtime::Object {
   virtual void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                                    const Array<RunnerResult>& results) = 0;
 
+  /*!
+   * \brief Clone the search strategy.
+   * \return The cloned search strategy.
+   */
+  virtual SearchStrategy Clone() const = 0;
+
   static constexpr const char* _type_key = "meta_schedule.SearchStrategy";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchStrategyNode, Object);
 };
 
-/*! \brief The python side customizable class for measure candidate generation */
-class PySearchStrategyNode : public SearchStrategyNode {
+/*!
+ * \brief Managed reference to SearchStrategyNode.
+ * \sa SearchStrategyNode
+ */
+class SearchStrategy : public runtime::ObjectRef {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
@@ -150,44 +160,11 @@ class PySearchStrategyNode : public SearchStrategyNode {
    */
   using FNotifyRunnerResults =
       runtime::TypedPackedFunc<void(const Array<MeasureCandidate>&, const Array<RunnerResult>&)>;
-
-  /*! \brief The packed function to the `InitializeWithTuneContext` method. */
-  FInitializeWithTuneContext f_initialize_with_tune_context;
-  /*! \brief The packed function to the `PreTuning` method. */
-  FPreTuning f_pre_tuning;
-  /*! \brief The packed function to the `PostTuning` method. */
-  FPostTuning f_post_tuning;
-  /*! \brief The packed function to the `GenerateMeasureCandidates` method. */
-  FGenerateMeasureCandidates f_generate_measure_candidates;
-  /*! \brief The packed function to the `NotifyRunnerResults` method. */
-  FNotifyRunnerResults f_notify_runner_results;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_initialize_with_tune_context` is not visited
-    // `f_pre_tuning` is not visited
-    // `f_post_tuning` is not visited
-    // `f_generate_measure_candidates` is not visited
-    // `f_notify_runner_results` is not visited
-  }
-
-  void InitializeWithTuneContext(const TuneContext& context) final;
-  void PreTuning(const Array<tir::Schedule>& design_spaces, const Optional<Database>& database,
-                 const Optional<CostModel>& cost_model) final;
-  void PostTuning() final;
-  Optional<Array<MeasureCandidate>> GenerateMeasureCandidates() final;
-  void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
-                           const Array<RunnerResult>& results);
-
-  static constexpr const char* _type_key = "meta_schedule.PySearchStrategy";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PySearchStrategyNode, SearchStrategyNode);
-};
-
-/*!
- * \brief Managed reference to SearchStrategyNode.
- * \sa SearchStrategyNode
- */
-class SearchStrategy : public runtime::ObjectRef {
- public:
+  /*!
+   * \brief The function type of `Clone` method.
+   * \return The cloned search strategy.
+   */
+  using FClone = runtime::TypedPackedFunc<SearchStrategy()>;
   /*!
    * \brief Create a search strategy with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
@@ -195,14 +172,16 @@ class SearchStrategy : public runtime::ObjectRef {
    * \param f_post_tuning The packed function of `PostTuning`.
    * \param f_generate_measure_candidates The packed function of `GenerateMeasureCandidates`.
    * \param f_notify_runner_results The packed function of `NotifyRunnerResults`.
+   * \param f_clone The packed function of `Clone`.
    * \return The search strategy created.
    */
   TVM_DLL static SearchStrategy PySearchStrategy(
-      PySearchStrategyNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
-      PySearchStrategyNode::FPreTuning f_pre_tuning,                                    //
-      PySearchStrategyNode::FPostTuning f_post_tuning,                                  //
-      PySearchStrategyNode::FGenerateMeasureCandidates f_generate_measure_candidates,   //
-      PySearchStrategyNode::FNotifyRunnerResults f_notify_runner_results);
+      FInitializeWithTuneContext f_initialize_with_tune_context,  //
+      FPreTuning f_pre_tuning,                                    //
+      FPostTuning f_post_tuning,                                  //
+      FGenerateMeasureCandidates f_generate_measure_candidates,   //
+      FNotifyRunnerResults f_notify_runner_results,               //
+      FClone f_clone);
 
   /*!
    * \brief Constructor of replay trace search strategy.
@@ -243,6 +222,51 @@ class SearchStrategy : public runtime::ObjectRef {
                                                    double eps_greedy);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SearchStrategy, ObjectRef, SearchStrategyNode);
+};
+
+/*! \brief The python side customizable class for measure candidate generation */
+class PySearchStrategyNode : public SearchStrategyNode {
+ public:
+  using FInitializeWithTuneContext = SearchStrategy::FInitializeWithTuneContext;
+  using FPreTuning = SearchStrategy::FPreTuning;
+  using FPostTuning = SearchStrategy::FPostTuning;
+  using FGenerateMeasureCandidates = SearchStrategy::FGenerateMeasureCandidates;
+  using FNotifyRunnerResults = SearchStrategy::FNotifyRunnerResults;
+  using FClone = SearchStrategy::FClone;
+
+  /*! \brief The packed function to the `InitializeWithTuneContext` method. */
+  FInitializeWithTuneContext f_initialize_with_tune_context;
+  /*! \brief The packed function to the `PreTuning` method. */
+  FPreTuning f_pre_tuning;
+  /*! \brief The packed function to the `PostTuning` method. */
+  FPostTuning f_post_tuning;
+  /*! \brief The packed function to the `GenerateMeasureCandidates` method. */
+  FGenerateMeasureCandidates f_generate_measure_candidates;
+  /*! \brief The packed function to the `NotifyRunnerResults` method. */
+  FNotifyRunnerResults f_notify_runner_results;
+  /*! \brief The packed function to the `Clone` method. */
+  FClone f_clone;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    // `f_initialize_with_tune_context` is not visited
+    // `f_pre_tuning` is not visited
+    // `f_post_tuning` is not visited
+    // `f_generate_measure_candidates` is not visited
+    // `f_notify_runner_results` is not visited
+    // `f_clone` is not visited
+  }
+
+  void InitializeWithTuneContext(const TuneContext& context) final;
+  void PreTuning(const Array<tir::Schedule>& design_spaces, const Optional<Database>& database,
+                 const Optional<CostModel>& cost_model) final;
+  void PostTuning() final;
+  Optional<Array<MeasureCandidate>> GenerateMeasureCandidates() final;
+  void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
+                           const Array<RunnerResult>& results);
+  SearchStrategy Clone() const final;
+
+  static constexpr const char* _type_key = "meta_schedule.PySearchStrategy";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PySearchStrategyNode, SearchStrategyNode);
 };
 
 }  // namespace meta_schedule

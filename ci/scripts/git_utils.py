@@ -19,10 +19,13 @@
 import json
 import subprocess
 import re
+import os
 import base64
 import logging
 from urllib import request, error
 from typing import Dict, Tuple, Any, Optional, List
+
+DRY_RUN = object()
 
 
 def compress_query(query: str) -> str:
@@ -32,7 +35,7 @@ def compress_query(query: str) -> str:
 
 
 def post(url: str, body: Optional[Any] = None, auth: Optional[Tuple[str, str]] = None):
-    print(f"Requesting POST to", url, "with", body)
+    logging.info(f"Requesting POST to", url, "with", body)
     headers = {}
     req = request.Request(url, headers=headers, method="POST")
     if auth is not None:
@@ -51,11 +54,21 @@ def post(url: str, body: Optional[Any] = None, auth: Optional[Tuple[str, str]] =
         return response.read()
 
 
+def dry_run_token(is_dry_run: bool) -> Any:
+    if is_dry_run:
+        return DRY_RUN
+    return os.environ["GITHUB_TOKEN"]
+
+
 class GitHubRepo:
-    def __init__(self, user, repo, token):
+    GRAPHQL_URL = "https://api.github.com/graphql"
+
+    def __init__(self, user, repo, token, test_data=None):
         self.token = token
         self.user = user
         self.repo = repo
+        self.test_data = test_data
+        self.num_calls = 0
         self.base = f"https://api.github.com/repos/{user}/{repo}/"
 
     def headers(self):
@@ -63,22 +76,41 @@ class GitHubRepo:
             "Authorization": f"Bearer {self.token}",
         }
 
+    def dry_run(self) -> bool:
+        return self.token == DRY_RUN
+
     def graphql(self, query: str, variables: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         query = compress_query(query)
         if variables is None:
             variables = {}
+
         response = self._request(
-            "https://api.github.com/graphql",
+            self.GRAPHQL_URL,
             {"query": query, "variables": variables},
             method="POST",
         )
+        if self.dry_run():
+            return self.testing_response("POST", self.GRAPHQL_URL)
+
         if "data" not in response:
             msg = f"Error fetching data with query:\n{query}\n\nvariables:\n{variables}\n\nerror:\n{json.dumps(response, indent=2)}"
             raise RuntimeError(msg)
         return response
 
+    def testing_response(self, method: str, url: str) -> Any:
+        self.num_calls += 1
+        key = f"[{self.num_calls}] {method} - {url}"
+        if self.test_data is not None and key in self.test_data:
+            return self.test_data[key]
+        logging.info(f"Unknown URL in dry run: {key}")
+        return {}
+
     def _request(self, full_url: str, body: Dict[str, Any], method: str) -> Dict[str, Any]:
-        print(f"Requesting {method} to", full_url, "with", body)
+        if self.dry_run():
+            logging.info(f"Dry run, would have requested a {method} to {full_url} with {body}")
+            return self.testing_response(method, full_url)
+
+        logging.info(f"Requesting {method} to {full_url} with {body}")
         req = request.Request(full_url, headers=self.headers(), method=method.upper())
         req.add_header("Content-Type", "application/json; charset=utf-8")
         data = json.dumps(body)
@@ -111,16 +143,22 @@ class GitHubRepo:
         return self._request(self.base + url, data, method="POST")
 
     def get(self, url: str) -> Dict[str, Any]:
+        if self.dry_run():
+            logging.info(f"Dry run, would have requested a GET to {url}")
+            return self.testing_response("GET", url)
         url = self.base + url
-        print("Requesting GET to", url)
+        logging.info(f"Requesting GET to {url}")
         req = request.Request(url, headers=self.headers())
         with request.urlopen(req) as response:
             response = json.loads(response.read())
         return response
 
     def delete(self, url: str) -> Dict[str, Any]:
+        if self.dry_run():
+            logging.info(f"Dry run, would have requested a DELETE to {url}")
+            return self.testing_response("DELETE", url)
         url = self.base + url
-        print("Requesting DELETE to", url)
+        logging.info(f"Requesting DELETE to {url}")
         req = request.Request(url, headers=self.headers(), method="DELETE")
         with request.urlopen(req) as response:
             response = json.loads(response.read())
@@ -136,18 +174,22 @@ def parse_remote(remote: str) -> Tuple[str, str]:
         parts = remote.split("/")
         if len(parts) < 2:
             raise RuntimeError(f"Unable to parse remote '{remote}'")
-        return parts[-2], parts[-1].replace(".git", "")
+        user, repo = parts[-2], parts[-1].replace(".git", "")
     else:
         # Parse SSH remote
         m = re.search(r":(.*)/(.*)\.git", remote)
         if m is None or len(m.groups()) != 2:
             raise RuntimeError(f"Unable to parse remote '{remote}'")
-        return m.groups()
+        user, repo = m.groups()
+
+    user = os.getenv("DEBUG_USER", user)
+    repo = os.getenv("DEBUG_REPO", repo)
+    return user, repo
 
 
 def git(command, **kwargs):
     command = ["git"] + command
-    print("Running", command)
+    logging.info(f"Running {command}")
     proc = subprocess.run(command, stdout=subprocess.PIPE, encoding="utf-8", **kwargs)
     if proc.returncode != 0:
         raise RuntimeError(f"Command failed {command}:\nstdout:\n{proc.stdout}")

@@ -23,6 +23,7 @@
 
 #include "ethosn_api.h"
 
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/image.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr.h>
@@ -37,6 +38,9 @@
 #include <utility>
 #include <vector>
 
+#include "../../../op/make_op.h"
+#include "../../../transforms/pattern_utils.h"
+#include "../../../transforms/simplify_expr.h"
 #include "ethosn_support_library/Support.hpp"
 #include "ethosn_support_library/SupportQueries.hpp"
 #include "tvm/relay/qnn/attrs.h"
@@ -440,6 +444,121 @@ EthosnError EthosnAPI::Mean(const Expr& expr, MeanParams* params) {
   sl::TensorInfo output_tensor_info;
   err += Tvm2Npu(requantize->checked_type(), &output_tensor_info);
   output_tensor_info.m_QuantizationInfo = sl::QuantizationInfo(output_zp, output_sc);
+  params->output_info = output_tensor_info;
+
+  return err;
+}
+
+Constant TransposeWeights(const Constant& data, const std::string& input_layout) {
+  int pos_h = input_layout.find("H");
+  int pos_w = input_layout.find("W");
+  int pos_i = input_layout.find("I");
+  int pos_o = input_layout.find("O");
+
+  // Currently the expected target layout is HWIO only.
+  Array<Integer> target_shape = {pos_h, pos_w, pos_i, pos_o};
+
+  Expr transpose = MakeTranspose(data, target_shape);
+  transpose = InferType(FoldConstantExpr(transpose));
+  Constant transposed_data = Downcast<Constant>(transpose);
+  return transposed_data;
+}
+
+EthosnError EthosnAPI::QnnConv2dTranspose(const Expr& expr, QnnConv2dTransposeParams* params) {
+  Call requantize = Downcast<Call>(expr);
+  Call bias;
+  Call conv2d_transpose;
+  if (requantize->args[0]->IsInstance<CallNode>() &&
+      Downcast<Call>(requantize->args[0])->op == Op::Get("nn.bias_add")) {
+    bias = Downcast<Call>(requantize->args[0]);
+    conv2d_transpose = Downcast<Call>(bias->args[0]);
+  } else {
+    conv2d_transpose = Downcast<Call>(requantize->args[0]);
+  }
+  const auto& conv_attr = conv2d_transpose->attrs.as<Conv2DTransposeAttrs>();
+  ICHECK(conv_attr) << "Expected type Conv2DTransposeAttrs but was "
+                    << conv2d_transpose->attrs->GetTypeKey();
+
+  int input_zero_point;
+  int kernel_zero_point;
+  int output_zero_point;
+  std::valarray<float> input_scale;
+  std::valarray<float> kernel_scale;
+  float output_scale;
+  unsigned int qaxis = conv_attr->kernel_layout.find("O");
+
+  EthosnError err = AsConstant(conv2d_transpose->args[2], &input_zero_point);
+  err += AsConstant(conv2d_transpose->args[3], &kernel_zero_point);
+  err += AsConstant(requantize->args[4], &output_zero_point);
+  err += AsConstant(conv2d_transpose->args[4], &input_scale);
+  err += AsConstant(conv2d_transpose->args[5], &kernel_scale);
+  err += AsConstant(requantize->args[3], &output_scale);
+
+  // Convert quantization params
+  sl::QuantizationInfo input_q_info;
+  sl::QuantizationInfo weights_q_info;
+  sl::QuantizationInfo bias_q_info;
+  sl::QuantizationInfo output_q_info;
+  err += Tvm2Npu(input_zero_point, input_scale, qaxis, &input_q_info);
+  err += Tvm2Npu(kernel_zero_point, kernel_scale, qaxis, &weights_q_info);
+  std::valarray<float> bias_scales = input_q_info.GetScales() * weights_q_info.GetScales();
+  err += Tvm2Npu(0, bias_scales, 3, &bias_q_info);
+  err += Tvm2Npu(output_zero_point, output_scale, &output_q_info);
+
+  // Convert convolution attributes
+  sl::Padding padding;
+  err += Tvm2Npu(conv_attr->padding, &padding);
+  sl::Stride stride;
+  err += Tvm2Npu(conv_attr->strides, &stride);
+  // Dilation is not supported
+  std::array<uint32_t, 2> dilation = {1, 1};
+  AsArray(conv_attr->dilation, &dilation);
+  if (conv_attr->dilation.size() != 2 || dilation[0] != 1 || dilation[1] != 1) {
+    err +=
+        EthosnError(ErrStrm() << "dilation=" << conv_attr->dilation << ", dilation must = [1, 1]");
+  }
+
+  // Create convolution info
+  params->conv_info = sl::ConvolutionInfo(padding, stride, output_q_info);
+
+  // Create input info
+  sl::TensorInfo input_tensor_info;
+  err += Tvm2Npu(conv2d_transpose->args[0]->checked_type(), &input_tensor_info);
+  input_tensor_info.m_QuantizationInfo = input_q_info;
+  params->input_info = input_tensor_info;
+
+  // Create weights info
+  Constant weights_data = Downcast<Constant>(conv2d_transpose->args[1]);
+  if (conv_attr->kernel_layout != "HWIO") {
+    weights_data = TransposeWeights(weights_data, conv_attr->kernel_layout);
+  }
+  const auto* weights_ttype = weights_data->checked_type().as<TensorTypeNode>();
+  sl::TensorShape weights_tensor_shape;
+  sl::DataType weights_data_type;
+  sl::DataFormat weights_data_format;
+  // Ignore the error here because weights don't have a batch axis
+  Tvm2Npu(weights_ttype->shape, &weights_tensor_shape);
+  err += Tvm2Npu(weights_ttype->dtype, &weights_data_type);
+  err += Tvm2Npu("HWIO", &weights_data_format);
+  params->weights_info =
+      sl::TensorInfo(weights_tensor_shape, weights_data_type, weights_data_format, weights_q_info);
+
+  params->raw_weights = weights_data->data;
+
+  // Create bias info
+  unsigned int out_channels = Downcast<IntImm>(conv_attr->channels)->value;
+  params->bias_info = sl::TensorInfo({1, 1, 1, out_channels}, sl::DataType::INT32_QUANTIZED,
+                                     sl::DataFormat::NHWC, bias_q_info);
+  if (bias.defined()) {
+    params->raw_bias = Downcast<Constant>(bias->args[1])->data;
+  } else {
+    params->raw_bias = MakeConstantZeros(tvm::DataType::Int(32), {1, 1, 1, out_channels})->data;
+  }
+
+  // Create output info
+  sl::TensorInfo output_tensor_info;
+  err += Tvm2Npu(requantize->checked_type(), &output_tensor_info);
+  output_tensor_info.m_QuantizationInfo = output_q_info;
   params->output_info = output_tensor_info;
 
   return err;
@@ -923,6 +1042,13 @@ EthosnError EthosnAPI::AsConstant(const Expr& expr, T* out) {
   runtime::NDArray data = Downcast<Constant>(expr)->data;
   *out = *static_cast<T*>(data->data);
   return EthosnError();
+}
+
+Expr FoldConstantExpr(const Expr& expr, bool fold_qnn) {
+  auto mod = IRModule::FromExpr(expr);
+  mod = transform::FoldConstant(fold_qnn)(mod);
+  auto entry_func = Downcast<Function>(mod->Lookup("main"));
+  return expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
 }
 
 }  // namespace ethosn

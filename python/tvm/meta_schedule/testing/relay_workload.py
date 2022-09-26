@@ -61,23 +61,23 @@ def _get_network(
         assert layout is None or layout in ["NCHW", "NHWC"]
 
         if name in ["resnet_18", "resnet_50"]:
-            model = getattr(models, name.replace("_", ""))(pretrained=False)
+            model = getattr(models, name.replace("_", ""))(weights=None)
         elif name == "wide_resnet_50":
-            model = getattr(models, "wide_resnet50_2")(pretrained=False)
+            model = getattr(models, "wide_resnet50_2")(weights=None)
         elif name == "resnext_50":
-            model = getattr(models, "resnext50_32x4d")(pretrained=False)
+            model = getattr(models, "resnext50_32x4d")(weights=None)
         elif name == "mobilenet_v2":
-            model = getattr(models, name)(pretrained=False)
+            model = getattr(models, name)(weights=None)
         elif name == "mobilenet_v3":
-            model = getattr(models, name + "_large")(pretrained=False)
+            model = getattr(models, name + "_large")(weights=None)
         elif name == "inception_v3":
-            model = getattr(models, name)(pretrained=False, aux_logits=False)
+            model = getattr(models, name)(weights=None, aux_logits=False)
         elif name == "densenet_121":
-            model = getattr(models, name.replace("_", ""))(pretrained=False)
+            model = getattr(models, name.replace("_", ""))(weights=None)
         elif name == "resnet3d_18":
-            model = models.video.r3d_18(pretrained=False)
+            model = models.video.r3d_18(weights=None)
         elif name == "vgg_16":
-            model = getattr(models, name.replace("_", ""))(pretrained=False)
+            model = getattr(models, name.replace("_", ""))(weights=None)
 
         dtype = "float32"
         input_data = torch.randn(input_shape).type(  # pylint: disable=no-member
@@ -230,7 +230,7 @@ def get_network(
     inputs: Tuple[str, List[int], str]
     params_bytearray: bytearray
 
-    filename = f'relay-{name}-{",".join(str(i) for i in input_shape)}.json'
+    filename = f'relay-{name}-{layout}-{",".join(str(i) for i in input_shape)}.json'
     cached = _load_cache(cache_dir, filename)
     if cached is None:
         with multiprocessing.Pool(processes=1) as pool:

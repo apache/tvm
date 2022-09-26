@@ -205,6 +205,14 @@ def schedule_lrn(attrs, outs, target):
         return topi.generic.schedule_lrn(outs)
 
 
+# pad
+@generic_func
+def schedule_pad(attrs, outs, target):
+    """Schedule PAD op"""
+    with target:
+        return schedule_injective(attrs, outs, target)
+
+
 # bitpack
 @generic_func
 def schedule_bitpack(attrs, outs, target):

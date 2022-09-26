@@ -91,6 +91,8 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
       json_node = CreateDenseJSONNode(cn);
     } else if (name == "clml.pad") {
       json_node = CreatePadJSONNode(cn);
+    } else if (name == "clml.concat") {
+      json_node = CreateConcatJSONNode(cn);
     } else {
       LOG(FATAL) << "Unrecognized CLML  pattern: " << name;
     }
@@ -142,6 +144,15 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
     if (backend::IsOp(current_call, "nn.relu")) {
       nodes.activation = current_call;
       nodes.act_type = "relu";
+      if (current_call->args[0].as<TupleGetItemNode>()) {
+        auto tuple_item = current_call->args[0].as<TupleGetItemNode>();
+        current_call = tuple_item->tuple.as<CallNode>();
+      } else {
+        current_call = current_call->args[0].as<CallNode>();
+      }
+    } else if (backend::IsOp(current_call, "clip")) {
+      nodes.activation = current_call;
+      nodes.act_type = "relu6";
       if (current_call->args[0].as<TupleGetItemNode>()) {
         auto tuple_item = current_call->args[0].as<TupleGetItemNode>();
         current_call = tuple_item->tuple.as<CallNode>();
@@ -276,6 +287,32 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
     inputs.push_back(VisitExpr(bn->args[4])[0]);
     auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
     SetCallNodeAttribute(json_node, bn);
+    return json_node;
+  }
+
+  /*!
+   * \brief Create a JSON representation of a Concat operator.
+   *
+   * \param cn The call to be represented.
+   * \return A JSON representation of a specific operator.
+   */
+  std::shared_ptr<JSONGraphNode> CreateConcatJSONNode(const CallNode* cn) {
+    const auto* fn = cn->op.as<FunctionNode>();
+    ICHECK(fn);
+    const auto* concat = fn->body.as<CallNode>();
+
+    ICHECK(backend::IsOp(concat, "concatenate"));
+    const auto* concat_op = concat->op.as<OpNode>();
+    ICHECK(concat_op);
+    const std::string name = concat_op->name;
+
+    std::vector<JSONGraphNodeEntry> inputs;
+    for (auto arg : cn->args) {
+      inputs.push_back(VisitExpr(arg)[0]);
+    }
+
+    auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
+    SetCallNodeAttribute(json_node, concat);
     return json_node;
   }
 

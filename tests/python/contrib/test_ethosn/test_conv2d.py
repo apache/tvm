@@ -17,8 +17,6 @@
 
 """Arm(R) Ethos(TM)-N integration conv2d tests"""
 
-import math
-
 import numpy as np
 import pytest
 
@@ -27,21 +25,6 @@ from tvm import relay
 from tvm.testing import requires_ethosn
 
 from . import infrastructure as tei
-
-
-def _get_same_padding(data, kernel, dilation, stride):
-    dilated_kernel_h = dilation[0] * (kernel[0] - 1) + 1
-    dilated_kernel_w = dilation[1] * (kernel[1] - 1) + 1
-    out = int(math.ceil(float(data[0]) / float(stride[0])))
-    pad = max(0, (out - 1) * stride[0] + dilated_kernel_h - data[0])
-    pad_top = pad // 2
-    pad_bottom = pad - pad_top
-
-    out = int(math.ceil(float(data[1]) / float(stride[1])))
-    pad = max(0, (out - 1) * stride[1] + dilated_kernel_w - data[1])
-    pad_left = pad // 2
-    pad_right = pad - pad_left
-    return [pad_top, pad_left, pad_bottom, pad_right]
 
 
 def _get_model(
@@ -65,7 +48,7 @@ def _get_model(
     """Return a model and any parameters it may have"""
     a = relay.var("a", shape=shape, dtype=dtype)
     if pad in ("op", "both"):
-        p = _get_same_padding((shape[1], shape[2]), (kernel_h, kernel_w), dilation, strides)
+        p = tei.get_same_padding((shape[1], shape[2]), (kernel_h, kernel_w), dilation, strides)
         a = relay.nn.pad(
             a,
             pad_width=[(0, 0), (p[0], p[2]), (p[1], p[3]), (0, 0)],
@@ -74,7 +57,7 @@ def _get_model(
         )
         shape = (shape[0], shape[1] + p[0] + p[2], shape[2] + p[1] + p[3], shape[3])
 
-    p = _get_same_padding((shape[1], shape[2]), (kernel_h, kernel_w), dilation, strides)
+    p = tei.get_same_padding((shape[1], shape[2]), (kernel_h, kernel_w), dilation, strides)
     if weight_format == "HWIO":
         weight_shape = (kernel_h, kernel_w, shape[3] // groups, out_channels)
     else:

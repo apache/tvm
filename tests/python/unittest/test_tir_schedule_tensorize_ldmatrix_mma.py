@@ -111,9 +111,6 @@ def run_test(
         mma_store_intrin,
     )
 
-    if not tvm.testing.is_ampere_or_newer():
-        return None
-
     f = tvm.build(sch.mod["main"], target="cuda", name="dense")
 
     dev = tvm.device("cuda", 0)
@@ -155,7 +152,7 @@ def run_test(
     return lambda: f.time_evaluator(f.entry_name, dev, number=500)(a, b, c)
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_f16f16f32_m16n16k16():
     def index_map(i, j):
         return (
@@ -212,7 +209,7 @@ def test_f16f16f32_m16n16k16():
         print("f16f16f32_m16n16k16_trans: %f GFLOPS" % (gflops / (timer().mean)))
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_f16f16f16_m16n16k16():
     def index_map(i, j):
         return (
@@ -269,7 +266,7 @@ def test_f16f16f16_m16n16k16():
         print("f16f16f16_m16n16k16_trans: %f GFLOPS" % (gflops / (timer().mean)))
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_i8i8i32_m16n16k32():
     def index_map_A(i, j):
         return (
@@ -341,6 +338,4 @@ def test_i8i8i32_m16n16k32():
 
 
 if __name__ == "__main__":
-    test_f16f16f32_m16n16k16()
-    test_f16f16f16_m16n16k16()
-    test_i8i8i32_m16n16k32()
+    tvm.testing.main()

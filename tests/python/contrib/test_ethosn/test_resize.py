@@ -108,19 +108,10 @@ def test_resize(dtype, shape, size, coordinate_transformation_mode, rounding_met
             (20, 30),
             "Requested width isn't supported",
         ),
-        (
-            (19, 20),
-            "Requested width and height must be both even or both odd",
-        ),
-        (
-            (20, 19),
-            "Requested width and height must be both even or both odd",
-        ),
     ],
 )
 def test_resize_failure(size, err_msg):
     """Check Resize error messages."""
-
     dtype = "int8"
     zp_min = np.iinfo(dtype).min
 

@@ -26,11 +26,11 @@ from distutils.version import LooseVersion
 
 import os
 import tempfile
+from packaging import version as package_version
 import pytest
 import numpy as np
 
 from PIL import Image
-from packaging import version as package_version
 
 import tvm
 import tvm.relay.testing.tf as tf_testing
@@ -2254,6 +2254,7 @@ def _test_elemwise(
     quantized=False,
     qnn_op=None,
     same_qnn_params=False,
+    comparison_op=False,
 ):
     """One iteration of elemwise"""
 
@@ -2298,7 +2299,7 @@ def _test_elemwise(
                 if x[0] is not None
             }
 
-            if math_op is math_ops.equal:
+            if comparison_op:
                 out = math_op(inq_data[0], inq_data[1])
                 out = with_fused_activation_function(out, fused_activation_function)
 
@@ -2307,6 +2308,9 @@ def _test_elemwise(
                     [x + ":0" for x in input_range.keys()],
                     [x[1] for x in zip(in_data, inq_data) if x[0] is not None],
                     [out],
+                    quantized=True,
+                    input_range=input_range,
+                    experimental_new_converter=same_qnn_params,
                 )
             else:
                 out = math_op(inq_data[0], inq_data[1])
@@ -2314,6 +2318,7 @@ def _test_elemwise(
                 out = tf.quantization.fake_quant_with_min_max_args(
                     out, min=out_min, max=out_max, name="out"
                 )
+
                 # Note same_qnn_params uses experimental_new_converter as toco failed
                 compare_tflite_with_tvm(
                     [x[1] for x in zip(in_data, data) if x[0] is not None],
@@ -2440,9 +2445,17 @@ def _test_minimum(data, fused_activation_function=None, quantized=False, qnn_op=
 # -------
 
 
-def _test_greater(data):
+def _test_greater(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of greater"""
-    return _test_elemwise(math_ops.greater, data)
+    return _test_elemwise(
+        math_ops.greater,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+        comparison_op=True,
+    )
 
 
 #######################################################################
@@ -2489,6 +2502,7 @@ def _test_equal(data, fused_activation_function=None, quantized=False, qnn_op=No
         quantized,
         qnn_op,
         same_qnn_params=True,
+        comparison_op=True,
     )
 
 
@@ -2555,25 +2569,14 @@ def _test_forward_elemwise(testop):
 
 
 def _test_forward_elemwise_quantized(testop):
-    if testop is not _test_equal:
-        testop(
-            [
-                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
-                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
-            ],
-            quantized=True,
-            qnn_op=testop,
-        )
-    else:
-        # no need for fake_quant to hold tensors in float32 until conversion
-        testop(
-            [
-                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.float32),
-                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.float32),
-            ],
-            quantized=True,
-            qnn_op=testop,
-        )
+    testop(
+        [
+            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
+            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
+        ],
+        quantized=True,
+        qnn_op=testop,
+    )
 
 
 def _test_elemwise_qnn_out_range(qnn_op):
@@ -2585,6 +2588,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_maximum: (-112, 111),
         _test_minimum: (-128, 127),
         _test_equal: (-150, 150),
+        _test_greater: (-150, 150),
     }
 
     return qnn_out_range[qnn_op]
@@ -2615,6 +2619,7 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_minimum)
     _test_forward_elemwise_quantized(_test_minimum)
     _test_forward_elemwise(_test_greater)
+    _test_forward_elemwise_quantized(_test_greater)
     _test_forward_elemwise(_test_squared_difference)
     _test_forward_elemwise(_test_greater_equal)
     _test_forward_elemwise(_test_less)
@@ -4306,13 +4311,8 @@ def test_forward_matrix_diag():
 # ----------------
 
 
-def test_detection_postprocess():
-    """Detection PostProcess"""
-    tf_model_file = tf_testing.get_workload_official(
-        "http://download.tensorflow.org/models/object_detection/"
-        "ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03.tar.gz",
-        "ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03/tflite_graph.pb",
-    )
+def _test_detection_postprocess(tf_model_file, box_encodings_size, class_predictions_size):
+    """One iteration of detection postProcess with given model and shapes"""
     converter = tf.lite.TFLiteConverter.from_frozen_graph(
         tf_model_file,
         input_arrays=["raw_outputs/box_encodings", "raw_outputs/class_predictions"],
@@ -4323,16 +4323,16 @@ def test_detection_postprocess():
             "TFLite_Detection_PostProcess:3",
         ],
         input_shapes={
-            "raw_outputs/box_encodings": (1, 1917, 4),
-            "raw_outputs/class_predictions": (1, 1917, 91),
+            "raw_outputs/box_encodings": box_encodings_size,
+            "raw_outputs/class_predictions": class_predictions_size,
         },
     )
     converter.allow_custom_ops = True
     converter.inference_type = tf.lite.constants.FLOAT
     tflite_model = converter.convert()
     np.random.seed(0)
-    box_encodings = np.random.uniform(size=(1, 1917, 4)).astype("float32")
-    class_predictions = np.random.uniform(size=(1, 1917, 91)).astype("float32")
+    box_encodings = np.random.uniform(size=box_encodings_size).astype("float32")
+    class_predictions = np.random.uniform(size=class_predictions_size).astype("float32")
     tflite_output = run_tflite_graph(tflite_model, [box_encodings, class_predictions])
     tvm_output = run_tvm_graph(
         tflite_model,
@@ -4375,6 +4375,26 @@ def test_detection_postprocess():
             rtol=1e-5,
             atol=1e-5,
         )
+
+
+def test_detection_postprocess():
+    """Detection PostProcess"""
+    box_encodings_size = (1, 1917, 4)
+    class_predictions_size = (1, 1917, 91)
+    tf_model_file = tf_testing.get_workload_official(
+        "http://download.tensorflow.org/models/object_detection/"
+        "ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03.tar.gz",
+        "ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03/tflite_graph.pb",
+    )
+    _test_detection_postprocess(tf_model_file, box_encodings_size, class_predictions_size)
+
+    box_encodings_size = (1, 2034, 4)
+    class_predictions_size = (1, 2034, 91)
+    tf_model_file = download_testdata(
+        "https://github.com/czh978/models_for_tvm_test/raw/main/tflite_graph_with_postprocess.pb",
+        "tflite_graph_with_postprocess.pb",
+    )
+    _test_detection_postprocess(tf_model_file, box_encodings_size, class_predictions_size)
 
 
 #######################################################################

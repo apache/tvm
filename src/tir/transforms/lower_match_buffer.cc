@@ -51,10 +51,10 @@ class MatchBufferLower : public StmtExprMutator {
     Stmt stmt = StmtExprMutator ::VisitStmt_(op);
     op = stmt.as<BlockNode>();
     ICHECK(op != nullptr);
-    Array<BufferRegion> reads = MutateArray(
-        op->reads, std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));
-    Array<BufferRegion> writes = MutateArray(
-        op->writes, std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));
+    Array<BufferRegion> reads =
+        op->reads.Map(std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));
+    Array<BufferRegion> writes = op->writes.Map(
+        std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));
 
     if (reads.same_as(op->reads) && writes.same_as(op->writes) && op->match_buffers.empty()) {
       return stmt;

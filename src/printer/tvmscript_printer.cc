@@ -283,6 +283,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc AllocBufferDeclaration(const Buffer& buf);
   Doc PrintBlockVar(const IterVar& iter_var, const PrimExpr& value);
   Doc PrintBlockVarRemaps();
+  Doc PrintBlockPredicate(const BlockRealizeNode* op);
   Doc PrintBlockVars(const BlockRealizeNode* op);
   Doc PrintBlockAttr(const BlockRealizeNode* op);
   Doc PrintExpandedArray(const ArrayNode* op);
@@ -1417,6 +1418,14 @@ Doc TVMScriptPrinter::PrintBlockVarRemaps() {
   return doc;
 }
 
+Doc TVMScriptPrinter::PrintBlockPredicate(const BlockRealizeNode* op) {
+  Doc doc;
+  if (!is_one(op->predicate)) {
+    doc << Doc::NewLine() << tir_prefix_ << ".where(" << Print(op->predicate) << ")";
+  }
+  return doc;
+}
+
 Doc TVMScriptPrinter::PrintBlockVars(const BlockRealizeNode* op) {
   Doc doc;
   const auto* block_op = op->block.as<BlockNode>();
@@ -1457,10 +1466,7 @@ Doc TVMScriptPrinter::PrintBlockVars(const BlockRealizeNode* op) {
 Doc TVMScriptPrinter::PrintBlockAttr(const BlockRealizeNode* op) {
   const auto* block_op = op->block.as<BlockNode>();
   Doc block_attr_doc;
-  // print predicate, binding, read/write tensor region, annotations
-  if (!is_one(op->predicate)) {
-    block_attr_doc << Doc::NewLine() << tir_prefix_ << ".where(" << Print(op->predicate) << ")";
-  }
+  // print binding, read/write tensor region, annotations
   block_attr_doc << Doc::NewLine() << tir_prefix_ << ".reads("
                  << PrintExpandedArray(block_op->reads.as<ArrayNode>()) << ")";
   block_attr_doc << Doc::NewLine() << tir_prefix_ << ".writes("
@@ -1523,14 +1529,18 @@ Doc TVMScriptPrinter::PrintBlockName(const BlockNode* block_op) {
 Doc TVMScriptPrinter::VisitStmt_(const BlockRealizeNode* op) {
   const auto* block_op = op->block.as<BlockNode>();
   Doc doc = PrintOptionalInfo(GetRef<Stmt>(block_op));
-  // print block name and block vars
+  // print block name
   doc << PrintBlockName(block_op);
+  // Print block predicate.
+  Doc block_predicate = PrintBlockPredicate(op);
+  // Print the variable bindings, valid to use in block attributes and
+  // body
   Doc block_var = PrintBlockVars(op);
-  // print predicate, binding, read/write tensor region, annotations
+  // print read/write tensor region, annotations
   Doc block_attr_doc = PrintBlockAttr(op);
   // print body
   Doc body = PrintBlockBody(block_op);
-  doc << Doc::Indent(4, block_var << block_attr_doc << Doc::NewLine() << body);
+  doc << Doc::Indent(4, block_predicate << block_var << block_attr_doc << Doc::NewLine() << body);
   for (const auto& iter_var : block_op->iter_vars) {
     TryDeallocVar(iter_var->var);
   }
@@ -1654,19 +1664,53 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   }
   // print body
   body << "# body" << Doc::NewLine();
-  if (op->body->IsInstance<BlockRealizeNode>() &&
-      op->body.as<BlockRealizeNode>()->iter_values.empty()) {
-    const BlockNode* block = op->body.as<BlockRealizeNode>()->block.get();
-    if (block->annotations.empty() && !ContainsOptionalInfo(GetRef<Stmt>(block))) {
-      // Skip print root block
-      body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
-      body << PrintBlockBody(block);
-    } else {
-      body << PrintBody(op->body);
+
+  Optional<Block> elided_root_block_body = [&]() -> Optional<Block> {
+    auto block_realize = op->body.as<BlockRealizeNode>();
+    if (!block_realize || block_realize->iter_values.size()) {
+      return NullOpt;
     }
+
+    const auto& block = block_realize->block;
+    if (block->annotations.size() || ContainsOptionalInfo(block)) {
+      return NullOpt;
+    }
+
+    // The autocomplete might recognize the body itself as being a
+    // root block, and fail to insert it.
+    bool autocomplete_would_insert_root_block = [&]() -> bool {
+      if (block->alloc_buffers.size()) {
+        return true;
+      }
+
+      auto* block_realize = block->body.as<BlockRealizeNode>();
+      if (block_realize && block_realize->block->iter_vars.size()) {
+        return true;
+      }
+      if (!block_realize && ContainsNode<BlockRealizeNode>(block->body)) {
+        return true;
+      }
+      return false;
+    }();
+
+    if (autocomplete_would_insert_root_block) {
+      return block;
+    } else {
+      return NullOpt;
+    }
+  }();
+
+  if (elided_root_block_body) {
+    // Skip printing of root block in cases where tvm::tir::ScriptComplete
+    // would re-insert it.
+    body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
+    body << PrintBlockBody(elided_root_block_body.value().get());
   } else {
+    // If this is a non-root block, or is an unskippable root block,
+    // just print it without skipping.
     body << PrintBody(op->body);
   }
+
   // print func attrs
   Doc header_attr;
   if (primFunc->attrs.defined()) {

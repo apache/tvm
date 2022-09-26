@@ -331,3 +331,13 @@ class TuneContext(Object):
                 "Please construct TuneContext with search_strategy"
             )
         return self.search_strategy.notify_runner_results(measure_candidates, results)
+
+    def clone(self) -> "TuneContext":
+        """Clone the TuneContext.
+
+        Returns
+        -------
+        cloned_context : TuneContext
+            The cloned TuneContext.
+        """
+        return _ffi_api.TuneContextClone(self)  # type: ignore # pylint: disable=no-member

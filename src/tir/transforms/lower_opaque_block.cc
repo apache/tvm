@@ -57,6 +57,7 @@ class OpaqueBlockLower : public StmtExprMutator {
           new_shape.Set(i, buffer->strides[i - 1] / buffer->strides[i]);
         }
       }
+      body = DeclBuffer(buffer, std::move(body));
       body = Allocate(buffer->data, buffer->dtype, new_shape, const_true(), std::move(body));
     }
     // Step 4. Handle annotations, block annotations are not preserved by default.
