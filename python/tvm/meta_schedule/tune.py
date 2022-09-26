@@ -259,7 +259,7 @@ def tune_extracted_tasks(
         The list of extracted tasks.
     config : TuneConfig
         The search strategy config.
-    work_dir : Optional[str]
+    work_dir : str
         The working directory to save intermediate results.
     builder : Optional[Builder]
         The builder to use.
@@ -380,7 +380,7 @@ def tune_tir(
         The target to tune for.
     config : TuneConfig
         The search strategy config.
-    work_dir : Optional[str]
+    work_dir : str
         The working directory to save intermediate results.
     builder : Optional[Builder]
         The builder to use.
@@ -499,7 +499,7 @@ def tune_te(
         The search strategy config.
     task_name : str
         The name of the task.
-    work_dir : Optional[str]
+    work_dir : str
         The working directory to save intermediate results.
     builder : Optional[Builder]
         The builder to use.
@@ -569,7 +569,7 @@ def tune_relay(
         The associated parameters of the program
     task_name : str
         The name of the task.
-    work_dir : Optional[str]
+    work_dir : str
         The working directory to save intermediate results.
     builder : Optional[Builder]
         The builder to use.

@@ -559,6 +559,59 @@ class PyTorchOpConverter:
 
         return _op.split(data, indices, dim)
 
+    def tensor_split(self, inputs, input_types):
+        # Reference: https://pytorch.org/docs/stable/generated/torch.tensor_split.html
+        import torch
+
+        if not isinstance(inputs[1], (int, list, tuple, torch.Tensor)):
+            msg = "indices_or_sections type %s could not be parsed in tensor_split op" % (
+                type(inputs[1])
+            )
+            raise AssertionError(msg)
+
+        if isinstance(inputs[1], torch.Tensor) and not (
+            list(inputs[1].shape) == [] or list(inputs[1].shape) == 1
+        ):
+            msg = "indices_or_sections must be a zero-dimensional or one-dimensional long tensor"
+            raise AssertionError(msg)
+
+        if isinstance(inputs[1], int) or (
+            isinstance(inputs[1], torch.Tensor) and list(inputs[1].shape) == []
+        ):
+            data = inputs[0]
+            n = int(inputs[1])
+            dim = int(inputs[2])
+
+            split_size = int(self.infer_shape(data)[dim] / n)
+            split_rest = int(self.infer_shape(data)[dim] % n)
+
+            indices = []
+            split_index = split_size
+            if split_rest == 0:
+                for i in range(n - 1):
+                    indices.append(split_index)
+                    split_index += split_size
+            else:
+                for i in range(split_rest):
+                    indices.append(split_index + 1)
+                    split_index = (i + 1) * (split_index + 1)
+                for i in range(n - split_rest - 1):
+                    split_index += split_size
+                    indices.append(split_index)
+
+            return _op.split(data, indices, dim)
+        else:
+            data = inputs[0]
+            sections = inputs[1]
+            dim = int(inputs[2])
+
+            if isinstance(sections, tuple):
+                sections = list(sections)
+            elif isinstance(sections, torch.Tensor):
+                sections = sections.cpu().numpy().tolist()
+
+            return _op.split(data, sections, dim)
+
     def select(self, inputs, input_types):
         data = inputs[0]
         dim = int(inputs[1])
@@ -737,6 +790,10 @@ class PyTorchOpConverter:
         else:
             dtype = self.default_dtype
         return self.full_impl(data, 0, dtype)
+
+    def zero_(self, inputs, input_types):
+        data = inputs[0]
+        return self.full_impl(self.infer_shape(data), 0, input_types[0])
 
     def zeros_like(self, inputs, input_types):
         data = inputs[0]
@@ -3462,6 +3519,7 @@ class PyTorchOpConverter:
             "aten::ones": self.ones,
             "aten::ones_like": self.ones_like,
             "aten::zeros": self.zeros,
+            "aten::zero_": self.zero_,
             "aten::zeros_like": self.zeros_like,
             "aten::new_ones": self.new_ones,
             "aten::full": self.full,
@@ -3479,6 +3537,7 @@ class PyTorchOpConverter:
             "aten::slice": self.slice,
             "aten::narrow": self.narrow,
             "aten::split": self.split,
+            "aten::tensor_split": self.tensor_split,
             "aten::split_with_sizes": self.split_with_sizes,
             "aten::select": self.select,
             "aten::take": self.take,

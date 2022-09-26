@@ -371,9 +371,25 @@ def make_logging_func(logger: logging.Logger) -> Optional[Callable]:
     }
 
     def logging_func(level: int, msg: str):
-        level2log[level](msg)
+        def clear_notebook_output():
+            from IPython.display import clear_output  # type: ignore # pylint: disable=import-outside-toplevel
+
+            clear_output(wait=True)
+
+        if level < 0:
+            clear_notebook_output()
+        else:
+            level2log[level](msg)
 
     return logging_func
+
+
+@register_func("meta_schedule.using_ipython")
+def _check_ipython_env():
+    try:
+        return get_ipython().__class__.__name__ == "ZMQInteractiveShell"  # type: ignore
+    except NameError:
+        return False
 
 
 def parameterize_config(config: Dict[str, Any], params: Dict[str, str]) -> Dict[str, Any]:

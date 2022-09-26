@@ -960,6 +960,28 @@ def test_forward_split():
 
 
 @tvm.testing.uses_gpu
+def test_forward_tensor_split():
+    """test_forward_tensor_split"""
+    torch.set_grad_enabled(False)
+    input_shape = [4, 10]
+
+    class Tensor_Split(Module):
+        def __init__(self, split_size_or_sections, dim):
+            super().__init__()
+            self.split_size_or_sections = split_size_or_sections
+            self.dim = dim
+
+        def forward(self, *args):
+            return torch.tensor_split(args[0], self.split_size_or_sections, self.dim)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Tensor_Split(2, 0).float().eval(), input_data=input_data)
+    verify_model(Tensor_Split(torch.tensor(3), 1).float().eval(), input_data=input_data)
+    verify_model(Tensor_Split([2, 3, 5], 1).float().eval(), input_data=input_data)
+    verify_model(Tensor_Split((2, 3, 5), 1).float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_avgpool1d():
     """test_forward_avgpool1d"""
     torch.set_grad_enabled(False)
@@ -3255,6 +3277,13 @@ def test_forward_zeros():
             return torch.zeros(2, 3)
 
     verify_model(Zeros1().float().eval(), input_data=[])
+
+
+def test_forward_zero_():
+    def test_func(x):
+        return x.zero_()
+
+    verify_model_with_input(test_func, [torch.rand([1, 3, 10, 10]).float()])
 
 
 @tvm.testing.uses_gpu
