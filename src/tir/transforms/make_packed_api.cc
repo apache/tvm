@@ -152,9 +152,6 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
   auto* func_ptr = func.CopyOnWrite();
   const Stmt nop = Evaluate(0);
   int num_args = static_cast<int>(func_ptr->params.size());
-  bool pack_args = true;
-
-  int num_packed_args = num_args;
 
   // Data field definitions
   // The packed fields
@@ -207,7 +204,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
 
     // Pluck the device API context out based on name
     if (param->name_hint == kDeviceContextVar) {
-      num_packed_args--;
+      num_args--;
       v_resource_handle = param;
       continue;
     }
@@ -284,9 +281,8 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
   }
 
   std::ostringstream num_args_error;
-  num_args_error << name_hint << ": num_args should be " << num_packed_args;
-  std::vector<Stmt> arg_assert = {
-      MakeAssertEQ(v_num_packed_args, num_packed_args, num_args_error.str())};
+  num_args_error << name_hint << ": num_args should be " << num_args;
+  std::vector<Stmt> arg_assert = {MakeAssertEQ(v_num_packed_args, num_args, num_args_error.str())};
   func_ptr->body =
       MergeNest({arg_assert, seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
   func_ptr->params = args;
