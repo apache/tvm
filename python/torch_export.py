@@ -30,7 +30,7 @@ if __name__ == '__main__':
     shape_list = [(input_name, img.shape)]
     mod = None
     params = None
-    with open("./yolov7_tiny/mod.dat", "wb") as f:
+    with open("./"+args.model_name+".txt", "w") as f:
         import tvm
         import tvm.relay as relay
 
@@ -38,9 +38,10 @@ if __name__ == '__main__':
                                                   shape_list)
         print(mod)
 
-        raw_mod = pickle.dumps(mod)
-        f.write(raw_mod)
+        ir_text = mod.astext()
+        f.write(ir_text)
+
         param_bytes = relay.save_param_dict(params)
-        with open("./yolov7_tiny/params.dat", "wb") as pf:
+        with open("./" + args.model_name + ".params", "wb") as pf:
             pf.write(param_bytes)
-        print("mod and params saved to ./yolov7_tiny/params.dat")
+        print("mod and params saved to " + args.model_name+".txt")

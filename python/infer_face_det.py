@@ -12,8 +12,8 @@ from utils.nms.py_cpu_nms import py_cpu_nms
 # import onnxruntime as ort
 import time
 
-
 # from keras.applications.inception_resnet_v2 import preprocess_input
+g_input_name = "input"
 
 
 def make_parser():
@@ -29,6 +29,7 @@ def make_parser():
     parser.add_argument("--input_img", type=str, default="random",
                         help="input data from image or random generated")
     parser.add_argument("--face_lib_dir", type=str, default=None)
+    parser.add_argument("--input_dir", type=str, default="./")
     return parser
 
 
@@ -133,6 +134,7 @@ def face_detect(face_img, cfg, priors, mod, dev):
 
 
 def construct_face_feat_lib(path_dir, cfg, prior, mod_det, mod, device):
+    global g_input_name
     images = os.listdir(path_dir)
     face_feats = []
     face_names = []
@@ -160,7 +162,7 @@ def construct_face_feat_lib(path_dir, cfg, prior, mod_det, mod, device):
         dv = tvm.nd.array(im, device)
 
         tic = time.time()
-        mod.set_input("input", dv)
+        mod.set_input(g_input_name, dv)
         mod.run()
         rv = mod.get_output(0).numpy()
         print('net forward time: {:.4f}'.format((time.time() - tic) / 1.0))
@@ -179,6 +181,8 @@ def construct_face_feat_lib(path_dir, cfg, prior, mod_det, mod, device):
 
 
 def main(args):
+    global g_input_name
+    g_input_name = args.input_name
     target = args.device
     cfg = cfg_mnet
     module, dev = load_graph_exec(args.device, target, args.path)
@@ -192,68 +196,71 @@ def main(args):
     # load image from cv2
     print("finish warm up , begin to inference...")
     dtype = "float32"
-    img_raw = cv2.imread(args.input_img)
-    face_img_origin = np.float32(img_raw)
-    dets = face_detect(img_raw, cfg, priors, module, dev)
+    image_names = os.listdir(args.input_dir)
+    for im_name in image_names:
+        im_path = os.path.join(args.input_dir, im_name)
+        img_raw = cv2.imread(im_path)
+        face_img_origin = np.float32(img_raw)
+        dets = face_detect(img_raw, cfg, priors, module, dev)
 
-    for det in dets:
+        for det in dets:
 
-        if det[4] < 0.6:
-            continue
-        text = "{:.4f}".format(det[4])
-        b = list(map(int, det))
-        cv2.rectangle(img_raw, (b[0], b[1]), (b[2], b[3]), (0, 0, 255), 2)
-        face_2_rec = face_img_origin[b[1]:b[3], b[0]:b[2], :]
-        aligned = face_alignment(face_img_origin, det, cfg)
-        face_2_rec = cv2.resize(aligned, (112, 112))
-        im = face_2_rec
-        # cv2.imwrite("test_rec.jpg", face_2_rec)
+            if det[4] < 0.6:
+                continue
+            text = "{:.4f}".format(det[4])
+            b = list(map(int, det))
+            cv2.rectangle(img_raw, (b[0], b[1]), (b[2], b[3]), (0, 0, 255), 2)
+            face_2_rec = face_img_origin[b[1]:b[3], b[0]:b[2], :]
+            aligned = face_alignment(face_img_origin, det, cfg)
+            face_2_rec = cv2.resize(aligned, (112, 112))
+            im = face_2_rec
+            # cv2.imwrite("test_rec.jpg", face_2_rec)
 
-        im = im.astype("float32")
-        im = im / 127.5
-        im = im - 1.0
-        im = np.transpose(im, (2, 0, 1))
+            im = im.astype("float32")
+            im = im / 127.5
+            im = im - 1.0
+            im = np.transpose(im, (2, 0, 1))
 
-        im = np.expand_dims(im, 0)
-        im = im.astype("float32")
-        data_rec_tvm = tvm.nd.array(im, dev)
-        module_rec.set_input("input", data_rec_tvm)
-        module_rec.run()
-        data_feat_tvm = module_rec.get_output(0)
-        data_feat = data_feat_tvm.numpy().squeeze(0)
-        dist_data_feat = np.sqrt(np.sum(np.square(data_feat)))
-        data_feat = data_feat / dist_data_feat
-        max_val = 0
-        max_id = -1
-        for i in range(0, len(face_names)):
-            feat = face_feats[i]
-            dist_feat = np.sqrt(np.sum(np.square(feat)))
-            feat = feat / dist_feat
-            correctness = np.sum(data_feat * feat)
-            if correctness >= max_val:
-                max_val = correctness
-                max_id = face_names[i]
-            print(face_names[i] + " : " + str(correctness))
-        if max_val > 0.15:
-            cv2.putText(img_raw, max_id, (b[0], b[1] + 24), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
-        else:
-            cv2.putText(img_raw, "unknown", (b[0], b[1] + 24), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
-        print("---------------------------------------")
+            im = np.expand_dims(im, 0)
+            im = im.astype("float32")
+            data_rec_tvm = tvm.nd.array(im, dev)
+            module_rec.set_input(g_input_name, data_rec_tvm)
+            module_rec.run()
+            data_feat_tvm = module_rec.get_output(0)
+            data_feat = data_feat_tvm.numpy().squeeze(0)
+            dist_data_feat = np.sqrt(np.sum(np.square(data_feat)))
+            data_feat = data_feat / dist_data_feat
+            max_val = 0
+            max_id = -1
+            for i in range(0, len(face_names)):
+                feat = face_feats[i]
+                dist_feat = np.sqrt(np.sum(np.square(feat)))
+                feat = feat / dist_feat
+                correctness = np.sum(data_feat * feat)
+                if correctness >= max_val:
+                    max_val = correctness
+                    max_id = face_names[i]
+                print(face_names[i] + " : " + str(correctness))
+            if max_val > 0.15:
+                cv2.putText(img_raw, max_id, (b[0], b[1] + 24), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
+            else:
+                cv2.putText(img_raw, "unknown", (b[0], b[1] + 24), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
+            print("---------------------------------------")
 
-        cx = b[0]
-        cy = b[1] + 12
-        cv2.putText(img_raw, text, (cx, cy),
-                    cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
+            cx = b[0]
+            cy = b[1] + 12
+            cv2.putText(img_raw, text, (cx, cy),
+                        cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
 
-        # landms
-        cv2.circle(img_raw, (b[5], b[6]), 1, (0, 0, 255), 4)
-        cv2.circle(img_raw, (b[7], b[8]), 1, (0, 255, 255), 4)
-        cv2.circle(img_raw, (b[9], b[10]), 1, (255, 0, 255), 4)
-        cv2.circle(img_raw, (b[11], b[12]), 1, (0, 255, 0), 4)
-        cv2.circle(img_raw, (b[13], b[14]), 1, (255, 0, 0), 4)
+            # landms
+            cv2.circle(img_raw, (b[5], b[6]), 1, (0, 0, 255), 4)
+            cv2.circle(img_raw, (b[7], b[8]), 1, (0, 255, 255), 4)
+            cv2.circle(img_raw, (b[9], b[10]), 1, (255, 0, 255), 4)
+            cv2.circle(img_raw, (b[11], b[12]), 1, (0, 255, 0), 4)
+            cv2.circle(img_raw, (b[13], b[14]), 1, (255, 0, 0), 4)
 
-    name = "test.jpg"
-    cv2.imwrite(name, img_raw)
+        name = os.path.join(args.export_path, im_name+".result.jpg")
+        cv2.imwrite(name, img_raw)
 
     exit(0)
 
