@@ -43,8 +43,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
                     true)) {
       producers = sch->GetProducers(block_rv);
       sch->Unannotate(block_rv, tir::attr::meta_schedule_random_compute_producer);
-
-      // ICHECK_EQ(producers.size(), 1);
+      ICHECK_EQ(producers.size(), 1);
     }
 
     // Step 2. Transform the input block.
