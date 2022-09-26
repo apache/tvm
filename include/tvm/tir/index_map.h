@@ -73,10 +73,10 @@ class IndexMapNode : public Object {
   /*!
    * \brief The inverse index map.
    *
-   * When this is defined, IndexMap::Inverse will return the pre-defined inverse index map.
-   * Otherwise, the inverse index map will be computed on the fly.
-   * It is the user's responsibility to ensure the correctness of the pre-defined inverse index
-   * map.
+   * When this is defined, IndexMap::Inverse will return the
+   * pre-defined inverse index map.  Otherwise, the inverse index map
+   * will be computed on the fly.  It is the user's responsibility to
+   * ensure the correctness of the pre-defined inverse index map.
    *
    * \note ObjectRef is used here instead of IndexMap to avoid circular reference.
    */
@@ -190,12 +190,8 @@ class IndexMap : public ObjectRef {
    * The range of the input indices is required in order to ensure
    * that the transformation is bijective over the input domain.
    *
-   * TODO(Lunderberg): Look into allowing non-bijective
-   * transformations.  If injective, the inverse mapping could still
-   * be generated with some predicate (see NonSurjectiveInverse).  If
-   * non-injective, could simplify the implementation of other
-   * optimizations (e.g. double buffering as a map `lambda *indices:
-   * [buffer_loop%2, *indices]`).
+   * If the user has supplied an `inverse_index_map`, that map is
+   * assumed to be correct and bijective, and is returned.
    */
   IndexMap Inverse(Array<Range> initial_ranges) const;
 
