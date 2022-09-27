@@ -109,14 +109,14 @@ def _dense_legalize(attrs, inputs, arg_types):
     # Collect the input exprs.
     x, y = inputs
 
-    M, K = x_tensor.shape
-    N, K = y_tensor.shape
+    N, _ = y_tensor.shape
 
     if dtype == "float16":
         vec_len = 64
-    else:
-        assert "int8" in dtype
+    elif "int8" in dtype:
         vec_len = 32
+    else:
+        return None
 
     if N % vec_len != 0:
         N_padded = ((N + vec_len) // vec_len) * vec_len
