@@ -48,7 +48,4 @@ TVM_DLL float __gnu_h2f_ieee(uint16_t a) {
 }
 
 #endif
-
-TVM_DLL uint16_t __truncsfhf2(float v) { return __gnu_f2h_ieee(v); }
-TVM_DLL float __extendhfsf2(uint16_t v) { return __gnu_h2f_ieee(v); }
 }

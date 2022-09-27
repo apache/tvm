@@ -14,27 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+import platform
+import pytest
+import re
+import textwrap
+
 import tvm
 from tvm import te
-import re
+
+llvm_version = tvm.target.codegen.llvm_version_major()
+machine = platform.machine()
+
+if machine not in ["i386", "x86_64", "AMD64", "amd64"]:
+    pytest.skip(f"Requires x86_64/i386, but machine is {machine}", allow_module_level=True)
 
 
+@tvm.testing.requires_llvm
+@pytest.mark.skipif(llvm_version < 6, reason=f"Requires LLVM 6+, got {llvm_version}")
 def test_fp16_to_fp32():
-    if tvm.target.codegen.llvm_version_major() < 6:
-        print(
-            "Skipping due to LLVM version being {} < 6".format(
-                tvm.target.codegen.llvm_version_major()
-            )
-        )
-        return
-
-    import platform
-
-    machine = platform.machine()
-    if machine not in ["x86_64", "i386", "AMD64"]:
-        print("Skipping test because the platform is: {} ".format(machine))
-        return
-
     def fp16_to_fp32(target, width, match=None, not_match=None):
         elements = 64
         n = tvm.runtime.convert(elements)
@@ -61,6 +59,52 @@ def test_fp16_to_fp32():
     fp16_to_fp32("llvm -mcpu=core-avx2", 8, match="vcvtph2ps.*mm")
     fp16_to_fp32("llvm -mcpu=core-avx2", 9, match="vcvtph2ps.*mm")
     fp16_to_fp32("llvm", 9, not_match="vcvtph2ps")
+
+
+is_32bit = platform.architecture()[0] == "32bit"
+
+
+@tvm.testing.requires_llvm
+@pytest.mark.skipif(is_32bit, reason=f"Fails in CI due to architecture mismatch in JIT")
+@pytest.mark.parametrize("feature_string", ["-sse2", "+sse2"])
+def test_fp16_fp32_conversions(feature_string):
+    relay_model = textwrap.dedent(
+        """
+        #[version = "0.0.5"]
+        def @main(%inp : Tensor[(3), float32], %cst : Tensor[(3), float32]) {
+            %1 = cast(%inp, dtype="float16");
+            %2 = cast(%cst, dtype="float16");
+            %3 = add(%1, %2);
+            %4 = cast(%3, dtype="float32");
+            %4
+        }
+        """
+    )
+
+    ir_mod = tvm.parser.fromtext(relay_model)
+
+    arch = "i386" if machine == "i386" else "x86_64"
+    aot_factory = tvm.relay.build(
+        ir_mod,
+        params={"cst": np.array([1.0, 2.0, 3.0], dtype="float32")},
+        target=f"llvm --mtriple={arch} --mattr={feature_string}",
+        executor=tvm.relay.backend.Executor(
+            "aot", {"interface-api": "packed", "unpacked-api": False}
+        ),
+    )
+
+    mod_name = aot_factory["list_module_names"]()[0]
+    executor = aot_factory[mod_name]
+    mod = executor(tvm.cpu(0))
+
+    inp = tvm.nd.array(np.array([1.1, 2.1, 3.1], dtype="float32"), device=tvm.cpu(0))
+
+    mod.get_function("set_input")(0, inp)
+    mod.get_function("run")()
+    out = mod.get_function("get_output")(0)
+
+    expected = np.array([2.1, 4.1, 6.1], dtype="float32")
+    np.testing.assert_allclose(out.asnumpy(), expected, rtol=1e-3)
 
 
 if __name__ == "__main__":
