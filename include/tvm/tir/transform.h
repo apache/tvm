@@ -192,16 +192,13 @@ TVM_DLL Pass InstrumentBoundCheckers();
  *   - Map the values in the api_args to Var that is required by body.
  *   - Insert assertions to check type/value of the passed arguments.
  *
- * \param num_unpacked_args Number of arguments that
- *         are processed in plain form instead of packed form.
- *
  * \note
  *  The function signature have two cases
  *
- *  let num_packed_args = len(api_args) - num_unpacked_args;
+ *  let num_packed_args = len(api_args);
  *
  *  if num_packed_args is zero:
- *     f(api_arg_0, api_arg_1, .., api_arg_n) where n == len(api_args)
+ *     f()
  *
  *  if num_packed_args is not zero:
  *       f(TVMArg* packed_args, int* packed_arg_type_ids, int num_packed_args,
@@ -212,7 +209,7 @@ TVM_DLL Pass InstrumentBoundCheckers();
  *
  * \return The pass.
  */
-TVM_DLL Pass MakePackedAPI(int num_unpacked_args);
+TVM_DLL Pass MakePackedAPI();
 
 /*!
  * \brief Transform the high-level PrimFunc to a C signature that can be used
