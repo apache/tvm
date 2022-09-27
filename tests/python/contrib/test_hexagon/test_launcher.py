@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring
 """ Test rpc based launcher for hexagon """
+import pytest
 
 import numpy as np
 
@@ -424,11 +425,16 @@ def test_aot_executor_multiple_conv2d(hexagon_session: Session, aot_host_target,
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 
+data_dtype = tvm.testing.parameter("int8", "uint8")
+weight_dtype = tvm.testing.parameter("int8", "uint8")
+
+
 @tvm.testing.requires_hexagon
-def test_conv2d_u8u8i32_vrmpy(hexagon_session):
-    def get_conv2d_nchw(
-        d_shape, w_shape, padding, strides=(1, 1), data_dtype="int8", weight_dtype="int8"
-    ):
+def test_conv2d_relay_vrmpy(hexagon_session, data_dtype, weight_dtype):
+    if data_dtype == "int8" and weight_dtype == "uint8":
+        pytest.skip("(i8, u8) input pair is not supported")
+
+    def get_conv2d_nchw(d_shape, w_shape, padding, strides=(1, 1)):
         out_dtype = "int32"
 
         data = relay.var("data", shape=d_shape, dtype=data_dtype)
@@ -457,26 +463,14 @@ def test_conv2d_u8u8i32_vrmpy(hexagon_session):
 
     bias = relay.var("bias", shape=bias_shape, dtype="int32")
 
-    data_dtype = "uint8"
-    weight_dtype = "int8"
     conv2d = get_conv2d_nchw(
         data_shape,
         weight_shape,
         padding,
         strides=strides,
-        data_dtype=data_dtype,
-        weight_dtype=weight_dtype,
     )
     bias_add = relay.nn.bias_add(conv2d, bias)
-
-    use_bias = True
-
-    if use_bias:
-        out = bias_add
-    else:
-        out = conv2d
-
-    mod = tvm.IRModule.from_expr(out)
+    mod = tvm.IRModule.from_expr(bias_add)
 
     if data_dtype == "uint8":
         data_np = np.random.uniform(0, 255, size=data_shape).astype("uint8")
@@ -518,7 +512,10 @@ def test_conv2d_u8u8i32_vrmpy(hexagon_session):
 
 
 @tvm.testing.requires_hexagon
-def test_dense_u8u8i32_vrmpy(hexagon_session):
+def test_dense_relay_vrmpy(hexagon_session, data_dtype, weight_dtype):
+    if data_dtype == "int8" and weight_dtype == "uint8":
+        pytest.skip("(i8, u8) input pair is not supported")
+
     target_hexagon = tvm.target.hexagon("v68")
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
 
@@ -528,14 +525,10 @@ def test_dense_u8u8i32_vrmpy(hexagon_session):
     data_shape = (M, K)
     weight_shape = (N, K)
 
-    data_dtype = "uint8"
-    weight_dtype = "int8"
     data = relay.var("data", shape=data_shape, dtype=data_dtype)
     weight = relay.var("weight", shape=weight_shape, dtype=weight_dtype)
 
     dense = relay.nn.dense(data, weight, out_dtype="int32")
-
-    use_bias = False
 
     if data_dtype == "uint8":
         data_np = np.random.uniform(0, 255, size=data_shape).astype("uint8")
@@ -551,13 +544,9 @@ def test_dense_u8u8i32_vrmpy(hexagon_session):
 
     params = {"weight": weight_np, "bias": bias_np}
 
-    if use_bias:
-        bias = relay.var("bias", shape=(weight_shape[0],), dtype="int32")
-        out = relay.nn.bias_add(dense, bias)
-    else:
-        out = dense
-
-    mod = tvm.IRModule.from_expr(out)
+    bias = relay.var("bias", shape=(weight_shape[0],), dtype="int32")
+    bias_add = relay.nn.bias_add(dense, bias)
+    mod = tvm.IRModule.from_expr(bias_add)
 
     with tvm.transform.PassContext(
         opt_level=3,
@@ -575,10 +564,9 @@ def test_dense_u8u8i32_vrmpy(hexagon_session):
     rt_mod.run()
 
     out = rt_mod.get_output(0).numpy()
-    ref = np.dot(data_np.astype("int32"), weight_np.transpose().astype("int32"))
 
-    if use_bias:
-        ref += bias_np
+    ref = np.dot(data_np.astype("int32"), weight_np.transpose().astype("int32"))
+    ref += bias_np
 
     np.testing.assert_equal(out, ref)
 
