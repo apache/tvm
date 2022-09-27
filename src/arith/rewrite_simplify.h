@@ -77,6 +77,16 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
 
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
+  /*! \brief Enable an optional feature or features
+   *
+   * \param flags A bitwise OR of all optional features that should be
+   * enabled.
+   */
+  void SetEnabledFeatures(Feature flags);
+
+  /*! \brief Return the currently enabled features */
+  Feature GetEnabledFeatures() const;
+
  protected:
   // counter to record recursive rewrite depth.
   int recur_depth_{0};
@@ -84,6 +94,9 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> var_map_;
 
   std::vector<PrimExpr> literal_constraints_;
+
+  // Optionally enabled features
+  Feature flags_{kNone};
 
   // maximum number of recursion allowed during a single pass.
   static const constexpr int kMaxRecurDepth = 5;

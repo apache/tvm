@@ -275,6 +275,36 @@ class RewriteSimplifier {
    */
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
+  /*! \brief Flags to enable more computationally-intensive simplifications
+   *
+   * These simplifications may be required for specific schedules, but
+   * would impose too high a compile-time cost to enable by default.
+   * They can be enabled on an as-needed basis by calling
+   * `RewriteSimplifier::SetEnabledFeatures` prior to using
+   * `RewriteSimplifier::operator()`.
+   */
+  enum Feature {
+    // No features enabled
+    kNone = 0,
+
+    /* When simplifying an inequality, attempt to use scope-based knowns.
+     *
+     * Example:
+     * if_then_else(i<j && j<k, i<k, false) => if_then_else(i<j && j<k, true, false)
+     */
+    kTransitivelyProveInequalities = (1 << 0),
+  };
+
+  /*! \brief Enable an optional feature or features
+   *
+   * \param flags A bitwise OR of all optional features that should be
+   * enabled.
+   */
+  void SetEnabledFeatures(Feature flags);
+
+  /*! \brief Return the currently enabled features */
+  Feature GetEnabledFeatures() const;
+
  private:
   friend class Analyzer;
   friend class ConstraintContext;

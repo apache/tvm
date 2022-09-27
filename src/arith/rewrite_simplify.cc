@@ -79,10 +79,13 @@ CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, const PrimE
            output == CompareResult::kGT;
   };
 
-  output = CompareResult(output & TryCompareUsingKnownInequalities(x, y));
+  output = CompareResult(output & TryCompareUsingConstIntBounds(x, y));
 
   if (is_finished()) return output;
-  output = CompareResult(output & TryCompareUsingConstIntBounds(x, y));
+
+  if (flags_ & kTransitivelyProveInequalities) {
+    output = CompareResult(output & TryCompareUsingKnownInequalities(x, y));
+  }
 
   return output;
 }
@@ -278,6 +281,16 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
   };
   return frecover;
 }
+
+/*! \brief Enable an optional feature or features
+ *
+ * \param flags A bitwise OR of all optional features that should be
+ * enabled.
+ */
+void RewriteSimplifier::Impl::SetEnabledFeatures(Feature flags) { flags_ = flags; }
+
+/*! \brief Return the currently enabled features */
+RewriteSimplifier::Feature RewriteSimplifier::Impl::GetEnabledFeatures() const { return flags_; }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
@@ -1767,6 +1780,11 @@ void RewriteSimplifier::Update(const Var& var, const PrimExpr& info, bool allow_
 
 std::function<void()> RewriteSimplifier::EnterConstraint(const PrimExpr& constraint) {
   return impl_->EnterConstraint(constraint);
+}
+
+void RewriteSimplifier::SetEnabledFeatures(Feature flags) { impl_->SetEnabledFeatures(flags); }
+RewriteSimplifier::Feature RewriteSimplifier::GetEnabledFeatures() const {
+  return impl_->GetEnabledFeatures();
 }
 
 RewriteSimplifier::RewriteSimplifier(Analyzer* parent) : impl_(new Impl(parent)) {}

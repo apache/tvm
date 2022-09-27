@@ -138,6 +138,20 @@ def test_complex_likely_elimination():
 
 class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
     transform = tvm.tir.transform.Simplify()
+    transitively_prove_inequalities = True
+
+    def transform(self):
+        def inner(mod):
+            config = {
+                "tir.Simplify": {
+                    "transitively_prove_inequalities": self.transitively_prove_inequalities,
+                }
+            }
+            with tvm.transform.PassContext(config=config):
+                mod = tvm.tir.transform.Simplify()(mod)
+            return mod
+
+        return inner
 
 
 class TestLoadStoreNoop(BaseBeforeAfter):
@@ -659,6 +673,16 @@ class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
                     A[0] = postulate
 
             return func
+
+
+class TestSuppressTransitivelyProvableCondition(BaseBeforeAfter):
+    transitively_prove_inequalities = False
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        if i < j and j < k:
+            A[0] = i < k
+
+    expected = before
 
 
 if __name__ == "__main__":
