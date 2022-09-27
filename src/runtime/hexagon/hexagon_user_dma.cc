@@ -21,6 +21,8 @@
 
 #include <algorithm>
 
+#include "hexagon_device_api.h"
+
 namespace tvm {
 namespace runtime {
 namespace hexagon {
@@ -116,13 +118,15 @@ HexagonUserDMA::~HexagonUserDMA() {
 }
 
 int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length) {
+  HexagonUserDMA* user_dma = HexagonDeviceAPI::Global()->UserDMA();
+
   // One DMA transfer can copy at most DESC_LENGTH_MASK bytes.
   // Make the common case quick.
   if (length <= DESC_LENGTH_MASK) {
     // sync DMA -> `Copy` and then `Wait(0)`
-    int ret_val = HexagonUserDMA::Get().Copy(dst, src, length);
+    int ret_val = user_dma->Copy(dst, src, length);
     if (ret_val != DMA_SUCCESS) return ret_val;
-    HexagonUserDMA::Get().Wait(0);
+    user_dma->Wait(0);
     return DMA_SUCCESS;
   }
 
@@ -133,9 +137,9 @@ int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length) {
     // Ensure there is no overflow while updating i
     uint32_t cur_len = std::min<uint32_t>(length - i, DESC_LENGTH_MASK);
     // sync DMA -> `Copy` and then `Wait(0)`
-    int ret_val = HexagonUserDMA::Get().Copy(&cast_dst[i], &cast_src[i], cur_len);
+    int ret_val = user_dma->Copy(&cast_dst[i], &cast_src[i], cur_len);
     if (ret_val != DMA_SUCCESS) return ret_val;
-    HexagonUserDMA::Get().Wait(0);
+    user_dma->Wait(0);
     // 2 cases for new val for i:
     // 1. length - i <= DESC_LENGTH_MASK (<= MAX_UINT)
     //    new_i = i + (length - i) = length, no more iter

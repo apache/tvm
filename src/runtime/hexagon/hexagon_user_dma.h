@@ -37,6 +37,13 @@ namespace hexagon {
 
 class HexagonUserDMA {
  public:
+  HexagonUserDMA();
+  ~HexagonUserDMA();
+  HexagonUserDMA(const HexagonUserDMA&) = delete;
+  HexagonUserDMA& operator=(const HexagonUserDMA&) = delete;
+  HexagonUserDMA(HexagonUserDMA&&) = delete;
+  HexagonUserDMA& operator=(HexagonUserDMA&&) = delete;
+
   /*!
    * \brief Initiate DMA to copy memory from source to destination address
    * \param dst Destination address
@@ -59,21 +66,7 @@ class HexagonUserDMA {
    */
   uint32_t Poll();
 
-  //! \brief HexagonUserDMA uses the singleton pattern
-  static HexagonUserDMA& Get() {
-    static HexagonUserDMA* hud = new HexagonUserDMA();
-    return *hud;
-  }
-
  private:
-  // HexagonUserDMA uses the singleton pattern
-  HexagonUserDMA();
-  ~HexagonUserDMA();
-  HexagonUserDMA(const HexagonUserDMA&) = delete;
-  HexagonUserDMA& operator=(const HexagonUserDMA&) = delete;
-  HexagonUserDMA(HexagonUserDMA&&) = delete;
-  HexagonUserDMA& operator=(HexagonUserDMA&&) = delete;
-
   //! \brief Initializes the Hexagon User DMA engine
   unsigned int Init();
 

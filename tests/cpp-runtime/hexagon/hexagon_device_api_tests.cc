@@ -175,3 +175,14 @@ TEST_F(HexagonDeviceAPITest, thread_manager) {
   CHECK(threads == nullptr);
   hexapi->AcquireResources();
 }
+
+// Ensure thread manager is properly configured and destroyed
+// in Acquire/Release
+TEST_F(HexagonDeviceAPITest, user_dma) {
+  HexagonUserDMA* user_dma = hexapi->UserDMA();
+  CHECK(user_dma != nullptr);
+  hexapi->ReleaseResources();
+  user_dma = hexapi->UserDMA();
+  CHECK(user_dma == nullptr);
+  hexapi->AcquireResources();
+}

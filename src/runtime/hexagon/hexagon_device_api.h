@@ -32,6 +32,7 @@
 #include "hexagon_buffer.h"
 #include "hexagon_buffer_manager.h"
 #include "hexagon_thread_manager.h"
+#include "hexagon_user_dma.h"
 
 namespace tvm {
 namespace runtime {
@@ -61,10 +62,18 @@ class HexagonDeviceAPI final : public DeviceAPI {
     CHECK_EQ(runtime_threads, nullptr);
     runtime_threads = std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size);
     DLOG(INFO) << "runtime_threads created";
+
+    CHECK_EQ(runtime_dma, nullptr);
+    runtime_dma = std::make_unique<HexagonUserDMA>();
+    DLOG(INFO) << "runtime_dma created";
   }
 
   //! \brief Ensures all runtime resources are freed
   void ReleaseResources() {
+    CHECK(runtime_dma) << "runtime_dma was not created in AcquireResources";
+    runtime_dma.reset();
+    DLOG(INFO) << "runtime_dma reset";
+
     CHECK(runtime_threads) << "runtime_threads was not created in AcquireResources";
     runtime_threads.reset();
     DLOG(INFO) << "runtime_threads reset";
@@ -153,6 +162,8 @@ class HexagonDeviceAPI final : public DeviceAPI {
     return runtime_threads ? runtime_threads.get() : nullptr;
   }
 
+  HexagonUserDMA* UserDMA() { return runtime_dma ? runtime_dma.get() : nullptr; }
+
  protected:
   //! Standard Device API interface to copy data from one storage to another.
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
@@ -184,6 +195,9 @@ class HexagonDeviceAPI final : public DeviceAPI {
   const unsigned threads{6};
   const unsigned pipe_size{1000};
   const unsigned stack_size{0x4000};  // 16KB
+
+  //! \brief User DMA manager
+  std::unique_ptr<HexagonUserDMA> runtime_dma;
 };
 }  // namespace hexagon
 }  // namespace runtime
