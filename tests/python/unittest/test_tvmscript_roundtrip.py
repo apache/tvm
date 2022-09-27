@@ -3434,6 +3434,14 @@ def bool_variable_annotation():
     return func
 
 
+def return_none():
+    @T.prim_func
+    def func():
+        T.evaluate(0)
+
+    return func
+
+
 def bool_primitive():
     @T.prim_func
     def func() -> None:
@@ -3500,6 +3508,7 @@ ir_generator = tvm.testing.parameter(
     bool_variable_annotation,
     bool_primitive,
     bool_cast,
+    return_none,
 )
 
 
@@ -3507,6 +3516,12 @@ def test_roundtrip(ir_generator):
     original = ir_generator()
     after_roundtrip = tvm.script.from_source(original.script(show_meta=True))
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)
+
+
+def test_return_none_no_trailing_type():
+    func = return_none()
+    script = func.script()
+    assert "-> None" not in script
 
 
 if __name__ == "__main__":
