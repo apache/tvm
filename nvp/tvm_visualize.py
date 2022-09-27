@@ -17,7 +17,8 @@ def save_graph_viz(g, viz, dir='graph.png'):
     empty_idxes = [idx for idx in g.nodes if not g.nodes[idx]] # remove empty node
     g.remove_nodes_from(empty_idxes)
     # print('Nodes List: %s'%(g.nodes))
-    # [print(g.nodes[idx]) for idx in g.nodes]
+    # [print(["%s"%(idx), g.nodes[idx]]) for idx in g.nodes]
+
     f = plt.figure(figsize=(12, 9))
     color_map = []
     for node in g.nodes:
@@ -41,9 +42,10 @@ def save_graph_viz(g, viz, dir='graph.png'):
         labels = None
     else:
         raise NotImplementedError('Currently NOT implemented: %s' %(viz))
-    layout = nx.spring_layout(g)
-    # layout = nx.kamada_kawai_layout(g)
-    nx.draw(g, pos=layout, node_color=color_map, labels=labels, with_labels=True, font_size=15)
+    # layout = nx.spring_layout(g)
+    layout = nx.kamada_kawai_layout(g)
+    # layout = nx.shell_layout(g)
+    nx.draw(g, pos=layout, node_color=color_map, labels=labels, with_labels=True, font_size=12)
     edge_labels = nx.get_edge_attributes(g, 'weight')
     nx.draw_networkx_edge_labels(g, pos=layout, edge_labels=edge_labels)
     f.savefig(dir)

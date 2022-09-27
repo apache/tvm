@@ -2,7 +2,7 @@ import networkx as nx
 import tvm_config
 
 class VectorProcessor():
-    def __init__(self, model, graph):
+    def __init__(self, model, graph, debug):
         if not model in ['x220', 'x330']:
             raise NotImplementedError("Currently Not Supported Model: %s"%(model))
         if not isinstance(graph, nx.digraph.DiGraph):
@@ -13,6 +13,7 @@ class VectorProcessor():
         self.slot = dict.fromkeys(self.import_slot(model))
         self.latency = self.import_latency(model)
         self.type = self.import_type(model)
+        self.debug = debug
 
     def import_slot(self, model):
         return tvm_config.Config[model]['Slot']
@@ -52,7 +53,6 @@ class VectorProcessor():
                         raise RuntimeError("Currently Not Supported MISC node's parent type: %s"%(parent_slots))
                     misc_nodes.remove(misc)
                     break
-
         return
 
     def run_model(self):
@@ -139,10 +139,10 @@ class VectorProcessor():
         return in_nodes, rdy_nodes, out_nodes
 
     def print_status(self, clk, in_nodes, rdy_nodes, out_nodes):
-        print(clk)
-        print(">> in_nodes: %s\n   rdy_nodes: %s\n   out_nodes: %s"
-                %(in_nodes, rdy_nodes, out_nodes))
-        for key in self.slot.keys():
-            print("%s: %s"%(key, self.slot[key]))
-        print("#"*20)
-    
+        if self.debug:
+            print(clk)
+            print(">> in_nodes: %s\n   rdy_nodes: %s\n   out_nodes: %s"
+                    %(in_nodes, rdy_nodes, out_nodes))
+            for key in self.slot.keys():
+                print("%s: %s"%(key, self.slot[key]))
+            print("#"*20)
