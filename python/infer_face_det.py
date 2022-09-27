@@ -207,7 +207,7 @@ def main(args):
 
             if det[4] < 0.6:
                 continue
-            text = "{:.4f}".format(det[4])
+            # text = "{:.4f}".format(det[4])
             b = list(map(int, det))
             cv2.rectangle(img_raw, (b[0], b[1]), (b[2], b[3]), (0, 0, 255), 2)
             face_2_rec = face_img_origin[b[1]:b[3], b[0]:b[2], :]
@@ -241,6 +241,7 @@ def main(args):
                     max_val = correctness
                     max_id = face_names[i]
                 print(face_names[i] + " : " + str(correctness))
+            text = "{:.4f}".format(max_val)
             if max_val > 0.15:
                 cv2.putText(img_raw, max_id, (b[0], b[1] + 24), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
             else:
