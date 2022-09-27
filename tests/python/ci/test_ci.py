@@ -46,7 +46,7 @@ def parameterize_named(**kwargs):
 
 # pylint: disable=line-too-long
 TEST_DATA_SKIPPED_BOT = {
-    "found-diff": {
+    "found-diff-no-additional": {
         "main_xml_file": "unittest/file1.xml",
         "main_xml_content": """<?xml version="1.0" encoding="utf-8"?>
                 <testsuites>
@@ -78,12 +78,61 @@ TEST_DATA_SKIPPED_BOT = {
                     </testsuite>
                 </testsuites>
                 """,
+        "additional_tests_to_check": """{
+                    "unittest": ["dummy_class#dummy_test"],
+                    "unittest_GPU": ["another_dummy_class#another_dummy_test"]
+                }
+                """,
         "target_url": "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
         "s3_prefix": "tvm-jenkins-artifacts-prod",
         "jenkins_prefix": "ci.tlcpack.ai",
         "common_main_build": """{"build_number": "4115", "state": "success"}""",
         "commit_sha": "sha1234",
-        "expected_body": "The list below shows some tests that ran in main sha1234 but were skipped in the CI build of sha1234:\n```\nunittest -> ctypes.tests.python.unittest.test_auto_scheduler_search_policy#test_sketch_search_policy_cuda_rpc_runner\nunittest -> ctypes.tests.python.unittest.test_roofline#test_estimate_peak_bandwidth[cuda]\n```\nA detailed report of ran tests is [here](https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/testReport/).",
+        "expected_body": "The list below shows tests that ran in main sha1234 but were skipped in the CI build of sha1234:\n```\nunittest -> ctypes.tests.python.unittest.test_auto_scheduler_search_policy#test_sketch_search_policy_cuda_rpc_runner\nunittest -> ctypes.tests.python.unittest.test_roofline#test_estimate_peak_bandwidth[cuda]\n```\nA detailed report of ran tests is [here](https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/testReport/).",
+    },
+    "found-diff-skipped-additional": {
+        "main_xml_file": "unittest/file1.xml",
+        "main_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                <testsuites>
+                    <testsuite errors="0" failures="0" hostname="13e7c5f749d8" name="python-unittest-gpu-0-shard-1-ctypes" skipped="102"
+                               tests="165" time="79.312" timestamp="2022-08-10T22:39:36.673781">
+                        <testcase classname="ctypes.tests.python.unittest.test_auto_scheduler_search_policy"
+                                  name="test_sketch_search_policy_cuda_rpc_runner" time="9.679">
+                        </testcase>
+                    </testsuite>
+                </testsuites>
+                """,
+        "pr_xml_file": "unittest/file2.xml",
+        "pr_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                <testsuites>
+                    <testsuite errors="0" failures="0" hostname="13e7c5f749d8" name="python-unittest-gpu-0-shard-1-ctypes" skipped="102"
+                               tests="165" time="79.312" timestamp="2022-08-10T22:39:36.673781">
+                        <testcase classname="ctypes.tests.python.unittest.test_auto_scheduler_search_policy"
+                                  name="test_sketch_search_policy_cuda_rpc_runner" time="9.679">
+                            <skipped message="This test is skipped" type="pytest.skip">
+                                Skipped
+                            </skipped>
+                        </testcase>
+                        <testcase classname="ctypes.tests.python.unittest.test_roofline"
+                                  name="test_estimate_peak_bandwidth[cuda]" time="4.679">
+                            <skipped message="This is another skippe test" type="pytest.skip">
+                                Skipped
+                            </skipped>
+                        </testcase>
+                    </testsuite>
+                </testsuites>
+                """,
+        "additional_tests_to_check": """{
+                    "unittest": ["ctypes.tests.python.unittest.test_auto_scheduler_search_policy#test_sketch_search_policy_cuda_rpc_runner", "dummy_class#dummy_test"],
+                    "unittest_GPU": ["another_dummy_class#another_dummy_test"]
+                }
+                """,
+        "target_url": "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
+        "s3_prefix": "tvm-jenkins-artifacts-prod",
+        "jenkins_prefix": "ci.tlcpack.ai",
+        "common_main_build": """{"build_number": "4115", "state": "success"}""",
+        "commit_sha": "sha1234",
+        "expected_body": "The list below shows tests that ran in main sha1234 but were skipped in the CI build of sha1234:\n```\nunittest -> ctypes.tests.python.unittest.test_auto_scheduler_search_policy#test_sketch_search_policy_cuda_rpc_runner\nunittest -> ctypes.tests.python.unittest.test_roofline#test_estimate_peak_bandwidth[cuda]\n```\n\nAdditional tests that were skipped in the CI build and present in the [`required_tests_to_run`](https://github.com/apache/tvm/blob/main/ci/scripts/required_tests_to_run.json) file:\n```\nunittest -> ctypes.tests.python.unittest.test_auto_scheduler_search_policy#test_sketch_search_policy_cuda_rpc_runner\n```\nA detailed report of ran tests is [here](https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/testReport/).",
     },
     "no-diff": {
         "main_xml_file": "unittest/file1.xml",
@@ -114,12 +163,56 @@ TEST_DATA_SKIPPED_BOT = {
                     </testsuite>
                 </testsuites>
                 """,
+        "additional_tests_to_check": """{
+                }
+                """,
         "target_url": "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
         "s3_prefix": "tvm-jenkins-artifacts-prod",
         "jenkins_prefix": "ci.tlcpack.ai",
         "common_main_build": """{"build_number": "4115", "state": "success"}""",
         "commit_sha": "sha1234",
-        "expected_body": "No additional skipped tests found in this branch for commit sha1234.",
+        "expected_body": "No diff in skipped tests with main found in this branch for commit sha1234.\nA detailed report of ran tests is [here](https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/testReport/).",
+    },
+    "no-diff-skipped-additional": {
+        "main_xml_file": "unittest/file1.xml",
+        "main_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                <testsuites>
+                    <testsuite errors="0" failures="0" hostname="13e7c5f749d8" name="python-unittest-gpu-0-shard-1-ctypes" skipped="102"
+                               tests="165" time="79.312" timestamp="2022-08-10T22:39:36.673781">
+                        <testcase classname="ctypes.tests.python.unittest.test_auto_scheduler_search_policy"
+                                  name="test_sketch_search_policy_cuda_rpc_runner" time="9.679">
+                            <skipped message="This test is skipped" type="pytest.skip">
+                                Skipped
+                            </skipped>
+                        </testcase>
+                    </testsuite>
+                </testsuites>
+                """,
+        "pr_xml_file": "unittest/file2.xml",
+        "pr_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                <testsuites>
+                    <testsuite errors="0" failures="0" hostname="13e7c5f749d8" name="python-unittest-gpu-0-shard-1-ctypes" skipped="102"
+                               tests="165" time="79.312" timestamp="2022-08-10T22:39:36.673781">
+                        <testcase classname="ctypes.tests.python.unittest.test_auto_scheduler_search_policy"
+                                  name="test_sketch_search_policy_cuda_rpc_runner" time="9.679">
+                            <skipped message="This test is skipped" type="pytest.skip">
+                                Skipped
+                            </skipped>
+                        </testcase>
+                    </testsuite>
+                </testsuites>
+                """,
+        "additional_tests_to_check": """{
+                    "unittest": ["dummy_class#dummy_test", "ctypes.tests.python.unittest.test_auto_scheduler_search_policy#test_sketch_search_policy_cuda_rpc_runner"],
+                    "unittest_GPU": ["another_dummy_class#another_dummy_test"]
+                }
+                """,
+        "target_url": "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
+        "s3_prefix": "tvm-jenkins-artifacts-prod",
+        "jenkins_prefix": "ci.tlcpack.ai",
+        "common_main_build": """{"build_number": "4115", "state": "success"}""",
+        "commit_sha": "sha1234",
+        "expected_body": "No diff in skipped tests with main found in this branch for commit sha1234.\n\nAdditional tests that were skipped in the CI build and present in the [`required_tests_to_run`](https://github.com/apache/tvm/blob/main/ci/scripts/required_tests_to_run.json) file:\n```\nunittest -> ctypes.tests.python.unittest.test_auto_scheduler_search_policy#test_sketch_search_policy_cuda_rpc_runner\n```\nA detailed report of ran tests is [here](https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/testReport/).",
     },
     "unable-to-run": {
         "main_xml_file": "unittest/file1.xml",
@@ -132,6 +225,11 @@ TEST_DATA_SKIPPED_BOT = {
                     <testsuites>
                     </testsuites>
                     """,
+        "additional_tests_to_check": """{
+                    "unittest": ["ctypes.tests.python.unittest.test_auto_scheduler_search_policy#test_sketch_search_policy_cuda_rpc_runner", "dummy_class#dummy_test"],
+                    "unittest_GPU": ["another_dummy_class#another_dummy_test"]
+                }
+                """,
         "target_url": "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
         "s3_prefix": "tvm-jenkins-artifacts-prod",
         "jenkins_prefix": "ci.tlcpack.ai",
@@ -153,6 +251,7 @@ def test_skipped_tests_comment(
     main_xml_content,
     pr_xml_file,
     pr_xml_content,
+    additional_tests_to_check,
     target_url,
     s3_prefix,
     jenkins_prefix,
@@ -176,6 +275,8 @@ def test_skipped_tests_comment(
     write_xml_file(pr_test_report_dir, pr_xml_file, pr_xml_content)
     main_test_report_dir = Path(git.cwd) / "main-reports"
     write_xml_file(main_test_report_dir, main_xml_file, main_xml_content)
+    with open(Path(git.cwd) / "required_tests_to_run.json", "w") as f:
+        f.write(additional_tests_to_check)
 
     pr_data = {
         "commits": {
@@ -208,6 +309,7 @@ def test_skipped_tests_comment(
             pr_test_report_dir=pr_test_report_dir,
             main_test_report_dir=main_test_report_dir,
             common_main_build=json.loads(common_main_build),
+            additional_tests_to_check_file=Path(git.cwd) / "required_tests_to_run.json",
         )
     assert_in(expected_body, comment)
     assert_in(f"with target {target_url}", caplog.text)
