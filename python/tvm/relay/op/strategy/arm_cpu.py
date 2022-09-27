@@ -234,20 +234,20 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="depthwise_conv2d_nhwc.arm_cpu",
                 )
 
-            # Optimized special case depthwiseConv2D operation. Requires a 3x3 kernel, a
-            # NHWC layout, a HWOI kernel layout (which we rearrange), no dilation, int8 inputs,
-            # int32 output, the same number of input and output channels, and for that channel
+            # Optimized special case depthwiseConv2D operation. Requires NHWC layout,
+            # a HWOI kernel layout (which we rearrange to a custom layout) no dilation,
+            # int8/16 inputs, int32 output, and the same number of input and output channels.
+            # and for that channel
             # count to be divisible by 4. Additional work could remove these restrictions.
 
             elif (
-                target.features.has_dsp
                 and dilation_w == dilation_h == 1
                 and kernel.shape[3] == 1  # channel_multiplier == 1
                 and data.dtype in ["int8", "int16"]
                 and out_type.dtype == "int32"
                 and (
-                    data.shape[3] % 4 == 0 and data.dtype == "int8" or
-                    data.shape[3] % 2 == 0 and data.dtype == "int16"
+                    (data.shape[3] % 4 == 0 and data.dtype == "int8" and target.features.has_dsp) or
+                    (data.shape[3] % 2 == 0 and data.dtype == "int16")
                 )
                 and (
                     padding != "SAME" or

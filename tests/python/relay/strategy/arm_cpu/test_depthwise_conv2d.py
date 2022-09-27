@@ -167,10 +167,11 @@ class TestDepthwiseConv2d_NHWC_HWOI_DSP(BasicDepthwiseConv2dTests):
         ((1, 25, 5, 64), (3, 3), 64, (1, 1), 1, 1),
         # Larger kernel
         ((1, 24, 24, 8), (5, 5), 8, (1, 1), 1, 1),
+        # Asymmetric kernel
         ((1, 24, 24, 8), (3, 5), 8, (1, 1), 1, 1),
     )
     data_layout = tvm.testing.parameter("NHWC")
-    dtype = tvm.testing.parameter("int8")
+    dtype = tvm.testing.parameter("int8", "int16")
     kernel_layout = tvm.testing.parameter("HWOI")
     schedule_name = tvm.testing.parameter("depthwise_conv2d_nhwc_dsp.arm_cpu")
 

@@ -29,3 +29,17 @@ common_includes = """
 #include <tvm/runtime/crt/error_codes.h>
 
 """
+
+MICRO_WORD_LENGTH = 32
+
+def get_dtype_simd_width(dtype: str) -> int:
+    """Takes a dtype, and returns how many of that dtype fit into a single microcontroller word.
+
+    >>> get_dtype_simd_width("int8")
+    4
+    >>> get_dtype_simd_width("int16")
+    2
+    """
+    assert dtype[0:3] == "int"
+    dtype_width = int(dtype[3:])
+    return MICRO_WORD_LENGTH // dtype_width

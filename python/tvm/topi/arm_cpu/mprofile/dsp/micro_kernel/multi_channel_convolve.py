@@ -23,22 +23,19 @@ repeated four times giving four int32 outputs - one per channel."""
 import textwrap
 
 from tvm import te, tir
-
+from .common import get_dtype_simd_width
 
 def intrin_multi_channel_convolve(in_dtype, _tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix):
     """Defines a v7e-m DSP-accelerated four-channel convolution."""
-    dtype_width = int(in_dtype[3:])
-    assert dtype_width in [8, 16]
-    channel_batch = 32 // dtype_width
-
-    data_slice = te.placeholder((kernel_h, kernel_w, channel_batch), name="a", dtype=in_dtype)
-    kernel_slice = te.placeholder((kernel_h, kernel_w, channel_batch), name="b", dtype=in_dtype)
+    simd_width = get_dtype_simd_width(in_dtype)
+    data_slice = te.placeholder((kernel_h, kernel_w, simd_width), name="a", dtype=in_dtype)
+    kernel_slice = te.placeholder((kernel_h, kernel_w, simd_width), name="b", dtype=in_dtype)
 
     kh_i = te.reduce_axis((0, kernel_h), name="kh_i")
     kw_i = te.reduce_axis((0, kernel_w), name="kw_i")
 
     output_slice = te.compute(
-        (channel_batch,),
+        (simd_width,),
         lambda k: te.sum(
             data_slice[kh_i, kw_i, k].astype("int32")
             * kernel_slice[kh_i, kw_i, k].astype("int32"),
@@ -55,7 +52,7 @@ def intrin_multi_channel_convolve(in_dtype, _tensor_h, tensor_w, channels, kerne
         strides=[tensor_w * channels, channels, 1],
     )
     kernel_buf = tir.decl_buffer(
-        kernel_slice.shape, kernel_slice.dtype, name="kernel", offset_factor=1, strides=[kernel_w * channel_batch, channel_batch, 1]
+        kernel_slice.shape, kernel_slice.dtype, name="kernel", offset_factor=1, strides=[kernel_w * simd_width, simd_width, 1]
     )
     output_buf = tir.decl_buffer(
         output_slice.shape, output_slice.dtype, name="output", offset_factor=1, strides=[1]
@@ -160,14 +157,6 @@ def dual_int16_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, ke
             f"""
         #include <stdint.h>
 
-        #define TVMGEN_DUAL_INT16_CHANNEL_REARRANGE_SUM( \
-            arranged_kernel, tensor_c10, sum_c0, sum_c1) {{ \
-          \
-          uint32_t kernel_c10 = *arranged_kernel++; \
-          sum_c0 = __builtin_arm_smlabb(tensor_c10, kernel_c10, sum_c0); \
-          sum_c1 = __builtin_arm_smlatt(tensor_c10, kernel_c10, sum_c1); \
-        }}
-
         /* We do four channels at once to get this speed boost. */
         #ifdef __cplusplus
         extern "C"
@@ -184,10 +173,10 @@ def dual_int16_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, ke
           for (int i = 0; i < {kernel_h}; i++) {{
             #pragma GCC unroll 3
             for (int j = 0; j < {kernel_w}; j++) {{
-              TVMGEN_DUAL_INT16_CHANNEL_REARRANGE_SUM(
-                kernel,
-                *(tensor + j * {channels // 2} + i * {tensor_w * (channels // 2)}),
-                sum_c0, sum_c1)
+              uint32_t tensor_c10 = *(tensor + j * {channels // 2} + i * {tensor_w * (channels // 2)});
+              uint32_t kernel_c10 = *kernel++;
+              sum_c0 = __builtin_arm_smlabb(tensor_c10, kernel_c10, sum_c0);
+              sum_c1 = __builtin_arm_smlatt(tensor_c10, kernel_c10, sum_c1);
             }}
           }}
 
