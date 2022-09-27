@@ -102,22 +102,17 @@ class TestTIRMatmul(BaseBeforeAfter):
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B_reindex[vj, vk // 4, vk % 4]
 
 
-# Segfaults?!
-# class TestExtentOne(BaseBeforeAfter):
-#     """Buffers with dimensions of extent 1 can be transformed
+class TestRewrittenBuffersMustOccurWithinBlock(BaseBeforeAfter):
+    """Buffers must occur within a Block"""
 
-#     Regression test for a previous bug, in which the removal of
-#     trivial variables resulted in an error in `IndexMap::Inverse`.
-#     """
+    def before(
+        A: T.Buffer[(16, 16), "float32"],
+    ) -> None:
+        T.func_attr({"layout_free_buffers": [0]})
+        for i, j in T.grid(16, 16):
+            T.evaluate(A[i, j])
 
-#     def before(
-#         A: T.Buffer[(16, 16), "float32"],
-#     ) -> None:
-#         T.func_attr({"layout_free_buffers": [0]})
-#         for i, j in T.grid(16, 16):
-#             T.evaluate(A[i, j])
-
-#     expected = before
+    expected = tvm.TVMError
 
 
 class TestExtentOne(BaseBeforeAfter):
