@@ -124,7 +124,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
     idxd = tvm.tir.indexdiv
 
-
     if topi_tmpl == "depthwise_conv2d_nhwc_dsp.arm_cpu":
         assert data_layout == "NHWC" and kernel_layout == "HWOI"
         channels = get_const_tuple(data.shape)[3]
@@ -134,7 +133,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         HWOI_kernel_np = inputs[1].data.numpy()
         CHWc_kernel_np = np.zeros((channels // simd_width, KH, KW, simd_width), dtype=kernel.dtype)
         for i in range(channels // simd_width):
-            CHWc_kernel_np[i] = HWOI_kernel_np[:, :, simd_width*i:simd_width*(i+1), 0]
+            CHWc_kernel_np[i] = HWOI_kernel_np[:, :, simd_width * i : simd_width * (i + 1), 0]
 
         # Store the same config for the altered operator (workload)
         new_data = data
@@ -147,7 +146,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         return relay.nn.conv2d(
             inputs[0],
             relay.Constant(tvm.nd.array(CHWc_kernel_np.reshape(KH, KW, channels, 1))),
-            **new_attrs
+            **new_attrs,
         )
 
     # Only microTVM does layout alteration for NHWC layout with real data types

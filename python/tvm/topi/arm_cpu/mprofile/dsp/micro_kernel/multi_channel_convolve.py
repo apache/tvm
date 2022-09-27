@@ -25,8 +25,17 @@ import textwrap
 from tvm import te, tir
 from .common import get_dtype_simd_width
 
-def intrin_multi_channel_convolve(in_dtype, _tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix):
-    """Defines a v7e-m DSP-accelerated four-channel convolution."""
+
+def _get_func_name(in_dtype, tensor_w, channels, kernel_h, kernel_w, suffix):
+    """Gets the C function name of the tensorized function."""
+    return f"kernel_convolve_{in_dtype}_w{tensor_w}_c{channels}_kh{kernel_h}_kw{kernel_w}_{suffix}"
+
+
+def intrin_multi_channel_convolve(
+    in_dtype, _tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix
+):
+    """Defines a v7e-m DSP-accelerated multi-channel convolution. Works on two
+    channels if in_dtype==int16, and four channels if in_dtype==int8."""
     simd_width = get_dtype_simd_width(in_dtype)
     data_slice = te.placeholder((kernel_h, kernel_w, simd_width), name="a", dtype=in_dtype)
     kernel_slice = te.placeholder((kernel_h, kernel_w, simd_width), name="b", dtype=in_dtype)
@@ -37,8 +46,7 @@ def intrin_multi_channel_convolve(in_dtype, _tensor_h, tensor_w, channels, kerne
     output_slice = te.compute(
         (simd_width,),
         lambda k: te.sum(
-            data_slice[kh_i, kw_i, k].astype("int32")
-            * kernel_slice[kh_i, kw_i, k].astype("int32"),
+            data_slice[kh_i, kw_i, k].astype("int32") * kernel_slice[kh_i, kw_i, k].astype("int32"),
             axis=(kh_i, kw_i),
         ),
         name="c",
@@ -52,7 +60,11 @@ def intrin_multi_channel_convolve(in_dtype, _tensor_h, tensor_w, channels, kerne
         strides=[tensor_w * channels, channels, 1],
     )
     kernel_buf = tir.decl_buffer(
-        kernel_slice.shape, kernel_slice.dtype, name="kernel", offset_factor=1, strides=[kernel_w * simd_width, simd_width, 1]
+        kernel_slice.shape,
+        kernel_slice.dtype,
+        name="kernel",
+        offset_factor=1,
+        strides=[kernel_w * simd_width, simd_width, 1],
     )
     output_buf = tir.decl_buffer(
         output_slice.shape, output_slice.dtype, name="output", offset_factor=1, strides=[1]
@@ -63,7 +75,7 @@ def intrin_multi_channel_convolve(in_dtype, _tensor_h, tensor_w, channels, kerne
         builder.emit(
             tir.call_extern(
                 "int32",
-                f"kernel_convolve_{in_dtype}_w{tensor_w}_c{channels}_kh{kernel_h}_kw{kernel_w}_{suffix}",
+                _get_func_name(in_dtype, tensor_w, channels, kernel_h, kernel_w, suffix),
                 outs[0].access_ptr("w"),
                 ins[0].access_ptr("r"),
                 ins[1].access_ptr("r"),
@@ -78,14 +90,19 @@ def intrin_multi_channel_convolve(in_dtype, _tensor_h, tensor_w, channels, kerne
     )
 
 
-def multi_channel_convolve_impl(in_dtype, *args):
+def multi_channel_convolve_impl(in_dtype, *args) -> str:
+    """Generates C code for a fast multi-channel convolution function for ARM Cortex-M. This is done
+    by calling a sub-function depending on the input data type, as since v7e-m has no quad multiply
+    accumulate instruction, the int8 and int16 cases work differently."""
     if in_dtype == "int8":
-        return quad_int8_channel_convolve_impl(*args)
-    elif in_dtype == "int16":
-        return dual_int16_channel_convolve_impl(*args)
+        return _quad_int8_channel_convolve_impl(*args)
+    if in_dtype == "int16":
+        return _dual_int16_channel_convolve_impl(*args)
+
+    raise NotImplementedError(f"No Cortex-M {in_dtype} depthwise_conv2d implementation exists!")
 
 
-def quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix):
+def _quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix):
     return textwrap.dedent(
         (
             f"""
@@ -116,7 +133,7 @@ def quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, ker
         #ifdef __cplusplus
         extern "C"
         #endif
-        int32_t kernel_convolve_int8_w{tensor_w}_c{channels}_kh{kernel_h}_kw{kernel_w}_{suffix}(
+        int32_t {_get_func_name("int8", tensor_w, channels, kernel_h, kernel_w, suffix)}(
             uint32_t *out,
             uint32_t *tensor,
             uint32_t *kernel) {{
@@ -150,8 +167,7 @@ def quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, ker
     )
 
 
-# This doesn't use any DSP instructions, as they don't make us faster
-def dual_int16_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix):
+def _dual_int16_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix):
     return textwrap.dedent(
         (
             f"""
@@ -161,7 +177,7 @@ def dual_int16_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, ke
         #ifdef __cplusplus
         extern "C"
         #endif
-        int32_t kernel_convolve_int16_w{tensor_w}_c{channels}_kh{kernel_h}_kw{kernel_w}_{suffix}(
+        int32_t {_get_func_name("int16", tensor_w, channels, kernel_h, kernel_w, suffix)}(
             uint32_t *out,
             uint32_t *tensor,
             uint32_t *kernel) {{
@@ -173,7 +189,8 @@ def dual_int16_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, ke
           for (int i = 0; i < {kernel_h}; i++) {{
             #pragma GCC unroll 3
             for (int j = 0; j < {kernel_w}; j++) {{
-              uint32_t tensor_c10 = *(tensor + j * {channels // 2} + i * {tensor_w * (channels // 2)});
+              uint32_t tensor_c10 = *(tensor + j * {channels // 2}
+                + i * {tensor_w * (channels // 2)});
               uint32_t kernel_c10 = *kernel++;
               sum_c0 = __builtin_arm_smlabb(tensor_c10, kernel_c10, sum_c0);
               sum_c1 = __builtin_arm_smlatt(tensor_c10, kernel_c10, sum_c1);

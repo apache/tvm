@@ -19,8 +19,8 @@
 import random
 import string
 
-from tvm import te, tir, topi
-from tvm.topi.utils import traverse_inline, get_const_tuple
+from tvm import te, topi
+from tvm.topi.utils import traverse_inline
 from tvm.topi.nn.pad import pad
 
 from .micro_kernel.multi_channel_convolve import (
@@ -28,6 +28,7 @@ from .micro_kernel.multi_channel_convolve import (
     multi_channel_convolve_impl,
 )
 from .micro_kernel.common import get_dtype_simd_width
+
 
 def depthwise_conv2d_nhwc_dsp_compute(_cfg, data, kernel, strides, padding, dilation, out_dtype):
     """Compute function for v7e-m DSP instructions of DepthwiseConv2D. Has a lot of requirements
@@ -130,12 +131,12 @@ def depthwise_conv2d_nhwc_dsp_schedule(_cfg, outs):
     """Schedule function for v7e-m DSP instructions of conv2d."""
     schedule = te.create_schedule([x.op for x in outs])
 
-    def _callback(op):
-        if "depthwise_conv2d_nhwc" not in op.tag:
+    def _callback(operator):
+        if "depthwise_conv2d_nhwc" not in operator.tag:
             return
 
         # extract tensors
-        output = op.output(0)
+        output = operator.output(0)
         padded_data = output.op.input_tensors[0]
         reshaped_kernel = output.op.input_tensors[1]
         in_dtype = padded_data.dtype
@@ -157,7 +158,9 @@ def depthwise_conv2d_nhwc_dsp_schedule(_cfg, outs):
         schedule[output].pragma(
             b_ax,
             "import_c",
-            multi_channel_convolve_impl(in_dtype, padded_h, padded_w, channels, kernel_h, kernel_w, suffix),
+            multi_channel_convolve_impl(
+                in_dtype, padded_h, padded_w, channels, kernel_h, kernel_w, suffix
+            ),
         )
 
     traverse_inline(schedule, outs[-1].op, _callback)

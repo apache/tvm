@@ -32,6 +32,7 @@ common_includes = """
 
 MICRO_WORD_LENGTH = 32
 
+
 def get_dtype_simd_width(dtype: str) -> int:
     """Takes a dtype, and returns how many of that dtype fit into a single microcontroller word.
 
