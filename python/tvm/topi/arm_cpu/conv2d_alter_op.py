@@ -33,7 +33,7 @@ from ..x86.conv2d_int8 import _get_default_config_int8
 from .conv2d_int8 import is_int8_hw_support
 from .arm_utils import get_tiling_B_interleaved_t
 from ..generic.conv2d import conv2d_alter_int8_common
-from .mprofile.dsp.micro_kernel.common import get_dtype_simd_width
+from .mprofile.dsp.micro_kernel.common import num_simd_lanes_per_word
 
 logger = logging.getLogger("topi")
 
@@ -126,15 +126,16 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
     if topi_tmpl == "depthwise_conv2d_nhwc_dsp.arm_cpu":
         assert data_layout == "NHWC" and kernel_layout == "HWOI"
+        assert isinstance(inputs[1], relay.Constant)
         channels = get_const_tuple(data.shape)[3]
         KH, KW, _, _ = get_const_tuple(kernel.shape)
-        simd_width = get_dtype_simd_width(data.dtype)
+        simd_lanes = num_simd_lanes_per_word(data.dtype)
 
         HWOI_kernel_np = inputs[1].data.numpy()
-        CHWc_kernel_np = np.zeros((channels // simd_width, KH, KW, simd_width), dtype=kernel.dtype)
-        for i in range(channels // simd_width):
-            CHWc_kernel_np[i] = HWOI_kernel_np[:, :, simd_width * i : simd_width * (i + 1), 0]
-        reshaped_new_kernel = CHWc_kernel_np.reshape(KH, KW, channels, 1)
+        CHWc_kernel_np = np.zeros((channels // simd_lanes, KH, KW, simd_lanes), dtype=kernel.dtype)
+        for i in range(channels // simd_lanes):
+            CHWc_kernel_np[i] = HWOI_kernel_np[:, :, simd_lanes * i : simd_lanes * (i + 1), 0]
+        reshaped_new_kernel = CHWc_kernel_np.reshape((KH, KW, channels, 1))
 
         # Store the same config for the altered operator (workload)
         new_data = data

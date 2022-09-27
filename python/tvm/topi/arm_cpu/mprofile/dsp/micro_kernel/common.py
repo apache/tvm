@@ -30,17 +30,17 @@ common_includes = """
 
 """
 
-MICRO_WORD_LENGTH = 32
+MICRO_WORD_LENGTH_BITS = 32
 
 
-def get_dtype_simd_width(dtype: str) -> int:
+def num_simd_lanes_per_word(dtype: str) -> int:
     """Takes a dtype, and returns how many of that dtype fit into a single microcontroller word.
 
-    >>> get_dtype_simd_width("int8")
+    >>> num_simd_lanes_per_word("int8")
     4
-    >>> get_dtype_simd_width("int16")
+    >>> num_simd_lanes_per_word("int16")
     2
     """
-    assert dtype[0:3] == "int"
+    assert dtype.startswith("int")
     dtype_width = int(dtype[3:])
-    return MICRO_WORD_LENGTH // dtype_width
+    return MICRO_WORD_LENGTH_BITS // dtype_width

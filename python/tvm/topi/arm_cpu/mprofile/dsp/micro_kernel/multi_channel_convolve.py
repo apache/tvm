@@ -23,7 +23,7 @@ repeated four times giving four int32 outputs - one per channel."""
 import textwrap
 
 from tvm import te, tir
-from .common import get_dtype_simd_width
+from .common import num_simd_lanes_per_word
 
 
 def _get_func_name(in_dtype, tensor_w, channels, kernel_h, kernel_w, suffix):
@@ -36,15 +36,17 @@ def intrin_multi_channel_convolve(
 ):
     """Defines a v7e-m DSP-accelerated multi-channel convolution. Works on two
     channels if in_dtype==int16, and four channels if in_dtype==int8."""
-    simd_width = get_dtype_simd_width(in_dtype)
-    data_slice = te.placeholder((kernel_h, kernel_w, simd_width), name="a", dtype=in_dtype)
-    kernel_slice = te.placeholder((kernel_h, kernel_w, simd_width), name="b", dtype=in_dtype)
+    simd_lanes = num_simd_lanes_per_word(in_dtype)
+
+    overlap_dims = (kernel_h, kernel_w, simd_lanes)
+    data_slice = te.placeholder(overlap_dims, name="data_slice", dtype=in_dtype)
+    kernel_slice = te.placeholder(overlap_dims, name="kernel_slice", dtype=in_dtype)
 
     kh_i = te.reduce_axis((0, kernel_h), name="kh_i")
     kw_i = te.reduce_axis((0, kernel_w), name="kw_i")
 
     output_slice = te.compute(
-        (simd_width,),
+        (simd_lanes,),
         lambda k: te.sum(
             data_slice[kh_i, kw_i, k].astype("int32") * kernel_slice[kh_i, kw_i, k].astype("int32"),
             axis=(kh_i, kw_i),
@@ -64,7 +66,7 @@ def intrin_multi_channel_convolve(
         kernel_slice.dtype,
         name="kernel",
         offset_factor=1,
-        strides=[kernel_w * simd_width, simd_width, 1],
+        strides=[kernel_w * simd_lanes, simd_lanes, 1],
     )
     output_buf = tir.decl_buffer(
         output_slice.shape, output_slice.dtype, name="output", offset_factor=1, strides=[1]

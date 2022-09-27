@@ -27,7 +27,7 @@ from .micro_kernel.multi_channel_convolve import (
     intrin_multi_channel_convolve,
     multi_channel_convolve_impl,
 )
-from .micro_kernel.common import get_dtype_simd_width
+from .micro_kernel.common import num_simd_lanes_per_word
 
 
 def depthwise_conv2d_nhwc_dsp_compute(_cfg, data, kernel, strides, padding, dilation, out_dtype):
@@ -51,7 +51,7 @@ def depthwise_conv2d_nhwc_dsp_compute(_cfg, data, kernel, strides, padding, dila
 
     batch_size, height, width, channels = data.shape
     kernel_h, kernel_w, _, _ = kernel.shape
-    simd_width = get_dtype_simd_width(data.dtype)
+    simd_lanes = num_simd_lanes_per_word(data.dtype)
 
     # We don't support different numbers of input and output channels.
     assert channels == kernel.shape[2]
@@ -113,12 +113,12 @@ def depthwise_conv2d_nhwc_dsp_compute(_cfg, data, kernel, strides, padding, dila
 
     kh_i = te.reduce_axis((0, kernel_h), name="kh_i")
     kw_i = te.reduce_axis((0, kernel_w), name="kw_i")
-    reshaped_kernel = topi.reshape(kernel, (channels // simd_width, kernel_h, kernel_w, simd_width))
+    reshaped_kernel = topi.reshape(kernel, (channels // simd_lanes, kernel_h, kernel_w, simd_lanes))
     return te.compute(
         (batch_size, output_h, output_w, channels),
         lambda h, i, j, k: te.sum(
             padded_data[h, (i * stride_h) + kh_i, (j * stride_w) + kw_i, k].astype("int32")
-            * reshaped_kernel[k // simd_width, kh_i, kw_i, k % simd_width].astype("int32"),
+            * reshaped_kernel[k // simd_lanes, kh_i, kw_i, k % simd_lanes].astype("int32"),
             axis=(kh_i, kw_i),
         ),
         name="depthwise_conv2d",
@@ -147,8 +147,8 @@ def depthwise_conv2d_nhwc_dsp_schedule(_cfg, outs):
 
         b_ax, y_ax, x_ax, c_ax = schedule[output].op.axis
         ky_ax, kx_ax = schedule[output].op.reduce_axis
-        simd_width = get_dtype_simd_width(in_dtype)
-        c_ax_o, c_ax_i = schedule[output].split(c_ax, factor=simd_width)
+        simd_lanes = num_simd_lanes_per_word(in_dtype)
+        c_ax_o, c_ax_i = schedule[output].split(c_ax, factor=simd_lanes)
         schedule[output].reorder(b_ax, c_ax_o, y_ax, x_ax, ky_ax, kx_ax, c_ax_i)
 
         multi_channel_convolve = intrin_multi_channel_convolve(
