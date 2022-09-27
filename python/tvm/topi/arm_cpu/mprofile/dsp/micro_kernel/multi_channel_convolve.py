@@ -25,16 +25,20 @@ import textwrap
 from tvm import te, tir
 
 
-def intrin_quad_channel_convolve(tensor_w, channels, kernel_h, kernel_w, suffix):
+def intrin_multi_channel_convolve(in_dtype, _tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix):
     """Defines a v7e-m DSP-accelerated four-channel convolution."""
-    data_slice = te.placeholder((kernel_h, kernel_w, 4), name="a", dtype="int8")
-    kernel_slice = te.placeholder((kernel_h, kernel_w, 4), name="b", dtype="int8")
+    dtype_width = int(in_dtype[3:])
+    assert dtype_width in [8, 16]
+    channel_batch = 32 // dtype_width
+
+    data_slice = te.placeholder((kernel_h, kernel_w, channel_batch), name="a", dtype=in_dtype)
+    kernel_slice = te.placeholder((kernel_h, kernel_w, channel_batch), name="b", dtype=in_dtype)
 
     kh_i = te.reduce_axis((0, kernel_h), name="kh_i")
     kw_i = te.reduce_axis((0, kernel_w), name="kw_i")
 
     output_slice = te.compute(
-        (4,),
+        (channel_batch,),
         lambda k: te.sum(
             data_slice[kh_i, kw_i, k].astype("int32")
             * kernel_slice[kh_i, kw_i, k].astype("int32"),
@@ -51,7 +55,7 @@ def intrin_quad_channel_convolve(tensor_w, channels, kernel_h, kernel_w, suffix)
         strides=[tensor_w * channels, channels, 1],
     )
     kernel_buf = tir.decl_buffer(
-        kernel_slice.shape, kernel_slice.dtype, name="kernel", offset_factor=1, strides=[kernel_w * 4, 4, 1]
+        kernel_slice.shape, kernel_slice.dtype, name="kernel", offset_factor=1, strides=[kernel_w * channel_batch, channel_batch, 1]
     )
     output_buf = tir.decl_buffer(
         output_slice.shape, output_slice.dtype, name="output", offset_factor=1, strides=[1]
@@ -62,7 +66,7 @@ def intrin_quad_channel_convolve(tensor_w, channels, kernel_h, kernel_w, suffix)
         builder.emit(
             tir.call_extern(
                 "int32",
-                f"kernel_convolve_w{tensor_w}_c{channels}_kh{kernel_h}_kw{kernel_w}_{suffix}",
+                f"kernel_convolve_{in_dtype}_w{tensor_w}_c{channels}_kh{kernel_h}_kw{kernel_w}_{suffix}",
                 outs[0].access_ptr("w"),
                 ins[0].access_ptr("r"),
                 ins[1].access_ptr("r"),
@@ -77,7 +81,14 @@ def intrin_quad_channel_convolve(tensor_w, channels, kernel_h, kernel_w, suffix)
     )
 
 
-def quad_channel_convolve_impl(tensor_w, channels, kernel_h, kernel_w, suffix):
+def multi_channel_convolve_impl(in_dtype, *args):
+    if in_dtype == "int8":
+        return quad_int8_channel_convolve_impl(*args)
+    elif in_dtype == "int16":
+        return dual_int16_channel_convolve_impl(*args)
+
+
+def quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix):
     return textwrap.dedent(
         (
             f"""
@@ -86,10 +97,10 @@ def quad_channel_convolve_impl(tensor_w, channels, kernel_h, kernel_w, suffix):
 
         // __SXTB16(_ROR(X, Y)) is combined into one assembly instruction
 
-        #define TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP( \
+        #define TVMGEN_QUAD_INT8_CHANNEL_REARRANGE_SUM_DSP( \
             arranged_kernel, \
             tensor_c3210, \
-            sum0, sum1, sum2, sum3) {{ \
+            sum_c0, sum_c1, sum_c2, sum_c3) {{ \
           \
           uint32_t kernel_c3210 = *arranged_kernel++; \
           \
@@ -108,10 +119,10 @@ def quad_channel_convolve_impl(tensor_w, channels, kernel_h, kernel_w, suffix):
         #ifdef __cplusplus
         extern "C"
         #endif
-        int32_t kernel_convolve_w{tensor_w}_c{channels}_kh{kernel_h}_kw{kernel_w}_{suffix}(
+        int32_t kernel_convolve_int8_w{tensor_w}_c{channels}_kh{kernel_h}_kw{kernel_w}_{suffix}(
             uint32_t *out,
             uint32_t *tensor,
-            uint32_t *packed_kernel) {{
+            uint32_t *kernel) {{
 
           uint32_t sum_c0 = 0;
           uint32_t sum_c1 = 0;
@@ -122,8 +133,8 @@ def quad_channel_convolve_impl(tensor_w, channels, kernel_h, kernel_w, suffix):
           for (int i = 0; i < {kernel_h}; i++) {{
             #pragma GCC unroll 3
             for (int j = 0; j < {kernel_w}; j++) {{
-              TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP(
-                packed_kernel,
+              TVMGEN_QUAD_INT8_CHANNEL_REARRANGE_SUM_DSP(
+                kernel,
                 *(tensor + j * {channels // 4} + i * {tensor_w * (channels // 4)}),
                 sum_c0, sum_c1, sum_c2, sum_c3)
             }}
@@ -136,7 +147,56 @@ def quad_channel_convolve_impl(tensor_w, channels, kernel_h, kernel_w, suffix):
           return 0;
         }}
 
-        #undef TVMGEN_QUAD_CHANNEL_REARRANGE_SUM_DSP
+        #undef TVMGEN_QUAD_INT8_CHANNEL_REARRANGE_SUM_DSP
+        """
+        )
+    )
+
+
+# This doesn't use any DSP instructions, as they don't make us faster
+def dual_int16_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix):
+    return textwrap.dedent(
+        (
+            f"""
+        #include <stdint.h>
+
+        #define TVMGEN_DUAL_INT16_CHANNEL_REARRANGE_SUM( \
+            arranged_kernel, tensor_c10, sum_c0, sum_c1) {{ \
+          \
+          uint32_t kernel_c10 = *arranged_kernel++; \
+          sum_c0 = __builtin_arm_smlabb(tensor_c10, kernel_c10, sum_c0); \
+          sum_c1 = __builtin_arm_smlatt(tensor_c10, kernel_c10, sum_c1); \
+        }}
+
+        /* We do four channels at once to get this speed boost. */
+        #ifdef __cplusplus
+        extern "C"
+        #endif
+        int32_t kernel_convolve_int16_w{tensor_w}_c{channels}_kh{kernel_h}_kw{kernel_w}_{suffix}(
+            uint32_t *out,
+            uint32_t *tensor,
+            uint32_t *kernel) {{
+
+          uint32_t sum_c0 = 0;
+          uint32_t sum_c1 = 0;
+
+          #pragma GCC unroll 3
+          for (int i = 0; i < {kernel_h}; i++) {{
+            #pragma GCC unroll 3
+            for (int j = 0; j < {kernel_w}; j++) {{
+              TVMGEN_DUAL_INT16_CHANNEL_REARRANGE_SUM(
+                kernel,
+                *(tensor + j * {channels // 2} + i * {tensor_w * (channels // 2)}),
+                sum_c0, sum_c1)
+            }}
+          }}
+
+          out[0] = sum_c0;
+          out[1] = sum_c1;
+          return 0;
+        }}
+
+        #undef TVMGEN_DUAL_INT16_CHANNEL_REARRANGE_SUM
         """
         )
     )

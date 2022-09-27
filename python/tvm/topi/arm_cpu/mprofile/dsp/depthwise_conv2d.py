@@ -23,9 +23,9 @@ from tvm import te, tir, topi
 from tvm.topi.utils import traverse_inline, get_const_tuple
 from tvm.topi.nn.pad import pad
 
-from .micro_kernel.quad_channel_convolve import (
-    intrin_quad_channel_convolve,
-    quad_channel_convolve_impl,
+from .micro_kernel.multi_channel_convolve import (
+    intrin_multi_channel_convolve,
+    multi_channel_convolve_impl,
 )
 
 def depthwise_conv2d_nhwc_dsp_compute(_cfg, data, kernel, strides, padding, dilation, out_dtype):
@@ -50,10 +50,6 @@ def depthwise_conv2d_nhwc_dsp_compute(_cfg, data, kernel, strides, padding, dila
     batch_size, height, width, channels = data.shape
     kernel_h, kernel_w, _, _ = kernel.shape
 
-    # We require that the number of channels be divisible by 4. This restriction could
-    # be removed with strip mining if people cared.
-    assert channels % 4 == 0
-
     # We don't support different numbers of input and output channels.
     assert channels == kernel.shape[2]
     assert kernel.shape[3] == 1
@@ -61,11 +57,6 @@ def depthwise_conv2d_nhwc_dsp_compute(_cfg, data, kernel, strides, padding, dila
     # We take in int8 as our dtype, but we spit out int32. This is because we cannot
     # round until we compute activations.
     assert out_dtype == "int32"
-
-    # This can pretty easily be generalized in the future. Likely worth doing, and this
-    # function was written to make doing so easy. Should only require adding more calls
-    # to QUAD_CHANNEL_REARRANGE_SUM.
-    assert kernel_w == kernel_h == 3
 
     # Padding the data requires COPYING THE ENTIRE INPUT TENSOR, which
     # is slow and bad. We should really implement a strip mining
@@ -146,23 +137,27 @@ def depthwise_conv2d_nhwc_dsp_schedule(_cfg, outs):
         padded_data = output.op.input_tensors[0]
         reshaped_kernel = output.op.input_tensors[1]
 
-        _, _, padded_w, channels = padded_data.shape
+        in_dtype = padded_data.dtype
+        dtype_width = int(in_dtype[3:])
+        channel_batch = 32 // dtype_width
+
+        _, padded_h, padded_w, channels = padded_data.shape
         _, kernel_h, kernel_w, _ = reshaped_kernel.shape
         suffix = "".join(random.choices(string.ascii_uppercase, k=8))
 
         b_ax, y_ax, x_ax, c_ax = schedule[output].op.axis
         ky_ax, kx_ax = schedule[output].op.reduce_axis
-        c_ax_o, c_ax_i = schedule[output].split(c_ax, factor=4)
+        c_ax_o, c_ax_i = schedule[output].split(c_ax, factor=channel_batch)
         schedule[output].reorder(b_ax, c_ax_o, y_ax, x_ax, ky_ax, kx_ax, c_ax_i)
 
-        quad_channel_convolve = intrin_quad_channel_convolve(
-            padded_w, channels, kernel_h, kernel_w, suffix
+        multi_channel_convolve = intrin_multi_channel_convolve(
+            in_dtype, padded_h, padded_w, channels, kernel_h, kernel_w, suffix
         )
-        schedule[output].tensorize(ky_ax, quad_channel_convolve)
+        schedule[output].tensorize(ky_ax, multi_channel_convolve)
         schedule[output].pragma(
             b_ax,
             "import_c",
-            quad_channel_convolve_impl(padded_w, channels, kernel_h, kernel_w, suffix),
+            multi_channel_convolve_impl(in_dtype, padded_h, padded_w, channels, kernel_h, kernel_w, suffix),
         )
 
     traverse_inline(schedule, outs[-1].op, _callback)

@@ -241,13 +241,18 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
 
             elif (
                 target.features.has_dsp
-                and kernel.shape[0] == kernel.shape[1] == 3
                 and dilation_w == dilation_h == 1
                 and kernel.shape[3] == 1  # channel_multiplier == 1
-                and data.dtype == "int8"
+                and data.dtype in ["int8", "int16"]
                 and out_type.dtype == "int32"
-                and data.shape[3] % 4 == 0
-                and (padding != "SAME" or data.shape[1] % stride_h == data.shape[2] % stride_w == 0)
+                and (
+                    data.shape[3] % 4 == 0 and data.dtype == "int8" or
+                    data.shape[3] % 2 == 0 and data.dtype == "int16"
+                )
+                and (
+                    padding != "SAME" or
+                    data.shape[1] % stride_h == data.shape[2] % stride_w == 0
+                )
             ):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nhwc_dsp),
