@@ -88,6 +88,7 @@ def dense_u8u8i32_vrmpy_schedule(outs):
 
         pc = dot_vrmpy("uint8", "uint8")
         s[C].tensorize(a_xi, pc)
+        s[C].parallel(s[C].fuse(a_yo, a_xo))
 
         if C != O:
             a_y = O.op.axis[-2]
@@ -97,6 +98,7 @@ def dense_u8u8i32_vrmpy_schedule(outs):
             s[O].reorder(a_yo, a_xo, a_yi, a_xi)
             s[O].vectorize(a_xi)
             s[C].compute_at(s[O], a_yi)
+            s[O].parallel(s[O].fuse(a_yo, a_xo))
 
     def _callback(op):
         if "u8u8i32_vrmpy" in op.tag:
