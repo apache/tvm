@@ -325,6 +325,8 @@ class Array : public ObjectRef {
    */
   template <typename IterType>
   Array(IterType first, IterType last) {
+    static_assert(is_valid_iterator_v<T, IterType>,
+                  "IterType cannot be inserted into a tvm::Array<T>");
     Assign(first, last);
   }
 
@@ -481,6 +483,9 @@ class Array : public ObjectRef {
    */
   template <typename IterType>
   void insert(iterator position, IterType first, IterType last) {
+    static_assert(is_valid_iterator_v<T, IterType>,
+                  "IterType cannot be inserted into a tvm::Array<T>");
+
     if (first == last) {
       return;
     }
