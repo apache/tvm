@@ -31,6 +31,7 @@
 
 #include "hexagon_buffer.h"
 #include "hexagon_buffer_manager.h"
+#include "hexagon_thread_manager.h"
 
 namespace tvm {
 namespace runtime {
@@ -54,17 +55,26 @@ class HexagonDeviceAPI final : public DeviceAPI {
   void AcquireResources() {
     CHECK_EQ(runtime_hexbuffs, nullptr);
     runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
-    LOG(INFO) << "runtime_hexbuffs created";
+    DLOG(INFO) << "runtime_hexbuffs created";
     mgr = runtime_hexbuffs.get();
+
+    CHECK_EQ(runtime_threads, nullptr);
+    runtime_threads = std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size);
+    DLOG(INFO) << "runtime_threads created";
   }
 
   //! \brief Ensures all runtime resources are freed
   void ReleaseResources() {
+    CHECK(runtime_threads) << "runtime_threads was not created in AcquireResources";
+    runtime_threads.reset();
+    DLOG(INFO) << "runtime_threads reset";
+
+    CHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
     if (runtime_hexbuffs && !runtime_hexbuffs->empty()) {
-      LOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
+      DLOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
     }
     mgr = &hexbuffs;
-    LOG(INFO) << "runtime_hexbuffs reset";
+    DLOG(INFO) << "runtime_hexbuffs reset";
     runtime_hexbuffs.reset();
   }
 
@@ -139,6 +149,10 @@ class HexagonDeviceAPI final : public DeviceAPI {
    */
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
 
+  HexagonThreadManager* ThreadManager() {
+    return runtime_threads ? runtime_threads.get() : nullptr;
+  }
+
  protected:
   //! Standard Device API interface to copy data from one storage to another.
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
@@ -164,6 +178,12 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Current buffer manager
   HexagonBufferManager* mgr;
+
+  //! \brief Thread manager
+  std::unique_ptr<HexagonThreadManager> runtime_threads;
+  const unsigned threads{6};
+  const unsigned pipe_size{1000};
+  const unsigned stack_size{0x4000};  // 16KB
 };
 }  // namespace hexagon
 }  // namespace runtime
