@@ -267,18 +267,28 @@ def extract_param_base_addresses(mod, buffer_info, scratch_region_map) -> List[u
         if buffer_info[param].btype == BufferType.constant:
             continue
 
-        buffer = buffer_map[param]
-        dtype = buffer.dtype
-        element_size_bytes = np.iinfo(dtype).bits // 8
-        size_bytes = element_size_bytes * np.prod(list(buffer.shape))
-        base_addresses.append(
-            util.BaseAddress(
-                param.name.replace("-", "_"),
-                idx,
-                _get_region(buffer_info[param].btype, param, scratch_region_map),
-                size_bytes,
+        if param in buffer_map:
+            buffer = buffer_map[param]
+            dtype = buffer.dtype
+            element_size_bytes = np.iinfo(dtype).bits // 8
+            size_bytes = element_size_bytes * np.prod(list(buffer.shape))
+            base_addresses.append(
+                util.BaseAddress(
+                    param.name.replace("-", "_"),
+                    idx,
+                    _get_region(buffer_info[param].btype, param, scratch_region_map),
+                    size_bytes,
+                )
             )
-        )
+        else:
+            base_addresses.append(
+                util.BaseAddress(
+                    param.name.replace("-", "_"),
+                    idx,
+                    _get_region(buffer_info[param].btype, param, scratch_region_map),
+                    0,
+                )
+            )
         idx += 1
 
     return base_addresses
