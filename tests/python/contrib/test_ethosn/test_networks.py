@@ -144,7 +144,11 @@ def test_resnet_50_int8():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"12d65aec33594c88b6d0d31dcd5144e6", "6a64d69ccb36dfb6b30dd2abdba4b005"}
+    _compile_hash = {
+        "6b130a99397715156d5fb833809a92d2",
+        "6e5fcbab831607b9da1039aff4e56871",
+        "41acecca37b2735bd580f6ec38d8c2e0",
+    }
     _test_image_network(
         model_url="https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/"
         "models/Quantized/resnet_50_quantized.tflite",
@@ -152,8 +156,8 @@ def test_resnet_50_int8():
         input_dict={"input": (1, 224, 224, 3)},
         compile_hash=_compile_hash,
         output_count=1,
-        host_ops=10,
-        npu_partitions=2,
+        host_ops=9,
+        npu_partitions=3,
     )
 
 
