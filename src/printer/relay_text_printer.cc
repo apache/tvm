@@ -390,20 +390,18 @@ Doc RelayTextPrinter::VisitExpr_(const IfNode* op) {
 Doc RelayTextPrinter::VisitExpr_(const LetNode* op) {
   int n = 0;
   Expr let = GetRef<Let>(op);
+  Doc ret_doc;
   while (auto let_node = let.as<LetNode>()) {
     Doc doc;
     doc << "let " << AllocVar(let_node->var) << " = " << Print(let_node->value, false, true) << ";"
         << Doc::NewLine();
-    doc_stack_.push_back(doc);
     let = let_node->body;
     ++n;
+    ret_doc << doc;
   }
   Doc doc = PrintScope(let);
-  for (int i = 0; i < n; ++i) {
-    doc = doc_stack_.back() << doc;
-    doc_stack_.pop_back();
-  }
-  return doc;
+  ret_doc << doc;
+  return ret_doc;
 }
 
 Doc RelayTextPrinter::PrintFunc(const Doc& prefix, const relay::Function& fn) {
