@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-09-16T08:47:49.743918
+// Generated at 2022-09-26T10:48:49.577077
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -4246,7 +4246,8 @@ def deploy() {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docker") {
           timeout(time: max_time, unit: 'MINUTES') {
-            try {
+            init_git()
+                    try {
                       withCredentials([string(
                         credentialsId: 'dockerhub-tlcpackstaging-key',
                         variable: 'DOCKERHUB_KEY',
@@ -4290,10 +4291,11 @@ def deploy() {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/tag-images") {
           timeout(time: max_time, unit: 'MINUTES') {
-            withCredentials([string(
-                        credentialsId: 'dockerhub-tlcpack-key',
-                        variable: 'TLCPACK_TOKEN',
-                      )]) {
+            init_git()
+                    withCredentials([string(
+                      credentialsId: 'dockerhub-tlcpack-key',
+                      variable: 'TLCPACK_TOKEN',
+                    )]) {
                       try {
                         sh(
                           script: 'echo $TLCPACK_TOKEN | docker login --username octomldriazati --password-stdin',

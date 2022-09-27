@@ -99,6 +99,7 @@ def deploy() {
           feature_flag="env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null",
           ws="tvm/deploy-docker",
         ) %}
+          init_git()
           try {
             withCredentials([string(
               credentialsId: 'dockerhub-tlcpackstaging-key',
@@ -130,10 +131,11 @@ def deploy() {
           feature_flag="env.DOCS_DEPLOY_ENABLED == 'yes'",
           ws="tvm/tag-images",
         ) %}
-            withCredentials([string(
-              credentialsId: 'dockerhub-tlcpack-key',
-              variable: 'TLCPACK_TOKEN',
-            )]) {
+          init_git()
+          withCredentials([string(
+            credentialsId: 'dockerhub-tlcpack-key',
+            variable: 'TLCPACK_TOKEN',
+          )]) {
             try {
               sh(
                 script: 'echo $TLCPACK_TOKEN | docker login --username octomldriazati --password-stdin',
