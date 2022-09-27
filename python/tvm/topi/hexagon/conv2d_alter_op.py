@@ -82,7 +82,6 @@ def _conv2d_legalize(attrs, inputs, arg_types):
 
     output_tensor = arg_types[2]
 
-    # Collect the input exprs.
     data, kernel = inputs
 
     if data_layout != "NCHW" or kernel_layout != "OIHW":

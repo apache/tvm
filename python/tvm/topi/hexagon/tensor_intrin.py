@@ -137,7 +137,7 @@ def dot_vrmpy(x_ty, y_ty):
                     vec_bi32,
                 )
             else:
-                assert False, "Not supported"
+                raise ValueError(f"Only (u8, u8) or (u8, i8) dtype pairs are supported by vrmpy.")
 
             if index == 0:
                 ib.emit(outs[0].vstore(0, quad_reduction))
