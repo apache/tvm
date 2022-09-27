@@ -18,11 +18,11 @@ import collections
 import ctypes
 import json
 import math
+import numpy as np
+import pytest
 import re
 import sys
 
-import numpy as np
-import pytest
 import tvm
 import tvm.testing
 from tvm import te
@@ -854,7 +854,8 @@ def test_llvm_order_functions():
     }
     mod = tvm.IRModule(functions=functions)
     ir_text = tvm.build(mod, None, target="llvm").get_source("ll")
-    matches = re.findall(r"^define[^@]*@([a-zA-Z_][a-zA-Z0-9_]*)", ir_text, re.MULTILINE)
+    # Skip functions whose names start with _.
+    matches = re.findall(r"^define[^@]*@([a-zA-Z][a-zA-Z0-9_]*)", ir_text, re.MULTILINE)
     assert matches == sorted(matches)
 
 
