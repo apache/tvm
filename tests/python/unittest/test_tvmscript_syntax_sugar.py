@@ -148,6 +148,21 @@ def test_match_buffer_syntax_sugar():
     assert_structural_equal(elementwise_handle, elementwise_buffer_no_kwargs)
 
 
+def test_match_buffer_1d():
+    @T.prim_func
+    def func_no_sugar(a: T.handle):
+        A = T.match_buffer(a, shape=(16,))
+        for i in T.serial(16):
+            A[i] = 0.0
+
+    @T.prim_func
+    def func_with_sugar(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            A[i] = 0.0
+
+    assert_structural_equal(func_no_sugar, func_with_sugar)
+
+
 # match buffer failed case
 def test_match_buffer_no_kwargs_failed():
     with pytest.raises(ValueError) as e:
@@ -219,6 +234,31 @@ def test_match_buffer_int64():
     assert_structural_equal(original, after_roundtrip, True)
 
 
+def test_match_buffer_region_has_implicit_shape_dtype():
+    @T.prim_func
+    def explicit_shape_dtype(A: T.Buffer[(16, 64), "int32"]):
+        with T.block():
+            B = T.match_buffer(A[8:16, 32:64], shape=(8, 32), dtype="int32")
+            T.evaluate(0)
+
+    @T.prim_func
+    def implicit_shape_dtype(A: T.Buffer[(16, 64), "int32"]):
+        with T.block():
+            B = T.match_buffer(A[8:16, 32:64])
+            T.evaluate(0)
+
+    assert_structural_equal(explicit_shape_dtype, implicit_shape_dtype)
+
+
+def test_match_buffer_input_requires_shape_arg():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @T.prim_func
+        def func(a: T.handle):
+            A = T.match_buffer(a, dtype="int32")
+            T.evaluate(0)
+
+
 def test_letstmt_bufferload_without_type_annotation():
     # Variable assignment of PrimExpr types uses the dtype of the
     # PrimExpr to determine the variable's dtype.  Parsing of
@@ -256,9 +296,9 @@ def test_func_call():
 
     @T.prim_func
     def mma_sync_m16n16k16_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
-        B = T.match_buffer(b, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
-        C = T.match_buffer(c, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
+        A = T.match_buffer(a, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
+        B = T.match_buffer(b, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
+        C = T.match_buffer(c, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
 
         with T.block("root"):
             T.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
@@ -283,9 +323,9 @@ def test_func_call():
 
     @T.prim_func
     def mma_sync_m16n16k16_desc_manual(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
-        B = T.match_buffer(b, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
-        C = T.match_buffer(c, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
+        A = T.match_buffer(a, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
+        B = T.match_buffer(b, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
+        C = T.match_buffer(c, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
 
         with T.block("root"):
             T.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
@@ -309,7 +349,7 @@ def test_func_call():
 
     # The following is an example of an error message from calling an invalid function
 
-    # error: Error occured when invoking the function sqrt:
+    # error: Error occurred when invoking the function sqrt:
     # loop of ufunc does not support argument 0 of type Var which has no callable sqrt method
     #  --> test_tvmscript_syntax_sugar.py:334:19
     #      |

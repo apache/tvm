@@ -53,30 +53,36 @@ class TracedScheduleNode : public ConcreteScheduleNode {
                                   Optional<Array<Integer>> decision = NullOpt) final;
   LoopRV SampleComputeLocation(const BlockRV& block_rv, Optional<Integer> decision = NullOpt) final;
   /******** Schedule: Get blocks & loops ********/
-  BlockRV GetBlock(const String& name, const String& func_name = "main") final;
+  BlockRV GetBlock(const String& name, const Optional<String>& func_name) final;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) final;
   Array<BlockRV> GetChildBlocks(const BlockRV& block_rv) final;
   Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) final;
   Array<BlockRV> GetProducers(const BlockRV& block_rv) final;
   Array<BlockRV> GetConsumers(const BlockRV& block_rv) final;
   /******** Schedule: Transform loops ********/
-  LoopRV Fuse(const Array<LoopRV>& loop_rvs) final;
-  Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factor_rvs) final;
+  LoopRV Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters) final;
+  Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factor_rvs,
+                      bool preserve_unit_iters) final;
   void Reorder(const Array<LoopRV>& ordered_loop_rvs) final;
+  LoopRV AddUnitLoop(const BlockRV& block_rv) final;
+  LoopRV AddUnitLoop(const LoopRV& loop_rv) final;
   /******** Schedule: Manipulate ForKind ********/
   void Parallel(const LoopRV& loop_rv) final;
   void Vectorize(const LoopRV& loop_rv) final;
   void Bind(const LoopRV& loop_rv, const String& thread_axis) final;
   void Unroll(const LoopRV& loop_rv) final;
   /******** Schedule: Insert cache stages ********/
-  BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index,
-                    const String& storage_scope) final;
+  BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index, const String& storage_scope,
+                    const Array<BlockRV> consumer_blocks = {}) final;
   BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
                      const String& storage_scope) final;
+  BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
+                  BufferIndexType buffer_index_type) final;
   /******** Schedule: Compute location ********/
-  void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops) final;
-  void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
-                        bool preserve_unit_loops) final;
+  void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+                 int index = -1) final;
+  void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+                        int index = -1) final;
   void ComputeInline(const BlockRV& block_rv) final;
   void ReverseComputeInline(const BlockRV& block_rv) final;
   /******** Schedule: Reduction ********/
@@ -97,10 +103,14 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void Unannotate(const BlockRV& block_rv, const String& ann_key) override;
   /******** Schedule: Layout transformation ********/
   void TransformLayout(const BlockRV& block_rv, int buffer_index, BufferIndexType buffer_index_type,
-                       const IndexMap& index_map) override;
+                       const IndexMap& index_map, const Optional<IndexMap>& pad_value) override;
+  void TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) override;
   void SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
                         BufferIndexType buffer_index_type,
                         const Array<IntImm>& axis_separators) final;
+  /******** Schedule: Padding ********/
+  BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) final;
+  void PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) final;
   /******** Schedule: Misc ********/
   void EnterPostproc() final;
 };

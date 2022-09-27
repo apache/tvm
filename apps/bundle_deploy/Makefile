@@ -28,7 +28,7 @@ ENABLE_TVM_PLATFORM_ABORT_BACKTRACE ?= 1
 
 DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
 PKG_COMPILE_OPTS = -g -Wall -O2 -fPIC
-PKG_CXXFLAGS = ${PKG_COMPILE_OPTS} -std=c++14 \
+PKG_CXXFLAGS = ${PKG_COMPILE_OPTS} -std=c++17 \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \

@@ -541,6 +541,19 @@ def test_fuse_fail_nested_loop_outer():
     assert expected_sub_error_message in str(execinfo.value)
 
 
+def test_report_error_root_block():
+    sch = tir.Schedule(elementwise_non_single_branch, debug_mask="all")
+    root = sch.get_block("root")
+    with pytest.raises(tvm.tir.ScheduleError) as execinfo:
+        sch.compute_inline(root)
+    expected_sub_error_message = (
+        "        # tir.Block#0\n"
+        '        with T.block("root"):\n'
+        "        ^^^^^^^^^^^^^^^^^^^^^\n"
+    )
+    assert expected_sub_error_message in str(execinfo.value)
+
+
 def load_var_multiple() -> None:
     d = T.var("float32")
     d[2] = d[2, 1]  # error cannot provide two indices to load

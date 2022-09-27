@@ -36,17 +36,23 @@ namespace support {
 /*!
  * \brief A partial implementation of the C++20 std::span.
  *
- * At the time of writing, TVM must compile against C++14.
+ * At the time of writing, TVM must compile against C++17.
  */
 template <class T, class W>
 class Span {
  public:
   using value_type = W;
-  using const_W = typename ::std::add_const<W>::type;
+  using const_W = typename std::add_const<W>::type;
 
   template <class W1>
-  class iterator_base : public std::iterator<std::input_iterator_tag, W> {
+  class iterator_base {
    public:
+    using iterator_category = std::input_iterator_tag;
+    using value_type = W;
+    using difference_type = std::ptrdiff_t;
+    using pointer = const W*;
+    using reference = const W&;
+
     inline iterator_base(T* ptr, T* end) : ptr_{ptr}, end_{end} { CHECK_GE(end, ptr); }
 
     inline W1 operator*() { return W1(*ptr_); }
@@ -62,7 +68,7 @@ class Span {
 
     inline bool operator!=(iterator_base<W1> other) { return !(*this == other); }
 
-    template <class X = W1, typename = ::std::enable_if_t<!::std::is_const<X>::value> >
+    template <class X = W1, typename = std::enable_if_t<!std::is_const<X>::value>>
     inline operator iterator_base<const_W>() const {
       return iterator_base<const_W>(ptr_, end_);
     }

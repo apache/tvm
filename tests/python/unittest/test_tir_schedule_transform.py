@@ -15,11 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN
-
-from tvm.tir import Schedule
 from tvm.script import tir as T
+from tvm.tir import Schedule
 from tvm.tir.schedule.transform import tile_with_tensor_intrin
+from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN
 
 
 @tvm.script.ir_module
@@ -128,11 +127,10 @@ class Conv2dNCHWcVNNIModuleTiled:
             1, 16, 56, 56, 1, 1, 1, 4, 4, 1, 16, 4
         ):
             with T.block("conv2d_NCHWc_int8"):
-                n = T.axis.spatial(1, 0)
-                oc_chunk, oh, ow, oc_block = T.axis.remap("SSSS", [i1, i2, i3, i4_1])
-                kh = T.axis.reduce(1, 0)
-                kw = T.axis.reduce(1, 0)
-                ic_outer, ic_f_inner, ic_s_inner = T.axis.remap("RRR", [i7, i8, i9_1])
+                n, oc_chunk, oh, ow = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                oc_block = T.axis.spatial(16, i4_0 * 16 + i4_1)
+                kh, kw, ic_outer, ic_f_inner = T.axis.remap("RRRR", [i5, i6, i7, i8])
+                ic_s_inner = T.axis.reduce(4, i9_0 * 4 + i9_1)
                 T.reads(
                     placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
                     placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
@@ -165,14 +163,10 @@ def test_tile_with_tensor_intrin_dense_vnni():
 def test_tile_with_tensor_intrin_conv2d_nchwc_vnni():
     s = Schedule(Conv2dNCHWcVNNIModule)
     block = s.get_block("conv2d_NCHWc_int8")
-
     tiled_loop = tile_with_tensor_intrin(s, block, VNNI_DOT_16x4_INTRIN)
-
     tiled_loops = s.get_loops(block)
-
     assert len(tiled_loops) == 12
     assert s.get(tiled_loop) == s.get(tiled_loops[-2])
-
     tvm.ir.assert_structural_equal(s.mod, Conv2dNCHWcVNNIModuleTiled)
 
 

@@ -19,13 +19,32 @@
 
 #if defined(TVM_LLVM_VERSION) && TVM_LLVM_VERSION >= 70
 
+#include <llvm/ADT/ArrayRef.h>
+#include <llvm/ADT/SmallString.h>
+#include <llvm/ADT/StringRef.h>
 #include <llvm/Bitcode/BitcodeWriter.h>
-#if TVM_LLVM_VERSION <= 90
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
-#else
+#if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsHexagon.h>
 #endif
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/MDBuilder.h>
+#include <llvm/IR/Module.h>
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/Support/Alignment.h>
+#endif
+#include <llvm/Support/CodeGen.h>
 #include <llvm/Support/CommandLine.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Transforms/Utils/Cloning.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/analysis.h>
@@ -42,6 +61,7 @@
 #include "../../runtime/hexagon/hexagon_module.h"
 #include "../build_common.h"
 #include "codegen_cpu.h"
+#include "llvm_instance.h"
 
 namespace tvm {
 namespace codegen {
@@ -49,11 +69,27 @@ namespace codegen {
 // Hexagon code generation
 class CodeGenHexagon final : public CodeGenCPU {
  public:
-  void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
-            bool system_lib, bool dynamic_lookup, bool target_c_runtime) override;
-  void InitTarget(llvm::TargetMachine* tm) final;
+  void Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
+            bool dynamic_lookup, bool target_c_runtime) override;
+  void InitTarget() final;
+
+  using CodeGenCPU::VisitStmt_;
+  llvm::Value* VisitExpr_(const BufferLoadNode* op) override;
+
+  llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+                                bool skip_first_arg) override;
+  llvm::Value* CreateCallExternQHL(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+                                   bool skip_first_arg);
 
   llvm::Module* GetModulePtr() const { return module_.get(); }
+
+  uint64_t GetTypeSizeInBits(llvm::Type* type) const {
+#if TVM_LLVM_VERSION >= 100
+    return data_layout_->getTypeSizeInBits(type).getFixedSize();
+#else
+    return data_layout_->getTypeSizeInBits(type);
+#endif
+  }
 
  protected:
   void CreatePrintf(const std::string& format, llvm::ArrayRef<llvm::Value*> format_args) final;
@@ -63,61 +99,98 @@ class CodeGenHexagon final : public CodeGenCPU {
                                llvm::ArrayRef<llvm::Value*> indices, DataType value_dtype) final;
   TypedPointer CreateStructRefPtr(DataType t, llvm::Value* buf, llvm::Value* index, int kind);
 
-  llvm::GlobalVariable* InitContextPtr(llvm::Type* type, std::string name);
-  llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
+  bool IsQHLFunction(const std::string& func);
+
+  llvm::Value* VectorLookupLoad(Buffer buffer, DataType buffer_type, Array<PrimExpr> indices);
+  llvm::Value* Intrinsic(llvm::Intrinsic::ID, llvm::ArrayRef<llvm::Value*> args);
+  std::vector<std::string> fqhl_list_ = {
+      "tvm_vect_qhmath_hvx_cos_ahf",     "tvm_vect_qhmath_hvx_tanh_ahf",
+      "tvm_vect_qhmath_hvx_sigmoid_ahf", "tvm_vect_qhmath_hvx_sin_ahf",
+      "tvm_vect_qhmath_hvx_sqrt_ahf",    "tvm_vect_qhmath_hvx_exp_ahf",
+      "tvm_vect_qhmath_hvx_tan_ahf",     "tvm_vect_qhmath_hvx_floor_ahf",
+      "tvm_vect_qhmath_hvx_ceil_ahf",    "tvm_vect_qhmath_hvx_pow_ahf"};
 };
 
-void CodeGenHexagon::Init(const std::string& module_name, llvm::TargetMachine* tm,
-                          llvm::LLVMContext* ctx, bool system_lib, bool dynamic_lookup,
-                          bool target_c_runtime) {
-  CodeGenCPU::Init(module_name, tm, ctx, system_lib, dynamic_lookup, target_c_runtime);
+void CodeGenHexagon::Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
+                          bool dynamic_lookup, bool target_c_runtime) {
+  CodeGenCPU::Init(module_name, llvm_target, system_lib, dynamic_lookup, target_c_runtime);
 }
 
-void CodeGenHexagon::InitTarget(llvm::TargetMachine* tm) {
-  native_vector_bits_ = 64;  // Assume "scalar" vectors at first.
-  llvm::StringRef fs = tm->getTargetFeatureString();
-  size_t npos = llvm::StringRef::npos;
+void CodeGenHexagon::InitTarget() {
+  native_vector_bits_ = 64;                       // Assume "scalar" vectors at first.
   const auto hvx_length_feature = "+hvx-length";  // +hvx-length{64|128}b
-  size_t len_begin = fs.find(hvx_length_feature);
-  size_t len_end = len_begin != npos ? fs.find('b', len_begin) : npos;
-  if (len_end != npos) {
+  for (const std::string& f : llvm_target_->GetTargetFeatures()) {
+    llvm::StringRef fs(f);
+    if (!fs.startswith(hvx_length_feature)) continue;
+
+    ICHECK(fs.endswith("b")) << "malformed target feature: " << f;
     int hvx_bytes = 0;
-    len_begin += std::strlen(hvx_length_feature);
-    ICHECK(!fs.substr(len_begin, len_end - len_begin).getAsInteger(10, hvx_bytes))
-        << "invalid HVX length in feature string: " << fs.str();
+    size_t len_begin = std::strlen(hvx_length_feature);
+    ICHECK(!fs.substr(len_begin, fs.size() - len_begin - 1).getAsInteger(10, hvx_bytes))
+        << "invalid HVX length in feature string: " << f;
     ICHECK(hvx_bytes == 64 || hvx_bytes == 128)
         << "invalid HVX vector length: " << hvx_bytes << ", should be 64 or 128";
     native_vector_bits_ = hvx_bytes * 8;
+    // There should only be one hvx-length...
+    break;
   }
-  CodeGenLLVM::InitTarget(tm);
+  CodeGenCPU::InitTarget();
 }
 
-llvm::GlobalVariable* CodeGenHexagon::InitContextPtr(llvm::Type* p_type, std::string name) {
-  llvm::GlobalVariable* gv = new llvm::GlobalVariable(
-      *module_, p_type, false, llvm::GlobalValue::LinkOnceAnyLinkage, nullptr, name);
-#if TVM_LLVM_VERSION >= 100
-  gv->setAlignment(llvm::Align(data_layout_->getTypeAllocSize(p_type)));
+llvm::Value* CodeGenHexagon::CreateCallExternQHL(Type ret_type, String global_symbol,
+                                                 const Array<PrimExpr>& args, bool skip_first_arg) {
+  int num_lanes = args[1].dtype().lanes();
+  int vector_length = native_vector_bits_ / args[1].dtype().bits();
+  num_lanes = ((num_lanes + vector_length - 1) / vector_length) * vector_length;
+  std::vector<llvm::Value*> vect_split;
+  for (int i = 0; i < num_lanes / vector_length; ++i) {
+    std::vector<llvm::Value*> sub_vect_val;
+    std::vector<llvm::Type*> arg_types;
+    for (size_t k = skip_first_arg; k < args.size(); ++k)
+      sub_vect_val.push_back(
+          CodeGenCPU::CreateVecSlice(MakeValue(args[k]), i * vector_length, vector_length));
+    for (llvm::Value* v : sub_vect_val) {
+      arg_types.push_back(v->getType());
+    }
+    llvm::FunctionType* ftype = llvm::FunctionType::get(arg_types[0], arg_types, false);
+    llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol));
+    if (f == nullptr) {
+      f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
+                                 MakeStringRef(global_symbol), module_.get());
+    }
+#if TVM_LLVM_VERSION >= 90
+    auto ext_callee = llvm::FunctionCallee(f);
 #else
-  gv->setAlignment(data_layout_->getTypeAllocSize(p_type));
+    auto ext_callee = f;
 #endif
-  gv->setInitializer(llvm::Constant::getNullValue(p_type));
-  gv->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
-  return gv;
+    vect_split.push_back(builder_->CreateCall(ext_callee, sub_vect_val));
+  }
+  return CodeGenCPU::CreateVecConcat(vect_split);
 }
 
-llvm::Value* CodeGenHexagon::GetContextPtr(llvm::GlobalVariable* gv) {
-  ICHECK(gv != nullptr);
-#if TVM_LLVM_VERSION >= 110
-  llvm::LoadInst* faddr =
-      builder_->CreateAlignedLoad(gv->getValueType(), gv, llvm::Align(gv->getAlignment()));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::LoadInst* faddr = builder_->CreateAlignedLoad(gv->getValueType(), gv, gv->getAlignment());
-#else
-  llvm::LoadInst* faddr = builder_->CreateAlignedLoad(gv, gv->getAlignment());
-#endif
-  faddr->setMetadata("tbaa",
-                     md_builder_->createTBAAStructTagNode(md_tbaa_ctx_ptr_, md_tbaa_ctx_ptr_, 0));
-  return faddr;
+bool CodeGenHexagon::IsQHLFunction(const std::string& func) {
+  return std::find(fqhl_list_.begin(), fqhl_list_.end(), func) != fqhl_list_.end();
+}
+
+llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, String global_symbol,
+                                              const Array<PrimExpr>& args, bool skip_first_arg) {
+  int num_lanes = args[1].dtype().lanes();
+  int vector_length = native_vector_bits_ / args[1].dtype().bits();
+  if (IsQHLFunction(global_symbol) && (num_lanes > vector_length))
+    return CreateCallExternQHL(ret_type, global_symbol, args, skip_first_arg);
+  return CodeGenCPU::CreateCallExtern(ret_type, global_symbol, args, skip_first_arg);
+}
+
+llvm::Value* CodeGenHexagon::VisitExpr_(const BufferLoadNode* op) {
+  if (!op->buffer.same_as(op->buffer->data)) {
+    // Check if we can generate a vector lookup.
+    if (!op->indices[0].as<RampNode>()) {
+      if (auto* vlut = VectorLookupLoad(op->buffer, op->dtype, op->indices)) {
+        return vlut;
+      }
+    }
+  }
+  return CodeGenCPU::VisitExpr_(op);
 }
 
 void CodeGenHexagon::CreatePrintf(const std::string& format,
@@ -155,7 +228,7 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateBufferPtr(llvm::Value* buffer_pt
                                                           DataType value_dtype) {
   // Flat indices get delegated to the LLVM codegen.
   if (indices.size() == 1) {
-    return CodeGenLLVM::CreateBufferPtr(buffer_ptr, buffer_element_dtype, indices, value_dtype);
+    return CodeGenCPU::CreateBufferPtr(buffer_ptr, buffer_element_dtype, indices, value_dtype);
   }
 
   ICHECK_EQ(indices.size(), 2) << "CodegenHexagon supports 1-d and 2-d physical buffers, received "
@@ -164,14 +237,14 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateBufferPtr(llvm::Value* buffer_pt
   // Use the first index to identify the pointer.
   DataType dtype_void_ptr = DataType::Handle();
   CodeGenLLVM::TypedPointer buffer_chunk_ptr_ptr =
-      CodeGenLLVM::CreateBufferPtr(buffer_ptr, dtype_void_ptr, {indices[0]}, dtype_void_ptr);
+      CodeGenCPU::CreateBufferPtr(buffer_ptr, dtype_void_ptr, {indices[0]}, dtype_void_ptr);
   llvm::Value* buffer_chunk_ptr =
       builder_->CreateLoad(buffer_chunk_ptr_ptr.type, buffer_chunk_ptr_ptr.addr);
 
   // Then delegate the CodeGenLLVM to find the value from the second
   // index.
-  return CodeGenLLVM::CreateBufferPtr(buffer_chunk_ptr, buffer_element_dtype, {indices[1]},
-                                      value_dtype);
+  return CodeGenCPU::CreateBufferPtr(buffer_chunk_ptr, buffer_element_dtype, {indices[1]},
+                                     value_dtype);
 }
 
 CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::Value* buf,
@@ -260,6 +333,127 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::V
   return TypedPointer();
 }
 
+llvm::Value* CodeGenHexagon::Intrinsic(llvm::Intrinsic::ID IntID,
+                                       llvm::ArrayRef<llvm::Value*> args) {
+  llvm::Function* intf = llvm::Intrinsic::getDeclaration(module_.get(), IntID);
+#if TVM_LLVM_VERSION >= 90
+  auto intf_callee = llvm::FunctionCallee(intf);
+#else
+  auto intf_callee = intf;
+#endif
+  std::vector<llvm::Value*> conv_args;
+  llvm::FunctionType* intf_type = intf->getFunctionType();
+  ICHECK(args.size() == intf_type->getNumParams());
+
+  for (int i = 0, e = args.size(); i != e; ++i) {
+    llvm::Value* arg = args[i];
+    auto* need_type = llvm::dyn_cast<llvm::VectorType>(intf_type->getParamType(i));
+    auto* have_type = llvm::dyn_cast<llvm::VectorType>(arg->getType());
+    if (need_type != nullptr && have_type != nullptr && need_type != have_type) {
+      int need_width = GetTypeSizeInBits(need_type);
+      int have_width = GetTypeSizeInBits(have_type);
+      if (need_width == have_width) {
+        if (need_width == native_vector_bits_ || need_width == 2 * native_vector_bits_) {
+          arg = builder_->CreateBitCast(arg, need_type);
+        }
+      }  // TODO(joshherr-quic): add handling of v128i1 <-> v1024i1
+    }
+    conv_args.push_back(arg);
+  }
+  return builder_->CreateCall(intf_callee, conv_args);
+}
+
+llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, DataType buffer_type,
+                                              Array<PrimExpr> indices) {
+  PrimExpr index = indices[0];
+  if (!index.dtype().is_vector()) {
+    return nullptr;
+  }
+
+  if (buffer_type.bits() != 8) return nullptr;
+
+  int table_elem_count = arith::Analyzer().Simplify(buffer->shape[0]).as<IntImmNode>()->value;
+  if (table_elem_count <= 0 || table_elem_count > 256) return nullptr;
+
+  auto int32 = DataType::Int(32);
+  auto native_vector_bytes = native_vector_bits_ / 8;
+
+  // Indexes
+  llvm::Value* trunc = MakeValue(Cast(index.dtype().with_bits(8), index));
+  llvm::Value* index_pad = CreateVecPad(trunc, native_vector_bytes);
+
+  // Values
+  std::vector<llvm::Value*> vloads;
+  DataType table_type = buffer_type.with_lanes(table_elem_count);
+
+  auto table_all =
+      MakeValue(BufferLoad(buffer, {
+                                       Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),
+                                   }));
+
+  // The number of value vectors should be a power of 2.
+  int table_vec_count = llvm::PowerOf2Ceil(GetVectorBytes(table_type) / native_vector_bytes);
+  int table_vec_length = native_vector_bytes / buffer_type.bytes();
+  for (int i = 0; i != table_vec_count; ++i) {
+    // CreateVecSlice will generate undefs for elements outside the source vector.
+    vloads.push_back(CreateVecSlice(table_all, i * table_vec_length, table_vec_length));
+  }
+
+#define VLO(x) Intrinsic(llvm::Intrinsic::hexagon_V6_lo_128B, {x})
+#define VHI(x) Intrinsic(llvm::Intrinsic::hexagon_V6_hi_128B, {x})
+#define VXOR(x, y) Intrinsic(llvm::Intrinsic::hexagon_V6_vxor_128B, {x, y})
+#define VSHUFF(x) Intrinsic(llvm::Intrinsic::hexagon_V6_vshuffb_128B, {x})
+#define VSPLATB(x) Intrinsic(llvm::Intrinsic::hexagon_V6_lvsplatb_128B, {x})
+#define VLUT32(x, y, z) Intrinsic(llvm::Intrinsic::hexagon_V6_vlutvvbi_128B, {x, y, z})
+#define VLUT32_OR(v, x, y, z) \
+  Intrinsic(llvm::Intrinsic::hexagon_V6_vlutvvb_oracci_128B, {v, x, y, z})
+
+  // Shuffle table bytes:
+  // 127, 63,  126, 62,........68, 4,  67, 3,  66, 2,  65, 1,  64, 0
+  std::vector<llvm::Value*> table;
+  for (int i = 0; i != table_vec_count; ++i) table.push_back(VSHUFF(vloads[i]));
+
+  // Get each 32 byte sub-table's output
+  std::vector<llvm::Value*> results;
+  int table_iters = table_elem_count / 32;
+  for (int i = 0; i < table_iters; ++i)
+    results.push_back(VLUT32(index_pad, table[i / 4], ConstInt32(i % 8)));
+
+  // Combine outputs
+  llvm::Value* result = results[0];
+  for (int i = 1; i < table_iters; ++i) result = VXOR(result, results[i]);
+
+  llvm::Type* res_type = result->getType();
+  llvm::Type* ret_type = DTypeToLLVMType(buffer_type);
+  if (res_type == ret_type) {
+    return result;
+  }
+
+  int res_bits = GetTypeSizeInBits(res_type);
+  int ret_bits = GetTypeSizeInBits(ret_type);
+  ICHECK_GE(res_bits, ret_bits);
+  if (ret_bits < res_bits) {
+#if TVM_LLVM_VERSION >= 110
+    llvm::Type* res_byte_type = llvm::VectorType::get(t_int8_, res_bits / 8, /*Scalable*/ false);
+#else
+    llvm::Type* res_byte_type = llvm::VectorType::get(t_int8_, res_bits / 8);
+#endif
+    result = CreateVecSlice(builder_->CreateBitCast(result, res_byte_type), 0, ret_bits / 8);
+  }
+  if (result->getType() != ret_type) {
+    return builder_->CreateBitCast(result, ret_type);
+  }
+  return result;
+
+#undef VLUT32_OR
+#undef VLUT32
+#undef VSPLATB
+#undef VSHUFF
+#undef VXOR
+#undef VHI
+#undef VLO
+}
+
 namespace {
 DMLC_ATTRIBUTE_UNUSED std::ostream& operator<<(std::ostream& os, const llvm::Module& m) {
   std::string ms;
@@ -283,9 +477,8 @@ void ProcessLLVMOptions(const std::vector<std::string>& llvm_vec) {
 }  // namespace
 
 runtime::Module BuildHexagon(IRModule mod, Target target) {
-  // Make sure all targets are registered. InitializeLLVM can be called
-  // multiple times, after the first call all subsequent calls are no-ops.
-  InitializeLLVM();
+  LLVMInstance llvm_instance;
+  With<LLVMTarget> llvm_target(llvm_instance, target);
 
   auto split = [](const std::string& str, char delim = ' ') {
     std::vector<std::string> vec;
@@ -325,9 +518,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   static bool CallOnce = (ProcessLLVMOptions(llvm_options_vec), true);
   (void)CallOnce;
 
-  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(target);
-  std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
-  std::unique_ptr<CodeGenHexagon> cg(new CodeGenHexagon());
+  auto cg = std::make_unique<CodeGenHexagon>();
 
   std::vector<PrimFunc> funcs;
   std::string entry_func;
@@ -347,7 +538,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
     funcs.emplace_back(f);
   }
 
-  cg->Init("TVMHexagonModule", tm.get(), ctx.get(), false, false, false);
+  cg->Init("TVMHexagonModule", llvm_target.get(), false, false, false);
   cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
   if (entry_func.length() != 0) {
     cg->AddMainFunction(entry_func);
@@ -359,7 +550,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
 
   enum CodeGenFileType { Asm, Obj, IR, BC };
 
-  auto EmitToString = [&tm](const llvm::Module& m, CodeGenFileType cgft) {
+  auto EmitToString = [&llvm_target](const llvm::Module& m, CodeGenFileType cgft) {
     std::string out;
 
     if (cgft == IR || cgft == BC) {
@@ -369,18 +560,18 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
       else
         llvm::WriteBitcodeToFile(m, os);
     } else if (cgft == Asm || cgft == Obj) {
-      using namespace llvm;
 #if TVM_LLVM_VERSION <= 90
-      auto ft = cgft == Asm ? TargetMachine::CodeGenFileType::CGFT_AssemblyFile
-                            : TargetMachine::CodeGenFileType::CGFT_ObjectFile;
+      auto ft = cgft == Asm ? llvm::TargetMachine::CodeGenFileType::CGFT_AssemblyFile
+                            : llvm::TargetMachine::CodeGenFileType::CGFT_ObjectFile;
 #else
       auto ft = cgft == Asm ? llvm::CGFT_AssemblyFile : llvm::CGFT_ObjectFile;
 #endif
 
-      SmallString<16384> ss;  // Will grow on demand.
+      llvm::SmallString<16384> ss;  // Will grow on demand.
       llvm::raw_svector_ostream os(ss);
-      std::unique_ptr<llvm::Module> cm = CloneModule(m);
-      legacy::PassManager pass;
+      std::unique_ptr<llvm::Module> cm = llvm::CloneModule(m);
+      llvm::legacy::PassManager pass;
+      llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
       ICHECK(tm->addPassesToEmitFile(pass, os, nullptr, ft) == 0) << "Cannot emit target code";
       pass.run(*cm.get());
       out.assign(ss.c_str(), ss.size());
@@ -419,9 +610,10 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   Array<PrimExpr> o_names = {StringImm(o_name)};
   Map<String, String> extra_args;
   if (target->attrs.count("mcpu")) {
-    llvm::StringRef mcpu = Downcast<String>(target->attrs.at("mcpu"));
-    ICHECK(mcpu.startswith("hexagon")) << "unexpected -mcpu value in target:" << mcpu.str();
-    extra_args.Set("hex_arch", mcpu.drop_front(strlen("hexagon")).str());
+    std::string mcpu = Downcast<String>(target->attrs.at("mcpu"));
+    ICHECK(llvm::StringRef(mcpu).startswith("hexagon"))
+        << "unexpected -mcpu value in target:" << mcpu;
+    extra_args.Set("hex_arch", llvm::StringRef(mcpu).drop_front(strlen("hexagon")).str());
   }
   int rc = (*f)(so_name, o_names, extra_args);
   ICHECK(rc == 0) << "Failed to link " << so_name;
@@ -433,8 +625,7 @@ TVM_REGISTER_GLOBAL("target.build.hexagon").set_body_typed(BuildHexagon);
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_hexagon")
     .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
-      CodeGenLLVM* cg = new CodeGenHexagon();
-      *rv = static_cast<void*>(cg);
+      *rv = static_cast<void*>(new CodeGenHexagon());
     });
 
 }  // namespace codegen

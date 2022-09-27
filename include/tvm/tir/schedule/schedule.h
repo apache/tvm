@@ -116,6 +116,21 @@ class ScheduleNode : public runtime::Object {
   /*! \return The internally maintained trace of scheduling program execution */
   virtual Optional<Trace> trace() const = 0;
   /*!
+   * \brief Instruct the schedule to work on a function in the IRModule.
+   *
+   * By default, the schedule works on the function with the name "main", or the only function in
+   * the IRModule if there is only one. If there is multiple functions in the IRModule, and none of
+   * their names are "main", users will have to call this method to explicitly specify which
+   * function to work on.
+   *
+   * This sugar function will guide the `GetBlock` method if its `func_name` is not specified.
+   *
+   * \param func_name The name of the function to be working on
+   *
+   * \sa GetBlock
+   */
+  virtual void WorkOn(const String& func_name) = 0;
+  /*!
    * \brief Returns a copy of the schedule, including both its state and its symbol table,
    * guaranteeing that
    * 1) SRef tree is completely reconstructed;
@@ -231,12 +246,19 @@ class ScheduleNode : public runtime::Object {
   /******** Schedule: Get blocks & loops ********/
   /*!
    * \brief Retrieve a block in a specific function with its name
+   *
+   * By default, if `func_name` is not specified, the schedule will search for the block in the
+   * function that is currently being "worked on". To switch the function to be worked on, use
+   * `WorkOn` before calling this method.
+   *
    * \param name The name of the block to be retrieved
    * \param func_name The name of the function
    * \return The block retrieved
    * \note Indexing error is raised if 0 or multiple blocks exist with the specific name
+   *
+   * \sa WorkOn
    */
-  virtual BlockRV GetBlock(const String& name, const String& func_name = "main") = 0;
+  virtual BlockRV GetBlock(const String& name, const Optional<String>& func_name = NullOpt) = 0;
   /*!
    * \brief Get the parent loops of the block in its scope, from outer to inner
    * \param block_rv The query block
@@ -277,9 +299,10 @@ class ScheduleNode : public runtime::Object {
    * 3) All loops must start with 0.
    * 4) The domain of a loop to be fused cannot depend on another loop to be fused.
    * \param loop_rvs The loops to be fused
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    * \return The new loop after fusion
    */
-  virtual LoopRV Fuse(const Array<LoopRV>& loop_rvs) = 0;
+  virtual LoopRV Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Split a loop into a list of consecutive loops. It requires:
    * 1) The loop can't have annotation or thread binding.
@@ -287,9 +310,11 @@ class ScheduleNode : public runtime::Object {
    * \param loop_rv The loop to be split
    * \param factors The positive tiling factors, and at most one of which is `NullOpt`, which means
    * that factor is inferred.
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    * \return The new loops after split
    */
-  virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) = 0;
+  virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
+                              bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Reorder a list of loops. It doesn't require the loops to be consecutive.
    * It requires:
@@ -303,6 +328,18 @@ class ScheduleNode : public runtime::Object {
    * \param ordered_loop_rvs The loops in the new order
    */
   virtual void Reorder(const Array<LoopRV>& ordered_loop_rvs) = 0;
+  /*!
+   * \brief Create a new unit loop on top of the specific block.
+   * \param block_rv The block above which the new loop is created
+   * \return The new loop created
+   */
+  virtual LoopRV AddUnitLoop(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Create a new unit loop on top of the specific loop.
+   * \param loop_rv The loop above which the new loop is created
+   * \return The new loop created
+   */
+  virtual LoopRV AddUnitLoop(const LoopRV& loop_rv) = 0;
   /******** Schedule: Manipulate ForKind ********/
   /*!
    * \brief Parallelize the input loop. It requires:
@@ -349,10 +386,12 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The consumer block of the target buffer.
    * \param read_buffer_index The index of the buffer in block's read region.
    * \param storage_scope The target storage scope.
+   * \param consumer_blocks An optional list of consumers of the cache to rewrite.
    * \return The cache stage block.
    */
   virtual BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index,
-                            const String& storage_scope) = 0;
+                            const String& storage_scope,
+                            const Array<BlockRV> consumer_blocks = {}) = 0;
   /*!
    * \brief Create a block that writes a buffer region into a write cache. It requires:
    * 1) There is only one block who writes the target buffer.
@@ -364,6 +403,19 @@ class ScheduleNode : public runtime::Object {
    */
   virtual BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
                              const String& storage_scope) = 0;
+  /*!
+   * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
+   * The layout of the cache will be the same as by the iterators of the block that reads/writes the
+   * buffer. It requires:
+   * 1) There is only one block who reads/writes the target buffer
+   * 2) There is only one buffer load/store of this buffer in the block
+   * \param block_rv The block operates on the target buffer.
+   * \param buffer_index The index of the buffer in block's read or write region.
+   * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+   * \return The reindex stage block.
+   */
+  virtual BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
+                          BufferIndexType buffer_index_type) = 0;
   /******** Schedule: Compute location ********/
   /*!
    * \brief Move a producer block under the specific loop, and regenerate the
@@ -380,9 +432,13 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The block to be moved
    * \param loop_rv The loop where the block to be moved under
    * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+   * \param index The block index of the loop body subtree blocks:
+   * - `index = -1` means inserted into the last possible insertion point;
+   * - `index = -2` means inserted into the first possible insertion point;
+   * - Otherwise, `index` is a nonnegative number that indicates the insertion point
    */
-  virtual void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
-                         bool preserve_unit_loops) = 0;
+  virtual void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+                         int index = -1) = 0;
   /*!
    * \brief Move a consumer block under the specific loop, and regenerate the
    * loops induced by the block so that the buffer region consumed by the consumer block could
@@ -397,9 +453,13 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The block to be moved
    * \param loop_rv The loop where the block to be moved under
    * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+   * \param index The block index of the loop body subtree blocks:
+   * - `index = -1` means inserted into the last possible insertion point;
+   * - `index = -2` means inserted into the first possible insertion point;
+   * - Otherwise, `index` is a nonnegative number that indicates the insertion point
    */
   virtual void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
-                                bool preserve_unit_loops) = 0;
+                                bool preserve_unit_loops, int index = -1) = 0;
   /*!
    * \brief Inline a block into its consumer(s). It requires:
    * 1) The block is a complete non-root block, which only produces one buffer
@@ -541,9 +601,34 @@ class ScheduleNode : public runtime::Object {
    * \param buffer_index The index of the buffer in block's read or write region.
    * \param buffer_index_type The type of the buffer index, kRead or kWrite.
    * \param index_map The transformation to apply.
+   *
+   * \param pad_value The value to write into padding introduced by
+   *    the transformation.  If the schedule contains a producer block
+   *    for the specified buffer, the pad value will be written as
+   *    part of the producer block if possible, or after the producer
+   *    block otherwise.  Otherwise, if the buffer is an input, will
+   *    insert an annotation block to state that the padding contains
+   *    the known value.
+   *
+   *    Note: If applied to an input buffer, the calling scope is
+   *    responsible for ensuring that the pad_value is present.
+   *    Algebraic symplifications, branch elimination, and other
+   *    optimizations may assume that this precondition is met, and
+   *    may result in incorrect results being returned.
    */
   virtual void TransformLayout(const BlockRV& block_rv, int buffer_index,
-                               BufferIndexType buffer_index_type, const IndexMap& index_map) = 0;
+                               BufferIndexType buffer_index_type, const IndexMap& index_map,
+                               const Optional<IndexMap>& pad_value = NullOpt) = 0;
+
+  /*!
+   * \brief Apply a transformation represented by IndexMap to block
+   * \details The block iters and the block body are transformed by the given index_map.
+   * Outer loops corresponding to each new block iter are regenerated.
+   * The index_map is required to be bijective affine since we need its inverse mapping.
+   * \param block_rv The block to be transformed
+   * \param index_map The transformation to apply.
+   */
+  virtual void TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) = 0;
 
   /*!
    * \brief Set the axis separator of a buffer, where the buffer is specified by a block and a read
@@ -556,6 +641,35 @@ class ScheduleNode : public runtime::Object {
   virtual void SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
                                 BufferIndexType buffer_index_type,
                                 const Array<IntImm>& axis_separators) = 0;
+
+  /******** Schedule: Padding ********/
+  /*!
+   * \brief Decompose a padding block into a block filling const pad values and a block
+   * writing in-bound values.
+   * \param block_rv The block that match the padding pattern.
+   * \param loop_rv The loop above which the const filling block is inserted before.
+   * \return The const pad value filling block.
+   */
+  virtual BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) = 0;
+
+  /*!
+   * \brief Pad the computation of Einsum.
+   * \param block_rv The block that matches the Einsum pattern.
+   * \param padding The padding for each block iter.
+   * \details This schedule primitives identifies the Einsum pattern in the block body, and find its
+   * producer blocks. It then pads the computation of the Einsum pattern and its producer blocks.
+   * The output buffer and the producer buffer is resized according to the padding size. It requires
+   * the output buffer and the producer buffer to be allocated inside the PrimFunc.
+   *
+   * The padding is a list of non-negative integers, each element corresponds to the padding for
+   * each block iter in the order of block iters. The block and its producer blocks should have
+   * trivial bindings, i.e. each block iter is bound to a single loop variable. After padding, the
+   * block iter extent and the corresponding outer loop is extended by the padding size.
+   *
+   * The size of the producer buffers are infered from the padding size of the Einsum computation.
+   * The producer buffers are padded by the initial value of the corresponding reduction.
+   */
+  virtual void PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) = 0;
 
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */

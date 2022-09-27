@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 #include <tvm/meta_schedule/extracted_task.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
@@ -31,25 +30,20 @@ namespace tvm {
 namespace relay {
 namespace backend {
 
-namespace metaschedule {
-
-using meta_schedule::ExtractedTask;
-
-Array<ExtractedTask> ExtractTask(IRModule mod, Target target,
-                                 Map<String, runtime::NDArray> params) {
+Array<meta_schedule::ExtractedTask> ExtractTask(IRModule mod, Target target,
+                                                Map<String, runtime::NDArray> params) {
+  using meta_schedule::ExtractedTask;
+  backend::FTECompilerTIRConverter tir_converter = backend::GetTIRConverter();
   backend::BindParamsInModule(mod, params);
-
   // is_vm=true for backward compatibility
   Array<Pass> pass_seqs = relay::backend::GetPassPrefix(/*is_homogenous=*/true, /*is_vm=*/true);
   pass_seqs.push_back(transform::FuseOps());
 
-  transform::Sequential seq(pass_seqs);
-  auto opt_mod = seq(std::move(mod));
+  mod = transform::Sequential(pass_seqs)(std::move(mod));
 
   std::vector<ExtractedTask> tasks;
   std::unordered_map<tec::CCacheKey, ExtractedTask> cache;
-
-  PostOrderVisit(opt_mod->Lookup("main"), [target, &tasks, &cache](const Expr& exp) {
+  PostOrderVisit(mod->Lookup("main"), [&target, &tasks, &cache, &tir_converter](const Expr& exp) {
     if (exp->IsInstance<FunctionNode>()) {
       Function relay_func = Downcast<Function>(exp);
       if (!relay_func->HasNonzeroAttr(attr::kPrimitive)) {
@@ -61,34 +55,26 @@ Array<ExtractedTask> ExtractTask(IRModule mod, Target target,
         it->second->weight += 1;
         return;
       }
-      Array<te::Tensor> inputs_outputs;
-      std::string fused_name;
-      std::tie(inputs_outputs, fused_name) =
+      auto [inputs_outputs, constants, fused_name] =
           tec::LowerTECompute(relay_func, target, /*return_inputs=*/true);
-      auto prim_func = tir::CreatePrimFunc(inputs_outputs);
-      GlobalVar prim_fn_var(fused_name);
-      IRModule relay_mod({{prim_fn_var, relay_func}});
-      IRModule tir_mod({{prim_fn_var, prim_func}});
-      ExtractedTask extracted_task(fused_name, relay_mod, target, {tir_mod}, 1);
-      tasks.push_back(extracted_task);
-      cache.emplace(cache_key, extracted_task);
+      if (Optional<tir::PrimFunc> f = tir_converter(inputs_outputs, constants)) {
+        IRModule relay_mod({{GlobalVar(fused_name), relay_func}});
+        ExtractedTask task(fused_name, relay_mod, target, {PrimFuncToIRModule(f.value())}, 1);
+        tasks.push_back(task);
+        cache.emplace(cache_key, task);
+      }
     }
   });
   // Tasks are extracted via post order visit, return the reversed list.
   std::reverse(tasks.begin(), tasks.end());
-  std::unordered_map<std::string, int> name_map;
+  NameSupply name_supply = NameSupply("");
   for (ExtractedTask task : tasks) {
-    task->task_name = tec::GetUniqueName(task->task_name, &name_map);
+    task->task_name = name_supply->FreshName(task->task_name);
   }
   return tasks;
 }
 
-}  // namespace metaschedule
-
-TVM_REGISTER_GLOBAL("relay.backend.MetaScheduleExtractTask")
-    .set_body_typed([](IRModule mod, Target target, Map<String, runtime::NDArray> params) {
-      return metaschedule::ExtractTask(mod, target, params);
-    });
+TVM_REGISTER_GLOBAL("relay.backend.MetaScheduleExtractTask").set_body_typed(ExtractTask);
 
 }  // namespace backend
 }  // namespace relay

@@ -26,13 +26,25 @@ from .. import op as _op
 
 
 @batch_matmul_strategy.register("hexagon")
-def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
+def batch_matmul_strategy_hexagon(attrs, inputs, out_type, target):
     """batch_matmul strategy for Hexagon"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_batch_matmul(topi.nn.batch_matmul),
         wrap_topi_schedule(topi.hexagon.schedule_batch_matmul),
         name="batch_matmul.hexagon",
+    )
+    return strategy
+
+
+@concatenate_strategy.register("hexagon")
+def concatenate_strategy_hexagon(attrs, inputs, out_type, target):
+    """concatenate strategy for Hexagon"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_concat(topi.concatenate),
+        wrap_topi_schedule(topi.hexagon.schedule_injective),
+        name="concatenate.hexagon",
     )
     return strategy
 
@@ -154,6 +166,13 @@ def schedule_concatenate_hexagon(attrs, outs, target):
     """Schedule concatenate ops for Hexagon"""
     with target:
         return topi.hexagon.schedule_injective(outs)
+
+
+@schedule_pad.register("hexagon")
+def schedule_pad_hexagon(attrs, outs, target):
+    """Schedule pad ops for Hexagon"""
+    with target:
+        return topi.hexagon.schedule_pad(outs)
 
 
 @schedule_pool.register("hexagon")

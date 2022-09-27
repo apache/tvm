@@ -28,12 +28,37 @@
 #include <tvm/tir/op.h>
 
 #include "../../../op/call/call.h"
+#include "tvm/tir/function.h"
 
 namespace tvm {
 namespace relay {
 namespace contrib {
 namespace example_target_hooks {
 
+namespace {
+
+/*!
+ * \brief An example mutator for a "RelayToTIR" custom pass. Replaces every call to a Relay
+ * Function with "external_symbol" attribute of "replace_add_with_subtract" with a call to a
+ * TIR PrimFunc implementing subtraction.
+ *
+ * Illustrates six aspects a custom 'lowering' style pass may need to account for:
+ *  - Lowerable functions can appear inline as call ops, bound to let-bound variables, or as
+ *    global functions.
+ *  - Let-bound lowerable functions should be inlined on-the-fly since after processing the
+ *    let-binding is no longer required.
+ *  - There may be multiple calls to the same lowerable function. All calls need to be
+ *    rewritten, even though the function itself need be rewritten only once.
+ *  - GlobalVars must be shared between all calls and the new definition itself.
+ *  - Calls to lowered functions must use the "call_lowered" calling convention.
+ *  - The Target::Current() may hold an instance of the TargetKind from which the custom Pass
+ *    was extracted.
+ *
+ * Though not illustrated here, it is also valid for a "RelayToTIR" custom pass to add
+ * runtime::Modules to the output IRModule's "external_mods" attribute. In this case the
+ * IRModule must be left with an 'extern' Function definition with the matching "external_symbol"
+ * name.
+ */
 class ConvertAddToSubtract : public MixedModeMutator {
  public:
   explicit ConvertAddToSubtract(IRModule ir_module, Target host_target)
@@ -56,51 +81,102 @@ class ConvertAddToSubtract : public MixedModeMutator {
     return tir::BufferLoad(buffer, {index});
   }
 
-  void ReplaceAddWithSubtractPrimFunc(const GlobalVar& new_global_var, const Function& func) {
-    tir::Buffer x_buffer = tir::decl_buffer({8}, DataType::Float(32), "x");
-    tir::Buffer y_buffer = tir::decl_buffer({8}, DataType::Float(32), "y");
-    tir::Buffer out_buffer = tir::decl_buffer({8}, DataType::Float(32));
+  GlobalVar ReplaceAddWithSubtractPrimFunc(const Function& func) {
+    auto func_name = func->GetAttr<String>(::tvm::attr::kGlobalSymbol);
+    ICHECK(func_name.defined());
 
-    tir::Var x_var("x", DataType::Handle());
-    tir::Var y_var("y", DataType::Handle());
-    tir::Var out_var("out", DataType::Handle());
+    // --------------------------------------------------------------------------------------------
+    // Cases:
+    //  - Inline function:
+    //     - First encounter: create global var, rewrite to PrimFunc, add binding, replace call.
+    //     - Thereafter (via object sharing): discover global var already in module, replace call
+    //  - Global function:
+    //     - Assume func_name == global_var->name_hint
+    //     - First encounter: create global var, rewrite to PrimFunc, update binding, replace call
+    //     - Thereafter (via global var): discover global var already in module, replace call
+    // --------------------------------------------------------------------------------------------
 
-    Map<String, ObjectRef> dict_attrs;
-    dict_attrs.Set("global_symbol", new_global_var->name_hint);
-    dict_attrs.Set("tir.noalias", Bool(true));
-
-    te::Var index("index", DataType::Int(32));
-    tir::Sub indexed_sub = tir::Sub(LoadIndex(x_buffer, index), LoadIndex(y_buffer, index));
-    tir::Stmt math_body = tir::BufferStore(out_buffer, indexed_sub, {index});
-    tir::Stmt math_loop = tir::For(index, 0, 8, tir::ForKind::kSerial, math_body);
-
-    Map<tir::Var, tir::Buffer> buffer_map = {
-        {x_var, x_buffer},
-        {y_var, y_buffer},
-        {out_var, out_buffer},
-    };
-
-    tir::PrimFunc replacement_func = tir::PrimFunc({x_var, y_var, out_var}, math_loop, VoidType(),
-                                                   buffer_map, DictAttrs(dict_attrs));
-
-    // Switch to TIRToRuntime hook for testing
-    Bool tir_to_runtime = func->GetAttr<Bool>("tir_to_runtime").value_or(Bool(false));
-    if (tir_to_runtime) {
-      replacement_func = WithAttr(replacement_func, ::tvm::attr::kTarget, custom_target_);
+    // If necessary, introduce a new global var to map the function to and copy the source type
+    // over for InferType.
+    GlobalVar global_var;
+    bool need_rewriting;
+    if (ir_module_->ContainGlobalVar(func_name.value())) {
+      global_var = ir_module_->GetGlobalVar(func_name.value());
+      // Only rewrite to a PrimFunc if the global definition is still a Relay function.
+      need_rewriting = ir_module_->Lookup(global_var)->IsInstance<FunctionNode>();
     } else {
-      replacement_func = WithAttr(replacement_func, ::tvm::attr::kTarget, host_target_);
+      global_var = GlobalVar(func_name.value());
+      global_var->checked_type_ = func->checked_type();
+      need_rewriting = true;
     }
 
-    ir_module_->Add(new_global_var, replacement_func);
+    // For illustration only, check if the current target matches the example_target_hook kind,
+    // and if so extract the example attribute value.
+    int64_t example_attribute_value = 0;
+    Optional<Target> opt_current_target = Target::Current();
+    if (opt_current_target.defined() &&
+        opt_current_target.value()->kind->name == "example_target_hook") {
+      example_attribute_value =
+          opt_current_target.value()->GetAttr<Integer>("example_attribute").value()->value;
+    }
+
+    if (need_rewriting) {
+      // The called function is still in Relay form. Convert to TIR.
+      tir::Buffer x_buffer = tir::decl_buffer({8}, DataType::Float(32), "x");
+      tir::Buffer y_buffer = tir::decl_buffer({8}, DataType::Float(32), "y");
+      tir::Buffer out_buffer = tir::decl_buffer({8}, DataType::Float(32));
+
+      tir::Var x_var("x", DataType::Handle());
+      tir::Var y_var("y", DataType::Handle());
+      tir::Var out_var("out", DataType::Handle());
+
+      Map<String, ObjectRef> dict_attrs;
+      dict_attrs.Set("global_symbol", global_var->name_hint);
+      dict_attrs.Set("tir.noalias", Bool(true));
+
+      te::Var index("index", DataType::Int(32));
+      tir::Sub indexed_sub = tir::Sub(LoadIndex(x_buffer, index), LoadIndex(y_buffer, index));
+      if (example_attribute_value > 0) {
+        // For illustration only, fold the example attribute into the result.
+        indexed_sub = tir::Sub(indexed_sub, FloatImm(DataType::Float(32),
+                                                     static_cast<double>(example_attribute_value)));
+      }
+
+      tir::Stmt math_body = tir::BufferStore(out_buffer, indexed_sub, {index});
+      tir::Stmt math_loop = tir::For(index, 0, 8, tir::ForKind::kSerial, math_body);
+
+      Map<tir::Var, tir::Buffer> buffer_map = {
+          {x_var, x_buffer},
+          {y_var, y_buffer},
+          {out_var, out_buffer},
+      };
+
+      tir::PrimFunc replacement_func = tir::PrimFunc({x_var, y_var, out_var}, math_loop, VoidType(),
+                                                     buffer_map, DictAttrs(dict_attrs));
+
+      // Switch to TIRToRuntime hook for testing
+      Bool tir_to_runtime = func->GetAttr<Bool>("tir_to_runtime").value_or(Bool(false));
+      if (tir_to_runtime) {
+        replacement_func = WithAttr(replacement_func, ::tvm::attr::kTarget, custom_target_);
+      } else {
+        replacement_func = WithAttr(replacement_func, ::tvm::attr::kTarget, host_target_);
+      }
+
+      ir_module_->Update(global_var, replacement_func);  // Will Add if global_var is new.
+    }
+
+    return global_var;
   }
+
+  using MixedModeMutator::VisitExpr_;
 
   Expr VisitExpr_(const LetNode* op) final {
     auto pre_visit = [this](const LetNode* op) {
       Expr var = this->VisitExpr(op->var);
       Expr value = this->VisitExpr(op->value);
 
-      // Outlineable function no longer needs let binding
-      if (this->CanLowerExpr(value)) {
+      if (AsLowerableFunction(value)) {
+        // Inline on-the-fly if the let-bound value is lowerable.
         this->memo_[var] = value;
       }
     };
@@ -110,8 +186,8 @@ class ConvertAddToSubtract : public MixedModeMutator {
       Expr body = this->VisitExpr(op->body);
       auto expr = GetRef<Expr>(op);
 
-      // Drop the let binding
-      if (this->CanLowerExpr(value)) {
+      if (AsLowerableFunction(value)) {
+        // The let binding is no longer needed since inlined on-the-fly above.
         this->memo_[expr] = this->VisitExpr(op->body);
       } else {
         Var var = Downcast<Var>(this->VisitExpr(op->var));
@@ -126,39 +202,49 @@ class ConvertAddToSubtract : public MixedModeMutator {
     return memo_[GetRef<Expr>(op)];
   }
 
-  bool CanLowerExpr(const Expr& expr) {
-    const auto* func = expr.as<FunctionNode>();
-    if (func == nullptr) {
-      return false;
+  const FunctionNode* AsLowerableFunction(const Expr& expr) {
+    if (const auto* function_node = expr.as<FunctionNode>()) {
+      auto func_name = function_node->GetAttr<String>(::tvm::attr::kGlobalSymbol);
+      if (!func_name.defined()) {
+        return nullptr;
+      }
+      if (func_name != "replace_add_with_subtract") {
+        return nullptr;
+      }
+      return function_node;
+    } else if (const auto* global_var_node = expr.as<GlobalVarNode>()) {
+      return AsLowerableFunction(ir_module_->Lookup(GetRef<GlobalVar>(global_var_node)));
+    } else {
+      return nullptr;
     }
-    auto func_name = func->GetAttr<String>(::tvm::attr::kGlobalSymbol);
-    if (!func_name.defined()) {
-      return false;
+  }
+
+  const GlobalVarNode* AsAlreadyLoweredFunction(const Expr& expr) {
+    if (const auto* global_var_node = expr.as<GlobalVarNode>()) {
+      if (ir_module_->Lookup(GetRef<GlobalVar>(global_var_node)).as<tir::PrimFuncNode>()) {
+        return global_var_node;
+      }
     }
-    if (func_name != "replace_add_with_subtract") {
-      return false;
-    }
-    return true;
+    return nullptr;
   }
 
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
-    if (const CallNode* call = post.as<CallNode>()) {
-      if (CanLowerExpr(call->op)) {
-        auto* func = call->op.as<FunctionNode>();
-        auto func_name = func->GetAttr<String>(::tvm::attr::kGlobalSymbol);
-
-        // Introduce a new global var to map the function to and copy the source type
-        // over for InferType
-        GlobalVar new_global_var(func_name.value());
-        new_global_var->checked_type_ = func->checked_type();
-        ReplaceAddWithSubtractPrimFunc(new_global_var, GetRef<Function>(func));
-
+    if (const auto* call = post.as<CallNode>()) {
+      GlobalVar new_op;
+      if (const auto* function_node = AsLowerableFunction(call->op)) {
+        // Add or replace the function with a PrimFunc.
+        new_op = ReplaceAddWithSubtractPrimFunc(GetRef<Function>(function_node));
+      } else if (const auto* global_var_node = AsAlreadyLoweredFunction(call->op)) {
+        // The function has already been rewritten, so we just need to update the call.
+        new_op = GetRef<GlobalVar>(global_var_node);
+      }
+      if (new_op.defined()) {
         // Since we are replacing the Relay function with a call to a TIR function, we must use
         // the call_lowered op.
         CallLoweredAttrs attrs;
         attrs.metadata.Set("relay_attrs", call->attrs);
         ICHECK(call->type_args.empty()) << "lowered functions cannot be polymorphic";
-        return CallLowered(std::move(new_global_var), call->args, std::move(attrs), call->span);
+        return CallLowered(std::move(new_op), call->args, std::move(attrs), call->span);
       }
     }
 
@@ -171,10 +257,12 @@ class ConvertAddToSubtract : public MixedModeMutator {
   Target custom_target_;
 };
 
+}  // namespace
+
 transform::Pass RelayToTIR() {
   runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
       [=](IRModule ir_module, transform::PassContext pass_context) {
-        auto relay_to_tir = ConvertAddToSubtract(ir_module, Target("c"));
+        ConvertAddToSubtract relay_to_tir(std::move(ir_module), Target("c"));
         return relay_to_tir.Mutate();
       };
   return tvm::transform::CreateModulePass(pass_func, 0, "RelayToTIR", {});

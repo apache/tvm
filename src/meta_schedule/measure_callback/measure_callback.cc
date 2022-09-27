@@ -21,6 +21,16 @@
 namespace tvm {
 namespace meta_schedule {
 
+void PyMeasureCallbackNode::Apply(const TaskScheduler& task_scheduler,                //
+                                  int task_id,                                        //
+                                  const Array<MeasureCandidate>& measure_candidates,  //
+                                  const Array<BuilderResult>& builds,                 //
+                                  const Array<RunnerResult>& results) {
+  ICHECK(f_apply != nullptr) << "PyMeasureCallback's Apply method not implemented!";
+  auto _ = Profiler::TimedScope("MeasureCallback/" + this->f_as_string());
+  return f_apply(task_scheduler, task_id, measure_candidates, builds, results);
+}
+
 MeasureCallback MeasureCallback::PyMeasureCallback(PyMeasureCallbackNode::FApply f_apply,  //
                                                    PyMeasureCallbackNode::FAsString f_as_string) {
   ObjectPtr<PyMeasureCallbackNode> n = make_object<PyMeasureCallbackNode>();

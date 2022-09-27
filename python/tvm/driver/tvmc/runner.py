@@ -24,6 +24,8 @@ from typing import Dict, Optional, Union
 from tarfile import ReadError
 import argparse
 import sys
+import json
+
 import numpy as np
 
 import tvm
@@ -33,6 +35,7 @@ from tvm.autotvm.measure import request_remote
 from tvm.contrib import graph_executor as executor
 from tvm.contrib.debugger import debug_executor
 from tvm.runtime import profiler_vm
+from tvm.relay.param_dict import load_param_dict
 from . import TVMCException
 from .arguments import TVMCSuppressedArgumentParser
 from .project import (
@@ -89,7 +92,8 @@ def add_run_parser(subparsers, main_parser, json_params):
     parser.add_argument(
         "--print-time",
         action="store_true",
-        help="record and print the execution time(s). (non-micro devices only)",
+        help="record and print the execution time(s). Enabling print-time will result "
+        " in (1 + repeat * number) executions of the model. (non-micro devices only)",
     )
     parser.add_argument(
         "--print-top",
@@ -109,13 +113,24 @@ def add_run_parser(subparsers, main_parser, json_params):
         "--end-to-end",
         action="store_true",
         help="Measure data transfers as well as model execution. This can provide a "
-        "more realistic performance measurement in many cases.",
+        "more realistic performance measurement in many cases. Requires "
+        "'--print-time' to be specified.",
     )
     parser.add_argument(
-        "--repeat", metavar="N", type=int, default=1, help="run the model n times. Defaults to '1'"
+        "--repeat",
+        metavar="N",
+        type=int,
+        default=1,
+        help="How many times to repeat the run. Requires '--print-time' to be "
+        "specified. Defaults to '1'",
     )
     parser.add_argument(
-        "--number", metavar="N", type=int, default=1, help="repeat the run n times. Defaults to '1'"
+        "--number",
+        metavar="N",
+        type=int,
+        default=1,
+        help="The number of runs to measure within each repeat. Requires "
+        "'--print-time' to be specified. Defaults to '1'",
     )
     parser.add_argument(
         "--rpc-key",
@@ -270,6 +285,7 @@ def drive_run(args):
         rpc_key=args.rpc_key,
         inputs=inputs,
         fill_mode=args.fill_mode,
+        benchmark=args.print_time,
         repeat=args.repeat,
         number=args.number,
         profile=args.profile,
@@ -290,6 +306,56 @@ def drive_run(args):
     if args.outputs:
         # Save the outputs
         result.save(args.outputs)
+
+
+def get_input_info(graph_str: str, params: Dict[str, tvm.nd.NDArray]):
+    """Return the 'shape' and 'dtype' dictionaries for the input
+    tensors of a compiled module.
+
+    .. note::
+        We can't simply get the input tensors from a TVM graph
+        because weight tensors are treated equivalently. Therefore, to
+        find the input tensors we look at the 'arg_nodes' in the graph
+        (which are either weights or inputs) and check which ones don't
+        appear in the params (where the weights are stored). These nodes
+        are therefore inferred to be input tensors.
+
+    .. note::
+        There exists a more recent API to retrieve the input information
+        directly from the module. However, this isn't supported when using
+        with RPC due to a lack of support for Array and Map datatypes.
+        Therefore, this function exists only as a fallback when RPC is in
+        use. If RPC isn't being used, please use the more recent API.
+
+    Parameters
+    ----------
+    graph_str : str
+        JSON graph of the module serialized as a string.
+    params : dict
+        Parameter dictionary mapping name to value.
+
+    Returns
+    -------
+    shape_dict : dict
+        Shape dictionary - {input_name: tuple}.
+    dtype_dict : dict
+        dtype dictionary - {input_name: dtype}.
+    """
+
+    shape_dict = {}
+    dtype_dict = {}
+    params_dict = load_param_dict(params)
+    param_names = [k for (k, v) in params_dict.items()]
+    graph = json.loads(graph_str)
+    for node_id in graph["arg_nodes"]:
+        node = graph["nodes"][node_id]
+        # If a node is not in the params, infer it to be an input node
+        name = node["name"]
+        if name not in param_names:
+            shape_dict[name] = graph["attrs"]["shape"][1][node_id]
+            dtype_dict[name] = graph["attrs"]["dltype"][1][node_id]
+
+    return shape_dict, dtype_dict
 
 
 def generate_tensor_data(shape: tuple, dtype: str, fill_mode: str):
@@ -409,6 +475,7 @@ def run_module(
     rpc_key: Optional[str] = None,
     inputs: Optional[Dict[str, np.ndarray]] = None,
     fill_mode: str = "random",
+    benchmark: bool = False,
     repeat: int = 10,
     number: int = 10,
     profile: bool = False,
@@ -442,23 +509,26 @@ def run_module(
         The fill-mode to use when generating data for input tensors.
         Valid options are "zeros", "ones" and "random".
         Defaults to "random".
+    benchmark : bool, optional
+        Whether to benchmark the execution of the module. Enabling benchmark will
+        result in (1 + repeat * number) executions of the model.
     repeat : int, optional
-        How many times to repeat the run.
+        How many times to repeat the run. Requires `benchmark` to be set to True.
     number : int, optional
         The number of runs to measure within each repeat.
+        Requires `benchmark` to be set to True.
     profile : bool
         Whether to profile the run with the debug executor.
     end_to_end : bool
         Whether to measure the time of memory copies as well as model
         execution. Turning this on can provide a more realistic estimate
         of how long running the model in production would take.
+        Requires `benchmark` to be set to True.
 
     Returns
     -------
-    outputs : dict
-        a dictionary with output tensors, generated by the module
-    times : list of str
-        execution times generated by the time evaluator
+    TVMCResult
+        The results of the run, including the output data.
     """
     if not isinstance(tvmc_package, TVMCPackage):
         raise TVMCException(
@@ -552,14 +622,19 @@ def run_module(
                 exe = vm.VirtualMachine(lib, dev)
 
             exe_outputs = exe.invoke("main", **input_tensor)
-            times = exe.benchmark(
-                dev,
-                **input_tensor,
-                func_name="main",
-                repeat=repeat,
-                number=number,
-                end_to_end=end_to_end,
-            )
+
+            if benchmark:
+                times = exe.benchmark(
+                    dev,
+                    **input_tensor,
+                    func_name="main",
+                    repeat=repeat,
+                    number=number,
+                    end_to_end=end_to_end,
+                )
+            else:
+                exe.run(**input_tensor)
+                times = []
 
             # Special handling if the output only has a single value
             if not isinstance(exe_outputs, list):
@@ -586,7 +661,14 @@ def run_module(
             module.load_params(tvmc_package.params)
 
             logger.debug("Collecting graph input shape and type:")
-            shape_dict, dtype_dict = module.get_input_info()
+
+            if isinstance(session, tvm.rpc.client.RPCSession):
+                # RPC does not support datatypes such as Array and Map,
+                # fallback to obtaining input information from graph json.
+                shape_dict, dtype_dict = get_input_info(tvmc_package.graph, tvmc_package.params)
+            else:
+                shape_dict, dtype_dict = module.get_input_info()
+
             logger.debug("Graph input shape: %s", shape_dict)
             logger.debug("Graph input type: %s", dtype_dict)
 
@@ -602,7 +684,7 @@ def run_module(
                 # This print is intentional
                 print(report)
 
-            if device == "micro":
+            if not benchmark or device == "micro":
                 # TODO(gromero): Fix time_evaluator() for micro targets. Once it's
                 # fixed module.benchmark() can be used instead and this if/else can
                 # be removed.

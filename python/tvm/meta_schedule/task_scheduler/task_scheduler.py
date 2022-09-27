@@ -19,6 +19,11 @@
 import logging
 from typing import Callable, List, Optional
 
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
+
 from tvm._ffi import register_object
 from tvm.runtime import Object
 
@@ -30,7 +35,6 @@ from ..measure_callback import MeasureCallback
 from ..runner import Runner, RunnerResult
 from ..tune_context import TuneContext
 from ..utils import make_logging_func
-
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -177,9 +181,9 @@ class PyTaskScheduler:
             "builder",
             "runner",
             "database",
-            "max_trials",
             "cost_model",
             "measure_callbacks",
+            "max_trials",
         ],
         "methods": [
             "tune",
@@ -195,18 +199,19 @@ class PyTaskScheduler:
         tasks: List[TuneContext],
         builder: Builder,
         runner: Runner,
-        database: Database,
-        max_trials: int,
+        *,
+        database: Optional[Database] = None,
         cost_model: Optional[CostModel] = None,
         measure_callbacks: Optional[List[MeasureCallback]] = None,
+        max_trials: int,
     ):
         self.tasks = tasks
         self.builder = builder
         self.runner = runner
         self.database = database
-        self.max_trials = max_trials
         self.cost_model = cost_model
         self.measure_callbacks = measure_callbacks
+        self.max_trials = max_trials
 
     def tune(self) -> None:
         """Auto-tuning."""
@@ -255,3 +260,18 @@ class PyTaskScheduler:
         """
         # Using self._outer to replace the self pointer
         _ffi_api.TaskSchedulerTouchTask(self._outer(), task_id)  # type: ignore # pylint: disable=no-member
+
+
+def create(  # pylint: disable=keyword-arg-before-vararg
+    kind: Literal["round-robin", "gradient"] = "gradient",
+    *args,
+    **kwargs,
+) -> "TaskScheduler":
+    """Create a task scheduler."""
+    from . import GradientBased, RoundRobin  # pylint: disable=import-outside-toplevel
+
+    if kind == "round-robin":
+        return RoundRobin(*args, **kwargs)
+    if kind == "gradient":
+        return GradientBased(*args, **kwargs)
+    raise ValueError(f"Unknown TaskScheduler name: {kind}")

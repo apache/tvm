@@ -16,8 +16,6 @@
 # under the License.
 
 """CMSIS-NN integration tests: Softmax"""
-
-import sys
 import itertools
 
 import numpy as np
@@ -26,16 +24,16 @@ import pytest
 import tvm.testing
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
+from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
 
-from utils import (
+from .utils import (
     skip_if_no_reference_system,
     make_module,
     get_range_for_dtype_str,
     assert_partitioned_function,
     assert_no_external_function,
+    create_test_runner,
 )
-from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
-from tvm.micro.testing.aot_test_utils import AOT_USMP_CORSTONE300_RUNNER
 
 
 def make_model(
@@ -59,12 +57,15 @@ def make_model(
 
 
 @skip_if_no_reference_system
-@pytest.mark.parametrize(["zero_point", "scale"], [[33, 0.256], [-64, 0.0128]])
 @tvm.testing.requires_cmsisnn
-def test_op_int8(zero_point, scale):
+@pytest.mark.parametrize(["zero_point", "scale"], [[33, 0.256], [-64, 0.0128]])
+@pytest.mark.parametrize(
+    "compiler_cpu, cpu_flags", [("cortex-m55", "+nomve"), ("cortex-m55", ""), ("cortex-m7", "")]
+)
+def test_op_int8(zero_point, scale, compiler_cpu, cpu_flags):
+    """Tests int8 QNN Softmax for CMSIS-NN"""
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     dtype = "int8"
     shape = [1, 16, 16, 3]
@@ -85,13 +86,14 @@ def test_op_int8(zero_point, scale):
     output_list = generate_ref_data(orig_mod["main"], inputs, params)
     compile_and_run(
         AOTTestModel(module=cmsisnn_mod, inputs=inputs, outputs=output_list, params=params),
-        test_runner,
+        create_test_runner(compiler_cpu, cpu_flags),
         interface_api,
         use_unpacked_api,
     )
 
 
 def parameterize_for_invalid_model(test):
+    """Generates parameters for non int8 input and output of Softmax"""
     in_dtype = ["uint8", "int8"]
     out_dtype = ["uint8", "int8"]
     zero_point = [-128, 64]
@@ -119,6 +121,7 @@ def parameterize_for_invalid_model(test):
 @parameterize_for_invalid_model
 @tvm.testing.requires_cmsisnn
 def test_invalid_parameters(in_dtype, out_dtype, zero_point, scale, out_zero_point, out_scale):
+    """Tests for non int8 input and output of Softmax"""
     model = make_model(
         [1, 16, 16, 3], in_dtype, out_dtype, zero_point, scale, out_zero_point, out_scale
     )

@@ -28,6 +28,7 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     data, kernel = inputs
     dilation_h, dilation_w = attrs.get_int_tuple("dilation")
+    stride_h, stride_w = attrs.get_int_tuple("strides")
     groups = attrs.groups
     data_layout = attrs.data_layout
     kernel_layout = attrs.kernel_layout
@@ -35,37 +36,59 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
         raise ValueError("dilation should be positive value")
 
     if groups == 1:
-        if (data_layout == "NCHW" and kernel_layout == "OIHW") or (
-            data_layout == "NCHW4c" and kernel_layout == "OIHW4o"
+        if (
+            (data_layout == "NCHW" and kernel_layout == "OIHW")
+            or (data_layout == "NCHW4c" and kernel_layout == "OIHW4o")
+            or (data_layout == "NCHW" and kernel_layout == "OIHW4o")
         ):
-            if out_type.dtype == "float16":
+            if len(kernel.shape) == 4:
+                _, _, kh, kw = get_const_tuple(kernel.shape)
+            else:
+                _, _, kh, kw, _ = get_const_tuple(kernel.shape)
+            if (
+                (2 < kh < 8 and 2 < kw < 8 and kh == kw)
+                and (stride_h == 1 and stride_w == 1)
+                and (dilation_h == 1 and dilation_w == 1)
+                and not (data_layout == "NCHW" and kernel_layout == "OIHW4o")
+            ):
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.adreno.conv2d_nchwc),
-                    wrap_topi_schedule(topi.adreno.schedule_conv2d_nchwc),
-                    name="conv2d_nchwc.image2d",
-                    plevel=10,
+                    wrap_compute_conv2d(topi.adreno.conv2d_nchw_winograd),
+                    wrap_topi_schedule(topi.adreno.schedule_conv2d_nchw_winograd),
+                    name="conv2d_nchw_winograd.image2d",
+                    plevel=5,
                 )
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.adreno.conv2d_nchwc_acc32),
-                wrap_topi_schedule(topi.adreno.schedule_conv2d_nchwc_acc32),
-                name="conv2d_nchwc_tpack.image2d",
-                plevel=20,
+                wrap_compute_conv2d(topi.adreno.conv2d_nchwc),
+                wrap_topi_schedule(topi.adreno.schedule_conv2d_nchwc),
+                name="conv2d_nchwc.image2d",
+                plevel=10,
             )
-        elif (data_layout == "NHWC" and kernel_layout == "HWIO") or (
-            data_layout == "NHWC4c" and kernel_layout == "HWIO4o"
+        elif (
+            (data_layout == "NHWC" and kernel_layout == "HWIO")
+            or (data_layout == "NHWC4c" and kernel_layout == "HWIO4o")
+            or (data_layout == "NHWC" and kernel_layout == "HWIO4o")
         ):
-            if out_type.dtype == "float16":
+            if len(kernel.shape) == 4:
+                kh, kw, _, _ = get_const_tuple(kernel.shape)
+            else:
+                kh, kw, _, _, _ = get_const_tuple(kernel.shape)
+            if (
+                (2 < kh < 8 and 2 < kw < 8 and kh == kw)
+                and (stride_h == 1 and stride_w == 1)
+                and (dilation_h == 1 and dilation_w == 1)
+                and not (data_layout == "NHWC" and kernel_layout == "HWIO4o")
+            ):
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.adreno.conv2d_nhwc),
-                    wrap_topi_schedule(topi.adreno.schedule_conv2d_nhwc),
-                    name="conv2d_nhwc.image2d",
-                    plevel=10,
+                    wrap_compute_conv2d(topi.adreno.conv2d_nhwc_winograd),
+                    wrap_topi_schedule(topi.adreno.schedule_conv2d_nhwc_winograd),
+                    name="conv2d_nhwc_winograd.image2d",
+                    plevel=5,
                 )
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.adreno.conv2d_nhwc_acc32),
-                wrap_topi_schedule(topi.adreno.schedule_conv2d_nhwc_acc32),
-                name="conv2d_nhwc_acc32.image2d",
-                plevel=20,
+                wrap_compute_conv2d(topi.adreno.conv2d_nhwc),
+                wrap_topi_schedule(topi.adreno.schedule_conv2d_nhwc),
+                name="conv2d_nhwc.image2d",
+                plevel=10,
             )
         else:
             raise RuntimeError(
@@ -104,35 +127,21 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
             if (data_layout == "NCHW" and kernel_layout == "OIHW") or (
                 data_layout == "NCHW4c" and kernel_layout == "OIHW4o"
             ):
-                if out_type.dtype == "float16":
-                    strategy.add_implementation(
-                        wrap_compute_conv2d(topi.adreno.depthwise_conv2d_nchwc),
-                        wrap_topi_schedule(topi.adreno.schedule_depthwise_conv2d_nchwc),
-                        name="depthwise_conv2d_nchwc.image2d",
-                        plevel=10,
-                    )
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.adreno.depthwise_conv2d_nchwc_acc32),
-                    wrap_topi_schedule(topi.adreno.schedule_depthwise_conv2d_nchwc_acc32),
-                    name="depthwise_conv2d_nchwc_acc32.image2d",
-                    plevel=20,
+                    wrap_compute_conv2d(topi.adreno.depthwise_conv2d_nchwc),
+                    wrap_topi_schedule(topi.adreno.schedule_depthwise_conv2d_nchwc),
+                    name="depthwise_conv2d_nchwc.image2d",
+                    plevel=10,
                 )
             elif (data_layout == "NHWC" and kernel_layout == "HWOI") or (
                 data_layout == "NHWC4c" and kernel_layout == "HWOI4o"
             ):
                 if data.shape[-1] >= 4:
-                    if out_type.dtype == "float16":
-                        strategy.add_implementation(
-                            wrap_compute_conv2d(topi.adreno.depthwise_conv2d_nhwc),
-                            wrap_topi_schedule(topi.adreno.schedule_depthwise_conv2d_nhwc),
-                            name="depthwise_conv2d_nhwc.image2d",
-                            plevel=10,
-                        )
                     strategy.add_implementation(
-                        wrap_compute_conv2d(topi.adreno.depthwise_conv2d_nhwc_acc32),
-                        wrap_topi_schedule(topi.adreno.schedule_depthwise_conv2d_nhwc_acc32),
-                        name="depthwise_conv2d_nhwc_acc32.image2d",
-                        plevel=20,
+                        wrap_compute_conv2d(topi.adreno.depthwise_conv2d_nhwc),
+                        wrap_topi_schedule(topi.adreno.schedule_depthwise_conv2d_nhwc),
+                        name="depthwise_conv2d_nhwc.image2d",
+                        plevel=10,
                     )
                 else:
                     strategy.add_implementation(
@@ -153,6 +162,36 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
     return strategy
 
 
+@conv2d_winograd_without_weight_transfrom_strategy.register("adreno")
+def conv2d_winograd_without_weight_transfrom_strategy_adreno(attrs, inputs, out_type, target):
+    """conv2d_winograd_without_weight_transfrom adreno strategy"""
+    dilation = attrs.get_int_tuple("dilation")
+    groups = attrs.get_int("groups")
+    layout = attrs.data_layout
+    assert dilation == (1, 1), "Do not support dilate now"
+    assert groups == 1, "Do not supoort arbitrary group number"
+    strategy = _op.OpStrategy()
+    if layout in ("NCHW", "NCHW4c"):
+        strategy.add_implementation(
+            wrap_compute_conv2d(topi.adreno.conv2d_nchw_winograd_without_weight_transform),
+            wrap_topi_schedule(topi.adreno.schedule_conv2d_nchw_winograd_without_weight_transform),
+            name="conv2d_nchw_winograd_without_weight_transform.image2d",
+            plevel=5,
+        )
+    elif layout in ("NHWC", "NHWC4c"):
+        strategy.add_implementation(
+            wrap_compute_conv2d(topi.adreno.conv2d_nhwc_winograd_without_weight_transform),
+            wrap_topi_schedule(topi.adreno.schedule_conv2d_nhwc_winograd_without_weight_transform),
+            name="conv2d_nhwc_winograd_without_weight_transform.image2d",
+            plevel=5,
+        )
+    else:
+        raise RuntimeError(
+            "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)
+        )
+    return strategy
+
+
 @schedule_pool.register("adreno")
 def schedule_pool_adreno(attrs, outs, target):
     """schedule pooling ops for adreno"""
@@ -160,3 +199,21 @@ def schedule_pool_adreno(attrs, outs, target):
         if attrs.layout == "NCHW4c":
             return topi.adreno.schedule_pool(outs, attrs.layout)
         return topi.cuda.schedule_pool(outs, attrs.layout)
+
+
+@schedule_injective.register(["adreno"])
+def schedule_injective_adreno(attrs, outs, target):
+    """schedule injective ops for adreno"""
+    with target:
+        return topi.adreno.schedule_injective(outs)
+
+
+@concatenate_strategy.register(["adreno"])
+def concatenate_strategy_adreno(attrs, inputs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_concat(topi.transform.concatenate),
+        wrap_topi_schedule(topi.adreno.schedule_injective),
+        name="concatenate.adreno",
+    )
+    return strategy

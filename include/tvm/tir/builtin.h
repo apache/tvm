@@ -720,6 +720,33 @@ TVM_DLL const Op& texture2d_load();
  */
 TVM_DLL const Op& mem_copy();
 
+/*!
+ * \brief Initiate a non-blocking DMA copy from source to destination
+ */
+TVM_DLL const Op& dma_copy();
+
+/*!
+ * \brief Wait until the number of DMAs in flight is less than or equal to some maximum
+ */
+TVM_DLL const Op& dma_wait();
+
+/*!
+ * \brief Provide a true statement that can be used for simplifications
+ *
+ * Compile-time representation of known constraints about function
+ * inputs.  This assumption is removed when lowering, and does not
+ * occur in codegen.
+ */
+TVM_DLL const Op& assume();
+
+/*!
+ * \brief Returns an initialized but arbitrary value
+ *
+ * Compile-time representation of memory locations whose values may be
+ * altered as a result of optimizations.
+ */
+TVM_DLL const Op& undef();
+
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
   // array head address

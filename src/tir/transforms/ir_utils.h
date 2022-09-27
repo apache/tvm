@@ -35,6 +35,7 @@
 #include <limits>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -53,7 +54,7 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body);
  * \param body body
  * \return The combined Stmt
  */
-Stmt MergeNest(const std::vector<std::vector<Stmt> >& nest, Stmt body);
+Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body);
 
 /*!
  * \brief update array with an unary function
@@ -305,6 +306,20 @@ struct FragmentInfo {
  * \return Map from buffer variables to the fragment info.
  */
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt);
+
+// Return the queue id and the in-flight count associated with the given
+// attr::async_wait_queue_scope annotation.
+std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op);
+
+/*!
+ * \brief Bind a subset of parameter tensors to constants, replacing them by AllocateConst nodes.
+ * \param f The function to bind constants to.
+ * \param constants Raw constant data. If the size of this array is N, the last N parameter tensors
+ * will be removed from the signature and instead AllocateConst nodes will be introduced in the
+ * function body.
+ * \return The updated function.
+ */
+PrimFunc BindParams(PrimFunc f, const Array<runtime::NDArray>& constants);
 
 }  // namespace tir
 }  // namespace tvm

@@ -17,6 +17,12 @@
  * under the License.
  */
 #include <tvm/meta_schedule/extracted_task.h>
+#include <tvm/te/operation.h>
+#include <tvm/te/tensor.h>
+#include <tvm/tir/function.h>
+
+#include "../te/operation/create_primfunc.h"
+#include "./utils.h"
 
 namespace tvm {
 namespace meta_schedule {

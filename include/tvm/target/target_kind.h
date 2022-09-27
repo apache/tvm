@@ -38,6 +38,21 @@ namespace tvm {
 class Target;
 
 /*!
+ * \brief Map containing parsed features of a specific Target
+ */
+using TargetFeatures = Map<String, ObjectRef>;
+
+/*!
+ * \brief TargetParser to apply on instantiation of a given TargetKind
+ *
+ * \param target_json Target in JSON format to be transformed during parsing.
+ *
+ * \return The transformed Target JSON object.
+ */
+using TargetJSON = Map<String, ObjectRef>;
+using FTVMTargetParser = TypedPackedFunc<TargetJSON(TargetJSON)>;
+
+/*!
  * \brief RelayToTIR tvm::transform::Pass specific to a TargetKind
  *
  * Called before the default lowering passes.
@@ -82,6 +97,8 @@ class TargetKindNode : public Object {
   Array<String> default_keys;
   /*! \brief Function used to preprocess on target creation */
   PackedFunc preprocessor;
+  /*! \brief Function used to parse a JSON target during creation */
+  FTVMTargetParser target_parser;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
@@ -208,6 +225,11 @@ class TargetKindRegEntry {
   template <typename FLambda>
   inline TargetKindRegEntry& set_attrs_preprocessor(FLambda f);
   /*!
+   * \brief Set the parsing function applied upon target creation
+   * \param parser The Target parsing function
+   */
+  inline TargetKindRegEntry& set_target_parser(FTVMTargetParser parser);
+  /*!
    * \brief Register a valid configuration option and its ValueType for validation
    * \param key The configuration key
    * \tparam ValueType The value type to be registered
@@ -302,7 +324,7 @@ struct ValueTypeInfoMaker<ValueType, std::true_type, std::false_type> {
     ValueTypeInfo info;
     info.type_index = tindex;
     info.type_key = runtime::Object::TypeIndex2Key(tindex);
-    info.key = std::unique_ptr<ValueTypeInfo>(new ValueTypeInfo(key_type()()));
+    info.key = std::make_unique<ValueTypeInfo>(key_type()());
     info.val = nullptr;
     return info;
   }
@@ -318,8 +340,8 @@ struct ValueTypeInfoMaker<ValueType, std::false_type, std::true_type> {
     ValueTypeInfo info;
     info.type_index = tindex;
     info.type_key = runtime::Object::TypeIndex2Key(tindex);
-    info.key = std::unique_ptr<ValueTypeInfo>(new ValueTypeInfo(key_type()()));
-    info.val = std::unique_ptr<ValueTypeInfo>(new ValueTypeInfo(val_type()()));
+    info.key = std::make_unique<ValueTypeInfo>(key_type()());
+    info.val = std::make_unique<ValueTypeInfo>(val_type()());
     return info;
   }
 };
@@ -353,8 +375,14 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_default_keys(std::vector<Stri
 
 template <typename FLambda>
 inline TargetKindRegEntry& TargetKindRegEntry::set_attrs_preprocessor(FLambda f) {
+  LOG(WARNING) << "set_attrs_preprocessor is deprecated please use set_target_parser instead";
   using FType = typename tvm::runtime::detail::function_signature<FLambda>::FType;
   kind_->preprocessor = tvm::runtime::TypedPackedFunc<FType>(std::move(f)).packed();
+  return *this;
+}
+
+inline TargetKindRegEntry& TargetKindRegEntry::set_target_parser(FTVMTargetParser parser) {
+  kind_->target_parser = parser;
   return *this;
 }
 
@@ -402,6 +430,16 @@ namespace attr {
  * See also \p Target::IsExternalCodegenFor
  */
 constexpr const char* kIsExternalCodegen = "is_external_codegen";
+
+/*!
+ * \brief A \p TargetKind attribute of type \p FTVMRelayToTIR. If set, then the target kind name
+ * also corresponds to an external codegen 'compiler' name, and the bound value is a \p Pass
+ * to apply before the TVM lowering.
+ *
+ * See also \p Target::IsExternalCodegenFor
+ */
+constexpr const char* kRelayToTIR = "RelayToTIR";
+
 }  // namespace attr
 
 /*!

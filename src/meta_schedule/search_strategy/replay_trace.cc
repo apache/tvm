@@ -35,8 +35,19 @@ class ReplayTraceNode : public SearchStrategyNode {
     /*! \brief `[st, ed)` are the indices of the next batch of candidates. */
     int ed;
 
+    /*! \brief The module to be tuned. */
+    Array<IRModule> per_thread_mod_{nullptr};
+
     explicit State(ReplayTraceNode* self, Array<tir::Trace> design_spaces)
-        : self(self), design_spaces(design_spaces), st(0), ed(self->num_trials_per_iter) {}
+        : self(self), design_spaces(design_spaces), st(0), ed(self->num_trials_per_iter) {
+      const TuneContextNode* ctx = self->context_;
+      ICHECK(ctx);
+      IRModule mod = ctx->mod.value();
+      this->per_thread_mod_.reserve(ctx->num_threads);
+      for (int i = 0; i < ctx->num_threads; i++) {
+        this->per_thread_mod_.push_back(DeepCopyIRModule(mod));
+      }
+    }
 
     inline Optional<Array<MeasureCandidate>> GenerateMeasureCandidates();
     inline void NotifyRunnerResults(const Array<RunnerResult>& results);
@@ -46,15 +57,11 @@ class ReplayTraceNode : public SearchStrategyNode {
   int num_trials_per_iter;
   /*! \brief The number of total trials. */
   int max_trials_per_task;
+  /*! \brief The max number of failures during trace replaying. */
+  int max_fail_count;
 
-  /*! \brief The module to be tuned. */
-  Array<IRModule> per_thread_mod_{nullptr};
-  /*! \brief The metadata of the function arguments. */
-  Array<ArgInfo> args_info_{nullptr};
-  /*! \brief The post processors */
-  Array<Postproc> postprocs_{nullptr};
-  /*! \brief The number of threads to use. -1 means using logical cpu number. */
-  int num_threads_ = -1;
+  /*! \brief The tuning context of the search strategy. */
+  const TuneContextNode* context_{nullptr};
   /*! \brief The random state. -1 means using random number. */
   TRandState rand_state_ = -1;
   /*! \brief The state of the search strategy. */
@@ -63,10 +70,8 @@ class ReplayTraceNode : public SearchStrategyNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("num_trials_per_iter", &num_trials_per_iter);
     v->Visit("max_trials_per_task", &max_trials_per_task);
-    // `per_thread_mod_` is not visited
-    // `args_info_` is not visited
-    // `postprocs_` is not visited
-    // `num_threads_` is not visited
+    v->Visit("max_fail_count", &max_fail_count);
+    // `context_` is not visited.
     // `rand_state_` is not visited
     // `state_` is not visited
   }
@@ -75,22 +80,20 @@ class ReplayTraceNode : public SearchStrategyNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(ReplayTraceNode, SearchStrategyNode);
 
   void InitializeWithTuneContext(const TuneContext& context) final {
-    CHECK(context->num_threads > 0) << "Number of threads has to be larger than 0.";
-    this->num_threads_ = context->num_threads;
-
-    this->per_thread_mod_.reserve(this->num_threads_);
-    for (int i = 0; i < this->num_threads_; i++) {
-      this->per_thread_mod_.push_back(DeepCopyIRModule(context->mod.value()));
-    }
-
-    this->args_info_ = ArgInfo::FromPrimFunc(FindEntryFunc(context->mod.value()));
-    this->postprocs_ = context->postprocs;
+    CHECK(context->mod.defined()) << "ValueError: TuneContext.mod is not defined";
+    this->context_ = context.get();
     this->rand_state_ = ForkSeed(&context->rand_state);
     this->state_.reset();
   }
 
-  void PreTuning(const Array<tir::Schedule>& design_spaces) final {
+  void PreTuning(const Array<tir::Schedule>& design_spaces, const Optional<Database>& database,
+                 const Optional<CostModel>& cost_model) final {
     ICHECK(!design_spaces.empty());
+    CHECK(this->context_ != nullptr) << "ValueError: Did you forget to initialize the TuneContext?";
+    if (this->state_ != nullptr) {
+      TVM_PY_LOG(WARNING, this->context_->logging_func) << "RelayTrace is already initialized.";
+      this->state_.reset();
+    }
     ICHECK(this->state_ == nullptr);
     Array<tir::Trace> design_space_traces;
     design_space_traces.reserve(design_spaces.size());
@@ -110,11 +113,21 @@ class ReplayTraceNode : public SearchStrategyNode {
     return this->state_->GenerateMeasureCandidates();
   }
 
-  void NotifyRunnerResults(const TuneContext& context,
-                           const Array<MeasureCandidate>& measure_candidates,
+  void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                            const Array<RunnerResult>& results) final {
     ICHECK(this->state_ != nullptr);
     this->state_->NotifyRunnerResults(results);
+  }
+
+  SearchStrategy Clone() const final {
+    ObjectPtr<ReplayTraceNode> n = make_object<ReplayTraceNode>();
+    n->num_trials_per_iter = this->num_trials_per_iter;
+    n->max_trials_per_task = this->max_trials_per_task;
+    n->max_fail_count = this->max_fail_count;
+    n->context_ = this->context_;
+    n->rand_state_ = this->rand_state_;
+    n->state_ = nullptr;  // cleared the state
+    return SearchStrategy(n);
   }
 };
 
@@ -124,25 +137,36 @@ inline Optional<Array<MeasureCandidate>> ReplayTraceNode::State::GenerateMeasure
   }
   ed = std::min(ed, self->max_trials_per_task);
   ICHECK_LT(st, ed);
-  std::vector<TRandState> per_thread_rand_state = ForkSeed(&self->rand_state_, self->num_threads_);
+  const TuneContextNode* ctx = self->context_;
+  ICHECK(ctx);
+  std::vector<TRandState> per_thread_rand_state = ForkSeed(&self->rand_state_, ctx->num_threads);
   Array<MeasureCandidate> per_task_result(ed - st, MeasureCandidate{nullptr});
-  ThreadedTraceApply pp(self->postprocs_);
+  ThreadedTraceApply pp(ctx->postprocs);
   auto f_worker = [this, &per_thread_rand_state, &per_task_result, &pp](int thread_id,
                                                                         int task_id) -> void {
     TRandState& rand_state = per_thread_rand_state[thread_id];
-    IRModule mod = self->per_thread_mod_[thread_id];
-    for (;;) {
+    IRModule mod = this->per_thread_mod_[thread_id];
+
+    for (int fail_count = 0; fail_count < self->max_fail_count; fail_count++) {
       int design_space_index = tir::SampleInt(&rand_state, 0, design_spaces.size());
       tir::Trace trace = design_spaces[design_space_index];
       tir::Trace new_trace = tir::Trace(trace->insts, {});
-      if (Optional<tir::Schedule> sch = pp.Apply(mod, new_trace, &rand_state)) {
-        per_task_result.Set(task_id, MeasureCandidate(sch.value(), self->args_info_));
+      if (Optional<tir::Schedule> opt_sch = pp.Apply(mod, new_trace, &rand_state)) {
+        tir::Schedule sch = opt_sch.value();
+        Array<ArgInfo> args_info = ArgInfo::FromEntryFunc(sch->mod(), /*remove_preproc=*/true);
+        per_task_result.Set(task_id, MeasureCandidate(sch, args_info));
         break;
       }
     }
   };
-  support::parallel_for_dynamic(0, ed - st, self->num_threads_, f_worker);
-  return per_task_result;
+  support::parallel_for_dynamic(0, ed - st, ctx->num_threads, f_worker);
+  Array<MeasureCandidate> filtered;
+  filtered.reserve(ed - st);
+  for (MeasureCandidate result : per_task_result)
+    if (result.defined()) {
+      filtered.push_back(result);
+    }
+  return filtered;
 }
 
 inline void ReplayTraceNode::State::NotifyRunnerResults(const Array<RunnerResult>& results) {
@@ -150,10 +174,12 @@ inline void ReplayTraceNode::State::NotifyRunnerResults(const Array<RunnerResult
   ed += self->num_trials_per_iter;
 }
 
-SearchStrategy SearchStrategy::ReplayTrace(int num_trials_per_iter, int max_trials_per_task) {
+SearchStrategy SearchStrategy::ReplayTrace(int num_trials_per_iter, int max_trials_per_task,
+                                           int max_fail_count) {
   ObjectPtr<ReplayTraceNode> n = make_object<ReplayTraceNode>();
   n->num_trials_per_iter = num_trials_per_iter;
   n->max_trials_per_task = max_trials_per_task;
+  n->max_fail_count = max_fail_count;
   return SearchStrategy(n);
 }
 

@@ -23,7 +23,6 @@ import re
 import shutil
 import subprocess
 import tarfile
-import tempfile
 import logging
 from typing import Any, NamedTuple, Union, Optional, List, Dict
 import numpy as np
@@ -286,8 +285,11 @@ def _emit_main_workspace_pool_structs(main_file, workspace_pool_names, mod_name)
             f"struct {_mangle_name(mod_name, 'workspace_pools')} "
             f"{_mangle_name(mod_name, 'workspace_pools')} = {{"
         )
-        for workspace_pool_name in workspace_pool_names:
-            main_file.write(f"\t.{workspace_pool_name} = {workspace_pool_name},\n")
+        for workspace_pool_name in workspace_pool_names.keys():
+            main_file.write(
+                f"\t.{workspace_pool_name} = {workspace_pool_names[workspace_pool_name]}"
+                f"{workspace_pool_name},\n"
+            )
         main_file.write("};\n")
 
 
@@ -507,19 +509,27 @@ def _create_main(
                     compiled_model.executor_factory.executor_codegen_metadata
                 )
                 devices = compiled_model.executor_factory.get_devices()
-                workspace_pool_names = None
+                workspace_pool_names = {}
                 if executor_codegen_metadata.pool_inputs:
-                    workspace_pool_names = [
-                        allocated_pool.pool_info.pool_name
+                    workspace_pool_names = {
+                        allocated_pool.pool_info.pool_name: "&"
+                        if isinstance(
+                            allocated_pool.pool_info, tvm.ir.memory_pools.ConstantPoolInfo
+                        )
+                        else ""
                         for allocated_pool in dict(executor_codegen_metadata.pool_inputs).values()
                         if not allocated_pool.pool_info.is_internal
-                    ]
+                    }
                 _emit_main_device_structs(main_file, devices, model.name)
                 if not use_workspace_io:
                     _emit_main_workspace_pool_structs(main_file, workspace_pool_names, model.name)
                     _emit_main_data_structs(main_file, model.inputs, model.outputs, model.name)
                 _emit_main_c_interface_call(
-                    main_file, devices, workspace_pool_names, model.name, use_workspace_io
+                    main_file,
+                    devices,
+                    list(workspace_pool_names.keys()),
+                    model.name,
+                    use_workspace_io,
                 )
         else:
             _emit_main_fake_packed_values(main_file)
@@ -561,9 +571,7 @@ def _create_header_file(tensor_name, npy_data, output_path, data_linkage):
         header_file.write("};\n\n")
 
 
-def convert_to_relay(
-    tflite_model_buf,
-):
+def convert_to_relay(tflite_model_buf, bind_params_by_name=True):
     """Convert a tflite model buffer in a Relay module"""
     # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
     try:
@@ -578,7 +586,8 @@ def convert_to_relay(
         raise ImportError("The tflite package must be installed")
 
     mod, params = relay.frontend.from_tflite(tflite_model)
-    mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
+    if bind_params_by_name:
+        mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
     return mod, params
 
 
@@ -587,11 +596,13 @@ def compile_models(
     interface_api: str,
     use_unpacked_api: bool,
     workspace_byte_alignment: int = 8,
+    constant_byte_alignment: int = 8,
     enable_op_fusion: bool = True,
     pass_config: Dict[str, Any] = None,
     use_runtime_executor: bool = True,
     target: tvm.target.Target = tvm.target.Target("c"),
     workspace_memory_pools=None,
+    constant_memory_pools=None,
     schedule_name: str = None,
 ) -> List[AOTCompiledTestModel]:
     """
@@ -605,6 +616,7 @@ def compile_models(
         "aot",
         {
             "workspace-byte-alignment": workspace_byte_alignment,
+            "constant-byte-alignment": constant_byte_alignment,
             "interface-api": interface_api,
             "unpacked-api": use_unpacked_api,
         },
@@ -632,6 +644,7 @@ def compile_models(
                             executor=executor,
                             runtime=runtime,
                             workspace_memory_pools=workspace_memory_pools,
+                            constant_memory_pools=constant_memory_pools,
                             params=model.params,
                             mod_name=model.name,
                         )
@@ -658,6 +671,7 @@ def compile_models(
                         executor=executor,
                         runtime=runtime,
                         workspace_memory_pools=workspace_memory_pools,
+                        constant_memory_pools=constant_memory_pools,
                         params=model.params,
                         mod_name=model.name,
                     )
@@ -683,6 +697,7 @@ def run_and_check(
     interface_api: str,
     debug_calculated_workspaces=False,
     workspace_byte_alignment=8,
+    constant_byte_alignment=8,
     data_linkage: AOTDataLinkage = None,
     test_dir: str = None,
     verbose: bool = False,
@@ -694,7 +709,10 @@ def run_and_check(
     """
 
     def run_and_check_body(base_path):
-        cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
+        cflags = (
+            f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
+            f" -DTVM_RUNTIME_CONST_ALLOC_ALIGNMENT_BYTES={constant_byte_alignment} "
+        )
         # The calculated workspaces will not account for stack allocator tags used for debugging
         if debug_calculated_workspaces:
             cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
@@ -817,8 +835,8 @@ def run_and_check(
             assert AOT_SUCCESS_TOKEN in run_log.read()
 
     if test_dir is None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            run_and_check_body(os.path.join(tmpdir, "test"))
+        tmpdir = utils.tempdir()
+        run_and_check_body(os.path.join(tmpdir.path, "test"))
     else:
         run_and_check_body(test_dir)
 
@@ -830,10 +848,11 @@ def compile_and_run(
     use_unpacked_api: bool,
     debug_calculated_workspaces: bool = False,
     workspace_byte_alignment: int = 8,
+    constant_byte_alignment: int = 8,
     enable_op_fusion: bool = True,
     data_linkage: AOTDataLinkage = None,
     use_runtime_executor: bool = True,
-    target: str = "c",
+    target: Union[str, tvm.target.Target, List[tvm.target.Target]] = "c",
     target_opts: Dict = None,
     test_dir: str = None,
     verbose: bool = False,
@@ -853,15 +872,19 @@ def compile_and_run(
         for key, val in target_opts.items():
             target += f" {key}={val}"
 
+    if isinstance(target, str):
+        target = tvm.target.Target(target)
+
     compiled_test_mods = compile_models(
         models=models,
         interface_api=interface_api,
         use_unpacked_api=use_unpacked_api,
         workspace_byte_alignment=workspace_byte_alignment,
+        constant_byte_alignment=constant_byte_alignment,
         enable_op_fusion=enable_op_fusion,
         pass_config=runner.pass_config,
         use_runtime_executor=use_runtime_executor,
-        target=tvm.target.Target(target),
+        target=target,
         schedule_name=schedule_name,
     )
 
@@ -871,6 +894,7 @@ def compile_and_run(
         interface_api=interface_api,
         debug_calculated_workspaces=debug_calculated_workspaces,
         workspace_byte_alignment=workspace_byte_alignment,
+        constant_byte_alignment=constant_byte_alignment,
         data_linkage=data_linkage,
         test_dir=test_dir,
         verbose=verbose,
@@ -897,27 +921,39 @@ def generate_ref_data(mod, input_data, params=None, target="llvm"):
     else:
         main = mod["main"]
     if main.attrs is None or main.attrs["output_tensor_names"] is None:
-        output_tensor_names = ["output" if i == 0 else f"output{i+1}" for i in range(output_count)]
+        output_tensor_names = (
+            ["output"] if output_count == 1 else [f"output{i}" for i in range(output_count)]
+        )
     else:
         output_tensor_names = main.attrs["output_tensor_names"]
 
     return dict(zip(output_tensor_names, out))
 
 
-def create_relay_module_and_inputs_from_tflite_file(tflite_model_file):
+def create_relay_module_and_inputs_from_tflite_file(tflite_model_file, bind_params_by_name=True):
     """A helper function to create a Relay IRModule with inputs
     and params from a tflite file"""
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
-    mod, params = convert_to_relay(tflite_model_buf)
+    mod, params = convert_to_relay(tflite_model_buf, bind_params_by_name)
 
     inputs = dict()
     for param in mod["main"].params:
         name = str(param.name_hint)
         data_shape = [int(i) for i in param.type_annotation.shape]
         dtype = str(param.type_annotation.dtype)
-        in_min, in_max = (np.iinfo(dtype).min, np.iinfo(dtype).max)
-        data = np.random.randint(in_min, high=in_max, size=data_shape, dtype=dtype)
+        if np.issubdtype(dtype, np.floating):
+            # Since np.random.uniform only allows the ranges of float32,
+            # at first float16 is used and scaled afterwards, if necessary.
+            in_min, in_max = (np.finfo("float16").min, np.finfo("float16").max)
+            data = np.random.uniform(low=in_min, high=in_max, size=data_shape).astype(dtype)
+            scale = np.finfo(dtype).min / np.finfo("float16").min
+            data *= scale
+        elif np.issubdtype(dtype, np.integer):
+            in_min, in_max = (np.iinfo(dtype).min, np.iinfo(dtype).max)
+            data = np.random.randint(in_min, high=in_max, size=data_shape, dtype=dtype)
+        else:
+            raise TypeError(f"Type {dtype} not supported")
         inputs[name] = data
 
     return mod, inputs, params

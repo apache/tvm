@@ -633,7 +633,7 @@ class Parser {
       return ObjectRef();
     }
   }
-  /*! \brief Parses a sequence beginning with a start token, seperated by a seperator token, and
+  /*! \brief Parses a sequence beginning with a start token, separated by a seperator token, and
    * ending with a stop token.
    *
    * The simple form being <start> (<parse()> <seperator>)* <stop>.
@@ -1540,7 +1540,7 @@ class Parser {
         }
         case TokenType::kBoolean: {
           Consume(TokenType::kBoolean);
-          int64_t value = Downcast<tvm::Integer>(next->data);
+          int64_t value = Downcast<tvm::Integer>(next->data).IntValue();
           Expr e = Constant(support::BoolToNDArray(value), next->span);
           ICHECK(e->span.defined()) << "constant spans must be defined";
           return e;

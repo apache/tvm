@@ -53,6 +53,7 @@ from .common import (
     infer_value,
     lstm_cell,
     new_var,
+    rnn_cell,
     shape_of,
     try_resolve_var_to_const,
     unbind,
@@ -97,6 +98,11 @@ def get_numpy(tensor_proto):
 
 def get_type(elem_type):
     """Converts onnx integer datatype to numpy datatype"""
+    # If a string was passed instead of a tensor type, it does not need
+    # conversion and can be returned.
+    if isinstance(elem_type, str):
+        return elem_type
+
     try:
         from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
     except ImportError as e:
@@ -2012,7 +2018,7 @@ class Slice(OnnxOpConverter):
 
 
 def normalize_gather_indices(data, indices, axis):
-    """Make sure gather indicies aren't negative"""
+    """Make sure gather indices aren't negative"""
     ind_dtype = infer_type(indices).checked_type.dtype
     # Normalize the indices to a positive range
     s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis, dtype="int64"))
@@ -2124,18 +2130,21 @@ class EyeLike(OnnxOpConverter):
 
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        in_checked_type = infer_type(inputs[0]).checked_type
-        in_dtype = in_checked_type.dtype
-        in_shape = list(get_const_tuple(in_checked_type.shape))
         dtype = attr.get("dtype", None)
         if dtype is None:
+            in_checked_type = infer_type(inputs[0]).checked_type
+            in_dtype = in_checked_type.dtype
             dtype = in_dtype
         else:
             dtype = get_type(dtype)
+
+        in_shape = _op.shape_of(inputs[0])
         zeros = _op.zeros(in_shape, dtype)
-        dim = in_shape[0]
-        indices = _op.arange(_op.const(0), _op.const(dim), dtype="int32")
-        ones = _op.full(_op.const(1), (dim,), dtype=dtype)
+
+        dim = _op.take(in_shape, _op.const(0))
+
+        indices = _op.arange(_op.const(0), dim, dtype="int32")
+        ones = _op.full(_op.const(1), _op.reshape(dim, (1,)), dtype=dtype)
         k = _op.const(attr.get("k", 0), dtype="int32")
         return _op.scatter_nd(zeros, _op.stack([indices, indices + k], axis=0), ones, "update")
 
@@ -2267,6 +2276,32 @@ class Reduce(OnnxOpConverter):
                 return cls.run_calculation([inputs[0]], constant_axis, attr.get("keepdims", True))
 
             raise ValueError("Dynamic Reduce is not supported yet!")
+
+        return cls._impl_v1(inputs, attr, params)
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        if not infer_shape(inputs[0]):  # promote scalar to 1-D tensor
+            inputs[0] = _op.expand_dims(inputs[0], axis=0)
+
+        noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
+        num_axis = int(infer_type(inputs[1]).checked_type.shape[0]) if inputs[1] is not None else 0
+
+        if noop_with_empty_axes and num_axis == 0:
+            return inputs[0]
+
+        if len(inputs) == 2:
+            if isinstance(inputs[1], _expr.Constant):
+                # Get axis and unpack scalar
+                constant_axis = int(inputs[1].data.numpy()[0])
+                return cls.run_calculation([inputs[0]], constant_axis, attr.get("keepdims", True))
+
+            if num_axis > 0:
+                raise ValueError("Dynamic Reduce is not supported yet!")
+
+            axis_len = len(infer_shape(inputs[0]))
+            axis = list(range(axis_len))
+            return cls.run_calculation([inputs[0]], axis, attr.get("keepdims", True))
 
         return cls._impl_v1(inputs, attr, params)
 
@@ -2420,6 +2455,8 @@ class Softmax(OnnxOpConverter):
             axis += ndim
         if axis == 0:
             reshape_shape = [-1]
+        elif axis == ndim - 1:
+            return _op.nn.softmax(inputs[0], axis=axis)
         else:
             axis_val = [in_shape[i] for i in range(axis)]
             reshape_shape = [np.prod(axis_val)] + [-1]
@@ -2692,7 +2729,7 @@ class Expand(OnnxOpConverter):
 
 
 class RNN(OnnxOpConverter):
-    """Operator converter for RNNs such as LSTM and GRU."""
+    """Operator converter for RNNs such as RNN, LSTM and GRU."""
 
     @classmethod
     def _activation_helper(cls, activation, alpha, beta):
@@ -2724,6 +2761,177 @@ class RNN(OnnxOpConverter):
             "HardSigmoid",
         ]
         return activation.decode("utf-8") in needs_beta
+
+    @classmethod
+    def bidir_rnn_cell(
+        cls,
+        input_seqs,
+        weight_dicts,
+        acts,
+    ):
+        """
+        Bidirectional RNN cell
+        """
+        seq_len = len(input_seqs)
+        forward_outputs, fw_H_t = rnn_cell(
+            input_seqs,
+            **weight_dicts[0],
+            act=acts[0],
+        )
+
+        reverse_outputs, rev_H_t = rnn_cell(
+            input_seqs,
+            **weight_dicts[1],
+            act=acts[1],
+            backwards=True,
+        )
+
+        final_outputs = []
+        for i in range(seq_len):
+            final_outputs.append(
+                _op.stack([forward_outputs[i], reverse_outputs[seq_len - 1 - i]], axis=0)
+            )
+
+        return (
+            _op.stack(final_outputs, axis=0),
+            _op.stack([fw_H_t, rev_H_t], axis=0),
+        )
+
+    @classmethod
+    def _default_activations(cls, num_directions):
+        return [_op.tanh] * num_directions
+
+    @classmethod
+    def _get_activations(cls, attr, multiplier, num_directions, rnn_type):
+        """
+        Activation functions
+        """
+        if "activations" in attr:
+            activations = attr["activations"]
+            if len(activations) != multiplier * num_directions:
+                raise NotImplementedError(
+                    "{} assumes {} * num_directions activation functions are provided".format(
+                        rnn_type, multiplier
+                    )
+                )
+            alpha_loc = 0
+            alphas = attr.get("activation_alpha", [])
+            if isinstance(alphas, float):
+                alphas = [alphas]
+            beta_loc = 0
+            betas = attr.get("activation_beta", [])
+            if isinstance(betas, float):
+                betas = [betas]
+            acts = []
+            for i in range(multiplier * num_directions):
+                alpha = None
+                beta = None
+                activation = activations[i]
+                if cls._activation_needs_alpha(activation) and len(alphas) > alpha_loc:
+                    alpha = alphas[alpha_loc]
+                    alpha_loc += 1
+                if cls._activation_needs_beta(activation) and len(betas) > beta_loc:
+                    beta = betas[beta_loc]
+                    beta_loc += 1
+                acts.append(cls._activation_helper(activation, alpha, beta))
+        else:
+            acts = cls._default_activations(num_directions)
+        return acts
+
+    @classmethod
+    def _inputs_helper(cls, inputs, layout):
+        """
+        Process inputs
+        """
+        # Unpack inputs, note that if optional and not provided then value will be None.
+        X = inputs[0]
+        Wp = inputs[1]
+        Rp = inputs[2]
+        Bp = inputs[3]
+        # Sequence length currently unused as it can be inferred from shapes.
+        # sequence_lens = inputs['sequence_lens']
+        Hp_0 = inputs[5]
+
+        num_directions = infer_shape(Wp)[0]
+
+        if num_directions not in [1, 2]:
+            raise ValueError("num_directions must be either 1 or 2!")
+
+        if layout == 1:
+            X = _op.transpose(X, axes=(1, 0))
+
+        # Initialize state if not provided.
+        if Hp_0 is None:
+            W_dtype = infer_type(Wp).checked_type.dtype
+            X_shape = infer_shape(X)
+            hidden_size = infer_shape(Rp)[-1]
+            batch_size = X_shape[1]
+            Hp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
+        elif layout == 1:
+            Hp_0 = _op.transpose(Hp_0, axes=(1, 0))
+
+        # TODO (vvchernov): It can be replaced by _op.split if issue #8412 is resolved
+        X_steps = unbind(X, axis=0)
+
+        H_ts = _op.split(Hp_0, num_directions)
+        Ws = _op.split(Wp, num_directions)
+        Rs = _op.split(Rp, num_directions)
+
+        Bs = None
+        if Bp is not None:
+            Bs = _op.split(Bp, num_directions)
+        return X_steps, H_ts, Ws, Rs, Bs, num_directions
+
+    @classmethod
+    def _impl_common(cls, inputs, attr, layout):
+        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs, layout)
+        acts = cls._get_activations(attr, 1, num_directions, "RNN")
+
+        weights_dicts = []
+        for i in range(num_directions):
+            weights_dict = {}
+
+            weights_dict["hidden_state"] = _op.squeeze(H_ts[i], axis=[0])
+
+            weights_dict["w_inp"] = _op.squeeze(Ws[i], axis=[0])
+            weights_dict["w_hid"] = _op.squeeze(Rs[i], axis=[0])
+            if Bs is not None:
+                Bi, Bh = _op.split(Bs[i], 2, -1)
+                weights_dict["b_inp"] = _op.squeeze(Bi, axis=[0])
+                weights_dict["b_hid"] = _op.squeeze(Bh, axis=[0])
+            weights_dicts.append(weights_dict)
+
+        if num_directions == 2:
+            output, H = RNN.bidir_rnn_cell(
+                input_seqs=X_steps,
+                weight_dicts=weights_dicts,
+                acts=acts,
+            )
+        else:
+            # outputs shape = [seqs_num, (batch_size, hidden_size)]
+            outputs, H = rnn_cell(
+                input_seqs=X_steps,
+                **weights_dicts[0],
+                act=acts[0],
+            )
+
+            # output shape = (seqs_num, num_directions, batch_size, hidden_size)
+            output = _op.expand_dims(_op.stack(outputs, axis=0), axis=1)
+            H = _op.expand_dims(H, axis=0)
+
+        if layout == 1:
+            output = _op.transpose(output, axes=(1, 0))
+            H = _op.transpose(H, axes=(1, 0))
+        return _expr.TupleWrapper(_expr.Tuple((output, H)), 2)
+
+    @classmethod
+    def _impl_v7(cls, inputs, attr, params):
+        return cls._impl_common(inputs, attr, 0)
+
+    @classmethod
+    def _impl_v14(cls, inputs, attr, params):
+        layout = attr.get("layout", 0)
+        return cls._impl_common(inputs, attr, layout)
 
 
 class LSTM(RNN):
@@ -2770,74 +2978,28 @@ class LSTM(RNN):
         )
 
     @classmethod
-    def _impl_v7(cls, inputs, attr, params):
-        # Unpack inputs, note that if optional and not provided then value will be None.
-        X = inputs[0]
-        Wp = inputs[1]
-        Rp = inputs[2]
-        Bp = inputs[3]
-        # Sequence length currently unused as it can be inferred from shapes.
-        # sequence_lens = inputs['sequence_lens']
-        Hp_0 = inputs[5]
+    def _default_activations(cls, num_directions):
+        return [_op.sigmoid, _op.tanh, _op.tanh] * num_directions
+
+    @classmethod
+    def _impl_common(cls, inputs, attr, layout):
+        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs, layout)
+        acts = cls._get_activations(attr, 3, num_directions, "LSTM")
+
+        # cell state
         Cp_0 = inputs[6]
-        Pp = inputs[7]
-
-        num_directions = infer_shape(Wp)[0]
-        W_dtype = infer_type(Wp).checked_type.dtype
-
-        if num_directions not in [1, 2]:
-            raise ValueError("num_directions must be either 1 or 2!")
-
-        X_shape = infer_shape(X)
-        hidden_size = infer_shape(Rp)[-1]
-        batch_size = X_shape[1]
-
-        # Initialize state if not provided.
-        # Otherwise remove bidirectional axis.
-        if Hp_0 is None:
-            Hp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
         if Cp_0 is None:
-            Cp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
-
-        if "activations" in attr:
-            activations = attr["activations"]
-            if len(activations) != 3 * num_directions:
-                raise NotImplementedError(
-                    f"LSTM assumes 3 * num_directions activation functions are provided"
-                )
-            alpha_loc = 0
-            alphas = attr.get("activation_alpha", [])
-            if isinstance(alphas, float):
-                alphas = [alphas]
-            beta_loc = 0
-            betas = attr.get("activation_beta", [])
-            if isinstance(betas, float):
-                betas = [betas]
-            acts = []
-            for i in range(3 * num_directions):
-                alpha = None
-                beta = None
-                activation = activations[i]
-                if cls._activation_needs_alpha(activation) and len(alphas) > alpha_loc:
-                    alpha = alphas[alpha_loc]
-                    alpha_loc += 1
-                if cls._activation_needs_beta(activation) and len(betas) > beta_loc:
-                    beta = betas[beta_loc]
-                    beta_loc += 1
-                acts.append(cls._activation_helper(activation, alpha, beta))
+            C_ts = _expr.TupleWrapper(
+                _expr.Tuple([_op.zeros_like(H_ts[i]) for i in range(num_directions)]),
+                num_directions,
+            )
         else:
-            acts = [_op.sigmoid, _op.tanh, _op.tanh] * num_directions
+            if layout == 1:
+                Cp_0 = _op.transpose(Cp_0, axes=(1, 0))
+            C_ts = _op.split(Cp_0, num_directions)
 
-        # TODO (vvchernov): It can be replaced by _op.split if issue #8412 is resolved
-        X_steps = unbind(X, axis=0)
-
-        H_ts = _op.split(Hp_0, num_directions)
-        C_ts = _op.split(Cp_0, num_directions)
-        Ws = _op.split(Wp, num_directions)
-        Rs = _op.split(Rp, num_directions)
-
-        if Bp is not None:
-            Bs = _op.split(Bp, num_directions)
+        # peepholes
+        Pp = inputs[7]
         if Pp is not None:
             p_i, p_o, p_f = _op.split(Pp, 3, axis=1)
 
@@ -2857,7 +3019,7 @@ class LSTM(RNN):
             weights_dict["w_inp"] = _op.concatenate([mati, matf, matc, mato], axis=0)
             mati, mato, matf, matc = _op.split(_op.squeeze(Rs[i], axis=[0]), 4)
             weights_dict["w_hid"] = _op.concatenate([mati, matf, matc, mato], axis=0)
-            if Bp is not None:
+            if Bs is not None:
                 Bi, Bh = _op.split(Bs[i], 2, -1)
                 mati, mato, matf, matc = _op.split(_op.squeeze(Bi, axis=[0]), 4)
                 weights_dict["b_inp"] = _op.concatenate([mati, matf, matc, mato], axis=0)
@@ -2890,6 +3052,10 @@ class LSTM(RNN):
             H = _op.expand_dims(H, axis=0)
             C = _op.expand_dims(C, axis=0)
 
+        if layout == 1:
+            output = _op.transpose(output, axes=(1, 0))
+            H = _op.transpose(H, axes=(1, 0))
+            C = _op.transpose(C, axes=(1, 0))
         return _expr.TupleWrapper(_expr.Tuple((output, H, C)), 3)
 
 
@@ -2934,68 +3100,14 @@ class GRU(RNN):
         )
 
     @classmethod
-    def _impl_v7(cls, inputs, attr, params):
-        # Unpack inputs, note that if optional and not provided then value will be None.
-        X = inputs[0]
-        Wp = inputs[1]
-        Rp = inputs[2]
-        Bp = inputs[3]
-        # Sequence length currently unused as it can be inferred from shapes.
-        # sequence_lens = inputs['sequence_lens']
-        Hp_0 = inputs[5]
+    def _default_activations(cls, num_directions):
+        return [_op.sigmoid, _op.tanh] * num_directions
+
+    @classmethod
+    def _impl_common(cls, inputs, attr, layout):
+        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs, layout)
+        acts = cls._get_activations(attr, 2, num_directions, "GRU")
         linear_before_reset = attr.get("linear_before_reset", 0)
-
-        num_directions = infer_shape(Wp)[0]
-        W_dtype = infer_type(Wp).checked_type.dtype
-
-        if num_directions not in [1, 2]:
-            raise ValueError("num_directions must be either 1 or 2!")
-
-        X_shape = infer_shape(X)
-        hidden_size = infer_shape(Rp)[-1]
-        batch_size = X_shape[1]
-
-        if Hp_0 is None:
-            Hp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
-
-        if "activations" in attr:
-            activations = attr["activations"]
-            if len(activations) != 2 * num_directions:
-                raise NotImplementedError(
-                    "GRU assumes 2 * num_directions activation functions are provided"
-                )
-            alpha_loc = 0
-            alphas = attr.get("activation_alpha", [])
-            if isinstance(alphas, float):
-                alphas = [alphas]
-            beta_loc = 0
-            betas = attr.get("activation_beta", [])
-            if isinstance(betas, float):
-                betas = [betas]
-            acts = []
-            for i in range(2 * num_directions):
-                alpha = None
-                beta = None
-                activation = activations[i]
-                if cls._activation_needs_alpha(activation) and len(alphas) > alpha_loc:
-                    alpha = alphas[alpha_loc]
-                    alpha_loc += 1
-                if cls._activation_needs_beta(activation) and len(betas) > beta_loc:
-                    beta = betas[beta_loc]
-                    beta_loc += 1
-                acts.append(cls._activation_helper(activation, alpha, beta))
-        else:
-            acts = [_op.sigmoid, _op.tanh] * 2
-
-        # TODO (vvchernov): It can be replaced by _op.split if issue #8412 is resolved
-        X_steps = unbind(X, axis=0)
-
-        H_ts = _op.split(Hp_0, num_directions)
-        Ws = _op.split(Wp, num_directions)
-        Rs = _op.split(Rp, num_directions)
-
-        if Bp is not None:
-            Bs = _op.split(Bp, num_directions)
 
         weights_dicts = []
         for i in range(num_directions):
@@ -3009,7 +3121,7 @@ class GRU(RNN):
             weights_dict["w_inp"] = _op.concatenate([matr, matz, matn], axis=0)
             matz, matr, matn = _op.split(_op.squeeze(Rs[i], axis=[0]), 3)
             weights_dict["w_hid"] = _op.concatenate([matr, matz, matn], axis=0)
-            if Bp is not None:
+            if Bs is not None:
                 Bi, Bh = _op.split(Bs[i], 2, -1)
                 matz, matr, matn = _op.split(_op.squeeze(Bi, axis=[0]), 3)
                 weights_dict["b_inp"] = _op.concatenate([matr, matz, matn], axis=0)
@@ -3036,6 +3148,9 @@ class GRU(RNN):
             output = _op.expand_dims(_op.stack(outputs, axis=0), axis=1)
             H = _op.expand_dims(H, axis=0)
 
+        if layout == 1:
+            output = _op.transpose(output, axes=(1, 0))
+            H = _op.transpose(H, axes=(1, 0))
         return _expr.TupleWrapper(_expr.Tuple((output, H)), 2)
 
 
@@ -4654,6 +4769,20 @@ class Einsum(OnnxOpConverter):
         return _op.einsum(inputs, equation)
 
 
+class Trilu(OnnxOpConverter):
+    """Operator converter for Trilu"""
+
+    @classmethod
+    def _impl_v14(cls, inputs, attr, params):
+        upper = attr.get("upper", True)
+        if len(inputs) == 2:
+            data, k = inputs
+        else:
+            data = inputs[0]
+            k = 0
+        return _op.trilu(data, k, upper)
+
+
 class RandomNormal(OnnxOpConverter):
     """Operator converter for random_normal"""
 
@@ -4764,6 +4893,22 @@ class RandomUniformLike(OnnxOpConverter):
         output = _op.random.uniform(key, shape, dtype=dtype, low=low, high=high)
         _, vals = _expr.TupleWrapper(output, 2)
         return vals
+
+
+class Multinomial(OnnxOpConverter):
+    """Operator converter for multinomial"""
+
+    @classmethod
+    def _impl_v7(cls, inputs, attr, params):
+        dtype = attr.get("dtype", "int64")
+        sample_size = attr.get("sample_size", 1)
+        seed = attr.get("seed", None)
+        if seed is None:
+            seed = np.random.randint(1e6)
+        key = _op.random.threefry_key(seed)
+        output = _op.random.multinomial(key, inputs[0], sample_size)
+        _, indices = _expr.TupleWrapper(output, 2)
+        return _op.cast(indices, get_type(dtype))
 
 
 class NegativeLogLikelihoodLoss(OnnxOpConverter):
@@ -5059,9 +5204,82 @@ class Momentum(OnnxOpConverter):
         return _expr.TupleWrapper(_expr.Tuple(result), len(result))
 
 
+class Round(OnnxOpConverter):
+    """Operator converter for round op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        # Onnx round uses Banker's rounding which rounds .5 to the nearest even integer
+
+        x = inputs[0]
+        dtype = infer_type(x).checked_type.dtype
+        half = _expr.const(0.5, dtype=dtype)
+        one = _expr.const(1, dtype=dtype)
+        two = _expr.const(2, dtype=dtype)
+
+        rounded = _op.ceil(x - half)
+        bankers_mask = one - (_op.ceil(x + half) - _op.floor(x + half))
+        non_even = _op.abs(_op.mod(rounded, two))
+        return rounded + (bankers_mask * non_even)
+
+
+class SequenceConstruct(OnnxOpConverter):
+    """Operator converter for sequence construction op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        # Construct a tuple from input tensors.
+        return _expr.Tuple(inputs)
+
+
+class SequenceInsert(OnnxOpConverter):
+    """Operator converter for sequence insert op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        # Insert a new tensor into a tuple of tensors.
+        input_sequence = inputs[0]
+        new_tensor = inputs[1]
+
+        if len(inputs) == 3:
+            position = inputs[2]
+            # Non constant position is not supported.
+            if isinstance(position, _expr.Constant):
+                position = position.data.numpy()
+            elif position.name_hint in params:
+                position = params[position.name_hint].numpy()
+            else:
+                raise NotImplementedError("Position must be a constant.")
+        else:
+            position = -1
+
+        if position < 0:
+            position = len(input_sequence) + position + 1
+        # Convert sequence to a list, insert new tensor, and repackage as Tuple.
+        tensor_list = [input_sequence[i] for i in range(len(input_sequence))]
+        # Insert new tensor.
+        tensor_list.insert(position, new_tensor)
+        # Create new tuple and return.
+        return _expr.Tuple(tensor_list)
+
+
+class ConcatFromSequence(OnnxOpConverter):
+    """Operator converter for sequence concatenation op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        axis = attr.get("axis", 0)
+        new_axis = attr.get("new_axis", 0)
+
+        # If a new axis should be created, just stack input tensors.
+        if new_axis == 1:
+            return _op.stack(inputs[0], axis=axis)
+
+        return _op.concatenate(inputs[0], axis=axis)
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
-
 
 # _convert_map defines maps of name to converter functor(callable)
 # for 1 to 1 mapping, use Renamer if nothing but name is different
@@ -5107,7 +5325,7 @@ def _get_convert_map(opset):
         "Reciprocal": Reciprocal.get_converter(opset),
         "Floor": Renamer("floor"),
         "Ceil": Renamer("ceil"),
-        "Round": Renamer("round"),
+        "Round": Round.get_converter(opset),
         "IsInf": IsInf.get_converter(opset),
         "IsNaN": Renamer("isnan"),
         "Sqrt": Renamer("sqrt"),
@@ -5183,6 +5401,7 @@ def _get_convert_map(opset):
         "Flatten": Flatten.get_converter(opset),
         "LRN": LRN.get_converter(opset),
         # Recurrent Layers
+        "RNN": RNN.get_converter(opset),
         "LSTM": LSTM.get_converter(opset),
         "GRU": GRU.get_converter(opset),
         # defs/vision
@@ -5241,6 +5460,7 @@ def _get_convert_map(opset):
         "CumSum": CumSum.get_converter(opset),
         "Unique": Unique.get_converter(opset),
         "Einsum": Einsum.get_converter(opset),
+        "Trilu": Trilu.get_converter(opset),
         # defs/control_flow
         "Loop": Loop.get_converter(opset),
         "If": If.get_converter(opset),
@@ -5266,6 +5486,7 @@ def _get_convert_map(opset):
         "RandomNormalLike": RandomNormalLike.get_converter(opset),
         "RandomUniform": RandomUniform.get_converter(opset),
         "RandomUniformLike": RandomUniformLike.get_converter(opset),
+        "Multinomial": Multinomial.get_converter(opset),
         # Loss functions / training
         "NegativeLogLikelihoodLoss": NegativeLogLikelihoodLoss.get_converter(opset),
         "SoftmaxCrossEntropyLoss": SoftmaxCrossEntropyLoss.get_converter(opset),
@@ -5275,6 +5496,10 @@ def _get_convert_map(opset):
         "Scan": Scan.get_converter(opset),
         # ML
         "LinearRegressor": LinearRegressor.get_converter(opset),
+        # Sequence operators
+        "SequenceConstruct": SequenceConstruct.get_converter(opset),
+        "SequenceInsert": SequenceInsert.get_converter(opset),
+        "ConcatFromSequence": ConcatFromSequence.get_converter(opset),
     }
 
 

@@ -180,7 +180,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
       graph_.node_map[key] = current;
     }
     if (parent != nullptr) {
-      auto* link = arena_->make<LinkNode<IndexedForwardGraph::Edge> >();
+      auto* link = arena_->make<LinkNode<IndexedForwardGraph::Edge>>();
       link->value.node = parent;
       link->value.pattern = pattern;
       current->outputs.Push(link);
@@ -1057,7 +1057,8 @@ Pass FuseOps(int fuse_opt_level) {
         link_params = pc->GetConfig("relay.FuseOps.link_params", Bool(link_params)).value();
         int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
         auto max_fuse_depth = pc->GetConfig("relay.FuseOps.max_depth", Integer(kMaxFusedOps));
-        return Downcast<Function>(FuseOps(f, opt_level, max_fuse_depth.value(), link_params, m));
+        return Downcast<Function>(
+            FuseOps(f, opt_level, max_fuse_depth.value().IntValue(), link_params, m));
       };
   return CreateFunctionPass(pass_func, 0, "FuseOps", {"InferType"});
 }

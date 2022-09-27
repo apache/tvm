@@ -23,11 +23,40 @@
  */
 #ifdef TVM_LLVM_VERSION
 
+#include <llvm/ADT/SmallString.h>
+#include <llvm/IR/Attributes.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalValue.h>
+#include <llvm/IR/InlineAsm.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/Intrinsics.h>
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/IR/IntrinsicsNVPTX.h>
+#endif
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/Metadata.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Type.h>
+#include <llvm/IRReader/IRReader.h>
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/Support/Alignment.h>
+#endif
+#include <llvm/Support/CodeGen.h>
+#include <llvm/Support/SourceMgr.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <tvm/runtime/device_api.h>
+
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "../../runtime/cuda/cuda_module.h"
 #include "../build_common.h"
 #include "codegen_llvm.h"
+#include "llvm_instance.h"
 
 namespace tvm {
 namespace codegen {
@@ -39,10 +68,11 @@ class CodeGenNVPTX : public CodeGenLLVM {
     // add function as void return value
     CodeGenLLVM::AddFunctionInternal(f, true);
     // annotate as kernel function
+    llvm::LLVMContext* ctx = llvm_target_->GetContext();
     module_->getOrInsertNamedMetadata("nvvm.annotations")
         ->addOperand(llvm::MDNode::get(
-            *ctx_, {llvm::ValueAsMetadata::get(function_), llvm::MDString::get(*ctx_, "kernel"),
-                    llvm::ValueAsMetadata::get(ConstInt32(1))}));
+            *ctx, {llvm::ValueAsMetadata::get(function_), llvm::MDString::get(*ctx, "kernel"),
+                   llvm::ValueAsMetadata::get(ConstInt32(1))}));
   }
 
   void VisitStmt_(const AllocateNode* op) final {
@@ -72,7 +102,12 @@ class CodeGenNVPTX : public CodeGenLLVM {
         llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
           return builder_->CreateAlloca(DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
         });
-        if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
+#if TVM_LLVM_VERSION >= 110
+        auto alignment = static_cast<unsigned>(alloca->getAlign().value());
+#else
+        unsigned alignment = alloca->getAlignment();
+#endif
+        if (alignment < static_cast<unsigned>(info.alignment)) {
 #if TVM_LLVM_VERSION >= 100
           alloca->setAlignment(llvm::Align(info.alignment));
 #else
@@ -98,17 +133,17 @@ class CodeGenNVPTX : public CodeGenLLVM {
   // Return the thread index via intrinsics.
   llvm::Value* GetThreadIndex(const IterVar& iv) final {
     runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
-    llvm::Intrinsic::ID intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x;
+    llvm::Intrinsic::ID intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x;
     if (ts.rank == 1) {
       switch (ts.dim_index) {
         case 0:
-          intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x;
+          intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x;
           break;
         case 1:
-          intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_tid_y;
+          intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_tid_y;
           break;
         case 2:
-          intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_tid_z;
+          intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_tid_z;
           break;
         default:
           LOG(FATAL) << "unknown thread idx";
@@ -117,13 +152,13 @@ class CodeGenNVPTX : public CodeGenLLVM {
       ICHECK_EQ(ts.rank, 0);
       switch (ts.dim_index) {
         case 0:
-          intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_x;
+          intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_x;
           break;
         case 1:
-          intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_y;
+          intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_y;
           break;
         case 2:
-          intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_z;
+          intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_z;
           break;
         default:
           LOG(FATAL) << "unknown thread idx";
@@ -140,7 +175,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
       return nullptr;
     } else if (sync == "shared" || sync == "shared.dyn") {
       llvm::Function* f =
-          llvm::Intrinsic::getDeclaration(module_.get(), ::llvm::Intrinsic::nvvm_barrier0);
+          llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::nvvm_barrier0);
       return builder_->CreateCall(f, {});
     } else {
       LOG(FATAL) << "Do not support sync " << sync;
@@ -169,10 +204,10 @@ class CodeGenNVPTX : public CodeGenLLVM {
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
 
  protected:
-  void InitTarget(llvm::TargetMachine* tm) final {
+  void InitTarget() final {
     // Maximum vector lane = float4
     native_vector_bits_ = 4 * 32;
-    CodeGenLLVM::InitTarget(tm);
+    CodeGenLLVM::InitTarget();
   }
 };
 
@@ -264,15 +299,13 @@ int GetCUDAComputeVersion(const Target& target) {
 }
 
 runtime::Module BuildNVPTX(IRModule mod, Target target) {
-  InitializeLLVM();
-  int compute_ver = GetCUDAComputeVersion(target);
-  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(target);
-  std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
-  // careful: cg will hold a naked pointer reference to ctx, so it should
-  // have a shorter lifetime than the ctx.
-  std::unique_ptr<CodeGenNVPTX> cg(new CodeGenNVPTX());
+  LLVMInstance llvm_instance;
+  With<LLVMTarget> llvm_target(llvm_instance, target);
 
-  cg->Init("TVMPTXModule", tm.get(), ctx.get(), false, false, false);
+  int compute_ver = GetCUDAComputeVersion(target);
+  auto cg = std::make_unique<CodeGenNVPTX>();
+
+  cg->Init("TVMPTXModule", llvm_target.get(), false, false, false);
 
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
     ICHECK(kv.second->template IsInstance<PrimFuncNode>())
@@ -280,18 +313,13 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
     return Downcast<PrimFunc>(kv.second);
   });
 
+  llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   const auto* flibdevice_path = tvm::runtime::Registry::Get("tvm_callback_libdevice_path");
   if (flibdevice_path != nullptr) {
     std::string path = (*flibdevice_path)(compute_ver);
     if (path.length() != 0) {
-      llvm::SMDiagnostic err;
-      std::unique_ptr<llvm::Module> mlib = llvm::parseIRFile(path, err, *ctx);
-      if (mlib.get() == nullptr) {
-        std::string msg(err.getMessage());
-        LOG(FATAL) << "Fail to load bitcode file " << path << "\n"
-                   << "line " << err.getLineNo() << ":" << msg;
-      }
-      mlib->setTargetTriple(tm->getTargetTriple().str());
+      std::unique_ptr<llvm::Module> mlib = llvm_instance.LoadIR(path);
+      mlib->setTargetTriple(llvm_target->GetTargetTriple());
       mlib->setDataLayout(tm->createDataLayout());
       cg->AddLinkModule(std::move(mlib));
     }
@@ -324,6 +352,12 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
 
 TVM_REGISTER_GLOBAL("target.build.nvptx").set_body_typed(BuildNVPTX);
 
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_nvptx")
+    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+      *rv = static_cast<void*>(new CodeGenNVPTX());
+    });
+
 }  // namespace codegen
 }  // namespace tvm
+
 #endif  // TVM_LLVM_VERSION

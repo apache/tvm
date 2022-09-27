@@ -31,12 +31,32 @@
 namespace tvm {
 namespace tir {
 
+class CollectUnmanagedAllocations : public StmtExprVisitor {
+ public:
+  void VisitStmt_(const AllocateNode* op) final {
+    unmanaged_allocations.insert(op->buffer_var.get());
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitStmt_(const AllocateConstNode* op) final {
+    unmanaged_allocations.insert(op->buffer_var.get());
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
+  /*! \brief Buffers that are allocated outside of the BlockNode, and should not be moved by
+   * BufferAllocationLocator. */
+  std::unordered_set<const VarNode*> unmanaged_allocations;
+};
+
 class BufferAllocationLocator : public StmtExprMutator {
  public:
   explicit BufferAllocationLocator(const PrimFunc& func) {
     Map<Buffer, Optional<Stmt>> buffer_lca = DetectBufferAccessLCA(func);
-
     std::unordered_set<const VarNode*> arg_buffer_vars;
+    CollectUnmanagedAllocations collector;
+    collector(func->body);
+    unmanaged_allocations_ = collector.unmanaged_allocations;
+
     for (const auto& kv : func->buffer_map) {
       const Buffer& buffer = kv.second;
       arg_buffer_vars.emplace(buffer->data.get());
@@ -49,7 +69,10 @@ class BufferAllocationLocator : public StmtExprMutator {
       if (arg_buffer_vars.count(buffer->data.get())) {
         continue;
       }
-      alloc_buffers_[stmt].push_back(buffer);
+      if (!unmanaged_allocations_.count(buffer->data.get())) {
+        alloc_buffers_[stmt].push_back(buffer);
+      }
+      buffer_data_to_buffer_.Set(buffer->data, buffer);
     }
   }
 
@@ -118,16 +141,6 @@ class BufferAllocationLocator : public StmtExprMutator {
     n->reads = RemoveRedundantBufferRegion(n->reads);
     n->writes = RemoveRedundantBufferRegion(n->writes);
     return Stmt(n);
-  }
-
-  Stmt VisitStmt_(const AllocateNode* op) final {
-    unmanaged_allocations_.insert(op->buffer_var.get());
-    return StmtExprMutator::VisitStmt_(op);
-  }
-
-  Stmt VisitStmt_(const AllocateConstNode* op) final {
-    unmanaged_allocations_.insert(op->buffer_var.get());
-    return StmtExprMutator::VisitStmt_(op);
   }
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {

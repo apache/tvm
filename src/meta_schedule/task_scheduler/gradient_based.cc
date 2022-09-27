@@ -61,28 +61,53 @@ class GradientBasedNode final : public TaskSchedulerNode {
     int total_trials = 0;
     double total_latency = 0.0;
     support::TablePrinter p;
-    p.Row() << "ID"
-            << "Name"
-            << "FLOP"
-            << "Weight"
-            << "Speed (GFLOPS)"
-            << "Latency (us)"
-            << "Weighted Latency (us)"
-            << "Trials"
-            << "Terminated";
+
+    if (using_ipython()) {
+      p.Row() << "ID"
+              << "Name"
+              << "FLOP"
+              << "Weight"
+              << "GFLOPS"
+              << "Latency (us)"
+              << "Wtd. Latency"
+              << "Trials"
+              << "Terminated";
+    } else {
+      p.Row() << "ID"
+              << "Name"
+              << "FLOP"
+              << "Weight"
+              << "Speed (GFLOPS)"
+              << "Latency (us)"
+              << "Weighted Latency (us)"
+              << "Trials"
+              << "Terminated";
+    }
+
     p.Separator();
+
     for (int i = 0; i < n_tasks; ++i) {
       const TaskRecord& record = task_records_[i];
       auto row = p.Row();
       int trials = record.trials;
+      String task_name = record.task->task_name.value();
+      if (using_ipython() && task_name.length() > 23) {
+        std::string temp = task_name.c_str();
+        temp = temp.substr(0, 20) + "...";
+        task_name = String(temp);
+      }
       row << /*id=*/i                                     //
-          << /*name=*/record.task->task_name.value()      //
+          << /*name=*/task_name                           //
           << /*flops=*/static_cast<int64_t>(record.flop)  //
           << /*weight=*/static_cast<int>(record.weight);
-      if (trials == 0) {
+      double latency = 1e9;
+      if (trials > 0) {
+        latency = record.best_time_cost_history.back();
+      }
+      if (latency >= 1e9) {
         row << /*speed=*/"N/A" << /*latency=*/"N/A" << /*weighted_latency=*/"N/A";
       } else {
-        double latency = record.best_time_cost_history.back() * 1000.0;
+        latency *= 1000.0;
         double speed = record.flop / latency / 1000.0;
         double weighted_latency = latency * record.weight;
         row << /*speed=*/speed << /*latency=*/latency << /*weighted_latency=*/weighted_latency;
@@ -97,9 +122,10 @@ class GradientBasedNode final : public TaskSchedulerNode {
       }
     }
     p.Separator();
-    os << p.AsStr()                                  //
-       << "\nTotal trials: " << total_trials         //
-       << "\nTotal latency (us): " << total_latency  //
+    os << p.AsStr()                                                    //
+       << "\nProgress: " << total_trials / (max_trials * 0.01) << "%"  //
+       << "\nTotal Trials: " << total_trials << " / " << max_trials    //
+       << "\nTotal latency (us): " << total_latency                    //
        << "\n";
     return os.str();
   }
@@ -108,6 +134,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
     int n_tasks = task_records_.size();
     // Round robin
     if (num_rounds_already_ == 0) {
+      TVM_PY_LOG_CLEAR_SCREEN(this->logging_func);
       TVM_PY_LOG(INFO, this->logging_func) << "\n" << this->TuningStatistics();
     }
     if (num_rounds_already_ < n_tasks) {
@@ -139,10 +166,15 @@ class GradientBasedNode final : public TaskSchedulerNode {
       int n = record.best_time_cost_history.size();
       ICHECK_GE(n, 1);
       double best = record.best_time_cost_history[n - 1];
-      double g1 = (n >= 1 + w) ? (record.best_time_cost_history[n - 1 - w] - best) / w : 0.0;
-      double g2 = best / n;
-      double g = alpha * g1 + (1 - alpha) * g2;
-      grad.push_back(g * record.weight);
+      if (best < 1e9) {
+        double g1 = (n >= 1 + w) ? (record.best_time_cost_history[n - 1 - w] - best) / w : 0.0;
+        double g2 = best / n;
+        double g = alpha * g1 + (1 - alpha) * g2;
+        grad.push_back(g * record.weight);
+      } else {
+        // If the best time cost is unavailable, it means some task is not valid. Skip it.
+        grad.push_back(-1e9);
+      }
     }
     auto max_grad = std::max_element(grad.begin(), grad.end());
     auto min_grad = std::min_element(grad.begin(), grad.end());
@@ -169,6 +201,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
     }
     record.best_time_cost_history.push_back(best_time_cost);
     record.trials += results.size();
+    TVM_PY_LOG_CLEAR_SCREEN(this->logging_func);
     TVM_PY_LOG(INFO, this->logging_func)
         << "[Updated] Task #" << task_id << ": " << record.task->task_name << "\n"
         << this->TuningStatistics();
@@ -180,10 +213,10 @@ TaskScheduler TaskScheduler::GradientBased(Array<TuneContext> tasks,            
                                            Array<FloatImm> task_weights,                        //
                                            Builder builder,                                     //
                                            Runner runner,                                       //
-                                           Database database,                                   //
-                                           int max_trials,                                      //
+                                           Optional<Database> database,                         //
                                            Optional<CostModel> cost_model,                      //
                                            Optional<Array<MeasureCallback>> measure_callbacks,  //
+                                           int max_trials,                                      //
                                            PackedFunc logging_func,                             //
                                            double alpha,                                        //
                                            int window_size,                                     //
@@ -218,9 +251,6 @@ TaskScheduler TaskScheduler::GradientBased(Array<TuneContext> tasks,            
   n->best_time_cost_per_task_ = std::vector<double>(n_tasks, 1e100);
   n->num_rounds_already_ = 0;
   support::LinearCongruentialEngine(&n->rand_state_).Seed(seed);
-  for (const TuneContext& task : tasks) {
-    task->task_scheduler = n.get();
-  }
   return TaskScheduler(n);
 }
 

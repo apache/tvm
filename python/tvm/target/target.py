@@ -43,6 +43,14 @@ class TargetKind(Object):
         return dict(_ffi_api.ListTargetKindOptionsFromName(kind_name))
 
 
+class TargetFeatures:
+    def __init__(self, target):
+        self.target = target
+
+    def __getattr__(self, name: str):
+        return _ffi_api.TargetGetFeature(self.target, name)
+
+
 @tvm._ffi.register_object
 class Target(Object):
     """Target device information, use through TVM API.
@@ -108,6 +116,12 @@ class Target(Object):
             When using a dictionary or json string to configure target, the possible values are
             same as target.
         """
+        if isinstance(target, str) and "-libs=mkldnn" in target:
+            target = target.replace("mkldnn", "dnnl")
+            warnings.warn(
+                "Legacy support of mkldnn is going to be deprecated. "
+                "Please use -libs=dnnl instead.",
+            )
         if isinstance(target, (dict, str)):
             target = convert(target)
         if isinstance(host, (dict, str)):
@@ -191,7 +205,7 @@ class Target(Object):
     def supports_integer_dot_product(self):
         if self.attrs.get("supports_integer_dot_product", []):
             return bool(self.attrs["supports_integer_dot_product"])
-        if self.kind == "cuda":
+        if self.kind.name == "cuda":
             sm_version = int(self.arch.split("_")[1])
             if sm_version >= 61:
                 return True
@@ -200,6 +214,10 @@ class Target(Object):
     @property
     def libs(self):
         return list(self.attrs.get("libs", []))
+
+    @property
+    def features(self):
+        return TargetFeatures(self)
 
     def get_kind_attr(self, attr_name):
         """Get additional attribute about the target kind.
@@ -247,14 +265,15 @@ class Target(Object):
         Note that this method does not support heterogeneous compilation targets.
         """
         target = Target.canon_target(target)
-        target_host = Target.canon_target(target_host)
         if target is None:
             assert target_host is None, "Target host is not empty when target is empty."
-        if target_host is not None:
+            return target, target_host
+        if target.host is None and target_host is not None:
             warnings.warn(
                 "target_host parameter is going to be deprecated. "
                 "Please pass in tvm.target.Target(target, host=target_host) instead."
             )
+            target_host = Target.canon_target(target_host)
             target = target.with_host(target_host)
         if target is not None:
             # In case the target already had a host, extract it here.
@@ -293,15 +312,15 @@ class Target(Object):
         """
         # Convert target to Array<Target>, but not yet accounting for any host.
         raw_targets = Target.canon_multi_target(target)
-        assert raw_targets is not None
+        assert raw_targets is not None and len(raw_targets) > 0
         # Convert host to Target, if given.
-        target_host = Target.canon_target(target_host)
-        if target_host is not None:
+        if raw_targets[0].host is None and target_host is not None:
             warnings.warn(
                 "target_host parameter is going to be deprecated. "
                 "Please pass in tvm.target.Target(target, host=target_host) instead."
             )
             # Make sure the (canonical) host is captured in all the (canonical) targets.
+            target_host = Target.canon_target(target_host)
             raw_targets = convert([tgt.with_host(target_host) for tgt in raw_targets])
         return raw_targets
 
@@ -312,22 +331,22 @@ class Target(Object):
         Similarly, if given, target_host can be in any form recognized by
         Target.canon_target. The final target_map keys will capture the target_host in
         canonical form. Also returns the target_host in canonical form."""
-        if target_host is not None:
-            warnings.warn(
-                "target_host parameter is going to be deprecated. "
-                "Please pass in tvm.target.Target(target, host=target_host) instead."
-            )
-            target_host = Target.canon_target(target_host)
         new_target_map = {}
+        canonical_target_host = None
         for tgt, mod in target_map.items():
             tgt = Target.canon_target(tgt)
             assert tgt is not None
-            if target_host is not None:
-                tgt = tgt.with_host(target_host)
-            # In case the first target already has a host, extract it here.
-            target_host = tgt.host
+            if canonical_target_host is None:
+                if tgt.host is not None:
+                    canonical_target_host = tgt.host
+                elif target_host is not None:
+                    # No deprecation warning in this case since host may have been manufactured
+                    # behind the scenes in build_module.py build.
+                    canonical_target_host = Target.canon_target(target_host)
+            if tgt.host is None and canonical_target_host is not None:
+                tgt = tgt.with_host(canonical_target_host)
             new_target_map[tgt] = mod
-        return new_target_map, target_host
+        return new_target_map, canonical_target_host
 
     @staticmethod
     def target_or_current(target):
@@ -423,10 +442,12 @@ MICRO_SUPPORTED_MODELS = {
     "imxrt10xx": ["-mcpu=cortex-m7"],
     "mps2_an521": ["-mcpu=cortex-m33"],
     "mps3_an547": ["-mcpu=cortex-m55"],
-    "nrf52840": ["-mcpu=cortex-m4"],
+    "nrf52840": ["-mcpu=cortex-m4+nodsp"],
     "nrf5340dk": ["-mcpu=cortex-m33"],
+    "rp2040": ["-mcpu=cortex-m0"],
     "sam3x8e": ["-mcpu=cortex-m3"],
     "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
+    "stm32h7xx": ["-mcpu=cortex-m7"],
     "stm32l4r5zi": ["-mcpu=cortex-m4"],
     "stm32u5xx": ["-mcpu=cortex-m33"],
     "zynq_mp_r5": ["-mcpu=cortex-r5"],
@@ -510,7 +531,7 @@ def arm_cpu(model="unknown", options=None):
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
 
-    opts = ["-device=arm_cpu"] + pre_defined_opt
+    opts = ["-keys=arm_cpu,cpu", "-device=arm_cpu"] + pre_defined_opt
     opts = _merge_opts(opts, options)
     return Target(" ".join(["llvm"] + opts))
 
@@ -591,7 +612,7 @@ def riscv_cpu(model="sifive-u54", options=None):
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
 
-    opts = ["-device=arm_cpu"] + pre_defined_opt
+    opts = ["-keys=arm_cpu,cpu", "-device=arm_cpu"] + pre_defined_opt
     opts = _merge_opts(opts, options)
     return Target(" ".join(["llvm"] + opts))
 
@@ -615,8 +636,8 @@ def hexagon(cpu_ver="v66", **kwargs):
         Whether to use QFloat HVX instructions.
     use_ieee_fp : bool (default: False)
         Whether to use IEEE HVX instructions
-    link_params : bool (default: False)
-        Whether to link graph parameters into the LLVM module.
+    num_cores : int (default: 4)
+        The number of HVX threads. This attribute is required by meta scheduler.
 
     Note: Floating point support in HVX requires LLVM 14+.
     """
@@ -650,7 +671,6 @@ def hexagon(cpu_ver="v66", **kwargs):
         "llvm_options": None,
         "use_qfloat": arch_version >= 68,
         "use_ieee_fp": False,
-        "link_params": False,
     }
     config.update(kwargs)
 
@@ -703,6 +723,12 @@ def hexagon(cpu_ver="v66", **kwargs):
 
         llvm_options = config["llvm_options"]
 
+        # To enable auto-vectorization for v68 target added the below llvm-option by default
+        if arch_version == 68:
+            if not llvm_options:
+                llvm_options = ""
+            llvm_options += " -force-hvx-float"
+
         # TVM's option parser doesn't allow '=' in values, but '=' can
         # appear in LLVM flags. Replace it with '@', since it's unlikely
         # that '@' will be used in another context.
@@ -711,46 +737,35 @@ def hexagon(cpu_ver="v66", **kwargs):
         args = [s.replace("=", "@") for s in llvm_options.split()]
         return "--llvm-options=" + ",".join(args)
 
-    # TVM target attributes string
-    def create_tvm_options(cpu_ver, config):  # pylint: disable=unused-argument
-        """Create TVM target features string."""
-
-        features = {
-            "link_params": "link-params",
-        }
-        opts = ""
-        for k in config:
-            if k in features:
-                opts += " --" + features[k] + "=" + str(config[k])
-        return opts
-
     target_str = create_llvm_target(cpu_ver, config)
     llvm_str = create_llvm_options(cpu_ver, config)
-    tvm_str = create_tvm_options(cpu_ver, config)
 
-    args_list = target_str.split() + llvm_str.split() + tvm_str.split()
+    args_list = target_str.split() + llvm_str.split()
+
+    num_cores = config["num_cores"] if "num_cores" in kwargs else 4
+    args_list.append("--num-cores=%d" % num_cores)
 
     return Target(" ".join(["hexagon"] + args_list))
 
 
 STM32_SUPPORTED_SERIES = {
     # High-Performance
-    "stm32H7xx": ["-device=arm_cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
-    "stm32F7xx": ["-device=arm_cpu", "-mcpu=cortex-m7"],
-    "stm32F4xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32F2xx": ["-device=arm_cpu", "-mcpu=cortex-m3"],
+    "stm32H7xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
+    "stm32F7xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m7"],
+    "stm32F4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32F2xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
     # Mainstream
-    "stm32G0xx": ["-device=arm_cpu", "-mcpu=cortex-m0+"],
-    "stm32F0xx": ["-device=arm_cpu", "-mcpu=cortex-m0"],
-    "stm32F1xx": ["-device=arm_cpu", "-mcpu=cortex-m3"],
-    "stm32G4xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32F3xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32G0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0+"],
+    "stm32F0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0"],
+    "stm32F1xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
+    "stm32G4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32F3xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
     # Low-power
-    "stm32U5xx": ["-device=arm_cpu", "-mcpu=cortex-m33"],
-    "stm32L5xx": ["-device=arm_cpu", "-mcpu=cortex-m33"],
-    "stm32L4xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32L1xx": ["-device=arm_cpu", "-mcpu=cortex-m3"],
-    "stm32L0xx": ["-device=arm_cpu", "-mcpu=cortex-m0+"],
+    "stm32U5xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
+    "stm32L5xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
+    "stm32L4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32L1xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
+    "stm32L0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0+"],
 }
 
 

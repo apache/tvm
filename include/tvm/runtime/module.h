@@ -33,6 +33,7 @@
 #include <tvm/runtime/object.h>
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -112,7 +113,7 @@ class Module : public ObjectRef {
 class TVM_DLL ModuleNode : public Object {
  public:
   /*! \brief virtual destructor */
-  virtual ~ModuleNode() {}
+  virtual ~ModuleNode() = default;
   /*!
    * \return The per module type key.
    * \note This key is used to for serializing custom modules.
@@ -233,7 +234,8 @@ class TVM_DLL ModuleNode : public Object {
 
  private:
   /*! \brief Cache used by GetImport */
-  std::unordered_map<std::string, std::shared_ptr<PackedFunc> > import_cache_;
+  std::unordered_map<std::string, std::shared_ptr<PackedFunc>> import_cache_;
+  std::mutex mutex_;
 };
 
 /*!

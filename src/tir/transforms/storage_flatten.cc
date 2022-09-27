@@ -47,6 +47,7 @@
 namespace tvm {
 namespace tir {
 
+using arith::IRVisitorWithAnalyzer;
 using runtime::StorageRank;
 using runtime::StorageScope;
 using runtime::ThreadScope;
@@ -750,7 +751,7 @@ class ThreadScopePropagate : public StmtExprMutator {
 
  private:
   // If the rewritten buffers are part of a buffer_bind_scope, either
-  // as the buffer view or as the the buffer being viewed, then the
+  // as the buffer view or as the buffer being viewed, then the
   // buffer_bind_scope must be rewritten to refer to the updated
   // buffers.
   Stmt HandleBufferBindScope(const AttrStmtNode* op) {
@@ -1090,6 +1091,12 @@ class BufferBindUnwrapper : public StmtExprMutator {
     } else {
       // Add explicit strides to the view, in order to bind to source.strides[i].
       view = view.MakeStrideView();
+    }
+
+    // Match integer bits of source->elem_offset and view->elem_offset
+    // as is required by ArgBinder::Bind_
+    if (view->elem_offset.defined() && source->elem_offset.dtype() != view->elem_offset.dtype()) {
+      view.CopyOnWrite()->elem_offset = cast(source->elem_offset.dtype(), view->elem_offset);
     }
 
     // Bind any variables that reference the view (e.g. elem_offset,
@@ -1468,7 +1475,7 @@ class StorageFlattener : public StmtExprMutator {
                  << op->buffer_var->name_hint;
     }
     return AllocateConst(stmt->buffer_var, stmt->dtype, FlattenExtents(stmt), data_or_idx,
-                         stmt->body, stmt->span);
+                         stmt->body, stmt->annotations, stmt->span);
   }
 
   Stmt VisitStmt_(const LetStmtNode* op) final {

@@ -75,13 +75,15 @@ inline std::vector<const PrimExpr*> ExprSplitAddition(const PrimExpr& expr) {
 }
 
 // Searches for the following types of expr:
-//   mult_expr = (a1 + a2 + ... + aj + c / (k1 * k2 * ... * ki) * k1 * ... * kt-1 ) * kt * ... * ki
-//   mod_l_expr = c
+//   mult_expr = (a1 + a2 + ... + aj + c1 / (k1 * k2 * ... * ki) * k1 * ... * kt-1 ) * kt * ... * ki
+//   mod_l_expr = c2
 //   mod_r_expr = k1 * k2 * ... * ki
-// If it can be optimized, returns (true, (a1 + a2 + ... + aj) * kt * ... * ki + c)
+//   where c1 ~= c2 mod k1 * k2 * ... * ki
+// If it can be optimized, returns (true, (a1 + a2 + ... + aj) * kt * ... * ki + c1)
 // Currently the we will not search the add/mult combinations exhaustively
 //   as it will take too much computation.
-inline std::pair<bool, PrimExpr> MergeMulModInner(const PrimExpr& mult_expr,
+inline std::pair<bool, PrimExpr> MergeMulModInner(arith::Analyzer* analyzer,
+                                                  const PrimExpr& mult_expr,
                                                   const PrimExpr& mod_l_expr,
                                                   const PrimExpr& mod_r_expr) {
   using namespace tir;
@@ -119,9 +121,10 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(const PrimExpr& mult_expr,
     } else if (inner_div_ptr) {
       PrimExpr overall_mult = mult_inner.get() ? mult_inner * mult_outer : mult_outer;
       if (expr_equal(overall_mult, inner_div_ptr->b) && expr_equal(overall_mult, mod_r_expr) &&
-          expr_equal(inner_div_ptr->a, mod_l_expr)) {
+          analyzer->CanProveEqual(floormod(inner_div_ptr->a - mod_l_expr, mod_r_expr), 0)) {
         // Found!
-        PrimExpr ret = no_opt_sum.get() ? no_opt_sum * mult_outer + mod_l_expr : mod_l_expr;
+        PrimExpr ret =
+            no_opt_sum.get() ? no_opt_sum * mult_outer + inner_div_ptr->a : inner_div_ptr->a;
         return std::make_pair(true, ret);
       } else {
         return std::make_pair(false, PrimExpr());
@@ -149,7 +152,7 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(const PrimExpr& mult_expr,
 // Otherwise, the elements will be added to the no_opt_sum variable
 inline void MergeMulModInsertElements(const std::vector<const PrimExpr*>& eles,
                                       std::list<PrimExpr>* mult_exprs,
-                                      std::list<std::pair<PrimExpr, PrimExpr> >* mod_exprs,
+                                      std::list<std::pair<PrimExpr, PrimExpr>>* mod_exprs,
                                       PrimExpr* no_opt_sum, bool* has_mult, bool* has_mod) {
   using namespace tir;
   *has_mult = false;
@@ -191,20 +194,20 @@ inline PrimExpr MergeMulMod(arith::Analyzer* analyzer, const PrimExpr& base) {
   simplified_base = analyzer->Simplify(simplified_base);
   std::vector<const PrimExpr*> eles = ExprSplitAddition(simplified_base);
   std::list<PrimExpr> mult_exprs;
-  std::list<std::pair<PrimExpr, PrimExpr> > mod_exprs;
+  std::list<std::pair<PrimExpr, PrimExpr>> mod_exprs;
   PrimExpr no_opt_sum;
   bool has_mult;
   bool has_mod;
   MergeMulModInsertElements(eles, &mult_exprs, &mod_exprs, &no_opt_sum, &has_mult, &has_mod);
   bool find_opt = false;
-  std::list<std::pair<PrimExpr, PrimExpr> >::iterator search_mod_it = mod_exprs.begin();
+  std::list<std::pair<PrimExpr, PrimExpr>>::iterator search_mod_it = mod_exprs.begin();
   // 2. Exhaustive Search
   while (search_mod_it != mod_exprs.end()) {
     std::list<PrimExpr>::iterator mult_it = mult_exprs.begin();
     bool inner_find_opt = false;
     while (mult_it != mult_exprs.end()) {
       std::pair<bool, PrimExpr> ret =
-          MergeMulModInner(*mult_it, search_mod_it->first, search_mod_it->second);
+          MergeMulModInner(analyzer, *mult_it, search_mod_it->first, search_mod_it->second);
       if (ret.first) {
         inner_find_opt = true;
         auto temp_mod_it = search_mod_it;
@@ -235,7 +238,7 @@ inline PrimExpr MergeMulMod(arith::Analyzer* analyzer, const PrimExpr& base) {
   for (std::list<PrimExpr>::iterator it = mult_exprs.begin(); it != mult_exprs.end(); ++it) {
     no_opt_sum = no_opt_sum.get() ? no_opt_sum + *it : *it;
   }
-  for (std::list<std::pair<PrimExpr, PrimExpr> >::iterator it = mod_exprs.begin();
+  for (std::list<std::pair<PrimExpr, PrimExpr>>::iterator it = mod_exprs.begin();
        it != mod_exprs.end(); ++it) {
     no_opt_sum = no_opt_sum.get() ? no_opt_sum + indexmod(it->first, it->second)
                                   : indexmod(it->first, it->second);
@@ -458,8 +461,8 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
   ICHECK(n != nullptr);
   arith::Analyzer ana;
   begins = SimplifyArray(&ana, begins);
-  Array<PrimExpr> elem_offset = n->ElemOffset(begins);
-  elem_offset.MutateByApply([&](const PrimExpr& expr) { return ana.Simplify(expr); });
+  Array<PrimExpr> elem_offset =
+      n->ElemOffset(begins).Map([&](const PrimExpr& expr) { return ana.Simplify(expr); });
 
   Array<PrimExpr> strides = n->strides;
   if (strides.size() == 0) {
@@ -580,6 +583,33 @@ Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> 
   }
   n->span = std::move(span);
   data_ = std::move(n);
+}
+
+tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std::string name,
+                                      int data_alignment, int offset_factor, bool compact,
+                                      std::string memory_scope) {
+  DataType storage_dtype = (dtype == DataType::Bool() ? DataType::Int(8) : dtype);
+  auto data = tir::Var(name, PointerType(PrimType(storage_dtype), memory_scope));
+  bool has_any = false;
+  if (!compact) {
+    for (const auto& it : shape) {
+      if (it.as<tir::VarNode>()) {
+        has_any = true;
+        break;
+      }
+    }
+  }
+  tir::BufferType buffer_type = has_any ? tir::kAutoBroadcast : tir::kDefault;
+
+  PrimExpr elem_offset;
+  if (offset_factor != 0) {
+    elem_offset = tir::Var(name + "_elem_offset", shape[0].dtype());
+  } else {
+    elem_offset = PrimExpr();
+  }
+
+  return tir::Buffer(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, data_alignment,
+                     offset_factor, buffer_type);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

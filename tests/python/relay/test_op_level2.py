@@ -522,6 +522,13 @@ def test_conv3d_infer_type():
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, d, h, w, 16), "int32")
 
+    # Infer with groups
+    x = relay.var("x", relay.TensorType((1, 16, 224, 224, 224), "float32"))
+    w = relay.var("w", relay.TensorType((4, 4, 1, 1, 1), "float32"))
+    y = relay.nn.conv3d(x, w, groups=4, kernel_size=(1, 1, 1), channels=4)
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((1, 4, 224, 224, 224), "float32")
+
 
 @tvm.testing.uses_gpu
 def test_conv3d_run():
@@ -1994,6 +2001,215 @@ def test_conv2d_rocm_sdot4():
     )
 
     np.testing.assert_equal(out, ref)
+
+
+def np_float2tvm_bf16(arr):
+    """Convert a numpy array of float to a TVM array
+    of bf16"""
+    orig = arr.view("<u4")
+    bias = np.bitwise_and(np.right_shift(orig, 16), 1) + 0x7FFF
+    nparr = np.right_shift(orig + bias, 16).astype("uint16")
+    return tvm.nd.empty(nparr.shape, "bfloat16").copyfrom(nparr)
+
+
+def np_bf162np_float(arr):
+    """Convert a numpy array of bf16 (uint16) to a numpy array
+    of float"""
+    u32 = np.left_shift(arr.astype("uint32"), 16)
+    return u32.view("<f4")
+
+
+@tvm.testing.requires_x86
+def test_conv2d_nchw_dnnl():
+    if not tvm.get_global_func("tvm.contrib.dnnl.conv2d", allow_missing=True):
+        print(
+            "skip because extern dnnl function is not available, \
+                built with dnnl=ON"
+        )
+        return
+    d_shape = (1, 64, 56, 56)
+    w_shape = (64, 64, 3, 3)
+    padding = (1, 1)
+    strides = (1, 1)
+
+    def get_subgraph(dtype):
+        data = relay.var("data", shape=d_shape, dtype=dtype)
+        weight = relay.var("weight", shape=w_shape, dtype=dtype)
+        out_channel = w_shape[0]
+        conv2d = relay.nn.conv2d(
+            data=data,
+            weight=weight,
+            kernel_size=w_shape[2:],
+            channels=out_channel,
+            padding=padding,
+            strides=strides,
+            out_dtype=dtype,
+        )
+        return conv2d
+
+    for t in ["float32", "bfloat16"]:
+        mod = tvm.IRModule.from_expr(get_subgraph(t))
+
+        data_np = np.random.uniform(1, 10, d_shape).astype("float32")
+        weight_np = np.random.uniform(1, 10, size=w_shape).astype("float32")
+        ref = tvm.topi.testing.conv2d_nchw_python(data_np, weight_np, strides, padding)
+
+        if t == "bfloat16":
+            data_np = np_float2tvm_bf16(data_np)
+            weight_np = np_float2tvm_bf16(weight_np)
+
+        target = "llvm -mcpu=skylake-avx512 -libs=dnnl"
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(mod, target=target, params={"weight": weight_np})
+
+        dev = tvm.device(target, 0)
+        runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+        runtime.set_input("data", data_np)
+        runtime.run()
+
+        out = runtime.get_output(0).numpy()
+
+        if t == "bfloat16":
+            out = np_bf162np_float(out)
+            np.testing.assert_allclose(out, ref, rtol=1e-2)
+        else:
+            np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+
+
+@tvm.testing.requires_x86
+def test_conv2d_nhwc_dnnl():
+    if not tvm.get_global_func("tvm.contrib.dnnl.conv2d", allow_missing=True):
+        print(
+            "skip because extern dnnl function is not available, \
+                built with dnnl=ON"
+        )
+        return
+    d_shape = (1, 56, 56, 64)
+    w_shape = (3, 3, 64, 64)
+    padding = (1, 1)
+    strides = (1, 1)
+
+    def get_subgraph(dtype):
+        data = relay.var("data", shape=d_shape, dtype=dtype)
+        weight = relay.var("weight", shape=w_shape, dtype=dtype)
+        out_channel = w_shape[3]
+        conv2d = relay.nn.conv2d(
+            data=data,
+            weight=weight,
+            kernel_size=w_shape[:2],
+            channels=out_channel,
+            padding=padding,
+            strides=strides,
+            out_dtype=dtype,
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        return conv2d
+
+    for t in ["float32", "bfloat16"]:
+        mod = tvm.IRModule.from_expr(get_subgraph(t))
+
+        data_np = np.random.uniform(1, 10, d_shape).astype("float32")
+        weight_np = np.random.uniform(1, 10, size=w_shape).astype("float32")
+        ref = tvm.topi.testing.conv2d_nhwc_python(data_np, weight_np, strides, padding)
+
+        if t == "bfloat16":
+            data_np = np_float2tvm_bf16(data_np)
+            weight_np = np_float2tvm_bf16(weight_np)
+
+        target = "llvm -mcpu=skylake-avx512 -libs=dnnl"
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(mod, target=target, params={"weight": weight_np})
+
+        dev = tvm.device(target, 0)
+        runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+        runtime.set_input("data", data_np)
+        runtime.run()
+
+        out = runtime.get_output(0).numpy()
+
+        if t == "bfloat16":
+            out = np_bf162np_float(out)
+            np.testing.assert_allclose(out, ref, rtol=1e-2)
+        else:
+            np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+
+
+@pytest.mark.skip("Requires cascadelake or ARM v8.2")
+def test_conv2d_int8_alter_dtype():
+    def get_conv2d_nchw(
+        d_shape,
+        w_shape,
+        data_dtype,
+    ):
+        out_dtype = "int32"
+        strides = (1, 1)
+        padding = (1, 1)
+        data = relay.var("data", shape=d_shape, dtype=data_dtype)
+        weight = relay.var("weight", shape=w_shape, dtype="int8")
+        out_channel = w_shape[0]
+        return relay.nn.conv2d(
+            data=data,
+            weight=weight,
+            kernel_size=w_shape[2:],
+            channels=out_channel,
+            padding=padding,
+            strides=strides,
+            out_dtype=out_dtype,
+        )
+
+    I, O, H, W = 64, 64, 56, 56
+    kH = kW = 3
+
+    data_shape = (1, I, H, W)
+    weight_shape = (O, I, kH, kW)
+    bias_shape = (1, weight_shape[0], 1, 1)
+
+    bias = relay.var("bias", shape=bias_shape, dtype="int32")
+    bias_np = np.random.randint(low=-127, high=128, size=bias_shape).astype("int32")
+    weight_np = np.random.uniform(-128, 127, size=weight_shape).astype("int8")
+
+    for data_dtype, target, dot_product_instr in [
+        ("uint8", "llvm --device arm_cpu -mattr=+v8.2a,+dotprod", "sdot"),
+        ("int8", "llvm -mcpu=cascadelake", "vpdpbusd"),
+    ]:
+        conv2d = get_conv2d_nchw(data_shape, weight_shape, data_dtype)
+        bias_add = relay.add(conv2d, bias)
+        mod = tvm.IRModule.from_expr(bias_add)
+
+        if data_dtype == "uint8":
+            data_np = np.random.uniform(0, 255, size=data_shape).astype("uint8")
+        else:
+            data_np = np.random.uniform(-128, 127, size=data_shape).astype("int8")
+
+        params = {"weight": weight_np, "bias": bias_np}
+
+        ref = (
+            relay.create_executor("graph", mod=mod, device=tvm.cpu(0), target="llvm")
+            .evaluate()(*[data_np, weight_np, bias_np])
+            .numpy()
+        )
+
+        dev = tvm.cpu(0)
+
+        with tvm.transform.PassContext(
+            opt_level=3,
+        ):
+            lib = relay.build(mod, target=target, params=params)
+
+        assert dot_product_instr in lib.lib.get_source("asm")
+
+        rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+        rt_mod.set_input("data", data_np)
+
+        rt_mod.run()
+
+        out = rt_mod.get_output(0).numpy()
+
+        np.testing.assert_equal(out, ref)
 
 
 if __name__ == "__main__":

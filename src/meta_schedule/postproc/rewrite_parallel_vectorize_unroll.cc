@@ -233,7 +233,7 @@ void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
     int64_t prod_extent = 1;
     for (int i = 0; i < n_loops && loop_types[i] == IterVarType::kDataPar; ++i) {
       const StmtSRef& loop_sref = loop_srefs[i];
-      const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+      const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
       if (HasAnnOrBinding(loop)) {
         break;
       }
@@ -262,7 +262,7 @@ void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
     for (int i = n_loops - 1;
          i >= 0 && loop_types[i] == IterVarType::kDataPar && num_fusible < max_fusible; --i) {
       const StmtSRef& loop_sref = loop_srefs[i];
-      const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+      const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
       if (HasAnnOrBinding(loop)) {
         break;
       }
@@ -303,11 +303,14 @@ bool FindAnnotatedRootBlock(const Schedule& sch, ParsedAnnotation* parsed, Block
     const GlobalVar& g_var = kv.first;
     const BaseFunc& base_func = kv.second;
     if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
-      Block block = Downcast<BlockRealize>(prim_func->body)->block;
-      if (ParseAnnotation(block, parsed)) {
-        *root_rv = sch->GetBlock(block->name_hint, g_var->name_hint);
-        RemoveParsedAnn(sch, *root_rv, *parsed);
-        return true;
+      const BlockRealizeNode* block_realize = prim_func->body.as<BlockRealizeNode>();
+      if (block_realize != nullptr) {
+        Block block = block_realize->block;
+        if (ParseAnnotation(block, parsed)) {
+          *root_rv = sch->GetBlock(block->name_hint, g_var->name_hint);
+          RemoveParsedAnn(sch, *root_rv, *parsed);
+          return true;
+        }
       }
     }
   }
@@ -379,6 +382,12 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
       }
     }
     return true;
+  }
+
+  Postproc Clone() const {
+    ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
+        make_object<RewriteParallelVectorizeUnrollNode>(*this);
+    return Postproc(n);
   }
 
   static constexpr const char* _type_key = "meta_schedule.RewriteParallelVectorizeUnroll";

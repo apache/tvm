@@ -34,11 +34,12 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 def _get_network(
-    args: Tuple[str, List[int]]
+    args: Tuple[str, List[int], str]
 ) -> Tuple[IRModule, bytearray, Tuple[str, List[int], str]]:
     name: str
     input_shape: List[int]
-    name, input_shape = args
+    layout: str
+    name, input_shape, layout = args
 
     mod: IRModule
 
@@ -57,24 +58,26 @@ def _get_network(
         import torch  # type: ignore
         from torchvision import models  # type: ignore
 
+        assert layout is None or layout in ["NCHW", "NHWC"]
+
         if name in ["resnet_18", "resnet_50"]:
-            model = getattr(models, name.replace("_", ""))(pretrained=False)
+            model = getattr(models, name.replace("_", ""))(weights=None)
         elif name == "wide_resnet_50":
-            model = getattr(models, "wide_resnet50_2")(pretrained=False)
+            model = getattr(models, "wide_resnet50_2")(weights=None)
         elif name == "resnext_50":
-            model = getattr(models, "resnext50_32x4d")(pretrained=False)
+            model = getattr(models, "resnext50_32x4d")(weights=None)
         elif name == "mobilenet_v2":
-            model = getattr(models, name)(pretrained=False)
+            model = getattr(models, name)(weights=None)
         elif name == "mobilenet_v3":
-            model = getattr(models, name + "_large")(pretrained=False)
+            model = getattr(models, name + "_large")(weights=None)
         elif name == "inception_v3":
-            model = getattr(models, name)(pretrained=False, aux_logits=False)
+            model = getattr(models, name)(weights=None, aux_logits=False)
         elif name == "densenet_121":
-            model = getattr(models, name.replace("_", ""))(pretrained=False)
+            model = getattr(models, name.replace("_", ""))(weights=None)
         elif name == "resnet3d_18":
-            model = models.video.r3d_18(pretrained=False)
+            model = models.video.r3d_18(weights=None)
         elif name == "vgg_16":
-            model = getattr(models, name.replace("_", ""))(pretrained=False)
+            model = getattr(models, name.replace("_", ""))(weights=None)
 
         dtype = "float32"
         input_data = torch.randn(input_shape).type(  # pylint: disable=no-member
@@ -82,30 +85,33 @@ def _get_network(
                 "float32": torch.float32,  # pylint: disable=no-member
             }[dtype]
         )
-        scripted_model = torch.jit.trace(model, input_data).eval()
+        scripted_model = torch.jit.trace(model, input_data).eval()  # type: ignore
         input_name = "input0"
         shape_list = [(input_name, input_shape)]
         mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
+        passes = [relay.transform.RemoveUnusedFunctions()]
+        if layout == "NHWC":
+            # PyTorch is imported as NCHW by default
+            passes.append(
+                relay.transform.ConvertLayout(
+                    {
+                        "nn.conv2d": ["NHWC", "default"],
+                        "nn.conv3d": ["NDHWC", "default"],
+                        "nn.max_pool2d": ["NHWC", "default"],
+                        "nn.avg_pool2d": ["NHWC", "default"],
+                    }
+                )
+            )
         with tvm.transform.PassContext(opt_level=3):
-            mod = tvm.transform.Sequential(
-                [
-                    relay.transform.RemoveUnusedFunctions(),
-                    relay.transform.ConvertLayout(
-                        {
-                            "nn.conv2d": ["NHWC", "default"],
-                            "nn.conv3d": ["NDHWC", "default"],
-                            "nn.max_pool2d": ["NHWC", "default"],
-                            "nn.avg_pool2d": ["NHWC", "default"],
-                        }
-                    ),
-                ]
-            )(mod)
+            mod = tvm.transform.Sequential(passes)(mod)
         inputs = (input_name, input_shape, dtype)
     elif name in ["bert_tiny", "bert_base", "bert_medium", "bert_large"]:
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
         # pip3 install transformers==3.5 torch==1.7
         import torch  # type: ignore
         import transformers  # type: ignore
+
+        assert layout is None
 
         config_dict = {
             "bert_tiny": transformers.BertConfig(
@@ -143,7 +149,7 @@ def _get_network(
         input_dtype = "int64"
         a = torch.randint(10000, input_shape)  # pylint: disable=no-member
         model.eval()
-        scripted_model = torch.jit.trace(model, [a], strict=False)
+        scripted_model = torch.jit.trace(model, [a], strict=False)  # type: ignore
         input_name = "input_ids"
         shape_list = [(input_name, input_shape)]
         mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
@@ -151,6 +157,8 @@ def _get_network(
         mod = relay.transform.CombineParallelBatchMatmul()(mod)
         inputs = (input_name, input_shape, input_dtype)
     elif name == "dcgan":
+        assert layout is None
+
         output_shape = input_shape
         batch_size = output_shape[0]
         oshape = output_shape[1:]
@@ -190,6 +198,7 @@ def get_network(
     name: str,
     input_shape: List[int],
     *,
+    layout: Optional[str] = None,
     cache_dir: Optional[str] = None,
 ) -> Tuple[IRModule, Dict[str, NDArray], Tuple[str, List[int], str]]:
     """Get the symbol definition and random weight of a network
@@ -200,6 +209,8 @@ def get_network(
         The name of the network.
     input_shape : List[int]
         The shape of the input tensor.
+    layout : Optional[str]
+        The layout of the input tensor. For vision models, the layout is by default NHWC.
     cache_dir : Optional[str], optional
         The directory to cache the generated network.
         If not specified, the cache will be disabled.
@@ -219,11 +230,11 @@ def get_network(
     inputs: Tuple[str, List[int], str]
     params_bytearray: bytearray
 
-    filename = f'relay-{name}-{",".join(str(i) for i in input_shape)}.json'
+    filename = f'relay-{name}-{layout}-{",".join(str(i) for i in input_shape)}.json'
     cached = _load_cache(cache_dir, filename)
     if cached is None:
         with multiprocessing.Pool(processes=1) as pool:
-            result = pool.map(_get_network, [(name, input_shape)])
+            result = pool.map(_get_network, [(name, input_shape, layout)])
         ((mod, params_bytearray, inputs),) = result
         cached = [mod, params_bytearray, inputs]
         _save_cache(cache_dir, filename, cached)
@@ -287,45 +298,6 @@ def extract_from_relay(
         extracted_tasks = list(extracted_tasks)
         _save_cache(cache_dir, filename, extracted_tasks)
     return extracted_tasks
-
-
-def _build_dataset() -> List[Tuple[str, List[int]]]:
-    network_keys = []
-    for name in [
-        "resnet_18",
-        "resnet_50",
-        "mobilenet_v2",
-        "mobilenet_v3",
-        "wide_resnet_50",
-        "resnext_50",
-        "densenet_121",
-        "vgg_16",
-    ]:
-        for batch_size in [1, 4, 8]:
-            for image_size in [224, 240, 256]:
-                network_keys.append((name, [batch_size, 3, image_size, image_size]))
-    # inception-v3
-    for name in ["inception_v3"]:
-        for batch_size in [1, 2, 4]:
-            for image_size in [299]:
-                network_keys.append((name, [batch_size, 3, image_size, image_size]))
-    # resnet3d
-    for name in ["resnet3d_18"]:
-        for batch_size in [1, 2, 4]:
-            for image_size in [112, 128, 144]:
-                network_keys.append((name, [batch_size, 3, image_size, image_size, 16]))
-    # bert
-    for name in ["bert_tiny", "bert_base", "bert_medium", "bert_large"]:
-        for batch_size in [1, 2, 4]:
-            for seq_length in [64, 128, 256]:
-                network_keys.append((name, [batch_size, seq_length]))
-    # dcgan
-    for name in ["dcgan"]:
-        for batch_size in [1, 4, 8]:
-            for image_size in [64]:
-                network_keys.append((name, [batch_size, 3, image_size, image_size]))
-
-    return network_keys
 
 
 SUPPORTED = [

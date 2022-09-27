@@ -20,21 +20,82 @@ set -e
 set -u
 set -o pipefail
 
-# install python and pip, don't modify this, modify install_python_package.sh
+set -x
+
+if [ -z "${TVM_VENV+x}" ]; then
+    echo "ERROR: expect TVM_VENV env var to be set"
+    exit 2
+fi
+
 apt-get update
-apt-get install -y python-dev
 
-# python 3.6
-apt-get install -y software-properties-common
+# Ensure lsb-release is installed.
+apt-install-and-clear -y \
+    lsb-core
 
-add-apt-repository -y ppa:deadsnakes/ppa
-apt-get update
-apt-get install -y python-pip python-dev python3.6 python3.6-dev
+release=$(lsb_release -sc)
+if [ "${release}" == "bionic" ]; then
+    PYTHON_VERSION=3.7
+elif [ "${release}" == "focal" ]; then
+    PYTHON_VERSION=3.8
+else
+    echo "Don't know which version of python to install for lsb-release ${release}"
+    exit 2
+fi
 
-rm -f /usr/bin/python3 && ln -s /usr/bin/python3.6 /usr/bin/python3
+# Install python and pip. Don't modify this to add Python package dependencies,
+# instead modify install_python_package.sh
+apt-install-and-clear -y software-properties-common
+apt-install-and-clear -y \
+    acl \
+    python${PYTHON_VERSION} \
+    python${PYTHON_VERSION}-dev \
+    python3-pip \
+    python${PYTHON_VERSION}-venv
 
-# Install pip
-cd /tmp && wget -q https://bootstrap.pypa.io/get-pip.py && python3.6 get-pip.py
+update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1
 
-# Pin pip and setuptools versions
-pip3 install pip==19.3.1 setuptools==58.4.0
+# Allow disabling user site-packages, even with sudo; this makes it harder to repro CI failures
+# locally because it's hard to tell what might be in this directory.
+echo "Defaults env_keep += \"PYTHONNOUSERSITE\"" >/etc/sudoers.d/91-preserve-python-nousersite
+export PYTHONNOUSERSITE=1
+
+venv_dir="$(python3 -c "import os.path;print(os.path.dirname(\"${TVM_VENV}\"))")"
+mkdir -p "${venv_dir}"
+python3 -mvenv "${TVM_VENV}"
+. "${TVM_VENV}/bin/activate"
+
+# NOTE: Only in python3.9 does venv guarantee it creates the python3.X binary.
+# This is needed so that cmake's find_package(PythonInterp) works inside the venv.
+# See https://bugs.python.org/issue39656
+if [ ! -e "${TVM_VENV}/bin/python${PYTHON_VERSION}" ]; then
+    ln -s "${TVM_VENV}/bin/python" "${TVM_VENV}/bin/python${PYTHON_VERSION}"
+fi
+
+# Update pip to match version used to produce requirements-hashed.txt. This step
+# is necessary so that pip's dependency solver is recent.
+pip_spec=$(cat /install/python/bootstrap/lockfiles/constraints-${PYTHON_VERSION}.txt | grep 'pip==')
+pip3 install -U --require-hashes -r <(echo "${pip_spec}") \
+     -c /install/python/bootstrap/lockfiles/constraints-${PYTHON_VERSION}.txt
+
+# Python configuration
+pip3 config set global.no-cache-dir true  # Never cache packages
+
+# Now install the remaining base packages.
+pip3 install \
+     --require-hashes \
+     -r /install/python/bootstrap/lockfiles/constraints-${PYTHON_VERSION}.txt
+
+addgroup tvm-venv
+chgrp -R tvm-venv "${TVM_VENV}"
+setfacl -R -d -m group:tvm-venv:rwx "${TVM_VENV}"
+
+# Prevent further use of pip3 via the system.
+# There may be multiple (i.e. from python3-pip apt package and pip3 install -U).
+deactivate
+while [ "$(which pip3)" != "" ]; do
+    rm "$(which pip3)"
+done
+while [ "$(which pip)" != "" ]; do
+    rm "$(which pip)"
+done

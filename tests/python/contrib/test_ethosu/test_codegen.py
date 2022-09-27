@@ -37,6 +37,10 @@ from . import infra
 ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32", "ethos-u65-256"]
 
 
+def is_u55_accel_type(accel_type):
+    return "u55" in accel_type
+
+
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES + ["ethos-u65-512"])
 @pytest.mark.parametrize("ifm_shape", [(1, 299, 299, 2), (1, 55, 55, 3)])
 @pytest.mark.parametrize("kernel_shape", [(3, 2), (1, 3)])
@@ -68,11 +72,41 @@ def test_ethosu_conv2d_single(
             padding=padding,
             dilations=dilation,
         )
-        if activation:
+        if activation == "RELU":
             op = tf.nn.relu(op)
         return op
 
     infra.compare_tvm_with_tflite(conv2d, [ifm_shape], accel_type)
+
+
+def test_tflite_conv2d_with_separate_pad():
+    np.random.seed(0)
+
+    ifm_shape = (1, 55, 34, 3)
+    kernel_shape = (3, 2)
+    strides = (1, 1)
+    dilation = (2, 1)
+    padding = (0, 0, 1, 1)
+
+    @tf.function
+    def conv2d(x):
+        tf_strides = [1, strides[0], strides[1], 1]
+        op = tf.pad(
+            x,
+            [[0, 0], [padding[0], padding[2]], [padding[1], padding[3]], [0, 0]],
+            "CONSTANT",
+        )
+        weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 3]
+        weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+        return tf.nn.conv2d(
+            op,
+            weight,
+            strides=tf_strides,
+            padding="VALID",
+            dilations=dilation,
+        )
+
+    infra.compare_tvm_with_tflite(conv2d, [ifm_shape], "ethos-u55-256")
 
 
 @pytest.mark.parametrize("ifm_shape", [(1, 214, 227, 2), (1, 27, 42, 3)])
@@ -116,7 +150,7 @@ def test_ethosu_conv2d_double(
             padding=padding,
             dilations=dilation,
         )
-        if activation:
+        if activation == "RELU":
             op2 = tf.nn.relu(op2)
         return op2
 
@@ -152,7 +186,7 @@ def test_out_of_range_scaling(weight_min, weight_max):
             padding=padding,
             dilations=dilation,
         )
-        if activation:
+        if activation == "RELU":
             op = tf.nn.relu(op)
         return op
 
@@ -187,11 +221,41 @@ def test_tflite_depthwise_conv2d(
         op = tf.nn.depthwise_conv2d(
             x, weight, strides=tf_strides, padding=padding, dilations=dilation
         )
-        if activation_function:
+        if activation_function == "RELU":
             op = tf.nn.relu(op)
         return op
 
     infra.compare_tvm_with_tflite(depthwise_conv2d, [ifm_shape], accel_type)
+
+
+def test_tflite_depthwise_conv2d_with_separate_pad():
+    np.random.seed(0)
+
+    ifm_shape = (1, 23, 32, 7)
+    kernel_shape = (1, 2)
+    strides = (3, 2)
+    dilation = (1, 1)
+    padding = (0, 0, 1, 1)
+
+    @tf.function
+    def depthwise_conv2d(x):
+        tf_strides = [1, strides[0], strides[1], 1]
+        op = tf.pad(
+            x,
+            [[0, 0], [padding[0], padding[2]], [padding[1], padding[3]], [0, 0]],
+            "CONSTANT",
+        )
+        weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 1]
+        weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+        return tf.nn.depthwise_conv2d(
+            op,
+            weight,
+            strides=tf_strides,
+            padding="VALID",
+            dilations=dilation,
+        )
+
+    infra.compare_tvm_with_tflite(depthwise_conv2d, [ifm_shape], "ethos-u55-256")
 
 
 @pytest.mark.parametrize(
@@ -270,6 +334,7 @@ def test_ethosu_binary_elementwise(
         shapes=[ifm_shape, ifm2_shape],
         ranges=[(0, 1), (0, 2)],
         accel_type=accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
     )
 
 
@@ -283,6 +348,7 @@ def test_ethosu_binary_elementwise(
     ],
 )
 def test_binary_add_with_non_4d_shapes(
+    request,
     accel_type,
     ifm_shape,
     ifm2_shape,
@@ -298,6 +364,7 @@ def test_binary_add_with_non_4d_shapes(
         shapes=[ifm_shape, ifm2_shape],
         ranges=[(0, 1), (0, 2)],
         accel_type=accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
     )
 
 
@@ -386,7 +453,8 @@ def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
     )
     mod = partition_for_ethosu(mod)
 
-    compiled_models = infra.build_source(mod, input_data, output_data, accel_type)
+    test_runner = infra.create_test_runner(accel_type)
+    compiled_models = infra.build_source(mod, input_data, output_data, test_runner)
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
     ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
@@ -396,7 +464,7 @@ def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
     compilation_artifacts = get_artifacts(ethosu_module)
     cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
-    infra.verify_source(compiled_models, accel_type)
+    infra.verify_source(compiled_models, test_runner)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -432,7 +500,10 @@ def test_elementwise_add_from_constant_scalar(accel_type, dtype, constant):
     }
     output_data = generate_ref_data(cpu_mod, input_data)
 
-    infra.compare_ethosu_with_reference(ethosu_mod, input_data, output_data, accel_type)
+    # Scalar constants are not supported by the cascader
+    infra.compare_ethosu_with_reference(
+        ethosu_mod, input_data, output_data, accel_type, enable_cascader=False
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -534,7 +605,9 @@ def test_ethosu_right_shift_binary_elemwise(
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("ifm_shape", [(3, 2), (1, 15, 11, 7), (3, 1, 12), (400,)])
 @pytest.mark.parametrize("ifm_scale, ifm_zp, ofm_scale, ofm_zp", [(1, 0, 1, 0), (0.015, 3, 0.2, 5)])
-def test_ethosu_identity_codegen(ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp, accel_type):
+def test_ethosu_identity_codegen(
+    request, ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp, accel_type
+):
     np.random.seed(0)
 
     def create_model():
@@ -558,7 +631,12 @@ def test_ethosu_identity_codegen(ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp
     ethosu_mod = infra.create_ethosu_partition(cpu_mod)
 
     infra.compare_ethosu_with_reference(
-        ethosu_mod, input_data, output_data, accel_type, output_tolerance=1
+        ethosu_mod,
+        input_data,
+        output_data,
+        accel_type,
+        output_tolerance=1,
+        enable_cascader=is_u55_accel_type(accel_type),
     )
 
 
@@ -588,7 +666,13 @@ def test_relay_reshape_codegen(ifm_shape, new_shape, accel_type):
     output_data = generate_ref_data(cpu_mod, input_data)
     ethosu_mod = infra.create_ethosu_partition(cpu_mod)
 
-    infra.compare_ethosu_with_reference(ethosu_mod, input_data, output_data, accel_type)
+    infra.compare_ethosu_with_reference(
+        ethosu_mod,
+        input_data,
+        output_data,
+        accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -601,14 +685,16 @@ def test_relay_reshape_codegen(ifm_shape, new_shape, accel_type):
         ([5000], [123], [2151]),
     ],
 )
-def test_tflite_slice(accel_type, ifm_shape, begin, size):
+def test_tflite_slice(request, accel_type, ifm_shape, begin, size):
     np.random.seed(0)
 
     @tf.function
     def slice_func(x):
         return tf.slice(x, begin, size)
 
-    infra.compare_tvm_with_tflite(slice_func, [ifm_shape], accel_type)
+    infra.compare_tvm_with_tflite(
+        slice_func, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -623,7 +709,9 @@ def test_tflite_strided_slice(accel_type, ifm_shape, begin, end):
     def strided_slice_func(x):
         return tf.strided_slice(x, begin, end)
 
-    infra.compare_tvm_with_tflite(strided_slice_func, [ifm_shape], accel_type)
+    infra.compare_tvm_with_tflite(
+        strided_slice_func, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -633,6 +721,7 @@ def test_tflite_strided_slice(accel_type, ifm_shape, begin, end):
     [[1, 5, 12, 4], [1, 1, 2], [4, 3, 2], [10, 20], [345]],
 )
 def test_ethosu_unary_elementwise(
+    request,
     accel_type,
     operator_type,
     ifm_shape,
@@ -645,7 +734,12 @@ def test_ethosu_unary_elementwise(
             op = tf.math.abs(x)
         return op
 
-    infra.compare_tvm_with_tflite(abs_func, [ifm_shape], accel_type)
+    infra.compare_tvm_with_tflite(
+        abs_func,
+        [ifm_shape],
+        accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
+    )
 
 
 def test_ethosu_section_name():
@@ -664,7 +758,8 @@ def test_ethosu_section_name():
     # Generate reference data
     input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
 
-    compiled_models = infra.build_source(mod, input_data, output_data)
+    test_runner = infra.create_test_runner()
+    compiled_models = infra.build_source(mod, input_data, output_data, test_runner)
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
     ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
@@ -723,7 +818,24 @@ def test_tflite_tanh(accel_type):
         op = tf.nn.tanh(x)
         return op
 
-    infra.compare_tvm_with_tflite(tanh_func, [ifm_shape], accel_type)
+    infra.compare_tvm_with_tflite(
+        tanh_func, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("ifm_shape", [(1, 5, 5, 3), (1, 12, 9, 1)])
+def test_tflite_hard_swish(accel_type, ifm_shape):
+    np.random.seed(0)
+
+    @tf.function
+    def hard_swish_func(x):
+        op = tf.keras.layers.Lambda(
+            lambda x: x * tf.keras.activations.relu(x + 3.0, max_value=6.0) / 6.0
+        )(x)
+        return op
+
+    infra.compare_tvm_with_tflite(hard_swish_func, [ifm_shape], accel_type, ranges=[(-1, 1)])
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -744,7 +856,7 @@ def test_tflite_concat(shapes, axis, accel_type):
         op = tf.concat(list(inputs), axis)
         return op
 
-    infra.compare_tvm_with_tflite(concat_func, shapes, accel_type)
+    infra.compare_tvm_with_tflite(concat_func, shapes, accel_type, enable_cascader=False)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -757,7 +869,9 @@ def test_tflite_sigmoid(accel_type):
         op = tf.nn.sigmoid(x)
         return op
 
-    infra.compare_tvm_with_tflite(sigmoid_function, [ifm_shape], accel_type)
+    infra.compare_tvm_with_tflite(
+        sigmoid_function, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 # This codegen test checks both, split and split_v
@@ -781,7 +895,7 @@ def test_tflite_split(accel_type, ifm_shape, num_or_size_splits, axis):
         op = tf.split(x, num_or_size_splits, axis=axis)
         return op
 
-    infra.compare_tvm_with_tflite(split_func, [ifm_shape], accel_type)
+    infra.compare_tvm_with_tflite(split_func, [ifm_shape], accel_type, enable_cascader=False)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -812,7 +926,13 @@ def test_ethosu_requantize(accel_type, ifm_shape, ifm_scale, ifm_zp, ofm_scale, 
     output_data = generate_ref_data(cpu_mod, input_data)
     ethosu_mod = partition_for_ethosu(cpu_mod)
 
-    infra.compare_ethosu_with_reference(ethosu_mod, input_data, output_data, accel_type)
+    infra.compare_ethosu_with_reference(
+        ethosu_mod,
+        input_data,
+        output_data,
+        accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -824,7 +944,9 @@ def test_tflite_expand_dims(accel_type, ifm_shape, axis):
     def expand_dims_func(x):
         return tf.expand_dims(x, axis=axis)
 
-    infra.compare_tvm_with_tflite(expand_dims_func, [ifm_shape], accel_type)
+    infra.compare_tvm_with_tflite(
+        expand_dims_func, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -838,7 +960,9 @@ def test_tflite_squeeze(accel_type, ifm_shape, axis):
     def squeeze_func(x):
         return tf.squeeze(x, axis=axis)
 
-    infra.compare_tvm_with_tflite(squeeze_func, [ifm_shape], accel_type)
+    infra.compare_tvm_with_tflite(
+        squeeze_func, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -856,7 +980,9 @@ def test_tflite_resize2d_nearest_neighbor(accel_type, ifm_shape, size):
             x, size, align_corners=align_corners, half_pixel_centers=False
         )
 
-    infra.compare_tvm_with_tflite(resize_model, [ifm_shape], accel_type)
+    infra.compare_tvm_with_tflite(
+        resize_model, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -879,7 +1005,9 @@ def test_tflite_resize2d_bilinear(accel_type, ifm_shape, size, align_corners):
             x, size, align_corners=align_corners, half_pixel_centers=False
         )
 
-    infra.compare_tvm_with_tflite(resize_model, [ifm_shape], accel_type)
+    infra.compare_tvm_with_tflite(
+        resize_model, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -919,7 +1047,12 @@ def test_tflite_transpose_convolution(
             op = tf.nn.bias_add(op, bias)
         return op
 
-    infra.compare_tvm_with_tflite(conv2d_transpose, [ifm_shape], accel_type=accel_type)
+    infra.compare_tvm_with_tflite(
+        conv2d_transpose,
+        [ifm_shape],
+        accel_type=accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -939,7 +1072,7 @@ def test_tflite_pack(accel_type, ifm_shapes, axis):
     def pack_func(*inputs):
         return tf.stack(inputs, axis=axis)
 
-    infra.compare_tvm_with_tflite(pack_func, ifm_shapes, accel_type)
+    infra.compare_tvm_with_tflite(pack_func, ifm_shapes, accel_type, enable_cascader=False)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -954,7 +1087,7 @@ def test_tflite_unpack(accel_type, ifm_shape, axis):
     def unpack_func(x):
         return tf.unstack(x, axis=axis)
 
-    infra.compare_tvm_with_tflite(unpack_func, [ifm_shape], accel_type)
+    infra.compare_tvm_with_tflite(unpack_func, [ifm_shape], accel_type, enable_cascader=False)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -967,7 +1100,13 @@ def test_tflite_leaky_relu(accel_type, ifm_shape, alpha):
     def leaky_relu_func(x):
         return tf.nn.leaky_relu(x, alpha=alpha)
 
-    infra.compare_tvm_with_tflite(leaky_relu_func, [ifm_shape], accel_type)
+    infra.compare_tvm_with_tflite(
+        leaky_relu_func,
+        [ifm_shape],
+        accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
+        ranges=[(-1, 1)],
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -999,7 +1138,9 @@ def test_tflite_fully_connected(
             x = tf.nn.relu(x)
         return x
 
-    infra.compare_tvm_with_tflite(fully_connected, [ifm_shape], accel_type)
+    infra.compare_tvm_with_tflite(
+        fully_connected, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 if __name__ == "__main__":

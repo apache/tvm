@@ -16,10 +16,9 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm
-import tvm.tir.tensor_intrin
+from tvm.meta_schedule import TuneContext, postproc
 from tvm.script import tir as T
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule import postproc
+from tvm.tir.tensor_intrin import arm_cpu, cuda, rocm, x86
 
 
 @tvm.script.ir_module
@@ -362,7 +361,7 @@ class DenseDP4ATensorized:
                             )
                             T.reads()
                             T.writes(compute_local[i, j])
-                            T.block_attr({"meta_schedule.auto_tensorize": "dp4a"})
+                            T.block_attr({"meta_schedule.auto_tensorize": ""})
                             with T.block("compute_init"):
                                 T.reads()
                                 T.writes(compute_local[i, j])
@@ -458,8 +457,6 @@ def _create_context(mod, target, postprocs):
         postprocs=postprocs,
         task_name="test",
     )
-    for rule in ctx.postprocs:
-        rule.initialize_with_tune_context(ctx)
     return ctx
 
 

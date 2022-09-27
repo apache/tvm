@@ -150,7 +150,7 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel program_cost_model,
     node->mutation_rules.push_back(std::make_shared<MutateTileSize>(0.90));
     node->mutation_rules.push_back(std::make_shared<MutateAutoUnroll>(0.10));
   } else {
-    LOG(FATAL) << "No default sketch rules for target: " << task->target;
+    LOG(FATAL) << "No default sketch rules for target: " << node->search_task->target;
   }
 
   data_ = std::move(node);

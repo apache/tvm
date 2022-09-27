@@ -55,6 +55,7 @@ class BF16PromoteRewriter : public StmtExprMutator {
   PrimExpr VisitExpr_(const LENode* op) final;
   PrimExpr VisitExpr_(const GTNode* op) final;
   PrimExpr VisitExpr_(const GENode* op) final;
+  PrimExpr VisitExpr_(const CallNode* op) final;
 };
 
 #define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC, NEEDCAST)                \
@@ -87,6 +88,26 @@ DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<, false)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=, false)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>, false)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=, false)
+
+PrimExpr BF16PromoteRewriter::VisitExpr_(const CallNode* op) {
+  Array<PrimExpr> args;
+  for (auto& arg : op->args) {
+    PrimExpr x = this->VisitExpr(arg);
+    if (x.dtype().is_bfloat16()) {
+      DataType fp32_dtype(kDLFloat, 32, x.dtype().lanes());
+      args.push_back(Cast(fp32_dtype, {x}, op->span));
+    } else {
+      args.push_back(x);
+    }
+  }
+  if (op->dtype.is_bfloat16()) {
+    DataType fp32_dtype(kDLFloat, 32, op->dtype.lanes());
+    PrimExpr result_fp32 = Call(fp32_dtype, op->op, args, op->span);
+    return Cast(op->dtype, {result_fp32}, op->span);
+  } else {
+    return Call(op->dtype, op->op, args, op->span);
+  }
+}
 
 /*
  * Eliminate verbose casting between fp32 and bf16

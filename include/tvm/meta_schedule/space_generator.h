@@ -20,6 +20,10 @@
 #define TVM_META_SCHEDULE_SPACE_GENERATOR_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/tir/schedule/schedule.h>
 
 namespace tvm {
@@ -27,6 +31,7 @@ namespace meta_schedule {
 
 // Forward declaration
 class TuneContext;
+class SpaceGenerator;
 
 /*!
  * \brief The abstract class for design space generation.
@@ -64,7 +69,7 @@ class TuneContext;
 │                   └───  Runner Future ◄────┘                        │
 └─────────────────────────────────────────────────────────────────────┘
 */
-class SpaceGeneratorNode : public Object {
+class SpaceGeneratorNode : public runtime::Object {
  public:
   /*! \brief Default destructor */
   virtual ~SpaceGeneratorNode() = default;
@@ -83,12 +88,21 @@ class SpaceGeneratorNode : public Object {
    */
   virtual Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) = 0;
 
+  /*!
+   * \brief Clone the space generator.
+   * \return The cloned space generator.
+   */
+  virtual SpaceGenerator Clone() const = 0;
+
   static constexpr const char* _type_key = "meta_schedule.SpaceGenerator";
   TVM_DECLARE_BASE_OBJECT_INFO(SpaceGeneratorNode, Object);
 };
 
-/*! \brief The design space generator with customized methods on the python-side. */
-class PySpaceGeneratorNode : public SpaceGeneratorNode {
+/*!
+ * \brief Managed reference to SpaceGeneratorNode.
+ * \sa SpaceGeneratorNode
+ */
+class SpaceGenerator : public runtime::ObjectRef {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
@@ -101,38 +115,12 @@ class PySpaceGeneratorNode : public SpaceGeneratorNode {
    * \return The generated design spaces, i.e., schedules.
    */
   using FGenerateDesignSpace = runtime::TypedPackedFunc<Array<tir::Schedule>(const IRModule&)>;
+  /*!
+   * \brief The function type of `Clone` method.
+   * \return The cloned space generator.
+   */
+  using FClone = runtime::TypedPackedFunc<SpaceGenerator()>;
 
-  /*! \brief The packed function to the `InitializeWithTuneContext` function. */
-  FInitializeWithTuneContext f_initialize_with_tune_context;
-  /*! \brief The packed function to the `GenerateDesignSpace` function. */
-  FGenerateDesignSpace f_generate_design_space;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_initialize_with_tune_context` is not visited
-    // `f_generate_design_space` is not visited
-  }
-
-  void InitializeWithTuneContext(const TuneContext& context) final {
-    ICHECK(f_initialize_with_tune_context != nullptr)
-        << "PySpaceGenerator's InitializeWithTuneContext method not implemented!";
-    f_initialize_with_tune_context(context);
-  }
-
-  Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
-    ICHECK(f_generate_design_space != nullptr)
-        << "PySpaceGenerator's GenerateDesignSpace method not implemented!";
-    return f_generate_design_space(mod);
-  }
-
-  static constexpr const char* _type_key = "meta_schedule.PySpaceGenerator";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PySpaceGeneratorNode, SpaceGeneratorNode);
-};
-
-/*!
- * \brief Managed reference to SpaceGeneratorNode.
- * \sa SpaceGeneratorNode
- */
-class SpaceGenerator : public ObjectRef {
  protected:
   SpaceGenerator() = default;
 
@@ -141,12 +129,20 @@ class SpaceGenerator : public ObjectRef {
    * \brief Create a design space generator with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
    * \param f_generate_design_space The packed function of `GenerateDesignSpace`.
+   * \param f_clone The packed function of `Clone`.
    * \return The design space generator created.
    */
   TVM_DLL static SpaceGenerator PySpaceGenerator(
-      PySpaceGeneratorNode::FInitializeWithTuneContext f_initialize_with_tune_context,
-      PySpaceGeneratorNode::FGenerateDesignSpace f_generate_design_space);
-
+      FInitializeWithTuneContext f_initialize_with_tune_context,
+      FGenerateDesignSpace f_generate_design_space, FClone f_clone);
+  /*!
+   * \brief Create a design space generator with customized schedule function.
+   * \param schedule_fn The schedule function, which can have the following signatures:
+   * 1) void(Schedule)
+   * 2) Schedule(Schedule)
+   * 3) Array<Schedule>(Schedule)
+   */
+  TVM_DLL static SpaceGenerator ScheduleFn(PackedFunc schedule_fn);
   /*!
    * \brief Create a design space generator that is union of multiple design space generators.
    * \param space_generators An array of design space generators to be unioned.
@@ -154,12 +150,38 @@ class SpaceGenerator : public ObjectRef {
    */
   TVM_DLL static SpaceGenerator SpaceGeneratorUnion(Array<SpaceGenerator, void> space_generators);
   /*!
-   * \brief Create a design space generator that generates design spaces by applying schedule rules
-   *  to blocks in post-DFS order.
-   * \return The design space generator created.
+   * \brief Create a design space generator that generates design spaces by applying schedule
+   * rules to blocks in post-DFS order. \return The design space generator created.
    */
-  TVM_DLL static SpaceGenerator PostOrderApply();
+  TVM_DLL static SpaceGenerator PostOrderApply(runtime::PackedFunc f_block_filter = nullptr);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(SpaceGenerator, ObjectRef, SpaceGeneratorNode);
+};
+
+/*! \brief The design space generator with customized methods on the python-side. */
+class PySpaceGeneratorNode : public SpaceGeneratorNode {
+ public:
+  using FInitializeWithTuneContext = SpaceGenerator::FInitializeWithTuneContext;
+  using FGenerateDesignSpace = SpaceGenerator::FGenerateDesignSpace;
+  using FClone = SpaceGenerator::FClone;
+  /*! \brief The packed function to the `InitializeWithTuneContext` function. */
+  FInitializeWithTuneContext f_initialize_with_tune_context;
+  /*! \brief The packed function to the `GenerateDesignSpace` function. */
+  FGenerateDesignSpace f_generate_design_space;
+  /*! \brief The packed function to the `Clone` function. */
+  FClone f_clone;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    // `f_initialize_with_tune_context` is not visited
+    // `f_generate_design_space` is not visited
+    // `f_clone` is not visited
+  }
+
+  void InitializeWithTuneContext(const TuneContext& context) final;
+  Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final;
+  SpaceGenerator Clone() const final;
+
+  static constexpr const char* _type_key = "meta_schedule.PySpaceGenerator";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PySpaceGeneratorNode, SpaceGeneratorNode);
 };
 
 }  // namespace meta_schedule

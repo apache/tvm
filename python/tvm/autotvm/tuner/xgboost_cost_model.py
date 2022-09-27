@@ -21,12 +21,11 @@ import logging
 import time
 
 import numpy as np
-
 from tvm.contrib.popen_pool import PopenPoolExecutor, StatusKind
 
 from .. import feature
 from ..utils import get_rank
-from .metric import max_curve, recall_curve, cover_curve
+from .metric import cover_curve, max_curve, recall_curve
 from .model_based_tuner import CostModel, FeatureCache
 
 xgb = None
@@ -243,18 +242,27 @@ class XGBoostCostModel(CostModel):
         else:
             raise RuntimeError("Invalid feature type: " + self.fea_type)
         result = pool.map_with_error_catching(feature_extract_func, data)
+        result = list(result)  # store results so we can iterate through them twice
 
-        # filter out feature with different shapes
-        fea_len = len(self._get_feature([0])[0])
+        # get maximum feature length
+        fea_len = -1
+        for res in result:
+            if res.status != StatusKind.COMPLETE:
+                continue
+            x, _ = res.value
+            fea_len = max(fea_len, x.shape[0])
 
         xs, ys = [], []
         for res in result:
             if res.status != StatusKind.COMPLETE:
                 continue
             x, y = res.value
-            if len(x) == fea_len:
+            # Features may not be the same size, pad them until they are
+            if fea_len > len(x):
+                xs.append(np.pad(x, (0, fea_len - len(x))))
+            else:
                 xs.append(x)
-                ys.append(y)
+            ys.append(y)
 
         if len(xs) < min_seed_records:  # no enough samples
             return False
@@ -329,15 +337,16 @@ class XGBoostCostModel(CostModel):
             for i, fea in zip(need_extract, feas):
                 fea_cache[i] = fea.value if fea.status == StatusKind.COMPLETE else None
 
-        feature_len = None
+        feature_len = -1
         for idx in indexes:
             if fea_cache[idx] is not None:
-                feature_len = fea_cache[idx].shape[-1]
-                break
+                feature_len = max(fea_cache[idx].shape[-1], feature_len)
 
         ret = np.empty((len(indexes), feature_len), dtype=np.float32)
         for i, ii in enumerate(indexes):
             t = fea_cache[ii]
+            if t is not None and t.shape[0] < feature_len:
+                t = np.pad(t, (0, feature_len - t.shape[0]))
             ret[i, :] = t if t is not None else 0
         return ret
 
@@ -439,8 +448,8 @@ def custom_callback(
 ):
     """callback function for xgboost to support multiple custom evaluation functions"""
     # pylint: disable=import-outside-toplevel
-    from xgboost.core import EarlyStopException
     from xgboost.callback import _fmt_metric
+    from xgboost.core import EarlyStopException
 
     try:
         from xgboost.training import aggcv

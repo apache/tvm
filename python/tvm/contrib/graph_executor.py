@@ -355,7 +355,10 @@ class GraphModule(object):
         repeat=5,
         number=5,
         min_repeat_ms=None,
+        limit_zero_time_iterations=100,
         end_to_end=False,
+        cooldown_interval_ms=0,
+        repeats_to_cooldown=1,
         **kwargs,
     ):
         """Calculate runtime of a function by repeatedly calling it.
@@ -395,15 +398,26 @@ class GraphModule(object):
             `number` should be increased when the runtime of the function is small (less than a 1/10
             of a millisecond).
 
-        min_repeat_ms : Optional[float]
+        min_repeat_ms : Optional[int]
             If set, the inner loop will be run until it takes longer than `min_repeat_ms`
             milliseconds. This can be used to ensure that the function is run enough to get an
             accurate measurement.
+
+        limit_zero_time_iterations : Optional[int]
+            The maximum number of repeats when measured time is equal to 0.
+            It helps to avoid hanging during measurements.
 
         end_to_end : bool
             If set, include time to transfer input tensors to the device and time to transfer
             returned tensors in the total runtime. This will give accurate timings for end to end
             workloads.
+
+        cooldown_interval_ms: Optional[int]
+            The cooldown interval in milliseconds between the number of repeats defined by
+            `repeats_to_cooldown`.
+
+        repeats_to_cooldown: Optional[int]
+            The number of repeats before the cooldown is activated.
 
         kwargs : Dict[str, Object]
             Named arguments to the function. These are cached before running timing code, so that
@@ -428,9 +442,17 @@ class GraphModule(object):
                 repeat=repeat,
                 number=number,
                 min_repeat_ms=min_repeat_ms,
+                limit_zero_time_iterations=limit_zero_time_iterations,
             )(device.device_type % rpc_base.RPC_SESS_MASK, device.device_id, *args)
         if kwargs:
             self.set_input(**kwargs)
         return self.module.time_evaluator(
-            func_name, device, repeat=repeat, number=number, min_repeat_ms=min_repeat_ms
+            func_name,
+            device,
+            repeat=repeat,
+            number=number,
+            min_repeat_ms=min_repeat_ms,
+            limit_zero_time_iterations=limit_zero_time_iterations,
+            cooldown_interval_ms=cooldown_interval_ms,
+            repeats_to_cooldown=repeats_to_cooldown,
         )()

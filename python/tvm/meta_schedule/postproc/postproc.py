@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 class Postproc(Object):
     """Rules to apply a postprocessor to a schedule."""
 
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the postprocessor with a tune context.
 
         Parameters
@@ -60,6 +60,16 @@ class Postproc(Object):
         """
         return _ffi_api.PostprocApply(self, sch)  # type: ignore # pylint: disable=no-member
 
+    def clone(self) -> "Postproc":
+        """Clone the postprocessor.
+
+        Returns
+        -------
+        cloned_postproc : Postproc
+            The cloned postprocessor.
+        """
+        return _ffi_api.PostprocClone(self)  # type: ignore # pylint: disable=no-member
+
 
 @register_object("meta_schedule.PyPostproc")
 class _PyPostproc(Postproc):
@@ -74,6 +84,7 @@ class _PyPostproc(Postproc):
         self,
         f_initialize_with_tune_context: Callable = None,
         f_apply: Callable = None,
+        f_clone: Callable = None,
         f_as_string: Callable = None,
     ):
         """Constructor."""
@@ -82,6 +93,7 @@ class _PyPostproc(Postproc):
             _ffi_api.PostprocPyPostproc,  # type: ignore # pylint: disable=no-member
             f_initialize_with_tune_context,
             f_apply,
+            f_clone,
             f_as_string,
         )
 
@@ -96,10 +108,10 @@ class PyPostproc:
 
     _tvm_metadata = {
         "cls": _PyPostproc,
-        "methods": ["initialize_with_tune_context", "apply", "__str__"],
+        "methods": ["_initialize_with_tune_context", "apply", "clone", "__str__"],
     }
 
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the postprocessor with a tune context.
 
         Parameters
@@ -121,6 +133,16 @@ class PyPostproc:
         -------
         result : bool
             Whether the postprocessor was successfully applied.
+        """
+        raise NotImplementedError
+
+    def clone(self) -> Postproc:
+        """Clone the postprocessor.
+
+        Returns
+        -------
+        cloned_postproc : Postproc
+            The cloned postprocessor.
         """
         raise NotImplementedError
 

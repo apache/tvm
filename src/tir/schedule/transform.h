@@ -26,6 +26,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "../../arith/ir_mutator_with_analyzer.h"
 #include "../ir/functor_common.h"
 
 namespace tvm {
@@ -73,6 +74,27 @@ Array<MatchBufferRegion> ReplaceBuffer(Array<MatchBufferRegion> match_buffers, c
                                        const Buffer& target);
 
 /*!
+ * \brief Replaces the buffer region within the specific sequence of regions
+ * \param regions The regions to be replaced
+ * \param source_buffer The buffer to whose region is to be replaced
+ * \param target The buffer region to be replaced to
+ * \return The new sequence of regions after replacement
+ */
+Array<BufferRegion> ReplaceBufferRegion(Array<BufferRegion> regions, const Buffer& source_buffer,
+                                        const BufferRegion& target);
+
+/*!
+ * \brief Replaces the buffer region within the specific sequence of match_buffers
+ * \param regions The match_buffers to be replaced
+ * \param source_buffer The buffer to whose region is to be replaced
+ * \param target The buffer region to be replaced to
+ * \return The new sequence of match_buffers after replacement
+ */
+Array<MatchBufferRegion> ReplaceBufferRegion(Array<MatchBufferRegion> match_buffers,
+                                             const Buffer& source_buffer,
+                                             const BufferRegion& target);
+
+/*!
  * \brief A helper mutator which recursively replaces the old buffer with the new buffer and
  * collects the block sref reuse information for the following replacement.
  *
@@ -92,7 +114,12 @@ class ReplaceBufferMutator : public StmtExprMutator {
   ReplaceBufferMutator(const Buffer& old_buffer, Buffer new_buffer,
                        Map<Block, Block>* block_sref_reuse);
 
+  ReplaceBufferMutator(const Map<Buffer, Buffer>& buffer_map, Map<Block, Block>* block_sref_reuse);
+
  protected:
+  using StmtExprMutator::VisitExpr_;
+  using StmtExprMutator::VisitStmt_;
+
   PrimExpr VisitExpr_(const VarNode* var) final;
 
   template <typename Node>
@@ -110,7 +137,7 @@ class ReplaceBufferMutator : public StmtExprMutator {
 
   virtual MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer);
 
-  Stmt VisitStmt_(const BlockNode* block) final;
+  Stmt VisitStmt_(const BlockNode* block) override;
 
   /*!
    * \brief A mapping which maps old buffer vars to new buffers, including the buffers defined in
@@ -166,11 +193,50 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
  * \param block_rv The block whose subset of loops will be tiled
  * \param intrin_name The name of a tensor intrinsic, must be registerd via
  * TensorIntrin.register(...) beforehand
+ * \param allow_padding Whether to allow padding when tiling
  * \return LoopRV corresponding to the outermost loop of a
  * block tiled according to the given intrin, NullOpt if a valid loop mapping is not found
  */
 Optional<tir::LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::BlockRV& block_rv,
-                                           const String& intrin_name);
+                                           const String& intrin_name, bool allow_padding = false);
+
+/******** Block mutation ********/
+
+/*!
+ * \brief Simplifier for indices of buffer access and block buffer access regions.
+ */
+class BlockBufferAccessSimplifier : public arith::IRMutatorWithAnalyzer {
+ public:
+  /*!
+   * \brief Simplify indices of buffer access and block buffer access regions in the statement
+   * \param stmt The statement to be simplified
+   * \param analyzer The arithmetic analyzer
+   * \return The simplified statement
+   */
+  static Stmt Simplify(const Stmt& stmt, arith::Analyzer* analyzer) {
+    BlockBufferAccessSimplifier simplifier(analyzer);
+    return simplifier(stmt);
+  }
+
+ private:
+  explicit BlockBufferAccessSimplifier(arith::Analyzer* analyzer)
+      : IRMutatorWithAnalyzer(analyzer) {}
+
+  using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::VisitStmt_;
+
+  void SimplifyAccessRegion(Array<BufferRegion>* old_access_regions);
+  Stmt VisitStmt_(const BlockNode* op) final;
+  Stmt VisitStmt_(const BufferStoreNode* op) final;
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final;
+
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    node.CopyOnWrite()->indices.MutateByApply(
+        [this](const PrimExpr& expr) { return analyzer_->Simplify(expr); });
+    return node;
+  }
+};
 
 }  // namespace tir
 }  // namespace tvm

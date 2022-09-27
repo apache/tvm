@@ -65,6 +65,7 @@ namespace tir {
 Var::Var(String name_hint, DataType dtype, Span span) {
   auto n = make_object<VarNode>();
   n->name_hint = std::move(name_hint);
+  n->type_annotation = GetTypeFromRuntimeDataType(dtype);
   n->dtype = std::move(dtype);
   n->span = std::move(span);
   data_ = std::move(n);
@@ -99,6 +100,7 @@ Var Var::copy_with_dtype(DataType dtype) const {
   } else {
     new_ptr = make_object<VarNode>(*node);
   }
+  new_ptr->type_annotation = GetTypeFromRuntimeDataType(dtype);
   new_ptr->dtype = std::move(dtype);
   return Var(new_ptr);
 }
@@ -126,6 +128,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 SizeVar::SizeVar(String name_hint, DataType dtype, Span span) {
   auto n = make_object<SizeVarNode>();
   n->name_hint = std::move(name_hint);
+  n->type_annotation = GetTypeFromRuntimeDataType(dtype);
   n->dtype = std::move(dtype);
   n->span = std::move(span);
   data_ = std::move(n);
@@ -645,7 +648,7 @@ Load::Load(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate, S
   // annotation tells us otherwise.
   int element_lanes = 1;
   auto pointer_type = tir::GetPointerType(buffer_var->type_annotation);
-  if (pointer_type.first) {
+  if (pointer_type.has_value()) {
     // Cannot check element type of array, as it may be different than
     // the loaded type in some cases.
     //
@@ -660,11 +663,11 @@ Load::Load(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate, S
     // See https://discuss.tvm.apache.org/t/pre-rfc-vectorized-tir-buffers/10615
     // for discussion.
 
-    // ICHECK(dtype.element_of() == pointer_type.second.element_of())
+    // ICHECK(dtype.element_of() == pointer_type->element_of())
     //     << "Type mismatch, cannot load type " << dtype << " from buffer " <<
     //     buffer_var->name_hint
-    //     << " of type " << pointer_type.second;
-    element_lanes = pointer_type.second.lanes();
+    //     << " of type " << pointer_type.value();
+    element_lanes = pointer_type->lanes();
   }
 
   // The C-based codegens assume that all loads occur on a array with
@@ -825,10 +828,26 @@ TVM_REGISTER_GLOBAL("tir.Call")
     .set_body_typed([](DataType type, RelayExpr op, Array<ObjectRef> args, Span span) {
       Array<PrimExpr> prim_expr_args;
       for (const auto& it : args) {
-        ICHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<PrimExprNode>())
+        ICHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<PrimExprNode>() ||
+               it->IsInstance<IterVarNode>() || it->IsInstance<BufferRegionNode>())
             << "Argument " << it << " is not a string or primexpr";
         if (const auto* str = it.as<runtime::StringObj>()) {
           prim_expr_args.push_back(StringImm(str->data));
+        } else if (const auto* iter_var = it.as<IterVarNode>()) {
+          prim_expr_args.push_back(GetRef<IterVar>(iter_var)->var);
+        } else if (const auto* br = it.as<BufferRegionNode>()) {
+          Array<PrimExpr> indices;
+          for (Range r : br->region) {
+            if (is_one(r->extent)) {
+              indices.push_back(r->min);
+            } else if (const auto* extent = r->extent.as<IntImmNode>()) {
+              indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1), extent->value));
+            } else {
+              LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: "
+                         << GetRef<BufferRegion>(br);
+            }
+          }
+          prim_expr_args.push_back(BufferLoad(br->buffer, indices));
         } else {
           prim_expr_args.push_back(Downcast<PrimExpr>(it));
         }
@@ -975,8 +994,7 @@ Array<PrimExpr> CommReducerNode::operator()(Array<PrimExpr> a, Array<PrimExpr> b
     value_map.Set(lhs[i], a[i]);
     value_map.Set(rhs[i], b[i]);
   }
-  auto ret = this->result;
-  ret.MutateByApply([&value_map](const PrimExpr& e) { return Substitute(e, value_map); });
+  auto ret = this->result.Map([&value_map](const PrimExpr& e) { return Substitute(e, value_map); });
   return ret;
 }
 

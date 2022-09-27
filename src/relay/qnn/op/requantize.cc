@@ -91,7 +91,7 @@ InferCorrectLayoutOutput RequantizeInferCorrectLayout(const Attrs& attrs,
     Layout channel_layout = Layout("C");
     input_layouts = {new_layout, channel_layout, channel_layout, channel_layout, channel_layout};
     output_layouts = {new_layout};
-    param->axis = new_axis;
+    param->axis = new_axis.IntValue();
   } else if (old_in_layouts.defined()) {
     // If the new layout is undefined, set the old layout as the inferred layout.
     ICHECK_EQ(old_in_layouts.size(), 5);
@@ -223,8 +223,7 @@ Expr RequantizeLowerInt(const Expr& input_tensor, const Expr& input_scale,
         static_cast<double>(input_scale_float) / static_cast<double>(output_scale_float);
     // Skip if input and output scales are same.
     if (!IsEqualScalar(input_scale, output_scale)) {
-      int32_t fixed_point_multiplier, shift;
-      std::tie(fixed_point_multiplier, shift) = GetFixedPointMultiplierShift(double_multiplier);
+      auto [fixed_point_multiplier, shift] = GetFixedPointMultiplierShift(double_multiplier);
 
       const bool is_upward_rounding = (param->rounding == "UPWARD");
 
@@ -303,10 +302,7 @@ Expr RequantizeLowerFP(const Expr& input_tensor, const Expr& input_scale,
                                                                   -1,
                                                               }),
                                                       rank, {axis});
-    tensor = Subtract(Cast(tensor, DataType::Float(Bits)),
-                      Cast(input_zero_broadcast, DataType::Float(Bits)));
-  } else {
-    tensor = Cast(tensor, DataType::Float(Bits));
+    tensor = Subtract(tensor, Cast(input_zero_broadcast, DataType::Float(Bits)));
   }
 
   // 2) If the input and output scales are same, we can skip the multiplication. Check

@@ -14,24 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import sys
-
+"""Integration test for MetaSchedule"""
 import numpy as np
 import pytest
 import tvm
 import tvm.testing
+from tvm import IRModule
 from tvm import meta_schedule as ms
-from tvm import relay
-from tvm.meta_schedule import ApplyHistoryBest
-from tvm.meta_schedule.database import TuningRecord
-from tvm.meta_schedule.relay_integration import extract_task_from_relay
-from tvm.meta_schedule.testing import DummyDatabase
+from tvm import relay, te, tir
+from tvm._ffi import register_func
 from tvm.meta_schedule.testing.relay_workload import get_network
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
-from tvm.meta_schedule.tune import Parse
 from tvm.script import tir as T
-from tvm.target import Target
-from tvm.tir import Schedule
 
 # pylint: disable=no-member,line-too-long,too-many-nested-blocks,unbalanced-tuple-unpacking,no-self-argument,missing-docstring,invalid-name
 
@@ -62,10 +56,15 @@ def _has_torch():
 requires_torch = pytest.mark.skipif(not _has_torch(), reason="torch is not installed")
 
 
-def test_meta_schedule_apply_history_best_no_current():
-    assert ApplyHistoryBest.current() is None
+def test_meta_schedule_dynamic_loop_extent():
+    a = relay.var("a", shape=(1, 8, 8, 512), dtype="float32")
+    b = relay.nn.adaptive_avg_pool2d(a, (7, 7), "NHWC")
+    mod = IRModule({"main": relay.Function([a], b)})
+    extracted_tasks = ms.extract_task_from_relay(mod, target="llvm", params={})
+    assert not extracted_tasks
 
 
+@pytest.mark.xfail(strict=True, reason="See https://github.com/apache/tvm/issues/12732")
 @requires_torch
 def test_meta_schedule_integration_extract_from_resnet():
     mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
@@ -104,6 +103,10 @@ def test_meta_schedule_integration_extract_from_resnet():
 
 @requires_torch
 def test_meta_schedule_integration_extract_from_bert_base():
+    pytest.importorskip(
+        "transformers", reason="transformers package is required to import bert_base"
+    )
+
     expected = {
         "fused_nn_dense_2": (
             12,
@@ -117,7 +120,7 @@ def test_meta_schedule_integration_extract_from_bert_base():
             12,
             [[64, 768], [3072, 768], [64, 3072]],
         ),
-        "fused_subtract_add_sqrt_divide_multiply_add": (
+        "fused_subtract_add_rsqrt_multiply_multiply_add": (
             25,
             [[1, 64, 768], [1, 64, 1], [1, 64, 1], [768], [768], [1, 64, 768]],
         ),
@@ -196,25 +199,76 @@ def test_meta_schedule_integration_extract_from_bert_base():
         assert expected_shape == shape, t.task_name
 
 
+@pytest.mark.xfail(strict=True, reason="See https://github.com/apache/tvm/issues/12732")
 @requires_torch
-def test_meta_schedule_integration_apply_history_best():
-    mod, _, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
-    database = DummyDatabase()
-    env = ApplyHistoryBest(database)
-    target = Target("llvm")
-    workload = database.commit_workload(MockModule)
-    database.commit_tuning_record(
-        TuningRecord(Schedule(MockModule).trace, [1.0], workload, target, [])
+def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
+    @register_func("relay.backend.tir_converter.remove_purely_spatial", override=True)
+    def filter_func(args, _) -> bool:
+        from tvm.te import create_prim_func  # pylint: disable=import-outside-toplevel
+
+        has_complex_op = False
+        visited = set()
+
+        def traverse(t):
+            nonlocal has_complex_op
+            assert t.handle is not None
+            if t.handle.value in visited:
+                return
+            if isinstance(t.op, te.PlaceholderOp):
+                pass
+            elif isinstance(t.op, te.ComputeOp):
+                has_complex_op = has_complex_op or any(isinstance(e, tir.Reduce) for e in t.op.body)
+                for x in t.op.input_tensors:
+                    traverse(x)
+            visited.add(t.handle.value)
+
+        for t in args:
+            traverse(t)
+        if not has_complex_op:
+            return None
+        return create_prim_func(args)
+
+    mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
+    extracted_tasks = ms.extract_task_from_relay(
+        mod,
+        target="llvm",
+        params=params,
+        tir_converter="remove_purely_spatial",
     )
-    mod = env.query(task_name="mock-task", mod=mod, target=target, dispatched=[MockModule])
-    assert tvm.ir.structural_equal(mod, workload.mod)
+    expected_task_names = [
+        "fused_" + s
+        for s in [
+            "nn_max_pool2d",
+            "nn_adaptive_avg_pool2d",
+            "nn_dense_add",
+            "nn_conv2d_add",
+            "nn_conv2d_add_1",
+            "nn_conv2d_add_2",
+            "nn_conv2d_add_add_nn_relu",
+            "nn_conv2d_add_add_nn_relu_1",
+            "nn_conv2d_add_nn_relu",
+            "nn_conv2d_add_nn_relu_1",
+            "nn_conv2d_add_nn_relu_2",
+            "nn_conv2d_add_nn_relu_3",
+            "nn_conv2d_add_nn_relu_4",
+            "nn_conv2d_add_nn_relu_5",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_add_nn_relu",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_add_nn_relu_1",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu_1",
+        ]
+    ]
+
+    assert len(extracted_tasks) == len(expected_task_names)
+    for t in extracted_tasks:
+        assert t.task_name in expected_task_names, t.task_name
 
 
 @pytest.mark.skip("Too slow on CI")
 def extract_task_qbert():
     mod, params, _ = load_quantized_bert_base(batch_size=1, seq_len=128)
     target = "llvm -mcpu=cascadelake"
-    extracted_tasks = extract_task_from_relay(mod, target, params)
+    extracted_tasks = ms.extract_task_from_relay(mod, target, params)
     tune_tasks = list(
         filter(
             lambda task: "dense" in task.task_name or "batch_matmul" in task.task_name,
@@ -231,7 +285,7 @@ def extract_task_qbert():
         if out_type.dtype == "float32":
             continue
 
-        mod = Parse._mod(task.dispatched[0])
+        mod = ms.default_config.mod(task.dispatched[0])
         sch = tvm.tir.Schedule(mod)
         block = sch.get_block("compute")
         annotations = sch.get(block).annotations
@@ -268,7 +322,7 @@ def test_extract_task_arm_conv2d_nchwc():
     params = {"weight": weight_np, "bias": bias_np}
 
     target = "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon"
-    extracted_tasks = extract_task_from_relay(relay_mod, target, params)
+    extracted_tasks = ms.extract_task_from_relay(relay_mod, target, params)
     tune_tasks = list(
         filter(
             lambda task: "conv2d" in task.task_name,

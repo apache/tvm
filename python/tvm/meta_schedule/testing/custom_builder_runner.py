@@ -17,7 +17,7 @@
 """Customized builder and runner methods"""
 # pylint: disable=import-outside-toplevel
 
-from typing import TYPE_CHECKING, Callable, Dict, List
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
 
 if TYPE_CHECKING:
     import numpy as np  # type: ignore
@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from tvm.meta_schedule.runner import EvaluatorConfig, RPCConfig
     from tvm.runtime import Device, Module, NDArray
     from tvm.target import Target
+    from tvm.runtime.vm import Executable
 
 
 def build_relay(
@@ -84,11 +85,8 @@ def build_relay_with_tensorrt(
     from tvm.relay.op.contrib import tensorrt
     from tvm.runtime import Module
 
-    mod, config = tensorrt.partition_for_tensorrt(mod, params)
-    with PassContext(
-        opt_level=3,
-        config={"relay.ext.tensorrt.options": config},
-    ):
+    mod = tensorrt.partition_for_tensorrt(mod, params)
+    with PassContext(opt_level=3):
         result = relay_build(mod, target=target, target_host=None, params=params)
     assert isinstance(result, Module)
     return result
@@ -143,10 +141,11 @@ def run_with_graph_executor(
 
 def run_module_via_rpc(
     rpc_config: "RPCConfig",
-    lib: "Module",
+    lib: Union["Module", "Executable"],
     dev_type: str,
-    args: List["np.ndarray"],
+    args: Dict[str, "np.ndarray"],
     continuation: Callable,
+    backend: Optional[str] = "graph",
 ):
     """Execute a tvm.runtime.Module on RPC remote"""
     # pylint: disable=import-outside-toplevel
@@ -160,11 +159,15 @@ def run_module_via_rpc(
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         filename = os.path.join(tmp_dir, "tvm_tmp_mod." + tar.output_format)
+        if backend == "vm":
+            code, lib = lib.save()
         lib.export_library(filename, tar)
         session = rpc_config.connect_server()
         session.upload(filename)
         _, filename = os.path.split(filename)
         rt_mod = session.load_module(filename)
+        if backend == "vm":
+            rt_mod = session.get_function("runtime.Load_Executable")(code, rt_mod)
         dev = session.device(dev_type=dev_type, dev_id=0)
-        args = [ndarray.array(arg, dev) for arg in args]
-        return continuation(rt_mod, dev, *args)
+        nd_args = {k: ndarray.array(v, dev) for k, v in args.items()}
+        return continuation(rt_mod, dev, nd_args)

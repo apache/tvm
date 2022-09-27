@@ -507,10 +507,33 @@ void RebaseNonZeroMinLoop(ScheduleNode* sch) {
 void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
   sch->InvalidateCache();
 
-  std::vector<Array<PrimExpr> > new_body(sch->stages.size());
+  std::vector<Array<PrimExpr>> new_body(sch->stages.size());
   std::vector<bool> changed(sch->stages.size(), false);
   std::vector<Stmt> new_hybrid_body(sch->stages.size());
   std::vector<bool> hybrid_changed(sch->stages.size(), false);
+  // (sshtin): this workaround allows to inline extern ops into their consumer.
+  // All inputs for extern op should not be inlined because inlining may happen
+  // before TE generation for particular extern op. That may lead to
+  // crash during lowering or building stages.
+  // The problem description:
+  // In case of operations fusing, arguments inlining
+  // prevents creation of ProducerNode for extern operation.
+  // Instead of the creation it is supposed to use operation argument as inlined buffer
+  // but extern_op TIR generation can be peformed after inlining procedure so
+  // newly generated TIR does not have reference to input data at all.
+  std::unordered_map<Operation, Operation> ext_ops;
+  for (size_t i = 0; i < sch->stages.size(); i++) {
+    Stage stage = sch->stages[i];
+    auto ext_op = stage->op.as<ExternOpNode>();
+    if (ext_op) {
+      auto inps = ext_op->InputTensors();
+      for (size_t ii = 0; ii < inps.size(); ++ii) {
+        if (ext_ops.find(inps[ii]->op) == ext_ops.end()) {
+          ext_ops[inps[ii]->op] = stage->op;
+        }
+      }
+    }
+  }
   // inline all the ops
   for (size_t i = sch->stages.size(); i != 0; --i) {
     Stage stage = sch->stages[i - 1];
@@ -525,8 +548,13 @@ void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
         for (auto iv : compute->axis) {
           args.push_back(iv->var);
         }
+        if (ext_ops.find(stage->op) != ext_ops.end()) {
+          // sshtin: The extern op can try to get access to the input tensors as a raw data,
+          // that can lead to error in IR builder.
+          stage->attach_type = kGroupRoot;
+          continue;
+        }
         ICHECK_EQ(compute->body.size(), 1U) << "can only inline compute op with 1 output";
-
         if (feature_extraction_mode && compute->attrs.count("const_matrix")) {
           // Use constant value to replace access of const matrices.
           // This produces wrong IR but is good enough for feature extraction purposes.

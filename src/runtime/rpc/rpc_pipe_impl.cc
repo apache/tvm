@@ -106,9 +106,8 @@ Module CreatePipeClient(std::vector<std::string> cmd) {
   close(child_read);
   close(child_write);
 
-  auto endpt = RPCEndpoint::Create(
-      std::unique_ptr<PipeChannel>(new PipeChannel(parent_read, parent_write, pid)), "pipe",
-      "pipe");
+  auto endpt = RPCEndpoint::Create(std::make_unique<PipeChannel>(parent_read, parent_write, pid),
+                                   "pipe", "pipe");
   endpt->InitRemoteSession(TVMArgs(nullptr, nullptr, 0));
   return CreateRPCSessionModule(CreateClientSession(endpt));
 }

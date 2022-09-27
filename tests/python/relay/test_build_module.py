@@ -22,43 +22,23 @@ import tvm.testing
 from tvm import relay
 from tvm.target.target import Target
 from tvm.relay.backend import Runtime, Executor, graph_executor_codegen
-from tvm.relay.build_module import _reconstruct_from_deprecated_options
 
 
 @pytest.mark.parametrize(
-    "target,executor,runtime",
+    "test_target,unsupported_config",
     [
-        [Target("c"), None, None],
-        [Target("c -runtime=c"), None, Runtime("crt")],
-        [Target("c -system-lib"), None, Runtime("cpp", {"system-lib": True})],
-        [Target("c -runtime=c -system-lib"), None, Runtime("crt", {"system-lib": True})],
-        [Target("c -executor=aot"), Executor("aot"), None],
-        [
-            Target("c -executor=aot -interface-api=c"),
-            Executor("aot", {"interface-api": "c"}),
-            None,
-        ],
-        [
-            Target("c -executor=aot -unpacked-api=1"),
-            Executor("aot", {"unpacked-api": True}),
-            None,
-        ],
-        [Target("c -executor=aot -link-params=1"), Executor("aot"), None],
-        [Target("c -link-params=1"), Executor("graph", {"link-params": True}), None],
-        [
-            Target(
-                "c -executor=aot -link-params=1 -interface-api=c"
-                "  -unpacked-api=1 -runtime=c -system-lib"
-            ),
-            Executor("aot", {"unpacked-api": True, "interface-api": "c"}),
-            Runtime("crt", {"system-lib": True}),
-        ],
+        ["c", "-runtime=c"],
+        ["c", "-system-lib=1"],
+        ["c", "-executor=aot"],
+        ["c", "-interface-api=c"],
+        ["c", "-unpacked-api=1"],
+        ["c", "-link-params=1"],
     ],
 )
-def test_deprecated_target_parameters(target, executor, runtime):
-    actual_executor, actual_runtime = _reconstruct_from_deprecated_options(target)
-    assert executor == actual_executor
-    assert runtime == actual_runtime
+def test_deprecated_target_parameters(test_target, unsupported_config):
+    with pytest.raises(ValueError) as e_info:
+        Target(f"{test_target} {unsupported_config}")
+        assert f"Cannot recognize '{unsupported_config}" in str(e_info.execption)
 
 
 def test_build_relay_graph_():

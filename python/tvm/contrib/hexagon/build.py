@@ -25,7 +25,10 @@ import pathlib
 import signal
 import socket
 import stat
+import random
+import string
 import subprocess
+import tempfile
 from typing import Union
 
 import tvm
@@ -34,6 +37,27 @@ from .session import Session
 
 
 HEXAGON_RPC_LIB_DIR = os.environ.get("HEXAGON_RPC_LIB_DIR")
+ANDROID_BASH_FILE_NAME = "android_bash.sh"
+
+
+def _check_call_verbose(cmd, **kwargs) -> None:
+    """
+    Similar to subprocess.check_call(cmd), but if the exit code is non-zero
+    then the raised Exception's message provides more detail, including
+    the stdout/stderr provided by the subprocess.
+    """
+    try:
+        subprocess.run(
+            cmd,
+            check=True,
+            encoding="UTF-8",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            **kwargs,
+        )
+    except subprocess.CalledProcessError as err:
+        error_msg = f"{err}\nstdout:\n{err.stdout}\nstderr:\n{err.stderr}"
+        raise Exception(error_msg)
 
 
 def _get_hexagon_rpc_lib_dir() -> pathlib.Path:
@@ -58,7 +82,9 @@ def _get_hexagon_rpc_lib_dir() -> pathlib.Path:
 
 def _get_test_directory_name() -> str:
     """Generate a time-stamped name for use as a test directory name."""
-    return datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    date_str = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    random_str = "".join(random.choice(string.ascii_lowercase) for _ in range(10))
+    return f"{date_str}-{random_str}"
 
 
 class HexagonLauncherRPC(metaclass=abc.ABCMeta):
@@ -112,7 +138,6 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         self._rpc_info.update(rpc_info)
         self._workspace = self._create_workspace(workspace)
         self._device_key = self.HEXAGON_REMOTE_DEVICE_KEY
-        self._serial_number = None
 
     @abc.abstractmethod
     def start_server(self):
@@ -120,8 +145,13 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         ...
 
     @abc.abstractmethod
-    def stop_server(self):
+    def stop_server(self, cleanup=True):
         """Stop the RPC server"""
+        ...
+
+    @abc.abstractmethod
+    def cleanup_directory(self):
+        """Cleanup working directory"""
         ...
 
     @abc.abstractmethod
@@ -140,13 +170,18 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         ...
 
     @abc.abstractmethod
-    def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]):
+    def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]) -> pathlib.Path:
         """Create a directory in the remote location.
 
         Parameters
         ----------
         remote_path : str or pathlib.Path
             Name of the directory to be created.
+
+        Returns
+        -------
+        pathlib.Path :
+            Absolute path of the remote workspace.
         """
         ...
 
@@ -167,10 +202,9 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         if not workspace:
             base_dir = self._rpc_info["workspace_base"]
             workspace = os.path.join(base_dir, _get_test_directory_name())
-        self._create_remote_directory(workspace)
-        return pathlib.Path(workspace)
+        return self._create_remote_directory(workspace)
 
-    def upload(self, local_path: Union[str, pathlib.Path], remote_filename: str):
+    def upload(self, local_path: Union[str, pathlib.Path], remote_filename: str) -> pathlib.Path:
         """Upload a local file to the remote workspace.
 
         Parameters
@@ -179,9 +213,16 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
             Path to the local file to be copied.
         remote_filename : str
             Name of the file in the remote workspace.
+
+        Returns
+        -------
+        pathlib.Path :
+            Uploaded file remote path.
         """
         assert self._workspace
-        self._copy_to_remote(local_path, os.path.join(str(self._workspace), remote_filename))
+        remote_file_path = self._workspace / remote_filename
+        self._copy_to_remote(local_path, str(remote_file_path))
+        return remote_file_path
 
     def start_session(self, session_name: str = "hexagon-rpc") -> Session:
         """Connect to the RPC server.
@@ -217,10 +258,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
             session and loaded.
 
             If the object passed is a string or pathlib.Path, it must
-            be either a bare file name (without any path components),
-            or a full path in the remote system. If it is a file name,
-            the file must already have been uploaded to the remote,
-            and be placed in the remote workspace.
+            be a full path in the remote system.
 
         session : Session
 
@@ -236,7 +274,10 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         return session.load_module(module)
 
     def get_graph_executor(
-        self, graph_json: str, module_name: Union[str, pathlib.Path], session: Session
+        self,
+        graph_json: str,
+        module: Union[str, pathlib.Path, tvm.runtime.Module],
+        session: Session,
     ):
         """Create a local GraphModule which consumes a remote libmod.
 
@@ -244,8 +285,14 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         ----------
         graph_json : str
             The string with the graph JSON.
-        module_name : str or pathlib.Path
-            Remote module filename. Same restrictions apply as in load_module().
+        module : Union[str, pathlib.Path, tvm.runtime.Module]
+
+            The module to load.  If `module` is a
+            `tvm.runtime.Module`, it will be uploaded to the remote
+            session and loaded.
+
+            If the object passed is a string or pathlib.Path, it must
+            be a full path in the remote system.
         session : Session
             Remote session. The session must be established (via __enter__)
             prior to calling this function.
@@ -255,13 +302,12 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         GraphModule :
             Runtime graph module that can be used to execute the graph.
         """
-        graph_mod = self.load_module(module_name, session)
-        return tvm.contrib.graph_executor.create(graph_json, graph_mod, session.device)
+        return session.get_graph_executor(graph_json, module)
 
     def get_graph_debug_executor(
         self,
         graph_json: str,
-        module_name: Union[str, pathlib.Path],
+        module: Union[str, pathlib.Path, tvm.runtime.Module],
         session: Session,
         dump_root: Union[str, pathlib.Path] = None,
     ):
@@ -271,8 +317,14 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         ----------
         graph_json : str
             The string with the graph JSON.
-        module_name : str or pathlib.Path
-            Remote module filename. Same restrictions apply as in load_module().
+        module : Union[str, pathlib.Path, tvm.runtime.Module]
+
+            The module to load.  If `module` is a
+            `tvm.runtime.Module`, it will be uploaded to the remote
+            session and loaded.
+
+            If the object passed is a string or pathlib.Path, it must
+            be a full path in the remote system.
         session : Session
             Remote session. The session must be established (via __enter__)
             prior to calling this function.
@@ -282,28 +334,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         GraphModuleDebug :
             Runtime debug graph module that can be used to debug the graph.
         """
-        graph_mod = self.load_module(module_name, session)
-        return tvm.contrib.debugger.debug_executor.create(
-            graph_json, graph_mod, session.device, dump_root=str(dump_root)
-        )
-
-    def get_aot_executor(self, module_name: Union[str, pathlib.Path], session: Session):
-        """Create a local AoTModule which consumes a remote libmod.
-
-        Parameters
-        ----------
-        module_name : str or pathlib.Path
-            Remote module filename. Same restrictions apply as in load_module().
-        session : Session
-            Remote session. The session must be established (via __enter__)
-            prior to calling this function.
-
-        Returns
-        -------
-        aot_module : AotModule
-            Runtime AOT module that can be used to execute.
-        """
-        return session.get_aot_executor(module_name)
+        return session.get_graph_debug_executor(graph_json, module, dump_root=dump_root)
 
 
 class HexagonLauncherAndroid(HexagonLauncherRPC):
@@ -311,7 +342,6 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
 
     ANDROID_HEXAGON_TEST_BASE_DIR = pathlib.Path("/data/local/tmp/hexagon_test")
     ANDROID_HEXAGON_RPC_FILES = [
-        "android_bash.sh",
         "libhexagon_rpc_skel.so",
         "libtvm_runtime.so",
         "tvm_rpc_android",
@@ -346,43 +376,44 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
     ):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        subprocess.check_call(
-            self._adb_device_sub_cmd + ["push", str(local_path), str(remote_path)]
-        )
+        _check_call_verbose(self._adb_device_sub_cmd + ["push", str(local_path), str(remote_path)])
 
-    def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]):
+    def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]) -> pathlib.Path:
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        subprocess.check_call(self._adb_device_sub_cmd + ["shell", "mkdir", "-p", str(remote_path)])
+        _check_call_verbose(self._adb_device_sub_cmd + ["shell", "mkdir", "-p", str(remote_path)])
+        return pathlib.Path(remote_path)
 
     def _copy_binaries(self):
         """Upload Android server binaries."""
 
         # Create bash script
-        android_bash_script_path = _get_hexagon_rpc_lib_dir() / "android_bash.sh"
-        with open(_get_hexagon_rpc_lib_dir() / "android_bash.sh.template", "r") as src_f:
-            if os.path.exists(android_bash_script_path):
-                os.remove(android_bash_script_path)
-            with open(android_bash_script_path, "w") as dest_f:
-                for line in src_f.readlines():
-                    if "<RPC_TRACKER_HOST>" in line:
-                        line = line.replace(
-                            "<RPC_TRACKER_HOST>", str(self._rpc_info["rpc_tracker_host"])
-                        )
-                    if "<RPC_TRACKER_PORT>" in line:
-                        line = line.replace(
-                            "<RPC_TRACKER_PORT>", str(self._rpc_info["rpc_tracker_port"])
-                        )
-                    if "<HEXAGON_REMOTE_DEVICE_KEY>" in line:
-                        line = line.replace("<HEXAGON_REMOTE_DEVICE_KEY>", self._device_key)
-                    if "<RPC_SERVER_PORT>" in line:
-                        line = line.replace(
-                            "<RPC_SERVER_PORT>", str(self._rpc_info["rpc_server_port"])
-                        )
-                    dest_f.write(line)
+        with open(_get_hexagon_rpc_lib_dir() / f"{ANDROID_BASH_FILE_NAME}.template", "r") as src_f:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                android_bash_script_path = pathlib.Path(temp_dir) / ANDROID_BASH_FILE_NAME
+                with open(android_bash_script_path, "w") as dest_f:
+                    for line in src_f.readlines():
+                        if "<RPC_TRACKER_HOST>" in line:
+                            line = line.replace(
+                                "<RPC_TRACKER_HOST>", str(self._rpc_info["rpc_tracker_host"])
+                            )
+                        if "<RPC_TRACKER_PORT>" in line:
+                            line = line.replace(
+                                "<RPC_TRACKER_PORT>", str(self._rpc_info["rpc_tracker_port"])
+                            )
+                        if "<HEXAGON_REMOTE_DEVICE_KEY>" in line:
+                            line = line.replace("<HEXAGON_REMOTE_DEVICE_KEY>", self._device_key)
+                        if "<RPC_SERVER_PORT>" in line:
+                            line = line.replace(
+                                "<RPC_SERVER_PORT>", str(self._rpc_info["rpc_server_port"])
+                            )
+                        dest_f.write(line)
 
-        # Make shell script executable
-        android_bash_stat = os.stat(android_bash_script_path)
-        os.chmod(android_bash_script_path, android_bash_stat.st_mode | stat.S_IEXEC)
+                # Make shell script executable
+                android_bash_stat = os.stat(android_bash_script_path)
+                os.chmod(android_bash_script_path, android_bash_stat.st_mode | stat.S_IEXEC)
+                self._copy_to_remote(
+                    android_bash_script_path, self._workspace / android_bash_script_path.name
+                )
 
         # Push files
         lib_dir = _get_hexagon_rpc_lib_dir()
@@ -405,14 +436,14 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         port = rpc_server_port
         while len(self.forwarded_ports_) < 10:
             if port not in existing_forwards and not _is_port_in_use(port):
-                subprocess.check_call(
+                _check_call_verbose(
                     self._adb_device_sub_cmd + ["forward", f"tcp:{port}", f"tcp:{port}"]
                 )
                 self.forwarded_ports_.append(port)
             port += 1
 
     def _reverse_ports(self, rpc_tracker_port):
-        subprocess.check_call(
+        _check_call_verbose(
             self._adb_device_sub_cmd
             + ["reverse", f"tcp:{rpc_tracker_port}", f"tcp:{rpc_tracker_port}"]
         )
@@ -432,7 +463,8 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
 
         # Run server and connect to tracker
         subprocess.Popen(
-            self._adb_device_sub_cmd + ["shell", f"cd {self._workspace} && ./android_bash.sh"],
+            self._adb_device_sub_cmd
+            + ["shell", f"cd {self._workspace} && ./{ANDROID_BASH_FILE_NAME}"],
             stdout=subprocess.PIPE,
             stdin=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -441,11 +473,11 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
     def _cleanup_port_forwarding(self):
         # Removed pre-defined forward/reverse rules
         rpc_tracker_port = self._rpc_info["rpc_tracker_port"]
-        subprocess.check_call(
+        _check_call_verbose(
             self._adb_device_sub_cmd + ["reverse", "--remove", f"tcp:{rpc_tracker_port}"]
         )
         for port in self.forwarded_ports_:
-            subprocess.check_call(self._adb_device_sub_cmd + ["forward", "--remove", f"tcp:{port}"])
+            _check_call_verbose(self._adb_device_sub_cmd + ["forward", "--remove", f"tcp:{port}"])
 
     def _terminate_remote(self):
         # Send interupt to main and child processes
@@ -468,8 +500,8 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
             self._adb_device_sub_cmd + ["shell", f"kill `cat {self._workspace}/rpc_pid.txt`"]
         )
 
-    def _cleanup_directory(self):
-        # Remove workspace directory on remote target
+    def cleanup_directory(self):
+        """Abstract method implementation. See description in HexagonLauncherRPC."""
         subprocess.Popen(self._adb_device_sub_cmd + ["shell", f"rm -rf {self._workspace}"])
 
     def start_server(self):
@@ -477,11 +509,12 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self._copy_binaries()
         self._run_server_script()
 
-    def stop_server(self):
+    def stop_server(self, cleanup=True):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._cleanup_port_forwarding()
         self._terminate_remote()
-        self._cleanup_directory()
+        if cleanup:
+            self.cleanup_directory()
 
 
 class HexagonLauncherSimulator(HexagonLauncherRPC):
@@ -505,11 +538,12 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
     ):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        subprocess.check_call(["cp", str(local_path), str(remote_path)])
+        _check_call_verbose(["cp", str(local_path), str(remote_path)])
 
-    def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]):
+    def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]) -> pathlib.Path:
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        subprocess.check_call(["mkdir", "-p", str(remote_path)])
+        _check_call_verbose(["mkdir", "-p", str(remote_path)])
+        return pathlib.Path(os.path.abspath(remote_path))
 
     def _copy_libcxx(self, dest_dir: Union[str, pathlib.Path]):
         """Copy libc++ libraries to the remote workspace."""
@@ -532,7 +566,7 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
         # links is to save disk space.
         tar_in = f"tar -cf - -C {lib_dir} " + " ".join(libcxx_files)
         tar_out = f"tar -xf - -C {str(dest_dir)}"
-        subprocess.check_call(tar_in + " | " + tar_out, shell=True)
+        _check_call_verbose(tar_in + " | " + tar_out, shell=True)
 
     def start_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
@@ -581,7 +615,10 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
         self._server_process = mp.Process(target=lambda *a: _start(self, *a))
         self._server_process.start()
 
-    def stop_server(self):
+    def cleanup_directory(self):
+        """Abstract method implementation. See description in HexagonLauncherRPC."""
+
+    def stop_server(self, cleanup=True):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._server_process.terminate()
 

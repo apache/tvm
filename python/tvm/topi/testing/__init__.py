@@ -43,6 +43,7 @@ from .resize_python import resize1d_python, resize2d_python, resize3d_python
 from .reorg_python import reorg_python
 from .roi_align_python import roi_align_nchw_python, roi_align_nhwc_python
 from .roi_pool_python import roi_pool_nchw_python
+from .layer_norm_python import layer_norm_python
 from .lrn_python import lrn_python
 from .l2_normalize_python import l2_normalize_python
 from .gather_python import gather_python
@@ -76,3 +77,4 @@ from .nll_loss import nll_loss
 from .dense import dense
 from .searchsorted import searchsorted_ref
 from .conv2d_backcward_weight_python import conv2d_backward_weight_python
+from .lstm_python import lstm_python

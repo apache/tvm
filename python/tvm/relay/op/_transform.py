@@ -68,7 +68,12 @@ _reg.register_injective_schedule("adv_index")
 
 
 # concatenate
-_reg.register_schedule("concatenate", strategy.schedule_concatenate)
+@_reg.register_compute("concatenate")
+def compute_concat(attrs, inputs, output_type):
+    return [topi.concatenate(inputs, attrs.axis)]
+
+
+_reg.register_strategy("concatenate", strategy.concatenate_strategy)
 
 # sliding_window
 @_reg.register_compute("sliding_window")
@@ -93,6 +98,8 @@ _reg.register_injective_schedule("layout_transform")
 _reg.register_pattern("layout_transform", OpPattern.INJECTIVE)
 _reg.register_injective_schedule("auto_scheduler_layout_transform")
 _reg.register_pattern("auto_scheduler_layout_transform", OpPattern.INJECTIVE)
+_reg.register_injective_schedule("meta_schedule_layout_transform")
+_reg.register_pattern("meta_schedule_layout_transform", OpPattern.INJECTIVE)
 
 # argwhere
 _reg.register_strategy("argwhere", strategy.argwhere_strategy)
@@ -182,6 +189,10 @@ def stft_shape_func(attrs, inputs, _):
             inputs[0], convert(attrs.n_fft), convert(attrs.hop_length), convert(attrs.onesided)
         )
     ]
+
+
+# trilu
+_reg.register_strategy("trilu", strategy.trilu_strategy)
 
 
 # scatter_add
@@ -557,12 +568,12 @@ def take_shape_func(attrs, inputs, out_ndims):
     batch_dims = get_const_int(attrs.batch_dims)
     data_ndim = int(inputs[0].shape[0])
     if inputs[1].shape:
-        indicies_ndim = int(inputs[1].shape[0])
+        indices_ndim = int(inputs[1].shape[0])
     if axis < 0:
         axis += data_ndim
     assert 0 <= axis < data_ndim
     if batch_dims < 0:
-        batch_dims += indicies_ndim
+        batch_dims += indices_ndim
     return [_take_with_axis_shape_func(*inputs, convert(axis), convert(batch_dims), out_ndims[0])]
 
 
@@ -670,6 +681,7 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
 
 _reg.register_shape_func("scatter", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_add", False, elemwise_shape_func)
+_reg.register_shape_func("scatter_nd", False, elemwise_shape_func)
 
 
 @script

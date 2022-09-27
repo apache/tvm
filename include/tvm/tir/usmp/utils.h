@@ -45,10 +45,14 @@ constexpr const char* kUSMPAlgorithmOption = "tir.usmp.algorithm";
  * \brief PassContext option to enable placing I/O tensors in the workspace
  */
 constexpr const char* kUSMPUseWorkspaceIO = "tir.usmp.use_workspace_io";
+/*!
+ * \brief PassContext option to specify a custom memory planning algorithm in USMP.
+ * The algorithm should be provided as registered PackedFunc with the name tir.usmp.algorithm.NAME
+ */
+constexpr const char* kUSMPCustomAlgorithmOption = "tir.usmp.custom_algorithm";
 
 namespace tir {
 namespace usmp {
-
 /*!
  * \brief A special kind to distinguish between I/O tensors to the model
  * and intermediate tensors of the model
@@ -163,9 +167,9 @@ class BufferInfoAnalysis : public ObjectRef {
  * \brief The pool allocation produced after the USMP algorithm
  */
 struct PoolAllocationNode : public Object {
-  /*! \brief The assigned PoolInfo object */
+  /*! \brief The assigned WorkspacePoolInfo or ConstantPoolInfo object */
   PoolInfo pool_info;
-  /*! \brief The byte offset where the tensor is supposed to be placed within the pool*/
+  /*! \brief The byte offset within the pool*/
   Integer byte_offset;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -236,7 +240,7 @@ class AllocatedPoolInfo : public ObjectRef {
  *
  * \param buffer_info_map IR-bound BufferInfo map
  */
-Array<BufferInfo> CreateArrayBufferInfo(const Map<BufferInfo, Stmt>& buffer_info_map);
+Array<BufferInfo> ConvertToArrayOfBufferInfo(const Map<BufferInfo, Stmt>& buffer_info_map);
 
 /*!
  * \brief Calculate workspace required to execute a IRModule with main expressed in TIR
@@ -270,6 +274,13 @@ static constexpr const char* kOutputTensorAllocate = "output_tensor";
  * \param op the allocate node
  */
 Integer CalculateExtentsSize(const AllocateNode* op);
+
+/*!
+ * \brief Calculate the size of the extents in bytes
+ *
+ * \param op the allocate const node
+ */
+Integer CalculateExtentsSize(const AllocateConstNode* op);
 
 /*!
  * \brief Joins the Stmt nodes with PoolAllocation objects

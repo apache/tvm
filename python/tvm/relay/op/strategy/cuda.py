@@ -20,11 +20,12 @@ from tvm import topi
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.contrib import nvcc
 from tvm.contrib.thrust import can_use_thrust
+from tvm.meta_schedule import is_meta_schedule_enabled
 from tvm.te import SpecializedCondition
 
-from .. import op as _op
 from ....target import Target
 from ....tir import IntImm
+from .. import op as _op
 from .generic import *
 
 
@@ -42,11 +43,15 @@ def schedule_reduce_cuda(attrs, outs, target):
         return topi.cuda.schedule_reduce(outs)
 
 
-@schedule_concatenate.register(["cuda", "gpu"])
-def schedule_concatenate_cuda(attrs, outs, target):
-    """schedule concatenate for cuda"""
-    with target:
-        return topi.cuda.schedule_injective(outs)
+@concatenate_strategy.register(["cuda", "gpu"])
+def concatenate_strategy_cuda(attrs, inputs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_concat(topi.transform.concatenate),
+        wrap_topi_schedule(topi.cuda.schedule_injective),
+        name="concatenate.cuda",
+    )
+    return strategy
 
 
 @schedule_pool.register(["cuda", "gpu"])
@@ -254,6 +259,14 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     name="conv2d_nhwc.winograd",
                     plevel=15,
                 )
+            # register meta-schedule implementations
+            if is_meta_schedule_enabled() and judge_winograd_auto_scheduler:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc),
+                    naive_schedule,  # this implementation should never be picked by autotvm
+                    name="conv2d_nhwc.winograd",
+                    plevel=15,
+                )
 
         elif layout == "HWNC":
             assert kernel_layout in ["HWOI", "HWOI16o16i", "HWOI8o32i", "HWOI32o16i"]
@@ -303,9 +316,18 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
         ):
             assert kernel_layout == "OIHW4o4i"
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.conv2d_NCHWc_int8, True),
+                wrap_compute_conv2d(topi.cuda.conv2d_NCHWc_int8, need_data_layout=True),
                 wrap_topi_schedule(topi.cuda.schedule_conv2d_NCHWc_int8),
                 name="conv2d_NCHWc_int8.cuda",
+            )
+        elif is_auto_scheduler_enabled() or is_meta_schedule_enabled():
+            strategy.add_implementation(
+                wrap_compute_conv2d(
+                    topi.nn.conv, need_data_layout=True, need_kernel_layout=True, has_groups=True
+                ),
+                naive_schedule,
+                name="conv2d.cuda",
+                plevel=15,
             )
         elif target.kind.name == "cuda" and "cudnn" not in target.libs:
             # No TVM native kernel applicable
@@ -531,6 +553,13 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
             )
 
         if is_auto_scheduler_enabled():
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc_without_weight_transform),
+                naive_schedule,  # this implementation should never be picked by autotvm
+                name="conv2d_nhwc_winograd_without_weight_transform",
+                plevel=15,
+            )
+        if is_meta_schedule_enabled():
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc_without_weight_transform),
                 naive_schedule,  # this implementation should never be picked by autotvm
@@ -802,6 +831,12 @@ def matmul_strategy_cuda(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
 
     if is_auto_scheduler_enabled():
+        strategy.add_implementation(
+            wrap_compute_matmul(topi.nn.matmul),
+            naive_schedule,
+            name="matmul.cuda",
+        )
+    elif is_meta_schedule_enabled():
         strategy.add_implementation(
             wrap_compute_matmul(topi.nn.matmul),
             naive_schedule,

@@ -40,6 +40,12 @@ Currently, TVM supports PyTorch 1.7 and 1.4. Other versions may
 be unstable.
 """
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 import tvm
 from tvm import relay
 from tvm import relay

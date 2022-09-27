@@ -39,7 +39,8 @@ from .tensor_intrin import decl_tensor_intrin
 from .tag import tag_scope
 from .operation import placeholder, compute, scan, extern, var, size_var, const
 from .operation import thread_axis, reduce_axis
-from .operation import create_prim_func, create_prim_func_from_outputs
+from .operation import create_prim_func
+from .operation import extern_primfunc
 
 from .tensor import PlaceholderOp, ComputeOp, TensorComputeOp, ScanOp, ExternOp, HybridOp
 from .autodiff import gradient

@@ -135,7 +135,7 @@ class ConstIntBoundAnalyzer {
    *
    * \param var The variable of interest.
    * \param info The bound information.
-   * \param allow_override Whether do we allow override of existing information.
+   * \param allow_override whether we allow override of existing information.
    */
   TVM_DLL void Update(const Var& var, const ConstIntBound& info, bool allow_override = false);
   /*!
@@ -224,7 +224,7 @@ class ModularSetAnalyzer {
    *
    * \param var The variable of interest.
    * \param info The bound information.
-   * \param allow_override Whether do we allow override of existing information.
+   * \param allow_override whether we allow override of existing information.
    */
   TVM_DLL void Update(const Var& var, const ModularSet& info, bool allow_override = false);
 
@@ -263,10 +263,16 @@ class RewriteSimplifier {
    *
    * \param var The variable of interest.
    * \param new_expr
-   * \param allow_override Whether do we allow override of existing information.
+   * \param allow_override Whether we allow override of existing information.
    */
   TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool allow_override = false);
 
+  /*!
+   * \brief Update the internal state to enter constraint.
+   * \param constraint A constraint expression.
+   *
+   * \return an exit function that must be called to cleanup the constraint can be nullptr.
+   */
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  private:
@@ -297,7 +303,7 @@ class CanonicalSimplifier {
    *
    * \param var The variable of interest.
    * \param new_expr
-   * \param allow_override Whether do we allow override of existing information.
+   * \param allow_override whether we allow override of existing information.
    */
   TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool allow_override = false);
 
@@ -347,7 +353,7 @@ class ConstraintContext {
   /*! \brief The constraint */
   PrimExpr constraint_;
   /*! \brief function to be called in recovery */
-  std::function<void()> exit_;
+  std::vector<std::function<void()>> recovery_functions_;
 };
 
 /*!
@@ -364,6 +370,36 @@ class IntSetAnalyzer {
    * \return the result of the analysis.
    */
   TVM_DLL IntSet operator()(const PrimExpr& expr, const Map<Var, IntSet>& dom_map);
+
+  /*!
+   * \brief Find a symbolic integer set that contains all possible
+   *        values of expr given the domain of each variables, using
+   *        the domain map defined by bound variables.
+   *
+   * \param expr The expression of interest.
+   * \return the result of the analysis.
+   */
+  TVM_DLL IntSet operator()(const PrimExpr& expr);
+
+  /*!
+   * \brief Update binding of var to a new expression.
+   *
+   * \param var The variable of interest.
+   * \param new_interval_set The set of allowed values for this var.
+   * \param allow_override whether we allow override of existing information.
+   */
+  TVM_DLL void Update(const Var& var, const IntSet& new_interval_set, bool allow_override = false);
+
+  /*!
+   * \brief Update binding of var to a new expression.
+   *
+   * \param var The variable of interest.
+   * \param new_range The range of allowed values for this var.
+   * \param allow_override whether we allow override of existing information.
+   */
+  TVM_DLL void Bind(const Var& var, const Range& new_range, bool allow_override = false);
+
+  std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  private:
   friend class Analyzer;

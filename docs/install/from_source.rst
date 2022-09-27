@@ -59,7 +59,11 @@ It is also possible to :ref:`build the runtime <deploy-and-integration>` library
 
 The minimal building requirements for the ``TVM`` libraries are:
 
-   - A recent c++ compiler supporting C++ 14 (g++-5 or higher)
+   - A recent C++ compiler supporting C++ 17, at the minimum
+      - GCC 7.1
+      - Clang 5.0
+      - Apple Clang 9.3
+      - Visual Studio 2019 (v16.7)
    - CMake 3.10 or higher
    - We highly recommend to build with LLVM to enable all the features.
    - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
@@ -83,6 +87,14 @@ Homebrew to ensure the dependencies are correctly installed and configured:
     brew install llvm
     brew install python@3.8
 
+If you are on macOS with an M1 Processor you may need to use conda to manage dependencies while building. Specifically you may need, `Miniforge <https://github.com/conda-forge/miniforge>`_ to ensure that the dependencies obtained using pip are compatible with M1. 
+
+.. code:: bash
+
+    brew install miniforge
+    conda init
+    conda create --name tvm python=3.8
+    conda activate tvm
 
 We use cmake to build the library.
 The configuration of TVM can be modified by editing `config.cmake` and/or by passing cmake flags to the command line:
@@ -107,7 +119,7 @@ The configuration of TVM can be modified by editing `config.cmake` and/or by pas
 
       .. code:: bash
 
-          export TVM_LOG_DEBUG="ir/transform.cc=1;relay/ir/transform.cc=1"
+          export TVM_LOG_DEBUG="ir/transform.cc=1,relay/ir/transform.cc=1"
 
 - TVM requires LLVM for CPU codegen. We highly recommend you to build with the LLVM support on.
 
@@ -128,6 +140,8 @@ The configuration of TVM can be modified by editing `config.cmake` and/or by pas
 
   - On supported platforms, the `Ccache compiler wrapper <https://ccache.dev/>`_ may be helpful for
     reducing TVM's build time.  There are several ways to enable CCache in TVM builds:
+
+    - Leave `USE_CCACHE=AUTO` in `build/config.cmake`. CCache will be used if it is found.
 
     - Ccache's Masquerade mode. This is typically enabled during the Ccache installation process.
       To have TVM use Ccache in masquerade, simply specify the appropriate C/C++ compiler
@@ -264,8 +278,6 @@ TVM package
 Depending on your development environment, you may want to use a virtual environment and package manager, such
 as ``virtualenv`` or ``conda``, to manage your python packages and dependencies.
 
-to install and maintain your python development environment.
-
 The python package is located at `tvm/python`
 There are two ways to install the package:
 
@@ -317,7 +329,7 @@ like ``virtualenv``.
 
    .. code:: bash
 
-       pip3 install --user tornado psutil xgboost cloudpickle
+       pip3 install --user tornado psutil 'xgboost<1.6.0' cloudpickle
 
 Note on M1 macs, you may have trouble installing xgboost / scipy. scipy and xgboost requires some additional dependencies to be installed,
 including openblas and its dependencies. Use the following commands to install scipy and xgboost with the required dependencies and
@@ -333,7 +345,7 @@ configuration. A workaround for this is to do the following commands:
 
         pip install scipy --no-use-pep517
 
-        pip install xgboost
+        pip install 'xgboost<1.6.0'
 
 Install Contrib Libraries
 -------------------------

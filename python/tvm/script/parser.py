@@ -170,6 +170,7 @@ class TVMScriptParser(Transformer):
         self.tir_namespace = tir_namespace
         self.closure_vars = closure_vars
         self.meta = None
+        self._inside_buffer_sugar = False
 
     def init_function_parsing_env(self):
         """Initialize function parsing environment"""
@@ -360,7 +361,7 @@ class TVMScriptParser(Transformer):
         """
         if len(node.funcs) == 1:
             return self.transform(next(iter(node.funcs.values())))
-        elif len(node.func) == 0:
+        elif len(node.funcs) == 0:
             self.report_error(
                 "You must supply at least one class or function definition", node.span
             )
@@ -434,11 +435,23 @@ class TVMScriptParser(Transformer):
                 T.evaluate(0)  # 4. This function returns 0
         """
 
+        def check_as_torch_decorator(decorator: Union[ast.Call, ast.Var]):
+            if isinstance(decorator, ast.Call):
+                if len(decorator.params) != 1:
+                    return False
+                func_name = decorator.func_name
+            else:
+                func_name = decorator
+            if isinstance(func_name, ast.Var):
+                return func_name.id.name == "as_torch"
+
         def check_decorator(decorators: List[ast.Expr]) -> bool:
             """Check the decorator is `T.prim_func"""
-            if len(decorators) != 1:
+            if len(decorators) > 2 or len(decorators) == 0:
                 return False
-            d: ast.Expr = decorators[0]
+            if len(decorators) == 2 and not check_as_torch_decorator(decorators[0]):
+                return False
+            d: ast.Expr = decorators[-1]
             return (
                 isinstance(d, ast.Attr)
                 and isinstance(d.object, ast.Var)
@@ -524,7 +537,10 @@ class TVMScriptParser(Transformer):
         # add parameters of the lambda
         arg_vars = []
         for arg in node.params:
-            arg_var = tvm.te.var(arg.name)
+            # Use "void" for dtype here. The actual type is not yet known and will be
+            # determined later. Using void type will allow IRSubstitute to do the
+            # replacement without flagging a type-mismatch error.
+            arg_var = tvm.te.var(arg.name, dtype="")
             arg_vars.append(arg_var)
             self.context.update_symbol(arg.name, arg_var, node)
 
@@ -587,7 +603,7 @@ class TVMScriptParser(Transformer):
                     out = func(*args)
                 except Exception as e:
                     self.report_error(
-                        "Error occured when invoking the function "
+                        "Error occurred when invoking the function "
                         + func.__name__
                         + ": \n"
                         + str(e),
@@ -889,6 +905,13 @@ class TVMScriptParser(Transformer):
                 )
             if node.func_name.name in self._unaryop_maker:
                 rhs = self.transform(node.params[0])
+                if node.func_name.name == ast.BuiltinOp.USub and isinstance(
+                    node.params[0], ast.Constant
+                ):
+                    # '-literal' should be parsed together for proper literal type inference
+                    if not isinstance(rhs, (tvm.tir.IntImm, tvm.tir.FloatImm)):
+                        self.report_error("The literal is illegal after -", node.params[0].span)
+                    return tvm.tir.const(-rhs.value)
                 return self._unaryop_maker[node.func_name.name](
                     rhs, span=tvm_span_from_synr(node.span)
                 )
@@ -1215,6 +1238,9 @@ class TVMScriptParser(Transformer):
 
         See `transform_Constant`.
         """
+        if self._inside_buffer_sugar:
+            return self.transform_Constant(node)
+
         return node.value
 
     def transform_TypeTuple(self, node):
@@ -1223,6 +1249,22 @@ class TVMScriptParser(Transformer):
         Mostly used in `transform_TypeCall` and `transform_TypeApply`.
         """
         return [self.transform(value) for value in node.values]
+
+    def transform_TypeCall(self, node):
+        """TypeCall visitor
+
+        This occurs when an expression is used inside a T.Buffer
+        parameter annotation.
+        """
+
+        # ast.Call has the BuiltinOp as node.func_name.name, where
+        # ast.TypeCall has the BuiltinOp as node.func_name.  So we can
+        # delegate to self.transform_Call, but the error messages for
+        # unsupported operations will highlight the entire expression
+        # and not just the function itself.
+        op = ast.Op(node.span, node.func_name)
+        call = ast.Call(node.span, op, node.params, node.keyword_params)
+        return self.transform_Call(call)
 
     def transform_TypeApply(self, node):
         """Visitor for Type[Type] expressions.
@@ -1264,7 +1306,12 @@ class TVMScriptParser(Transformer):
         assert isinstance(func, SpecialStmt)
 
         # parse args and kwargs for TypeCall and TypeApply
-        arg_list = self.parse_arg_list(func, node)
+        self._inside_buffer_sugar = True
+        try:
+            arg_list = self.parse_arg_list(func, node)
+        finally:
+            self._inside_buffer_sugar = False
+
         # Note that the third element in arg_list would always be the 'name'
         # TODO: This index is hardcoded as a workaround. Better to make it programmatic
         if arg_list[2] is None:

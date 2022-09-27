@@ -188,6 +188,19 @@ class PrimFunc(BaseFunc):
             self, tir_prefix, show_meta
         )  # type: ignore
 
+    def show(self, style: Optional[str] = None) -> None:
+        """
+        A sugar for print highlighted TVM script.
+        Parameters
+        ----------
+        style : str, optional
+            Pygments styles extended by "light" (default) and "dark", by default "light"
+        """
+        from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
+
+        # Use deferred import to avoid circular import while keeping cprint under tvm/script
+        cprint(self, style=style)
+
 
 @tvm._ffi.register_object("tir.TensorIntrin")
 class TensorIntrin(Object):
@@ -206,7 +219,7 @@ class TensorIntrin(Object):
         self.__init_handle_by_constructor__(_ffi_api.TensorIntrin, desc, impl)
 
     @staticmethod
-    def register(name: str, desc: PrimFunc, impl: PrimFunc):
+    def register(name: str, desc: PrimFunc, impl: PrimFunc, override: bool = False):
         """Register a tensor intrinsic with its name.
 
         Parameters
@@ -217,11 +230,15 @@ class TensorIntrin(Object):
             The function to describe the computation.
         impl : PrimFunc
             The function of the implementation for the execution.
+        override: bool
+            Whether override existing intrinsic.
         """
-        return _ffi_api.TensorIntrinRegister(name, TensorIntrin(desc, impl))  # type: ignore
+        return _ffi_api.TensorIntrinRegister(
+            name, TensorIntrin(desc, impl), override
+        )  # type: ignore
 
     @staticmethod
-    def get(name: str):
+    def get(name: str, allow_missing: bool = False) -> Optional["TensorIntrin"]:
         """Look up a tensor intrinsic by its name.
 
         Parameters
@@ -229,12 +246,16 @@ class TensorIntrin(Object):
         name : str
             The name of the TensorIntrin to look up.
 
+        allow_missing : bool
+            Whether to allow missing tensor intrin. If False, raise an error if the tensor intrin
+        doesn't exist.
+
         Returns
         -------
-        result : TensorIntrin
-            The TensorIntrin with the specified name.
+        result : Optional[TensorIntrin]
+            The TensorIntrin with the specified name, or None if not found.
         """
-        return _ffi_api.TensorIntrinGet(name)  # pylint: type: ignore
+        return _ffi_api.TensorIntrinGet(name, allow_missing)  # pylint: type: ignore
 
 
 @tvm._ffi.register_object("tir.IndexMap")
@@ -247,6 +268,12 @@ class IndexMap(Object):
         Variables representing the indices prior to remapping.
     final_indices : List[PrimExpr]
         Expressions defining the indices after remapping.
+    inverse_index_map : Union[Callable, Optional[IndexMap]]
+        The optional pre-defined inverse index map.
+        When this is defined, IndexMap::Inverse will return the pre-defined inverse index map.
+        Otherwise, the inverse index map will be computed on the fly.
+        It is the user's responsibility to ensure the correctness of the pre-defined inverse
+        index map.
     """
 
     initial_indices: List[Var]
@@ -257,11 +284,19 @@ class IndexMap(Object):
     # Stage.transform_layout for more details.
     AXIS_SEPARATOR = "axis_separator"
 
-    def __init__(self, initial_indices, final_indices):
-        self.__init_handle_by_constructor__(_ffi_api.IndexMap, initial_indices, final_indices)
+    def __init__(self, initial_indices, final_indices, inverse_index_map):
+        if isinstance(inverse_index_map, Callable):
+            inverse_index_map = IndexMap.from_func(inverse_index_map)
+        self.__init_handle_by_constructor__(
+            _ffi_api.IndexMap, initial_indices, final_indices, inverse_index_map
+        )
 
     @staticmethod
-    def from_func(mapping_function: Callable, ndim: Optional[int] = None):
+    def from_func(
+        mapping_function: Callable,
+        ndim: Optional[int] = None,
+        inverse_index_map: Union[Callable, Optional["IndexMap"]] = None,
+    ):
         """Create an index map from a function
 
         Parameters
@@ -270,8 +305,9 @@ class IndexMap(Object):
 
             The function to map from source indices to target indices.
             The function should accept `tir.Var` parameters and return
-            a list. Each element of the returned list should be a
-            `tir.PrimExpr`.
+            a either a `tir.PrimExpr`, or a list of `tir.PrimExpr`.
+            Returning a `tir.PrimExpr` is equivalent to returning a
+            list of length 1 containing that `tir.PrimExpr`.
 
         ndim: Optional[int]
 
@@ -281,6 +317,13 @@ class IndexMap(Object):
             mapping_function does not use variadic arguments, ndim is
             optional.
 
+        inverse_index_map : Union[Callable, Optional[IndexMap]]
+            The optional pre-defined inverse index map.
+            When this is defined, IndexMap::Inverse will return the pre-defined inverse index map.
+            Otherwise, the inverse index map will be computed on the fly.
+            It is the user's responsibility to ensure the correctness of the pre-defined inverse
+            index map.
+
         Returns
         -------
         index_map: IndexMap
@@ -288,7 +331,9 @@ class IndexMap(Object):
             Returns an IndexMap representing the `mapping_function`.
 
         """
-        index_map, axis_separators = IndexMap.from_func_with_separators(mapping_function, ndim)
+        index_map, axis_separators = IndexMap.from_func_with_separators(
+            mapping_function, ndim, inverse_index_map
+        )
         assert not axis_separators, (
             "The mapping_function provided to IndexMap.from_func "
             "may not return IndexMap.AXIS_SEPARATOR.  "
@@ -297,7 +342,11 @@ class IndexMap(Object):
         return index_map
 
     @staticmethod
-    def from_func_with_separators(mapping_function: Callable, ndim: Optional[int] = None):
+    def from_func_with_separators(
+        mapping_function: Callable,
+        ndim: Optional[int] = None,
+        inverse_index_map: Union[Callable, Optional["IndexMap"]] = None,
+    ):
         """Create an index map from a function
 
         Parameters
@@ -305,9 +354,12 @@ class IndexMap(Object):
         mapping_function : Callable
 
             The function to map from source indices to target indices.
-            The function should accept tir.Var parameters and return a
-            list. Each element of the returned list should be either a
-            `tir.PrimExpr` or the object `IndexMap.AXIS_SEPARATOR`.
+            The function should accept tir.Var parameters and return
+            either a `tir.PrimExpr` or a list.  Each element of the
+            returned list should be either a `tir.PrimExpr` or the
+            object `IndexMap.AXIS_SEPARATOR`.  Returning a
+            `tir.PrimExpr` is equivalent to returning a list of length
+            1 containing that `tir.PrimExpr`.
 
         ndim: Optional[int]
 
@@ -316,6 +368,13 @@ class IndexMap(Object):
             variadic argument `*args`, ndim must be specified.  If
             mapping_function does not use variadic arguments, ndim is
             optional.
+
+        inverse_index_map : Union[Callable, Optional[IndexMap]]
+            The optional pre-defined inverse index map.
+            When this is defined, IndexMap::Inverse will return the pre-defined inverse index map.
+            Otherwise, the inverse index map will be computed on the fly.
+            It is the user's responsibility to ensure the correctness of the pre-defined inverse
+            index map.
 
         Returns
         -------
@@ -365,19 +424,29 @@ class IndexMap(Object):
 
         final_indices = []
         axis_separators = []
-        for val in mapping:
-            if isinstance(val, tvm.ir.PrimExpr):
-                final_indices.append(val)
-            elif val is IndexMap.AXIS_SEPARATOR:
-                axis_separators.append(len(final_indices))
-            else:
-                raise TypeError(
-                    "Expected mapping function to return list of "
-                    "either tvm.ir.PrimExpr or IndexMap.AXIS_SEPARATOR.  "
-                    "Instead received {val} of type {type(val)}."
-                )
 
-        return IndexMap(initial_indices, final_indices), axis_separators
+        try:
+            iter(mapping)
+            is_iterable = True
+        except TypeError:
+            is_iterable = False
+
+        if is_iterable:
+            for val in mapping:
+                if isinstance(val, tvm.ir.PrimExpr):
+                    final_indices.append(val)
+                elif val is IndexMap.AXIS_SEPARATOR:
+                    axis_separators.append(len(final_indices))
+                else:
+                    raise TypeError(
+                        "Expected mapping function to return list of "
+                        "either tvm.ir.PrimExpr or IndexMap.AXIS_SEPARATOR.  "
+                        f"Instead received {val} of type {type(val)}."
+                    )
+        else:
+            final_indices.append(mapping)
+
+        return IndexMap(initial_indices, final_indices, inverse_index_map), axis_separators
 
     def is_equivalent_to(self, other_map: "IndexMap") -> bool:
         """Return if the index maps are equivalent.

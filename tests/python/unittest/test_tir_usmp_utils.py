@@ -22,7 +22,7 @@ from tvm.script import tir as T
 from tvm.tir import stmt_functor
 from tvm.tir.usmp import utils as usmp_utils
 from tvm.target import Target
-
+from tvm import WorkspacePoolInfo, PoolInfoProperties
 
 # fmt: off
 @tvm.script.ir_module
@@ -31,9 +31,9 @@ class LinearStructure:
     def tvmgen_default_fused_cast_subtract(placeholder_2: T.handle, placeholder_3: T.handle, T_subtract: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_cast_subtract", "tir.noalias": True})
-        placeholder_4 = T.match_buffer(placeholder_2, [150528], dTpe="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        T_subtract_1 = T.match_buffer(T_subtract, [150528], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+        T_subtract_1 = T.match_buffer(T_subtract, [150528], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
         for ax0_ax1_fused_1 in T.serial(0, 224):
             for ax2_1, ax3_inner_1 in T.grid(224, 3):
@@ -43,17 +43,17 @@ class LinearStructure:
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast(placeholder_62: T.handle, placeholder_63: T.handle, placeholder_64: T.handle, T_cast_20: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast", "tir.noalias": True})
-        placeholder_65 = T.match_buffer(placeholder_62, [150528], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_66 = T.match_buffer(placeholder_63, [9408], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_67 = T.match_buffer(placeholder_64, [64], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        T_cast_21 = T.match_buffer(T_cast_20, [289], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_65 = T.match_buffer(placeholder_62, [150528], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+        placeholder_66 = T.match_buffer(placeholder_63, [9408], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+        placeholder_67 = T.match_buffer(placeholder_64, [64], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+        T_cast_21 = T.match_buffer(T_cast_20, [289], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
         # body
-        PaddedInput_7 = T.allocate([157323], "int16", "global")
+        PaddedInput_7 = T.decl_buffer([157323], "int16")
         for i0_i1_fused_7 in T.serial(0, 229):
             for i2_7, i3_7 in T.grid(229, 3):
                 PaddedInput_7[(((i0_i1_fused_7*687) + (i2_7*3)) + i3_7)] = T.if_then_else(((((2 <= i0_i1_fused_7) and (i0_i1_fused_7 < 226)) and (2 <= i2_7)) and (i2_7 < 226)), placeholder_65[((((i0_i1_fused_7*672) + (i2_7*3)) + i3_7) - 1350)], T.int16(0), dtype="int16")
         for ax0_ax1_fused_ax2_fused_7 in T.serial(0, 12544):
-            Conv2dOutput_7 = T.allocate([64], "int32", "global")
+            Conv2dOutput_7 = T.decl_buffer([64], "int32")
             for ff_3 in T.serial(0, 64):
                 Conv2dOutput_7[ff_3] = 0
                 for ry_2, rx_2, rc_7 in T.grid(7, 7, 3):
@@ -65,10 +65,10 @@ class LinearStructure:
     def tvmgen_default_fused_nn_max_pool2d_cast(placeholder_28: T.handle, T_cast_6: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_max_pool2d_cast", "tir.noalias": True})
-        placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        T_cast_7 = T.match_buffer(T_cast_6, [177], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        T_cast_7 = T.match_buffer(T_cast_6, [177], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
-        tensor_2 = T.allocate([200704], "uint8", "global")
+        tensor_2 = T.decl_buffer([200704], "uint8")
         for ax0_ax1_fused_4 in T.serial(0, 56):
             for ax2_4 in T.serial(0, 56):
                 for ax3_init in T.serial(0, 64):
@@ -88,38 +88,36 @@ class LinearStructure:
         T.attr("default", "device_type", 1)
         sid_9 = T.allocate([301056], "int8", "global")
         sid_8 = T.allocate([802816], "int8", "global")
-        T.evaluate(T.call_extern("tvmgen_default_fused_cast_subtract", input, T.lookup_param("p0", dtype="handle"), sid_9.data, dtype="int32"))
-        T.evaluate(T.call_extern("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast", sid_9.data, T.lookup_param("p1", dtype="handle"), T.lookup_param("p2", dtype="handle"), sid_8.data, dtype="int32"))
-        T.evaluate(T.call_extern("tvmgen_default_fused_nn_max_pool2d_cast", sid_8.data, output, dtype="int32"))
+        T.evaluate(T.call_extern("tvmgen_default_fused_cast_subtract", input, T.lookup_param("p0", dtype="handle"), sid_9, dtype="int32"))
+        T.evaluate(T.call_extern("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast", sid_9, T.lookup_param("p1", dtype="handle"), T.lookup_param("p2", dtype="handle"), sid_8, dtype="int32"))
+        T.evaluate(T.call_extern("tvmgen_default_fused_nn_max_pool2d_cast", sid_8, output, dtype="int32"))
     __tvm_meta__ = None
 # fmt: on
 
 
 def test_create_pool_info():
     target = Target("c")
-    pool_info = usmp_utils.PoolInfo(
-        pool_name="foo_workspace",
-        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+    pool_info = WorkspacePoolInfo(
+        "foo_workspace",
+        [target],
     )
     assert pool_info.pool_name == "foo_workspace"
-    assert dict(pool_info.target_access) == {target: usmp_utils.PoolInfo.READ_WRITE_ACCESS}
     # default pool size constraint
     assert pool_info.size_hint_bytes == -1
 
-    pool_info = usmp_utils.PoolInfo(
-        pool_name="bar_workspace",
-        target_access={target: usmp_utils.PoolInfo.READ_ONLY_ACCESS},
-        size_hint_bytes=1425,
+    pool_info = WorkspacePoolInfo(
+        "bar_workspace",
+        [target],
+        PoolInfoProperties(size_hint_bytes=1425),
     )
     assert pool_info.pool_name == "bar_workspace"
-    assert dict(pool_info.target_access) == {target: usmp_utils.PoolInfo.READ_ONLY_ACCESS}
     assert pool_info.size_hint_bytes == 1425
 
 
 def test_create_buffer_info():
-    global_ws_pool = usmp_utils.PoolInfo(
-        pool_name="global_workspace",
-        target_access={Target("c"): usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+    global_ws_pool = WorkspacePoolInfo(
+        "global_workspace",
+        [Target("c")],
     )
     buffer_info_obj = tvm.tir.usmp.BufferInfo(
         name_hint="buf1", size_bytes=256, pool_candidates=[global_ws_pool]
@@ -138,9 +136,9 @@ def test_create_buffer_info():
 
 
 def test_create_pool_allocation():
-    pool_info = usmp_utils.PoolInfo(
-        pool_name="foo_workspace",
-        target_access={Target("c"): usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+    pool_info = WorkspacePoolInfo(
+        "foo_workspace",
+        [Target("c")],
     )
     pool_allocation = usmp_utils.PoolAllocation(pool_info=pool_info, byte_offset=64)
     assert pool_allocation.pool_info == pool_info
@@ -184,9 +182,9 @@ def _assign_targets_to_primfuncs_irmodule(mod, target):
 
 def test_create_array_buffer_info():
     target = Target("c")
-    global_ws_pool = usmp_utils.PoolInfo(
-        pool_name="global_workspace",
-        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+    global_ws_pool = WorkspacePoolInfo(
+        "global_workspace",
+        [target],
     )
     fcreate_array_bi = tvm.get_global_func("tir.usmp.CreateArrayBufferInfo")
     tir_mod = LinearStructure

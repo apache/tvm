@@ -38,6 +38,7 @@
 
 namespace tvm {
 namespace tir {
+using arith::IRVisitorWithAnalyzer;
 using runtime::ApplyTexture2DFlattening;
 using runtime::DefaultTextureLayoutSeparator;
 using runtime::IsTextureStorage;

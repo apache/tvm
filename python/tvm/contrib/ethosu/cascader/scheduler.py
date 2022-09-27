@@ -154,7 +154,11 @@ def apply_proposal(proposal: Proposal, sch: te.Schedule) -> None:
 
                 # Attach AttrStmt directly to npu op so it isn't removed by ReplaceOperators
                 npu_op = part.subgraph.output_tensor.op.input_tensors[0].op.input_tensors[0]
-                sch[npu_op].pragma(npu_op.op.axis[0], "compute_cycles_hint", compute_cycles)
+                # Force the pragma to interpret the compute cycles as an int64 value
+                compute_cycles_int64_cast = tvm.tir.IntImm("int64", compute_cycles)
+                sch[npu_op].pragma(
+                    npu_op.op.axis[0], "compute_cycles_hint", compute_cycles_int64_cast
+                )
 
         output_tensor_config = plan.output_config
         output_tensor = output_tensor_config.tensor
@@ -225,21 +229,21 @@ def choose_proposal(
     return proposal_choice
 
 
-def extract_memory_info(memory_pool: PoolInfo) -> MemoryRegion:
+def extract_memory_info(memory_pool: PoolInfo, memory_pressure: int) -> MemoryRegion:
     "Create a MemoryRegion based on the info in the memory pool"
-    size = int(memory_pool.size_hint_bytes)
+    size = int(memory_pool.size_hint_bytes - memory_pressure)
     read_bandwidth = int(memory_pool.read_bandwidth_bytes_per_cycle)
     write_bandwidth = int(memory_pool.write_bandwidth_bytes_per_cycle)
 
     for param in (size, read_bandwidth, write_bandwidth):
         assert param != -1, f"{param} needs to be specified for the cascader."
 
-    name_to_burst_lenght = {
+    name_to_burst_length = {
         target.kind.name: burst for target, burst in memory_pool.target_burst_bytes.items()
     }
 
     try:
-        burst_length = int(name_to_burst_lenght["ethos-u"])
+        burst_length = int(name_to_burst_length["ethos-u"])
     except KeyError:
         burst_length = 1
 

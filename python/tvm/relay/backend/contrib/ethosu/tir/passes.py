@@ -910,13 +910,32 @@ def HoistAllocates() -> tvm.IRModule:
     return _ffi_api.HoistAllocates()
 
 
-def CopyComputeReordering(max_copy_movements: Optional[int] = None) -> tvm.IRModule:
+def CopyComputeReordering(
+    max_copy_movements: Optional[int] = None, reorder_by_cycles: Optional[bool] = None
+) -> tvm.IRModule:
     """
-    Reorders copy and compute nodes in such a way that independent DMA copies,
+    Reorders copy and compute nodes in such a way that independent DMA copies
     and computes happen in parallel.
-    Copies to buffers with local scope are not reordered, indeed they copy LUT
-    into the SHRAM which already happens in parallel with copying weights into
+    Copies to buffers with local scope are not reordered since they copy LUT
+    into the SHRAM and that already happens in parallel with copying weights into
     the weights encoder.
+
+    If reorder_by_cycles is set, we use the compute_cycles_hint to decide the reordering. If it is
+    not set, we move the copies up by a fixed number of movements, either by max_copy_movements if
+    it is specified, or by default value of 1.
+
+    If reordering based on the cycle count is enabled, we try to achieve further copy latency
+    hiding with a two step algorithm:
+    (1) Move all the global copies (i.e. copies that copy a constant into SRAM for conv2d or
+    depthwise_conv2d) above a preceding compute op. If in general the computes take longer than
+    copies, this should be enough to hide the copy latencies.
+    (2) If there are some global copies that take longer than the computes, we might be able to
+    hide them further by moving them further up in a graph since in general there are more compute
+    ops than copy ops in a graph (as only conv2d and depthwise_conv2d have constants associated
+    with them). The algortithm checks whether a copy is hidden and if it is not, it checks if a
+    preceding compute op has a preceding copy and if it doesn't it moves the copy that we try to
+    hide further up. It keeps moving the copy until it can't move it any further or until the
+    latency is hidden.
 
     Parameters
     ----------
@@ -926,9 +945,50 @@ def CopyComputeReordering(max_copy_movements: Optional[int] = None) -> tvm.IRMod
         tir.contrib.ethos-u.copy_compute_reordering_max_copy_movements
         is used if provided, otherwise the default value will be 1.
 
+    reorder_by_cycles: Optional[bool]
+        Whether to reorder the computes and copies based on the cycle hint.
+        If None, the pass context option
+        tir.contrib.ethos-u.copy_compute_reordering_reorder_by_cycles
+        is used if provided, otherwise the default value will be False.
+
     Returns
     -------
     tvm.IRModule
         The new module with copy and compute nodes reordered.
     """
-    return _ffi_api.CopyComputeReordering(max_copy_movements)
+    return _ffi_api.CopyComputeReordering(max_copy_movements, reorder_by_cycles)
+
+
+def MergeConstants(const_dict):
+    """
+    This pass looks for the constants used by each compute operator
+    and merges them into a single buffer.
+    Constants written to a buffer with local scope are not merged.
+    """
+
+    def _merge_constants(mod):
+        nonlocal const_dict
+        try:
+            mod["main"]
+        except:
+            raise tvm.TVMError(
+                "Expected a single primitive function called 'main'. "
+                "Please run the MergeConstants pass in conjunction with the LowerToTIR() pass."
+            )
+
+        new_const_dict = {}
+        for param in const_dict.keys():
+            new_const_dict[tvm.tir.IntImm("int64", param)] = tvm.nd.array(const_dict[param])
+        mod["main"] = mod["main"].with_attr("ethos-u.const_dict", new_const_dict)
+
+        mod = _ffi_api.MergeConstants()(mod)
+        const_dict = mod["main"].attrs["ethos-u.const_dict"]
+        mod = _ffi_api.RemoveConstDictAttribute()(mod)
+
+        new_const_dict = {}
+        for param in const_dict.keys():
+            new_const_dict[int(param)] = const_dict[param].numpy()
+
+        return mod, new_const_dict
+
+    return _merge_constants

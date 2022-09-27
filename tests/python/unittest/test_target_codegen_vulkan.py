@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import os
+from posixpath import split
 import random
 import re
 import threading
@@ -90,6 +92,8 @@ def test_array_copy(dev, dtype, fuzz_seed):
 def test_array_vectorize_add(target, dev, dtype):
     arr_size = 64
     lanes = 2
+    if "opencl" in target and dtype == "float16":
+        pytest.xfail("Opencl target does not support float16")
 
     num_thread = 8
 
@@ -258,6 +262,7 @@ def test_cumsum(target, dev):
     check_mod(target, dev, mod, x_np, res_np)
 
 
+@tvm.testing.skip_if_wheel_test
 def test_unique(target, dev):
     dtype = "int32"
     x = relay.var("x", shape=(relay.Any(),), dtype=dtype)

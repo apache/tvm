@@ -20,8 +20,10 @@
 import tvm
 import numpy
 from tvm import te
+from tvm._ffi.registry import register_func
 from tvm.topi.utils import simplify
 from tvm.topi import nn
+from tvm.autotvm.task.space import SplitEntity
 from ..utils import get_const_tuple
 
 
@@ -473,7 +475,19 @@ def add_pad(
         pad_after[x_axis] -= in_width + pad_before[x_axis] + pad_after[x_axis] - input_latest_w
     if input_latest_h < in_height + pad_before[y_axis] + pad_after[y_axis]:
         pad_after[y_axis] -= in_height + pad_before[y_axis] + pad_after[y_axis] - input_latest_h
-    return nn.pad(data, pad_before, pad_after, name="pad_temp")
+    if (
+        pad_before[0] == 0
+        and pad_before[1] == 0
+        and pad_before[2] == 0
+        and pad_before[3] == 0
+        and pad_after[0] == 0
+        and pad_after[1] == 0
+        and pad_after[2] == 0
+        and pad_after[3] == 0
+    ):
+        return data
+    else:
+        return nn.pad(data, pad_before, pad_after, name="pad_temp")
 
 
 def bind_data_copy(stage, axis_to_vectorize=None):
@@ -521,6 +535,15 @@ def bind_data_copy(stage, axis_to_vectorize=None):
             stage.bind(thread, te.thread_axis("threadIdx.x"))
             if shape[-1] == 4:
                 stage.vectorize(axes[-1])
+        # 1024 is the maximum work group size for Adreno devices.
+        # See: CL_DEVICE_MAX_WORK_GROUP_SIZE
+        elif shape[-1] > 1024:
+            ftc = numpy.prod(shape[:-1])
+            div = get_div(ftc, 1024)
+            by, ty = stage.split(axes[-1], factor=div)
+            stage.bind(fused, te.thread_axis("blockIdx.x"))
+            stage.bind(by, te.thread_axis("blockIdx.y"))
+            stage.bind(ty, te.thread_axis("threadIdx.y"))
         else:
             stage.bind(fused, te.thread_axis("blockIdx.x"))
             stage.bind(*axes[-1:], te.thread_axis("threadIdx.x"))
@@ -547,3 +570,87 @@ def get_texture_storage(shape):
         return "global.texture-nhwc"
     else:
         return "global.texture-weight"
+
+
+@register_func("tvm.info.mem.global.texture")
+@register_func("tvm.info.mem.global.texture-nhwc")
+@register_func("tvm.info.mem.global.texture-weight")
+def mem_info_global_texture_variants():
+    return tvm.ir.make_node(
+        "MemoryInfo",
+        unit_bits=16,
+        max_num_bits=16384 * 16384 * 4 * 32,
+        max_simd_bits=4 * 32,
+        head_address=None,
+    )
+
+
+def infer_tile_size(data, layout):
+    """Compute the tile size for Winograd algorithm
+
+    Parameters
+    ----------
+    data: tvm.te.Tensor
+        Data tensor
+
+    layout: string
+        Layout of data tebsir
+        NCHW, NCHW4c, NHWC or NHWC4c are acceptable
+
+    Returns
+    -------
+    tile_size : int
+        Calculated tile size
+    """
+    assert layout in ("NCHW", "NCHW4c", "NHWC", "NHWC4c"), "Incompatible layout"
+    if layout in ("NCHW", "NCHW4c"):
+        H = get_const_tuple(data.shape)[2]
+    else:
+        H = get_const_tuple(data.shape)[1]
+
+    if H % 8 == 0:
+        return 4
+    return 2
+
+
+def get_default_conv2d_config(cfg, fc, y, x):
+    """Defines conv2d default parameters for split axis for Adreno conv2d and depthwise conv2d"""
+    # look for vthread params:
+    vy = 1
+    for n in range(5, 0, -1):
+        if y % n == 0:
+            vy = n
+            break
+
+    vx = 1
+    for n in range(5, 0, -1):
+        if x % n == 0 and vy * n < 9:
+            vx = n
+            break
+
+    y = y // vy
+    x = x // vx
+
+    tfc = 1
+    for n in range(64, 0, -1):
+        if fc % n == 0:
+            tfc = n
+            break
+    ty = 1
+    for n in range(16, 0, -1):
+        if y % n == 0 and tfc * n <= 512:
+            ty = n
+            break
+    tx = 1
+    for n in range(16, 0, -1):
+        if x % n == 0 and tfc * ty * n <= 512:
+            tx = n
+            break
+
+    fc = fc // tfc
+    y = y // ty
+    x = x // tx
+
+    cfg["tile_fc"] = SplitEntity([fc, 1, tfc])
+    cfg["tile_y"] = SplitEntity([y, vy, ty])
+    cfg["tile_x"] = SplitEntity([x, vx, tx])

@@ -27,7 +27,6 @@
 #define TVM_RELAY_TRANSFORMS_PATTERN_UTILS_H_
 
 #include <builtin_fp16.h>
-#include <dmlc/optional.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/nn.h>
@@ -40,6 +39,7 @@
 #include <tvm/tir/data_layout.h>
 
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -345,6 +345,40 @@ static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> s
 }
 
 /*!
+ * \brief Create a Constant tensor of zeros.
+ *
+ * \param dtype The data type.
+ * \param shape The shape of the output constant tensor.
+ * \return A Constant.
+ */
+static inline Constant MakeConstantZeros(DataType dtype, std::vector<int64_t> shape) {
+  runtime::NDArray arr = runtime::NDArray::Empty(shape, dtype, {kDLCPU, 0});
+  int64_t data_size = 1;
+  for (int64_t dim : shape) {
+    data_size *= dim;
+  }
+  TVM_DTYPE_DISPATCH(dtype, DType, {
+    for (int64_t i = 0; i < data_size; i++) {
+      if (dtype == DataType::Float(16)) {
+        // convert to float16
+        // storage is uint16_t
+        // Similar handling as that in MakeConstantScalar
+        *(static_cast<DType*>(arr->data) + i) =
+            __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(static_cast<float>(0));
+      } else if (dtype == DataType::BFloat(16)) {
+        // convert to bfloat16
+        // storage is uint16_t
+        *(static_cast<DType*>(arr->data) + i) =
+            __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(static_cast<float>(0));
+      } else {
+        *(static_cast<DType*>(arr->data) + i) = 0;
+      }
+    }
+  })
+  return Constant(arr);
+}
+
+/*!
  * \brief Check whether a shape is static and create corresponding Constant.
  Eventually this will be removed and replaced with CheckConstantShapeArrayInteger
  *
@@ -405,48 +439,47 @@ inline bool IsEqualScalar(const Expr& a, const Expr& b) {
  * \param i element index
  * \return Converted scalar value, or None if conversion failed
  */
-static inline dmlc::optional<long double> TryToScalar(const runtime::NDArray& array, size_t i = 0) {
+static inline std::optional<long double> TryToScalar(const runtime::NDArray& array, size_t i = 0) {
   if (array->dtype.code == kDLInt) {
     if (array->dtype.bits == 8) {
-      return dmlc::optional<long double>(reinterpret_cast<int8_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<int8_t*>(array->data)[i]);
     } else if (array->dtype.bits == 16) {
-      return dmlc::optional<long double>(reinterpret_cast<int16_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<int16_t*>(array->data)[i]);
     } else if (array->dtype.bits == 32) {
-      return dmlc::optional<long double>(reinterpret_cast<int32_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<int32_t*>(array->data)[i]);
     } else if (array->dtype.bits == 64) {
-      return dmlc::optional<long double>(reinterpret_cast<int64_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<int64_t*>(array->data)[i]);
     }
   } else if (array->dtype.code == kDLUInt) {
     if (array->dtype.bits == 1) {  // bool
-      return dmlc::optional<long double>(reinterpret_cast<uint8_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<uint8_t*>(array->data)[i]);
     } else if (array->dtype.bits == 8) {
-      return dmlc::optional<long double>(reinterpret_cast<uint8_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<uint8_t*>(array->data)[i]);
     } else if (array->dtype.bits == 16) {
-      return dmlc::optional<long double>(reinterpret_cast<uint16_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<uint16_t*>(array->data)[i]);
     } else if (array->dtype.bits == 32) {
-      return dmlc::optional<long double>(reinterpret_cast<uint32_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<uint32_t*>(array->data)[i]);
     } else if (array->dtype.bits == 64) {
-      return dmlc::optional<long double>(reinterpret_cast<uint64_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<uint64_t*>(array->data)[i]);
     }
   } else if (array->dtype.code == kDLFloat) {
     if (array->dtype.bits == 16) {
-      return dmlc::optional<long double>(
+      return std::optional<long double>(
           __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(
               reinterpret_cast<uint16_t*>(array->data)[i]));
     }
     if (array->dtype.bits == 32) {
-      return dmlc::optional<long double>(reinterpret_cast<float*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<float*>(array->data)[i]);
     } else if (array->dtype.bits == 64) {
-      return dmlc::optional<long double>(reinterpret_cast<double*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<double*>(array->data)[i]);
     }
   } else if (array->dtype.code == kDLBfloat) {
     if (array->dtype.bits == 16) {
-      return dmlc::optional<long double>(
-          __extendXfYf2__<uint16_t, uint16_t, 7, float, uint32_t, 23>(
-              reinterpret_cast<uint16_t*>(array->data)[i]));
+      return std::optional<long double>(__extendXfYf2__<uint16_t, uint16_t, 7, float, uint32_t, 23>(
+          reinterpret_cast<uint16_t*>(array->data)[i]));
     }
   }
-  return dmlc::optional<long double>();
+  return std::nullopt;
 }
 
 /*!
@@ -560,6 +593,11 @@ inline Expr Log(Expr e) {
 
 inline Expr Tanh(Expr e) {
   static const Op& op = Op::Get("tanh");
+  return Call(op, {e});
+}
+
+inline Expr Abs(Expr e) {
+  static const Op& op = Op::Get("abs");
   return Call(op, {e});
 }
 /*!
@@ -785,6 +823,16 @@ static inline Expr Tile(Expr data, Array<Integer> reps) { return MakeTile(data, 
 
 static inline Expr BroadCastTo(Expr data, Array<IndexExpr> shape) {
   return MakeBroadCastTo(data, CheckConstantShapeArrayInteger(shape));
+}
+
+inline Expr Hardswish(Expr x) {
+  auto three = MakeConstantScalar(DataType::Float(32), 3.0);
+  auto six = MakeConstantScalar(DataType::Float(32), 6.0);
+  auto x2 = Add(x, three);
+  x2 = Clip(x2, 0.0, 6.0);
+  x2 = Multiply(x, x2);
+  x2 = Divide(x2, six);
+  return x2;
 }
 
 }  // namespace relay

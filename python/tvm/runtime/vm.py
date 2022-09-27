@@ -86,7 +86,9 @@ class Executable(object):
         self._get_function_arity = self.mod["get_function_arity"]
         self._get_function_param_name = self.mod["get_function_param_name"]
         self._move_late_bound_consts = self.mod["move_late_bound_consts"]
+        self._get_late_bound_consts = self.mod["get_late_bound_consts"]
         self._load_late_bound_consts = self.mod["load_late_bound_consts"]
+        self._load_late_bound_consts_from_map = self.mod["load_late_bound_consts_from_map"]
 
     def save(self):
         """Save the Relay VM Executable.
@@ -312,9 +314,17 @@ class Executable(object):
         """Move all constants of byte size greater or equal to byte_limit to file at path"""
         return self._move_late_bound_consts(path, byte_limit)
 
+    def get_late_bound_consts(self, byte_limit):
+        """Return all constants of byte size greater or equal to byte_limit"""
+        return self._get_late_bound_consts(byte_limit)
+
     def load_late_bound_consts(self, path):
         """Re-load constants previously saved to file at path"""
         return self._load_late_bound_consts(path)
+
+    def load_late_bound_consts_from_map(self, map):
+        """Re-load constants supplied in map"""
+        return self._load_late_bound_consts_from_map(map)
 
 
 class VirtualMachine(object):
@@ -583,7 +593,10 @@ class VirtualMachine(object):
         repeat=5,
         number=5,
         min_repeat_ms=None,
+        limit_zero_time_iterations=100,
         end_to_end=False,
+        cooldown_interval_ms=0,
+        repeats_to_cooldown=1,
         **kwargs,
     ):
         """Calculate runtime of a function by repeatedly calling it.
@@ -623,15 +636,26 @@ class VirtualMachine(object):
             `number` should be increased when the runtime of the function is small (less than a 1/10
             of a millisecond).
 
-        min_repeat_ms : Optional[float]
+        min_repeat_ms : Optional[int]
             If set, the inner loop will be run until it takes longer than `min_repeat_ms`
             milliseconds. This can be used to ensure that the function is run enough to get an
             accurate measurement.
+
+        limit_zero_time_iterations : Optional[int]
+            The maximum number of repeats when measured time is equal to 0.
+            It helps to avoid hanging during measurements.
 
         end_to_end : bool
             If set, include time to transfer input tensors to the device and time to transfer
             returned tensors in the total runtime. This will give accurate timings for end to end
             workloads.
+
+        cooldown_interval_ms: Optional[int]
+            The cooldown interval in milliseconds between the number of repeats defined by
+            `repeats_to_cooldown`.
+
+        repeats_to_cooldown: Optional[int]
+            The number of repeats before the cooldown is activated.
 
         args : Sequence[Object]
             Arguments to the function. These are cached before running timing code, so that data
@@ -663,9 +687,17 @@ class VirtualMachine(object):
                 repeat=repeat,
                 number=number,
                 min_repeat_ms=min_repeat_ms,
+                limit_zero_time_iterations=limit_zero_time_iterations,
             )(func_name, device.device_type % RPC_SESS_MASK, device.device_id, *packed_args)
         if args or kwargs:
             self.set_input(func_name, *args, **kwargs)
         return self.module.time_evaluator(
-            "invoke", device, repeat=repeat, number=number, min_repeat_ms=min_repeat_ms
+            "invoke",
+            device,
+            repeat=repeat,
+            number=number,
+            min_repeat_ms=min_repeat_ms,
+            limit_zero_time_iterations=limit_zero_time_iterations,
+            cooldown_interval_ms=cooldown_interval_ms,
+            repeats_to_cooldown=repeats_to_cooldown,
         )(func_name)

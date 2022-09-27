@@ -1262,7 +1262,7 @@ The community also continues to bring high quality improvements to the existing 
 * Fixed div by zero core dump. Fixed rounding intrinsics on int crash #5026
 * Test case modified for int type #5012
 * Bug Fix for ARM CPUs. Lower strict assumption. #5063
-* Triage the testcases to fit the the new namespaces #5071
+* Triage the testcases to fit the new namespaces #5071
 * Add colors to `compute_at` edges and thread/block indices. #5111
 * Temporary fix to the stack overflow issue in autotvm task extraction #5019
 * Fix compilation of If-Elses #5040
@@ -2223,7 +2223,7 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 ### Bug Fixes
 * [RELAY] Fix `get_int_tuple`. (#2691)
 * [ARITH] Select support for integer set analysis. (#2687)
-* [Relay] Fix error in ANF (too agressively inline atomic expression and create free variable). (#2665)
+* [Relay] Fix error in ANF (too aggressively inline atomic expression and create free variable). (#2665)
 * [Hybrid Script] Fix name conflict and attached scope problem. (#2649)
 * [Relay] Fix ANF for reference and pattern matching. (#2637)
 * [Relay] Fix fusion bug when call symbol that is not an operator. (#2630)

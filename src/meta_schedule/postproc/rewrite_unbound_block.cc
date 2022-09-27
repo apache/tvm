@@ -91,11 +91,16 @@ class RewriteUnboundBlockNode : public PostprocNode {
         context->target.value()->GetAttr<Integer>("max_threads_per_block");
     CHECK(max_threads_per_block.defined())
         << "ValueError: missing attribute `max_threads_per_block` in the target";
-    this->max_threads_per_block_ = max_threads_per_block.value();
+    this->max_threads_per_block_ = max_threads_per_block.value().IntValue();
   }
 
   // Inherited from PostprocNode
   bool Apply(const tir::Schedule& sch) final;
+
+  Postproc Clone() const {
+    ObjectPtr<RewriteUnboundBlockNode> n = make_object<RewriteUnboundBlockNode>(*this);
+    return Postproc(n);
+  }
 
  public:
   /*! \brief The max number of threads per block from Target */

@@ -18,6 +18,7 @@
  */
 
 #include <HAP_farf.h>
+#include <dlfcn.h>
 
 #include <algorithm>
 #include <cassert>
@@ -76,7 +77,7 @@ class stringbuf_with_remote_access : public std::stringbuf {
       remaining--;
     } while (remaining > 0);
 
-    // This will return 0 on success, non-zero if underflow occured.
+    // This will return 0 on success, non-zero if underflow occurred.
     return size - remaining;
   }
 };
@@ -288,7 +289,16 @@ int DISPATCH_FUNCTION_NAME(void* serverp) {
   return 0;
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+  // Load C++RT and ourselves as "global" to make all the symbols defined
+  // there be visible to any subsequent libraries loaded via dlopen.
+  void* cxx_abi = dlopen("libc++abi.so", RTLD_GLOBAL);
+  ICHECK(cxx_abi != nullptr);
+  void* cxx = dlopen("libc++.so", RTLD_GLOBAL);
+  ICHECK(cxx != nullptr);
+  void* self = dlopen(argv[0], RTLD_GLOBAL);
+  ICHECK(self != nullptr);
+
   const auto* api = tvm::runtime::Registry::Get("device_api.hexagon");
   ICHECK(api != nullptr);
   tvm::runtime::Registry::Register("device_api.cpu", true).set_body(*api);
@@ -308,6 +318,9 @@ int main() {
     // nothing
   }
 
+  dlclose(self);
+  dlclose(cxx);
+  dlclose(cxx_abi);
   return 0;
 }
 

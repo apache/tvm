@@ -244,6 +244,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
         host_virtual_device_(std::move(host_virtual_device)) {}
 
   VMFunction Compile(const GlobalVar& var, const Function& func) {
+    VLOG(1) << "Compiling:" << std::endl << PrettyPrint(func);
     std::vector<Index> param_device_indexes;
     if (IsClosure(func)) {
       // After lifting we'll have functions of the form:
@@ -523,11 +524,13 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       op_index = itr->second;
     }
 
-    // Capture the dictionary of attributes from the original primitive function so that they
-    // can contribute to the hash of the compiled primitive. This way we can distinguish primitives
-    // with the same body expression but different attributes which may arbitrarily influence code
-    // generation.
-    op_attrs[op_index] = attrs->dict;
+    if (attrs.defined() && attrs->dict.defined()) {
+      // Capture the dictionary of attributes from the original primitive function so that they
+      // can contribute to the hash of the compiled primitive. This way we can distinguish
+      // primitives with the same body expression but different attributes which may arbitrarily
+      // influence code generation.
+      op_attrs[op_index] = attrs->dict;
+    }
 
     Emit(Instruction::InvokePacked(op_index, argument_registers.size(), output_tuple->fields.size(),
                                    argument_registers));
@@ -920,7 +923,7 @@ void VMCompiler::LowerImpl(IRModule mod) {
   for (const auto& pair : context_.module->functions) {
     auto gvar = pair.first;
     if (auto* n = pair.second.as<FunctionNode>()) {
-      if (n->GetAttr<String>(attr::kExternalSymbol).defined()) {
+      if (n->HasNonzeroAttr(attr::kExtern)) {
         // Already compiled during lowering.
         continue;
       }
@@ -981,25 +984,25 @@ void VMCompiler::LowerImpl(IRModule mod) {
   }
 }
 
-transform::Sequential VMCompiler::MemoryOpt(const VirtualDevice& host_virtual_device) {
+transform::Sequential VMCompiler::MemoryOpt(const CompilationConfig& config) {
   Array<Pass> pass_seqs;
   // Remove unused functions
   Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Manifest the allocations.
-  pass_seqs.push_back(transform::ManifestAlloc(host_virtual_device));
+  pass_seqs.push_back(transform::ManifestAlloc(config->host_virtual_device));
 
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
 
   // Fuse & lower any new shape functions and device_copies.
-  pass_seqs.push_back(FuseAndLowerOperators(host_virtual_device));
+  pass_seqs.push_back(FuseAndLowerOperators(config));
 
   // Manifest the allocations needed for the shape functions.
-  pass_seqs.push_back(transform::ManifestAlloc(host_virtual_device));
+  pass_seqs.push_back(transform::ManifestAlloc(config->host_virtual_device));
 
   // Fuse & lower any new allocations.
-  pass_seqs.push_back(FuseAndLowerOperators(host_virtual_device));
+  pass_seqs.push_back(FuseAndLowerOperators(config));
 
   // TODO(mbrookhart, jroesch, masahi): this pass is very slow, and is
   // incomplete to provide memory resuse optimizations. Disable it until we can
@@ -1011,10 +1014,10 @@ transform::Sequential VMCompiler::MemoryOpt(const VirtualDevice& host_virtual_de
   pass_seqs.push_back(transform::FoldConstant());
 
   // Fuse & lower yet again
-  pass_seqs.push_back(FuseAndLowerOperators(host_virtual_device));
+  pass_seqs.push_back(FuseAndLowerOperators(config));
 
   // Create allocations for math introduced by dynamic region math.
-  pass_seqs.push_back(transform::ManifestAlloc(host_virtual_device));
+  pass_seqs.push_back(transform::ManifestAlloc(config->host_virtual_device));
 
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
@@ -1030,20 +1033,18 @@ transform::Sequential VMCompiler::MemoryOpt(const VirtualDevice& host_virtual_de
   return transform::Sequential(std::move(pass_seqs));
 }
 
-transform::Sequential VMCompiler::FuseAndLowerOperators(const VirtualDevice& host_virtual_device) {
+transform::Sequential VMCompiler::FuseAndLowerOperators(const CompilationConfig& config) {
   Array<Pass> pass_seqs;
   // Hoist operators to "primitive" Functions.
   pass_seqs.push_back(FuseOps());
   // Give each "primitive" Function a hash.
   pass_seqs.push_back(LabelOps());
   // Lower "primitive" Functions to PrimFuncs and rewrite calls.
-  pass_seqs.push_back(tec::LowerTEPass(/*module_name=*/"vm_mod",
-                                       [this](const BaseFunc& func) {
-                                         if (func->GetAttr<String>(attr::kCompiler).defined()) {
-                                           backend::UpdateConstants(func, &params_);
-                                         }
-                                       },
-                                       host_virtual_device));
+  pass_seqs.push_back(tec::LowerTE(/*module_name=*/"vm_mod", config, [this](const BaseFunc& func) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
+      backend::UpdateConstants(func, &params_);
+    }
+  }));
   // Since lowered functions are bound in the IRModule, we can now eliminate any unused
   // let-bound functions.
   pass_seqs.push_back(DeadCodeElimination(/*inline_once=*/false));
@@ -1077,6 +1078,20 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
       pass_seqs.push_back(transform::FuseOps());
     }
   }
+  if (backend::IsMetaScheduleEnabled() && config_->optional_homogeneous_target.defined()) {
+    Pass major_pass = transform::MetaScheduleLayoutRewrite();
+    bool enable_layout_rewrite_targets =
+        config_->optional_homogeneous_target->kind->device_type == kDLCPU ||
+        config_->optional_homogeneous_target->GetAttr<String>("device", "") == "mali";
+    if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
+      With<Target> tctx(config_->optional_homogeneous_target);
+      pass_seqs.push_back(major_pass);
+      // Defuse ops to fold constants, then fuse them again
+      pass_seqs.push_back(transform::DefuseOps());
+      pass_seqs.push_back(transform::FoldConstant());
+      pass_seqs.push_back(transform::FuseOps());
+    }
+  }
 
   pass_seqs.push_back(transform::ToANormalForm());
   pass_seqs.push_back(transform::InferType());
@@ -1088,21 +1103,18 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   pass_seqs.push_back(transform::LabelOps());
 
   // Lower all functions annotated as "primitive" by FuseOps.
-  pass_seqs.push_back(tec::LowerTEPass(/*module_name=*/"vm_mod",
-                                       [this](const BaseFunc& func) {
-                                         if (func->GetAttr<String>(attr::kCompiler).defined()) {
-                                           backend::UpdateConstants(func, &params_);
-                                         }
-                                       },
-                                       config_->host_virtual_device));
+  pass_seqs.push_back(tec::LowerTE(/*module_name=*/"vm_mod", config_, [this](const BaseFunc& func) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
+      backend::UpdateConstants(func, &params_);
+    }
+  }));
 
   // Since lowered functions are bound in the IRModule, we can now eliminate any unused
   // let-bound functions.
   pass_seqs.push_back(DeadCodeElimination(/*inline_once=*/false));
 
-  // Now that we have PrimFuncs, flow and solve VirtualDevice constraints again to account for
-  // any memory scopes which lowering has settled on.
-  pass_seqs.push_back(transform::PlanDevices(config_));
+  // At this point it's possible to run PlanDevices again to pick up any additional constraints
+  // introduced during lowering. However we'll not do this until more testing has been done.
 
   // Inline the functions that are lifted to the module scope. We perform this
   // pass after all other optimization passes but before the memory allocation
@@ -1111,7 +1123,7 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   // external codegen.
   pass_seqs.push_back(transform::Inline());
 
-  pass_seqs.push_back(MemoryOpt(config_->host_virtual_device));
+  pass_seqs.push_back(MemoryOpt(config_));
   pass_seqs.push_back(transform::InferType());
 
   transform::Sequential seq(pass_seqs);
@@ -1129,7 +1141,7 @@ size_t VMCompiler::PopulateGlobalMap() {
   // Excludes PrimFuncs and externs, which are managed by the primitive_map_.
   for (const auto& kv : context_.module->functions) {
     if (const auto* function_node = kv.second.as<FunctionNode>()) {
-      if (!function_node->GetAttr<String>(attr::kExternalSymbol)) {
+      if (!function_node->HasNonzeroAttr(attr::kExtern)) {
         context_.global_map.emplace(kv.first, context_.global_map.size());
       }
     }
@@ -1154,11 +1166,27 @@ void VMCompiler::Codegen() {
   for (const auto& kv : per_tvm_target_modules) {
     ICHECK(kv.first->kind->device_type != kDLExtDev);
   }
-  Array<runtime::Module> ext_mods =
-      context_.module->GetAttr<Array<runtime::Module>>("external_mods", Array<runtime::Module>())
-          .value();
-  VLOG(0) << "have " << per_tvm_target_modules.size() << " targets to build and " << ext_mods.size()
-          << " external runtime modules";
+
+  // Retrieve all external runtime modules accumulated by external codegen (both function-at-a-time
+  // and IRModule-at-a-time).
+  Array<runtime::Module> external_mods =
+      context_.module->GetAttr<Array<runtime::Module>>(tvm::attr::kExternalMods).value_or({});
+
+  // Retrieve any constant bindings accumulated by external codegen (by IRModule-at-a-time passes).
+  Map<String, runtime::NDArray> const_name_to_constant =
+      context_.module->GetAttr<Map<String, runtime::NDArray>>(tvm::attr::kConstNameToConstant)
+          .value_or({});
+
+  VLOG(0) << "have " << per_tvm_target_modules.size() << " targets to build, "
+          << external_mods.size() << " external runtime modules, " << const_name_to_constant.size()
+          << " external constants, and " << params_.size() << " local constants";
+
+  // Any constant bindings must be merged into the overall 'params' map we've directly accumulated
+  // via the TECompiler callback.
+  for (const auto& kv : const_name_to_constant) {
+    ICHECK_EQ(params_.count(kv.first), 0);
+    params_.emplace(kv.first, kv.second);
+  }
 
   runtime::Module lib;
   if (per_tvm_target_modules.empty()) {
@@ -1171,7 +1199,7 @@ void VMCompiler::Codegen() {
   }
 
   lib =
-      codegen::CreateMetadataModule(params_, lib, ext_mods, config_->host_target,
+      codegen::CreateMetadataModule(params_, lib, external_mods, config_->host_target,
                                     Runtime::Create("cpp"), Executor::Create("graph"),  // DNS HACK
                                     relay::backend::ExecutorCodegenMetadata());
   exec_->SetLib(lib);

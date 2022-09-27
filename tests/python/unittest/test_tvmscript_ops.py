@@ -162,6 +162,21 @@ def test_alloc_zero_dim_buffer_round_trip():
     _check_alloc_zero_dim_buffer(rt_mod_with_block)
 
 
+@T.prim_func
+def ceildiv_test(A: T.Buffer[16, "int32"]):
+    for i in range(16):
+        A[i] = T.ceildiv(A[i], 4)
+
+
+@tvm.testing.requires_llvm
+def test_ceildiv():
+    f = tvm.build(ceildiv_test, "llvm")
+    a = tvm.nd.array(np.arange(16).astype("int32"))
+    f(a)
+    ref = (np.arange(16) + 3) // 4
+    tvm.testing.assert_allclose(a.numpy(), ref)
+
+
 if __name__ == "__main__":
     test_get_valid_counts_script_func()
     test_alloc_zero_dim_buffer_round_trip()

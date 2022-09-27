@@ -53,7 +53,10 @@ def get_layout_transform_matrices(ofm_channels: int) -> Tuple[List[List[float]],
         [1, 0, 0, 0, 0, 0],
         [0, 1, 0, 0, 0, 0],
         [0, 0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 0, ofm_channels],
+        # We need to offset only if number of ofm_channels is not divisible by 16
+        # Moreover, we can't use just the "ofm_channels" as last element because
+        # the propogation matrices are used to propogate block configs as well.
+        [0, 0, 16, 0, 0, -(int(ofm_channels % 16 != 0)) * (16 - ofm_channels % 16)],
         [0, 0, 0, 0, 0, 1],
     ]
 

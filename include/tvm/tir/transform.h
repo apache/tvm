@@ -25,6 +25,7 @@
 #define TVM_TIR_TRANSFORM_H_
 
 #include <tvm/ir/transform.h>
+#include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 
@@ -191,16 +192,13 @@ TVM_DLL Pass InstrumentBoundCheckers();
  *   - Map the values in the api_args to Var that is required by body.
  *   - Insert assertions to check type/value of the passed arguments.
  *
- * \param num_unpacked_args Number of arguments that
- *         are processed in plain form instead of packed form.
- *
  * \note
  *  The function signature have two cases
  *
- *  let num_packed_args = len(api_args) - num_unpacked_args;
+ *  let num_packed_args = len(api_args);
  *
  *  if num_packed_args is zero:
- *     f(api_arg_0, api_arg_1, .., api_arg_n) where n == len(api_args)
+ *     f()
  *
  *  if num_packed_args is not zero:
  *       f(TVMArg* packed_args, int* packed_arg_type_ids, int num_packed_args,
@@ -211,7 +209,7 @@ TVM_DLL Pass InstrumentBoundCheckers();
  *
  * \return The pass.
  */
-TVM_DLL Pass MakePackedAPI(int num_unpacked_args);
+TVM_DLL Pass MakePackedAPI();
 
 /*!
  * \brief Transform the high-level PrimFunc to a C signature that can be used
@@ -364,6 +362,19 @@ TVM_DLL Pass PointerValueTypeRewrite();
 TVM_DLL Pass HoistIfThenElse();
 
 /*!
+ * \brief Hoist loop-invariant expressions nodes to
+ * outside the elligible loops.
+ *
+ * Can hoist conditionals used in IfThenElse statements and
+ * expressions, bindings of variables in Let statements and
+ * expressions, or boolean expressions, configurable to enable/disable
+ * each hoistable type.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass HoistExpression();
+
+/*!
  * \brief Lower cross-thread reduction from thread
  * bindings to intrinsic function calls.
  * \return The pass.
@@ -443,9 +454,14 @@ TVM_DLL Pass LegalizePackedCalls();
 TVM_DLL Pass LowerMatchBuffer();
 
 /*!
- * \brief Flatten the multi-dimensional BufferLoad and BufferStore
- *        to single dimensional Load/Store. Also remove Block to
- *        ensure that the flattened TIR can not be scheduled again.
+ * \brief Remove the block to ensure that the TIR can not be scheduled again.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerOpaqueBlock();
+
+/*!
+ * \brief Flatten the multi-dimensional BufferLoad and BufferStore to single dimensional
+ *        BufferLoad/BufferStore for the TIR not contains opaque block.
  * \return The pass.
  */
 TVM_DLL Pass FlattenBuffer();
@@ -467,12 +483,18 @@ TVM_DLL Pass TextureFlatten();
 TVM_DLL Pass LowerVtcmAlloc();
 
 /*!
+ * \brief Lower Async TIR primitives to DMA copy and wait builtins
+ */
+TVM_DLL Pass LowerAsyncDMA();
+
+/*!
  * \brief Implements a Common Subexpression Elimination (CSE) for TIR
  *        which introduces let-in bindings for duplicated sub-expressions.
  * \param enable_cse_tir Whether common subexpression elimination is enabled.
+ * \param identify_equiv_terms Whether equivalent terms should be identified.
  * \return The pass.
  */
-TVM_DLL Pass CommonSubexprElimTIR(bool enable_cse_tir = true);
+TVM_DLL Pass CommonSubexprElimTIR(bool enable_cse_tir = true, bool identify_equiv_terms = false);
 
 /*!
  * \brief Unify all the thread bindings for "blockIdx.x/y/z", "threadIdx.x/y/z", and
@@ -623,6 +645,42 @@ TVM_DLL Pass ExtractPrimFuncConstants();
  * \return The pass.
  */
 TVM_DLL Pass RenormalizeSplitPattern();
+
+/*!
+ * \brief Annotate a PrimFunc with a given target.
+ * \return The pass.
+ */
+TVM_DLL Pass BindTarget(Target target);
+
+/*!
+ * \brief Set a PrimFunc as the entry point if it is only function in IRModule.
+ * \return The pass.
+ */
+TVM_DLL Pass AnnotateEntryFunc();
+
+/*!
+ * \brief Filter PrimFuncs with a given condition.
+ * \return The pass.
+ */
+TVM_DLL Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond);
+
+/*!
+ * \brief Pass to rewrite global to shared memory copy on CUDA with asyncronous copy.
+ * \return The pass.
+ */
+TVM_DLL Pass InjectPTXAsyncCopy();
+
+/*!
+ * \brief Remove the weight layout rewrite block
+ * \return The pass.
+ */
+TVM_DLL Pass RemoveWeightLayoutRewriteBlock();
+
+/*!
+ * \brief Add the explicit local stage for the shared memory access on GPU.
+ * \return The pass.
+ */
+TVM_DLL Pass ManifestSharedMemoryLocalStage();
 
 }  // namespace transform
 }  // namespace tir

@@ -152,6 +152,12 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
     return cond;
   }
 
+  TResult VisitStmt_(const LetStmtNode* let) override {
+    TResult value = VisitExpr(let->value);
+    value += VisitStmt(let->body);
+    return value;
+  }
+
   TResult VisitExpr_(const SelectNode* op) override {
     TResult cond = VisitExpr(op->condition);
     cond += VisitExpr(op->true_value).MaxWith(VisitExpr(op->false_value));
@@ -163,6 +169,7 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
   TResult VisitExpr_(const IntImmNode* op) override { return TResult(); }
   TResult VisitExpr_(const FloatImmNode* op) override { return TResult(); }
   TResult VisitExpr_(const CastNode* op) override { return VisitExpr(op->value); }
+  TResult VisitStmt_(const AllocateConstNode* op) override { return VisitStmt(op->body); }
 
   TResult VisitStmt_(const SeqStmtNode* seq) override {
     TResult result;

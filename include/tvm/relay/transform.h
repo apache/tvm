@@ -125,7 +125,7 @@ TVM_DLL Pass FoldConstant(bool fold_qnn = false);
 TVM_DLL Pass SplitArgs(int max_function_args);
 
 /*!
- * \brief Fuse operations into expr into seperate functions.
+ * \brief Fuse operations into expr into separate functions.
  *
  * \param fuse_opt_level Optimization level. If it is -1 it will be inferred from pass context.
  *
@@ -372,6 +372,12 @@ TVM_DLL Pass AlterOpLayout();
 TVM_DLL Pass AutoSchedulerLayoutRewrite();
 
 /*!
+ * \brief Do layout rewrite according to the tile structure created by meta-schedule.
+ * \return The pass
+ */
+TVM_DLL Pass MetaScheduleLayoutRewrite();
+
+/*!
  * \brief Given a dest layout, this pass transforms the expr such that most of the ops input data
  * layout is changed to the dest layout. In ideal situation, there are only 2 layout transforms, one
  * at the start and one at the end.
@@ -462,11 +468,50 @@ TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 TVM_DLL Pass SimplifyExpr();
 
 /*!
- * \brief Run any registered RelayToTIR passes registered on the functions in a module.
+ * \brief Run any custom passes registered under "RelayToTIR" attributes on TargetKinds.
+ *
+ * This pass looks for inline, let-bound or global functions which have a "Compiler" attribute.
+ * If the attribute value corresponds to a TargetKind with a "RelayToTIR" attribute, then the
+ * 'custom' pass bound to that attribute is run (at most once) on the IRModule as a whole.
+ *
+ * If, in addition, the \p config has a Target with a matching TargetKind, that Target is set
+ * as the 'current' target before the custom pass is executed. In this way it is possible
+ * for custom passes to pick up target options which may guide how they transform the IRModule.
+ * (Those targets are referred to as 'extern codegen targets' elsewhere).
+ *
+ * A typical custom pass will:
+ *  - Find calls to "Compiler" attributes functions with matching compiler name.
+ *  - Lower those function to TIR PrimFuncs.
+ *  - Bind those functions into the IRModule under the the functions' "global_symbol" attribute.
+ *  - Replace all calls to those functions with 'call_lowered' to the matching global.
+ * Care should be taken to handle multiple calls to the same function.
+ * See src/relay/backend/contrib/example_target_hooks/relay_to_tir.cc for an example custom pass.
+ *
+ * It is also possible (despite the pass and attribute names!) for the custom pass to proceed
+ * directly to a runtime::Module, which can be attached to the output IRModules "external_mods"
+ * attribute (taking care not to clobber any existing modules). In this case the flow is as above,
+ * except:
+ *  - The runtime::Module must contain a binding for each compiled function under their
+ *    "global_symbol" (ie runtime::Module::ImplementsFunction should return true).
+ *  - A Relay Function must be bound (or re-bound) into the result IRModule, again with the same
+ *    "global_symbol", but with only the "Extern" attribute set to Integer(1). The function body
+ *    should be the original function body. In this way we always have a TVM definition matching
+ *    every global function name.
+ *
+ * There are many existing runtime::Modules, ranging from source to object to dynamic libaries to
+ * entirely custom implementations. Some of those may require additional compilation using
+ * 'export_library' on the final build artifact.
+ *
+ * The OutlineCompilerFunctionsWithExistingGlobalSymbols and MarkCompilerFunctionsAsExtern utility
+ * passes can be used by custom passes to take care of some of the boilerplate.
+ *
+ * TODO(mbs): Rename PreLoweringTargetHooks?
+ *
+ * \param config All available targets.
  *
  * \return The pass.
  */
-TVM_DLL Pass RelayToTIRTargetHook();
+TVM_DLL Pass RelayToTIRTargetHook(CompilationConfig config);
 
 /*!
  * \brief A pass for manifesting explicit memory allocations and rewriting
@@ -510,6 +555,46 @@ TVM_DLL Pass PlanDevices(CompilationConfig config);
  * \return The pass.
  */
 TVM_DLL Pass FlattenAtrousConv();
+
+/*!
+ * \brief Annotates the minimum required memory of each primitive function callsite by analyzing
+ * the liveness of the input/output tensors at each function callsite and calculating the total
+ * amount of memory these tensors require. This is added as a "used_memory" annotation to the
+ * function in question as a list of the number of bytes for each callsite. In addition, the
+ * containing function is annotated with an "io_used_memory" annotation which refers to the total
+ * memory required for the IO tensors.
+ *
+ * Note: This pass does not support dynamic shapes, it is the users responsibility to check this
+ * pass isn't applied where dynamic shapes may be input.
+ */
+TVM_DLL Pass AnnotateUsedMemory();
+
+/*!
+ * \brief Captures the post-dfs index and dominator post-dfs index of (most) expression nodes in
+ * their span, in the form "index:<post-dfs index>:<dominator post-dfs index>". This is useful for
+ * debugging since a) it helps identify pretty-printed sub-expressions within the overall model
+ * and b) the indexes are heavily used by Collage for its compact representation of sub-graphs.
+ *
+ * Note that Op and Constructor nodes are not changed even though they are assigned an
+ * post-dfs index.
+ */
+TVM_DLL Pass CapturePostDfsIndexInSpans();
+
+/*!
+ * \brief Calls device dependent memory scope analysis pass, collects mapping of desirable
+ * expr->memory_scope and annotates expressions by VirtualDevice with required memory_scope
+ */
+TVM_DLL Pass AnnotateMemoryScope(CompilationConfig config);
+
+/*!
+ * \brief Removes non-fused reshapes after lowering the graph.
+ * InferType() cannot be invoked after calling this pass as it removes reshapes from the call
+ * graph. Many targets only need buffer addresses irrespective of the shapes of them. This makes
+ * reshapes symbolic once the graph has been lowered. Reshape removal results into smaller code
+ * size and reduced buffer allocations. It opens up opportunities of operator fusion in the target
+ * backend. Thus, consequently, it improves the performance of the inference.
+ */
+TVM_DLL Pass RemoveStandaloneReshapes();
 
 }  // namespace transform
 

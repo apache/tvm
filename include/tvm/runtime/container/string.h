@@ -36,43 +36,11 @@
 #include <initializer_list>
 #include <memory>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
-// We use c++14 std::experimental::string_view for optimizing hash computation
-// only right now, its usage is limited in this file. Any broader usage of
-// std::experiment in our core codebase is discouraged and needs community
-// discussion for each use case. Reference for feature test macros of
-// string_view:
-// https://isocpp.org/std/standing-documents/sd-6-sg10-feature-test-recommendations
-// https://en.cppreference.com/w/User:D41D8CD98F/feature_testing_macros
-#if defined(__cpp_lib_experimental_string_view) && __cpp_lib_experimental_string_view >= 201411
-#define TVM_USE_CXX14_STRING_VIEW_HASH 1
-#else
-#define TVM_USE_CXX14_STRING_VIEW_HASH 0
-#endif
-
-// Tested with clang version 9.0.1 and c++17. It will detect string_view support
-// correctly.
-#if defined(__cpp_lib_string_view) && __cpp_lib_string_view >= 201606
-#define TVM_USE_CXX17_STRING_VIEW_HASH 1
-#else
-#define TVM_USE_CXX17_STRING_VIEW_HASH 0
-#endif
-
-#if TVM_USE_CXX17_STRING_VIEW_HASH
-#include <string_view>
-#elif TVM_USE_CXX14_STRING_VIEW_HASH
-#include <experimental/string_view>
-#endif
-
-#include <type_traits>
-#include <utility>
 #include <vector>
-
-namespace llvm {
-// String to llvm object compatibility.
-class StringRef;
-}  // namespace llvm
 
 namespace tvm {
 namespace runtime {
@@ -266,14 +234,6 @@ class String : public ObjectRef {
    */
   operator std::string() const { return std::string{get()->data, size()}; }
 
-  // LLVM compatibility function, implemented in src/target/llvm/llvm_common.h
-  /*!
-   * \brief Convert String to an llvm::StringRef object
-   *
-   * \return llvm::StringRef
-   */
-  inline operator llvm::StringRef() const;
-
   /*!
    * \brief Check if a TVMArgValue can be converted to String, i.e. it can be std::string or String
    * \param val The value to be checked
@@ -290,13 +250,7 @@ class String : public ObjectRef {
   static size_t HashBytes(const char* data, size_t size) {
     // This function falls back to string copy with c++11 compiler and is
     // recommended to be compiled with c++14
-#if TVM_USE_CXX17_STRING_VIEW_HASH
     return std::hash<std::string_view>()(std::string_view(data, size));
-#elif TVM_USE_CXX14_STRING_VIEW_HASH
-    return std::hash<std::experimental::string_view>()(std::experimental::string_view(data, size));
-#else
-    return std::hash<std::string>()(std::string(data, size));
-#endif
   }
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);

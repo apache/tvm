@@ -308,13 +308,10 @@ void VirtualMachine::CreateInputsOrCheckSize(const std::string& func_name, size_
 void VirtualMachine::SetInputTensorWithIndex(std::vector<ObjectRef>& tensors,
                                              const TVMArgValue& inp_tensor, int index, Device dev) {
   if (inp_tensor.type_code() == kTVMDLTensorHandle) {
-    // Automatically convert input DLTensors to NDArray
-    DLTensor* tensor = inp_tensor;
-    if (dev.device_type == tensor->device.device_type &&
-        dev.device_id == tensor->device.device_id) {
-      tensors[index] = NDArray::FromExternalDLTensor(*tensor);
+    if (NDArray::AbilityOfZeroCopyForDLTensor(inp_tensor, dev)) {
+      tensors[index] = NDArray::FromExternalDLTensor(*inp_tensor);
     } else {
-      tensors[index] = NDArray::NewFromDLTensor(tensor, dev);
+      tensors[index] = NDArray::NewFromDLTensor(inp_tensor, dev);
     }
   } else {
     tensors[index] = CopyTo(inp_tensor, dev);
@@ -362,11 +359,11 @@ void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<Obje
 }
 
 ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<ObjectRef>& args) {
-  DLOG(INFO) << "Executing Function: " << std::endl << func;
+  VLOG(2) << "Executing Function: " << std::endl << func;
   for (int i = 0; i < static_cast<int>(devices_.size()); ++i) {
-    DLOG(INFO) << "Device " << i << " has device type " << devices_[i].device_type
-               << " and device id " << devices_[i].device_id
-               << (i == exec_->host_device_index ? " (using as host device)" : "");
+    VLOG(2) << "Device " << i << " has device type " << devices_[i].device_type << " and device id "
+            << devices_[i].device_id
+            << (i == exec_->host_device_index ? " (using as host device)" : "");
   }
 
   InvokeGlobal(func, args);

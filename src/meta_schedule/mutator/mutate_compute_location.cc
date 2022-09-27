@@ -42,6 +42,11 @@ class MutateComputeLocationNode : public MutatorNode {
   }
   // Inherit from `MutatorNode`
   Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
+  // Inherit from `MutatorNode`
+  Mutator Clone() const final {
+    ObjectPtr<MutateComputeLocationNode> n = make_object<MutateComputeLocationNode>(*this);
+    return Mutator(n);
+  }
 
  private:
   struct Candidate {
@@ -86,9 +91,7 @@ std::vector<MutateComputeLocationNode::Candidate> MutateComputeLocationNode::Fin
       int old_decision = Downcast<Integer>(decision)->value;
 
       // Step 2. Collect all the compute_at locations.
-      Array<tir::StmtSRef> location_srefs;
-      std::vector<int> location_indices;
-      std::tie(location_srefs, location_indices) = CollectComputeLocation(sch->state(), block_sref);
+      auto [location_srefs, location_indices] = CollectComputeLocation(sch->state(), block_sref);
       // Step 3. Remove the old decision.
       auto it = std::find(location_indices.begin(), location_indices.end(), old_decision);
       if (it != location_indices.end()) {

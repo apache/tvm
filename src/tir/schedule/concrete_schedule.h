@@ -38,6 +38,8 @@ class ConcreteScheduleNode : public ScheduleNode {
  protected:
   /*! \brief The internal state of scheduling */
   ScheduleState state_;
+  /*! \brief The function to be worked on. */
+  Optional<GlobalVar> func_working_on_;
   /*! \brief The level of error rendering */
   ScheduleErrorRenderLevel error_render_level_;
   /*! \brief A symbol table that maps random variables to concrete StmtSRef/Integers */
@@ -50,10 +52,11 @@ class ConcreteScheduleNode : public ScheduleNode {
  public:
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `state_` is not visited
+    // `func_working_on_` is not visited
     // `error_render_level_` is not visited
     // `symbol_table_` is not visited
     // `analyzer_` is not visited
-    // `rand_state_` is not visited
+    // `rgnd_state_` is not visited
   }
 
   virtual ~ConcreteScheduleNode() = default;
@@ -61,6 +64,7 @@ class ConcreteScheduleNode : public ScheduleNode {
  public:
   ScheduleState state() const final { return state_; }
   Optional<Trace> trace() const override { return NullOpt; }
+  void WorkOn(const String& func_name) final;
   Schedule Copy() override;
   void Seed(support::LinearCongruentialEngine::TRandState seed) final;
   support::LinearCongruentialEngine::TRandState ForkSeed() final;
@@ -89,35 +93,42 @@ class ConcreteScheduleNode : public ScheduleNode {
   LoopRV SampleComputeLocation(const BlockRV& block_rv,
                                Optional<Integer> decision = NullOpt) override;
   /******** Schedule: Get blocks & loops ********/
-  BlockRV GetBlock(const String& name, const String& func_name = "main") override;
+  BlockRV GetBlock(const String& name, const Optional<String>& func_name) override;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) override;
   Array<BlockRV> GetChildBlocks(const BlockRV& block_rv) override;
   Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) override;
   Array<BlockRV> GetProducers(const BlockRV& block_rv) override;
   Array<BlockRV> GetConsumers(const BlockRV& block_rv) override;
   /******** Schedule: Transform loops ********/
-  LoopRV Fuse(const Array<LoopRV>& loop_rvs) override;
-  Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) override;
+  LoopRV Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters) override;
+  Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
+                      bool preserve_unit_iters) override;
   void Reorder(const Array<LoopRV>& ordered_loop_rvs) override;
+  LoopRV AddUnitLoop(const BlockRV& block_rv) override;
+  LoopRV AddUnitLoop(const LoopRV& loop_rv) override;
   /******** Schedule: Manipulate ForKind ********/
   void Parallel(const LoopRV& loop_rv) override;
   void Vectorize(const LoopRV& loop_rv) override;
   void Bind(const LoopRV& loop_rv, const String& thread_axis) override;
   void Unroll(const LoopRV& loop_rv) override;
   /******** Schedule: Insert cache stages ********/
-  BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index,
-                    const String& storage_scope) override;
+  BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index, const String& storage_scope,
+                    const Array<BlockRV> consumer_blocks = {}) override;
   BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
                      const String& storage_scope) override;
+  BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
+                  BufferIndexType buffer_index_type) override;
   /******** Schedule: Compute location ********/
-  void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops) override;
-  void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
-                        bool preserve_unit_loops) override;
+  void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+                 int index = -1) override;
+  void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+                        int index = -1) override;
   void ComputeInline(const BlockRV& block) override;
   void ReverseComputeInline(const BlockRV& block) override;
   /******** Schedule: Reduction ********/
   BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) override;
   BlockRV DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) override;
+  void PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) override;
   /******** Schedule: Block annotation ********/
   void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
                     int offset) override;
@@ -133,10 +144,13 @@ class ConcreteScheduleNode : public ScheduleNode {
   void Unannotate(const BlockRV& block_rv, const String& ann_key) override;
   /******** Schedule: Layout transformation ********/
   void TransformLayout(const BlockRV& block_rv, int buffer_index, BufferIndexType buffer_index_type,
-                       const IndexMap& index_map) override;
+                       const IndexMap& index_map, const Optional<IndexMap>& pad_value) override;
+  void TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) override;
   void SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
                         BufferIndexType buffer_index_type,
                         const Array<IntImm>& axis_separators) override;
+  /******** Schedule: Padding decomposition ********/
+  BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) override;
   /******** Schedule: Misc ********/
   void EnterPostproc() override {}
 
@@ -193,13 +207,13 @@ class ConcreteScheduleNode : public ScheduleNode {
 
 inline Block ConcreteScheduleNode::Get(const BlockRV& block_rv) const {
   StmtSRef sref = this->GetSRef(block_rv);
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(sref);
   return GetRef<Block>(block);
 }
 
 inline For ConcreteScheduleNode::Get(const LoopRV& loop_rv) const {
   StmtSRef sref = this->GetSRef(loop_rv);
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(sref);
   return GetRef<For>(loop);
 }
 
@@ -210,7 +224,7 @@ inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
       LOG(FATAL) << "IndexError: Cannot find corresponding ExprRV: " << var;
     }
     const ObjectRef& obj = (*it).second;
-    const auto* int_imm = TVM_TYPE_AS(int_imm, obj, IntImmNode);
+    const auto* int_imm = TVM_TYPE_AS(obj, IntImmNode);
     return Integer(int_imm->value);
   });
   return this->analyzer_->Simplify(transformed);

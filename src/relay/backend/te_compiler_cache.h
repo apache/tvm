@@ -24,6 +24,7 @@
 #ifndef TVM_RELAY_BACKEND_TE_COMPILER_CACHE_H_
 #define TVM_RELAY_BACKEND_TE_COMPILER_CACHE_H_
 
+#include <tvm/ir/name_supply.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/relay/analysis.h>
@@ -36,6 +37,7 @@
 
 #include <functional>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 
@@ -82,10 +84,13 @@ class CCacheKeyNode : public Object {
   Function source_func;
   /*! \brief The hardware target.*/
   Target target;
+  /*! \brief The virtual device constrains.*/
+  VirtualDevice virtual_device;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("source_func", &source_func);
     v->Visit("target", &target);
+    v->Visit("virtual_device", &virtual_device);
   }
   /*! \return The hash value of CCacheKey. */
   inline size_t Hash() const;
@@ -117,7 +122,8 @@ class CCacheKey : public ObjectRef {
    * \param source_func The source function.
    * \param target The target device.
    */
-  TVM_DLL CCacheKey(Function source_func, Target target);
+  TVM_DLL CCacheKey(Function source_func, Target target,
+                    VirtualDevice virtual_device = VirtualDevice::FullyUnconstrained());
 
   const CCacheKeyNode* operator->() const { return static_cast<const CCacheKeyNode*>(get()); }
   // comparator
@@ -210,10 +216,10 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape);
  * \param source_func The primitive function to be lowered.
  * \param target The target we want to create schedule for.
  * \param return_inputs If true, prepend input tensors to the output array of tensors.
- * \return Pair of schedule and fused function name.
+ * \return Tuple of the lowered TE compute, constant raw data, and fused function name.
  */
-std::pair<Array<te::Tensor>, std::string> LowerTECompute(const Function& source_func, Target target,
-                                                         bool return_inputs = true);
+std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompute(
+    const Function& source_func, Target target, bool return_inputs = true);
 
 /*!
  * \brief Create schedule for target.
@@ -223,13 +229,10 @@ std::pair<Array<te::Tensor>, std::string> LowerTECompute(const Function& source_
  *  The funcs field in cache is not yet populated.
  */
 CachedFunc PrimFuncFor(const Function& source_func, const Target& target,
-                       std::function<std::string(std::string)> renamer);
+                       GlobalVarSupply global_var_supply);
 
 CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,
-                        std::function<std::string(std::string)> renamer);
-
-// TODO(mbs): Bring name uniqification under control -- this is replicated in quite a few places.
-std::string GetUniqueName(std::string name, std::unordered_map<std::string, int>* name_map);
+                        GlobalVarSupply global_var_supply);
 
 // implementations
 inline size_t CCacheKeyNode::Hash() const {
@@ -244,6 +247,7 @@ inline size_t CCacheKeyNode::Hash() const {
 inline bool CCacheKeyNode::Equal(const CCacheKeyNode* other) const {
   if (Hash() != other->Hash()) return false;
   return this->target->str() == other->target->str() &&
+         this->virtual_device == other->virtual_device &&
          tvm::StructuralEqual()(this->source_func, other->source_func);
 }
 

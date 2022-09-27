@@ -18,28 +18,26 @@
 """CMSIS-NN integration tests: binary ops"""
 
 import itertools
-import sys
 
 import numpy as np
-from enum import Enum
 import pytest
 
 import tvm
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
+from tvm.testing.aot import generate_ref_data, AOTTestModel, compile_and_run
+from tvm.micro.testing.aot_test_utils import (
+    AOT_USMP_CORSTONE300_RUNNER,
+)
 
-from utils import (
+from .utils import (
     skip_if_no_reference_system,
     make_module,
     make_qnn_relu,
     get_range_for_dtype_str,
     assert_partitioned_function,
     assert_no_external_function,
-)
-from tvm.testing.aot import generate_ref_data, AOTTestModel, compile_and_run
-from tvm.micro.testing.aot_test_utils import (
-    AOT_CORSTONE300_RUNNER,
-    AOT_USMP_CORSTONE300_RUNNER,
+    create_test_runner,
 )
 
 
@@ -101,12 +99,22 @@ def make_model(
     ],
     [[0.256, 33, 0.256, 33], [0.0128, -64, 0.0128, -64], [0.0128, -64, 0.256, 33]],
 )
+@pytest.mark.parametrize(
+    "compiler_cpu, cpu_flags", [("cortex-m55", "+nomve"), ("cortex-m55", ""), ("cortex-m7", "")]
+)
 def test_op_int8(
-    op, relu_type, input_0_scale, input_0_zero_point, input_1_scale, input_1_zero_point
+    op,
+    relu_type,
+    input_0_scale,
+    input_0_zero_point,
+    input_1_scale,
+    input_1_zero_point,
+    compiler_cpu,
+    cpu_flags,
 ):
+    """Tests QNN binary operator for CMSIS-NN"""
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     dtype = "int8"
     shape = [1, 16, 16, 3]
@@ -141,14 +149,75 @@ def test_op_int8(
             outputs=output_list,
             output_tolerance=1,
         ),
+        create_test_runner(compiler_cpu, cpu_flags),
+        interface_api,
+        use_unpacked_api,
+    )
+
+
+@skip_if_no_reference_system
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
+@pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
+def test_same_input_to_binary_op(op, relu_type):
+    """Tests QNN binary operator for CMSIS-NN where both inputs are the same"""
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
+
+    dtype = "int8"
+    shape = [1, 16, 16, 3]
+    input_ = generate_variable("input")
+    input_scale = 0.256
+    input_zero_point = 33
+
+    model = make_model(
+        op,
+        input_,
+        input_,
+        input_scale,
+        input_zero_point,
+        input_scale,
+        input_zero_point,
+        relu_type,
+    )
+    orig_mod = make_module(model)
+
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod)
+
+    # validate pattern matching
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
+
+    # Check if the number of internal function parameter is 1
+    cmsisnn_global_func = cmsisnn_mod["tvmgen_default_cmsis_nn_main_0"]
+    assert (
+        isinstance(cmsisnn_global_func.body, tvm.relay.expr.Call)
+        and len(cmsisnn_global_func.body.args) == 1
+    ), "Composite function for the binary op should have only 1 parameter."
+
+    # validate the output
+    in_min, in_max = get_range_for_dtype_str(dtype)
+    inputs = {
+        "input": np.random.randint(in_min, high=in_max, size=shape, dtype=dtype),
+    }
+    output_list = generate_ref_data(orig_mod["main"], inputs)
+    compile_and_run(
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=inputs,
+            outputs=output_list,
+            output_tolerance=1,
+        ),
         test_runner,
         interface_api,
         use_unpacked_api,
     )
 
 
-# At least one of the inputs is a constant, both can't be variables, both can't be scalars
 def parameterize_for_constant_inputs(test):
+    """Generates parameters in such a way so that at least one of the inputs is a constant,
+    both can't be variables, both can't be scalars.
+    """
     op = [relay.qnn.op.mul, relay.qnn.op.add]
     input_0 = [generate_variable("input_0"), generate_tensor_constant(), generate_scalar_constant()]
     input_1 = [generate_variable("input_1"), generate_tensor_constant(), generate_scalar_constant()]
@@ -178,6 +247,7 @@ def parameterize_for_constant_inputs(test):
 @tvm.testing.requires_cmsisnn
 @parameterize_for_constant_inputs
 def test_constant_input_int8(op, input_0, input_1):
+    """Tests binary ops where one of the operands is a constant"""
     interface_api = "c"
     use_unpacked_api = True
     test_runner = AOT_USMP_CORSTONE300_RUNNER
@@ -231,9 +301,9 @@ def test_constant_input_int8(op, input_0, input_1):
 def test_both_scalar_inputs_int8(
     op,
 ):
+    """Tests binary ops where both operands are scalars"""
     input_scale = 0.256
     input_zero_point = 33
-    dtype = "int8"
     model = make_model(
         op,
         generate_scalar_constant(),
@@ -257,6 +327,7 @@ def test_invalid_parameters(
     op,
     input_dtype,
 ):
+    """Tests binary ops for non int8 dtypes"""
     input_scale = 0.256
     input_zero_point = 33
     model = make_model(

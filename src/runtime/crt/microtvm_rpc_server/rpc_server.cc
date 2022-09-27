@@ -33,6 +33,7 @@
 #define DMLC_CMAKE_LITTLE_ENDIAN DMLC_IO_USE_LITTLE_ENDIAN
 #define DMLC_LITTLE_ENDIAN 1
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/aot_executor_module.h>
 #include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/microtvm_rpc_server.h>
@@ -118,8 +119,6 @@ class MicroRPCServer {
         rpc_server_{&io_},
         is_running_{true} {}
 
-  void* operator new(size_t count, void* ptr) { return ptr; }
-
   void Initialize() {
     uint8_t initial_session_nonce = Session::kInvalidNonce;
     tvm_crt_error_t error =
@@ -203,6 +202,11 @@ microtvm_rpc_server_t MicroTVMRpcServerInit(microtvm_rpc_channel_write_t write_f
   tvm::runtime::micro_rpc::g_write_func_ctx = write_func_ctx;
 
   tvm_crt_error_t err = TVMInitializeRuntime();
+  if (err != kTvmErrorNoError) {
+    TVMPlatformAbort(err);
+  }
+
+  err = TVMAotExecutorModule_Register();
   if (err != kTvmErrorNoError) {
     TVMPlatformAbort(err);
   }

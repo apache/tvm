@@ -34,6 +34,12 @@ and usage of tensorize instead of providing an efficient solution.
 """
 from __future__ import absolute_import, print_function
 
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 import tvm
 from tvm import te
 import tvm.testing

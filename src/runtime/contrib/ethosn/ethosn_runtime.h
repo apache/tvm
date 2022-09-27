@@ -33,7 +33,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../../relay/backend/contrib/ethosn/ethosn_api_version.h"
 #include "ethosn_driver_library/Network.hpp"
 #include "ethosn_support_library/Support.hpp"
 
@@ -46,12 +45,12 @@ namespace dl = ::ethosn::driver_library;
 
 struct OrderedCompiledNetwork {
   std::unique_ptr<sl::CompiledNetwork> compiled_cmm;
-#if _ETHOSN_API_VERSION_ > 2102
   std::unique_ptr<dl::Network> runtime_cmm;
-#endif
   std::string name;
   std::vector<uint32_t> inputs;
   std::vector<uint32_t> outputs;
+  std::vector<uint32_t> input_sizes;
+  std::vector<uint32_t> output_sizes;
 };
 
 class EthosnModule : public ModuleNode {
@@ -88,8 +87,10 @@ class EthosnModule : public ModuleNode {
    *         std::string : serialized command stream
    *         size_t      : number of inputs
    *         std::vector : order of inputs
+   *         std::vector : buffer sizes for inputs
    *         size_t      : number of outputs
    *         std::vector : order of outputs
+   *         std::vector : buffer sizes for outputs
    *       ] * number of functions
    */
   static Module LoadFromBinary(void* strm);

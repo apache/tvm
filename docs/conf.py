@@ -60,7 +60,7 @@ sys.path.insert(0, str(tvm_path.resolve() / "docs"))
 # General information about the project.
 project = "tvm"
 author = "Apache Software Foundation"
-copyright = "2020 - 2021, %s" % author
+copyright = "2020 - 2022, %s" % author
 github_doc_root = "https://github.com/apache/tvm/tree/main/docs/"
 
 os.environ["TVM_BUILD_DOC"] = "1"
@@ -264,6 +264,7 @@ within_subsection_order = {
         "topi.pi",
         "cross_compilation_and_rpc.py",
         "relay_quick_start.py",
+        "uma.py",
     ],
     "compile_models": [
         "from_pytorch.py",
@@ -312,11 +313,13 @@ within_subsection_order = {
         "bring_your_own_datatypes.py",
     ],
     "micro": [
+        "micro_train.py",
         "micro_autotune.py",
         "micro_reference_vm.py",
         "micro_tflite.py",
         "micro_ethosu.py",
         "micro_tvmc.py",
+        "micro_aot.py",
     ],
 }
 
@@ -360,11 +363,11 @@ sphinx_gallery_conf = {
     "gallery_dirs": gallery_dirs,
     "subsection_order": subsection_order,
     "filename_pattern": os.environ.get("TVM_TUTORIAL_EXEC_PATTERN", ".py"),
-    "find_mayavi_figures": False,
     "download_all_examples": False,
     "min_reported_time": 60,
     "expected_failing_examples": [],
     "reset_modules": ("matplotlib", "seaborn", force_gc),
+    "promote_jupyter_magic": True,
 }
 
 autodoc_default_options = {
@@ -382,10 +385,10 @@ tvm_alias_check_map = {
 ## Setup header and other configs
 import tlcpack_sphinx_addon
 
-footer_copyright = "© 2020 Apache Software Foundation | All right reserved"
+footer_copyright = "© 2022 Apache Software Foundation | All rights reserved"
 footer_note = " ".join(
     """
-Copyright © 2020 The Apache Software Foundation. Apache TVM, Apache, the Apache feather,
+Copyright © 2022 The Apache Software Foundation. Apache TVM, Apache, the Apache feather,
 and the Apache TVM project logo are either trademarks or registered trademarks of
 the Apache Software Foundation.""".split(
         "\n"
@@ -424,6 +427,7 @@ html_context = {
     "header_dropdown": header_dropdown,
     "header_logo": header_logo,
     "header_logo_link": header_logo_link,
+    "version_prefixes": ["main", "v0.8.0/", "v0.9.0/"],
 }
 
 # add additional overrides

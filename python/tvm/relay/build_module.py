@@ -22,7 +22,6 @@ import warnings
 
 import numpy as np
 from tvm.ir import IRModule
-from tvm.ir.transform import PassContext
 from tvm.target import Target
 
 from .. import autotvm
@@ -80,6 +79,7 @@ class BuildModule(object):
         executor=Executor("graph"),
         runtime=Runtime("cpp"),
         workspace_memory_pools=None,
+        constant_memory_pools=None,
         params=None,
         mod_name=None,
     ):
@@ -111,8 +111,13 @@ class BuildModule(object):
             Defaults to "cpp" if no runtime specified.
 
         workspace_memory_pools : Optional[WorkspaceMemoryPools]
-            The object that contains an Array of PoolInfo objects
-            that hold properties of workspace pools that could be
+            The object that contains an Array of WorkspacePoolInfo objects
+            that hold properties of read-write workspace pools that could be
+            used by the inference.
+
+        constant_memory_pools : Optional[ConstantMemoryPools]
+            The object that contains an Array of ConstantPoolInfo objects
+            that hold properties of read-only memory pools that could be
             used by the inference.
 
         params : dict of str to NDArray
@@ -133,31 +138,42 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
-        raw_targets = Target.canon_multi_target_and_host(target, target_host)
+        # pylint: disable=import-outside-toplevel
+        from tvm.auto_scheduler import is_auto_scheduler_enabled
+        from tvm.meta_schedule import is_meta_schedule_enabled
 
+        # pylint: enable=import-outside-toplevel
         # Setup the params.
         if params:
             self._set_params(params)
 
         # Build the IR module. If auto_scheduler is not enabled,
         # then use the TOPI-defined schedule.
-        use_auto_scheduler = PassContext.current().config.get(
-            "relay.backend.use_auto_scheduler", False
-        )
 
         # Turn off AutoTVM config not found warnings if auto_scheduler is enabled.
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
-        autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler or old_autotvm_silent
+        autotvm.GLOBAL_SCOPE.silent = (
+            is_auto_scheduler_enabled() or is_meta_schedule_enabled() or old_autotvm_silent
+        )
 
         mod_name = mangle_module_name(mod_name)
 
-        self._build(mod, raw_targets, executor, runtime, workspace_memory_pools, mod_name)
+        self._build(
+            mod,
+            target,
+            target_host,
+            executor,
+            runtime,
+            workspace_memory_pools,
+            constant_memory_pools,
+            mod_name,
+        )
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts
         mod = self.get_module()
         params = self.get_params()
-        executor_config = self.get_graph_json() if str(executor) == "graph" else None
+        executor_config = self.get_graph_json() if executor.name == "graph" else None
 
         return executor_config, mod, params
 
@@ -258,69 +274,6 @@ def _build_module_no_factory(mod, target=None, target_host=None, params=None, mo
     return _build_module_no_factory_impl(mod, target, target_host, params, mod_name)
 
 
-def _reconstruct_from_deprecated_options(deprecated_params_target):
-    executor = None
-    runtime = None
-
-    deprecated_executor = None
-    deprecated_executor_args = {}
-    if "executor" in deprecated_params_target.attrs:
-        _deprecated_target_param_warning("Executor", "executor")
-        deprecated_executor = deprecated_params_target.attrs.get("executor", "graph")
-    if "interface-api" in deprecated_params_target.attrs:
-        _deprecated_target_sub_param_warning("Executor", "interface-api")
-        deprecated_executor_args.update(
-            {"interface-api": deprecated_params_target.attrs["interface-api"]}
-        )
-    if "unpacked-api" in deprecated_params_target.attrs:
-        _deprecated_target_sub_param_warning("Executor", "unpacked-api")
-        deprecated_executor_args.update(
-            {"unpacked-api": deprecated_params_target.attrs["unpacked-api"]}
-        )
-    if (
-        "link-params" in deprecated_params_target.attrs
-        and deprecated_params_target.attrs["link-params"]
-    ):
-        _deprecated_target_sub_param_warning("Executor", "link-params")
-        if deprecated_executor != "aot":
-            deprecated_executor_args.update(
-                {"link-params": deprecated_params_target.attrs["link-params"]}
-            )
-    if deprecated_executor or deprecated_executor_args:
-        executor = Executor(deprecated_executor or "graph", deprecated_executor_args)
-
-    deprecated_runtime = None
-    deprecated_runtime_args = {}
-    if "runtime" in deprecated_params_target.attrs:
-        _deprecated_target_param_warning("Runtime", "runtime")
-        deprecated_runtime = deprecated_params_target.attrs.get("runtime", "cpp")
-        if deprecated_runtime == "c":
-            deprecated_runtime = "crt"
-    if "system-lib" in deprecated_params_target.attrs:
-        _deprecated_target_sub_param_warning("Runtime", "system-lib")
-        deprecated_runtime_args.update({"system-lib": deprecated_params_target.attrs["system-lib"]})
-    if deprecated_runtime or deprecated_runtime_args:
-        runtime = Runtime(deprecated_runtime or "cpp", deprecated_runtime_args)
-
-    return executor, runtime
-
-
-def _deprecated_target_param_warning(registry, param):
-    warnings.warn(
-        f"Please use {registry} (tvm.relay.backend.{registry}) "
-        f"instead of deprecated Target parameter -{param}",
-        DeprecationWarning,
-    )
-
-
-def _deprecated_target_sub_param_warning(registry, param):
-    warnings.warn(
-        f"Please use {registry} (tvm.relay.backend.{registry}) parameter {param} "
-        f"instead of deprecated Target parameter -{param}",
-        DeprecationWarning,
-    )
-
-
 def build(
     ir_mod,
     target=None,
@@ -328,6 +281,7 @@ def build(
     executor=Executor("graph"),
     runtime=Runtime("cpp"),
     workspace_memory_pools=None,
+    constant_memory_pools=None,
     params=None,
     mod_name="default",
 ):
@@ -357,8 +311,13 @@ def build(
         Defaults to "cpp" if no runtime specified.
 
     workspace_memory_pools : Optional[WorkspaceMemoryPools]
-        The object that contains an Array of PoolInfo objects
-        that hold properties of workspace pools that could be
+        The object that contains an Array of WorkspacePoolInfo objects
+        that hold properties of read-write workspace pools that could be
+        used by the inference.
+
+    constant_memory_pools : Optional[ConstantMemoryPools]
+        The object that contains an Array of ConstantPoolInfo objects
+        that hold properties of read-only pools that could be
         used by the inference.
 
     params : dict of str to NDArray
@@ -393,17 +352,6 @@ def build(
     assert len(raw_targets) > 0
     target_host = raw_targets[0].host
 
-    # All of this logic is to raise deprecation warnings for various parameters
-    # TODO(Mousius) Remove these after some time
-    deprecated_params_target = target_host or list(raw_targets)[0]
-    deprecated_executor, deprecated_runtime = _reconstruct_from_deprecated_options(
-        deprecated_params_target
-    )
-    if deprecated_executor:
-        executor = deprecated_executor
-    if deprecated_runtime:
-        runtime = deprecated_runtime
-
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
     if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
@@ -420,6 +368,7 @@ def build(
             executor=executor,
             runtime=runtime,
             workspace_memory_pools=workspace_memory_pools,
+            constant_memory_pools=constant_memory_pools,
             mod_name=mod_name,
         )
         func_metadata = bld_mod.get_function_metadata()
@@ -427,7 +376,7 @@ def build(
         lowered_ir_mods = bld_mod.get_irmodule()
         executor_codegen_metadata = bld_mod.get_executor_codegen_metadata()
 
-        if str(executor) == "aot":
+        if executor.name == "aot":
             executor_factory = _executor_factory.AOTExecutorFactoryModule(
                 ir_mod,
                 lowered_ir_mods,
@@ -441,7 +390,7 @@ def build(
                 executor_codegen_metadata,
                 devices,
             )
-        elif str(executor) == "graph":
+        elif executor.name == "graph":
             executor_factory = _executor_factory.GraphExecutorFactoryModule(
                 ir_mod,
                 raw_targets,
@@ -547,8 +496,9 @@ class GraphExecutor(_interpreter.Executor):
     device : :py:class:`Device`
         The runtime device to run the code on.
 
-    target : :py:class:`Target`
-        The target option to build the function.
+    target : any multi-target like object, see Target.canon_multi_target
+        For homogeneous compilation, the unique build target.
+        For heterogeneous compilation, a dictionary or list of possible build targets.
     """
 
     def __init__(self, mod, device, target):
@@ -607,8 +557,9 @@ class AotExecutor(_interpreter.Executor):
     device : :py:class:`Device`
         The runtime device to run the code on.
 
-    target : :py:class:`Target`
-        The target option to build the function.
+    target : any multi-target like object, see Target.canon_multi_target
+        For homogeneous compilation, the unique build target.
+        For heterogeneous compilation, a dictionary or list of possible build targets.
     """
 
     def __init__(self, mod, device, target):
@@ -616,7 +567,6 @@ class AotExecutor(_interpreter.Executor):
         self.mod = mod
         self.device = device
         self.target = target
-        assert target.attrs.get("executor", "graph") == "aot"
 
     def _make_executor(self, expr=None):
         if expr:
@@ -696,8 +646,11 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
     device : :py:class:`Device`
         The device to execute the code.
 
-    target : :py:class:`tvm.Target`
-        The corresponding context
+    target : any multi-target like object, see Target.canon_multi_target
+        For homogeneous compilation, the unique build target.
+        For heterogeneous compilation, a dictionary or list of possible build targets.
+        CAUTION: Though this API allows multiple targets, it does not allow multiple devices, so
+        heterogenous compilation is not yet supported.
 
     params : dict of str to NDArray
          Input parameters to the graph that do not change
@@ -707,24 +660,27 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
     -------
     executor : :py:class:`~tvm.relay.backend.interpreter.Executor`
     """
+    raw_targets = Target.canon_multi_target(target)
     if mod is None:
         mod = IRModule()
     if device is not None:
-        assert device.device_type == _nd.device(str(target), 0).device_type
+        assert device.device_type == raw_targets[0].kind.device_type
     else:
-        device = _nd.device(str(target), 0)
+        # Derive the default device from the first target.
+        device = _nd.device(raw_targets[0].kind.device_type, 0)
 
     if params is not None:
         mod = IRModule.from_expr(bind_params_by_name(mod["main"], params))
 
-    if isinstance(target, str):
-        target = Target(target)
+    assert "executor" not in raw_targets[0].attrs or raw_targets[0].attrs["executor"] == kind
+
     if kind == "debug":
-        return _interpreter.Interpreter(mod, device, target)
+        assert len(raw_targets) == 1, "The interpreter currently only supports a single target"
+        return _interpreter.Interpreter(mod, device, raw_targets[0])
     if kind == "graph":
-        return GraphExecutor(mod, device, target)
+        return GraphExecutor(mod, device, raw_targets)
     if kind == "vm":
-        return VMExecutor(mod, device, target)
+        return VMExecutor(mod, device, raw_targets)
     if kind == "aot":
-        return AotExecutor(mod, device, target)
+        return AotExecutor(mod, device, raw_targets)
     raise RuntimeError("unknown execution strategy: {0}".format(kind))

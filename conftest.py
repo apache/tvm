@@ -16,10 +16,14 @@
 # under the License.
 import hashlib
 import pytest
+import sys
 import os
-from collections import OrderedDict
+
+from pathlib import Path
 
 pytest_plugins = ["tvm.testing.plugin"]
+IS_IN_CI = os.getenv("CI", "") == "true"
+REPO_ROOT = Path(__file__).resolve().parent
 
 
 # These are long running tests (manually curated and extracted from CI logs)
@@ -88,11 +92,17 @@ def pytest_collection_modifyitems(config, items):
     shard_index = int(os.environ["TVM_SHARD_INDEX"])
 
     print(f"Marking tests for shard {shard_index} of {num_shards}")
-    for item in items:
+    items_copy = list(items)
+    for item in items_copy:
         item_shard_index = find_shard_index(item.nodeid, num_shards=num_shards)
-        item.add_marker(
-            pytest.mark.skipif(
-                item_shard_index != shard_index,
-                reason=f"Test running on shard {item_shard_index} of {num_shards}",
-            )
-        )
+        if item_shard_index != shard_index:
+            items.remove(item)
+
+
+def pytest_sessionstart():
+    if IS_IN_CI:
+        hook_script_dir = REPO_ROOT / "tests" / "scripts" / "request_hook"
+        sys.path.append(str(hook_script_dir))
+        import request_hook  # pylint: disable=import-outside-toplevel
+
+        request_hook.init()

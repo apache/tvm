@@ -58,9 +58,9 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
           // on remotes, we accept a nullptr for collectors.
           if (collectors.defined()) {
             std::vector<profiling::MetricCollector> cs(collectors.begin(), collectors.end());
-            prof_ = profiling::Profiler(devices, cs);
+            prof_ = profiling::Profiler(devices, cs, {{String("Executor"), String("VM")}});
           } else {
-            prof_ = profiling::Profiler(devices, {});
+            prof_ = profiling::Profiler(devices, {}, {{String("Executor"), String("VM")}});
           }
 
           auto invoke = VirtualMachine::GetFunction("invoke", sptr_to_self);
@@ -73,11 +73,11 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
           invoke(arg_name);
           prof_.operator*().Stop();
           auto report = prof_.operator*().Report();
-          prof_ = dmlc::optional<profiling::Profiler>();  // releases hardware counters
+          prof_ = std::nullopt;  // releases hardware counters
           return report;
         });
   } else if (name == "profile_rpc") {
-    // We cannot return a Report over RPC because TMV RPC mechanism only
+    // We cannot return a Report over RPC because TVM RPC mechanism only
     // supports a subset of Object classes. Instead we serialize it on the
     // remote (here) and deserialize it on the other end.
     return TypedPackedFunc<std::string(std::string)>([sptr_to_self, this](std::string arg_name) {

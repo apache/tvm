@@ -33,7 +33,7 @@ TEST(CCodegen, MainFunctionOrder) {
 
   std::string tvm_module_main = std::string(runtime::symbol::tvm_module_main);
 
-  tvm::Target target_c = tvm::Target("c -keys=cpu -link-params=0");
+  tvm::Target target_c = tvm::Target("c -keys=cpu");
 
   const int n = 4;
   Array<PrimExpr> shape{n};
@@ -52,7 +52,8 @@ TEST(CCodegen, MainFunctionOrder) {
   auto args = Array<Tensor>({A, B, elemwise_add});
 
   std::unordered_map<Tensor, Buffer> binds;
-  auto lowered = LowerSchedule(fcreate(), args, "elemwise_add", binds);
+  auto lowered =
+      LowerSchedule(fcreate(), args, "elemwise_add", binds, GlobalVarSupply(NameSupply("")));
   Map<tvm::Target, IRModule> inputs = {{target_c, lowered}};
   runtime::Module module = build(inputs, Target());
   Array<String> functions = module->GetFunction("get_func_names", false)();
@@ -81,7 +82,8 @@ auto BuildLowered(std::string op_name, tvm::Target target) {
 
   auto args = Array<Tensor>({A, B, op});
   std::unordered_map<Tensor, Buffer> binds;
-  auto lowered_s = LowerSchedule(fcreate_s(), args, op_name, binds);
+  auto lowered_s =
+      LowerSchedule(fcreate_s(), args, op_name, binds, GlobalVarSupply(NameSupply("")));
   return lowered_s;
 }
 
@@ -102,16 +104,16 @@ TEST(CCodegen, FunctionOrder) {
   using namespace tvm;
   using namespace tvm::te;
 
-  Target target = Target("c -keys=cpu -link-params=0");
+  Target target = Target("c -keys=cpu");
 
   // add schedules in reverse order
   Map<tvm::Target, IRModule> inputs;
-  inputs.Set(Target("c -keys=cpu -link-params=0"), BuildLowered("op_2", target));
-  inputs.Set(Target("c -keys=cpu -link-params=0"), BuildLowered("op_1", target));
+  inputs.Set(Target("c -keys=cpu"), BuildLowered("op_2", target));
+  inputs.Set(Target("c -keys=cpu"), BuildLowered("op_1", target));
 
   for (uint32_t counter = 99; IsSorted(inputs) && counter > 0; counter--) {
     std::string op_name = "op_" + std::to_string(counter);
-    inputs.Set(Target("c -keys=cpu -link-params=0"), BuildLowered(op_name, target));
+    inputs.Set(Target("c -keys=cpu"), BuildLowered(op_name, target));
   }
 
   EXPECT_FALSE(IsSorted(inputs));

@@ -25,6 +25,7 @@ from tvm import te
 from tvm import relay
 from tvm import autotvm
 from ..utils import get_const_tuple
+from .utils import infer_tile_size
 from ..nn import conv2d_alter_layout
 
 logger = logging.getLogger("topi")
@@ -58,7 +59,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     kernel_layout = attrs["kernel_layout"]
     data_tensor, kernel_tensor = tinfos
     data_dtype = data_tensor.dtype
-    kernel_dtype = kernel_tensor.dtype
     out_dtype = out_type.dtype
 
     if isinstance(dispatch_ctx, autotvm.task.ApplyGraphBest):
@@ -70,11 +70,227 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         )
         workload = autotvm.task.get_workload(outs)
         if workload is None:
+            if impl.name.find("winograd") != -1:
+                if dilation != (1, 1):
+                    logger.warning("Does not support weight pre-transform for dilated convolution.")
+                    return None
+
+                assert (data_layout == "NCHW" and kernel_layout == "OIHW") or (
+                    data_layout == "NHWC" and kernel_layout == "HWIO"
+                )
+                if data_layout == "NCHW":
+                    N, CI, H, W = get_const_tuple(data_tensor.shape)
+                    CO, _, KH, KW = get_const_tuple(kernel_tensor.shape)
+                    weight = inputs[1]
+                else:
+                    N, H, W, CI = get_const_tuple(data_tensor.shape)
+                    KH, KW, _, CO = get_const_tuple(kernel_tensor.shape)
+                    weight = relay.layout_transform(inputs[1], "HWIO", "OIHW")
+
+                # Pre-compute weight transformation in winograd
+                tile_size = infer_tile_size(data_tensor, data_layout)
+
+                # alpha, alpha, CO, CI
+                weight = relay.nn.contrib_conv2d_winograd_weight_transform(
+                    weight, tile_size=tile_size
+                )
+                new_attrs["tile_size"] = tile_size
+                new_attrs["channels"] = CO
+                return relay.nn.contrib_conv2d_winograd_without_weight_transform(
+                    inputs[0], weight, **new_attrs
+                )
             return None
 
         cfg = dispatch_ctx.query(target, workload)
 
     topi_tmpl = workload[0]
+
+    if "conv2d_nchw_winograd" in topi_tmpl:
+        suffix = "_acc32" if "acc32" in topi_tmpl else ""
+        wkl_name = "conv2d_nchw_winograd_without_weight_transform" + suffix + ".image2d"
+        if dilation != (1, 1):
+            logger.warning("Does not support weight pre-transform for dilated convolution.")
+            return None
+
+        tile_size = infer_tile_size(data_tensor, data_layout)
+        if len(data_tensor.shape) == 5:
+            assert data_layout == "NCHW4c" and kernel_layout == "OIHW4o"
+            N, CI, H, W, CB = get_const_tuple(data_tensor.shape)
+            CO, _, KH, KW, COB = get_const_tuple(kernel_tensor.shape)
+            weight = relay.layout_transform(inputs[1], "OIHW4o", "OIHW")
+            weight = relay.nn.contrib_conv2d_winograd_weight_transform(weight, tile_size=tile_size)
+            weight = relay.layout_transform(weight, "HWOI", "HWIO4o")
+
+            new_attrs["tile_size"] = tile_size
+            new_attrs["channels"] = CO * COB
+
+            new_data = data_tensor
+            new_weight = te.placeholder(
+                (KH + tile_size - 1, KW + tile_size - 1, CI * CB, CO, COB),
+                dtype=kernel_tensor.dtype,
+            )
+            new_workload = autotvm.task.args_to_workload(
+                [new_data, new_weight, strides, padding, dilation, out_dtype],
+                wkl_name,
+            )
+            dispatch_ctx.update(target, new_workload, cfg)
+            return relay.nn.contrib_conv2d_winograd_without_weight_transform(
+                inputs[0], weight, **new_attrs
+            )
+
+        assert data_layout == "NCHW" and kernel_layout == "OIHW"
+        N, CI, H, W = get_const_tuple(data_tensor.shape)
+        CO, _, KH, KW = get_const_tuple(kernel_tensor.shape)
+
+        # pre-compute weight transformation in winograd
+        weight = relay.nn.contrib_conv2d_winograd_weight_transform(inputs[1], tile_size=tile_size)
+        weight = relay.transpose(weight, axes=[2, 3, 0, 1])  # HWOI -> OIHW
+        new_attrs["tile_size"] = tile_size
+        new_attrs["channels"] = CO
+
+        # Store the same config for the altered operator (workload)
+        new_data = data_tensor
+        new_weight = te.placeholder(
+            (KH + tile_size - 1, KW + tile_size - 1, CI, CO), dtype=kernel_tensor.dtype
+        )
+        in_channel_block = CI % 4
+        if in_channel_block == 0:
+            in_channel_block = 4
+        num_filter_block = CO % 4
+        if num_filter_block == 0:
+            num_filter_block = 4
+
+        if in_channel_block != 4 or num_filter_block != 4:
+            new_workload = autotvm.task.args_to_workload(
+                [new_data, new_weight, strides, padding, dilation, out_dtype],
+                wkl_name,
+            )
+            dispatch_ctx.update(target, new_workload, cfg)
+            return relay.nn.contrib_conv2d_winograd_without_weight_transform(
+                inputs[0], weight, **new_attrs
+            )
+
+        new_attrs["data_layout"] = "NCHW%dc" % in_channel_block
+        # (oc, ic, h, w) -> (h, w, ic, oc // 4, oc % 4)
+        new_attrs["kernel_layout"] = "HWIO%do" % num_filter_block
+        new_attrs["out_layout"] = "NCHW%dc" % num_filter_block
+        # Store altered operator's config
+        new_data = te.placeholder(
+            (N, CI // in_channel_block, H, W, in_channel_block), dtype=data_dtype
+        )
+        new_weight = te.placeholder(
+            (KH + tile_size - 1, KW + tile_size - 1, CI, CO // num_filter_block, num_filter_block),
+            dtype=kernel_tensor.dtype,
+        )
+        new_workload = autotvm.task.args_to_workload(
+            [
+                new_data,
+                new_weight,
+                strides,
+                padding,
+                dilation,
+                out_dtype,
+            ],
+            wkl_name,
+        )
+        dispatch_ctx.update(target, new_workload, cfg)
+        return relay.nn.contrib_conv2d_winograd_without_weight_transform(
+            inputs[0], weight, **new_attrs
+        )
+
+    if "conv2d_nhwc_winograd" in topi_tmpl:
+        suffix = "_acc32" if "acc32" in topi_tmpl else ""
+        wkl_name = "conv2d_nhwc_winograd_without_weight_transform" + suffix + ".image2d"
+        if dilation != (1, 1):
+            logger.warning("Does not support weight pre-transform for dilated convolution.")
+            return None
+
+        tile_size = infer_tile_size(data_tensor, data_layout)
+        if len(data_tensor.shape) == 5:
+            assert data_layout == "NHWC4c" and kernel_layout == "HWIO4o"
+            N, CI, H, W, CB = get_const_tuple(data_tensor.shape)
+            KH, KW, _, CO, COB = get_const_tuple(kernel_tensor.shape)
+            weight = relay.layout_transform(inputs[1], "HWIO4o", "OIHW")
+            weight = relay.nn.contrib_conv2d_winograd_weight_transform(weight, tile_size=tile_size)
+            weight = relay.layout_transform(weight, "HWOI", "HWIO4o")
+
+            new_attrs["tile_size"] = tile_size
+            new_attrs["channels"] = CO * COB
+
+            new_data = data_tensor
+            new_weight = te.placeholder(
+                (KH + tile_size - 1, KW + tile_size - 1, CI * CB, CO, COB),
+                dtype=kernel_tensor.dtype,
+            )
+            new_workload = autotvm.task.args_to_workload(
+                [new_data, new_weight, strides, padding, dilation, out_dtype],
+                wkl_name,
+            )
+            dispatch_ctx.update(target, new_workload, cfg)
+            return relay.nn.contrib_conv2d_winograd_without_weight_transform(
+                inputs[0], weight, **new_attrs
+            )
+
+        assert data_layout == "NHWC" and kernel_layout == "HWIO"
+        N, H, W, CI = get_const_tuple(data_tensor.shape)
+        KH, KW, _, CO = get_const_tuple(kernel_tensor.shape)
+
+        # pre-compute weight transformation in winograd
+        weight = relay.layout_transform(inputs[1], "HWIO", "OIHW")
+        weight = relay.nn.contrib_conv2d_winograd_weight_transform(weight, tile_size=tile_size)
+        weight = relay.transpose(weight, axes=[0, 1, 3, 2])  # HWOI -> HWIO
+        new_attrs["tile_size"] = tile_size
+        new_attrs["channels"] = CO
+
+        # Store the same config for the altered operator (workload)
+        new_data = data_tensor
+        new_weight = te.placeholder(
+            (KH + tile_size - 1, KW + tile_size - 1, CI, CO), dtype=kernel_tensor.dtype
+        )
+        in_channel_block = CI % 4
+        if in_channel_block == 0:
+            in_channel_block = 4
+        num_filter_block = CO % 4
+        if num_filter_block == 0:
+            num_filter_block = 4
+
+        if in_channel_block != 4 or num_filter_block != 4:
+            new_workload = autotvm.task.args_to_workload(
+                [new_data, new_weight, strides, padding, dilation, out_dtype],
+                wkl_name,
+            )
+            dispatch_ctx.update(target, new_workload, cfg)
+            return relay.nn.contrib_conv2d_winograd_without_weight_transform(
+                inputs[0], weight, **new_attrs
+            )
+
+        new_attrs["data_layout"] = "NHWC%dc" % in_channel_block
+        # (oc, ic, h, w) -> (h, w, ic, oc // 4, oc % 4)
+        new_attrs["kernel_layout"] = "HWIO%do" % num_filter_block
+        new_attrs["out_layout"] = "NHWC%dc" % num_filter_block
+        # Store altered operator's config
+        new_data = te.placeholder(
+            (N, H, W, CI // in_channel_block, in_channel_block), dtype=data_dtype
+        )
+        new_weight = te.placeholder(
+            (KH + tile_size - 1, KW + tile_size - 1, CI, CO // num_filter_block, num_filter_block),
+            dtype=kernel_tensor.dtype,
+        )
+        new_workload = autotvm.task.args_to_workload(
+            [
+                new_data,
+                new_weight,
+                strides,
+                padding,
+                dilation,
+                out_dtype,
+            ],
+            wkl_name,
+        )
+        dispatch_ctx.update(target, new_workload, cfg)
+        return relay.nn.contrib_conv2d_winograd_without_weight_transform(
+            inputs[0], weight, **new_attrs
+        )
 
     if "conv2d_nchwc" in topi_tmpl:  # covers both conv2d_nchwc and depthwise_conv2d_nchwc
         if data_layout == "NCHW" and kernel_layout == "OIHW":
@@ -88,7 +304,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
                 num_filter_block = 4
 
             # no support yet for tensors that cannot be divisible by factor 4
-            if in_channel_block != 4 or num_filter_block != 4:
+            if num_filter_block != 4:
                 return None
 
             batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
@@ -96,16 +312,22 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
             # update new attrs
             new_attrs["channels"] = out_channel
-            new_attrs["data_layout"] = "NCHW%dc" % in_channel_block
+            if in_channel_block == 4:
+                new_attrs["data_layout"] = "NCHW%dc" % in_channel_block
+            else:
+                new_attrs["data_layout"] = "NCHW"
             # (oc, ic, h, w) -> (OC, ic, h, w, oc)
             new_attrs["kernel_layout"] = "OIHW%do" % num_filter_block
             new_attrs["out_layout"] = "NCHW%dc" % num_filter_block
 
             # Store altered operator's config for applying of tuned AutoTVM statistics
-            new_data = te.placeholder(
-                (batch_size, in_channel // in_channel_block, height, width, in_channel_block),
-                dtype=data_dtype,
-            )
+            if in_channel_block == 4:
+                new_data = te.placeholder(
+                    (batch_size, in_channel // in_channel_block, height, width, in_channel_block),
+                    dtype=data_dtype,
+                )
+            else:
+                new_data = data_tensor
             new_kernel = te.placeholder(
                 (out_channel // num_filter_block, in_filter_channel, kh, kw, num_filter_block),
                 dtype=kernel_tensor.dtype,
@@ -145,12 +367,15 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
                 num_filter_block = 4
 
             # no support yet for tensors cannot be divisible by factor 4
-            if in_channel_block != 4 or num_filter_block != 4:
+            if num_filter_block != 4:
                 return None
 
             # update new attrs
             new_attrs["channels"] = out_channles
-            new_attrs["data_layout"] = "NHWC%dc" % in_channel_block
+            if in_channel_block == 4:
+                new_attrs["data_layout"] = "NHWC%dc" % in_channel_block
+            else:
+                new_attrs["data_layout"] = "NHWC"
             # (h, w, ic, oc) -> (h, w, ic, OC, oc)
             if kernel_layout == "HWIO":
                 new_attrs["kernel_layout"] = "HWIO%do" % num_filter_block
@@ -159,16 +384,19 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
             new_attrs["out_layout"] = "NHWC%dc" % num_filter_block
 
             # Store altered operator's config for applying of tuned AutoTVM statistics
-            new_data = te.placeholder(
-                (
-                    batch_size,
-                    in_height,
-                    in_width,
-                    in_channels // in_channel_block,
-                    in_channel_block,
-                ),
-                dtype=data_dtype,
-            )
+            if in_channel_block == 4:
+                new_data = te.placeholder(
+                    (
+                        batch_size,
+                        in_height,
+                        in_width,
+                        in_channels // in_channel_block,
+                        in_channel_block,
+                    ),
+                    dtype=data_dtype,
+                )
+            else:
+                new_data = data_tensor
             if kernel_layout == "HWIO":
                 new_kernel = te.placeholder(
                     (

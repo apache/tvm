@@ -118,11 +118,14 @@ def config_cython():
             subdir = "_cy2"
         ret = []
         path = "tvm/_ffi/_cython"
-        extra_compile_args = ["-std=c++14", "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>"]
+        extra_compile_args = ["-std=c++17", "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>"]
         if os.name == "nt":
             library_dirs = ["tvm", "../build/Release", "../build"]
             libraries = ["tvm"]
-            extra_compile_args = None
+            extra_compile_args = [
+                "/std:c++17",
+                "/D DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>",
+            ]
             # library is available via conda env.
             if CONDA_BUILD:
                 library_dirs = [os.environ["LIBRARY_LIB"]]
@@ -164,18 +167,8 @@ class BinaryDistribution(Distribution):
         return False
 
 
-include_libs = False
-wheel_include_libs = False
-if not CONDA_BUILD:
-    if "bdist_wheel" in sys.argv:
-        wheel_include_libs = True
-    else:
-        include_libs = True
-
 setup_kwargs = {}
-
-# For bdist_wheel only
-if wheel_include_libs:
+if not CONDA_BUILD:
     with open("MANIFEST.in", "w") as fo:
         for path in LIB_LIST:
             if os.path.isfile(path):
@@ -189,12 +182,6 @@ if wheel_include_libs:
                 fo.write(f"recursive-include tvm/{libname} *\n")
 
     setup_kwargs = {"include_package_data": True}
-
-if include_libs:
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    for i, path in enumerate(LIB_LIST):
-        LIB_LIST[i] = os.path.relpath(path, curr_path)
-    setup_kwargs = {"include_package_data": True, "data_files": [("tvm", LIB_LIST)]}
 
 
 def get_package_data_files():
@@ -253,7 +240,7 @@ setup(
 )
 
 
-if wheel_include_libs:
+if not CONDA_BUILD:
     # Wheel cleanup
     os.remove("MANIFEST.in")
     for path in LIB_LIST:

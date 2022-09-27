@@ -23,8 +23,30 @@
  */
 #ifndef TVM_TARGET_LLVM_CODEGEN_LLVM_H_
 #define TVM_TARGET_LLVM_CODEGEN_LLVM_H_
-#include <llvm/IR/GlobalValue.h>
+
 #ifdef TVM_LLVM_VERSION
+
+#include <llvm/ADT/ArrayRef.h>
+#include <llvm/ADT/StringRef.h>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/ConstantFolder.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DerivedTypes.h>
+#if TVM_LLVM_VERSION >= 150
+#include <llvm/IR/FMF.h>
+#else
+#include <llvm/IR/Operator.h>
+#endif
+#include <llvm/IR/GlobalValue.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/Intrinsics.h>
+#include <llvm/Support/Casting.h>
+#if TVM_LLVM_VERSION >= 140
+#include <llvm/MC/TargetRegistry.h>
+#else
+#include <llvm/Support/TargetRegistry.h>
+#endif
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
@@ -47,10 +69,30 @@
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../tir/transforms/ir_utils.h"
-#include "llvm_common.h"
+#include "codegen_params.h"
+
+namespace llvm {
+class Argument;
+class CallInst;
+class Function;
+class GlobalVariable;
+class Instruction;
+class PassManagerBuilder;
+class DIFile;
+class DICompileUnit;
+class MDNode;
+
+// Used in std::unique_ptr
+class Module;
+class DataLayout;
+class DIBuilder;
+class MDBuilder;
+}  // namespace llvm
 
 namespace tvm {
 namespace codegen {
+
+class LLVMTarget;
 
 using namespace tir;
 
@@ -60,12 +102,15 @@ using namespace tir;
 class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
                     public StmtFunctor<void(const Stmt&)> {
  public:
+  CodeGenLLVM();           // Do not make it default here.
+  virtual ~CodeGenLLVM();  // Do not make it default here.
+
   /*!
    * \brief Create new code generator based on target machine.
    * \param tm The target machine
    * \return The created llvm generator.
    */
-  static std::unique_ptr<CodeGenLLVM> Create(llvm::TargetMachine* tm);
+  static std::unique_ptr<CodeGenLLVM> Create(LLVMTarget* llvm_target);
   /*!
    * \brief Initialize the code generator with given context
    * \param module_name The name of the module.
@@ -77,14 +122,14 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param target_c_runtime If true, generate a module to be executed by the C runtime. In practice
    *                       this option influences whether global ctors are used.
    */
-  virtual void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
-                    bool system_lib, bool dynamic_lookup, bool target_c_runtime);
+  virtual void Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
+                    bool dynamic_lookup, bool target_c_runtime);
 
   /*!
    * \brief Turn on fast math flags for floating point operations.
    * \param fmf FastMathFlags to use for code generation.
    */
-  void SetFastMathFlag(llvm::FastMathFlags fmf);
+  void SetFastMathFlags(llvm::FastMathFlags fmf);
 
   /*!
    * \brief Compile and add function f to the current module.
@@ -202,6 +247,12 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
     int alignment{0};
   };
   /*!
+   * \brief Convert tvm::runtime::String into llvm::StringRef
+   */
+  static llvm::StringRef MakeStringRef(const String& string) {
+    return llvm::StringRef(string.c_str(), string.size());
+  }
+  /*!
    * \brief Execute falloca at the beginning of the
    *  currrent function and obtain its return value.
    *
@@ -287,7 +338,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
                                        bool is_volatile)>
           make_instruction);
   // Initialize target
-  virtual void InitTarget(llvm::TargetMachine* tm);
+  virtual void InitTarget();
   // Add module startup function if needed.
   virtual void AddStartupFunction() {}
   // apply optimization on the module.
@@ -344,6 +395,14 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param func The function to set attributes on.
    */
   void SetTargetAttributes(llvm::Function* func);
+  /*!
+   * \brief Emit LLVM IR for conversion functions __extendhfsf2 and __truncsfhf2
+   *        into the current llvm::Module.
+   *
+   * \param use_float16_abi Whether to use floating-point or integer ABI.
+   */
+  void EmitFloat16ConversionBuiltins(bool use_float16_abi);
+
   /*!
    * \brief Get the number of elements in the given vector value.
    * \param vec The value, must be of a vector type.
@@ -423,10 +482,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   std::unique_ptr<llvm::DataLayout> data_layout_;
   // Internal metabuilder
   std::unique_ptr<llvm::MDBuilder> md_builder_;
-  // llvm target machine
-  llvm::TargetMachine* target_machine_{nullptr};
-  // llvm context
-  llvm::LLVMContext* ctx_{nullptr};
+  // llvm target info
+  LLVMTarget* llvm_target_{nullptr};
   // helpful data types
   llvm::Type* t_void_{nullptr};
   llvm::PointerType* t_void_p_{nullptr};
@@ -442,7 +499,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::MDNode* md_tbaa_root_{nullptr};
   llvm::MDNode* md_tbaa_alias_set_{nullptr};
   // modules to be linked.
-  std::vector<std::unique_ptr<llvm::Module> > link_modules_;
+  std::vector<std::unique_ptr<llvm::Module>> link_modules_;
   /*! \brief native vector bits of current targetx*/
   int native_vector_bits_{0};
   /*! \brief the storage scope of allocation */
@@ -475,6 +532,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
 
   /*! \brief Helper struct for debug infos. */
   struct DebugInfo {
+    ~DebugInfo();  // Because of the std::unique_ptr.
     std::unique_ptr<llvm::DIBuilder> di_builder_;
     llvm::DICompileUnit* compilation_unit_{nullptr};
     llvm::DIFile* file_{nullptr};
@@ -513,5 +571,6 @@ void CodeGenLLVM::AddFunctionsOrdered(IterType begin, IterType end, ConvType pfu
 
 }  // namespace codegen
 }  // namespace tvm
-#endif  // LLVM_VERSION
+
+#endif  // TVM_LLVM_VERSION
 #endif  // TVM_TARGET_LLVM_CODEGEN_LLVM_H_

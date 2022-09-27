@@ -145,7 +145,7 @@ void CheckParallelizability(const ScheduleState& self, const For& loop, ForKind 
  */
 void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref, ForKind for_kind,
                             Optional<IterVar> thread_axis) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
 
   /*
    * Check:
@@ -186,7 +186,7 @@ void Bind(ScheduleState self, const StmtSRef& loop_sref, const IterVar& thread_a
 }
 
 void Unroll(ScheduleState self, const StmtSRef& loop_sref) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   ObjectPtr<ForNode> new_loop = make_object<ForNode>(*loop);
   new_loop->kind = ForKind::kUnrolled;
   new_loop->thread_binding = NullOpt;

@@ -2,6 +2,7 @@
 name: "\U0000274C CI Problem"
 about: To help the developers act on these problems, please give us as many details of the CI failure as possible.
 title: "[CI Problem] "
+labels: "needs-triage"
 
 ---
 

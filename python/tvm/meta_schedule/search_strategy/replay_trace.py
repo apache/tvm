@@ -33,15 +33,21 @@ class ReplayTrace(SearchStrategy):
         Number of trials per iteration.
     max_trials_per_task : int
         Total number of trials for one task
+    max_fail_count : int
+        Max number of failures during trace replaying.
     """
 
     num_trials_per_iter: int
     max_trials_per_task: int
+    max_fail_count: int
 
-    def __init__(self, num_trials_per_iter: int, max_trials_per_task: int):
+    def __init__(
+        self, num_trials_per_iter: int, max_trials_per_task: int, max_fail_count: int = 100
+    ):
         """Constructor"""
         self.__init_handle_by_constructor__(
             _ffi_api.SearchStrategyReplayTrace,  # type: ignore # pylint: disable=no-member
             num_trials_per_iter,
             max_trials_per_task,
+            max_fail_count,
         )

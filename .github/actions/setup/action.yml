@@ -8,6 +8,18 @@ runs:
       path: ~/conda_pkgs_dir
       key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('conda/build-environment.yaml') }}
   - uses: conda-incubator/setup-miniconda@v2
+    continue-on-error: true
+    id: conda1
+    with:
+      activate-environment: tvm-build
+      channel-priority: strict
+      environment-file: conda/build-environment.yaml
+      auto-activate-base: false
+      use-only-tar-bz2: true
+      python-version: 3.7
+      condarc-file: conda/condarc
+  - uses: conda-incubator/setup-miniconda@v2
+    if: steps.conda1.outcome == 'failure'
     with:
       activate-environment: tvm-build
       channel-priority: strict

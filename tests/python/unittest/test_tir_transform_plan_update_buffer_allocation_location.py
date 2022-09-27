@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 from tvm.script import tir as T
 
@@ -242,9 +243,107 @@ def test_lower_te():
     )  # PlanAndUpdateBufferAllocationLocation should do nothing on TE
 
 
+def test_loop_carried_dependency():
+    """The buffer allocation should be above opaque iter var's loop scopes
+    such that buffer accesses with loop carried dependencies are covered."""
+
+    @T.prim_func
+    def before(A: T.Buffer[(8, 8, 8), "int32"], B: T.Buffer[(8, 8, 8), "int32"]):
+        C = T.alloc_buffer([8, 8, 8], dtype="int32")
+        for i in T.serial(8):
+            for j in T.serial(8):
+                for k in T.serial(8):
+                    with T.block("b0"):
+                        vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                        C[vi, vj, vk] = A[vi, vj, vk] + 1
+                for k in T.serial(8):
+                    with T.block("b1"):
+                        vi, vk = T.axis.remap("SS", [i, k])
+                        vj = T.axis.opaque(8, j)
+                        B[vi, vj, vk] = C[vi, vj, vk] + T.if_then_else(
+                            0 < vj, C[vi, vj - 1, vk], 0, dtype="int32"
+                        )
+
+    @T.prim_func
+    def after(A: T.Buffer[(8, 8, 8), "int32"], B: T.Buffer[(8, 8, 8), "int32"]) -> None:
+        for i in T.serial(8):
+            with T.block():
+                T.reads(A[i, 0:8, 0:8])
+                T.writes(B[i, 0:8, 0:8])
+                C = T.alloc_buffer([8, 8, 8], dtype="int32")
+                for j in T.serial(8):
+                    for k in T.serial(8):
+                        with T.block("b0"):
+                            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                            C[vi, vj, vk] = A[vi, vj, vk] + 1
+                    for k in T.serial(8):
+                        with T.block("b1"):
+                            vi, vk = T.axis.remap("SS", [i, k])
+                            vj = T.axis.opaque(8, j)
+                            B[vi, vj, vk] = C[vi, vj, vk] + T.if_then_else(
+                                0 < vj, C[vi, vj - 1, vk], 0, dtype="int32"
+                            )
+
+    _check(before, after)
+
+
+def test_1D_cascade_op_rolling_buffer():
+    """The intermediate buffer must be allocated above rolling buffer's rolling loop,
+    which is marked as opaque in consumer block's iter mappings."""
+
+    @T.prim_func
+    def before(A: T.Buffer[(4, 16), "int32"], C: T.Buffer[(4, 8), "int32"]):
+        B = T.alloc_buffer((4, 6), "int32")
+        for c in T.serial(4):
+            for i in T.serial(0, 2):
+                for j in T.serial(0, 6):
+                    for k in T.serial(3):
+                        with T.block("P1"):
+                            T.where(i < 1 or j >= 2)
+                            cc, vi, vj, vk = T.axis.remap("SSSR", [c, i, j, k])
+                            if vk == 0:
+                                B[cc, T.floormod(vi * 4 + vj, 6)] = 0
+                            B[cc, T.floormod(vi * 4 + vj, 6)] = (
+                                B[cc, T.floormod(vi * 4 + vj, 6)] + A[cc, vi * 4 + vj + vk]
+                            )
+                for j in T.serial(0, 4):
+                    for k in T.serial(3):
+                        with T.block("P2"):
+                            vi = T.axis.opaque(2, i)
+                            cc, vj, vk = T.axis.remap("SSR", [c, j, k])
+                            if vk == 0:
+                                C[cc, vi * 4 + vj] = 0
+                            C[cc, vi * 4 + vj] = (
+                                C[cc, vi * 4 + vj] + B[cc, T.floormod(vi * 4 + vj + vk, 6)]
+                            )
+
+    @T.prim_func
+    def after(A: T.Buffer[(4, 16), "int32"], C: T.Buffer[(4, 8), "int32"]):
+        for c in T.serial(4):
+            with T.block():
+                T.reads(A[c, 0:12], C[c, 0:8])
+                T.writes(C[c, 0:8])
+                B = T.alloc_buffer([4, 6], dtype="int32")
+                for i in T.serial(2):
+                    for j, k in T.grid(6, 3):
+                        with T.block("P1"):
+                            T.where(i < 1 or j >= 2)
+                            cc, vi, vj, vk = T.axis.remap("SSSR", [c, i, j, k])
+                            if vk == 0:
+                                B[cc, (vi * 4 + vj) % 6] = 0
+                            B[cc, (vi * 4 + vj) % 6] = (
+                                B[cc, (vi * 4 + vj) % 6] + A[cc, vi * 4 + vj + vk]
+                            )
+                    for j, k in T.grid(4, 3):
+                        with T.block("P2"):
+                            vi = T.axis.opaque(2, i)
+                            cc, vj, vk = T.axis.remap("SSR", [c, j, k])
+                            if vk == 0:
+                                C[cc, vi * 4 + vj] = 0
+                            C[cc, vi * 4 + vj] = C[cc, vi * 4 + vj] + B[cc, (vi * 4 + vj + vk) % 6]
+
+    _check(before, after)
+
+
 if __name__ == "__main__":
-    test_elementwise()
-    test_locate_buffer_allocation()
-    test_match_buffer_allocation()
-    test_opaque_access()
-    test_lower_te()
+    tvm.testing.main()
