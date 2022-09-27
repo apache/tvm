@@ -4481,6 +4481,7 @@ def test_roi_align(target, dev):
 
         node = helper.make_node(
             "RoiAlign",
+            coordinate_transformation_mode="output_half_pixel",
             inputs=["X", "rois", "batch_indices"],
             outputs=["Y"],
             mode=mode,
