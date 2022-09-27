@@ -28,8 +28,9 @@ def generate_nodes(stmt, G, depth, ws="", DEBUG=False): # tir.stmt.___
         g = generate_nodes(stmt.body, g, depth, ws+'|', DEBUG)
         Dprint(ws+' '+str(type(stmt))+' End(%d)'%(depth), DEBUG)
 
-        # Color MISC nodes
-        # g = color_misc_nodes(g, DEBUG)
+        if all([g.nodes[node]['type'] != 'Seq' for node in g.nodes]): # if there is no 'Seq' node in the subgraph
+            g, bool = merge_redundant_nodes(g)
+            if bool: save_graph_viz(g, 'typeNum', 'graph_reduced%d.png'%(depth))
 
         start = max(list(g.nodes))+1
         end = start+1
@@ -49,15 +50,16 @@ def generate_nodes(stmt, G, depth, ws="", DEBUG=False): # tir.stmt.___
             g = nx.DiGraph()
             g = generate_nodes(st, g, depth, ws+str(idx), DEBUG)
 
-            # Color MISC nodes
-            # g = color_misc_nodes(g, DEBUG)
-
             if DEBUG:
                 ## SEQ_DEBUG
                 global SEQ_DEBUG
                 save_graph_viz(g, 'typeNum', 'graph%d.png'%(SEQ_DEBUG))
                 SEQ_DEBUG=SEQ_DEBUG+1
                 ## SEQ_DEBUG
+
+            if all([g.nodes[node]['type'] != 'Seq' for node in g.nodes]): # if there is no 'Seq' node in the subgraph
+                g, bool = merge_redundant_nodes(g)
+                if bool: save_graph_viz(g, 'typeNum', 'graph%d_reduced.png'%(SEQ_DEBUG-1))
 
             glist.append(g)
             acc_node_cnt.append(len(glist[-1].nodes)+acc_node_cnt[idx])
@@ -190,22 +192,22 @@ def visit_EXPR(expr, g, parent, ws, DEBUG): # tir.expr.__
         assert 0
     return g
 
+def merge_redundant_nodes(g):
+    nodes = g.nodes
+    names = [g.nodes[node]['name'] for node in nodes]
+    redundant_names = set([n for n in names if names.count(n)>1])
+    if len(redundant_names)==0:
+        return g, False
 
-def color_misc_nodes(g, DEBUG):
-    misc_nodes = [node for node in g.nodes if g.nodes[node]['slot']=='MISC']
-    while len(misc_nodes):
-        for misc in misc_nodes:
-            parents = list(g.predecessors(misc))
-            if all([g.nodes[parent]['slot'] in ['Scalar', 'Memory', 'Vector'] for parent in parents]):
-                parent_slots = []
-                for parent in parents:
-                    parent_slots.append(g.nodes[parent]['slot'])
-                if all(e == 'Scalar' for e in parent_slots):
-                    g.nodes[misc]['slot'] = 'Scalar' ## (S, S) -> S
-                elif all(e in ['Memory', 'Vector'] for e in parent_slots): ## (M, M), (M, V), (V, V) -> V
-                    g.nodes[misc]['slot'] = 'Vector'
-                else:
-                    raise RuntimeError("MISC node's parents must have same slot type: %s"%(parent_slots))
-                misc_nodes.remove(misc)
-                break
-    return g
+    print("########## Removing Redundant Nodes ##########")
+    [print(rdd_name) for rdd_name in redundant_names]
+
+    rdd_groups = [] # [[nodes with name 'A'], [nodes with name 'B'], ...]
+    for rdd_name in redundant_names:
+        rdd_groups.append([node for node in g.nodes if g.nodes[node]['name']==rdd_name])
+ 
+    for rdd_group in rdd_groups:
+        for rdd in rdd_group[1:]: # Merge all redundant nodes to a single node
+            g = nx.contracted_nodes(g, rdd_group[0], rdd)
+
+    return g, True

@@ -16,10 +16,10 @@ def gen_module(layer):
         data = relay.var("data", shape=[1, 10, 5, 5], dtype="float32") #NCHW
         weight = relay.var("weight", shape=[7, 10, 3, 3], dtype="float32") #OIHW
         Trelay = tvm.relay.nn.conv2d(data, weight, strides=(1,1), padding=(0,0))
-    elif layer == 'dwconv_3x3':
-        data = relay.var("data", shape=[1, 10, 5, 5], dtype="float32") #NCHW8c
-        weight = relay.var("weight", shape=[7, 10, 3, 3], dtype="float32") #OIHW
-        Trelay = tvm.relay.nn.conv2d(data, weight, strides=(1,1), padding=(0,0))
+    elif layer == 'dwconv': # weight(I) == data(C)/groups
+        data = relay.var("data", shape=[1, 12, 7, 7], dtype="float32") #NCHW
+        weight = relay.var("weight", shape=[12, 1, 3, 3], dtype="float32") #OIHW
+        Trelay = tvm.relay.nn.conv2d(data, weight, strides=(1,1), padding=(0,0), groups=12) 
     else:
         raise NotImplementedError("Currently NOT implemented: %s" %(layer))
 
