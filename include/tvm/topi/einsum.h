@@ -56,7 +56,7 @@ using namespace topi::detail;
  *
  * \return the shape of the output.
  */
-Array<PrimExpr> NumpyEinsumShape(const std::string subscripts,
+Array<PrimExpr> InferEinsumShape(const std::string& subscripts,
                                  const std::vector<Array<PrimExpr>>& operands);
 
 /*!

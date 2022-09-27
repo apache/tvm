@@ -338,7 +338,7 @@ Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inputs, std
       name, tag);
 }
 
-Array<PrimExpr> NumpyEinsumShape(const std::string subscripts,
+Array<PrimExpr> InferEinsumShape(const std::string& subscripts,
                                  const std::vector<Array<PrimExpr>>& operands) {
   EinsumEquation equation = EinsumEquation::FromString(subscripts);
   EinsumBuilder einsum_builder = EinsumBuilder(equation, operands);
