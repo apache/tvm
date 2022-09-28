@@ -252,6 +252,8 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     or (data.shape[3] % 2 == 0 and data.dtype == "int16")
                 )
                 and (padding != "SAME" or data.shape[1] % stride_h == data.shape[2] % stride_w == 0)
+                # Ideally we should check that kernel is a Relay constant, but strategy functions
+                # don't have access to the data needed to check this.
             ):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nhwc_dsp),

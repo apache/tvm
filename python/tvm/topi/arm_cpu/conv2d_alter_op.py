@@ -126,7 +126,11 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
     if topi_tmpl == "depthwise_conv2d_nhwc_dsp.arm_cpu":
         assert data_layout == "NHWC" and kernel_layout == "HWOI"
+
+        # We are not able to check if inputs[1] (the kernel) is a constant in the
+        # strategy function, so as a stopgap solution we use an assert here.
         assert isinstance(inputs[1], relay.Constant)
+
         channels = get_const_tuple(data.shape)[3]
         KH, KW, _, _ = get_const_tuple(kernel.shape)
         simd_lanes = num_simd_lanes_per_word(data.dtype)
