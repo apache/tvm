@@ -31,6 +31,7 @@
 #ifndef TVM_RUNTIME_PACK_ARGS_H_
 #define TVM_RUNTIME_PACK_ARGS_H_
 
+#include <tvm/runtime/builtin_fp16.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
 
@@ -135,29 +136,6 @@ enum ArgConvertCode {
   HANDLE_TO_HANDLE
 };
 
-uint as_uint(const float x) {
-    const uint* result = reinterpret_cast<const uint*>(&x);
-    return *result;
-}
-float as_float(const uint x) {
-    const float* result = reinterpret_cast<const float*>(&x);
-    return *result;
-}
-
-// FROM https://stackoverflow.com/questions/1659440/32-bit-to-16-bit-floating-point-conversion by ProjectPhysX
-float half_to_float(const ushort x) { // IEEE-754 16-bit floating-point format (without infinity): 1-5-10, exp-15, +-131008.0, +-6.1035156E-5, +-5.9604645E-8, 3.311 digits
-    const uint e = (x&0x7C00)>>10; // exponent
-    const uint m = (x&0x03FF)<<13; // mantissa
-    const uint v = as_uint((float)m)>>23; // evil log2 bit hack to count leading zeros in denormalized format
-    return as_float((x&0x8000)<<16 | (e!=0)*((e+112)<<23|m) | ((e==0)&(m!=0))*((v-37)<<23|((m<<(150-v))&0x007FE000))); // sign : normalized : denormalized
-}
-ushort float_to_half(const float x) { // IEEE-754 16-bit floating-point format (without infinity): 1-5-10, exp-15, +-131008.0, +-6.1035156E-5, +-5.9604645E-8, 3.311 digits
-    const uint b = as_uint(x)+0x00001000; // round-to-nearest-even: add last bit after truncated mantissa
-    const uint e = (b&0x7F800000)>>23; // exponent
-    const uint m = b&0x007FFFFF; // mantissa; in line below: 0x007FF000 = 0x00800000-0x00001000 = decimal indicator flag - initial rounding
-    return (b&0x80000000)>>16 | (e>112)*((((e-112)<<10)&0x7C00)|m>>13) | ((e<113)&(e>101))*((((0x007FF000+m)>>(125-e))+1)>>1) | (e>143)*0x7FFF; // sign : normalized : denormalized : saturate
-}
-
 inline ArgConvertCode GetArgConvertCode(DLDataType t) {
   ICHECK_EQ(t.lanes, 1U) << "Cannot pass vector type argument to devic function for now";
   if (t.code == kDLInt) {
@@ -208,7 +186,7 @@ inline PackedFunc PackFuncVoidAddr_(F f, const std::vector<ArgConvertCode>& code
         }
         case FLOAT64_TO_FLOAT16: {
           holder[i].v_float32 = (args.values[i].v_float64);
-          holder[i].v_uint16[0] = float_to_half(holder[i].v_float32);
+          holder[i].v_uint16[0] = __gnu_f2h_ieee(holder[i].v_float32);
           addr[i] = &(holder[i]);
           break;
         }
@@ -248,7 +226,8 @@ inline PackedFunc PackFuncNonBufferArg_(F f, int base, const std::vector<ArgConv
           break;
         }
         case FLOAT64_TO_FLOAT16: {
-          holder[i].v_uint16[0] = float_to_half(static_cast<float>(args.values[base + i].v_float64));
+          holder[i].v_uint16[0] =
+              __gnu_f2h_ieee(static_cast<float>(args.values[base + i].v_float64));
           break;
         }
         case HANDLE_TO_HANDLE: {
@@ -300,7 +279,8 @@ inline PackedFunc PackFuncPackedArg_(F f, const std::vector<ArgConvertCode>& cod
           break;
         }
         case FLOAT64_TO_FLOAT16: {
-          *reinterpret_cast<uint16_t*>(ptr) = float_to_half(static_cast<float>(args.values[i].v_float64));
+          *reinterpret_cast<uint16_t*>(ptr) =
+              __gnu_f2h_ieee(static_cast<float>(args.values[i].v_float64));
           ++ptr;
           break;
         }
