@@ -1025,7 +1025,7 @@ RELAY_REGISTER_OP("nn.layer_norm")
                                    NormalizationInferCorrectLayout<LayerNormAttrs>)
     .set_support_level(1)
     .add_type_rel("LayerNorm", LayerNormRel)
-    .set_attr<TOpPattern>("TOpPattern", kOpaque);
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 // group_norm
 TVM_REGISTER_NODE_TYPE(GroupNormAttrs);
