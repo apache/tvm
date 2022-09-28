@@ -51,7 +51,6 @@ using namespace tvm::te;
 inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& beta,
                          const Array<Integer>& axis, double epsilon,
                          std::string name = "T_layer_norm", std::string tag = kInjective) {
-  LOG(WARNING) << gamma.defined() << " " << beta.defined();
   // sum x and x^2
   auto ndim = data->shape.size();
   ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
