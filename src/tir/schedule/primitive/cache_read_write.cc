@@ -196,14 +196,16 @@ Block MakeReIndexStage(const Block& block, CacheStageInfo* info,
   // Step 1: Create block iters, access regions of the reindex block, and accessing indices to the
   // reindex buffer.
   for (const IterVar& iter : block->iter_vars) {
-    Var var("v" + std::to_string(new_block_iters.size()));
+    Var var("v" + std::to_string(new_block_iters.size()), iter->var->dtype);
     bool used = covered.count(iter->var);
-    new_block_iters.push_back(IterVar(/*dom=*/used ? iter->dom : Range::FromMinExtent(0, 1),
-                                      /*var=*/var,
-                                      /*IterVarType=*/kDataPar));
+    new_block_iters.push_back(
+        IterVar(/*dom=*/used ? iter->dom
+                             : Range::FromMinExtent(IntImm(var->dtype, 0), IntImm(var->dtype, 1)),
+                /*var=*/var,
+                /*IterVarType=*/kDataPar));
     if (used) {
       reindex_indices.push_back(var);
-      reindex_region.push_back(Range::FromMinExtent(var, 1));
+      reindex_region.push_back(Range::FromMinExtent(var, IntImm(var->dtype, 1)));
     }
     block_var_replace_map[iter->var] = var;
   }
@@ -254,7 +256,7 @@ Block MakeReIndexStage(const Block& block, CacheStageInfo* info,
   std::vector<Var> loop_vars;         // loop variables
   std::vector<PrimExpr> iter_values;  // bindings in block realize
   for (int i = 0; i < static_cast<int>(block->iter_vars.size()); ++i) {
-    Var loop_var("ax" + std::to_string(loop_vars.size()));
+    Var loop_var("ax" + std::to_string(loop_vars.size()), block->iter_vars[i]->var->dtype);
     loop_vars.push_back(loop_var);
     iter_values.push_back(loop_var);
   }
@@ -920,7 +922,7 @@ class ReIndexRewriter : public StmtExprMutator {
       for (const IterVar& iter : block->iter_vars) {
         if (covered_.count(iter->var)) {
           indices_.push_back(iter->var);
-          region_.push_back(Range::FromMinExtent(iter->var, 1));
+          region_.push_back(Range::FromMinExtent(iter->var, IntImm(iter->var->dtype, 1)));
         }
       }
       Block stmt = Downcast<Block>(StmtExprMutator::VisitStmt_(block));
