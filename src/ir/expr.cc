@@ -118,6 +118,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 FloatImm::FloatImm(DataType dtype, double value, Span span) {
   ICHECK_EQ(dtype.lanes(), 1) << "ValueError: FloatImm can only take scalar.";
+  ICHECK(dtype.is_float()) << "ValueError: FloatImm supports only float, but " << dtype
+                           << " was supplied.";
 
   // check range for float32 and float16 since they have specified range.
   if (!std::isinf(value) && !std::isnan(value)) {
