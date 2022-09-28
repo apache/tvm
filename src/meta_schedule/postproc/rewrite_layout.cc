@@ -56,6 +56,8 @@ class BufferReadPosCollector : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
+    CHECK(cur_realize_.defined()) << "BufferLoad occurred outside of any block";
+
     const Buffer& buffer = op->buffer;
     if (buffers_.count(buffer.get())) {
       Map<Var, PrimExpr> subst_map;
