@@ -203,9 +203,15 @@ def wrap_layer_norm_strategy(topi_compute):
     def _compute_layer_norm(attrs, inputs, out_type):
         axis = attrs.axis
         epsilon = attrs.epsilon
-        # TODO: forward center and scale
-        # TODO: make list of axis more soon
-        return [topi_compute(inputs[0], inputs[1], inputs[2], [axis], epsilon)]
+        return [
+            topi_compute(
+                inputs[0],
+                inputs[1] if attrs.scale else None,
+                inputs[2] if attrs.center else None,
+                [axis],
+                epsilon,
+            )
+        ]
 
     return _compute_layer_norm
 

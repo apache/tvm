@@ -38,7 +38,7 @@ using namespace tvm::te;
 /*!
  * \brief Layer normalization.
  * \param data N-D tensor with shape [d_0, d_1, ..., d_{N-1}]
- * \param gamma K-D tensor with shape [r_0, r_1, ..., r_{K-1}] where K == len(axis) and
+ * \param gamma Optional, K-D tensor with shape [r_0, r_1, ..., r_{K-1}] where K == len(axis) and
  *              d_{axis_k} == r_k
  * \param beta Optional, K-D tensor with shape [r_0, r_1, ..., r_{K-1}] where
  *             d_{axis_k} == r_k
@@ -51,6 +51,7 @@ using namespace tvm::te;
 inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& beta,
                          const Array<Integer>& axis, double epsilon,
                          std::string name = "T_layer_norm", std::string tag = kInjective) {
+  LOG(WARNING) << gamma.defined() << " " << beta.defined();
   // sum x and x^2
   auto ndim = data->shape.size();
   ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
@@ -101,7 +102,9 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
     auto mean = temp_x(non_reduce_indices) / reduce_extent;
     auto var = temp_x2(non_reduce_indices) / reduce_extent - mean * mean;
     auto layer_norm = (data(indices) - mean) * tvm::rsqrt(var + make_const(var->dtype, epsilon));
-    layer_norm = topi::multiply(layer_norm, gamma(reduce_indices));
+    if (gamma.defined()) {
+      layer_norm = topi::multiply(layer_norm, gamma(reduce_indices));
+    }
     if (beta.defined()) {
       layer_norm = topi::add(layer_norm, beta(reduce_indices));
     }
