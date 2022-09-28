@@ -115,11 +115,6 @@ def nc_2048_2d(n, c):
     return [n, c // 2048, te.AXIS_SEPARATOR, c % 2048]
 
 
-def nc_2048c_2d(n, c):
-    """Return index map for nc_2048 2d layout"""
-    return [n, c // 2048, te.AXIS_SEPARATOR, c % 2048]
-
-
 def nhwc_8h8w32c_2d(n, h, w, c):
     """Return index map for nhwc_8h8w32c 2d layout"""
     return [n, h // 8, w // 8, c // 32, te.AXIS_SEPARATOR, h % 8, w % 8, c % 32]
