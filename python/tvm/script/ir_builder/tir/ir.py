@@ -1736,7 +1736,6 @@ __all__ = [
     "func_attr",
     "func_ret",
     "match_buffer",
-    "preflattened_buffer",
     "block",
     "init",
     "where",
