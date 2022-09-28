@@ -30,7 +30,7 @@ directory as the test scripts.
      pytest_plugins = ['tvm.testing.plugin']
 
 """
-import sys
+# import sys
 
 import pytest
 import _pytest
@@ -39,7 +39,7 @@ import tvm
 from tvm.testing import utils
 
 try:
-    from xdist.scheduler.loadscope import LoadScopeScheduling
+    # from xdist.scheduler.loadscope import LoadScopeScheduling
 
     HAVE_XDIST = True
 except ImportError:
@@ -329,47 +329,47 @@ def _parametrize_correlated_parameters(metafunc):
             metafunc.parametrize(names, value_sets, indirect=True, ids=ids)
 
 
-# pytest-xdist isn't required but is used in CI, so guard on its presence
-if HAVE_XDIST:
+# # pytest-xdist isn't required but is used in CI, so guard on its presence
+# if HAVE_XDIST:
 
-    def pytest_xdist_make_scheduler(config, log):
-        """
-        Serialize certain tests for pytest-xdist that have inter-test
-        dependencies
-        """
+#     def pytest_xdist_make_scheduler(config, log):
+#         """
+#         Serialize certain tests for pytest-xdist that have inter-test
+#         dependencies
+#         """
 
-        class TvmTestScheduler(LoadScopeScheduling):
-            """
-            Scheduler to serializer tests
-            """
+#         class TvmTestScheduler(LoadScopeScheduling):
+#             """
+#             Scheduler to serializer tests
+#             """
 
-            def mark_test_pending(self, nodeid):
-                # Empty so it returns a bogus result which is fixed up in
-                # pytest_handlecrashitem in conftest.py
-                print("mark pending")
-                print("mark pending", file=sys.stderr)
-                pass
+#             def mark_test_pending(self, nodeid):
+#                 # Empty so it returns a bogus result which is fixed up in
+#                 # pytest_handlecrashitem in conftest.py
+#                 print("mark pending")
+#                 print("mark pending", file=sys.stderr)
+#                 pass
 
-            def _split_scope(self, nodeid):
-                """
-                Returns a specific string for classes of nodeids
-                """
-                # NOTE: these tests contain inter-test dependencies and must be
-                # serialized
-                items = {
-                    "test_tvm_testing_features": "functional-tests",
-                    "tests/python/unittest/test_crt": "crt-tests",
-                    "tests/python/driver/tvmc": "tvmc-tests",
-                }
+#             def _split_scope(self, nodeid):
+#                 """
+#                 Returns a specific string for classes of nodeids
+#                 """
+#                 # NOTE: these tests contain inter-test dependencies and must be
+#                 # serialized
+#                 items = {
+#                     "test_tvm_testing_features": "functional-tests",
+#                     "tests/python/unittest/test_crt": "crt-tests",
+#                     "tests/python/driver/tvmc": "tvmc-tests",
+#                 }
 
-                for nodeid_pattern, suite_name in items.items():
-                    if nodeid_pattern in nodeid:
-                        print("split 2scope")
-                        print("split 2scope", file=sys.stderr)
-                        return suite_name
+#                 for nodeid_pattern, suite_name in items.items():
+#                     if nodeid_pattern in nodeid:
+#                         print("split 2scope")
+#                         print("split 2scope", file=sys.stderr)
+#                         return suite_name
 
-                print("split scope")
-                print("split scope", file=sys.stderr)
-                return super()._split_scope(nodeid)
+#                 print("split scope")
+#                 print("split scope", file=sys.stderr)
+#                 return super()._split_scope(nodeid)
 
-        return TvmTestScheduler(config, log)
+#         return TvmTestScheduler(config, log)

@@ -331,12 +331,6 @@ def test_cc_reviewers(
     assert f"After filtering existing reviewers, adding: {expected_reviewers}" in proc.stdout
 
 
-def test_something():
-    # assert 1 == 2
-    a = tvm.relay.Var(name_hint="test88")
-    assert a == 2
-
-
 @parameterize_named(
     # Missing expected tvm-ci/branch test
     missing_tvm_ci_branch=dict(

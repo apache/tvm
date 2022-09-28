@@ -115,25 +115,26 @@ def pytest_sessionstart():
         request_hook.init()
 
 
-if HAVE_XDIST:
-    @pytest.hookimpl(hookwrapper=True)
-    def pytest_handlecrashitem(crashitem, report, sched):
-        print("yielding")
-        print("yielding", file=sys.stderr)
-        # run the other pytest_handlecrashitem hooks
-        yield
+# if HAVE_XDIST:
 
-        print("otucome")
-        print("otucome", file=sys.stderr)
+#     @pytest.hookimpl(hookwrapper=True)
+#     def pytest_handlecrashitem(crashitem, report, sched):
+#         print("yielding")
+#         print("yielding", file=sys.stderr)
+#         # run the other pytest_handlecrashitem hooks
+#         yield
 
-        # override the 'rerun' result from pytest-rerunfailures
-        report.outcome = "failed"
+#         print("otucome")
+#         print("otucome", file=sys.stderr)
 
-        print("longre")
-        print("longre", file=sys.stderr)
+#         # override the 'rerun' result from pytest-rerunfailures
+#         report.outcome = "failed"
 
-        # there doesn't seem to be a good way to extract the segfault backtrace here
-        report.longrepr += "\nThis is likely due to a segfault. See the test run logs for details."
+#         print("longre")
+#         print("longre", file=sys.stderr)
 
-        print("returning")
-        print("returning", file=sys.stderr)
+#         # there doesn't seem to be a good way to extract the segfault backtrace here
+#         report.longrepr += "\nThis is likely due to a segfault. See the test run logs for details."
+
+#         print("returning")
+#         print("returning", file=sys.stderr)
