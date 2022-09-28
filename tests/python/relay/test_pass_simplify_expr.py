@@ -517,6 +517,17 @@ def test_concretize_broadcast_to_like():
     assert tvm.ir.structural_equal(actual, expected)
 
 
+def test_concretize_cast_like():
+    dim_any = tvm.tir.Any()
+    data = relay.var("data", shape=(3, dim_any, 5), dtype="float32")
+    dtype_like = relay.var("dtype_like", shape=(dim_any, 3, 3), dtype="int32")
+    expr = relay.cast_like(data, dtype_like)
+
+    expected = run_infer_type(relay.cast(data, "int32"))
+    actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
+    assert tvm.ir.structural_equal(actual, expected)
+
+
 def test_concretize_multiple():
     x = relay.var("x", shape=(2, 3), dtype="float32")
     y = relay.var("y", shape=(3,), dtype="float32")

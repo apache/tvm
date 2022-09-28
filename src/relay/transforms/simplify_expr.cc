@@ -565,6 +565,36 @@ class ConcretizeBroadcastToLikeRewrite : public ConcretizeLikeRewrite {
   }
 };
 
+/*!
+ * \brief Converts cast_like operator to cast. Not inheriting from ConcretizeLikeRewrite
+ * because even if shape is not static, still can concretize.
+ */
+class ConcretizeCastLikeRewrite : public DFPatternRewrite {
+ public:
+  ConcretizeCastLikeRewrite() {
+    data_pat_ = IsWildcard();
+    like_pat_ = IsWildcard();
+    pattern_ = IsOp("cast_like")({data_pat_, like_pat_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    const CallNode* call_node = pre.as<CallNode>();
+    ICHECK(call_node);
+
+    if (!call_node->checked_type().as<TensorTypeNode>()) {
+      return post;
+    }
+
+    const TensorTypeNode* like_ty = pre->checked_type().as<TensorTypeNode>();
+    return MakeCast(node_map[data_pat_][0], like_ty->dtype);
+  }
+
+ protected:
+  DFPattern data_pat_;
+  DFPattern like_pat_;
+};
+
 /*! \brief Eliminates expressions that are equivalent to identity. */
 class EliminateIdentityRewrite : public DFPatternRewrite {
  public:
@@ -762,6 +792,7 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<ConcretizeReshapeLikeRewrite>();
   composer.AddRewrite<ConcretizeCollapseSumLikeRewrite>();
   composer.AddRewrite<ConcretizeBroadcastToLikeRewrite>();
+  composer.AddRewrite<ConcretizeCastLikeRewrite>();
   composer.AddRewrite<SimplifyRSqrt>();
   composer.AddRewrite<EliminateIdentityRewrite>();
   composer.AddRewrite<SimplifyReshape>();
