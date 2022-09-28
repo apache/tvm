@@ -440,7 +440,7 @@ class TestErrorIfPaddingForbidden(BasePaddingCompare):
 class TestErrorOnWrongPaddingType(BasePaddingCompare):
     """The padding must have the same dtype as the buffer"""
 
-    pad_value = tvm.testing.parameter(0.5)
+    pad_value = tvm.testing.parameter(tir.IntImm("int8", 0))
 
     def before():
         A = T.alloc_buffer(14, "int32")
