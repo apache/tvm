@@ -2443,7 +2443,7 @@ class Schedule(Object):
         block: Union[BlockRV, str],
         buffer: Union[Tuple[str, int], str, Buffer],
         index_map: Union[IndexMap, Callable],
-        pad_value: Optional[Union[int, float, IndexMap, Callable]] = None,
+        pad_value: Optional[Union[int, float, PrimExpr, IndexMap, Callable]] = None,
     ) -> None:
         """Apply a transformation represented by IndexMap to buffer
 
@@ -2572,6 +2572,14 @@ class Schedule(Object):
         elif callable(pad_value):
             pad_value = IndexMap.from_func(pad_value, ndim=len(index_map.final_indices))
         elif not isinstance(pad_value, IndexMap):
+            # Explicitly convert python int/float arguments to the
+            # buffer's type.  If the default `tvm.runtime.convert`
+            # behavior is applied, these would be converted to
+            # int32/float32, which may not match the buffer's type.
+            if isinstance(pad_value, int):
+                pad_value = IntImm(buffer_obj.dtype, pad_value)
+            elif isinstance(pad_value, float):
+                pad_value = FloatImm(buffer_obj.dtype, pad_value)
             pad_value = IndexMap.from_func(
                 lambda *indices: pad_value, ndim=len(index_map.final_indices)
             )
