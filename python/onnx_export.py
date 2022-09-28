@@ -103,13 +103,16 @@ if __name__ == '__main__':
         ir_text = mod.astext(show_meta_data=True)
         print(ir_text)
 
-        with open(os.path.join("./", args.model_name + ".rir"), "w") as irf:
+        with open(os.path.join("./", args.model_name + ".txt"), "w") as irf:
             irf.write(ir_text)
         params_bytes = relay.save_param_dict(params)
         with open(os.path.join("./", args.model_name+".params"), "wb") as pf:
             pf.write(params_bytes)
         # mod = tvm.parser.fromtext(ir_text)
         print(mod)
+
+        if args.relay_only:
+            exit(0)
 
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build_module.build(mod, target=target, params=params)
