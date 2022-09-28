@@ -1856,7 +1856,6 @@ class CompareBeforeAfter:
         if hasattr(cls, "expected"):
             cls.expected = cls._normalize_expected(cls.expected)
         if hasattr(cls, "transform"):
-            cls._transform_orig = cls.transform
             cls.transform = cls._normalize_transform(cls.transform)
 
     @classmethod
@@ -1916,7 +1915,7 @@ class CompareBeforeAfter:
                 # pylint: disable=unused-argument
                 return func
 
-            return pytext.fixture(inner)
+            return pytest.fixture(inner)
 
         else:
             return cls._normalize_ir_module(func)
@@ -1937,6 +1936,9 @@ class CompareBeforeAfter:
             return inner
 
         if hasattr(transform, "_pytestfixturefunction"):
+
+            if not hasattr(cls, "_transform_orig"):
+                cls._transform_orig = transform
 
             def inner(self, _transform_orig):
                 # pylint: disable=unused-argument
