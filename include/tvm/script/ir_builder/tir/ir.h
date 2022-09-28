@@ -115,26 +115,6 @@ Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape, DataType dtype = Data
                    Array<IntImm> axis_separators = {});
 
 /*!
- * \brief The pre-flattened buffer statement.
- * \param postflattened_buffer The original buffer to be flattened.
- * \param shape The type of the buffer prior to flattening.
- * \param dtype The data type in the content of the buffer.
- * \param data The pointer to the head of the data.
- * \param strides The strides of each dimension.
- * \param elem_offset The offset in terms of number of dtype elements (including lanes).
- * \param storage_scope The optional storage scope of buffer data pointer.
- * \param align The alignment requirement of data pointer in bytes.
- * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
- */
-void PreflattenedBuffer(Buffer postflattened_buffer, Array<PrimExpr> shape,
-                        DataType dtype = DataType::Float(32), Optional<Var> data = NullOpt,
-                        Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
-                        String storage_scope = "global", int align = -1, int offset_factor = 0,
-                        String buffer_type = "default", Array<IntImm> axis_separators = {});
-
-/*!
  * \brief The block declaration statement.
  * \param name The name of the block.
  * \param no_realize The flag whether to construct BlockRealize or Block.

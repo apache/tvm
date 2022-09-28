@@ -58,7 +58,6 @@ PrimFuncFrame PrimFunc() {
   n->args.clear();
   n->ret_type = NullOpt;
   n->buffer_map.clear();
-  n->preflattened_buffer_map.clear();
   n->attrs = NullOpt;
   n->env_threads.clear();
   n->root_alloc_buffers.clear();
@@ -135,26 +134,6 @@ Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape, DataType dtype, Optio
     LOG(FATAL) << "ValueError: Unexpected type for TIR MatchBuffer.";
   }
   return buffer;
-}
-
-void PreflattenedBuffer(Buffer postflattened_buffer, Array<PrimExpr> shape, DataType dtype,
-                        Optional<Var> data, Array<PrimExpr> strides, PrimExpr elem_offset,
-                        String storage_scope, int align, int offset_factor, String buffer_type_str,
-                        Array<IntImm> axis_separators) {
-  PrimFuncFrame frame = FindPrimFuncFrame("T.preflattened_buffer");
-  for (auto const& p : frame->buffer_map) {
-    if (p.second.same_as(postflattened_buffer)) {
-      String buffer_name(postflattened_buffer->name + "_preflatten");
-      Buffer buffer =
-          BufferDecl(shape, dtype, buffer_name, data.value_or(p.second->data), strides, elem_offset,
-                     storage_scope, align, offset_factor, buffer_type_str, axis_separators);
-      details::Namer::Name(buffer, buffer_name);
-      frame->preflattened_buffer_map.Set(p.first, buffer);
-      return;
-    }
-  }
-  LOG(FATAL) << "ValueError: postflattened buffer " << postflattened_buffer->name
-             << " does not exist.";
 }
 
 BlockFrame Block(String name, bool no_realize) {
@@ -595,7 +574,6 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.FuncName").set_body_typed(FuncName);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.FuncAttrs").set_body_typed(FuncAttrs);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.FuncRet").set_body_typed(FuncRet);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.MatchBuffer").set_body_typed(MatchBuffer);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.PreflattenedBuffer").set_body_typed(PreflattenedBuffer);
 
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Block").set_body_typed(Block);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Init").set_body_typed(Init);

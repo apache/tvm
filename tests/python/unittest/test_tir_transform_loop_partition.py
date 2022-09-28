@@ -622,9 +622,9 @@ def test_condition_mutually_exclusive():
 
 def test_loop_partition_unroll_hint():
     @T.prim_func
-    def main(A: T.Buffer[150528, "int8"], B: T.Buffer[25088, "int8"]) -> None:
-        T.preflattened_buffer(A, [1, 3, 224, 224], "int8", data=A.data)
-        T.preflattened_buffer(B, [1, 224, 7, 16], "int8", data=B.data)
+    def main(A: T.Buffer[[1, 3, 224, 224], "int8"], B: T.Buffer[[1, 224, 7, 16], "int8"]) -> None:
+        A = T.buffer_decl(150528, "int8", data=A.data)
+        B = T.buffer_decl(25088, "int8", data=B.data)
         for ax0 in T.serial(
             112,
             annotations={"pragma_loop_partition_hint": True},
@@ -634,9 +634,11 @@ def test_loop_partition_unroll_hint():
                     B[ax1 * 112 + ax2 * 16 + ax3] = A[ax3 * 50176 + ax1 * 224 + ax0 * 2 + ax2 - 3]
 
     @T.prim_func
-    def partitioned_main(A: T.Buffer[150528, "int8"], B: T.Buffer[25088, "int8"]) -> None:
-        T.preflattened_buffer(A, [1, 3, 224, 224], dtype="int8", data=A.data)
-        T.preflattened_buffer(B, [1, 224, 7, 16], dtype="int8", data=B.data)
+    def partitioned_main(
+        A: T.Buffer[[1, 3, 224, 224], "int8"], B: T.Buffer[[1, 224, 7, 16], "int8"]
+    ) -> None:
+        A = T.buffer_decl(150528, dtype="int8", data=A.data)
+        B = T.buffer_decl(25088, dtype="int8", data=B.data)
         # body
         for ax1, ax2, ax3 in T.grid(224, 7, 16):
             if 3 <= ax2 and ax3 < 3:
