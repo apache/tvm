@@ -102,7 +102,7 @@ def partition_for_ethosn(mod, params=None, **opts):
         raise ValueError("When targeting Ethos(TM)-N78, -variant=n78 should be set.")
 
     api_version = ethosn_api_version()
-    supported_api_versions = ["3.0.1", "3.1.0"]
+    supported_api_versions = ["3.1.0"]
     if all(api_version != LooseVersion(exp_ver) for exp_ver in supported_api_versions):
         raise ValueError(
             f"Driver stack version {api_version} is unsupported. "
