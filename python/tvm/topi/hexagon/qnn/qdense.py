@@ -22,12 +22,18 @@ from tvm.topi import tag
 from ..utils import get_layout_transform_fn
 
 
-def qdense_compute(tensor_a, tensor_b,
-                   zero_A, scale_A,
-                   zero_B, scale_B,
-                   zero_out=None, scale_out=None,
-                   bias=None,
-                   q_dtype=None):
+def qdense_compute(
+    tensor_a,
+    tensor_b,
+    zero_A,
+    scale_A,
+    zero_B,
+    scale_B,
+    zero_out=None,
+    scale_out=None,
+    bias=None,
+    q_dtype=None,
+):
     """Hexagon's implementation of a sliced dense operator in Topi.
     Uses matmul.
 

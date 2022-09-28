@@ -28,6 +28,7 @@ import tvm.topi.hexagon.qnn as qnn
 import tvm.topi.hexagon.slice_ops as sl
 from ..infrastructure import allocate_hexagon_array, transform_numpy, quantize_np
 
+
 @tvm.testing.fixture
 def input_np(input_shape, dtype):
     if "int" in dtype:
@@ -51,9 +52,7 @@ def input_quant(input_np, dtype):
     if "float" in dtype:
         return None
     quant, scale, zp = quantize_np(input_np, dtype)
-    return {"zero": zp,
-            "scale": scale,
-            "data": quant}
+    return {"zero": zp, "scale": scale, "data": quant}
 
 
 @tvm.testing.fixture
@@ -61,9 +60,8 @@ def weight_quant(weight_np, dtype):
     if "float" in dtype:
         return None
     quant, scale, zp = quantize_np(weight_np, "int8")
-    return {"zero": zp,
-            "scale": scale,
-            "data": quant}
+    return {"zero": zp, "scale": scale, "data": quant}
+
 
 @tvm.testing.fixture
 def bias_np(bias_shape, bias, dtype):
@@ -88,6 +86,7 @@ def quant_arr(input_quant, weight_quant):
 @tvm.testing.fixture
 def transformed_expected_output_np(expected_output_np, layout):
     return transform_numpy(expected_output_np, "nc", layout)
+
 
 @tvm.testing.fixture
 def transformed_input_np(input_np, layout):
@@ -119,7 +118,7 @@ def transformed_input_quant(input_quant, layout):
 # bias_enabled in (true, false)
 class TestDenseSlice:
     (input_shape, output_shape, layout, bias, dtype,) = tvm.testing.parameters(
-        ( # Float 16
+        (  # Float 16
             [1, 1024],
             [1, 1024],
             "nc-1024c-2d",
@@ -147,7 +146,7 @@ class TestDenseSlice:
             True,
             "float16",
         ),
-        ( # Uint 8
+        (  # Uint 8
             [1, 2048],
             [1, 2048],
             "nc-2048c-2d",
@@ -175,7 +174,7 @@ class TestDenseSlice:
             True,
             "uint8",
         ),
-        ( # Int 8
+        (  # Int 8
             [1, 2048],
             [1, 2048],
             "nc-2048c-2d",
@@ -212,7 +211,7 @@ class TestDenseSlice:
             weight_np,
             bias_np,
             use_bias=bias,
-            out_dtype="float32" if "int" in str(input_np.dtype) else input_np.dtype
+            out_dtype="float32" if "int" in str(input_np.dtype) else input_np.dtype,
         )
         return ref_np
 
@@ -253,7 +252,8 @@ class TestDenseSlice:
         W = te.placeholder(
             (output_shape[-1], input_shape[-1]),
             name="W",
-            dtype="int8" if dtype=="uint8" else dtype)
+            dtype="int8" if dtype == "uint8" else dtype,
+        )
         args = [A, W]
         tensors = [A, W]
 
@@ -341,13 +341,9 @@ class TestDenseSlice:
 
         # TODO(joshherr-quic): Investigate ways to improve accuracy
         if "int" in dtype:
-            np.testing.assert_allclose(
-                output_np, transformed_expected_output_np, rtol=1e-1, atol=0
-                )
+            np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=1e-1, atol=0)
         elif "float" in dtype:
-            np.testing.assert_allclose(
-                output_np, transformed_expected_output_np, rtol=1e-1, atol=0
-                )
+            np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=1e-1, atol=0)
 
 
 if __name__ == "__main__":
