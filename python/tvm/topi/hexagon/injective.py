@@ -21,20 +21,20 @@ import tvm
 
 import numpy as np
 
+
 def sqrt(x, dtype):
     """Computes square root of value
 
-       x: tensor
-       -----
-       return: tensor
+    x: tensor
+    -----
+    return: tensor
     """
 
     if dtype == "uint8" or dtype == "int8":
-        return tvm.te.compute((x.shape),
-                              lambda *i: tvm.tir.sqrt(x[i]),
-                              name="sqrt")
+        return tvm.te.compute((x.shape), lambda *i: tvm.tir.sqrt(x[i]), name="sqrt")
     else:
         exit("Currently unsupported")
+
 
 def negative(x, dtype):
     """Take negation of input x.
@@ -51,6 +51,7 @@ def negative(x, dtype):
     """
     # pylint: disable=unnecessary-lambda
     return tvm.te.compute(x.shape, lambda *i: -x(*i), name="negative")
+
 
 def schedule_injective(outs):
     """Schedule for injective op.
