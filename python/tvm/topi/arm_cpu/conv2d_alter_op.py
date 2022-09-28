@@ -129,7 +129,9 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
         # We are not able to check if inputs[1] (the kernel) is a constant in the
         # strategy function, so as a stopgap solution we use an assert here.
-        assert isinstance(inputs[1], relay.Constant)
+        assert isinstance(
+            inputs[1], relay.Constant
+        ), "depthwise_conv2d_nhwc_dsp.arm_cpu requires kernel be a relay Constant"
 
         channels = get_const_tuple(data.shape)[3]
         KH, KW, _, _ = get_const_tuple(kernel.shape)
