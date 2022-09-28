@@ -242,7 +242,7 @@ def main(args):
                     max_id = face_names[i]
                 print(face_names[i] + " : " + str(correctness))
             text = "{:.4f}".format(max_val)
-            if max_val > 0.15:
+            if max_val > 0.25:
                 cv2.putText(img_raw, max_id, (b[0], b[1] + 24), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
             else:
                 cv2.putText(img_raw, "unknown", (b[0], b[1] + 24), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
