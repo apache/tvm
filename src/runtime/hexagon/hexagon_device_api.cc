@@ -91,6 +91,8 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
 
   const size_t typesize = (dtype.bits / 8) * dtype.lanes;
 
+  CHECK(runtime_hexbuffs) << "AllocateHexagonBuffer - no runtime_hexbuffs"; // jlsfix
+
   if (ndim == 0) {
     // Allocate storage for a single scalar value.
     return mgr->AllocateHexagonBuffer(typesize, kHexagonAllocAlignment, mem_scope);
@@ -116,12 +118,29 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignme
   if (alignment < kHexagonAllocAlignment) {
     alignment = kHexagonAllocAlignment;
   }
+  if (runtime_hexbuffs == nullptr) // jlsfix
+  {
+    static int count = 0;
+    if (count > 0)
+    {
+      void* ptr = mgr->AllocateHexagonBuffer(nbytes, alignment, String("global"));
+      LOG(INFO) << "jlsfix AllocateHexagonBuffer nbytes: " << nbytes << " ptr: " << ptr;
+      (void) runtime_hexbuffs->empty();
+      CHECK(runtime_hexbuffs) << "jlsfix STOP SECOND";
+      return ptr;
+    }
+    count++;
+  }
   return mgr->AllocateHexagonBuffer(nbytes, alignment, String("global"));
 }
 
 void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
   CHECK(ptr) << "buffer pointer is null";
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
+  if (runtime_hexbuffs == nullptr) // jlsfix
+  {
+    LOG(INFO) << "jlsfix FreeHexagonBuffer ptr: " << ptr;
+  }
   mgr->FreeHexagonBuffer(ptr);
 }
 
