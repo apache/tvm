@@ -2982,7 +2982,7 @@ InferCorrectLayoutOutput SplitInferCorrectLayout(const Attrs& attrs,
 
   // If new_in_layouts are defined, this code tries to modify the layout.
   if (new_in_layouts.defined() && old_in_layouts.defined()) {
-    bool dividable = true;
+    bool divisible = true;
     const auto& sp_dim = old_in_layouts[0][axis];
     auto new_index = new_in_layouts[0].IndexOf(sp_dim);
     param->axis = new_index;
@@ -2995,15 +2995,15 @@ InferCorrectLayoutOutput SplitInferCorrectLayout(const Attrs& attrs,
           const IntImmNode* vint = v.as<IntImmNode>();
           new_ios.push_back(vint->value / factor);
           if (vint->value % factor) {
-            dividable = false;
+            divisible = false;
           }
         }
-        if (dividable) {
+        if (divisible) {
           param->indices_or_sections = new_ios;
         }
       }
     }
-    if (dividable) {
+    if (divisible) {
       ret = new_in_layouts[0];
     } else {
       ret = old_in_layouts[0];
