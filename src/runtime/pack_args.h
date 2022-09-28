@@ -136,10 +136,12 @@ enum ArgConvertCode {
 };
 
 uint as_uint(const float x) {
-    return reinterpret_cast<uint>(x);
+    const uint* result = reinterpret_cast<const uint*>(&x);
+    return *result;
 }
 float as_float(const uint x) {
-    return reinterpret_cast<float>(x);
+    const float* result = reinterpret_cast<const float*>(&x);
+    return *result;
 }
 
 // FROM https://stackoverflow.com/questions/1659440/32-bit-to-16-bit-floating-point-conversion by ProjectPhysX
