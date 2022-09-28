@@ -171,8 +171,7 @@ TEST_F(HexagonDeviceAPITest, thread_manager) {
   HexagonThreadManager* threads = hexapi->ThreadManager();
   CHECK(threads != nullptr);
   hexapi->ReleaseResources();
-  threads = hexapi->ThreadManager();
-  CHECK(threads == nullptr);
+  EXPECT_THROW(hexapi->ThreadManager(), InternalError);
   hexapi->AcquireResources();
 }
 
@@ -182,7 +181,6 @@ TEST_F(HexagonDeviceAPITest, user_dma) {
   HexagonUserDMA* user_dma = hexapi->UserDMA();
   CHECK(user_dma != nullptr);
   hexapi->ReleaseResources();
-  user_dma = hexapi->UserDMA();
-  CHECK(user_dma == nullptr);
+  EXPECT_THROW(hexapi->UserDMA(), InternalError);
   hexapi->AcquireResources();
 }
