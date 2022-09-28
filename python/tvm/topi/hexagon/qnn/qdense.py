@@ -25,10 +25,10 @@ from ..utils import get_layout_transform_fn
 def qdense_compute(
     tensor_a,
     tensor_b,
-    zero_A,
-    scale_A,
-    zero_B,
-    scale_B,
+    zero_a,
+    scale_a,
+    zero_b,
+    scale_b,
     zero_out=None,
     scale_out=None,
     bias=None,
@@ -70,10 +70,10 @@ def qdense_compute(
 
     k = te.reduce_axis((0, in_dim), name="k")
     compute_lambda = lambda n, m: te.sum(
-        scale_A
-        * (tensor_a[n, k].astype("float32") - zero_A)
-        * scale_B
-        * (tensor_b[m, k].astype("float32") - zero_B),
+        scale_a
+        * (tensor_a[n, k].astype("float32") - zero_a)
+        * scale_b
+        * (tensor_b[m, k].astype("float32") - zero_b),
         axis=k,
     )
     compute_name = "qmatmul_sliced"
