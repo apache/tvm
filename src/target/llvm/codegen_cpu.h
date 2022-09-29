@@ -164,6 +164,7 @@ class CodeGenCPU : public CodeGenLLVM {
   // if not directly finalize function and pass on return code.
   // return the end block after the check
   llvm::BasicBlock* CheckCallSuccess(llvm::Value* retcode);
+  llvm::DISubprogram* CreateDebugFunction(const PrimFunc& f);
   // Context for injection lookup
   llvm::GlobalVariable* gv_mod_ctx_{nullptr};
   llvm::GlobalVariable* gv_tvm_func_call_{nullptr};

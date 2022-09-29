@@ -124,7 +124,7 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& prim_func) {
     for (const auto& it : op->attrs->dict) {
       attr_docs.push_back(Doc::StrLiteral(it.first) << ": " << Print(it.second));
     }
-    attr_doc << Doc::NewLine() << "attr = {" << PrintSep(attr_docs, Doc::Text(", ")) << "}";
+    attr_doc << NewLine() << "attr = {" << PrintSep(attr_docs, Doc::Text(", ")) << "}";
     doc << Doc::Indent(2, attr_doc);
   }
 
@@ -136,8 +136,8 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& prim_func) {
       const Buffer buf = op->buffer_map[v];
       buffer_docs.push_back(BufferNode2Doc(buf.get(), Print(buf)));
     }
-    buffer_doc << Doc::NewLine() << "buffers = {";
-    buffer_doc << PrintSep(buffer_docs, Doc::Indent(11, Doc::Text(",") << Doc::NewLine()));
+    buffer_doc << NewLine() << "buffers = {";
+    buffer_doc << PrintSep(buffer_docs, Doc::Indent(11, Doc::Text(",") << NewLine()));
     doc << Doc::Indent(2, buffer_doc) << "}";
   }
 
@@ -149,26 +149,28 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& prim_func) {
       buffer_map_doc.push_back(Print(v) << ": " << Print(buf));
     }
     doc << Doc::Indent(
-        2, Doc::NewLine() << "buffer_map = {" << PrintSep(buffer_map_doc, Doc::Text(", ")) << "}");
+        2, NewLine() << "buffer_map = {" << PrintSep(buffer_map_doc, Doc::Text(", ")) << "}");
   }
 
   doc << PrintBody(op->body);
   return doc;
 }
 
+Doc TIRTextPrinter::NewLine() { return Doc::NewLine(); }
+
 Doc TIRTextPrinter::PrintIRModule(const IRModule& module) {
   const auto* op = module.operator->();
   Doc doc;
 
   Doc body;
-  body << Doc::NewLine();
+  body << NewLine();
   std::vector<Doc> functions;
   for (auto it = op->functions.begin(); it != op->functions.end(); ++it) {
     if ((*it).second.as<PrimFuncNode>()) {
       functions.push_back(Print((*it).second));
     }
   }
-  body << TIRTextPrinter::PrintSep(functions, Doc::NewLine() << Doc::NewLine());
+  body << TIRTextPrinter::PrintSep(functions, NewLine() << NewLine());
   doc << Doc::Indent(0, body);
   return doc;
 }
@@ -451,7 +453,7 @@ Doc TIRTextPrinter::VisitExpr_(const ReduceNode* op) {
 
 Doc TIRTextPrinter::VisitStmt_(const LetStmtNode* op) {
   Doc doc;
-  doc << "let " << Print(op->var) << " = " << Print(op->value) << Doc::NewLine() << Print(op->body);
+  doc << "let " << Print(op->var) << " = " << Print(op->value) << NewLine() << Print(op->body);
   return doc;
 }
 
@@ -463,14 +465,14 @@ Doc TIRTextPrinter::VisitStmt_(const AttrStmtNode* op) {
   if (op->body->IsInstance<SeqStmtNode>()) {
     doc << PrintBody(op->body);
   } else {
-    doc << ";" << Doc::NewLine() << Print(op->body);
+    doc << ";" << NewLine() << Print(op->body);
   }
   return doc;
 }
 
 Doc TIRTextPrinter::VisitStmt_(const AssertStmtNode* op) {
   Doc doc;
-  doc << "assert(" << Print(op->condition) << ", " << Print(op->message) << ")" << Doc::NewLine()
+  doc << "assert(" << Print(op->condition) << ", " << Print(op->message) << ")" << NewLine()
       << Print(op->body);
   return doc;
 }
@@ -529,7 +531,7 @@ Doc TIRTextPrinter::VisitStmt_(const AllocateNode* op) {
   if (op->body->IsInstance<SeqStmtNode>()) {
     doc << PrintBody(op->body);
   } else {
-    doc << ";" << Doc::NewLine() << Print(op->body);
+    doc << ";" << NewLine() << Print(op->body);
   }
   return doc;
 }
@@ -542,7 +544,7 @@ Doc TIRTextPrinter::VisitStmt_(const AllocateConstNode* op) {
   if (op->body->IsInstance<SeqStmtNode>()) {
     doc << PrintBody(op->body);
   } else {
-    doc << ";" << Doc::NewLine() << Print(op->body);
+    doc << ";" << NewLine() << Print(op->body);
   }
   return doc;
 }
@@ -550,11 +552,11 @@ Doc TIRTextPrinter::VisitStmt_(const AllocateConstNode* op) {
 Doc TIRTextPrinter::VisitStmt_(const DeclBufferNode* op) {
   Doc doc;
   doc << AllocBuf(op->buffer) << " = decl_buffer(" << Print(op->buffer->data) << ", "
-      << PrintDType(op->buffer->dtype) << ", " << Print(op->buffer->shape) << ")" << Doc::NewLine();
+      << PrintDType(op->buffer->dtype) << ", " << Print(op->buffer->shape) << ")" << NewLine();
   if (op->body->IsInstance<SeqStmtNode>()) {
     doc << PrintBody(op->body);
   } else {
-    doc << ";" << Doc::NewLine() << Print(op->body);
+    doc << ";" << NewLine() << Print(op->body);
   }
   return doc;
 }
@@ -572,9 +574,9 @@ Doc TIRTextPrinter::VisitStmt_(const SeqStmtNode* op) {
   std::vector<Doc> stmts;
   Doc seq_doc, doc;
   for (Stmt stmt : op->seq) {
-    seq_doc << Doc::NewLine() << Print(stmt);
+    seq_doc << NewLine() << Print(stmt);
   }
-  doc << " {" << Doc::Indent(2, seq_doc) << Doc::NewLine() << "}";
+  doc << " {" << Doc::Indent(2, seq_doc) << NewLine() << "}";
   return doc;
 }
 
@@ -657,37 +659,36 @@ Doc TIRTextPrinter::VisitStmt_(const BlockRealizeNode* op) {
   Doc block_attr_doc;
   // print predicate, binding, read/write tensor region, annotations
   if (!is_one(op->predicate)) {
-    block_attr_doc << Doc::NewLine() << "where(" << Print(op->predicate) << ")";
+    block_attr_doc << NewLine() << "where(" << Print(op->predicate) << ")";
   }
   for (size_t i = 0; i < block_op->iter_vars.size(); ++i)
-    block_attr_doc << Doc::NewLine() << "bind(" << Print(block_op->iter_vars[i]->var) << ", "
+    block_attr_doc << NewLine() << "bind(" << Print(block_op->iter_vars[i]->var) << ", "
                    << Print(op->iter_values[i]) << ")";
-  block_attr_doc << Doc::NewLine() << "tir.reads(" << Print(block_op->reads) << ")";
-  block_attr_doc << Doc::NewLine() << "tir.writes(" << Print(block_op->writes) << ")";
+  block_attr_doc << NewLine() << "tir.reads(" << Print(block_op->reads) << ")";
+  block_attr_doc << NewLine() << "tir.writes(" << Print(block_op->writes) << ")";
   if (!block_op->annotations.empty()) {
     std::vector<Doc> attr_docs;
     for (const auto& it : block_op->annotations) {
       attr_docs.push_back(Doc::StrLiteral(it.first) << ": " << Print(it.second));
     }
-    block_attr_doc << Doc::NewLine() << "tir.attrs({" << PrintSep(attr_docs, Doc::Text(", "))
-                   << "})";
+    block_attr_doc << NewLine() << "tir.attrs({" << PrintSep(attr_docs, Doc::Text(", ")) << "})";
   }
   // print body
   Doc body;
-  body << Doc::NewLine();
+  body << NewLine();
   for (const auto& alloc_buf : block_op->alloc_buffers) {
     body << AllocBuf(alloc_buf) << " = alloc_buffer(" << PrintDType(alloc_buf->dtype)
-         << Print(alloc_buf->shape) << ")" << Doc::NewLine();
+         << Print(alloc_buf->shape) << ")" << NewLine();
   }
   for (const auto& match_buf : block_op->match_buffers) {
     body << AllocBuf(match_buf->buffer) << " = match_buffer(" << Print(match_buf->source) << ")"
-         << Doc::NewLine();
+         << NewLine();
   }
   if (block_op->init.defined()) {
     Doc init_block;
     init_block << "with init()";
     init_block << PrintBody(block_op->init.value());
-    body << init_block << Doc::NewLine();
+    body << init_block << NewLine();
   }
   body << Print(block_op->body);
   doc << Doc::Indent(2, block_attr_doc << body);
@@ -826,7 +827,7 @@ Doc TIRTextPrinter::PrintSep(const std::vector<Doc>& vec, const Doc& sep) {
 Doc TIRTextPrinter::PrintBody(const Stmt& body, bool indent) {
   Doc doc;
   if (body->IsInstance<SeqStmtNode>()) return Print(body);
-  doc << " {" << Doc::Indent(2, Doc::NewLine() << Print(body)) << Doc::NewLine() << "}";
+  doc << " {" << Doc::Indent(2, NewLine() << Print(body)) << NewLine() << "}";
   return doc;
 }
 
