@@ -21,10 +21,14 @@ import os
 import re
 import shutil
 import tempfile
+from functools import partial
+import unittest
 import numpy as np
 
 import tvm
 import tvm.testing
+from tvm.script import tir as T
+from tvm.tir.schedule.schedule import Schedule
 from tvm.meta_schedule.cost_model import PyCostModel, RandomModel, XGBModel
 from tvm.meta_schedule.cost_model.xgb_model import _get_custom_call_back, PackSum
 from tvm.meta_schedule.feature_extractor import RandomFeatureExtractor
@@ -32,9 +36,6 @@ from tvm.meta_schedule.runner import RunnerResult
 from tvm.meta_schedule.search_strategy import MeasureCandidate
 from tvm.meta_schedule.tune_context import TuneContext
 from tvm.meta_schedule.utils import derived_object
-from tvm.script import tir as T
-from tvm.tir.schedule.schedule import Schedule
-
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 @tvm.script.ir_module
@@ -195,13 +196,15 @@ def test_meta_schedule_xgb_model_reload():
     assert (res1 == res2).all()
     assert old_data_size == new_data_size
     assert len(old_data) == len(new_data)
-    for (k1, g1), (k2, g2) in zip(old_data.items(), new_data.items()):
+    for (k1, g1), (k2, g2) in zip(  # pylint: disable=invalid-name
+        old_data.items(), new_data.items()
+    ):
         assert k1 == k2
         assert k1 == g1.group_hash
         assert k2 == g2.group_hash
         assert (g1.costs == g2.costs).all()
         assert len(g1.features) == len(g2.features)
-        for f1, f2 in zip(g1.features, g2.features):
+        for f1, f2 in zip(g1.features, g2.features):  # pylint: disable=invalid-name
             assert (f1 == f2).all()
 
 
@@ -228,7 +231,18 @@ def test_meta_schedule_xgb_model_reupdate():
     model.predict(TuneContext(), [_dummy_candidate() for i in range(predict_sample_count)])
 
 
-def test_meta_schedule_xgb_model_callback():
+def xgb_version_check():
+
+    # pylint: disable=import-outside-toplevel
+    import xgboost as xgb
+    from packaging import version
+
+    # pylint: enable=import-outside-toplevel
+    return version.parse(xgb.__version__) >= version.parse("1.6.0")
+
+
+@unittest.skipIf(xgb_version_check(), "test not supported for xgboost version after 1.6.0")
+def test_meta_schedule_xgb_model_callback_as_function():
     # pylint: disable=import-outside-toplevel
     import xgboost as xgb
     from itertools import chain as itertools_chain
@@ -253,7 +267,7 @@ def test_meta_schedule_xgb_model_callback():
         model.save(path.name)
 
         old_booster = model.booster
-        xs = [
+        xs = [  # pylint: disable=invalid-name
             x.numpy().astype("float32")
             for x in extractor.extract_from(
                 TuneContext(),
@@ -289,17 +303,19 @@ def test_meta_schedule_xgb_model_callback():
             num_boost_round=10000,
             obj=obj,
             callbacks=[
-                _get_custom_call_back(
-                    early_stopping_rounds=model.early_stopping_rounds,
-                    verbose_eval=model.verbose_eval,
-                    fevals=[rmse, avg_peak_score],
-                    evals=[(d_train.dmatrix, "tr")],
-                    cvfolds=None,
+                partial(
+                    _get_custom_call_back(
+                        early_stopping_rounds=model.early_stopping_rounds,
+                        verbose_eval=model.verbose_eval,
+                        fevals=[rmse, avg_peak_score],
+                        evals=[(d_train.dmatrix, "tr")],
+                        cvfolds=None,
+                    )
                 )
             ],
         )
 
-        xs = [
+        xs = [  # pylint: disable=invalid-name
             x.numpy().astype("float32")
             for x in extractor.extract_from(
                 TuneContext(),
