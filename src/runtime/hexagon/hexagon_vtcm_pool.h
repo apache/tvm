@@ -67,14 +67,18 @@ class HexagonVtcmPool {
    */
   void Free(void* ptr, size_t nbytes);
 
- private:
-   //! \brief Context for HAP_compute_res_*  
-  const size_t vtcm_size_ = 4*1024*1024; // jlsfix - is there a better place to get this?
+  //! \brief Returns the total number of bytes in this pool
+  size_t TotalBytes() {return vtcm_size_; }
 
-   //! \brief Context for HAP_compute_res_*  
+ private:
+  //! \brief Context for HAP_compute_res_*
+  // TODO(janetsc) get the size programmatically
+  const size_t vtcm_size_ = 1024*1024;
+
+  //! \brief Context for HAP_compute_res_*
   void* vtcm_data_;
 
-  //! \brief Context for HAP_compute_res_*  
+  //! \brief Context for HAP_compute_res_*
   unsigned int context_id_{0};
 
   //! \brief List of allocations
@@ -83,7 +87,11 @@ class HexagonVtcmPool {
   //! \brief List of free segments
   std::list<std::pair<char*, size_t>> free_;
 
+  //! \brief Mutext to protect access to the lists
   std::mutex mutex_;
+
+  //! \brief Debug only dump of the state of the lists
+  void DebugDump();
 };
 
 }  // namespace hexagon

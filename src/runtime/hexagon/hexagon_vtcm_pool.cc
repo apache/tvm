@@ -51,6 +51,8 @@ HexagonVtcmPool::HexagonVtcmPool() {
     }
 
     free_.emplace_back(std::pair<char*, size_t>((char*)vtcm_data_, vtcm_size_));
+
+    DebugDump();
 }
 
 HexagonVtcmPool::~HexagonVtcmPool() {
@@ -60,11 +62,12 @@ HexagonVtcmPool::~HexagonVtcmPool() {
 void* HexagonVtcmPool::Allocate(size_t nbytes) {
   std::lock_guard<std::mutex> lock(mutex_);
 
-  LOG(INFO) << "nbytes requested: " << nbytes;
-
   if (nbytes & size_t(0x7FF)) {
-    nbytes = nbytes & ~(size_t(0x7FF)) + 0x800;
-    LOG(INFO) << "nbytes requested (UPDATED): " << nbytes; // jlsfix - is this right?
+    size_t nbytes_requested = nbytes;
+    nbytes = nbytes >> 11;
+    nbytes = nbytes << 11;
+    nbytes += 0x800;
+    LOG(INFO) << "nbytes requested: " << nbytes_requested << " nbytes (UPDATED): " << nbytes;
   }
 
   CHECK(!free_.empty()) << "No free VTCM";
@@ -95,18 +98,28 @@ void* HexagonVtcmPool::Allocate(size_t nbytes) {
     }
   }
 
+  DebugDump();
+
   return (void*)ptr;
 }
 
 void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
   char* ptr_to_free = (char*)ptr;
   std::lock_guard<std::mutex> lock(mutex_);
+
+  if (nbytes & size_t(0x7FF)) {
+    size_t nbytes_requested = nbytes;
+    nbytes = nbytes >> 11;
+    nbytes = nbytes << 11;
+    nbytes += 0x800;
+    LOG(INFO) << "nbytes requested: " << nbytes_requested << " nbytes (UPDATED): " << nbytes;
+  }
+
   bool found_allocation_entry = false;
   for (auto it = allocations_.begin(); it != allocations_.end(); it++)
   {
     if (ptr_to_free == it->first) {
-      // jlsfix CHECK(it->second == nbytes) << "Attempted to free a different size than was allocated";
-      nbytes = it->second; // jlsfix
+      CHECK(it->second == nbytes) << "Attempted to free a different size than was allocated";
       allocations_.erase(it);
       found_allocation_entry = true;
       break;
@@ -125,7 +138,7 @@ void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
         it->second += nbytes;
       } else {
         // Insert an entry before this
-        free_.insert(it, std::pair<char*, size_t>(ptr_to_free, nbytes));
+        free_.emplace(it, std::pair<char*, size_t>(ptr_to_free, nbytes));
         it--;
       }
       break;
@@ -134,16 +147,31 @@ void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
 
   if (it == free_.end()) {
     // Insert an entry before this
-    free_.insert(it, std::pair<char*, size_t>(ptr_to_free, nbytes));
+    free_.emplace(it, std::pair<char*, size_t>(ptr_to_free, nbytes));
     it--;
   }
 
   // Check for overlap with the previous entry
-  auto it_prev = it; it_prev--;
-  CHECK(it_prev->first + it_prev->second > ptr_to_free) << "free_ is in an inconsistent state, freed block overlaps with previous";
-  if (it_prev->first + it_prev->second == ptr_to_free) {
-    it_prev->second += nbytes;
-    free_.erase(it);
+  if (it != free_.begin()) {
+    auto it_prev = it; it_prev--;
+    CHECK(it_prev->first + it_prev->second >= ptr_to_free) << "free_ is in an inconsistent state, freed block overlaps with previous";
+    if (it_prev->first + it_prev->second == ptr_to_free) {
+      it_prev->second += nbytes;
+      free_.erase(it);
+    }
+  }
+
+  DebugDump();
+}
+
+void HexagonVtcmPool::DebugDump()
+{
+  for (auto it = allocations_.begin(); it != allocations_.end(); it++) {
+    LOG(INFO) << "jlsfix vtcm alloc ptr: " << (void*)it->first << " size: " << it->second;
+  }
+
+  for (auto it = free_.begin(); it != free_.end(); it++) {
+    LOG(INFO) << "jlsfix vtcm free ptr: " << (void*)it->first << " size: " << it->second;
   }
 }
 
