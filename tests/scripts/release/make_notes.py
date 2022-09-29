@@ -27,6 +27,8 @@ from typing import Callable, Dict, List, Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "tests" / "scripts"))
+sys.path.append(str(REPO_ROOT / "tests" / "scripts" / "github"))
+sys.path.append(str(REPO_ROOT / "tests" / "scripts" / "jenkins"))
 
 
 def strip_header(title: str, header: str) -> str:

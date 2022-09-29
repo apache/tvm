@@ -18,7 +18,6 @@
 import argparse
 import textwrap
 import junitparser
-import traceback
 from pathlib import Path
 from typing import List, Optional
 import os
@@ -28,7 +27,7 @@ import logging
 from cmd_utils import init_log
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
 def lstrip(s: str, prefix: str) -> str:

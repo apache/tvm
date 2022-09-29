@@ -160,7 +160,7 @@ def {{ method_name }}() {
 sh(
             script: """
               set -eux
-              . ci/scripts/retry.sh
+              . ci/scripts/jenkins/retry.sh
               {% for filename in filenames %}
               md5sum {{ filename }}
               retry 3 aws s3 cp --no-progress {{ filename }} s3://${s3_prefix}/{{ tag }}/{{ filename }}
@@ -177,7 +177,7 @@ sh(
 sh(
             script: """
               set -eux
-              . ci/scripts/retry.sh
+              . ci/scripts/jenkins/retry.sh
               {% for filename in filenames %}
               retry 3 aws s3 cp --no-progress s3://${s3_prefix}/{{ tag }}/{{ filename }} {{ filename }}
               md5sum {{ filename }}
