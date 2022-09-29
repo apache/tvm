@@ -872,7 +872,7 @@ def test_vm_rpc():
     on the other machine.
     """
     # Shape for input and output tensors
-    shape = (10,1)
+    shape = (10, 1)
 
     # Export to Disk
     temp = utils.tempdir()
@@ -910,7 +910,7 @@ def test_vm_invoke_with_outputs_rpc():
     on the other machine with preallocated outputs.
     """
     # Shape for input and output tensors
-    shape = (3,2)
+    shape = (3, 2)
 
     # Export to Disk
     temp = utils.tempdir()
@@ -936,7 +936,9 @@ def test_vm_invoke_with_outputs_rpc():
         np_output = np.empty(shape, dtype="float32")
         output_tensor = tvm.nd.array(np_output, device)
         # Invoke its "main" function.
-        vm_factory.invoke_with_outputs("main", input_args={"x": input_tensor}, output_args=[output_tensor])
+        vm_factory.invoke_with_outputs(
+            "main", input_args={"x": input_tensor}, output_args=[output_tensor]
+        )
         # Check the result.
         np.testing.assert_allclose(output_tensor.numpy(), np_input + np_input)
 
@@ -945,7 +947,7 @@ def test_vm_invoke_with_outputs_rpc():
 
 def test_vm_invoke_with_outputs():
     target = tvm.target.Target("llvm")
-    shape=(3, 2)
+    shape = (3, 2)
 
     # Build a IRModule.
     x = relay.var("x", shape=shape)
@@ -960,7 +962,9 @@ def test_vm_invoke_with_outputs():
     np_output = np.empty(shape, dtype="float32")
     output_tensor = tvm.nd.array(np_output)
     # Invoke
-    vm_factory.invoke_with_outputs("main", input_args={"x": input_tensor}, output_args=[output_tensor])
+    vm_factory.invoke_with_outputs(
+        "main", input_args={"x": input_tensor}, output_args=[output_tensor]
+    )
     # Check the result.
     np.testing.assert_allclose(output_tensor.numpy(), np_input + np_input)
 
