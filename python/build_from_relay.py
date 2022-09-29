@@ -1,5 +1,6 @@
 import argparse
 import os
+import pickle
 
 from loguru import logger
 import numpy as np
@@ -39,6 +40,7 @@ if __name__ == '__main__':
     args = make_parser().parse_args()
     target = ""
     fmt = ".so"
+    export_path = args.export_path
     if args.device == 'cuda':
         target = tvm.target.Target("cuda", host="llvm")
     elif args.device == 'opencl':
@@ -49,6 +51,8 @@ if __name__ == '__main__':
         target = tvm.target.Target("cuda -arch=sm_62", host="llvm -mtriple=aarch64-linux-gnu")
         # set_cuda_target_arch('sm_62')
         os.environ["TVM_NVCC_PATH"] = "/usr/local/cuda-10.1/bin/nvcc"
+    elif args.device == "arm_opencl":
+        target = tvm.target.Target("opencl -model=mali", host="llvm -mtriple=aarch64-linux-gnu")
     elif args.device == "win32":
         #  -mattr=+sse2
         target = "llvm -mtriple=i386-unknown-windows-msvc -mcpu=core-avx2"
@@ -60,19 +64,25 @@ if __name__ == '__main__':
 
     # mod_path = os.path.join(args.path, "mod.dat")
     # params_path = os.path.join(args.path, "params.dat")
-    mod_path = os.path.join("./", args.path + ".txt")
-    params_path = os.path.join("./", args.path + ".params")
+    mod_path = os.path.join(args.path, args.model_name + ".txt")
+    params_path = os.path.join(args.path, args.model_name + ".params")
 
     mod = None
     params = None
     dtype = "float32"
-    filename = args.path + "_" + args.device + fmt
+    filename = args.model_name + "_" + args.device + fmt
     if not args.eval:
-        with open(mod_path, "r") as mod_fn:
-            mod_raw = mod_fn.read()
-            mod = tvm.parser.fromtext(mod_raw)
-            # nmod = IRModule(mod)
-            vars = mod.get_global_vars()
+        # with open(mod_path, "r") as mod_fn:
+        #     mod_raw = mod_fn.read()
+        #
+        #     mod = tvm.parser.fromtext(mod_raw)
+        #     # nmod = IRModule(mod)
+        #     vars = mod.get_global_vars()
+        #     print(mod)
+        pickle_path = os.path.join(args.path, args.model_name + ".pickle")
+        with open(pickle_path, "rb") as pickle_fn:
+            mod_bytes = pickle_fn.read()
+            mod = pickle.loads(mod_bytes)
             print(mod)
         with open(params_path, "rb") as params_fn:
             params_raw = params_fn.read()
@@ -90,17 +100,17 @@ if __name__ == '__main__':
                                                    target=target,
                                                    params=params)
 
-        if args.device == "arm_cuda":
-            lib.export_library(os.path.join("./", filename), cc="aarch64-linux-gnu-g++")
+        if str(args.device).startswith("arm"):
+            lib.export_library(os.path.join(export_path, filename), cc="aarch64-linux-gnu-g++")
         else:
-            lib.export_library(os.path.join("./", filename))
+            lib.export_library(os.path.join(export_path, filename))
 
     shape_dict = tuple(args.input_size)
     input_name = args.input_name
     if fmt == ".tar":
         remote = autotvm.measure.request_remote("rtx3070-win-x86",
                                                 "192.168.6.252", 9190, timeout=10000)
-        remote.upload(os.path.join("./", filename))
+        remote.upload(os.path.join(export_path, filename))
         rlib = remote.load_module(filename)
 
         dev = remote.device(str(target), 0)
@@ -118,7 +128,7 @@ if __name__ == '__main__':
         exit(0)
     elif fmt == ".so" and args.device == "arm_cuda":
         remote = autotvm.measure.request_remote("tx2", "192.168.6.252", 9190, timeout=10000)
-        remote.upload(os.path.join("./", filename))
+        remote.upload(os.path.join(export_path, filename))
         rlib = remote.load_module(filename)
 
         dev = remote.device(str(target), 0)
@@ -140,7 +150,7 @@ if __name__ == '__main__':
             % (np.mean(prof_res), np.std(prof_res))
         )
     else:
-        lib = tvm.runtime.load_module(os.path.join("./", filename))
+        lib = tvm.runtime.load_module(os.path.join(export_path, filename))
         dev = tvm.device(str(target), 0)
         module = runtime.GraphModule(lib["default"](dev))
         data_tvm = tvm.nd.array((np.zeros(shape=shape_dict)).astype(dtype))

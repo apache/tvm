@@ -33,7 +33,7 @@ target = tvm.target.Target("cuda -arch=sm_62", host="llvm -mtriple=aarch64-linux
 
 # model_path = "/home/share/data/workspace/project/nn_compiler/tvm/apps/waren20220712_4class_torch_v7tiny.torchscript
 # .pt"
-model_path = "./yolov7_tiny"
+model_path = "/home/share/data/workspace/project/nn_compiler/tvm/python/depoly"
 # model_path = "D:/workspace/project/nn_compiler/tvm/apps/waren20220712_4class_torch_v7tiny.torchscript.pt"
 
 log_file = "%s.log" % "yolov7_tiny_cuda_tx2_v10"
@@ -77,7 +77,7 @@ dtype = "float32"
 tuning_option = {
     "log_filename": log_file,
     "tuner": "xgb",
-    "n_trial": 2000,
+    "n_trial": 1600,
     # "n_parallel": 1,
     "early_stopping": 600,
     "measure_option": autotvm.measure_option(
@@ -85,6 +85,7 @@ tuning_option = {
         runner=autotvm.RPCRunner("tx2", host="192.168.6.252",
                                  port=9190, number=1, repeat=3, timeout=10000, min_repeat_ms=3),
     ),
+    "use_transfer_learning": True,
 }
 
 
@@ -123,6 +124,8 @@ def tune_tasks(
 
         if use_transfer_learning:
             if os.path.isfile(tmp_log_file):
+                autotvm.record.pick_best(tmp_log_file, log_filename)
+                exit(0)
                 tuner_obj.load_history(autotvm.record.load_from_file(tmp_log_file))
 
         # do tuning
@@ -155,8 +158,8 @@ def tune_and_evaluate(tuning_opt):
     input_name = "images"
     img = np.zeros((1, 3, 640, 640), dtype=np.float)
 
-    mod_path = os.path.join(model_path, "mod.dat")
-    params_path = os.path.join(model_path, "params.dat")
+    mod_path = os.path.join(model_path, "yolov7_tiny.pickle")
+    params_path = os.path.join(model_path, "yolov7_tiny.params")
     with open(mod_path, "rb") as mod_fn:
         mod_raw = mod_fn.read()
         mod = pickle.loads(mod_raw)
@@ -176,10 +179,21 @@ def tune_and_evaluate(tuning_opt):
     tasks = autotvm.task.extract_from_program(
         mod["main"], target=target, params=params, ops=(relay.op.get("nn.conv2d"),)
     )
+    ntasks = []
+    if os.path.exists(log_file):
+        with autotvm.apply_history_best(log_file) as appHistBest:
+            for task in tasks:
+                # print("query for task " + str(task))
+                mes = appHistBest.query(task.target, task.workload)
+                print("query result is "+str(mes))
+                if str(mes) == ",None":
+                    ntasks.append(task)
+                else:
+                    print("already tuned \n")
 
     # run tuning tasks
     print("Tuning...")
-    tune_tasks(tasks, **tuning_opt)
+    tune_tasks(ntasks, **tuning_opt)
 
     # compile kernels with history best records
     with autotvm.apply_history_best(log_file):

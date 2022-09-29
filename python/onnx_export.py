@@ -72,6 +72,8 @@ if __name__ == '__main__':
         # os.environ["TVM_NVCC_PATH"] = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v10.1/bin/nvcc.exe"
     elif args.device == 'opencl':
         target = tvm.target.Target("opencl", host="llvm")
+    elif args.device == "arm_opencl":
+        target = tvm.target.Target("opencl -arch=3.0", host="llvm -mtriple=aarch64-linux-gnu")
     elif args.device == 'arm':
         target = "llvm -mtriple=aarch64-linux-gnu -mattr=+neon"
     elif args.device == 'arm_cuda':
@@ -90,6 +92,7 @@ if __name__ == '__main__':
     dtype = "float32"
     input_shape = tuple(args.input_size)
     input_name = args.input_name
+    export_path = args.export_path
     if not args.eval:
         onnx_model = onnx.load(args.path)
 
@@ -103,10 +106,13 @@ if __name__ == '__main__':
         ir_text = mod.astext(show_meta_data=True)
         print(ir_text)
 
-        with open(os.path.join("./", args.model_name + ".txt"), "w") as irf:
+        with open(os.path.join(export_path, args.model_name + ".txt"), "w") as irf:
             irf.write(ir_text)
+        mod_bytes = pickle.dumps(mod)
+        with open(os.path.join(export_path, args.model_name+".pickle"), "wb") as pick_fn:
+            pick_fn.write(mod_bytes)
         params_bytes = relay.save_param_dict(params)
-        with open(os.path.join("./", args.model_name+".params"), "wb") as pf:
+        with open(os.path.join(export_path, args.model_name+".params"), "wb") as pf:
             pf.write(params_bytes)
         # mod = tvm.parser.fromtext(ir_text)
         print(mod)

@@ -1,3 +1,5 @@
+import os.path
+
 import torch
 import numpy as np
 import argparse
@@ -30,7 +32,8 @@ if __name__ == '__main__':
     shape_list = [(input_name, img.shape)]
     mod = None
     params = None
-    with open("./"+args.model_name+".txt", "w") as f:
+    export_path = args.export_path
+    with open(os.path.join(export_path, args.model_name+".txt"), "w") as f:
         import tvm
         import tvm.relay as relay
 
@@ -38,10 +41,14 @@ if __name__ == '__main__':
                                                   shape_list)
         print(mod)
 
+        with open(os.path.join(export_path, args.model_name+".pickle"), "wb") as pf:
+            mod_bytes = pickle.dumps(mod)
+            pf.write(mod_bytes)
+
         ir_text = mod.astext()
         f.write(ir_text)
 
         param_bytes = relay.save_param_dict(params)
-        with open("./" + args.model_name + ".params", "wb") as pf:
+        with open(os.path.join(export_path, args.model_name + ".params"), "wb") as pf:
             pf.write(param_bytes)
-        print("mod and params saved to " + args.model_name+".txt")
+        print("mod and params saved to " + os.path.join(export_path, args.model_name+".txt"))
