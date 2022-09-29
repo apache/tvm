@@ -49,7 +49,10 @@ def negative(x, dtype):
     y : tvm.te.Tensor
         The result.
     """
-    # pylint: disable=unnecessary-lambda
+    if dtype in ("uint8", "int8"):
+        return tvm.te.compute(x.shape, lambda *i: -x(*i), name="negative", tag="lut")
+    else:
+        return tvm.te.compute(x.shape, lambda *i: -x(*i), name="negative")
     return tvm.te.compute(x.shape, lambda *i: -x(*i), name="negative")
 
 
