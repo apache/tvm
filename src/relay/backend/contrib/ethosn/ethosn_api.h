@@ -157,6 +157,12 @@ struct RequantizeParams {
   sl::TensorInfo output_info;
 };
 
+struct ReinterpretQuantizationParams {
+  sl::ReinterpretQuantizationInfo reinterpret_quantize_info;
+  sl::TensorInfo input_info;
+  sl::TensorInfo output_info;
+};
+
 struct ResizeParams {
   sl::ResizeInfo resize_info;
   sl::TensorInfo input_info;
@@ -261,6 +267,16 @@ class EthosnAPI {
   static EthosnError Relu(const Expr& expr, ReluParams* params);
   /*! \brief Extract the Support Library requantize params from a Relay qnn.requantize call */
   static EthosnError Requantize(const Expr& expr, RequantizeParams* params);
+
+  /*!
+   * \brief Extact the Support Library reinterpret quantization params from a Relay qnn.requantize
+   * call.
+   *
+   * \note This is used for the conversion from add and mul to a reinterpret quantization operator.
+   * This is effectively an identity operation, as not the same as 'requantize'.
+   */
+  static EthosnError ReinterpretQuantize(const Expr& expr, ReinterpretQuantizationParams* params);
+
   /*! \brief Extract the Support Library resize params from a Relay resize call */
   static EthosnError Resize(const Expr& expr, ResizeParams* params);
 
