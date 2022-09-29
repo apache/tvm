@@ -51,7 +51,7 @@ class _TvmBotTest:
         """
         Run the tvm-bot script using the data from preprocess_data
         """
-        mergebot_script = REPO_ROOT / "ci" / "scripts" / "github_tvmbot.py"
+        mergebot_script = REPO_ROOT / "ci" / "scripts" / "github" / "github_tvmbot.py"
         test_json_dir = Path(__file__).resolve().parent / "sample_prs"
         with open(test_json_dir / f"pr{self.NUMBER}.json") as f:
             test_data = json.load(f)

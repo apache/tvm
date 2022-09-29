@@ -19,8 +19,13 @@
 import os
 import json
 import argparse
-import tempfile
+import sys
+from pathlib import Path
 from typing import Any, Dict
+
+# Hackery to enable importing of utils from ci/scripts/jenkins
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 
 from git_utils import git, GitHubRepo, parse_remote
 

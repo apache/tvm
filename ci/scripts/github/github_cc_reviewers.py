@@ -21,9 +21,13 @@ import os
 import json
 import argparse
 import re
+from pathlib import Path
 from urllib import error
 from typing import Dict, Any, List
 
+# Hackery to enable importing of utils from ci/scripts/jenkins
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 
 from git_utils import git, GitHubRepo, parse_remote
 
