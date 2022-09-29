@@ -168,6 +168,48 @@ def multiple_read(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "f
             B[vi, vj] = A[vj, vi] + A[vi, vj]
 
 
+@T.prim_func
+def mixed_dtype(
+    p0: T.Buffer[(T.int64(2), 1280), "float16"],
+    p1: T.Buffer[(1280, 1280), "float16"],
+    T_matmul_NT: T.Buffer[(T.int64(2), 1280), "float16"],
+) -> None:
+    for i0, i1, i2 in T.grid(T.int64(2), 1280, 1280):
+        with T.block("T_matmul_NT"):
+            i = T.axis.spatial(T.int64(2), i0)
+            j, k = T.axis.remap("SR", [i1, i2])
+            T.reads(p0[i, k], p1[j, k])
+            T.writes(T_matmul_NT[i, j])
+            with T.init():
+                T_matmul_NT[i, j] = T.float16(0)
+            T_matmul_NT[i, j] = T_matmul_NT[i, j] + p0[i, k] * p1[j, k]
+
+
+@T.prim_func
+def mixed_dtype_reindex_write(
+    p0: T.Buffer[(T.int64(2), 1280), "float16"],
+    p1: T.Buffer[(1280, 1280), "float16"],
+    T_matmul_NT: T.Buffer[(T.int64(2), 1280), "float16"],
+) -> None:
+    T_matmul_NT_reindex = T.alloc_buffer([T.int64(2), 1280], dtype="float16")
+    for i0, i1, i2 in T.grid(T.int64(2), 1280, 1280):
+        with T.block("T_matmul_NT"):
+            i = T.axis.spatial(T.int64(2), i0)
+            j, k = T.axis.remap("SR", [i1, i2])
+            T.reads(p0[i, k], p1[j, k])
+            T.writes(T_matmul_NT_reindex[i, j])
+            with T.init():
+                T_matmul_NT_reindex[i, j] = T.float16(0)
+            T_matmul_NT_reindex[i, j] = T_matmul_NT_reindex[i, j] + p0[i, k] * p1[j, k]
+    for ax0, ax1, ax2 in T.grid(T.int64(2), 1280, 1):
+        with T.block("T_matmul_NT_reindex"):
+            v0 = T.axis.spatial(T.int64(2), ax0)
+            v1, v2 = T.axis.remap("SS", [ax1, ax2])
+            T.reads(T_matmul_NT_reindex[v0, v1])
+            T.writes(T_matmul_NT[v0, v1])
+            T_matmul_NT[v0, v1] = T_matmul_NT_reindex[v0, v1]
+
+
 use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 use_buffer_name = tvm.testing.parameter(by_dict={"buffer_index": False, "buffer_name": True})
 
@@ -205,6 +247,15 @@ def test_reindex_fail_multiple_read(use_block_name, use_buffer_name):
     buf = "A" if use_buffer_name else ("read", 0)
     with pytest.raises(ScheduleError):
         sch.reindex(block, buf)
+
+
+def test_reindex_mixed_dtype(use_block_name, use_buffer_name):
+    sch = tir.Schedule(mixed_dtype)
+    block = "T_matmul_NT" if use_block_name else sch.get_block("T_matmul_NT")
+    buf = "T_matmul_NT" if use_buffer_name else ("write", 0)
+    sch.reindex(block, buf)
+    tvm.ir.assert_structural_equal(mixed_dtype_reindex_write, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=mixed_dtype)
 
 
 if __name__ == "__main__":
