@@ -33,7 +33,7 @@
 #include "hexagon_buffer_manager.h"
 #include "hexagon_thread_manager.h"
 #include "hexagon_user_dma.h"
-#include "hexagon_vtcm.h"
+#include "hexagon_vtcm_pool.h"
 
 namespace tvm {
 namespace runtime {

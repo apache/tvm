@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "hexagon_vtcm.h"
+#include "hexagon_vtcm_pool.h"
 
 #include "HAP_compute_res.h"
 #include "hexagon_common.h"
