@@ -187,10 +187,10 @@ TEST_F(HexagonDeviceAPITest, user_dma) {
 
 // Ensure VTCM pool is properly configured and destroyed
 // in Acquire/Release
-// TEST_F(HexagonDeviceAPITest, vtcm_pool) {
-//   HexagonVtcmPool* vtcm_pool = hexapi->VtcmPool();
-//   CHECK(vtcm_pool != nullptr);
-//   hexapi->ReleaseResources();
-//   EXPECT_THROW(hexapi->VtcmPool(), InternalError);
-//   hexapi->AcquireResources();
-// }
+TEST_F(HexagonDeviceAPITest, vtcm_pool) {
+  HexagonVtcmPool* vtcm_pool = hexapi->VtcmPool();
+  CHECK(vtcm_pool != nullptr);
+  hexapi->ReleaseResources();
+  EXPECT_THROW(hexapi->VtcmPool(), InternalError);
+  hexapi->AcquireResources();
+}

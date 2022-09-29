@@ -26,14 +26,13 @@ using namespace tvm::runtime::hexagon;
 
 class HexagonVtcmPoolTest : public ::testing::Test {
   void SetUp() override {
-    vtcm_pool = std::make_unique<HexagonVtcmPool>(); // jlsfix - get pointer from device API later
+    vtcm_pool = HexagonDeviceAPI::Global()->VtcmPool();
   }
   void TearDown() override {
-    vtcm_pool.reset();
   }
 
  public:
-  std::unique_ptr<HexagonVtcmPool> vtcm_pool;
+  HexagonVtcmPool* vtcm_pool;
 };
 
 TEST_F(HexagonVtcmPoolTest, basic) {

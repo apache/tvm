@@ -59,15 +59,19 @@ HexagonVtcmPool::~HexagonVtcmPool() {
 void* HexagonVtcmPool::Allocate(size_t nbytes) {
   std::lock_guard<std::mutex> lock(mutex_);
 
-  if (nbytes & size_t(0x7FF)) {
-    size_t nbytes_requested = nbytes;
-    nbytes = nbytes >> 11;
-    nbytes = nbytes << 11;
-    nbytes += 0x800;
-    LOG(INFO) << "nbytes requested: " << nbytes_requested << " nbytes (UPDATED): " << nbytes;
-  }
-
   CHECK(!free_.empty()) << "No free VTCM";
+
+  // If this is not aligned on a 2k block, allocate from the end to avoid fragmentation
+  if (nbytes & size_t(0x7FF)) {
+    LOG(INFO) << "VTCM nbytes requested: " << nbytes << " allocate from the end";
+    auto last_free_entry = free_.rbegin();
+    CHECK(last_free_entry->second >= nbytes) << "Not enough contiguous VTCM space at the end to allocate";
+    char* ptr = last_free_entry->first + (last_free_entry->second-nbytes);
+    allocations_.emplace_back(std::pair<char*, size_t>(ptr, nbytes));
+    last_free_entry->second -= nbytes;
+    DebugDump();
+    return ptr;
+  }
 
   std::pair<char*, size_t>& entry_to_allocate = free_.front();
   for(auto entry : free_) {
@@ -97,20 +101,12 @@ void* HexagonVtcmPool::Allocate(size_t nbytes) {
 
   DebugDump();
 
-  return (void*)ptr;
+  return ptr;
 }
 
 void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
   char* ptr_to_free = (char*)ptr;
   std::lock_guard<std::mutex> lock(mutex_);
-
-  if (nbytes & size_t(0x7FF)) {
-    size_t nbytes_requested = nbytes;
-    nbytes = nbytes >> 11;
-    nbytes = nbytes << 11;
-    nbytes += 0x800;
-    LOG(INFO) << "nbytes requested: " << nbytes_requested << " nbytes (UPDATED): " << nbytes;
-  }
 
   bool found_allocation_entry = false;
   for (auto it = allocations_.begin(); it != allocations_.end(); it++)
@@ -167,7 +163,7 @@ void HexagonVtcmPool::DebugDump()
   }
 
   for (auto it = free_.begin(); it != free_.end(); it++) {
-    LOG(INFO) << "VTCM free:  " << (void*)it->first << " " << it->second;
+    LOG(INFO) << "VTCM  free: " << (void*)it->first << " " << it->second;
   }
 }
 

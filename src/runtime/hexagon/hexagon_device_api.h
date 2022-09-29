@@ -59,8 +59,8 @@ class HexagonDeviceAPI final : public DeviceAPI {
     runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
     mgr = runtime_hexbuffs.get();
 
-    // CHECK_EQ(runtime_vtcm, nullptr);
-    // runtime_vtcm = std::make_unique<HexagonVtcmPool>();
+    CHECK_EQ(runtime_vtcm, nullptr);
+    runtime_vtcm = std::make_unique<HexagonVtcmPool>();
 
     CHECK_EQ(runtime_threads, nullptr);
     runtime_threads = std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size);
@@ -77,8 +77,8 @@ class HexagonDeviceAPI final : public DeviceAPI {
     CHECK(runtime_threads) << "runtime_threads was not created in AcquireResources";
     runtime_threads.reset();
 
-    // CHECK(runtime_vtcm) << "runtime_vtcm was not created in AcquireResources";
-    // runtime_vtcm.reset();
+    CHECK(runtime_vtcm) << "runtime_vtcm was not created in AcquireResources";
+    runtime_vtcm.reset();
 
     CHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
     if (runtime_hexbuffs && !runtime_hexbuffs->empty()) {
