@@ -292,7 +292,6 @@ void VirtualMachine::SetOutputs(std::string func_name, TVMArgs args) {
   std::vector<ObjectRef> func_args(outputs_size - 1);
   for (size_t i = 1; i < outputs_size; ++i) {
     // TODO(vvchernov): device?
-    // TODO(vvchernov): correct index sequence for multiple outputs?
     func_args[i - 1] = TensorFromTVMArgValueToObjectRef(args[i]);
   }
   outputs_.erase(func_name);

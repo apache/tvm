@@ -562,7 +562,9 @@ class VirtualMachine(object):
         self._invoke_stateful(func_name)
 
     def invoke_with_outputs(self, func_name, input_args, output_args):
-        """Invoke a function with pre-allocated outputs tensors.
+        # TODO(vvchernov): consider scenario then output tensors set once
+        """Invoke a function with pre-allocated output tensors.
+        The output tensors should be set every invocation.
         input_args can be None if set_input method was used before.
 
         This invoke method allows to avoid excess copying if memory for output tensors

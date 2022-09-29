@@ -292,9 +292,11 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
   void SetOneInput(std::string name, const TVMArgValue& tag, const TVMArgValue& tensor);
 
   /*!
-   * \brief Set pre-allocated outputs to a function.
+   * \brief Set pre-allocated output tensors to a function.
    * It is native implementation of 'set_outputs' python method.
-   * It is used in scenario when output tensors are allocated outside.
+   * It is used in scenario when output tensors are allocated outside each invocation.
+   * Note: it sets set_outputs_enabled_[name] true and fill outputs_[name]
+   * but after invocation the first is switched off and the second is cleared
    * \param name The function name
    * \param args outputs to the function.
    */
