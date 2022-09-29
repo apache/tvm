@@ -147,7 +147,7 @@ void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
     auto it_prev = it; it_prev--;
     CHECK(it_prev->first + it_prev->second <= ptr_to_free) << "free_ is in an inconsistent state, freed block overlaps with previous";
     if (it_prev->first + it_prev->second == ptr_to_free) {
-      it_prev->second += nbytes;
+      it_prev->second += it->second;
       free_.erase(it);
     }
   }

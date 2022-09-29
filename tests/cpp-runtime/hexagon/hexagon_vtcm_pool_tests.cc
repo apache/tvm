@@ -107,7 +107,7 @@ TEST_F(HexagonVtcmPoolTest, free_alloc_combinations) {
   new_ptr = vtcm_pool->Allocate(two_k_block);
   CHECK(new_ptr==ptr2);
 
-  // Free in order to exercise different deletion scenarios
+  // Exercise different deletion scenarios
   vtcm_pool->Free(ptr2, two_k_block);
   vtcm_pool->Free(ptr3, two_k_block);
   vtcm_pool->Free(ptr4, max_less_3_blocks);
@@ -119,4 +119,9 @@ TEST_F(HexagonVtcmPoolTest, free_alloc_combinations) {
   vtcm_pool->Free(ptr1, two_k_block);
   vtcm_pool->Free(ptr3, two_k_block);
   vtcm_pool->Free(ptr2, two_k_block);
+
+  // Make sure at the end we have the full amount
+  // available again
+  ptr4 = vtcm_pool->Allocate(max_less_3_blocks);
+  vtcm_pool->Free(ptr4, max_less_3_blocks);
 }
