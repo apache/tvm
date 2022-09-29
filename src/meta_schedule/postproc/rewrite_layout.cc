@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <unordered_set>
 #include "../utils.h"
 
 namespace tvm {
@@ -56,8 +57,6 @@ class BufferReadPosCollector : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    CHECK(cur_realize_.defined()) << "BufferLoad occurred outside of any block";
-
     const Buffer& buffer = op->buffer;
     if (buffers_.count(buffer.get())) {
       Map<Var, PrimExpr> subst_map;
@@ -106,12 +105,26 @@ class BufferReadPosCollector : public StmtExprVisitor {
   BlockRealize cur_realize_;
 };
 
+class LayoutFreeBufferCollector : public StmtVisitor {
+ public:
+  void VisitStmt_(const BlockNode* block) final {
+    StmtVisitor::VisitStmt_(block);
+    if (Optional<ObjectRef> ann = block->annotations.Get("layout_free_placeholders")) {
+      for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
+	buffers.insert(buffer);
+      }
+    }
+  }
+
+  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> buffers;
+};
+
 bool RewriteLayout(const Schedule& sch) {
   std::vector<std::pair<StmtSRef, String>> results;
-  for (const auto& kv : sch->mod()->functions) {
-    const GlobalVar& g_var = kv.first;
+  //  LOG(INFO) << "sch->mod()->functions size: " << sch->mod()->functions.size();
+  for (const auto& [g_var, base_func]: sch->mod()->functions) {
     const String& func_name = g_var->name_hint;
-    const auto* prim_func = kv.second.as<PrimFuncNode>();
+    const auto* prim_func = base_func.as<PrimFuncNode>();
     // Only consider PrimFunc
     if (prim_func == nullptr) {
       continue;
@@ -122,17 +135,27 @@ bool RewriteLayout(const Schedule& sch) {
 
     Array<Buffer> layout_free_buffers;
     for (const Integer& index : layout_free_buffer_index) {
+      CHECK(index->value < prim_func->params.size());
       const Var& param = prim_func->params[index->value];
       layout_free_buffers.push_back(prim_func->buffer_map.at(param));
     }
+
+    if (layout_free_buffer_index.empty()) {
+      LayoutFreeBufferCollector collector;
+      collector(prim_func->body);
+
+      for (auto buf : collector.buffers) {
+        layout_free_buffers.push_back(buf);
+      }
+    }
+
     // Collect Buffer read positions
     BufferReadPosCollector collector(layout_free_buffers);
     collector(prim_func->body);
     const auto& locations = collector.GetBufferLocations();
     const auto& index_maps = collector.GetBufferIndexMap();
     // Check all buffers are collected
-    if (locations.size() != layout_free_buffers.size() ||
-        index_maps.size() != layout_free_buffer_index.size()) {
+    if (locations.size() != layout_free_buffers.size()) {
       return false;
     }
 
@@ -150,8 +173,7 @@ bool RewriteLayout(const Schedule& sch) {
       // Apply schedule
       BlockRV block_rv = sch->GetBlock(block->name_hint, func_name);
       BlockRV cached_block_rv = sch->CacheRead(block_rv, buffer_index, "global");
-      sch->TransformLayout(block_rv, buffer_index, BufferIndexType::kRead, index_map.value(),
-                           NullOpt);
+      sch->TransformLayout(block_rv, buffer_index, BufferIndexType::kRead, index_map.value());
       sch->Annotate(cached_block_rv, attr::meta_schedule_layout_rewrite_preproc, const_true());
     }
   }

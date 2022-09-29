@@ -38,6 +38,7 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/index_map.h>
 #include <tvm/tir/schedule/schedule.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 #include <tvm/topi/tags.h>
 
@@ -304,6 +305,68 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
 
 int LowerToTECompute::const_index = 0;
 
+using namespace tvm::tir;
+
+// HACK
+class LayoutFreeConstantCollector : public StmtVisitor {
+ public:
+  Array<runtime::NDArray> constants;
+
+ private:
+  void VisitStmt_(const BlockNode* op) final {
+    StmtVisitor::VisitStmt_(op);
+    if (Optional<ObjectRef> ann = op->annotations.Get("layout_free_placeholders")) {
+      for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
+        layout_free_buffer_vars.insert(buffer->data.get());
+      }
+    }
+  }
+
+  void VisitStmt_(const AllocateConstNode* op) final {
+    StmtVisitor::VisitStmt_(op);
+    if (auto it = layout_free_buffer_vars.find(op->buffer_var.get());
+        it != layout_free_buffer_vars.end()) {
+      constants.push_back(op->data.value());
+    }
+  }
+
+  std::unordered_set<const tir::VarNode*> layout_free_buffer_vars;
+};
+
+// HACK
+class AllocateConstReplaceConstant : public StmtExprMutator {
+ public:
+  static PrimFunc Rewrite(PrimFunc f,
+                          const std::unordered_map<runtime::NDArray, runtime::NDArray,
+                                                   ObjectPtrHash, ObjectPtrEqual>& constant_map) {
+    AllocateConstReplaceConstant rewriter;
+    rewriter.constant_map_ = constant_map;
+    PrimFuncNode* n = f.CopyOnWrite();
+    n->body = rewriter(std::move(n->body));
+    return f;
+  }
+
+  std::unordered_map<runtime::NDArray, runtime::NDArray, ObjectPtrHash, ObjectPtrEqual>
+      constant_map_;
+
+ private:
+  Stmt VisitStmt_(const AllocateConstNode* op) final {
+    auto alloc_const = StmtExprMutator::VisitStmt_(op);
+
+    if (auto it = constant_map_.find(op->data.value()); it != constant_map_.end()) {
+      auto rewriten_constant = it->second;
+      Array<PrimExpr> rewritten_extents;
+      for (auto s : rewriten_constant.Shape()) {
+        rewritten_extents.push_back(PrimExpr(int(s)));
+      }
+      return AllocateConst(op->buffer_var, op->dtype, rewritten_extents, rewriten_constant,
+                           op->body, op->annotations, op->span);
+    }
+
+    return alloc_const;
+  }
+};
+
 // Construct a schedule for a given Relay primitive function and target.
 class ScheduleBuilder : public ExprVisitor {
  public:
@@ -367,20 +430,38 @@ class ScheduleBuilder : public ExprVisitor {
           te_args.push_back(te_tensor);
           constants.push_back(const_node->data);
         }
-        if (Optional<PrimFunc> f = tir_converter(te_args, constants)) {
+        if (Optional<PrimFunc> f_opt = tir_converter(te_args, constants)) {
+          IRModule query_mod = backend::PrimFuncToIRModule(f_opt.value());
           if (Optional<TuningRecord> opt_record = database_.value()->QueryTuningRecord(
-                  /*mod=*/backend::PrimFuncToIRModule(f.value()),
+                  /*mod=*/query_mod,
                   /*target=*/target_,
                   /*workload_name=*/prim_fn_var->name_hint)) {
+            LayoutFreeConstantCollector const_collector;
+            const_collector(f_opt.value()->body);
+
             static InstructionKind kind_transform_layout = InstructionKind::Get("TransformLayout");
             TuningRecord record = opt_record.value();
             for (const Instruction& inst : record->trace->insts) {
               if (inst->kind.same_as(kind_transform_layout)) {
                 ICHECK_EQ(inst->attrs.size(), 4);
+                auto index_map = Downcast<IndexMap>(inst->attrs[2]);
+
+                for (auto constant : const_collector.constants) {
+                  if (constant.Shape().size() == index_map->initial_indices.size()) {
+                    runtime::NDArray rewritten_constant = index_map->MapNDArray(constant);
+                    auto f_ = AllocateConstReplaceConstant().Rewrite(
+                        f_opt.value(), {{constant, rewritten_constant}});
+                    auto workload =
+                        database_.value()->CommitWorkload(backend::PrimFuncToIRModule(f_));
+                    TuningRecord new_rec(record->trace, workload, record->run_secs, record->target,
+                                         record->args_info);
+                    database_.value()->CommitTuningRecord(new_rec);
+                  }
+                }
                 MetaScheduleLayoutRewriter::LayoutQueuePush(Downcast<IndexMap>(inst->attrs[2]));
               }
             }
-            Schedule sch = Schedule::Traced(record->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
+            Schedule sch = Schedule::Traced(query_mod, /*seed=*/-1, /*debug_mask=*/0,
                                             tir::ScheduleErrorRenderLevel::kDetail);
             record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
             IRModule mod = sch->mod();

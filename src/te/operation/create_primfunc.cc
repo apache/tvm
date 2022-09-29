@@ -256,7 +256,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     // TensorIR will not allow Tensor data structure
     if (value->IsInstance<ArrayNode>()) {
       const auto array_value = Downcast<Array<ObjectRef>>(value);
-      annotations.Set(key, array_value.Map(mutate_attr));
+      annotations.Set(key, MutateArray(array_value, mutate_attr));
     } else {
       annotations.Set(key, mutate_attr(value));
     }
@@ -473,10 +473,11 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
   const auto* complete = runtime::Registry::Get("script.Complete");
   ICHECK(complete);
   func = (*complete)(std::move(func), info->root_alloc);
-  return LayoutFreePlaceholdersNormalizer().Process(std::move(func));
+  return func;
 }
 
-PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
+PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
+                                     const Array<runtime::NDArray>& constants) {
   // Infomations used in CreatePrimFunc and its sub-functions.
   CreateFuncInfo info(arg_list);
   // Root body stmts.
@@ -494,14 +495,20 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
   for (const te::Operation& op : order) {
     RewriteStageToBlock(op, &info, &root_stmts, &analyzer);
   }
+
   // Step 4. Create func and complete prim func.
-  return GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
+  auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
+  func = tir::BindParams(func, constants);
+
+  if (constants.empty()) {
+    return LayoutFreePlaceholdersNormalizer().Process(std::move(func));
+  } else {
+    return func;
+  }
 }
 
-PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
-                                     const Array<runtime::NDArray>& constants) {
-  PrimFunc func = CreatePrimFunc(arg_list);
-  return tir::BindParams(func, constants);
+PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
+  return CreatePrimFuncWithConstants(arg_list, {});
 }
 
 TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_typed(CreatePrimFunc);
