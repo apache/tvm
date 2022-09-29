@@ -588,14 +588,8 @@ class VirtualMachine(object):
                     idx = func_params.index(k)
                     new_args[idx] = input_args[k]
                     cnt += 1
-            assert len(args) + cnt == len(func_params)
-            idx = 0
-            for i, arg in enumerate(new_args):
-                if arg is None:
-                    new_args[i] = args[idx]
-                    idx += 1
-            args = new_args
-        cargs = convert(args)
+            assert cnt == len(func_params)
+        cargs = convert(new_args)
         self._set_input(func_name, *cargs)
         self._set_outputs(func_name, *output_args)
         self._invoke(func_name)
