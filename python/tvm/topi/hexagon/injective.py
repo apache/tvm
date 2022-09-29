@@ -30,10 +30,10 @@ def sqrt(x, dtype):
     return: tensor
     """
 
-    if dtype == "uint8" or dtype == "int8":
-        return tvm.te.compute((x.shape), lambda *i: tvm.tir.sqrt(x[i]), name="sqrt")
+    if dtype in ("uint8", "int8"):
+        return tvm.te.compute((x.shape), lambda *i: tvm.tir.sqrt(x[i]), name="sqrt", tag="lut")
     else:
-        exit("Currently unsupported")
+        return tvm.te.compute((x.shape), lambda *i: tvm.tir.sqrt(x[i]), name="sqrt")
 
 
 def negative(x, dtype):

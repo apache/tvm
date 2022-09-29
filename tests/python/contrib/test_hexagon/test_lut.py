@@ -57,7 +57,7 @@ def test_lut(
 
     A = te.placeholder(shape, name="A", dtype=dtype)
     O = func["tvm"](A, dtype=dtype)
-    s = tvm.topi.hexagon.lut.LUTize(O, A)
+    s = tvm.topi.hexagon.lut.lutize(O, A)
 
     # Lower hexagon code
     with tvm.transform.PassContext(opt_level=3):

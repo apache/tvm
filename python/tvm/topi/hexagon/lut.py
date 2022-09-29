@@ -17,17 +17,15 @@
 
 """Schedule for injective operators"""
 
-import tvm
-from tvm import te
-from tvm.script import tir as T
-import numpy as np
 import math
 from textwrap import dedent
+import tvm
+import numpy as np
 
-funcs = {"sqrt": math.sqrt, "negative": lambda x: -x}
+FUNCS = {"sqrt": math.sqrt, "negative": lambda x: -x}
 
 
-def LUTize(out, x):
+def lutize(out, x):
     """Takes an arbitrary python function and turns
     the operation into a LUT for that function
 
@@ -42,11 +40,10 @@ def LUTize(out, x):
     """
     assert out.dtype in ("int8", "uint8")
     assert out.dtype == x.dtype
-    dtype = out.dtype
 
-    func = funcs[out.name]
-    LUT_np = np.arange(256, dtype=out.dtype)
-    LUT_np = np.vectorize(func)(LUT_np).astype(out.dtype)
+    func = FUNCS[out.name]
+    lut_np = np.arange(256, dtype=out.dtype)
+    lut_np = np.vectorize(func)(lut_np).astype(out.dtype)
 
     # tvm script to represent LUT
     indices_str = str(["i" + str(index) for index in range(len(out.shape))])[1:-1].replace("'", "")
@@ -56,7 +53,7 @@ def LUTize(out, x):
     def main(x_in: T.Buffer[{tuple(x.shape)}, "{x.dtype}"],
              compute: T.Buffer[{tuple(out.shape)}, "{out.dtype}"],
              ) -> None:
-        LUT = T.allocate_const({LUT_np.tolist()}, "{out.dtype}", (256,))
+        LUT = T.allocate_const({lut_np.tolist()}, "{out.dtype}", (256,))
         lut = T.buffer_decl(shape=(256,), dtype="{out.dtype}", data=LUT)
         for {indices_str} in T.grid({str(out.shape)[1:-1]}):
             with T.block("compute"):
@@ -70,7 +67,7 @@ def LUTize(out, x):
     compute = sch.get_block("compute")
     loops = sch.get_loops(compute)
     merged = sch.fuse(*loops)
-    split_o, split_i = sch.split(merged, [None, 128])
+    _, split_i = sch.split(merged, [None, 128])
     sch.vectorize(split_i)
 
     return sch.mod["main"]
