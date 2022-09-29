@@ -308,9 +308,10 @@ class PipelineRewriter : public StmtExprMutator {
       const std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual>& double_buffers,
       const Array<Buffer> pipeline_allocs, const For& pipeline_loop,
       const PipelineInfo& pipeline_info,
-      const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info) {
+      const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info,
+      const Map<String, ObjectRef> preserved_annotations) {
     PipelineRewriter rewriter(buffer_data_to_buffer, double_buffers, pipeline_allocs, pipeline_loop,
-                              pipeline_info, fragment_info);
+                              pipeline_info, fragment_info, preserved_annotations);
     return rewriter.BuildPipeline();
   }
 
@@ -319,14 +320,16 @@ class PipelineRewriter : public StmtExprMutator {
                    const std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual>& double_buffers,
                    const Array<Buffer>& pipeline_allocs, const For& pipeline_loop,
                    const PipelineInfo& pipeline_info,
-                   const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info)
+                   const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info,
+                   const Map<String, ObjectRef> preserved_annotations)
 
       : buffer_data_to_buffer_(std::move(buffer_data_to_buffer)),
         double_buffers_(double_buffers),
         pipeline_allocs_(pipeline_allocs),
         pipeline_loop_(pipeline_loop),
         pipeline_info_(pipeline_info),
-        fragment_info_(fragment_info) {}
+        fragment_info_(fragment_info),
+        preserved_annotations_(preserved_annotations) {}
 
   Stmt BuildPipeline() {
     // Step 1: Analyze accesses to the buffers in the pipeline and compute the number of versions
@@ -903,7 +906,8 @@ class PipelineRewriter : public StmtExprMutator {
 
     if (!is_unit_loop) {
       new_loop = For(Downcast<Var>(new_loop_var), pipeline_loop_->min, extent,
-                     unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop));
+                     unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop),
+                     NullOpt, preserved_annotations_);
     }
 
     // Update producer heads in the global async states.
@@ -937,6 +941,7 @@ class PipelineRewriter : public StmtExprMutator {
   Map<Buffer, Buffer> buffer_remap_;
   Array<Block> ordered_stmts_;
   std::map<int, AsyncStateGlobal> async_states;
+  Map<String, ObjectRef> preserved_annotations_;
 };
 
 /*!
@@ -1100,6 +1105,15 @@ class PipelineInjector : private StmtExprMutator {
       }
     }
 
+    Map<String, ObjectRef> preserved_annotations;
+    for (const auto& kv : op->annotations) {
+      const String& key = kv.first;
+      if (kv.first != attr::software_pipeline_stage && kv.first != attr::software_pipeline_order &&
+          kv.first != attr::software_pipeline_async_stages) {
+        preserved_annotations.Set(key, kv.second);
+      }
+    }
+
     for (size_t i = 0; i < pipeline_stages.size(); i++) {
       int stage = static_cast<int>(pipeline_stages[i]->value);
       bool is_async = pipeline_async_stages.find(stage) != pipeline_async_stages.end();
@@ -1112,9 +1126,9 @@ class PipelineInjector : private StmtExprMutator {
     ValidatePipelineBody(pipeline_info, original_order);
 
     // Step 4: Rewrite the pipeline body.
-    Stmt pipeline =
-        PipelineRewriter::Rewrite(buffer_data_to_buffer_, double_buffers, pipeline_allocs,
-                                  GetRef<For>(op), pipeline_info, fragment_info_);
+    Stmt pipeline = PipelineRewriter::Rewrite(buffer_data_to_buffer_, double_buffers,
+                                              pipeline_allocs, GetRef<For>(op), pipeline_info,
+                                              fragment_info_, preserved_annotations);
 
     if (const auto* realize = op->body.as<BlockRealizeNode>()) {
       const auto& block = realize->block;
