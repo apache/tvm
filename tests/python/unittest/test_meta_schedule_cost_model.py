@@ -15,19 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+from typing import List
+
 import os
 import re
 import shutil
-import sys
 import tempfile
-from typing import List
-
 import numpy as np
-import pytest
+
 import tvm
 import tvm.testing
 from tvm.meta_schedule.cost_model import PyCostModel, RandomModel, XGBModel
-from tvm.meta_schedule.cost_model.xgb_model import XGBoostCustomCallback, PackSum
+from tvm.meta_schedule.cost_model.xgb_model import _get_custom_call_back, PackSum
 from tvm.meta_schedule.feature_extractor import RandomFeatureExtractor
 from tvm.meta_schedule.runner import RunnerResult
 from tvm.meta_schedule.search_strategy import MeasureCandidate
@@ -230,9 +229,11 @@ def test_meta_schedule_xgb_model_reupdate():
 
 
 def test_meta_schedule_xgb_model_callback():
+    # pylint: disable=import-outside-toplevel
     import xgboost as xgb
     from itertools import chain as itertools_chain
-    from functools import partial
+
+    # pylint: enable=import-outside-toplevel
 
     extractor = RandomFeatureExtractor()
     model = XGBModel(extractor=extractor, num_warmup_samples=10)
@@ -288,14 +289,12 @@ def test_meta_schedule_xgb_model_callback():
             num_boost_round=10000,
             obj=obj,
             callbacks=[
-                partial(
-                    XGBoostCustomCallback(
-                        early_stopping_rounds=model.early_stopping_rounds,
-                        verbose_eval=model.verbose_eval,
-                        fevals=[rmse, avg_peak_score],
-                        evals=[(d_train.dmatrix, "tr")],
-                        cvfolds=None,
-                    )
+                _get_custom_call_back(
+                    early_stopping_rounds=model.early_stopping_rounds,
+                    verbose_eval=model.verbose_eval,
+                    fevals=[rmse, avg_peak_score],
+                    evals=[(d_train.dmatrix, "tr")],
+                    cvfolds=None,
                 )
             ],
         )

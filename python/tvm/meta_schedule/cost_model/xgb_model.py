@@ -22,7 +22,7 @@ import os
 import tempfile
 from collections import OrderedDict
 from itertools import chain as itertools_chain
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, NamedTuple, Optional, Tuple, Callable
 
 import numpy as np  # type: ignore
 
@@ -39,6 +39,7 @@ from .metric import max_curve
 if TYPE_CHECKING:
 
     import xgboost as xgb  # type: ignore
+    from xgboost.callback import TrainingCallback  # type: ignore
 
     from ..tune_context import TuneContext
 
@@ -582,11 +583,11 @@ class XGBModel(PyCostModel):
             obj=obj,
             callbacks=[
                 _get_custom_call_back(
-                    self.early_stopping_rounds,
-                    self.verbose_eval,
-                    [rmse, avg_peak_score],
-                    [(self.d_train.dmatrix, "tr")],
-                    None,
+                    early_stopping_rounds=self.early_stopping_rounds,
+                    verbose_eval=self.verbose_eval,
+                    fevals=[rmse, avg_peak_score],
+                    evals=[(self.d_train.dmatrix, "tr")],
+                    cvfolds=None,
                 )
             ],
         )
@@ -647,7 +648,7 @@ def _get_custom_call_back(
     evals: List[Tuple["xgb.DMatrix", str]],
     focused_metric: str = "tr-p-rmse",
     cvfolds: List["xgb.training.CVPack"] = None,
-):
+) -> "TrainingCallback":
     """Get a customized callback function for XGBoost. Work around xgboost import."""
 
     def optional_xgboost_callback(cls):
