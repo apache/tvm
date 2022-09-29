@@ -68,12 +68,11 @@ class HexagonVtcmPool {
   void Free(void* ptr, size_t nbytes);
 
   //! \brief Returns the total number of bytes in this pool
-  size_t TotalBytes() {return vtcm_size_; }
+  size_t TotalBytes() {return (size_t)vtcm_size_; }
 
  private:
   //! \brief Context for HAP_compute_res_*
-  // TODO(janetsc) get the size programmatically
-  const size_t vtcm_size_ = 1024*1024;
+  unsigned int vtcm_size_;
 
   //! \brief Context for HAP_compute_res_*
   void* vtcm_data_;

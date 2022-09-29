@@ -26,7 +26,7 @@ using namespace tvm::runtime::hexagon;
 
 class HexagonVtcmPoolTest : public ::testing::Test {
   void SetUp() override {
-    vtcm_pool = std::make_unique<HexagonVtcmPool>();
+    vtcm_pool = std::make_unique<HexagonVtcmPool>(); // jlsfix - get pointer from device API later
   }
   void TearDown() override {
     vtcm_pool.reset();
@@ -77,7 +77,7 @@ TEST_F(HexagonVtcmPoolTest, free_with_wrong_size) {
   vtcm_pool->Free(ptr, two_k_block*2);
 }
 
-TEST_F(HexagonVtcmPoolTest, free_alloc_in_middle) {
+TEST_F(HexagonVtcmPoolTest, free_alloc_combinations) {
   void* ptr1;
   void* ptr2;
   void* ptr3;
@@ -113,4 +113,11 @@ TEST_F(HexagonVtcmPoolTest, free_alloc_in_middle) {
   vtcm_pool->Free(ptr3, two_k_block);
   vtcm_pool->Free(ptr4, max_less_3_blocks);
   vtcm_pool->Free(ptr1, two_k_block);
+
+  ptr1 = vtcm_pool->Allocate(two_k_block);
+  ptr2 = vtcm_pool->Allocate(two_k_block);
+  ptr3 = vtcm_pool->Allocate(two_k_block);
+  vtcm_pool->Free(ptr1, two_k_block);
+  vtcm_pool->Free(ptr3, two_k_block);
+  vtcm_pool->Free(ptr2, two_k_block);
 }
