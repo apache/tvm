@@ -192,3 +192,50 @@ def create_time_per_layer(graph: str) -> Callable:
             )
 
     return f_time_per_layer
+
+
+def create_computer(backend: str) -> Callable:
+    """Create a function to fetch the computing result of running the given runtime module.
+
+    Parameters
+    ----------
+    backend : str
+        The backend to use, graph / vm.
+
+    Returns
+    -------
+    func : Callable
+        The function to fetch the computing result.
+    """
+
+    def f_computer(
+        rt_mod: tvm.runtime.Module,
+        dev: tvm.device,
+        input_data: Dict[str, NDArray],
+    ) -> None:
+        """Fetch the result of running the given runtime module.
+
+        Parameters
+        ----------
+        rt_mod : Union[tvm.runtime.Module, tvm.runtime.vm.Executable]
+            The runtime module or vm executable.
+        dev : tvm.device
+            The device type to run workload.
+        input_data : Dict[str, np.ndarray]
+            The input data as a dictionary.
+        """
+        try:
+            if backend == "tir":
+
+                inputs = [lambda x: x[1] for x in sorted(lambda x: x[0], input_data.items())]
+                rt_mod["default"](dev)(inputs)
+                return [x.cpu().numpy() for x in inputs]
+            else:
+                raise ValueError(f"Backend {backend} not supported in f_timer!")
+
+        except Exception as exc:  # pylint: disable=broad-except
+            print(
+                f"Run module f_computer via RPC failed, exception: {exc}",
+            )
+
+    return f_computer
