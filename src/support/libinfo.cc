@@ -227,6 +227,10 @@
 #define TVM_CXX_COMPILER_PATH ""
 #endif
 
+#ifndef TVM_INFO_USE_CCACHE
+#define TVM_INFO_USE_CCACHE "NOT-FOUND"
+#endif
+
 namespace tvm {
 
 /*!
