@@ -943,6 +943,28 @@ def test_vm_invoke_with_outputs_rpc():
     check_remote_invoke_with_outputs(rpc.Server("127.0.0.1"))
 
 
+def test_vm_invoke_with_outputs():
+    target = tvm.target.Target("llvm")
+    shape=(3, 2)
+
+    # Build a IRModule.
+    x = relay.var("x", shape=shape)
+    f = relay.Function([x], x + x)
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    np_input = np.random.uniform(size=shape).astype("float32")
+    input_tensor = tvm.nd.array(np_input)
+    np_output = np.empty(shape, dtype="float32")
+    output_tensor = tvm.nd.array(np_output)
+    # Invoke
+    vm_factory.invoke_with_outputs("main", input_args={"x": input_tensor}, output_args=[output_tensor])
+    # Check the result.
+    np.testing.assert_allclose(output_tensor.numpy(), np_input + np_input)
+
+
 def test_get_output_single():
     target = tvm.target.Target("llvm")
 
