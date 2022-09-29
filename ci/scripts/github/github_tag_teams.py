@@ -21,8 +21,13 @@ import json
 import argparse
 import logging
 import re
+import sys
+from pathlib import Path
 from typing import Dict, Any, List, Tuple, Optional
 
+# Hackery to enable importing of utils from ci/scripts/jenkins
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 
 from git_utils import git, GitHubRepo, parse_remote, find_ccs, dry_run_token
 from cmd_utils import tags_from_title, init_log

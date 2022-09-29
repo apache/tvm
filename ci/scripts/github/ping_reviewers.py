@@ -16,15 +16,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
 import argparse
 import re
 import datetime
 import json
+import sys
 import textwrap
-from typing import Dict, Any, List
+from pathlib import Path
+from typing import List
 
-from git_utils import git, GitHubRepo, parse_remote
+# Hackery to enable importing of utils from ci/scripts/jenkins
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
+
+from git_utils import git, parse_remote
 
 GIT_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 

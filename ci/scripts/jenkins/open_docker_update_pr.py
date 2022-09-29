@@ -17,7 +17,6 @@
 # under the License.
 
 import argparse
-import re
 import logging
 import datetime
 import os
@@ -26,7 +25,7 @@ import re
 from urllib import error
 from typing import List, Dict, Any, Optional, Callable
 from git_utils import git, parse_remote, GitHubRepo
-from cmd_utils import REPO_ROOT, init_log, Sh
+from cmd_utils import REPO_ROOT, init_log
 from should_rebuild_docker import docker_api
 
 JENKINSFILE = REPO_ROOT / "ci" / "jenkins" / "Jenkinsfile.j2"

@@ -38,7 +38,7 @@ jobs:
           PR_NUMBER: ${{ github.event.number }}
         run: |
           set -eux
-          python ci/scripts/github_pr_comment.py --pr "$PR_NUMBER"
+          python ci/scripts/github/github_pr_comment.py --pr "$PR_NUMBER"
       - name: Comment bot comment (status)
         if: ${{ github.event.state }}
         env:
@@ -49,7 +49,7 @@ jobs:
           if [[ "$URL" == *"PR-"* ]]; then
             echo "PR status, sending comment"
             PR_NUMBER=$(echo $URL | sed 's/.*PR-//g' | sed 's/\/.*//g')
-            python ci/scripts/github_pr_comment.py --pr "$PR_NUMBER" || /bin/true
+            python ci/scripts/github/github_pr_comment.py --pr "$PR_NUMBER" || /bin/true
           else
             echo "Not a PR status, skipping"
           fi

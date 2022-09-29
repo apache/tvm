@@ -26,8 +26,7 @@ from typing import Dict, Any
 
 
 from http_utils import get
-from cmd_utils import init_log, REPO_ROOT
-
+from cmd_utils import init_log
 
 DOCKER_API_BASE = "https://hub.docker.com/v2/"
 PAGE_SIZE = 25
