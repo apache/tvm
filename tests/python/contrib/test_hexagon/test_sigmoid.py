@@ -27,6 +27,7 @@ from tvm.contrib.hexagon.build import HexagonLauncher
 
 from .infrastructure import allocate_hexagon_array, transform_numpy
 
+
 def sigmoid_compute(Input):
     return topi.sigmoid(Input)
 
@@ -36,7 +37,7 @@ def sigmoid_stir_schedule(Input, Output):
     sch = tir.Schedule(sigmoid_func, debug_mask="all")
     block = sch.get_block("compute")
 
-    n, = sch.get_loops(block)
+    (n,) = sch.get_loops(block)
     sch.vectorize(n)
     return sch
 
@@ -53,12 +54,7 @@ def ref_output_np(input_np):
 
 
 class BaseSigmoid:
-    (
-        in_shape,
-        dtype,
-        min_val,
-        max_val,
-    ) = tvm.testing.parameters(
+    (in_shape, dtype, min_val, max_val,) = tvm.testing.parameters(
         ((64,), "float16", -8.0, 8.0),
         ((64,), "float16", -6.0, 7.0),
         ((64,), "float16", -10.0, 15.0),
@@ -104,7 +100,6 @@ class TestSigmoid(BaseSigmoid):
         assert "hvx_sigmoid" in runtime_module.get_source("asm")
         assert "vmin" in runtime_module.get_source("asm")
         assert "vmax" in runtime_module.get_source("asm")
-
         mod = hexagon_session.load_module(runtime_module)
 
         mod(input_data, output_data)
