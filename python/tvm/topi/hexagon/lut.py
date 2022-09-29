@@ -20,6 +20,7 @@
 import math
 from textwrap import dedent
 import tvm
+from tvm import script
 import numpy as np
 
 FUNCS = {"sqrt": math.sqrt, "negative": lambda x: -x}
@@ -60,7 +61,7 @@ def lutize(out, x):
                 compute[{indices_str}] = lut[x_in[{indices_str}]]
         """
     )
-    primfunc = tvm.script.from_source(ir_func)
+    primfunc = script.parser.from_source(ir_func)
 
     # Vectorize
     sch = tvm.tir.Schedule(primfunc)
