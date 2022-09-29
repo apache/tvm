@@ -139,7 +139,8 @@ std::string CodeGenOpenCL::Finish() {
     // For now we rely on OpenCL preprocessor directives to utilize the correct behavior
     // depending on the OpenCL version detected at OpenCL compile time.
     decl_stream << "#ifdef __OPENCL_VERSION__\n"
-                << "#if __OPENCL_VERSION__ == CL_VERSION_2_0\n"
+                << "#if __OPENCL_VERSION__ == CL_VERSION_2_0"
+                << " || __OPENCL_VERSION__ == CL_VERSION_3_0 \n"
                 << "#define READ_IMAGEH(image, sampler, coord) "
                 << "read_imageh(image, sampler, coord)\n"
                 << "#define READ_IMAGEF(image, sampler, coord) "
