@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import itertools
+from math import gamma
 import numpy as np
 import pytest
 import tvm
@@ -170,6 +172,46 @@ def test_binary_op():
     ]:
         for dtype in ["float16", "float32"]:
             check_binary_op(opfunc, ref, dtype)
+
+
+@tvm.testing.uses_gpu
+def test_layer_norm():
+    from tvm.topi.testing import layer_norm_python
+
+    # based on topi test
+    def verify_layer_norm(dshape, dtype, gamma, beta, axis, center, scale, rtol, atol):
+        x = relay.Var("x", relay.TensorType(dshape, dtype))
+        func = relay.Function(
+            [x],
+            relay.nn.layer_norm(
+                x,
+                relay.const([gamma] * dshape[axis], dtype=dtype),
+                relay.const([beta] * dshape[axis], dtype=dtype),
+                axis=axis,
+                center=center,
+                scale=scale,
+            ),
+        )
+        for target, dev in tvm.testing.enabled_targets():
+            if 'cuda' in target or "nvptx" in target:
+                # CUDA needs tuning to work
+                continue 
+            data = np.random.uniform(size=dshape).astype(dtype)
+            ref_res = layer_norm_python(data, gamma if scale else 1, beta if center else 0, axis)
+            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol, atol=atol)
+
+    for dtype, gamma, beta, axis, center, scale in itertools.product(
+        ["float16", "float32"], [3.0], [1.0], [1, 2], [True, False], [True, False]
+    ):
+        if dtype == 'float16':
+            # Float16 version is a lot less accurate
+            rtol = 0.1
+            atol = 0.1
+        else:
+            rtol = 1e-5
+            atol = 1e-3
+        verify_layer_norm((1, 10, 10), dtype, gamma, beta, axis=axis, center=center, scale=scale, rtol=rtol, atol=atol)
 
 
 @tvm.testing.uses_gpu
