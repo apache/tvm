@@ -29,6 +29,7 @@
 #include <tvm/tir/op.h>
 
 #include <algorithm>
+#include <utility>
 
 #include "../target/datatype/registry.h"
 #include "const_fold.h"
