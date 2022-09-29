@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_BUFFER_H_
-#define TVM_RUNTIME_HEXAGON_HEXAGON_BUFFER_H_
+#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_VTCM_POOL_H_
+#define TVM_RUNTIME_HEXAGON_HEXAGON_VTCM_POOL_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
@@ -33,25 +33,25 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-class VtcmMemoryManager {
+class HexagonVtcmPool {
  public:
   //! \brief Allocates all of VTCM memory, and manages allocations from the runtime
-  VtcmMemoryManager();
+  HexagonVtcmPool();
 
   //! \brief Destruction deallocates the underlying VTCM allocation.
-  ~VtcmMemoryManager();
+  ~HexagonVtcmPool();
 
-  //! \brief Prevent copy construction of VtcmMemoryManager.
-  VtcmMemoryManager(const VtcmMemoryManager&) = delete;
+  //! \brief Prevent copy construction of HexagonVtcmPool.
+  HexagonVtcmPool(const HexagonVtcmPool&) = delete;
 
-  //! \brief Prevent copy assignment with VtcmMemoryManager.
-  VtcmMemoryManager& operator=(const VtcmMemoryManager&) = delete;
+  //! \brief Prevent copy assignment with HexagonVtcmPool.
+  HexagonVtcmPool& operator=(const HexagonVtcmPool&) = delete;
 
   //! \brief Prevent move construction.
-  VtcmMemoryManager(VtcmMemoryManager&&) = delete;
+  HexagonVtcmPool(HexagonVtcmPool&&) = delete;
 
   //! \brief Prevent move assignment.
-  VtcmMemoryManager& operator=(VtcmMemoryManager&&) = delete;
+  HexagonVtcmPool& operator=(HexagonVtcmPool&&) = delete;
 
   /* \brief Allocate memory from the VTCM manager
    *
@@ -90,4 +90,4 @@ class VtcmMemoryManager {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_BUFFER_H_
+#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_VTCM_POOL_H_

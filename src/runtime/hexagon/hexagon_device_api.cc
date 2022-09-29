@@ -33,7 +33,6 @@
 
 #include "../workspace_pool.h"
 #include "hexagon_common.h"
-#include "hexagon_user_dma.h"
 
 namespace tvm {
 namespace runtime {

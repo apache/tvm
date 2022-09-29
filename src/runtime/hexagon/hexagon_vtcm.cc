@@ -25,7 +25,7 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-VtcmMemoryManager::VtcmMemoryManager() {
+HexagonVtcmPool::HexagonVtcmPool() {
     compute_res_attr_t res_info;
     HEXAGON_SAFE_CALL(HAP_compute_res_attr_init(&res_info));
 
@@ -53,11 +53,11 @@ VtcmMemoryManager::VtcmMemoryManager() {
     free_.emplace_back(std::pair<char*, size_t>((char*)vtcm_data_, vtcm_size_));
 }
 
-VtcmMemoryManager::~VtcmMemoryManager() {
+HexagonVtcmPool::~HexagonVtcmPool() {
     HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
 }
 
-void* VtcmMemoryManager::Allocate(size_t nbytes) {
+void* HexagonVtcmPool::Allocate(size_t nbytes) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   LOG(INFO) << "nbytes requested: " << nbytes;
@@ -98,7 +98,7 @@ void* VtcmMemoryManager::Allocate(size_t nbytes) {
   return (void*)ptr;
 }
 
-void VtcmMemoryManager::Free(void* ptr, size_t nbytes) {
+void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
   char* ptr_to_free = (char*)ptr;
   std::lock_guard<std::mutex> lock(mutex_);
   bool found_allocation_entry = false;
