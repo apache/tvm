@@ -16,9 +16,13 @@
 # under the License.
 
 import sys
+import numpy as np
 
 import tvm
+from tvm import relay
 from tvm.micro.project_api import server
+from tvm.relay.backend import Runtime
+from tvm.micro.testing import get_target
 
 API_GENERATE_PROJECT = "generate_project"
 API_BUILD = "build"
@@ -32,6 +36,7 @@ PLATFORM_ZEPHYR = "zephyr"
 platform = tvm.testing.parameter(PLATFORM_ARDUINO, PLATFORM_ZEPHYR)
 
 
+@tvm.testing.requires_micro
 def test_default_options_exist(platform):
     sys.path.insert(0, tvm.micro.get_microtvm_template_projects(platform))
     import microtvm_api_server
@@ -47,57 +52,40 @@ def test_default_options_exist(platform):
         assert option.name in option_names
 
 
-def test_default_options_requirements(platform):
-    sys.path.insert(0, tvm.micro.get_microtvm_template_projects(platform))
-    import microtvm_api_server
+@tvm.testing.requires_micro
+def test_project_minimal_options(platform):
+    """Test template project with minimum projectOptions"""
+    shape = (10,)
+    dtype = "int8"
+    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
+    xx = relay.multiply(x, x)
+    z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
+    func = relay.Function([x], z)
+    ir_mod = tvm.IRModule.from_expr(func)
 
-    platform_options = microtvm_api_server.PROJECT_OPTIONS
-    for option in platform_options:
-        if option.name == "verbose":
-            assert option.optional == [API_GENERATE_PROJECT]
-        if option.name == "project_type":
-            option.required == [API_GENERATE_PROJECT]
-        if option.name == "board":
-            option.required == [API_GENERATE_PROJECT]
-            if platform == PLATFORM_ARDUINO:
-                option.optional == [API_FLASH, API_OPEN_TRANSPORT]
-        if option.name == "cmsis_path":
-            assert option.optional == [API_GENERATE_PROJECT]
-        if option.name == "compile_definitions":
-            assert option.optional == [API_GENERATE_PROJECT]
-        if option.name == "extra_files_tar":
-            assert option.optional == [API_GENERATE_PROJECT]
+    if platform == "arduino":
+        board = "due"
+    elif platform == "zephyr":
+        board = "qemu_x86"
 
+    runtime = Runtime("crt", {"system-lib": True})
+    target = get_target(platform, board)
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        mod = tvm.relay.build(ir_mod, target=target, runtime=runtime)
 
-def test_extra_options_requirements(platform):
-    sys.path.insert(0, tvm.micro.get_microtvm_template_projects(platform))
-    import microtvm_api_server
+    project_options = {
+        "project_type": "host_driven",
+        "board": board,
+    }
 
-    platform_options = microtvm_api_server.PROJECT_OPTIONS
-
-    if platform == PLATFORM_ZEPHYR:
-        for option in platform_options:
-            if option.name == "gdbserver_port":
-                assert option.optional == [API_OPEN_TRANSPORT]
-            if option.name == "nrfjprog_snr":
-                assert option.optional == [API_OPEN_TRANSPORT]
-            if option.name == "openocd_serial":
-                assert option.optional == [API_OPEN_TRANSPORT]
-            if option.name == "west_cmd":
-                assert option.optional == [API_GENERATE_PROJECT]
-            if option.name == "config_main_stack_size":
-                assert option.optional == [API_GENERATE_PROJECT]
-            if option.name == "arm_fvp_path":
-                assert option.optional == [API_GENERATE_PROJECT]
-            if option.name == "use_fvp":
-                assert option.optional == [API_GENERATE_PROJECT]
-            if option.name == "heap_size_bytes":
-                assert option.optional == [API_GENERATE_PROJECT]
-
-    if platform == PLATFORM_ARDUINO:
-        for option in platform_options:
-            if option.name == "port":
-                assert option.optional == [API_FLASH, API_OPEN_TRANSPORT]
+    temp_dir = tvm.contrib.utils.tempdir()
+    project = tvm.micro.generate_project(
+        tvm.micro.get_microtvm_template_projects(platform),
+        mod,
+        temp_dir / "project",
+        project_options,
+    )
+    project.build()
 
 
 if __name__ == "__main__":
