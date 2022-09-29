@@ -20,11 +20,9 @@
 /*!
  * \file hexagon_device_api.cc
  */
-
 #include "hexagon_device_api.h"
 
 #include <dmlc/thread_local.h>
-#include <tvm/runtime/logging.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
 
@@ -55,8 +53,9 @@ void HexagonDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv)
 // DataSpace: static allocations for Hexagon
 void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                                        Optional<String> mem_scope) {
-  CHECK(shape) << "shape array is null";
-  CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
+  HEXAGON_ASSERT(shape != nullptr, "shape array is null");
+  HEXAGON_ASSERT(IsValidDevice(dev), "invalid device: dev.device_type: %d",
+                 static_cast<int>(dev.device_type));
 
   // IMPORTANT NOTE!
   // Hexagon treats "global" memory scope VERY DIFFERENTLY from all the others.
@@ -82,12 +81,12 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
 
   // NOTE: This check should be superfluous, but it's probably a good idea to leave it in
   // until the AoT executor's multi-device dispatch code is mature. --cconvey 2022-08-26
-  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon)
-      << "dev.device_type: " << dev.device_type << " DeviceName(" << dev.device_type
-      << "): " << DeviceName(dev.device_type) << "";
+  HEXAGON_ASSERT(IsHexagonDevice(dev), "device_type is not kDLHexagon: dev.device_type:%d name:%s",
+                 static_cast<int>(dev.device_type), DeviceName(dev.device_type));
 
-  CHECK(ndim >= 0 && ndim <= 2)
-      << "Hexagon Device API supports only 1d and 2d allocations, but received ndim = " << ndim;
+  HEXAGON_ASSERT(ndim == 0 || ndim == 1 || ndim == 2,
+                 "Hexagon Device API supports only 1d and 2d allocations, but received ndim = %d",
+                 static_cast<int>(ndim));
 
   const size_t typesize = (dtype.bits / 8) * dtype.lanes;
 
@@ -110,9 +109,10 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
 
 void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
                                        DLDataType type_hint) {
-  CHECK(nbytes) << "number of bytes is zero";
-  CHECK(alignment) << "alignment is zero";
-  CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
+  HEXAGON_ASSERT(nbytes != 0, "number of bytes is zero");
+  HEXAGON_ASSERT(alignment != 0, "alignment is zero");
+  HEXAGON_ASSERT(IsValidDevice(dev), "invalid device: dev.device_type: %d",
+                 static_cast<int>(dev.device_type));
   if (alignment < kHexagonAllocAlignment) {
     alignment = kHexagonAllocAlignment;
   }
@@ -120,8 +120,9 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignme
 }
 
 void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
-  CHECK(ptr) << "buffer pointer is null";
-  CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
+  HEXAGON_ASSERT(ptr != nullptr, "buffer pointer is null");
+  HEXAGON_ASSERT(IsValidDevice(dev), "invalid device: dev.device_type: %d",
+                 static_cast<int>(dev.device_type));
   mgr->FreeHexagonBuffer(ptr);
 }
 
@@ -132,35 +133,45 @@ struct HexagonWorkspacePool : public WorkspacePool {
 };
 
 void* HexagonDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
-  CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
+  HEXAGON_ASSERT(IsValidDevice(dev), "invalid device: dev.device_type: %d",
+                 static_cast<int>(dev.device_type));
   return dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->AllocWorkspace(dev, size);
 }
 
 void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
-  CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  CHECK(mgr->count(data) != 0)
-      << "Attempt made to free unknown or already freed workspace allocation";
+  HEXAGON_ASSERT(IsValidDevice(dev), "invalid device: dev.device_type: %d",
+                 static_cast<int>(dev.device_type));
+  HEXAGON_ASSERT(mgr->count(data) != 0,
+                 "Attempt made to free unknown or already freed workspace allocation");
   dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
 
 void* HexagonDeviceAPI::AllocVtcmWorkspace(Device dev, int ndim, const int64_t* shape,
                                            DLDataType dtype, Optional<String> mem_scope) {
   // must be Hexagon device (not CPU)
-  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
-  CHECK((ndim == 1 || ndim == 2) && "Hexagon Device API supports only 1d and 2d allocations");
+  HEXAGON_ASSERT(IsHexagonDevice(dev), "device_type is not kDLHexagon: dev.device_type:%d name:%s",
+                 static_cast<int>(dev.device_type), DeviceName(dev.device_type));
+
+  HEXAGON_ASSERT(ndim == 1 || ndim == 2,
+                 "Hexagon Device API supports only 1d and 2d allocations, but received ndim = %d",
+                 static_cast<int>(ndim));
   return AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
 }
 
 void HexagonDeviceAPI::FreeVtcmWorkspace(Device dev, void* ptr) {
   // must be Hexagon device (not CPU)
-  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
+  HEXAGON_ASSERT(IsHexagonDevice(dev), "device_type is not kDLHexagon: dev.device_type:%d name:%s",
+                 static_cast<int>(dev.device_type), DeviceName(dev.device_type));
   FreeDataSpace(dev, ptr);
 }
 
 void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
-  CHECK_EQ(from->byte_offset, 0);
-  CHECK_EQ(to->byte_offset, 0);
-  CHECK_EQ(GetDataSize(*from), GetDataSize(*to));
+  HEXAGON_ASSERT(from->byte_offset == 0, "from->byte_offset(%d) should be 0",
+                 static_cast<int>(from->byte_offset));
+  HEXAGON_ASSERT(to->byte_offset == 0, "to->byte_offset(%d) should be 0",
+                 static_cast<int>(to->byte_offset));
+  size_t from_size = GetDataSize(*from), to_size = GetDataSize(*to);
+  HEXAGON_ASSERT(from_size == to_size, "from_size(%zu) != to_size(%zu)", from_size, to_size);
 
   auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* { return mgr->find(ptr); };
 
@@ -174,8 +185,10 @@ void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHan
   } else if (hex_from_buf) {
     hex_from_buf->CopyTo(to->data, GetDataSize(*to));
   } else {
-    CHECK(false) << "CopyDataFromTo requested between src and dst which are not managed by the "
-                    "hexagon device api.";
+    HEXAGON_PRINT(ERROR,
+                  "CopyDataFromTo requested between src and dst which are not managed by the "
+                  "hexagon device api.");
+    HEXAGON_ABORT();
   }
 }
 
@@ -202,18 +215,18 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVM
   int size = args[2];
 
   int error_code = hexagon_user_dma_1d_sync(dst, src, size);
-  CHECK_EQ(error_code, 0);
+  HEXAGON_ASSERT(error_code == 0);
 
   *rv = static_cast<int32_t>(0);
 });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
   int queue_id = args[0];
-  ICHECK(queue_id == 0 && "Hexagon supports just a single asynchronous queue for DMA");
+  HEXAGON_ASSERT(queue_id == 0, "Hexagon supports just a single asynchronous queue for DMA");
   void* dst = args[1];
   void* src = args[2];
   int size = args[3];
-  ICHECK(size > 0);
+  HEXAGON_ASSERT(size > 0);
 
   int ret = DMA_RETRY;
   do {
@@ -224,9 +237,9 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy").set_body([](TVMArgs args, TVM
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.dma_wait").set_body([](TVMArgs args, TVMRetValue* rv) {
   int queue_id = args[0];
-  ICHECK(queue_id == 0 && "Hexagon supports just a single asynchronous queue for DMA");
+  HEXAGON_ASSERT(queue_id == 0, "Hexagon supports just a single asynchronous queue for DMA");
   int inflight = args[1];
-  ICHECK(inflight >= 0);
+  HEXAGON_ASSERT(inflight >= 0);
   HexagonDeviceAPI::Global()->UserDMA()->Wait(inflight);
   *rv = static_cast<int32_t>(0);
 });
@@ -237,9 +250,11 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.alloc_nd").set_body([](TVMArgs args, TVM
   int32_t dtype_code_hint = args[2];
   int32_t dtype_bits_hint = args[3];
   std::string scope = args[4];
-  CHECK(scope.find("global.vtcm") != std::string::npos);
+  HEXAGON_ASSERT(scope.find("global.vtcm") != std::string::npos);
   int64_t ndim = args[5];
-  CHECK((ndim == 1 || ndim == 2) && "Hexagon Device API supports only 1d and 2d allocations");
+  HEXAGON_ASSERT(ndim == 1 || ndim == 2,
+                 "Hexagon Device API supports only 1d and 2d allocations, but received ndim = %d",
+                 static_cast<int>(ndim));
   int64_t* shape = static_cast<int64_t*>(static_cast<void*>(args[6]));
 
   Device dev;
@@ -259,7 +274,7 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.free_nd").set_body([](TVMArgs args, TVMR
   int32_t device_type = args[0];
   int32_t device_id = args[1];
   std::string scope = args[2];
-  CHECK(scope.find("global.vtcm") != std::string::npos);
+  HEXAGON_ASSERT(scope.find("global.vtcm") != std::string::npos);
   void* ptr = args[3];
 
   Device dev;

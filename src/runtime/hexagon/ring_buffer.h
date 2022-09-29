@@ -55,11 +55,11 @@ class RingBuffer {
    */
   RingBuffer(uint32_t ring_buff_size, std::function<bool(T*)> in_flight)
       : ring_buff_size_(ring_buff_size), in_flight_(in_flight) {
-    CHECK_NE(ring_buff_size, 0);
+    HEXAGON_ASSERT(ring_buff_size != 0);
     int ret = posix_memalign(reinterpret_cast<void**>(&ring_buff_ptr_), sizeof(T),
                              sizeof(T) * ring_buff_size_);
-    CHECK_EQ(ret, 0);
-    CHECK_NE(ring_buff_ptr_, nullptr);
+    HEXAGON_ASSERT(ret == 0);
+    HEXAGON_ASSERT(ring_buff_ptr_ != nullptr);
   }
 
   ~RingBuffer() { free(ring_buff_ptr_); }

@@ -79,13 +79,17 @@ TEST_F(HexagonDeviceAPITest, free_errors) {
 
   // invalid device
   EXPECT_THROW(hexapi->FreeDataSpace(invalid_dev, buf), InternalError);
-  // invalid pointer
-  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, &buf), InternalError);
   // nullptr
   EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, nullptr), InternalError);
+  // The following are not checked, because they are not flagged as errors. See
+  // comment in FreeHexagonBuffer in src/runtime/hexagon/hexagon_buffer_manager.h
+  // for more information.
+  //
+  // invalid pointer
+  // EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, &buf), InternalError);
   // double free
-  hexapi->FreeDataSpace(hex_dev, buf);
-  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, buf), InternalError);
+  // hexapi->FreeDataSpace(hex_dev, buf);
+  // EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, buf), InternalError);
 }
 
 TEST_F(HexagonDeviceAPITest, allocnd_free_cpu) {
@@ -160,7 +164,8 @@ TEST_F(HexagonDeviceAPITest, leak_resources) {
   void* runtime_buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
   CHECK(runtime_buf != nullptr);
   hexapi->ReleaseResources();
-  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, runtime_buf), InternalError);
+  // Does not throw (see "free_errors" above).
+  // EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, runtime_buf), InternalError);
   hexapi->FreeDataSpace(hex_dev, pre_runtime_buf);
   hexapi->AcquireResources();
 }

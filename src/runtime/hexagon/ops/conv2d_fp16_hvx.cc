@@ -27,6 +27,7 @@
 #include <cassert>
 #include <cinttypes>
 
+#include "../hexagon_common.h"
 #include "tvm/runtime/hexagon/ops/conv2d.h"
 
 // Current limitations:
@@ -188,37 +189,42 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
 
   int pad_top = pad_shape.shape[0];
   int pad_left = pad_shape.shape[1];
-  LOG_INFO << "filt_height=" << filt_height << ", filt_width=" << filt_width
-           << ", filt_idepth=" << filt_idepth << ", pad_top=" << pad_top
-           << ", pad_left=" << pad_left << "\n";
+#ifdef DEBUG_CONV
+  HEXAGON_PRINT(ALWAYS,
+                "filt_height=%lld, filt_width=%lld, filt_idepth=%lld, pad_top=%d, pad_left=%d",
+                filt_height, filt_width, filt_idepth, pad_top, pad_left);
+#endif
 
-  ICHECK_LT(pad_top, 8) << "pad_top offset cannot be >= 8";
-  ICHECK_LT(pad_left, 4) << "pad_left offset cannot be >= 4";
+  HEXAGON_ASSERT(pad_top < 8, "pad_top offset cannot be >= 8");
+  HEXAGON_ASSERT(pad_left < 4, "pad_left offset cannot be >= 4");
 
-  int a_height = cr_act.shape[1];
-  int a_width = cr_act.shape[2];
   int a_depth = cr_act.shape[3];
-
-  int w_height = cr_filt.shape[0];
-  int w_width = cr_filt.shape[1];
-
-  int o_depth = cr_out.shape[3];
-  int b_depth = bias_flat.shape[0];
 
   int o_height = cr_out.shape[1];
   int o_width = cr_out.shape[2];
+  int o_depth = cr_out.shape[3];
 
   int out_height = out_shape.shape[1];
   int out_width = out_shape.shape[2];
 
-  LOG_INFO << "a: 1x" << a_height << "x" << a_width << "x" << a_depth << ", w: " << w_height << "x"
-           << w_width << "x" << static_cast<int>(cr_filt.shape[2]) << "x"
-           << static_cast<int>(cr_filt.shape[3]) << ", o: 1x" << o_height << "x" << o_width << "x"
-           << o_depth << ", b: " << b_depth << ", out_shape: " << out_height << "x" << out_width
-           << "\n";
+#ifdef DEBUG_CONV
+  int a_height = cr_act.shape[1];
+  int a_width = cr_act.shape[2];
 
-  ICHECK_EQ(a_depth, cr_filt.shape[2]) << "input depth should match weights input channels";
-  ICHECK_EQ(o_depth, cr_filt.shape[3]) << "output depth should match the weights output channel";
+  int w_height = cr_filt.shape[0];
+  int w_width = cr_filt.shape[1];
+
+  int b_depth = bias_flat.shape[0];
+
+  HEXAGON_PRINT(ALWAYS, "a: 1x%dx%dx%d, w: %dx%dx%dx%d, o: 1x%dx%dx%d, b: %d, out_shape: %dx%d",
+                a_height, a_width, a_depth, w_height, w_width, static_cast<int>(cr_filt.shape[2]),
+                static_cast<int>(cr_filt.shape[3]), o_height, o_width, o_depth, b_depth, out_height,
+                out_width);
+#endif
+
+  HEXAGON_ASSERT(a_depth == cr_filt.shape[2], "input depth should match weights input channels");
+  HEXAGON_ASSERT(o_depth == cr_filt.shape[3],
+                 "output depth should match the weights output channel");
 
   int rd = round_down(filt_width, 4);
   int wgt_chunk_thin_width = filt_width - rd;
@@ -264,8 +270,11 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
                                                             int h, int wo, bool skip_wi_1 = false) {
     auto out_element_ptr = getElementPtr(out_act_y, out_act_x, out_c, h, wo, 0, 0, cr_out);
 
-    LOG_INFO << "out_act_y: " << out_act_y << ", out_act_x: " << out_act_x << ", out_c: " << out_c
-             << ", h: " << h << ", wo: " << wo << " out_element_ptr: " << out_element_ptr;
+#ifdef DEBUG_CONV
+    HEXAGON_PRINT(ALWAYS,
+                  "out_act_y: %d, out_act_x: %d, out_c: %d, h: %d, wo: %d out_element_ptr: %p",
+                  out_act_y, out_act_x, out_c, h, wo, out_element_ptr);
+#endif
 
     HVX_Vector* out_vector = reinterpret_cast<HVX_Vector*>(out_element_ptr);
     HVX_Vector existing_out_vec = *out_vector;
@@ -300,8 +309,6 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
           int true_out_act_y = act_height_access_idx / 8;
           int true_h = act_height_access_idx % 8;
 
-          int act_channel_idx = out_act_cc * 32 + ci;
-
           auto act_element_ptr = getElementPtr(true_out_act_y, true_out_act_x, out_act_cc, true_h,
                                                true_wo, ci, true_wi, cr_act);
           HVX_Vector act_vec = getInputVector(act_element_ptr);
@@ -310,10 +317,14 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
           auto base_chunk_ptr = reinterpret_cast<uint16_t*>(wgt_chunk);
           auto chunk_ptr = base_chunk_ptr + wgt_chunk_offset;
 
-          LOG_INFO << "act:  0x" << act_height_access_idx << "x" << act_width_access_idx << "x"
-                   << act_channel_idx << ", wgt: " << fh << "x" << fw << "x" << act_channel_idx
-                   << "x" << out_c * 32 << ", out: 0x" << out_height_idx << "x" << out_width_idx
-                   << "x" << out_c * 32 << ", wgt_chunk_offset: " << wgt_chunk_offset;
+#ifdef DEBUG_CONV
+          int act_channel_idx = out_act_cc * 32 + ci;
+
+          HEXAGON_PRINT(
+              ALWAYS, "act:  0x%dx%dx%d, wgt: %dx%dx%dx%d, out: 0x%dx%dx%d, wgt_chunk_offset: %d",
+              act_height_access_idx, act_width_access_idx, act_channel_idx, fh, fw, act_channel_idx,
+              out_c * 32, out_height_idx, out_width_idx, out_c * 32, wgt_chunk_offset);
+#endif
 
           const HVX_Vector* weights_vec_ptr = reinterpret_cast<const HVX_Vector*>(chunk_ptr);
           HVX_Vector weights_vec = *weights_vec_ptr;
@@ -333,10 +344,13 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
                                             true_wo, ci, true_wi, cr_act);
             act_vec = getInputVector(act_element_ptr);
 
-            LOG_INFO << "act:  0x" << act_height_access_idx << "x" << act_width_access_idx << "x"
-                     << act_channel_idx << ", wgt: " << fh << "x" << fw << "x" << act_channel_idx
-                     << "x" << out_c * 32 << ", out: 0x" << out_height_idx << "x" << out_width_idx
-                     << "x" << out_c * 32 << ", wgt_chunk_offset: " << wgt_chunk_offset;
+#ifdef DEBUG_CONV
+            HEXAGON_PRINT(
+                ALWAYS, "act:  0x%dx%dx%d, wgt: %dx%dx%dx%d, out: 0x%dx%dx%d, wgt_chunk_offset: %d",
+                act_height_access_idx, act_width_access_idx, act_channel_idx, fh, fw,
+                act_channel_idx, out_c * 32, out_height_idx, out_width_idx, out_c * 32,
+                wgt_chunk_offset);
+#endif
 
             HVX_Vector reduced_vec_odd_elements = computeOuputVector(act_vec, weights_vec);
             reduced_vec_odd_elements = Q6_V_vror_VR(reduced_vec_odd_elements, -2);
@@ -405,53 +419,60 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
 int conv2d_packed_fp16(TVMValue* args, int* type_codes, int num_args, TVMValue* out_val,
                        int out_code, void* res_handle) {
   namespace hexagonrt = tvm::runtime::hexagon;
-  ICHECK_EQ(num_args, 7) << "Unexpected number of arguments";
-  ICHECK_EQ(type_codes[0], kTVMDLTensorHandle)
-      << "First argument is expected to be the input tensor";  // Input activations
-  ICHECK_EQ(type_codes[1], kTVMDLTensorHandle)
-      << "Second argument is expected to be the weights tensor";  // Weights
-  ICHECK_EQ(type_codes[2], kDLInt)
-      << "Third argument is expected to be the pad_top offset";  // pad_top offset
-  ICHECK_EQ(type_codes[3], kDLInt)
-      << "Fourth argument is expected to be the pad_left offset";  // pad_left offset
-  ICHECK_EQ(type_codes[4], kDLInt) << "Fifth argument is expected to be the stride_h";  // stride_h
-  ICHECK_EQ(type_codes[5], kDLInt) << "Sixth argument is expected to be the stride_w";  // stride_w
-  ICHECK_EQ(type_codes[6], kTVMDLTensorHandle)
-      << "Seventh argument is expected to be the output tensor";  // output
+  HEXAGON_ASSERT(num_args == 7, "Unexpected number of arguments");
+  HEXAGON_ASSERT(type_codes[0] == kTVMDLTensorHandle,
+                 "First argument is expected to be the input tensor");  // Input activations
+  HEXAGON_ASSERT(type_codes[1] == kTVMDLTensorHandle,
+                 "Second argument is expected to be the weights tensor");  // Weights
+  HEXAGON_ASSERT(type_codes[2] == kDLInt,
+                 "Third argument is expected to be the pad_top offset");  // pad_top offset
+  HEXAGON_ASSERT(type_codes[3] == kDLInt,
+                 "Fourth argument is expected to be the pad_left offset");  // pad_left offset
+  HEXAGON_ASSERT(type_codes[4] == kDLInt,
+                 "Fifth argument is expected to be the stride_h");  // stride_h
+  HEXAGON_ASSERT(type_codes[5] == kDLInt,
+                 "Sixth argument is expected to be the stride_w");  // stride_w
+  HEXAGON_ASSERT(type_codes[6] == kTVMDLTensorHandle,
+                 "Seventh argument is expected to be the output tensor");  // output
 
   auto* act_flat = static_cast<DLTensor*>(args[0].v_handle);
   auto* wgt_flat = static_cast<DLTensor*>(args[1].v_handle);
   auto* out_flat = static_cast<DLTensor*>(args[6].v_handle);
 
   // Temporary assertion until multiple batches are supported
-  ICHECK_EQ(act_flat->shape[0], 1) << "Input batch size more than 1 is not supported yet";
+  HEXAGON_ASSERT(act_flat->shape[0] == 1, "Input batch size more than 1 is not supported yet");
 
   // Temporary assertion until multiple batches are supported
-  ICHECK_EQ(out_flat->shape[0], 1) << "Output batch size more than 1 is not supported yet";
+  HEXAGON_ASSERT(out_flat->shape[0] == 1, "Output batch size more than 1 is not supported yet");
 
   int pad_top = args[2].v_int64;
   int pad_left = args[3].v_int64;
   int stride_h = args[4].v_int64;
   int stride_w = args[5].v_int64;
 
-  LOG_INFO << "act.shape=" << act_flat->shape[0] << "x" << act_flat->shape[1] << "x"
-           << act_flat->shape[2] << "x" << act_flat->shape[3]
-           << ", wgt.shape=" << wgt_flat->shape[0] << "x" << wgt_flat->shape[1] << "x"
-           << wgt_flat->shape[2] << "x" << wgt_flat->shape[3] << ", pad_top=" << pad_top
-           << ", pad_left=" << pad_left;
+#ifdef DEBUG_CONV
+  HEXAGON_PRINT(
+      ALWAYS,
+      "act.shape=%lldx%lldx%lldx%lld, wgt.shape=%lldx%lldx%lldx%lld, pad_top=%d, pad_left=%d",
+      act_flat->shape[0], act_flat->shape[1], act_flat->shape[2], act_flat->shape[3],
+      wgt_flat->shape[0], wgt_flat->shape[1], wgt_flat->shape[2], wgt_flat->shape[3], pad_top,
+      pad_left);
+#endif
 
   auto* device_api = tvm::runtime::DeviceAPI::Get(hexagonrt::hexagon_device, false);
-  ICHECK(device_api != nullptr);
+  HEXAGON_ASSERT(device_api != nullptr);
   tvm::runtime::String vtcm_scope = "global.vtcm";
 
   auto act_vtcm = hexagonrt::prepare_nhwc(device_api, act_flat, /*copy_data=*/true);
 
-  ICHECK_NE(wgt_flat->shape[0], 0) << "Weights height should not be zero";
-  ICHECK_NE(wgt_flat->shape[1], 0) << "Weights width should not be zero";
-  ICHECK_NE(wgt_flat->shape[2], 0) << "Weights input channels should not be zero";
-  ICHECK_NE(wgt_flat->shape[3], 0) << "Weights output channels should not be zero";
+  HEXAGON_ASSERT(wgt_flat->shape[0] != 0, "Weights height should not be zero");
+  HEXAGON_ASSERT(wgt_flat->shape[1] != 0, "Weights width should not be zero");
+  HEXAGON_ASSERT(wgt_flat->shape[2] != 0, "Weights input channels should not be zero");
+  HEXAGON_ASSERT(wgt_flat->shape[3] != 0, "Weights output channels should not be zero");
   int num_wgt_chunks = hexagonrt::calculate_num_weight_chunks(wgt_flat->shape);
-  LOG_INFO << "num_wgt_chunks: " << num_wgt_chunks;
+#ifdef DEBUG_CONV
+  HEXAGON_PRINT(ALWAYS, "num_wgt_chunks: %d", num_wgt_chunks);
+#endif
   auto wgt_ptr_table =
       reinterpret_cast<void**>(__builtin_alloca(num_wgt_chunks * sizeof(uintptr_t)));
   auto wgt_vtcm = hexagonrt::prepare_hwio(device_api, wgt_flat, num_wgt_chunks, wgt_ptr_table);

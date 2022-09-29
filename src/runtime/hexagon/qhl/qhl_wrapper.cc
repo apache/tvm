@@ -19,7 +19,8 @@
 #if defined(__hexagon__)
 #include <hexagon_types.h>
 #include <stdio.h>
-#include <tvm/runtime/logging.h>
+
+#include "../hexagon_common.h"
 
 #define restrict __restrict__
 #define LOG2VLEN 7
@@ -61,7 +62,7 @@ template <typename T>
 HVX_Vector wrapper_api(HVX_Vector input, qhlFptr qhl_api, const char* qhl_api_name) {
   HVX_Vector output;
   int32_t res = qhl_api(reinterpret_cast<T*>(&input), reinterpret_cast<T*>(&output), 64);
-  if (res != 0) LOG(FATAL) << "Error. Failed execution of " << qhl_api_name << "  Error=" << res;
+  HEXAGON_ASSERT(res == 0, "Error. Failed execution of %s  Error=%d", qhl_api_name, res);
   return output;
 }
 
@@ -70,7 +71,7 @@ HVX_Vector wrapper_api(HVX_Vector ip1, HVX_Vector ip2, qhlFptr2 qhl_api, const c
   HVX_Vector output;
   int32_t res = qhl_api(reinterpret_cast<T*>(&ip1), reinterpret_cast<T*>(&ip2),
                         reinterpret_cast<T*>(&output), 64);
-  if (res != 0) LOG(FATAL) << "Error. Failed execution of " << qhl_api_name << "Error=" << res;
+  HEXAGON_ASSERT(res == 0, "Error. Failed execution of %s  Error=%d", qhl_api_name, res);
   return output;
 }
 

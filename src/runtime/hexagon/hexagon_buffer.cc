@@ -50,7 +50,7 @@ struct Allocation {
 struct DDRAllocation : public Allocation {
   DDRAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
     int ret = posix_memalign(&data_, alignment, nbytes);
-    CHECK_EQ(ret, 0);
+    HEXAGON_ASSERT(ret == 0);
   }
   ~DDRAllocation() { free(data_); }
 };
@@ -71,14 +71,15 @@ struct VTCMAllocation : public Allocation {
     if (context_id_) {
       data_ = HAP_compute_res_attr_get_vtcm_ptr(&res_info);
       if (!data_) {
-        LOG(ERROR) << "ERROR: HAP_compute_res_acquire returned nullptr when allocating VTCM.";
+        HEXAGON_PRINT(ERROR,
+                      "ERROR: HAP_compute_res_acquire returned nullptr when allocating VTCM.");
         HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
         return;
       }
     } else {
-      LOG(FATAL) << "FATAL: HAP_compute_res_acquire failed to acquire requested VTCM resource.";
-      throw std::runtime_error(
-          "HAP_compute_res_acquire failed to acquire requested VTCM resource.");
+      HEXAGON_PRINT(ERROR,
+                    "FATAL: HAP_compute_res_acquire failed to acquire requested VTCM resource.");
+      HEXAGON_ABORT();
     }
   }
   ~VTCMAllocation() {
@@ -113,7 +114,7 @@ HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, Optional<String> s
   } else if (GetStorageScope() == StorageScope::kVTCM) {
     alloca = Allocator<StorageScope::kVTCM>(nbytes, alignment);
   }
-  CHECK(alloca != nullptr);
+  HEXAGON_ASSERT(alloca != nullptr);
   allocations_.push_back(alloca->data_);
   managed_allocations_.push_back(std::move(alloca));
 }
@@ -132,7 +133,7 @@ HexagonBuffer::HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
   } else if (GetStorageScope() == StorageScope::kVTCM) {
     alloca = Allocator<StorageScope::kVTCM>(nbytes_monolithic, alignment);
   }
-  CHECK(alloca) << "could not create allocation";
+  HEXAGON_ASSERT(alloca != nullptr, "could not create allocation");
 
   for (size_t i = 0; i < nallocs; ++i) {
     void* alloc_offset = static_cast<unsigned char*>(alloca->data_) + i * nbytes_aligned;
@@ -142,24 +143,29 @@ HexagonBuffer::HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
   managed_allocations_.push_back(std::move(alloca));
 }
 
-HexagonBuffer::~HexagonBuffer() { managed_allocations_.clear(); }
+HexagonBuffer::~HexagonBuffer() {  //
+  managed_allocations_.clear();
+}
 
 void* HexagonBuffer::GetPointer() {
-  ICHECK(allocations_.size())
-      << "Internal failure, allocations_ should be set in HexagonBuffer constructor";
+  HEXAGON_ASSERT(allocations_.size() != 0,
+                 "Internal failure, allocations_ should be set in HexagonBuffer constructor");
 
   if (ndim_ == 1) {
-    ICHECK_EQ(allocations_.size(), 1);
+    HEXAGON_ASSERT(allocations_.size() == 1);
     return allocations_[0];
   } else if (ndim_ == 2) {
     return allocations_.data();
   } else {
-    LOG(FATAL) << "HexagonBuffer should be either 1-d or 2-d, not " << ndim_ << "-d";
-    return nullptr;
+    HEXAGON_PRINT(ERROR, "HexagonBuffer should be either 1-d or 2-d, not %d-d",
+                  static_cast<int>(ndim_));
+    HEXAGON_ABORT();
   }
 }
 
-HexagonBuffer::StorageScope HexagonBuffer::GetStorageScope() const { return storage_scope_; }
+HexagonBuffer::StorageScope HexagonBuffer::GetStorageScope() const {  //
+  return storage_scope_;
+}
 
 void HexagonBuffer::SetStorageScope(Optional<String> scope) {
   const std::string s = scope.value_or("global");
@@ -171,14 +177,15 @@ void HexagonBuffer::SetStorageScope(Optional<String> scope) {
   } else if (s == "global.vtcm") {
     storage_scope_ = StorageScope::kVTCM;
   } else {
-    CHECK(false) << "Encountered unknown HexagonBuffer storage scope: " << std::string(s);
+    HEXAGON_PRINT(ERROR, "Encountered unknown HexagonBuffer storage scope: %s", s.c_str());
+    HEXAGON_ABORT();
   }
 }
 
 std::vector<MemoryCopy> BufferSet::MemoryCopies(const BufferSet& dest, const BufferSet& src,
                                                 size_t bytes_to_copy) {
-  CHECK_LE(bytes_to_copy, src.TotalBytes());
-  CHECK_LE(bytes_to_copy, dest.TotalBytes());
+  HEXAGON_ASSERT(bytes_to_copy <= src.TotalBytes());
+  HEXAGON_ASSERT(bytes_to_copy <= dest.TotalBytes());
 
   auto pointer_to = [](const BufferSet& buf, size_t region_i, size_t byte_i) -> void* {
     void* region = buf.buffers[region_i];
@@ -241,7 +248,7 @@ void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& 
   // Finally, do the memory copies.
   for (const auto& copy : macro_copies) {
     int error_code = hexagon_user_dma_1d_sync(copy.dest, copy.src, copy.num_bytes);
-    CHECK_EQ(error_code, 0);
+    HEXAGON_ASSERT(error_code == 0);
   }
 }
 

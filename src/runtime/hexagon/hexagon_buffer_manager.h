@@ -20,13 +20,12 @@
 #ifndef TVM_RUNTIME_HEXAGON_HEXAGON_BUFFER_MANAGER_H_
 #define TVM_RUNTIME_HEXAGON_HEXAGON_BUFFER_MANAGER_H_
 
-#include <tvm/runtime/logging.h>
-
 #include <memory>
 #include <unordered_map>
 #include <utility>
 
 #include "hexagon_buffer.h"
+#include "hexagon_common.h"
 
 namespace tvm {
 namespace runtime {
@@ -39,11 +38,17 @@ class HexagonBufferManager {
    * \param ptr Address of the HexagonBuffer as returned by `AllocateHexagonBuffer`.
    */
   void FreeHexagonBuffer(void* ptr) {
-    auto it = hexagon_buffer_map_.find(ptr);
-    CHECK(it != hexagon_buffer_map_.end())
-        << "Attempt made to free unknown or already freed dataspace allocation";
-    CHECK(it->second != nullptr);
-    {
+    if (auto it = hexagon_buffer_map_.find(ptr); it == hexagon_buffer_map_.end()) {
+      // This should be an assertion, but something seems to go wrong here.
+      // The symptom is that when resources are being released (ReleaseResources),
+      // one buffer disappears from the "runtime" buffer manager, and is not deleted
+      // when that manager is reset. The FreeHexagonBuffer is than called for that
+      // buffer, but with the "static" buffer manager instead. That manager doesn't
+      // find it in the map and throws an exception, which somehow doesn't abort
+      // the program.
+      HEXAGON_PRINT(ERROR, "Attempt made to free unknown or already freed dataspace allocation");
+    } else {
+      HEXAGON_ASSERT(it->second != nullptr);
       std::lock_guard<std::mutex> lock(map_mutex_);
       hexagon_buffer_map_.erase(it);
     }

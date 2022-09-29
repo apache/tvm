@@ -54,37 +54,37 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Ensures resource managers are in a good state for the runtime
   void AcquireResources() {
-    CHECK_EQ(runtime_hexbuffs, nullptr);
+    HEXAGON_ASSERT(runtime_hexbuffs == nullptr);
     runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
-    DLOG(INFO) << "runtime_hexbuffs created";
+    HEXAGON_PRINT(ALWAYS, "runtime_hexbuffs created");
     mgr = runtime_hexbuffs.get();
 
-    CHECK_EQ(runtime_threads, nullptr);
+    HEXAGON_ASSERT(runtime_threads == nullptr);
     runtime_threads = std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size);
-    DLOG(INFO) << "runtime_threads created";
+    HEXAGON_PRINT(ALWAYS, "runtime_threads created");
 
-    CHECK_EQ(runtime_dma, nullptr);
+    HEXAGON_ASSERT(runtime_dma == nullptr);
     runtime_dma = std::make_unique<HexagonUserDMA>();
-    DLOG(INFO) << "runtime_dma created";
+    HEXAGON_PRINT(ALWAYS, "runtime_dma created");
   }
 
   //! \brief Ensures all runtime resources are freed
   void ReleaseResources() {
-    CHECK(runtime_dma) << "runtime_dma was not created in AcquireResources";
+    HEXAGON_ASSERT(runtime_dma, "runtime_dma was not created in AcquireResources");
     runtime_dma.reset();
-    DLOG(INFO) << "runtime_dma reset";
+    HEXAGON_PRINT(ALWAYS, "runtime_dma reset");
 
-    CHECK(runtime_threads) << "runtime_threads was not created in AcquireResources";
+    HEXAGON_ASSERT(runtime_threads, "runtime_threads was not created in AcquireResources");
     runtime_threads.reset();
-    DLOG(INFO) << "runtime_threads reset";
+    HEXAGON_PRINT(ALWAYS, "runtime_threads reset");
 
-    CHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
+    HEXAGON_ASSERT(runtime_hexbuffs, "runtime_hexbuffs was not created in AcquireResources");
     if (runtime_hexbuffs && !runtime_hexbuffs->empty()) {
-      DLOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
+      HEXAGON_PRINT(ALWAYS, "runtime_hexbuffs was not empty in ReleaseResources");
     }
     mgr = &hexbuffs;
-    DLOG(INFO) << "runtime_hexbuffs reset";
     runtime_hexbuffs.reset();
+    HEXAGON_PRINT(ALWAYS, "runtime_hexbuffs reset");
   }
 
   /*! \brief Currently unimplemented interface to specify the active
@@ -159,12 +159,12 @@ class HexagonDeviceAPI final : public DeviceAPI {
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
 
   HexagonThreadManager* ThreadManager() {
-    CHECK(runtime_threads) << "runtime_threads has not been created";
+    HEXAGON_ASSERT(runtime_threads, "runtime_threads has not been created");
     return runtime_threads.get();
   }
 
   HexagonUserDMA* UserDMA() {
-    CHECK(runtime_dma) << "runtime_dma has not been created";
+    HEXAGON_ASSERT(runtime_dma, "runtime_dma has not been created");
     return runtime_dma.get();
   }
 

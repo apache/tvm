@@ -36,6 +36,24 @@
 #define HEXAGON_PRINT(level, ...) printf(__VA_ARGS__)
 #endif
 
+// For the purposes of functionality alone, this could just be abort(),
+// but there are GTest tests that check for diagnosing fatal errors,
+// and GTest for Hexagon doesn't support death tests. It does support
+// EXPECT_THROW though, so throw an unhandled exception.
+#define HEXAGON_ABORT_WITH_MSG(message) \
+  throw tvm::runtime::InternalError(__FILE__, __LINE__, message)
+
+#define HEXAGON_ABORT() HEXAGON_ABORT_WITH_MSG("")
+
+// The condition "cond" must always be evaluated (like CHECK, and unlike assert).
+#define HEXAGON_ASSERT(cond, ...)                                           \
+  do {                                                                      \
+    if (!(cond)) {                                                          \
+      HEXAGON_PRINT(ERROR, "Assertion failed \"" #cond "\": " __VA_ARGS__); \
+      HEXAGON_ABORT();                                                      \
+    }                                                                       \
+  } while (0)
+
 #define HEXAGON_SAFE_CALL(api_call)                                               \
   do {                                                                            \
     int result = api_call;                                                        \
