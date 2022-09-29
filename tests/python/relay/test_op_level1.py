@@ -193,9 +193,9 @@ def test_layer_norm():
             ),
         )
         for target, dev in tvm.testing.enabled_targets():
-            if 'cuda' in target or "nvptx" in target:
+            if "cuda" in target or "nvptx" in target:
                 # CUDA needs tuning to work
-                continue 
+                continue
             data = np.random.uniform(size=dshape).astype(dtype)
             ref_res = layer_norm_python(data, gamma if scale else 1, beta if center else 0, axis)
             op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
@@ -204,14 +204,24 @@ def test_layer_norm():
     for dtype, gamma, beta, axis, center, scale in itertools.product(
         ["float16", "float32"], [3.0], [1.0], [1, 2], [True, False], [True, False]
     ):
-        if dtype == 'float16':
+        if dtype == "float16":
             # Float16 version is a lot less accurate
             rtol = 0.1
             atol = 0.1
         else:
             rtol = 1e-5
             atol = 1e-3
-        verify_layer_norm((1, 10, 10), dtype, gamma, beta, axis=axis, center=center, scale=scale, rtol=rtol, atol=atol)
+        verify_layer_norm(
+            (1, 10, 10),
+            dtype,
+            gamma,
+            beta,
+            axis=axis,
+            center=center,
+            scale=scale,
+            rtol=rtol,
+            atol=atol,
+        )
 
 
 @tvm.testing.uses_gpu
