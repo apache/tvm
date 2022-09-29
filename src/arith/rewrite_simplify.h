@@ -149,6 +149,20 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   }
 };
 
+/* Utility for rewriting only boolean portions of an expression
+ *
+ * Intended for application on an expression that has previously been
+ * simplified, but has subsequent manipulations performed.
+ * (e.g. Finding the simplified negation of a conditional without
+ * performing a full simplification.)  Only a single simplication step
+ * is performed.
+ *
+ * \param expr The boolean expression to be simplified
+ *
+ * \returns The simplified boolean expression
+ */
+PrimExpr RewriteBooleanOperators(const PrimExpr& expr);
+
 }  // namespace arith
 }  // namespace tvm
 #endif  // TVM_ARITH_REWRITE_SIMPLIFY_H_
