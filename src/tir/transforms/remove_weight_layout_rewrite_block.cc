@@ -51,7 +51,7 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
       // Remove allocates if needed
       Array<Buffer> alloc_buffers;
       for (const Buffer& buffer : block->alloc_buffers) {
-        if (!rewritten_buffers.count(buffer)) {
+        if (!rewritten_buffers_.count(buffer)) {
           alloc_buffers.push_back(buffer);
         }
       }
@@ -77,7 +77,7 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
     ICHECK(load);
 
     buf_map_.Set(load->buffer, store->buffer);
-    rewritten_buffers.insert(store->buffer);
+    rewritten_buffers_.insert(store->buffer);
 
     // Step 4. Set block body as no_op
     auto n = CopyOnWrite(block.get());
@@ -87,8 +87,11 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
     return Stmt(n);
   }
 
+ private:
+  /*! \brief The buffer map from original layout buffer to rewritten buffer */
   Map<Buffer, Buffer> buf_map_;
-  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> rewritten_buffers;
+  /*! \brief The buffer map from original layout buffer to rewritten buffer */
+  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> rewritten_buffers_;
 };
 
 // HACK
@@ -188,6 +191,5 @@ Pass RemoveWeightLayoutRewriteBlock() {
 TVM_REGISTER_GLOBAL("tir.transform.RemoveWeightLayoutRewriteBlock")
     .set_body_typed(RemoveWeightLayoutRewriteBlock);
 }  // namespace transform
-
 }  // namespace tir
 }  // namespace tvm

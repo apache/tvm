@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <unordered_set>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -57,6 +58,8 @@ class BufferReadPosCollector : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
+    CHECK(cur_realize_.defined()) << "BufferLoad occurred outside of any block";
+
     const Buffer& buffer = op->buffer;
     if (buffers_.count(buffer.get())) {
       Map<Var, PrimExpr> subst_map;
@@ -111,7 +114,7 @@ class LayoutFreeBufferCollector : public StmtVisitor {
     StmtVisitor::VisitStmt_(block);
     if (Optional<ObjectRef> ann = block->annotations.Get("layout_free_placeholders")) {
       for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
-	buffers.insert(buffer);
+        buffers.insert(buffer);
       }
     }
   }
@@ -121,8 +124,7 @@ class LayoutFreeBufferCollector : public StmtVisitor {
 
 bool RewriteLayout(const Schedule& sch) {
   std::vector<std::pair<StmtSRef, String>> results;
-  //  LOG(INFO) << "sch->mod()->functions size: " << sch->mod()->functions.size();
-  for (const auto& [g_var, base_func]: sch->mod()->functions) {
+  for (const auto& [g_var, base_func] : sch->mod()->functions) {
     const String& func_name = g_var->name_hint;
     const auto* prim_func = base_func.as<PrimFuncNode>();
     // Only consider PrimFunc
@@ -173,7 +175,8 @@ bool RewriteLayout(const Schedule& sch) {
       // Apply schedule
       BlockRV block_rv = sch->GetBlock(block->name_hint, func_name);
       BlockRV cached_block_rv = sch->CacheRead(block_rv, buffer_index, "global");
-      sch->TransformLayout(block_rv, buffer_index, BufferIndexType::kRead, index_map.value());
+      sch->TransformLayout(block_rv, buffer_index, BufferIndexType::kRead, index_map.value(),
+                           NullOpt);
       sch->Annotate(cached_block_rv, attr::meta_schedule_layout_rewrite_preproc, const_true());
     }
   }

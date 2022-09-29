@@ -430,14 +430,14 @@ class ScheduleBuilder : public ExprVisitor {
           te_args.push_back(te_tensor);
           constants.push_back(const_node->data);
         }
-        if (Optional<PrimFunc> f_opt = tir_converter(te_args, constants)) {
-          IRModule query_mod = backend::PrimFuncToIRModule(f_opt.value());
+        if (Optional<PrimFunc> f = tir_converter(te_args, constants)) {
+          IRModule query_mod = backend::PrimFuncToIRModule(f.value());
           if (Optional<TuningRecord> opt_record = database_.value()->QueryTuningRecord(
                   /*mod=*/query_mod,
                   /*target=*/target_,
                   /*workload_name=*/prim_fn_var->name_hint)) {
             LayoutFreeConstantCollector const_collector;
-            const_collector(f_opt.value()->body);
+            const_collector(f.value()->body);
 
             static InstructionKind kind_transform_layout = InstructionKind::Get("TransformLayout");
             TuningRecord record = opt_record.value();
@@ -450,7 +450,7 @@ class ScheduleBuilder : public ExprVisitor {
                   if (constant.Shape().size() == index_map->initial_indices.size()) {
                     runtime::NDArray rewritten_constant = index_map->MapNDArray(constant);
                     auto f_ = AllocateConstReplaceConstant().Rewrite(
-                        f_opt.value(), {{constant, rewritten_constant}});
+                        f.value(), {{constant, rewritten_constant}});
                     auto workload =
                         database_.value()->CommitWorkload(backend::PrimFuncToIRModule(f_));
                     TuningRecord new_rec(record->trace, workload, record->run_secs, record->target,
