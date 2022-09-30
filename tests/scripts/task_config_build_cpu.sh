@@ -37,7 +37,6 @@ echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
 echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
 echo set\(USE_VTA_TSIM ON\) >> config.cmake
 echo set\(USE_VTA_FSIM ON\) >> config.cmake
-echo set\(USE_PAPI ON\) >> config.cmake
 
 # This conditional is just to support the transition to cope
 # with the change in the way TFLite is built. It can be
