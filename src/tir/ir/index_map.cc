@@ -217,7 +217,7 @@ runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray arr_src) const {
   Array<PrimExpr> orig_shape;
   for (int i = 0; i < shape.size(); ++i) {
     size_1d *= shape[i];
-    orig_shape.push_back(PrimExpr(int(shape[i])));
+    orig_shape.push_back(PrimExpr(static_cast<int>((shape[i]))));
   }
   auto dst_shape = MapShape(orig_shape);
 
@@ -240,7 +240,7 @@ runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray arr_src) const {
     auto src_linear_index = i;
     for (auto s : shape) {
       div_factor /= s;
-      src_indices.push_back(PrimExpr(int(src_linear_index / div_factor)));
+      src_indices.push_back(PrimExpr(static_cast<int>((src_linear_index / div_factor))));
       src_linear_index %= div_factor;
     }
     auto dst_indices = MapIndices(src_indices);
