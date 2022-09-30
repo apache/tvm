@@ -53,11 +53,11 @@ macro(find_opencl use_opencl)
      # we are in the section dedicated to the explicit pointing of OpenCL SDK path, we must not
      # look for the OpenCL library by default path, but should be limited by provided SDK
      message(STATUS "begin to find OpenCL libs")
-     find_library(OpenCL_LIBRARIES NAMES OpenCL NO_DEFAULT_PATH PATHS ${__opencl_sdk}/lib ${__opencl_sdk}/lib64 ${__opencl_sdk}/lib/x64/ ${__opencl_sdk}/lib/aarch64-linux-gnu)
+     find_library(OpenCL_LIBRARIES NAMES OpenCL NO_DEFAULT_PATH PATHS ${__opencl_sdk}/lib ${__opencl_sdk}/lib64 ${__opencl_sdk}/lib/x64/ )
      if(OpenCL_LIBRARIES)
        set(OpenCL_FOUND TRUE)
      else()
-         find_library(OpenCL_LIBRARIES NAMES mali NO_DEFAULT_PATH PATHS ${__opencl_sdk}/lib ${__opencl_sdk}/lib64 ${__opencl_sdk}/lib/x64/)
+         find_library(OpenCL_LIBRARIES NAMES mali NO_DEFAULT_PATH PATHS ${__opencl_sdk}/lib ${__opencl_sdk}/lib64 ${__opencl_sdk}/lib/x64/ ${__opencl_sdk}/lib/aarch64-linux-gnu)
          if(OpenCL_LIBRARIES)
              set(OpenCL_FOUND TRUE)
          else()
