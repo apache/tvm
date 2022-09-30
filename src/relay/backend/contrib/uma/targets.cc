@@ -50,7 +50,7 @@ TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
       auto target_kind =
           ::tvm::TargetKindRegEntry::RegisterOrGet(target_name)
               .set_name()
-              .set_device_type(kDLCPU)
+              .set_default_device_type(kDLCPU)
               .add_attr_option<Array<String>>("keys")
               .add_attr_option<String>("tag")
               .add_attr_option<String>("device")
