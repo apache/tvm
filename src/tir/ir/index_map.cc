@@ -208,12 +208,12 @@ Array<PrimExpr> IndexMapNode::MapShape(const Array<PrimExpr>& shape,
   return output;
 }
 
-runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray constant) const {
-  auto shape = constant.Shape();
-  size_t extent = 1;
+runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray arr_src) const {
+  auto shape = arr_src.Shape();
+  size_t size_1d = 1;
   Array<PrimExpr> orig_shape;
   for (int i = 0; i < shape.size(); ++i) {
-    extent *= shape[i];
+    size_1d *= shape[i];
     orig_shape.push_back(PrimExpr(int(shape[i])));
   }
   auto dst_shape = MapShape(orig_shape);
@@ -223,36 +223,40 @@ runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray constant) const {
     dst_shape_int.push_back(dst_shape[i].as<IntImmNode>()->value);
   }
 
-  auto elem_bytes = (constant->dtype.bits / 8) * constant->dtype.lanes;
-  std::vector<uint8_t> bytes(extent * elem_bytes);
-  constant.CopyToBytes(bytes.data(), bytes.size());
+  auto elem_bytes = (arr_src->dtype.bits / 8) * arr_src->dtype.lanes;
+  std::vector<uint8_t> bytes_src(size_1d * elem_bytes);
+  arr_src.CopyToBytes(bytes_src.data(), bytes_src.size());
 
-  std::vector<uint8_t> bytes_rewritten(bytes.size());
+  std::vector<uint8_t> bytes_dst(bytes_src.size());
 
-  for (size_t i = 0; i < extent; ++i) {
+  for (size_t i = 0; i < size_1d; ++i) {
+    // Convert a linear coordinate to an N-d coordinate tuple
+    // z * height * width + y * width + x -> (z, y, x)
     Array<PrimExpr> src_indices;
-    auto div_factor = extent;
-    auto index = i;
+    auto div_factor = size_1d;
+    auto src_linear_index = i;
     for (auto s : shape) {
       div_factor /= s;
-      src_indices.push_back(PrimExpr(int(index / div_factor)));
-      index = index % div_factor;
+      src_indices.push_back(PrimExpr(int(src_linear_index / div_factor)));
+      src_linear_index %= div_factor;
     }
     auto dst_indices = MapIndices(src_indices);
-    size_t dst_linear_indices = 0;
-    auto mul_factor = extent;
+
+    // Convert an N-d coordinate to a linear coordinate
+    // (z, y, x) -> z * height * width + y * width + x
+    size_t dst_linear_index = 0;
+    auto mul_factor = size_1d;
     for (int j = 0; j < dst_indices.size(); ++j) {
       mul_factor /= dst_shape_int[j];
-      dst_linear_indices += dst_indices[j].as<IntImmNode>()->value * mul_factor;
+      dst_linear_index += dst_indices[j].as<IntImmNode>()->value * mul_factor;
     }
-    std::copy(bytes.begin() + i * elem_bytes, bytes.begin() + (i + 1) * elem_bytes,
-              bytes_rewritten.begin() + dst_linear_indices * elem_bytes);
+    std::copy(bytes_src.begin() + i * elem_bytes, bytes_src.begin() + (i + 1) * elem_bytes,
+              bytes_dst.begin() + dst_linear_index * elem_bytes);
   }
 
-  auto rewritten_constant =
-      runtime::NDArray::Empty(dst_shape_int, constant->dtype, constant->device);
-  rewritten_constant.CopyFromBytes(bytes_rewritten.data(), bytes.size());
-  return rewritten_constant;
+  auto arr_dst = runtime::NDArray::Empty(dst_shape_int, arr_src->dtype, arr_src->device);
+  arr_dst.CopyFromBytes(bytes_dst.data(), bytes_dst.size());
+  return arr_dst;
 }
 
 /*!

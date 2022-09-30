@@ -243,8 +243,7 @@ def test_map_ndarray():
     I = 64
     O = 64
     inp = np.random.randn(kH, kW, I, O).astype("float32")
-    arr = tvm.nd.array(inp)
-    out = index_map.map_ndarray(arr).numpy()
+    out = index_map.map_ndarray(tvm.nd.array(inp)).numpy()
 
     ref = np.zeros(out.shape).astype("float32")
 
