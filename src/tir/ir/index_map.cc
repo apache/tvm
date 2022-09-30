@@ -210,6 +210,9 @@ Array<PrimExpr> IndexMapNode::MapShape(const Array<PrimExpr>& shape,
 
 runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray arr_src) const {
   auto shape = arr_src.Shape();
+  ICHECK(shape.size() == initial_indices.size())
+      << "The rank of the input array should be " << initial_indices.size() << " but got "
+      << shape.size();
   size_t size_1d = 1;
   Array<PrimExpr> orig_shape;
   for (int i = 0; i < shape.size(); ++i) {
