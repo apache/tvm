@@ -130,8 +130,11 @@ if __name__ == '__main__':
             % (np.mean(prof_res), np.std(prof_res))
         )
         exit(0)
-    elif fmt == ".so" and args.device == "arm_cuda":
-        remote = autotvm.measure.request_remote("tx2", "192.168.6.252", 9190, timeout=10000)
+    elif fmt == ".so" and (args.device == "arm_cuda" or args.device == "arm_opencl"):
+        if args.device == "arm_cuda":
+            remote = autotvm.measure.request_remote("tx2", "192.168.6.252", 9190, timeout=10000)
+        else:
+            remote = autotvm.measure.request_remote("rk3588", "192.168.6.252", 9190, timeout=10000)
         remote.upload(os.path.join(export_path, filename))
         rlib = remote.load_module(filename)
 
@@ -147,7 +150,7 @@ if __name__ == '__main__':
             print(oval)
         # evaluate
         print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=300)
+        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=30)
         prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
         print(
             "Mean inference time (std dev): %.2f ms (%.2f ms)"
