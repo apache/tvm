@@ -143,7 +143,7 @@ def run_module_via_rpc(
     rpc_config: "RPCConfig",
     lib: Union["Module", "Executable"],
     dev_type: str,
-    args: Dict[str, "np.ndarray"],
+    args: Dict[Union[str, int], "np.ndarray"],
     continuation: Callable,
     backend: Optional[str] = "graph",
 ):

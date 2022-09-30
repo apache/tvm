@@ -210,9 +210,9 @@ def create_computer(backend: str) -> Callable:
 
     def f_computer(
         rt_mod: tvm.runtime.Module,
-        dev: tvm.runtime.Device,
+        dev: tvm.runtime.Device,  # pylint: disable=unused-argument
         input_data: Dict[str, NDArray],
-    ) -> None:
+    ) -> List[NDArray]:
         """Fetch the result of running the given runtime module.
 
         Parameters
@@ -226,9 +226,9 @@ def create_computer(backend: str) -> Callable:
         """
         try:
             if backend == "tir":
-                inputs = [v for _, v in sorted(input_data.items(), key=lambda x: x[0])]
-                rt_mod(*inputs)
-                return inputs
+                data = [v for _, v in sorted(input_data.items(), key=lambda x: x[0])]
+                rt_mod(*data)
+                return data
             else:
                 raise ValueError(f"Backend {backend} not supported in f_computer!")
 

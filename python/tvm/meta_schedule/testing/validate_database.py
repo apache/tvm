@@ -20,7 +20,7 @@ from distutils.util import strtobool
 import argparse
 import logging
 import warnings
-import numpy as np
+import numpy as np  # type: ignore
 
 import tvm
 from tvm.target import Target
@@ -190,12 +190,11 @@ def validate_correctness(
     def build_and_run(mod: IRModule, target: Target, dev_type: str) -> np.ndarray:
         """Build and run the module on the target device."""
         rt_mod = tvm.build(mod, target=target)
-        args = {i: arg for i, arg in enumerate(inputs)}
         return run_module_via_rpc(
             rpc_config=rpc_config,
             lib=rt_mod,
             dev_type=dev_type,
-            args=args,
+            args=inputs,
             continuation=create_computer(backend="tir"),
             backend="tir",
         )
@@ -208,12 +207,12 @@ def validate_correctness(
         f_input_generator = get_global_func(f_input_generator)
     if isinstance(f_check_metric, str):
         f_check_metric = get_global_func(f_check_metric)
-    inputs = to_numpy(f_input_generator(original_mod))
+    inputs = to_numpy(f_input_generator(original_mod))  # type: ignore
     # build & run original result
     original_res = to_numpy(build_and_run(original_mod, target=baseline_target, dev_type="cpu"))
     scheduled_res = to_numpy(build_and_run(scheduled_mod, target=target, dev_type=dev_type))
     # check metric
-    if f_check_metric(to_tvm_ndarray(original_res), to_tvm_ndarray(scheduled_res)):
+    if f_check_metric(to_tvm_ndarray(original_res), to_tvm_ndarray(scheduled_res)):  # type: ignore
         return True
     else:
         print(
