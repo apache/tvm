@@ -60,7 +60,7 @@ if __name__ == '__main__':
         #  -mattr=+sse2
         target = "llvm -mtriple=i386-unknown-windows-msvc -mcpu=core-avx2"
         # change -mtriple to -target can compile using clang on linux
-        fmt = ".tar"
+        # fmt = ".tar"
     else:
         target = "llvm -mcpu=skylake"
     print(target)
@@ -110,12 +110,14 @@ if __name__ == '__main__':
 
         if str(args.device).startswith("arm"):
             lib.export_library(os.path.join(export_path, filename), cc="aarch64-linux-gnu-g++")
+        elif str(args.device) == "win32":
+            lib.export_library(os.path.join(export_path, filename), options=["-m32"])
         else:
             lib.export_library(os.path.join(export_path, filename))
 
     shape_dict = tuple(args.input_size)
     input_name = args.input_name
-    if fmt == ".tar":
+    if str(args.device) == "win32":
         remote = autotvm.measure.request_remote("rtx3070-win-x86",
                                                 "192.168.6.252", 9190, timeout=10000)
         remote.upload(os.path.join(export_path, filename))
