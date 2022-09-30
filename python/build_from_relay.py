@@ -32,6 +32,7 @@ def make_parser():
     parser.add_argument("--input_img", type=str, default="random",
                         help="input data from image or random generated")
     parser.add_argument("--model_name", type=str, default="face_det")
+    parser.add_argument("--use_relay_text", type=bool, default=False)
     parser.add_argument("--opt_log", type=str, default=None)
     return parser
 
@@ -62,6 +63,7 @@ if __name__ == '__main__':
         target = "llvm -mcpu=skylake"
     print(target)
 
+
     # mod_path = os.path.join(args.path, "mod.dat")
     # params_path = os.path.join(args.path, "params.dat")
     mod_path = os.path.join(args.path, args.model_name + ".txt")
@@ -72,18 +74,20 @@ if __name__ == '__main__':
     dtype = "float32"
     filename = args.model_name + "_" + args.device + fmt
     if not args.eval:
-        # with open(mod_path, "r") as mod_fn:
-        #     mod_raw = mod_fn.read()
-        #
-        #     mod = tvm.parser.fromtext(mod_raw)
-        #     # nmod = IRModule(mod)
-        #     vars = mod.get_global_vars()
-        #     print(mod)
-        pickle_path = os.path.join(args.path, args.model_name + ".pickle")
-        with open(pickle_path, "rb") as pickle_fn:
-            mod_bytes = pickle_fn.read()
-            mod = pickle.loads(mod_bytes)
-            print(mod)
+        if args.use_relay_text:
+            with open(mod_path, "r") as mod_fn:
+                mod_raw = mod_fn.read()
+
+                mod = tvm.parser.fromtext(mod_raw)
+                # nmod = IRModule(mod)
+                vars = mod.get_global_vars()
+                print(mod)
+        else:
+            pickle_path = os.path.join(args.path, args.model_name + ".pickle")
+            with open(pickle_path, "rb") as pickle_fn:
+                mod_bytes = pickle_fn.read()
+                mod = pickle.loads(mod_bytes)
+                print(mod)
         with open(params_path, "rb") as params_fn:
             params_raw = params_fn.read()
             params_array = bytearray(params_raw)

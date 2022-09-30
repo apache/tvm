@@ -73,7 +73,7 @@ if __name__ == '__main__':
     elif args.device == 'opencl':
         target = tvm.target.Target("opencl", host="llvm")
     elif args.device == "arm_opencl":
-        target = tvm.target.Target("opencl -arch=3.0", host="llvm -mtriple=aarch64-linux-gnu")
+        target = tvm.target.Target("opencl -model=mali", host="llvm -mtriple=aarch64-linux-gnu")
     elif args.device == 'arm':
         target = "llvm -mtriple=aarch64-linux-gnu -mattr=+neon"
     elif args.device == 'arm_cuda':
