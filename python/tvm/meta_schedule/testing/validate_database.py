@@ -32,6 +32,8 @@ from tvm.meta_schedule.testing.tune_utils import create_computer, generate_input
 from tvm._ffi import get_global_func, register_func
 from tvm.support import describe
 
+DELIMITOR = "\n" + "-" * 30 + "\n"
+
 
 def _parse_args():
     args = argparse.ArgumentParser()
@@ -119,18 +121,22 @@ ARGS = _parse_args()
 
 
 @register_func("tvm.meta_schedule.testing.default_input_generator")
-def default_input_generator(mod: IRModule) -> List[np.ndarray]:
+def default_input_generator(mod: IRModule) -> List[tvm.nd.NDArray]:
     args_info = ms.arg_info.TensorInfo.from_prim_func(mod["main"])
     inputs = [
-        generate_input_data(input_shape=arg_info.shape, input_dtype=arg_info.dtype)
+        tvm.nd.array(generate_input_data(input_shape=arg_info.shape, input_dtype=arg_info.dtype))
         for arg_info in args_info
     ]
     return inputs
 
 
 @register_func("tvm.meta_schedule.testing.default_check_metric")
-def default_check_metric(a: np.ndarray, b: np.ndarray) -> bool:
-    return np.allclose(a, b, rtol=1e-3, atol=2e-3)
+def default_check_metric(a: List[tvm.nd.NDArray], b: List[tvm.nd.NDArray]) -> bool:
+    assert len(a) == len(b), "Different number of outputs from two modules"
+    for i, _ in enumerate(a):
+        if not np.allclose(a[i].numpy(), b[i].numpy(), rtol=1e-3, atol=2e-3):
+            return False
+    return True
 
 
 def validate_correctness(
@@ -141,8 +147,12 @@ def validate_correctness(
     target: Union[str, Target],
     dev_type: str,
     rpc_config: ms.runner.RPCConfig,
-    f_input_generator: Union[str, Callable] = "tvm.meta_schedule.testing.default_input_generator",
-    f_check_metric: Union[str, Callable] = "tvm.meta_schedule.testing.default_check_metric",
+    f_input_generator: Union[
+        str, Callable[[IRModule], List[tvm.nd.NDArray]]
+    ] = default_input_generator,
+    f_check_metric: Union[
+        str, Callable[[tvm.nd.NDArray, tvm.nd.NDArray], bool]
+    ] = default_check_metric,
 ) -> bool:
     """Function to validate the correctness of a scheduled module.
 
@@ -167,6 +177,16 @@ def validate_correctness(
         The result of the validation.
     """
 
+    def to_numpy(a: List[tvm.nd.NDArray]) -> List[np.ndarray]:
+        """Convert a list of TVM NDArray to a list of numpy array"""
+        assert a is not None, "Empty result cannot be converted to numpy"
+        return [x.numpy() for x in a]
+
+    def to_tvm_ndarray(a: List[np.ndarray]) -> List[tvm.nd.NDArray]:
+        """Convert a list of numpy array to a list of TVM NDArray"""
+        assert a is not None, "Empty result cannot be converted to TVM NDArray"
+        return [tvm.nd.array(x) for x in a]
+
     def build_and_run(mod: IRModule, target: Target, dev_type: str) -> np.ndarray:
         """Build and run the module on the target device."""
         rt_mod = tvm.build(mod, target=target)
@@ -185,26 +205,26 @@ def validate_correctness(
     baseline_target = Target(baseline_target)
     # fetch functions & prepare inputs
     if isinstance(f_input_generator, str):
-        input_generator_func = get_global_func(f_input_generator)
+        f_input_generator = get_global_func(f_input_generator)
     if isinstance(f_check_metric, str):
-        check_metric_func = get_global_func(f_check_metric)
-    inputs = input_generator_func(original_mod)
+        f_check_metric = get_global_func(f_check_metric)
+    inputs = to_numpy(f_input_generator(original_mod))
     # build & run original result
-    original_res = build_and_run(original_mod, target=baseline_target, dev_type="cpu")
-    scheduled_res = build_and_run(scheduled_mod, target=target, dev_type=dev_type)
+    original_res = to_numpy(build_and_run(original_mod, target=baseline_target, dev_type="cpu"))
+    scheduled_res = to_numpy(build_and_run(scheduled_mod, target=target, dev_type=dev_type))
     # check metric
-    if not check_metric_func(original_res, scheduled_res):
+    if f_check_metric(to_tvm_ndarray(original_res), to_tvm_ndarray(scheduled_res)):
         return True
     else:
         print(
             ("\n\n").join(
                 [
                     "Validation failed!",
-                    "Original Result:\n" + "-" * 10 + str(original_res),
-                    "Scheduled Result:\n" + "-" * 10 + str(scheduled_res),
-                    "Input:\n" + "-" * 10 + str(inputs),
-                    "Original IRModule:\n" + "-" * 10 + original_mod.script(),
-                    "Scheduled IRModule:\n" + "-" * 10 + scheduled_mod.script(),
+                    "Original Result:" + DELIMITOR + str(original_res),
+                    "Scheduled Result:" + DELIMITOR + str(scheduled_res),
+                    "Input:" + DELIMITOR + str(inputs),
+                    "Original IRModule:" + DELIMITOR + original_mod.script(),
+                    "Scheduled IRModule:" + DELIMITOR + scheduled_mod.script(),
                 ]
             )
         )
@@ -223,7 +243,9 @@ def main():
     for i, record in enumerate(records):
         original_mod = record.workload.mod
         sch = Schedule(original_mod)
-        scheduled_mod = record.trace.apply_to_schedule(sch=sch, remove_postproc=False)
+        record.trace.apply_to_schedule(sch=sch, remove_postproc=False)
+        scheduled_mod = sch.mod
+        flag = False
         try:
             flag = validate_correctness(
                 original_mod=original_mod,
@@ -238,9 +260,9 @@ def main():
                 ("\n\n").join(
                     [
                         "Validation failed!",
-                        "Original IRModule:\n" + "-" * 10 + original_mod.script(),
-                        "Scheduled IRModule:\n" + "-" * 10 + scheduled_mod.script(),
-                        "Exception\n" + "-" * 10 + str(e),
+                        "Original IRModule:" + DELIMITOR + original_mod.script(),
+                        "Scheduled IRModule:" + DELIMITOR + scheduled_mod.script(),
+                        "Exception" + DELIMITOR + str(e),
                     ]
                 )
             )
