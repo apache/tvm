@@ -136,6 +136,11 @@ class IndexMapNode : public Object {
    */
   Array<PrimExpr> MapShape(const Array<PrimExpr>& shape, arith::Analyzer* analyzer = nullptr) const;
 
+  /*
+    TODO
+  */
+  runtime::NDArray MapNDArray(runtime::NDArray constant) const;
+
   /*!
    * \brief Convert to string representation in Python.
    * \return The stringified lambda expression in Python.

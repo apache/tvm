@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
 
 import pytest
 import tvm
@@ -202,5 +203,36 @@ def test_index_map_inverse_no_iter():
     assert expected_map.is_equivalent_to(inverse_map)
 
 
+def test_map_ndarray():
+    # index_map = IndexMap.from_func(lambda i: [i // 4, i % 4])
+
+    # arr = tvm.nd.array(np.arange(16).astype("int32"))
+    # print(index_map.map_ndarray(arr))
+
+    index_map = IndexMap.from_func(lambda i0, i1, i2, i3: (floordiv(i3, 32), i0, floordiv(i2, 8), floordiv(floormod(i3, 32), 16), i1, floormod(i2, 8), floormod(i3, 16)))
+    # index_map = IndexMap.from_func(lambda i0, i1, i2, i3: (i3, i0, i1, i2))
+    # index_map = IndexMap.from_func(lambda i0, i1: (i1, i0))
+
+    kH = kW = 3
+    I = 64
+    O = 64
+    inp = np.random.randn(kH, kW, I, O).astype("float32")
+    arr = tvm.nd.array(inp)
+    out = index_map.map_ndarray(arr).numpy()
+
+    ref = np.zeros(out.shape).astype("float32")
+
+    for i0 in range(kH):
+        for i1 in range(kW):
+            for i2 in range(I):
+                for i3 in range(O):
+                    v = inp[i0, i1, i2, i3]
+                    ref[i3 // 32, i0, i2 // 8, (i3 % 32) // 16, i1, i2 % 8, i3 % 16] = v
+                    # ref[i3, i0, i1, i2] = v
+
+    print(np.max(np.abs(ref - out)))
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_map_ndarray()

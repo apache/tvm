@@ -208,6 +208,53 @@ Array<PrimExpr> IndexMapNode::MapShape(const Array<PrimExpr>& shape,
   return output;
 }
 
+runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray constant) const {
+  auto shape = constant.Shape();
+  size_t extent = 1;
+  Array<PrimExpr> orig_shape;
+  for (int i = 0; i < shape.size(); ++i) {
+    extent *= shape[i];
+    orig_shape.push_back(PrimExpr(int(shape[i])));
+  }
+  auto dst_shape = MapShape(orig_shape);
+
+  std::vector<int64_t> dst_shape_int;
+  for (int i = 0; i < dst_shape.size(); ++i) {
+    dst_shape_int.push_back(dst_shape[i].as<IntImmNode>()->value);
+  }
+
+  auto elem_bytes = (constant->dtype.bits / 8) * constant->dtype.lanes;
+  std::vector<uint8_t> bytes(extent * elem_bytes);
+  constant.CopyToBytes(bytes.data(), bytes.size());
+
+  std::vector<uint8_t> bytes_rewritten(bytes.size());
+
+  for (size_t i = 0; i < extent; ++i) {
+    Array<PrimExpr> src_indices;
+    auto div_factor = extent;
+    auto index = i;
+    for (auto s : shape) {
+      div_factor /= s;
+      src_indices.push_back(PrimExpr(int(index / div_factor)));
+      index = index % div_factor;
+    }
+    auto dst_indices = MapIndices(src_indices);
+    size_t dst_linear_indices = 0;
+    auto mul_factor = extent;
+    for (int j = 0; j < dst_indices.size(); ++j) {
+      mul_factor /= dst_shape_int[j];
+      dst_linear_indices += dst_indices[j].as<IntImmNode>()->value * mul_factor;
+    }
+    std::copy(bytes.begin() + i * elem_bytes, bytes.begin() + (i + 1) * elem_bytes,
+              bytes_rewritten.begin() + dst_linear_indices * elem_bytes);
+  }
+
+  auto rewritten_constant =
+      runtime::NDArray::Empty(dst_shape_int, constant->dtype, constant->device);
+  rewritten_constant.CopyFromBytes(bytes_rewritten.data(), bytes.size());
+  return rewritten_constant;
+}
+
 /*!
  * \brief Auxilarry function to comvert an index map to lambda expression in Python.
  * \param initial_indices The initial indices in the index map.
@@ -288,6 +335,9 @@ TVM_REGISTER_GLOBAL("tir.IndexMapMapShape").set_body_typed([](IndexMap map, Arra
   return map->MapShape(shape);
 });
 TVM_REGISTER_GLOBAL("tir.IndexMapInverse").set_body_method(&IndexMap::Inverse);
+
+TVM_REGISTER_GLOBAL("tir.IndexMapMapNDArray")
+    .set_body_typed([](IndexMap map, runtime::NDArray arr) { return map->MapNDArray(arr); });
 
 TVM_REGISTER_GLOBAL("tir.IndexMapNonSurjectiveInverse")
     .set_body_typed([](IndexMap forward, Array<Range> initial_ranges) {

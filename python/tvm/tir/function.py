@@ -515,6 +515,12 @@ class IndexMap(Object):
         """
         return _ffi_api.IndexMapMapShape(self, shape)
 
+    def map_ndarray(self, arr):
+        """
+        TODO
+        """
+        return _ffi_api.IndexMapMapNDArray(self, arr)
+
     def inverse(self, shape: List[Union[Range, PrimExpr]]) -> "IndexMap":
         """Return the inverse of the map
 
