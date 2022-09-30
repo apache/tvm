@@ -202,7 +202,7 @@ void CodeGenLLVM::InitTarget() {
     os << "}\n";
     auto mod = llvm_target_->GetInstance().ParseIR(os.str());
     auto* test_sse2 = mod->getFunction(fname);
-    ICHECK_NE(test_sse2, nullptr) << "Module creation error";
+    ICHECK(test_sse2 != nullptr) << "Module creation error";
     use_float16_abi = tm->getSubtargetImpl(*test_sse2)->checkFeatures("+sse2");
   }
 #endif  // TVM_LLVM_VERSION >= 150
