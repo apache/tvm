@@ -136,10 +136,13 @@ class IndexMapNode : public Object {
    */
   Array<PrimExpr> MapShape(const Array<PrimExpr>& shape, arith::Analyzer* analyzer = nullptr) const;
 
-  /*
-    TODO
+  /* \brief Map an NDArray according to this index map
+   *
+   * \param arr_src The NDArray whose layout is transformed by this index map.
+   *
+   * \returns The transformed NDArray.
   */
-  runtime::NDArray MapNDArray(runtime::NDArray constant) const;
+  runtime::NDArray MapNDArray(runtime::NDArray arr_src) const;
 
   /*!
    * \brief Convert to string representation in Python.
