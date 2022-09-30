@@ -92,7 +92,7 @@ class TargetKindNode : public Object {
   /*! \brief Name of the target kind */
   String name;
   /*! \brief Device type of target kind */
-  int device_type;
+  int default_device_type;
   /*! \brief Default keys of the target */
   Array<String> default_keys;
   /*! \brief Function used to preprocess on target creation */
@@ -102,7 +102,7 @@ class TargetKindNode : public Object {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
-    v->Visit("device_type", &device_type);
+    v->Visit("default_device_type", &default_device_type);
     v->Visit("default_keys", &default_keys);
   }
 
@@ -211,7 +211,7 @@ class TargetKindRegEntry {
    * \brief Set DLPack's device_type the target
    * \param device_type Device type
    */
-  inline TargetKindRegEntry& set_device_type(int device_type);
+  inline TargetKindRegEntry& set_default_device_type(int device_type);
   /*!
    * \brief Set DLPack's device_type the target
    * \param keys The default keys
@@ -363,8 +363,8 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_attr(const String& attr_name,
   return *this;
 }
 
-inline TargetKindRegEntry& TargetKindRegEntry::set_device_type(int device_type) {
-  kind_->device_type = device_type;
+inline TargetKindRegEntry& TargetKindRegEntry::set_default_device_type(int device_type) {
+  kind_->default_device_type = device_type;
   return *this;
 }
 
@@ -463,14 +463,15 @@ constexpr const char* kRelayToTIR = "RelayToTIR";
   TVM_STR_CONCAT(TVM_TARGET_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
       ::tvm::TargetKindRegEntry::RegisterOrGet(TargetKindName)    \
           .set_name()                                             \
-          .set_device_type(DeviceType)                            \
+          .set_default_device_type(DeviceType)                    \
           .add_attr_option<Array<String>>("keys")                 \
           .add_attr_option<String>("tag")                         \
           .add_attr_option<String>("device")                      \
           .add_attr_option<String>("model")                       \
           .add_attr_option<Array<String>>("libs")                 \
           .add_attr_option<Target>("host")                        \
-          .add_attr_option<Integer>("from_device")
+          .add_attr_option<Integer>("from_device")                \
+          .add_attr_option<Integer>("target_device_type")
 
 }  // namespace tvm
 
