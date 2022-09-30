@@ -204,14 +204,40 @@ def test_index_map_inverse_no_iter():
 
 
 def test_map_ndarray():
-    # index_map = IndexMap.from_func(lambda i: [i // 4, i % 4])
+    index_map = IndexMap.from_func(lambda i: [i // 4, i % 4])
 
-    # arr = tvm.nd.array(np.arange(16).astype("int32"))
-    # print(index_map.map_ndarray(arr))
+    inp = np.arange(16).astype("int8")
 
-    index_map = IndexMap.from_func(lambda i0, i1, i2, i3: (floordiv(i3, 32), i0, floordiv(i2, 8), floordiv(floormod(i3, 32), 16), i1, floormod(i2, 8), floormod(i3, 16)))
-    # index_map = IndexMap.from_func(lambda i0, i1, i2, i3: (i3, i0, i1, i2))
-    # index_map = IndexMap.from_func(lambda i0, i1: (i1, i0))
+    out = index_map.map_ndarray(tvm.nd.array(inp)).numpy()
+
+    ref = np.zeros(out.shape).astype("int8")
+
+    for i in range(16):
+        ref[i // 4, i % 4] = inp[i]
+
+    np.testing.assert_equal(ref, out)
+
+    index_map = IndexMap.from_func(lambda i0, i1, i2, i3: (i3, i0, i1, i2))
+
+    inp = np.random.randn(10, 10, 10, 10).astype("float16")
+
+    out = index_map.map_ndarray(tvm.nd.array(inp)).numpy()
+
+    ref = np.transpose(inp, (3, 0, 1, 2))
+
+    np.testing.assert_equal(ref, out)
+
+    index_map = IndexMap.from_func(
+        lambda i0, i1, i2, i3: (
+            floordiv(i3, 32),
+            i0,
+            floordiv(i2, 8),
+            floordiv(floormod(i3, 32), 16),
+            i1,
+            floormod(i2, 8),
+            floormod(i3, 16),
+        )
+    )
 
     kH = kW = 3
     I = 64
@@ -228,11 +254,9 @@ def test_map_ndarray():
                 for i3 in range(O):
                     v = inp[i0, i1, i2, i3]
                     ref[i3 // 32, i0, i2 // 8, (i3 % 32) // 16, i1, i2 % 8, i3 % 16] = v
-                    # ref[i3, i0, i1, i2] = v
 
-    print(np.max(np.abs(ref - out)))
+    np.testing.assert_equal(ref, out)
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_map_ndarray()
+    tvm.testing.main()
