@@ -96,11 +96,9 @@ def conv2d_nhwc_reindex_weight(
                 T.float32(0),
                 dtype="float32",
             )
-    for ax0, ax1, ax2, ax3, ax4, ax5, ax6 in T.grid(1, 1, 1, 64, 7, 7, 3):
+    for ax3, ax4, ax5, ax6 in T.grid(64, 7, 7, 3):
         with T.block("weight_reindex"):
-            v0, v1, v2, v3, v4, v5, v6 = T.axis.remap(
-                "SSSSSSS", [ax0, ax1, ax2, ax3, ax4, ax5, ax6]
-            )
+            v3, v4, v5, v6 = T.axis.remap("SSSS", [ax3, ax4, ax5, ax6])
             T.reads(weight[v4, v5, v6, v3])
             T.writes(weight_reindex[v3, v4, v5, v6])
             weight_reindex[v3, v4, v5, v6] = weight[v4, v5, v6, v3]
@@ -152,9 +150,9 @@ def matmul_reindex_write(
             with T.init():
                 C_reindex[i, j] = T.float32(0)
             C_reindex[i, j] = C_reindex[i, j] + A[i, k] * B[k, j]
-    for i0, i1, i2 in T.grid(512, 512, 1):
+    for i0, i1 in T.grid(512, 512):
         with T.block("C_reindex"):
-            v0, v1, v2 = T.axis.remap("SSS", [i0, i1, i2])
+            v0, v1 = T.axis.remap("SS", [i0, i1])
             T.reads(C_reindex[v0, v1])
             T.writes(C[v0, v1])
             C[v0, v1] = C_reindex[v0, v1]
@@ -201,10 +199,10 @@ def mixed_dtype_reindex_write(
             with T.init():
                 T_matmul_NT_reindex[i, j] = T.float16(0)
             T_matmul_NT_reindex[i, j] = T_matmul_NT_reindex[i, j] + p0[i, k] * p1[j, k]
-    for ax0, ax1, ax2 in T.grid(T.int64(2), 1280, 1):
+    for ax0, ax1 in T.grid(T.int64(2), 1280):
         with T.block("T_matmul_NT_reindex"):
             v0 = T.axis.spatial(T.int64(2), ax0)
-            v1, v2 = T.axis.remap("SS", [ax1, ax2])
+            (v1,) = T.axis.remap("S", [ax1])
             T.reads(T_matmul_NT_reindex[v0, v1])
             T.writes(T_matmul_NT[v0, v1])
             T_matmul_NT[v0, v1] = T_matmul_NT_reindex[v0, v1]
