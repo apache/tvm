@@ -30,14 +30,14 @@ HexagonVtcmPool::HexagonVtcmPool() {
   HEXAGON_SAFE_CALL(HAP_compute_res_attr_init(&res_info));
 
   // TODO(HWE): get the max  and min size programmatically
-  const unsigned int max_size = 4*1024*1024;
-  const unsigned int min_size = 1024*1024;
+  const unsigned int max_size = 4 * 1024 * 1024;
+  const unsigned int min_size = 1024 * 1024;
 
   // allocate nbytes of vtcm on a single page
   HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param_v2(&res_info,
-                                                        /*vtcm_size = */ max_size,
-                                                        /*min_page_size = */ 0,
-                                                        /*min_vtcm_size = */ min_size));
+                                                           /*vtcm_size = */ max_size,
+                                                           /*min_page_size = */ 1,
+                                                           /*min_vtcm_size = */ min_size));
 
   // TODO(HWE): Investigate why a non-zero timeout results in
   // hanging, both in the simulator and on hardware.
@@ -46,15 +46,13 @@ HexagonVtcmPool::HexagonVtcmPool() {
   HEXAGON_SAFE_CALL(HAP_compute_res_attr_get_vtcm_ptr_v2(&res_info, &vtcm_data_, &vtcm_size_));
   CHECK(vtcm_data_ != nullptr) << "HAP_compute_res_acquire returned nullptr when allocating VTCM.";
   CHECK(vtcm_size_ >= min_size)
-    << "HAP_compute_res_acquire failed to allocate minimum amount of VTCM";
-  free_.emplace_back(std::pair<char*, size_t>((char*)vtcm_data_, vtcm_size_));
+      << "HAP_compute_res_acquire failed to allocate minimum amount of VTCM";
+  free_.emplace_back(std::pair<char*, size_t>(static_cast<char*>(vtcm_data_), vtcm_size_));
 
-  DebugDump();
+  // DebugDump();
 }
 
-HexagonVtcmPool::~HexagonVtcmPool() {
-  HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
-}
+HexagonVtcmPool::~HexagonVtcmPool() { HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_)); }
 
 void* HexagonVtcmPool::Allocate(size_t nbytes) {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -63,20 +61,20 @@ void* HexagonVtcmPool::Allocate(size_t nbytes) {
 
   // If this is not aligned on a 2k block, allocate from the end to avoid fragmentation
   if (nbytes & size_t(0x7FF)) {
-    LOG(INFO) << "VTCM nbytes requested: " << nbytes << " allocate from the end";
+    DLOG(INFO) << "VTCM nbytes requested: " << nbytes << " allocate from the end";
     auto last_free_entry = free_.rbegin();
-    CHECK(last_free_entry->second >= nbytes) << "Not enough contiguous VTCM space at the end to allocate";
-    char* ptr = last_free_entry->first + (last_free_entry->second-nbytes);
+    CHECK(last_free_entry->second >= nbytes)
+        << "Not enough contiguous VTCM space at the end to allocate";
+    char* ptr = last_free_entry->first + (last_free_entry->second - nbytes);
     allocations_.emplace_back(std::pair<char*, size_t>(ptr, nbytes));
     last_free_entry->second -= nbytes;
-    DebugDump();
+    // DebugDump();
     return ptr;
   }
 
   std::pair<char*, size_t>& entry_to_allocate = free_.front();
-  for(auto entry : free_) {
-    if ((entry.second < entry_to_allocate.second) && (entry.second >= nbytes))
-    {
+  for (auto entry : free_) {
+    if ((entry.second < entry_to_allocate.second) && (entry.second >= nbytes)) {
       entry_to_allocate = entry;
       if (entry_to_allocate.second == nbytes) {
         break;
@@ -99,18 +97,17 @@ void* HexagonVtcmPool::Allocate(size_t nbytes) {
     }
   }
 
-  DebugDump();
+  // DebugDump();
 
   return ptr;
 }
 
 void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
-  char* ptr_to_free = (char*)ptr;
+  char* ptr_to_free = static_cast<char*>(ptr);
   std::lock_guard<std::mutex> lock(mutex_);
 
   bool found_allocation_entry = false;
-  for (auto it = allocations_.begin(); it != allocations_.end(); it++)
-  {
+  for (auto it = allocations_.begin(); it != allocations_.end(); it++) {
     if (ptr_to_free == it->first) {
       CHECK(it->second == nbytes) << "Attempted to free a different size than was allocated";
       allocations_.erase(it);
@@ -121,10 +118,11 @@ void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
   CHECK(found_allocation_entry) << "Attempted to free a pointer that had not been allocated";
 
   auto it = free_.begin();
-  for ( ; it != free_.end(); it++) {
+  for (; it != free_.end(); it++) {
     CHECK(ptr_to_free != it->first) << "Attempting to free a pointer that was already free";
     if (ptr_to_free < it->first) {
-      CHECK(ptr_to_free + nbytes <= it->first) << "free_ is in an inconsistent state, freed block overlaps with next";
+      CHECK(ptr_to_free + nbytes <= it->first)
+          << "free_ is in an inconsistent state, freed block overlaps with next";
       if (ptr_to_free + nbytes == it->first) {
         // Make this entry bigger
         it->first = ptr_to_free;
@@ -138,32 +136,32 @@ void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
   }
 
   if (it == free_.end()) {
-    // Insert an entry before this
+    // Insert an entry at the end
     it = free_.emplace(it, std::pair<char*, size_t>(ptr_to_free, nbytes));
   }
 
   // Check for overlap with the previous entry
   if (it != free_.begin()) {
-    auto it_prev = it; it_prev--;
-    CHECK(it_prev->first + it_prev->second <= ptr_to_free) << "free_ is in an inconsistent state, freed block overlaps with previous";
+    auto it_prev = it;
+    it_prev--;
+    CHECK(it_prev->first + it_prev->second <= ptr_to_free)
+        << "free_ is in an inconsistent state, freed block overlaps with previous";
     if (it_prev->first + it_prev->second == ptr_to_free) {
       it_prev->second += it->second;
       free_.erase(it);
     }
   }
 
-  DebugDump();
+  // DebugDump();
 }
 
-void HexagonVtcmPool::DebugDump()
-{
+void HexagonVtcmPool::DebugDump() {
   LOG(INFO) << "VTCM list state";
   for (auto it = allocations_.begin(); it != allocations_.end(); it++) {
-    LOG(INFO) << "VTCM alloc: " << (void*)it->first << " " << it->second;
+    LOG(INFO) << "VTCM alloc: " << static_cast<void*>(it->first) << " " << it->second;
   }
-
   for (auto it = free_.begin(); it != free_.end(); it++) {
-    LOG(INFO) << "VTCM  free: " << (void*)it->first << " " << it->second;
+    LOG(INFO) << "VTCM  free: " << static_cast<void*>(it->first) << " " << it->second;
   }
 }
 

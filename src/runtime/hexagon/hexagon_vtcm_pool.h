@@ -26,8 +26,8 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
-#include <memory>
-#include <vector>
+#include <list>
+#include <utility>
 
 namespace tvm {
 namespace runtime {
@@ -68,7 +68,7 @@ class HexagonVtcmPool {
   void Free(void* ptr, size_t nbytes);
 
   //! \brief Returns the total number of bytes in this pool
-  size_t TotalBytes() {return (size_t)vtcm_size_; }
+  size_t TotalBytes() { return reinterpret_cast<size_t>(vtcm_size_); }
 
  private:
   //! \brief Context for HAP_compute_res_*

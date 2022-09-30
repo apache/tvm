@@ -55,7 +55,6 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Ensures resource managers are in a good state for the runtime
   void AcquireResources() {
-    
     CHECK_EQ(runtime_vtcm, nullptr);
     runtime_vtcm = std::make_unique<HexagonVtcmPool>();
 

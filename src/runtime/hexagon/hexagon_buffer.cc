@@ -24,8 +24,8 @@
 #include <string>
 #include <utility>
 
-#include "hexagon_device_api.h"
 #include "hexagon_common.h"
+#include "hexagon_device_api.h"
 
 namespace tvm {
 namespace runtime {
@@ -57,21 +57,21 @@ struct DDRAllocation : public Allocation {
 
 struct VTCMAllocation : public Allocation {
   VTCMAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
-      CHECK(allocation_nbytes_ == nbytes);
-      CHECK(alignment <= 0x800) << "VTCMAllocation called for invalid alignment";
-      if ((nbytes & 0x7FF) && ((alignment & 0x7FF) == 0)) {
-        nbytes = nbytes >> 11;
-        nbytes = nbytes << 11;
-        nbytes += 0x800;
-        LOG(INFO) << "VTCMAllocation size adjusted for alignment " << allocation_nbytes_ << " to " << nbytes;
-        allocation_nbytes_ = nbytes;
-      }
-      
-      data_ = HexagonDeviceAPI::Global()->VtcmPool()->Allocate(allocation_nbytes_);
-      LOG(INFO) << "VTCMAllocation " << data_ << " " << allocation_nbytes_ << " " << alignment;
+    CHECK(allocation_nbytes_ == nbytes);
+    CHECK(alignment <= 0x800) << "VTCMAllocation called for invalid alignment";
+    if ((nbytes & 0x7FF) && ((alignment & 0x7FF) == 0)) {
+      nbytes = nbytes >> 11;
+      nbytes = nbytes << 11;
+      nbytes += 0x800;
+      DLOG(INFO) << "VTCMAllocation size adjusted for alignment " << allocation_nbytes_ << " to "
+                 << nbytes;
+      allocation_nbytes_ = nbytes;
+    }
+    data_ = HexagonDeviceAPI::Global()->VtcmPool()->Allocate(allocation_nbytes_);
+    DLOG(INFO) << "VTCMAllocation " << data_ << " " << allocation_nbytes_ << " " << alignment;
   }
   ~VTCMAllocation() {
-    LOG(INFO) << "~VTCMAllocation " << data_ << " " << allocation_nbytes_;
+    DLOG(INFO) << "~VTCMAllocation " << data_ << " " << allocation_nbytes_;
     HexagonDeviceAPI::Global()->VtcmPool()->Free(data_, allocation_nbytes_);
     data_ = nullptr;
   }

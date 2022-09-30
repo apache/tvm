@@ -25,11 +25,8 @@ using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
 
 class HexagonVtcmPoolTest : public ::testing::Test {
-  void SetUp() override {
-    vtcm_pool = HexagonDeviceAPI::Global()->VtcmPool();
-  }
-  void TearDown() override {
-  }
+  void SetUp() override { vtcm_pool = HexagonDeviceAPI::Global()->VtcmPool(); }
+  void TearDown() override {}
 
  public:
   HexagonVtcmPool* vtcm_pool;
@@ -63,17 +60,17 @@ TEST_F(HexagonVtcmPoolTest, not_enough_free_vtcm) {
   void* ptr;
   size_t max_bytes = vtcm_pool->TotalBytes();
   size_t two_k_block = 2048;
-  ptr = vtcm_pool->Allocate(max_bytes-two_k_block);
-  EXPECT_THROW(vtcm_pool->Allocate(two_k_block*2), InternalError);
-  vtcm_pool->Free(ptr, max_bytes-two_k_block);
+  ptr = vtcm_pool->Allocate(max_bytes - two_k_block);
+  EXPECT_THROW(vtcm_pool->Allocate(two_k_block * 2), InternalError);
+  vtcm_pool->Free(ptr, max_bytes - two_k_block);
 }
 
 TEST_F(HexagonVtcmPoolTest, free_with_wrong_size) {
   void* ptr;
   size_t two_k_block = 2048;
-  ptr = vtcm_pool->Allocate(two_k_block*2);
+  ptr = vtcm_pool->Allocate(two_k_block * 2);
   EXPECT_THROW(vtcm_pool->Free(ptr, two_k_block), InternalError);
-  vtcm_pool->Free(ptr, two_k_block*2);
+  vtcm_pool->Free(ptr, two_k_block * 2);
 }
 
 TEST_F(HexagonVtcmPoolTest, free_alloc_combinations) {
@@ -83,29 +80,29 @@ TEST_F(HexagonVtcmPoolTest, free_alloc_combinations) {
   void* ptr4;
   void* new_ptr;
   size_t two_k_block = 2048;
-  size_t max_less_3_blocks = vtcm_pool->TotalBytes()-(3*two_k_block);
+  size_t max_less_3_blocks = vtcm_pool->TotalBytes() - (3 * two_k_block);
   ptr1 = vtcm_pool->Allocate(two_k_block);
   ptr2 = vtcm_pool->Allocate(two_k_block);
   ptr3 = vtcm_pool->Allocate(two_k_block);
   ptr4 = vtcm_pool->Allocate(max_less_3_blocks);
 
   // Make sure pointers are 2k apart from each other
-  CHECK((char*)ptr1+two_k_block == (char*)ptr2);
-  CHECK((char*)ptr2+two_k_block == (char*)ptr3);
-  CHECK((char*)ptr3+two_k_block == (char*)ptr4);
+  CHECK(static_cast<char*>(ptr1) + two_k_block == static_cast<char*>(ptr2));
+  CHECK(static_cast<char*>(ptr2) + two_k_block == static_cast<char*>(ptr3));
+  CHECK(static_cast<char*>(ptr3) + two_k_block == static_cast<char*>(ptr4));
 
   // Free 2, realloc it, make sure it is the same as before
   vtcm_pool->Free(ptr2, two_k_block);
   new_ptr = vtcm_pool->Allocate(two_k_block);
-  CHECK(new_ptr==ptr2);
+  CHECK(new_ptr == ptr2);
 
   // Free 1 and 2, re-alloc and make sure they are the same
   vtcm_pool->Free(ptr1, two_k_block);
   vtcm_pool->Free(ptr2, two_k_block);
   new_ptr = vtcm_pool->Allocate(two_k_block);
-  CHECK(new_ptr==ptr1);
+  CHECK(new_ptr == ptr1);
   new_ptr = vtcm_pool->Allocate(two_k_block);
-  CHECK(new_ptr==ptr2);
+  CHECK(new_ptr == ptr2);
 
   // Exercise different deletion scenarios
   vtcm_pool->Free(ptr2, two_k_block);
