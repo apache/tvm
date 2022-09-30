@@ -48,7 +48,6 @@ HexagonVtcmPool::HexagonVtcmPool() {
   CHECK(vtcm_size_ >= min_size)
       << "HAP_compute_res_acquire failed to allocate minimum amount of VTCM";
   free_.emplace_back(std::pair<char*, size_t>(static_cast<char*>(vtcm_data_), vtcm_size_));
-
   // DebugDump();
 }
 
@@ -96,9 +95,7 @@ void* HexagonVtcmPool::Allocate(size_t nbytes) {
       break;
     }
   }
-
   // DebugDump();
-
   return ptr;
 }
 
@@ -151,7 +148,6 @@ void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
       free_.erase(it);
     }
   }
-
   // DebugDump();
 }
 
