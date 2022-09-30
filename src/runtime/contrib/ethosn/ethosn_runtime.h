@@ -107,6 +107,38 @@ class EthosnModule : public ModuleNode {
   std::map<std::string, OrderedCompiledNetwork> network_map_;
 };
 
+/*!
+ * \brief Error codes for evaluating the result of inference on the NPU.
+ */
+enum class WaitErrorCode { Success = 0, Timeout = 1, Error = 2 };
+
+/*!
+ * \brief A helper class holding the status of inference on the NPU and
+ * associated error message(s) if any occurred.
+ */
+class WaitStatus {
+ public:
+  WaitStatus() : error_code_(WaitErrorCode::Success), error_description_("") {}
+
+  explicit WaitStatus(WaitErrorCode errorCode, std::string errorDescription = "")
+      : error_code_(errorCode), error_description_(errorDescription) {}
+
+  WaitStatus(const WaitStatus&) = default;
+  WaitStatus(WaitStatus&&) = default;
+  WaitStatus& operator=(const WaitStatus&) = default;
+  WaitStatus& operator=(WaitStatus&&) = default;
+
+  explicit operator bool() const noexcept { return error_code_ == WaitErrorCode::Success; }
+
+  WaitErrorCode GetErrorCode() const { return error_code_; }
+
+  std::string GetErrorDescription() const { return error_description_; }
+
+ private:
+  WaitErrorCode error_code_;
+  std::string error_description_;
+};
+
 }  // namespace ethosn
 }  // namespace runtime
 }  // namespace tvm
