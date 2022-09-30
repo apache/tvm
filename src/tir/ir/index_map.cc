@@ -215,14 +215,14 @@ runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray arr_src) const {
       << shape.size();
   size_t size_1d = 1;
   Array<PrimExpr> orig_shape;
-  for (int i = 0; i < shape.size(); ++i) {
+  for (size_t i = 0; i < shape.size(); ++i) {
     size_1d *= shape[i];
     orig_shape.push_back(PrimExpr(static_cast<int>((shape[i]))));
   }
   auto dst_shape = MapShape(orig_shape);
 
   std::vector<int64_t> dst_shape_int;
-  for (int i = 0; i < dst_shape.size(); ++i) {
+  for (size_t i = 0; i < dst_shape.size(); ++i) {
     dst_shape_int.push_back(dst_shape[i].as<IntImmNode>()->value);
   }
 
@@ -249,7 +249,7 @@ runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray arr_src) const {
     // (z, y, x) -> z * height * width + y * width + x
     size_t dst_linear_index = 0;
     auto mul_factor = size_1d;
-    for (int j = 0; j < dst_indices.size(); ++j) {
+    for (size_t j = 0; j < dst_indices.size(); ++j) {
       mul_factor /= dst_shape_int[j];
       dst_linear_index += dst_indices[j].as<IntImmNode>()->value * mul_factor;
     }
