@@ -130,7 +130,7 @@ if __name__ == '__main__':
             % (np.mean(prof_res), np.std(prof_res))
         )
         exit(0)
-    elif fmt == ".so" and (args.device == "arm_cuda" or args.device == "arm_opencl"):
+    elif fmt == ".so" and (args.device == "arm_cuda" or args.device == "arm_opencl" or args.device == "arm"):
         if args.device == "arm_cuda":
             remote = autotvm.measure.request_remote("tx2", "192.168.6.252", 9190, timeout=10000)
         else:
