@@ -141,7 +141,7 @@ class IndexMapNode : public Object {
    * \param arr_src The NDArray whose layout is transformed by this index map.
    *
    * \returns The transformed NDArray.
-  */
+   */
   runtime::NDArray MapNDArray(runtime::NDArray arr_src) const;
 
   /*!
