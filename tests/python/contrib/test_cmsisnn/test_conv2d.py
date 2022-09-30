@@ -257,6 +257,7 @@ def test_conv2d_symmetric_padding(
     strides = (1, 1)
     dilation = (1, 1)
     groups = 1
+    # input_zero_point is not handled by TFLM when int16
     input_zero_point = input_zero_point if dtype == "int8" else 0
     kernel_layout = "HWIO"
     kernel_h = kernel_size[0]
@@ -942,7 +943,7 @@ def test_relay_conv2d_cmsisnn_depthwise_int8(
 
 
 def parameterize_for_invalid_model(test):
-    """Generates non int8 inputs"""
+    """Generates non-int8 non-int16 inputs"""
     in_dtype = ["uint8", "int8", "int16"]
     kernel_dtype = ["uint8", "int8"]
     kernel_zero_point = [-33, 10, 0]

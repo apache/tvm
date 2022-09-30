@@ -146,17 +146,19 @@ def pattern_table():
         # check if dtypes are supported for the following entities
         # (input_dtype, weight_dtype, bias_dtype, out_dtype, pattern_dtype)
         are_dtypes_valid = False
+        conv2d_input_dtype = conv2d_input.checked_type.dtype
         if bias_add:
             bias_dtype = bias_add.args[1].checked_type.dtype
         else:
-            bias_dtype = "int32" if conv2d_input.checked_type.dtype == "int8" else "int64"
+            # this is only to enable to following check that validates all sorts of dtypes
+            bias_dtype = "int32" if conv2d_input_dtype == "int8" else "int64"
         valid_dtypes = None
-        if conv2d_input.checked_type.dtype == "int8":
+        if conv2d_input_dtype == "int8":
             valid_dtypes = ("int8", "int8", "int32", "int32", "int8")
-        elif conv2d_input.checked_type.dtype == "int16":
+        elif conv2d_input_dtype == "int16":
             valid_dtypes = ("int16", "int8", "int64", "int64", "int16")
         if (
-            conv2d_input.checked_type.dtype,
+            conv2d_input_dtype,
             conv2d_weight.checked_type.dtype,
             bias_dtype,
             conv2d.attrs.out_dtype,
@@ -164,6 +166,7 @@ def pattern_table():
         ) == valid_dtypes:
             are_dtypes_valid = True
 
+        # combination of all checks to decide if pattern is eligible for partitioning
         ret = (
             are_dtypes_valid
             and all([zp == 0 for zp in kernel_zp])
