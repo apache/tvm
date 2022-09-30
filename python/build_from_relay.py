@@ -32,6 +32,7 @@ def make_parser():
     parser.add_argument("--input_img", type=str, default="random",
                         help="input data from image or random generated")
     parser.add_argument("--model_name", type=str, default="face_det")
+    parser.add_argument("--fp16", type=bool, default=False)
     parser.add_argument("--use_relay_text", type=bool, default=False)
     parser.add_argument("--opt_log", type=str, default=None)
     return parser
@@ -41,6 +42,7 @@ if __name__ == '__main__':
     args = make_parser().parse_args()
     target = ""
     fmt = ".so"
+    input_type = "float32"
     export_path = args.export_path
     if args.device == 'cuda':
         target = tvm.target.Target("cuda", host="llvm")
@@ -72,7 +74,9 @@ if __name__ == '__main__':
     mod = None
     params = None
     dtype = "float32"
-    filename = args.model_name + "_" + args.device + fmt
+    if args.fp16:
+        dtype = "float16"
+    filename = args.model_name + "_" + args.device+"_"+dtype + fmt
     if not args.eval:
         if args.use_relay_text:
             with open(mod_path, "r") as mod_fn:

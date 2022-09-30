@@ -19,6 +19,7 @@ from tvm.relay.op.contrib.tensorrt import partition_for_tensorrt
 import tvm.contrib.graph_executor as runtime
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
 import onnx
+from onnxmltools.utils import float16_converter
 from data import cfg_mnet, cfg_re50
 from layers.functions.prior_box import PriorBox
 from utils.box_utils import decode, decode_landm
@@ -39,6 +40,7 @@ def make_parser():
     parser.add_argument("--input_img", type=str, default="random",
                         help="input data from image or random generated")
     parser.add_argument("--model_name", type=str, default="face_det")
+    parser.add_argument("--fp16", type=bool, default=False)
     return parser
 
 
@@ -95,6 +97,11 @@ if __name__ == '__main__':
     export_path = args.export_path
     if not args.eval:
         onnx_model = onnx.load(args.path)
+        if args.fp16:
+            from onnxmltools.utils import float16_converter
+            trans_model = float16_converter.convert_float_to_float16(onnx_model, keep_io_types=False)
+            onnx.save_model(trans_model, args.path+".fp16.onnx")
+            onnx_model = trans_model
 
         # img = np.zeros((1, 3, 480, 640), dtype=np.float)
         img = np.zeros(tuple(args.input_size), dtype=np.float)
