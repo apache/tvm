@@ -18,6 +18,7 @@ if os.name == 'nt':
 
 # python -m tvm.exec.query_rpc_tracker --host=127.0.0.1 --port=9190
 # python -m tvm.exec.rpc_tracker --host=127.0.0.1 --port=9190
+# python -m tvm.exec.rpc_tracker --host=192.168.6.252 --port=9190
 
 # target = tvm.target.Target("opencl", host="llvm")
 # target = "llvm -mtriple=i386-unknown-windows-msvc -mattr=+sse2"
