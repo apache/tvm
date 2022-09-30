@@ -243,7 +243,8 @@ def test_map_ndarray():
     I = 64
     O = 64
     inp = np.random.randn(kH, kW, I, O).astype("float32")
-    out = index_map.map_ndarray(tvm.nd.array(inp)).numpy()
+    arr = tvm.nd.array(inp)
+    out = index_map.map_ndarray(arr).numpy()
 
     ref = np.zeros(out.shape).astype("float32")
 
@@ -255,6 +256,9 @@ def test_map_ndarray():
                     ref[i3 // 32, i0, i2 // 8, (i3 % 32) // 16, i1, i2 % 8, i3 % 16] = v
 
     np.testing.assert_equal(ref, out)
+
+    inverse_map = index_map.inverse(inp.shape)
+    np.testing.assert_equal(inverse_map.map_ndarray(index_map.map_ndarray(arr)).numpy(), inp)
 
 
 if __name__ == "__main__":
