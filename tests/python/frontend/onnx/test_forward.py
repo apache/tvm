@@ -6989,5 +6989,169 @@ def test_sequence(target, dev):
     verify_sequence_ops((3, 3, 3, 3), 4, axis=2, new_axis=1)
 
 
+@tvm.testing.parametrize_targets
+def test_gridsample(target, dev):
+    def verify_gridsample(X, Grid, Y_shape, align_corners=0, mode="bilinear", padding_mode="zeros"):
+        node = onnx.helper.make_node(
+            "GridSample",
+            inputs=["X", "Grid"],
+            outputs=["Y"],
+            mode=mode,
+            padding_mode=padding_mode,
+            align_corners=align_corners,
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "gridsample_test",
+            inputs=[
+                helper.make_tensor_value_info("X", TensorProto.FLOAT, list(X.shape)),
+                helper.make_tensor_value_info("Grid", TensorProto.FLOAT, list(Grid.shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(Y_shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="gridsample_test")
+
+        verify_with_ort_with_inputs(
+            model, [X, Grid], Y_shape, target=target, dev=dev, use_vm=True, opset=16
+        )
+
+    # X shape, [N, C, H, W] - [1, 1, 4, 4]
+    X = np.array(
+        [
+            [
+                [
+                    [0.0, 1.0, 2.0, 3.0],
+                    [4.0, 5.0, 6.0, 7.0],
+                    [8.0, 9.0, 10.0, 11.0],
+                    [12.0, 13.0, 14.0, 15.0],
+                ]
+            ]
+        ],
+        dtype=np.float32,
+    )
+    # Grid shape, [N, H_out, W_out, 2] - [1, 6, 6, 2]
+    Grid = np.array(
+        [
+            [
+                [
+                    [-1.0000, -1.0000],
+                    [-0.6000, -1.0000],
+                    [-0.2000, -1.0000],
+                    [0.2000, -1.0000],
+                    [0.6000, -1.0000],
+                    [1.0000, -1.0000],
+                ],
+                [
+                    [-1.0000, -0.6000],
+                    [-0.6000, -0.6000],
+                    [-0.2000, -0.6000],
+                    [0.2000, -0.6000],
+                    [0.6000, -0.6000],
+                    [1.0000, -0.6000],
+                ],
+                [
+                    [-1.0000, -0.2000],
+                    [-0.6000, -0.2000],
+                    [-0.2000, -0.2000],
+                    [0.2000, -0.2000],
+                    [0.6000, -0.2000],
+                    [1.0000, -0.2000],
+                ],
+                [
+                    [-1.0000, 0.2000],
+                    [-0.6000, 0.2000],
+                    [-0.2000, 0.2000],
+                    [0.2000, 0.2000],
+                    [0.6000, 0.2000],
+                    [1.0000, 0.2000],
+                ],
+                [
+                    [-1.0000, 0.6000],
+                    [-0.6000, 0.6000],
+                    [-0.2000, 0.6000],
+                    [0.2000, 0.6000],
+                    [0.6000, 0.6000],
+                    [1.0000, 0.6000],
+                ],
+                [
+                    [-1.0000, 1.0000],
+                    [-0.6000, 1.0000],
+                    [-0.2000, 1.0000],
+                    [0.2000, 1.0000],
+                    [0.6000, 1.0000],
+                    [1.0000, 1.0000],
+                ],
+            ]
+        ],
+        dtype=np.float32,
+    )
+    Y_shape = (1, 1, 6, 6)
+    verify_gridsample(X, Grid, Y_shape)
+
+    # X shape, [N, C, H, W] - [1, 1, 3, 2]
+    X = np.array(
+        [[[[0.0, 1.0], [2.0, 3.0], [4.0, 5.0]]]],
+        dtype=np.float32,
+    )
+    # Grid shape, [N, H_out, W_out, 2] - [1, 2, 4, 2]
+    Grid = np.array(
+        [
+            [
+                [
+                    [-1.0000, -1.0000],
+                    [-0.5000, -0.5000],
+                    [-0.2000, -0.2000],
+                    [0.0000, 0.0000],
+                ],
+                [
+                    [0.0000, 0.0000],
+                    [-0.2000, -0.2000],
+                    [0.5000, 0.5000],
+                    [1.0000, 1.0000],
+                ],
+            ]
+        ],
+        dtype=np.float32,
+    )
+    Y_shape = (1, 1, 2, 4)
+
+    verify_gridsample(X, Grid, Y_shape, align_corners=1)
+    verify_gridsample(X, Grid, Y_shape, mode="nearest")
+    verify_gridsample(X, Grid, Y_shape, mode="bicubic")
+
+    # X shape, [N, C, H, W] - [1, 1, 3, 2]
+    X = np.array(
+        [[[[0.0, 1.0], [2.0, 3.0], [4.0, 5.0]]]],
+        dtype=np.float32,
+    )
+    # Grid shape, [N, H_out, W_out, 2] - [1, 2, 4, 2]
+    Grid = np.array(
+        [
+            [
+                [
+                    [-10.0000, -10.0000],
+                    [-5.0000, -5.0000],
+                    [-0.2000, -0.2000],
+                    [10.0000, 10.0000],
+                ],
+                [
+                    [10.0000, 10.0000],
+                    [-0.2000, -0.2000],
+                    [5.0000, 5.0000],
+                    [10.0000, 10.0000],
+                ],
+            ]
+        ],
+        dtype=np.float32,
+    )
+    Y_shape = (1, 1, 2, 4)
+
+    verify_gridsample(X, Grid, Y_shape, padding_mode="zeros")
+    verify_gridsample(X, Grid, Y_shape, padding_mode="border")
+    verify_gridsample(X, Grid, Y_shape, padding_mode="reflection")
+
+
 if __name__ == "__main__":
     tvm.testing.main()

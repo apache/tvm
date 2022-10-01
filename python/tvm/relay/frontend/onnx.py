@@ -5263,6 +5263,31 @@ class SequenceInsert(OnnxOpConverter):
         return _expr.Tuple(tensor_list)
 
 
+class GridSample(OnnxOpConverter):
+    """Operator converter for gridsample op."""
+
+    @classmethod
+    def _impl_v16(cls, inputs, attr, params):
+        x = inputs[0]
+        grid = inputs[1]
+        # Onnx only support 4D gridsample op
+        ndims = len(infer_shape(grid))
+        assert (ndims == 4, "Grid ndims must be 4")
+
+        grid = _op.transpose(grid, axes=[0, 3, 1, 2])
+        align_corners = attr.get("align_corners", 0)
+        method = attr.get("mode", "bilinear")
+        padding_mode = attr.get("padding_mode", "zeros")
+        return _op.image.grid_sample(
+            x,
+            grid,
+            method=method,
+            layout="NCHW",
+            padding_mode=padding_mode,
+            align_corners=align_corners,
+        )
+
+
 class ConcatFromSequence(OnnxOpConverter):
     """Operator converter for sequence concatenation op."""
 
@@ -5500,6 +5525,8 @@ def _get_convert_map(opset):
         "SequenceConstruct": SequenceConstruct.get_converter(opset),
         "SequenceInsert": SequenceInsert.get_converter(opset),
         "ConcatFromSequence": ConcatFromSequence.get_converter(opset),
+        # Image sample
+        "GridSample": GridSample.get_converter(opset),
     }
 
 

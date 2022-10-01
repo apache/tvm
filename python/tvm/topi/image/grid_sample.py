@@ -200,8 +200,8 @@ def _grid_sample_2d(
 
     def _nearest_sample(n, c, h, w):
         y, x = _compute_source_index(n, h, w)
-        y_new = te.round(y).astype("int32")
-        x_new = te.round(x).astype("int32")
+        y_new = te.nearbyint(y).astype("int32")  # Onnx use nearbyint rounding with nearest sample
+        x_new = te.nearbyint(x).astype("int32")  # Onnx use nearbyint rounding with nearest sample
 
         return _get_pixel_value(n, c, y_new, x_new)
 
