@@ -1,0 +1,7 @@
+if (USE_LIKWID)
+  message(STATUS "Using Likwid library")
+  target_link_libraries(tvm_runtime_objs PRIVATE -llikwid)
+  target_link_libraries(tvm PRIVATE -llikwid)
+  target_link_libraries(tvm_runtime PRIVATE -llikwid)
+  target_sources(tvm_runtime_objs PRIVATE src/runtime/contrib/likwid/likwid.cc)
+endif()
