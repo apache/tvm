@@ -66,7 +66,7 @@ struct CacheStageInfo {
   /*! \brief The buffer to be written. */
   Buffer write_buffer;
   /*! \brief The buffer allocation to be inserted into the block signature. */
-  Buffer alloc;
+  Optional<Buffer> alloc;
   /*! \brief The AST node whose body is where the cache stage should be inserted. */
   StmtSRef loc_sref;
   /*! \brief The index to insert the cache_read/cache_write stage. */
@@ -649,15 +649,9 @@ class CacheReadRewriter : public StmtExprMutator {
     if (block == scope_sref_->stmt) {
       // If so, put buffer allocation on the parent scope
       ObjectPtr<BlockNode> n = make_object<BlockNode>(*stmt.as<BlockNode>());
-      bool alloc_buffer_exists = false;
-      for (const Buffer& it : n->alloc_buffers) {
-        if (it.same_as(info_->alloc)) {
-          alloc_buffer_exists = true;
-        }
-      }
       // In cache_buffer case, alloc_buffer may be already exits.
-      if (!alloc_buffer_exists) {
-        n->alloc_buffers.push_back(info_->alloc);
+      if (info_->alloc.defined()) {
+        n->alloc_buffers.push_back(info_->alloc.value());
         stmt = Block(n);
       }
     } else {
@@ -765,15 +759,9 @@ class CacheWriteRewriter : public StmtExprMutator {
     // Put buffer allocation on the parent scope
     if (block == scope_sref_->stmt) {
       ObjectPtr<BlockNode> n = make_object<BlockNode>(*stmt.as<BlockNode>());
-      bool alloc_buffer_exists = false;
-      for (const Buffer& it : n->alloc_buffers) {
-        if (it.same_as(info_->alloc)) {
-          alloc_buffer_exists = true;
-        }
-      }
       // In cache_buffer case, alloc_buffer may be already exits.
-      if (!alloc_buffer_exists) {
-        n->alloc_buffers.push_back(info_->alloc);
+      if (info_->alloc.defined()) {
+        n->alloc_buffers.push_back(info_->alloc.value());
         stmt = Block(n);
       }
     } else {
@@ -1002,7 +990,7 @@ class ReIndexRewriter : public StmtExprMutator {
   explicit ReIndexRewriter(const StmtSRef& block_sref, CacheStageInfo* info,
                            const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& covered)
       : block_sref_(block_sref), info_(info), covered_(covered) {
-    new_buffer_ = info->alloc;
+    new_buffer_ = info->alloc.value();
     old_buffer_ = info->read_buffer.same_as(new_buffer_) ? info->write_buffer : info->read_buffer;
   }
 
@@ -1014,7 +1002,7 @@ class ReIndexRewriter : public StmtExprMutator {
       // Insert cache stage into the loop
       ObjectPtr<BlockNode> n = make_object<BlockNode>(*stmt.as<BlockNode>());
       n->body = InsertCacheStage(n->body, info_->loc_pos, info_->cache_stage);
-      n->alloc_buffers.push_back(info_->alloc);
+      n->alloc_buffers.push_back(info_->alloc.value());
       stmt = Block(n);
       info_->block_reuse.Set(old_stmt, stmt);
       return std::move(stmt);
@@ -1306,8 +1294,6 @@ Array<StmtSRef> CacheBuffer(ScheduleState self, const StmtSRef& block_sref, int 
   StmtSRef result_block_sref = self->stmt2ref.at(cache_read_stage.get());
   BlockInfo& block_info_read = self->block_info[result_block_sref];
   block_info_read.affine_binding = CalculateAffineFlag(self, result_block_sref);
-  block_info_read.region_cover = true;
-  block_info_read.scope->stage_pipeline = true;
   results_block_sref.push_back(result_block_sref);
 
   // Do cache write
@@ -1316,7 +1302,7 @@ Array<StmtSRef> CacheBuffer(ScheduleState self, const StmtSRef& block_sref, int 
   // Create the corresponding buffer to be written, i.e. result of cache_write
   info.write_buffer = buffer;
   // Create the corresponding buffer allocation
-  info.alloc = info.read_buffer;
+  info.alloc = nullptr;
   info.consumer_blocks.clear();
 
   // Cache write step 1. Find the producing region and insert position
@@ -1340,7 +1326,7 @@ Array<StmtSRef> CacheBuffer(ScheduleState self, const StmtSRef& block_sref, int 
   BlockInfo& block_info_write = self->block_info[result_block_sref];
   block_info_write.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info_write.region_cover = true;
-  block_info_write.scope->stage_pipeline = true;
+  block_info_write.scope->stage_pipeline = false;
   results_block_sref.push_back(result_block_sref);
 
   return results_block_sref;
