@@ -5270,9 +5270,6 @@ class GridSample(OnnxOpConverter):
     def _impl_v16(cls, inputs, attr, params):
         x = inputs[0]
         grid = inputs[1]
-        # Onnx only support 4D gridsample op
-        ndims = len(infer_shape(grid))
-        assert (ndims == 4, "Grid ndims must be 4")
 
         grid = _op.transpose(grid, axes=[0, 3, 1, 2])
         align_corners = attr.get("align_corners", 0)
