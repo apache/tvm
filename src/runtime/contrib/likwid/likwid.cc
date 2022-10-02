@@ -1,8 +1,8 @@
 #include <likwid.h>
+#include <tvm/runtime/contrib/likwid.h>
 
 #include <string>
-#include <vector.h>
-#include <profiling.h>
+#include <vector>
 
 #ifdef LIKWID_PERFMON
 #include <likwid-marker.h>
@@ -33,6 +33,12 @@ struct LikwidEventSetNode : public Object {
 };
 
 struct LikwidMetricCollectorNode final : public MetricCollectorNode {
+    explicit LikwidMetricCollectorNode(Array<DeviceWrapper> devices) {
+        // Do nothing for now...
+    }
+
+    explicit LikwidMetricCollectorNode() {}
+
     void Init(Array<DeviceWrapper> devices) override {
         likwid_markerInit();
         likwid_markerThreadInit();
