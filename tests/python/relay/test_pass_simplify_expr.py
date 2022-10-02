@@ -442,7 +442,7 @@ def test_simplify_consecutive_cast():
     expr1 = relay.cast(x, "int32")
     expr2 = relay.cast_like(expr1, y)
     actual = run_opt_pass(expr2, relay.transform.SimplifyExpr())
-    expected = run_infer_type(relay.cast(expr1, "float32")
+    expected = run_infer_type(relay.cast(expr1, "float32"))
     assert tvm.ir.structural_equal(actual, expected)
 
 
