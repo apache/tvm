@@ -21,7 +21,12 @@ namespace tvm {
 namespace runtime {
 namespace profiling {
 
+
+constexpr const char* REGION_NAME = "LikwidMetricCollector";
+
+
 struct LikwidEventSetNode : public Object {
+
     std::vector<double> start_values;
     Device dev;
 
@@ -41,38 +46,31 @@ struct LikwidMetricCollectorNode final : public MetricCollectorNode {
 
     void Init(Array<DeviceWrapper> devices) override {
         likwid_markerInit();
-        likwid_markerThreadInit();
-        likwid_markerRegisterRegion("MetricCollectorNode");
+        likwid_markerRegisterRegion(REGION_NAME);
+        likwid_markerStartRegion(REGION_NAME);
     }
 
     ObjectRef Start(Device device) override {
-        int res = likwid_markerStartRegion("MetricCollectorNode");
-        if (res < 0) {
-            LOG(ERROR) << "Marker region could not be started! Error code: " << res;
-            return ObjectRef(nullptr);
-        }
-        int nevents = 10;
-        double events[10];
+        likwid_markerThreadInit();
+        int nevents = 20;
+        double events[20];
         double time;
         int count;
-        likwid_markerGetRegion("LikwidEventSetNode", &nevents, events, &time, &count);
-        if (count == 0) {
-            LOG(WARNING) << "Event count is zero!";
-        }
-        std::vector<double> start_values(std::begin(events), std::end(events));
+        _read_event_counts(&nevents, events, &time, &count);
+        std::vector<double> start_values(events, events + nevents * sizeof(double));
         return ObjectRef(make_object<LikwidEventSetNode>(start_values, device));
     }
 
     Map<String, ObjectRef> Stop(ObjectRef object) override {
         const LikwidEventSetNode* event_set_node = object.as<LikwidEventSetNode>();
-        int nevents = 10;
-        double events[10];
+        int nevents = 20;
+        double events[20];
         double time;
         int count;
-        likwid_markerGetRegion("LikwidEventSetNode", &nevents, events, &time, &count);
-        std::vector<double> end_values(std::begin(events), std::end(events));
+        _read_event_counts(&nevents, events, &time, &count);
+        std::vector<double> end_values(events, events + nevents * sizeof(double));
         std::unordered_map<String, ObjectRef> reported_metrics;
-        for (size_t i{}; i < end_values.size(); ++i) {
+        for (size_t i{}; i < nevents; ++i) {
             if (end_values[i] < event_set_node->start_values[i]) {
                 LOG(WARNING) << "Detected overflow while reading performance counter, setting value to -1";
                 reported_metrics[String(std::to_string(i))] = 
@@ -82,20 +80,36 @@ struct LikwidMetricCollectorNode final : public MetricCollectorNode {
                     ObjectRef(make_object<CountNode>(end_values[i] - event_set_node->start_values[i]));
             }
         }
-        int res = likwid_markerStopRegion("LikwidEventSetNode");
-        if (res < 0) {
-            LOG(ERROR) << "Could not close marker region! Error code: " << res;
-        }
         return reported_metrics;
     }
 
     ~LikwidMetricCollectorNode() final {
+        int res = likwid_markerStopRegion(REGION_NAME);
+        if (res < 0) {
+            LOG(ERROR) << "Could not stop marker region! Error code: " << res;
+        }
         likwid_markerClose();
+    }
+
+    void _read_event_counts(int* nevents, double* events, double* time, int* count) {
+        int status = likwid_markerStopRegion(REGION_NAME);
+        if (status < 0) {
+            LOG(ERROR) << "Could not stop marker region! Error code: " << status;
+        }
+        likwid_markerGetRegion(REGION_NAME, nevents, events, time, count);
+        if (nevents == 0) {
+            LOG(WARNING) << "Event count is zero!";
+        }
+        status = likwid_markerStartRegion(REGION_NAME);
+        if (status < 0) {
+            LOG(ERROR) << "Could not start marker region! Error code: " << status;
+        }
     }
 
     static constexpr const char* _type_key = "runtime.profiling.LikwidMetricCollector";
     TVM_DECLARE_FINAL_OBJECT_INFO(LikwidMetricCollectorNode, MetricCollectorNode);
 };
+
 
 class LikwidMetricCollector : public MetricCollector {
 public:
@@ -105,6 +119,7 @@ public:
     TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LikwidMetricCollector, MetricCollector, 
                                           LikwidMetricCollectorNode);
 };
+
 
 TVM_REGISTER_OBJECT_TYPE(LikwidEventSetNode);
 TVM_REGISTER_OBJECT_TYPE(LikwidMetricCollectorNode);
