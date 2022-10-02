@@ -291,3 +291,14 @@ if _ffi.get_global_func("runtime.profiling.PAPIMetricCollector", allow_missing=T
             for dev, names in metric_names.items():
                 wrapped[DeviceWrapper(dev)] = names
             self.__init_handle_by_constructor__(_ffi_api.PAPIMetricCollector, wrapped)
+
+
+# We only enable this class when TVM is build with Likwid support
+if _ffi.get_global_func("runtime.profiling.LikwidMetricCollector", allow_missing=True) is not None:
+    
+    @_ffi.register_object("runtime.profiling.LikwidMetricCollector")
+    class LikwidMetricCollector(MetricCollector):
+
+        def __init__(self, devices: Optional[Sequence[Device]] = None):
+            wrapped_devices = [DeviceWrapper(dev) for dev in devices]
+            self.__init_handle_by_constructor__(_ffi_api.LikwidMetricCollector, wrapped_devices)
