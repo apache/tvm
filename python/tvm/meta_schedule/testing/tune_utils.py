@@ -236,5 +236,6 @@ def create_computer(backend: str) -> Callable:
             print(
                 f"Run module f_computer via RPC failed, exception: {exc}",
             )
+            return None
 
     return f_computer
