@@ -682,6 +682,12 @@ TVM_DLL Pass RemoveWeightLayoutRewriteBlock();
  */
 TVM_DLL Pass ManifestSharedMemoryLocalStage();
 
+/*!
+ * \brief Insert intrinsic calls to instrument function and loop level profiling.
+ * \return The pass.
+ */
+TVM_DLL Pass InstrumentProfileIntrinsics();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

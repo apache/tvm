@@ -55,7 +55,8 @@ AEEResult set_remote_stack_size(int size) {
 }
 
 struct RPCChannel : public ExecutionSession {
-  explicit RPCChannel(const std::string& uri) {
+  explicit RPCChannel(const std::string& uri, bool gen_lwp_json = false)
+      : ExecutionSession(gen_lwp_json) {
     enable_unsigned_pd(true);
     set_remote_stack_size(128 * 1024);
 
@@ -127,7 +128,7 @@ struct RPCChannel : public ExecutionSession {
   }
 
   bool run(uint64_t* pcycles, uint64_t* usecs) override {
-    AEEResult rc = launcher_rpc_run(handle, pcycles, usecs);
+    AEEResult rc = launcher_rpc_run(handle, pcycles, usecs, gen_lwp_json);
     if (rc != AEE_SUCCESS) {
       std::cout << "error running model: " << std::hex << rc << '\n';
     }
@@ -158,8 +159,8 @@ struct RPCChannel : public ExecutionSession {
   std::vector<void*> allocations;
 };
 
-ExecutionSession* create_execution_session() {
-  auto* session = new RPCChannel(launcher_rpc_URI CDSP_DOMAIN);
+ExecutionSession* create_execution_session(bool gen_lwp_json) {
+  auto* session = new RPCChannel(launcher_rpc_URI CDSP_DOMAIN, gen_lwp_json);
   if (session->handle == -1) {
     delete session;
     session = nullptr;

@@ -302,6 +302,9 @@ TIR_DEFINE_BUILTIN_FUNC(undef)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kReadState))
     .set_num_inputs(0);
 
+TIR_DEFINE_BUILTIN_FUNC(profile_intrinsic)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
+
 }  // namespace builtin
 }  // namespace tir
 }  // namespace tvm
