@@ -171,6 +171,19 @@ EthosnError EthosnAPI::QnnConv2d(const Expr& expr, ConvolutionParams* params) {
   return err;
 }
 
+Constant TransposeWeights(const Constant& data, const std::string& input_layout,
+                          const std::string& target_layout) {
+  Array<Integer> transpose_matrix;
+  for (const char& c : target_layout) {
+    int pos = input_layout.find(c);
+    transpose_matrix.push_back(pos);
+  }
+  Expr transpose = MakeTranspose(data, transpose_matrix);
+  transpose = InferType(FoldConstantExpr(transpose));
+  Constant transposed_data = Downcast<Constant>(transpose);
+  return transposed_data;
+}
+
 EthosnError EthosnAPI::QnnFullyConnected(const Expr& expr, FullyConnectedParams* params) {
   Call requantize = Downcast<Call>(expr);
   Call bias_add = Downcast<Call>(requantize->args[0]);
@@ -197,7 +210,8 @@ EthosnError EthosnAPI::QnnFullyConnected(const Expr& expr, FullyConnectedParams*
   sl::QuantizationInfo output_q_info;
   err += Tvm2Npu(input_zero_point, input_scale, &data_q_info);
   err += Tvm2Npu(kernel_zero_point, kernel_scale, &weights_q_info);
-  err += Tvm2Npu(0, data_q_info.GetScale() * weights_q_info.GetScale(), &bias_q_info);
+  std::valarray<float> bias = data_q_info.GetScale() * weights_q_info.GetScales();
+  err += Tvm2Npu(0, bias, 3, &bias_q_info);
   err += Tvm2Npu(output_zero_point, output_scale, &output_q_info);
 
   // Create fc info
@@ -213,27 +227,29 @@ EthosnError EthosnAPI::QnnFullyConnected(const Expr& expr, FullyConnectedParams*
                                       data_data_type, sl::DataFormat::NHWC, data_q_info);
 
   // Create weights info
-  const auto* weights_dtype = dense->args[1]->checked_type().as<TensorTypeNode>();
+  Constant weights_data = Downcast<Constant>(dense->args[1]);
+  weights_data = TransposeWeights(weights_data, "OI", "IO");
+  const auto* weights_ttype = weights_data->checked_type().as<TensorTypeNode>();
   sl::TensorShape weights_tensor_shape;
   sl::DataType weights_data_type;
   sl::DataFormat weights_data_format;
   // Ignore the error here because weights don't have a batch axis
-  Tvm2Npu(weights_dtype->shape, &weights_tensor_shape);
-  err += Tvm2Npu(weights_dtype->dtype, &weights_data_type);
+  Tvm2Npu(weights_ttype->shape, &weights_tensor_shape);
+  err += Tvm2Npu(weights_ttype->dtype, &weights_data_type);
   err += Tvm2Npu("HWIO", &weights_data_format);
-  params->weights_info = sl::TensorInfo({1, 1, weights_tensor_shape[1], weights_tensor_shape[0]},
+  params->weights_info = sl::TensorInfo({1, 1, weights_tensor_shape[0], weights_tensor_shape[1]},
                                         weights_data_type, weights_data_format, weights_q_info);
-  params->raw_weights = dense->args[1].as<ConstantNode>()->data->data;
+  params->raw_weights = weights_data->data;
 
   // Create bias info
   params->bias_info =
-      sl::TensorInfo({1, 1, 1, weights_tensor_shape[0]}, sl::DataType::INT32_QUANTIZED,
+      sl::TensorInfo({1, 1, 1, weights_tensor_shape[1]}, sl::DataType::INT32_QUANTIZED,
                      sl::DataFormat::NHWC, bias_q_info);
-  params->raw_bias = bias_add->args[1].as<ConstantNode>()->data->data;
+  params->raw_bias = bias_add->args[1].as<ConstantNode>()->data;
 
   sl::TensorInfo output_tensor_info;
   err += Tvm2Npu(requantize->checked_type(), &output_tensor_info);
-  output_tensor_info.m_Dimensions = {data_tensor_shape[0], 1, 1, weights_tensor_shape[0]};
+  output_tensor_info.m_Dimensions = {data_tensor_shape[0], 1, 1, weights_tensor_shape[1]};
   output_tensor_info.m_QuantizationInfo = output_q_info;
   params->output_info = output_tensor_info;
 
@@ -449,21 +465,6 @@ EthosnError EthosnAPI::Mean(const Expr& expr, MeanParams* params) {
   return err;
 }
 
-Constant TransposeWeights(const Constant& data, const std::string& input_layout) {
-  int pos_h = input_layout.find("H");
-  int pos_w = input_layout.find("W");
-  int pos_i = input_layout.find("I");
-  int pos_o = input_layout.find("O");
-
-  // Currently the expected target layout is HWIO only.
-  Array<Integer> target_shape = {pos_h, pos_w, pos_i, pos_o};
-
-  Expr transpose = MakeTranspose(data, target_shape);
-  transpose = InferType(FoldConstantExpr(transpose));
-  Constant transposed_data = Downcast<Constant>(transpose);
-  return transposed_data;
-}
-
 EthosnError EthosnAPI::QnnConv2dTranspose(const Expr& expr, QnnConv2dTransposeParams* params) {
   Call requantize = Downcast<Call>(expr);
   Call bias;
@@ -530,7 +531,7 @@ EthosnError EthosnAPI::QnnConv2dTranspose(const Expr& expr, QnnConv2dTransposePa
   // Create weights info
   Constant weights_data = Downcast<Constant>(conv2d_transpose->args[1]);
   if (conv_attr->kernel_layout != "HWIO") {
-    weights_data = TransposeWeights(weights_data, conv_attr->kernel_layout);
+    weights_data = TransposeWeights(weights_data, conv_attr->kernel_layout, "HWIO");
   }
   const auto* weights_ttype = weights_data->checked_type().as<TensorTypeNode>();
   sl::TensorShape weights_tensor_shape;

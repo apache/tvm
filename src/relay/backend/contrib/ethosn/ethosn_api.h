@@ -66,8 +66,8 @@ struct FullyConnectedParams {
   sl::TensorInfo weights_info;
   sl::TensorInfo bias_info;
   sl::TensorInfo output_info;
-  void* raw_weights = nullptr;
-  void* raw_bias = nullptr;
+  runtime::NDArray raw_weights;
+  runtime::NDArray raw_bias;
 };
 
 struct MaxPool2DParams {
