@@ -194,7 +194,7 @@ def validate_correctness(
             rpc_config=rpc_config,
             lib=rt_mod,
             dev_type=dev_type,
-            args=inputs,
+            args={i: v for i, v in enumerate(inputs)},
             continuation=create_computer(backend="tir"),
             backend="tir",
         )
