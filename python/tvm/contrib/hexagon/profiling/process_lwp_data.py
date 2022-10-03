@@ -26,12 +26,13 @@ from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
 
 ENABLE_DEBUG = False
 """
-Process lightweight profiling output and generate a .csv filea
+Process lightweight profiling output and generate a CSV file with processor
+cycles for the instrumented functions and loops.
 
 Please note that some assumptions have been made while processing
 the lightweight profiling output. They are as follows:
 
-1) We don't expect profiled functions to call another profiled functions.
+1) We don't expect profiled functions to call another profiled function.
   This constraint can be relaxed if needed but it simplifies the processing
   significantly without introducing any limitations for our use case.
 2) For now, it's also assumed that every unique section (loop) ID has same start

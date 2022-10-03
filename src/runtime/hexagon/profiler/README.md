@@ -18,7 +18,7 @@
 # Hexagon lightweight instrumentation based profiling (LWP)
 
 For Hexagon, LWP can be used to get function and loop level processor cycle count.
-This's done by instrumenting the code with profiling builtin calls using a TIR pass.
+This is done by instrumenting the code with profiling builtin calls using a TIR pass.
 During codegen, these builtin calls are replaced with the calls to a hexagon specific
 handler which records the runtime information into a buffer.
 This buffer is written into a JSON file ('lwp.json') which is processed to construct
@@ -29,19 +29,19 @@ function and loop level profiling information as a csv file.
 The TIR pass offers several config flags to control the level of instrumentation
 as mentioned below:
 
-1) `lwp_disable_func_prof`: To disable function level profiling. By default, it's
+1) `lwp_disable_func_prof`: To disable function level profiling. By default, it is
 set to 'False', i.e., the function level profiling is enabled.
 
 2) `instr_siblings`: When enabled, only loops with siblings are instrumented and rest are
 ignored. The inner-most loops are always excluded from instrumentation unless overwritten
 using `lwp_min_height`. This is done to minimize the adverse effect of instrumentation on
-actual performance. By default, it's set to 'True'.
+actual performance. By default, it is set to 'True'.
 
-3) `lwp_max_depth`: To instrument loops upto a certain depth. This flag is effective
-only when `instr_siblings` is disabled. By default, it's set to 0.
+3) `lwp_max_depth`: To instrument loops up to a certain depth. This flag is effective
+only when `instr_siblings` is disabled. By default, it is set to 0.
 
-4) `lwp_min_height`: To exclude inner loops upto a certain height from instrumentation.
-By default, it's set to 1.
+4) `lwp_min_height`: To exclude inner loops up to a certain height from instrumentation.
+By default, it is set to 1.
 
 For additional usage information on various config flags, please refer to the tests in
 `tests/python/unittest/test_tir_transform_profiling_instr.py`
@@ -55,10 +55,10 @@ For additional usage information on various config flags, please refer to the te
 The steps involved are as follows:
 
 1) While building a model, set `tir.instrument_lwp` to `True`.
-   By default, the builtin calls will only be inserted for the loops with siblings. But, it 
+   By default, the builtin calls will only be inserted for the loops with siblings. But it
    can be altered using LWP config options as described above.
-2) Save the binary file as it'll be needed to process the profiling data (lwp.json) later.
-3) Create `HexagonProfiler` object. It's passed to `get_profile_output` to check if the model was
+2) Save the binary file as it will be needed to process the profiling data (lwp.json) later.
+3) Create `HexagonProfiler` object. It is passed to `get_profile_output` to check if the model was
 built with profiling enabled before copying the data from the device.
 
 ```
@@ -80,7 +80,7 @@ with tvm.transform.PassContext(opt_level=3, config={"tir.instrument_lwp": True})
 
 **Note:**
 
-- For on-device runs, 'lwp.json' is genrated in the same remote directory where 'tvm_rpc_android'
+- For on-device runs, 'lwp.json' is generated in the same remote directory where 'tvm_rpc_android'
 is copied. This remote path is needed to copy the file from the device and can be found in
 'hexagon_server_process["launcher"].workspace'.
 

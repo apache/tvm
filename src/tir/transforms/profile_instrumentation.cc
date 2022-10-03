@@ -21,7 +21,7 @@
  * \file profile_instrumentation.cc
  */
 // Insert profile intrinsic at loop and function level. During codegen,
-// these intruction can be replaced with a call to a target specific handler
+// these instruction can be replaced with a call to a target specific handler
 // and can be used to capture profiling information such as processor cycles.
 
 #include <tvm/tir/builtin.h>

@@ -205,7 +205,7 @@ with tvm.transform.PassContext(config={'tir.instrument_lwp':True} ):
 Here, `instrument_lwp` is used to enable the tir pass which instruments the code with the builtin calls.
 
 During codegen, profiling builtin calls can be replaced with a target specific handler to record runtime
-information into a buffer. This buffer is written into a JSON file which is proccessed to construct
+information into a buffer. This buffer is written into a JSON file which is processed to construct
 function and loop level profiling information.
 
 To generate LWP JSON file, add `--gen_lwp_json` flag to launcher_android:
