@@ -86,7 +86,6 @@ import pytest
 #   3) As support for 'call_tir' becomes more complete, this test should once again
 #      fail, because the specified callee doesn't exist.  This test should be updated
 #      to once again expect failure.
-@pytest.mark.xfail(reason="Awaiting TVMScript support for 'call_tir' token.", strict=True)
 class TestParseCallTIR(tvm.testing.CompareBeforeAfter):
     """
     Simply confirm that the TIR node `call_tir` doesn't interfere with
@@ -94,11 +93,10 @@ class TestParseCallTIR(tvm.testing.CompareBeforeAfter):
     """
 
     def before():
-        T.call_tir(add_one)
-        T.evalute(0)
+        T.evaluate(T.call_tir("add_one", dtype="int32"))
 
     def expected():
-        T.evaluate(0)
+        T.evaluate(T.call_tir("add_one", dtype="int32"))
 
     # Provide a trivial 'transform' pass to satisfy the requirements of
     # tvm.testing.CompareBeforeAfter.

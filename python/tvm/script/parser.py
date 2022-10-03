@@ -267,6 +267,16 @@ class TVMScriptParser(Transformer):
             The parsed positional argument.
         """
         assert isinstance(node_call, (ast.Call, ast.TypeApply, ast.TypeCall))
+
+        # TODO(cconvey): Temporary short-circuit for treating 'call_tir' as a no-op
+        # as we build out its implementation.
+        if (
+            isinstance(node_call, ast.Call)
+            and isinstance(node_call.func_name, ast.Id)
+            and (node_call.func_name.field.name == "call_tir")
+        ):
+            return []
+
         # collect arguments
         args = [self.transform(arg) for arg in node_call.params]
         if isinstance(node_call, ast.TypeApply):
@@ -868,7 +878,6 @@ class TVMScriptParser(Transformer):
             2. tir.Op(dtype, ...)
             3. other callable functions
         """
-
         if isinstance(node.func_name, ast.Op):
             if node.func_name.name == ast.BuiltinOp.Subscript:
                 return self.transform_Subscript(node)
@@ -1005,6 +1014,10 @@ class TVMScriptParser(Transformer):
             return func.exit_scope(node, self.context, arg_list, node.call.func_name.span)
         elif isinstance(func, SpecialStmt) and not func.def_symbol:
             func.handle(node, self.context, arg_list, node.call.func_name.span)
+            return
+        elif isinstance(func, tvm.ir.op.Op) and (func.name == "tir.call_tir"):
+            # TODO(cconvey): Temporary short-circuit for treating 'call_tir' as a no-op
+            # as we build out its implementation.
             return
 
         self.report_error(
@@ -1257,7 +1270,6 @@ class TVMScriptParser(Transformer):
         This occurs when an expression is used inside a T.Buffer
         parameter annotation.
         """
-
         # ast.Call has the BuiltinOp as node.func_name.name, where
         # ast.TypeCall has the BuiltinOp as node.func_name.  So we can
         # delegate to self.transform_Call, but the error messages for

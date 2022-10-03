@@ -317,6 +317,8 @@ class BuiltinLower : public StmtExprMutator {
       return make_zero(op->dtype);
     } else if (op->op.same_as(builtin::mem_copy())) {
       return MakeMemCopy(op);
+    } else if (op->op.same_as(builtin::call_tir())) {
+      return MakeCallTir(op);
     } else if (op->op.same_as(builtin::dma_copy())) {
       return MakeDMACopy(op);
     } else if (op->op.same_as(builtin::dma_wait())) {
@@ -337,6 +339,21 @@ class BuiltinLower : public StmtExprMutator {
     Call call_packed = Call(DataType::Int(32), builtin::tvm_call_packed(),
                             {StringImm(fdevapi_prefix + ".mem_copy"), dst, src, size});
     return VisitExpr(call_packed);
+  }
+
+  PrimExpr MakeCallTir(const CallNode* op) {
+    // NOTE(cconvey): This is placeholder code to support incremental development of the
+    // TIR 'call_tir' intrinsic.  For now it's basically a no-op, and imposes no particular
+    // requirements on the argument list.
+
+    if (op->dtype != tvm::runtime::DataType::Int(32)) {
+      LOG(ERROR) << "MakeCallTir: 'call_tir' is a work in progress."
+                 << " The return dtype currently must be int32.";
+    }
+
+    LOG(WARNING) << "MakeCallTir: 'call_tir' support is a work in progress.  Currently, just "
+                    "returns (int32) 0.";
+    return PrimExpr(0);
   }
 
   PrimExpr MakeDMACopy(const CallNode* op) {

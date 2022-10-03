@@ -721,6 +721,11 @@ TVM_DLL const Op& texture2d_load();
 TVM_DLL const Op& mem_copy();
 
 /*!
+ * \brief Call a TIR PrimFunc that exists within the same IRModule
+ */
+TVM_DLL const Op& call_tir();
+
+/*!
  * \brief Initiate a non-blocking DMA copy from source to destination
  */
 TVM_DLL const Op& dma_copy();
