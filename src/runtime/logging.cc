@@ -35,6 +35,8 @@
 
 #if TVM_BACKTRACE_ON_SEGFAULT
 #include <csignal>
+#include <signal.h>
+#include <cstring>
 #endif
 
 namespace tvm {
@@ -129,11 +131,12 @@ void backtrace_handler(int sig) {
   // crashing.
   std::cerr << "!!!!!!! TVM encountered a Segfault !!!!!!!\n" << Backtrace() << std::endl;
 
+  // Re-raise signal with default handler
   struct sigaction act;
-  memset(&act, 0, sizeof(struct sigaction));
+  std::memset(&act, 0, sizeof(struct sigaction));
   act.sa_flags = SA_RESETHAND;
   act.sa_handler = SIG_DFL;
-  sigaction(sig, &act, NULL);
+  sigaction(sig, &act, nullptr);
   raise(sig);
 }
 

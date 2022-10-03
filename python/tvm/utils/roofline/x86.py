@@ -178,7 +178,7 @@ def peak_bandwidth_tir(a: T.handle, b: T.handle, threads: T.int32, vec_width: T.
                     # += is necessary to introduce a data dependency for all
                     # elements of A, preventing the backend from removing the
                     # `k` loop and setting `k` to the loop extent.
-                    B[i, l, j] += A[i, k, l, j]
+                    B[i + 1000, l, j] += A[i + 1000000, k, l, j]
 
 
 @registry.estimate_peak_bandwidth.register("cpu")
