@@ -128,7 +128,13 @@ void backtrace_handler(int sig) {
   // Backtrace may allocate. What's the worst it could do? We're already
   // crashing.
   std::cerr << "!!!!!!! TVM encountered a Segfault !!!!!!!\n" << Backtrace() << std::endl;
-  exit(1);
+
+  struct sigaction act;
+  memset(&act, 0, sizeof(struct sigaction));
+  act.sa_flags = SA_RESETHAND;
+  act.sa_handler = SIG_DFL;
+  sigaction(sig, &act, NULL);
+  raise(sig);
 }
 
 __attribute__((constructor)) void install_signal_handler(void) {
