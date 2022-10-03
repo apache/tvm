@@ -26,8 +26,8 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
-#include <list>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace runtime {

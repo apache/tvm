@@ -57,9 +57,11 @@ struct DDRAllocation : public Allocation {
 
 struct VTCMAllocation : public Allocation {
   VTCMAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
-    CHECK(allocation_nbytes_ == nbytes);
+    // TODO(HWE): Handle alignments greater than 2k
     CHECK(alignment <= 0x800) << "VTCMAllocation called for invalid alignment";
     if ((nbytes & 0x7FF) && ((alignment & 0x7FF) == 0)) {
+      // Caller has requested 2k alignment, but the size is not a multiple of 2k
+      // Adjust size to be a multiple of 2k so that we will allocate from the front of the pool
       nbytes = nbytes >> 11;
       nbytes = nbytes << 11;
       nbytes += 0x800;
