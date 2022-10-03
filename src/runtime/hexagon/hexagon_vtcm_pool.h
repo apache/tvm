@@ -81,10 +81,10 @@ class HexagonVtcmPool {
   unsigned int context_id_{0};
 
   //! \brief List of allocations
-  std::list<std::pair<char*, size_t>> allocations_;
+  std::vector<std::pair<char*, size_t>> allocations_;
 
   //! \brief List of free segments
-  std::list<std::pair<char*, size_t>> free_;
+  std::vector<std::pair<char*, size_t>> free_;
 
   //! \brief Mutext to protect access to the lists
   std::mutex mutex_;
