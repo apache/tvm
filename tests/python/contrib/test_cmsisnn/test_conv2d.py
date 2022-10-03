@@ -947,17 +947,20 @@ def parameterize_for_invalid_model(test):
     in_dtype = ["uint8", "int8", "int16"]
     kernel_dtype = ["uint8", "int8"]
     kernel_zero_point = [-33, 10, 0]
-    all_combinations = itertools.product(in_dtype, kernel_dtype, kernel_zero_point)
+    input_zero_point = [64, 0]
+    all_combinations = itertools.product(
+        in_dtype, kernel_dtype, kernel_zero_point, input_zero_point
+    )
     all_combinations = filter(
         lambda parameters: not (
-            (parameters[0] == "int8" or parameters[0] == "int16")
+            (parameters[0] == "int8" or (parameters[0] == "int16" and parameters[3] == 0))
             and parameters[1] == "int8"
             and parameters[2] == 0
         ),
         all_combinations,
     )
     return pytest.mark.parametrize(
-        ["in_dtype", "kernel_dtype", "kernel_zero_point"],
+        ["in_dtype", "kernel_dtype", "kernel_zero_point", "input_zero_point"],
         all_combinations,
     )(test)
 
@@ -968,12 +971,12 @@ def test_invalid_parameters(
     in_dtype,
     kernel_dtype,
     kernel_zero_point,
+    input_zero_point,
 ):
     """Tests Depthwise op for non int8 inputs"""
     ifm_shape = (1, 28, 28, 12)
     out_channels = 2
     input_scale = 1
-    input_zero_point = 24
     kernel_scale = [0.11, 0.0237]
 
     kernel_layout = "HWIO"

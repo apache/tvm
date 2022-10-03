@@ -129,10 +129,6 @@ def pattern_table():
         conv2d_input = conv2d.args[0]
         conv2d_weight = conv2d.args[1]
 
-        # kernel zero_point should be 0
-        kernel_zp = conv2d.args[3].data.numpy()
-        kernel_zp = [kernel_zp] if kernel_zp.ndim == 0 else kernel_zp
-
         # check if depthwise Conv2D
         kernel_layout = conv2d.attrs.kernel_layout
         pos_o = kernel_layout.index("O")
@@ -157,6 +153,7 @@ def pattern_table():
             valid_dtypes = ("int8", "int8", "int32", "int32", "int8")
         elif conv2d_input_dtype == "int16":
             valid_dtypes = ("int16", "int8", "int64", "int64", "int16")
+
         if (
             conv2d_input_dtype,
             conv2d_weight.checked_type.dtype,
@@ -166,9 +163,19 @@ def pattern_table():
         ) == valid_dtypes:
             are_dtypes_valid = True
 
+        # input_zero_point should be 0 when int16
+        valid_input_zp = True
+        if conv2d_input_dtype == "int16" and conv2d.args[2].data.numpy().item(0) != 0:
+            valid_input_zp = False
+
+        # kernel zero_point should be 0
+        kernel_zp = conv2d.args[3].data.numpy()
+        kernel_zp = [kernel_zp] if kernel_zp.ndim == 0 else kernel_zp
+
         # combination of all checks to decide if pattern is eligible for partitioning
         ret = (
             are_dtypes_valid
+            and valid_input_zp
             and all([zp == 0 for zp in kernel_zp])
             and (not is_depthwise or bias_add is not None)
         )
