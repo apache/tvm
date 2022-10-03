@@ -17,9 +17,11 @@
 # pylint: disable=invalid-name, no-value-for-parameter
 """Direct implementation of conv2d."""
 
-from tvm import autotvm
+import random
+import string
+
+from tvm import autotvm, te, tir
 from tvm.autotvm.task import deserialize_args
-from tvm import te
 from tvm.topi.utils import simplify, traverse_inline
 from tvm.topi.nn.pad import pad
 from tvm.topi.nn.utils import get_pad_tuple
@@ -84,9 +86,12 @@ def conv2d_nhwc_dsp_compute(cfg, data, kernel, strides, padding, dilation, out_d
     return conv
 
 
-def _make_tensorization(padded_data, kernel, suffix):
+def _make_tensorization(padded_data, kernel):
     _, padded_h, padded_w, in_channels = padded_data.shape
     _, kernel_h, kernel_w, _ = kernel.shape
+    in_dtype = padded_data.dtype
+    suffix = "".join(random.choices(string.ascii_uppercase, k=8))
+    assert in_dtype == kernel.dtype
 
     data_slice = te.placeholder((kernel_h, kernel_w, in_channels), name="a", dtype=in_dtype)
     kernel_slice = te.placeholder((kernel_h, kernel_w, in_channels), name="b", dtype=in_dtype)
@@ -106,7 +111,7 @@ def _make_tensorization(padded_data, kernel, suffix):
 
     data_buf = tir.decl_buffer(
         data_slice.shape, data_slice.dtype, name="data", offset_factor=1,
-        strides=[tensor_w * in_channels, in_channels, 1],
+        strides=[padded_w * in_channels, in_channels, 1],
     )
     kernel_buf = tir.decl_buffer(
         kernel_slice.shape, kernel_slice.dtype, name="kernel", offset_factor=1,
@@ -116,16 +121,16 @@ def _make_tensorization(padded_data, kernel, suffix):
         output_slice.shape, output_slice.dtype, name="output", offset_factor=1, strides=[1]
     )
 
-    jump = (tensor_w - kernel_w) * in_channels
-    tensordot_params = (kernel_h, jump, kernel_w * in_channels, suffix)
+    jump = (padded_w - kernel_w) * in_channels
+    tensordot_params = (in_dtype, kernel_h, jump, kernel_w * in_channels, suffix)
 
     intrin_tensordot = make_intrin_tensordot(
         output_slice.op,
-        (data_buf, kernel_buf, output_buf),
+        {data_slice: data_buf, kernel_slice: kernel_buf, output_slice: output_buf},
         tensordot_params
     )
 
-    tensordot_code = tensordot_impl(tensordot_params)
+    tensordot_code = tensordot_impl(*tensordot_params)
     return (intrin_tensordot, tensordot_code)
 
 
@@ -146,9 +151,9 @@ def conv2d_nhwc_dsp_schedule(cfg, outs):
         kh_ax, kw_ax, ci_ax = schedule[output].op.reduce_axis
         schedule[output].reorder(b_ax, y_ax, x_ax, co_ax, kh_ax, kw_ax, ci_ax)
 
-        intrin, code = _make_tensorization(padded_data, kernel, suffix)
+        intrin, code = _make_tensorization(padded_data, kernel)
         schedule[output].tensorize(kh_ax, intrin)
-        schedule[output].pragma(n, "import_c", code)
+        schedule[output].pragma(b_ax, "import_c", code)
 
     traverse_inline(schedule, outs[-1].op, _callback)
     return schedule

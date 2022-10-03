@@ -24,22 +24,22 @@ import textwrap
 
 from tvm import te, tir
 
+from .common import num_simd_lanes_per_word
 
 def _get_func_name(in_dtype, tensor_h, jump, tensor_w, suffix):
     """Gets the C function name of the tensorized function."""
     return f"tensordot_{in_dtype}_h{tensor_h}_j{jump}_w{tensor_w}_{suffix}"
 
 
-def make_intrin_tensordot(operator, buffers, tensordot_params):
-    data, kernel, output = buffers
-    #tensor_h, jump, tensor_w, suffix = tensordot_params
+def make_intrin_tensordot(operator, binds, tensordot_params):
+    #in_dtype, tensor_h, jump, tensor_w, suffix = tensordot_params
 
     def intrin_func(ins, outs):
         builder = tir.ir_builder.create()
         builder.emit(
             tir.call_extern(
                 "int32",
-                _get_func_name(data.dtype, *tensordot_params),
+                _get_func_name(*tensordot_params),
                 outs[0].access_ptr("w"),
                 ins[0].access_ptr("r"),
                 ins[1].access_ptr("r"),
@@ -50,7 +50,7 @@ def make_intrin_tensordot(operator, buffers, tensordot_params):
     return te.decl_tensor_intrin(
         operator,
         intrin_func,
-        binds={data_slice: data, kernel_slice: kernel, output_slice: output},
+        binds=binds,
     )
 
 
@@ -100,7 +100,7 @@ def intrin_depthwise_conv2d_tensordot(in_dtype, tensor_w, kernel_h, kernel_w, su
     return te.decl_tensor_intrin(
         output_slice.op,
         intrin_func,
-        binds={data_slice: data_buf, kernel_slice: kernel_buf, output_slice: output_buf},
+        binds=binings,
     )
 
 
@@ -147,13 +147,13 @@ def tensordot_impl(in_dtype, tensor_h, jump, tensor_w, suffix):
 
           #pragma GCC unroll {tensor_h}
           for (int i = 0; i < {tensor_h}; i++) {{
-            #pragma GCC unroll {length // simd_width}
-            for (int j = 0; j < {length // simd_width}; i++) {{
+            #pragma GCC unroll {tensor_w // simd_lanes}
+            for (int j = 0; j < {tensor_w // simd_lanes}; j++) {{
               uint32_t tensor_batch = *tensor++;
               uint32_t kernel_batch = *kernel++;
-              {inner_loop.trim()}
+              {inner_loop.strip()}
             }}
-            tensor += {jump // simd_width};
+            tensor += {jump // simd_lanes};
           }}
           out[0] = sum;
           return 0;
