@@ -206,7 +206,7 @@ for _dtype in ["float", "uint", "int"]:
             _name = _dtype + _size + _lanes
             globals()[_name] = ConcreteType(_name)
 
-boolean = ConcreteType("bool")
+bool = boolean = ConcreteType("bool")
 handle = ConcreteType("handle")
 void = VoidType()
 Ptr = GenericPtrType()
