@@ -138,12 +138,14 @@ def test_complex_likely_elimination():
 
 class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
     transitively_prove_inequalities = False
+    convert_boolean_to_and_of_ors = False
 
     def transform(self):
         def inner(mod):
             config = {
                 "tir.Simplify": {
                     "transitively_prove_inequalities": self.transitively_prove_inequalities,
+                    "convert_boolean_to_and_of_ors": self.convert_boolean_to_and_of_ors,
                 }
             }
             with tvm.transform.PassContext(config=config):
@@ -684,6 +686,53 @@ class TestSuppressTransitivelyProvableCondition(BaseBeforeAfter):
             A[0] = i < k
 
     expected = before
+
+
+class TestRewriteAsAndOfOrs(BaseBeforeAfter):
+    """If enabled, rewrite boolean expressions into AND of OR"""
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[3, "bool"]):
+        T.evaluate(A[0] or (A[1] and A[2]))
+
+    def expected(A: T.Buffer[3, "bool"]):
+        T.evaluate((A[0] or A[1]) and (A[0] or A[2]))
+
+
+class TestSuppressRewriteAsAndOfOrs(BaseBeforeAfter):
+    """Only rewrite into AND of OR when allowed"""
+
+    convert_boolean_to_and_of_ors = False
+
+    def before(A: T.Buffer[3, "bool"]):
+        T.evaluate(A[0] or (A[1] and A[2]))
+
+    expected = before
+
+
+class TestRewriteAsAndOfOrsWithTopLevelAnd(BaseBeforeAfter):
+    """The expression being rewritten may start with an AND
+
+    Like TestRewriteAsAndOfOrs, but with an AndNode as the outermost
+    booelan operator.  Even though it is primarily OR nodes that are
+    being rewritten, the call to SimplifyAsAndOfOrs should apply to
+    the outermost AndNode or OrNode in order to enable better
+    simplification.
+    """
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[4, "bool"]):
+        T.evaluate((A[0] or A[1]) and (A[1] or (A[0] and A[2] and A[3])))
+
+    def expected(A: T.Buffer[4, "bool"]):
+        # If the simplification is applied to the OrNode, then the
+        # redundant `(A[1] or A[0])` isn't canceled out
+        #
+        # T.evaluate((A[0] or A[1]) and ((A[1] or A[0]) and (A[1] or A[2]) and (A[1] or A[3])))
+        #
+        T.evaluate((A[0] or A[1]) and (A[1] or A[2]) and (A[1] or A[3]))
 
 
 if __name__ == "__main__":
