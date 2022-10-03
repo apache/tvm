@@ -2,9 +2,7 @@
 name: "\U0001F527 Feature Tracking"
 about: List clear, small actionable items so we can track the progress of the change. Find the list of label tags at TBD.
 title: "[Tracking Issue] "
-labels:
-    - "needs-triage"
-    - "type:rfc-tracking"
+labels: "needs-triage, type:rfc-tracking"
 ---
 
 Thanks for participating in the TVM community! We use https://discuss.tvm.ai for any general usage questions and discussions. The issue tracker is used for actionable items such as feature proposals discussion, roadmaps, and bug tracking.  You are always welcomed to post on the forum first :smile_cat:

@@ -2,9 +2,7 @@
 name: "\U0001F4C4 Documentation"
 about: Use this template to suggest additions and changes to the documentation. Find the list of label tags at TBD.
 title: "[Docs] "
-labels:
-    - "needs-triage"
-    - "type: doc"
+labels: "needs-triage, type: doc"
 ---
 
 Thanks for participating in the TVM community! We use https://discuss.tvm.ai for any general usage questions and discussions. The issue tracker is used for actionable items such as feature proposals discussion, roadmaps, and bug tracking.  You are always welcomed to post on the forum first :smile_cat:

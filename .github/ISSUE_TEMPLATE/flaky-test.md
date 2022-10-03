@@ -2,9 +2,7 @@
 name: "\U00002744 Flaky Test"
 about: Report a flaky test, make sure to include links to CI runs, a sample failure log, and the name of the test(s). Find the list of label tags at TBD.
 title: "[Flaky Test] "
-labels: 
-    - "needs-triage"
-    - "test: flaky"
+labels: "needs-triage, test: flaky"
 ---
 
 Thanks for participating in the TVM community! We use https://discuss.tvm.ai for any general usage questions and discussions. The issue tracker is used for actionable items such as feature proposals discussion, roadmaps, and bug tracking. You are always welcomed to post on the forum first :smile_cat:
