@@ -28,7 +28,7 @@ outer = tvm.testing.parameter(8, 16)
 inner = tvm.testing.parameter(64, 128)
 dtype = tvm.testing.parameter("uint8", "float16")
 scope = tvm.testing.parameter("global", "global.vtcm")
-sched = tvm.testing.parameter("cache_read", "cache_read_write")
+sched = tvm.testing.parameter("cache_read", "cache_write", "cache_read_write")
 
 
 @tvm.testing.fixture
@@ -52,16 +52,23 @@ def schedule(compute, sched, scope):
     sch = tir.Schedule(compute[0])
 
     compute_block = sch.get_block("compute")
-    cache_read_block = sch.cache_read(compute_block, 0, scope)
-
     i, _ = sch.get_loops(compute_block)
-    sch.compute_at(cache_read_block, i)
 
     if sched == "cache_read":
+        cache_read_block = sch.cache_read(compute_block, 0, scope)
+        sch.compute_at(cache_read_block, i)
         sch.annotate(i, "software_pipeline_stage", [0, 1])
         sch.annotate(i, "software_pipeline_order", [0, 1])
         sch.annotate(i, "software_pipeline_async_stages", [0])
+    elif sched == "cache_write":
+        cache_write_block = sch.cache_write(compute_block, 0, scope)
+        sch.reverse_compute_at(cache_write_block, i)
+        sch.annotate(i, "software_pipeline_stage", [0, 1])
+        sch.annotate(i, "software_pipeline_order", [0, 1])
+        sch.annotate(i, "software_pipeline_async_stages", [1])
     elif sched == "cache_read_write":
+        cache_read_block = sch.cache_read(compute_block, 0, scope)
+        sch.compute_at(cache_read_block, i)
         cache_write_block = sch.cache_write(compute_block, 0, scope)
         sch.reverse_compute_at(cache_write_block, i)
         sch.annotate(i, "software_pipeline_stage", [0, 1, 2])
