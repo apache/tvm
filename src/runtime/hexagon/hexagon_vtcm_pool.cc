@@ -71,29 +71,24 @@ void* HexagonVtcmPool::Allocate(size_t nbytes) {
     return ptr;
   }
 
-  std::pair<char*, size_t>& entry_to_allocate = free_.front();
-  for (auto entry : free_) {
-    if ((entry.second < entry_to_allocate.second) && (entry.second >= nbytes)) {
-      entry_to_allocate = entry;
-      if (entry_to_allocate.second == nbytes) {
+  auto entry_to_allocate = free_.begin();
+  for (auto it = free_.begin(); it != free_.end(); it++) {
+    if ((it->second < entry_to_allocate->second) && (it->second >= nbytes)) {
+      entry_to_allocate = it;
+      if (entry_to_allocate->second == nbytes) {
         break;
       }
     }
   }
-  CHECK(entry_to_allocate.second >= nbytes) << "Not enough contiguous VTCM space to allocate";
-  char* ptr = entry_to_allocate.first;
+  CHECK(entry_to_allocate->second >= nbytes) << "Not enough contiguous VTCM space to allocate";
+  char* ptr = entry_to_allocate->first;
   allocations_.emplace(allocations_.end(), std::pair<char*, size_t>(ptr, nbytes));
 
-  for (auto it = free_.begin(); it != free_.end(); it++) {
-    if (ptr == it->first) {
-      if (it->second == nbytes) {
-        free_.erase(it);
-      } else {
-        it->first = it->first + nbytes;
-        it->second = it->second - nbytes;
-      }
-      break;
-    }
+  if (entry_to_allocate->second == nbytes) {
+    free_.erase(entry_to_allocate);
+  } else {
+    entry_to_allocate->first = entry_to_allocate->first + nbytes;
+    entry_to_allocate->second = entry_to_allocate->second - nbytes;
   }
   // DebugDump();
   return ptr;
@@ -109,26 +104,23 @@ void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
   CHECK(it->second == nbytes) << "Attempted to free a different size than was allocated";
   allocations_.erase(it);
 
-  for (it = free_.begin(); it != free_.end(); it++) {
-    CHECK(ptr_to_free != it->first) << "Attempting to free a pointer that was already free";
-    if (ptr_to_free < it->first) {
-      CHECK(ptr_to_free + nbytes <= it->first)
-          << "free_ is in an inconsistent state, freed block overlaps with next";
-      if (ptr_to_free + nbytes == it->first) {
-        // Make this entry bigger
-        it->first = ptr_to_free;
-        it->second += nbytes;
-      } else {
-        // Insert an entry before this
-        it = free_.emplace(it, std::pair<char*, size_t>(ptr_to_free, nbytes));
-      }
-      break;
-    }
-  }
-
+  it = std::lower_bound(free_.begin(), free_.end(), std::pair<char*, size_t>(ptr_to_free, nbytes),
+                        [](auto p, auto q) { return p.first <= q.first; });
   if (it == free_.end()) {
     // Insert an entry at the end
     it = free_.emplace(it, std::pair<char*, size_t>(ptr_to_free, nbytes));
+  } else {
+    CHECK(ptr_to_free != it->first) << "Attempting to free a pointer that was already free";
+    CHECK(ptr_to_free + nbytes <= it->first)
+        << "free_ is in an inconsistent state, freed block overlaps with next";
+    if (ptr_to_free + nbytes == it->first) {
+      // Make this entry bigger
+      it->first = ptr_to_free;
+      it->second += nbytes;
+    } else {
+      // Insert an entry before this
+      it = free_.emplace(it, std::pair<char*, size_t>(ptr_to_free, nbytes));
+    }
   }
 
   // Check for overlap with the previous entry
