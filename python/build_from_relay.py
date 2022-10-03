@@ -42,7 +42,9 @@ if __name__ == '__main__':
     args = make_parser().parse_args()
     target = ""
     fmt = ".so"
-    input_type = "float32"
+    dtype = "float32"
+    if args.fp16:
+        dtype = "float16"
     export_path = args.export_path
     if args.device == 'cuda':
         target = tvm.target.Target("cuda", host="llvm")
@@ -68,14 +70,12 @@ if __name__ == '__main__':
 
     # mod_path = os.path.join(args.path, "mod.dat")
     # params_path = os.path.join(args.path, "params.dat")
-    mod_path = os.path.join(args.path, args.model_name + ".txt")
-    params_path = os.path.join(args.path, args.model_name + ".params")
+    mod_path = os.path.join(args.path, args.model_name + "_"+dtype+".txt")
+    params_path = os.path.join(args.path, args.model_name + "_"+dtype+".params")
 
     mod = None
     params = None
-    dtype = "float32"
-    if args.fp16:
-        dtype = "float16"
+
     filename = args.model_name + "_" + args.device+"_"+dtype + fmt
     if not args.eval:
         if args.use_relay_text:
@@ -87,7 +87,7 @@ if __name__ == '__main__':
                 vars = mod.get_global_vars()
                 print(mod)
         else:
-            pickle_path = os.path.join(args.path, args.model_name + ".pickle")
+            pickle_path = os.path.join(args.path, args.model_name+"_"+dtype + ".pickle")
             with open(pickle_path, "rb") as pickle_fn:
                 mod_bytes = pickle_fn.read()
                 mod = pickle.loads(mod_bytes)
@@ -138,7 +138,7 @@ if __name__ == '__main__':
         exit(0)
     elif fmt == ".so" and (args.device == "arm_cuda" or args.device == "arm_opencl" or args.device == "arm"):
         if args.device == "arm_cuda":
-            remote = autotvm.measure.request_remote("tx2", "192.168.6.252", 9190, timeout=10000)
+            remote = autotvm.measure.request_remote("tx2", "192.168.6.69", 9190, timeout=10000)
         else:
             remote = autotvm.measure.request_remote("rk3588", "192.168.6.252", 9190, timeout=10000)
         remote.upload(os.path.join(export_path, filename))
@@ -156,7 +156,7 @@ if __name__ == '__main__':
             print(oval)
         # evaluate
         print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=30)
+        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=300)
         prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
         print(
             "Mean inference time (std dev): %.2f ms (%.2f ms)"

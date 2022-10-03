@@ -78,7 +78,10 @@ def create_shared(output, objects, options=None, cc=None):
     if _is_linux_like():
         _linux_compile(output, objects, options, cc, compile_shared=True)
     elif sys.platform == "win32":
-        _windows_compile(output, objects, options)
+        if cc is not None:
+            _linux_compile(output, objects, options, cc, compile_shared=True)
+        else:
+            _windows_compile(output, objects, options)
     else:
         raise ValueError("Unsupported platform")
 

@@ -92,6 +92,8 @@ if __name__ == '__main__':
     dso_name = args.model_name + "_" + args.device + ".so"
     path = os.path.join("./", dso_name)
     dtype = "float32"
+    if args.fp16:
+        dtype = "float16"
     input_shape = tuple(args.input_size)
     input_name = args.input_name
     export_path = args.export_path
@@ -113,13 +115,13 @@ if __name__ == '__main__':
         ir_text = mod.astext(show_meta_data=True)
         print(ir_text)
 
-        with open(os.path.join(export_path, args.model_name + ".txt"), "w") as irf:
+        with open(os.path.join(export_path, args.model_name + "_"+dtype+".txt"), "w") as irf:
             irf.write(ir_text)
         mod_bytes = pickle.dumps(mod)
-        with open(os.path.join(export_path, args.model_name+".pickle"), "wb") as pick_fn:
+        with open(os.path.join(export_path, args.model_name+"_"+dtype+".pickle"), "wb") as pick_fn:
             pick_fn.write(mod_bytes)
         params_bytes = relay.save_param_dict(params)
-        with open(os.path.join(export_path, args.model_name+".params"), "wb") as pf:
+        with open(os.path.join(export_path, args.model_name+"_"+dtype+".params"), "wb") as pf:
             pf.write(params_bytes)
         # mod = tvm.parser.fromtext(ir_text)
         print(mod)
