@@ -132,7 +132,7 @@ void backtrace_handler(int sig) {
 }
 
 __attribute__((constructor)) void install_signal_handler(void) {
-  // this may override already install signal handlers
+  // this may override already installed signal handlers
   std::signal(SIGSEGV, backtrace_handler);
 }
 #endif
