@@ -103,19 +103,13 @@ void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
   char* ptr_to_free = static_cast<char*>(ptr);
   std::lock_guard<std::mutex> lock(mutex_);
 
-  bool found_allocation_entry = false;
-  for (auto it = allocations_.begin(); it != allocations_.end(); it++) {
-    if (ptr_to_free == it->first) {
-      CHECK(it->second == nbytes) << "Attempted to free a different size than was allocated";
-      allocations_.erase(it);
-      found_allocation_entry = true;
-      break;
-    }
-  }
-  CHECK(found_allocation_entry) << "Attempted to free a pointer that had not been allocated";
+  auto it = std::find_if(allocations_.begin(), allocations_.end(),
+                         [&](auto entry) { return entry.first == ptr_to_free; });
+  CHECK(it != allocations_.end()) << "Attempted to free a pointer that had not been allocated";
+  CHECK(it->second == nbytes) << "Attempted to free a different size than was allocated";
+  allocations_.erase(it);
 
-  auto it = free_.begin();
-  for (; it != free_.end(); it++) {
+  for (it = free_.begin(); it != free_.end(); it++) {
     CHECK(ptr_to_free != it->first) << "Attempting to free a pointer that was already free";
     if (ptr_to_free < it->first) {
       CHECK(ptr_to_free + nbytes <= it->first)
@@ -153,11 +147,11 @@ void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
 
 void HexagonVtcmPool::DebugDump() {
   LOG(INFO) << "VTCM list state";
-  for (auto it = allocations_.begin(); it != allocations_.end(); it++) {
-    LOG(INFO) << "VTCM alloc: " << static_cast<void*>(it->first) << " " << it->second;
+  for (auto entry : allocations_) {
+    LOG(INFO) << "VTCM alloc: " << static_cast<void*>(entry.first) << " " << entry.second;
   }
-  for (auto it = free_.begin(); it != free_.end(); it++) {
-    LOG(INFO) << "VTCM  free: " << static_cast<void*>(it->first) << " " << it->second;
+  for (auto entry : free_) {
+    LOG(INFO) << "VTCM  free: " << static_cast<void*>(entry.first) << " " << entry.second;
   }
 }
 
