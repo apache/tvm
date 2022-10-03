@@ -440,7 +440,7 @@ class TestErrorIfPaddingForbidden(BasePaddingCompare):
 class TestErrorOnWrongPaddingType(BasePaddingCompare):
     """The padding must have the same dtype as the buffer"""
 
-    pad_value = tvm.testing.parameter(0.5)
+    pad_value = tvm.testing.parameter(tir.IntImm("int8", 0))
 
     def before():
         A = T.alloc_buffer(14, "int32")
@@ -465,20 +465,35 @@ class TestPaddedTransformIfThenElse(BasePaddingCompare):
 
     pad_value = tvm.testing.parameter(0)
     transformed_buffer = tvm.testing.parameter("B")
+    dtype = tvm.testing.parameter("int32", "int8")
 
-    def before(A: T.Buffer[14, "int32"]):
-        B = T.alloc_buffer(14, "int32")
-        for i in T.serial(14):
-            with T.block("block"):
-                vi = T.axis.remap("S", [i])
-                B[vi] = A[vi]
+    @tvm.testing.fixture
+    def before(self, dtype):
+        @T.prim_func
+        def func(A: T.Buffer[14, dtype]):
+            B = T.alloc_buffer(14, dtype)
+            for i in T.serial(14):
+                with T.block("block"):
+                    vi = T.axis.remap("S", [i])
+                    B[vi] = A[vi]
 
-    def expected(A: T.Buffer[14, "int32"]):
-        B = T.alloc_buffer([4, 4], "int32")
-        for i, j in T.grid(4, 4):
-            with T.block("block"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                B[vi, vj] = T.if_then_else(vi == 3 and 2 <= vj, 0, A[vi * 4 + vj], dtype="int32")
+        return func
+
+    @tvm.testing.fixture
+    def expected(self, dtype, pad_value):
+        pad_value = tir.IntImm(dtype, pad_value)
+
+        @T.prim_func
+        def func(A: T.Buffer[14, dtype]):
+            B = T.alloc_buffer([4, 4], dtype)
+            for i, j in T.grid(4, 4):
+                with T.block("block"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = T.if_then_else(
+                        vi == 3 and 2 <= vj, pad_value, A[vi * 4 + vj], dtype=dtype
+                    )
+
+        return func
 
 
 class TestPaddedTransformWithoutLoop(BasePaddingCompare):

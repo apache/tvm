@@ -174,10 +174,12 @@ def schedule_rules(  # pylint: disable=redefined-outer-name
         return sch_rules()
     if sch_rules is not None:
         raise TypeError(f"Expected `sch_rules` to be None or callable, but gets: {sch_rules}")
-    if target.kind.name in ["llvm", "hexagon"]:
+    if target.kind.name == "llvm":
         return _DefaultLLVM.schedule_rules()
     if target.kind.name in ["cuda", "rocm", "vulkan"]:
         return _DefaultCUDA.schedule_rules()
+    if target.kind.name == "hexagon":
+        return _DefaultHexagon.schedule_rules()
     raise ValueError(f"Unsupported target: {target}")
 
 
@@ -190,10 +192,12 @@ def postproc(  # pylint: disable=redefined-outer-name
         return postproc()
     if postproc is not None:
         raise TypeError(f"Expected `postproc` to be None or callable, but gets: {postproc}")
-    if target.kind.name in ["llvm", "hexagon"]:
+    if target.kind.name == "llvm":
         return _DefaultLLVM.postprocs()
     if target.kind.name in ["cuda", "rocm", "vulkan"]:
         return _DefaultCUDA.postprocs()
+    if target.kind.name == "hexagon":
+        return _DefaultHexagon.postprocs()
     raise ValueError(f"Unsupported target: {target}")
 
 
@@ -275,6 +279,55 @@ class _DefaultLLVM:
             M.MutateUnroll(): 0.03,
             M.MutateParallel(max_jobs_per_core=16): 0.02,
         }
+
+
+class _DefaultHexagon:
+    """Default tuning configuration for Hexagon."""
+
+    @staticmethod
+    def schedule_rules() -> List[ScheduleRule]:
+        from tvm.meta_schedule import schedule_rule as M
+
+        return [
+            M.AutoInline(
+                into_producer=False,
+                into_consumer=True,
+                inline_const_tensor=True,
+                disallow_if_then_else=True,
+                require_injective=True,
+                require_ordered=True,
+                disallow_op=["tir.exp"],
+            ),
+            M.MultiLevelTilingWideVector(
+                structure="SRSRS",
+                vector_length_in_bits=1024,
+                max_innermost_factor=128,
+                reuse_read=None,
+                reuse_write=M.ReuseType(
+                    req="may",
+                    levels=[1, 2],
+                    scope="global",
+                ),
+            ),
+            M.ParallelizeVectorizeUnroll(
+                max_jobs_per_core=16,
+                max_vectorize_extent=128,
+                unroll_max_steps=[0, 16, 64, 512],
+                unroll_explicit=True,
+            ),
+        ]
+
+    @staticmethod
+    def postprocs() -> List[Postproc]:
+        from tvm.meta_schedule import postproc as M
+
+        return [
+            M.DisallowDynamicLoop(),
+            M.RewriteParallelVectorizeUnroll(),
+            M.RewriteReductionBlock(),
+            # TODO(masahi): Fix RewriteLayout for link-params=True case
+            # M.RewriteLayout(),
+        ]
 
 
 class _DefaultCUDA:

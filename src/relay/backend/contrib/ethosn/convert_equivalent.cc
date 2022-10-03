@@ -40,36 +40,62 @@ namespace contrib {
 namespace ethosn {
 
 /*!
+ * \brief Helper class to extract inputs and quantization information from binary
+ * elementwise operations ready to convert.
+ */
+class BinaryElementwiseParams {
+ public:
+  static BinaryElementwiseParams ExtractBinaryElementwiseParams(const Call& call) {
+    auto params = BinaryElementwiseParams();
+    params.input1 = call->args[0];
+    params.input2 = call->args[1];
+    params.input1_scale = call->args[2];
+    params.input1_zero_point = call->args[3];
+    params.input2_scale = call->args[4];
+    params.input2_zero_point = call->args[5];
+    // Reverse the inputs if the constant is first input
+    if (call->args[0]->IsInstance<ConstantNode>()) {
+      params.input1 = call->args[1];
+      params.input2 = call->args[0];
+      params.input1_scale = call->args[4];
+      params.input1_zero_point = call->args[5];
+      params.input2_scale = call->args[2];
+      params.input2_zero_point = call->args[3];
+    }
+    params.output_scale = call->args[6];
+    params.output_zero_point = call->args[7];
+    return params;
+  }
+
+  Expr input1;
+  Expr input2;
+  Expr input1_scale;
+  Expr input1_zero_point;
+  Expr input2_scale;
+  Expr input2_zero_point;
+  Expr output_scale;
+  Expr output_zero_point;
+};
+
+/*!
  * \brief Converts qnn.mul to mathematically equivalent
  * qnn.conv2d depthwise operation.
+ *
+ * \param expr The expression to attempt to convert.
+ *
+ * \return Null if conversion is not supported else the converted expression.
  */
-Expr ConvertQnnMultiply(const Expr& expr) {
+Optional<Expr> ConvertQnnMultiplyToDepthwise(const Expr& expr) {
   Call call = Downcast<Call>(expr);
+  const auto params = BinaryElementwiseParams::ExtractBinaryElementwiseParams(call);
 
-  Expr input1 = call->args[0];
-  Expr input2 = call->args[1];
-  Expr input1_scale = call->args[2];
-  Expr input1_zero_point = call->args[3];
-  Expr input2_scale = call->args[4];
-  Expr input2_zero_point = call->args[5];
-  // Reverse the inputs if the constant is first input
-  if (call->args[0]->IsInstance<ConstantNode>()) {
-    input1 = call->args[1];
-    input2 = call->args[0];
-    input1_scale = call->args[4];
-    input1_zero_point = call->args[5];
-    input2_scale = call->args[2];
-    input2_zero_point = call->args[3];
+  Constant input_constant = Downcast<Constant>(params.input2);
+  TensorType input_constant_tt = Downcast<TensorType>(input_constant->checked_type());
+  TensorType input_tt = Downcast<TensorType>(call->checked_type());
+  int channels = Downcast<IntImm>(input_tt->shape.back())->value;
+  if (channels != Downcast<IntImm>(input_constant_tt->Size())->value) {
+    return NullOpt;
   }
-  Expr output_scale = call->args[6];
-  Expr output_zero_point = call->args[7];
-
-  const auto* input_constant = input2.as<ConstantNode>();
-  ICHECK(input_constant) << "Expected ConstantNode but got " << input2->GetTypeKey();
-  Type input_constant_type = input_constant->checked_type();
-  const auto* input_constant_tt = input_constant_type.as<TensorTypeNode>();
-  ICHECK(input_constant) << "Expected TensorTypeNode but got " << input_constant_type->GetTypeKey();
-  int channels = input_constant_tt->shape.back().as<IntImmNode>()->value;
 
   runtime::NDArray input_data = input_constant->data;
   runtime::NDArray kernel_data_hwoi =
@@ -77,62 +103,53 @@ Expr ConvertQnnMultiply(const Expr& expr) {
   kernel_data_hwoi.CopyFrom(input_data);
   Constant kernel = Constant(kernel_data_hwoi, input_constant->span);
 
-  Type output_type = expr->checked_type();
-  auto output_tt = output_type.as<TensorTypeNode>();
-  ICHECK(output_tt) << "Expected TensorTypeNode but got " << output_type->GetTypeKey();
+  TensorType output_tt = Downcast<TensorType>(expr->checked_type());
   DataType output_dtype = output_tt->dtype;
 
-  Expr conv2d = qnn::MakeQnnConv2D(
-      input1, kernel, input1_zero_point, input2_zero_point, input1_scale, input2_scale, {1, 1},
-      {0, 0, 0, 0}, {1, 1}, channels, channels, {1, 1}, "NHWC", "HWOI", "NHWC", DataType::Int(32));
+  Expr conv2d =
+      qnn::MakeQnnConv2D(params.input1, kernel, params.input1_zero_point, params.input2_zero_point,
+                         params.input1_scale, params.input2_scale, {1, 1}, {0, 0, 0, 0}, {1, 1},
+                         channels, channels, {1, 1}, "NHWC", "HWOI", "NHWC", DataType::Int(32));
   Constant bias_data = MakeConstantZeros(DataType::Int(32), {channels});
   Expr bias_add = MakeBiasAdd(conv2d, bias_data, 3);
-  Expr requantize = qnn::MakeRequantize(bias_add, input1_scale, input1_zero_point, output_scale,
-                                        output_zero_point, -1, "None", "None", output_dtype);
+  Expr requantize = qnn::MakeRequantize(bias_add, params.input1_scale, params.input1_zero_point,
+                                        params.output_scale, params.output_zero_point, -1, "None",
+                                        "None", output_dtype);
 
-  return InferType(requantize);
+  try {
+    requantize = InferType(requantize);
+    return requantize;
+  } catch (tvm::Error& e) {
+    // Conversion produced an invalid op.
+    return NullOpt;
+  }
 }
-
-TVM_REGISTER_GLOBAL("relay.backend.contrib.ethos-n.ConvertQnnMultiply")
-    .set_body_typed(ConvertQnnMultiply);
 
 /*!
  * \brief Converts qnn.add to a mathematically equivalent
  * qnn.conv2d depthwise operation.
+ *
+ * \param expr The expression to attempt to convert.
+ *
+ * \return Null if conversion is not supported else the converted expression.
  */
-Expr ConvertQnnAdd(const Expr& expr) {
+Optional<Expr> ConvertQnnAddToDepthwise(const Expr& expr) {
   Call call = Downcast<Call>(expr);
+  const auto params = BinaryElementwiseParams::ExtractBinaryElementwiseParams(call);
 
-  Expr input1 = call->args[0];
-  Expr input2 = call->args[1];
-  Expr input1_scale = call->args[2];
-  Expr input1_zero_point = call->args[3];
-  Expr input2_scale = call->args[4];
-  Expr input2_zero_point = call->args[5];
-  // Reverse the inputs if the constant is first input
-  if (call->args[0]->IsInstance<ConstantNode>()) {
-    input1 = call->args[1];
-    input2 = call->args[0];
-    input1_scale = call->args[4];
-    input1_zero_point = call->args[5];
-    input2_scale = call->args[2];
-    input2_zero_point = call->args[3];
+  Constant input_constant = Downcast<Constant>(params.input2);
+  TensorType input_constant_tt = Downcast<TensorType>(input_constant->checked_type());
+  TensorType input_tt = Downcast<TensorType>(call->checked_type());
+  int channels = Downcast<IntImm>(input_tt->shape.back())->value;
+  if (channels != Downcast<IntImm>(input_constant_tt->Size())->value) {
+    return NullOpt;
   }
-  Expr output_scale = call->args[6];
-  Expr output_zero_point = call->args[7];
-
-  const auto* input_constant = input2.as<ConstantNode>();
-  ICHECK(input_constant) << "Expected ConstantNode but got " << input2->GetTypeKey();
-  Type input_constant_type = input_constant->checked_type();
-  const auto* input_constant_tt = input_constant_type.as<TensorTypeNode>();
-  ICHECK(input_constant) << "Expected TensorTypeNode but got " << input_constant_type->GetTypeKey();
-  int channels = input_constant_tt->shape.back().as<IntImmNode>()->value;
 
   // Create the identity kernel. The kernel data is constructed such that it produces an identity
   // operation in the quantized space. Therefore, the input is not scaled in any way which allows
   // us to later use the bias to perform the addition.
-  float input_scale_value = GetScalarFromConstant<float>(input1_scale);
-  float output_scale_value = GetScalarFromConstant<float>(output_scale);
+  float input_scale_value = GetScalarFromConstant<float>(params.input1_scale);
+  float output_scale_value = GetScalarFromConstant<float>(params.output_scale);
   float identity_kernel_scale_ub = std::min(output_scale_value / input_scale_value, 1.f);
   float identity_kernel_scale_lb = (1.f / 255.f);
   float identity_kernel_scale_target = (identity_kernel_scale_ub + identity_kernel_scale_lb) / 2.f;
@@ -153,25 +170,131 @@ Expr ConvertQnnAdd(const Expr& expr) {
       MakeConstantScalar(DataType::Float(32), input_scale_value * identity_kernel_scale_value);
   Constant bias_zero_point = MakeConstantScalar(DataType::Int(32), 0);
   Expr requantize_bias =
-      qnn::MakeRequantize(input2, input2_scale, input2_zero_point, bias_scale, bias_zero_point, -1,
-                          "None", "None", DataType::Int(32));
+      qnn::MakeRequantize(params.input2, params.input2_scale, params.input2_zero_point, bias_scale,
+                          bias_zero_point, -1, "None", "None", DataType::Int(32));
   Expr reshape_bias = MakeReshape(requantize_bias, {channels});
-  Constant bias = Downcast<Constant>(FoldConstantExpr(reshape_bias));
+
+  try {
+    reshape_bias = FoldConstantExpr(reshape_bias);
+  } catch (tvm::Error& e) {
+    // Conversion produced an invalid op.
+    return NullOpt;
+  }
+  Constant bias = Downcast<Constant>(reshape_bias);
 
   // Make depthwise conv2d operation
-  Expr conv2d =
-      qnn::MakeQnnConv2D(input1, identity_kernel, input1_zero_point, identity_kernel_zero_point,
-                         input1_scale, identity_kernel_scale, {1, 1}, {0, 0, 0, 0}, {1, 1},
-                         channels, channels, {1, 1}, "NHWC", "HWOI", "NHWC", DataType::Int(32));
+  Expr conv2d = qnn::MakeQnnConv2D(params.input1, identity_kernel, params.input1_zero_point,
+                                   identity_kernel_zero_point, params.input1_scale,
+                                   identity_kernel_scale, {1, 1}, {0, 0, 0, 0}, {1, 1}, channels,
+                                   channels, {1, 1}, "NHWC", "HWOI", "NHWC", DataType::Int(32));
   Expr bias_add = MakeBiasAdd(conv2d, bias, 3);
-  Expr requantize =
-      qnn::MakeRequantize(bias_add, input1_scale, input1_zero_point, output_scale,
-                          output_zero_point, -1, "None", "None", input_constant_tt->dtype);
+  Expr requantize = qnn::MakeRequantize(bias_add, params.input1_scale, params.input1_zero_point,
+                                        params.output_scale, params.output_zero_point, -1, "None",
+                                        "None", input_constant_tt->dtype);
 
-  return InferType(requantize);
+  try {
+    return InferType(requantize);
+  } catch (tvm::Error& e) {
+    // Conversion produced an invalid op.
+    return NullOpt;
+  }
 }
 
-TVM_REGISTER_GLOBAL("relay.backend.contrib.ethos-n.ConvertQnnAdd").set_body_typed(ConvertQnnAdd);
+/*!
+ * \brief Converts qnn.mul to a mathematically equivalent qnn.requantize operation.
+ * When converting to support library API, a reinterpret quantize operation will be created.
+ *
+ * \param expr The expression to attempt to convert.
+ *
+ * \return Null if conversion is not supported else the converted expression.
+ */
+Optional<Expr> ConvertQnnMultiplyToReinterpretQuantize(const Expr& expr) {
+  Call call = Downcast<Call>(expr);
+  const auto params = BinaryElementwiseParams::ExtractBinaryElementwiseParams(call);
+
+  Constant input_constant = Downcast<Constant>(params.input2);
+  TensorType input_constant_tt = Downcast<TensorType>(input_constant->checked_type());
+  if (Downcast<IntImm>(input_constant_tt->Size())->value != 1) {
+    return NullOpt;
+  }
+
+  float input_scale_value = GetScalarFromConstant<float>(params.input1_scale);
+  float constant_scale_value = GetScalarFromConstant<float>(params.input2_scale);
+  int constant_zero_point_value = GetScalarFromConstant<int>(params.input2_zero_point);
+  float new_output_scale_value = input_scale_value * constant_scale_value *
+                                 (ToScalar(input_constant->data) - constant_zero_point_value);
+  Constant new_output_scale = MakeConstantScalar(DataType::Float(32), new_output_scale_value);
+
+  if (std::abs(new_output_scale_value - GetScalarFromConstant<float>(params.output_scale)) >
+      0.004f) {
+    // Multiply does not represent an identity operation so don't convert.
+    return NullOpt;
+  }
+
+  DataType output_data_type = Downcast<TensorType>(call->checked_type())->dtype;
+
+  // A requantize operation is used to represent the identity reinterperet quantize op in
+  // the support library at this stage. That is requantize is used here as a means for
+  // passing the quantization information to the API conversion layer.
+  Expr requantize = qnn::MakeRequantize(
+      params.input1, params.input1_scale, params.input1_zero_point, params.output_scale,
+      params.output_zero_point, -1, "None", "None", output_data_type);
+
+  try {
+    return InferType(requantize);
+  } catch (tvm::Error& e) {
+    // Conversion produced an invalid op.
+    return NullOpt;
+  }
+}
+
+/*!
+ * \brief Converts qnn.mul to a mathematically equivalent qnn.requantize operation.
+ * When converting to support library API, a reinterpret quantize operation will be created.
+ *
+ * \param expr The expression to attempt to convert.
+ *
+ * \return Null if conversion is not supported else the converted expression.
+ */
+Optional<Expr> ConvertQnnAddToReinterpretQuantize(const Expr& expr) {
+  Call call = Downcast<Call>(expr);
+  const auto params = BinaryElementwiseParams::ExtractBinaryElementwiseParams(call);
+
+  Constant input_constant = Downcast<Constant>(params.input2);
+  TensorType input_constant_tt = Downcast<TensorType>(input_constant->checked_type());
+  if (Downcast<IntImm>(input_constant_tt->Size())->value != 1) {
+    return NullOpt;
+  }
+
+  float input_scale = GetScalarFromConstant<float>(params.input1_scale);
+  int input_zero_point = GetScalarFromConstant<int>(params.input1_zero_point);
+  float scalar_scale = GetScalarFromConstant<float>(params.input2_scale);
+  int scalar_zero_point = GetScalarFromConstant<int>(params.input2_zero_point);
+  int output_zero_point_value = GetScalarFromConstant<int>(params.output_zero_point);
+  float scalar_value = (ToScalar(input_constant->data) - scalar_zero_point) * scalar_scale;
+
+  float new_output_zero_point_value = input_zero_point - (scalar_value / input_scale);
+  if (new_output_zero_point_value - output_zero_point_value > 1.0f) {
+    // Add does not represent an identity operation so don't convert
+    return NullOpt;
+  }
+
+  DataType output_data_type = Downcast<TensorType>(call->checked_type())->dtype;
+
+  // A requantize operation is used to represent the identity reinterperet quantize op in
+  // the support library at this stage. That is requantize is used here as a means for
+  // passing the quantization information to the API conversion layer.
+  Expr requantize = qnn::MakeRequantize(
+      params.input1, params.input1_scale, params.input1_zero_point, params.output_scale,
+      params.output_zero_point, -1, "None", "None", output_data_type);
+
+  try {
+    return InferType(requantize);
+  } catch (tvm::Error& e) {
+    // Conversion produced an invalid op.
+    return NullOpt;
+  }
+}
 
 class ConvertEquivalentsMutator : public MixedModeMutator {
  public:
@@ -184,28 +307,33 @@ class ConvertEquivalentsMutator : public MixedModeMutator {
     Function func = Downcast<Function>(call->op);
     Function new_func = Function(func);
     auto composite_name = func->GetAttr<String>(attr::kComposite);
-    if (composite_name == "ethos-n.qnn_mul") {
-      Expr new_func_body = ConvertQnnMultiply(func->body);
-      new_func = WithFields(func, func->params, new_func_body);
-      new_func = WithAttr(std::move(new_func), attr::kComposite, String("ethos-n.qnn_conv2d"));
-    } else if (composite_name == "ethos-n.qnn_add" && CheckCanConvertAdd(func->body)) {
-      Expr new_func_body = ConvertQnnAdd(func->body);
-      new_func = WithFields(func, func->params, new_func_body);
-      new_func = WithAttr(std::move(new_func), attr::kComposite, String("ethos-n.qnn_conv2d"));
+
+    Optional<Expr> optional_new_func_body;
+    String new_composite_name = "";
+    if (composite_name == "ethos-n.qnn_mul_to_reinterpret_quantize") {
+      optional_new_func_body = ConvertQnnMultiplyToReinterpretQuantize(func->body);
+      new_composite_name = "ethos-n.qnn_reinterpret_quantize";
+    } else if (composite_name == "ethos-n.qnn_mul_to_depthwise") {
+      optional_new_func_body = ConvertQnnMultiplyToDepthwise(func->body);
+      new_composite_name = "ethos-n.qnn_conv2d";
+    } else if (composite_name == "ethos-n.qnn_add_to_reinterpret_quantize") {
+      optional_new_func_body = ConvertQnnAddToReinterpretQuantize(func->body);
+      new_composite_name = "ethos-n.qnn_reinterpret_quantize";
+    } else if (composite_name == "ethos-n.qnn_add_to_depthwise") {
+      optional_new_func_body = ConvertQnnAddToDepthwise(func->body);
+      new_composite_name = "ethos-n.qnn_conv2d";
+    }
+
+    if (new_composite_name != "") {
+      ICHECK(optional_new_func_body)
+          << "Operation " << composite_name
+          << " was marked as having a valid conversion, but it could not be converted.";
+      new_func = WithFields(func, func->params, optional_new_func_body.value());
+      new_func = WithAttr(std::move(new_func), attr::kComposite, new_composite_name);
     }
 
     Call new_call = WithFields(call, new_func);
     return Downcast<Expr>(new_call);
-  }
-
- private:
-  /*!
-   * \brief Check whether add can be converted to depthwise, or whether
-   * it should be offloaded as a normal add operation.
-   */
-  bool CheckCanConvertAdd(const Expr& expr) {
-    Call call = Downcast<Call>(expr);
-    return call->args[0]->IsInstance<ConstantNode>() || call->args[1]->IsInstance<ConstantNode>();
   }
 };
 
@@ -228,6 +356,18 @@ tvm::transform::Pass ConvertEquivalents() {
   return tvm::transform::CreateModulePass(
       pass_func, 0, "relay.backend.contrib.ethos-n.ConvertEquivalents", {"InferType"});
 }
+
+TVM_REGISTER_GLOBAL("relay.backend.contrib.ethos-n.ConvertQnnMultiplyToDepthwise")
+    .set_body_typed(ConvertQnnMultiplyToDepthwise);
+
+TVM_REGISTER_GLOBAL("relay.backend.contrib.ethos-n.ConvertQnnAddToDepthwise")
+    .set_body_typed(ConvertQnnAddToDepthwise);
+
+TVM_REGISTER_GLOBAL("relay.backend.contrib.ethos-n.ConvertQnnMultiplyToReinterpretQuantize")
+    .set_body_typed(ConvertQnnMultiplyToReinterpretQuantize);
+
+TVM_REGISTER_GLOBAL("relay.backend.contrib.ethos-n.ConvertQnnAddToReinterpretQuantize")
+    .set_body_typed(ConvertQnnAddToReinterpretQuantize);
 
 TVM_REGISTER_GLOBAL("relay.backend.contrib.ethos-n.ConvertEquivalents")
     .set_body_typed(ConvertEquivalents);

@@ -846,16 +846,15 @@ def test_constant_shape_with_external_codegen():
     assert "shape_func" in opt_mod.astext(False)
 
 
-def test_vm_rpc():
+def prepare_vm_model(path, tensor_shape):
     """
-    This test checks to make sure you can export a VMExecutable,
-    upload it to a remote machine using RPC and then execute it
-    on the other machine.
+    Virtual Machine is compiled for simple topology and
+    exported as library to given path
     """
     target = tvm.target.Target("llvm --host=llvm")
 
     # Build a IRModule.
-    x = relay.var("x", shape=(10, 1))
+    x = relay.var("x", shape=tensor_shape)
     f = relay.Function([x], x + x)
     mod = IRModule.from_expr(f)
 
@@ -863,9 +862,22 @@ def test_vm_rpc():
     vm_exec = vm.compile(mod, target=target)
 
     # Export to Disk
+    vm_exec.mod.export_library(path)
+
+
+def test_vm_rpc():
+    """
+    This test checks to make sure you can export a VMExecutable,
+    upload it to a remote machine using RPC and then execute it
+    on the other machine.
+    """
+    # Shape for input and output tensors
+    shape = (10, 1)
+
+    # Export to Disk
     temp = utils.tempdir()
     path = temp.relpath("vm_library.so")
-    vm_exec.mod.export_library(path)
+    prepare_vm_model(path, shape)
 
     # Use local rpc server for testing.
     # Server must use popen so it doesn't inherit the current process state. It
@@ -881,7 +893,7 @@ def test_vm_rpc():
         device = remote.cpu()
         # Build a VM out of the executable and context.
         vm_factory = runtime.vm.VirtualMachine(rexec, device)
-        np_input = np.random.uniform(size=(10, 1)).astype("float32")
+        np_input = np.random.uniform(size=shape).astype("float32")
         input_tensor = tvm.nd.array(np_input, device)
         # Invoke its "main" function.
         out = vm_factory.invoke("main", input_tensor)
@@ -889,6 +901,72 @@ def test_vm_rpc():
         np.testing.assert_allclose(out.numpy(), np_input + np_input)
 
     check_remote(rpc.Server("127.0.0.1"))
+
+
+def test_vm_invoke_with_outputs_rpc():
+    """
+    This test checks to make sure you can export a VMExecutable,
+    upload it to a remote machine using RPC and then execute it
+    on the other machine with preallocated outputs.
+    """
+    # Shape for input and output tensors
+    shape = (3, 2)
+
+    # Export to Disk
+    temp = utils.tempdir()
+    path = temp.relpath("vm_library.so")
+    prepare_vm_model(path, shape)
+
+    # Use local rpc server for testing.
+    # Server must use popen so it doesn't inherit the current process state. It
+    # will crash otherwise.
+    def check_remote_invoke_with_outputs(server):
+        remote = rpc.connect(server.host, server.port, session_timeout=10)
+
+        # Upload the serialized Executable.
+        remote.upload(path)
+        # Get a handle to remote Executable.
+        rexec = remote.load_module("vm_library.so")
+
+        device = remote.cpu()
+        # Build a VM out of the executable and context.
+        vm_factory = runtime.vm.VirtualMachine(rexec, device)
+        np_input = np.random.uniform(size=shape).astype("float32")
+        input_tensor = tvm.nd.array(np_input, device)
+        np_output = np.empty(shape, dtype="float32")
+        output_tensor = tvm.nd.array(np_output, device)
+        # Invoke its "main" function.
+        vm_factory.invoke_with_outputs(
+            "main", input_args={"x": input_tensor}, output_args=[output_tensor]
+        )
+        # Check the result.
+        np.testing.assert_allclose(output_tensor.numpy(), np_input + np_input)
+
+    check_remote_invoke_with_outputs(rpc.Server("127.0.0.1"))
+
+
+def test_vm_invoke_with_outputs():
+    target = tvm.target.Target("llvm")
+    shape = (3, 2)
+
+    # Build a IRModule.
+    x = relay.var("x", shape=shape)
+    f = relay.Function([x], x + x)
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    np_input = np.random.uniform(size=shape).astype("float32")
+    input_tensor = tvm.nd.array(np_input)
+    np_output = np.empty(shape, dtype="float32")
+    output_tensor = tvm.nd.array(np_output)
+    # Invoke
+    vm_factory.invoke_with_outputs(
+        "main", input_args={"x": input_tensor}, output_args=[output_tensor]
+    )
+    # Check the result.
+    np.testing.assert_allclose(output_tensor.numpy(), np_input + np_input)
 
 
 def test_get_output_single():

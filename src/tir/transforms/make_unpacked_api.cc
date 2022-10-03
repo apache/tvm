@@ -50,7 +50,7 @@ PrimFunc MakeUnpackedAPI(PrimFunc&& func) {
   auto* func_ptr = func.CopyOnWrite();
 
   // Setup device context
-  int target_device_type = target.value()->kind->device_type;
+  int target_device_type = target.value()->GetTargetDeviceType();
   Integer device_type(target_device_type);
   Integer device_id(0);
   PrimExpr node = StringImm("default");

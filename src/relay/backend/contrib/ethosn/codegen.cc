@@ -152,6 +152,10 @@ void InferTensorsVisitor::InferCall(const CallNode* cn) {
     RequantizeParams params;
     err += EthosnAPI::Requantize(cn->op.as<FunctionNode>()->body, &params);
     tensor_table_[cn->args[0]] = {params.input_info};
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_reinterpret_quantize")) {
+    ReinterpretQuantizationParams params;
+    err += EthosnAPI::ReinterpretQuantize(cn->op.as<FunctionNode>()->body, &params);
+    tensor_table_[cn->args[0]] = {params.input_info};
   } else if (IsEthosnFunc(call, "ethos-n.qnn_resize")) {
     ResizeParams params;
     err += EthosnAPI::Resize(cn->op.as<FunctionNode>()->body, &params);
@@ -332,6 +336,9 @@ sl::TensorsAndId ConstructNetworkVisitor::HandleCall(const CallNode* cn) {
     return MakeOps(tensor);
   } else if (IsEthosnFunc(call, "ethos-n.qnn_requantize")) {
     if ((err = MakeRequantizeLayer(call, &tensor))) ReportFatalError(call, err);
+    return MakeOps(tensor);
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_reinterpret_quantize")) {
+    if ((err = MakeReinterpretQuantizeLayer(call, &tensor))) ReportFatalError(call, err);
     return MakeOps(tensor);
   } else if (IsEthosnFunc(call, "ethos-n.qnn_resize")) {
     if ((err = MakeResizeLayer(call, &tensor))) ReportFatalError(call, err);
@@ -648,6 +655,24 @@ EthosnError ConstructNetworkVisitor::MakeRequantizeLayer(const Call& call,
 
   try {
     *out = AddRequantize(network_, *input, params.requantize_info);
+  } catch (const sl::NotSupportedException& e) {
+    return EthosnError(e.what());
+  }
+  return EthosnError();
+}
+
+EthosnError ConstructNetworkVisitor::MakeReinterpretQuantizeLayer(
+    const Call& call, sl::TensorAndId<sl::Operand>* out) {
+  ReinterpretQuantizationParams params;
+  params.input_info = GetTensorInfo(tensor_table_, call);
+  if (auto err = EthosnAPI::ReinterpretQuantize(call->op.as<FunctionNode>()->body, &params)) {
+    return err;
+  }
+
+  auto input = operand_table_[call->args[0]][0];
+
+  try {
+    *out = AddReinterpretQuantization(network_, *input, params.reinterpret_quantize_info);
   } catch (const sl::NotSupportedException& e) {
     return EthosnError(e.what());
   }
@@ -1019,6 +1044,20 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.requantize")
       *rv = !err && EthosnCompiler::GetSupported()->IsRequantizeSupported(
                         params.requantize_info, params.input_info, &params.output_info, reason,
                         sizeof(reason));
+      err += EthosnError(reason);
+    });
+
+TVM_REGISTER_GLOBAL("relay.ethos-n.support.reinterpret_quantize")
+    .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
+      Call call = args[0];
+      ReinterpretQuantizationParams params;
+      auto err = EthosnAPI::ReinterpretQuantize(call, &params);
+      err += EthosnCompiler::SupportedSetup();
+      char reason[kReasonMaxLength];
+      reason[0] = '\0';
+      *rv = !err && EthosnCompiler::GetSupported()->IsReinterpretQuantizationSupported(
+                        params.reinterpret_quantize_info, params.input_info, &params.output_info,
+                        reason, sizeof(reason));
       err += EthosnError(reason);
     });
 
