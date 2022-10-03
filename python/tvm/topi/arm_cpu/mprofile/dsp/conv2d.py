@@ -70,7 +70,7 @@ def conv2d_nhwc_dsp_compute(cfg, data, kernel, strides, padding, dilation, out_d
     rx = te.reduce_axis((0, kernel_w), name="rx")
     rc = te.reduce_axis((0, in_channels), name="rc")
 
-    conv = te.compute(
+    return te.compute(
         (batch_size, out_height, out_width, out_channels),
         lambda nn, yy, xx, ff: te.sum(
             padded_data[
@@ -82,8 +82,6 @@ def conv2d_nhwc_dsp_compute(cfg, data, kernel, strides, padding, dilation, out_d
         name="conv2d",
         tag="conv2d_nhwc",
     )
-
-    return conv
 
 
 def _make_tensorization(padded_data, kernel):
@@ -109,9 +107,12 @@ def _make_tensorization(padded_data, kernel):
         name="c",
     )
 
+    # TVM has a really strange bug where the outer reduction axis (kh_i) having length 1 causes the
+    # decl_buffer strides check to fail. height_stride is a dark magic workaround for this.
+    height_stride = in_channels * padded_w if kernel_h > 1 else in_channels
     data_buf = tir.decl_buffer(
         data_slice.shape, data_slice.dtype, name="data", offset_factor=1,
-        strides=[padded_w * in_channels, in_channels, 1],
+        strides=[height_stride, in_channels, 1],
     )
     kernel_buf = tir.decl_buffer(
         kernel_slice.shape, kernel_slice.dtype, name="kernel", offset_factor=1,
