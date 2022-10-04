@@ -2,7 +2,7 @@
 name: "\U0000274C CI Problem"
 about: To help the developers act on these problems, please give us as many details of the CI failure as possible. Find the list of label tags [here](https://github.com/apache/tvm/wiki/Issue-Triage-Labels).
 title: "[CI Problem] "
-labels: "needs-triage, type: ci"
+labels: "needs-triage, type:ci"
 ---
 
 Thanks for participating in the TVM community! We use https://discuss.tvm.ai for any general usage questions and discussions. The issue tracker is used for actionable items such as feature proposals discussion, roadmaps, and bug tracking.  You are always welcomed to post on the forum first :smile_cat:

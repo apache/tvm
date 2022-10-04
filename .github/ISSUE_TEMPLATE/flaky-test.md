@@ -1,6 +1,6 @@
 ---
 name: "\U00002744 Flaky Test"
-about: Report a flaky test, make sure to include links to CI runs, a sample failure log, and the name of the test(s). Find the list of label tags [here](https://github.com/apache/tvm/wiki/Issue-Triage-Labels).
+about: Report flaky tests, make sure to include link to CI runs, a sample failure log, and the name of the test(s). Find the list of label tags [here](https://github.com/apache/tvm/wiki/Issue-Triage-Labels).
 title: "[Flaky Test] "
 labels: "needs-triage, test: flaky"
 ---
