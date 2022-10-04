@@ -27,11 +27,15 @@ from ..utils import traverse_inline, get_const_tuple, get_const_int
 from ..nn.utils import get_pad_tuple
 from .tensor_intrin import smlal_int16_int32
 from .arm_utils import is_aarch64_arm
-
 from .mprofile.dsp.depthwise_conv2d import (
     depthwise_conv2d_nhwc_dsp_compute,
     depthwise_conv2d_nhwc_dsp_schedule,
 )
+from .mprofile.dsp.tensordot_conv2ds import (
+    depthwise_conv2d_nchw_oihw_dsp,
+    tensordot_conv2ds_schedule,
+)
+
 
 
 @autotvm.register_topi_compute("depthwise_conv2d_nchw.arm_cpu")

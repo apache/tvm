@@ -37,7 +37,10 @@ from .mprofile.dsp.conv2d import (
     conv2d_nhwc_dsp_compute,
     conv2d_nhwc_dsp_schedule,
 )
-
+from .mprofile.dsp.tensordot_conv2ds import (
+    conv2d_nhwc_ohwi_dsp,
+    tensordot_conv2ds_schedule,
+)
 
 @autotvm.register_topi_compute("conv2d_nchw_spatial_pack.arm_cpu")
 def conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype):

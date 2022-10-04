@@ -93,39 +93,92 @@ class BasicConv2dTests:
         )
 
 
-class TestConv2d_NHWC_OHWI_DSP(BasicConv2dTests):
+class TestConv2d_DSP_HWOI(BasicConv2dTests):
+    """This test is for conv2d_nhwc_dsp.arm_cpu schedule."""
 
     data_shape, kernel_size, num_filter, strides, padding, dilation = tvm.testing.parameters(
-        # Disabled because these kernels are not an integral number of words
+        # TODO(mehrdadh): Fails due to https://github.com/apache/tvm/issues/11216
         # ((1, 32, 32, 1), (3, 3), 12, 1, 0, 1),
         # ((1, 32, 10, 3), (3, 3), 16, 1, 0, 1),
+        # ((1, 49, 10, 1), (10, 4), 64, (2, 1), (4, 1, 5, 1), 1),
+        ((1, 32, 32, 16), (3, 3), 16, 1, (0, 2, 2, 0), 1),
+        ((1, 32, 32, 16), (3, 3), 16, 1, 0, 1),
+        ((1, 32, 32, 16), (3, 3), 16, 1, 0, 1),
+        ((1, 32, 32, 16), (3, 3), 16, 1, (0, 2, 2, 0), 2),
+        ((1, 32, 32, 16), (3, 3), 16, 1, (1, 1, 2, 2), 2),
+        # from Keyword Spotting model from MLPerfTiny models
+        # TODO(mehrdad): Fails due to https://github.com/apache/tvm/issues/11216
+        # ((1, 49, 10, 1), (10, 4), 64, (2, 2), (4, 1, 5, 1), 1),
+        # from Visual Wake Word model from MLPerfTiny models
+        # TODO(mehrdadh): fails due to https://github.com/apache/tvm/issues/11216
         # ((1, 96, 96, 3), (3, 3), 8, (2, 2), (0, 0, 1, 1), 1),
+        # from Image Classification model from MLPerfTiny models
+        ((1, 16, 16, 32), (1, 1), 64, (2, 2), 0, 1),
+        ((4, 16, 16, 8), (5, 5), 8, 2, (0, 4, 4, 0), 1),
+        ((4, 16, 16, 8), (5, 5), 16, 2, (0, 4, 4, 0), 1),
+        ((4, 16, 16, 8), (5, 5), 8, 2, 0, 1),
+        ((4, 16, 16, 8), (5, 5), 16, 2, 0, 1),
+        ((1, 16, 16, 8), (3, 3), 16, 2, (0, 0, 1, 1), 1),
+        ((1, 16, 16, 8), (3, 3), 16, 2, (1, 1, 2, 2), 1),
+        ((1, 16, 16, 8), (5, 5), 16, 2, (3, 3, 2, 2), 1),
+        ((1, 16, 16, 8), (3, 3), 16, 2, (0, 1, 2, 3), 1),
+    )
+    dtype = tvm.testing.parameter("int8", "int16")
+    kernel_layout = tvm.testing.parameter("HWOI")
+    schedule_name = tvm.testing.parameter("conv2d_nhwc_dsp.arm_cpu")
+
+
+class TestConv2d_HWIO(BasicConv2dTests):
+    """This test is for conv2d_nhwc_spatial_pack.arm_cpu schedule."""
+
+    data_shape, kernel_size, num_filter, strides, padding, dilation = tvm.testing.parameters(
+        ((1, 32, 32, 1), (3, 3), 12, 1, 0, 1),
+        ((1, 32, 10, 3), (3, 3), 16, 1, 0, 1),
+        ((1, 49, 10, 1), (10, 4), 64, (2, 1), (4, 1, 5, 1), 1),
+        ((1, 32, 32, 16), (3, 3), 16, 1, (0, 2, 2, 0), 1),
+        ((1, 32, 32, 16), (3, 3), 16, 1, 0, 1),
+        ((1, 32, 32, 16), (3, 3), 16, 1, 0, 1),
+        ((1, 32, 32, 16), (3, 3), 16, 1, (0, 2, 2, 0), 2),
+        ((1, 32, 32, 16), (3, 3), 16, 1, (1, 1, 2, 2), 2),
+    )
+    dtype = tvm.testing.parameter("int8", "int16")
+    kernel_layout = tvm.testing.parameter("HWIO")
+    schedule_name = tvm.testing.parameter("conv2d_nhwc_spatial_pack.arm_cpu")
+
+
+class TestConv2d_Tensordot(BasicConv2dTests):
+    data_shape, kernel_size, num_filter, strides, padding = tvm.testing.parameters(
+        # Disabled because these kernels are not an integral number of words
+        # ((1, 32, 32, 1), (3, 3), 12, 1, 0),
+        # ((1, 32, 10, 3), (3, 3), 16, 1, 0),
+        # ((1, 96, 96, 3), (3, 3), 8, (2, 2), (0, 0, 1, 1)),
 
         # Disabled because while our schedule matches TensorFlow's behavior, it does NOT
         # match the x86 schedule behavior (which is different). These schedules have either:
         # (in_height + pad_up + pad_down - kernel_h) % stride_h > 0 OR
         # (in_width + pad_left + pad_right - kernel_w) % stride_w > 0
-        # ((4, 16, 16, 8),  (5, 5),  8,  2,      (0, 4, 3, 0), 1),
-        # ((4, 16, 16, 8),  (5, 5),  16, 2,      (0, 4, 4, 0), 1),
-        # ((4, 16, 16, 8),  (5, 5),  8,  2,      0,            1),
-        # ((4, 16, 16, 8),  (5, 5),  16, 2,      0,            1),
-        # ((1, 16, 16, 32), (1, 1),  64, (2, 2), 0,            1),
-        # ((1, 16, 16, 32), (1, 1),  64, (2, 2), 0,            1)
-        # ((1, 49, 10, 1),  (10, 4), 64, (2, 1), (4, 1, 5, 1), 1),
+        # ((4, 16, 16, 8),  (5, 5),  8,  2,      (0, 4, 3, 0)),
+        # ((4, 16, 16, 8),  (5, 5),  16, 2,      (0, 4, 4, 0)),
+        # ((4, 16, 16, 8),  (5, 5),  8,  2,      0,          ),
+        # ((4, 16, 16, 8),  (5, 5),  16, 2,      0,          ),
+        # ((1, 16, 16, 32), (1, 1),  64, (2, 2), 0,          ),
+        # ((1, 16, 16, 32), (1, 1),  64, (2, 2), 0,          ),
+        # ((1, 49, 10, 1),  (10, 4), 64, (2, 1), (4, 1, 5, 1)),
 
-        ((1, 32, 32, 16), (3, 3),  16, 1,      (0, 2, 2, 0), 1),
-        ((1, 32, 32, 16), (3, 3),  16, 1,      0,            1),
-        ((1, 32, 32, 16), (3, 3),  16, 1,      0,            1),
-        ((1, 49, 10, 1),  (10, 4), 64, (2, 2), (4, 1, 5, 1), 1),
-        ((1, 16, 16, 8),  (3, 3),  16, 2,      (0, 0, 1, 1), 1),
-        ((1, 16, 16, 8),  (3, 3),  16, 2,      (1, 1, 2, 2), 1),
-        ((1, 16, 16, 8),  (5, 5),  16, 2,      (3, 3, 2, 2), 1),
-        ((1, 32, 32, 16), (3, 3),  16, 1,      0,            1),
-        ((1, 16, 16, 32), (1, 1),  64, 1,      0,            1),
+        ((1, 32, 32, 16), (3, 3),  16, 1,      (0, 2, 2, 0)),
+        ((1, 32, 32, 16), (3, 3),  16, 1,      0,          ),
+        ((1, 32, 32, 16), (3, 3),  16, 1,      0,          ),
+        ((1, 49, 10, 1),  (10, 4), 64, (2, 2), (4, 1, 5, 1)),
+        ((1, 16, 16, 8),  (3, 3),  16, 2,      (0, 0, 1, 1)),
+        ((1, 16, 16, 8),  (3, 3),  16, 2,      (1, 1, 2, 2)),
+        ((1, 16, 16, 8),  (5, 5),  16, 2,      (3, 3, 2, 2)),
+        ((1, 32, 32, 16), (3, 3),  16, 1,      0,          ),
+        ((1, 16, 16, 32), (1, 1),  64, 1,      0,          ),
     )
+    dilation = tvm.testing.parameter(1)
     dtype = tvm.testing.parameter("int8", "int16", "int32")
     kernel_layout = tvm.testing.parameter("OHWI")
-    schedule_name = tvm.testing.parameter("conv2d_nhwc_dsp.arm_cpu")
+    schedule_name = tvm.testing.parameter("conv2d_nhwc_ohwi_dsp.arm_cpu")
 
 
 if __name__ == "__main__":
