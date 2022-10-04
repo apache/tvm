@@ -128,7 +128,7 @@ def get_packed_filter_shape(logical_shape_oihw):
     return physical_shape_oihw8i32o4i
 
 
-def build_and_run(inputs, func, target, target_host, *args, **kwargs):
+def build_and_run(inputs, func, target: str, target_host: str, *args, **kwargs):
     """build and run the function func"""
     schedule, placeholders, binds = func(*args, **kwargs)
 

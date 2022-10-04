@@ -150,7 +150,6 @@ class BaseConv2d:
 class TestConv2dPackedFilter(BaseConv2d):
     """Conv2d packed filter test class"""
 
-    @tvm.testing.parametrize_targets("llvm")
     @tvm.testing.skip_if_32bit(reason="Test known to be flaky on i386 machines")
     def test_conv2d(
         self,
@@ -164,11 +163,11 @@ class TestConv2dPackedFilter(BaseConv2d):
         k_split_factor,
         h_split_factor,
         dtype,
-        target,
     ):
         """conv2d test"""
         # TODO: no support for dilation
         dilation = 1
+        target = "llvm"
 
         shape_input = [batch, in_size, in_size, in_channel]
         shape_filter_oihw = [out_channel, in_channel, kernel_size, kernel_size]
