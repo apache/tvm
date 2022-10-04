@@ -119,6 +119,96 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
         return data
 
 
+def compile_cuda_clang(code, target_format="ptx", arch=None, options=None, path_target=None):
+    """Compile cuda code with NVCC from env.
+
+    Parameters
+    ----------
+    code : str
+        The cuda code.
+
+    target_format : str
+        The target format of nvcc compiler.
+
+    arch : str
+        The cuda architecture.
+
+    options : str or list of str
+        The additional options.
+
+    path_target : str, optional
+        Output file.
+
+    Return
+    ------
+    cubin : bytearray
+        The bytearray of the cubin
+    """
+    if arch is None:
+        # If None, then it will use `tvm.target.Target.current().arch`.
+        # Target arch could be a str like "sm_xx", or a list, such as
+        # [
+        #   "-gencode", "arch=compute_52,code=sm_52",
+        #   "-gencode", "arch=compute_70,code=sm_70"
+        # ]
+        compute_version = "".join(
+            get_target_compute_version(Target.current(allow_none=True)).split(".")
+        )
+        # arch = ["-gencode", f"arch=compute_{compute_version},code=sm_{compute_version}"]
+        arch = [f"--cuda-gpu-arch=sm_{compute_version}"]
+    temp = utils.tempdir()
+    if target_format not in ["cubin", "ptx", "fatbin"]:
+        raise ValueError("target_format must be in cubin, ptx, fatbin")
+    temp_code = temp.relpath("my_kernel.cu")
+    temp_target = temp.relpath("my_kernel.%s" % target_format)
+
+    with open(temp_code, "w") as out_file:
+        out_file.write(code)
+
+    file_target = path_target if path_target else temp_target
+    cmd = ["clang"]
+    cmd += ["-S", "--cuda-path=D:/workspace/3rdparty_x64/cuda/v10.1", "-O3", "--cuda-device-only"]
+    if isinstance(arch, list):
+        cmd += arch
+    elif isinstance(arch, str):
+        cmd += ["-arch", arch]
+
+    if options:
+        if isinstance(options, str):
+            cmd += [options]
+        elif isinstance(options, list):
+            cmd += options
+        else:
+            raise ValueError("options must be str or list of str")
+
+    cmd += ["-o", file_target]
+    cmd += [temp_code]
+
+    # NOTE: ccbin option can be used to tell nvcc where to find the c++ compiler
+    # just in case it is not in the path. On Windows it is not in the path by default.
+    # However, we cannot use TVM_CXX_COMPILER_PATH because the runtime env.
+    # Because it is hard to do runtime compiler detection, we require nvcc is configured
+    # correctly by default.
+    # if cxx_compiler_path != "":
+    #    cmd += ["-ccbin", cxx_compiler_path]
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+    (out, _) = proc.communicate()
+
+    if proc.returncode != 0:
+        msg = code
+        msg += "\nCompilation error:\n"
+        msg += py_str(out)
+        raise RuntimeError(msg)
+
+    with open(file_target, "rb") as f:
+        data = bytearray(f.read())
+        if not data:
+            raise RuntimeError("Compilation error: empty result is generated")
+        return data
+
+
 def find_cuda_path():
     """Utility function to find cuda path
 
@@ -214,15 +304,15 @@ def find_libdevice_path(arch):
     cuda_ver = get_cuda_version(cuda_path)
     major_minor = (cuda_ver[0], cuda_ver[1])
     if major_minor in (
-        (9, 0),
-        (9, 1),
-        (10, 0),
-        (10, 1),
-        (10, 2),
-        (11, 0),
-        (11, 1),
-        (11, 2),
-        (11, 3),
+            (9, 0),
+            (9, 1),
+            (10, 0),
+            (10, 1),
+            (10, 2),
+            (11, 0),
+            (11, 1),
+            (11, 2),
+            (11, 3),
     ):
         path = os.path.join(lib_path, "libdevice.10.bc")
     else:
