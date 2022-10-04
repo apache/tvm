@@ -27,4 +27,6 @@ Preferably a minimal script to cause the issue to occur.
 
 ### Triage
 
-Please refer to the list of label tags linked above to find the relevant tags to add. 
+Please refer to the list of label tags linked above to find the relevant tags and add them here in a bullet format (example below).
+
+* needs-triage

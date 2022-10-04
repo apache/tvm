@@ -21,5 +21,7 @@ Otherwise, specify what actions should be taken to provide additional clarity/re
 
 ### Triage
 
-Please refer to the list of label tags linked above to find the relevant tags to add. 
+Please refer to the list of label tags linked above to find the relevant tags and add them here in a bullet format (example below).
+
+* needs-triage
 

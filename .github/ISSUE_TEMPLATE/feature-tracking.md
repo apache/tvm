@@ -14,4 +14,6 @@ Issues that are inactive for a period of time may get closed. We adopt this poli
 
 ### Triage
 
-Please refer to the list of label tags linked above to find the relevant tags to add. 
+Please refer to the list of label tags linked above to find the relevant tags and add them here in a bullet format (example below).
+
+* needs-triage

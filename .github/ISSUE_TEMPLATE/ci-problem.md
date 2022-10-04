@@ -23,4 +23,6 @@ Have you seen this multiple times in this branch or in other branches?
 
 ### Triage
 
-Please refer to the list of label tags linked above to find the relevant tags to add. 
+Please refer to the list of label tags linked above to find the relevant tags and add them here in a bullet format (example below).
+
+* needs-triage
