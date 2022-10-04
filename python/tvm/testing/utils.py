@@ -982,7 +982,7 @@ requires_corstone300 = Feature(
 requires_vitis_ai = Feature("vitis_ai", "Vitis AI", cmake_flag="USE_VITIS_AI")
 
 
-def arm_dot_supported():
+def _arm_dot_supported():
     arch = platform.machine()
     if arch != "arm64" and arch != "aarch64":
         return False
@@ -998,8 +998,19 @@ def arm_dot_supported():
     return False
 
 
-requires_arm_dot = Feature(
-    "arm_dot", "ARM dot product", run_time_check=arm_dot_supported)
+def _has_vnni():
+    arch = platform.machine()
+    # Only linux is supported for now.
+    if arch == "x86_64" and sys.platform.startswith("linux"):
+        return "avx512_vnni" in open("/proc/cpuinfo", "r").read()
+
+    return False
+
+
+requires_arm_dot = Feature("arm_dot", "ARM dot product", run_time_check=_arm_dot_supported)
+
+
+requires_cascadelake = Feature("cascadelake", "x86 CascadeLake", run_time_check=_has_vnni)
 
 
 def _cmake_flag_enabled(flag):

@@ -2212,8 +2212,9 @@ def test_conv2d_int8_alter_dtype_arm():
     _test_conv2d_int8_alter_dtype("uint8", "llvm --device arm_cpu -mattr=+v8.2a,+dotprod", "sdot")
 
 
-# def test_conv2d_int8_alter_dtype_vnni():
-#     _test_conv2d_int8_alter_dtype("int8", "llvm -mcpu=cascadelake", "vpdpbusd")
+@tvm.testing.requires_cascadelake
+def test_conv2d_int8_alter_dtype_vnni():
+    _test_conv2d_int8_alter_dtype("int8", "llvm -mcpu=cascadelake", "vpdpbusd")
 
 
 if __name__ == "__main__":
