@@ -1,6 +1,6 @@
 ---
 name: "\U0000274C CI Problem"
-about: To help the developers act on these problems, please give us as many details of the CI failure as possible. Find the list of label tags at TBD.
+about: To help the developers act on these problems, please give us as many details of the CI failure as possible. Find the list of label tags [here](https://github.com/apache/tvm/wiki/Issue-Triage-Labels).
 title: "[CI Problem] "
 labels: "needs-triage, type: ci"
 ---

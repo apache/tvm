@@ -1,6 +1,6 @@
 ---
 name: "\U0001F527 Feature Tracking"
-about: List clear, small actionable items so we can track the progress of the change. Find the list of label tags at TBD.
+about: List clear, small actionable items so we can track the progress of the change. Find the list of label tags [here](https://github.com/apache/tvm/wiki/Issue-Triage-Labels).
 title: "[Tracking Issue] "
 labels: "needs-triage, type:rfc-tracking"
 ---
