@@ -26,6 +26,8 @@ from tvm.contrib.hexagon.session import Session
 import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
 
+from ..infrastructure import get_hexagon_target
+
 dtype = tvm.testing.parameter(
     "float16",
     "float32",
@@ -83,9 +85,7 @@ def test_softmax(hexagon_session: Session, shape, dtype, softmax_operation):
         fschedule = topi.hexagon.schedule_softmax
         s = fschedule(B)
 
-    func = tvm.build(
-        s, [A, B], tvm.target.Target(target_hexagon, host=target_hexagon), name="softmax"
-    )
+    func = tvm.build(s, [A, B], get_hexagon_target("v68"), name="softmax")
     mod = hexagon_session.load_module(func)
 
     dev = hexagon_session.device

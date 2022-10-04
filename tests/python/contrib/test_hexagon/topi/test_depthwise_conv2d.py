@@ -28,6 +28,7 @@ from tvm import te, topi
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.nn.utils import get_pad_tuple
 
+from ..infrastructure import get_hexagon_target
 
 random_seed = tvm.testing.parameter(0)
 
@@ -236,7 +237,7 @@ class BaseDepthwiseConv2D:
             f = tvm.build(
                 s,
                 [Input, Filter, Scale, Shift, C],
-                tvm.target.Target(target_hexagon, host=target_hexagon),
+                get_hexagon_target("v68"),
             )
             mod = hexagon_session.load_module(f)
 

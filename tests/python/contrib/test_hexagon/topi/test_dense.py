@@ -26,6 +26,8 @@ from tvm.contrib.hexagon.session import Session
 import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
 
+from ..infrastructure import get_hexagon_target
+
 random_seed = tvm.testing.parameter(0)
 
 use_bias = tvm.testing.parameter(True, False)
@@ -100,9 +102,7 @@ def test_dense(
         D = topi.nn.relu(D)
         s = fschedule([D])
 
-    func = tvm.build(
-        s, [A, B, C, D], tvm.target.Target(target_hexagon, host=target_hexagon), name="dense"
-    )
+    func = tvm.build(s, [A, B, C, D], get_hexagon_target("v68"), name="dense")
     mod = hexagon_session.load_module(func)
 
     dev = hexagon_session.device

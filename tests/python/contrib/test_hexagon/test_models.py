@@ -25,6 +25,8 @@ from tvm import relay
 from tvm.contrib.hexagon.session import Session
 from tvm.relay.backend import Executor, Runtime
 
+from .infrastructure import get_hexagon_target
+
 
 def get_mobilenet():
     """Download and import mobilenet model with ONNX"""
@@ -43,7 +45,6 @@ def test_mobilenet(hexagon_session: Session):
     dtype = "float32"
     onnx_model = get_mobilenet()
 
-    target_hexagon = tvm.target.hexagon("v68")
     target_llvm = tvm.target.Target("llvm")
     runtime = Runtime("cpp")
     executor = Executor("graph", {"link-params": True})
@@ -58,7 +59,7 @@ def test_mobilenet(hexagon_session: Session):
     with tvm.transform.PassContext(opt_level=3):
         hexagon_lowered = tvm.relay.build(
             relay_mod,
-            tvm.target.Target(target_hexagon, host=target_hexagon),
+            get_hexagon_target("v68"),
             runtime=runtime,
             executor=executor,
             params=params,

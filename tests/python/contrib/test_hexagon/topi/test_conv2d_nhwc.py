@@ -25,6 +25,8 @@ from tvm.contrib.hexagon.session import Session
 import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
 
+from ..infrastructure import get_hexagon_target
+
 dtype = tvm.testing.parameter("float32")
 
 
@@ -81,9 +83,7 @@ class BaseConv2DTests:
             padding,
             dilation,
         )
-        func = tvm.build(
-            s, [A, W, B], tvm.target.Target(target_hexagon, host=target_hexagon), name=func_name
-        )
+        func = tvm.build(s, [A, W, B], get_hexagon_target("v68"), name=func_name)
         mod = hexagon_session.load_module(func)
 
         dev = hexagon_session.device

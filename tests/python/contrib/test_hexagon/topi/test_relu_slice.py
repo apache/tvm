@@ -22,9 +22,8 @@ import tvm
 import tvm.testing
 from tvm.topi.hexagon.slice_ops.relu import relu_compute, relu_stir_schedule
 from tvm import te
-from tvm.contrib.hexagon.build import HexagonLauncher
 
-from ..infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 
 @tvm.testing.fixture
@@ -82,9 +81,6 @@ class TestReluSlice(BaseRelu):
 
         OutputTensor = relu_compute(InputTensor)
 
-        target_hexagon = tvm.target.hexagon("v69")
-        target = tvm.target.Target(target_hexagon, host=target_hexagon)
-
         tir_s = relu_stir_schedule(InputTensor, OutputTensor, input_layout, output_layout)
 
         input_data = allocate_hexagon_array(
@@ -103,7 +99,7 @@ class TestReluSlice(BaseRelu):
 
         func_name = "relu"
         with tvm.transform.PassContext(opt_level=3):
-            runtime_module = tvm.build(tir_s.mod, target=target, name=func_name)
+            runtime_module = tvm.build(tir_s.mod, target=get_hexagon_target("v69"), name=func_name)
 
         mod = hexagon_session.load_module(runtime_module)
 

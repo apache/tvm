@@ -24,6 +24,8 @@ from tvm import relay, te
 from tvm.contrib.hexagon.session import Session
 from tvm.relay.backend import Executor, Runtime
 
+from .infrastructure import get_hexagon_target
+
 
 @tvm.testing.requires_hexagon
 def test_add(hexagon_session: Session):
@@ -36,11 +38,10 @@ def test_add(hexagon_session: Session):
     )
     sched = tvm.te.create_schedule(compute_c.op)
 
-    target_hexagon = tvm.target.hexagon("v68", link_params=True)
     func = tvm.build(
         sched,
         [placeholder_a, placeholder_b, compute_c],
-        tvm.target.Target(target_hexagon, host=target_hexagon),
+        get_hexagon_target("v68"),
         name="add",
     )
 
@@ -67,11 +68,10 @@ def test_add_vtcm(hexagon_session: Session):
     )
     sched = tvm.te.create_schedule(compute_c.op)
 
-    target_hexagon = tvm.target.hexagon("v68", link_params=True)
     func = tvm.build(
         sched,
         [placeholder_a, placeholder_b, compute_c],
-        tvm.target.Target(target_hexagon, host=target_hexagon),
+        get_hexagon_target("v68"),
         name="add",
     )
 
@@ -116,11 +116,10 @@ class TestMatMul:
         )
         schedule = te.create_schedule(compute_z.op)
 
-        target_hexagon = tvm.target.hexagon("v68", link_params=True)
         func = tvm.build(
             schedule,
             [placeholder_x, placeholder_y, compute_z],
-            tvm.target.Target(target_hexagon, host=target_hexagon),
+            get_hexagon_target("v68"),
         )
 
         mod = hexagon_session.load_module(func)
@@ -172,7 +171,6 @@ def test_graph_executor(hexagon_session: Session):
     relay_mod = tvm.IRModule.from_expr(f)
     relay_mod = relay.transform.InferType()(relay_mod)
 
-    target_hexagon = tvm.target.hexagon("v68")
     runtime = Runtime("cpp")
     executor = Executor("graph")
 
@@ -184,7 +182,7 @@ def test_graph_executor(hexagon_session: Session):
     with tvm.transform.PassContext(opt_level=3):
         lowered = tvm.relay.build(
             relay_mod,
-            tvm.target.Target(target_hexagon, host=target_hexagon),
+            get_hexagon_target("v68"),
             runtime=runtime,
             executor=executor,
         )
@@ -242,14 +240,13 @@ def test_graph_executor_multiple_conv2d(hexagon_session: Session):
     relay_mod = tvm.IRModule.from_expr(f)
     relay_mod = relay.transform.InferType()(relay_mod)
 
-    target_hexagon = tvm.target.hexagon("v68")
     runtime = Runtime("cpp")
     executor = Executor("graph")
 
     with tvm.transform.PassContext(opt_level=3):
         lowered = tvm.relay.build(
             relay_mod,
-            tvm.target.Target(target_hexagon, host=target_hexagon),
+            get_hexagon_target("v68"),
             runtime=runtime,
             executor=executor,
         )

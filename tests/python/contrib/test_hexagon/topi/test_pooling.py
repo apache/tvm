@@ -25,6 +25,8 @@ from tvm.contrib.hexagon.session import Session
 import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
 
+from ..infrastructure import get_hexagon_target
+
 
 class TestAdaptivePool:
     dshape, out_size, pool_type, layout = tvm.testing.parameters(
@@ -76,7 +78,7 @@ class TestAdaptivePool:
         func = tvm.build(
             s,
             [data, out],
-            tvm.target.Target(target_hexagon, host=target_hexagon),
+            get_hexagon_target("v68"),
             name="adaptive-pool",
         )
         mod = hexagon_session.load_module(func)
@@ -171,7 +173,7 @@ def verify_poolnd(
         fschedule = topi.hexagon.schedule_pool
         s = fschedule(B, layout)
 
-    func = tvm.build(s, [A, B], tvm.target.Target(target_hexagon, host=target_hexagon), name="pool")
+    func = tvm.build(s, [A, B], get_hexagon_target("v68"), name="pool")
     mod = hexagon_session.load_module(func)
 
     dev = hexagon_session.device

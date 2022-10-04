@@ -26,6 +26,7 @@ import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.nn.utils import get_pad_tuple
 
+from ..infrastructure import get_hexagon_target
 
 dtype = tvm.testing.parameter("float32")
 random_seed = tvm.testing.parameter(0)
@@ -153,7 +154,7 @@ class BaseConv2DTests:
         func = tvm.build(
             s,
             [A, W, bias, C],
-            tvm.target.Target(target_hexagon, host=target_hexagon),
+            get_hexagon_target("v68"),
             name=func_name,
         )
         mod = hexagon_session.load_module(func)

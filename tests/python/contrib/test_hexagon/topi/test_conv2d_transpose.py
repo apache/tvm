@@ -16,6 +16,7 @@
 # under the License.
 """Test code for transposed convolution."""
 import numpy as np
+
 import tvm
 from tvm.contrib.hexagon.session import Session
 import tvm.testing
@@ -24,6 +25,7 @@ from tvm import topi
 import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
 
+from ..infrastructure import get_hexagon_target
 
 # TODO Should add kernal to tvm.testing.fixture
 
@@ -131,8 +133,8 @@ class BaseConv2DTransposeTests:
             b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
             c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
 
-            func1 = tvm.build(s1, [A, W, B], tvm.target.Target(target_hexagon, host=target_hexagon))
-            func2 = tvm.build(s2, [A, W, C], tvm.target.Target(target_hexagon, host=target_hexagon))
+            func1 = tvm.build(s1, [A, W, B], get_hexagon_target("v68"))
+            func2 = tvm.build(s2, [A, W, C], get_hexagon_target("v68"))
 
             mod1 = hexagon_session.load_module(func1)
             mod2 = hexagon_session.load_module(func2)

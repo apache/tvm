@@ -24,6 +24,8 @@ from tvm import tir
 from tvm.contrib.hexagon.session import Session
 from tvm.script import tir as T
 
+from .infrastructure import get_hexagon_target
+
 outer = tvm.testing.parameter(8, 16)
 inner = tvm.testing.parameter(64, 128)
 scope = tvm.testing.parameter("global", "global.vtcm")
@@ -63,11 +65,8 @@ def test_software_pipeline_with_cache_read(hexagon_launcher, compute, outer, inn
     b_np = np.random.uniform(low=0, high=128, size=(outer, inner)).astype(dtype)
     ref = compute[1](a_np)
 
-    target_hexagon = tvm.target.hexagon("v68", link_params=True)
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
-        func = tvm.build(
-            sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
-        )
+        func = tvm.build(sch.mod["main"], target=get_hexagon_target("v68"))
 
     with hexagon_launcher.start_session() as hexagon_session:
         dev = hexagon_session.device

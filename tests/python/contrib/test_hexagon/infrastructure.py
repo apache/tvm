@@ -351,3 +351,9 @@ def quantize_np(arr_np: numpy.ndarray, dtype: str):
     zero_point = numpy.rint((fmax * qmin - fmin * qmax) / (fmax - fmin)).astype("int32")
     quant_np = (arr_np / scale + zero_point).astype(dtype)
     return quant_np, scale, zero_point
+
+
+def get_hexagon_target(cpu_ver: str) -> tvm.target.Target:
+    """Creates a Hexagon target"""
+    target = tvm.target.hexagon(cpu_ver)
+    return tvm.target.Target(target, host=target)
