@@ -32,7 +32,7 @@ from .mprofile.dsp.depthwise_conv2d import (
     depthwise_conv2d_nhwc_dsp_schedule,
 )
 from .mprofile.dsp.tensordot_conv2ds import (
-    depthwise_conv2d_nchw_oihw_dsp,
+    depthwise_conv2d_nchw_oihw_dsp_compute,
     tensordot_conv2ds_schedule,
 )
 
@@ -726,7 +726,7 @@ def schedule_depthwise_conv2d_nhwc_dsp(cfg, outs):
 
 @autotvm.register_topi_compute("depthwise_conv2d_nchw_oihw_dsp.arm_cpu")
 def depthwise_conv2d_nchw_oihw_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    return depthwise_conv2d_nchw_oihw_dsp(
+    return depthwise_conv2d_nchw_oihw_dsp_compute(
         cfg, data, kernel, strides, padding, dilation, out_dtype
     )
 

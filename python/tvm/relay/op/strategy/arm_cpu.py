@@ -213,7 +213,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 if (target.features.has_dsp and dilation_w == dilation_h == 1):
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nchw_oihw_dsp),
-                        wrap_topi_schedule(topi.arm_cpu.depthwise_schedule_conv2d_nchw_oihw_dsp),
+                        wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nchw_oihw_dsp),
                         name="depthwise_conv2d_nchw_oihw_dsp.arm_cpu",
                     )
                 else:

@@ -38,7 +38,7 @@ from .mprofile.dsp.conv2d import (
     conv2d_nhwc_dsp_schedule,
 )
 from .mprofile.dsp.tensordot_conv2ds import (
-    conv2d_nhwc_ohwi_dsp,
+    conv2d_nhwc_ohwi_dsp_compute,
     tensordot_conv2ds_schedule,
 )
 
@@ -525,7 +525,7 @@ def schedule_conv2d_nhwc_dsp(cfg, outs):
 
 @autotvm.register_topi_compute("conv2d_nhwc_ohwi_dsp.arm_cpu")
 def conv2d_nhwc_ohwi_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    return conv2d_nhwc_ohwi_dsp(
+    return conv2d_nhwc_ohwi_dsp_compute(
         cfg, data, kernel, strides, padding, dilation, out_dtype
     )
 

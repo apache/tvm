@@ -185,9 +185,9 @@ class TestDepthwiseConv2d_NHWC_HWOI_DSP(BasicDepthwiseConv2dTests):
     schedule_name = tvm.testing.parameter("depthwise_conv2d_nhwc_dsp.arm_cpu")
 
 
-class TestDepthwiseConv2d_Tensordot_DSP(BasicDepthwiseConv2dTests):
+class TestDepthwiseConv2d_Tensordot(BasicDepthwiseConv2dTests):
     data_shape, kernel_size, num_filter, strides, padding, dtype = tvm.testing.parameters(
-        ((1, 48, 48, 8), (3, 3), 8, (1, 1), 1, "int16"),
+        ((1, 8, 48, 48), (3, 3), 8, (1, 1), 1, "int32"),
     )
     dilation = tvm.testing.parameter(1)
     data_layout = tvm.testing.parameter("NCHW")
