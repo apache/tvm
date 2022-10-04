@@ -134,7 +134,7 @@ def get_vrmpy_operator(operations):
 def evaluate(hexagon_session, shape_dtypes, expected_output_producer, sch):
     a_shape, a_dtype, b_shape, b_dtype, c_shape, c_dtype = shape_dtypes
 
-    func_tir = tvm.build(sch.mod["main"], get_hexagon_target("v68"))
+    func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v68"))
     module = hexagon_session.load_module(func_tir)
 
     rng = default_rng()
