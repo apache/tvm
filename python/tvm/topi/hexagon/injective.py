@@ -31,7 +31,8 @@ def sqrt(x, dtype):
     """
 
     if dtype in ("uint8", "int8"):
-        return tvm.te.compute((x.shape), lambda *i: tvm.tir.sqrt(x[i]), name="sqrt", tag="lut")
+        func_str = f"math.sqrt"
+        return tvm.te.compute((x.shape), lambda *i: tvm.tir.sqrt(x[i]), name=func_str, tag="lut")
     else:
         return tvm.te.compute((x.shape), lambda *i: tvm.tir.sqrt(x[i]), name="sqrt")
 
@@ -50,7 +51,8 @@ def negative(x, dtype):
         The result.
     """
     if dtype in ("uint8", "int8"):
-        return tvm.te.compute(x.shape, lambda *i: -x(*i), name="negative", tag="lut")
+        func_str = f"lambda x: -x"
+        return tvm.te.compute(x.shape, lambda *i: -x(*i), name=func_str, tag="lut")
     else:
         return tvm.te.compute(x.shape, lambda *i: -x(*i), name="negative")
     return tvm.te.compute(x.shape, lambda *i: -x(*i), name="negative")

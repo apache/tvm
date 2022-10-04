@@ -23,8 +23,6 @@ import tvm
 from tvm import script
 import numpy as np
 
-FUNCS = {"sqrt": math.sqrt, "negative": lambda x: -x}
-
 
 def lutize(out, x):
     """Takes an arbitrary python function and turns
@@ -42,7 +40,7 @@ def lutize(out, x):
     assert out.dtype in ("int8", "uint8")
     assert out.dtype == x.dtype
 
-    func = FUNCS[out.name]
+    func = eval(out.name)
     lut_np = np.arange(256, dtype=out.dtype)
     lut_np = np.vectorize(func)(lut_np).astype(out.dtype)
 
