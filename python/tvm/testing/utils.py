@@ -984,7 +984,8 @@ requires_vitis_ai = Feature("vitis_ai", "Vitis AI", cmake_flag="USE_VITIS_AI")
 
 def _arm_dot_supported():
     arch = platform.machine()
-    if arch != "arm64" and arch != "aarch64":
+
+    if arch not in ["arm64", "aarch64"]:
         return False
 
     if sys.platform.startswith("darwin"):
@@ -993,7 +994,7 @@ def _arm_dot_supported():
             if line.startswith("hw.optional.arm.FEAT_DotProd"):
                 return bool(int(line.split(":", 1)[1]))
     elif sys.platform.startswith("linux"):
-        return "dot" in open("/proc/cpuinfo", "r").read()
+        return True
 
     return False
 
