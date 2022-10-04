@@ -26,8 +26,9 @@ from tvm.script import tir as T
 
 outer = tvm.testing.parameter(8, 16)
 inner = tvm.testing.parameter(64, 128)
-scope = tvm.testing.parameter("global", "global.vtcm")
 dtype = tvm.testing.parameter("uint8", "float16")
+scope = tvm.testing.parameter("global", "global.vtcm")
+sched = tvm.testing.parameter("cache_read", "cache_write", "cache_read_write")
 
 
 @tvm.testing.fixture
@@ -46,18 +47,40 @@ def compute(outer, inner, dtype):
     return plus_one_primfunc, plus_one_ref
 
 
-@tvm.testing.requires_hexagon
-def test_software_pipeline_with_cache_read(hexagon_launcher, compute, outer, inner, dtype, scope):
+@tvm.testing.fixture
+def schedule(compute, sched, scope):
     sch = tir.Schedule(compute[0])
-    root = sch.get_block("root")
-    compute_block = sch.get_block("compute")
-    cache_read_block = sch.cache_read(compute_block, 0, scope)
 
+    compute_block = sch.get_block("compute")
     i, _ = sch.get_loops(compute_block)
-    sch.compute_at(cache_read_block, i)
-    sch.annotate(i, "software_pipeline_stage", [0, 1])
-    sch.annotate(i, "software_pipeline_order", [0, 1])
-    sch.annotate(i, "software_pipeline_async_stages", [0])
+
+    if sched == "cache_read":
+        cache_read_block = sch.cache_read(compute_block, 0, scope)
+        sch.compute_at(cache_read_block, i)
+        sch.annotate(i, "software_pipeline_stage", [0, 1])
+        sch.annotate(i, "software_pipeline_order", [0, 1])
+        sch.annotate(i, "software_pipeline_async_stages", [0])
+    elif sched == "cache_write":
+        cache_write_block = sch.cache_write(compute_block, 0, scope)
+        sch.reverse_compute_at(cache_write_block, i)
+        sch.annotate(i, "software_pipeline_stage", [0, 1])
+        sch.annotate(i, "software_pipeline_order", [0, 1])
+        sch.annotate(i, "software_pipeline_async_stages", [1])
+    elif sched == "cache_read_write":
+        cache_read_block = sch.cache_read(compute_block, 0, scope)
+        sch.compute_at(cache_read_block, i)
+        cache_write_block = sch.cache_write(compute_block, 0, scope)
+        sch.reverse_compute_at(cache_write_block, i)
+        sch.annotate(i, "software_pipeline_stage", [0, 1, 2])
+        sch.annotate(i, "software_pipeline_order", [0, 1, 2])
+        sch.annotate(i, "software_pipeline_async_stages", [0, 2])
+
+    return sch
+
+
+@tvm.testing.requires_hexagon
+def test_async_software_pipeline(hexagon_launcher, compute, schedule, outer, inner, dtype, scope):
+    sch = schedule
 
     a_np = np.random.uniform(low=0, high=128, size=(outer, inner)).astype(dtype)
     b_np = np.random.uniform(low=0, high=128, size=(outer, inner)).astype(dtype)
