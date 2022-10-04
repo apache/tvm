@@ -77,6 +77,8 @@ if __name__ == '__main__':
     params = None
 
     filename = args.model_name + "_" + args.device+"_"+dtype + fmt
+    if args.opt_log is not None:
+        filename = args.model_name+"_"+args.device+"_"+dtype+"_opt"+fmt
     if not args.eval:
         if args.use_relay_text:
             with open(mod_path, "r") as mod_fn:

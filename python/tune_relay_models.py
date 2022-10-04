@@ -43,7 +43,6 @@ tracker_host = "192.168.6.69"
 # model_path = "D:/workspace/project/nn_compiler/tvm/apps/waren20220712_4class_torch_v7tiny.torchscript.pt"
 
 log_file = "%s_%s_%s_%s_v10.log" % (model_name, target_name, device_name, dtype)
-dtype = "float32"
 
 # tuning_option = {
 #     "log_filename": log_file,
