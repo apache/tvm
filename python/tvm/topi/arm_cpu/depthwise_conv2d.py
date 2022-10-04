@@ -718,3 +718,15 @@ def depthwise_conv2d_nhwc_dsp(cfg, data, kernel, strides, padding, dilation, out
 def schedule_depthwise_conv2d_nhwc_dsp(cfg, outs):
     """Create schedule for conv2d_nhwc_dsp"""
     return depthwise_conv2d_nhwc_dsp_schedule(cfg, outs)
+
+
+@autotvm.register_topi_compute("depthwise_conv2d_nchw_oihw_dsp.arm_cpu")
+def depthwise_conv2d_nchw_oihw_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    return depthwise_conv2d_nchw_oihw_dsp(
+        cfg, data, kernel, strides, padding, dilation, out_dtype
+    )
+
+
+@autotvm.register_topi_schedule("depthwise_conv2d_nchw_oihw_dsp.arm_cpu")
+def schedule_depthwise_conv2d_nchw_oihw_dsp(cfg, outs):
+    return tensordot_conv2ds_schedule(cfg, outs)

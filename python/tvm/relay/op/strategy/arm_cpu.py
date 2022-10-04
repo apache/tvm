@@ -159,7 +159,17 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 name="conv2d_hwcn.generic",
             )
         elif layout == "NHWC":
-            if target.features.has_dsp and kernel_layout == "HWOI":
+            if (
+                    target.features.has_dsp
+                    and dilation_w == dilation_h == 1
+                    and kernel_layout == "OHWI"
+                ):
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_ohwi_dsp),
+                    wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_ohwi_dsp),
+                    name="conv2d_nhwc_ohwi_dsp.arm_cpu",
+                )
+            elif target.features.has_dsp and kernel_layout == "HWOI":
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_dsp),
                     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_dsp),
@@ -199,13 +209,19 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW" or re.match(r"OIHW\d*o", kernel_layout)
-            # ARM conv2d depthwise schedule
             if kernel_layout == "OIHW":
-                strategy.add_implementation(
-                    wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nchw),
-                    wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nchw),
-                    name="depthwise_conv2d_nchw.arm_cpu",
-                )
+                if (target.features.has_dsp and dilation_w == dilation_h == 1):
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nchw_oihw_dsp),
+                        wrap_topi_schedule(topi.arm_cpu.depthwise_schedule_conv2d_nchw_oihw_dsp),
+                        name="depthwise_conv2d_nchw_oihw_dsp.arm_cpu",
+                    )
+                else:
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nchw),
+                        wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nchw),
+                        name="depthwise_conv2d_nchw.arm_cpu",
+                    )
 
             # TODO:
             # This schedule has incorrect result on some hardware platforms (like NV Jetson TX2)

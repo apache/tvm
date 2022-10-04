@@ -518,3 +518,16 @@ def conv2d_nhwc_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
 def schedule_conv2d_nhwc_dsp(cfg, outs):
     """Create schedule for conv2d_nhwc_dsp"""
     return conv2d_nhwc_dsp_schedule(cfg, outs)
+
+
+@autotvm.register_topi_compute("conv2d_nhwc_ohwi_dsp.arm_cpu")
+def conv2d_nhwc_ohwi_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    return conv2d_nhwc_ohwi_dsp(
+        cfg, data, kernel, strides, padding, dilation, out_dtype
+    )
+
+
+@autotvm.register_topi_schedule("conv2d_nhwc_ohwi_dsp.arm_cpu")
+def schedule_conv2d_nhwc_ohwi_dsp(cfg, outs):
+    return tensordot_conv2ds_schedule(cfg, outs)
+
