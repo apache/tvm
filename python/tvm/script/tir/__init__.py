@@ -17,7 +17,8 @@
 """TVMScript for TIR"""
 
 # Type system
-from .ty import void, boolean, bool, handle, Ptr, Tuple, Buffer
+from .ty import void, boolean, handle, Ptr, Tuple, Buffer
+from .ty import bool  # pylint: disable=redefined-builtin
 
 from .prim_func import prim_func
 
