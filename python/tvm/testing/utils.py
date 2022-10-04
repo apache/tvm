@@ -77,6 +77,7 @@ import sys
 import textwrap
 import time
 import shutil
+import subprocess
 
 from pathlib import Path
 from typing import Optional, Callable, Union, List, Tuple
@@ -979,6 +980,26 @@ requires_corstone300 = Feature(
 
 # Mark a test as requiring Vitis AI to run
 requires_vitis_ai = Feature("vitis_ai", "Vitis AI", cmake_flag="USE_VITIS_AI")
+
+
+def arm_dot_supported():
+    arch = platform.machine()
+    if arch != "arm64" and arch != "aarch64":
+        return False
+
+    if sys.platform.startswith("darwin"):
+        cpu_info = subprocess.check_output("sysctl -a", shell=True).strip().decode()
+        for line in cpu_info.split("\n"):
+            if line.startswith("hw.optional.arm.FEAT_DotProd"):
+                return bool(int(line.split(":", 1)[1]))
+    elif sys.platform.startswith("linux"):
+        return "dot" in open("/proc/cpuinfo", "r").read()
+
+    return False
+
+
+requires_arm_dot = Feature(
+    "arm_dot", "ARM dot product", run_time_check=arm_dot_supported)
 
 
 def _cmake_flag_enabled(flag):
