@@ -29,6 +29,8 @@ FnFromDoc = typing.Callable[[doc.AST], ast.AST]
 
 
 class Entry:
+    """Mapping entry between str and doc AST."""
+
     to_doc: typing.Optional[FnToDoc]
     from_doc: typing.Optional[FnFromDoc]
 
@@ -38,6 +40,8 @@ class Entry:
 
 
 class Registry:
+    """Registration map for str and doc AST"""
+
     _inst: typing.Optional["Registry"] = None
     table: typing.Dict[str, Entry]
 
@@ -115,10 +119,29 @@ def to_doc(node):
 
 
 def parse(
-    source,
-    filename="<unknown>",
-    mode="exec",
+    source: str,
+    filename: str = "<unknown>",
+    mode: str = "exec",
 ) -> doc.AST:
+    """Parse TVMScript source code to doc AST.
+
+    Parameters
+    ----------
+    source : str
+        The TVMScript source code.
+
+    filename : str
+        The optional filename of source code.
+
+    mode : str
+        The parsing mode.
+
+    Returns
+    -------
+    res : doc.AST
+        The parsed doc AST.
+    """
+
     try:
         program = ast.parse(  # pylint: disable=unexpected-keyword-arg
             source=source,
