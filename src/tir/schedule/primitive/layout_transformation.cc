@@ -1202,8 +1202,8 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   // create block iter each expression in f(ax_0, ..., ax_n).
   Array<IterVar> new_block_iters;  // new block iters
   Array<PrimExpr> new_block_vars;  // iter_var->var of new block iters
-  for (size_t i = 0; i < index_map->final_indices.size(); ++i) {
-    Var new_block_var{"v" + std::to_string(i), DataType::Int(32)};
+  for (size_t i = 0; i < transformed_block_iters.size(); ++i) {
+    Var new_block_var{"v" + std::to_string(i), transformed_block_iters[i]->dtype};
     new_block_vars.push_back(new_block_var);
     IterVarType iter_type = DetectNewBlockIterType(transformed_block_iters[i], block_iter_type);
     if (iter_type == kOpaque) {
@@ -1245,7 +1245,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   // Make new loop vars
   Array<PrimExpr> new_loop_vars;
   for (int i = 0; i < static_cast<int>(new_block_iters.size()); ++i) {
-    new_loop_vars.push_back(Var("ax" + std::to_string(i), DataType::Int(32)));
+    new_loop_vars.push_back(Var("ax" + std::to_string(i), new_block_iters[i]->var.dtype()));
   }
 
   // Make new block realize
