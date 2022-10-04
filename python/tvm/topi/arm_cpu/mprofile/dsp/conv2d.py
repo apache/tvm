@@ -34,7 +34,6 @@ from .micro_kernel.tensordot import (
 
 
 def conv2d_nhwc_dsp_compute(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    print("Activating Conv2D NHWC schedule")
     """Compute function for v7e-m DSP instructions of conv2d."""
     assert isinstance(strides, int) or len(strides) == 2
     assert isinstance(dilation, int) or len(dilation) == 2
@@ -44,37 +43,53 @@ def conv2d_nhwc_dsp_compute(cfg, data, kernel, strides, padding, dilation, out_d
     else:
         stride_h, stride_w = strides
 
+    # Dilation prevents us from using DSP instructions, so this schedule can't work (aside from the
+    # niche case where dilation_h == stride_h and dilation_w == stride_w, which is rare enough we
+    # probably don't need to support it).
     if isinstance(dilation, int):
         dilation_h = dilation_w = dilation
     else:
         dilation_h, dilation_w = dilation
+    assert dilation_h == dilation_w == 1
 
     batch_size, in_height, in_width, in_channels = data.shape
     out_channels, kernel_h, kernel_w, _ = kernel.shape
     assert kernel.shape[3] == in_channels
 
-    # compute the output shape
-    dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
-    dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
-    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
-        padding, (dilated_kernel_h, dilated_kernel_w)
-    )
-    out_height = simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
-    out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
+    # Compute and apply padding
+    assert isinstance(padding, tuple)
+    if len(padding) == 2:
+        (pad_up, pad_down), (pad_left, pad_right) = padding
+    else:
+        pad_up, pad_left, pad_down, pad_right = padding
 
-    pad_before = [0, pad_top, pad_left, 0]
-    pad_after = [0, pad_down, pad_right, 0]
-    padded_data = pad(data, pad_before, pad_after, name="padded_data")
+    if pad_up or pad_left or pad_down or pad_right:
+        padded_data = pad(
+            data,
+            [0, pad_up, pad_left, 0],
+            [0, pad_down, pad_right, 0],
+            name="padded_data"
+        )
+    else:
+        padded_data = data
+
+    # Compute output dimensions
+    output_h = (in_height - kernel_h + pad_up + pad_down) // stride_h + 1
+    output_w = (in_width - kernel_w + pad_left + pad_right) // stride_w + 1
+
+    # Offsets to "prefer" the bottom right corner. This is done to match Tensorflow's convention,
+    # but does NOT match the other TVM schedules.
+    y_offset = (in_height + pad_up + pad_down - kernel_h) % stride_h
+    x_offset = (in_width + pad_left + pad_right - kernel_w) % stride_w
 
     ry = te.reduce_axis((0, kernel_h), name="ry")
     rx = te.reduce_axis((0, kernel_w), name="rx")
     rc = te.reduce_axis((0, in_channels), name="rc")
-
     return te.compute(
-        (batch_size, out_height, out_width, out_channels),
+        (batch_size, output_h, output_w, out_channels),
         lambda nn, yy, xx, ff: te.sum(
             padded_data[
-                nn, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, rc
+                nn, y_offset + yy * stride_h + ry * dilation_h, x_offset + xx * stride_w + rx * dilation_w, rc
             ].astype(out_dtype)
             * kernel[ff, ry, rx, rc].astype(out_dtype),
             axis=[ry, rx, rc],
@@ -110,8 +125,9 @@ def _make_tensorization(padded_data, kernel):
     # TVM has a really strange bug where the outer reduction axis (kh_i) having length 1 causes the
     # decl_buffer strides check to fail. height_stride is a dark magic workaround for this.
     height_stride = in_channels * padded_w if kernel_h > 1 else in_channels
+    print(f"Using strides {[height_stride, in_channels, 1]}")
     data_buf = tir.decl_buffer(
-        data_slice.shape, data_slice.dtype, name="data", offset_factor=1,
+        data_slice.shape, data_slice.dtype, name="foofoomcbar", offset_factor=1,
         strides=[height_stride, in_channels, 1],
     )
     kernel_buf = tir.decl_buffer(

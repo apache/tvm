@@ -126,7 +126,8 @@ def tensordot_impl(in_dtype, tensor_h, jump, tensor_w, suffix):
 
     elif in_dtype == "int32":
         inner_loop = """
-              sum = __MLA(tensor_batch, kernel_batch, sum);"""
+              // Compiles to a single MAC instruction
+              sum += tensor_batch * kernel_batch;"""
 
     function_name = _get_func_name(in_dtype, tensor_h, jump, tensor_w, suffix)
     return textwrap.dedent(
