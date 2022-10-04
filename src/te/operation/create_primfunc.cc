@@ -108,14 +108,16 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
   Stmt VisitStmt_(const BlockNode* _block) final {
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(_block));
     if (Optional<ObjectRef> ann = block->annotations.Get(topi_attr)) {
-      Array<Buffer> buffers = Downcast<Array<Buffer>>(ann);
-      for (Buffer buffer : buffers) {
+      Array<Buffer> new_buffers;
+      for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
         auto it = buffer2index_.find(buffer);
         if (it != buffer2index_.end()) {
           layout_free_buffer_indices_.insert(it->second);
+        } else {
+          new_buffers.push_back(buffer);
         }
       }
-      block.CopyOnWrite()->annotations.erase(topi_attr);
+      block.CopyOnWrite()->annotations.Set(topi_attr, new_buffers);
     }
     return std::move(block);
   }
@@ -499,12 +501,7 @@ PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
   // Step 4. Create func and complete prim func.
   auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
   func = tir::BindParams(func, constants);
-
-  if (constants.empty()) {
-    return LayoutFreePlaceholdersNormalizer().Process(std::move(func));
-  } else {
-    return func;
-  }
+  return LayoutFreePlaceholdersNormalizer().Process(std::move(func));
 }
 
 PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
