@@ -247,7 +247,6 @@ class TestMaxPool2D:
                 )
 
                 target_hexagon = tvm.target.hexagon("v69", link_params=True)
-                # func = tvm.build(sch.mod, target=tvm.target.Target(target_hexagon, host=target_hexagon))
                 built_module = tvm.build(
                     sch.mod, target=tvm.target.Target(target_hexagon, host=target_hexagon)
                 )

@@ -75,7 +75,6 @@ class TestReluSlice(BaseRelu):
         output_layout,
         transformed_input_np,
         transformed_ref_output_np,
-        target,
         working_scope,
         hexagon_session,
     ):

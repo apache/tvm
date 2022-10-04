@@ -258,7 +258,6 @@ class Testdwconv2dSlice:
         input_np_padded,
         weights_np_transformed,
         expected_output_np,
-        target,
         working_scope,
         hexagon_session,
     ):

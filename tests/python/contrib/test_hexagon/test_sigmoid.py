@@ -71,7 +71,6 @@ class TestSigmoid(BaseSigmoid):
         dtype,
         input_np,
         ref_output_np,
-        target,
         hexagon_session,
     ):
         InputTensor = te.placeholder(in_shape, name="InputTensor", dtype=dtype)
