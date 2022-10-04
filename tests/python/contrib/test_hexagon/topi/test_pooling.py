@@ -70,8 +70,7 @@ class TestAdaptivePool:
             assert len(out_size) == 3
             out = topi.nn.adaptive_pool3d(data, out_size, pool_type, layout)
 
-        target_hexagon = tvm.target.hexagon("v68")
-        with tvm.target.Target(target_hexagon):
+        with tvm.target.Target(get_hexagon_target("v68")):
             fschedule = topi.hexagon.schedule_adaptive_pool
             s = fschedule(out)
 
@@ -168,8 +167,7 @@ def verify_poolnd(
 
     np.testing.assert_equal(tuple(output_shape), tuple(ref_np.shape))
 
-    target_hexagon = tvm.target.hexagon("v68")
-    with tvm.target.Target(target_hexagon):
+    with tvm.target.Target(get_hexagon_target("v68")):
         fschedule = topi.hexagon.schedule_pool
         s = fschedule(B, layout)
 

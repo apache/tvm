@@ -106,7 +106,6 @@ class BaseConv2DTests:
         add_bias,
         apply_relu,
     ):
-        target_hexagon = tvm.target.hexagon("v68")
 
         pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel, kernel))
         padding_sum = pad_top + pad_left + pad_bottom + pad_right
@@ -130,7 +129,7 @@ class BaseConv2DTests:
             gap_size = np.nextafter(c_np.max(), np.inf, dtype=c_np.dtype) - c_np.max()
             tol = {"rtol": 1e-3, "atol": num_values_summed * gap_size / 2}
 
-        with tvm.target.Target(target_hexagon):
+        with tvm.target.Target(get_hexagon_target("v68")):
             fcompute = topi.nn.conv2d_nchw
             fschedule = topi.hexagon.schedule_conv2d_nchw
             C = fcompute(A, W, (stride, stride), padding, (dilation, dilation), dtype)

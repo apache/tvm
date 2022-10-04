@@ -81,9 +81,6 @@ class BaseConv2DTransposeTests:
         output_padding,
         random_seed,
     ):
-
-        target_hexagon = tvm.target.hexagon("v68")
-
         in_height, in_width = in_size
         kernel_height, kernel_width = (1, 1)
         stride_height, stride_width = stride
@@ -118,7 +115,7 @@ class BaseConv2DTransposeTests:
             output_padding,
         )
 
-        with tvm.target.Target(target_hexagon):
+        with tvm.target.Target(get_hexagon_target("v68")):
             fcompute = topi.nn.conv2d_transpose_nchw
             fschedule = topi.hexagon.schedule_conv2d_transpose_nchw
             B = fcompute(*fcompute_args)

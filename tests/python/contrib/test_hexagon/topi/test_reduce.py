@@ -126,8 +126,7 @@ def test_reduce_map(
     else:
         raise NotImplementedError
 
-    target_hexagon = tvm.target.hexagon("v68")
-    with tvm.target.Target(target_hexagon):
+    with tvm.target.Target(get_hexagon_target("v68")):
         fschedule = topi.hexagon.schedule_reduce
         s = fschedule(B)
 

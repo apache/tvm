@@ -59,14 +59,12 @@ class BaseConv2DTests:
         padding,
         dilation,
     ):
-        target_hexagon = tvm.target.hexagon("v68")
-
         a_np, w_np, b_np = ref_data
 
         A = te.placeholder(a_np.shape, name="A", dtype=dtype)
         W = te.placeholder(w_np.shape, name="W", dtype=dtype)
 
-        with tvm.target.Target(target_hexagon):
+        with tvm.target.Target(get_hexagon_target("v68")):
             fcompute = topi.nn.conv2d_nhwc
             fschedule = topi.hexagon.schedule_conv2d_nhwc
             B = fcompute(A, W, stride, padding, dilation, dtype)
