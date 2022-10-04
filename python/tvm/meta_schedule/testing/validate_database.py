@@ -194,7 +194,7 @@ def validate_correctness(
             rpc_config=rpc_config,
             lib=rt_mod,
             dev_type=dev_type,
-            args={i: v for i, v in enumerate(inputs)},  # type: ignore
+            args={i: v for i, v in enumerate(inputs)},  # pylint: disable=unnecessary-comprehension
             continuation=create_computer(backend="tir"),
             backend="tir",
         )
