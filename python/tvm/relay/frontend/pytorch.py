@@ -2353,17 +2353,27 @@ class PyTorchOpConverter:
         else:
             per_sample_weights = _op.ones_like(indices)
 
+        offsets_const_fold = fold_constant(offsets_1d)
+
+        # python impl if offsets_1s is passed as array of constant
+        if isinstance(offsets_const_fold, _expr.Constant):
+            assert padding_idx is None, "padding_idx not supported in embedding_bag."
+
+            offsets_np = offsets_const_fold.data.numpy()
+            if include_last_offset == 1:
+                offsets_np = offsets_np[..., 0]  # exclude last dimension
+            offsets_diff = np.diff(offsets_np)
+            indices_2d = _op.reshape(indices, (-1, offsets_diff[0]))
+            reduce_op = mode_map[mode]
+            gather = _op.take(weights, indices_2d, axis=0) * per_sample_weights
+            reduced = reduce_op(gather, 1)
+            # pytorch/aten/src/ATen/native/EmbeddingBag.cpp shows that aten::embedding_bag returns
+            # 4 outputs: output, offset2bag, bag_size, max_indices
+            # The Python version of the op only returns the first output, so we also support only the
+            # first output. If the model uses other outputs, the conversion would fail.
+            return reduced, None, None, None
+
         padding_idx = -1 if padding_idx is None else padding_idx
-        # print(offsets_1d)
-        # offsets_const_fold = fold_constant(offsets_1d)
-        # print(offsets_1d)
-        # offsets_np = offsets_const_fold.data.numpy()
-        # offsets_diff = np.diff(offsets_np)
-        # indices_2d = _op.reshape(indices, (-1, offsets_diff[0]))
-        # reduce_op = mode_map[mode]
-        # gather = _op.take(weights, indices_2d, axis=0)
-        # reduced = reduce_op(gather, 1)
-        # return reduced, None, None, None
         return _op.embedding_bag(
             indices,
             weights,
