@@ -18,6 +18,7 @@
 """Test for LUT"""
 
 import pytest
+import math
 
 import tvm
 from tvm import te
@@ -26,16 +27,22 @@ from tvm.contrib.hexagon.session import Session
 from tvm.contrib.hexagon.build import HexagonLauncherRPC
 import tvm.contrib.hexagon
 from tvm import relay
-
 import numpy as np
+from .infrastructure import allocate_hexagon_array, transform_numpy, quantize_np
 
 hex_target = tvm.target.hexagon("v68", link_params=True)
 
 shape, func, dtype = tvm.testing.parameters(
-    ([1, 8, 8, 32], {"py": np.sqrt, "tvm": tvm.topi.hexagon.injective.sqrt}, "uint8"),
-    ([1024], {"py": np.sqrt, "tvm": tvm.topi.hexagon.injective.sqrt}, "uint8"),
-    ([1, 8, 8, 32], {"py": lambda x: -x, "tvm": tvm.topi.hexagon.injective.negative}, "int8"),
-    ([1024], {"py": lambda x: -x, "tvm": tvm.topi.hexagon.injective.negative}, "int8"),
+    ([1, 8, 8, 32], {"py": np.sqrt, "tvm": tvm.topi.hexagon.qnn.injective.qsqrt}, "uint8"),
+    ([1024], {"py": np.sqrt, "tvm": tvm.topi.hexagon.qnn.injective.qsqrt}, "uint8"),
+    ([1, 8, 8, 32], {"py": math.exp, "tvm": tvm.topi.hexagon.qnn.injective.qexp}, "uint8"),
+    ([1024], {"py": math.exp, "tvm": tvm.topi.hexagon.qnn.injective.qexp}, "uint8"),
+    ([1, 8, 8, 32], {"py": math.erf, "tvm": tvm.topi.hexagon.qnn.injective.qerf}, "uint8"),
+    ([1024], {"py": math.erf, "tvm": tvm.topi.hexagon.qnn.injective.qerf}, "uint8"),
+    ([1, 8, 8, 32], {"py": np.tanh, "tvm": tvm.topi.hexagon.qnn.injective.qtanh}, "uint8"),
+    ([1024], {"py": np.tanh, "tvm": tvm.topi.hexagon.qnn.injective.qtanh}, "uint8"),
+    ([1, 8, 8, 32], {"py": np.log, "tvm": tvm.topi.hexagon.qnn.injective.qlog}, "uint8"),
+    ([1024], {"py": np.log, "tvm": tvm.topi.hexagon.qnn.injective.qlog}, "uint8"),
 )
 
 
@@ -48,15 +55,17 @@ def test_lut(
     func,
     dtype,
 ):
-    if dtype == "int8":
-        a_np = np.random.randint(-128, 127, size=shape).astype(dtype)
-    elif dtype == "uint8":
-        a_np = np.random.randint(0, 255, size=shape).astype(dtype)
-    else:
-        raise ValueError(f"dtype {dtype} not supported for LUTs!")
+
+    # Make input
+    a_np = np.random.random(shape)
+    a_np_quant, in_scale, in_zero = quantize_np(a_np, dtype)
+
+    # Get golden
+    golden = np.vectorize(func["py"])(in_scale * (a_np_quant - in_zero))
+    golden_quant, out_scale, out_zero = quantize_np(golden, dtype)
 
     A = te.placeholder(shape, name="A", dtype=dtype)
-    O = func["tvm"](A, dtype=dtype)
+    O = func["tvm"](A, in_scale, in_zero, out_scale, out_zero, dtype=dtype)
     s = tvm.topi.hexagon.lut.lutize(O, A)
 
     # Lower hexagon code
@@ -68,14 +77,11 @@ def test_lut(
     # Run hexagon code
     mod = hexagon_session.load_module(hex_lowered)
     dev = hexagon_session.device
-    a = tvm.nd.array(a_np, dev)
+    a = tvm.nd.array(a_np_quant.astype(dtype), dev)
     o = tvm.nd.array(np.zeros(shape, dtype=dtype), dev)
     mod(a, o)
 
-    # Get golden
-    golden = func["py"](a_np).astype(dtype)
-
-    np.testing.assert_allclose(golden, o.numpy(), rtol=0, atol=0)
+    np.testing.assert_allclose(golden_quant, o.numpy(), rtol=0, atol=0)
 
 
 if __name__ == "__main__":
