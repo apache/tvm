@@ -28,6 +28,7 @@ from tvm import te, topi
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.nn.utils import get_pad_tuple
 
+from ..infrastructure import get_hexagon_target
 
 random_seed = tvm.testing.parameter(0)
 
@@ -175,8 +176,6 @@ class BaseDepthwiseConv2D:
         dilation,
         ref_data,
     ):
-        target_hexagon = tvm.target.hexagon("v68")
-
         # Transform the padding argument from 'str' to 'tuple' to
         # match the "workload" tuple in TopHub.  Which padding_args to
         # use for each layout chosen to reproduce previous behavior.
@@ -216,7 +215,7 @@ class BaseDepthwiseConv2D:
                 out_dtype,
             )
 
-        with tvm.target.Target(target_hexagon):
+        with tvm.target.Target(get_hexagon_target("v68")):
             # Declare, build schedule
             if layout == "NCHW":
                 fcompute = topi.nn.depthwise_conv2d_nchw
@@ -236,7 +235,7 @@ class BaseDepthwiseConv2D:
             f = tvm.build(
                 s,
                 [Input, Filter, Scale, Shift, C],
-                tvm.target.Target(target_hexagon, host=target_hexagon),
+                get_hexagon_target("v68"),
             )
             mod = hexagon_session.load_module(f)
 

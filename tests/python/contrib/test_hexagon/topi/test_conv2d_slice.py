@@ -25,7 +25,7 @@ import tvm.testing
 from tvm.topi.hexagon.slice_ops.conv2d import conv2d_compute, conv2d_schedule
 from tvm.topi.testing import conv2d_nhwc_python
 
-from ..infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 input_layout = tvm.testing.parameter(
     "nhwc-8h2w32c2w-2d",
@@ -274,7 +274,6 @@ class TestConv2dSlice:
         input_np_padded,
         weights_np_transformed,
         expected_output_np,
-        target,
         working_scope,
         hexagon_session,
     ):
@@ -286,9 +285,6 @@ class TestConv2dSlice:
         output_tensor = conv2d_compute(
             input_tensor, weights, out_shape, stride, dilation, dtype, output_name
         )
-
-        target_hexagon = tvm.target.hexagon("v69")
-        target = tvm.target.Target(target_hexagon, host=target_hexagon)
 
         tir_schedule = conv2d_schedule(
             output_tensor,
@@ -303,7 +299,7 @@ class TestConv2dSlice:
         with tvm.transform.PassContext(opt_level=3):
             runtime_module = tvm.build(
                 tir_schedule.mod,
-                target=target,
+                target=get_hexagon_target("v69"),
                 name=func_name,
             )
 

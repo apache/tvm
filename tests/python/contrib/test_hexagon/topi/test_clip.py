@@ -19,13 +19,11 @@
 
 import numpy as np
 
-from tvm import te, topi
+from tvm import te
 
 import tvm.testing
-from tvm.topi import testing
-from tvm.contrib.hexagon.build import HexagonLauncher
 import tvm.topi.hexagon.slice_ops as sl
-from ..infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 input_layout = tvm.testing.parameter(
     "nhwc-8h2w32c2w-2d",
@@ -73,7 +71,6 @@ class TestClipSlice:
         hexagon_session,
     ):
         # establish target and input placeholder
-        target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape, name="A", dtype=dtype)
 
         # get the compute function and schedule
@@ -86,7 +83,7 @@ class TestClipSlice:
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(
                 tir_schedule.mod,
-                target=tvm.target.Target(target_hexagon, host=target_hexagon),
+                target=get_hexagon_target("v69"),
                 name="clip",
             )
 

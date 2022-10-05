@@ -22,7 +22,7 @@ import tvm
 import tvm.testing
 from tvm import te
 import tvm.topi.hexagon.slice_ops as sl
-from ..infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 
 class TestCastF16F32Slice2d:
@@ -77,8 +77,6 @@ class TestCastF16F32Slice2d:
         if hexagon_session._launcher._serial_number != "simulator":
             pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
 
-        target_hexagon = tvm.target.hexagon("v69")
-        target = tvm.target.Target(target_hexagon, host=target_hexagon)
         cast_input = te.placeholder(input_shape, name="A", dtype=dtype)
         cast_output = sl.cast_f16_f32_compute(cast_input)
         cast_func = te.create_prim_func([cast_input, cast_output])
@@ -98,7 +96,9 @@ class TestCastF16F32Slice2d:
         )
         with tvm.transform.PassContext(opt_level=3):
             tir_irm = tvm.lower(tir_s.mod, [cast_input, cast_output], name="cast_f16_f32")
-            runtime_module = tvm.build(tir_irm, target=target, name="cast_f16_f32")
+            runtime_module = tvm.build(
+                tir_irm, target=get_hexagon_target("v69"), name="cast_f16_f32"
+            )
         mod = hexagon_session.load_module(runtime_module)
 
         mod(input_data, output_data)
@@ -163,8 +163,6 @@ class TestCastF32F16Slice2d:
         if hexagon_session._launcher._serial_number != "simulator":
             pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
 
-        target_hexagon = tvm.target.hexagon("v69")
-        target = tvm.target.Target(target_hexagon, host=target_hexagon)
         cast_input = te.placeholder(input_shape, name="A", dtype=dtype)
         cast_output = sl.cast_f32_f16_compute(cast_input)
         cast_func = te.create_prim_func([cast_input, cast_output])
@@ -184,7 +182,9 @@ class TestCastF32F16Slice2d:
         )
         with tvm.transform.PassContext(opt_level=3):
             tir_irm = tvm.lower(tir_s.mod, [cast_input, cast_output], name="cast_f32_f16")
-            runtime_module = tvm.build(tir_irm, target=target, name="cast_f32_f16")
+            runtime_module = tvm.build(
+                tir_irm, target=get_hexagon_target("v69"), name="cast_f32_f16"
+            )
         mod = hexagon_session.load_module(runtime_module)
 
         mod(input_data, output_data)

@@ -22,6 +22,7 @@ from tvm import topi
 from tvm import te
 from tvm.contrib.hexagon.session import Session
 
+from ..infrastructure import get_hexagon_target
 
 in_shape, axis, keepdims, reduce_type, dtype = tvm.testing.parameters(
     ((32,), 0, False, "argmax", "float32"),
@@ -125,14 +126,11 @@ def test_reduce_map(
     else:
         raise NotImplementedError
 
-    target_hexagon = tvm.target.hexagon("v68")
-    with tvm.target.Target(target_hexagon):
+    with tvm.target.Target(get_hexagon_target("v68")):
         fschedule = topi.hexagon.schedule_reduce
         s = fschedule(B)
 
-    func = tvm.build(
-        s, [A, B], tvm.target.Target(target_hexagon, host=target_hexagon), name=reduce_type
-    )
+    func = tvm.build(s, [A, B], get_hexagon_target("v68"), name=reduce_type)
     mod = hexagon_session.load_module(func)
 
     dev = hexagon_session.device

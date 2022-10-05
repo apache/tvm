@@ -42,7 +42,6 @@ Current limitations:
       primfuncs and demonstrate more coding strategies.
 """
 
-import sys
 import pytest
 import numpy as np
 import copy
@@ -51,15 +50,11 @@ import os
 import tvm.testing
 from tvm import te, topi, tir
 from tvm.topi import testing
-from tvm.script import tir as T
-from tvm.tir import IndexMap
-from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.hexagon.session import Session
 from typing import List
 
-from .infrastructure import allocate_hexagon_array
+from .infrastructure import allocate_hexagon_array, get_hexagon_target
 from . import benchmark_util as bu
-from .benchmark_util import benchmark_group
 
 _SHOULD_SKIP_BENCHMARKS, _SKIP_BENCHMARKS_REASON = bu.skip_bencharks_flag_and_reason()
 
@@ -246,10 +241,9 @@ class TestMaxPool2D:
                     block="tensor", buffer="placeholder", index_map=_int8_nhwc_8h8w32c_map
                 )
 
-                target_hexagon = tvm.target.hexagon("v69", link_params=True)
-                # func = tvm.build(sch.mod, target=tvm.target.Target(target_hexagon, host=target_hexagon))
                 built_module = tvm.build(
-                    sch.mod, target=tvm.target.Target(target_hexagon, host=target_hexagon)
+                    sch.mod,
+                    target=get_hexagon_target("v69"),
                 )
 
                 # Save a local copy of the Hexagon object code (in the form of a .so file)

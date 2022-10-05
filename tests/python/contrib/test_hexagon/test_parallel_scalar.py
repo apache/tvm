@@ -18,10 +18,12 @@
 """ Test parallelism for multiple different scalar workloads. """
 
 import numpy as np
-import tvm
-
-from tvm.script import tir as T
 from numpy.random import default_rng
+
+import tvm
+from tvm.script import tir as T
+
+from .infrastructure import get_hexagon_target
 
 TEST_OUTPUT_TEMPLATE = "Test {} with {} operations... \n    -Single Thread: {} ms \n    -Parallel: {} ms\n    -Speedup: {}x\n"
 
@@ -75,10 +77,7 @@ def evaluate(hexagon_session, operations, expected, sch):
     shape = operations
     dtype = "float64"
 
-    target_hexagon = tvm.target.hexagon("v68")
-    func_tir = tvm.build(
-        sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
-    )
+    func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v68"))
     module = hexagon_session.load_module(func_tir)
 
     rng = default_rng()
