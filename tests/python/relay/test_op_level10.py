@@ -473,7 +473,7 @@ def test_batch_matmul(executor_kind):
     verify_batch_matmul_with_inputs(executor_kind, x, x, x_np, x_np, (10, 27, 27))
 
 
-@tvm.testing.requires_cascadelake
+@tvm.testing.requires_vnni
 def test_batch_matmul_vnni():
     x_shape = (16, 32, 96)
     y_shape = (16, 128, 96)

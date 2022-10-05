@@ -744,7 +744,7 @@ def test_bitserial_dense():
     assert yy.checked_type == relay.TensorType((m, 32), "int16")
 
 
-@tvm.testing.requires_cascadelake
+@tvm.testing.requires_vnni
 def test_dense_vnni():
     data_shape = (32, 96)
     weight_shape = (128, 96)

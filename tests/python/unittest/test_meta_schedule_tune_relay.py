@@ -504,7 +504,7 @@ def manual_tir_common(do_tune=False):
     np.testing.assert_equal(out, ref)
 
 
-@tvm.testing.requires_cascadelake
+@tvm.testing.requires_vnni
 def test_tune_relay_manual_tir_vnni():
     manual_tir_common(do_tune=False)
 
