@@ -14,13 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, no-value-for-parameter
-"""Direct implementation of conv2d."""
+"""Implementations of several conv2d variations, all tensorized using tensordot and optimized for
+Cortex-M DSP. Currently contains a standard conv2d and depthwise conv2d implementation, but could be
+extended to add a grouped conv2d operator. Due to the way we tensorize, this schedule ONLY works
+when the data and kernel layouts are NCHWxc and OIHWxi respectively, where x is the number of
+input channels divided by the number of groups."""
 
 import random
 import string
+from typing import Union, Tuple
 
-from tvm import te, tir
+from tvm import te
 from tvm.tir import indexdiv, indexmod
 from tvm.topi.utils import traverse_inline
 from tvm.topi.nn.pad import pad
@@ -31,27 +35,24 @@ from .micro_kernel.tensordot import (
 )
 
 
-# Dilation prevents us from using DSP instructions, so this schedule can't work (aside from the
-# niche case where dilation_h == stride_h and dilation_w == stride_w, which is rare enough we
-# probably don't need to support it).
-def _check_no_dilation(dilation):
-    assert isinstance(dilation, int) or len(dilation) == 2
-    if isinstance(dilation, int):
-        dilation_h = dilation_w = dilation
-    else:
-        dilation_h, dilation_w = dilation
+def _unpack_2d_argument(argument: Union[int, Tuple]) -> Tuple:
+    if isinstance(argument, int):
+        return (argument, argument)
+    assert len(argument) == 2
+    return argument
+
+
+def _check_no_dilation(dilation: Union[int, Tuple]) -> None:
+    """Takes a dilation argument as an integer or tuple, and makes sure both dimensions are 1.
+    Dilation prevents us from using DSP instructions, so this schedule can't work (aside from the
+    niche case where dilation_h == stride_h and dilation_w == stride_w, which is rare enough we
+    probably don't need to support it)."""
+
+    dilation_h, dilation_w = _unpack_2d_argument(dilation)
     assert dilation_h == dilation_w == 1
 
 
-def _unpack_strides(strides):
-    assert isinstance(strides, int) or len(strides) == 2
-    if isinstance(strides, int):
-        return (strides, strides)
-    else:
-        return strides
-
-
-def _unpack_padding(padding):
+def _unpack_padding(padding: Tuple) -> Tuple:
     assert isinstance(padding, tuple)
     if len(padding) == 2:
         (pad_up, pad_down), (pad_left, pad_right) = padding
@@ -60,41 +61,45 @@ def _unpack_padding(padding):
     return pad_up, pad_left, pad_down, pad_right
 
 
-# We only care about tuples here - "VALID" and "SAME" padding will be converted by the importer.
-def _pad_if_needed(data, layout, pad_up, pad_left, pad_down, pad_right):
-    if pad_up or pad_left or pad_down or pad_right:
-        assert len(layout) == 4
+def _pad_if_needed(data: te.tensor.Tensor, layout: str, padding: Tuple) -> te.tensor.Tensor:
+    """Performs padding on a te.tensor.Tensor object if necessary. If padding = (0, 0, 0, 0), the
+    input tensor is returned unmodified. We only care about tuples here - "VALID" and "SAME" padding
+    will be converted by the importer TFLite importer if present."""
 
-        # We want to pad the "H" and "W" columns, and their position depends on the layout
-        pad_before, pad_after = [0, 0, 0, 0], [0, 0, 0, 0]
-        pad_before[layout.index("H")] = pad_up
-        pad_before[layout.index("W")] = pad_left
-        pad_after[layout.index("H")] = pad_down
-        pad_after[layout.index("W")] = pad_right
-        return pad(data, pad_before, pad_after, name="padded_data")
-
-    else:
+    pad_up, pad_left, pad_down, pad_right = padding
+    if not any(padding):
         return data
 
+    # We want to pad the "H" and "W" columns, and their position depends on the layout
+    pad_before, pad_after = [0, 0, 0, 0], [0, 0, 0, 0]
+    pad_before[layout.index("H")] = pad_up
+    pad_before[layout.index("W")] = pad_left
+    pad_after[layout.index("H")] = pad_down
+    pad_after[layout.index("W")] = pad_right
+    return pad(data, pad_before, pad_after, name="padded_data")
 
-def _compute_output_dim(data_dim, kernel_dim, pad_before, pad_after, stride):
+
+def _compute_output_dim(data_dim, kernel_dim, pad_before, pad_after, stride) -> int:
     return (data_dim - kernel_dim + pad_before + pad_after) // stride + 1
 
 
-# Offsets to "prefer" the bottom right corner. This is done to match TensorFlow's convention, but
-# does NOT match the other TVM schedules. We violate this convention because it improves accuracy on
-# models imported from TensorFlow.
-def _compute_offset(data_dim, kernel_dim, pad_before, pad_after, stride):
+def _compute_offset(data_dim, kernel_dim, pad_before, pad_after, stride) -> int:
+    """Computes offsets to "prefer" the bottom right corner. This is done to match TensorFlow's
+    convention, but it does NOT match the other TVM schedules. We violate this convention because it
+    improves accuracy on models imported from TensorFlow."""
     return (data_dim - kernel_dim + pad_before + pad_after) % stride
 
 
-# Prevents re-definition of C functions
-def _get_suffix():
+def _get_suffix() -> str:
+    """Returns a random eight-character string to append to C function names. Prevents accidental
+    re-definition of functions if the same operator appears twice in a Relay graph."""
     return "".join(random.choices(string.ascii_uppercase, k=8))
 
 
-def conv2d_nhwc_ohwi_dsp_compute(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    stride_h, stride_w = _unpack_strides(strides)
+def conv2d_nhwc_ohwi_dsp_compute(_cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Standard conv2d schedule that can be tensorized using tensordot."""
+
+    stride_h, stride_w = _unpack_2d_argument(strides)
     pad_up, pad_left, pad_down, pad_right = _unpack_padding(padding)
     _check_no_dilation(dilation)
 
@@ -107,19 +112,19 @@ def conv2d_nhwc_ohwi_dsp_compute(cfg, data, kernel, strides, padding, dilation, 
     y_offset = _compute_offset(data_h, kernel_h, pad_up, pad_down, stride_h)
     x_offset = _compute_offset(data_w, kernel_w, pad_left, pad_right, stride_w)
 
-    ry = te.reduce_axis((0, kernel_h), name="ry")
-    rx = te.reduce_axis((0, kernel_w), name="rx")
-    rc = te.reduce_axis((0, in_channels), name="rc")
+    kh_i = te.reduce_axis((0, kernel_h), name="kh_i")
+    kw_i = te.reduce_axis((0, kernel_w), name="kw_i")
+    kc_i = te.reduce_axis((0, in_channels), name="rc")
 
-    padded_data = _pad_if_needed(data, "NHWC", pad_up, pad_left, pad_down, pad_right)
+    padded_data = _pad_if_needed(data, "NHWC", (pad_up, pad_left, pad_down, pad_right))
     return te.compute(
         (batch_size, output_h, output_w, output_channels),
         lambda n, y, x, c: te.sum(
             padded_data[
-                n, y_offset + y * stride_h + ry, x_offset + x * stride_w + rx, rc
+                n, y_offset + y * stride_h + kh_i, x_offset + x * stride_w + kw_i, kc_i
             ].astype(out_dtype)
-            * kernel[c, ry, rx, rc].astype(out_dtype),
-            axis=(ry, rx, rc),
+            * kernel[c, kh_i, kw_i, kc_i].astype(out_dtype),
+            axis=(kh_i, kw_i, kc_i),
         ),
         name="conv2d",
         tag="conv2d_nhwc_ohwi_dsp",
@@ -127,7 +132,7 @@ def conv2d_nhwc_ohwi_dsp_compute(cfg, data, kernel, strides, padding, dilation, 
 
 
 def _make_conv2d_tensorization(padded_data, kernel):
-    _, padded_h, padded_w, in_channels = padded_data.shape
+    _, _, padded_w, in_channels = padded_data.shape
     _, kernel_h, kernel_w, _ = kernel.shape
     in_dtype = padded_data.dtype
     suffix = _get_suffix()
@@ -140,7 +145,8 @@ def _make_conv2d_tensorization(padded_data, kernel):
     kw_i = te.reduce_axis((0, kernel_w), name="kw_i")
     kc_i = te.reduce_axis((0, in_channels), name="kc_i")
 
-    output_slice = te.compute((1,),
+    output_slice = te.compute(
+        (1,),
         lambda k: te.sum(
             data_slice[kh_i, kw_i, kc_i].astype("int32")
             * kernel_slice[kh_i, kw_i, kc_i].astype("int32"),
@@ -152,33 +158,24 @@ def _make_conv2d_tensorization(padded_data, kernel):
     # TVM has a really strange bug where the outer reduction axis (kh_i) having length 1 causes the
     # decl_buffer strides check to fail. height_stride is a dark magic workaround for this.
     height_stride = in_channels * padded_w if kernel_h > 1 else in_channels
-    data_buf = tir.decl_buffer(
-        data_slice.shape, data_slice.dtype, name="data", offset_factor=1,
-        strides=[height_stride, in_channels, 1],
-    )
-    kernel_buf = tir.decl_buffer(
-        kernel_slice.shape, kernel_slice.dtype, name="kernel", offset_factor=1,
-        strides=[kernel_w * in_channels, in_channels, 1]
-    )
-    output_buf = tir.decl_buffer(
-        output_slice.shape, output_slice.dtype, name="output", offset_factor=1, strides=[1]
-    )
-
     jump = (padded_w - kernel_w) * in_channels
     tensordot_params = (in_dtype, kernel_h, jump, kernel_w * in_channels, suffix)
-
     intrin_tensordot = make_intrin_tensordot(
-        output_slice.op,
-        {data_slice: data_buf, kernel_slice: kernel_buf, output_slice: output_buf},
-        tensordot_params
+        (data_slice, kernel_slice, output_slice),
+        ([height_stride, in_channels, 1], [kernel_w * in_channels, in_channels, 1]),
+        tensordot_params,
     )
 
     tensordot_code = tensordot_impl(*tensordot_params)
     return (intrin_tensordot, tensordot_code)
 
 
-def depthwise_conv2d_nchw_oihw_dsp_compute(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    stride_h, stride_w = _unpack_strides(strides)
+def depthwise_conv2d_nchw_oihw_dsp_compute(
+    _cfg, data, kernel, strides, padding, dilation, out_dtype
+):
+    """Depthwise conv2d schedule that can be tensorized using tensordot."""
+
+    stride_h, stride_w = _unpack_2d_argument(strides)
     pad_up, pad_left, pad_down, pad_right = _unpack_padding(padding)
     _check_no_dilation(dilation)
 
@@ -192,25 +189,29 @@ def depthwise_conv2d_nchw_oihw_dsp_compute(cfg, data, kernel, strides, padding, 
     y_offset = _compute_offset(data_h, kernel_h, pad_up, pad_down, stride_h)
     x_offset = _compute_offset(data_w, kernel_w, pad_left, pad_right, stride_w)
 
-    ry = te.reduce_axis((0, kernel_h), name="ry")
-    rx = te.reduce_axis((0, kernel_w), name="rx")
+    kh_i = te.reduce_axis((0, kernel_h), name="kh_i")
+    kw_i = te.reduce_axis((0, kernel_w), name="kw_i")
 
-    padded_data = _pad_if_needed(data, "NCHW", pad_up, pad_left, pad_down, pad_right)
+    padded_data = _pad_if_needed(data, "NCHW", (pad_up, pad_left, pad_down, pad_right))
     return te.compute(
         (batch_size, output_channels, output_h, output_w),
         lambda n, c, y, x: te.sum(
             padded_data[
-                n, indexdiv(c, c_mul), y_offset + y * stride_h + ry, x_offset + x * stride_w + rx,
+                n,
+                indexdiv(c, c_mul),
+                y_offset + y * stride_h + kh_i,
+                x_offset + x * stride_w + kw_i,
             ].astype(out_dtype)
-            * kernel[indexdiv(c, c_mul), indexmod(c, c_mul), ry, rx].astype(out_dtype),
-            axis=(ry, rx),
+            * kernel[indexdiv(c, c_mul), indexmod(c, c_mul), kh_i, kw_i].astype(out_dtype),
+            axis=(kh_i, kw_i),
         ),
         name="depthwise_conv2d",
         tag="depthwise_conv2d_nchw_oihw_dsp",
     )
 
+
 def _make_depthwise_conv2d_tensorization(padded_data, kernel):
-    _, _, padded_h, padded_w = padded_data.shape
+    _, _, _, padded_w = padded_data.shape
     _, _, kernel_h, kernel_w = kernel.shape
 
     in_dtype = padded_data.dtype
@@ -223,41 +224,31 @@ def _make_depthwise_conv2d_tensorization(padded_data, kernel):
     kh_i = te.reduce_axis((0, kernel_h), name="kh_i")
     kw_i = te.reduce_axis((0, kernel_w), name="kw_i")
 
-    output_slice = te.compute((1,),
+    output_slice = te.compute(
+        (1,),
         lambda k: te.sum(
-            data_slice[kh_i, kw_i].astype("int32")
-            * kernel_slice[kh_i, kw_i].astype("int32"),
+            data_slice[kh_i, kw_i].astype("int32") * kernel_slice[kh_i, kw_i].astype("int32"),
             axis=[kh_i, kw_i],
         ),
         name="c",
     )
 
-    data_buf = tir.decl_buffer(
-        data_slice.shape, data_slice.dtype, name="data", offset_factor=1,
-        strides=[padded_w, 1],
-    )
-    kernel_buf = tir.decl_buffer(
-        kernel_slice.shape, kernel_slice.dtype, name="kernel", offset_factor=1,
-        strides=[kernel_w, 1]
-    )
-    output_buf = tir.decl_buffer(
-        output_slice.shape, output_slice.dtype, name="output", offset_factor=1, strides=[1]
-    )
-
     jump = padded_w - kernel_w
     tensordot_params = (in_dtype, kernel_h, jump, kernel_w, suffix)
-
     intrin_tensordot = make_intrin_tensordot(
-        output_slice.op,
-        {data_slice: data_buf, kernel_slice: kernel_buf, output_slice: output_buf},
-        tensordot_params
+        (data_slice, kernel_slice, output_slice),
+        ([padded_w, 1], [kernel_w, 1]),
+        tensordot_params,
     )
 
     tensordot_code = tensordot_impl(*tensordot_params)
     return (intrin_tensordot, tensordot_code)
 
 
-def tensordot_conv2ds_schedule(cfg, outs):
+def tensordot_conv2ds_schedule(_cfg, outs):
+    """Schedule function using v7e-m DSP instructions for all the conv2d operators in this file. We
+    use one schedule function for them all, because they are tensorized with the same kernel."""
+
     schedule = te.create_schedule([x.op for x in outs])
 
     def _callback(operator):

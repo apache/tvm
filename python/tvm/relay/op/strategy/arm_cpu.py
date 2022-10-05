@@ -160,10 +160,10 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
             )
         elif layout == "NHWC":
             if (
-                    target.features.has_dsp
-                    and dilation_w == dilation_h == 1
-                    and kernel_layout == "OHWI"
-                ):
+                target.features.has_dsp
+                and dilation_w == dilation_h == 1
+                and kernel_layout == "OHWI"
+            ):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_ohwi_dsp),
                     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_ohwi_dsp),
@@ -210,7 +210,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
         if layout == "NCHW":
             assert kernel_layout == "OIHW" or re.match(r"OIHW\d*o", kernel_layout)
             if kernel_layout == "OIHW":
-                if (target.features.has_dsp and dilation_w == dilation_h == 1):
+                if target.features.has_dsp and dilation_w == dilation_h == 1:
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nchw_oihw_dsp),
                         wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nchw_oihw_dsp),

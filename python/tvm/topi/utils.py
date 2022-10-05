@@ -457,6 +457,7 @@ def change_constant_shape(src, src_layout, dst_layout):
     reshaped = np.transpose(src.data.numpy(), axis_order)
     return relay.Constant(tvm.nd.array(reshaped))
 
+
 def within_index(b, e, s, i):
     """Return a boolean value that indicates if i is within the given index.
 

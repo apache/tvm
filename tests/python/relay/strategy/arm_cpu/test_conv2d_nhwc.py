@@ -24,6 +24,7 @@ from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
 from tvm.micro.testing.aot_test_utils import AOT_CORSTONE300_RUNNER
 from tvm.topi.utils import change_constant_shape
 
+
 class BasicConv2dTests:
     @tvm.testing.requires_corstone300
     def test_conv2d(
@@ -152,7 +153,6 @@ class TestConv2d_Tensordot(BasicConv2dTests):
         # ((1, 32, 32, 1), (3, 3), 12, 1, 0),
         # ((1, 32, 10, 3), (3, 3), 16, 1, 0),
         # ((1, 96, 96, 3), (3, 3), 8, (2, 2), (0, 0, 1, 1)),
-
         # Disabled because while our schedule matches TensorFlow's behavior, it does NOT
         # match the x86 schedule behavior (which is different). These schedules have either:
         # (in_height + pad_up + pad_down - kernel_h) % stride_h > 0 OR
@@ -164,16 +164,39 @@ class TestConv2d_Tensordot(BasicConv2dTests):
         # ((1, 16, 16, 32), (1, 1),  64, (2, 2), 0,          ),
         # ((1, 16, 16, 32), (1, 1),  64, (2, 2), 0,          ),
         # ((1, 49, 10, 1),  (10, 4), 64, (2, 1), (4, 1, 5, 1)),
-
-        ((1, 32, 32, 16), (3, 3),  16, 1,      (0, 2, 2, 0)),
-        ((1, 32, 32, 16), (3, 3),  16, 1,      0,          ),
-        ((1, 32, 32, 16), (3, 3),  16, 1,      0,          ),
-        ((1, 49, 10, 1),  (10, 4), 64, (2, 2), (4, 1, 5, 1)),
-        ((1, 16, 16, 8),  (3, 3),  16, 2,      (0, 0, 1, 1)),
-        ((1, 16, 16, 8),  (3, 3),  16, 2,      (1, 1, 2, 2)),
-        ((1, 16, 16, 8),  (5, 5),  16, 2,      (3, 3, 2, 2)),
-        ((1, 32, 32, 16), (3, 3),  16, 1,      0,          ),
-        ((1, 16, 16, 32), (1, 1),  64, 1,      0,          ),
+        ((1, 32, 32, 16), (3, 3), 16, 1, (0, 2, 2, 0)),
+        (
+            (1, 32, 32, 16),
+            (3, 3),
+            16,
+            1,
+            0,
+        ),
+        (
+            (1, 32, 32, 16),
+            (3, 3),
+            16,
+            1,
+            0,
+        ),
+        ((1, 49, 10, 1), (10, 4), 64, (2, 2), (4, 1, 5, 1)),
+        ((1, 16, 16, 8), (3, 3), 16, 2, (0, 0, 1, 1)),
+        ((1, 16, 16, 8), (3, 3), 16, 2, (1, 1, 2, 2)),
+        ((1, 16, 16, 8), (5, 5), 16, 2, (3, 3, 2, 2)),
+        (
+            (1, 32, 32, 16),
+            (3, 3),
+            16,
+            1,
+            0,
+        ),
+        (
+            (1, 16, 16, 32),
+            (1, 1),
+            64,
+            1,
+            0,
+        ),
     )
     dilation = tvm.testing.parameter(1)
     dtype = tvm.testing.parameter("int8", "int16", "int32")

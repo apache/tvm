@@ -202,7 +202,7 @@ class TestDepthwiseConv2d_Tensordot(BasicDepthwiseConv2dTests):
         ((1, 64, 25, 5), (3, 3), 64, (1, 1), 1, "int32"),
         ((1, 8, 24, 24), (5, 5), 8, (1, 1), 1, "int32"),
         ((1, 8, 24, 24), (3, 5), 8, (1, 1), 1, "int32"),
-
+        # These "evenly divisible" kernels work on smaller dtypes.
         ((1, 8, 48, 48), (3, 2), 8, 1, 0, "int16"),
         ((1, 8, 48, 48), (4, 4), 8, 1, 0, "int8"),
     )

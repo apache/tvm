@@ -14,11 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Computes a "jumpy tensordot" operator, which can/should be used to
-tensorize ANY aritrarily grouped conv2D, provided the data and kernel
-layouts are the optimal ones. When groups=1, the optimal data layout
-is NHWC and kernel layout is OHWI. When this is a depthwise convolution,
-the optimal data layout is NCHW and kernel layout is OIHW."""
+"""Computes a "jumpy tensordot" operator, which can be used to tensorize many common operators
+including regular conv2d, depthwise conv2d, and grouped conv2d provided the data and kernel layouts
+are the optimal ones. When groups=1, the optimal data layout is NHWC and kernel layout is OHWI. When
+this is a depthwise convolution, the optimal data layout is NCHW and kernel layout is OIHW."""
 
 import textwrap
 
@@ -26,13 +25,34 @@ from tvm import te, tir
 
 from .common import num_simd_lanes_per_word
 
+
 def _get_func_name(in_dtype, tensor_h, jump, tensor_w, suffix):
-    """Gets the C function name of the tensorized function."""
+    """Gets the C function name of the tensordot function."""
     return f"tensordot_{in_dtype}_h{tensor_h}_j{jump}_w{tensor_w}_{suffix}"
 
 
-def make_intrin_tensordot(operator, binds, tensordot_params):
-    #in_dtype, tensor_h, jump, tensor_w, suffix = tensordot_params
+def make_intrin_tensordot(slices, strides, tensordot_params):
+    """Helper function for constructing tensordot intrinsic. We can't construct the whole thing here
+    (as multiple schedules use tensordot and each must build the intrinstic differently) but we can
+    build part here to simplify the code."""
+
+    # in_dtype, tensor_h, jump, tensor_w, suffix = tensordot_params
+    data, kernel, output = slices
+    data_strides, kernel_strides = strides
+
+    data_buf = tir.decl_buffer(
+        data.shape, data.dtype, name="data", offset_factor=1, strides=data_strides
+    )
+    kernel_buf = tir.decl_buffer(
+        kernel.shape,
+        kernel.dtype,
+        name="kernel",
+        offset_factor=1,
+        strides=kernel_strides,
+    )
+    output_buf = tir.decl_buffer(
+        output.shape, output.dtype, name="output", offset_factor=1, strides=[1]
+    )
 
     def intrin_func(ins, outs):
         builder = tir.ir_builder.create()
@@ -48,63 +68,15 @@ def make_intrin_tensordot(operator, binds, tensordot_params):
         return builder.get()
 
     return te.decl_tensor_intrin(
-        operator,
+        output.op,
         intrin_func,
-        binds=binds,
-    )
-
-
-def intrin_depthwise_conv2d_tensordot(in_dtype, tensor_w, kernel_h, kernel_w, suffix):
-    data_slice = te.placeholder((kernel_h, kernel_w), name="a", dtype=in_dtype)
-    kernel_slice = te.placeholder((kernel_h, kernel_w), name="b", dtype=in_dtype)
-
-    kh_i = te.reduce_axis((0, kernel_h), name="kh_i")
-    kw_i = te.reduce_axis((0, kernel_w), name="kw_i")
-
-    output_slice = te.compute((1,),
-        lambda k: te.sum(
-            data_slice[kh_i, kw_i].astype("int32")
-            * kernel_slice[kh_i, kw_i].astype("int32"),
-            axis=[kh_i, kw_i],
-        ),
-        name="c",
-    )
-
-    data_buf = tir.decl_buffer(
-        data_slice.shape,
-        data_slice.dtype,
-        name="data",
-        offset_factor=1,
-        strides=[tensor_w, 1],
-    )
-    kernel_buf = tir.decl_buffer(
-        kernel_slice.shape, kernel_slice.dtype, name="kernel", offset_factor=1, strides=[kernel_w, 1]
-    )
-    output_buf = tir.decl_buffer(
-        output_slice.shape, output_slice.dtype, name="output", offset_factor=1, strides=[1]
-    )
-
-    def intrin_func(ins, outs):
-        builder = tir.ir_builder.create()
-        builder.emit(
-            tir.call_extern(
-                "int32",
-                _get_func_name(in_dtype, tensor_w, channels, kernel_h, kernel_w, suffix),
-                outs[0].access_ptr("w"),
-                ins[0].access_ptr("r"),
-                ins[1].access_ptr("r"),
-            )
-        )
-        return builder.get()
-
-    return te.decl_tensor_intrin(
-        output_slice.op,
-        intrin_func,
-        binds=binings,
+        binds={data: data_buf, kernel: kernel_buf, output: output_buf},
     )
 
 
 def tensordot_impl(in_dtype, tensor_h, jump, tensor_w, suffix):
+    """Generates C code for tensordot. The int8 and int16 versions have Arm v7e-m DSP assembly."""
+
     assert in_dtype in ["int8", "int16", "int32"]
     simd_lanes = num_simd_lanes_per_word(in_dtype)
     assert tensor_w % simd_lanes == 0
