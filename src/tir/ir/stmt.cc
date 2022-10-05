@@ -831,7 +831,7 @@ BufferRegion BufferRegion::FromPoint(Buffer buffer, Array<PrimExpr> indices) {
       region.push_back(
           Range::FromMinExtent(ramp_index->base, ramp_index->stride * ramp_index->lanes));
     } else {
-      region.push_back(Range::FromMinExtent(index, 1));
+      region.push_back(Range::FromMinExtent(index, make_const(index.dtype(), 1)));
     }
   }
   return BufferRegion(buffer, region);

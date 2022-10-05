@@ -152,21 +152,27 @@ def conv2d_nhwc_transformed(
                 T.float32(0),
                 dtype="float32",
             )
-    for ax0, ax_1, ax_2 in T.grid(12544, 64, 147):
+    for ax0, ax1, ax2 in T.grid(12544, 64, 147):
         with T.block("conv2d_nhwc"):
-            bv0, bv1, bv2 = T.axis.remap("SSR", [ax0, ax_1, ax_2])
-            T.reads(
-                PadInput[0, bv0 // 112 * 2 + bv2 // 21, bv0 % 112 * 2 + bv2 % 21 // 3, bv2 % 3],
-                Weight[bv2 // 21, bv2 % 21 // 3, bv2 % 3, bv1],
-            )
-            T.writes(Conv2d_nhwc[0, bv0 // 112, bv0 % 112, bv1])
+            v0, v1, v2 = T.axis.remap("SSR", [ax0, ax1, ax2])
+            T.reads(PadInput[v0 // 12544, v0 // 112 * 2 + v2 // 21, v0 % 112 * 2 + v2 % 21 // 3, v2 % 3], Weight[v2 // 21, v2 % 21 // 3, v2 % 3, v1])
+            T.writes(Conv2d_nhwc[v0 // 12544, v0 // 112, v0 % 112, v1])
             with T.init():
-                Conv2d_nhwc[0, bv0 // 112, bv0 % 112, bv1] = T.float32(0)
-            Conv2d_nhwc[0, bv0 // 112, bv0 % 112, bv1] = (
-                Conv2d_nhwc[0, bv0 // 112, bv0 % 112, bv1]
-                + PadInput[0, bv0 // 112 * 2 + bv2 // 21, bv0 % 112 * 2 + bv2 % 21 // 3, bv2 % 3]
-                * Weight[bv2 // 21, bv2 % 21 // 3, bv2 % 3, bv1]
-            )
+                Conv2d_nhwc[v0 // 12544, v0 // 112, v0 % 112, v1] = T.float32(0)
+            Conv2d_nhwc[v0 // 12544, v0 // 112, v0 % 112, v1] = Conv2d_nhwc[v0 // 12544, v0 // 112, v0 % 112, v1] + PadInput[v0 // 12544, v0 // 112 * 2 + v2 // 21, v0 % 112 * 2 + v2 % 21 // 3, v2 % 3] * Weight[v2 // 21, v2 % 21 // 3, v2 % 3, v1]
+
+
+@T.prim_func
+def two_elementwise_unit_dim(A: T.Buffer[(1, 128), "float32"], C: T.Buffer[(1, 128), "float32"]) -> None:
+    B = T.alloc_buffer((1, 128), "float32")
+    for i, j in T.grid(1, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(1, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 # pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 # fmt: on
@@ -223,6 +229,24 @@ def test_two_elementwise_transform_output_buffer(use_block_name):
 
     tvm.ir.assert_structural_equal(two_elementwise_transformed_output_buffer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
+
+
+def test_two_elementwise_unit_dim(use_block_name):
+    sch = tir.Schedule(two_elementwise_unit_dim, debug_mask="all")
+    index_map = lambda i, j: (i, j)
+
+    if use_block_name:
+        sch.transform_layout(
+            index_map=index_map,
+            block="B",
+            buffer="B",
+        )
+    else:
+        block = sch.get_block("B")
+        sch.transform_layout(block, ("write", 0), index_map)
+
+    tvm.ir.assert_structural_equal(two_elementwise_unit_dim, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=two_elementwise_unit_dim)
 
 
 def test_simplify():
@@ -310,6 +334,29 @@ def test_transform_block_layout_conv2d_nhwc(use_block_name):
     )
     tvm.ir.assert_structural_equal(conv2d_nhwc_transformed, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=conv2d_nhwc)
+
+
+def test_transform_block_layout_unit_dim(use_block_name):
+    sch = tir.Schedule(two_elementwise_unit_dim, debug_mask="all")
+    block = "B" if use_block_name else sch.get_block("B")
+    sch.transform_block_layout(block, lambda i, j: (j, i))
+
+    @T.prim_func
+    def two_elementwise_unit_dim_transformed(
+        A: T.Buffer[(1, 128), "float32"], C: T.Buffer[(1, 128), "float32"]
+    ) -> None:
+        B = T.alloc_buffer((1, 128), "float32")
+        for j, i in T.grid(128, 1):
+            with T.block("B"):
+                vj, vi = T.axis.remap("SS", [j, i])
+                B[vi, vj] = A[vi, vj] * 2.0
+        for i, j in T.grid(1, 128):
+            with T.block("C"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = B[vi, vj] + 1.0
+
+    tvm.ir.assert_structural_equal(two_elementwise_unit_dim_transformed, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=two_elementwise_unit_dim)
 
 
 def test_transform_block_layout_fail_non_affine(use_block_name):
