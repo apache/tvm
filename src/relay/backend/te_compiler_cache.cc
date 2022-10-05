@@ -444,27 +444,33 @@ class ScheduleBuilder : public ExprVisitor {
                 ICHECK_EQ(inst->attrs.size(), 4);
                 auto index_map = Downcast<IndexMap>(inst->attrs[2]);
 
-                for (auto constant : const_collector.constants) {
-                  if (constant.Shape().size() == index_map->initial_indices.size()) {
-                    runtime::NDArray rewritten_constant = index_map->MapNDArray(constant);
-                    auto f_ = AllocateConstReplaceConstant().Rewrite(
-                        f.value(), {{constant, rewritten_constant}});
-                    auto workload =
-                        database_.value()->CommitWorkload(backend::PrimFuncToIRModule(f_));
-                    TuningRecord new_rec(record->trace, workload, record->run_secs, record->target,
-                                         record->args_info);
-                    database_.value()->CommitTuningRecord(new_rec);
-                  } else {
-                    ICHECK(index_map->inverse_index_map);
-                    auto inverse_map = Downcast<IndexMap>(index_map->inverse_index_map.value());
-                    ICHECK(constant.Shape().size() == inverse_map->initial_indices.size());
-                    runtime::NDArray orig_constant = inverse_map->MapNDArray(constant);
-                    auto f_ = AllocateConstReplaceConstant().Rewrite(f.value(),
-                                                                     {{constant, orig_constant}});
-                    query_mod = backend::PrimFuncToIRModule(f_);
-                  }
+		ICHECK(const_collector.constants.size() == 1) << "Only one layout-free constant is supported by RewriteLayout for now";
+		auto constant = const_collector.constants[0];
+
+                if (constant.Shape().size() == index_map->initial_indices.size()) {
+                  // A layout-free constant having the same rank as an input to the index map
+                  // is assumed to be transformed by this index map.
+                  // TODO(masahi): If there are multiple layout-free constants in one
+                  // TIR mod (e.g. conv2d -> conv2d fusion), this assumption does not hold.
+                  // We need to determine which constant the given index map acts on.
+                  runtime::NDArray rewritten_constant = index_map->MapNDArray(constant);
+                  auto f_ = AllocateConstReplaceConstant::Rewrite(f.value(),
+                                                                  {{constant, rewritten_constant}});
+                  auto workload =
+                      database_.value()->CommitWorkload(backend::PrimFuncToIRModule(f_));
+                  TuningRecord new_rec(record->trace, workload, record->run_secs, record->target,
+                                       record->args_info);
+                  database_.value()->CommitTuningRecord(new_rec);
+                } else {
+                  ICHECK(index_map->inverse_index_map);
+                  auto inverse_map = Downcast<IndexMap>(index_map->inverse_index_map.value());
+                  ICHECK(constant.Shape().size() == inverse_map->initial_indices.size());
+                  runtime::NDArray orig_constant = inverse_map->MapNDArray(constant);
+                  auto f_ =
+                      AllocateConstReplaceConstant::Rewrite(f.value(), {{constant, orig_constant}});
+                  query_mod = backend::PrimFuncToIRModule(f_);
                 }
-                MetaScheduleLayoutRewriter::LayoutQueuePush(Downcast<IndexMap>(inst->attrs[2]));
+                MetaScheduleLayoutRewriter::LayoutQueuePush(index_map);
               }
             }
 
