@@ -20,7 +20,7 @@
 import math
 from textwrap import dedent
 import tvm
-from tvm import script
+from tvm.script import parser
 import numpy as np
 
 
@@ -59,7 +59,7 @@ def lutize(out, x):
                 compute[{indices_str}] = lut[x_in[{indices_str}]]
         """
     )
-    primfunc = script.parser.from_source(ir_func)
+    primfunc = parser.from_source(ir_func)
 
     # Vectorize
     sch = tvm.tir.Schedule(primfunc)
