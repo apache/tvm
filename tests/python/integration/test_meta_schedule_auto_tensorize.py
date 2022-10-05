@@ -327,7 +327,7 @@ def test_dp4a_conv2d():
 
 
 @tvm.testing.requires_vnni
-@pytest.mark.skip("Slow on CI")
+@pytest.mark.skip_if(tvm.testing.IS_IN_CI, reason="Slow on CI")
 def test_vnni_bert_int8():
     _test_bert_int8("llvm -mcpu=cascadelake -num-cores 4", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI)
 
