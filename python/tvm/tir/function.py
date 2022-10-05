@@ -28,6 +28,7 @@ from tvm.ir import BaseFunc, Range
 from .buffer import Buffer
 from .expr import Var, PrimExpr
 from . import _ffi_api
+from ..runtime.ndarray import NDArray
 
 
 @tvm._ffi.register_object("tir.PrimFunc")
@@ -514,6 +515,21 @@ class IndexMap(Object):
             The mapped shape
         """
         return _ffi_api.IndexMapMapShape(self, shape)
+
+    def map_ndarray(self, arr_src: NDArray) -> NDArray:
+        """Apply thie index map to transform the layout of the input NDArray
+
+        Parameters
+        ----------
+        arr_src : runtime.NDArray
+            The NDArray to be transformed
+
+        Returns
+        -------
+        arr_dst : runtime.NDArray
+            The transformed NDArray
+        """
+        return _ffi_api.IndexMapMapNDArray(self, arr_src)
 
     def inverse(self, shape: List[Union[Range, PrimExpr]]) -> "IndexMap":
         """Return the inverse of the map
