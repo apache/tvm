@@ -316,30 +316,32 @@ class LayoutFreeConstantCollector : public StmtVisitor {
     StmtVisitor::VisitStmt_(op);
     if (Optional<ObjectRef> ann = op->annotations.Get("layout_free_placeholders")) {
       for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
-        layout_free_buffer_vars.insert(buffer->data.get());
+        layout_free_buffer_vars_.insert(buffer->data.get());
       }
     }
   }
 
   void VisitStmt_(const AllocateConstNode* op) final {
     StmtVisitor::VisitStmt_(op);
-    if (auto it = layout_free_buffer_vars.find(op->buffer_var.get());
-        it != layout_free_buffer_vars.end()) {
+    if (auto it = layout_free_buffer_vars_.find(op->buffer_var.get());
+        it != layout_free_buffer_vars_.end()) {
       constants.push_back(op->data.value());
     }
   }
 
-  std::unordered_set<const tir::VarNode*> layout_free_buffer_vars;
+  std::unordered_set<const tir::VarNode*> layout_free_buffer_vars_;
 };
 
 using NDArrayMap =
     std::unordered_map<runtime::NDArray, runtime::NDArray, ObjectPtrHash, ObjectPtrEqual>;
 
+// Replace constants in AllocateConst nodes according to the given mapping
 class AllocateConstReplaceConstant : public StmtExprMutator {
  public:
+  AllocateConstReplaceConstant(const NDArrayMap& constant_map) : constant_map_(constant_map) {}
+
   static PrimFunc Rewrite(PrimFunc f, const NDArrayMap& constant_map) {
-    AllocateConstReplaceConstant rewriter;
-    rewriter.constant_map_ = constant_map;
+    AllocateConstReplaceConstant rewriter(constant_map);
     PrimFuncNode* n = f.CopyOnWrite();
     n->body = rewriter(std::move(n->body));
     return f;
@@ -347,8 +349,6 @@ class AllocateConstReplaceConstant : public StmtExprMutator {
 
  private:
   Stmt VisitStmt_(const AllocateConstNode* op) final {
-    auto alloc_const = StmtExprMutator::VisitStmt_(op);
-
     if (auto it = constant_map_.find(op->data.value()); it != constant_map_.end()) {
       auto rewriten_constant = it->second;
       Array<PrimExpr> rewritten_extents;
@@ -358,8 +358,8 @@ class AllocateConstReplaceConstant : public StmtExprMutator {
       return AllocateConst(op->buffer_var, op->dtype, rewritten_extents, rewriten_constant,
                            op->body, op->annotations, op->span);
     }
-
-    return alloc_const;
+    return StmtExprMutator::VisitStmt_(op);
+    ;
   }
 
   NDArrayMap constant_map_;
