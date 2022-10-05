@@ -1,6 +1,6 @@
 ---
 name: "\U0001F4C4 Documentation"
-about: Use this template to suggest additions and changes to the documentation. Find the list of label tags [here](https://github.com/apache/tvm/wiki/Issue-Triage-Labels).
+about: Use this template to suggest additions and changes to the documentation. Find the list of label tags at https://tinyurl.com/5fnd5rkn.
 title: "[Docs] "
 labels: "needs-triage, type: doc"
 ---
