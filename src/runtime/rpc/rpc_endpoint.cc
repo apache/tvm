@@ -624,7 +624,8 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
 RPCCode RPCEndpoint::HandleUntilReturnEvent(bool client_mode, RPCSession::FEncodeReturn setreturn) {
   RPCCode code = RPCCode::kCallFunc;
 
-  ICHECK(channel_ != nullptr) << "channel is already closed";
+  CHECK(channel_) << "Expected connection to server " << name_
+                  << " to be active, but the connection was previously closed";
   while (code != RPCCode::kReturn && code != RPCCode::kShutdown && code != RPCCode::kCopyAck) {
     while (writer_.bytes_available() != 0) {
       writer_.ReadWithCallback(
