@@ -15,6 +15,7 @@ import asyncio
 
 if os.name == 'nt':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+import tune_config
 
 # python -m tvm.exec.query_rpc_tracker --host=127.0.0.1 --port=9190
 # python -m tvm.exec.rpc_tracker --host=127.0.0.1 --port=9190
@@ -34,12 +35,12 @@ target = tvm.target.Target("cuda -arch=sm_62", host="llvm -mtriple=aarch64-linux
 
 # model_path = "/home/share/data/workspace/project/nn_compiler/tvm/apps/waren20220712_4class_torch_v7tiny.torchscript
 # .pt"
-model_path = "D:\\workspace\\project\\nn_compiler\\tvm\\python\\Deploy"
-model_name = "face_det"
-target_name = "arm_cuda"
-device_name = "tx2"
-dtype = "float16"
-tracker_host = "192.168.6.69"
+model_path = tune_config.model_path
+model_name = tune_config.model_name
+target_name = tune_config.target_name
+device_name = tune_config.device_name
+dtype = tune_config.dtype
+tracker_host = tune_config.tracker_host
 # model_path = "D:/workspace/project/nn_compiler/tvm/apps/waren20220712_4class_torch_v7tiny.torchscript.pt"
 
 log_file = "%s_%s_%s_%s_v10.log" % (model_name, target_name, device_name, dtype)
@@ -86,7 +87,7 @@ tuning_option = {
     # "n_parallel": 1,
     "early_stopping": 600,
     "measure_option": autotvm.measure_option(
-        builder=autotvm.LocalBuilder(timeout=4000, n_parallel=1, do_fork=False),
+        builder=autotvm.LocalBuilder(timeout=4000, n_parallel=4, do_fork=True),
         runner=autotvm.RPCRunner(device_name, host=tracker_host,
                                  port=9190, number=1, repeat=3, timeout=10, min_repeat_ms=3),
     ),

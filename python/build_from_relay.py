@@ -140,7 +140,7 @@ if __name__ == '__main__':
         exit(0)
     elif fmt == ".so" and (args.device == "arm_cuda" or args.device == "arm_opencl" or args.device == "arm"):
         if args.device == "arm_cuda":
-            remote = autotvm.measure.request_remote("tx2", "192.168.6.69", 9190, timeout=10000)
+            remote = autotvm.measure.request_remote("tx2", "192.168.6.252", 9190, timeout=10000)
         else:
             remote = autotvm.measure.request_remote("rk3588", "192.168.6.252", 9190, timeout=10000)
         remote.upload(os.path.join(export_path, filename))
