@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
+"""TVM Script Parser doc AST"""
+
 import ast
 import inspect
 import sys
@@ -93,6 +94,18 @@ def _get_registry_entry(cls_name, attr):
 
 
 def from_doc(node):
+    """Get AST node from doc AST node.
+
+    Parameters
+    ----------
+    node : doc.AST
+        The doc AST node.
+
+    Returns
+    -------
+    res : ast.AST
+        The corresponding AST node.
+    """
     if _is_atomic_type(node):
         return node
     if isinstance(node, tuple):
@@ -106,6 +119,18 @@ def from_doc(node):
 
 
 def to_doc(node):
+    """Get doc AST node from AST node.
+
+    Parameters
+    ----------
+    node : ast.AST
+        The AST node.
+
+    Returns
+    -------
+    res : doc.AST
+        The corresponding doc AST node.
+    """
     if _is_atomic_type(node):
         return node
     if isinstance(node, tuple):
@@ -141,7 +166,6 @@ def parse(
     res : doc.AST
         The parsed doc AST.
     """
-
     try:
         program = ast.parse(  # pylint: disable=unexpected-keyword-arg
             source=source,
@@ -159,6 +183,8 @@ def parse(
 
 
 class NodeVisitor:
+    """ "Node visitor for doc AST"""
+
     def visit(self, node: doc.AST) -> None:
         if isinstance(node, (list, tuple)):
             for item in node:
@@ -182,6 +208,8 @@ class NodeVisitor:
 
 
 class NodeTransformer:
+    """ "Node transformer for doc AST"""
+
     def visit(self, node: doc.AST) -> doc.AST:
         if isinstance(node, list):
             return [self.visit(item) for item in node]

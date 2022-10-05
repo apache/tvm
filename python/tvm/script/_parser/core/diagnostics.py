@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""TVM Script Parser Source and diagnostics"""
+
 import inspect
 import re
 import sys
