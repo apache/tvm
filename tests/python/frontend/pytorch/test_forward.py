@@ -4125,7 +4125,6 @@ def test_forward_matmul():
     verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
 
 
-@tvm.testing.uses_gpu
 def test_forward_index():
     """test_forward_index"""
     torch.set_grad_enabled(False)
@@ -4144,13 +4143,6 @@ def test_forward_index():
 
     input_data = torch.rand(input_shape).float()
     verify_model(Index1().eval(), input_data=input_data)
-
-    class Index2(Module):
-        def forward(self, x):
-            return x[None, [2, 2]]
-
-    input_data = torch.rand([3, 3, 3, 3]).float()
-    verify_model_with_input(Index2().eval(), [input_data])
 
 
 def test_logsumexp():
