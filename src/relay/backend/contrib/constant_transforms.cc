@@ -19,6 +19,8 @@
 
 #include "constant_transforms.h"
 
+#include <string>
+
 #include "../../transforms/pattern_utils.h"
 #include "../../transforms/simplify_expr.h"
 

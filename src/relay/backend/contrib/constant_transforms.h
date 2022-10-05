@@ -22,7 +22,12 @@
  * \brief Transforms applied to constant operations during codegen for BYOC backends.
  */
 
+#ifndef TVM_RELAY_BACKEND_CONTRIB_CONSTANT_TRANSFORMS_H_
+#define TVM_RELAY_BACKEND_CONTRIB_CONSTANT_TRANSFORMS_H_
+
 #include <tvm/relay/expr.h>
+
+#include <string>
 
 namespace tvm {
 namespace relay {
@@ -50,3 +55,5 @@ Constant TransposeWeights(const Constant& data, const std::string& source_layout
 }  // namespace contrib
 }  // namespace relay
 }  // namespace tvm
+
+#endif  // TVM_RELAY_BACKEND_CONTRIB_CONSTANT_TRANSFORMS_H_
