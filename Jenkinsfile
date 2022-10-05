@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-09-26T10:48:49.577077
+// Generated at 2022-10-05T16:56:09.573594
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -284,6 +284,7 @@ def prepare() {
   stage('Prepare') {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
+        sh("exit 1")
         init_git()
 
         check_pr(env.CHANGE_ID)

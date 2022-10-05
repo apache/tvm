@@ -172,6 +172,7 @@ def prepare() {
   stage('Prepare') {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
+        sh("exit 1")
         init_git()
 
         check_pr(env.CHANGE_ID)
