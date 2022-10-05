@@ -444,8 +444,8 @@ bool AutoTensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
       return false;
     }
     std::vector<PrimExpr> lhs_indices;
-    for (const auto& index : lhs->indices) {
-      lhs_indices.push_back(analyzer_.Simplify(index));
+    for (const PrimExpr& index : lhs->indices) {
+      lhs_indices.push_back(SimplifyNonTrivialExpr(index, &analyzer_));
     }
 
     auto is_scalar_access = [](const Array<PrimExpr>& indices, PrimExpr index) {

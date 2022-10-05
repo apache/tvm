@@ -188,8 +188,6 @@ Block MakeReIndexStage(const Block& block, CacheStageInfo* info,
   Array<IterVar> new_block_iters;
   // the substition map from the original block iter to the iters of the reindex block
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectEqual> block_var_replace_map;
-  // block access region of reindexed buffer and target buffer
-  Region reindex_region, target_region;
   // indices to access the reindex buffer and the target buffer
   Array<PrimExpr> reindex_indices, target_indices;
 
@@ -201,7 +199,7 @@ Block MakeReIndexStage(const Block& block, CacheStageInfo* info,
     Var var("v" + std::to_string(new_block_iters.size()), iter->var->dtype);
     bool used = covered.count(iter->var);
     if (used) {
-      new_block_iters.push_back(IterVar(/*dom=*/used ? iter->dom : Range::FromMinExtent(0, 1),
+      new_block_iters.push_back(IterVar(/*dom=*/iter->dom,
                                         /*var=*/var,
                                         /*IterVarType=*/kDataPar));
     } else {
@@ -209,16 +207,11 @@ Block MakeReIndexStage(const Block& block, CacheStageInfo* info,
     }
     if (used) {
       reindex_indices.push_back(var);
-      reindex_region.push_back(Range::FromMinExtent(var, IntImm(var->dtype, 1)));
     }
     block_var_replace_map[iter->var] = var;
   }
 
   // Step 2: Replace the original block iters with the new block iters
-  BufferRegion buffer_region = buffer_index_type == BufferIndexType::kWrite
-                                   ? block->writes[buffer_index]
-                                   : block->reads[buffer_index];
-  target_region = Substitute(buffer_region->region, block_var_replace_map);
   for (const PrimExpr& index : original_indices) {
     target_indices.push_back(Substitute(index, block_var_replace_map));
   }
@@ -232,13 +225,9 @@ Block MakeReIndexStage(const Block& block, CacheStageInfo* info,
   Array<PrimExpr> dst_indices{nullptr};
 
   if (buffer_index_type == BufferIndexType::kWrite) {
-    src_region = reindex_region;
-    dst_region = target_region;
     src_indices = reindex_indices;
     dst_indices = target_indices;
   } else {
-    src_region = target_region;
-    dst_region = reindex_region;
     src_indices = target_indices;
     dst_indices = reindex_indices;
   }
@@ -246,11 +235,9 @@ Block MakeReIndexStage(const Block& block, CacheStageInfo* info,
   // Create the body block
   Block new_block(
       /*iter_vars=*/new_block_iters,
-      /*reads=*/
-      {BufferRegion(info->read_buffer, src_region)},
-      /*writes=*/
-      {BufferRegion(info->write_buffer, dst_region)},
-      /*name_hint=*/buffer_region->buffer->name + "_reindex",
+      /*reads=*/{BufferRegion::FromPoint(info->read_buffer, src_indices)},
+      /*writes=*/{BufferRegion::FromPoint(info->write_buffer, dst_indices)},
+      /*name_hint=*/info->write_buffer->name + "_reindex",
       /*body=*/
       BufferStore(info->write_buffer, BufferLoad(info->read_buffer, src_indices), dst_indices));
 
@@ -1169,7 +1156,7 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
     analyzer.Bind(iter->var, iter->dom);
   }
   original_indices.MutateByApply(
-      [&analyzer](const PrimExpr& expr) { return analyzer.Simplify(expr); });
+      [&analyzer](const PrimExpr& expr) { return SimplifyNonTrivialExpr(expr, &analyzer); });
 
   // Collect block iters appearing in the original_indices
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> covered;
