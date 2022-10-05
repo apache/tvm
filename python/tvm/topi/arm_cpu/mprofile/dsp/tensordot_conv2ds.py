@@ -61,14 +61,18 @@ def _unpack_padding(padding):
 
 
 # We only care about tuples here - "VALID" and "SAME" padding will be converted by the importer.
-def _pad_if_needed(data, pad_up, pad_left, pad_down, pad_right):
+def _pad_if_needed(data, layout, pad_up, pad_left, pad_down, pad_right):
     if pad_up or pad_left or pad_down or pad_right:
-        return pad(
-            data,
-            [0, pad_up, pad_left, 0],
-            [0, pad_down, pad_right, 0],
-            name="padded_data"
-        )
+        assert len(layout) == 4
+
+        # We want to pad the "H" and "W" columns, and their position depends on the layout
+        pad_before, pad_after = [0, 0, 0, 0], [0, 0, 0, 0]
+        pad_before[layout.index("H")] = pad_up
+        pad_before[layout.index("W")] = pad_left
+        pad_after[layout.index("H")] = pad_down
+        pad_after[layout.index("W")] = pad_right
+        return pad(data, pad_before, pad_after, name="padded_data")
+
     else:
         return data
 
@@ -107,7 +111,7 @@ def conv2d_nhwc_ohwi_dsp_compute(cfg, data, kernel, strides, padding, dilation, 
     rx = te.reduce_axis((0, kernel_w), name="rx")
     rc = te.reduce_axis((0, in_channels), name="rc")
 
-    padded_data = _pad_if_needed(data, pad_up, pad_left, pad_down, pad_right)
+    padded_data = _pad_if_needed(data, "NHWC", pad_up, pad_left, pad_down, pad_right)
     return te.compute(
         (batch_size, output_h, output_w, output_channels),
         lambda n, y, x, c: te.sum(
@@ -181,8 +185,6 @@ def depthwise_conv2d_nchw_oihw_dsp_compute(cfg, data, kernel, strides, padding, 
     batch_size, in_channels, data_h, data_w = data.shape
     _, c_mul, kernel_h, kernel_w = kernel.shape
     output_channels = in_channels * c_mul
-    print(data.shape)
-    print(kernel.shape)
     assert kernel.shape[0] == in_channels
 
     output_h = _compute_output_dim(data_h, kernel_h, pad_up, pad_down, stride_h)
@@ -193,10 +195,10 @@ def depthwise_conv2d_nchw_oihw_dsp_compute(cfg, data, kernel, strides, padding, 
     ry = te.reduce_axis((0, kernel_h), name="ry")
     rx = te.reduce_axis((0, kernel_w), name="rx")
 
-    padded_data = _pad_if_needed(data, pad_up, pad_left, pad_down, pad_right)
+    padded_data = _pad_if_needed(data, "NCHW", pad_up, pad_left, pad_down, pad_right)
     return te.compute(
-        (batch_size, output_h, output_w, output_channels),
-        lambda n, y, x, c: te.sum(
+        (batch_size, output_channels, output_h, output_w),
+        lambda n, c, y, x: te.sum(
             padded_data[
                 n, indexdiv(c, c_mul), y_offset + y * stride_h + ry, x_offset + x * stride_w + rx,
             ].astype(out_dtype)
@@ -275,7 +277,6 @@ def tensordot_conv2ds_schedule(cfg, outs):
                 kh_ax, kw_ax = schedule[output].op.reduce_axis
                 schedule[output].reorder(b_ax, co_ax, y_ax, x_ax, kh_ax, kw_ax)
                 intrin, code = _make_depthwise_conv2d_tensorization(padded_data, kernel)
-                print(code)
 
             schedule[output].tensorize(kh_ax, intrin)
             schedule[output].pragma(b_ax, "import_c", code)
