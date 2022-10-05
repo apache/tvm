@@ -521,7 +521,6 @@ class ScheduleBuilder : public ExprVisitor {
                 MetaScheduleLayoutRewriter::LayoutQueuePush(index_map);
               }
             }
-
             Schedule sch = Schedule::Traced(query_mod, /*seed=*/-1, /*debug_mask=*/0,
                                             tir::ScheduleErrorRenderLevel::kDetail);
             record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
