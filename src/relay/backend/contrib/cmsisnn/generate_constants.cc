@@ -50,6 +50,26 @@ class GenerateConstantsMutator : public MixedModeMutator {
   explicit GenerateConstantsMutator(const IRModule& mod) : mod_(mod) {}
 
  private:
+  /*!  * \brief Converts Kernel layout from HWIO to OHWI to align to CMSIS-NN requirements */
+  Expr ConvertKernelLayout(Expr kernel_expr, const Conv2DAttrs* conv2d_attrs, Attrs* new_attrs) {
+    auto attrs = make_object<Conv2DAttrs>();
+    attrs->strides = std::move(conv2d_attrs->strides);
+    attrs->padding = std::move(conv2d_attrs->padding);
+    attrs->dilation = std::move(conv2d_attrs->dilation);
+    attrs->groups = conv2d_attrs->groups;
+    attrs->channels = std::move(conv2d_attrs->channels);
+    attrs->kernel_size = std::move(conv2d_attrs->kernel_size);
+    attrs->data_layout = std::move(conv2d_attrs->data_layout);
+    attrs->kernel_layout = runtime::String("OHWI");
+    attrs->out_layout = std::move(conv2d_attrs->out_layout);
+    attrs->out_dtype = std::move(conv2d_attrs->out_dtype);
+    *new_attrs = tvm::Attrs{attrs};
+
+    Constant conv2d_kernel = Downcast<Constant>(kernel_expr);
+    conv2d_kernel = TransposeWeights(conv2d_kernel, conv2d_attrs->kernel_layout, "OHWI");
+    return conv2d_kernel;
+  }
+
   /*!  * \brief Performs weight transpose and substitutes existing constants in the composite
    *            function for Conv2D with CMSIS-NN Requantize constants */
   Expr GenerateConv2dRequantConstants(const Expr& expr) {
@@ -76,13 +96,13 @@ class GenerateConstantsMutator : public MixedModeMutator {
 
     auto* conv2d_attrs = conv2d_call->attrs.as<Conv2DAttrs>();
     tvm::Attrs new_conv2d_attrs = conv2d_call->attrs;
-    Constant conv2d_kernel = Downcast<Constant>(conv2d_call->args[1]);
+    Expr conv2d_kernel = conv2d_call->args[1];
 
     Array<PrimExpr> input_shape = conv2d_call->args[0]->type_as<TensorTypeNode>()->shape;
     Array<PrimExpr> kernel_shape = conv2d_call->args[1]->type_as<TensorTypeNode>()->shape;
     if (!IsCMSISNNDepthwise(conv2d_attrs, input_shape, kernel_shape)) {
       // Transpose weights: HWIO -> OHWI for Conv2D
-      conv2d_kernel = TransposeWeights(conv2d_kernel, conv2d_attrs->kernel_layout, "OHWI");
+      conv2d_kernel = ConvertKernelLayout(conv2d_call->args[1], conv2d_attrs, &new_conv2d_attrs);
     }
 
     // Obtain input and output scales from Relay's Requantization
