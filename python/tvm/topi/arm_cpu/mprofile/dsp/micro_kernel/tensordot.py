@@ -74,10 +74,26 @@ def make_intrin_tensordot(slices, strides, tensordot_params):
     )
 
 
-def tensordot_impl(in_dtype, tensor_h, jump, tensor_w, suffix):
-    """Generates C code for tensordot. The int8 and int16 versions have Arm v7e-m DSP assembly."""
+def tensordot_impl(in_dtype: str, tensor_h: int, jump: int, tensor_w: int, suffix: str) -> str:
+    """Generates C code for taking the dot products of two `tensor_h` * `tensor_w` tensors. Also has
+    a `jump` argument that advances the pointer of one tensor by that many words after each row. The
+    `jump` and `tensor_w` values must be word-aligned for the input data type, as non-word-aligned
+    memory access is slow on the Cortex-M series. Depending on the input datatype, the code may
+    contain DSP instructions for Arm v7e-m. C code contains DSP instructions for Arm v7e-m. See
+    the below pseudocode for reference:
 
-    assert in_dtype in ["int8", "int16", "int32"]
+    tensordot(out_ptr, dat_ptr, ker_ptr) {
+        sum = 0;
+        for (i = 0; i < tensor_h; i++) {
+            for (j = 0; j < tensor_w; j++) {
+                sum += (*dat_ptr++) * (*ker_ptr++);
+            }
+            dat_ptr += jump;
+        }
+        *out_ptr = sum;
+    }
+    """
+
     simd_lanes = num_simd_lanes_per_word(in_dtype)
     assert tensor_w % simd_lanes == 0
     assert jump % simd_lanes == 0
@@ -100,6 +116,9 @@ def tensordot_impl(in_dtype, tensor_h, jump, tensor_w, suffix):
         inner_loop = """
               // Compiles to a single MAC instruction
               sum += tensor_batch * kernel_batch;"""
+
+    else:
+        raise ValueError(f"No tensordot implementation exists for dtype '{in_dtype}'!")
 
     function_name = _get_func_name(in_dtype, tensor_h, jump, tensor_w, suffix)
     return textwrap.dedent(

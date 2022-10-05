@@ -79,11 +79,18 @@ def _pad_if_needed(data: te.tensor.Tensor, layout: str, padding: Tuple) -> te.te
     return pad(data, pad_before, pad_after, name="padded_data")
 
 
-def _compute_output_dim(data_dim, kernel_dim, pad_before, pad_after, stride) -> int:
-    return (data_dim - kernel_dim + pad_before + pad_after) // stride + 1
+def _compute_output_dim(
+    data_dim: int, kernel_dim: int, pad_before: int, pad_after: int, stride: int
+) -> int:
+    """Computes an output dimension of a convolution, given the data dimension, kernel dimension,
+    padding, and stride along that axis. Note that when stride > 1, this division will often not
+    be perfectly even."""
+    return (data_dim + pad_before + pad_after - kernel_dim) // stride + 1
 
 
-def _compute_offset(data_dim, kernel_dim, pad_before, pad_after, stride) -> int:
+def _compute_offset(
+    data_dim: int, kernel_dim: int, pad_before: int, pad_after: int, stride: int
+) -> int:
     """Computes offsets to "prefer" the bottom right corner. This is done to match TensorFlow's
     convention, but it does NOT match the other TVM schedules. We violate this convention because it
     improves accuracy on models imported from TensorFlow."""
@@ -268,6 +275,9 @@ def tensordot_conv2ds_schedule(_cfg, outs):
                 kh_ax, kw_ax = schedule[output].op.reduce_axis
                 schedule[output].reorder(b_ax, co_ax, y_ax, x_ax, kh_ax, kw_ax)
                 intrin, code = _make_depthwise_conv2d_tensorization(padded_data, kernel)
+
+            else:
+                raise ValueError(f"Cannot tensorize {operator.tag} with tensordot!")
 
             schedule[output].tensorize(kh_ax, intrin)
             schedule[output].pragma(b_ax, "import_c", code)
