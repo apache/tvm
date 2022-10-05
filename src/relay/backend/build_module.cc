@@ -36,6 +36,7 @@
 #include <memory>
 
 #include "../../driver/internal_driver_api.h"
+#include "../../printer/text_printer.h"
 #include "../../target/func_registry_generator.h"
 #include "../../target/metadata_module.h"
 #include "../../target/source/codegen_source_base.h"
@@ -419,6 +420,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Instead of recreating the IRModule, we should look at the differences between this and the
     // incoming IRModule to see if we can just pass (IRModule, Function) to the code generator.
     Function func = Downcast<Function>(relay_module->Lookup("main"));
+    LOG(INFO) << func;
     IRModule func_module = WithAttrs(IRModule::FromExpr(func),
                                      {{tvm::attr::kExecutor, executor_},
                                       {tvm::attr::kRuntime, runtime_},
@@ -433,7 +435,12 @@ class RelayBuildModule : public runtime::ModuleNode {
     ret_.params = executor_codegen_->GetParams();
 
     auto lowered_funcs = executor_codegen_->GetIRModule();
-
+    for (const auto& it : lowered_funcs) {
+      if (it.second.defined()) {
+        auto ir_module = it.second;
+        LOG(INFO) << tir::AsTVMScript(ir_module);
+      }
+    }
     // No need to build for external functions.
     Target ext_dev("ext_dev");
     if (lowered_funcs.find(ext_dev) != lowered_funcs.end()) {

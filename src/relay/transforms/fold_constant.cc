@@ -188,8 +188,7 @@ class ConstantFolder : public MixedModeMutator {
     if (is_no_computational && (is_no_qnn_canonicalized || !fold_qnn_)) {
       return std::move(post_call);
     }
-    if (op == device_copy_op_ || op == shape_of_op_ || op == vm_shape_of_op_ ||
-        op == ndarray_size_op_) {
+    if (op == device_copy_op_ || op == shape_of_op_ || op == vm_shape_of_op_) {
       // We should think about potentially constant evaluation over these ops too.
       return std::move(post_call);
     }
@@ -383,6 +382,13 @@ class ConstantFolder : public MixedModeMutator {
       // TODO(mbs): This is not necessary since we only ever ask for the shapes for
       // pre-rewritten expressions which will always have a checked_type.
       return const_node->tensor_type()->shape;
+      //    } else if (auto ttype = input->type_as<TensorTypeNode>()) {
+    } else if (const auto* var = input.as<VarNode>()) {
+      auto ty = var->type_annotation;
+      if (ty->IsInstance<TensorTypeNode>()) {
+        return Downcast<TensorType>(ty)->shape;
+      }
+      return {};
     } else if (input->checked_type_.defined()) {
       return input->checked_type().as<TensorTypeNode>()->shape;
     } else {

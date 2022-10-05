@@ -27,6 +27,7 @@
 #include <tvm/te/operation.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/index_map.h>
+#include <tvm/tir/op.h>
 #include <tvm/topi/broadcast.h>
 #include <tvm/topi/detail/broadcast.h>
 #include <tvm/topi/detail/constant_utils.h>
@@ -725,7 +726,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
 }
 
 /*!
- * \brief Calcluate the output shape of strided_slice, the entry point for Relay type relation
+ * \brief Calculate the output shape of strided_slice, the entry point for Relay type relation
  *
  * \param ishape The input tensor shape
  * \param begin The indices to begin with in the slicing
@@ -1798,7 +1799,7 @@ inline Tensor ndarray_size(const Tensor& src, const DataType& dtype,
 }
 
 /*!
- * \brief Returns a one-hot tensor where the locations repsented by indices take value on_value,
+ * \brief Returns a one-hot tensor where the locations represented by indices take value on_value,
     other locations take value off_value.
  * \param indices locations to set to on_value.
  * \param on_value value that locations represented by indices take on.
@@ -2015,6 +2016,54 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
       },
       name, tag);
 }
+
+/*!
+ * \brief Returns the sums, means or maxes of bags of embeddings
+ * \param input 1-d tensor of indics.
+ * \param weight the 2-d lookup table.
+ * \param offset the starting index position of each bag.
+ * \param mode  the way (`sum`, `mean` or `max`) to reduce the bag.
+ * \param per_sample_weights the weights for every input.
+ * \param padding_idx the index of padding_idx is not contributed to the result.
+ * \param include_last_offset if the last element of offset array is included.
+ * \param dtype the type of result.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return The embedded tensor.
+ */
+inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Tensor& offset,
+                            int mode, const Tensor& per_sample_weights, Integer padding_idx,
+                            bool include_last_offset, DataType dtype,
+                            const std::string name = "T_embedding_bag",
+                            const std::string tag = kInjective) {
+  auto row = include_last_offset ? offset->shape[0] - 1 : offset->shape[0];
+  auto column = weight->shape[1];
+
+  PrimExpr num_embedding = input->shape[0];
+
+  Array<PrimExpr> oshape{row, column};
+
+  auto func = [&](tvm::tir::Var bag_idx, tvm::tir::Var embedding_idx) {
+    auto st = offset(bag_idx);  // start point
+    auto ed = tvm::tir::Select(row == bag_idx + 1, num_embedding,
+                               cast(DataType::Int(32), offset(bag_idx + 1)));  // end point
+    IterVar k = reduce_axis(Range(0, ed - st), "k");
+    auto cond = input(k) != padding_idx;
+    auto init = make_zero(dtype);
+    Array<PrimExpr> weight_indices{input(k), embedding_idx};
+    Array<PrimExpr> per_sample_weights_indices{k};
+    auto ret = weight(weight_indices) * per_sample_weights(per_sample_weights_indices);
+    if (mode == 0) {  // sum
+      return tvm::sum(if_then_else(cond, ret, init), {k}, {init});
+    } else if (mode == 1) {  // mean
+      return tvm::sum(if_then_else(cond, ret, init) / (ed - st), {k}, {init});
+    } else if (mode == 2) {  // max
+      return tvm::max(if_then_else(cond, ret, tvm::min_value(dtype)), {k}, {tvm::min_value(dtype)});
+    }
+  };
+
+  return compute(oshape, func, name, tag);
+}  // namespace topi
 
 }  // namespace topi
 }  // namespace tvm

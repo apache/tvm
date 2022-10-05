@@ -4252,6 +4252,105 @@ RELAY_REGISTER_OP("invert_permutation")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<TOpIsStateful>("TOpIsStateful", false);
 
+TVM_REGISTER_NODE_TYPE(EmbeddingBagAttrs);
+
+bool EmbeddingBagRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  // types: [weight, indics, offset, per_sample_weights, result]
+  ICHECK_EQ(types.size(), 5) << "EmbeddingBag: expect 5 types but " << types.size() << " provided";
+  ICHECK_LE(num_inputs, 4) << "EmbeddingBag: expect 4 inputs but " << num_inputs << " provided";
+  auto data = types[0].as<TensorTypeNode>();  // shape of  (N)
+  if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "EmbeddingBag: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+
+  auto embedding_matrix =
+      types[1].as<TensorTypeNode>();  // shape of (num_embeddings, embedding_dim)
+  if (embedding_matrix == nullptr) {
+    ICHECK(types[1].as<IncompleteTypeNode>())
+        << "EmbeddingBag: expect embedding_matrix type to be TensorType but get " << types[1];
+    return false;
+  }
+
+  auto offset = types[2].as<TensorTypeNode>();  // shape of (B)
+  if (offset == nullptr) {
+    ICHECK(types[2].as<IncompleteTypeNode>())
+        << "EmbeddingBag: expect offset type to be TensorType but get " << types[2];
+    return false;
+  }
+
+  auto per_sample_weights = types[3].as<TensorTypeNode>();  // shape as data
+  if (offset == nullptr) {
+    ICHECK(types[3].as<IncompleteTypeNode>())
+        << "EmbeddingBag: expect per_sample_weights type to be TensorType but get " << types[3];
+    return false;
+  }
+
+  ICHECK_EQ(data->shape.size(), 1) << "EmbeddingBag: input must be a 1-D tensor but get " << data;
+  ICHECK_EQ(embedding_matrix->shape.size(), 2)
+      << "EmbeddingBag: embedding_matrix must be a 2-D tensor but get " << embedding_matrix;
+  ICHECK_EQ(offset->shape.size(), 1)
+      << "EmbeddingBag: offset must be a 1-D tensor but get " << offset;
+  ICHECK_EQ(per_sample_weights->shape.size(), 1)
+      << "EmbeddingBag: per_sample_weights must be a 1-D tensor but get " << per_sample_weights;
+
+  const auto param = attrs.as<EmbeddingBagAttrs>();
+
+  tvm::PrimExpr row, column;
+  // Output shape is the (B, embedding_dim).
+  row = offset->shape[0];
+  column = embedding_matrix->shape[1];
+  if (param->include_last_offset) row = row - 1;
+  std::vector<tvm::PrimExpr> shape{row, column};
+
+  const auto mode = param->mode;
+  DataType dtype;
+  if (mode == 1) {  // mean
+    dtype = DataType::Float(32);
+  } else {  // sum or max
+    dtype = embedding_matrix->dtype;
+  }
+  reporter->Assign(types[4], TensorType(tvm::relay::Shape(shape), dtype));
+  return true;
+}
+
+Expr MakeEmbeddingBag(Expr input, Expr weight, Expr offset, int mode, Integer padding_idx,
+                      Expr per_sample_weights, bool include_last_offset) {
+  auto attrs = make_object<EmbeddingBagAttrs>();
+  attrs->mode = mode;
+  attrs->padding_idx = padding_idx;
+  attrs->include_last_offset = include_last_offset;
+  static const Op& op = Op::Get("embedding_bag");
+  return Call(op, {input, weight, offset, per_sample_weights}, Attrs(attrs), {});
+}
+
+Array<te::Tensor> EmbeddingBagCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                      const Type& out_type) {
+  const auto* param = attrs.as<EmbeddingBagAttrs>();
+  ICHECK(param != nullptr);
+  return Array<te::Tensor>{topi::embedding_bag(inputs[0], inputs[1], inputs[2], param->mode,
+                                               inputs[3], param->padding_idx,
+                                               param->include_last_offset, inputs[1]->dtype)};
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.embedding_bag").set_body_typed(MakeEmbeddingBag);
+
+RELAY_REGISTER_OP("embedding_bag")
+    .describe(R"code(Computes sums, means or maxes of bags of embeddings.)code" TVM_ADD_FILELINE)
+    .set_num_inputs(4)
+    .add_argument("input", "Tensor", "Tensor containing bags of indices into the embedding matrix.")
+    .add_argument("weight", "Tensor", "The embedding matrix.")
+    .add_argument("offset", "Tensor", "The offset.")
+    .add_argument("per_sample_weights", "Tensor",
+                  "The per_sample_weights. Default value is a 1-d tensor of ones")
+    .add_type_rel("embedding_bag", EmbeddingBagRel)
+    .set_support_level(10)
+    .set_attr<FTVMCompute>("FTVMCompute", EmbeddingBagCompute)
+    // If we want 4 outputs we need to implement InferCorrectLayoutOutput
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
+
 // Trilu
 
 TVM_REGISTER_NODE_TYPE(TriluAttrs);

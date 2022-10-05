@@ -3107,6 +3107,116 @@ def test_forward_embedding():
 
 
 @tvm.testing.uses_gpu
+def test_embedding_bag():
+    """test_forward_embedding_bag"""
+    torch.set_grad_enabled(False)
+
+    class EmbeddingBag(Module):
+        """inner embedding_bag class"""
+
+        def __init__(
+            self,
+            offsets=None,
+            mode="mean",
+            padding_idx=None,
+            scale_grad_by_freq=False,
+            include_last_offset=False,
+            per_sample_weights=None,
+            sparse=False,
+        ):
+            super().__init__()
+            self.offsets = offsets
+            self.mode = mode
+            self.padding_idx = padding_idx
+            self.scale_grad_by_freq = scale_grad_by_freq
+            self.include_last_offset = include_last_offset
+            self.per_sample_weights = per_sample_weights
+            self.sparse = sparse
+
+        def forward(self, inputs, weights):
+            if inputs.is_cuda:
+                if self.offsets is not None:
+                    self.offsets = self.offsets.cuda()
+                if self.per_sample_weights is not None:
+                    self.per_sample_weights = self.per_sample_weights.cuda()
+            else:
+                if self.offsets is not None:
+                    self.offsets = self.offsets.cpu()
+                if self.per_sample_weights is not None:
+                    self.per_sample_weights = self.per_sample_weights.cpu()
+
+            return F.embedding_bag(
+                inputs,
+                weights,
+                offsets=self.offsets,
+                mode=self.mode,
+                padding_idx=self.padding_idx,
+                scale_grad_by_freq=self.scale_grad_by_freq,
+                sparse=self.sparse,
+                include_last_offset=self.include_last_offset,
+                per_sample_weights=self.per_sample_weights,
+            )
+
+    embedding_matrix = torch.rand(10, 3)
+    inp = torch.tensor([[1, 1, 4], [5, 9, 4], [4, 2, 5]])
+    pre_sample_weights = torch.tensor([[0.3, 0.4, 0.4], [0.1, 2.2, 3.1], [0.2, 1.1, 3.2]])
+
+    # If the indice is 2d tensor, then we do not need to provide offsets
+    # In our tests, when we provide offsets we need to reshape indice tensor to 1d
+    # `offsets_include_last_offset` is used when `include_last_offset=True`.
+    # In such a case, we should enforce `offsets[-1] == input.size(0)`.
+    # When the restriction does not hold, in PyTorch, the behaviour diverges. Could see:
+    # https://github.com/pytorch/pytorch/pull/57208#issuecomment-1021727378
+    offsets_include_last_offset = torch.tensor([0, 3, 9])
+    offsets_exclude_last_offset = torch.tensor([0, 2, 5])
+
+    verify_model(EmbeddingBag(mode="mean").float().eval(), [inp, embedding_matrix])
+    verify_model(
+        EmbeddingBag(
+            mode="mean", offsets=offsets_exclude_last_offset, sparse=True, scale_grad_by_freq=True
+        )
+        .float()
+        .eval(),
+        [inp.reshape(-1), embedding_matrix],
+    )
+    verify_model(
+        EmbeddingBag(mode="sum", offsets=offsets_exclude_last_offset).float().eval(),
+        [inp.reshape(-1), embedding_matrix],
+    )
+    verify_model(
+        EmbeddingBag(mode="sum", per_sample_weights=pre_sample_weights, sparse=True).float().eval(),
+        [inp, embedding_matrix],
+    )
+    verify_model(
+        EmbeddingBag(offsets=offsets_include_last_offset, mode="mean", include_last_offset=True)
+        .float()
+        .eval(),
+        [inp.reshape(-1), embedding_matrix],
+    )
+    verify_model(EmbeddingBag(mode="mean", padding_idx=2).float().eval(), [inp, embedding_matrix])
+    verify_model(
+        EmbeddingBag(
+            offsets=offsets_include_last_offset, mode="sum", include_last_offset=True, padding_idx=4
+        )
+        .float()
+        .eval(),
+        [inp.reshape(-1), embedding_matrix],
+    )
+    verify_model(
+        EmbeddingBag(mode="max", padding_idx=1).float().eval(),
+        [inp, embedding_matrix],
+    )
+    verify_model(
+        EmbeddingBag(
+            offsets=offsets_include_last_offset, mode="max", include_last_offset=True, padding_idx=1
+        )
+        .float()
+        .eval(),
+        [inp.reshape(-1), embedding_matrix],
+    )
+
+
+@tvm.testing.uses_gpu
 def test_forward_onehot():
     """test_forward_onehot"""
     torch.set_grad_enabled(False)
@@ -4015,6 +4125,7 @@ def test_forward_matmul():
     verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
 
 
+@tvm.testing.uses_gpu
 def test_forward_index():
     """test_forward_index"""
     torch.set_grad_enabled(False)
@@ -4033,6 +4144,13 @@ def test_forward_index():
 
     input_data = torch.rand(input_shape).float()
     verify_model(Index1().eval(), input_data=input_data)
+
+    class Index2(Module):
+        def forward(self, x):
+            return x[None, [2, 2]]
+
+    input_data = torch.rand([3, 3, 3, 3]).float()
+    verify_model_with_input(Index2().eval(), [input_data])
 
 
 def test_logsumexp():

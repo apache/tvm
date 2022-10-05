@@ -575,6 +575,27 @@ struct StftAttrs : public tvm::AttrsNode<StftAttrs> {
   }
 };  // struct StftAttrs
 
+/*! \brief Attributes used in embedding_bad operator */
+struct EmbeddingBagAttrs : public tvm::AttrsNode<EmbeddingBagAttrs> {
+  int mode;
+  Integer padding_idx;
+  bool include_last_offset;
+
+  TVM_DECLARE_ATTRS(EmbeddingBagAttrs, "relay.attrs.EmbeddingBagAttrs") {
+    TVM_ATTR_FIELD(mode).set_default(0).describe(
+        "Specifies the way to reduce the bag. The default function is `sum`.");
+    TVM_ATTR_FIELD(padding_idx)
+        .set_default(-1)
+        .describe(
+            "Specifies the index not contributing to the result. The default function is `-1`.");
+    TVM_ATTR_FIELD(include_last_offset)
+        .set_default(false)
+        .describe(
+            "Specifies if the last element of offset is the ending index position of the last bag. "
+            "The default function is `false`.");
+  }
+};  // struct EmbeddingBagAttrs
+
 struct TriluAttrs : public tvm::AttrsNode<TriluAttrs> {
   bool upper;
 
