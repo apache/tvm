@@ -121,19 +121,13 @@ def pattern_table():
             requantize = pattern
         requantize_input = requantize.args[0]
         bias_add = None
-        bias_dtype = "int32"
         if str(requantize_input.op.name) == "nn.bias_add":
             bias_add = requantize_input
             conv2d = bias_add.args[0]
-            bias_dtype = bias_add.args[1].checked_type.dtype
         else:
             conv2d = requantize_input
         conv2d_input = conv2d.args[0]
         conv2d_weight = conv2d.args[1]
-
-        # kernel zero_point should be 0
-        kernel_zp = conv2d.args[3].data.numpy()
-        kernel_zp = [kernel_zp] if kernel_zp.ndim == 0 else kernel_zp
 
         # check if depthwise Conv2D
         kernel_layout = conv2d.attrs.kernel_layout
@@ -145,12 +139,43 @@ def pattern_table():
         ):
             is_depthwise = True
 
+        # check if dtypes are supported for the following entities
+        # (input_dtype, weight_dtype, bias_dtype, out_dtype, pattern_dtype)
+        are_dtypes_valid = False
+        conv2d_input_dtype = conv2d_input.checked_type.dtype
+        if bias_add:
+            bias_dtype = bias_add.args[1].checked_type.dtype
+        else:
+            # this is only to enable to following check that validates all sorts of dtypes
+            bias_dtype = "int32" if conv2d_input_dtype == "int8" else "int64"
+        valid_dtypes = None
+        if conv2d_input_dtype == "int8":
+            valid_dtypes = ("int8", "int8", "int32", "int32", "int8")
+        elif conv2d_input_dtype == "int16":
+            valid_dtypes = ("int16", "int8", "int64", "int64", "int16")
+
+        if (
+            conv2d_input_dtype,
+            conv2d_weight.checked_type.dtype,
+            bias_dtype,
+            conv2d.attrs.out_dtype,
+            pattern.checked_type.dtype,
+        ) == valid_dtypes:
+            are_dtypes_valid = True
+
+        # input_zero_point should be 0 when int16
+        valid_input_zp = True
+        if conv2d_input_dtype == "int16" and conv2d.args[2].data.numpy().item(0) != 0:
+            valid_input_zp = False
+
+        # kernel zero_point should be 0
+        kernel_zp = conv2d.args[3].data.numpy()
+        kernel_zp = [kernel_zp] if kernel_zp.ndim == 0 else kernel_zp
+
+        # combination of all checks to decide if pattern is eligible for partitioning
         ret = (
-            conv2d.attrs.out_dtype == "int32"
-            and conv2d_input.checked_type.dtype == "int8"
-            and conv2d_weight.checked_type.dtype == "int8"
-            and pattern.checked_type.dtype == "int8"
-            and bias_dtype == "int32"
+            are_dtypes_valid
+            and valid_input_zp
             and all([zp == 0 for zp in kernel_zp])
             and (not is_depthwise or bias_add is not None)
         )

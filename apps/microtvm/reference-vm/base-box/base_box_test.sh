@@ -28,15 +28,15 @@ platform=$1
 board=$2
 
 if [ "${platform}" == "zephyr" ]; then
-    pytest tests/micro/zephyr --zephyr-board=${board}
+    pytest tests/micro/zephyr --board=${board}
 fi
 
 if [ "${platform}" == "arduino" ]; then
-    pytest tests/micro/arduino/test_arduino_workflow.py --arduino-board=${board}
+    pytest tests/micro/arduino/test_arduino_workflow.py --board=${board}
     if [ $board == "nano33ble" ]; then
         # https://github.com/apache/tvm/issues/8730
         echo "NOTE: skipped test_arduino_rpc_server.py on $board -- known failure"
     else
-        pytest tests/micro/arduino/test_arduino_rpc_server.py --arduino-board=${board}
+        pytest tests/micro/arduino/test_arduino_rpc_server.py --board=${board}
     fi
 fi

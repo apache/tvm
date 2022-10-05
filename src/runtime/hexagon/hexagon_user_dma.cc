@@ -32,7 +32,7 @@ unsigned int HexagonUserDMA::Init() {
   return status;
 }
 
-int HexagonUserDMA::Copy(void* dst, void* src, uint32_t length) {
+int HexagonUserDMA::Copy(int queue_id, void* dst, void* src, uint32_t length) {
   // length limited to 24 bits
   if (length > DESC_LENGTH_MASK) {
     return DMA_FAILURE;
@@ -54,7 +54,7 @@ int HexagonUserDMA::Copy(void* dst, void* src, uint32_t length) {
   uint32_t dst32 = static_cast<uint32_t>(dst64);
 
   // get pointer to next descriptor
-  dma_desc_2d_t* dma_desc = descriptors_->Next();
+  dma_desc_2d_t* dma_desc = descriptors_->Next(queue_id);
   if (!dma_desc) {
     return DMA_RETRY;
   }
@@ -87,17 +87,17 @@ int HexagonUserDMA::Copy(void* dst, void* src, uint32_t length) {
   return DMA_SUCCESS;
 }
 
-void HexagonUserDMA::Wait(uint32_t max_dmas_in_flight) {
+void HexagonUserDMA::Wait(int queue_id, uint32_t max_dmas_in_flight) {
   // wait (forever) until max DMAs in flight <= actual DMAs in flight
-  while (DMAsInFlight() > max_dmas_in_flight) {
+  while (DMAsInFlight(queue_id) > max_dmas_in_flight) {
   }
 }
 
-uint32_t HexagonUserDMA::Poll() { return DMAsInFlight(); }
+uint32_t HexagonUserDMA::Poll(int queue_id) { return DMAsInFlight(queue_id); }
 
-uint32_t HexagonUserDMA::DMAsInFlight() {
+uint32_t HexagonUserDMA::DMAsInFlight(int queue_id) {
   dmpoll();  // update DMA engine status
-  return descriptors_->InFlight();
+  return descriptors_->InFlight(queue_id);
 }
 
 HexagonUserDMA::HexagonUserDMA() {
@@ -109,7 +109,7 @@ HexagonUserDMA::HexagonUserDMA() {
     unsigned int done = dma_desc_get_done(dma_desc);
     return (done != DESC_DONE_COMPLETE);
   };
-  descriptors_ = new RingBuffer<dma_desc_2d_t>(MAX_DMA_DESCRIPTORS, desc_in_flight);
+  descriptors_ = new QueuedRingBuffer<dma_desc_2d_t>(MAX_DMA_DESCRIPTORS, desc_in_flight);
 }
 
 HexagonUserDMA::~HexagonUserDMA() {
@@ -124,9 +124,9 @@ int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length) {
   // Make the common case quick.
   if (length <= DESC_LENGTH_MASK) {
     // sync DMA -> `Copy` and then `Wait(0)`
-    int ret_val = user_dma->Copy(dst, src, length);
+    int ret_val = user_dma->Copy(SYNC_DMA_QUEUE, dst, src, length);
     if (ret_val != DMA_SUCCESS) return ret_val;
-    user_dma->Wait(0);
+    user_dma->Wait(SYNC_DMA_QUEUE, 0);
     return DMA_SUCCESS;
   }
 
@@ -137,9 +137,9 @@ int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length) {
     // Ensure there is no overflow while updating i
     uint32_t cur_len = std::min<uint32_t>(length - i, DESC_LENGTH_MASK);
     // sync DMA -> `Copy` and then `Wait(0)`
-    int ret_val = user_dma->Copy(&cast_dst[i], &cast_src[i], cur_len);
+    int ret_val = user_dma->Copy(SYNC_DMA_QUEUE, &cast_dst[i], &cast_src[i], cur_len);
     if (ret_val != DMA_SUCCESS) return ret_val;
-    user_dma->Wait(0);
+    user_dma->Wait(SYNC_DMA_QUEUE, 0);
     // 2 cases for new val for i:
     // 1. length - i <= DESC_LENGTH_MASK (<= MAX_UINT)
     //    new_i = i + (length - i) = length, no more iter

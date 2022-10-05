@@ -34,6 +34,7 @@ namespace hexagon {
 #define DMA_FAILURE -1
 #define DMA_RETRY 1
 #define MAX_DMA_DESCRIPTORS 100
+#define SYNC_DMA_QUEUE -1
 
 class HexagonUserDMA {
  public:
@@ -51,36 +52,36 @@ class HexagonUserDMA {
    * \param length Length in bytes to copy
    * \returns Status: DMA_SUCCESS or DMA_FAILURE
    */
-  int Copy(void* dst, void* src, uint32_t length);
+  int Copy(int queue_id, void* dst, void* src, uint32_t length);
 
   /*!
    * \brief Wait until the number of DMAs in flight is less than or equal to some maximum
    * \param max_dmas_in_flight Maximum number of DMAs allowed to be in flight
    * to satisfy the `Wait` e.g. use `Wait(0)` to wait on "all" outstanding DMAs to complete
    */
-  void Wait(uint32_t max_dmas_in_flight);
+  void Wait(int queue_id, uint32_t max_dmas_in_flight);
 
   /*!
    * \brief Poll the number of DMAs in flight
    * \returns Number of DMAs in flight
    */
-  uint32_t Poll();
+  uint32_t Poll(int queue_id);
 
  private:
   //! \brief Initializes the Hexagon User DMA engine
   unsigned int Init();
 
   //! \brief Calculates and returns the number of DMAs in flight
-  uint32_t DMAsInFlight();
+  uint32_t DMAsInFlight(int queue_id);
 
   //! \brief Tracks whether the very first DMA has been executed
-  bool first_dma_{true};
+  bool first_dma_ = true;
 
   //! \brief Tracks the tail DMA descriptor
-  void* tail_dma_desc_{nullptr};
+  void* tail_dma_desc_ = nullptr;
 
   //! \brief Storage for all DMA descriptors
-  RingBuffer<dma_desc_2d_t>* descriptors_{nullptr};
+  QueuedRingBuffer<dma_desc_2d_t>* descriptors_ = nullptr;
 };
 
 }  // namespace hexagon
