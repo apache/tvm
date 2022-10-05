@@ -324,15 +324,6 @@ class EthosnAPI {
   static EthosnError AsConstant(const Expr& expr, std::valarray<float>* out);
 };
 
-/*!
- * \brief Apply constant folding on an expression.
- *
- * \param expr The expression to fold.
- * \param fold_qnn Whether to fold constants for QNN operations.
- * \returns The new folded expression.
- */
-Expr FoldConstantExpr(const Expr& expr, bool fold_qnn = true);
-
 }  // namespace ethosn
 }  // namespace contrib
 }  // namespace relay

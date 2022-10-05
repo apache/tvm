@@ -41,6 +41,7 @@
 #include "../../../op/make_op.h"
 #include "../../../transforms/pattern_utils.h"
 #include "../../../transforms/simplify_expr.h"
+#include "../constant_transforms.h"
 #include "ethosn_support_library/Support.hpp"
 #include "ethosn_support_library/SupportQueries.hpp"
 #include "tvm/relay/qnn/attrs.h"
@@ -171,19 +172,6 @@ EthosnError EthosnAPI::QnnConv2d(const Expr& expr, ConvolutionParams* params) {
   return err;
 }
 
-Constant TransposeWeights(const Constant& data, const std::string& input_layout,
-                          const std::string& target_layout) {
-  Array<Integer> transpose_matrix;
-  for (const char& c : target_layout) {
-    int pos = input_layout.find(c);
-    transpose_matrix.push_back(pos);
-  }
-  Expr transpose = MakeTranspose(data, transpose_matrix);
-  transpose = InferType(FoldConstantExpr(transpose));
-  Constant transposed_data = Downcast<Constant>(transpose);
-  return transposed_data;
-}
-
 EthosnError EthosnAPI::QnnFullyConnected(const Expr& expr, FullyConnectedParams* params) {
   Call requantize = Downcast<Call>(expr);
   Call bias_add = Downcast<Call>(requantize->args[0]);
@@ -211,7 +199,9 @@ EthosnError EthosnAPI::QnnFullyConnected(const Expr& expr, FullyConnectedParams*
   err += Tvm2Npu(input_zero_point, input_scale, &data_q_info);
   err += Tvm2Npu(kernel_zero_point, kernel_scale, &weights_q_info);
   std::valarray<float> bias = data_q_info.GetScale() * weights_q_info.GetScales();
-  err += Tvm2Npu(0, bias, 3, &bias_q_info);
+  const int bias_zero_point = 0;
+  const unsigned int bias_axis = 3;
+  err += Tvm2Npu(bias_zero_point, bias, bias_axis, &bias_q_info);
   err += Tvm2Npu(output_zero_point, output_scale, &output_q_info);
 
   // Create fc info
@@ -1079,13 +1069,6 @@ EthosnError EthosnAPI::AsConstant(const Expr& expr, T* out) {
   runtime::NDArray data = Downcast<Constant>(expr)->data;
   *out = *static_cast<T*>(data->data);
   return EthosnError();
-}
-
-Expr FoldConstantExpr(const Expr& expr, bool fold_qnn) {
-  auto mod = IRModule::FromExpr(expr);
-  mod = transform::FoldConstant(fold_qnn)(mod);
-  auto entry_func = Downcast<Function>(mod->Lookup("main"));
-  return expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
 }
 
 }  // namespace ethosn
