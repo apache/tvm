@@ -41,8 +41,6 @@ shape, func, dtype = tvm.testing.parameters(
     ([1024], {"py": math.erf, "tvm": tvm.topi.hexagon.qnn.injective.qerf}, "uint8"),
     ([1, 8, 8, 32], {"py": np.tanh, "tvm": tvm.topi.hexagon.qnn.injective.qtanh}, "uint8"),
     ([1024], {"py": np.tanh, "tvm": tvm.topi.hexagon.qnn.injective.qtanh}, "uint8"),
-    ([1, 8, 8, 32], {"py": np.log, "tvm": tvm.topi.hexagon.qnn.injective.qlog}, "uint8"),
-    ([1024], {"py": np.log, "tvm": tvm.topi.hexagon.qnn.injective.qlog}, "uint8"),
 )
 
 
