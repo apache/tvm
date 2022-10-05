@@ -173,6 +173,7 @@ class BaseConv2dConv2d:
 class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
     """Conv2d-Conv2d packed filter test class"""
 
+    @tvm.testing.parametrize_targets("llvm")
     @tvm.testing.skip_if_32bit(reason="Test known to be flaky on i386 machines")
     def test_conv2d(
         self,
@@ -189,12 +190,11 @@ class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
         k_split_factor,
         h_split_factor,
         dtype,
+        target,
     ):
         """conv2d-conv2d test"""
         # TODO: no support for padding in conv2d #2
         pad2 = 0
-
-        target = "llvm"
 
         # TODO: no support for dilation
         dilation1 = 1
