@@ -122,6 +122,27 @@ class LayoutFreeBufferCollector : public StmtVisitor {
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> buffers;
 };
 
+Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
+  // Only rewrite PrimFuncs with attr "layout_free_buffers"
+  Array<Integer> layout_free_buffer_index =
+      func->GetAttr(attr::layout_free_buffers, Array<Integer>()).value();
+
+  Array<Buffer> layout_free_buffers;
+  for (const Integer& index : layout_free_buffer_index) {
+    ICHECK(index->value < func->params.size());
+    const Var& param = func->params[index->value];
+    layout_free_buffers.push_back(func->buffer_map.at(param));
+  }
+
+  LayoutFreeBufferCollector collector;
+  collector(func->body);
+
+  for (auto buf : collector.buffers) {
+    layout_free_buffers.push_back(buf);
+  }
+  return layout_free_buffers;
+}
+
 bool RewriteLayout(const Schedule& sch) {
   std::vector<std::pair<StmtSRef, String>> results;
   for (const auto& [g_var, base_func] : sch->mod()->functions) {
@@ -131,25 +152,8 @@ bool RewriteLayout(const Schedule& sch) {
     if (prim_func == nullptr) {
       continue;
     }
-    // Only rewrite PrimFuncs with attr "layout_free_buffers"
-    Array<Integer> layout_free_buffer_index =
-        prim_func->GetAttr(attr::layout_free_buffers, Array<Integer>()).value();
 
-    Array<Buffer> layout_free_buffers;
-    for (const Integer& index : layout_free_buffer_index) {
-      CHECK(index->value < prim_func->params.size());
-      const Var& param = prim_func->params[index->value];
-      layout_free_buffers.push_back(prim_func->buffer_map.at(param));
-    }
-
-    if (layout_free_buffer_index.empty()) {
-      LayoutFreeBufferCollector collector;
-      collector(prim_func->body);
-
-      for (auto buf : collector.buffers) {
-        layout_free_buffers.push_back(buf);
-      }
-    }
+    Array<Buffer> layout_free_buffers = CollectLayoutFreeBuffers(prim_func);
 
     // Collect Buffer read positions
     BufferReadPosCollector collector(layout_free_buffers);
@@ -157,7 +161,8 @@ bool RewriteLayout(const Schedule& sch) {
     const auto& locations = collector.GetBufferLocations();
     const auto& index_maps = collector.GetBufferIndexMap();
     // Check all buffers are collected
-    if (locations.size() != layout_free_buffers.size()) {
+    if (locations.size() != layout_free_buffers.size() ||
+        index_maps.size() != layout_free_buffers.size()) {
       return false;
     }
 
