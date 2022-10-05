@@ -1021,7 +1021,9 @@ def _has_vnni():
 requires_arm_dot = Feature("arm_dot", "ARM dot product", run_time_check=_arm_dot_supported)
 
 
-requires_cascadelake = Feature("cascadelake", "x86 CascadeLake", run_time_check=lambda: _has_vnni() and _is_intel())
+requires_cascadelake = Feature(
+    "cascadelake", "x86 CascadeLake", run_time_check=lambda: _has_vnni() and _is_intel()
+)
 
 
 def _cmake_flag_enabled(flag):
