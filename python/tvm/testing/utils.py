@@ -1003,7 +1003,8 @@ def _has_vnni():
     arch = platform.machine()
     # Only linux is supported for now.
     if arch == "x86_64" and sys.platform.startswith("linux"):
-        return "avx512_vnni" in open("/proc/cpuinfo", "r").read()
+        with open("/proc/cpuinfo", "r").read() as content:
+            return "avx512_vnni" in content
 
     return False
 
