@@ -444,31 +444,79 @@ class ScheduleBuilder : public ExprVisitor {
                 ICHECK_EQ(inst->attrs.size(), 4);
                 auto index_map = Downcast<IndexMap>(inst->attrs[2]);
 
-		ICHECK(const_collector.constants.size() == 1) << "Only one layout-free constant is supported by RewriteLayout for now";
-		auto constant = const_collector.constants[0];
+                if (!const_collector.constants.empty()) {
+		  // In this case, RewriteLayout is acting on an AllocateConst node.
+		  // After tuning, we reach this code path twice: First by
+		  // the Relay MetaScheduleLayoutRewrite pass, and next by the final
+		  // compilation (Relay to TE schedule lowering).
+                  //
+		  // Due to Relay MetaScheduleLayoutRewrite and FoldConstant passes,
+		  // the Relay subgraph for which we query the database during the
+		  // final compilation has its weight tensor transformed according to
+		  // the index map, determined during tuning. For example,
+		  //
+		  // fn (%p0: Tensor[(1, 56, 56, 64), float32]) {
+		  //   %0 = nn.conv2d(%p0, meta[relay.Constant][0],
+		  //                       /*ty=Tensor[(4, 2, 2, 3, 3, 32, 8), float32]*/, ...);
+		  //   add(%0, meta[relay.Constant][1])
+	          // }
+		  //
+		  // Note that the database does not have an entry corresponding to such subgraphs,
+		  // since an input subgraph to the tuning system always has its weight tensor in
+		  // the original layout, e.g.
+		  //
+		  // fn (%p0: Tensor[(1, 56, 56, 64), float32]) {
+		  //   %0 = nn.conv2d(%p0, meta[relay.Constant][0],
+		  //                       /*ty=Tensor[(3, 3, 64, 64), float32]*/, ...);
+		  //   add(%0, meta[relay.Constant][1])
+	          // }
+		  //
+		  // Thus, in both of the two cases where we reach this code path, we need careful
+		  // logic to make sure that (1) the database lookup during the final compilation
+		  // succeeds and (2) the application of a schedule trace is well defined.
 
-                if (constant.Shape().size() == index_map->initial_indices.size()) {
-                  // A layout-free constant having the same rank as an input to the index map
-                  // is assumed to be transformed by this index map.
-                  // TODO(masahi): If there are multiple layout-free constants in one
-                  // TIR mod (e.g. conv2d -> conv2d fusion), this assumption does not hold.
-                  // We need to determine which constant the given index map acts on.
-                  runtime::NDArray rewritten_constant = index_map->MapNDArray(constant);
-                  auto f_ = AllocateConstReplaceConstant::Rewrite(f.value(),
-                                                                  {{constant, rewritten_constant}});
-                  auto workload =
-                      database_.value()->CommitWorkload(backend::PrimFuncToIRModule(f_));
-                  TuningRecord new_rec(record->trace, workload, record->run_secs, record->target,
-                                       record->args_info);
-                  database_.value()->CommitTuningRecord(new_rec);
-                } else {
-                  ICHECK(index_map->inverse_index_map);
-                  auto inverse_map = Downcast<IndexMap>(index_map->inverse_index_map.value());
-                  ICHECK(constant.Shape().size() == inverse_map->initial_indices.size());
-                  runtime::NDArray orig_constant = inverse_map->MapNDArray(constant);
-                  auto f_ =
-                      AllocateConstReplaceConstant::Rewrite(f.value(), {{constant, orig_constant}});
-                  query_mod = backend::PrimFuncToIRModule(f_);
+                  ICHECK(const_collector.constants.size() == 1)
+                      << "Only one layout-free constant is supported by RewriteLayout for now";
+                  auto constant = const_collector.constants[0];
+
+                  if (constant.Shape().size() == index_map->initial_indices.size()) {
+                    // This is the first case, reached during the MetaScheduleLayoutRewrite pass.
+                    //
+                    // A layout-free constant having the same rank as an input to the index map
+                    // is assumed to be transformed by this index map.
+                    // TODO(masahi): If there are multiple layout-free constants in one
+                    // TIR mod (e.g. conv2d -> conv2d fusion), this assumption does not hold.
+                    // We need to determine which constant the given index map acts on.
+                    //
+                    // We know that, during the final compilation, we will query the database
+                    // for a subgraph that the tuner has never seen. We workaround this problem
+		    // by adding a dummy entry to the database. The dummy entry is carefully
+		    // constructed so that the lookup during the final compilation would succeed.
+                    runtime::NDArray rewritten_constant = index_map->MapNDArray(constant);
+                    auto f_dummy = AllocateConstReplaceConstant::Rewrite(
+                        f.value(), {{constant, rewritten_constant}});
+                    auto workload_dummy =
+                        database_.value()->CommitWorkload(backend::PrimFuncToIRModule(f_dummy));
+                    TuningRecord rec_dummy(record->trace, workload_dummy, record->run_secs,
+                                           record->target, record->args_info);
+                    database_.value()->CommitTuningRecord(rec_dummy);
+                  } else {
+                    // The constant is already transformed, so this is the second case, reached
+		    // during the final compilation.
+		    //
+		    // The schedule trace is supposed to be applied to the weight in its original
+		    // layout. But as explained above, the Relay subgraph we get in this case
+		    // has its weight tensor transformed according to the corresponding index map.
+		    // So effectively, we undo the layout transformation on the weight to restore
+		    // the original PrimFunc that the schedule trace is supposed to act on.
+                    ICHECK(index_map->inverse_index_map);
+                    auto inverse_map = Downcast<IndexMap>(index_map->inverse_index_map.value());
+                    ICHECK(constant.Shape().size() == inverse_map->initial_indices.size());
+                    runtime::NDArray orig_constant = inverse_map->MapNDArray(constant);
+                    auto f_ = AllocateConstReplaceConstant::Rewrite(f.value(),
+                                                                    {{constant, orig_constant}});
+                    query_mod = backend::PrimFuncToIRModule(f_);
+                  }
                 }
                 MetaScheduleLayoutRewriter::LayoutQueuePush(index_map);
               }
