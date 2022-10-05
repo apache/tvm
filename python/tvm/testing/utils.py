@@ -999,6 +999,15 @@ def _arm_dot_supported():
     return False
 
 
+def _is_intel():
+    # Only linux is supported for now.
+    if sys.platform.startswith("linux"):
+        with open("/proc/cpuinfo", "r").read() as content:
+            return "Intel" in content
+
+    return False
+
+
 def _has_vnni():
     arch = platform.machine()
     # Only linux is supported for now.
@@ -1012,7 +1021,7 @@ def _has_vnni():
 requires_arm_dot = Feature("arm_dot", "ARM dot product", run_time_check=_arm_dot_supported)
 
 
-requires_cascadelake = Feature("cascadelake", "x86 CascadeLake", run_time_check=_has_vnni)
+requires_cascadelake = Feature("cascadelake", "x86 CascadeLake", run_time_check=lambda: _has_vnni() and _is_intel())
 
 
 def _cmake_flag_enabled(flag):
