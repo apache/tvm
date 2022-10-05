@@ -19,6 +19,6 @@ These tests were found to be flaky (intermittently failing on `main` or failed i
 
 ### Triage
 
-Please refer to the list of label tags linked above to find the relevant tags and add them here in a bullet format (example below).
+Please refer to the list of label tags [here](https://github.com/apache/tvm/wiki/Issue-Triage-Labels) to find the relevant tags and add them below in a bullet format (example below).
 
 * needs-triage
