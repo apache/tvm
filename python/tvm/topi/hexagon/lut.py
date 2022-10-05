@@ -37,12 +37,12 @@ def lutize(out, x):
     lut:
      computes func via LUT
     """
-    assert out.dtype in ("int8", "uint8")
+    assert out.dtype in ("uint8")
     assert out.dtype == x.dtype
 
     func = eval(out.name)
     lut_np = np.arange(256, dtype=out.dtype)
-    lut_np = np.vectorize(func)(lut_np).astype(out.dtype)
+    lut_np = np.nan_to_num(np.vectorize(func)(lut_np), posinf=255, neginf=0).astype(out.dtype)
 
     # tvm script to represent LUT
     indices_str = str(["i" + str(index) for index in range(len(out.shape))])[1:-1].replace("'", "")
