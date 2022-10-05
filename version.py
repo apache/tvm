@@ -25,10 +25,10 @@ List of affected files:
 - tvm-root/conda/recipe/meta.yaml
 - tvm-root/web/package.json
 """
-import os
-import re
 import argparse
 import logging
+import os
+import re
 import subprocess
 
 # Modify the following value during release
@@ -44,7 +44,7 @@ import subprocess
 # Two tag formats are supported:
 # - vMAJ.MIN.PATCH (e.g. v0.8.0) or
 # - vMAJ.MIN.devN (e.g. v0.8.dev0)
-__version__ = "0.10.dev0"
+__version__ = "0.10.0"
 
 # ---------------------------------------------------
 
