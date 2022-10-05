@@ -40,7 +40,7 @@ def lutize(out, x):
     assert out.dtype in ("uint8")
     assert out.dtype == x.dtype
 
-    func = eval(out.name)
+    func = eval(out.op.tag)
     lut_np = np.arange(256, dtype=out.dtype)
     lut_np = np.nan_to_num(np.vectorize(func)(lut_np), posinf=255, neginf=0).astype(out.dtype)
 

@@ -40,8 +40,8 @@ def qsqrt(x, in_scale, in_zero, out_scale, out_zero, dtype):
         return te.compute(
             (x.shape),
             lambda *i: (tir.sqrt(in_scale * (x[i] - in_zero)) / out_scale + out_zero).astype(dtype),
-            name=func_str,
-            tag="lut",
+            name="qsqrt",
+            tag=func_str,
         )
     else:
         raise ValueError(f"dtype {dtype} not supported for qsqrt!")
@@ -62,8 +62,8 @@ def qrsqrt(x, in_scale, in_zero, out_scale, out_zero, dtype):
             lambda *i: ((1 / tir.sqrt(in_scale * (x[i] - in_zero))) / out_scale + out_zero).astype(
                 dtype
             ),
-            name=func_str,
-            tag="lut",
+            name="qrsqrt",
+            tag=func_str,
         )
     else:
         raise ValueError(f"dtype {dtype} not supported for qsrqrt!")
@@ -82,8 +82,8 @@ def qexp(x, in_scale, in_zero, out_scale, out_zero, dtype):
         return te.compute(
             (x.shape),
             lambda *i: (tir.exp(in_scale * (x[i] - in_zero)) / out_scale + out_zero).astype(dtype),
-            name=func_str,
-            tag="lut",
+            name="qexp",
+            tag=func_str,
         )
     else:
         raise ValueError(f"dtype {dtype} not supported for qexp!")
@@ -102,8 +102,8 @@ def qerf(x, in_scale, in_zero, out_scale, out_zero, dtype):
         return te.compute(
             (x.shape),
             lambda *i: (tir.erf(in_scale * (x[i] - in_zero)) / out_scale + out_zero).astype(dtype),
-            name=func_str,
-            tag="lut",
+            name="qerf",
+            tag=func_str,
         )
     else:
         raise ValueError(f"dtype {dtype} not supported for qerf!")
@@ -126,8 +126,8 @@ def qsigmoid(x, in_scale, in_zero, out_scale, out_zero, dtype):
             lambda *i: (tir.sigmoid(in_scale * (x[i] - in_zero)) / out_scale + out_zero).astype(
                 dtype
             ),
-            name=func_str,
-            tag="lut",
+            name="qsigmoid",
+            tag=func_str,
         )
     else:
         raise ValueError(f"dtype {dtype} not supported for qsigmoid!")
@@ -146,8 +146,8 @@ def qtanh(x, in_scale, in_zero, out_scale, out_zero, dtype):
         return te.compute(
             (x.shape),
             lambda *i: (tir.tanh(in_scale * (x[i] - in_zero)) / out_scale + out_zero).astype(dtype),
-            name=func_str,
-            tag="lut",
+            name="qtanh",
+            tag=func_str,
         )
     else:
         raise ValueError(f"dtype {dtype} not supported for qtanh!")
@@ -166,8 +166,8 @@ def qlog(x, in_scale, in_zero, out_scale, out_zero, dtype):
         return te.compute(
             (x.shape),
             lambda *i: (tir.log(in_scale * (x[i] - in_zero)) / out_scale + out_zero).astype(dtype),
-            name=func_str,
-            tag="lut",
+            name="qlog",
+            tag=func_str,
         )
     else:
         raise ValueError(f"dtype {dtype} not supported for qtanh!")
@@ -186,8 +186,8 @@ def qabs(x, in_scale, in_zero, out_scale, out_zero, dtype):
         return te.compute(
             (x.shape),
             lambda *i: (tir.abs(in_scale * (x[i] - in_zero)) / out_scale + out_zero).astype(dtype),
-            name=func_str,
-            tag="lut",
+            name="qabs",
+            tag=func_str,
         )
     else:
         raise ValueError(f"dtype {dtype} not supported for qabs!")
