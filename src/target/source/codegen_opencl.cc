@@ -89,6 +89,17 @@ void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
 
 void CodeGenOpenCL::PrintFuncPrefix() { stream << "__kernel void"; }
 
+void CodeGenOpenCL::PreFunctionBody(const PrimFunc& f) {
+  for (Var arg : f->params) {
+    auto ptr_type = arg->type_annotation.as<PointerTypeNode>();
+    if (ptr_type && runtime::IsTextureStorage(std::string(ptr_type->storage_scope))) {
+      this->stream << "  const sampler_t image_sampler = "
+                      "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST;\n";
+      return;
+    }
+  }
+}
+
 std::string CodeGenOpenCL::Finish() {
   // inject extension enable pragma for fp16 and fp64
   if (enable_fp16_) {
@@ -433,7 +444,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     }
     this->PrintExpr(op->args[0], ss);
     ss << ", ";
-    ss << "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST, ";
+    ss << "image_sampler, ";
     ss << "((int2)(";
     this->PrintExpr(op->args[1], ss);
     ss << ", ";
