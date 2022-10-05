@@ -177,6 +177,10 @@ class RPCModuleNode final : public ModuleNode {
   const char* type_key() const final { return "rpc"; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+    if (name == "CloseRPCConnection") {
+      return PackedFunc([this](TVMArgs, TVMRetValue*) { sess_->Shutdown(); });
+    }
+
     if (module_handle_ == nullptr) {
       return WrapRemoteFunc(sess_->GetFunction(name));
     } else {

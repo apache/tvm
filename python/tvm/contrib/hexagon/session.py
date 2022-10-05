@@ -106,6 +106,8 @@ class Session:
             )
         finally:
             # close session to the tracker
+            shutdown_func = self._rpc._sess.get_function("CloseRPCConnection")
+            shutdown_func()
             del self._rpc
 
     @property
