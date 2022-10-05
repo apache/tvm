@@ -307,7 +307,6 @@ int LowerToTECompute::const_index = 0;
 
 using namespace tvm::tir;
 
-// HACK
 class LayoutFreeConstantCollector : public StmtVisitor {
  public:
   Array<runtime::NDArray> constants;
@@ -333,7 +332,6 @@ class LayoutFreeConstantCollector : public StmtVisitor {
   std::unordered_set<const tir::VarNode*> layout_free_buffer_vars;
 };
 
-// HACK
 using NDArrayMap =
     std::unordered_map<runtime::NDArray, runtime::NDArray, ObjectPtrHash, ObjectPtrEqual>;
 
@@ -346,8 +344,6 @@ class AllocateConstReplaceConstant : public StmtExprMutator {
     n->body = rewriter(std::move(n->body));
     return f;
   }
-
-  NDArrayMap constant_map_;
 
  private:
   Stmt VisitStmt_(const AllocateConstNode* op) final {
@@ -365,6 +361,8 @@ class AllocateConstReplaceConstant : public StmtExprMutator {
 
     return alloc_const;
   }
+
+  NDArrayMap constant_map_;
 };
 
 // Construct a schedule for a given Relay primitive function and target.
@@ -441,7 +439,6 @@ class ScheduleBuilder : public ExprVisitor {
 
             static InstructionKind kind_transform_layout = InstructionKind::Get("TransformLayout");
             TuningRecord record = opt_record.value();
-            NDArrayMap constant_map;
             for (const Instruction& inst : record->trace->insts) {
               if (inst->kind.same_as(kind_transform_layout)) {
                 ICHECK_EQ(inst->attrs.size(), 4);
@@ -464,7 +461,6 @@ class ScheduleBuilder : public ExprVisitor {
                     runtime::NDArray orig_constant = inverse_map->MapNDArray(constant);
                     auto f_ = AllocateConstReplaceConstant().Rewrite(f.value(),
                                                                      {{constant, orig_constant}});
-                    constant_map[orig_constant] = constant;
                     query_mod = backend::PrimFuncToIRModule(f_);
                   }
                 }
@@ -479,9 +475,6 @@ class ScheduleBuilder : public ExprVisitor {
             ICHECK_EQ(mod->functions.size(), 1);
             mod = tir::transform::RemoveWeightLayoutRewriteBlock()(std::move(mod));
             prim_func = Downcast<PrimFunc>(mod->Lookup("main"));
-            if (!constant_map.empty()) {
-              prim_func = AllocateConstReplaceConstant().Rewrite(prim_func, constant_map);
-            }
           } else {
             int dispatch = backend::UseMetaScheduleDispatch();
             // (dispatch & 2): controls whether to print TVMScript for missing TIR
