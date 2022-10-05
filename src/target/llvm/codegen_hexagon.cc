@@ -518,7 +518,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   // time and binary size issues for bert int8 model among others.
 #if TVM_LLVM_VERSION >= 160
   llvm_options_vec.insert(std::next(llvm_options_vec.begin()),
-                          {"-unroll-threshold=32"});
+                          {"-unroll-threshold=0"});
 #endif
 
   // Process extra command line options for LLVM. Make sure it's only
