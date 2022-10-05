@@ -34,8 +34,9 @@
 #include <vector>
 
 #if TVM_BACKTRACE_ON_SEGFAULT
-#include <csignal>
 #include <signal.h>
+
+#include <csignal>
 #include <cstring>
 #endif
 
