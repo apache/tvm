@@ -338,7 +338,8 @@ using NDArrayMap =
 // Replace constants in AllocateConst nodes according to the given mapping
 class AllocateConstReplaceConstant : public StmtExprMutator {
  public:
-  AllocateConstReplaceConstant(const NDArrayMap& constant_map) : constant_map_(constant_map) {}
+  explicit AllocateConstReplaceConstant(const NDArrayMap& constant_map)
+      : constant_map_(constant_map) {}
 
   static PrimFunc Rewrite(PrimFunc f, const NDArrayMap& constant_map) {
     AllocateConstReplaceConstant rewriter(constant_map);
@@ -353,13 +354,12 @@ class AllocateConstReplaceConstant : public StmtExprMutator {
       auto rewriten_constant = it->second;
       Array<PrimExpr> rewritten_extents;
       for (auto s : rewriten_constant.Shape()) {
-        rewritten_extents.push_back(PrimExpr(int(s)));
+        rewritten_extents.push_back(PrimExpr(static_cast<int>(s)));
       }
       return AllocateConst(op->buffer_var, op->dtype, rewritten_extents, rewriten_constant,
                            op->body, op->annotations, op->span);
     }
     return StmtExprMutator::VisitStmt_(op);
-    ;
   }
 
   NDArrayMap constant_map_;
@@ -445,35 +445,35 @@ class ScheduleBuilder : public ExprVisitor {
                 auto index_map = Downcast<IndexMap>(inst->attrs[2]);
 
                 if (!const_collector.constants.empty()) {
-		  // In this case, RewriteLayout is acting on an AllocateConst node.
-		  // After tuning, we reach this code path twice: First by
-		  // the Relay MetaScheduleLayoutRewrite pass, and next by the final
-		  // compilation (Relay to TE schedule lowering).
+                  // In this case, RewriteLayout is acting on an AllocateConst node.
+                  // After tuning, we reach this code path twice: First by
+                  // the Relay MetaScheduleLayoutRewrite pass, and next by the final
+                  // compilation (Relay to TE schedule lowering).
                   //
-		  // Due to Relay MetaScheduleLayoutRewrite and FoldConstant passes,
-		  // the Relay subgraph for which we query the database during the
-		  // final compilation has its weight tensor transformed according to
-		  // the index map, determined during tuning. For example,
-		  //
-		  // fn (%p0: Tensor[(1, 56, 56, 64), float32]) {
-		  //   %0 = nn.conv2d(%p0, meta[relay.Constant][0],
-		  //                       /*ty=Tensor[(4, 2, 2, 3, 3, 32, 8), float32]*/, ...);
-		  //   add(%0, meta[relay.Constant][1])
-	          // }
-		  //
-		  // Note that the database does not have an entry corresponding to such subgraphs,
-		  // since an input subgraph to the tuning system always has its weight tensor in
-		  // the original layout, e.g.
-		  //
-		  // fn (%p0: Tensor[(1, 56, 56, 64), float32]) {
-		  //   %0 = nn.conv2d(%p0, meta[relay.Constant][0],
-		  //                       /*ty=Tensor[(3, 3, 64, 64), float32]*/, ...);
-		  //   add(%0, meta[relay.Constant][1])
-	          // }
-		  //
-		  // Thus, in both of the two cases where we reach this code path, we need careful
-		  // logic to make sure that (1) the database lookup during the final compilation
-		  // succeeds and (2) the application of a schedule trace is well defined.
+                  // Due to Relay MetaScheduleLayoutRewrite and FoldConstant passes,
+                  // the Relay subgraph for which we query the database during the
+                  // final compilation has its weight tensor transformed according to
+                  // the index map, determined during tuning. For example,
+                  //
+                  // fn (%p0: Tensor[(1, 56, 56, 64), float32]) {
+                  //   %0 = nn.conv2d(%p0, meta[relay.Constant][0],
+                  //                       /*ty=Tensor[(4, 2, 2, 3, 3, 32, 8), float32]*/, ...);
+                  //   add(%0, meta[relay.Constant][1])
+                  // }
+                  //
+                  // Note that the database does not have an entry corresponding to such subgraphs,
+                  // since an input subgraph to the tuning system always has its weight tensor in
+                  // the original layout, e.g.
+                  //
+                  // fn (%p0: Tensor[(1, 56, 56, 64), float32]) {
+                  //   %0 = nn.conv2d(%p0, meta[relay.Constant][0],
+                  //                       /*ty=Tensor[(3, 3, 64, 64), float32]*/, ...);
+                  //   add(%0, meta[relay.Constant][1])
+                  // }
+                  //
+                  // Thus, in both of the two cases where we reach this code path, we need careful
+                  // logic to make sure that (1) the database lookup during the final compilation
+                  // succeeds and (2) the application of a schedule trace is well defined.
 
                   ICHECK(const_collector.constants.size() == 1)
                       << "Only one layout-free constant is supported by RewriteLayout for now";
@@ -490,8 +490,8 @@ class ScheduleBuilder : public ExprVisitor {
                     //
                     // We know that, during the final compilation, we will query the database
                     // for a subgraph that the tuner has never seen. We workaround this problem
-		    // by adding a dummy entry to the database. The dummy entry is carefully
-		    // constructed so that the lookup during the final compilation would succeed.
+                    // by adding a dummy entry to the database. The dummy entry is carefully
+                    // constructed so that the lookup during the final compilation would succeed.
                     runtime::NDArray rewritten_constant = index_map->MapNDArray(constant);
                     auto f_dummy = AllocateConstReplaceConstant::Rewrite(
                         f.value(), {{constant, rewritten_constant}});
@@ -502,13 +502,13 @@ class ScheduleBuilder : public ExprVisitor {
                     database_.value()->CommitTuningRecord(rec_dummy);
                   } else {
                     // The constant is already transformed, so this is the second case, reached
-		    // during the final compilation.
-		    //
-		    // The schedule trace is supposed to be applied to the weight in its original
-		    // layout. But as explained above, the Relay subgraph we get in this case
-		    // has its weight tensor transformed according to the corresponding index map.
-		    // So effectively, we undo the layout transformation on the weight to restore
-		    // the original PrimFunc that the schedule trace is supposed to act on.
+                    // during the final compilation.
+                    //
+                    // The schedule trace is supposed to be applied to the weight in its original
+                    // layout. But as explained above, the Relay subgraph we get in this case
+                    // has its weight tensor transformed according to the corresponding index map.
+                    // So effectively, we undo the layout transformation on the weight to restore
+                    // the original PrimFunc that the schedule trace is supposed to act on.
                     ICHECK(index_map->inverse_index_map);
                     auto inverse_map = Downcast<IndexMap>(index_map->inverse_index_map.value());
                     ICHECK(constant.Shape().size() == inverse_map->initial_indices.size());

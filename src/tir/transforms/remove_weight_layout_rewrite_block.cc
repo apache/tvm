@@ -114,11 +114,11 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
 //
 // constant fused_constant_2[float32 * 3 * 3 * 64 * 64]
 // conv2d_nhwc[nn, yy, xx, ff] += ... * fused_constant_2_global[ry,
-// 							        floordiv(rc, 32),
-// 							        floordiv(ff, 16),
-// 							        rx,
-// 							        floormod(rc, 32),
-// 							        floormod(ff, 16)]))
+//                                                              floordiv(rc, 32),
+//                                                              floordiv(ff, 16),
+//                                                              rx,
+//                                                              floormod(rc, 32),
+//                                                              floormod(ff, 16)]))
 //
 // When cache_read is reading from AllocateConstant, we need to replace the reference
 // to fused_constant_2_global with the corresponding transformed AllocateConstant.
@@ -129,11 +129,11 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
 //
 // constant fused_constant_2[float32 * 3 * 2 * 4 * 3 * 32 * 16]
 // conv2d_nhwc[nn, yy, xx, ff] += ... * fused_constant_2[ry,
-// 				 		         floordiv(rc, 32),
-// 						         floordiv(ff, 16),
-// 						         rx,
-// 						         floormod(rc, 32),
-// 						         floormod(ff, 16)]))
+//                                                       floordiv(rc, 32),
+//                                                       floordiv(ff, 16),
+//                                                       rx,
+//                                                       floormod(rc, 32),
+//                                                       floormod(ff, 16)]))
 
 using BufferVarMap = std::unordered_map<const tir::VarNode*, const tir::VarNode*>;
 
@@ -167,7 +167,7 @@ class AllocateConstRewrite : public StmtExprMutator {
       auto rewritten_ndarray = it->second->MapNDArray(alloc->data.value());
       Array<PrimExpr> rewritten_extents;
       for (auto s : rewritten_ndarray.Shape()) {
-        rewritten_extents.push_back(PrimExpr(int(s)));
+        rewritten_extents.push_back(PrimExpr(static_cast<int>(s)));
       }
       return AllocateConst(alloc->buffer_var, alloc->dtype, rewritten_extents, rewritten_ndarray,
                            new_body, alloc->annotations, alloc->span);
