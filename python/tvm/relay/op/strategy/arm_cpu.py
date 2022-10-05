@@ -16,6 +16,7 @@
 # under the License.
 """Definition of ARM CPU operator strategy."""
 import logging
+import math
 
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 import re
@@ -69,6 +70,15 @@ def schedule_pool_arm_cpu(attrs, outs, target):
             return topi.arm_cpu.schedule_pool(outs, layout)
         logger.warning("pool is not optimized for arm cpu.")
         return topi.generic.schedule_pool(outs, layout)
+
+
+def _is_simd_aligned(dtype, dimensions):
+    size = math.prod(dimensions)
+    return (
+        (dtype == "int8" and size % 4 == 0)
+        or (dtype == "int16" and size % 2 == 0)
+        or (dtype == "int32")
+    )
 
 
 @conv2d_strategy.register("arm_cpu")
@@ -163,6 +173,9 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 target.features.has_dsp
                 and dilation_w == dilation_h == 1
                 and kernel_layout == "OHWI"
+                # Check SIMD alignment
+                and _is_simd_aligned(data.dtype, data.shape[2:])
+                and _is_simd_aligned(kernel.dtype, kernel.shape[1:])
             ):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_ohwi_dsp),
@@ -210,7 +223,12 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
         if layout == "NCHW":
             assert kernel_layout == "OIHW" or re.match(r"OIHW\d*o", kernel_layout)
             if kernel_layout == "OIHW":
-                if target.features.has_dsp and dilation_w == dilation_h == 1:
+                if (
+                    target.features.has_dsp
+                    and dilation_w == dilation_h == 1
+                    and _is_simd_aligned(data.dtype, data.shape[3:])
+                    and _is_simd_aligned(kernel.dtype, kernel.shape[2:])
+                ):
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nchw_oihw_dsp),
                         wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nchw_oihw_dsp),
