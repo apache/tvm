@@ -38,6 +38,7 @@ HexagonVtcmPool::HexagonVtcmPool() {
                                                 &total_block_layout, &avail_block_size,
                                                 &avail_block_layout));
   DLOG(INFO) << "HexagonVtcmPool total " << total_block_size << " avail " << avail_block_size;
+  CHECK(avail_block_size >= (1024 * 1024)) << "Less than 1MB VTCM available";
 
   // allocate nbytes of vtcm on a single page
   HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param_v2(&res_info,
