@@ -29,18 +29,15 @@ HexagonVtcmPool::HexagonVtcmPool() {
   compute_res_attr_t res_info;
   HEXAGON_SAFE_CALL(HAP_compute_res_attr_init(&res_info));
 
-  // TODO(HWE): get the max  and min size programmatically
   unsigned int total_block_size;
   unsigned int avail_block_size;
   compute_res_vtcm_page_t total_block_layout;
   compute_res_vtcm_page_t avail_block_layout;
 
-  HEXAGON_SAFE_CALL(compute_resource_query_VTCM(/* application_id = */ 0,
-                                                &total_block_size,
-                                                &total_block_layout,
-                                                &avail_block_size,
+  HEXAGON_SAFE_CALL(compute_resource_query_VTCM(/* application_id = */ 0, &total_block_size,
+                                                &total_block_layout, &avail_block_size,
                                                 &avail_block_layout));
-  DLOG(INFO) << "HexagonVtcmPool total_block_size " << total_block_size << " avail_block_size " << avail_block_size;
+  DLOG(INFO) << "HexagonVtcmPool total " << total_block_size << " avail " << avail_block_size;
 
   // allocate nbytes of vtcm on a single page
   HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param_v2(&res_info,
