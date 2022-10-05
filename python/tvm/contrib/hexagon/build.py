@@ -345,7 +345,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         session: Session,
         remote_path: Union[str, pathlib.Path] = None,
         temp_dir: TempDirectory = None,
-    ):
+    ) -> str:
         """Extract profile output.
 
         Parameters
