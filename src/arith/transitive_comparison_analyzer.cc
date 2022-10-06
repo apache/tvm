@@ -693,6 +693,14 @@ CompareResult TransitiveComparisonAnalyzer::Impl::TryCompareFromLHS(
     // known comparisons.  We want to find a known such that
     // `(LHS OP1 middle) && (middle OP2 right)` can be simplified
     // into `(LHS OP3 right)`.
+    //
+    // Note: The right side is this step is not necessarily the RHS of
+    // the comparison we're trying to prove, as we may need to find
+    // intermediate comparisons first.  For example, if we know that
+    // `a<=b`, `b<=c`, and `c<=d`, and we wish to prove that `a<=d`,
+    // we must first combine `a<=b` and `b<=c` into `a<=c`.  During
+    // this first step, `b` is the "middle" and `c` is the "right".
+    // The next step can then combind `a<=c` and `c<=d` into `a<=d`.
     for (const auto& known : knowns_) {
       if (auto cmp = known.WithLHS(middle_key)) {
         attempt_transitive(cmp.value());
