@@ -77,7 +77,7 @@ def _get_padding_width(padding):
     if len(padding) == 2:
         _, (pad_left, pad_right) = padding
     else:
-        _pad_up, pad_left, _pad_down, pad_right = padding
+        _, pad_left, _, pad_right = padding
     return pad_left + pad_right
 
 
