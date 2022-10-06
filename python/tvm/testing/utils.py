@@ -1752,13 +1752,13 @@ def fetch_model_from_url(
     return tvmc_model.mod, tvmc_model.params
 
 
-def xfail_parameterizations(*xfail_params, reason):
+def _mark_parameterizations(*params, marker_fn, reason):
     """
-    Mark tests with a nodeid parameters that exactly matches one in params as
-    xfail. Useful for quickly marking tests as xfail when they have a large
+    Mark tests with a nodeid parameters that exactly matches one in params.
+    Useful for quickly marking tests as xfail when they have a large
     combination of parameters.
     """
-    xfail_params = set(xfail_params)
+    params = set(params)
 
     def decorator(func):
         @functools.wraps(func)
@@ -1766,14 +1766,24 @@ def xfail_parameterizations(*xfail_params, reason):
             if "[" in request.node.name and "]" in request.node.name:
                 # Strip out the test name and the [ and ] brackets
                 params_from_name = request.node.name[len(request.node.originalname) + 1 : -1]
-                if params_from_name in xfail_params:
-                    pytest.xfail(reason=f"xfail on nodeid {request.node.nodeid}: " + reason)
+                if params_from_name in params:
+                    marker_fn(
+                        reason=f"{marker_fn.__name__} on nodeid {request.node.nodeid}: " + reason
+                    )
 
             return func(request, *args, **kwargs)
 
         return wrapper
 
     return decorator
+
+
+def xfail_parameterizations(*xfail_params, reason):
+    return _mark_parameterizations(*xfail_params, marker_fn=pytest.xfail, reason=reason)
+
+
+def skip_parameterizations(*skip_params, reason):
+    return _mark_parameterizations(*skip_params, marker_fn=pytest.skip, reason=reason)
 
 
 def main():
