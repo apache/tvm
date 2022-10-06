@@ -22,6 +22,8 @@ import pathlib
 from typing import List, Any
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent
+GITHUB_SCRIPT_ROOT = REPO_ROOT / "ci" / "scripts" / "github"
+JENKINS_SCRIPT_ROOT = REPO_ROOT / "ci" / "scripts" / "jenkins"
 
 
 class TempGit:

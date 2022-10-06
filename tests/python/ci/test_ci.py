@@ -26,12 +26,12 @@ from pathlib import Path
 import pytest
 import tvm.testing
 
-from .test_utils import REPO_ROOT, TempGit, run_script
+from .test_utils import REPO_ROOT, GITHUB_SCRIPT_ROOT, JENKINS_SCRIPT_ROOT, TempGit, run_script
 
 # pylint: disable=wrong-import-position,wrong-import-order
 sys.path.insert(0, str(REPO_ROOT / "ci"))
-# sys.path.insert(0, str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
-sys.path.insert(0, str(REPO_ROOT / "ci" / "scripts" / "github"))
+sys.path.insert(0, str(JENKINS_SCRIPT_ROOT))
+sys.path.insert(0, str(GITHUB_SCRIPT_ROOT))
 
 import scripts.github
 import scripts.jenkins
@@ -314,7 +314,7 @@ def test_cc_reviewers(
     """
     Test that reviewers are added from 'cc @someone' messages in PRs
     """
-    reviewers_script = REPO_ROOT / "ci" / "scripts" / "github" / "github_cc_reviewers.py"
+    reviewers_script = GITHUB_SCRIPT_ROOT / "github_cc_reviewers.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
     reviews = [{"user": {"login": r}} for r in existing_review_users]
@@ -397,7 +397,7 @@ def test_update_branch(tmpdir_factory, statuses, expected_rc, expected_output):
     """
     Test that the last-successful branch script updates successfully
     """
-    update_script = REPO_ROOT / "ci" / "scripts" / "github" / "update_branch.py"
+    update_script = GITHUB_SCRIPT_ROOT / "update_branch.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
     commit = {
@@ -508,7 +508,7 @@ def test_pr_comment(tmpdir_factory, pr_author, comments, expected):
     """
     Test the PR commenting bot
     """
-    comment_script = REPO_ROOT / "ci" / "scripts" / "github" / "github_pr_comment.py"
+    comment_script = GITHUB_SCRIPT_ROOT / "github_pr_comment.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
     target_url = "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect"
@@ -639,7 +639,7 @@ def test_skip_ci(tmpdir_factory, commands, should_skip, pr_title, why):
     """
     Test that CI is skipped when it should be
     """
-    skip_ci_script = REPO_ROOT / "ci" / "scripts" / "jenkins" / "git_skip_ci.py"
+    skip_ci_script = JENKINS_SCRIPT_ROOT / "git_skip_ci.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
 
@@ -676,7 +676,7 @@ def test_skip_globs(tmpdir_factory, files, should_skip):
     """
     Test that CI is skipped if only certain files are edited
     """
-    script = REPO_ROOT / "ci" / "scripts" / "jenkins" / "git_skip_ci_globs.py"
+    script = JENKINS_SCRIPT_ROOT / "git_skip_ci_globs.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
 
@@ -777,7 +777,7 @@ def test_ping_reviewers(tmpdir_factory, pull_request, check):
     """
     Test that reviewers are messaged after a time period of inactivity
     """
-    reviewers_script = REPO_ROOT / "ci" / "scripts" / "github" / "ping_reviewers.py"
+    reviewers_script = GITHUB_SCRIPT_ROOT / "ping_reviewers.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
 
@@ -1016,7 +1016,7 @@ def test_github_tag_teams(tmpdir_factory, source_type, data, check):
     """
     Check that individuals are tagged from team headers
     """
-    tag_script = REPO_ROOT / "ci" / "scripts" / "github" / "github_tag_teams.py"
+    tag_script = GITHUB_SCRIPT_ROOT / "github_tag_teams.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
 
@@ -1141,7 +1141,7 @@ def test_open_docker_update_pr(
     tmpdir_factory, tlcpackstaging_body, tlcpack_body, expected, expected_images
 ):
     """Test workflow to open a PR to update Docker images"""
-    tag_script = REPO_ROOT / "ci" / "scripts" / "jenkins" / "open_docker_update_pr.py"
+    tag_script = JENKINS_SCRIPT_ROOT / "open_docker_update_pr.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
     git.run("config", "user.name", "ci")
@@ -1200,7 +1200,7 @@ def test_open_docker_update_pr(
 )
 def test_determine_docker_images(tmpdir_factory, images, expected):
     """Test script to decide whether to use tlcpack or tlcpackstaging for images"""
-    script = REPO_ROOT / "ci" / "scripts" / "jenkins" / "determine_docker_images.py"
+    script = JENKINS_SCRIPT_ROOT / "determine_docker_images.py"
 
     git_dir = tmpdir_factory.mktemp("tmp_git_dir")
 
@@ -1255,7 +1255,7 @@ def test_should_rebuild_docker(tmpdir_factory, changed_files, name, check, expec
     """
     Check that the Docker images are built when necessary
     """
-    tag_script = REPO_ROOT / "ci" / "scripts" / "jenkins" / "should_rebuild_docker.py"
+    tag_script = JENKINS_SCRIPT_ROOT / "should_rebuild_docker.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
     git.run("config", "user.name", "ci")
@@ -1334,7 +1334,7 @@ def test_pr_linter(title, body, expected, expected_code):
     """
     Test the PR linter
     """
-    tag_script = REPO_ROOT / "ci" / "scripts" / "jenkins" / "check_pr.py"
+    tag_script = JENKINS_SCRIPT_ROOT / "check_pr.py"
     pr_data = {
         "title": title,
         "body": body,
