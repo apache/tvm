@@ -192,7 +192,7 @@ class TransitiveComparisonAnalyzer::Impl {
    */
   void AddKnown(const PrimExpr& expr, std::vector<Comparison>* vec);
 
-  /*! \brief Attempt to compare, starting at the lhs.
+  /*! \brief Attempt to compare the expressions, starting at the lhs.
    *
    * Perform a depth-first search through the space of known
    * expressions, starting at the LHS of a comparison.  In this
@@ -214,8 +214,8 @@ class TransitiveComparisonAnalyzer::Impl {
    *
    * \return The result of the comparison
    */
-  CompareResult TryCompareFromLHS(Key lhs_key, Key rhs_key, int64_t offset, const PrimExpr& lhs,
-                                  const PrimExpr& rhs) const;
+  CompareResult DFSFromLHS(Key lhs_key, Key rhs_key, int64_t offset, const PrimExpr& lhs,
+                           const PrimExpr& rhs) const;
 
   /*! \brief Previous Range bindings
    *
@@ -575,16 +575,17 @@ CompareResult TransitiveComparisonAnalyzer::Impl::TryCompare(const PrimExpr& lhs
     return CompareResult::kUnknown;
   }
 
-  auto from_lhs = TryCompareFromLHS(lhs_key.value(), rhs_key.value(), offset, lhs, rhs);
-  auto from_rhs = Reverse(TryCompareFromLHS(rhs_key.value(), lhs_key.value(), -offset, rhs, lhs));
+  auto from_lhs = DFSFromLHS(lhs_key.value(), rhs_key.value(), offset, lhs, rhs);
+  auto from_rhs = Reverse(DFSFromLHS(rhs_key.value(), lhs_key.value(), -offset, rhs, lhs));
   auto output = from_lhs & from_rhs;
 
   return output;
 }
 
-CompareResult TransitiveComparisonAnalyzer::Impl::TryCompareFromLHS(
-    Key lhs_key_input, Key rhs_key_input, int64_t offset_input, const PrimExpr& lhs_input,
-    const PrimExpr& rhs_input) const {
+CompareResult TransitiveComparisonAnalyzer::Impl::DFSFromLHS(Key lhs_key_input, Key rhs_key_input,
+                                                             int64_t offset_input,
+                                                             const PrimExpr& lhs_input,
+                                                             const PrimExpr& rhs_input) const {
   Key lhs_key = lhs_key_input;
   Key rhs_key = rhs_key_input;
   int64_t offset = offset_input;
