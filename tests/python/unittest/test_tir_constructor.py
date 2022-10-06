@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+import pytest
+
 import tvm
 from tvm import te
 
@@ -189,6 +192,10 @@ def test_stmt_constructor():
     assert isinstance(x, tvm.tir.Prefetch)
 
 
+def test_float_constructor_requires_float_dtype():
+    with pytest.raises(tvm.TVMError):
+        tvm.tir.FloatImm("int32", 1.0)
+
+
 if __name__ == "__main__":
-    test_expr_constructor()
-    test_stmt_constructor()
+    tvm.testing.main()
