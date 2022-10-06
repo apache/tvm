@@ -41,6 +41,7 @@ class HexagonVtcmPoolTest : public ::testing::Test {
 
 TEST_F(HexagonVtcmPoolTest, basic) {
   void* ptr;
+  void* ptr2;
 
   ptr = vtcm_pool->Allocate(max_bytes);
   CHECK((reinterpret_cast<size_t>(ptr) & 0x7FF) == 0)
@@ -60,7 +61,12 @@ TEST_F(HexagonVtcmPoolTest, basic) {
   ptr = vtcm_pool->Allocate(min_bytes);
   CHECK((reinterpret_cast<size_t>(ptr) & 0x7F) == 0)
       << "Must be multiple of 128 " << ptr << " " << min_bytes;
+
+  ptr2 = vtcm_pool->Allocate(one_k_block);
+  CHECK((reinterpret_cast<size_t>(ptr) & 0x7F) == 0)
+      << "Must be multiple of 128 " << ptr2 << " " << one_k_block;
   vtcm_pool->Free(ptr, min_bytes);
+  vtcm_pool->Free(ptr2, one_k_block);
 
   EXPECT_THROW(ptr = vtcm_pool->Allocate(1), InternalError);
 }
