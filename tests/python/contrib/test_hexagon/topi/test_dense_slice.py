@@ -66,7 +66,11 @@ def weight_quant(weight_np, dtype):
 @tvm.testing.fixture
 def bias_np(bias_shape, bias, dtype):
     if bias:
-        return np.random.randint(-128, 127, size=bias_shape).astype("int32")
+        if "int" in dtype:
+            data = np.random.randint(-128, 127, size=bias_shape).astype("int32")
+        elif "float" in dtype:
+            data = np.random.random(bias_shape).astype(dtype)
+        return data
     else:
         return None
 
@@ -125,13 +129,13 @@ class TestDenseSlice:
             False,
             "float16",
         ),
-        # (
-        #     [1, 1024], # TODO(joshherr-quic): Fix assertion in LLVM when bias is enabled.
-        #     [1, 1024],
-        #     "nc-1024c-2d",
-        #     True,
-        #     "float16",
-        # ),
+        (
+            [1, 1024],
+            [1, 1024],
+            "nc-1024c-2d",
+            True,
+            "float16",
+        ),
         (
             [1, 2048],
             [1, 2048],
@@ -139,13 +143,13 @@ class TestDenseSlice:
             False,
             "float16",
         ),
-        # (
-        #     [1, 2048],
-        #     [1, 2048],
-        #     "nc-1024c-2d",
-        #     True,
-        #     "float16",
-        # ),
+        (
+            [1, 2048],
+            [1, 2048],
+            "nc-1024c-2d",
+            True,
+            "float16",
+        ),
         (  # Uint 8
             [1, 2048],
             [1, 2048],
@@ -265,7 +269,7 @@ class TestDenseSlice:
             args.append(quant_arr[3])
 
         if bias_np is not None:
-            B = te.placeholder((output_shape[-1],), name="B", dtype="int32")
+            B = te.placeholder((output_shape[-1],), name="B", dtype=str(bias_np.dtype))
             args.append(B)
             tensors.append(B)
         else:
