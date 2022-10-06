@@ -596,27 +596,34 @@ CompareResult TransitiveComparisonAnalyzer::Impl::TryCompareFromLHS(
 
   // Utility function to add a new known statement
   auto declare_known = [&](Comparison cmp) {
-    auto& prev_knowns = compared_to_x[cmp.rhs_];
+    std::vector<Comparison>& knowns = compared_to_x[cmp.rhs_];
 
-    for (auto& prev_known : prev_knowns) {
+    // The comparison adds no new information, no modification
+    // required.
+    for (auto& prev_known : knowns) {
       if (prev_known.Implies(cmp)) {
         return;
       }
     }
 
+    // New information may require visiting a new expression.
     if (cmp.rhs_ != rhs_key && !seen.count(cmp.rhs_)) {
       to_visit.insert(cmp.rhs_);
       seen.insert(cmp.rhs_);
     }
 
-    for (auto& prev_known : prev_knowns) {
+    // This comparison is a stronger version of a previous constraint.
+    // Therefore, replace the old version entirely.
+    for (auto& prev_known : knowns) {
       if (cmp.Implies(prev_known)) {
         prev_known = cmp;
         return;
       }
     }
 
-    prev_knowns.push_back(cmp);
+    // Neither a superset nor a subset of previously known
+    // constraints, must be tracked separately.
+    knowns.push_back(cmp);
   };
 
   // Initialize the search based on any known (in)equalities that use
