@@ -25,50 +25,60 @@ using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
 
 class HexagonVtcmPoolTest : public ::testing::Test {
-  void SetUp() override { vtcm_pool = HexagonDeviceAPI::Global()->VtcmPool(); }
+  void SetUp() override {
+    vtcm_pool = HexagonDeviceAPI::Global()->VtcmPool();
+    max_bytes = vtcm_pool->TotalBytes();
+  }
   void TearDown() override {}
 
  public:
   HexagonVtcmPool* vtcm_pool;
+  size_t max_bytes;
+  size_t two_k_block = 2048;
+  size_t one_k_block = 1024;
+  size_t min_bytes = 128;
 };
 
 TEST_F(HexagonVtcmPoolTest, basic) {
   void* ptr;
-  size_t max_bytes = vtcm_pool->TotalBytes();
-  size_t two_k_block = 2048;
-  size_t one_k_block = 1024;
-  size_t one_byte_block = 1;
+
   ptr = vtcm_pool->Allocate(max_bytes);
+  CHECK((reinterpret_cast<size_t>(ptr) & 0x7FF) == 0)
+      << "Must be multiple of 2k " << ptr << " " << max_bytes;
   vtcm_pool->Free(ptr, max_bytes);
+
   ptr = vtcm_pool->Allocate(two_k_block);
+  CHECK((reinterpret_cast<size_t>(ptr) & 0x7FF) == 0)
+      << "Must be multiple of 2k " << ptr << " " << two_k_block;
   vtcm_pool->Free(ptr, two_k_block);
+
   ptr = vtcm_pool->Allocate(one_k_block);
+  CHECK((reinterpret_cast<size_t>(ptr) & 0x7F) == 0)
+      << "Must be multiple of 128 " << ptr << " " << one_k_block;
   vtcm_pool->Free(ptr, one_k_block);
-  ptr = vtcm_pool->Allocate(one_byte_block);
-  vtcm_pool->Free(ptr, one_byte_block);
+
+  ptr = vtcm_pool->Allocate(min_bytes);
+  CHECK((reinterpret_cast<size_t>(ptr) & 0x7F) == 0)
+      << "Must be multiple of 128 " << ptr << " " << min_bytes;
+  vtcm_pool->Free(ptr, min_bytes);
+
+  EXPECT_THROW(ptr = vtcm_pool->Allocate(1), InternalError);
 }
 
 TEST_F(HexagonVtcmPoolTest, no_free_vtcm) {
-  void* ptr;
-  size_t max_bytes = vtcm_pool->TotalBytes();
-  ptr = vtcm_pool->Allocate(max_bytes);
-  EXPECT_THROW(vtcm_pool->Allocate(1), InternalError);
+  void* ptr = vtcm_pool->Allocate(max_bytes);
+  EXPECT_THROW(vtcm_pool->Allocate(min_bytes), InternalError);
   vtcm_pool->Free(ptr, max_bytes);
 }
 
 TEST_F(HexagonVtcmPoolTest, not_enough_free_vtcm) {
-  void* ptr;
-  size_t max_bytes = vtcm_pool->TotalBytes();
-  size_t two_k_block = 2048;
-  ptr = vtcm_pool->Allocate(max_bytes - two_k_block);
+  void* ptr = vtcm_pool->Allocate(max_bytes - two_k_block);
   EXPECT_THROW(vtcm_pool->Allocate(two_k_block * 2), InternalError);
   vtcm_pool->Free(ptr, max_bytes - two_k_block);
 }
 
 TEST_F(HexagonVtcmPoolTest, free_with_wrong_size) {
-  void* ptr;
-  size_t two_k_block = 2048;
-  ptr = vtcm_pool->Allocate(two_k_block * 2);
+  void* ptr = vtcm_pool->Allocate(two_k_block * 2);
   EXPECT_THROW(vtcm_pool->Free(ptr, two_k_block), InternalError);
   vtcm_pool->Free(ptr, two_k_block * 2);
 }
@@ -79,7 +89,6 @@ TEST_F(HexagonVtcmPoolTest, free_alloc_combinations) {
   void* ptr3;
   void* ptr4;
   void* new_ptr;
-  size_t two_k_block = 2048;
   size_t max_less_3_blocks = vtcm_pool->TotalBytes() - (3 * two_k_block);
   ptr1 = vtcm_pool->Allocate(two_k_block);
   ptr2 = vtcm_pool->Allocate(two_k_block);
