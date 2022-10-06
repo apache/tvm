@@ -347,6 +347,29 @@ TransitiveComparisonAnalyzer::Impl::FromExpr(const PrimExpr& expr) {
 TransitiveComparisonAnalyzer::Impl::Comparison::Comparison(Key lhs, Key rhs, int64_t offset,
                                                            CompareResult result)
     : lhs_(lhs), rhs_(rhs), offset_(offset), result_(result) {
+  // Normalize the comparison to remove LT and GT expressions,
+  // reducing the number of operators that must be handled later.  By
+  // eliminating LT and GT, instead of eliminating LE or GE, a
+  // potential off-by-one error is avoided.
+  //
+  // For floating-point numbers, (x < y + c1) and (y < z + c2) implies
+  // that (x < z + (c1 + c2)).  For integer types, which the
+  // TransitiveComparisonAnalyzer is intended for use with integers,
+  // LT or GT can give a tighter constraint, though with a less
+  // convenient symmetry.
+  //
+  // i < j + c1, j < k + c2
+  // i <= j + c1 - 1, j <= k + c2 - 1
+  // i + 1 - c1 <= j, j <= k + c2 - 1
+  // i + 1 - c1 <= k + c2 - 1
+  // i <= k + c1 + c2 - 2
+  // i < k + (c1 + c2 - 1)
+  //
+  // By always working with LE and GE comparisons, we avoid needing to
+  // handle the offset of one that would be introduced by LT and GT at
+  // all points of use.  The only point of use for LT and GT is when
+  // normalizing comparisons (i.e. this constructor).
+
   if (result_ == CompareResult::kLT) {
     result_ = CompareResult::kLE;
     offset_ -= 1;
@@ -379,7 +402,8 @@ TransitiveComparisonAnalyzer::Impl::Key TransitiveComparisonAnalyzer::Impl::Expr
 }
 
 bool TransitiveComparisonAnalyzer::Impl::Comparison::IsNormalized() const {
-  // These < and > should be removed during normalization.
+  // These < and > should be removed during normalization.  See the
+  // `Comparison::Comparison` constructor for further details.
   return result_ != CompareResult::kLT && result_ != CompareResult::kGT;
 }
 
