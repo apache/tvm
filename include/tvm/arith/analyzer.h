@@ -273,7 +273,7 @@ class RewriteSimplifier {
    *
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  std::function<void()> EnterConstraint(const PrimExpr& constraint);
+  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
   /*! \brief Flags to enable more computationally-intensive simplifications
    *
@@ -304,10 +304,10 @@ class RewriteSimplifier {
    * \param flags A bitwise OR of all optional extensions that should
    * be enabled.
    */
-  void SetEnabledExtensions(Extension flags);
+  TVM_DLL void SetEnabledExtensions(Extension flags);
 
   /*! \brief Return the currently enabled extensions */
-  Extension GetEnabledExtensions() const;
+  TVM_DLL Extension GetEnabledExtensions() const;
 
  private:
   friend class Analyzer;
@@ -391,7 +391,7 @@ class TransitiveComparisonAnalyzer {
    * \return The most specific result that can be proven about the
    * comparison.  If nothing can be proven, returns kUnknown.
    */
-  CompareResult TryCompare(const PrimExpr& lhs, const PrimExpr& rhs);
+  TVM_DLL CompareResult TryCompare(const PrimExpr& lhs, const PrimExpr& rhs);
 
   /*! \brief Bind a variable as being equal to a known expression
    *
@@ -399,7 +399,7 @@ class TransitiveComparisonAnalyzer {
    * \param expr The bound expression
    * \param allow_override Whether to allow override of existing information.
    */
-  void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
+  TVM_DLL void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
 
   /*! \brief Bind a variable as being within a specified range
    *
@@ -407,7 +407,7 @@ class TransitiveComparisonAnalyzer {
    * \param range The known range
    * \param allow_override Whether to allow override of existing information.
    */
-  void Bind(const Var& var, const Range& range, bool allow_override = false);
+  TVM_DLL void Bind(const Var& var, const Range& range, bool allow_override = false);
 
   /*!
    * \brief Update the internal state to enter constraint.
@@ -415,7 +415,7 @@ class TransitiveComparisonAnalyzer {
    *
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  std::function<void()> EnterConstraint(const PrimExpr& constraint);
+  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  private:
   friend class Analyzer;
