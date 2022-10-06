@@ -58,7 +58,6 @@ void ReflectionVTable::SHashReduce(const Object* self, SHashReducer reducer) con
 class SHashHandlerDefault::Impl {
  public:
   explicit Impl(SHashHandlerDefault* parent) : parent_(parent) {}
-  virtual ~Impl() = default;
 
   /*! \brief Pending reduce tasks. */
   struct Task {
