@@ -32,7 +32,7 @@ def dense_compute(tensor_a, tensor_b, bias=None, out_dtype=None):
         data 2-D with shape [batch, in_dim]
 
     tensor_b : tvm.te.Tensor
-        weight 2-D with shape [out_dim, in_dim]
+        weight 2-D with shape [in_dim, out_dim]
 
     bias : Optional[tvm.te.Tensor]
         1-D with shape [out_dim]
@@ -59,7 +59,7 @@ def dense_compute(tensor_a, tensor_b, bias=None, out_dtype=None):
 
     k = te.reduce_axis((0, in_dim), name="k")
     compute_lambda = lambda n, m: te.sum(
-        tensor_a[n, k].astype(out_dtype) * tensor_b[m, k].astype(out_dtype), axis=k
+        tensor_a[n, k].astype(out_dtype) * tensor_b[k, m].astype(out_dtype), axis=k
     )
     compute_name = "matmul_sliced"
     compute_tag = "matmul"
@@ -75,7 +75,7 @@ def dense_compute(tensor_a, tensor_b, bias=None, out_dtype=None):
     if bias is not None:
         mat = te.compute(
             (batch, out_dim),
-            lambda i, j: mat[i, j] + bias[j].astype(out_dtype),
+            lambda i, j: mat[i, j] + bias[j],
             tag=tag.BROADCAST,
             name="bias",
         )
@@ -133,11 +133,12 @@ def dense_schedule(outs, ins, output_layout: str, input_layout: str):
         s.transform_layout(bias, ("write", 0), output_transform_fn)
 
     _, matmul_c, _ = s.get_loops(matmul)
-    _, matmul_c_inner = s.split(matmul_c, [None, 1024])
+    _, matmul_c_inner = s.split(matmul_c, [None, 64])
     s.vectorize(matmul_c_inner)
 
     if bias is not None:
         _, bias_c = s.get_loops(bias)
-        s.compute_at(matmul, bias_c)
+        _, bias_c_inner = s.split(bias_c, [None, 64])
+        s.vectorize(bias_c_inner)
 
     return s

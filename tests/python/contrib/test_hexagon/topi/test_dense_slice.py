@@ -125,13 +125,13 @@ class TestDenseSlice:
             False,
             "float16",
         ),
-        (
-            [1, 1024],
-            [1, 1024],
-            "nc-1024c-2d",
-            True,
-            "float16",
-        ),
+        # (
+        #     [1, 1024],
+        #     [1, 1024],
+        #     "nc-1024c-2d",
+        #     True,
+        #     "float16",
+        # ),
         (
             [1, 2048],
             [1, 2048],
@@ -139,13 +139,13 @@ class TestDenseSlice:
             False,
             "float16",
         ),
-        (
-            [1, 2048],
-            [1, 2048],
-            "nc-1024c-2d",
-            True,
-            "float16",
-        ),
+        # (
+        #     [1, 2048],
+        #     [1, 2048],
+        #     "nc-1024c-2d",
+        #     True,
+        #     "float16",
+        # ),
         (  # Uint 8
             [1, 2048],
             [1, 2048],
@@ -208,7 +208,7 @@ class TestDenseSlice:
     def expected_output_np(self, input_np, weight_np, bias_np, bias):
         ref_np = tvm.topi.testing.dense(
             np.reshape(input_np, (input_np.shape[0], input_np.shape[-1])),
-            weight_np,
+            weight_np.T, # Function expects [in_dim, out_dim]
             bias_np,
             use_bias=bias,
             out_dtype="float32" if "int" in str(input_np.dtype) else input_np.dtype,
@@ -294,6 +294,7 @@ class TestDenseSlice:
                 target=tvm.target.Target(target_hexagon, host=target_hexagon),
                 name="dense",
             )
+            func.save("dense.s" if bias_np is None else "dense_bias.s")
 
         input_arr = allocate_hexagon_array(
             hexagon_session.device,
@@ -339,11 +340,10 @@ class TestDenseSlice:
         else:
             raise RuntimeError(f"Unexpected layout '{layout}'")
 
-        # TODO(joshherr-quic): Investigate ways to improve accuracy
         if "int" in dtype:
-            np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=1e-1, atol=0)
+            np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=1e-2, atol=0)
         elif "float" in dtype:
-            np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=1e-1, atol=0)
+            np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=1e-2, atol=0)
 
 
 if __name__ == "__main__":

@@ -43,7 +43,7 @@ def qdense_compute(
         data 2-D with shape [batch, in_dim]
 
     tensor_b : tvm.te.Tensor
-        weight 2-D with shape [out_dim, in_dim]
+        weight 2-D with shape [in_dim, out_dim]
 
     bias : Optional[tvm.te.Tensor]
         1-D with shape [out_dim]
@@ -73,7 +73,7 @@ def qdense_compute(
         scale_a
         * (tensor_a[n, k].astype("float32") - zero_a)
         * scale_b
-        * (tensor_b[m, k].astype("float32") - zero_b),
+        * (tensor_b[k, m].astype("float32") - zero_b),
         axis=k,
     )
     compute_name = "qmatmul_sliced"
@@ -159,7 +159,7 @@ def qdense_schedule(outs, ins, output_layout: str, input_layout: str):
 
     # Vectorize
     _, matmul_c, _ = s.get_loops(matmul)
-    _, matmul_c_inner = s.split(matmul_c, [None, 1024])
+    _, matmul_c_inner = s.split(matmul_c, [None, 128])
     s.vectorize(matmul_c_inner)
 
     # Compute everything inline
