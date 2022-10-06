@@ -169,23 +169,48 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer
     input_iters.Set(initial_indices[i], ranges[i]);
   }
 
-  std::unordered_map<const VarNode*, arith::IntSet> dom_map;
-  for (size_t i = 0; i < initial_indices.size(); i++) {
-    dom_map[initial_indices[i].get()] = arith::IntSet::FromRange(ranges[i]);
-  }
-
   arith::Analyzer local_analyzer;
   if (!analyzer) {
     analyzer = &local_analyzer;
   }
 
+  auto iter_map = DetectIterMap(final_indices, input_iters, /* predicate = */ 1,
+                                /*check_level=*/arith::IterMapLevel::NoCheck, analyzer,
+                                /*simplify_trivial_iterators=*/false);
   Array<Range> output;
-  for (const auto& final_index : final_indices) {
-    auto int_set = arith::EvalSet(final_index, dom_map);
-    output.push_back(Range::FromMinExtent(analyzer->Simplify(int_set.min()),
-                                          analyzer->Simplify(int_set.max() - int_set.min() + 1)));
-  }
+  if (iter_map->indices.size()) {
+    // Preferred route, requires the map to be expressible as an
+    // affine sum.  Since the terms are orthogonal, the extent of the
+    // sum is the extent of the largest term.
+    for (const auto& index : iter_map->indices) {
+      Optional<PrimExpr> extent = NullOpt;
+      for (const auto& term : index->args) {
+        PrimExpr term_extent = term->extent * term->scale;
+        if (extent.defined()) {
+          extent = tvm::max(extent.value(), term_extent);
+        } else {
+          extent = term_extent;
+        }
+      }
+      output.push_back(Range::FromMinExtent(index->base, extent.value_or(1)));
+    }
 
+  } else {
+    // Fall-back method, more general but can ignore intended padding.
+    // For example, [N] mapped through i=>[i//4,i%4] should have shape
+    // [ceildiv(N,4), 4].  However, for N<4, this method instead
+    // results in a shape [1, N].
+    std::unordered_map<const VarNode*, arith::IntSet> dom_map;
+    for (size_t i = 0; i < initial_indices.size(); i++) {
+      dom_map[initial_indices[i].get()] = arith::IntSet::FromRange(ranges[i]);
+    }
+
+    for (const auto& final_index : final_indices) {
+      auto int_set = arith::EvalSet(final_index, dom_map);
+      output.push_back(Range::FromMinExtent(analyzer->Simplify(int_set.min()),
+                                            analyzer->Simplify(int_set.max() - int_set.min() + 1)));
+    }
+  }
   return output;
 }
 
