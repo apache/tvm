@@ -72,8 +72,23 @@ def schedule_pool_arm_cpu(attrs, outs, target):
         return topi.generic.schedule_pool(outs, layout)
 
 
-def _is_simd_aligned(dtype, dimensions):
-    size = math.prod(dimensions)
+def _get_padding_width(padding):
+    assert isinstance(padding, tuple)
+    if len(padding) == 2:
+        _, (pad_left, pad_right) = padding
+    else:
+        _pad_up, pad_left, _pad_down, pad_right = padding
+    return pad_left + pad_right
+
+
+def _is_simd_aligned(dtype, dimensions, padding=None):
+    if padding:
+        assert len(dimensions) == len(padding)
+        padded_dims = (sum(x) for x in zip(dimensions, padding))
+    else:
+        padded_dims = dimensions
+
+    size = math.prod(padded_dims)
     return (
         (dtype == "int8" and size % 4 == 0)
         or (dtype == "int16" and size % 2 == 0)
@@ -169,13 +184,14 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 name="conv2d_hwcn.generic",
             )
         elif layout == "NHWC":
+            data_width_padding = _get_padding_width(padding)
             if (
                 target.features.has_dsp
                 and dilation_w == dilation_h == 1
                 and kernel_layout == "OHWI"
                 # Check SIMD alignment
-                and _is_simd_aligned(data.dtype, data.shape[2:])
-                and _is_simd_aligned(kernel.dtype, kernel.shape[1:])
+                and _is_simd_aligned(data.dtype, data.shape[2:], padding=(data_width_padding, 0))
+                and _is_simd_aligned(kernel.dtype, kernel.shape[2:])
             ):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_ohwi_dsp),
@@ -223,11 +239,12 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
         if layout == "NCHW":
             assert kernel_layout == "OIHW" or re.match(r"OIHW\d*o", kernel_layout)
             if kernel_layout == "OIHW":
+                data_width_padding = _get_padding_width(padding)
                 if (
                     target.features.has_dsp
                     and dilation_w == dilation_h == 1
-                    and _is_simd_aligned(data.dtype, data.shape[3:])
-                    and _is_simd_aligned(kernel.dtype, kernel.shape[2:])
+                    and _is_simd_aligned(data.dtype, data.shape[3:], padding=(data_width_padding,))
+                    and _is_simd_aligned(kernel.dtype, kernel.shape[3:])
                 ):
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nchw_oihw_dsp),
