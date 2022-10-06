@@ -15,24 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-from tvm import te, relay, transform
-from tvm.contrib.download import download_testdata
-from tvm.contrib import graph_executor as runtime
-
 import os
-import pytest
-from PIL import Image
-import numpy as np
 
-from test_verilator.infrastructure import (
-    skip_test,
-    compile_hardware,
-    compiler_opts,
-    offload,
-    clear_stats,
-    stats,
-)
+import numpy as np
+import pytest
+import tvm
+from PIL import Image
+from tvm import relay, te, transform
+from tvm.contrib import graph_executor as runtime
+from tvm.contrib.download import download_testdata
+
+from test_verilator.infrastructure import (clear_stats, compile_hardware,
+                                           compiler_opts, offload, skip_test,
+                                           stats)
 
 
 def extract(path):
@@ -215,7 +210,7 @@ def is_tflite_available():
         return False
 
 
-@pytest.mark.skipif(skip_test(), reason="Skip because Verilator codegen is not available")
+@pytest.mark.skip(reason="Skip because Verilator codegen is not available")
 def tmobilenet(lanes):
     """Mobilenet test template.
     Paramters
@@ -239,6 +234,7 @@ def tmobilenet(lanes):
     print_test_info(lanes, values["cycle_counter"])
 
 
+@pytest.mark.skip(reason="Skip because Verilator codegen is not available")
 def test_mobilenet():
     """Mobilenet tests."""
     tmobilenet(4)

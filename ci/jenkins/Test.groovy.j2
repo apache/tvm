@@ -271,10 +271,10 @@ stage('Test') {
     cpp_unittest(ci_cpu)
     python_unittest(ci_cpu)
     fsim_test(ci_cpu)
-    sh (
-      script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
-      label: 'Run VTA tests in TSIM',
-    )
+    // sh (
+    //   script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
+    //   label: 'Run VTA tests in TSIM',
+    // )
   {% endcall %}
   {% call m.test_step(
     name="frontend: CPU",

@@ -52,7 +52,7 @@ else:
     tvm_path = Path(os.pardir)
 
 sys.path.insert(0, str(tvm_path.resolve() / "python"))
-sys.path.insert(0, str(tvm_path.resolve() / "vta" / "python"))
+# sys.path.insert(0, str(tvm_path.resolve() / "vta" / "python"))
 sys.path.insert(0, str(tvm_path.resolve() / "docs"))
 
 # -- General configuration ------------------------------------------------
@@ -220,7 +220,7 @@ examples_dirs = [
     tvm_path.joinpath("gallery", "how_to", "tune_with_autoscheduler"),
     tvm_path.joinpath("gallery", "how_to", "work_with_microtvm"),
     tvm_path.joinpath("gallery", "how_to", "extend_tvm"),
-    tvm_path.joinpath("vta", "tutorials"),
+    # tvm_path.joinpath("vta", "tutorials"),
 ]
 
 gallery_dirs = [
@@ -234,16 +234,17 @@ gallery_dirs = [
     "how_to/tune_with_autoscheduler",
     "how_to/work_with_microtvm",
     "how_to/extend_tvm",
-    "topic/vta/tutorials",
+    # "topic/vta/tutorials",
 ]
 
 subsection_order = ExplicitOrder(
-    str(p)
-    for p in [
-        tvm_path / "vta" / "tutorials" / "frontend",
-        tvm_path / "vta" / "tutorials" / "optimize",
-        tvm_path / "vta" / "tutorials" / "autotvm",
-    ]
+    # str(p)
+    # for p in [
+    #     tvm_path / "vta" / "tutorials" / "frontend",
+    #     tvm_path / "vta" / "tutorials" / "optimize",
+    #     tvm_path / "vta" / "tutorials" / "autotvm",
+    # ]
+    []
 )
 
 # Explicitly define the order within a subsection.
@@ -401,7 +402,7 @@ header_logo_link = "https://tvm.apache.org/"
 header_links = [
     ("Community", "https://tvm.apache.org/community"),
     ("Download", "https://tvm.apache.org/download"),
-    ("VTA", "https://tvm.apache.org/vta"),
+    # ("VTA", "https://tvm.apache.org/vta"),
     ("Blog", "https://tvm.apache.org/blog"),
     ("Docs", "https://tvm.apache.org/docs"),
     ("Conference", "https://tvmconf.org"),
