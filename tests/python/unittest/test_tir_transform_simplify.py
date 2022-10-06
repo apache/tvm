@@ -614,7 +614,7 @@ class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
         (tvm.tir.all(i == j, j != k), i > k, False),
         # Because these are integers, x<y is equivalent to x <= y-1,
         # and may be used in equivalent simplifications.
-        (tvm.tir.all(i < j, j < k), i < k, True),
+        (tvm.tir.all(i <= j - 1, j < k), i < k, True),
         (tvm.tir.all(i <= j - 1, j == k), i < k, True),
         (tvm.tir.all(i <= j - 1, j <= k), i < k, True),
         (tvm.tir.all(i <= j - 1, j > k), i < k, False),
