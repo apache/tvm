@@ -129,7 +129,7 @@ Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
 
   Array<Buffer> layout_free_buffers;
   for (const Integer& index : layout_free_buffer_index) {
-    ICHECK(index->value < func->params.size());
+    ICHECK(static_cast<size_t>(index->value) < func->params.size());
     const Var& param = func->params[index->value];
     layout_free_buffers.push_back(func->buffer_map.at(param));
   }
