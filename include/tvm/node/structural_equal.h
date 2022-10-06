@@ -334,11 +334,11 @@ class SEqualHandlerDefault : public SEqualReducer::Handler {
   SEqualHandlerDefault(bool assert_mode, Optional<ObjectPathPair>* first_mismatch);
   virtual ~SEqualHandlerDefault();
 
-  virtual bool SEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars,
-                            const Optional<ObjectPathPair>& current_paths) override;
-  virtual void DeferFail(const ObjectPathPair& mismatch_paths) override;
-  virtual ObjectRef MapLhsToRhs(const ObjectRef& lhs) override;
-  virtual void MarkGraphNode() override;
+  bool SEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars,
+                    const Optional<ObjectPathPair>& current_paths) override;
+  void DeferFail(const ObjectPathPair& mismatch_paths) override;
+  ObjectRef MapLhsToRhs(const ObjectRef& lhs) override;
+  void MarkGraphNode() override;
 
   /*!
    * \brief The entry point for equality testing

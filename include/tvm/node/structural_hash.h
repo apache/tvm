@@ -210,11 +210,11 @@ class SHashHandlerDefault : public SHashReducer::Handler {
   SHashHandlerDefault();
   virtual ~SHashHandlerDefault();
 
-  virtual void SHashReduceHashedValue(size_t hashed_value) override;
-  virtual void SHashReduce(const ObjectRef& key, bool map_free_vars) override;
-  virtual void SHashReduceFreeVar(const runtime::Object* var, bool map_free_vars) override;
-  virtual bool LookupHashedValue(const ObjectRef& key, size_t* hashed_value) override;
-  virtual void MarkGraphNode() override;
+  void SHashReduceHashedValue(size_t hashed_value) override;
+  void SHashReduce(const ObjectRef& key, bool map_free_vars) override;
+  void SHashReduceFreeVar(const runtime::Object* var, bool map_free_vars) override;
+  bool LookupHashedValue(const ObjectRef& key, size_t* hashed_value) override;
+  void MarkGraphNode() override;
 
   /*!
    * \brief The entry point for hashing
