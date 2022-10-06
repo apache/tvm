@@ -539,8 +539,7 @@ std::function<void()> TransitiveComparisonAnalyzer::Impl::EnterConstraint(const 
   AddKnown(expr, &scoped_knowns_);
   size_t new_literal_size = scoped_knowns_.size();
 
-  PrimExpr temp = expr;
-  auto frecover = [old_literal_size, new_literal_size, this, temp]() {
+  auto frecover = [old_literal_size, new_literal_size, this]() {
     ICHECK_EQ(scoped_knowns_.size(), new_literal_size);
     scoped_knowns_.erase(scoped_knowns_.begin() + old_literal_size, scoped_knowns_.end());
   };
