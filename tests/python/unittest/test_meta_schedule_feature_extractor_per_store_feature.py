@@ -1588,5 +1588,21 @@ def test_cpu_layout_transform():
     )
 
 
+@T.prim_func
+def negative_extent(A: T.Buffer[(1,), "float32"]):
+    for j in range(0, -1):
+        A[j] = A[j] + 1.0
+
+
+def test_negative_extent():
+    extractor = ms.feature_extractor.PerStoreFeature()
+    (features,) = extractor.extract_from(
+        _make_context(tvm.target.Target("llvm")),
+        candidates=[_make_candidate(lambda: tir.Schedule(negative_extent))],
+    )
+    named_features = dict(zip(_feature_names(), list(features.numpy()[0, :])))
+    assert named_features["B0.unique_bytes"] == 0
+
+
 if __name__ == "__main__":
     tvm.testing.main()
