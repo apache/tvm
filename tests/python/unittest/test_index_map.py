@@ -104,7 +104,7 @@ padding_test_case = tvm.testing.parameter(
             forward=lambda i: [i // 4, i % 4],
             inverse=lambda i, j: [4 * i + j],
             pre_shape=[dynamic_N],
-            post_shape=[(dynamic_N - 1) // 4 + 1, 4],
+            post_shape=[(dynamic_N - dynamic_N % (-4)) // 4, 4],
             padding=lambda i, j: tvm.tir.And(
                 dynamic_N % (-4) != 0,
                 tvm.tir.And(i == dynamic_N // 4, j >= dynamic_N % 4),
@@ -161,6 +161,13 @@ padding_test_case = tvm.testing.parameter(
             pre_shape=[123],
             post_shape=[8, 4, 4],
             padding=lambda j, i, k: tvm.tir.And(i == 0, j * 4 + k < 5),
+        ),
+        "outer_loop_extent_one": dict(
+            forward=lambda i: [i // 4, i % 4],
+            inverse=lambda i, j: [i * 4 + j],
+            pre_shape=[3],
+            post_shape=[1, 4],
+            padding=lambda i, j: 3 <= j,
         ),
     }
 )
