@@ -2137,8 +2137,7 @@ def test_conv2d_nhwc_dnnl():
             np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
-@pytest.mark.skip("Requires cascadelake or ARM v8.2")
-def test_conv2d_int8_alter_dtype():
+def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instr):
     def get_conv2d_nchw(
         d_shape,
         w_shape,
@@ -2171,45 +2170,51 @@ def test_conv2d_int8_alter_dtype():
     bias_np = np.random.randint(low=-127, high=128, size=bias_shape).astype("int32")
     weight_np = np.random.uniform(-128, 127, size=weight_shape).astype("int8")
 
-    for data_dtype, target, dot_product_instr in [
-        ("uint8", "llvm --device arm_cpu -mattr=+v8.2a,+dotprod", "sdot"),
-        ("int8", "llvm -mcpu=cascadelake", "vpdpbusd"),
-    ]:
-        conv2d = get_conv2d_nchw(data_shape, weight_shape, data_dtype)
-        bias_add = relay.add(conv2d, bias)
-        mod = tvm.IRModule.from_expr(bias_add)
+    conv2d = get_conv2d_nchw(data_shape, weight_shape, data_dtype)
+    bias_add = relay.add(conv2d, bias)
+    mod = tvm.IRModule.from_expr(bias_add)
 
-        if data_dtype == "uint8":
-            data_np = np.random.uniform(0, 255, size=data_shape).astype("uint8")
-        else:
-            data_np = np.random.uniform(-128, 127, size=data_shape).astype("int8")
+    if data_dtype == "uint8":
+        data_np = np.random.uniform(0, 255, size=data_shape).astype("uint8")
+    else:
+        data_np = np.random.uniform(-128, 127, size=data_shape).astype("int8")
 
-        params = {"weight": weight_np, "bias": bias_np}
+    params = {"weight": weight_np, "bias": bias_np}
 
-        ref = (
-            relay.create_executor("graph", mod=mod, device=tvm.cpu(0), target="llvm")
-            .evaluate()(*[data_np, weight_np, bias_np])
-            .numpy()
-        )
+    ref = (
+        relay.create_executor("graph", mod=mod, device=tvm.cpu(0), target="llvm")
+        .evaluate()(*[data_np, weight_np, bias_np])
+        .numpy()
+    )
 
-        dev = tvm.cpu(0)
+    dev = tvm.cpu(0)
 
-        with tvm.transform.PassContext(
-            opt_level=3,
-        ):
-            lib = relay.build(mod, target=target, params=params)
+    with tvm.transform.PassContext(
+        opt_level=3,
+    ):
+        lib = relay.build(mod, target=target, params=params)
 
-        assert dot_product_instr in lib.lib.get_source("asm")
+    assert dot_product_instr in lib.lib.get_source("asm")
 
-        rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+    rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
-        rt_mod.set_input("data", data_np)
+    rt_mod.set_input("data", data_np)
 
-        rt_mod.run()
+    rt_mod.run()
 
-        out = rt_mod.get_output(0).numpy()
+    out = rt_mod.get_output(0).numpy()
 
-        np.testing.assert_equal(out, ref)
+    np.testing.assert_equal(out, ref)
+
+
+@tvm.testing.requires_arm_dot
+def test_conv2d_int8_alter_dtype_arm():
+    _test_conv2d_int8_alter_dtype("uint8", "llvm --device arm_cpu -mattr=+v8.2a,+dotprod", "sdot")
+
+
+@tvm.testing.requires_cascadelake
+def test_conv2d_int8_alter_dtype_vnni():
+    _test_conv2d_int8_alter_dtype("int8", "llvm -mcpu=cascadelake", "vpdpbusd")
 
 
 if __name__ == "__main__":

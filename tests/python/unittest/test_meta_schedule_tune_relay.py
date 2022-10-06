@@ -23,6 +23,7 @@ from typing import List, Optional
 import numpy as np  # type: ignore
 import pytest
 import tvm
+import tvm.testing
 from tvm import meta_schedule as ms
 from tvm import relay
 from tvm._ffi import register_func
@@ -441,9 +442,9 @@ def manual_tir_common(do_tune=False):
         )
         config = ms.TuneConfig(
             strategy="replay_trace",
-            num_trials_per_iter=64,
-            max_trials_per_task=20000,
-            max_trials_global=20000,
+            num_trials_per_iter=8,
+            max_trials_per_task=8,
+            max_trials_global=8,
         )
 
         with tempfile.TemporaryDirectory() as work_dir:
@@ -503,7 +504,7 @@ def manual_tir_common(do_tune=False):
     np.testing.assert_equal(out, ref)
 
 
-@pytest.mark.skip("Requires cascadelake")
+@tvm.testing.requires_cascadelake
 def test_tune_relay_manual_tir_vnni():
     manual_tir_common(do_tune=False)
 

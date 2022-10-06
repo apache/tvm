@@ -284,7 +284,7 @@ def _test_bert_int8(target, sch_rules, postprocs):
     print(runtime.benchmark(dev, number=1, repeat=50).mean)
 
 
-@pytest.mark.skip("Requires cascadelake")
+@tvm.testing.requires_cascadelake
 def test_vnni_dense():
     _test_dense(
         "uint8", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI, "llvm -mcpu=cascadelake -num-cores 4"
@@ -305,7 +305,7 @@ def test_dp4a_dense():
     # )
 
 
-@pytest.mark.skip("Requires cascadelake")
+@tvm.testing.requires_cascadelake
 def test_vnni_conv2d():
     _test_conv2d(
         "uint8", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI, "llvm -mcpu=cascadelake -num-cores 4"
@@ -326,7 +326,8 @@ def test_dp4a_conv2d():
     # )
 
 
-@pytest.mark.skip("Requires cascadelake")
+@tvm.testing.requires_cascadelake
+@pytest.mark.skip_if(tvm.testing.IS_IN_CI, reason="Slow on CI")
 def test_vnni_bert_int8():
     _test_bert_int8("llvm -mcpu=cascadelake -num-cores 4", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI)
 

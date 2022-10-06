@@ -77,6 +77,7 @@ import sys
 import textwrap
 import time
 import shutil
+import subprocess
 
 from pathlib import Path
 from typing import Optional, Callable, Union, List, Tuple
@@ -979,6 +980,50 @@ requires_corstone300 = Feature(
 
 # Mark a test as requiring Vitis AI to run
 requires_vitis_ai = Feature("vitis_ai", "Vitis AI", cmake_flag="USE_VITIS_AI")
+
+
+def _arm_dot_supported():
+    arch = platform.machine()
+
+    if arch not in ["arm64", "aarch64"]:
+        return False
+
+    if sys.platform.startswith("darwin"):
+        cpu_info = subprocess.check_output("sysctl -a", shell=True).strip().decode()
+        for line in cpu_info.split("\n"):
+            if line.startswith("hw.optional.arm.FEAT_DotProd"):
+                return bool(int(line.split(":", 1)[1]))
+    elif sys.platform.startswith("linux"):
+        return True
+
+    return False
+
+
+def _is_intel():
+    # Only linux is supported for now.
+    if sys.platform.startswith("linux"):
+        with open("/proc/cpuinfo", "r") as content:
+            return "Intel" in content.read()
+
+    return False
+
+
+def _has_vnni():
+    arch = platform.machine()
+    # Only linux is supported for now.
+    if arch == "x86_64" and sys.platform.startswith("linux"):
+        with open("/proc/cpuinfo", "r") as content:
+            return "avx512_vnni" in content.read()
+
+    return False
+
+
+requires_arm_dot = Feature("arm_dot", "ARM dot product", run_time_check=_arm_dot_supported)
+
+
+requires_cascadelake = Feature(
+    "cascadelake", "x86 CascadeLake", run_time_check=lambda: _has_vnni() and _is_intel()
+)
 
 
 def _cmake_flag_enabled(flag):
