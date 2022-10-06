@@ -74,10 +74,62 @@ class TransitiveComparisonAnalyzer::Impl {
   std::function<void()> EnterConstraint(const PrimExpr& expr);
 
  private:
-  // Utility class to avoid needing to repeatedly call ExprDeepEqual
+  /* \brief Internal representation of a PrimExpr
+   *
+   * The Key enum serves two purposes.
+   *
+   * 1. Providing efficiency, as compared to a PrimExpr.  Two keys are
+   *    equal if and only if the corresponding PrimExprs would satisfy
+   *    ExprDeepEqual.  This allows two expressions to be checked for
+   *    equivalency, without requiring a call to ExprDeepEqual for
+   *    each comparison.
+   *
+   * 2. Providing type-safety, as compared to using `size_t` directly.
+   *    Requiring an explicit conversion from an integer to a Key
+   *    prevents accidental comparisons, especially if both loop
+   *    iterators and Keys are used in the same scope.
+   *
+   * A Key should only be obtained using the methods `ExprToKey` and
+   * `ExprToPreviousKey`.
+   */
   enum class Key : size_t {};
-  std::optional<Key> ExprToPreviousKey(const PrimExpr& expr) const;
+
+  /*! \brief Convert an expression to internal representation
+   *
+   * If the expression has previously been converted to the internal
+   * representation, returns the same Key as has been used previously.
+   * Otherwise, generate and return a new Key.
+   *
+   * \param expr The PrimExpr to be converted
+   *
+   * \returns The Key representing the expression
+   *
+   * \see ExprToPreviousKey
+   */
   Key ExprToKey(const PrimExpr& expr);
+
+  /*! \brief Convert an expression to internal representation
+   *
+   * If the expression has previously been converted to the internal
+   * representation, returns the same Key as has been used previously.
+   * Otherwise, return `std::nullopt`.
+   *
+   * \param expr The PrimExpr to be converted
+   *
+   * \returns The Key representing the expression, if one exists.
+   *
+   * \see ExprToKey
+   */
+  std::optional<Key> ExprToPreviousKey(const PrimExpr& expr) const;
+
+  /*! \brief The mapping from expression to Key
+   *
+   * Should not be used directly.  Instead, use the helper functions
+   * `ExprToKey` and `ExprToPreviousKey`.
+   *
+   * \see ExprToKey
+   * \see ExprToPreviousKey
+   */
   std::unordered_map<PrimExpr, Key, StructuralHash, StructuralEqual> expr_to_key;
 
   /*! \brief Internal representation of a comparison operator */
