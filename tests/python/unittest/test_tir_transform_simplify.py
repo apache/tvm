@@ -137,7 +137,7 @@ def test_complex_likely_elimination():
 
 
 class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
-    transitively_prove_inequalities = True
+    transitively_prove_inequalities = False
 
     def transform(self):
         def inner(mod):
@@ -566,6 +566,8 @@ class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
     For example, the `0 < i` and `i <= j` conditions can be used to prove
     that `0 < j`.
     """
+
+    transitively_prove_inequalities = True
 
     i, j, k = [tvm.tir.Var(name, "int32") for name in "ijk"]
     zero = tvm.tir.IntImm("int32", 0)
