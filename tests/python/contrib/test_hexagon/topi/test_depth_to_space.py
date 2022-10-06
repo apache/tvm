@@ -27,7 +27,7 @@ import tvm.testing
 from tvm.topi.hexagon.slice_ops.depth_to_space import d2s_compute, d2s_schedule
 from tvm.topi.testing import depth_to_space_python
 
-from ..infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 
 d2s_fp16_tests = (
@@ -97,9 +97,6 @@ class TestD2SSlice:
 
         Output = d2s_compute(Input, block_size, "NHWC", mode)
 
-        target_hexagon = tvm.target.hexagon("v69")
-        target = tvm.target.Target(target_hexagon, host=target_hexagon)
-
         tir_s = d2s_schedule(Input, Output, input_layout, output_layout)
 
         input_data = allocate_hexagon_array(
@@ -117,7 +114,7 @@ class TestD2SSlice:
         )
         with tvm.transform.PassContext(opt_level=3):
             runtime_module = tvm.build(
-                tir_s.mod, [Input, Output], target=target, name="depth_to_space"
+                tir_s.mod, [Input, Output], target=get_hexagon_target("v69"), name="depth_to_space"
             )
         mod = hexagon_session.load_module(runtime_module)
 

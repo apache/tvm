@@ -33,8 +33,8 @@ from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 from tvm.meta_schedule.runner import RunnerInput
 from tvm.contrib.hexagon.meta_schedule import get_hexagon_local_builder, get_hexagon_rpc_runner
 from tvm.relay.backend import Executor
-from tvm.topi.utils import get_const_tuple
-from tvm.meta_schedule.testing import te_workload
+
+from .infrastructure import get_hexagon_target
 
 MATMUL_N = 16
 MATMUL_M = 32
@@ -61,14 +61,12 @@ def test_builder_runner(hexagon_launcher):
     if hexagon_launcher._serial_number == "simulator":
         pytest.skip(msg="Tuning on simulator not supported.")
 
-    target_hexagon = tvm.target.hexagon("v68", link_params=True)
-    target = tvm.target.Target(target_hexagon, host=target_hexagon)
     mod = MatmulModule
 
     builder = get_hexagon_local_builder()
     runner = get_hexagon_rpc_runner(hexagon_launcher, number=1, repeat=1, min_repeat_ms=0)
 
-    (builder_result,) = builder.build([BuilderInput(mod, target)])
+    (builder_result,) = builder.build([BuilderInput(mod, get_hexagon_target("v68"))])
     assert builder_result.artifact_path is not None
     assert builder_result.error_msg is None
 
@@ -177,8 +175,6 @@ def test_vrmpy_dense(hexagon_launcher):
         pytest.skip(msg="Tuning on simulator not supported.")
 
     do_tune = True
-    target_hexagon = tvm.target.hexagon("v68")
-    target = tvm.target.Target(target_hexagon, host=target_hexagon)
 
     M, N, K = 128, 768, 768
     workload = te.create_prim_func(dense(M, N, K))
@@ -212,7 +208,7 @@ def test_vrmpy_dense(hexagon_launcher):
             )
 
     with hexagon_launcher.start_session() as session:
-        verify_dense(sch, target, M, N, K, session)
+        verify_dense(sch, get_hexagon_target("v68"), M, N, K, session)
 
 
 # This is an example of a schedule found by vrmpy auto tensorization.
@@ -274,9 +270,6 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
     if hexagon_launcher._serial_number == "simulator":
         pytest.skip(msg="Tuning on simulator not supported.")
 
-    target_hexagon = tvm.target.hexagon("v68")
-    target = tvm.target.Target(target_hexagon, host=target_hexagon)
-
     M, N, K = 128, 768, 768
     workload = te.create_prim_func(dense(M, N, K))
 
@@ -319,7 +312,7 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
 
             sch = ms.tune_tir(
                 mod=workload,
-                target=target,
+                target=get_hexagon_target("v68"),
                 config=config,
                 work_dir=work_dir,
                 sch_rules=lambda: sch_rules,
@@ -331,7 +324,7 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
         sch = tvm.tir.Schedule(Module_vrmpy_auto_tensorize, debug_mask="all")
 
     with hexagon_launcher.start_session() as session:
-        verify_dense(sch, target, M, N, K, session)
+        verify_dense(sch, get_hexagon_target("v68"), M, N, K, session)
 
 
 @tvm.testing.requires_hexagon
@@ -339,8 +332,6 @@ def test_conv2d_relay_auto_schedule(hexagon_launcher):
     if hexagon_launcher._serial_number == "simulator":
         pytest.skip(msg="Tuning on simulator not supported.")
 
-    target_hexagon = tvm.target.hexagon("v69")
-    target = tvm.target.Target(target_hexagon, host=target_hexagon)
     I, O, H, W = 64, 64, 56, 56
     kH = kW = 3
 
@@ -400,7 +391,7 @@ def test_conv2d_relay_auto_schedule(hexagon_launcher):
         lib = ms.tune_relay(
             mod=mod,
             params=params,
-            target=target,
+            target=get_hexagon_target("v69"),
             config=config,
             work_dir=work_dir,
             builder=get_hexagon_local_builder(),

@@ -77,6 +77,7 @@ import sys
 import textwrap
 import time
 import shutil
+import subprocess
 
 from pathlib import Path
 from typing import Optional, Callable, Union, List, Tuple
@@ -981,6 +982,50 @@ requires_corstone300 = Feature(
 requires_vitis_ai = Feature("vitis_ai", "Vitis AI", cmake_flag="USE_VITIS_AI")
 
 
+def _arm_dot_supported():
+    arch = platform.machine()
+
+    if arch not in ["arm64", "aarch64"]:
+        return False
+
+    if sys.platform.startswith("darwin"):
+        cpu_info = subprocess.check_output("sysctl -a", shell=True).strip().decode()
+        for line in cpu_info.split("\n"):
+            if line.startswith("hw.optional.arm.FEAT_DotProd"):
+                return bool(int(line.split(":", 1)[1]))
+    elif sys.platform.startswith("linux"):
+        return True
+
+    return False
+
+
+def _is_intel():
+    # Only linux is supported for now.
+    if sys.platform.startswith("linux"):
+        with open("/proc/cpuinfo", "r") as content:
+            return "Intel" in content.read()
+
+    return False
+
+
+def _has_vnni():
+    arch = platform.machine()
+    # Only linux is supported for now.
+    if arch == "x86_64" and sys.platform.startswith("linux"):
+        with open("/proc/cpuinfo", "r") as content:
+            return "avx512_vnni" in content.read()
+
+    return False
+
+
+requires_arm_dot = Feature("arm_dot", "ARM dot product", run_time_check=_arm_dot_supported)
+
+
+requires_cascadelake = Feature(
+    "cascadelake", "x86 CascadeLake", run_time_check=lambda: _has_vnni() and _is_intel()
+)
+
+
 def _cmake_flag_enabled(flag):
     flag = tvm.support.libinfo()[flag]
 
@@ -1752,13 +1797,13 @@ def fetch_model_from_url(
     return tvmc_model.mod, tvmc_model.params
 
 
-def xfail_parameterizations(*xfail_params, reason):
+def _mark_parameterizations(*params, marker_fn, reason):
     """
-    Mark tests with a nodeid parameters that exactly matches one in params as
-    xfail. Useful for quickly marking tests as xfail when they have a large
+    Mark tests with a nodeid parameters that exactly matches one in params.
+    Useful for quickly marking tests as xfail when they have a large
     combination of parameters.
     """
-    xfail_params = set(xfail_params)
+    params = set(params)
 
     def decorator(func):
         @functools.wraps(func)
@@ -1766,14 +1811,24 @@ def xfail_parameterizations(*xfail_params, reason):
             if "[" in request.node.name and "]" in request.node.name:
                 # Strip out the test name and the [ and ] brackets
                 params_from_name = request.node.name[len(request.node.originalname) + 1 : -1]
-                if params_from_name in xfail_params:
-                    pytest.xfail(reason=f"xfail on nodeid {request.node.nodeid}: " + reason)
+                if params_from_name in params:
+                    marker_fn(
+                        reason=f"{marker_fn.__name__} on nodeid {request.node.nodeid}: " + reason
+                    )
 
             return func(request, *args, **kwargs)
 
         return wrapper
 
     return decorator
+
+
+def xfail_parameterizations(*xfail_params, reason):
+    return _mark_parameterizations(*xfail_params, marker_fn=pytest.xfail, reason=reason)
+
+
+def skip_parameterizations(*skip_params, reason):
+    return _mark_parameterizations(*skip_params, marker_fn=pytest.skip, reason=reason)
 
 
 def main():

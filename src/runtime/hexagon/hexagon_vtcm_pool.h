@@ -71,10 +71,10 @@ class HexagonVtcmPool {
   size_t TotalBytes() { return reinterpret_cast<size_t>(vtcm_size_); }
 
  private:
-  //! \brief Context for HAP_compute_res_*
+  //! \brief Total size of VTCM pool
   unsigned int vtcm_size_;
 
-  //! \brief Context for HAP_compute_res_*
+  //! \brief Pointer to the beginning of the pool
   void* vtcm_data_;
 
   //! \brief Context for HAP_compute_res_*

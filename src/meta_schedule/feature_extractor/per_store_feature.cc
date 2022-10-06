@@ -836,6 +836,7 @@ void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
       // while others are discarded
       int64_t numel;
       feature.access_shape = utils::RelaxAndUnion(feature.multi_indices, &numel, analyzer);
+      numel = std::max<int64_t>(0, numel);
       feature.loop_accessed_numel[i][buffer] = numel;
       touched_bytes += numel * buffer->dtype.bytes();
       (*buffer_touched_under_loop)[loop][buffer].push_back(numel);
@@ -976,7 +977,8 @@ void Feature::SubFeature::SetFeature(const LoopNest& loop_nest, int64_t cache_li
     this->lines = 1;
     this->unique_lines = 1;
   } else {
-    this->unique_bytes = this->loop_accessed_numel.front().at(buffer) * dtype_bytes;
+    this->unique_bytes =
+        static_cast<double>(this->loop_accessed_numel.front().at(buffer)) * dtype_bytes;
     this->lines = static_cast<double>(loop_nest.prod) / this->prod_non_strided_loop_extent *
                   std::min(1.0, 1.0 * this->min_stride * dtype_bytes / cache_line_bytes);
     this->lines = std::max(1.0, this->lines);

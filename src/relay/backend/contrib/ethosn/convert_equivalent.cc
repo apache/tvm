@@ -32,6 +32,7 @@
 #include "../../../qnn/utils.h"
 #include "../../../transforms/pattern_utils.h"
 #include "../../../transforms/simplify_expr.h"
+#include "../constant_transforms.h"
 #include "ethosn_api.h"
 
 namespace tvm {

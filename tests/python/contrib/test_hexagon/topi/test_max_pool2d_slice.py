@@ -21,14 +21,10 @@ from typing import *
 
 from tvm import te
 import tvm.testing
-from tvm.topi import testing
-from tvm.contrib.hexagon.build import HexagonLauncher
 from tvm.contrib.hexagon.session import Session
 import tvm.topi.hexagon.slice_ops as sl
-from ..infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 from ..pytest_util import (
-    get_numpy_dtype_info,
-    get_test_id,
     get_multitest_ids,
     create_populated_numpy_ndarray,
     TensorContentRandom,
@@ -341,7 +337,6 @@ class TestmaxPool2dSlice:
         expected_output_np,
         hexagon_session: Session,
     ):
-        target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape_padded, name="A", dtype=dtype)
 
         M = sl.max_pool2d_compute(A, output_shape, kernel, stride, dilation)
@@ -365,7 +360,7 @@ class TestmaxPool2dSlice:
             func = tvm.build(
                 sch,
                 [A, M],
-                tvm.target.Target(target_hexagon, host=target_hexagon),
+                get_hexagon_target("v69"),
                 name="max_pool2d",
             )
 
