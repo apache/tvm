@@ -137,7 +137,6 @@ def test_complex_likely_elimination():
 
 
 class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
-    transform = tvm.tir.transform.Simplify()
     transitively_prove_inequalities = True
 
     def transform(self):
