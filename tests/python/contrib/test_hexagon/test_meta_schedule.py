@@ -408,3 +408,7 @@ def test_conv2d_relay_auto_schedule(hexagon_launcher):
 
         out = rt_mod.get_output(0).numpy()
         print(np.max(np.abs(ref - out)), np.mean(np.abs(ref - out)))
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
