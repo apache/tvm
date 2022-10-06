@@ -142,9 +142,19 @@ class TransitiveComparisonAnalyzer::Impl {
 
   /*! \brief Attempt to compare, starting at the lhs.
    *
-   * Taking each available `Comparison` as a node edge, search for a
-   * path from lhs to rhs.  For example, the priors (a<=b), (b<=c+1)
-   * and (c<=d-5) can be used to prove that (a<=d-4).
+   * Perform a depth-first search through the space of known
+   * expressions, starting at the LHS of a comparison.  In this
+   * search, each expression is a node of a graph, and each known
+   * comparison is an edge of the graph.
+   *
+   * For example, suppose we have previous knowns of (A<=B), (B<=C+1)
+   * and (C<=D-5).  The expressions [A,B,C,D] are the nodes of the
+   * search space.  Each comparison is an edge connecting two
+   * expressions, such as (B<=C+1) connecting the expressions B and D.
+   * If we are attempting to compare expressions A and D, a search
+   * starting at expression A could follow each edge until reaching
+   * expression D, then combine the comparisons that compose the path
+   * into the expression A<=D-4.
    *
    * \param lhs The left-hand side of the comparison
    *
