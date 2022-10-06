@@ -676,7 +676,9 @@ CompareResult TransitiveComparisonAnalyzer::Impl::TryCompareFromLHS(
           //
           // This condition is much simpler to write than the
           // equivalent handling of < or of >, which is why the
-          // inequalities are normalized to <= and to >=.
+          // inequalities are normalized to <= and to >=.  See
+          // `TransitiveComparisonAnalyzer::Impl::Comparison::Comparison`
+          // for further details.
           new_result = prev.result_;
         }
 
