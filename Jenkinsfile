@@ -150,6 +150,15 @@ def init_git() {
     """,
     label: 'Update git submodules',
   )
+
+  sh(
+      script: """
+        set -eux
+        echo "THIS IS A TEST"
+      """,
+      label: 'TEST JENKINSFILE',
+    )
+
   checkout_trusted_files()
 }
 
