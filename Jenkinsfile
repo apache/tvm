@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-09-16T08:47:49.743918
+// Generated at 2022-10-05T19:59:41.371226
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -127,7 +127,7 @@ def init_git() {
 
   // Determine merge commit to use for all stages
   sh (
-    script: 'git fetch origin main',
+    script: 'git fetch origin v0.10.0',
     label: 'Fetch upstream',
   )
   if (upstream_revision == null) {
@@ -139,7 +139,7 @@ def init_git() {
   }
   sh (
     script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
-    label: 'Merge to origin/main'
+    label: 'Merge to origin/v0.10.0'
   )
 
   sh(
@@ -202,7 +202,7 @@ def should_skip_slow_tests(pr_number) {
 
 def cancel_previous_build() {
   // cancel previous build if it is not on main.
-  if (env.BRANCH_NAME != 'main') {
+  if (env.BRANCH_NAME != 'v0.10.0') {
     def buildNumber = env.BUILD_NUMBER as int
     // Milestone API allows us to cancel previous build
     // with the same milestone number
@@ -668,10 +668,10 @@ def python_unittest(image) {
 }
 
 def fsim_test(image) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_python_vta_fsim.sh",
-    label: 'Run VTA tests in FSIM',
-  )
+  // sh (
+  //   script: "${docker_run} ${image} ./tests/scripts/task_python_vta_fsim.sh",
+  //   label: 'Run VTA tests in FSIM',
+  // )
 }
 
 def cmake_build(image, path, make_flag) {
@@ -745,8 +745,6 @@ stage('Build') {
               . ci/scripts/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu/build/libtvm.so
-              md5sum build/libvta_fsim.so
-              retry 3 aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/gpu/build/libvta_fsim.so
               md5sum build/libtvm_runtime.so
               retry 3 aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/gpu/build/libtvm_runtime.so
               md5sum build/config.cmake
@@ -766,8 +764,6 @@ stage('Build') {
               . ci/scripts/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu2/build/libtvm.so
-              md5sum build/libvta_fsim.so
-              retry 3 aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/gpu2/build/libvta_fsim.so
               md5sum build/libtvm_runtime.so
               retry 3 aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/gpu2/build/libtvm_runtime.so
               md5sum build/config.cmake
@@ -795,12 +791,8 @@ stage('Build') {
             script: """
               set -eux
               . ci/scripts/retry.sh
-              md5sum build/libvta_tsim.so
-              retry 3 aws s3 cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/cpu/build/libvta_tsim.so
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/cpu/build/libtvm.so
-              md5sum build/libvta_fsim.so
-              retry 3 aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/cpu/build/libvta_fsim.so
               md5sum build/libtvm_runtime.so
               retry 3 aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/cpu/build/libtvm_runtime.so
               md5sum build/config.cmake
@@ -892,12 +884,8 @@ stage('Build') {
             script: """
               set -eux
               . ci/scripts/retry.sh
-              md5sum build/libvta_tsim.so
-              retry 3 aws s3 cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/i386/build/libvta_tsim.so
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/i386/build/libtvm.so
-              md5sum build/libvta_fsim.so
-              retry 3 aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/i386/build/libvta_fsim.so
               md5sum build/libtvm_runtime.so
               retry 3 aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/i386/build/libtvm_runtime.so
               md5sum build/config.cmake
@@ -929,8 +917,6 @@ stage('Build') {
               . ci/scripts/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/arm/build/libtvm.so
-              md5sum build/libvta_fsim.so
-              retry 3 aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/arm/build/libvta_fsim.so
               md5sum build/libtvm_runtime.so
               retry 3 aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/arm/build/libtvm_runtime.so
               md5sum build/config.cmake
@@ -1074,8 +1060,6 @@ def shard_run_unittest_GPU_1_of_3() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/config.cmake build/config.cmake
@@ -1092,8 +1076,6 @@ def shard_run_unittest_GPU_1_of_3() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
@@ -1152,8 +1134,6 @@ def shard_run_unittest_GPU_2_of_3() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
@@ -1215,8 +1195,6 @@ def shard_run_unittest_GPU_3_of_3() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
@@ -1273,12 +1251,8 @@ def shard_run_integration_CPU_1_of_4() {
                         script: """
                           set -eux
                           . ci/scripts/retry.sh
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
-                          md5sum build/libvta_tsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
@@ -1330,12 +1304,8 @@ def shard_run_integration_CPU_2_of_4() {
                         script: """
                           set -eux
                           . ci/scripts/retry.sh
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
-                          md5sum build/libvta_tsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
@@ -1387,12 +1357,8 @@ def shard_run_integration_CPU_3_of_4() {
                         script: """
                           set -eux
                           . ci/scripts/retry.sh
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
-                          md5sum build/libvta_tsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
@@ -1444,12 +1410,8 @@ def shard_run_integration_CPU_4_of_4() {
                         script: """
                           set -eux
                           . ci/scripts/retry.sh
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
-                          md5sum build/libvta_tsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
@@ -1504,8 +1466,6 @@ def shard_run_python_i386_1_of_3() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
@@ -1561,8 +1521,6 @@ def shard_run_python_i386_2_of_3() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
@@ -1618,8 +1576,6 @@ def shard_run_python_i386_3_of_3() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
@@ -2117,8 +2073,6 @@ def shard_run_integration_aarch64_1_of_4() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
@@ -2173,8 +2127,6 @@ def shard_run_integration_aarch64_2_of_4() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
@@ -2229,8 +2181,6 @@ def shard_run_integration_aarch64_3_of_4() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
@@ -2285,8 +2235,6 @@ def shard_run_integration_aarch64_4_of_4() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
@@ -2342,8 +2290,6 @@ def shard_run_topi_GPU_1_of_3() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
@@ -2397,8 +2343,6 @@ def shard_run_topi_GPU_2_of_3() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
@@ -2452,8 +2396,6 @@ def shard_run_topi_GPU_3_of_3() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
@@ -2508,8 +2450,6 @@ def shard_run_frontend_GPU_1_of_6() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
@@ -2563,8 +2503,6 @@ def shard_run_frontend_GPU_2_of_6() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
@@ -2618,8 +2556,6 @@ def shard_run_frontend_GPU_3_of_6() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
@@ -2673,8 +2609,6 @@ def shard_run_frontend_GPU_4_of_6() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
@@ -2728,8 +2662,6 @@ def shard_run_frontend_GPU_5_of_6() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
@@ -2783,8 +2715,6 @@ def shard_run_frontend_GPU_6_of_6() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
@@ -2839,8 +2769,6 @@ def shard_run_topi_aarch64_1_of_2() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
@@ -2899,8 +2827,6 @@ def shard_run_topi_aarch64_2_of_2() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
@@ -2959,8 +2885,6 @@ def shard_run_frontend_aarch64_1_of_2() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
@@ -3014,8 +2938,6 @@ def shard_run_frontend_aarch64_2_of_2() {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
@@ -3986,12 +3908,8 @@ stage('Test') {
                         script: """
                           set -eux
                           . ci/scripts/retry.sh
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
-                          md5sum build/libvta_tsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
@@ -4004,10 +3922,10 @@ stage('Test') {
                 cpp_unittest(ci_cpu)
                 python_unittest(ci_cpu)
                 fsim_test(ci_cpu)
-                sh (
-                  script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
-                  label: 'Run VTA tests in TSIM',
-                )
+                // sh (
+                //   script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
+                //   label: 'Run VTA tests in TSIM',
+                // )
               })
             } finally {
               sh(
@@ -4044,8 +3962,6 @@ stage('Test') {
                           . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
@@ -4090,8 +4006,6 @@ stage('Test') {
               . ci/scripts/retry.sh
               retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
               md5sum build/libtvm.so
-              retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
-              md5sum build/libvta_fsim.so
               retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
               md5sum build/libtvm_runtime.so
               retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
