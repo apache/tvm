@@ -282,6 +282,10 @@ class RewriteSimplifier {
    * They can be enabled on an as-needed basis by calling
    * `RewriteSimplifier::SetEnabledFeatures` prior to using
    * `RewriteSimplifier::operator()`.
+   *
+   * Flags are defined as powers of two to allow future expansion.  To
+   * enable multiple features, a user should pass a bitwise OR of the
+   * desired feature flags.
    */
   enum Feature {
     // No features enabled
