@@ -199,7 +199,7 @@ def test_vrmpy_dense(hexagon_launcher):
 
             sch = ms.tune_tir(
                 mod=workload,
-                target=target,
+                target=get_hexagon_target("v68"),
                 config=config,
                 work_dir=work_dir,
                 space=ms.space_generator.ScheduleFn(schedule_dense_for_tune),
