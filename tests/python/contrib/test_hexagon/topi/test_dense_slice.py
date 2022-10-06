@@ -126,7 +126,7 @@ class TestDenseSlice:
             "float16",
         ),
         # (
-        #     [1, 1024],
+        #     [1, 1024], # TODO(joshherr-quic): Fix assertion in LLVM when bias is enabled.
         #     [1, 1024],
         #     "nc-1024c-2d",
         #     True,
