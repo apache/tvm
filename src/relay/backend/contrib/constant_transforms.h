@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/relay/backend/contrib/utils.h
+ * \file src/relay/backend/contrib/constant_transforms.h
  * \brief Transforms applied to constant operations during codegen for BYOC backends.
  */
 

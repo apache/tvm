@@ -198,10 +198,10 @@ EthosnError EthosnAPI::QnnFullyConnected(const Expr& expr, FullyConnectedParams*
   sl::QuantizationInfo output_q_info;
   err += Tvm2Npu(input_zero_point, input_scale, &data_q_info);
   err += Tvm2Npu(kernel_zero_point, kernel_scale, &weights_q_info);
-  std::valarray<float> bias = data_q_info.GetScale() * weights_q_info.GetScales();
+  std::valarray<float> bias_scales = data_q_info.GetScale() * weights_q_info.GetScales();
   const int bias_zero_point = 0;
   const unsigned int bias_axis = 3;
-  err += Tvm2Npu(bias_zero_point, bias, bias_axis, &bias_q_info);
+  err += Tvm2Npu(bias_zero_point, bias_scales, bias_axis, &bias_q_info);
   err += Tvm2Npu(output_zero_point, output_scale, &output_q_info);
 
   // Create fc info
@@ -227,6 +227,7 @@ EthosnError EthosnAPI::QnnFullyConnected(const Expr& expr, FullyConnectedParams*
   Tvm2Npu(weights_ttype->shape, &weights_tensor_shape);
   err += Tvm2Npu(weights_ttype->dtype, &weights_data_type);
   err += Tvm2Npu("HWIO", &weights_data_format);
+  // Weights tensor shape is 1, 1, I, O
   params->weights_info = sl::TensorInfo({1, 1, weights_tensor_shape[0], weights_tensor_shape[1]},
                                         weights_data_type, weights_data_format, weights_q_info);
   params->raw_weights = weights_data->data;
