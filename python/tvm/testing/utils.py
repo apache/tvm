@@ -1002,8 +1002,8 @@ def _arm_dot_supported():
 def _is_intel():
     # Only linux is supported for now.
     if sys.platform.startswith("linux"):
-        with open("/proc/cpuinfo", "r").read() as content:
-            return "Intel" in content
+        with open("/proc/cpuinfo", "r") as content:
+            return "Intel" in content.read()
 
     return False
 
@@ -1012,8 +1012,8 @@ def _has_vnni():
     arch = platform.machine()
     # Only linux is supported for now.
     if arch == "x86_64" and sys.platform.startswith("linux"):
-        with open("/proc/cpuinfo", "r").read() as content:
-            return "avx512_vnni" in content
+        with open("/proc/cpuinfo", "r") as content:
+            return "avx512_vnni" in content.read()
 
     return False
 
