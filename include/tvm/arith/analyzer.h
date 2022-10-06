@@ -280,15 +280,15 @@ class RewriteSimplifier {
    * These simplifications may be required for specific schedules, but
    * would impose too high a compile-time cost to enable by default.
    * They can be enabled on an as-needed basis by calling
-   * `RewriteSimplifier::SetEnabledFeatures` prior to using
+   * `RewriteSimplifier::SetEnabledExtensions` prior to using
    * `RewriteSimplifier::operator()`.
    *
    * Flags are defined as powers of two to allow future expansion.  To
-   * enable multiple features, a user should pass a bitwise OR of the
-   * desired feature flags.
+   * enable multiple extensions, a user should pass a bitwise OR of the
+   * flags for each desired extension.
    */
-  enum Feature {
-    // No features enabled
+  enum Extension {
+    // No extensions enabled
     kNone = 0,
 
     /* When simplifying an inequality, attempt to use scope-based knowns.
@@ -299,15 +299,15 @@ class RewriteSimplifier {
     kTransitivelyProveInequalities = (1 << 0),
   };
 
-  /*! \brief Enable an optional feature or features
+  /*! \brief Enable an optional extension or extensions
    *
-   * \param flags A bitwise OR of all optional features that should be
-   * enabled.
+   * \param flags A bitwise OR of all optional extensions that should
+   * be enabled.
    */
-  void SetEnabledFeatures(Feature flags);
+  void SetEnabledExtensions(Extension flags);
 
-  /*! \brief Return the currently enabled features */
-  Feature GetEnabledFeatures() const;
+  /*! \brief Return the currently enabled extensions */
+  Extension GetEnabledExtensions() const;
 
  private:
   friend class Analyzer;

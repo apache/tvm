@@ -46,10 +46,11 @@ struct SimplifyConfigNode : public tvm::AttrsNode<SimplifyConfigNode> {
         .set_default(false);
   }
 
-  RewriteSimplifier::Feature GetFeatureFlags() const {
-    RewriteSimplifier::Feature flags = RewriteSimplifier::kNone;
+  RewriteSimplifier::Extension GetEnabledExtensions() const {
+    RewriteSimplifier::Extension flags = RewriteSimplifier::kNone;
     if (transitively_prove_inequalities) {
-      flags = RewriteSimplifier::Feature(flags | RewriteSimplifier::kTransitivelyProveInequalities);
+      flags =
+          RewriteSimplifier::Extension(flags | RewriteSimplifier::kTransitivelyProveInequalities);
     }
     return flags;
   }
@@ -189,7 +190,7 @@ Pass Simplify() {
     arith::Analyzer analyzer;
     auto cfg = ctx->GetConfig<arith::SimplifyConfig>("tir.Simplify")
                    .value_or(AttrsWithDefaultValues<arith::SimplifyConfig>());
-    analyzer.rewrite_simplify.SetEnabledFeatures(cfg->GetFeatureFlags());
+    analyzer.rewrite_simplify.SetEnabledExtensions(cfg->GetEnabledExtensions());
 
     auto* n = f.CopyOnWrite();
     n->body = arith::StmtSimplifier(&analyzer).Simplify(std::move(n->body));
