@@ -59,7 +59,7 @@ def dense_compute(tensor_a, tensor_b, bias=None, out_dtype=None):
 
     k = te.reduce_axis((0, in_dim), name="k")
     compute_lambda = lambda n, m: te.sum(
-        tensor_a[n, k].astype(out_dtype) * tensor_b[k, m].astype(out_dtype), axis=k
+        tensor_a[n, k].astype("float32") * tensor_b[k, m].astype("float32"), axis=k
     )
     compute_name = "matmul_sliced"
     compute_tag = "matmul"
@@ -75,10 +75,16 @@ def dense_compute(tensor_a, tensor_b, bias=None, out_dtype=None):
     if bias is not None:
         mat = te.compute(
             (batch, out_dim),
-            lambda i, j: mat[i, j] + bias[j],
+            lambda i, j: mat[i, j].astype(out_dtype) + bias[j].astype(out_dtype),
             tag=tag.BROADCAST,
             name="bias",
         )
+    else:
+        mat = te.compute(
+            (batch, out_dim),
+            lambda i, j: mat[i, j].astype(out_dtype),
+            tag=tag.BROADCAST,
+            name="cast",)
 
     return mat
 
@@ -119,6 +125,7 @@ def dense_schedule(outs, ins, output_layout: str, input_layout: str):
         bias = s.get_block("bias")
     except tir.schedule.schedule.ScheduleError:
         bias = None
+        cast = s.get_block("cast")
 
     input_transform_fn = get_layout_transform_fn(input_layout)
     output_transform_fn = get_layout_transform_fn(output_layout)
@@ -127,7 +134,7 @@ def dense_schedule(outs, ins, output_layout: str, input_layout: str):
     if bias is None:
         s.transform_layout(matmul, ("read", 0), input_transform_fn)
         # s.transform_layout(matmul, ("read", 1), input_transform_fn)
-        s.transform_layout(matmul, ("write", 0), output_transform_fn)
+        s.transform_layout(cast, ("write", 0), output_transform_fn)
     else:
         s.transform_layout(matmul, ("read", 0), input_transform_fn)
         s.transform_layout(bias, ("write", 0), output_transform_fn)
