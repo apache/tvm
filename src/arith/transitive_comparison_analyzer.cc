@@ -174,14 +174,19 @@ class TransitiveComparisonAnalyzer::Impl {
 
   /*! \brief Known comparisons based on definitionally-true statements
    *
-   * For example, a Let binding, or the range of an iterator.
+   * For example, a Let binding, or the range of an iterator.  These
+   * known statements are always true, based on the definition site of
+   * the variable.  e.g. A loop iterator may never exceed the bounds
+   * of its loop.
    */
   std::vector<Comparison> knowns_;
 
-  /*! \brief Known comparisons based on of scope-based statements
+  /*! \brief Known comparisons based on scoped conditions
    *
-   * For example, the condition of an IfThenElse, which is known to be
-   * true while within the if scope.
+   * For example, the condition of an IfThenElse.  These known
+   * statements may only be used within the scope of the statement
+   * from which they were derived.  e.g. After exiting an IfThenElse,
+   * the condition may no longer be true.
    */
   std::vector<Comparison> scoped_knowns_;
 };
