@@ -25,9 +25,14 @@ from tvm import relay, te, transform
 from tvm.contrib import graph_executor as runtime
 from tvm.contrib.download import download_testdata
 
-from test_verilator.infrastructure import (clear_stats, compile_hardware,
-                                           compiler_opts, offload, skip_test,
-                                           stats)
+from test_verilator.infrastructure import (
+    clear_stats,
+    compile_hardware,
+    compiler_opts,
+    offload,
+    skip_test,
+    stats,
+)
 
 
 def extract(path):
