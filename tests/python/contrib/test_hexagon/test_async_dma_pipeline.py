@@ -81,6 +81,7 @@ def evaluate(hexagon_session, sch, a, b, size_a, expected_output, use_async_copy
         number = 100
         repeat = 100
 
+
     timer = module.time_evaluator(
         "__tvm_main__", hexagon_session.device, number=number, repeat=repeat
     )
@@ -110,7 +111,6 @@ def expected_output(size_a, size_w, input_a, input_w):
                         input_w[x, i * 4 + r]
                     )
     return expected_output
-
 
 def get_single_dma_schedule(size_a, size_w):
     @T.prim_func
@@ -251,12 +251,6 @@ def print_results(test_key, runtimes):
     print()
 
 
-def print_excel_results(test_key, runtimes):
-    for runtime in runtimes.items():
-        test_key += f"{runtime[1]}, "
-    print(test_key)
-
-
 class TestMatMulVec:
     # Removed most of these to speedup CI.
     size_a = tvm.testing.parameter(
@@ -288,7 +282,9 @@ class TestMatMulVec:
             return
 
         sch = conv_approximation(size_a, size_w)
-        base_runtime = evaluate(hexagon_session, sch, input_a, input_w, size_a, expected_output)
+        base_runtime = evaluate(
+            hexagon_session, sch, input_a, input_w, size_a, expected_output
+        )
 
         sch = get_fake_conv_vtcm_schedule(size_a, size_w)
         base_vtcm_runtime = evaluate(
@@ -323,25 +319,12 @@ class TestMatMulVec:
         )
 
         sch = get_single_dma_schedule(size_a, size_w)
-        single_dma_runtime = evaluate(
-            hexagon_session, sch, input_a, input_w, size_a, expected_output
-        )
+        single_dma_runtime = evaluate(hexagon_session, sch, input_a, input_w, size_a, expected_output)
 
         transfer_mb = round((2 * size_a * 128 + size_w * 128) / 1e6, 2)
         complexity = round(size_a * size_w * (128 * 4) / 1e9, 3)
-        # print_results(
-        #     f"Test with A.size: {size_a * 128}, W.size: {size_w * 128}, computational complexity of {complexity} GOPs, and total memory transfer of {transfer_mb} MB...",
-        #     {
-        #         "without_vtcm": base_runtime,
-        #         "synchronous_dma": single_dma_runtime,
-        #         "base_vtcm": base_vtcm_runtime,
-        #         "async_dma_input": async_input_runtime,
-        #         "async_dma_output": async_output_runtime,
-        #         "async_dma_input_output": async_input_output_runtime,
-        #     },
-        # )
-        print_excel_results(
-            f"{size_a * 128}, {size_w * 128}, {complexity}, {transfer_mb}, ",
+        print_results(
+            f"Test with A.size: {size_a * 128}, W.size: {size_w * 128}, computational complexity of {complexity} GOPs, and total memory transfer of {transfer_mb} MB...",
             {
                 "without_vtcm": base_runtime,
                 "synchronous_dma": single_dma_runtime,
