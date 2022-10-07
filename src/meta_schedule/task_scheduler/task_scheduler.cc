@@ -307,8 +307,12 @@ std::string TaskSchedulerNode::TuningStatistics() const {
     }
   }
   p.Separator();
-  os << p.AsStr()                                  //
-     << "\nTotal trials: " << total_trials         //
+  if (using_ipython()) {
+    print_interactive_table(p.AsStr());
+  } else {
+    os << p.AsStr();
+  }
+  os << "\nTotal trials: " << total_trials         //
      << "\nTotal latency (us): " << total_latency  //
      << "\n";
   return os.str();
