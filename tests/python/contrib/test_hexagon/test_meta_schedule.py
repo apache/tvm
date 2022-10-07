@@ -205,7 +205,7 @@ def test_vrmpy_dense(hexagon_launcher):
                     schedule_dense_for_tune,
                     sch_rules=[],
                     postprocs=[],
-                    mutator_probs=[],
+                    mutator_probs={},
                 ),
                 strategy="replay-trace",
                 builder=get_hexagon_local_builder(),
@@ -307,6 +307,7 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
         postproc.RewriteTensorize(vectorize_init_loop=True),
     ]
 
+    # Make this to False to compile and run the best tuned schedule
     if True:
         with tempfile.TemporaryDirectory() as work_dir:
             target = get_hexagon_target("v68")
@@ -315,10 +316,13 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
                 target=target,
                 max_trials_global=8,
                 num_trials_per_iter=8,
-                max_trials_per_task=8,
                 work_dir=work_dir,
-                sch_rules=lambda: sch_rules,
-                postprocs=lambda: postprocs,
+                space=ms.space_generator.PostOrderApply(
+                    f_block_filter=None,
+                    sch_rules=sch_rules,
+                    postprocs=postprocs,
+                    mutator_probs={},
+                ),
                 builder=get_hexagon_local_builder(),
                 runner=get_hexagon_rpc_runner(hexagon_launcher, number=10),
             )
