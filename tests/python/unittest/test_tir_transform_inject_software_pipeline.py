@@ -263,7 +263,7 @@ def transformed_three_stage_compute(
                         T.writes(B[0:2, tx, 0])
                         B[i, tx, 0] = A[tx, i] * T.float32(2)
                     with T.block():
-                        T.where(1 <= i)
+                        T.where(i == 1)
                         T.reads(B[0:2, tx, 0])
                         T.writes(C[0:2, tx, 0])
                         C[(i + 1) % 2, tx, 0] = B[(i + 1) % 2, tx, 0] + T.float32(2)
@@ -1349,7 +1349,7 @@ def test_three_stage_compute_two_stage_async():
                                 with T.attr(0, "async_scope", 1):
                                     B[i % 2, tx, 0] = A[tx, i] * T.float32(2)
                         with T.block():
-                            T.where(1 <= i and i - 1 < 16)
+                            T.where(i == 1 and i - 1 < 16)
                             T.reads(B[(i + 1) % 2, tx, 0])
                             T.writes(C[(i + 1) % 2, tx, 0])
                             with T.attr(0, "async_commit_queue_scope", 1):

@@ -1003,5 +1003,51 @@ class TestProvableConditionWithOffset(BaseBeforeAfter):
             A[0] = True
 
 
+class TestMostRestrictiveConditional(BaseBeforeAfter):
+    """Preferentially prove part of a compound conditional.
+
+    Even if we cannot prove a conditional as true or false on its own,
+    proving that a conditional must satisfy a stronger condition may
+    allow for later rewrites.  For example, if it is known that `a <= b`,
+    then `a >= b` cannot be proven, but can be reduced to `a == b`.
+    """
+
+    i, j, k = [tvm.tir.Var(name, "int32") for name in "ijk"]
+    tir_int = tvm.tir.IntImm("int32", 0)
+
+    test_case = tvm.testing.parameter(
+        (i <= tir_int, tir_int <= i, i == tir_int),
+        (i <= tir_int, i != tir_int, i < tir_int),
+        (i != tir_int, i <= tir_int, i < tir_int),
+        (i != tir_int, tir_int <= i, tir_int < i),
+        (i <= j, j <= i, j == i),
+        (i <= j, i != j, i < j),
+        (i != j, i <= j, i < j),
+        (i != j, j <= i, j < i),
+    )
+
+    @tvm.testing.fixture
+    def before(self, test_case):
+        priors, expr_before, _ = test_case
+
+        @T.prim_func
+        def func(A: T.Buffer[1, "bool"]):
+            if priors:
+                A[0] = expr_before
+
+        return func
+
+    @tvm.testing.fixture
+    def expected(self, test_case):
+        priors, _, expr_after = test_case
+
+        @T.prim_func
+        def func(A: T.Buffer[1, "bool"]):
+            if priors:
+                A[0] = expr_after
+
+        return func
+
+
 if __name__ == "__main__":
     tvm.testing.main()
