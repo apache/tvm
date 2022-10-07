@@ -148,7 +148,7 @@ def tune_and_test(relay_mod, data_np, weight_np, op_name, target, sch_rules, pos
     tune_tasks = list(
         filter(
             lambda task: op_name in task.task_name,
-            ms.relay_integration.extracted_task_from_relay(relay_mod, target, params),
+            ms.relay_integration.extract_tasks(relay_mod, target, params),
         )
     )
     with tempfile.TemporaryDirectory() as work_dir:
@@ -164,7 +164,7 @@ def tune_and_test(relay_mod, data_np, weight_np, op_name, target, sch_rules, pos
             tasks=tasks,
             task_weights=task_weights,
             work_dir=work_dir,
-            max_trials_global=20000,
+            max_trials_global=32,
         )
     with database, tvm.transform.PassContext(
         opt_level=3,
@@ -251,6 +251,7 @@ def _test_bert_int8(relay_mod, params, input_info, target, sch_rules, postprocs)
             tasks=tasks,
             task_weights=task_weights,
             work_dir=work_dir,
+            max_trials_per_task=32,
             max_trials_global=20000,
         )
     with database, tvm.transform.PassContext(
