@@ -88,15 +88,6 @@ def _compute_output_dim(
     return (data_dim + pad_before + pad_after - kernel_dim) // stride + 1
 
 
-def _compute_offset(
-    data_dim: int, kernel_dim: int, pad_before: int, pad_after: int, stride: int
-) -> int:
-    """Computes offsets to "prefer" the bottom right corner. This is done to match TensorFlow's
-    convention, but it does NOT match the other TVM schedules. We violate this convention because it
-    improves accuracy on models imported from TensorFlow."""
-    return (data_dim - kernel_dim + pad_before + pad_after) % stride
-
-
 def _get_suffix() -> str:
     """Returns a random eight-character string to append to C function names. Prevents accidental
     re-definition of functions if the same operator appears twice in a Relay graph."""
@@ -116,8 +107,6 @@ def conv2d_nhwc_ohwi_dsp_compute(_cfg, data, kernel, strides, padding, dilation,
 
     output_h = _compute_output_dim(data_h, kernel_h, pad_up, pad_down, stride_h)
     output_w = _compute_output_dim(data_w, kernel_w, pad_left, pad_right, stride_w)
-    y_offset = _compute_offset(data_h, kernel_h, pad_up, pad_down, stride_h)
-    x_offset = _compute_offset(data_w, kernel_w, pad_left, pad_right, stride_w)
 
     kh_i = te.reduce_axis((0, kernel_h), name="kh_i")
     kw_i = te.reduce_axis((0, kernel_w), name="kw_i")
@@ -127,9 +116,7 @@ def conv2d_nhwc_ohwi_dsp_compute(_cfg, data, kernel, strides, padding, dilation,
     return te.compute(
         (batch_size, output_h, output_w, output_channels),
         lambda n, y, x, c: te.sum(
-            padded_data[
-                n, y_offset + y * stride_h + kh_i, x_offset + x * stride_w + kw_i, kc_i
-            ].astype(out_dtype)
+            padded_data[n, y * stride_h + kh_i, x * stride_w + kw_i, kc_i].astype(out_dtype)
             * kernel[c, kh_i, kw_i, kc_i].astype(out_dtype),
             axis=(kh_i, kw_i, kc_i),
         ),
