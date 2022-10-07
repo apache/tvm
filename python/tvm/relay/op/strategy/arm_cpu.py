@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Definition of ARM CPU operator strategy."""
+from functools import reduce
 import logging
-import math
 
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 import re
@@ -88,7 +88,9 @@ def _is_simd_aligned(dtype, dimensions, padding=None):
     else:
         padded_dims = dimensions
 
-    size = math.prod(padded_dims)
+    # Multiply all elements of padded_dims together. We can't use math.prod, as it
+    # does not exist in Python 3.7.
+    size = reduce(lambda x, y: x * y, padded_dims)
     return (
         (dtype == "int8" and size % 4 == 0)
         or (dtype == "int16" and size % 2 == 0)
