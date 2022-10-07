@@ -132,6 +132,18 @@ inline bool using_ipython() {
 }
 
 /*!
+ * \brief Print out the performance table interactively in jupyter notebook.
+ * \param str The serialized performance table.
+ */
+inline void print_interactive_table(const String& data) {
+  const auto* f_print_interactive_table =
+      runtime::Registry::Get("meta_schedule.print_interactive_table");
+  ICHECK(f_print_interactive_table->defined())
+      << "Cannot find print_interactive_table function in registry.";
+  (*f_print_interactive_table)(data);
+}
+
+/*!
  * \brief A helper function to clear logging output for ipython kernel and console.
  * \param file The file name.
  * \param lineno The line number.
