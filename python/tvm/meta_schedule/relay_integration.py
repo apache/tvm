@@ -93,8 +93,15 @@ def _normalize_params(
         if isinstance(param, np.ndarray):
             param = nd.array(param)
         relay_params[name] = param
-    if executor is not None:
+
+    if executor is None:
+        executor = relay.backend.Executor("graph")
+
+    if mod.get_attr("executor") is None:
         mod = mod.with_attr("executor", executor)
+    else:
+        executor = mod.get_attr("executor")
+
     pass_config = dict(pass_config)
     return mod, target, relay_params, pass_config, executor
 
@@ -384,8 +391,7 @@ def is_meta_schedule_dispatch_enabled() -> bool:
     enabled: bool
         Whether the meta schedule is enabled
     """
-    result = transform.PassContext.current().config.get(
+    return transform.PassContext.current().config.get(
         "relay.backend.use_meta_schedule_dispatch",
-        0,
+        False,
     )
-    return bool(result & 1)

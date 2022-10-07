@@ -133,7 +133,7 @@ def _relay_dense(m, n, k):
     return relay_mod, params, f_check
 
 
-@pytest.mark.skip("Requires cascadelake")
+@tvm.testing.requires_cascadelake
 def test_vnni_schedule_fn_database():
     m, n, k = 1024, 1024, 1024
     target = tvm.target.Target("llvm -mcpu=cascadelake -num-cores 4")
@@ -164,7 +164,7 @@ def test_vnni_schedule_fn_database():
     f_check(lib, dev)
 
 
-@pytest.mark.skip("Requires cascadelake")
+@tvm.testing.requires_cascadelake
 def test_vnni_schedule_fn_tune():
     # pylint: disable=W0105
     """
