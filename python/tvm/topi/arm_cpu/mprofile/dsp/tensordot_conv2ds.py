@@ -180,8 +180,6 @@ def depthwise_conv2d_nchw_oihw_dsp_compute(
 
     output_h = _compute_output_dim(data_h, kernel_h, pad_up, pad_down, stride_h)
     output_w = _compute_output_dim(data_w, kernel_w, pad_left, pad_right, stride_w)
-    y_offset = _compute_offset(data_h, kernel_h, pad_up, pad_down, stride_h)
-    x_offset = _compute_offset(data_w, kernel_w, pad_left, pad_right, stride_w)
 
     kh_i = te.reduce_axis((0, kernel_h), name="kh_i")
     kw_i = te.reduce_axis((0, kernel_w), name="kw_i")
@@ -193,8 +191,8 @@ def depthwise_conv2d_nchw_oihw_dsp_compute(
             padded_data[
                 n,
                 indexdiv(c, c_mul),
-                y_offset + y * stride_h + kh_i,
-                x_offset + x * stride_w + kw_i,
+                y * stride_h + kh_i,
+                x * stride_w + kw_i,
             ].astype(out_dtype)
             * kernel[indexdiv(c, c_mul), indexmod(c, c_mul), kh_i, kw_i].astype(out_dtype),
             axis=(kh_i, kw_i),
