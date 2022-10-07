@@ -51,6 +51,31 @@ Mutator Mutator::PyMutator(
   return Mutator(n);
 }
 
+Map<Mutator, FloatImm> Mutator::DefaultLLVM() {
+  return Map<Mutator, FloatImm>{
+      {Mutator::MutateTileSize(), FloatImm(DataType::Float(64), 0.9)},
+      {Mutator::MutateComputeLocation(), FloatImm(DataType::Float(64), 0.05)},
+      {Mutator::MutateUnroll(), FloatImm(DataType::Float(64), 0.03)},
+      {Mutator::MutateParallel(/*max_jobs_per_core=*/16), FloatImm(DataType::Float(64), 0.02)}};
+}
+
+Map<Mutator, FloatImm> Mutator::DefaultCUDA() {
+  return Map<Mutator, FloatImm>{
+      {Mutator::MutateTileSize(), FloatImm(DataType::Float(64), 0.9)},
+      {Mutator::MutateUnroll(), FloatImm(DataType::Float(64), 0.08)},
+      {Mutator::MutateThreadBinding(), FloatImm(DataType::Float(64), 0.02)}};
+}
+
+Map<Mutator, FloatImm> Mutator::DefaultCUDATensorCore() { return Mutator::DefaultCUDA(); }
+
+Map<Mutator, FloatImm> Mutator::DefaultHexagon() {
+  return Map<Mutator, FloatImm>{
+      {Mutator::MutateTileSize(), FloatImm(DataType::Float(64), 0.9)},
+      {Mutator::MutateComputeLocation(), FloatImm(DataType::Float(64), 0.05)},
+      {Mutator::MutateUnroll(), FloatImm(DataType::Float(64), 0.03)},
+      {Mutator::MutateParallel(/*max_jobs_per_core=*/16), FloatImm(DataType::Float(64), 0.02)}};
+}
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyMutatorNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyMutatorNode>();
@@ -72,6 +97,11 @@ TVM_REGISTER_GLOBAL("meta_schedule.MutatorApply")
     });
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorClone").set_body_method<Mutator>(&MutatorNode::Clone);
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorPyMutator").set_body_typed(Mutator::PyMutator);
+TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultLLVM").set_body_typed(Mutator::DefaultLLVM);
+TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultCUDA").set_body_typed(Mutator::DefaultCUDA);
+TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultCUDATensorCore")
+    .set_body_typed(Mutator::DefaultCUDATensorCore);
+TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultHexagon").set_body_typed(Mutator::DefaultHexagon);
 
 }  // namespace meta_schedule
 }  // namespace tvm

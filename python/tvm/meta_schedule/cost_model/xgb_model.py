@@ -14,15 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-XGBoost-based cost model
-"""
-import logging
+"""XGBoost-based cost model"""
 import os
 import tempfile
 from collections import OrderedDict
 from itertools import chain as itertools_chain
-from typing import TYPE_CHECKING, Any, Dict, List, NamedTuple, Optional, Tuple, Callable
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
 import numpy as np  # type: ignore
 
@@ -30,21 +27,20 @@ from ...contrib.tar import tar, untar
 from ...runtime import NDArray
 from ..cost_model import PyCostModel
 from ..feature_extractor import FeatureExtractor
+from ..logging import get_logger
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
 from ..utils import cpu_count, derived_object, shash2hex
 from .metric import max_curve
 
-
 if TYPE_CHECKING:
-
     import xgboost as xgb  # type: ignore
     from xgboost.callback import TrainingCallback  # type: ignore
 
     from ..tune_context import TuneContext
 
 
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+logger = get_logger(__name__)  # pylint: disable=invalid-name
 
 
 def make_metric_sorter(focused_metric):
@@ -302,7 +298,7 @@ class XGBModel(PyCostModel):
     average_peak_n : int
         The number to calculate average peak score.
     adaptive_training : bool
-        Whether use adpative training to reduce tuning time.
+        Whether use adaptive training to reduce tuning time.
     """
 
     # feature extractor
@@ -327,7 +323,7 @@ class XGBModel(PyCostModel):
         self,
         *,
         # feature extractor
-        extractor: FeatureExtractor,
+        extractor: FeatureExtractor.FeatureExtractorType = "per-store-feature",
         # xgboost model config
         config: XGBConfig = XGBConfig(),
         # random result before enough samples
@@ -339,6 +335,8 @@ class XGBModel(PyCostModel):
         adaptive_training: bool = True,
     ):
         super().__init__()
+        if not isinstance(extractor, FeatureExtractor):
+            extractor = FeatureExtractor.create(extractor)
         # feature extractor
         self.extractor = extractor
         # model-related
@@ -652,7 +650,7 @@ def _get_custom_call_back(
     """Get a customized callback function for XGBoost. Work around xgboost import."""
 
     def optional_xgboost_callback(cls):
-        """Decorator for importing TraningCallback from xgboost"""
+        """Decorator for importing TrainingCallback from xgboost"""
         # pylint:disable = import-outside-toplevel
         try:
             from xgboost.callback import TrainingCallback  # type: ignore
@@ -696,7 +694,7 @@ def _get_custom_call_back(
             return self.after_iteration(env.model, env.iteration, env.evaluation_result_list)
 
         def init(self, model: "xgb.Booster"):
-            """Internal function for intialization"""
+            """Internal function for initialization"""
             booster: "xgb.Booster" = model
             self.state["best_iteration"] = 0
             self.state["best_score"] = float("inf")

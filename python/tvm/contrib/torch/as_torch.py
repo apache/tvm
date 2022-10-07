@@ -24,15 +24,19 @@
 as_torch: a decorator, which is used to wrap the TVMScript code to `torch.nn.module`.
 """
 import tempfile
-from typing import Callable, List, Union
+from typing import Callable, List, Optional, Union
+
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
 
 import torch
 import torch.utils.dlpack
-
 import tvm
-from tvm.meta_schedule.tune import TuneConfig, tune_tir
+from tvm import meta_schedule as ms
 from tvm.target.target import Target
-from tvm.tir.schedule.schedule import Schedule
+from tvm.tir import PrimFunc
 
 
 # python wrapper for OperatorModule
@@ -48,7 +52,24 @@ class OperatorModuleWrapper(torch.nn.Module):
         self.rt_module = None  # runtime module
         self.ir_module = module  # IR modules
 
-    def tune(self, config: TuneConfig = None, target: Union[str, Target] = None):
+    def tune(
+        self,
+        target: Union[str, Target] = "cpu",
+        max_trials_global: int = 32,
+        *,
+        num_trials_per_iter: int = 32,
+        builder: ms.Builder.BuilderType = "local",
+        runner: ms.Runner.RunnerType = "local",
+        database: ms.Database.DatabaseType = "json",
+        cost_model: ms.CostModel.CostModelType = "xgb",
+        measure_callbacks: ms.MeasureCallback.CallbackListType = "default",
+        task_scheduler: ms.TaskScheduler.TaskSchedulerType = "round-robin",
+        space: ms.SpaceGenerator.SpaceGeneratorType = "post-order-apply",
+        strategy: ms.SearchStrategy.SearchStrategyType = "replay_trace",
+        task_name: str = "main",
+        num_threads: Union[Literal["physical", "logical"], int] = "physical",
+        seed: Optional[int] = None,
+    ) -> None:
         """
         Tune the TVMScript code.
 
@@ -60,23 +81,29 @@ class OperatorModuleWrapper(torch.nn.Module):
         target : Optional[str, Target]
             The target to tune for.
         """
-        if config is None:
-            config = TuneConfig(
-                # Default setting
-                strategy="replay_trace",
-                num_trials_per_iter=32,
-                max_trials_per_task=32,
-                max_trials_global=32,
-            )
-        if target is None:
-            target = Target("llvm --num-cores=16")
+        if target == "cpu":
+            target = f"llvm --num-cores {ms.utils.cpu_count(logical=False)}"
+
         with tempfile.TemporaryDirectory() as work_dir:
-            sch: Schedule = tune_tir(
+            database = ms.tir_integration.tune_tir(
                 mod=self.ir_module,
                 target=target,
-                config=config,
                 work_dir=work_dir,
+                max_trials_global=max_trials_global,
+                num_trials_per_iter=num_trials_per_iter,
+                builder=builder,
+                runner=runner,
+                database=database,
+                cost_model=cost_model,
+                measure_callbacks=measure_callbacks,
+                task_scheduler=task_scheduler,
+                space=space,
+                strategy=strategy,
+                task_name=task_name,
+                num_threads=num_threads,
+                seed=seed,
             )
+            sch = ms.tir_integration.compile_tir(database, self.ir_module, target)
             self.ir_module = sch.mod
             self.build(target)
 
@@ -117,11 +144,11 @@ def as_torch(func: Union[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc, Call
         which is the subclass of the original nn.Module.
 
     """
-    if isinstance(func, (tvm.ir.module.IRModule, tvm.tir.function.PrimFunc)):
+    if isinstance(func, (tvm.ir.module.IRModule, PrimFunc)):
         return OperatorModuleWrapper(func)
-    if isinstance(func, Callable):
+    if callable(func):
 
-        def func_get_param(*args, **kargs):
-            return OperatorModuleWrapper(func(*args, **kargs))
+        def func_get_param(*args, **kwargs):
+            return OperatorModuleWrapper(func(*args, **kwargs))
 
         return func_get_param

@@ -17,13 +17,13 @@
 # pylint: disable=invalid-name,import-outside-toplevel
 # type: ignore
 """Model loader for TLCBench."""
+import logging
 import multiprocessing
 import os
-import logging
+
 import tvm
 from tvm import relay
 from tvm.contrib.download import download_testdata
-
 
 log = logging.getLogger(__name__)
 
@@ -64,7 +64,6 @@ def deserialize_relay(json_path, params_path):
 
     with open(params_path, "rb") as fi:
         params = relay.load_param_dict(fi.read())
-
     return mod, params
 
 

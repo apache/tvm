@@ -286,9 +286,6 @@ def test_conv2d_winograd_cuda():
         target=Target("nvidia/geforce-rtx-3090", host="llvm"),
         task_name="Custom Search Space Task",
         space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=ms.default_config.schedule_rules(  # pylint: disable=protected-access
-            None, Target("cuda")
-        ),
     )
     post_order_apply = context.space_generator
     (sch,) = post_order_apply.generate_design_space(mod)

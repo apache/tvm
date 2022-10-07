@@ -16,7 +16,6 @@
 # under the License.
 """RPC Runner"""
 import concurrent.futures
-import logging
 import os.path as osp
 from contextlib import contextmanager
 from typing import Callable, List, Optional, Union
@@ -25,6 +24,7 @@ from tvm.contrib.popen_pool import PopenPoolExecutor
 from tvm.rpc import RPCSession
 from tvm.runtime import Device, Module
 
+from ..logging import get_logger
 from ..profiler import Profiler
 from ..utils import (
     cpu_count,
@@ -41,7 +41,7 @@ from .utils import (
     run_evaluator_common,
 )
 
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+logger = get_logger(__name__)  # pylint: disable=invalid-name
 
 
 T_CREATE_SESSION = Callable[  # pylint: disable=invalid-name

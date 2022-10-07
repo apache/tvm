@@ -18,7 +18,7 @@
 Meta Schedule design space generators that generates design
 space for generation of measure candidates.
 """
-from typing import TYPE_CHECKING, Callable, List, Optional, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
 
 # isort: off
 from typing_extensions import Literal
@@ -32,6 +32,9 @@ from tvm.tir.schedule import Schedule
 from .. import _ffi_api
 
 if TYPE_CHECKING:
+    from ..mutator import Mutator
+    from ..postproc import Postproc
+    from ..schedule_rule import ScheduleRule
     from ..tune_context import TuneContext
 
 
@@ -44,6 +47,16 @@ class SpaceGenerator(Object):
         Callable[[Schedule], Schedule],  # Single output
         Callable[[Schedule], List[Schedule]],  # Multiple outputs
     ]
+
+    SpaceGeneratorType = Union[
+        "SpaceGenerator",
+        ScheduleFnType,
+        Literal["post-order-apply", "union"],
+    ]
+
+    sch_rules: Optional[List["ScheduleRule"]]
+    postprocs: Optional[List["Postproc"]]
+    mutator_probs: Optional[Dict["Mutator", float]]
 
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the design space generator with tuning context.
@@ -82,8 +95,91 @@ class SpaceGenerator(Object):
         """
         return _ffi_api.SpaceGeneratorClone(self)  # type: ignore # pylint: disable=no-member
 
+    @staticmethod
+    def create(  # pylint: disable=keyword-arg-before-vararg
+        kind: Union[
+            Literal["post-order-apply", "union"],
+            ScheduleFnType,
+        ] = "post-order-apply",
+        *args,
+        **kwargs,
+    ) -> "SpaceGenerator":
+        """Create a design space generator."""
+        from . import (  # pylint: disable=import-outside-toplevel
+            PostOrderApply,
+            ScheduleFn,
+            SpaceGeneratorUnion,
+        )
+
+        if callable(kind):
+
+            def create_schedule_fn(
+                func,
+                sch_rules=[],
+                postprocs=[],
+                mutator_probs={},
+            ):  # pylint: disable=dangerous-default-value
+                return ScheduleFn(func, sch_rules, postprocs, mutator_probs)
+
+            return create_schedule_fn(kind, *args, **kwargs)  # type: ignore
+        if kind == "post-order-apply":
+            return PostOrderApply(*args, **kwargs)
+        if kind == "union":
+            return SpaceGeneratorUnion(*args, **kwargs)
+        raise ValueError(f"Unknown SpaceGenerator: {kind}")
+
 
 ScheduleFnType = SpaceGenerator.ScheduleFnType
+ScheduleRuleType = Union[
+    List["ScheduleRule"],
+    Literal["llvm", "cuda", "cuda-tensorcore", "hexagon", "from-target"],
+]
+PostprocType = Union[
+    List["Postproc"],
+    Literal["llvm", "cuda", "cuda-tensorcore", "hexagon", "from-target"],
+]
+MutatorProbType = Union[
+    Dict["Mutator", float],
+    Literal["llvm", "cuda", "cuda-tensorcore", "hexagon", "from-target"],
+]
+create = SpaceGenerator.create  # pylint: disable=invalid-name
+
+
+def _normalize_rules(
+    sch_rules: ScheduleRuleType,
+    postprocs: PostprocType,
+    mutator_probs: MutatorProbType,
+) -> Tuple[
+    Optional[List["ScheduleRule"]],
+    Optional[List["Postproc"]],
+    Optional[Dict["Mutator", float]],
+]:
+    # pylint: disable=import-outside-toplevel
+    from ..mutator import Mutator
+    from ..postproc import Postproc
+    from ..schedule_rule import ScheduleRule
+
+    # pylint: enable=import-outside-toplevel
+    assert sch_rules is not None
+    assert postprocs is not None
+    assert mutator_probs is not None
+
+    if isinstance(sch_rules, str):
+        if sch_rules == "from-target":
+            sch_rules = None
+        else:
+            sch_rules = ScheduleRule.create(sch_rules)
+    if isinstance(postprocs, str):
+        if postprocs == "from-target":
+            postprocs = None
+        else:
+            postprocs = Postproc.create(postprocs)
+    if isinstance(mutator_probs, str):
+        if mutator_probs == "from-target":
+            mutator_probs = None
+        else:
+            mutator_probs = Mutator.create(mutator_probs)
+    return sch_rules, postprocs, mutator_probs  # type: ignore
 
 
 @register_object("meta_schedule.PySpaceGenerator")
@@ -97,14 +193,21 @@ class _PySpaceGenerator(SpaceGenerator):
 
     def __init__(
         self,
+        sch_rules: ScheduleRuleType = "from-target",
+        postprocs: PostprocType = "from-target",
+        mutator_probs: MutatorProbType = "from-target",
         f_initialize_with_tune_context: Optional[Callable] = None,
         f_generate_design_space: Optional[Callable] = None,
         f_clone: Optional[Callable] = None,
     ):
         """Constructor."""
+        sch_rules, postprocs, mutator_probs = _normalize_rules(sch_rules, postprocs, mutator_probs)
 
         self.__init_handle_by_constructor__(
             _ffi_api.SpaceGeneratorPySpaceGenerator,  # type: ignore # pylint: disable=no-member
+            sch_rules,
+            postprocs,
+            mutator_probs,
             f_initialize_with_tune_context,
             f_generate_design_space,
             f_clone,
@@ -121,6 +224,7 @@ class PySpaceGenerator:
 
     _tvm_metadata = {
         "cls": _PySpaceGenerator,
+        "fields": ["sch_rules", "postprocs", "mutator_probs"],
         "methods": ["_initialize_with_tune_context", "generate_design_space", "clone"],
     }
 
@@ -158,27 +262,3 @@ class PySpaceGenerator:
             The cloned design space generator.
         """
         raise NotImplementedError
-
-
-def create(  # pylint: disable=keyword-arg-before-vararg
-    kind: Union[
-        Literal["post_order_apply", "union"],
-        ScheduleFnType,
-    ] = "post_order_apply",
-    *args,
-    **kwargs,
-) -> SpaceGenerator:
-    """Create a design space generator."""
-    from . import (  # pylint: disable=import-outside-toplevel
-        PostOrderApply,
-        ScheduleFn,
-        SpaceGeneratorUnion,
-    )
-
-    if callable(kind):
-        return ScheduleFn(kind, *args, **kwargs)  # type: ignore
-    if kind == "post_order_apply":
-        return PostOrderApply(*args, **kwargs)
-    if kind == "union":
-        return SpaceGeneratorUnion(*args, **kwargs)
-    raise ValueError(f"Unknown SpaceGenerator: {kind}")

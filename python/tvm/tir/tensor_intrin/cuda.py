@@ -16,13 +16,14 @@
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring
 """Intrinsics for tensorization on NVIDIA GPU."""
-from typing import Tuple, Dict
+from typing import Dict, Tuple
+
 from tvm.script import tir as T
 from tvm.tir.function import PrimFunc
-from .. import IntImm, Cast
+
 from ..._ffi import register_func
 from ...runtime import convert
-from .. import TensorIntrin
+from .. import Cast, IntImm, TensorIntrin
 
 
 def shared_16x16_to_ldmatrix_32x8_layout(i, j):

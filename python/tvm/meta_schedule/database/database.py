@@ -164,6 +164,8 @@ class TuningRecord(Object):
 class Database(Object):
     """The abstract database interface."""
 
+    DatabaseType = Union["Database", Literal["json", "memory"]]
+
     def has_workload(self, mod: IRModule) -> bool:
         """Check if the database has the given workload.
         Parameters
@@ -360,6 +362,56 @@ class Database(Object):
     def current() -> Optional["Database"]:
         """Get the current database under scope."""
         return _ffi_api.DatabaseCurrent()  # type: ignore # pylint: disable=no-member
+
+    @staticmethod
+    def create(  # pylint: disable=keyword-arg-before-vararg
+        kind: Union[
+            Literal[
+                "json",
+                "memory",
+                "union",
+                "ordered_union",
+            ],
+            Callable[[Schedule], bool],
+        ] = "json",
+        *args,
+        **kwargs,
+    ) -> "Database":
+        """Create a Database.
+
+        Parameters
+        ----------
+        kind : str = "json" | "memory" | "union" | "ordered_union" | Callable[[Schedule], bool]
+            The kind of the database to be created. The following kinds are supported:
+            "json", "memory", "union", "ordered_union", and a custom schedule function.
+
+        Returns
+        -------
+        database : Database
+            The created database.
+        """
+        from . import (  # pylint: disable=import-outside-toplevel
+            JSONDatabase,
+            MemoryDatabase,
+            OrderedUnionDatabase,
+            ScheduleFnDatabase,
+            UnionDatabase,
+        )
+
+        if callable(kind):
+            return ScheduleFnDatabase(kind, *args, **kwargs)  # type: ignore
+        if kind == "json":
+            return JSONDatabase(*args, **kwargs)
+        if kind == "memory":
+            return MemoryDatabase(*args, **kwargs)  # type: ignore
+        if kind == "union":
+            return UnionDatabase(*args, **kwargs)  # type: ignore
+        if kind == "ordered_union":
+            return OrderedUnionDatabase(*args, **kwargs)  # type: ignore
+        raise ValueError(f"Unknown Database: {kind}")
+
+
+create = Database.create  # pylint: disable=invalid-name
 
 
 @register_object("meta_schedule.PyDatabase")
@@ -568,38 +620,3 @@ class PyDatabase:
             The number of records in the database
         """
         raise NotImplementedError
-
-
-def create(  # pylint: disable=keyword-arg-before-vararg
-    kind: Union[
-        Literal[
-            "json",
-            "memory",
-            "union",
-            "ordered_union",
-        ],
-        Callable[[Schedule], bool],
-    ] = "json",
-    *args,
-    **kwargs,
-) -> Database:
-    """Create a Database."""
-    from . import (  # pylint: disable=import-outside-toplevel
-        JSONDatabase,
-        MemoryDatabase,
-        OrderedUnionDatabase,
-        ScheduleFnDatabase,
-        UnionDatabase,
-    )
-
-    if callable(kind):
-        return ScheduleFnDatabase(kind, *args, **kwargs)  # type: ignore
-    if kind == "json":
-        return JSONDatabase(*args, **kwargs)
-    if kind == "memory":
-        return MemoryDatabase(*args, **kwargs)  # type: ignore
-    if kind == "union":
-        return UnionDatabase(*args, **kwargs)  # type: ignore
-    if kind == "ordered_union":
-        return OrderedUnionDatabase(*args, **kwargs)  # type: ignore
-    raise ValueError(f"Unknown Database: {kind}")
