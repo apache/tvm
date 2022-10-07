@@ -65,7 +65,7 @@ class OperatorModuleWrapper(torch.nn.Module):
         measure_callbacks: ms.MeasureCallback.CallbackListType = "default",
         task_scheduler: ms.TaskScheduler.TaskSchedulerType = "round-robin",
         space: ms.SpaceGenerator.SpaceGeneratorType = "post-order-apply",
-        strategy: ms.SearchStrategy.SearchStrategyType = "replay_trace",
+        strategy: ms.SearchStrategy.SearchStrategyType = "replay-trace",
         task_name: str = "main",
         num_threads: Union[Literal["physical", "logical"], int] = "physical",
         seed: Optional[int] = None,
