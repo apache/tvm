@@ -381,9 +381,7 @@ def test_conv2d_relay_auto_schedule(hexagon_launcher):
             params=params,
             target=target,
             max_trials_global=8,
-            max_trials_per_task=8,
-            num_trials_per_iter=8,
-            strategy=ms.search_strategy.ReplayTrace(),
+            strategy="replay-trace",
             work_dir=work_dir,
             builder=get_hexagon_local_builder(),
             runner=get_hexagon_rpc_runner(hexagon_launcher, number=20),
@@ -427,6 +425,7 @@ def test_dense_relay_auto_schedule(hexagon_launcher):
     weight = relay.var("weight", shape=weight_shape, dtype="float16")
     dense = relay.nn.dense(data, weight)
     mod = tvm.IRModule.from_expr(dense)
+    mod = mod.with_attr("executor", relay.backend.Executor("graph", {"link-params": True}))
 
     weight_np = np.random.randn(*weight_shape).astype("float32")
 
@@ -434,24 +433,23 @@ def test_dense_relay_auto_schedule(hexagon_launcher):
     params = {"weight": weight_np}
     ref = np.dot(data_np, weight_np.transpose())
 
-    config = ms.TuneConfig(
-        strategy="replay_trace",
-        num_trials_per_iter=8,
-        max_trials_per_task=8,
-        max_trials_global=8,
-    )
-
     with tempfile.TemporaryDirectory() as work_dir:
-        executor = Executor("graph", {"link-params": True})
-        lib = ms.tune_relay(
+        target = get_hexagon_target("v69")
+        database = ms.relay_integration.tune_relay(
             mod=mod,
             params=params,
             target=target,
-            config=config,
+            max_trials_global=8,
+            strategy="replay-trace",
             work_dir=work_dir,
             builder=get_hexagon_local_builder(),
             runner=get_hexagon_rpc_runner(hexagon_launcher, number=20),
-            executor=executor,
+        )
+        lib = ms.relay_integration.compile_relay(
+            database=database,
+            mod=mod,
+            params=params,
+            target=target,
         )
 
     with hexagon_launcher.start_session() as session:
