@@ -22,6 +22,7 @@
 #include <tvm/relay/function.h>
 #include <tvm/target/target.h>
 
+#include "../../meta_schedule/module_equality.h"
 #include "../../te/operation/create_primfunc.h"
 #include "./te_compiler_cache.h"
 #include "./utils.h"
@@ -42,26 +43,31 @@ Array<meta_schedule::ExtractedTask> ExtractTask(IRModule mod, Target target,
   mod = transform::Sequential(pass_seqs)(std::move(mod));
 
   std::vector<ExtractedTask> tasks;
-  std::unordered_map<tec::CCacheKey, ExtractedTask> cache;
+  std::unordered_map<IRModule, ExtractedTask, meta_schedule::ModuleHash, meta_schedule::ModuleEqual>
+      cache;
   PostOrderVisit(mod->Lookup("main"), [&target, &tasks, &cache, &tir_converter](const Expr& exp) {
     if (exp->IsInstance<FunctionNode>()) {
       Function relay_func = Downcast<Function>(exp);
       if (!relay_func->HasNonzeroAttr(attr::kPrimitive)) {
         return;
       }
-      tec::CCacheKey cache_key(relay_func, target);
-      auto it = cache.find(cache_key);
-      if (it != cache.end()) {
-        it->second->weight += 1;
-        return;
-      }
+
       auto [inputs_outputs, constants, fused_name] =
           tec::LowerTECompute(relay_func, target, /*return_inputs=*/true);
+
       if (Optional<tir::PrimFunc> f = tir_converter(inputs_outputs, constants)) {
+        IRModule tir_mod = PrimFuncToIRModule(f.value());
+
+        auto it = cache.find(tir_mod);
+        if (it != cache.end()) {
+          it->second->weight += 1;
+          return;
+        }
+
         IRModule relay_mod({{GlobalVar(fused_name), relay_func}});
-        ExtractedTask task(fused_name, relay_mod, target, {PrimFuncToIRModule(f.value())}, 1);
+        ExtractedTask task(fused_name, relay_mod, target, {tir_mod}, 1);
         tasks.push_back(task);
-        cache.emplace(cache_key, task);
+        cache.emplace(tir_mod, task);
       }
     }
   });

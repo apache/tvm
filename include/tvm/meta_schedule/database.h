@@ -94,9 +94,7 @@ struct WorkloadHash {
 
 /*! \brief The equality check for Workload */
 struct WorkloadEqual {
-  bool operator()(const Workload& a, const Workload& b) const {
-    return a->shash == b->shash && tvm::StructuralEqual()(a->mod, b->mod);
-  }
+  bool operator()(const Workload& a, const Workload& b) const;
 };
 
 /*! \brief The class of measure candidates. */

@@ -20,6 +20,7 @@
 #include <thread>
 #include <unordered_map>
 
+#include "../module_equality.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -88,13 +89,12 @@ class JSONDatabaseNode : public DatabaseNode {
 
  public:
   bool HasWorkload(const IRModule& mod) {
-    return workloads2idx_.find(Workload(mod, tvm::StructuralHash()(mod))) != workloads2idx_.end();
+    return workloads2idx_.find(Workload(mod, ModuleHash()(mod))) != workloads2idx_.end();
   }
 
   Workload CommitWorkload(const IRModule& mod) {
     // Try to insert `mod` into `workloads_`
-    auto [it, inserted] =
-        this->workloads2idx_.emplace(Workload(mod, tvm::StructuralHash()(mod)), -1);
+    auto [it, inserted] = this->workloads2idx_.emplace(Workload(mod, ModuleHash()(mod)), -1);
     Workload workload = it->first;
     // If `mod` is new in `workloads2idx_`, append it to the workload file
     if (inserted) {

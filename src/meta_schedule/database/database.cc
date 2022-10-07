@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "../module_equality.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -25,7 +26,7 @@ namespace meta_schedule {
 
 Workload::Workload(IRModule mod) {
   ObjectPtr<WorkloadNode> n = runtime::make_object<WorkloadNode>();
-  n->shash = tvm::StructuralHash()(mod);
+  n->shash = ModuleHash()(mod);
   n->mod = mod;
   data_ = std::move(n);
 }
@@ -61,9 +62,9 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
       mod = Downcast<IRModule>(LoadJSON(json_mod));
     }
     // Verify SHash(mod) == shash
-    shash = tvm::StructuralHash()(mod);
+    shash = ModuleHash()(mod);
     String recalc_shash = SHash2Str(shash);
-    CHECK_EQ(recalc_shash, str_shash) << "ValueError: Structural hash changed. Given: " << str_shash
+    CHECK_EQ(recalc_shash, str_shash) << "ValueError: Module hash changed. Given: " << str_shash
                                       << "; Recalculated: " << recalc_shash;
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
@@ -83,6 +84,10 @@ TuningRecord::TuningRecord(tir::Trace trace, Workload workload, Optional<Array<F
   n->target = target;
   n->args_info = args_info;
   this->data_ = n;
+}
+
+bool WorkloadEqual::operator()(const Workload& a, const Workload& b) const {
+  return a->shash == b->shash && ModuleEqual()(a->mod, b->mod);
 }
 
 MeasureCandidate TuningRecordNode::AsMeasureCandidate() const {

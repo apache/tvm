@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "../module_equality.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -37,7 +38,7 @@ class MemoryDatabaseNode : public DatabaseNode {
  public:
   bool HasWorkload(const IRModule& mod) final {
     for (const auto& workload : workloads) {
-      if (StructuralEqual()(workload->mod, mod)) {
+      if (ModuleEqual()(workload->mod, mod)) {
         return true;
       }
     }
@@ -46,11 +47,11 @@ class MemoryDatabaseNode : public DatabaseNode {
 
   Workload CommitWorkload(const IRModule& mod) final {
     for (const auto& workload : workloads) {
-      if (StructuralEqual()(workload->mod, mod)) {
+      if (ModuleEqual()(workload->mod, mod)) {
         return workload;
       }
     }
-    Workload workload(mod, StructuralHash()(mod));
+    Workload workload(mod, ModuleHash()(mod));
     workloads.push_back(workload);
     return workload;
   }

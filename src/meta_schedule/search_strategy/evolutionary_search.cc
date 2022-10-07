@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include "../module_equality.h"
 #include "../utils.h"
 
 #define TVM_META_SCHEDULE_CHECK_PROB_RANGE(p, name)                               \
@@ -48,7 +49,7 @@ class IRModuleSet {
   };
   struct ItemEqual {
     bool operator()(const Item& lhs, const Item& rhs) const {
-      return lhs.shash == rhs.shash && StructuralEqual()(lhs.mod, rhs.mod);
+      return lhs.shash == rhs.shash && ModuleEqual()(lhs.mod, rhs.mod);
     }
   };
   std::unordered_set<Item, ItemHash, ItemEqual> tab_;
@@ -531,7 +532,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
       for (int i = 0, n = population.size(); i < n; ++i) {
         Schedule sch = population.at(i);
         IRModule mod = sch->mod();
-        size_t shash = StructuralHash()(mod);
+        size_t shash = ModuleHash()(mod);
         double score = scores.at(i);
         if (!exists.Has(mod, shash)) {
           exists.Add(mod, shash);
@@ -661,7 +662,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickWithEpsGreedy(
       }
     }
     IRModule mod = sch->mod();
-    size_t shash = StructuralHash()(mod);
+    size_t shash = ModuleHash()(mod);
     if (!measured_workloads.Has(mod, shash)) {
       measured_workloads.Add(mod, shash);
       results.push_back(sch);
@@ -754,7 +755,7 @@ Array<Schedule> EvolutionarySearchEvolveWithCostModel(EvolutionarySearch self,
   std::vector<Schedule> schs = self->state_->EvolveWithCostModel(population_vec, num);
   for (Schedule sch : schs) {
     IRModule mod = sch->mod();
-    size_t shash = StructuralHash()(mod);
+    size_t shash = ModuleHash()(mod);
     if (!self->state_->measured_workloads_.Has(mod, shash)) {
       self->state_->measured_workloads_.Add(mod, shash);
       result.push_back(sch);
