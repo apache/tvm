@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Integration test for MetaSchedule"""
+import tempfile
 import numpy as np
 import pytest
 import tvm
@@ -487,6 +488,83 @@ def test_meta_schedule_te2primfunc_argument_order():
     actual_output = get_output(data, rt_mod1)
     expected_output = get_output(data, rt_mod2)
     assert np.allclose(actual_output, expected_output, rtol=1e-4, atol=2e-4)
+
+
+def test_rewrite_layout_link_params():
+    I, O, H, W = 64, 64, 56, 56
+    kH = kW = 3
+
+    strides = (1, 1)
+    padding = (1, 1)
+
+    data_shape = (1, H, W, I)
+    w_shape = (kH, kW, I, O)
+    bias_shape = (1, 1, 1, O)
+
+    data = relay.var("data", shape=data_shape, dtype="float32")
+    weight = relay.var("weight1", shape=w_shape, dtype="float32")
+    bias = relay.var("bias", shape=bias_shape, dtype="float32")
+
+    conv = relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=(kH, kW),
+        channels=O,
+        padding=padding,
+        strides=strides,
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="float32",
+    )
+
+    mod = tvm.IRModule.from_expr(conv + bias)
+
+    weight_np = np.random.randn(*w_shape).astype("float32")
+    bias_np = np.random.randn(*bias_shape).astype("float32")
+
+    params = {"weight1": weight_np, "bias": bias_np}
+
+    data_np = np.random.randn(*data_shape).astype("float32")
+
+    ref = (
+        relay.create_executor("graph", mod=mod, device=tvm.cpu(0), target="llvm")
+        .evaluate()(*[data_np, weight_np, bias_np])
+        .numpy()
+    )
+
+    link_params = True
+
+    target = "llvm --num-cores=4"
+
+    executor = relay.backend.Executor("graph", {"link-params": link_params})
+    mod = mod.with_attr("executor", executor)
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        database = ms.relay_integration.tune_relay(
+            mod=mod,
+            target=target,
+            params=params,
+            work_dir=work_dir,
+            max_trials_global=4,
+            strategy="replay-trace",
+        )
+
+        lib = ms.relay_integration.compile_relay(
+            database=database,
+            mod=mod,
+            target=target,
+            params=params,
+        )
+
+    dev = tvm.device(target, 0)
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    runtime.set_input("data", data_np)
+    runtime.run()
+
+    out = runtime.get_output(0).numpy()
+
+    np.testing.assert_allclose(ref, out, rtol=1e-4, atol=1e-4)
 
 
 if __name__ == "__main__":

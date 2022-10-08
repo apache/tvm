@@ -205,7 +205,7 @@ def test_vrmpy_dense(hexagon_launcher):
                     schedule_dense_for_tune,
                     sch_rules=[],
                     postprocs=[],
-                    mutator_probs=[],
+                    mutator_probs={},
                 ),
                 strategy="replay-trace",
                 builder=get_hexagon_local_builder(),
@@ -307,6 +307,7 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
         postproc.RewriteTensorize(vectorize_init_loop=True),
     ]
 
+    # Make this to False to compile and run the best tuned schedule
     if True:
         with tempfile.TemporaryDirectory() as work_dir:
             target = get_hexagon_target("v68")
@@ -315,10 +316,13 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
                 target=target,
                 max_trials_global=8,
                 num_trials_per_iter=8,
-                max_trials_per_task=8,
                 work_dir=work_dir,
-                sch_rules=lambda: sch_rules,
-                postprocs=lambda: postprocs,
+                space=ms.space_generator.PostOrderApply(
+                    f_block_filter=None,
+                    sch_rules=sch_rules,
+                    postprocs=postprocs,
+                    mutator_probs={},
+                ),
                 builder=get_hexagon_local_builder(),
                 runner=get_hexagon_rpc_runner(hexagon_launcher, number=10),
             )
@@ -368,20 +372,11 @@ def test_conv2d_relay_auto_schedule(hexagon_launcher):
     bias_np = np.random.randn(*bias_shape).astype("float16")
     params = {"weight": weight_np, "bias": bias_np}
 
-    target_llvm = tvm.target.Target("llvm")
-
-    with tvm.transform.PassContext(
-        opt_level=3,
-    ):
-        lib_ref = relay.build(mod, target=target_llvm, params=params)
-
-    rt_mod_ref = tvm.contrib.graph_executor.GraphModule(lib_ref["default"](tvm.cpu(0)))
-
-    rt_mod_ref.set_input("data", data_np)
-
-    rt_mod_ref.run()
-
-    ref = rt_mod_ref.get_output(0).numpy()
+    ref = (
+        relay.create_executor("graph", mod=mod, device=tvm.cpu(0), target="llvm")
+        .evaluate()(*[data_np, weight_np, bias_np])
+        .numpy()
+    )
 
     with tempfile.TemporaryDirectory() as work_dir:
         target = get_hexagon_target("v69")
@@ -390,9 +385,7 @@ def test_conv2d_relay_auto_schedule(hexagon_launcher):
             params=params,
             target=target,
             max_trials_global=8,
-            max_trials_per_task=8,
-            num_trials_per_iter=8,
-            strategy=ms.search_strategy.ReplayTrace(),
+            strategy="replay-trace",
             work_dir=work_dir,
             builder=get_hexagon_local_builder(),
             runner=get_hexagon_rpc_runner(hexagon_launcher, number=20),
@@ -412,4 +405,65 @@ def test_conv2d_relay_auto_schedule(hexagon_launcher):
         rt_mod.run()
 
         out = rt_mod.get_output(0).numpy()
-        print(np.max(np.abs(ref - out)), np.mean(np.abs(ref - out)))
+        # Fairly loose check since fp16 results between x86 and Hexagon have
+        # non-trivial difference.
+        assert np.mean(np.abs(ref - out)) < 0.5
+
+
+@tvm.testing.requires_hexagon
+def test_dense_relay_auto_schedule(hexagon_launcher):
+    """
+    This is for testing RewriteLayout postproc. Without this postproc,
+    dense on Hexagon is extremely slow.
+    """
+    if hexagon_launcher._serial_number == "simulator":
+        pytest.skip(msg="Tuning on simulator not supported.")
+
+    target_hexagon = tvm.target.hexagon("v69")
+    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+
+    data_shape = (128, 128)
+    weight_shape = (128, 128)
+
+    data = relay.var("data", shape=data_shape, dtype="float16")
+    weight = relay.var("weight", shape=weight_shape, dtype="float16")
+    dense = relay.nn.dense(data, weight)
+    mod = tvm.IRModule.from_expr(dense)
+    mod = mod.with_attr("executor", relay.backend.Executor("graph", {"link-params": True}))
+
+    weight_np = np.random.randn(*weight_shape).astype("float32")
+
+    data_np = np.random.randn(*data_shape).astype("float32")
+    params = {"weight": weight_np}
+    ref = np.dot(data_np, weight_np.transpose())
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        target = get_hexagon_target("v69")
+        database = ms.relay_integration.tune_relay(
+            mod=mod,
+            params=params,
+            target=target,
+            max_trials_global=8,
+            strategy="replay-trace",
+            work_dir=work_dir,
+            builder=get_hexagon_local_builder(),
+            runner=get_hexagon_rpc_runner(hexagon_launcher, number=20),
+        )
+        lib = ms.relay_integration.compile_relay(
+            database=database,
+            mod=mod,
+            params=params,
+            target=target,
+        )
+
+    with hexagon_launcher.start_session() as session:
+        rt_mod = session.get_executor_from_factory(lib)
+
+        rt_mod.set_input("data", data_np)
+
+        rt_mod.run()
+
+        out = rt_mod.get_output(0).numpy()
+        # Fairly loose check since fp16 results between x86 and Hexagon have
+        # non-trivial difference.
+        assert np.mean(np.abs(ref - out)) < 0.1

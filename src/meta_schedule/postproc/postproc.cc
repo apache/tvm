@@ -85,10 +85,9 @@ Array<Postproc> Postproc::DefaultCUDATensorCore() {
 Array<Postproc> Postproc::DefaultHexagon() {
   return Array<Postproc>{
       Postproc::DisallowDynamicLoop(),
-      Postproc::RewriteParallelVectorizeUnroll(),  //
+      Postproc::RewriteParallelVectorizeUnroll(),
       Postproc::RewriteReductionBlock(),
-      // TODO(masahi): Fix RewriteLayout for link-params=True case
-      // Postproc::RewriteLayout(),
+      Postproc::RewriteLayout(),
   };
 }
 
