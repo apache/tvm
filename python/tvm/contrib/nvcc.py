@@ -29,7 +29,7 @@ from . import utils
 from .._ffi.base import py_str
 
 
-def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target=None):
+def compile_cuda_nvcc(code, target_format="ptx", arch=None, options=None, path_target=None):
     """Compile cuda code with NVCC from env.
 
     Parameters
@@ -119,7 +119,7 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
         return data
 
 
-def compile_cuda_clang(code, target_format="ptx", arch=None, options=None, path_target=None):
+def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target=None):
     """Compile cuda code with NVCC from env.
 
     Parameters

@@ -217,6 +217,9 @@ else(MSVC)
   endif()
   message(STATUS "Forbidding undefined symbols in shared library, using ${TVM_NO_UNDEFINED_SYMBOLS} on platform ${CMAKE_SYSTEM_NAME}")
 
+#  set(TVM_NO_UNDEFINED_SYMBOLS "${TVM_NO_UNDEFINED_SYMBOLS} -Wl,--exclude-all-symbols -Wl,--enable-auto-import")
+  message(STATUS "Forbidding undefined symbols in shared library, using ${TVM_NO_UNDEFINED_SYMBOLS} on platform ${CMAKE_SYSTEM_NAME}")
+
   # Detect if we're compiling for Hexagon.
   set(TEST_FOR_HEXAGON_CXX
       "#ifndef __hexagon__"
@@ -605,6 +608,13 @@ if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
   target_link_libraries(tvm_runtime PUBLIC Threads::Threads)
 endif()
 
+if(USE_RPC )
+  message(STATUS "Build with RPC support... add ws2.lib on windows")
+  set(TVM_RUNTIME_LINKER_LIBS
+          ${TVM_RUNTIME_LINKER_LIBS}
+          Ws2_32.lib)
+endif(USE_RPC )
+
 target_link_libraries(tvm PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
@@ -748,6 +758,10 @@ if(MSVC)
   target_compile_definitions(tvm_libinfo_objs PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime_objs PRIVATE -DTVM_EXPORTS)
 endif()
+
+target_compile_definitions(tvm_objs PRIVATE -DTVM_EXPORTS)
+target_compile_definitions(tvm_libinfo_objs PRIVATE -DTVM_EXPORTS)
+target_compile_definitions(tvm_runtime_objs PRIVATE -DTVM_EXPORTS)
 
 set(TVM_IS_DEBUG_BUILD OFF)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_CXX_FLAGS MATCHES "-g")

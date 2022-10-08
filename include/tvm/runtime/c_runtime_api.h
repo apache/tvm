@@ -54,7 +54,7 @@
 #endif
 
 #ifndef TVM_DLL
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__MINGW32__)
 #ifdef TVM_EXPORTS
 #define TVM_DLL __declspec(dllexport)
 #else
