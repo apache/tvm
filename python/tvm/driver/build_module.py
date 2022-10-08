@@ -265,10 +265,10 @@ def build(
     if target_host is not None:
         # did nothing
         warn = None
-        warnings.warn(
-            "target_host parameter is going to be deprecated. "
-            "Please pass in tvm.target.Target(target, host=target_host) instead."
-        )
+        # warnings.warn(
+        #     "target_host parameter is going to be deprecated. "
+        #     "Please pass in tvm.target.Target(target, host=target_host) instead."
+        # )
     if not target_host:
         for tar, mod in annotated_mods.items():
             device_type = ndarray.device(tar.kind.name, 0).device_type

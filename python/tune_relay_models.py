@@ -87,11 +87,11 @@ tuning_option = {
     # "n_parallel": 1,
     "early_stopping": 600,
     "measure_option": autotvm.measure_option(
-        builder=autotvm.LocalBuilder(timeout=4000, n_parallel=4, do_fork=True),
+        builder=autotvm.LocalBuilder(timeout=4000, n_parallel=8, do_fork=True),
         runner=autotvm.RPCRunner(device_name, host=tracker_host,
-                                 port=9190, number=1, repeat=3, timeout=10, min_repeat_ms=3),
+                                 port=9190, number=1, repeat=10, timeout=10, min_repeat_ms=3),
     ),
-    "use_transfer_learning": True,
+    "use_transfer_learning": False,
 }
 
 
@@ -107,7 +107,6 @@ def tune_tasks(
 ):
     # create tmp log file
     tmp_log_file = log_filename + ".tmp"
-    # tmp_log_file = "./tuning.log.tmp"
     if os.path.exists(tmp_log_file):
         os.remove(tmp_log_file)
 

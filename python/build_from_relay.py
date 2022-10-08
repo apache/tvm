@@ -158,7 +158,7 @@ if __name__ == '__main__':
             print(oval)
         # evaluate
         print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=300)
+        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=30)
         prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
         print(
             "Mean inference time (std dev): %.2f ms (%.2f ms)"
@@ -177,7 +177,7 @@ if __name__ == '__main__':
             print(oval)
         # evaluate
         print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=600)
+        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=60)
         prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
         print(
             "Mean inference time (std dev): %.2f ms (%.2f ms)"
