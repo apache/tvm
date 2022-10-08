@@ -1,6 +1,27 @@
 cmake_minimum_required(VERSION 3.2)
 project(tvm C CXX)
 
+MESSAGE(STATUS "c compiler :  ${CMAKE_COMPILER_IS_GNUCC}")
+message(STATUS "system name : ${CMAKE_SYSTEM_NAME}")
+if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+  set(IS_WINDOWS 1)
+  message(STATUS "host is windows")
+  if (CMAKE_COMPILER_IS_GNUCC)
+    set(IS_MINGW 1)
+    if ("${CMAKE_BUILD_TYPE}" MATCHES "Debug")
+      add_definitions("-D_DEBUG")
+    endif ()
+  endif ()
+else()
+  set(IS_LINUX 1)
+  if ("${CMAKE_BUILD_TYPE}" MATCHES "Debug")
+    add_definitions("-D_DEBUG")
+  endif ()
+  add_definitions("-Dlinux")
+  message(STATUS "host is LINUX")
+endif ()
+
+
 # Utility functions
 include(cmake/utils/Utils.cmake)
 include(cmake/utils/Summary.cmake)
@@ -608,12 +629,12 @@ if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
   target_link_libraries(tvm_runtime PUBLIC Threads::Threads)
 endif()
 
-if(USE_RPC )
+if(USE_RPC  AND IS_MINGW)
   message(STATUS "Build with RPC support... add ws2.lib on windows")
   set(TVM_RUNTIME_LINKER_LIBS
           ${TVM_RUNTIME_LINKER_LIBS}
           Ws2_32.lib)
-endif(USE_RPC )
+endif(USE_RPC  AND IS_MINGW )
 
 target_link_libraries(tvm PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
@@ -753,15 +774,16 @@ install(
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
 
 # More target definitions
+#if(MSVC OR IS_MINGW)
 if(MSVC)
   target_compile_definitions(tvm_objs PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_libinfo_objs PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime_objs PRIVATE -DTVM_EXPORTS)
 endif()
 
-target_compile_definitions(tvm_objs PRIVATE -DTVM_EXPORTS)
-target_compile_definitions(tvm_libinfo_objs PRIVATE -DTVM_EXPORTS)
-target_compile_definitions(tvm_runtime_objs PRIVATE -DTVM_EXPORTS)
+#target_compile_definitions(tvm_objs PRIVATE -DTVM_EXPORTS)
+#target_compile_definitions(tvm_libinfo_objs PRIVATE -DTVM_EXPORTS)
+#target_compile_definitions(tvm_runtime_objs PRIVATE -DTVM_EXPORTS)
 
 set(TVM_IS_DEBUG_BUILD OFF)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_CXX_FLAGS MATCHES "-g")
