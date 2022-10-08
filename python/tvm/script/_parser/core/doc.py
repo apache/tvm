@@ -30,7 +30,16 @@ FnFromDoc = typing.Callable[[doc.AST], ast.AST]
 
 
 class Entry:
-    """Mapping entry between str and doc AST."""
+    """Mapping entry between python AST node type str and doc AST.
+
+    Parameters
+    ----------
+    to_doc : typing.Optional[FnToDoc]
+        The callable methods for converting python AST node to doc AST.
+
+    from_doc : typing.Optional[FnFromDoc]
+        The callable methods for converting doc AST to python AST node.
+    """
 
     to_doc: typing.Optional[FnToDoc]
     from_doc: typing.Optional[FnFromDoc]
@@ -41,7 +50,18 @@ class Entry:
 
 
 class Registry:
-    """Registration map for str and doc AST"""
+    """Registration map from python AST node type str to methods of conversion
+    between python AST node and doc AST node.
+
+    Parameters
+    ----------
+    _inst : typing.Optional["Registry"]
+        The instance of Registry.
+
+    table : typing.Dict[str, Entry]
+        The registration map from python AST node type str to methods of conversion
+        between python AST node and doc AST node.
+    """
 
     _inst: typing.Optional["Registry"] = None
     table: typing.Dict[str, Entry]
@@ -51,6 +71,19 @@ class Registry:
 
 
 def register_to_doc(name: str):
+    """Register the to_doc method for python AST node type.
+
+    Parameters
+    ----------
+    name : str
+        The type of python AST node.
+
+    Returns
+    -------
+    f : Callable[[FnToDoc], None]
+        The function of registering the to_doc method for python AST node type.
+    """
+
     def f(to_doc: FnToDoc):  # pylint: disable=redefined-outer-name
         reg = Registry._inst  # pylint: disable=protected-access
         reg.table[name].to_doc = to_doc
@@ -59,6 +92,19 @@ def register_to_doc(name: str):
 
 
 def register_from_doc(name: str):
+    """Register the from_doc method for python AST node type.
+
+    Parameters
+    ----------
+    name : str
+        The type of python AST node.
+
+    Returns
+    -------
+    f : Callable[[FnFromDoc], None]
+        The function of registering the from_doc method for python AST node type.
+    """
+
     def f(to_doc: FnFromDoc):  # pylint: disable=redefined-outer-name
         reg = Registry._inst  # pylint: disable=protected-access
         reg.table[name].from_doc = to_doc
@@ -94,7 +140,7 @@ def _get_registry_entry(cls_name, attr):
 
 
 def from_doc(node):
-    """Get AST node from doc AST node.
+    """Get original python AST node from doc AST node.
 
     Parameters
     ----------
@@ -119,7 +165,7 @@ def from_doc(node):
 
 
 def to_doc(node):
-    """Get doc AST node from AST node.
+    """Get doc AST node from python AST node.
 
     Parameters
     ----------
@@ -148,7 +194,11 @@ def parse(
     filename: str = "<unknown>",
     mode: str = "exec",
 ) -> doc.AST:
-    """Parse TVMScript source code to doc AST.
+    """Parse TVMScript source code str to doc AST.
+
+    Its interface is consistent with python built-in ast.parse.
+    And it will parse by python 3.8 first if possible,
+    or it will parse with python version in current environment.
 
     Parameters
     ----------
@@ -156,10 +206,10 @@ def parse(
         The TVMScript source code.
 
     filename : str
-        The optional filename of source code.
+        The optional filename of the file where source code locates.
 
     mode : str
-        The parsing mode.
+        The parsing mode for ast.parse.
 
     Returns
     -------
@@ -183,7 +233,7 @@ def parse(
 
 
 class NodeVisitor:
-    """ "Node visitor for doc AST"""
+    """Node visitor for doc AST"""
 
     def visit(self, node: doc.AST) -> None:
         if isinstance(node, (list, tuple)):
@@ -208,7 +258,7 @@ class NodeVisitor:
 
 
 class NodeTransformer:
-    """ "Node transformer for doc AST"""
+    """Node transformer for doc AST"""
 
     def visit(self, node: doc.AST) -> doc.AST:
         if isinstance(node, list):

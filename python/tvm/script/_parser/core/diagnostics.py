@@ -27,7 +27,27 @@ from . import doc
 
 
 class Source:
-    """Source code class for TVMScript."""
+    """Source code class for TVMScript.
+
+    It is constructed by source code str or doc AST tree.
+
+    Parameters
+    ----------
+    source_name : str
+        The filename of the file where the source code locates.
+
+    start_line : int
+        The first line number of the source code.
+
+    start_column : int
+        The first column number of the first line of the source code.
+
+    source : str
+        The source code str of source code.
+
+    full_source : str
+        The complete source code of the file where the source code locates.
+    """
 
     source_name: str
     start_line: int
@@ -150,7 +170,16 @@ inspect.getfile = _patched_inspect_getfile
 
 
 class Diagnostics:
-    """Diagnostics class for error reporting in parser."""
+    """Diagnostics class for error reporting in parser.
+
+    Parameters
+    ----------
+    source : Source
+        The source code.
+
+    ctx : diagnostics.DiagnosticContext
+        The diagnostic context for diagnostics.
+    """
 
     source: Source
     ctx: diagnostics.DiagnosticContext
