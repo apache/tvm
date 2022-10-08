@@ -62,7 +62,10 @@ if __name__ == '__main__':
         #  -mattr=+sse2
         target = "llvm -mtriple=i386-unknown-windows-msvc -mcpu=core-avx2"
         # change -mtriple to -target can compile using clang on linux
-        # fmt = ".tar"
+        fmt = ".tar"
+    elif args.device == "win64_cuda":
+        target = tvm.target.Target("cuda -arch=sm_86", host="llvm -mtriple=x86_64-unknown-windows-msvc -mcpu=skylake")
+        fmt = ".tar"
     else:
         target = "llvm -mcpu=skylake"
     print(target)
@@ -119,9 +122,13 @@ if __name__ == '__main__':
 
     shape_dict = tuple(args.input_size)
     input_name = args.input_name
-    if str(args.device) == "win32":
-        remote = autotvm.measure.request_remote("rtx3070-win-x86",
-                                                "192.168.6.252", 9190, timeout=10000)
+    if str(args.device).startswith("win"):
+        if args.device == "win32":
+            remote = autotvm.measure.request_remote("rtx3070-win-x86",
+                                                    "192.168.6.252", 9190, timeout=10000)
+        else:
+            remote = autotvm.measure.request_remote("rtx3070-win-cuda",
+                                                    "192.168.6.252", 9190, timeout=1000)
         remote.upload(os.path.join(export_path, filename))
         rlib = remote.load_module(filename)
 
@@ -129,6 +136,11 @@ if __name__ == '__main__':
         module = runtime.GraphModule(rlib["default"](dev))
         data_tvm = tvm.nd.array((np.random.uniform(size=shape_dict)).astype(dtype), dev)
         module.set_input(input_name, data_tvm)
+        module.run()
+        num_outs = module.get_num_outputs()
+        for i in range(0, num_outs):
+            oval = module.get_output(i).numpy()
+            print(oval)
         # evaluate
         print("Evaluate inference time cost...")
         ftimer = module.module.time_evaluator("run", dev, number=1, repeat=30)
@@ -140,7 +152,7 @@ if __name__ == '__main__':
         exit(0)
     elif fmt == ".so" and (args.device == "arm_cuda" or args.device == "arm_opencl" or args.device == "arm"):
         if args.device == "arm_cuda":
-            remote = autotvm.measure.request_remote("tx2", "192.168.6.69", 9190, timeout=10000)
+            remote = autotvm.measure.request_remote("tx2", "192.168.6.252", 9190, timeout=10000)
         else:
             remote = autotvm.measure.request_remote("rk3588", "192.168.6.252", 9190, timeout=10000)
         remote.upload(os.path.join(export_path, filename))
@@ -158,7 +170,7 @@ if __name__ == '__main__':
             print(oval)
         # evaluate
         print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=300)
+        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=30)
         prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
         print(
             "Mean inference time (std dev): %.2f ms (%.2f ms)"
@@ -177,7 +189,7 @@ if __name__ == '__main__':
             print(oval)
         # evaluate
         print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=600)
+        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=60)
         prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
         print(
             "Mean inference time (std dev): %.2f ms (%.2f ms)"
