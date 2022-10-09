@@ -118,7 +118,9 @@ def config_cython():
             subdir = "_cy2"
         ret = []
         path = "tvm/_ffi/_cython"
-        extra_compile_args = ["-std=c++17", "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>"]
+        extra_compile_args = ["-std=c++17", "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>",
+                              "-nostdlib++", "-isystem", "/usr/lib/llvm-8/include/c++/v1", "-lc++",
+                              "-fPIC", "-lpthread", "-Wunused-command-line-argument"]
         if os.name == "nt":
             library_dirs = ["tvm", "../build/Release", "../build"]
             libraries = ["tvm"]
@@ -178,7 +180,8 @@ if not CONDA_BUILD:
 
             if os.path.isdir(path):
                 _, libname = os.path.split(path)
-                shutil.copytree(path, os.path.join(CURRENT_DIR, "tvm", libname))
+                if not os.path.exists(os.path.join(CURRENT_DIR, "tvm", libname)):
+                    shutil.copytree(path, os.path.join(CURRENT_DIR, "tvm", libname))
                 fo.write(f"recursive-include tvm/{libname} *\n")
 
     setup_kwargs = {"include_package_data": True}
