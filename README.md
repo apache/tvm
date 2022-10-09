@@ -33,6 +33,12 @@ License
 -------
 TVM is licensed under the [Apache-2.0](LICENSE) license.
 
+Turbosun's Fork
+---------------
+some useful scripts to export models
+add MinGW Support for Windows Users
+You can check detail in https://www.zhihu.com/people/m-m-85-84/posts
+
 Getting Started
 ---------------
 Check out the [TVM Documentation](https://tvm.apache.org/docs/) site for installation instructions, tutorials, examples, and more.
@@ -51,3 +57,6 @@ We learned a lot from the following projects when building TVM.
   originates from Halide. We also learned and adapted some part of lowering pipeline from Halide.
 - [Loopy](https://github.com/inducer/loopy): use of integer set analysis and its loop transformation primitives.
 - [Theano](https://github.com/Theano/Theano): the design inspiration of symbolic scan operator for recurrence.
+
+
+
