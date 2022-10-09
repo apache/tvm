@@ -173,10 +173,6 @@ TVM_REGISTER_GLOBAL("topi.tensordot").set_body([](TVMArgs args, TVMRetValue* rv)
   }
 });
 
-TVM_REGISTER_GLOBAL("topi.einsum").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = einsum(args[0], args[1]);
-});
-
 TVM_REGISTER_GLOBAL("topi.strided_slice").set_body([](TVMArgs args, TVMRetValue* rv) {
   Tensor x = args[0];
   Array<PrimExpr> begin = args[1];

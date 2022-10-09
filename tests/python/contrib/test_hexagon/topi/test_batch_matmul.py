@@ -27,6 +27,7 @@ import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
 from tvm.contrib.hexagon.session import Session
 
+from ..infrastructure import get_hexagon_target
 
 dtype = tvm.testing.parameter(
     "float32",
@@ -63,8 +64,7 @@ class TestMatMulFloat:
         # get the test data
         a_np, b_np, c_np = get_ref_data()
 
-        target_hexagon = tvm.target.hexagon("v68")
-        with tvm.target.Target(target_hexagon):
+        with tvm.target.Target(get_hexagon_target("v68")):
             fcompute = topi.nn.batch_matmul
             fschedule = topi.hexagon.schedule_batch_matmul
             out = fcompute(x, y)
@@ -74,7 +74,7 @@ class TestMatMulFloat:
         func = tvm.build(
             s,
             [x, y, out],
-            tvm.target.Target(target_hexagon, host=target_hexagon),
+            get_hexagon_target("v68"),
             name="batch_matmul",
         )
         mod = hexagon_session.load_module(func)
@@ -115,8 +115,7 @@ class TestMatMulInt8:
         # get the test data
         a_np, b_np, c_np = get_ref_data()
 
-        target_hexagon = tvm.target.hexagon("v68")
-        with tvm.target.Target(target_hexagon):
+        with tvm.target.Target(get_hexagon_target("v68")):
             fcompute = topi.nn.batch_matmul
             fschedule = topi.hexagon.schedule_batch_matmul
             out = fcompute(x, y)
@@ -125,7 +124,7 @@ class TestMatMulInt8:
         func = tvm.build(
             s,
             [x, y, out],
-            tvm.target.Target(target_hexagon, host=target_hexagon),
+            get_hexagon_target("v68"),
             name="batch_matmul_int8",
         )
         mod = hexagon_session.load_module(func)

@@ -36,9 +36,9 @@ class Before:
         blockIdx_x = T.env_thread("blockIdx.x")
         # body
         T.launch_thread(blockIdx_x, 64)
-        conv2d_transpose_nhwc_local = T.allocate([8], "float32", "local")
-        PadInput_shared = T.allocate([768], "float32", "shared")
-        weight_shared = T.allocate([4096], "float32", "shared")
+        conv2d_transpose_nhwc_local = T.decl_buffer([8], "float32", scope="local")
+        PadInput_shared = T.decl_buffer([768], "float32", scope="shared")
+        weight_shared = T.decl_buffer([4096], "float32", scope="shared")
         T.launch_thread(threadIdx_x, 32)
         for i2_3_init, i1_4_init, i2_4_init in T.grid(2, 2, 2):
             conv2d_transpose_nhwc_local[i1_4_init * 4 + i2_3_init * 2 + i2_4_init] = T.float32(0)
@@ -67,9 +67,9 @@ class After:
         blockIdx_x = T.env_thread("blockIdx.x")
         # body
         T.launch_thread(blockIdx_x, 64)
-        conv2d_transpose_nhwc_local = T.allocate([8], "float32", "local")
-        PadInput_shared = T.allocate([768], "float32", "shared")
-        weight_shared = T.allocate([4096], "float32", "shared")
+        conv2d_transpose_nhwc_local = T.decl_buffer([8], "float32", scope="local")
+        PadInput_shared = T.decl_buffer([768], "float32", scope="shared")
+        weight_shared = T.decl_buffer([4096], "float32", scope="shared")
         T.launch_thread(threadIdx_x, 32)
         for i2_3_init, i1_4_init, i2_4_init in T.grid(2, 2, 2):
             conv2d_transpose_nhwc_local[i1_4_init * 4 + i2_3_init * 2 + i2_4_init] = T.float32(0)
@@ -98,9 +98,9 @@ class After_simplified:
         T.preflattened_buffer(conv2d_transpose_nhwc, [1, 8, 8, 256], dtype="float32", data=conv2d_transpose_nhwc.data)
         # body
         T.launch_thread(blockIdx_x, 64)
-        conv2d_transpose_nhwc_local = T.allocate([8], "float32", "local")
-        PadInput_shared = T.allocate([768], "float32", "shared")
-        weight_shared = T.allocate([4096], "float32", "shared")
+        conv2d_transpose_nhwc_local = T.decl_buffer([8], "float32", scope="local")
+        PadInput_shared = T.decl_buffer([768], "float32", scope="shared")
+        weight_shared = T.decl_buffer([4096], "float32", scope="shared")
         T.launch_thread(threadIdx_x, 32)
         for i2_3_init, i1_4_init, i2_4_init in T.grid(2, 2, 2):
             conv2d_transpose_nhwc_local[i1_4_init * 4 + i2_3_init * 2 + i2_4_init] = T.float32(0)

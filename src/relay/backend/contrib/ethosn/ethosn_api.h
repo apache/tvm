@@ -24,6 +24,7 @@
 #ifndef TVM_RELAY_BACKEND_CONTRIB_ETHOSN_ETHOSN_API_H_
 #define TVM_RELAY_BACKEND_CONTRIB_ETHOSN_ETHOSN_API_H_
 
+#include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
@@ -65,8 +66,8 @@ struct FullyConnectedParams {
   sl::TensorInfo weights_info;
   sl::TensorInfo bias_info;
   sl::TensorInfo output_info;
-  void* raw_weights = nullptr;
-  void* raw_bias = nullptr;
+  runtime::NDArray raw_weights;
+  runtime::NDArray raw_bias;
 };
 
 struct MaxPool2DParams {
@@ -115,6 +116,16 @@ struct LeakyReLUParams {
   sl::TensorInfo output_info;
 };
 
+struct QnnConv2dTransposeParams {
+  sl::ConvolutionInfo conv_info;
+  sl::TensorInfo input_info;
+  sl::TensorInfo weights_info;
+  sl::TensorInfo bias_info;
+  sl::TensorInfo output_info;
+  runtime::NDArray raw_weights;
+  runtime::NDArray raw_bias;
+};
+
 struct ConcatenateParams {
   sl::QuantizationInfo qInfo;
   sl::ConcatenationInfo concat_info = sl::ConcatenationInfo(1, qInfo);
@@ -142,6 +153,12 @@ struct ReluParams {
 
 struct RequantizeParams {
   sl::RequantizeInfo requantize_info;
+  sl::TensorInfo input_info;
+  sl::TensorInfo output_info;
+};
+
+struct ReinterpretQuantizationParams {
+  sl::ReinterpretQuantizationInfo reinterpret_quantize_info;
   sl::TensorInfo input_info;
   sl::TensorInfo output_info;
 };
@@ -237,6 +254,9 @@ class EthosnAPI {
   static EthosnError Tanh(const Expr& expr, TanhParams* params);
   /*! \brief Extract the Support Library leaky relu params from an ethos-n leaky relu Relu call. */
   static EthosnError LeakyReLU(const Expr& expr, LeakyReLUParams* params);
+  /*! \brief Extract the Support Library transpose params from a Relay
+   * ethos-n.qnn_conv2d_transpose func */
+  static EthosnError QnnConv2dTranspose(const Expr& expr, QnnConv2dTransposeParams* params);
   /*! \brief Extract the Support Library concatenate params from a Relay qnn.concatenate call */
   static EthosnError Concatenate(const Expr& expr, ConcatenateParams* params);
   /*! \brief Extract the Support Library split params from a Relay split call */
@@ -247,6 +267,16 @@ class EthosnAPI {
   static EthosnError Relu(const Expr& expr, ReluParams* params);
   /*! \brief Extract the Support Library requantize params from a Relay qnn.requantize call */
   static EthosnError Requantize(const Expr& expr, RequantizeParams* params);
+
+  /*!
+   * \brief Extact the Support Library reinterpret quantization params from a Relay qnn.requantize
+   * call.
+   *
+   * \note This is used for the conversion from add and mul to a reinterpret quantization operator.
+   * This is effectively an identity operation, as not the same as 'requantize'.
+   */
+  static EthosnError ReinterpretQuantize(const Expr& expr, ReinterpretQuantizationParams* params);
+
   /*! \brief Extract the Support Library resize params from a Relay resize call */
   static EthosnError Resize(const Expr& expr, ResizeParams* params);
 

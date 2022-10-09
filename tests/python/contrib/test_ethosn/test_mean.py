@@ -45,6 +45,7 @@ def _get_model(shape, axis, keepdims, input_zp, input_sc, output_zp, output_sc, 
 @pytest.mark.parametrize("shape", [(1, 7, 7, 2048), (1, 8, 8)])
 def test_mean(dtype, shape):
     """Compare Mean output with TVM."""
+
     np.random.seed(0)
 
     zp_min = np.iinfo(dtype).min
@@ -68,6 +69,7 @@ def test_mean(dtype, shape):
 @pytest.mark.parametrize("dtype", ["int8", "uint8"])
 def test_mean_non_equal_quantization(dtype):
     """Test mean is not offloaded when quantization is not equal."""
+
     np.random.seed(0)
 
     shape = (1, 7, 7, 2048)

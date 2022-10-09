@@ -155,8 +155,14 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   // Entry of the mega rule; Inherited from ScheduleRuleNode
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) override;
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const override;
+
  protected:
   virtual std::vector<State> ApplySubRules(std::vector<State> states);
+
+  virtual Array<tir::LoopRV> SplitLoop(const tir::Schedule& sch, tir::BlockRV block,
+                                       tir::LoopRV loop, int n_tiles) const;
 
   // Annotate a block to use cooperative fetching
   void AnnotateCooperativeFetching(tir::Schedule* sch, const tir::BlockRV& block) const;
@@ -187,7 +193,7 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   /*! \brief The maximum number of threads to be used size of a thread warp */
   int max_threads_per_block_;
   /*! \brief The logging function */
-  PackedFunc logging_func;
+  PackedFunc logger;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("structure", &structure);

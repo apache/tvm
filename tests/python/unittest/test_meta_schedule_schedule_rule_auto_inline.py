@@ -16,9 +16,8 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm
-from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
-from tvm.meta_schedule.testing.schedule_rule import auto_inline
-from tvm.meta_schedule.tune_context import TuneContext
+from tvm import meta_schedule as ms
+from tvm.meta_schedule.testing.space_generation import generate_design_space
 from tvm.script import tir as T
 from tvm.target import Target
 
@@ -320,67 +319,83 @@ class AfterPureSpatial:
                 T.writes(T_add[ax0, ax1, ax2])
                 T_add[ax0, ax1, ax2] = placeholder_1[T.min(T.max(T.int64(0), T.Select(T.cast(placeholder[ax0, ax1] < T.int64(0), "int32") != 0, placeholder[ax0, ax1] + T.int64(30522), placeholder[ax0, ax1])), T.int64(30521)), ax2] + placeholder_2[ax0, ax1, ax2]
 
+@tvm.script.ir_module
+class ConstConsumer:
+    @T.prim_func
+    def main(T_full: T.Buffer[(1, 12, 4096), "int64"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        # with T.block("root")
+        for i0, i1, i2 in T.grid(1, 12, 4096):
+            with T.block("T_full"):
+                ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
+                T.reads()
+                T.writes(T_full[ax0, ax1, ax2])
+                T_full[ax0, ax1, ax2] = T.int64(0)
+
 # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on
-
-
-def _create_context(mod, target, rule):
-    ctx = TuneContext(
-        mod=mod,
-        target=target,
-        space_generator=PostOrderApply(),
-        sch_rules=[rule],
-        task_name="test",
-    )
-    return ctx
 
 
 def test_inline_consumer_chain():
     mod = Conv2DBiasBnReLU
     target = Target("llvm")
-    ctx = _create_context(
+    (space,) = generate_design_space(
+        kind="llvm",
         mod=mod,
         target=target,
-        rule=auto_inline(target=target),
+        types=ms.schedule_rule.AutoInline,
     )
-    (space,) = ctx.space_generator.generate_design_space(mod=mod)
     tvm.ir.assert_structural_equal(lhs=space.mod, rhs=Conv2DBiasBnReLUInlined)
 
 
 def test_inline_into_cache():
     mod = MultiLevelTiledConv2D
     target = Target("cuda", host="llvm")
-    ctx = _create_context(
+    (space,) = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=target,
-        rule=auto_inline(target=target),
+        types=ms.schedule_rule.AutoInline,
     )
-    (space,) = ctx.space_generator.generate_design_space(mod=mod)
     tvm.ir.assert_structural_equal(lhs=space.mod, rhs=MultiLevelTiledConv2DAfterInline)
 
 
 def test_inline_into_multiple_consumers():
     mod = SoftmaxBeforeInline
     target = Target("cuda", host="llvm")
-    ctx = _create_context(
+    (space,) = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=target,
-        rule=auto_inline(target=target),
+        types=ms.schedule_rule.AutoInline,
     )
-    (space,) = ctx.space_generator.generate_design_space(mod=mod)
     tvm.ir.assert_structural_equal(lhs=space.mod, rhs=SoftmaxAfterInline)
 
 
 def test_inline_pure_spatial():
     mod = BeforePureSpatial
     target = Target("llvm")
-    ctx = _create_context(
+    (space,) = generate_design_space(
+        kind="llvm",
         mod=mod,
         target=target,
-        rule=auto_inline(target=target),
+        types=ms.schedule_rule.AutoInline,
     )
-    (space,) = ctx.space_generator.generate_design_space(mod=mod)
     tvm.ir.assert_structural_equal(lhs=space.mod, rhs=AfterPureSpatial)
+
+
+def test_inline_constant_tensor():
+    mod = ConstConsumer
+    target = Target("cuda", host="llvm")
+    (space,) = generate_design_space(
+        kind="cuda",
+        mod=mod,
+        target=target,
+        types=ms.schedule_rule.AutoInline,
+    )
+    tvm.ir.assert_structural_equal(lhs=space.mod, rhs=ConstConsumer)
 
 
 if __name__ == "__main__":
@@ -388,3 +403,4 @@ if __name__ == "__main__":
     test_inline_into_cache()
     test_inline_into_multiple_consumers()
     test_inline_pure_spatial()
+    test_inline_constant_tensor()

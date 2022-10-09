@@ -32,11 +32,15 @@ if(${ENABLE_CMSIS})
   set(CMSIS_PATH <CMSIS_PATH>)
 
   file(GLOB_RECURSE cmsis_lib_srcs
-    ${CMSIS_PATH}/CMSIS/NN/Source/SoftmaxFunctions/*.c
+    ${CMSIS_PATH}/CMSIS/NN/Source/ActivationFunctions/*.c
+    ${CMSIS_PATH}/CMSIS/NN/Source/BasicMathFunctions/*.c
+    ${CMSIS_PATH}/CMSIS/NN/Source/ConcatenationFunctions/*.c
     ${CMSIS_PATH}/CMSIS/NN/Source/ConvolutionFunctions/*.c
     ${CMSIS_PATH}/CMSIS/NN/Source/FullyConnectedFunctions/*.c
     ${CMSIS_PATH}/CMSIS/NN/Source/NNSupportFunctions/*.c
     ${CMSIS_PATH}/CMSIS/NN/Source/PoolingFunctions/*.c
+    ${CMSIS_PATH}/CMSIS/NN/Source/ReshapeFunctions/*.c
+    ${CMSIS_PATH}/CMSIS/NN/Source/SoftmaxFunctions/*.c
   )
 
   set(cmsis_includes

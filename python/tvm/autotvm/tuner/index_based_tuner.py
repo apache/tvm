@@ -17,8 +17,6 @@
 # pylint: disable=abstract-method
 """Grid search tuner and random tuner"""
 
-import numpy as np
-
 from .tuner import Tuner
 
 
@@ -32,7 +30,7 @@ class IndexBaseTuner(Tuner):
         The tuning task
 
     range_idx: Optional[Tuple[int, int]]
-        A tuple of index range that this tuner can select from
+        A tuple of index range that this tuner can select from [begin_idx, end_idx]
     """
 
     def __init__(self, task, range_idx=None):
@@ -41,17 +39,19 @@ class IndexBaseTuner(Tuner):
             range_idx, tuple
         ), "range_idx must be None or (int, int)"
 
-        self.range_length = len(self.task.config_space)
-        self.index_offset = 0
-        if range_idx is not None:
-            assert range_idx[1] > range_idx[0], "Index range must be positive"
-            assert range_idx[0] >= 0, "Start index must be positive"
-            self.range_length = range_idx[1] - range_idx[0] + 1
-            self.index_offset = range_idx[0]
-        self.counter = 0
+        self.visited = []
+        self.begin_idx, self.end_idx = range_idx or (0, self.space.range_length - 1)
+        assert self.begin_idx >= 0, "Start index must be positive"
+        self.end_idx += 1  # Further end_idx is exclusive
+        assert (
+            self.end_idx <= self.space.range_length
+        ), "Finish index must be less the space range length "
+        self.range_length = self.end_idx - self.begin_idx
+        assert self.range_length > 0, "Index range must be positive"
+        self.visited_max = self.space.subrange_length(self.begin_idx, self.end_idx)
 
     def has_next(self):
-        return self.counter < self.range_length
+        return len(self.visited) < self.visited_max
 
     def load_history(self, data_set, min_seed_records=500):
         pass
@@ -60,14 +60,23 @@ class IndexBaseTuner(Tuner):
 class GridSearchTuner(IndexBaseTuner):
     """Enumerate the search space in a grid search order"""
 
+    def __init__(self, task, range_idx=None):
+        super(GridSearchTuner, self).__init__(task, range_idx)
+
+        self.index = self.begin_idx
+        if not self.space.is_index_valid(self.index):
+            self.index = self.space.get_next_index(
+                self.index, start=self.begin_idx, end=self.end_idx
+            )
+
     def next_batch(self, batch_size):
         ret = []
-        for _ in range(batch_size):
-            if self.counter >= self.range_length:
-                break
-            index = self.counter + self.index_offset
-            ret.append(self.task.config_space.get(index))
-            self.counter = self.counter + 1
+        while len(ret) < batch_size and self.has_next():
+            self.visited.append(self.index)
+            ret.append(self.space.get(self.index))
+            self.index = self.space.get_next_index(
+                self.index, start=self.begin_idx, end=self.end_idx
+            )
         return ret
 
 
@@ -83,32 +92,10 @@ class RandomTuner(IndexBaseTuner):
         A tuple of index range to random
     """
 
-    def __init__(self, task, range_idx=None):
-        super(RandomTuner, self).__init__(task, range_idx)
-
-        # Use a dict to mimic a range(n) list without storing rand_state[i] = i entries so that
-        # we can generate non-repetitive random indices.
-        self.rand_state = {}
-        self.rand_max = self.range_length
-        self.visited = []
-
     def next_batch(self, batch_size):
         ret = []
-        for _ in range(batch_size):
-            if self.rand_max == 0:
-                break
-
-            # Random an indirect index.
-            index_ = np.random.randint(self.rand_max)
-            self.rand_max -= 1
-
-            # Use the indirect index to get a direct index.
-            index = self.rand_state.get(index_, index_) + self.index_offset
-            ret.append(self.task.config_space.get(index))
+        while len(ret) < batch_size and self.has_next():
+            index = self.space.get_rand_index(self.begin_idx, self.end_idx, to_exclude=self.visited)
             self.visited.append(index)
-
-            # Update the direct index map.
-            self.rand_state[index_] = self.rand_state.get(self.rand_max, self.rand_max)
-            self.rand_state.pop(self.rand_max, None)
-            self.counter += 1
+            ret.append(self.space.get(index))
         return ret

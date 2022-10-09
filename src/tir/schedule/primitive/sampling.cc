@@ -338,7 +338,9 @@ std::vector<int64_t> SamplePerfectTile(
   } else {
     // Case 3. Use fresh new sampling result
     result = SamplePerfectTile(rand_state, *extent, n_splits, max_innermost_factor);
-    ICHECK_LE(result.back(), max_innermost_factor);
+    if (max_innermost_factor != -1) {
+      ICHECK_LE(result.back(), max_innermost_factor);
+    }
   }
   *decision = support::AsArray<int64_t, Integer>(result);
   return result;

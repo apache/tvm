@@ -1193,6 +1193,7 @@ def convert_pool2d(g, op, block):
     paddings = op.attr("paddings")
     padding_algorithm = op.attr("padding_algorithm")
     pooling_type = op.attr("pooling_type")
+    data_format = op.attr("data_format")
 
     if global_pooling:
         adaptive = True
@@ -1260,7 +1261,9 @@ def convert_pool2d(g, op, block):
                 input_x, pool_size=ksize, strides=strides, padding=paddings, ceil_mode=ceil_mode
             )
     else:
-        out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(input_x, output_size=ksize)
+        out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(
+            input_x, output_size=ksize, layout=data_format
+        )
     g.add_node(op.output("Out")[0], out)
 
 

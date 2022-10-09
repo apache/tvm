@@ -71,6 +71,18 @@ class IndexMapNode : public Object {
   Array<PrimExpr> final_indices;
 
   /*!
+   * \brief The inverse index map.
+   *
+   * When this is defined, IndexMap::Inverse will return the
+   * pre-defined inverse index map.  Otherwise, the inverse index map
+   * will be computed on the fly.  It is the user's responsibility to
+   * ensure the correctness of the pre-defined inverse index map.
+   *
+   * \note ObjectRef is used here instead of IndexMap to avoid circular reference.
+   */
+  Optional<ObjectRef> inverse_index_map;
+
+  /*!
    * \brief Default constructor
    *
    * Defines the mapping as an identity function, with initial_indices
@@ -124,6 +136,14 @@ class IndexMapNode : public Object {
    */
   Array<PrimExpr> MapShape(const Array<PrimExpr>& shape, arith::Analyzer* analyzer = nullptr) const;
 
+  /* \brief Map an NDArray according to this index map
+   *
+   * \param arr_src The NDArray whose layout is transformed by this index map.
+   *
+   * \returns The transformed NDArray.
+   */
+  runtime::NDArray MapNDArray(runtime::NDArray arr_src) const;
+
   /*!
    * \brief Convert to string representation in Python.
    * \return The stringified lambda expression in Python.
@@ -133,6 +153,7 @@ class IndexMapNode : public Object {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("initial_indices", &initial_indices);
     v->Visit("final_indices", &final_indices);
+    v->Visit("inverse_index_map", &inverse_index_map);
   }
 
   bool SEqualReduce(const IndexMapNode* other, SEqualReducer equal) const {
@@ -153,27 +174,32 @@ class IndexMapNode : public Object {
 
 class IndexMap : public ObjectRef {
  public:
-  IndexMap(Array<Var> initial_indices, Array<PrimExpr> final_indices);
+  /*!
+   * \brief The constructor
+   * \param initial_indices Variables representing the indices prior to remapping
+   * \param final_indices Expressions defining the indices after remapping.
+   * \param inverse_index_map The optional pre-defined inverse index map
+   */
+  IndexMap(Array<Var> initial_indices, Array<PrimExpr> final_indices,
+           Optional<IndexMap> inverse_index_map = NullOpt);
 
   /*!
    * \brief Create an index map from a packed function
    * \param ndim The number of dimensions
    * \param func The function to be applied
+   * \param inverse_index_map The optional pre-defined inverse index map
    * \return The created index map
    */
-  static IndexMap FromFunc(int ndim, runtime::TypedPackedFunc<Array<PrimExpr>(Array<Var>)> func);
+  static IndexMap FromFunc(int ndim, runtime::TypedPackedFunc<Array<PrimExpr>(Array<Var>)> func,
+                           Optional<IndexMap> inverse_index_map = NullOpt);
 
   /*! \brief Generate the inverse mapping.
    *
    * The range of the input indices is required in order to ensure
    * that the transformation is bijective over the input domain.
    *
-   * TODO(Lunderberg): Look into allowing non-bijective
-   * transformations.  If injective, the inverse mapping could still
-   * be generated with some predicate (see NonSurjectiveInverse).  If
-   * non-injective, could simplify the implementation of other
-   * optimizations (e.g. double buffering as a map `lambda *indices:
-   * [buffer_loop%2, *indices]`).
+   * If the user has supplied an `inverse_index_map`, that map is
+   * assumed to be correct and bijective, and is returned.
    */
   IndexMap Inverse(Array<Range> initial_ranges) const;
 

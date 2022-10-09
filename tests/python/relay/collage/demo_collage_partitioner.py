@@ -280,7 +280,7 @@ def collage(model):
             logging.info("-------------- BEGIN PARTITIONED --------------")
             logging.info(partitioned_model["mod"])
             logging.info("-------------- END PARTITIONED ----------------")
-            dev = tvm.device(CUDA.kind.device_type)
+            dev = tvm.device(CUDA.get_target_device_type())
             compile_and_benchmark("collage", partitioned_model, targets, dev, tmp_dir)
 
 
@@ -309,7 +309,7 @@ def just_tensorrt(model):
         targets = []
         targets.append(CUDA)
         targets.append(trt_target)
-        dev = tvm.device(CUDA.kind.device_type)
+        dev = tvm.device(CUDA.get_target_device_type())
         compile_and_benchmark("just_tensorrt", partitioned_model, targets, dev, tmp_dir)
 
 
@@ -333,7 +333,7 @@ def just_cutlass(model):
             targets = []
             targets.append(CUDA)
             targets.append(tvm.target.Target(f"cutlass -tmp_dir={tmp_dir}", HOST))
-            dev = tvm.device(CUDA.kind.device_type)
+            dev = tvm.device(CUDA.get_target_device_type())
             compile_and_benchmark("just_cutlass", partitioned_model, targets, dev, tmp_dir)
 
 
@@ -346,7 +346,7 @@ def just_tvm(model):
     tmp_dir = tempfile.mkdtemp()
     autotvm_tune_module(model["mod"], CUDA, TUNING_LOG)
     with optional_tuning_records(TUNING_LOG):
-        dev = tvm.device(CUDA.kind.device_type)
+        dev = tvm.device(CUDA.get_target_device_type())
         compile_and_benchmark("just_tvm", model, CUDA, dev, tmp_dir)
 
 
@@ -360,7 +360,7 @@ def tvm_with_libs(model):
     cuda_target = tvm.target.Target("cuda -libs=cudnn,cublas", HOST)
     autotvm_tune_module(model["mod"], cuda_target, TUNING_LOG)
     with optional_tuning_records(TUNING_LOG):
-        dev = tvm.device(cuda_target.kind.device_type)
+        dev = tvm.device(cuda_target.get_target_device_type())
         compile_and_benchmark("tvm_with_libs", model, cuda_target, dev, tmp_dir)
 
 

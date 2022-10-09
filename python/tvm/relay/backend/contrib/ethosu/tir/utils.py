@@ -158,6 +158,36 @@ def get_outer_loops(stmt, layout):
     return None
 
 
+def collect_buffer_map(stmt):
+    """Collect a map of Var -> Buffer
+
+    Generate a map from a buffer's backing `tir.Var` to the
+    `tir.Buffer` object that uses it.  If multiple such buffers exist,
+    return the first occurrence.
+
+    Parameters
+    ----------
+    stmt : tvm.tir.Stmt
+        The statement to get the BufferLoads from.
+
+    Returns
+    -------
+    buffer_map : Dict[Var, Buffer]
+        The map from buffer var to the buffers that use it.
+    """
+    buffer_map = {}
+
+    def _visit(node):
+        if isinstance(node, (tvm.tir.BufferLoad, tvm.tir.BufferStore)):
+            buf = node.buffer
+            if buf.data not in buffer_map:
+                buffer_map[buf.data] = buf
+
+    tvm.tir.stmt_functor.post_order_visit(stmt, _visit)
+
+    return buffer_map
+
+
 def get_loads(stmt):
     """Get the BufferLoad statements.
 

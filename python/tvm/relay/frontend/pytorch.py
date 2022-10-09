@@ -43,7 +43,7 @@ from .common import AttrCvt, get_relay_op, gru_cell, logger, rnn_cell
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
-from .common import lstm_cell, try_infer_value, unbind
+from .common import lstm_cell, try_infer_value, unbind, fold_constant
 from .pytorch_utils import is_version_greater_than, getattr_attr_name
 
 __all__ = ["from_pytorch"]
@@ -348,28 +348,24 @@ class PyTorchOpConverter:
         # - if a dtype is given, start, stop, step are converted to that dtype
         # - if no dtype is given and all args are integral, dtype is int64
         # - if no dtype is given and there is a float arg, dtype is float32
-        if len(inputs) == 5:
-            dtype0 = _get_type(inputs[0], input_types[0])
-            if inputs[1] is not None:
-                dtype = _convert_dtype_value(inputs[1])
-            elif dtype0.startswith("float"):
-                dtype = "float32"
-            else:
-                dtype = "int64"
-            start = _expr.const(0, dtype)
-            stop = _get_value(inputs[0], dtype)
-            step = _expr.const(1, dtype)
-        elif len(inputs) == 7:
-            types = [_get_type(inputs[i], input_types[i]) for i in range(3)]
-            if inputs[3] is not None:
-                dtype = _convert_dtype_value(inputs[3])
+        if len(inputs) in {5, 6, 7}:
+            # inputs look like [_,_,_,dtype,layout,device,requires_grad]
+            # therefore dtype_idx is always the length of inputs minus 4
+            dtype_idx = len(inputs) - 4
+            types = [_get_type(inputs[i], input_types[i]) for i in range(dtype_idx)]
+            if inputs[dtype_idx] is not None:
+                dtype = _convert_dtype_value(inputs[dtype_idx])
             elif any([t.startswith("float") for t in types]):
                 dtype = "float32"
             else:
                 dtype = "int64"
-            start = _get_value(inputs[0], dtype)
-            stop = _get_value(inputs[1], dtype)
-            step = _get_value(inputs[2], dtype)
+
+            # - if len(inputs) == 5, inputs = [stop, dtype, ...]
+            # - if len(inputs) == 6, inputs = [start, stop, dtype, ...]
+            # - if len(inputs) == 7, inputs = [start, stop, step, dtype, ...]
+            start = _get_value(inputs[0], dtype) if len(inputs) > 5 else _expr.const(0, dtype)
+            stop = _get_value(inputs[1 if len(inputs) > 5 else 0], dtype)
+            step = _get_value(inputs[2], dtype) if len(inputs) > 6 else _expr.const(1, dtype)
         else:
             msg = "Unknown number of arguments (%d) to parse." % (len(inputs))
             raise AssertionError(msg)
@@ -563,6 +559,59 @@ class PyTorchOpConverter:
 
         return _op.split(data, indices, dim)
 
+    def tensor_split(self, inputs, input_types):
+        # Reference: https://pytorch.org/docs/stable/generated/torch.tensor_split.html
+        import torch
+
+        if not isinstance(inputs[1], (int, list, tuple, torch.Tensor)):
+            msg = "indices_or_sections type %s could not be parsed in tensor_split op" % (
+                type(inputs[1])
+            )
+            raise AssertionError(msg)
+
+        if isinstance(inputs[1], torch.Tensor) and not (
+            list(inputs[1].shape) == [] or list(inputs[1].shape) == 1
+        ):
+            msg = "indices_or_sections must be a zero-dimensional or one-dimensional long tensor"
+            raise AssertionError(msg)
+
+        if isinstance(inputs[1], int) or (
+            isinstance(inputs[1], torch.Tensor) and list(inputs[1].shape) == []
+        ):
+            data = inputs[0]
+            n = int(inputs[1])
+            dim = int(inputs[2])
+
+            split_size = int(self.infer_shape(data)[dim] / n)
+            split_rest = int(self.infer_shape(data)[dim] % n)
+
+            indices = []
+            split_index = split_size
+            if split_rest == 0:
+                for i in range(n - 1):
+                    indices.append(split_index)
+                    split_index += split_size
+            else:
+                for i in range(split_rest):
+                    indices.append(split_index + 1)
+                    split_index = (i + 1) * (split_index + 1)
+                for i in range(n - split_rest - 1):
+                    split_index += split_size
+                    indices.append(split_index)
+
+            return _op.split(data, indices, dim)
+        else:
+            data = inputs[0]
+            sections = inputs[1]
+            dim = int(inputs[2])
+
+            if isinstance(sections, tuple):
+                sections = list(sections)
+            elif isinstance(sections, torch.Tensor):
+                sections = sections.cpu().numpy().tolist()
+
+            return _op.split(data, sections, dim)
+
     def select(self, inputs, input_types):
         data = inputs[0]
         dim = int(inputs[1])
@@ -676,7 +725,9 @@ class PyTorchOpConverter:
                 tmp.append(_op.cast(_op.expand_dims(dim, axis=0), "int64"))
             size = _op.concatenate(tmp, axis=0)
 
-        out = _op.full(_expr.const(fill_value, dtype=dtype), size, dtype=dtype)
+        if not isinstance(fill_value, _expr.Constant):
+            fill_value = _expr.const(fill_value, dtype=dtype)
+        out = _op.full(fill_value, size, dtype=dtype)
         if need_reshape:
             out = _op.reshape(out, new_shape)
         return out
@@ -739,6 +790,10 @@ class PyTorchOpConverter:
         else:
             dtype = self.default_dtype
         return self.full_impl(data, 0, dtype)
+
+    def zero_(self, inputs, input_types):
+        data = inputs[0]
+        return self.full_impl(self.infer_shape(data), 0, input_types[0])
 
     def zeros_like(self, inputs, input_types):
         data = inputs[0]
@@ -809,6 +864,8 @@ class PyTorchOpConverter:
     def fill_(self, inputs, input_types):
         data = inputs[0]
         fill_value = inputs[1]
+        if not isinstance(fill_value, (bool, int, float, complex)):
+            fill_value = fold_constant(fill_value)
         return self.full_impl(self.infer_shape(data), fill_value, input_types[0])
 
     def linspace(self, inputs, input_types):
@@ -843,6 +900,10 @@ class PyTorchOpConverter:
             input_zero_point = _expr.const(inputs[2], dtype="int32")
             return qnn_torch.quantized_relu(data, input_zero_point)
         return _op.nn.relu(data)
+
+    def relu6(self, inputs, input_types):
+        data = inputs[0]
+        return _op.tensor.clip(data, 0.0, 6.0)
 
     def prelu(self, inputs, input_types):
         # Reference: https://pytorch.org/docs/stable/generated/torch.nn.PReLU.html#torch.nn.PReLU
@@ -3458,6 +3519,7 @@ class PyTorchOpConverter:
             "aten::ones": self.ones,
             "aten::ones_like": self.ones_like,
             "aten::zeros": self.zeros,
+            "aten::zero_": self.zero_,
             "aten::zeros_like": self.zeros_like,
             "aten::new_ones": self.new_ones,
             "aten::full": self.full,
@@ -3475,12 +3537,14 @@ class PyTorchOpConverter:
             "aten::slice": self.slice,
             "aten::narrow": self.narrow,
             "aten::split": self.split,
+            "aten::tensor_split": self.tensor_split,
             "aten::split_with_sizes": self.split_with_sizes,
             "aten::select": self.select,
             "aten::take": self.take,
             "aten::where": self.where,
             "aten::topk": self.topk,
             "aten::relu": self.relu,
+            "aten::relu6": self.relu6,
             "aten::prelu": self.prelu,
             "aten::leaky_relu": self.leaky_relu,
             "aten::elu": self.elu,

@@ -88,6 +88,7 @@ IGNORED_WARNINGS=(
     'autotvm:Cannot find config for target=cuda -keys=cuda,gpu'
     # Warning is thrown during TFLite quantization for micro_train tutorial
     'absl:For model inputs containing unsupported operations which cannot be quantized, the `inference_input_type` attribute will default to the original type.'
+    'absl:Found untraced functions such as _jit_compiled_convolution_op'
 )
 
 JOINED_WARNINGS=$(join_by '|' "${IGNORED_WARNINGS[@]}")

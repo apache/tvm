@@ -906,6 +906,13 @@ class TVMScriptParser(Transformer):
                 )
             if node.func_name.name in self._unaryop_maker:
                 rhs = self.transform(node.params[0])
+                if node.func_name.name == ast.BuiltinOp.USub and isinstance(
+                    node.params[0], ast.Constant
+                ):
+                    # '-literal' should be parsed together for proper literal type inference
+                    if not isinstance(rhs, (tvm.tir.IntImm, tvm.tir.FloatImm)):
+                        self.report_error("The literal is illegal after -", node.params[0].span)
+                    return tvm.tir.const(-rhs.value)
                 return self._unaryop_maker[node.func_name.name](
                     rhs, span=tvm_span_from_synr(node.span)
                 )

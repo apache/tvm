@@ -622,7 +622,7 @@ bool Target::IsExternalCodegen() const {
 }
 
 bool Target::IsExternalCodegenFor(const Target& that) const {
-  return get()->kind->device_type == that->kind->device_type && IsExternalCodegen() &&
+  return get()->GetTargetDeviceType() == that->GetTargetDeviceType() && IsExternalCodegen() &&
          !that.IsExternalCodegen();
 }
 
@@ -663,6 +663,13 @@ Map<String, ObjectRef> TargetNode::Export() const {
 
 Optional<Target> TargetNode::GetHost() const {
   return GetRef<Optional<Target>>(this->host.as<TargetNode>());
+}
+
+int TargetNode::GetTargetDeviceType() const {
+  if (Optional<Integer> device_type = GetAttr<Integer>("target_device_type")) {
+    return Downcast<Integer>(device_type)->value;
+  }
+  return kind->default_device_type;
 }
 
 String TargetNode::ToDebugString() const {
@@ -974,7 +981,7 @@ std::unordered_map<String, ObjectRef> TargetInternal::QueryDevice(int device_id,
                                                                   const TargetNode* target) {
   std::unordered_map<String, ObjectRef> output;
 
-  Device device{static_cast<DLDeviceType>(target->kind->device_type), device_id};
+  Device device{static_cast<DLDeviceType>(target->GetTargetDeviceType()), device_id};
 
   auto api = runtime::DeviceAPI::Get(device, true);
   if (!api) {
@@ -1042,6 +1049,9 @@ TVM_REGISTER_GLOBAL("target.TargetExitScope").set_body_typed(TargetInternal::Exi
 TVM_REGISTER_GLOBAL("target.TargetCurrent").set_body_typed(Target::Current);
 TVM_REGISTER_GLOBAL("target.TargetExport").set_body_typed(TargetInternal::Export);
 TVM_REGISTER_GLOBAL("target.WithHost").set_body_typed(TargetInternal::WithHost);
+TVM_REGISTER_GLOBAL("target.TargetGetDeviceType").set_body_typed([](const Target& target) {
+  return target->GetTargetDeviceType();
+});
 TVM_REGISTER_GLOBAL("target.TargetGetFeature")
     .set_body_typed([](const Target& target, const String& feature_key) {
       return target->GetFeature<ObjectRef>(feature_key);

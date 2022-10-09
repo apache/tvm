@@ -84,10 +84,10 @@ void MultiLevelTilingNode::InitializeWithTuneContext(const TuneContext& context)
     if (Optional<Integer> v = context->target.value()->GetAttr<Integer>("thread_warp_size")) {
       this->thread_warp_size_ = v.value()->value;
     } else {
-      TVM_PY_LOG(INFO, context->logging_func) << "'thread_warp_size' is not defined in the target";
+      TVM_PY_LOG(INFO, context->logger) << "'thread_warp_size' is not defined in the target";
     }
   }
-  logging_func = context->logging_func;
+  logger = context->logger;
 }
 
 // Entry of the mega rule; Inherited from ScheduleRuleNode
@@ -102,6 +102,12 @@ Array<Schedule> MultiLevelTilingNode::Apply(const Schedule& sch, const BlockRV& 
     results.push_back(std::move(state->sch));
   }
   return results;
+}
+
+// Inherited from ScheduleRuleNode
+ScheduleRule MultiLevelTilingNode::Clone() const {
+  ObjectPtr<MultiLevelTilingNode> n = make_object<MultiLevelTilingNode>(*this);
+  return ScheduleRule(n);
 }
 
 std::vector<State> MultiLevelTilingNode::ApplySubRules(std::vector<State> states) {
@@ -160,6 +166,17 @@ std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
   return results;
 }
 
+Array<tir::LoopRV> MultiLevelTilingNode::SplitLoop(const Schedule& sch, BlockRV block, LoopRV loop,
+                                                   int n_tiles) const {
+  Array<tir::ExprRV> factors = sch->SamplePerfectTile(
+      /*loop=*/loop,
+      /*n=*/n_tiles,
+      /*max_innermost_factor=*/max_innermost_factor);
+  Array<tir::LoopRV> splits = sch->Split(/*loop=*/loop,
+                                         /*factors=*/{factors.begin(), factors.end()});
+  return splits;
+}
+
 std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
   Schedule& sch = state->sch;
   const BlockRV& block_rv = state->block_rv;
@@ -173,6 +190,7 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
   for (int i = 0, n = loops.size(); i < n; ++i) {
     LoopRV loop = loops[i];
     const std::vector<int>* idx = nullptr;
+
     if (iter_types[i] == IterVarType::kDataPar) {
       idx = &s_indices_;
       if (spatial_loop_product != -1) {
@@ -187,17 +205,18 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
     } else {
       continue;
     }
-    // Do the split
-    int n_tiles = idx->size();
-    Array<tir::ExprRV> factors = sch->SamplePerfectTile(
-        /*loop=*/loop,
-        /*n=*/n_tiles,
-        /*max_innermost_factor=*/max_innermost_factor);
-    Array<tir::LoopRV> splits = sch->Split(/*loop=*/loop,
-                                           /*factors=*/{factors.begin(), factors.end()});
-    // Put every tile to its slot
-    for (int j = 0; j < n_tiles; ++j) {
-      tiles[idx->at(j)].push_back(splits[j]);
+
+    const int n_tiles = idx->size();
+
+    if (n_tiles == 1) {
+      tiles[idx->at(0)].push_back(loop);
+    } else {
+      auto splits = SplitLoop(sch, block_rv, loop, n_tiles);
+
+      // Put every tile to its slot
+      for (int j = 0; j < n_tiles; ++j) {
+        tiles[idx->at(j)].push_back(splits[j]);
+      }
     }
   }
   // Step 3. Reorder to organize the tiles

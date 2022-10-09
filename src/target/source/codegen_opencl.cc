@@ -89,6 +89,17 @@ void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
 
 void CodeGenOpenCL::PrintFuncPrefix() { stream << "__kernel void"; }
 
+void CodeGenOpenCL::PreFunctionBody(const PrimFunc& f) {
+  for (Var arg : f->params) {
+    auto ptr_type = arg->type_annotation.as<PointerTypeNode>();
+    if (ptr_type && runtime::IsTextureStorage(std::string(ptr_type->storage_scope))) {
+      this->stream << "  const sampler_t image_sampler = "
+                      "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST;\n";
+      return;
+    }
+  }
+}
+
 std::string CodeGenOpenCL::Finish() {
   // inject extension enable pragma for fp16 and fp64
   if (enable_fp16_) {
@@ -139,7 +150,8 @@ std::string CodeGenOpenCL::Finish() {
     // For now we rely on OpenCL preprocessor directives to utilize the correct behavior
     // depending on the OpenCL version detected at OpenCL compile time.
     decl_stream << "#ifdef __OPENCL_VERSION__\n"
-                << "#if __OPENCL_VERSION__ == CL_VERSION_2_0\n"
+                << "#if __OPENCL_VERSION__ == CL_VERSION_2_0"
+                << " || __OPENCL_VERSION__ == CL_VERSION_3_0 \n"
                 << "#define READ_IMAGEH(image, sampler, coord) "
                 << "read_imageh(image, sampler, coord)\n"
                 << "#define READ_IMAGEF(image, sampler, coord) "
@@ -432,7 +444,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     }
     this->PrintExpr(op->args[0], ss);
     ss << ", ";
-    ss << "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST, ";
+    ss << "image_sampler, ";
     ss << "((int2)(";
     this->PrintExpr(op->args[1], ss);
     ss << ", ";

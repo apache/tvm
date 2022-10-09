@@ -100,6 +100,11 @@ def nc_2048_2d(n, c):
     return [n, c // 2048, te.AXIS_SEPARATOR, c % 2048]
 
 
+def nc_2048c_2d(n, c):
+    """Return index map for nc_2048 2d layout"""
+    return [n, c // 2048, te.AXIS_SEPARATOR, c % 2048]
+
+
 def nhwc_8h8w32c_2d(n, h, w, c):
     """Return index map for nhwc_8h8w32c 2d layout"""
     return [n, h // 8, w // 8, c // 32, te.AXIS_SEPARATOR, h % 8, w % 8, c % 32]
@@ -156,6 +161,8 @@ def get_layout_transform_fn(layout):
         return nhwc_2048c_2d
     if layout == "nc-2048-2d":
         return nc_2048_2d
+    if layout == "nc-2048c-2d":
+        return nc_2048c_2d
     if layout == "nhwc-8h8w32c-2d":
         return nhwc_8h8w32c_2d
     if layout == "n11c-2048c-2d":
@@ -287,3 +294,8 @@ def get_fixed_point_value(flp: float, dtype: str = "int16") -> Tuple[int, int]:
         fixed_point_value = int(round(flp * scale_f[0]))
 
     return fixed_point_value, exp_scale_factor
+
+
+def saturate(x: te.Tensor, dtype: str):
+    """Saturate value for the specified data type"""
+    return te.max(te.min_value(dtype), te.min(x, te.max_value(dtype)))

@@ -128,7 +128,7 @@ def get_packed_filter_shape(logical_shape_oihw):
     return physical_shape_oihw8i32o4i
 
 
-def build_and_run(inputs, func, target, target_host, *args, **kwargs):
+def build_and_run(inputs, func, target: str, target_host: str, *args, **kwargs):
     """build and run the function func"""
     schedule, placeholders, binds = func(*args, **kwargs)
 
@@ -295,6 +295,8 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
             return arr_np.reshape([n, c // 1024, 1024])
         if new_layout in ["nc-512c-2d"]:
             return arr_np.reshape([n, c // 512, 512])
+        if new_layout in ["nc-2048c-2d"]:
+            return arr_np.reshape([n, c // 2048, 2048])
         raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
 
     if current_layout == "nhw":
@@ -332,8 +334,8 @@ def quantize_np(arr_np: numpy.ndarray, dtype: str):
         qmax = 255
         qmin = 0
     elif dtype == "int8":
-        qmax = 128
-        qmin = -127
+        qmax = 127
+        qmin = -128
     else:
         raise RuntimeError(f"Unsupported quantized data type '{dtype}'")
     fmin = numpy.amin(arr_np)
@@ -349,3 +351,9 @@ def quantize_np(arr_np: numpy.ndarray, dtype: str):
     zero_point = numpy.rint((fmax * qmin - fmin * qmax) / (fmax - fmin)).astype("int32")
     quant_np = (arr_np / scale + zero_point).astype(dtype)
     return quant_np, scale, zero_point
+
+
+def get_hexagon_target(cpu_ver: str) -> tvm.target.Target:
+    """Creates a Hexagon target"""
+    target = tvm.target.hexagon(cpu_ver)
+    return tvm.target.Target(target, host=target)

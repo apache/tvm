@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.18)
 project(tvm C CXX)
 
 MESSAGE(STATUS "c compiler :  ${CMAKE_COMPILER_IS_GNUCC}")
@@ -88,11 +88,13 @@ tvm_option(USE_ETHOSN "Build with Arm(R) Ethos(TM)-N" OFF)
 tvm_option(USE_CMSISNN "Build with Arm CMSIS-NN" OFF)
 tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
 tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack traces" AUTO)
+tvm_option(BACKTRACE_ON_SEGFAULT "Install a signal handler to print a backtrace on segfault" OFF)
 tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
 tvm_option(USE_PAPI "Use Performance Application Programming Interface (PAPI) to read performance counters" OFF)
 tvm_option(USE_GTEST "Use GoogleTest for C++ sanity tests" AUTO)
 tvm_option(USE_CUSTOM_LOGGING "Use user-defined custom logging, tvm::runtime::detail::LogFatalImpl and tvm::runtime::detail::LogMessageImpl must be implemented" OFF)
 tvm_option(USE_ALTERNATIVE_LINKER "Use 'mold' or 'lld' if found when invoking compiler to link artifact" AUTO)
+tvm_option(USE_CCACHE "Use ccache if found when invoking compiler" AUTO)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -329,6 +331,7 @@ tvm_file_glob(GLOB_RECURSE RELAY_PASS_SRCS
 tvm_file_glob(GLOB RELAY_BACKEND_SRCS
     src/relay/backend/*.cc
     src/relay/backend/vm/*.cc
+    src/relay/backend/aot/*.cc
     )
 tvm_file_glob(GLOB_RECURSE RELAY_IR_SRCS
     src/relay/ir/*.cc
@@ -482,6 +485,11 @@ if(USE_PIPELINE_EXECUTOR)
   tvm_file_glob(GLOB RUNTIME_PIPELINE_SRCS src/runtime/pipeline/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_PIPELINE_SRCS})
 endif(USE_PIPELINE_EXECUTOR)
+
+# Caches the build.
+# Note that ccache-3.x doesn't support nvcc well, so CUDA kernels may never hit the cache and still
+# need to be re-compiled every time. Using ccache 4.0+ can resolve this issue.
+include(cmake/utils/CCache.cmake)
 
 # Module rules
 include(cmake/modules/VTA.cmake)

@@ -225,7 +225,7 @@ Schedule ConcreteScheduleNode::Copy() {
 /******** Schedule: Schedule: Sampling ********/
 
 void ConcreteScheduleNode::Seed(support::LinearCongruentialEngine::TRandState seed) {
-  support::LinearCongruentialEngine(&rand_state_).Seed(seed);
+  this->rand_state_ = support::LinearCongruentialEngine::NormalizeSeed(seed);
 }
 
 support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
@@ -675,14 +675,14 @@ BlockRV ConcreteScheduleNode::Blockize(const LoopRV& loop_rv) {
 
 void ConcreteScheduleNode::Tensorize(const LoopRV& loop_rv, const String& intrin) {
   TVM_TIR_SCHEDULE_BEGIN();
-  tir::Tensorize(state_, this->GetSRef(loop_rv), tir::TensorIntrin::Get(intrin));
+  tir::Tensorize(state_, this->GetSRef(loop_rv), tir::TensorIntrin::Get(intrin).value());
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("tensorize", this->error_render_level_);
 }
 
 void ConcreteScheduleNode::Tensorize(const BlockRV& block_rv, const String& intrin) {
   TVM_TIR_SCHEDULE_BEGIN();
-  tir::Tensorize(state_, this->GetSRef(block_rv), tir::TensorIntrin::Get(intrin));
+  tir::Tensorize(state_, this->GetSRef(block_rv), tir::TensorIntrin::Get(intrin).value());
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("tensorize", this->error_render_level_);
 }
@@ -761,9 +761,11 @@ void ConcreteScheduleNode::Unannotate(const BlockRV& block_rv, const String& ann
 /******** Schedule: Layout transformation ********/
 void ConcreteScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_index,
                                            BufferIndexType buffer_index_type,
-                                           const IndexMap& index_map) {
+                                           const IndexMap& index_map,
+                                           const Optional<IndexMap>& pad_value) {
   TVM_TIR_SCHEDULE_BEGIN();
-  tir::TransformLayout(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type, index_map);
+  tir::TransformLayout(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type, index_map,
+                       pad_value);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("transform_layout", this->error_render_level_);
 }
@@ -795,6 +797,12 @@ BlockRV ConcreteScheduleNode::DecomposePadding(const BlockRV& block_rv, const Lo
   return CreateRV<BlockRV>(result);
 }
 
+void ConcreteScheduleNode::PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::PadEinsum(state_, this->GetSRef(block_rv), padding);
+  TVM_TIR_SCHEDULE_END("pad-einsum", this->error_render_level_);
+  this->state_->DebugVerify();
+}
 /******** Schedule: Misc ********/
 
 }  // namespace tir

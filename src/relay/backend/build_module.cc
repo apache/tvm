@@ -359,7 +359,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     if (backend::IsAutoSchedulerEnabled() && config_->optional_homogeneous_target.defined()) {
       Pass major_pass = transform::AutoSchedulerLayoutRewrite();
       bool enable_layout_rewrite_targets =
-          config_->optional_homogeneous_target->kind->device_type == kDLCPU ||
+          config_->optional_homogeneous_target->GetTargetDeviceType() == kDLCPU ||
           config_->optional_homogeneous_target->GetAttr<String>("device", "") == "mali";
       if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
         With<Target> tctx(config_->optional_homogeneous_target);
@@ -373,7 +373,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     if (backend::IsMetaScheduleEnabled() && config_->optional_homogeneous_target.defined()) {
       Pass major_pass = transform::MetaScheduleLayoutRewrite();
       bool enable_layout_rewrite_targets =
-          config_->optional_homogeneous_target->kind->device_type == kDLCPU ||
+          config_->optional_homogeneous_target->GetTargetDeviceType() == kDLCPU ||
           config_->optional_homogeneous_target->GetAttr<String>("device", "") == "mali";
       if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
         With<Target> tctx(config_->optional_homogeneous_target);

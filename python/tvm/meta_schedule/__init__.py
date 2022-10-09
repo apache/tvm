@@ -20,24 +20,35 @@ from . import (
     builder,
     cost_model,
     database,
-    default_config,
     feature_extractor,
     measure_callback,
     mutator,
     postproc,
+    relay_integration,
     runner,
     schedule_rule,
     search_strategy,
     space_generator,
+    tir_integration,
 )
+from .builder import Builder
+from .cost_model import CostModel
+from .database import Database
 from .extracted_task import ExtractedTask
+from .feature_extractor import FeatureExtractor
+from .measure_callback import MeasureCallback
+from .mutator import Mutator
+from .postproc import Postproc
 from .profiler import Profiler
 from .relay_integration import (
-    extract_task_from_relay,
     is_meta_schedule_dispatch_enabled,
     is_meta_schedule_enabled,
 )
-from .search_strategy import MeasureCandidate
-from .tune import TuneConfig, tune_extracted_tasks, tune_relay, tune_te, tune_tir
+from .runner import Runner
+from .schedule_rule import ScheduleRule
+from .search_strategy import MeasureCandidate, SearchStrategy
+from .space_generator import SpaceGenerator
+from .tir_integration import tune_tir
+from .tune import tune_tasks
 from .tune_context import TuneContext
 from .utils import derived_object
