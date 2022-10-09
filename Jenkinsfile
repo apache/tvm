@@ -45,20 +45,20 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-26T15:09:39.104767
+// Generated at 2022-09-26T10:48:49.577077
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:20220810-060142-fae79bbc3'
-ci_gpu = 'tlcpack/ci-gpu:20220810-060142-fae79bbc3'
-ci_cpu = 'tlcpack/ci-cpu:20220810-060142-fae79bbc3'
-ci_minimal = 'tlcpack/ci-minimal:20220725-133226-d3cefdaf1'
-ci_wasm = 'tlcpack/ci-wasm:20220810-060142-fae79bbc3'
-ci_i386 = 'tlcpack/ci-i386:20220810-060142-fae79bbc3'
-ci_cortexm = 'tlcpack/ci-cortexm:20220810-060142-fae79bbc3'
-ci_arm = 'tlcpack/ci-arm:20220810-060142-fae79bbc3'
-ci_hexagon = 'tlcpack/ci-hexagon:20220825-145056-fb7cf97f'
-ci_riscv = 'tlcpack/ci-riscv:20220810-060142-fae79bbc3'
+ci_lint = 'tlcpack/ci-lint:20220925-060158-71f25b3d6'
+ci_gpu = 'tlcpack/ci-gpu:20220925-060158-71f25b3d6'
+ci_cpu = 'tlcpack/ci-cpu:20220925-060158-71f25b3d6'
+ci_minimal = 'tlcpack/ci-minimal:20220925-060158-71f25b3d6'
+ci_wasm = 'tlcpack/ci-wasm:20220925-060158-71f25b3d6'
+ci_i386 = 'tlcpack/ci-i386:20220925-060158-71f25b3d6'
+ci_cortexm = 'tlcpack/ci-cortexm:20220925-060158-71f25b3d6'
+ci_arm = 'tlcpack/ci-arm:20220925-060158-71f25b3d6'
+ci_hexagon = 'tlcpack/ci-hexagon:20220925-060158-71f25b3d6'
+ci_riscv = 'tlcpack/ci-riscv:20220925-060158-71f25b3d6'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -145,30 +145,12 @@ def init_git() {
   sh(
     script: """
       set -eux
-      retry() {
-  local max_retries=\$1
-  shift
-  local n=0
-  local backoff_max=30
-  until [ "\$n" -ge \$max_retries ]
-  do
-      "\$@" && break
-      n=\$((n+1))
-      if [ "\$n" -eq \$max_retries ]; then
-          echo "failed to update after attempt \$n / \$max_retries, giving up"
-          exit 1
-      fi
-
-      WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-      echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-      sleep \$WAIT
-  done
-}
-
+      . ci/scripts/retry.sh
       retry 3 timeout 5m git submodule update --init -f --jobs 0
     """,
     label: 'Update git submodules',
   )
+  checkout_trusted_files()
 }
 
 def docker_init(image) {
@@ -195,27 +177,8 @@ def docker_init(image) {
     sh(
       script: """
       set -eux
-      retry() {
-  local max_retries=\$1
-  shift
-  local n=0
-  local backoff_max=30
-  until [ "\$n" -ge \$max_retries ]
-  do
-      "\$@" && break
-      n=\$((n+1))
-      if [ "\$n" -eq \$max_retries ]; then
-          echo "failed to update after attempt \$n / \$max_retries, giving up"
-          exit 1
-      fi
-
-      WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-      echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-      sleep \$WAIT
-  done
-}
-
-      retry 3 docker pull ${image}
+      . ci/scripts/retry.sh
+      retry 5 docker pull ${image}
       """,
       label: 'Pull docker image',
     )
@@ -230,7 +193,7 @@ def should_skip_slow_tests(pr_number) {
     // Exit code of 1 means run slow tests, exit code of 0 means skip slow tests
     result = sh (
       returnStatus: true,
-      script: "./tests/scripts/should_run_slow_tests.py --pr '${pr_number}'",
+      script: "./ci/scripts/should_run_slow_tests.py --pr '${pr_number}'",
       label: 'Check if CI should run slow tests',
     )
   }
@@ -248,6 +211,30 @@ def cancel_previous_build() {
   }
 }
 
+def checkout_trusted_files() {
+  // trust everything from branch builds
+  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
+    return;
+  }
+
+  // trust peoople listed in CONTRIBUTING.md
+  grep_code = sh(
+    returnStatus: true,
+    script: "git show '${upstream_revision}:CONTRIBUTORS.md' | grep '@${env.CHANGE_AUTHOR}'",
+    label: 'Check if change is from a contributor',
+  )
+
+  if (grep_code == 1) {
+    // Any scripts that run on the bare host and not inside a Docker container
+    // (especially those that access secrets) should be checked out here so
+    // only trusted versions are used in CI
+    sh(
+      script: "git checkout ${upstream_revision} ci/scripts/.",
+      label: 'Check out trusted files',
+    )
+  }
+}
+
 def should_skip_ci(pr_number) {
   if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
     // never skip CI on build sourced from a branch
@@ -255,7 +242,7 @@ def should_skip_ci(pr_number) {
   }
   glob_skip_ci_code = sh (
     returnStatus: true,
-    script: "./tests/scripts/git_skip_ci_globs.py",
+    script: "./ci/scripts/git_skip_ci_globs.py",
     label: 'Check if CI should be skipped due to changed files',
   )
   if (glob_skip_ci_code == 0) {
@@ -263,17 +250,34 @@ def should_skip_ci(pr_number) {
   }
   withCredentials([string(
     credentialsId: 'tvm-bot-jenkins-reader',
-    variable: 'TOKEN',
+    variable: 'GITHUB_TOKEN',
     )]) {
     // Exit code of 1 means run full CI (or the script had an error, so run
     // full CI just in case). Exit code of 0 means skip CI.
     git_skip_ci_code = sh (
       returnStatus: true,
-      script: "./tests/scripts/git_skip_ci.py --pr '${pr_number}'",
+      script: "./ci/scripts/git_skip_ci.py --pr '${pr_number}'",
       label: 'Check if CI should be skipped',
     )
   }
   return git_skip_ci_code == 0
+}
+
+def check_pr(pr_number) {
+  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
+    // never skip CI on build sourced from a branch
+    return false
+  }
+  withCredentials([string(
+    credentialsId: 'tvm-bot-jenkins-reader',
+    variable: 'GITHUB_TOKEN',
+    )]) {
+    sh (
+      script: "python3 ci/scripts/check_pr.py --pr ${pr_number}",
+      label: 'Check PR title and body',
+    )
+  }
+
 }
 
 def prepare() {
@@ -282,9 +286,11 @@ def prepare() {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
         init_git()
 
+        check_pr(env.CHANGE_ID)
+
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./tests/scripts/determine_docker_images.py ci_arm=${ci_arm} ci_cortexm=${ci_cortexm} ci_cpu=${ci_cpu} ci_gpu=${ci_gpu} ci_hexagon=${ci_hexagon} ci_i386=${ci_i386} ci_lint=${ci_lint} ci_minimal=${ci_minimal} ci_riscv=${ci_riscv} ci_wasm=${ci_wasm} ",
+            script: "./ci/scripts/determine_docker_images.py ci_arm=${ci_arm} ci_cortexm=${ci_cortexm} ci_cpu=${ci_cpu} ci_gpu=${ci_gpu} ci_hexagon=${ci_hexagon} ci_i386=${ci_i386} ci_lint=${ci_lint} ci_minimal=${ci_minimal} ci_riscv=${ci_riscv} ci_wasm=${ci_wasm} ",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
@@ -367,14 +373,14 @@ def prepare() {
 
         is_docs_only_build = sh (
           returnStatus: true,
-          script: './tests/scripts/git_change_docs.sh',
+          script: './ci/scripts/git_change_docs.sh',
           label: 'Check for docs only changes',
         )
         skip_ci = should_skip_ci(env.CHANGE_ID)
         skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
         rebuild_docker_images = sh (
           returnStatus: true,
-          script: './tests/scripts/git_change_docker.sh',
+          script: './ci/scripts/git_change_docker.sh',
           label: 'Check for any docker changes',
         )
 
@@ -409,8 +415,9 @@ def ecr_push(full_name) {
       sh(
         script: """
           set -x
+          . ci/scripts/retry.sh
           docker tag ${full_name} \$AWS_ECR_REPO/${full_name}
-          docker push \$AWS_ECR_REPO/${full_name}
+          retry 5 docker push \$AWS_ECR_REPO/${full_name}
         """,
         label: 'Upload image to ECR'
       )
@@ -451,7 +458,8 @@ def ecr_pull(full_name) {
       sh(
         script: """
           set -eux
-          docker pull ${full_name}
+          . ci/scripts/retry.sh
+          retry 5 docker pull ${full_name}
         """,
         label: 'Pull image from ECR'
       )
@@ -605,8 +613,8 @@ def lint() {
   'Lint 1 of 2': {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/lint") {
-        docker_init(ci_lint)
         init_git()
+        docker_init(ci_lint)
         timeout(time: max_time, unit: 'MINUTES') {
           withEnv([
             'TVM_NUM_SHARDS=2',
@@ -625,8 +633,8 @@ def lint() {
   'Lint 2 of 2': {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/lint") {
-        docker_init(ci_lint)
         init_git()
+        docker_init(ci_lint)
         timeout(time: max_time, unit: 'MINUTES') {
           withEnv([
             'TVM_NUM_SHARDS=2',
@@ -727,33 +735,14 @@ stage('Build') {
     if (!skip_ci) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-gpu") {
-          docker_init(ci_gpu)
           init_git()
+          docker_init(ci_gpu)
           sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
           make("${ci_gpu} --no-gpu", 'build', '-j2')
           sh(
             script: """
               set -eux
-              retry() {
-                local max_retries=\$1
-                shift
-                local n=0
-                local backoff_max=30
-                until [ "\$n" -ge \$max_retries ]
-                do
-                    "\$@" && break
-                    n=\$((n+1))
-                    if [ "\$n" -eq \$max_retries ]; then
-                        echo "failed to update after attempt \$n / \$max_retries, giving up"
-                        exit 1
-                    fi
-
-                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                    sleep \$WAIT
-                done
-              }
-
+              . ci/scripts/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu/build/libtvm.so
               md5sum build/libvta_fsim.so
@@ -774,26 +763,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              retry() {
-                local max_retries=\$1
-                shift
-                local n=0
-                local backoff_max=30
-                until [ "\$n" -ge \$max_retries ]
-                do
-                    "\$@" && break
-                    n=\$((n+1))
-                    if [ "\$n" -eq \$max_retries ]; then
-                        echo "failed to update after attempt \$n / \$max_retries, giving up"
-                        exit 1
-                    fi
-
-                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                    sleep \$WAIT
-                done
-              }
-
+              . ci/scripts/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu2/build/libtvm.so
               md5sum build/libvta_fsim.so
@@ -814,8 +784,8 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cpu") {
-          docker_init(ci_cpu)
           init_git()
+          docker_init(ci_cpu)
           sh (
             script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
             label: 'Create CPU cmake config',
@@ -824,26 +794,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              retry() {
-                local max_retries=\$1
-                shift
-                local n=0
-                local backoff_max=30
-                until [ "\$n" -ge \$max_retries ]
-                do
-                    "\$@" && break
-                    n=\$((n+1))
-                    if [ "\$n" -eq \$max_retries ]; then
-                        echo "failed to update after attempt \$n / \$max_retries, giving up"
-                        exit 1
-                    fi
-
-                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                    sleep \$WAIT
-                done
-              }
-
+              . ci/scripts/retry.sh
               md5sum build/libvta_tsim.so
               retry 3 aws s3 cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/cpu/build/libvta_tsim.so
               md5sum build/libtvm.so
@@ -874,8 +825,8 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cpu-minimal") {
-          docker_init(ci_minimal)
           init_git()
+          docker_init(ci_minimal)
           sh (
             script: "${docker_run} ${ci_minimal} ./tests/scripts/task_config_build_minimal.sh build",
             label: 'Create CPU minimal cmake config',
@@ -884,26 +835,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              retry() {
-                local max_retries=\$1
-                shift
-                local n=0
-                local backoff_max=30
-                until [ "\$n" -ge \$max_retries ]
-                do
-                    "\$@" && break
-                    n=\$((n+1))
-                    if [ "\$n" -eq \$max_retries ]; then
-                        echo "failed to update after attempt \$n / \$max_retries, giving up"
-                        exit 1
-                    fi
-
-                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                    sleep \$WAIT
-                done
-              }
-
+              . ci/scripts/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/cpu-minimal/build/libtvm.so
               md5sum build/libtvm_runtime.so
@@ -924,8 +856,8 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-wasm") {
-          docker_init(ci_wasm)
           init_git()
+          docker_init(ci_wasm)
           sh (
             script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
             label: 'Create WASM cmake config',
@@ -949,8 +881,8 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-i386") {
-          docker_init(ci_i386)
           init_git()
+          docker_init(ci_i386)
           sh (
             script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build",
             label: 'Create i386 cmake config',
@@ -959,26 +891,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              retry() {
-                local max_retries=\$1
-                shift
-                local n=0
-                local backoff_max=30
-                until [ "\$n" -ge \$max_retries ]
-                do
-                    "\$@" && break
-                    n=\$((n+1))
-                    if [ "\$n" -eq \$max_retries ]; then
-                        echo "failed to update after attempt \$n / \$max_retries, giving up"
-                        exit 1
-                    fi
-
-                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                    sleep \$WAIT
-                done
-              }
-
+              . ci/scripts/retry.sh
               md5sum build/libvta_tsim.so
               retry 3 aws s3 cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/i386/build/libvta_tsim.so
               md5sum build/libtvm.so
@@ -1003,8 +916,8 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('ARM-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-arm") {
-          docker_init(ci_arm)
           init_git()
+          docker_init(ci_arm)
           sh (
             script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",
             label: 'Create ARM cmake config',
@@ -1013,26 +926,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              retry() {
-                local max_retries=\$1
-                shift
-                local n=0
-                local backoff_max=30
-                until [ "\$n" -ge \$max_retries ]
-                do
-                    "\$@" && break
-                    n=\$((n+1))
-                    if [ "\$n" -eq \$max_retries ]; then
-                        echo "failed to update after attempt \$n / \$max_retries, giving up"
-                        exit 1
-                    fi
-
-                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                    sleep \$WAIT
-                done
-              }
-
+              . ci/scripts/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/arm/build/libtvm.so
               md5sum build/libvta_fsim.so
@@ -1055,8 +949,8 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cortexm") {
-          docker_init(ci_cortexm)
           init_git()
+          docker_init(ci_cortexm)
           sh (
             script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_config_build_cortexm.sh build",
             label: 'Create Cortex-M cmake config',
@@ -1065,26 +959,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              retry() {
-                local max_retries=\$1
-                shift
-                local n=0
-                local backoff_max=30
-                until [ "\$n" -ge \$max_retries ]
-                do
-                    "\$@" && break
-                    n=\$((n+1))
-                    if [ "\$n" -eq \$max_retries ]; then
-                        echo "failed to update after attempt \$n / \$max_retries, giving up"
-                        exit 1
-                    fi
-
-                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                    sleep \$WAIT
-                done
-              }
-
+              . ci/scripts/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/cortexm/build/libtvm.so
               md5sum build/libtvm_runtime.so
@@ -1106,8 +981,8 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-hexagon") {
-          docker_init(ci_hexagon)
           init_git()
+          docker_init(ci_hexagon)
           sh (
             script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
             label: 'Create Hexagon cmake config',
@@ -1120,26 +995,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              retry() {
-                local max_retries=\$1
-                shift
-                local n=0
-                local backoff_max=30
-                until [ "\$n" -ge \$max_retries ]
-                do
-                    "\$@" && break
-                    n=\$((n+1))
-                    if [ "\$n" -eq \$max_retries ]; then
-                        echo "failed to update after attempt \$n / \$max_retries, giving up"
-                        exit 1
-                    fi
-
-                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                    sleep \$WAIT
-                done
-              }
-
+              . ci/scripts/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/hexagon/build/libtvm.so
               md5sum build/libtvm_runtime.so
@@ -1161,8 +1017,8 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-riscv") {
-          docker_init(ci_riscv)
           init_git()
+          docker_init(ci_riscv)
           sh (
             script: "${docker_run} ${ci_riscv} ./tests/scripts/task_config_build_riscv.sh build",
             label: 'Create RISC-V cmake config',
@@ -1171,26 +1027,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              retry() {
-                local max_retries=\$1
-                shift
-                local n=0
-                local backoff_max=30
-                until [ "\$n" -ge \$max_retries ]
-                do
-                    "\$@" && break
-                    n=\$((n+1))
-                    if [ "\$n" -eq \$max_retries ]; then
-                        echo "failed to update after attempt \$n / \$max_retries, giving up"
-                        exit 1
-                    fi
-
-                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                    sleep \$WAIT
-                done
-              }
-
+              . ci/scripts/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/riscv/build/libtvm.so
               md5sum build/libtvm_runtime.so
@@ -1222,8 +1059,8 @@ def shard_run_unittest_GPU_1_of_3() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-gpu") {
         try {
-          docker_init(ci_gpu)
           init_git()
+          docker_init(ci_gpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
@@ -1234,26 +1071,7 @@ def shard_run_unittest_GPU_1_of_3() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libvta_fsim.so build/libvta_fsim.so
@@ -1271,26 +1089,7 @@ def shard_run_unittest_GPU_1_of_3() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -1338,8 +1137,8 @@ def shard_run_unittest_GPU_2_of_3() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-gpu") {
         try {
-          docker_init(ci_gpu)
           init_git()
+          docker_init(ci_gpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
@@ -1350,26 +1149,7 @@ def shard_run_unittest_GPU_2_of_3() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -1420,8 +1200,8 @@ def shard_run_unittest_GPU_3_of_3() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-gpu") {
         try {
-          docker_init(ci_gpu)
           init_git()
+          docker_init(ci_gpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
@@ -1432,26 +1212,7 @@ def shard_run_unittest_GPU_3_of_3() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -1494,43 +1255,24 @@ def shard_run_unittest_GPU_3_of_3() {
 }
 
 
-def shard_run_integration_CPU_1_of_10() {
+def shard_run_integration_CPU_1_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
         try {
-          docker_init(ci_cpu)
           init_git()
+          docker_init(ci_cpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
               'TEST_STEP_NAME=integration: CPU',
-              'TVM_NUM_SHARDS=10',
+              'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
@@ -1566,47 +1308,28 @@ def shard_run_integration_CPU_1_of_10() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 1 of 10')
+    Utils.markStageSkippedForConditional('integration: CPU 1 of 4')
   }
 }
 
-def shard_run_integration_CPU_2_of_10() {
+def shard_run_integration_CPU_2_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
         try {
-          docker_init(ci_cpu)
           init_git()
+          docker_init(ci_cpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
               'TEST_STEP_NAME=integration: CPU',
-              'TVM_NUM_SHARDS=10',
+              'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
@@ -1642,47 +1365,28 @@ def shard_run_integration_CPU_2_of_10() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 2 of 10')
+    Utils.markStageSkippedForConditional('integration: CPU 2 of 4')
   }
 }
 
-def shard_run_integration_CPU_3_of_10() {
+def shard_run_integration_CPU_3_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
         try {
-          docker_init(ci_cpu)
           init_git()
+          docker_init(ci_cpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
               'TEST_STEP_NAME=integration: CPU',
-              'TVM_NUM_SHARDS=10',
+              'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
@@ -1718,47 +1422,28 @@ def shard_run_integration_CPU_3_of_10() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 3 of 10')
+    Utils.markStageSkippedForConditional('integration: CPU 3 of 4')
   }
 }
 
-def shard_run_integration_CPU_4_of_10() {
+def shard_run_integration_CPU_4_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
         try {
-          docker_init(ci_cpu)
           init_git()
+          docker_init(ci_cpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
               'TEST_STEP_NAME=integration: CPU',
-              'TVM_NUM_SHARDS=10',
+              'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
@@ -1794,504 +1479,29 @@ def shard_run_integration_CPU_4_of_10() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 4 of 10')
-  }
-}
-
-def shard_run_integration_CPU_5_of_10() {
-  if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
-        try {
-          docker_init(ci_cpu)
-          init_git()
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
-              'TVM_NUM_SHARDS=10',
-              'TVM_SHARD_INDEX=4',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                        script: """
-                          set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
-                          md5sum build/libvta_tsim.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
-                          md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
-                          md5sum build/libtvm_runtime.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
-                          md5sum build/config.cmake
-                        """,
-                        label: 'Download artifacts from S3',
-                      )
-
-              ci_setup(ci_cpu)
-              sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
-                label: 'Run CPU integration tests',
-              )
-            })
-          }
-        } finally {
-          sh(
-            script: """
-              set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
-            """,
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        }
-      }
-    }
-  } else {
-    Utils.markStageSkippedForConditional('integration: CPU 5 of 10')
-  }
-}
-
-def shard_run_integration_CPU_6_of_10() {
-  if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
-        try {
-          docker_init(ci_cpu)
-          init_git()
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
-              'TVM_NUM_SHARDS=10',
-              'TVM_SHARD_INDEX=5',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                        script: """
-                          set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
-                          md5sum build/libvta_tsim.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
-                          md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
-                          md5sum build/libtvm_runtime.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
-                          md5sum build/config.cmake
-                        """,
-                        label: 'Download artifacts from S3',
-                      )
-
-              ci_setup(ci_cpu)
-              sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
-                label: 'Run CPU integration tests',
-              )
-            })
-          }
-        } finally {
-          sh(
-            script: """
-              set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
-            """,
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        }
-      }
-    }
-  } else {
-    Utils.markStageSkippedForConditional('integration: CPU 6 of 10')
-  }
-}
-
-def shard_run_integration_CPU_7_of_10() {
-  if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
-        try {
-          docker_init(ci_cpu)
-          init_git()
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
-              'TVM_NUM_SHARDS=10',
-              'TVM_SHARD_INDEX=6',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                        script: """
-                          set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
-                          md5sum build/libvta_tsim.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
-                          md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
-                          md5sum build/libtvm_runtime.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
-                          md5sum build/config.cmake
-                        """,
-                        label: 'Download artifacts from S3',
-                      )
-
-              ci_setup(ci_cpu)
-              sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
-                label: 'Run CPU integration tests',
-              )
-            })
-          }
-        } finally {
-          sh(
-            script: """
-              set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
-            """,
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        }
-      }
-    }
-  } else {
-    Utils.markStageSkippedForConditional('integration: CPU 7 of 10')
-  }
-}
-
-def shard_run_integration_CPU_8_of_10() {
-  if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
-        try {
-          docker_init(ci_cpu)
-          init_git()
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
-              'TVM_NUM_SHARDS=10',
-              'TVM_SHARD_INDEX=7',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                        script: """
-                          set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
-                          md5sum build/libvta_tsim.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
-                          md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
-                          md5sum build/libtvm_runtime.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
-                          md5sum build/config.cmake
-                        """,
-                        label: 'Download artifacts from S3',
-                      )
-
-              ci_setup(ci_cpu)
-              sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
-                label: 'Run CPU integration tests',
-              )
-            })
-          }
-        } finally {
-          sh(
-            script: """
-              set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
-            """,
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        }
-      }
-    }
-  } else {
-    Utils.markStageSkippedForConditional('integration: CPU 8 of 10')
-  }
-}
-
-def shard_run_integration_CPU_9_of_10() {
-  if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
-        try {
-          docker_init(ci_cpu)
-          init_git()
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
-              'TVM_NUM_SHARDS=10',
-              'TVM_SHARD_INDEX=8',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                        script: """
-                          set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
-                          md5sum build/libvta_tsim.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
-                          md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
-                          md5sum build/libtvm_runtime.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
-                          md5sum build/config.cmake
-                        """,
-                        label: 'Download artifacts from S3',
-                      )
-
-              ci_setup(ci_cpu)
-              sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
-                label: 'Run CPU integration tests',
-              )
-            })
-          }
-        } finally {
-          sh(
-            script: """
-              set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
-            """,
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        }
-      }
-    }
-  } else {
-    Utils.markStageSkippedForConditional('integration: CPU 9 of 10')
-  }
-}
-
-def shard_run_integration_CPU_10_of_10() {
-  if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
-        try {
-          docker_init(ci_cpu)
-          init_git()
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
-              'TVM_NUM_SHARDS=10',
-              'TVM_SHARD_INDEX=9',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                        script: """
-                          set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
-                          md5sum build/libvta_tsim.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
-                          md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
-                          md5sum build/libtvm_runtime.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
-                          md5sum build/config.cmake
-                        """,
-                        label: 'Download artifacts from S3',
-                      )
-
-              ci_setup(ci_cpu)
-              sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
-                label: 'Run CPU integration tests',
-              )
-            })
-          }
-        } finally {
-          sh(
-            script: """
-              set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
-            """,
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        }
-      }
-    }
-  } else {
-    Utils.markStageSkippedForConditional('integration: CPU 10 of 10')
+    Utils.markStageSkippedForConditional('integration: CPU 4 of 4')
   }
 }
 
 
-def shard_run_python_i386_1_of_5() {
+def shard_run_python_i386_1_of_3() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
         try {
-          docker_init(ci_i386)
           init_git()
+          docker_init(ci_i386)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=i386',
               'TEST_STEP_NAME=python: i386',
-              'TVM_NUM_SHARDS=5',
+              'TVM_NUM_SHARDS=3',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
@@ -2327,47 +1537,28 @@ def shard_run_python_i386_1_of_5() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('python: i386 1 of 5')
+    Utils.markStageSkippedForConditional('python: i386 1 of 3')
   }
 }
 
-def shard_run_python_i386_2_of_5() {
+def shard_run_python_i386_2_of_3() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
         try {
-          docker_init(ci_i386)
           init_git()
+          docker_init(ci_i386)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=i386',
               'TEST_STEP_NAME=python: i386',
-              'TVM_NUM_SHARDS=5',
+              'TVM_NUM_SHARDS=3',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
@@ -2403,47 +1594,28 @@ def shard_run_python_i386_2_of_5() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('python: i386 2 of 5')
+    Utils.markStageSkippedForConditional('python: i386 2 of 3')
   }
 }
 
-def shard_run_python_i386_3_of_5() {
+def shard_run_python_i386_3_of_3() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
         try {
-          docker_init(ci_i386)
           init_git()
+          docker_init(ci_i386)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=i386',
               'TEST_STEP_NAME=python: i386',
-              'TVM_NUM_SHARDS=5',
+              'TVM_NUM_SHARDS=3',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
@@ -2478,198 +1650,29 @@ def shard_run_python_i386_3_of_5() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('python: i386 3 of 5')
-  }
-}
-
-def shard_run_python_i386_4_of_5() {
-  if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
-        try {
-          docker_init(ci_i386)
-          init_git()
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=i386',
-              'TEST_STEP_NAME=python: i386',
-              'TVM_NUM_SHARDS=5',
-              'TVM_SHARD_INDEX=3',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                        script: """
-                          set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
-                          md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
-                          md5sum build/libtvm_runtime.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
-                          md5sum build/config.cmake
-                        """,
-                        label: 'Download artifacts from S3',
-                      )
-
-              ci_setup(ci_i386)
-              python_unittest(ci_i386)
-              sh (
-                script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
-                label: 'Run i386 integration tests',
-              )
-            })
-          }
-        } finally {
-          sh(
-            script: """
-              set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/python_i386 --recursive
-            """,
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        }
-      }
-    }
-  } else {
-    Utils.markStageSkippedForConditional('python: i386 4 of 5')
-  }
-}
-
-def shard_run_python_i386_5_of_5() {
-  if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
-        try {
-          docker_init(ci_i386)
-          init_git()
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=i386',
-              'TEST_STEP_NAME=python: i386',
-              'TVM_NUM_SHARDS=5',
-              'TVM_SHARD_INDEX=4',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                        script: """
-                          set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
-                          md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
-                          md5sum build/libtvm_runtime.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
-                          md5sum build/config.cmake
-                        """,
-                        label: 'Download artifacts from S3',
-                      )
-
-              ci_setup(ci_i386)
-              python_unittest(ci_i386)
-              sh (
-                script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
-                label: 'Run i386 integration tests',
-              )
-            })
-          }
-        } finally {
-          sh(
-            script: """
-              set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/python_i386 --recursive
-            """,
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        }
-      }
-    }
-  } else {
-    Utils.markStageSkippedForConditional('python: i386 5 of 5')
+    Utils.markStageSkippedForConditional('python: i386 3 of 3')
   }
 }
 
 
-def shard_run_test_Hexagon_1_of_7() {
+def shard_run_test_Hexagon_1_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
-          docker_init(ci_hexagon)
           init_git()
+          docker_init(ci_hexagon)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=hexagon',
               'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=7',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -2704,47 +1707,28 @@ def shard_run_test_Hexagon_1_of_7() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Hexagon 1 of 7')
+    Utils.markStageSkippedForConditional('test: Hexagon 1 of 8')
   }
 }
 
-def shard_run_test_Hexagon_2_of_7() {
+def shard_run_test_Hexagon_2_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
-          docker_init(ci_hexagon)
           init_git()
+          docker_init(ci_hexagon)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=hexagon',
               'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=7',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -2778,47 +1762,28 @@ def shard_run_test_Hexagon_2_of_7() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Hexagon 2 of 7')
+    Utils.markStageSkippedForConditional('test: Hexagon 2 of 8')
   }
 }
 
-def shard_run_test_Hexagon_3_of_7() {
+def shard_run_test_Hexagon_3_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
-          docker_init(ci_hexagon)
           init_git()
+          docker_init(ci_hexagon)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=hexagon',
               'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=7',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -2852,47 +1817,28 @@ def shard_run_test_Hexagon_3_of_7() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Hexagon 3 of 7')
+    Utils.markStageSkippedForConditional('test: Hexagon 3 of 8')
   }
 }
 
-def shard_run_test_Hexagon_4_of_7() {
+def shard_run_test_Hexagon_4_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
-          docker_init(ci_hexagon)
           init_git()
+          docker_init(ci_hexagon)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=hexagon',
               'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=7',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -2926,47 +1872,28 @@ def shard_run_test_Hexagon_4_of_7() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Hexagon 4 of 7')
+    Utils.markStageSkippedForConditional('test: Hexagon 4 of 8')
   }
 }
 
-def shard_run_test_Hexagon_5_of_7() {
+def shard_run_test_Hexagon_5_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
-          docker_init(ci_hexagon)
           init_git()
+          docker_init(ci_hexagon)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=hexagon',
               'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=7',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=4',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -3000,47 +1927,28 @@ def shard_run_test_Hexagon_5_of_7() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Hexagon 5 of 7')
+    Utils.markStageSkippedForConditional('test: Hexagon 5 of 8')
   }
 }
 
-def shard_run_test_Hexagon_6_of_7() {
+def shard_run_test_Hexagon_6_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
-          docker_init(ci_hexagon)
           init_git()
+          docker_init(ci_hexagon)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=hexagon',
               'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=7',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=5',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -3074,47 +1982,28 @@ def shard_run_test_Hexagon_6_of_7() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Hexagon 6 of 7')
+    Utils.markStageSkippedForConditional('test: Hexagon 6 of 8')
   }
 }
 
-def shard_run_test_Hexagon_7_of_7() {
+def shard_run_test_Hexagon_7_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
-          docker_init(ci_hexagon)
           init_git()
+          docker_init(ci_hexagon)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=hexagon',
               'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=7',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=6',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -3148,7 +2037,62 @@ def shard_run_test_Hexagon_7_of_7() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Hexagon 7 of 7')
+    Utils.markStageSkippedForConditional('test: Hexagon 7 of 8')
+  }
+}
+
+def shard_run_test_Hexagon_8_of_8() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
+        try {
+          init_git()
+          docker_init(ci_hexagon)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=hexagon',
+              'TEST_STEP_NAME=test: Hexagon',
+              'TVM_NUM_SHARDS=8',
+              'TVM_SHARD_INDEX=7',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                        script: """
+                          set -eux
+                          . ci/scripts/retry.sh
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_hexagon_permissions()
+              ci_setup(ci_hexagon)
+              sh (
+                script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+                label: 'Run Hexagon tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Hexagon 8 of 8')
   }
 }
 
@@ -3158,8 +2102,8 @@ def shard_run_integration_aarch64_1_of_4() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
-          docker_init(ci_arm)
           init_git()
+          docker_init(ci_arm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
@@ -3170,26 +2114,7 @@ def shard_run_integration_aarch64_1_of_4() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -3233,8 +2158,8 @@ def shard_run_integration_aarch64_2_of_4() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
-          docker_init(ci_arm)
           init_git()
+          docker_init(ci_arm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
@@ -3245,26 +2170,7 @@ def shard_run_integration_aarch64_2_of_4() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -3308,8 +2214,8 @@ def shard_run_integration_aarch64_3_of_4() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
-          docker_init(ci_arm)
           init_git()
+          docker_init(ci_arm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
@@ -3320,26 +2226,7 @@ def shard_run_integration_aarch64_3_of_4() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -3383,8 +2270,8 @@ def shard_run_integration_aarch64_4_of_4() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
-          docker_init(ci_arm)
           init_git()
+          docker_init(ci_arm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
@@ -3395,26 +2282,7 @@ def shard_run_integration_aarch64_4_of_4() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -3454,43 +2322,24 @@ def shard_run_integration_aarch64_4_of_4() {
 }
 
 
-def shard_run_topi_GPU_1_of_4() {
+def shard_run_topi_GPU_1_of_3() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
         try {
-          docker_init(ci_gpu)
           init_git()
+          docker_init(ci_gpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
               'TEST_STEP_NAME=topi: GPU',
-              'TVM_NUM_SHARDS=4',
+              'TVM_NUM_SHARDS=3',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -3524,47 +2373,28 @@ def shard_run_topi_GPU_1_of_4() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('topi: GPU 1 of 4')
+    Utils.markStageSkippedForConditional('topi: GPU 1 of 3')
   }
 }
 
-def shard_run_topi_GPU_2_of_4() {
+def shard_run_topi_GPU_2_of_3() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
         try {
-          docker_init(ci_gpu)
           init_git()
+          docker_init(ci_gpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
               'TEST_STEP_NAME=topi: GPU',
-              'TVM_NUM_SHARDS=4',
+              'TVM_NUM_SHARDS=3',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -3598,47 +2428,28 @@ def shard_run_topi_GPU_2_of_4() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('topi: GPU 2 of 4')
+    Utils.markStageSkippedForConditional('topi: GPU 2 of 3')
   }
 }
 
-def shard_run_topi_GPU_3_of_4() {
+def shard_run_topi_GPU_3_of_3() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
         try {
-          docker_init(ci_gpu)
           init_git()
+          docker_init(ci_gpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
               'TEST_STEP_NAME=topi: GPU',
-              'TVM_NUM_SHARDS=4',
+              'TVM_NUM_SHARDS=3',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -3672,81 +2483,7 @@ def shard_run_topi_GPU_3_of_4() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('topi: GPU 3 of 4')
-  }
-}
-
-def shard_run_topi_GPU_4_of_4() {
-  if (!skip_ci && is_docs_only_build != 1) {
-    node('GPU') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
-        try {
-          docker_init(ci_gpu)
-          init_git()
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=gpu',
-              'TEST_STEP_NAME=topi: GPU',
-              'TVM_NUM_SHARDS=4',
-              'TVM_SHARD_INDEX=3',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
-                        script: """
-                          set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
-                          md5sum build/libtvm.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
-                          md5sum build/libvta_fsim.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
-                          md5sum build/libtvm_runtime.so
-                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
-                          md5sum build/config.cmake
-                        """,
-                        label: 'Download artifacts from S3',
-                      )
-
-              ci_setup(ci_gpu)
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh",
-                label: 'Run TOPI tests',
-              )
-            })
-          }
-        } finally {
-          sh(
-            script: """
-              set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_GPU --recursive
-            """,
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        }
-      }
-    }
-  } else {
-    Utils.markStageSkippedForConditional('topi: GPU 4 of 4')
+    Utils.markStageSkippedForConditional('topi: GPU 3 of 3')
   }
 }
 
@@ -3756,8 +2493,8 @@ def shard_run_frontend_GPU_1_of_6() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
         try {
-          docker_init(ci_gpu)
           init_git()
+          docker_init(ci_gpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
@@ -3768,26 +2505,7 @@ def shard_run_frontend_GPU_1_of_6() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -3830,8 +2548,8 @@ def shard_run_frontend_GPU_2_of_6() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
         try {
-          docker_init(ci_gpu)
           init_git()
+          docker_init(ci_gpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
@@ -3842,26 +2560,7 @@ def shard_run_frontend_GPU_2_of_6() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -3904,8 +2603,8 @@ def shard_run_frontend_GPU_3_of_6() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
         try {
-          docker_init(ci_gpu)
           init_git()
+          docker_init(ci_gpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
@@ -3916,26 +2615,7 @@ def shard_run_frontend_GPU_3_of_6() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -3978,8 +2658,8 @@ def shard_run_frontend_GPU_4_of_6() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
         try {
-          docker_init(ci_gpu)
           init_git()
+          docker_init(ci_gpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
@@ -3990,26 +2670,7 @@ def shard_run_frontend_GPU_4_of_6() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -4052,8 +2713,8 @@ def shard_run_frontend_GPU_5_of_6() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
         try {
-          docker_init(ci_gpu)
           init_git()
+          docker_init(ci_gpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
@@ -4064,26 +2725,7 @@ def shard_run_frontend_GPU_5_of_6() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -4126,8 +2768,8 @@ def shard_run_frontend_GPU_6_of_6() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
         try {
-          docker_init(ci_gpu)
           init_git()
+          docker_init(ci_gpu)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
@@ -4138,26 +2780,7 @@ def shard_run_frontend_GPU_6_of_6() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -4201,8 +2824,8 @@ def shard_run_topi_aarch64_1_of_2() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
-          docker_init(ci_arm)
           init_git()
+          docker_init(ci_arm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
@@ -4213,26 +2836,7 @@ def shard_run_topi_aarch64_1_of_2() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -4280,8 +2884,8 @@ def shard_run_topi_aarch64_2_of_2() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
-          docker_init(ci_arm)
           init_git()
+          docker_init(ci_arm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
@@ -4292,26 +2896,7 @@ def shard_run_topi_aarch64_2_of_2() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -4359,8 +2944,8 @@ def shard_run_frontend_aarch64_1_of_2() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
         try {
-          docker_init(ci_arm)
           init_git()
+          docker_init(ci_arm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
@@ -4371,26 +2956,7 @@ def shard_run_frontend_aarch64_1_of_2() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -4433,8 +2999,8 @@ def shard_run_frontend_aarch64_2_of_2() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
         try {
-          docker_init(ci_arm)
           init_git()
+          docker_init(ci_arm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
@@ -4445,26 +3011,7 @@ def shard_run_frontend_aarch64_2_of_2() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -4503,43 +3050,24 @@ def shard_run_frontend_aarch64_2_of_2() {
 }
 
 
-def shard_run_test_Cortex_M_1_of_8() {
+def shard_run_test_Cortex_M_1_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
-          docker_init(ci_cortexm)
           init_git()
+          docker_init(ci_cortexm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -4578,47 +3106,28 @@ def shard_run_test_Cortex_M_1_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 1 of 8')
+    Utils.markStageSkippedForConditional('test: Cortex-M 1 of 12')
   }
 }
 
-def shard_run_test_Cortex_M_2_of_8() {
+def shard_run_test_Cortex_M_2_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
-          docker_init(ci_cortexm)
           init_git()
+          docker_init(ci_cortexm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -4652,47 +3161,28 @@ def shard_run_test_Cortex_M_2_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 2 of 8')
+    Utils.markStageSkippedForConditional('test: Cortex-M 2 of 12')
   }
 }
 
-def shard_run_test_Cortex_M_3_of_8() {
+def shard_run_test_Cortex_M_3_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
-          docker_init(ci_cortexm)
           init_git()
+          docker_init(ci_cortexm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -4726,47 +3216,28 @@ def shard_run_test_Cortex_M_3_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 3 of 8')
+    Utils.markStageSkippedForConditional('test: Cortex-M 3 of 12')
   }
 }
 
-def shard_run_test_Cortex_M_4_of_8() {
+def shard_run_test_Cortex_M_4_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
-          docker_init(ci_cortexm)
           init_git()
+          docker_init(ci_cortexm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -4800,47 +3271,28 @@ def shard_run_test_Cortex_M_4_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 4 of 8')
+    Utils.markStageSkippedForConditional('test: Cortex-M 4 of 12')
   }
 }
 
-def shard_run_test_Cortex_M_5_of_8() {
+def shard_run_test_Cortex_M_5_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
-          docker_init(ci_cortexm)
           init_git()
+          docker_init(ci_cortexm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=4',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -4874,47 +3326,28 @@ def shard_run_test_Cortex_M_5_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 5 of 8')
+    Utils.markStageSkippedForConditional('test: Cortex-M 5 of 12')
   }
 }
 
-def shard_run_test_Cortex_M_6_of_8() {
+def shard_run_test_Cortex_M_6_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
-          docker_init(ci_cortexm)
           init_git()
+          docker_init(ci_cortexm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=5',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -4948,47 +3381,28 @@ def shard_run_test_Cortex_M_6_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 6 of 8')
+    Utils.markStageSkippedForConditional('test: Cortex-M 6 of 12')
   }
 }
 
-def shard_run_test_Cortex_M_7_of_8() {
+def shard_run_test_Cortex_M_7_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
-          docker_init(ci_cortexm)
           init_git()
+          docker_init(ci_cortexm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=6',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -5022,47 +3436,28 @@ def shard_run_test_Cortex_M_7_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 7 of 8')
+    Utils.markStageSkippedForConditional('test: Cortex-M 7 of 12')
   }
 }
 
-def shard_run_test_Cortex_M_8_of_8() {
+def shard_run_test_Cortex_M_8_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
-          docker_init(ci_cortexm)
           init_git()
+          docker_init(ci_cortexm)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=7',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -5096,7 +3491,227 @@ def shard_run_test_Cortex_M_8_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 8 of 8')
+    Utils.markStageSkippedForConditional('test: Cortex-M 8 of 12')
+  }
+}
+
+def shard_run_test_Cortex_M_9_of_12() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          init_git()
+          docker_init(ci_cortexm)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TEST_STEP_NAME=test: Cortex-M',
+              'TVM_NUM_SHARDS=12',
+              'TVM_SHARD_INDEX=8',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                        script: """
+                          set -eux
+                          . ci/scripts/retry.sh
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 9 of 12')
+  }
+}
+
+def shard_run_test_Cortex_M_10_of_12() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          init_git()
+          docker_init(ci_cortexm)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TEST_STEP_NAME=test: Cortex-M',
+              'TVM_NUM_SHARDS=12',
+              'TVM_SHARD_INDEX=9',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                        script: """
+                          set -eux
+                          . ci/scripts/retry.sh
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 10 of 12')
+  }
+}
+
+def shard_run_test_Cortex_M_11_of_12() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          init_git()
+          docker_init(ci_cortexm)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TEST_STEP_NAME=test: Cortex-M',
+              'TVM_NUM_SHARDS=12',
+              'TVM_SHARD_INDEX=10',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                        script: """
+                          set -eux
+                          . ci/scripts/retry.sh
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 11 of 12')
+  }
+}
+
+def shard_run_test_Cortex_M_12_of_12() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          init_git()
+          docker_init(ci_cortexm)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TEST_STEP_NAME=test: Cortex-M',
+              'TVM_NUM_SHARDS=12',
+              'TVM_SHARD_INDEX=11',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                        script: """
+                          set -eux
+                          . ci/scripts/retry.sh
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 12 of 12')
   }
 }
 
@@ -5106,8 +3721,8 @@ def shard_run_test_RISC_V_1_of_1() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-riscv") {
         try {
-          docker_init(ci_riscv)
           init_git()
+          docker_init(ci_riscv)
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=riscv',
@@ -5118,26 +3733,7 @@ def shard_run_test_RISC_V_1_of_1() {
               sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/riscv/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/riscv/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -5183,32 +3779,13 @@ def run_unittest_minimal() {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-cpu-minimal") {
         timeout(time: max_time, unit: 'MINUTES') {
           try {
-            docker_init(ci_minimal)
             init_git()
+            docker_init(ci_minimal)
             withEnv(['PLATFORM=minimal'], {
               sh(
                     script: """
                       set -eux
-                      retry() {
-                        local max_retries=\$1
-                        shift
-                        local n=0
-                        local backoff_max=30
-                        until [ "\$n" -ge \$max_retries ]
-                        do
-                            "\$@" && break
-                            n=\$((n+1))
-                            if [ "\$n" -eq \$max_retries ]; then
-                                echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                exit 1
-                            fi
-
-                            WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                            echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                            sleep \$WAIT
-                        done
-                      }
-
+                      . ci/scripts/retry.sh
                       retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu-minimal/build/libtvm.so build/libtvm.so
                       md5sum build/libtvm.so
                       retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu-minimal/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -5256,71 +3833,50 @@ stage('Test') {
   'unittest: GPU 3 of 3': {
     shard_run_unittest_GPU_3_of_3()
   },
-  'integration: CPU 1 of 10': {
-    shard_run_integration_CPU_1_of_10()
+  'integration: CPU 1 of 4': {
+    shard_run_integration_CPU_1_of_4()
   },
-  'integration: CPU 2 of 10': {
-    shard_run_integration_CPU_2_of_10()
+  'integration: CPU 2 of 4': {
+    shard_run_integration_CPU_2_of_4()
   },
-  'integration: CPU 3 of 10': {
-    shard_run_integration_CPU_3_of_10()
+  'integration: CPU 3 of 4': {
+    shard_run_integration_CPU_3_of_4()
   },
-  'integration: CPU 4 of 10': {
-    shard_run_integration_CPU_4_of_10()
+  'integration: CPU 4 of 4': {
+    shard_run_integration_CPU_4_of_4()
   },
-  'integration: CPU 5 of 10': {
-    shard_run_integration_CPU_5_of_10()
+  'python: i386 1 of 3': {
+    shard_run_python_i386_1_of_3()
   },
-  'integration: CPU 6 of 10': {
-    shard_run_integration_CPU_6_of_10()
+  'python: i386 2 of 3': {
+    shard_run_python_i386_2_of_3()
   },
-  'integration: CPU 7 of 10': {
-    shard_run_integration_CPU_7_of_10()
+  'python: i386 3 of 3': {
+    shard_run_python_i386_3_of_3()
   },
-  'integration: CPU 8 of 10': {
-    shard_run_integration_CPU_8_of_10()
+  'test: Hexagon 1 of 8': {
+    shard_run_test_Hexagon_1_of_8()
   },
-  'integration: CPU 9 of 10': {
-    shard_run_integration_CPU_9_of_10()
+  'test: Hexagon 2 of 8': {
+    shard_run_test_Hexagon_2_of_8()
   },
-  'integration: CPU 10 of 10': {
-    shard_run_integration_CPU_10_of_10()
+  'test: Hexagon 3 of 8': {
+    shard_run_test_Hexagon_3_of_8()
   },
-  'python: i386 1 of 5': {
-    shard_run_python_i386_1_of_5()
+  'test: Hexagon 4 of 8': {
+    shard_run_test_Hexagon_4_of_8()
   },
-  'python: i386 2 of 5': {
-    shard_run_python_i386_2_of_5()
+  'test: Hexagon 5 of 8': {
+    shard_run_test_Hexagon_5_of_8()
   },
-  'python: i386 3 of 5': {
-    shard_run_python_i386_3_of_5()
+  'test: Hexagon 6 of 8': {
+    shard_run_test_Hexagon_6_of_8()
   },
-  'python: i386 4 of 5': {
-    shard_run_python_i386_4_of_5()
+  'test: Hexagon 7 of 8': {
+    shard_run_test_Hexagon_7_of_8()
   },
-  'python: i386 5 of 5': {
-    shard_run_python_i386_5_of_5()
-  },
-  'test: Hexagon 1 of 7': {
-    shard_run_test_Hexagon_1_of_7()
-  },
-  'test: Hexagon 2 of 7': {
-    shard_run_test_Hexagon_2_of_7()
-  },
-  'test: Hexagon 3 of 7': {
-    shard_run_test_Hexagon_3_of_7()
-  },
-  'test: Hexagon 4 of 7': {
-    shard_run_test_Hexagon_4_of_7()
-  },
-  'test: Hexagon 5 of 7': {
-    shard_run_test_Hexagon_5_of_7()
-  },
-  'test: Hexagon 6 of 7': {
-    shard_run_test_Hexagon_6_of_7()
-  },
-  'test: Hexagon 7 of 7': {
-    shard_run_test_Hexagon_7_of_7()
+  'test: Hexagon 8 of 8': {
+    shard_run_test_Hexagon_8_of_8()
   },
   'integration: aarch64 1 of 4': {
     shard_run_integration_aarch64_1_of_4()
@@ -5334,17 +3890,14 @@ stage('Test') {
   'integration: aarch64 4 of 4': {
     shard_run_integration_aarch64_4_of_4()
   },
-  'topi: GPU 1 of 4': {
-    shard_run_topi_GPU_1_of_4()
+  'topi: GPU 1 of 3': {
+    shard_run_topi_GPU_1_of_3()
   },
-  'topi: GPU 2 of 4': {
-    shard_run_topi_GPU_2_of_4()
+  'topi: GPU 2 of 3': {
+    shard_run_topi_GPU_2_of_3()
   },
-  'topi: GPU 3 of 4': {
-    shard_run_topi_GPU_3_of_4()
-  },
-  'topi: GPU 4 of 4': {
-    shard_run_topi_GPU_4_of_4()
+  'topi: GPU 3 of 3': {
+    shard_run_topi_GPU_3_of_3()
   },
   'frontend: GPU 1 of 6': {
     shard_run_frontend_GPU_1_of_6()
@@ -5376,29 +3929,41 @@ stage('Test') {
   'frontend: aarch64 2 of 2': {
     shard_run_frontend_aarch64_2_of_2()
   },
-  'test: Cortex-M 1 of 8': {
-    shard_run_test_Cortex_M_1_of_8()
+  'test: Cortex-M 1 of 12': {
+    shard_run_test_Cortex_M_1_of_12()
   },
-  'test: Cortex-M 2 of 8': {
-    shard_run_test_Cortex_M_2_of_8()
+  'test: Cortex-M 2 of 12': {
+    shard_run_test_Cortex_M_2_of_12()
   },
-  'test: Cortex-M 3 of 8': {
-    shard_run_test_Cortex_M_3_of_8()
+  'test: Cortex-M 3 of 12': {
+    shard_run_test_Cortex_M_3_of_12()
   },
-  'test: Cortex-M 4 of 8': {
-    shard_run_test_Cortex_M_4_of_8()
+  'test: Cortex-M 4 of 12': {
+    shard_run_test_Cortex_M_4_of_12()
   },
-  'test: Cortex-M 5 of 8': {
-    shard_run_test_Cortex_M_5_of_8()
+  'test: Cortex-M 5 of 12': {
+    shard_run_test_Cortex_M_5_of_12()
   },
-  'test: Cortex-M 6 of 8': {
-    shard_run_test_Cortex_M_6_of_8()
+  'test: Cortex-M 6 of 12': {
+    shard_run_test_Cortex_M_6_of_12()
   },
-  'test: Cortex-M 7 of 8': {
-    shard_run_test_Cortex_M_7_of_8()
+  'test: Cortex-M 7 of 12': {
+    shard_run_test_Cortex_M_7_of_12()
   },
-  'test: Cortex-M 8 of 8': {
-    shard_run_test_Cortex_M_8_of_8()
+  'test: Cortex-M 8 of 12': {
+    shard_run_test_Cortex_M_8_of_12()
+  },
+  'test: Cortex-M 9 of 12': {
+    shard_run_test_Cortex_M_9_of_12()
+  },
+  'test: Cortex-M 10 of 12': {
+    shard_run_test_Cortex_M_10_of_12()
+  },
+  'test: Cortex-M 11 of 12': {
+    shard_run_test_Cortex_M_11_of_12()
+  },
+  'test: Cortex-M 12 of 12': {
+    shard_run_test_Cortex_M_12_of_12()
   },
   'test: RISC-V 1 of 1': {
     shard_run_test_RISC_V_1_of_1()
@@ -5412,34 +3977,15 @@ stage('Test') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-cpu") {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
-              docker_init(ci_cpu)
               init_git()
+              docker_init(ci_cpu)
               withEnv(['PLATFORM=cpu',
               'TEST_STEP_NAME=unittest: CPU',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
                 sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
@@ -5487,34 +4033,15 @@ stage('Test') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-cpu") {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
-              docker_init(ci_cpu)
               init_git()
+              docker_init(ci_cpu)
               withEnv(['PLATFORM=cpu',
               'TEST_STEP_NAME=frontend: CPU',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
                 sh(
                         script: """
                           set -eux
-                          retry() {
-                            local max_retries=\$1
-                            shift
-                            local n=0
-                            local backoff_max=30
-                            until [ "\$n" -ge \$max_retries ]
-                            do
-                                "\$@" && break
-                                n=\$((n+1))
-                                if [ "\$n" -eq \$max_retries ]; then
-                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                    exit 1
-                                fi
-
-                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                                sleep \$WAIT
-                            done
-                          }
-
+                          . ci/scripts/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -5555,31 +4082,12 @@ stage('Test') {
     if (!skip_ci) {
       node('GPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/docs-python-gpu") {
-          docker_init(ci_gpu)
           init_git()
+          docker_init(ci_gpu)
           sh(
             script: """
               set -eux
-              retry() {
-                local max_retries=\$1
-                shift
-                local n=0
-                local backoff_max=30
-                until [ "\$n" -ge \$max_retries ]
-                do
-                    "\$@" && break
-                    n=\$((n+1))
-                    if [ "\$n" -eq \$max_retries ]; then
-                        echo "failed to update after attempt \$n / \$max_retries, giving up"
-                        exit 1
-                    fi
-
-                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                    sleep \$WAIT
-                done
-              }
-
+              . ci/scripts/retry.sh
               retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -5604,26 +4112,7 @@ stage('Test') {
           sh(
             script: """
               set -eux
-              retry() {
-                local max_retries=\$1
-                shift
-                local n=0
-                local backoff_max=30
-                until [ "\$n" -ge \$max_retries ]
-                do
-                    "\$@" && break
-                    n=\$((n+1))
-                    if [ "\$n" -eq \$max_retries ]; then
-                        echo "failed to update after attempt \$n / \$max_retries, giving up"
-                        exit 1
-                    fi
-
-                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                    sleep \$WAIT
-                done
-              }
-
+              . ci/scripts/retry.sh
               md5sum docs.tgz
               retry 3 aws s3 cp --no-progress docs.tgz s3://${s3_prefix}/docs/docs.tgz
             """,
@@ -5640,7 +4129,8 @@ stage('Test') {
   },
   )
 }
-}/*
+}
+/*
 stage('Build packages') {
   parallel 'conda CPU': {
     node('CPU') {
@@ -5672,10 +4162,11 @@ def update_docker(ecr_image, hub_image) {
   sh(
     script: """
     set -eux
+    . ci/scripts/retry.sh
     docker tag \
       ${ecr_image} \
       ${hub_image}
-    docker push ${hub_image}
+    retry 5 docker push ${hub_image}
     """,
     label: "Update ${hub_image} on Docker Hub",
   )
@@ -5714,7 +4205,7 @@ def deploy_docs() {
       script: '''
         cd tvm-site
         git remote add deploy https://$GITHUB_TOKEN:x-oauth-basic@github.com/apache/tvm-site.git
-        git push deploy $DOCS_DEPLOY_BRANCH
+        git push deploy $DOCS_DEPLOY_BRANCH || true
       ''',
       label: 'Upload docs to apache/tvm-site'
     )
@@ -5731,29 +4222,11 @@ def deploy() {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docs") {
           timeout(time: max_time, unit: 'MINUTES') {
-            sh(
+            init_git()
+                    sh(
                       script: """
                         set -eux
-                        retry() {
-                          local max_retries=\$1
-                          shift
-                          local n=0
-                          local backoff_max=30
-                          until [ "\$n" -ge \$max_retries ]
-                          do
-                              "\$@" && break
-                              n=\$((n+1))
-                              if [ "\$n" -eq \$max_retries ]; then
-                                  echo "failed to update after attempt \$n / \$max_retries, giving up"
-                                  exit 1
-                              fi
-
-                              WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                              echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                              sleep \$WAIT
-                          done
-                        }
-
+                        . ci/scripts/retry.sh
                         retry 3 aws s3 cp --no-progress s3://${s3_prefix}/docs/docs.tgz docs.tgz
                         md5sum docs.tgz
                       """,
@@ -5773,7 +4246,8 @@ def deploy() {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docker") {
           timeout(time: max_time, unit: 'MINUTES') {
-            try {
+            init_git()
+                    try {
                       withCredentials([string(
                         credentialsId: 'dockerhub-tlcpackstaging-key',
                         variable: 'DOCKERHUB_KEY',
@@ -5817,10 +4291,11 @@ def deploy() {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/tag-images") {
           timeout(time: max_time, unit: 'MINUTES') {
-            withCredentials([string(
-                        credentialsId: 'dockerhub-tlcpack-key',
-                        variable: 'TLCPACK_TOKEN',
-                      )]) {
+            init_git()
+                    withCredentials([string(
+                      credentialsId: 'dockerhub-tlcpack-key',
+                      variable: 'TLCPACK_TOKEN',
+                    )]) {
                       try {
                         sh(
                           script: 'echo $TLCPACK_TOKEN | docker login --username octomldriazati --password-stdin',
@@ -5832,9 +4307,10 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
+                              . ci/scripts/retry.sh
                               docker pull tlcpackstaging/ci_arm:${tag}
                               docker tag tlcpackstaging/ci_arm:${tag} tlcpack/ci-arm:${tag}
-                              docker push tlcpack/ci-arm:${tag}
+                              retry 5 docker push tlcpack/ci-arm:${tag}
                             """,
                             label: 'Tag tlcpackstaging/ci_arm image to tlcpack',
                           )
@@ -5845,9 +4321,10 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
+                              . ci/scripts/retry.sh
                               docker pull tlcpackstaging/ci_cortexm:${tag}
                               docker tag tlcpackstaging/ci_cortexm:${tag} tlcpack/ci-cortexm:${tag}
-                              docker push tlcpack/ci-cortexm:${tag}
+                              retry 5 docker push tlcpack/ci-cortexm:${tag}
                             """,
                             label: 'Tag tlcpackstaging/ci_cortexm image to tlcpack',
                           )
@@ -5858,9 +4335,10 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
+                              . ci/scripts/retry.sh
                               docker pull tlcpackstaging/ci_cpu:${tag}
                               docker tag tlcpackstaging/ci_cpu:${tag} tlcpack/ci-cpu:${tag}
-                              docker push tlcpack/ci-cpu:${tag}
+                              retry 5 docker push tlcpack/ci-cpu:${tag}
                             """,
                             label: 'Tag tlcpackstaging/ci_cpu image to tlcpack',
                           )
@@ -5871,9 +4349,10 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
+                              . ci/scripts/retry.sh
                               docker pull tlcpackstaging/ci_gpu:${tag}
                               docker tag tlcpackstaging/ci_gpu:${tag} tlcpack/ci-gpu:${tag}
-                              docker push tlcpack/ci-gpu:${tag}
+                              retry 5 docker push tlcpack/ci-gpu:${tag}
                             """,
                             label: 'Tag tlcpackstaging/ci_gpu image to tlcpack',
                           )
@@ -5884,9 +4363,10 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
+                              . ci/scripts/retry.sh
                               docker pull tlcpackstaging/ci_hexagon:${tag}
                               docker tag tlcpackstaging/ci_hexagon:${tag} tlcpack/ci-hexagon:${tag}
-                              docker push tlcpack/ci-hexagon:${tag}
+                              retry 5 docker push tlcpack/ci-hexagon:${tag}
                             """,
                             label: 'Tag tlcpackstaging/ci_hexagon image to tlcpack',
                           )
@@ -5897,9 +4377,10 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
+                              . ci/scripts/retry.sh
                               docker pull tlcpackstaging/ci_i386:${tag}
                               docker tag tlcpackstaging/ci_i386:${tag} tlcpack/ci-i386:${tag}
-                              docker push tlcpack/ci-i386:${tag}
+                              retry 5 docker push tlcpack/ci-i386:${tag}
                             """,
                             label: 'Tag tlcpackstaging/ci_i386 image to tlcpack',
                           )
@@ -5910,9 +4391,10 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
+                              . ci/scripts/retry.sh
                               docker pull tlcpackstaging/ci_lint:${tag}
                               docker tag tlcpackstaging/ci_lint:${tag} tlcpack/ci-lint:${tag}
-                              docker push tlcpack/ci-lint:${tag}
+                              retry 5 docker push tlcpack/ci-lint:${tag}
                             """,
                             label: 'Tag tlcpackstaging/ci_lint image to tlcpack',
                           )
@@ -5923,9 +4405,10 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
+                              . ci/scripts/retry.sh
                               docker pull tlcpackstaging/ci_minimal:${tag}
                               docker tag tlcpackstaging/ci_minimal:${tag} tlcpack/ci-minimal:${tag}
-                              docker push tlcpack/ci-minimal:${tag}
+                              retry 5 docker push tlcpack/ci-minimal:${tag}
                             """,
                             label: 'Tag tlcpackstaging/ci_minimal image to tlcpack',
                           )
@@ -5936,9 +4419,10 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
+                              . ci/scripts/retry.sh
                               docker pull tlcpackstaging/ci_riscv:${tag}
                               docker tag tlcpackstaging/ci_riscv:${tag} tlcpack/ci-riscv:${tag}
-                              docker push tlcpack/ci-riscv:${tag}
+                              retry 5 docker push tlcpack/ci-riscv:${tag}
                             """,
                             label: 'Tag tlcpackstaging/ci_riscv image to tlcpack',
                           )
@@ -5949,9 +4433,10 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
+                              . ci/scripts/retry.sh
                               docker pull tlcpackstaging/ci_wasm:${tag}
                               docker tag tlcpackstaging/ci_wasm:${tag} tlcpack/ci-wasm:${tag}
-                              docker push tlcpack/ci-wasm:${tag}
+                              retry 5 docker push tlcpack/ci-wasm:${tag}
                             """,
                             label: 'Tag tlcpackstaging/ci_wasm image to tlcpack',
                           )

@@ -461,8 +461,8 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
   ICHECK(n != nullptr);
   arith::Analyzer ana;
   begins = SimplifyArray(&ana, begins);
-  Array<PrimExpr> elem_offset = n->ElemOffset(begins);
-  elem_offset.MutateByApply([&](const PrimExpr& expr) { return ana.Simplify(expr); });
+  Array<PrimExpr> elem_offset =
+      n->ElemOffset(begins).Map([&](const PrimExpr& expr) { return ana.Simplify(expr); });
 
   Array<PrimExpr> strides = n->strides;
   if (strides.size() == 0) {

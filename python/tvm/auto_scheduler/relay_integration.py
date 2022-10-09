@@ -336,7 +336,8 @@ def auto_schedule_topi(func_name, outs):
         logger.info("Failed to create a ComputeDAG for auto_scheduler: %s", str(err))
         return None
 
-    key = register_workload_tensors(dag.workload_key(), io_tensors)
+    workload_key = dag.workload_key()
+    key = register_workload_tensors(workload_key, io_tensors)
     target = tvm.target.Target.current()
 
     dispatch_ctx = DispatchContext.current
@@ -356,7 +357,7 @@ def auto_schedule_topi(func_name, outs):
         # in the task extraction mode
         if has_complex_op or env.tracing_mode == TracingMode.EXTRACT_TASK:
             env.add_workload_key(func_name, key)
-            input_map = prepare_input_map(io_tensors)
+            input_map = prepare_input_map(io_tensors, workload_key)
             if input_map:
                 env.add_workload_input_names(key, list(input_map.values()))
     elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:

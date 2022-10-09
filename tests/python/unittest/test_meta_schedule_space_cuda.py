@@ -15,9 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Tests for MetaSchedule search space on CUDA"""
-from tvm import te, topi, autotvm
+from tvm import autotvm
 from tvm import meta_schedule as ms
-from tvm.meta_schedule.testing.space_generation import check_sketches, print_sketches
+from tvm import te, topi
+from tvm.meta_schedule.testing.space_generation import (
+    check_sketches,
+    generate_design_space,
+    print_sketches,
+)
 from tvm.meta_schedule.testing.te_workload import create_te_workload
 from tvm.script import tir as T
 from tvm.target import Target
@@ -25,6 +30,15 @@ from tvm.target import Target
 
 def _target():
     return Target("nvidia/geforce-rtx-3070")
+
+
+def _design_space(mod):
+    return generate_design_space(
+        kind="cuda",
+        mod=mod,
+        target=_target(),
+        types=ms.ScheduleRule,
+    )
 
 
 def _conv2d_winograd_nchw():
@@ -119,12 +133,7 @@ def test_cuda_c1d():
     ]
 
     mod = create_te_workload("C1D", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -208,12 +217,7 @@ def test_cuda_c2d():
     ]
 
     mod = create_te_workload("C2D", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -303,12 +307,7 @@ def test_cuda_c3d():
         ("SampleCategorical", 1),
     ]
     mod = create_te_workload("C3D", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -404,12 +403,7 @@ def test_cuda_cap():
         ("SampleCategorical", 2),
     ]
     mod = create_te_workload("CAP", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -492,12 +486,7 @@ def test_cuda_dep():
         ("SampleCategorical", 1),
     ]
     mod = create_te_workload("DEP", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -580,12 +569,7 @@ def test_cuda_dil():
         ("SampleCategorical", 3),
     ]
     mod = create_te_workload("DIL", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -661,12 +645,7 @@ def test_cuda_gmm():
         ("SampleCategorical", 4),
     ]
     mod = create_te_workload("GMM", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -750,12 +729,7 @@ def test_cuda_grp():
         ("SampleCategorical", 1),
     ]
     mod = create_te_workload("GRP", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -840,12 +814,7 @@ def test_cuda_t2d():
         ("SampleCategorical", 2),
     ]
     mod = create_te_workload("T2D", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -923,12 +892,7 @@ def test_cuda_nrm():
         ("SampleCategorical", 4),
     ]
     mod = create_te_workload("NRM", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -1135,12 +1099,7 @@ def test_cuda_sfm():
         ("SampleCategorical", 0),
     ]
     mod = create_te_workload("SFM", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -1225,12 +1184,7 @@ def test_cuda_cbr():
         ("SampleCategorical", 3),
     ]
     mod = create_te_workload("CBR", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -1309,12 +1263,7 @@ def test_cuda_tbg():
         ("SampleCategorical", 4),
     ]
     mod = create_te_workload("TBG", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -1338,11 +1287,20 @@ def test_cuda_winograd_nchw_conv2d():
             bgemm = T.alloc_buffer([6, 6, 64, 3136], dtype="float32")
             inverse_local = T.alloc_buffer([64, 3136, 4, 4], dtype="float32", scope="local")
             data_pack_local = T.alloc_buffer([6, 6, 64, 3136], dtype="float32", scope="local")
+            d_local = T.alloc_buffer([64, 3136, 6, 6], dtype="float32", scope="local")
             bgemm_local = T.alloc_buffer([6, 6, 64, 3136], dtype="float32", scope="local")
             kernel_shared = T.alloc_buffer([6, 6, 64, 64], dtype="float32", scope="shared")
             data_pack_shared = T.alloc_buffer([6, 6, 64, 3136], dtype="float32", scope="shared")
             for i2_i3_0_fused_i3_1_fused_0 in T.thread_binding(3136, thread="blockIdx.x"):
                 for i2_i3_0_fused_i3_1_fused_1 in T.thread_binding(64, thread="threadIdx.x"):
+                    for ax0, ax1, ax2, ax3 in T.grid(1, 1, 6, 6):
+                        with T.block("d_local"):
+                            v0 = T.axis.spatial(64, (i2_i3_0_fused_i3_1_fused_0 * 64 + i2_i3_0_fused_i3_1_fused_1) // 3136 + ax0)
+                            v1 = T.axis.spatial(3136, (i2_i3_0_fused_i3_1_fused_0 * 64 + i2_i3_0_fused_i3_1_fused_1) % 3136 // 7 * 7 + (i2_i3_0_fused_i3_1_fused_0 * 64 + i2_i3_0_fused_i3_1_fused_1) % 7 + ax1)
+                            v2, v3 = T.axis.remap("SS", [ax2, ax3])
+                            T.reads(data[v1 // 3136, v0, v1 % 3136 // 56 * 4 + v2 - 1, v1 % 56 * 4 + v3 - 1])
+                            T.writes(d_local[v0, v1, v2, v3])
+                            d_local[v0, v1, v2, v3] = T.if_then_else(1 <= v1 % 3136 // 56 * 4 + v2 and v1 % 3136 // 56 * 4 + v2 < 225 and 1 <= v1 % 56 * 4 + v3 and v1 % 56 * 4 + v3 < 225, data[v1 // 3136, v0, v1 % 3136 // 56 * 4 + v2 - 1, v1 % 56 * 4 + v3 - 1], T.float32(0), dtype="float32")
                     for i0 in T.unroll(6):
                         for i1 in T.unroll(6):
                             for i4 in T.unroll(6):
@@ -1352,12 +1310,12 @@ def test_cuda_winograd_nchw_conv2d():
                                         ci = T.axis.spatial(64, (i2_i3_0_fused_i3_1_fused_0 * 64 + i2_i3_0_fused_i3_1_fused_1) // 3136)
                                         p = T.axis.spatial(3136, (i2_i3_0_fused_i3_1_fused_0 * 64 + i2_i3_0_fused_i3_1_fused_1) % 3136 // 7 * 7 + (i2_i3_0_fused_i3_1_fused_0 * 64 + i2_i3_0_fused_i3_1_fused_1) % 7)
                                         r_a, r_a_1 = T.axis.remap("RR", [i4, i5])
-                                        T.reads(data[p // 3136, ci, p % 3136 // 56 * 4 + r_a - 1, p % 56 * 4 + r_a_1 - 1])
+                                        T.reads(d_local[ci, p, r_a, r_a_1])
                                         T.writes(data_pack_local[eps, nu, ci, p])
                                         T.block_attr({"schedule_rule":"meta_schedule.winograd_data_pack.nchw.cuda"})
                                         with T.init():
                                             data_pack_local[eps, nu, ci, p] = T.float32(0)
-                                        data_pack_local[eps, nu, ci, p] = data_pack_local[eps, nu, ci, p] + T.if_then_else(1 <= p % 3136 // 56 * 4 + r_a and p % 3136 // 56 * 4 + r_a < 225 and 1 <= p % 56 * 4 + r_a_1 and p % 56 * 4 + r_a_1 < 225, data[p // 3136, ci, p % 3136 // 56 * 4 + r_a - 1, p % 56 * 4 + r_a_1 - 1], T.float32(0), dtype="float32") * T.Select(r_a % 6 == 5 and eps % 6 == 5, T.float32(1), T.Select(r_a % 6 == 5 and eps % 6 == 4, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 3, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 2, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 1, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 0, T.float32(0), T.Select(r_a % 6 == 4 and eps % 6 == 5, T.float32(1.5), T.Select(r_a % 6 == 4 and eps % 6 == 4, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 3, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 2, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 1, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 0, T.float32(1), T.Select(r_a % 6 == 3 and eps % 6 == 5, T.float32(-2), T.Select(r_a % 6 == 3 and eps % 6 == 4, T.float32(-0.5), T.Select(r_a % 6 == 3 and eps % 6 == 3, T.float32(2), T.Select(r_a % 6 == 3 and eps % 6 == 2, T.float32(2.5), T.Select(r_a % 6 == 3 and eps % 6 == 1, T.float32(0.5), T.Select(r_a % 6 == 3 and eps % 6 == 0, T.float32(1.5), T.Select(r_a % 6 == 2 and eps % 6 == 5, T.float32(-1.5), T.Select(r_a % 6 == 2 and eps % 6 == 4, T.float32(-1), T.Select(r_a % 6 == 2 and eps % 6 == 3, T.float32(-1), T.Select(r_a % 6 == 2 and eps % 6 == 2, T.float32(0.5), T.Select(r_a % 6 == 2 and eps % 6 == 1, T.float32(-2.5), T.Select(r_a % 6 == 2 and eps % 6 == 0, T.float32(-2), T.Select(r_a % 6 == 1 and eps % 6 == 5, T.float32(1), T.Select(r_a % 6 == 1 and eps % 6 == 4, T.float32(0.5), T.Select(r_a % 6 == 1 and eps % 6 == 3, T.float32(-2), T.Select(r_a % 6 == 1 and eps % 6 == 2, T.float32(-1), T.Select(r_a % 6 == 1 and eps % 6 == 1, T.float32(1), T.Select(r_a % 6 == 1 and eps % 6 == 0, T.float32(-1.5), T.Select(r_a % 6 == 0 and eps % 6 == 5, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 4, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 3, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 2, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 1, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 0, T.float32(1), T.float32(0))))))))))))))))))))))))))))))))))))) * T.Select(r_a_1 % 6 == 5 and nu % 6 == 5, T.float32(1), T.Select(r_a_1 % 6 == 5 and nu % 6 == 4, T.float32(0), T.Select(r_a_1 % 6 == 5 and nu % 6 == 3, T.float32(0), T.Select(r_a_1 % 6 == 5 and nu % 6 == 2, T.float32(0), T.Select(r_a_1 % 6 == 5 and nu % 6 == 1, T.float32(0), T.Select(r_a_1 % 6 == 5 and nu % 6 == 0, T.float32(0), T.Select(r_a_1 % 6 == 4 and nu % 6 == 5, T.float32(1.5), T.Select(r_a_1 % 6 == 4 and nu % 6 == 4, T.float32(1), T.Select(r_a_1 % 6 == 4 and nu % 6 == 3, T.float32(1), T.Select(r_a_1 % 6 == 4 and nu % 6 == 2, T.float32(1), T.Select(r_a_1 % 6 == 4 and nu % 6 == 1, T.float32(1), T.Select(r_a_1 % 6 == 4 and nu % 6 == 0, T.float32(1), T.Select(r_a_1 % 6 == 3 and nu % 6 == 5, T.float32(-2), T.Select(r_a_1 % 6 == 3 and nu % 6 == 4, T.float32(-0.5), T.Select(r_a_1 % 6 == 3 and nu % 6 == 3, T.float32(2), T.Select(r_a_1 % 6 == 3 and nu % 6 == 2, T.float32(2.5), T.Select(r_a_1 % 6 == 3 and nu % 6 == 1, T.float32(0.5), T.Select(r_a_1 % 6 == 3 and nu % 6 == 0, T.float32(1.5), T.Select(r_a_1 % 6 == 2 and nu % 6 == 5, T.float32(-1.5), T.Select(r_a_1 % 6 == 2 and nu % 6 == 4, T.float32(-1), T.Select(r_a_1 % 6 == 2 and nu % 6 == 3, T.float32(-1), T.Select(r_a_1 % 6 == 2 and nu % 6 == 2, T.float32(0.5), T.Select(r_a_1 % 6 == 2 and nu % 6 == 1, T.float32(-2.5), T.Select(r_a_1 % 6 == 2 and nu % 6 == 0, T.float32(-2), T.Select(r_a_1 % 6 == 1 and nu % 6 == 5, T.float32(1), T.Select(r_a_1 % 6 == 1 and nu % 6 == 4, T.float32(0.5), T.Select(r_a_1 % 6 == 1 and nu % 6 == 3, T.float32(-2), T.Select(r_a_1 % 6 == 1 and nu % 6 == 2, T.float32(-1), T.Select(r_a_1 % 6 == 1 and nu % 6 == 1, T.float32(1), T.Select(r_a_1 % 6 == 1 and nu % 6 == 0, T.float32(-1.5), T.Select(r_a_1 % 6 == 0 and nu % 6 == 5, T.float32(0), T.Select(r_a_1 % 6 == 0 and nu % 6 == 4, T.float32(0), T.Select(r_a_1 % 6 == 0 and nu % 6 == 3, T.float32(0), T.Select(r_a_1 % 6 == 0 and nu % 6 == 2, T.float32(0), T.Select(r_a_1 % 6 == 0 and nu % 6 == 1, T.float32(0), T.Select(r_a_1 % 6 == 0 and nu % 6 == 0, T.float32(1), T.float32(0)))))))))))))))))))))))))))))))))))))
+                                        data_pack_local[eps, nu, ci, p] = data_pack_local[eps, nu, ci, p] + d_local[ci, p, r_a, r_a_1] * T.Select(r_a % 6 == 5 and eps % 6 == 5, T.float32(1), T.Select(r_a % 6 == 5 and eps % 6 == 4, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 3, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 2, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 1, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 0, T.float32(0), T.Select(r_a % 6 == 4 and eps % 6 == 5, T.float32(1.5), T.Select(r_a % 6 == 4 and eps % 6 == 4, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 3, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 2, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 1, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 0, T.float32(1), T.Select(r_a % 6 == 3 and eps % 6 == 5, T.float32(-2), T.Select(r_a % 6 == 3 and eps % 6 == 4, T.float32(-0.5), T.Select(r_a % 6 == 3 and eps % 6 == 3, T.float32(2), T.Select(r_a % 6 == 3 and eps % 6 == 2, T.float32(2.5), T.Select(r_a % 6 == 3 and eps % 6 == 1, T.float32(0.5), T.Select(r_a % 6 == 3 and eps % 6 == 0, T.float32(1.5), T.Select(r_a % 6 == 2 and eps % 6 == 5, T.float32(-1.5), T.Select(r_a % 6 == 2 and eps % 6 == 4, T.float32(-1), T.Select(r_a % 6 == 2 and eps % 6 == 3, T.float32(-1), T.Select(r_a % 6 == 2 and eps % 6 == 2, T.float32(0.5), T.Select(r_a % 6 == 2 and eps % 6 == 1, T.float32(-2.5), T.Select(r_a % 6 == 2 and eps % 6 == 0, T.float32(-2), T.Select(r_a % 6 == 1 and eps % 6 == 5, T.float32(1), T.Select(r_a % 6 == 1 and eps % 6 == 4, T.float32(0.5), T.Select(r_a % 6 == 1 and eps % 6 == 3, T.float32(-2), T.Select(r_a % 6 == 1 and eps % 6 == 2, T.float32(-1), T.Select(r_a % 6 == 1 and eps % 6 == 1, T.float32(1), T.Select(r_a % 6 == 1 and eps % 6 == 0, T.float32(-1.5), T.Select(r_a % 6 == 0 and eps % 6 == 5, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 4, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 3, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 2, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 1, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 0, T.float32(1), T.float32(0))))))))))))))))))))))))))))))))))))) * T.Select(r_a_1 % 6 == 5 and nu % 6 == 5, T.float32(1), T.Select(r_a_1 % 6 == 5 and nu % 6 == 4, T.float32(0), T.Select(r_a_1 % 6 == 5 and nu % 6 == 3, T.float32(0), T.Select(r_a_1 % 6 == 5 and nu % 6 == 2, T.float32(0), T.Select(r_a_1 % 6 == 5 and nu % 6 == 1, T.float32(0), T.Select(r_a_1 % 6 == 5 and nu % 6 == 0, T.float32(0), T.Select(r_a_1 % 6 == 4 and nu % 6 == 5, T.float32(1.5), T.Select(r_a_1 % 6 == 4 and nu % 6 == 4, T.float32(1), T.Select(r_a_1 % 6 == 4 and nu % 6 == 3, T.float32(1), T.Select(r_a_1 % 6 == 4 and nu % 6 == 2, T.float32(1), T.Select(r_a_1 % 6 == 4 and nu % 6 == 1, T.float32(1), T.Select(r_a_1 % 6 == 4 and nu % 6 == 0, T.float32(1), T.Select(r_a_1 % 6 == 3 and nu % 6 == 5, T.float32(-2), T.Select(r_a_1 % 6 == 3 and nu % 6 == 4, T.float32(-0.5), T.Select(r_a_1 % 6 == 3 and nu % 6 == 3, T.float32(2), T.Select(r_a_1 % 6 == 3 and nu % 6 == 2, T.float32(2.5), T.Select(r_a_1 % 6 == 3 and nu % 6 == 1, T.float32(0.5), T.Select(r_a_1 % 6 == 3 and nu % 6 == 0, T.float32(1.5), T.Select(r_a_1 % 6 == 2 and nu % 6 == 5, T.float32(-1.5), T.Select(r_a_1 % 6 == 2 and nu % 6 == 4, T.float32(-1), T.Select(r_a_1 % 6 == 2 and nu % 6 == 3, T.float32(-1), T.Select(r_a_1 % 6 == 2 and nu % 6 == 2, T.float32(0.5), T.Select(r_a_1 % 6 == 2 and nu % 6 == 1, T.float32(-2.5), T.Select(r_a_1 % 6 == 2 and nu % 6 == 0, T.float32(-2), T.Select(r_a_1 % 6 == 1 and nu % 6 == 5, T.float32(1), T.Select(r_a_1 % 6 == 1 and nu % 6 == 4, T.float32(0.5), T.Select(r_a_1 % 6 == 1 and nu % 6 == 3, T.float32(-2), T.Select(r_a_1 % 6 == 1 and nu % 6 == 2, T.float32(-1), T.Select(r_a_1 % 6 == 1 and nu % 6 == 1, T.float32(1), T.Select(r_a_1 % 6 == 1 and nu % 6 == 0, T.float32(-1.5), T.Select(r_a_1 % 6 == 0 and nu % 6 == 5, T.float32(0), T.Select(r_a_1 % 6 == 0 and nu % 6 == 4, T.float32(0), T.Select(r_a_1 % 6 == 0 and nu % 6 == 3, T.float32(0), T.Select(r_a_1 % 6 == 0 and nu % 6 == 2, T.float32(0), T.Select(r_a_1 % 6 == 0 and nu % 6 == 1, T.float32(0), T.Select(r_a_1 % 6 == 0 and nu % 6 == 0, T.float32(1), T.float32(0)))))))))))))))))))))))))))))))))))))
                     for ax0, ax1, ax2, ax3 in T.grid(6, 6, 1, 1):
                         with T.block("data_pack_local"):
                             v0, v1 = T.axis.remap("SS", [ax0, ax1])
@@ -1450,12 +1408,7 @@ def test_cuda_winograd_nchw_conv2d():
         ("SampleCategorical", 4),
     ]
     mod = _conv2d_winograd_nchw()
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,

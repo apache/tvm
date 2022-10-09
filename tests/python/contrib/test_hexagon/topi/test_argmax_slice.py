@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """ Tests for Hexagon slice argmax op """
-import pytest
 import numpy as np
 
 import tvm
@@ -23,7 +22,7 @@ import tvm.testing
 from tvm import te
 import tvm.topi.hexagon.slice_ops as sl
 import tvm.contrib.hexagon
-from ..infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 
 class TestArgMaxSlice:
@@ -33,15 +32,18 @@ class TestArgMaxSlice:
         input_shape,
         input_layout,
         output_layout,
+        dtype,
         in_axis,
         in_axis_sep,
         out_axis_sep,
     ) = tvm.testing.parameters(
-        ((1, 64, 64, 32), "nhwc-8h2w32c2w-2d", "nhw-32h16w-2d", [3], [4], [3]),
-        ((3, 32, 16, 32), "nhwc-8h2w32c2w-2d", "nhw-32h16w-2d", [3], [4], [3]),
-        ((1, 32, 32, 64), "nhwc-8h2w32c2w-2d", "nhw-32h16w-2d", [3], [4], [3]),
+        ((1, 64, 64, 32), "nhwc-8h2w32c2w-2d", "nhw-32h16w-2d", "float16", [3], [4], [3]),
+        ((3, 32, 16, 32), "nhwc-8h2w32c2w-2d", "nhw-32h16w-2d", "float16", [3], [4], [3]),
+        ((1, 32, 32, 64), "nhwc-8h2w32c2w-2d", "nhw-32h16w-2d", "float16", [3], [4], [3]),
+        ((1, 64, 64, 32), "nhwc-8h8w32c-2d", "nhw-32h16w-2d", "int8", [3], [4], [3]),
+        ((3, 32, 16, 32), "nhwc-8h8w32c-2d", "nhw-32h16w-2d", "int8", [3], [4], [3]),
+        ((1, 32, 32, 64), "nhwc-8h8w32c-2d", "nhw-32h16w-2d", "int8", [3], [4], [3]),
     )
-    dtype = tvm.testing.parameter("float16")
     working_scope = tvm.testing.parameter("global.vtcm")
 
     @tvm.testing.fixture
@@ -77,8 +79,6 @@ class TestArgMaxSlice:
         working_scope,
     ):
         """Top level testing function for argmax"""
-        target_hexagon = tvm.target.hexagon("v69")
-        target = tvm.target.Target(target_hexagon, host=target_hexagon)
         argmax_input = te.placeholder(input_shape, name="A", dtype=dtype)
         output = sl.argmax.argmax_compute(argmax_input, in_axis)
         argmax_func = te.create_prim_func([argmax_input, output])
@@ -96,10 +96,10 @@ class TestArgMaxSlice:
             axis_separators=out_axis_sep,
             mem_scope=working_scope,
         )
-        with tvm.transform.PassContext(opt_level=3, config={"tir.disable_assert": True}):
+        with tvm.transform.PassContext(opt_level=3):
             tir_irm = tvm.lower(tir_s.mod, [argmax_input, output], name="argmax")
             runtime_module = tvm.build(
-                tir_irm, [argmax_input, output], target=target, name="argmax"
+                tir_irm, [argmax_input, output], target=get_hexagon_target("v69"), name="argmax"
             )
         mod = hexagon_session.load_module(runtime_module)
 

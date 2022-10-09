@@ -21,12 +21,11 @@ import logging
 import time
 
 import numpy as np
-
 from tvm.contrib.popen_pool import PopenPoolExecutor, StatusKind
 
 from .. import feature
 from ..utils import get_rank
-from .metric import max_curve, recall_curve, cover_curve
+from .metric import cover_curve, max_curve, recall_curve
 from .model_based_tuner import CostModel, FeatureCache
 
 xgb = None
@@ -346,7 +345,7 @@ class XGBoostCostModel(CostModel):
         ret = np.empty((len(indexes), feature_len), dtype=np.float32)
         for i, ii in enumerate(indexes):
             t = fea_cache[ii]
-            if t.shape[0] < feature_len:
+            if t is not None and t.shape[0] < feature_len:
                 t = np.pad(t, (0, feature_len - t.shape[0]))
             ret[i, :] = t if t is not None else 0
         return ret
@@ -449,8 +448,8 @@ def custom_callback(
 ):
     """callback function for xgboost to support multiple custom evaluation functions"""
     # pylint: disable=import-outside-toplevel
-    from xgboost.core import EarlyStopException
     from xgboost.callback import _fmt_metric
+    from xgboost.core import EarlyStopException
 
     try:
         from xgboost.training import aggcv

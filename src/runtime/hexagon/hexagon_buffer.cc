@@ -24,8 +24,8 @@
 #include <string>
 #include <utility>
 
-#include "HAP_compute_res.h"
 #include "hexagon_common.h"
+#include "hexagon_device_api.h"
 
 namespace tvm {
 namespace runtime {
@@ -57,34 +57,26 @@ struct DDRAllocation : public Allocation {
 
 struct VTCMAllocation : public Allocation {
   VTCMAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
-    compute_res_attr_t res_info;
-    HEXAGON_SAFE_CALL(HAP_compute_res_attr_init(&res_info));
-
-    // allocate nbytes of vtcm on a single page
-    HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param(&res_info, /*vtcm_size = */ nbytes,
-                                                          /*b_single_page = */ 1));
-
-    // TODO(HWE): Investigate why a non-zero timeout results in
-    // hanging, both in the simulator and on hardware.
-    context_id_ = HAP_compute_res_acquire(&res_info, /*timeout = */ 0);
-
-    if (context_id_) {
-      data_ = HAP_compute_res_attr_get_vtcm_ptr(&res_info);
-      if (!data_) {
-        LOG(ERROR) << "ERROR: Allocated VTCM ptr is null.";
-        HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
-        return;
-      }
-    } else {
-      LOG(ERROR) << "ERROR: Unable to acquire requeisted resource.";
-      return;
+    // TODO(HWE): Handle alignments greater than 2k
+    CHECK(alignment <= 0x800) << "VTCMAllocation called for invalid alignment";
+    if ((nbytes & 0x7FF) && ((alignment & 0x7FF) == 0)) {
+      // Caller has requested 2k alignment, but the size is not a multiple of 2k
+      // Adjust size to be a multiple of 2k so that we will allocate from the front of the pool
+      nbytes = nbytes >> 11;
+      nbytes = nbytes << 11;
+      nbytes += 0x800;
+      DLOG(INFO) << "VTCMAllocation size adjusted for alignment " << allocation_nbytes_ << " to "
+                 << nbytes;
+      allocation_nbytes_ = nbytes;
     }
+    data_ = HexagonDeviceAPI::Global()->VtcmPool()->Allocate(allocation_nbytes_);
+    DLOG(INFO) << "VTCMAllocation " << data_ << " " << allocation_nbytes_ << " " << alignment;
   }
   ~VTCMAllocation() {
-    HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
+    DLOG(INFO) << "~VTCMAllocation " << data_ << " " << allocation_nbytes_;
+    HexagonDeviceAPI::Global()->VtcmPool()->Free(data_, allocation_nbytes_);
     data_ = nullptr;
   }
-  unsigned int context_id_{0};
 };
 
 template <HexagonBuffer::StorageScope S>
@@ -161,17 +153,16 @@ void* HexagonBuffer::GetPointer() {
 HexagonBuffer::StorageScope HexagonBuffer::GetStorageScope() const { return storage_scope_; }
 
 void HexagonBuffer::SetStorageScope(Optional<String> scope) {
-  if (!scope.defined()) {
+  const std::string s = scope.value_or("global");
+
+  if (s == "global") {
     storage_scope_ = StorageScope::kDDR;
+  } else if (s == "global.ddr") {
+    storage_scope_ = StorageScope::kDDR;
+  } else if (s == "global.vtcm") {
+    storage_scope_ = StorageScope::kVTCM;
   } else {
-    if (scope.value() == "global") {
-      storage_scope_ = StorageScope::kDDR;
-    } else if (scope.value() == "global.vtcm") {
-      storage_scope_ = StorageScope::kVTCM;
-    } else {
-      CHECK(false) << "Encountered unknown HexagonBuffer storage scope: "
-                   << std::string(scope.value());
-    }
+    CHECK(false) << "Encountered unknown HexagonBuffer storage scope: " << std::string(s);
   }
 }
 

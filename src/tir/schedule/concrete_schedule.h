@@ -128,6 +128,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   /******** Schedule: Reduction ********/
   BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) override;
   BlockRV DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) override;
+  void PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) override;
   /******** Schedule: Block annotation ********/
   void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
                     int offset) override;
@@ -143,7 +144,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   void Unannotate(const BlockRV& block_rv, const String& ann_key) override;
   /******** Schedule: Layout transformation ********/
   void TransformLayout(const BlockRV& block_rv, int buffer_index, BufferIndexType buffer_index_type,
-                       const IndexMap& index_map) override;
+                       const IndexMap& index_map, const Optional<IndexMap>& pad_value) override;
   void TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) override;
   void SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
                         BufferIndexType buffer_index_type,

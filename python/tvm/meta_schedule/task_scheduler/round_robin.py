@@ -15,87 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 """Round Robin Task Scheduler"""
-
-import logging
-from typing import TYPE_CHECKING, List, Optional
-
 from tvm._ffi import register_object
-from tvm.meta_schedule.measure_callback.measure_callback import MeasureCallback
 
 from .. import _ffi_api
-from ..builder import Builder
-from ..cost_model import CostModel
-from ..database import Database
-from ..runner import Runner
-from ..utils import make_logging_func
+from ..logging import get_logger, get_logging_func
 from .task_scheduler import TaskScheduler
 
-if TYPE_CHECKING:
-    from ..tune_context import TuneContext
-
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+logger = get_logger(__name__)  # pylint: disable=invalid-name
 
 
 @register_object("meta_schedule.RoundRobin")
 class RoundRobin(TaskScheduler):
-    """Round Robin Task Scheduler
+    """Round Robin Task Scheduler"""
 
-    Parameters
-    ----------
-    tasks: List[TuneContext]
-        The list of tune context to process.
-    builder: Builder
-        The builder of the scheduler.
-    runner: Runner
-        The runner of the scheduler.
-    database: Database
-        The database of the scheduler.
-    measure_callbacks: Optional[List[MeasureCallback]] = None
-        The list of measure callbacks of the scheduler.
-    """
-
-    def __init__(
-        self,
-        tasks: List["TuneContext"],
-        task_weights: List[float],
-        builder: Builder,
-        runner: Runner,
-        *,
-        database: Database,
-        cost_model: Optional[CostModel] = None,
-        measure_callbacks: Optional[List[MeasureCallback]] = None,
-        max_trials: int,
-    ) -> None:
-        """Constructor.
-
-        Parameters
-        ----------
-        tasks : List[TuneContext]
-            List of tasks to schedule.
-        task_weights : List[float]
-            List of weights for each task. Not used in round robin.
-        builder : Builder
-            The builder.
-        runner : Runner
-            The runner.
-        database : Database
-            The database.
-        cost_model : Optional[CostModel]
-            The cost model.
-        measure_callbacks: Optional[List[MeasureCallback]]
-            The list of measure callbacks of the scheduler.
-        max_trials : int
-            The maximum number of trials.
-        """
-        del task_weights
+    def __init__(self) -> None:
+        """Constructor."""
         self.__init_handle_by_constructor__(
             _ffi_api.TaskSchedulerRoundRobin,  # type: ignore # pylint: disable=no-member
-            tasks,
-            builder,
-            runner,
-            database,
-            cost_model,
-            measure_callbacks,
-            max_trials,
-            make_logging_func(logger),
+            get_logging_func(logger),
         )

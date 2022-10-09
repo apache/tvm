@@ -35,7 +35,8 @@ if(NOT USE_ETHOSN STREQUAL "OFF")
     list(APPEND RUNTIME_SRCS ${ETHOSN_RUNTIME_CONTRIB_SRC})
 
     tvm_file_glob(GLOB COMPILER_ETHOSN_SRCS
-                  src/relay/backend/contrib/ethosn/*)
+                  src/relay/backend/contrib/ethosn/*
+                  src/relay/backend/contrib/constant_transforms.cc)
     list(APPEND COMPILER_SRCS ${COMPILER_ETHOSN_SRCS})
 
     list(APPEND TVM_LINKER_LIBS ${ETHOSN_COMPILER_LIBRARY}

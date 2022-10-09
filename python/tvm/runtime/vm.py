@@ -86,7 +86,9 @@ class Executable(object):
         self._get_function_arity = self.mod["get_function_arity"]
         self._get_function_param_name = self.mod["get_function_param_name"]
         self._move_late_bound_consts = self.mod["move_late_bound_consts"]
+        self._get_late_bound_consts = self.mod["get_late_bound_consts"]
         self._load_late_bound_consts = self.mod["load_late_bound_consts"]
+        self._load_late_bound_consts_from_map = self.mod["load_late_bound_consts_from_map"]
 
     def save(self):
         """Save the Relay VM Executable.
@@ -312,9 +314,17 @@ class Executable(object):
         """Move all constants of byte size greater or equal to byte_limit to file at path"""
         return self._move_late_bound_consts(path, byte_limit)
 
+    def get_late_bound_consts(self, byte_limit):
+        """Return all constants of byte size greater or equal to byte_limit"""
+        return self._get_late_bound_consts(byte_limit)
+
     def load_late_bound_consts(self, path):
         """Re-load constants previously saved to file at path"""
         return self._load_late_bound_consts(path)
+
+    def load_late_bound_consts_from_map(self, map):
+        """Re-load constants supplied in map"""
+        return self._load_late_bound_consts_from_map(map)
 
 
 class VirtualMachine(object):
@@ -389,6 +399,7 @@ class VirtualMachine(object):
         self._get_input_index = self.module["get_input_index"]
         self._set_input = self.module["set_input"]
         self._set_one_input = self.module["set_one_input"]
+        self._set_outputs = self.module["set_outputs"]
         self._setup_device(device, memory_cfg)
 
     def _setup_device(self, dev, memory_cfg):
@@ -549,6 +560,41 @@ class VirtualMachine(object):
         if args or kwargs:
             self.set_input(func_name, *args, **kwargs)
         self._invoke_stateful(func_name)
+
+    def invoke_with_outputs(self, func_name, input_args, output_args):
+        # TODO(vvchernov): consider scenario then output tensors set once
+        """Invoke a function with pre-allocated output tensors.
+        The output tensors should be set every invocation.
+        input_args can be None if set_input method was used before.
+
+        This invoke method allows to avoid excess copying if memory for output tensors
+        was allocated before inference.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+
+        input_args: dict of str to tvm.runtime.NDArray or np.ndarray
+            Named arguments to the function.
+
+        output_args : list[tvm.runtime.NDArray] or list[DLTensor]
+            The output tensors of the function.
+        """
+        if input_args:
+            func_params = self._exec.get_function_params(func_name)
+            new_args = [None] * len(func_params)
+            cnt = 0
+            for k in input_args:
+                if k in func_params:
+                    idx = func_params.index(k)
+                    new_args[idx] = input_args[k]
+                    cnt += 1
+            assert cnt == len(func_params)
+        cargs = convert(new_args)
+        self._set_input(func_name, *cargs)
+        self._set_outputs(func_name, *output_args)
+        self._invoke(func_name)
 
     def get_outputs(self):
         """Get the outputs from a call to :py:func`invoke_stateful`.

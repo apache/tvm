@@ -26,7 +26,7 @@ import tvm.testing
 from tvm.topi.testing import depthwise_conv2d_python_nhwc
 from tvm.topi.hexagon.slice_ops.dwconv2d import dwconv2d_compute, dwconv2d_schedule
 
-from ..infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 
 @tvm.testing.fixture
@@ -258,7 +258,6 @@ class Testdwconv2dSlice:
         input_np_padded,
         weights_np_transformed,
         expected_output_np,
-        target,
         working_scope,
         hexagon_session,
     ):
@@ -271,9 +270,6 @@ class Testdwconv2dSlice:
         def transform_weights(height, width, in_channel, out_channel):
             return [out_channel // 32, height, width, in_channel, out_channel % 32]
 
-        target_hexagon = tvm.target.hexagon("v69")
-        target = tvm.target.Target(target_hexagon, host=target_hexagon)
-
         tir_schedule = dwconv2d_schedule(
             output_tensor, [input_tensor, weights], in_out_layout, transform_weights
         )
@@ -282,7 +278,7 @@ class Testdwconv2dSlice:
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_assert": True}):
             runtime_module = tvm.build(
                 tir_schedule.mod,
-                target=target,
+                target=get_hexagon_target("v69"),
                 name=func_name,
             )
 

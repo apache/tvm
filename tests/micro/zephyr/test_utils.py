@@ -90,7 +90,7 @@ def build_project(
             "project_type": "aot_standalone_demo",
             "west_cmd": west_cmd,
             "verbose": bool(build_config.get("debug")),
-            "zephyr_board": zephyr_board,
+            "board": zephyr_board,
             "compile_definitions": [
                 # TODO(mehrdadh): It fails without offset.
                 f"-DWORKSPACE_SIZE={workspace_size + 128}",

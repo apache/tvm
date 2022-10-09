@@ -25,10 +25,11 @@ import sys
 from typing import Callable, Dict, List, Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-sys.path.append(str(REPO_ROOT / "tests" / "scripts"))
+sys.path.append(str(REPO_ROOT / "ci" / "scripts"))
 
 from git_utils import git, GitHubRepo
 from github_tag_teams import tags_from_title
+
 
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 

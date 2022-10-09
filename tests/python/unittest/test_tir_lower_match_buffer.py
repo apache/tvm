@@ -464,7 +464,7 @@ def fail_match_load(a: T.handle) -> None:
         with T.block():
             T.reads(A[i, j])
             T.writes([])
-            sub_A = T.match_buffer(A[i, j], ())
+            sub_A = T.match_buffer(A[i, j], (), elem_offset=0)
             T.evaluate(sub_A[()])
 
 
@@ -475,7 +475,7 @@ def fail_match_store(a: T.handle) -> None:
         with T.block():
             T.reads([])
             T.writes(A[i, j])
-            sub_A = T.match_buffer(A[i, j], ())
+            sub_A = T.match_buffer(A[i, j], (), elem_offset=0)
             sub_A[()] = 1
 
 

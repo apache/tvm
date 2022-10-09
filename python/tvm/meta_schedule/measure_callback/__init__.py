@@ -14,11 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-The tvm.meta_schedule.measure_callback package.
-"""
-from .measure_callback import MeasureCallback, PyMeasureCallback
+"""The tvm.meta_schedule.measure_callback package."""
 from .add_to_database import AddToDatabase
-from .echo_statistics import EchoStatistics
+from .measure_callback import MeasureCallback, PyMeasureCallback
 from .remove_build_artifact import RemoveBuildArtifact
 from .update_cost_model import UpdateCostModel

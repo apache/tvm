@@ -58,3 +58,6 @@ class DummyMutator(PyMutator):
 
     def apply(self, trace: Trace, _) -> Optional[Trace]:
         return Trace(trace.insts, {})
+
+    def clone(self):
+        return DummyMutator()

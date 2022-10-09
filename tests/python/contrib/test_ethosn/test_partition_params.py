@@ -18,19 +18,23 @@
 """Arm(R) Ethos(TM)-N partition parameter tests"""
 
 import pytest
-import tvm
-from tvm import relay
 import numpy as np
 
+import tvm
+from tvm import relay
 from tvm.relay.op.contrib.ethosn import partition_for_ethosn
 from tvm.testing import requires_ethosn
 
 
 @requires_ethosn
 def test_ethosn78_partition_no_error():
+    """Test Arm(R) Ethos(TM)-N78 partition"""
+
     a = relay.var("a", shape=[2, 7, 8, 8], dtype="uint8")
-    w = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype("uint8"))
-    res = relay.nn.conv2d(a, w, kernel_size=(3, 3), padding=(1, 1), channels=8, out_dtype="uint8")
+    weights = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype("uint8"))
+    res = relay.nn.conv2d(
+        a, weights, kernel_size=(3, 3), padding=(1, 1), channels=8, out_dtype="uint8"
+    )
     b = relay.var("b", shape=[8], dtype="uint8")
     res = relay.nn.bias_add(res, b, axis=1)
 
@@ -41,13 +45,15 @@ def test_ethosn78_partition_no_error():
 
 @requires_ethosn
 def test_ethosn78_partition_undefined_variant():
+    """Test Arm(R) Ethos(TM)-N78 partition with undefined variant"""
+
     with pytest.raises(
         ValueError, match=r".*Please specify a variant in the target string, e.g. -variant=n78.*"
     ):
         a = relay.var("a", shape=[2, 7, 8, 8], dtype="uint8")
-        w = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype("uint8"))
+        weights = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype("uint8"))
         res = relay.nn.conv2d(
-            a, w, kernel_size=(3, 3), padding=(1, 1), channels=8, out_dtype="uint8"
+            a, weights, kernel_size=(3, 3), padding=(1, 1), channels=8, out_dtype="uint8"
         )
         b = relay.var("b", shape=[8], dtype="uint8")
         res = relay.nn.bias_add(res, b, axis=1)
@@ -58,13 +64,15 @@ def test_ethosn78_partition_undefined_variant():
 
 @requires_ethosn
 def test_ethosn78_partition_invalid_variant():
+    """Test Arm(R) Ethos(TM)-N78 partition with invalid variant"""
+
     with pytest.raises(
         ValueError, match=r".*When targeting Ethos\(TM\)-N78, -variant=n78 should be set.*"
     ):
         a = relay.var("a", shape=[2, 7, 8, 8], dtype="uint8")
-        w = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype("uint8"))
+        wwights = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype("uint8"))
         res = relay.nn.conv2d(
-            a, w, kernel_size=(3, 3), padding=(1, 1), channels=8, out_dtype="uint8"
+            a, wwights, kernel_size=(3, 3), padding=(1, 1), channels=8, out_dtype="uint8"
         )
         b = relay.var("b", shape=[8], dtype="uint8")
         res = relay.nn.bias_add(res, b, axis=1)

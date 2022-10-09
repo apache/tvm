@@ -152,6 +152,69 @@ def transformed_simple_compute(
 
 
 @T.prim_func
+def simple_compute_with_other_annotation(
+    A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]
+):
+    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+        for i in T.serial(
+            0,
+            16,
+            annotations={
+                "software_pipeline_stage": [0, 1],
+                "software_pipeline_order": [0, 1],
+                "pragma_loop_partition_hint": True,
+            },
+        ):
+            with T.block("compute"):
+                T.reads(A[tx, i])
+                T.writes(C[tx, i])
+                B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+                with T.block():
+                    T.reads(A[tx, i])
+                    T.writes(B[tx, 0])
+                    B[tx, 0] = A[tx, i] * T.float32(2)
+                with T.block():
+                    T.reads(B[tx, 0])
+                    T.writes(C[tx, i])
+                    C[tx, i] = B[tx, 0] + T.float32(1)
+
+
+@T.prim_func
+def transformed_simple_compute_with_other_annotation(
+    A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]
+) -> None:
+    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+        with T.block():
+            T.reads([A[tx, 0:16]])
+            T.writes([C[tx, 0:16]])
+            B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            with T.block():
+                T.reads([A[tx, 0]])
+                T.writes([B[0, tx, 0]])
+                B[0, tx, 0] = A[tx, 0] * T.float32(2)
+            with T.block():
+                T.reads([A[tx, 1:16], B[0:2, tx, 0]])
+                T.writes([B[0:2, tx, 0], C[tx, 0:15]])
+                for i in T.serial(
+                    0,
+                    15,
+                    annotations={"pragma_loop_partition_hint": True},
+                ):
+                    with T.block():
+                        T.reads([A[tx, i + 1]])
+                        T.writes([B[(i + 1) % 2, tx, 0]])
+                        B[(i + 1) % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
+                    with T.block():
+                        T.reads([B[i % 2, tx, 0]])
+                        T.writes([C[tx, i]])
+                        C[tx, i] = B[i % 2, tx, 0] + T.float32(1)
+            with T.block():
+                T.reads([B[1, tx, 0]])
+                T.writes([C[tx, 15]])
+                C[tx, 15] = B[1, tx, 0] + T.float32(1)
+
+
+@T.prim_func
 def three_stage_compute(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -1000,6 +1063,10 @@ def test_simple_compute():
     _check(gen_simple_compute(1), transformed_simple_compute)
 
 
+def test_simple_compute_with_other_annotation():
+    _check(simple_compute_with_other_annotation, transformed_simple_compute_with_other_annotation)
+
+
 def test_trivial_pipeline():
     _check(trivial_pipeline, transformed_trivial_pipeline)
 
@@ -1390,7 +1457,7 @@ def get_mma_schedule():
 
 def build_and_run(sch):
     if tvm.testing.is_ampere_or_newer():
-        with tvm.transform.PassContext(config={"tir.use_ptx_async_copy": 1}):
+        with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
             f = tvm.build(sch.mod["main"], target="cuda")
 
         dev = tvm.device("cuda", 0)

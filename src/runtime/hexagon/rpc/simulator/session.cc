@@ -681,7 +681,6 @@ Message SimulatorRPCChannel::SendMsg(Message msg) {
   };
 
   Message_ msg_ = {msg};
-  LOG(INFO) << "Sending message: " << msg_.str();
 
   WriteToProcess(message_buffer_v_, &msg, sizeof msg);
   run();

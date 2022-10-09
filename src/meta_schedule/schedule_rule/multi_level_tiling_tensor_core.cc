@@ -137,6 +137,13 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
   // Override Apply to apply tensorization-specific analysis before applying sub-rules
   Array<Schedule> Apply(const Schedule& sch, const BlockRV& block_rv) final;
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<MultiLevelTilingTensorCoreNode> n =
+        make_object<MultiLevelTilingTensorCoreNode>(*this);
+    return ScheduleRule(n);
+  }
+
   /*!
    * \brief Transform and tensorize with the given tensor intrin
    * \param state The state of the meta schedule rule
@@ -177,7 +184,7 @@ Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
     TensorCoreIntrinGroup intrin_group = intrin_groups[i];
     Optional<tir::AutoTensorizeMappingInfo> mapping_info = tir::GetAutoTensorizeMappingInfo(
         sch->state(), sch->GetSRef(block_rv),
-        tir::TensorIntrin::Get(intrin_groups[i].compute_intrin)->desc);
+        tir::TensorIntrin::Get(intrin_groups[i].compute_intrin).value()->desc);
     if (mapping_info.defined()) {
       intrin_group_to_mapping_info.emplace(i, mapping_info.value());
     }
@@ -202,12 +209,12 @@ Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
   }
   Array<Schedule> results;
   for (auto&& state : ApplySubRules(initial_states)) {
-    TVM_PY_LOG(INFO, logging_func) << "Sketch " << results.size() << ": tensorizing with "
-                                   << state.as<TensorCoreStateNode>()->intrin_group.compute_intrin;
+    TVM_PY_LOG(INFO, logger) << "Sketch " << results.size() << ": tensorizing with "
+                             << state.as<TensorCoreStateNode>()->intrin_group.compute_intrin;
     results.push_back(std::move(state->sch));
   }
   if (results.empty()) {
-    TVM_PY_LOG(INFO, logging_func) << "The workload cannot be tensorized.";
+    TVM_PY_LOG(INFO, logger) << "The workload cannot be tensorized.";
     return {original_sch};
   }
   return results;
@@ -286,8 +293,8 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
     } else if (dtype.is_int() && dtype.bits() == 8) {
       sch->StorageAlign(cache_read, 0, -2, 32, 16);
     } else {
-      TVM_PY_LOG(WARNING, logging_func) << "StorageAlign is not applied for data type " << dtype
-                                        << ", shared memory accesses might be inefficient.";
+      TVM_PY_LOG(WARNING, logger) << "StorageAlign is not applied for data type " << dtype
+                                  << ", shared memory accesses might be inefficient.";
     }
   }
   return {state};
@@ -321,7 +328,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
   // Add local stage and double buffering
   for (int i = 0; i < 2; ++i) {
     const tir::BlockRV cache_read = state->read_reuse.at(i);
-    sch->Annotate(cache_read, tir::attr::manifest_shared_memory_local_stage, Bool(true));
+    sch->Annotate(cache_read, tir::attr::manifest_shared_memory_local_stage, Integer(1));
     sch->Annotate(cache_read, tir::attr::double_buffer_scope, Integer(0));
   }
 
@@ -480,6 +487,9 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
 
   std::unordered_set<tir::Buffer, ObjectPtrHash, ObjectPtrEqual> visited_buffers;
 
+  Map<tir::Buffer, tir::IndexMap> buffer_sub_index_map;  // cache of the sub index map associated
+                                                         // with each buffer
+
   auto f_transform_buffer_layout = [&](tir::BufferIndexType index_type, int buffer_index) {
     const tir::Buffer& lhs_buffer = tir::GetNthAccessBuffer(
         state->sch->state(), block_before_reindex, buffer_index, index_type);
@@ -492,7 +502,8 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     const tir::BufferRegion& reindexed_buffer_region = tir::GetNthAccessBufferRegion(
         state->sch->state(), GetRef<tir::Block>(block), buffer_index, index_type);
     auto sub_index_map = f_get_sub_index_map(lhs_buffer, reindexed_buffer_region->region);
-    state->sch->TransformLayout(state->block_rv, buffer_index, index_type, sub_index_map);
+    buffer_sub_index_map.Set(lhs_buffer, sub_index_map);
+    state->sch->TransformLayout(state->block_rv, buffer_index, index_type, sub_index_map, NullOpt);
   };
 
   for (int i = 0, n = block_before_reindex->reads.size(); i < n; ++i) {
@@ -503,12 +514,19 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   }
 
   // Transform the layout of current block and reindex blocks
-  state->sch->TransformBlockLayout(state->tensor_core_reindex_store, index_map);
-  state->sch->TransformBlockLayout(state->tensor_core_reindex_A, index_map);
-  state->sch->TransformBlockLayout(state->tensor_core_reindex_B, index_map);
+  auto f_transform_reindex_block_layout = [&](const BlockRV& block_rv,
+                                              tir::BufferIndexType buffer_type) {
+    tir::Buffer buffer =
+        tir::GetNthAccessBuffer(state->sch->state(), state->sch->Get(block_rv), 0, buffer_type);
+    const auto& sub_index_map = buffer_sub_index_map.at(buffer);
+    state->sch->TransformBlockLayout(block_rv, sub_index_map);
+  };
+  f_transform_reindex_block_layout(state->tensor_core_reindex_store, tir::BufferIndexType::kWrite);
+  f_transform_reindex_block_layout(state->tensor_core_reindex_A, tir::BufferIndexType::kRead);
+  f_transform_reindex_block_layout(state->tensor_core_reindex_B, tir::BufferIndexType::kRead);
   state->sch->TransformBlockLayout(state->block_rv, index_map);
-
-  return tir::TileWithTensorIntrin(state->sch, state->block_rv, intrin_name);
+  return tir::TileWithTensorIntrin(state->sch, state->block_rv, intrin_name,
+                                   /*allow_padding=*/true);
 }
 
 inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorization(
@@ -529,7 +547,7 @@ inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorizat
                        state->intrin_group.compute_intrin);
   state->sch->Annotate(state->block_rv, tir::attr::meta_schedule_auto_tensorize_init,
                        state->intrin_group.init_intrin);
-  state->sch->Annotate(state->block_rv, tir::attr::warp_execution, Bool(true));
+  state->sch->Annotate(state->block_rv, tir::attr::warp_execution, Integer(1));
   return {std::move(state)};
 }
 

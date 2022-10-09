@@ -36,6 +36,12 @@ class AddRFactorNode : public ScheduleRuleNode {
   // Inherited from ScheduleRuleNode
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv);
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<AddRFactorNode> n = make_object<AddRFactorNode>(*this);
+    return ScheduleRule(n);
+  }
+
  public:
   /*!
    * \brief The maximum number of jobs to be launched per core.
@@ -90,8 +96,7 @@ Array<tir::Schedule> AddRFactorNode::Apply(const tir::Schedule& sch, const tir::
 
   // Split the fused reduction loop.
   Array<tir::ExprRV> factors = sch->SamplePerfectTile(fused_reduce_loop, 2, max_innermost_factor);
-  const Array<tir::LoopRV>& split_loops =
-      sch->Split(fused_reduce_loop, {factors.begin(), factors.end()});
+  Array<tir::LoopRV> split_loops = sch->Split(fused_reduce_loop, {factors.begin(), factors.end()});
 
   Array<tir::Schedule> res;
   for (const tir::LoopRV& split_loop : split_loops) {
@@ -104,7 +109,7 @@ Array<tir::Schedule> AddRFactorNode::Apply(const tir::Schedule& sch, const tir::
 
       // Annotate that the rfactor block, which is now the producer of the original block, needs to
       // be considered by the rule Random-Compute-Location.
-      sch_tmp->Annotate(block_rv, tir::attr::meta_schedule_random_compute_producer, Bool(true));
+      sch_tmp->Annotate(block_rv, tir::attr::meta_schedule_random_compute_producer, Integer(1));
       res.push_back(sch_tmp);
     } catch (const tvm::runtime::Error& e) {
     }

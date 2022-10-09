@@ -21,11 +21,9 @@ import pytest
 import tvm
 import tvm.testing
 import tvm.topi.hexagon.slice_ops as sl
-from tvm import te, topi
-from tvm.contrib.hexagon.build import HexagonLauncher
-from tvm.topi import testing
+from tvm import te
 
-from ..infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 
 def reshape_helper(
@@ -40,8 +38,6 @@ def reshape_helper(
     hexagon_session,
 ):
 
-    target_hexagon = tvm.target.hexagon("v69")
-    target = tvm.target.Target(target_hexagon, host=target_hexagon)
     A = te.placeholder(input_shape, name="A", dtype=data_type)
     if func == "reshape":
         D = fcompute(A, output_shape)
@@ -56,7 +52,7 @@ def reshape_helper(
         input_layout,
     )
     with tvm.transform.PassContext(opt_level=3):
-        runtime_module = tvm.build(tir_s.mod, target=target, name=func)
+        runtime_module = tvm.build(tir_s.mod, target=get_hexagon_target("v69"), name=func)
 
     mod = hexagon_session.load_module(runtime_module)
 
