@@ -42,7 +42,9 @@ using OpRegistry = AttrRegistry<OpRegEntry, Op>;
 
 // find operator by name
 const Op& Op::Get(const String& name) {
+    LOG(INFO) << "begin to get op " << name;
   const OpRegEntry* reg = OpRegistry::Global()->Get(name);
+//  tvm::runtime::detail::LogMessage
   ICHECK(reg != nullptr) << "AttributeError: Operator " << name << " is not registered";
   return reg->op();
 }
@@ -54,6 +56,7 @@ OpRegEntry::OpRegEntry(uint32_t reg_index) {
 }
 
 OpRegEntry& OpRegEntry::RegisterOrGet(const String& name) {
+    LOG(INFO) << "begin to register op " << name;
   return OpRegistry::Global()->RegisterOrGet(name);
 }
 

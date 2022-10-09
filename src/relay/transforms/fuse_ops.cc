@@ -83,7 +83,7 @@ using support::LinkNode;
 
 constexpr uint32_t kMaxFusedOps = 256;
 
-static const Op& stop_fusion_op = Op::Get("annotation.stop_fusion");
+extern  const Op stop_fusion_op;// = Op::Get("annotation.stop_fusion");
 
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.FuseOps.max_depth", Integer);
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.FuseOps.link_params", Bool);

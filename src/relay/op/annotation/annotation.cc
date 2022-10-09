@@ -201,5 +201,7 @@ TVM_REGISTER_GLOBAL("relay.op.annotation._make.compiler_end")
       return Call(op, {expr}, Attrs(attrs), {});
     });
 
+      TVM_DLL extern  const Op stop_fusion_op = Op::Get("annotation.stop_fusion");
+
 }  // namespace relay
 }  // namespace tvm

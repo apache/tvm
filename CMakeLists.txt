@@ -551,6 +551,7 @@ add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_o
 target_include_directories(tvm PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
+set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "-Wl,--exclude-all-symbols")
 if(BUILD_STATIC_RUNTIME)
   add_library(tvm_runtime STATIC $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
   set(NOTICE_MULTILINE
@@ -585,6 +586,13 @@ if(USE_MICRO)
   add_dependencies(tvm_runtime zephyr)
   add_dependencies(tvm_runtime arduino)
 endif()
+
+if(USE_RPC  AND IS_MINGW)
+  message(STATUS "Build with RPC support... add ws2.lib on windows")
+  set(TVM_RUNTIME_LINKER_LIBS
+          ${TVM_RUNTIME_LINKER_LIBS}
+          Ws2_32.lib)
+endif(USE_RPC  AND IS_MINGW )
 
 if(USE_CPP_RPC)
   add_subdirectory("apps/cpp_rpc")
@@ -629,12 +637,7 @@ if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
   target_link_libraries(tvm_runtime PUBLIC Threads::Threads)
 endif()
 
-if(USE_RPC  AND IS_MINGW)
-  message(STATUS "Build with RPC support... add ws2.lib on windows")
-  set(TVM_RUNTIME_LINKER_LIBS
-          ${TVM_RUNTIME_LINKER_LIBS}
-          Ws2_32.lib)
-endif(USE_RPC  AND IS_MINGW )
+
 
 target_link_libraries(tvm PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
@@ -774,8 +777,8 @@ install(
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
 
 # More target definitions
-#if(MSVC OR IS_MINGW)
-if(MSVC)
+if(MSVC OR IS_MINGW)
+#if(MSVC)
   target_compile_definitions(tvm_objs PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_libinfo_objs PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime_objs PRIVATE -DTVM_EXPORTS)
@@ -835,3 +838,6 @@ if(${SUMMARIZE})
 endif()
 
 dump_options_to_file("${TVM_ALL_OPTIONS}")
+
+
+add_subdirectory(apps/lower_cpp)
