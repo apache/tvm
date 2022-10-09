@@ -561,11 +561,11 @@ BlockRV ConcreteScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buff
   return CreateRV<BlockRV>(result);
 }
 
-Array<BlockRV> ConcreteScheduleNode::CacheBuffer(const BlockRV& block_rv, int write_buffer_index,
-                                                 const String& storage_scope) {
+Array<BlockRV> ConcreteScheduleNode::CacheInplace(const BlockRV& block_rv, int write_buffer_index,
+                                                  const String& storage_scope) {
   Array<StmtSRef> results;
   TVM_TIR_SCHEDULE_BEGIN();
-  results = tir::CacheBuffer(state_, this->GetSRef(block_rv), write_buffer_index, storage_scope);
+  results = tir::CacheInplace(state_, this->GetSRef(block_rv), write_buffer_index, storage_scope);
   TVM_TIR_SCHEDULE_END("cache-buffer", this->error_render_level_);
   this->state_->DebugVerify();
   Array<BlockRV> return_blocks;

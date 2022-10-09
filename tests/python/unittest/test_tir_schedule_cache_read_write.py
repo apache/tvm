@@ -558,7 +558,7 @@ def cache_read_inplace(data_io: T.Buffer[64, "int32"]) -> None:
 
 
 @T.prim_func
-def cache_buffer_inplace(data_io: T.Buffer[64, "int32"]) -> None:
+def cache_inplace_buffer(data_io: T.Buffer[64, "int32"]) -> None:
     data_io_local = T.alloc_buffer([64], dtype="int32", scope="local")
     data_io_global = T.alloc_buffer([64], dtype="int32")
     data_io_global_1 = T.alloc_buffer([64], dtype="int32")
@@ -976,16 +976,16 @@ def test_inplace_cache_read():
     verify_trace_roundtrip(sch=sch, mod=inplace_func)
 
 
-def test_inplace_cache_buffer():
-    # cache buffer could introduce WAR, which is expected but stage pipeline property changes
+def test_cache_inplace():
+    # cache_inplace could introduce WAR, which is expected but stage pipeline property changes
     debug_mask = tvm.tir.schedule.state.ScheduleDebugMask.VERIFY_SREF_TREE
     sch = tvm.tir.Schedule(inplace_call, debug_mask=debug_mask)
     block = sch.get_block("ext_call")
-    blocks = sch.cache_buffer(block, 0, "local")
+    blocks = sch.cache_inplace(block, 0, "local")
     block = sch.cache_read(blocks[0], 0, "global", [blocks[0]])
     block = sch.cache_write(blocks[1], 0, "global")
 
-    tvm.ir.assert_structural_equal(cache_buffer_inplace, sch.mod["main"])
+    tvm.ir.assert_structural_equal(cache_inplace_buffer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=inplace_call, debug_mask=debug_mask)
 
 

@@ -501,17 +501,17 @@ class CacheLocDetector : public StmtVisitor {
 };
 
 /*! \brief Detect the insertion position of the new cache stage */
-class CacheBufferLocDetector : public StmtVisitor {
+class CacheInplaceLocDetector : public StmtVisitor {
  public:
   /*!
    * \brief Detect the insertion position of the cache stage, and write the position into the
    * CacheStageInfo \param self The state of the schedule \param block_sref The sref of the unique
-   * block of the buffer being applied cache_buffer \param scope_sref The sref
+   * block of the buffer being applied cache_inplace \param scope_sref The sref
    * of the scope block of the cached block \param info The cache stage info.
    */
   static void Detect(const ScheduleState& self, const StmtSRef& block_sref,
                      const StmtSRef& scope_sref, CacheStageInfo* info) {
-    CacheBufferLocDetector detector(self, block_sref, scope_sref);
+    CacheInplaceLocDetector detector(self, block_sref, scope_sref);
     detector(GetRef<Stmt>(scope_sref->stmt));
     info->loc_sref = detector.loc_sref_;
     info->loc_pos = detector.loc_pos_;
@@ -521,11 +521,11 @@ class CacheBufferLocDetector : public StmtVisitor {
   /*!
    * \brief Constructor
    * \param self The state of the schedule
-   * \param block_sref The sref of the unique writer block of the buffer being applied cache_buffer
+   * \param block_sref The sref of the unique writer block of the buffer being applied cache_inplace
    * \param scope_sref The sref of the scope block of the cached block
    */
-  CacheBufferLocDetector(const ScheduleState self, const StmtSRef& block_sref,
-                         const StmtSRef& scope_sref)
+  CacheInplaceLocDetector(const ScheduleState self, const StmtSRef& block_sref,
+                          const StmtSRef& scope_sref)
       : self_(self), block_sref_(block_sref), scope_sref_(scope_sref) {}
 
   void VisitStmt_(const SeqStmtNode* seq_stmt) final {
@@ -649,7 +649,7 @@ class CacheReadRewriter : public StmtExprMutator {
     if (block == scope_sref_->stmt) {
       // If so, put buffer allocation on the parent scope
       ObjectPtr<BlockNode> n = make_object<BlockNode>(*stmt.as<BlockNode>());
-      // In cache_buffer case, alloc_buffer may be already exits.
+      // In cache_inplace case, alloc_buffer may be already exits.
       if (info_->alloc.defined()) {
         n->alloc_buffers.push_back(info_->alloc.value());
         stmt = Block(n);
@@ -759,7 +759,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     // Put buffer allocation on the parent scope
     if (block == scope_sref_->stmt) {
       ObjectPtr<BlockNode> n = make_object<BlockNode>(*stmt.as<BlockNode>());
-      // In cache_buffer case, alloc_buffer may be already exits.
+      // In cache_inplace case, alloc_buffer may be already exits.
       if (info_->alloc.defined()) {
         n->alloc_buffers.push_back(info_->alloc.value());
         stmt = Block(n);
@@ -1258,8 +1258,8 @@ class NotReadWriteError : public ScheduleError {
   Buffer buffer_;
 };
 
-Array<StmtSRef> CacheBuffer(ScheduleState self, const StmtSRef& block_sref, int read_buffer_index,
-                            const String& storage_scope) {
+Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref, int read_buffer_index,
+                             const String& storage_scope) {
   /*!
    * Do cache read then cache write
    */
@@ -1299,7 +1299,7 @@ Array<StmtSRef> CacheBuffer(ScheduleState self, const StmtSRef& block_sref, int 
   info.consumer_blocks.push_back(block_sref);
 
   // Cache read step 1. Detect insert position
-  CacheBufferLocDetector::Detect(self, block_sref, scope_sref, &info);
+  CacheInplaceLocDetector::Detect(self, block_sref, scope_sref, &info);
 
   // Cache read step 2. Making new cache stage block and rewrite readers.
   Block cache_read_stage = MakeCacheStage(/*cache_region=*/read_region.value(), /*info=*/&info,
@@ -1323,7 +1323,7 @@ Array<StmtSRef> CacheBuffer(ScheduleState self, const StmtSRef& block_sref, int 
   info.consumer_blocks.clear();
 
   // Cache write step 1. Detect insert position
-  CacheBufferLocDetector::Detect(self, block_sref, scope_sref, &info);
+  CacheInplaceLocDetector::Detect(self, block_sref, scope_sref, &info);
   // insert after target block for cache write
   info.loc_pos += 1;
 
@@ -1481,8 +1481,8 @@ struct CacheWriteTraits : public UnpackedInstTraits<CacheWriteTraits> {
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
-struct CacheBufferTraits : public UnpackedInstTraits<CacheBufferTraits> {
-  static constexpr const char* kName = "CacheBuffer";
+struct CacheInplaceTraits : public UnpackedInstTraits<CacheInplaceTraits> {
+  static constexpr const char* kName = "CacheInplace";
   static constexpr bool kIsPure = false;
 
  private:
@@ -1492,12 +1492,12 @@ struct CacheBufferTraits : public UnpackedInstTraits<CacheBufferTraits> {
 
   static Array<BlockRV> UnpackedApplyToSchedule(Schedule sch, BlockRV block,
                                                 Integer read_buffer_index, String storage_scope) {
-    return sch->CacheBuffer(block, read_buffer_index->value, storage_scope);
+    return sch->CacheInplace(block, read_buffer_index->value, storage_scope);
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block, Integer read_buffer_index,
                                  String storage_scope) {
-    PythonAPICall py("cache_buffer");
+    PythonAPICall py("cache_inplace");
     py.Input("block", block);
     py.Input("read_buffer_index", read_buffer_index->value);
     py.Input("storage_scope", storage_scope);
@@ -1542,7 +1542,7 @@ struct ReIndexTraits : public UnpackedInstTraits<ReIndexTraits> {
 
 TVM_REGISTER_INST_KIND_TRAITS(CacheReadTraits);
 TVM_REGISTER_INST_KIND_TRAITS(CacheWriteTraits);
-TVM_REGISTER_INST_KIND_TRAITS(CacheBufferTraits);
+TVM_REGISTER_INST_KIND_TRAITS(CacheInplaceTraits);
 TVM_REGISTER_INST_KIND_TRAITS(ReIndexTraits);
 }  // namespace tir
 }  // namespace tvm

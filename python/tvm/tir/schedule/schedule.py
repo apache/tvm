@@ -1190,7 +1190,7 @@ class Schedule(Object):
         )
 
     @type_checked
-    def cache_buffer(
+    def cache_inplace(
         self,
         block: Union[BlockRV, str],
         read_buffer_index: Union[int, str, Buffer],
@@ -1198,6 +1198,7 @@ class Schedule(Object):
     ) -> List[BlockRV]:
         """Create blocks that reads & write a buffer region into a cache block.
         It requires the the target block both read & write the target buffer.
+        Mainly for inplace operation.
 
         Parameters
         ----------
@@ -1220,28 +1221,28 @@ class Schedule(Object):
 
         Examples
         --------
-        Before cache_buffer, in TensorIR, the IR is:
+        Before cache_inplace, in TensorIR, the IR is:
 
         .. code-block:: python
 
             @T.prim_func
-            def before_cache_buffer(data_io: T.Buffer[(64), "int32"]):
+            def before_cache_inplace(data_io: T.Buffer[(64), "int32"]):
                 for i0 in T.serial(1):
                     with T.block("A"):
                         T.reads(data_io[:64])
                         T.writes(data_io[:64])
                         T.evaluate(T.call_extern("call_impl", data_io.data, dtype=""))
 
-        Create the schedule and cache_buffer:
+        Create the schedule and cache_inplace:
 
         .. code-block:: python
 
-            sch = tir.Schedule(before_cache_buffer)
+            sch = tir.Schedule(before_cache_inplace)
             block_a = sch.get_block("A")
-            sch.cache_buffer(block_a, 0, "local")
+            sch.cache_inplace(block_a, 0, "local")
             print(sch.mod["main"].script())
 
-        After applying cache_buffer, the IR becomes:
+        After applying cache_inplace, the IR becomes:
 
         .. code-block:: python
 
@@ -1273,7 +1274,7 @@ class Schedule(Object):
             _, read_buffer_index, _ = self._normalize_buffer_arg(
                 block, read_buffer_index, required_buffer_type="read"
             )
-        return _ffi_api.ScheduleCacheBuffer(  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleCacheInplace(  # type: ignore # pylint: disable=no-member
             self, block, read_buffer_index, storage_scope
         )
 

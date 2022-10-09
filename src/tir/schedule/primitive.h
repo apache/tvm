@@ -277,8 +277,8 @@ TVM_DLL StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int 
  * \param storage_scope The target storage scope
  * \return The cache stage blocks, cache read block together with cache write block.
  */
-TVM_DLL Array<StmtSRef> CacheBuffer(ScheduleState self, const StmtSRef& block_sref,
-                                    int read_buffer_index, const String& storage_scope);
+TVM_DLL Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref,
+                                     int read_buffer_index, const String& storage_scope);
 /*!
  *!
  * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
