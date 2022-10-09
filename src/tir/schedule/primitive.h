@@ -270,11 +270,12 @@ TVM_DLL StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int 
 /*!
  *!
  * \brief Create 2 blocks that read&write a buffer region into a read/write cache.
+ * It requires the the target block both read & write the target buffer.
  * \param self The state of the schedule
- * \param block_sref The block operates on the target buffer.
+ * \param block_sref The target block operates on the target buffer.
  * \param read_buffer_index The index of the buffer in block's read region.
  * \param storage_scope The target storage scope
- * \return The reindex stage block.
+ * \return The cache stage blocks, cache read block together with cache write block.
  */
 TVM_DLL Array<StmtSRef> CacheBuffer(ScheduleState self, const StmtSRef& block_sref,
                                     int read_buffer_index, const String& storage_scope);

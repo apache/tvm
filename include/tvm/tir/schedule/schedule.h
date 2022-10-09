@@ -405,10 +405,11 @@ class ScheduleNode : public runtime::Object {
                              const String& storage_scope) = 0;
   /*!
    * \brief Create 2 blocks that read&write a buffer region into a read/write cache.
-   * \param block_rv The block operates on the target buffer.
+   * It requires the the target block both read & write the target buffer.
+   * \param block_rv The target block operates on the target buffer.
    * \param read_buffer_index The index of the buffer in block's read region.
    * \param storage_scope The target storage scope
-   * \return The reindex stage block.
+   * \return The cache stage blocks, cache read block together with cache write block.
    */
   virtual Array<BlockRV> CacheBuffer(const BlockRV& block_rv, int read_buffer_index,
                                      const String& storage_scope) = 0;

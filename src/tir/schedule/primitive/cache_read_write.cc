@@ -1238,7 +1238,27 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   return result_block_sref;
 }
 
-Array<StmtSRef> CacheBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buffer_index,
+/*! \brief The schedule error that the target block doesn't both read&write target buffer. */
+class NotReadWriteError : public ScheduleError {
+ public:
+  NotReadWriteError(IRModule mod, Block block, Buffer buffer)
+      : mod_(std::move(mod)), block_(std::move(block)), buffer_(std::move(buffer)) {}
+  String FastErrorString() const final {
+    return "ScheduleError: The target block does not both read & write target buffer.";
+  }
+
+  String DetailRenderTemplate() const final {
+    return "The target block {0} does not both read & write target buffer {1}.";
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {block_, buffer_}; }
+  IRModule mod_;
+  Block block_;
+  Buffer buffer_;
+};
+
+Array<StmtSRef> CacheBuffer(ScheduleState self, const StmtSRef& block_sref, int read_buffer_index,
                             const String& storage_scope) {
   /*!
    * Do cache read then cache write
@@ -1250,11 +1270,19 @@ Array<StmtSRef> CacheBuffer(ScheduleState self, const StmtSRef& block_sref, int 
   // Check 1. Check index, get the target buffer and the parent scope
   const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   Buffer buffer =
-      GetNthAccessBuffer(self, GetRef<Block>(block), write_buffer_index, BufferIndexType::kRead);
+      GetNthAccessBuffer(self, GetRef<Block>(block), read_buffer_index, BufferIndexType::kRead);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
 
   // Check 3. Check required region cover for cache_read
   CheckRegionCover(self, scope_sref);
+
+  // Check 4. Check if target block both read & write target buffer.
+  const BlockNode* rw_block = TVM_SREF_TO_BLOCK(block_sref);
+  Optional<BufferRegion> read_region = GetBufferRegionFromBuffer(rw_block->reads, buffer);
+  Optional<BufferRegion> write_region = GetBufferRegionFromBuffer(rw_block->writes, buffer);
+  if (!read_region.defined() || !write_region.defined()) {
+    throw NotReadWriteError(self->mod, GetRef<Block>(rw_block), buffer);
+  }
 
   Array<StmtSRef> results_block_sref;
   Buffer new_buffer = WithScope(buffer, storage_scope);
@@ -1270,22 +1298,11 @@ Array<StmtSRef> CacheBuffer(ScheduleState self, const StmtSRef& block_sref, int 
   // Indicate which buffers should consume the cache.
   info.consumer_blocks.push_back(block_sref);
 
-  // Cache read step 1. Update cache stage info for cache_read.
-  BufferRegion cache_region{nullptr};
-  Optional<StmtSRef> _write_block_sref = GetOnlyWriteBlock(self, scope_sref, buffer);
-
-  StmtSRef write_block_sref = _write_block_sref.value();
-  const BlockNode* write_block = TVM_SREF_TO_BLOCK(write_block_sref);
-  // Find the producing region
-  BufferRegion region = GetBufferRegionFromBuffer(write_block->writes, buffer).value();
-  StmtSRef parent_sref = GetRef<StmtSRef>(write_block_sref->parent);
-
-  // Detect insert position
-  CacheBufferLocDetector::Detect(self, write_block_sref, scope_sref, &info);
-  cache_region = RelaxBufferRegion(self, region, write_block_sref, parent_sref, info.loc_sref);
+  // Cache read step 1. Detect insert position
+  CacheBufferLocDetector::Detect(self, block_sref, scope_sref, &info);
 
   // Cache read step 2. Making new cache stage block and rewrite readers.
-  Block cache_read_stage = MakeCacheStage(/*cache_region=*/cache_region, /*info=*/&info,
+  Block cache_read_stage = MakeCacheStage(/*cache_region=*/read_region.value(), /*info=*/&info,
                                           /*storage_scope=*/storage_scope);
   Stmt new_scope = CacheReadRewriter::Rewrite(/*scope_sref=*/scope_sref, /*info=*/&info);
 
@@ -1305,17 +1322,13 @@ Array<StmtSRef> CacheBuffer(ScheduleState self, const StmtSRef& block_sref, int 
   info.alloc = nullptr;
   info.consumer_blocks.clear();
 
-  // Cache write step 1. Find the producing region and insert position
-  region = GetBufferRegionFromBuffer(block->writes, buffer).value();
-  parent_sref = GetRef<StmtSRef>(block_sref->parent);
-  // Detect insert position
+  // Cache write step 1. Detect insert position
   CacheBufferLocDetector::Detect(self, block_sref, scope_sref, &info);
   // insert after target block for cache write
   info.loc_pos += 1;
-  cache_region = RelaxBufferRegion(self, region, block_sref, parent_sref, info.loc_sref);
 
   // Cache write step 2. Making new cache stage block and rewrite readers.
-  Block cache_write_stage = MakeCacheStage(/*cache_region=*/cache_region, /*info=*/&info,
+  Block cache_write_stage = MakeCacheStage(/*cache_region=*/write_region.value(), /*info=*/&info,
                                            /*storage_scope=*/storage_scope);
   new_scope = CacheWriteRewriter::Rewrite(/*scope_sref=*/scope_sref,
                                           /*writer_block_sref=*/block_sref, /*info=*/&info);

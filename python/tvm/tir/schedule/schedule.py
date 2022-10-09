@@ -1197,11 +1197,12 @@ class Schedule(Object):
         storage_scope: str,
     ) -> List[BlockRV]:
         """Create blocks that reads & write a buffer region into a cache block.
+        It requires the the target block both read & write the target buffer.
 
         Parameters
         ----------
         block : Union[BlockRV, str]
-            The producer block of the target buffer.
+            The target block operates on the target buffer.
 
         read_buffer_index: int
             The index of the buffer in block's read region, the unique
