@@ -989,5 +989,19 @@ class TestSimplifyLHSOfBooleanOrUsingRHSWithoutConst(BaseBeforeAfter):
         A[0] = n < m + 10
 
 
+class TestProvableConditionWithOffset(BaseBeforeAfter):
+    """Use scoped-constraint to prove inequalities"""
+
+    transitively_prove_inequalities = False
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32):
+        if i < j:
+            A[0] = i < j + 1
+
+    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32):
+        if i < j:
+            A[0] = True
+
+
 if __name__ == "__main__":
     tvm.testing.main()
