@@ -90,20 +90,21 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
 
   const size_t typesize = (dtype.bits / 8) * dtype.lanes;
 
-  CHECK(runtime_hexbuffs) << "AllocateHexagonBuffer - no runtime_hexbuffs"; // jlsfix
+  CHECK(runtime_hexbuffs) << "runtime_hexbuffs is not initalized";
 
   if (ndim == 0) {
     // Allocate storage for a single scalar value.
-    return mgr->AllocateHexagonBuffer(typesize, kHexagonAllocAlignment, mem_scope);
+    return runtime_hexbuffs->AllocateHexagonBuffer(typesize, kHexagonAllocAlignment, mem_scope);
   } else if (ndim == 1) {
     // Allocate a single, contiguous memory region.
     size_t nbytes = shape[0] * typesize;
-    return mgr->AllocateHexagonBuffer(nbytes, kHexagonAllocAlignment, mem_scope);
+    return runtime_hexbuffs->AllocateHexagonBuffer(nbytes, kHexagonAllocAlignment, mem_scope);
   } else if (ndim == 2) {
     // Allocate the region(s) needed for Hexagon's indirect-tensor format.
     size_t nallocs = shape[0];
     size_t nbytes = shape[1] * typesize;
-    return mgr->AllocateHexagonBuffer(nallocs, nbytes, kHexagonAllocAlignment, mem_scope);
+    return runtime_hexbuffs->AllocateHexagonBuffer(nallocs, nbytes, kHexagonAllocAlignment,
+                                                   mem_scope);
   } else {
     return nullptr;  // unreachable
   }
@@ -117,30 +118,37 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignme
   if (alignment < kHexagonAllocAlignment) {
     alignment = kHexagonAllocAlignment;
   }
-  if (runtime_hexbuffs == nullptr) // jlsfix
-  {
-    static int count = 0;
-    if (count > 0)
-    {
-      void* ptr = mgr->AllocateHexagonBuffer(nbytes, alignment, String("global"));
-      LOG(INFO) << "jlsfix AllocateHexagonBuffer nbytes: " << nbytes << " ptr: " << ptr;
-      (void) runtime_hexbuffs->empty();
-      CHECK(runtime_hexbuffs) << "jlsfix STOP SECOND";
-      return ptr;
-    }
-    count++;
-  }
-  return mgr->AllocateHexagonBuffer(nbytes, alignment, String("global"));
+  CHECK(runtime_hexbuffs) << "runtime_hexbuffs is not initalized";
+  void* ptr = runtime_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, String("global"));
+  return ptr;
 }
 
 void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
   CHECK(ptr) << "buffer pointer is null";
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  if (runtime_hexbuffs == nullptr) // jlsfix
-  {
-    LOG(INFO) << "jlsfix FreeHexagonBuffer ptr: " << ptr;
+  CHECK(runtime_hexbuffs) << "runtime_hexbuffs is not initalized";
+  runtime_hexbuffs->FreeHexagonBuffer(ptr);
+}
+
+void* HexagonDeviceAPI::AllocRpcDataSpace(Device dev, size_t nbytes, size_t alignment,
+                                          DLDataType type_hint) {
+  CHECK(nbytes) << "number of bytes is zero";
+  CHECK(alignment) << "alignment is zero";
+  CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
+  if (alignment < kHexagonAllocAlignment) {
+    alignment = kHexagonAllocAlignment;
   }
-  mgr->FreeHexagonBuffer(ptr);
+  CHECK(rpc_hexbuffs) << "rpc_hexbuffs is not initalized";
+  void* ptr = rpc_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, String("global"));
+  DLOG(INFO) << "AllocRpcDataSpace nbytes: " << nbytes << " ptr: " << ptr;
+  return ptr;
+}
+
+void HexagonDeviceAPI::FreeRpcDataSpace(Device dev, void* ptr) {
+  CHECK(ptr) << "buffer pointer is null";
+  CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
+  CHECK(rpc_hexbuffs) << "rpc_hexbuffs is not initalized";
+  rpc_hexbuffs->FreeHexagonBuffer(ptr);
 }
 
 // WorkSpace: runtime allocations for Hexagon
@@ -156,7 +164,8 @@ void* HexagonDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_
 
 void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  CHECK(mgr->count(data) != 0)
+  CHECK(runtime_hexbuffs) << "runtime_hexbuffs is not initalized";
+  CHECK(runtime_hexbuffs->count(data) != 0)
       << "Attempt made to free unknown or already freed workspace allocation";
   dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
@@ -179,8 +188,11 @@ void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHan
   CHECK_EQ(from->byte_offset, 0);
   CHECK_EQ(to->byte_offset, 0);
   CHECK_EQ(GetDataSize(*from), GetDataSize(*to));
+  CHECK(runtime_hexbuffs) << "runtime_hexbuffs is not initalized";
 
-  auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* { return mgr->find(ptr); };
+  auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* {
+    return runtime_hexbuffs->find(ptr);
+  };
 
   HexagonBuffer* hex_from_buf = lookup_hexagon_buffer(from->data);
   HexagonBuffer* hex_to_buf = lookup_hexagon_buffer(to->data);

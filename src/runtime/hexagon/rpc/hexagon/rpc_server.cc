@@ -38,6 +38,7 @@ extern "C" {
 #include "../../../library_module.h"
 #include "../../../minrpc/minrpc_server.h"
 #include "../../hexagon/hexagon_common.h"
+#include "../../hexagon/hexagon_device_api.h"
 #include "hexagon_rpc.h"
 
 namespace tvm {
@@ -145,6 +146,39 @@ class HexagonIOHandler {
   uint32_t write_buffer_available_length_;
 };
 
+// Internal allocator that redirects alloc to TVM's C API.
+template <typename TIOHandler>
+class HexagonPageAllocator {
+ public:
+  using ArenaPageHeader = tvm::support::ArenaPageHeader;
+
+  explicit HexagonPageAllocator(TIOHandler* io) : io_(io), dev_(DLDevice{kDLCPU, 0}) {}
+
+  ArenaPageHeader* allocate(size_t min_size) {
+    size_t npages = ((min_size + kPageSize - 1) / kPageSize);
+    void* data;
+
+    data = HexagonDeviceAPI::Global()->AllocRpcDataSpace(dev_, npages * kPageSize, kPageAlign,
+                                                         DLDataType{kDLInt, 1, 1});
+
+    ArenaPageHeader* header = static_cast<ArenaPageHeader*>(data);
+    header->size = npages * kPageSize;
+    header->offset = sizeof(ArenaPageHeader);
+    return header;
+  }
+
+  void deallocate(ArenaPageHeader* page) {
+    HexagonDeviceAPI::Global()->FreeRpcDataSpace(dev_, page);
+  }
+
+  static const constexpr int kPageSize = 2 << 10;
+  static const constexpr int kPageAlign = 8;
+
+ private:
+  TIOHandler* io_;
+  Device dev_;
+};
+
 class HexagonRPCServer {
  public:
   explicit HexagonRPCServer(uint8_t* receive_buffer, size_t receive_buffer_size_bytes)
@@ -185,7 +219,7 @@ class HexagonRPCServer {
 
  private:
   HexagonIOHandler io_;
-  MinRPCServer<HexagonIOHandler> rpc_server_;
+  MinRPCServer<HexagonIOHandler, HexagonPageAllocator> rpc_server_;
 };
 
 }  // namespace hexagon
