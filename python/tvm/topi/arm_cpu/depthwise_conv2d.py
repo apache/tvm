@@ -724,10 +724,10 @@ def schedule_depthwise_conv2d_nhwc_dsp(cfg, outs):
 
 
 @autotvm.register_topi_compute("depthwise_conv2d_nchw_oihw_dsp.arm_cpu")
-def depthwise_conv2d_nchw_oihw_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
+def depthwise_conv2d_nchw_oihw_dsp(cfg, data, kernel, strides, padding, dilation, out_layout, out_dtype):
     """Compute depthwise_conv2d_nchw_oihw with v7e-m DSP instructions and the tensordot kernel."""
     return depthwise_conv2d_nchw_oihw_dsp_compute(
-        cfg, data, kernel, strides, padding, dilation, out_dtype
+        cfg, data, kernel, strides, padding, dilation, out_layout, out_dtype
     )
 
 
