@@ -140,8 +140,8 @@ class ScheduleRule : public runtime::ObjectRef {
                                                Optional<Map<String, ObjectRef>> reuse_write);
 
   /*!
-   * \brief Extension of MultiLevelTiling for auto-tensorizing with a single intrinsic.
-   * \param intrin_name The name of a tensor intrinsic, must be registerd via
+   * \brief Extension of MultiLevelTiling for auto-tensorization with a single intrinsic.
+   * \param intrin_name The name of a tensor intrinsic, must be registered via
    * TensorIntrin.register(...) beforehand
    * \param structure The tiling structure. Recommended:
    * - 'SSRSRS' on CPU
@@ -162,12 +162,12 @@ class ScheduleRule : public runtime::ObjectRef {
       Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write);
 
   /*!
-   * \brief Extension of MultiLevelTiling for auto-tensorizing with multiple groups of candidate
+   * \brief Extension of MultiLevelTiling for auto-tensorization with multiple groups of candidate
    * tensor core intrinsics
    * \param intrin_groups A list of groups of tensor core intrinsics. The map should contains key
    * "init", "load_a", "load_b", "compute", "store", which represent the tensor intrin for
    * initialization, loading operand A, loading operand B, tensor core computation, storing the
-   * result. The value of the map should be names of tensor intrinsics, must be registerd via
+   * result. The value of the map should be names of tensor intrinsics, must be registered via
    * TensorIntrin.register(...) beforehand
    * \param structure The tiling structure. Recommended:
    * - 'SSSRRSRS' on GPU
@@ -261,6 +261,16 @@ class ScheduleRule : public runtime::ObjectRef {
       FApply f_apply,                                             //
       FClone f_clone,                                             //
       FAsString f_as_string);
+
+  /*! \brief Create default schedule rules for LLVM */
+  TVM_DLL static Array<ScheduleRule, void> DefaultLLVM();
+  /*! \brief Create default schedule rules for CUDA */
+  TVM_DLL static Array<ScheduleRule, void> DefaultCUDA();
+  /*! \brief Create default postprocessors for CUDA with TensorCore */
+  TVM_DLL static Array<ScheduleRule, void> DefaultCUDATensorCore();
+  /*! \brief Create default schedule rules for Hexagon */
+  TVM_DLL static Array<ScheduleRule, void> DefaultHexagon();
+
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ScheduleRule, ObjectRef, ScheduleRuleNode);
 };
 

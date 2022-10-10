@@ -359,12 +359,23 @@ void BlockBufferAccessSimplifier::SimplifyAccessRegion(Array<BufferRegion>* old_
   auto fmutate = [this](const BufferRegion& buffer_region) {
     std::vector<Range> new_buffer_region;
     for (const auto& range : buffer_region->region) {
-      new_buffer_region.push_back(Range::FromMinExtent(analyzer_->Simplify(range->min),
-                                                       analyzer_->Simplify(range->extent)));
+      if (is_one(range->extent) && range->min->IsInstance<VarNode>()) {
+        new_buffer_region.push_back(Range::FromMinExtent(
+            SimplifyNonTrivialExpr(range->min, analyzer_), make_const(range->min.dtype(), 1)));
+      } else {
+        new_buffer_region.push_back(
+            Range::FromMinExtent(SimplifyNonTrivialExpr(range->min, analyzer_),
+                                 SimplifyNonTrivialExpr(range->extent, analyzer_)));
+      }
     }
     return BufferRegion(buffer_region->buffer, new_buffer_region);
   };
   (*old_access_regions).MutateByApply(fmutate);
+}
+
+void BlockBufferAccessSimplifier::SimplifyBufferIndices(Array<PrimExpr>* indices) {
+  (*indices).MutateByApply(
+      [this](const PrimExpr& expr) { return SimplifyNonTrivialExpr(expr, analyzer_); });
 }
 
 Stmt BlockBufferAccessSimplifier::VisitStmt_(const BlockNode* op) {
@@ -376,13 +387,15 @@ Stmt BlockBufferAccessSimplifier::VisitStmt_(const BlockNode* op) {
 }
 
 Stmt BlockBufferAccessSimplifier::VisitStmt_(const BufferStoreNode* op) {
-  auto node = Downcast<BufferStore>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
-  return VisitBufferAccess(std::move(node));
+  BufferStore node = Downcast<BufferStore>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
+  SimplifyBufferIndices(&node.CopyOnWrite()->indices);
+  return std::move(node);
 }
 
 PrimExpr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
-  auto node = Downcast<BufferLoad>(arith::IRMutatorWithAnalyzer::VisitExpr_(op));
-  return VisitBufferAccess(std::move(node));
+  BufferLoad node = Downcast<BufferLoad>(arith::IRMutatorWithAnalyzer::VisitExpr_(op));
+  SimplifyBufferIndices(&node.CopyOnWrite()->indices);
+  return std::move(node);
 }
 
 }  // namespace tir

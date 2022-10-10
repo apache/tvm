@@ -51,7 +51,7 @@ def _make_session(workspace_dir, zephyr_board, west_cmd, mod, build_config, use_
         "project_type": "host_driven",
         "west_cmd": west_cmd,
         "verbose": bool(build_config.get("debug")),
-        "zephyr_board": zephyr_board,
+        "board": zephyr_board,
         "arm_fvp_path": "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/FVP_Corstone_SSE-300_Ethos-U55",
         "use_fvp": bool(use_fvp),
     }

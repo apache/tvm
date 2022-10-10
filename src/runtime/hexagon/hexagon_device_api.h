@@ -32,6 +32,8 @@
 #include "hexagon_buffer.h"
 #include "hexagon_buffer_manager.h"
 #include "hexagon_thread_manager.h"
+#include "hexagon_user_dma.h"
+#include "hexagon_vtcm_pool.h"
 
 namespace tvm {
 namespace runtime {
@@ -53,29 +55,37 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Ensures resource managers are in a good state for the runtime
   void AcquireResources() {
+    CHECK_EQ(runtime_vtcm, nullptr);
+    runtime_vtcm = std::make_unique<HexagonVtcmPool>();
+
     CHECK_EQ(runtime_hexbuffs, nullptr);
     runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
-    DLOG(INFO) << "runtime_hexbuffs created";
     mgr = runtime_hexbuffs.get();
 
     CHECK_EQ(runtime_threads, nullptr);
     runtime_threads = std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size);
-    DLOG(INFO) << "runtime_threads created";
+
+    CHECK_EQ(runtime_dma, nullptr);
+    runtime_dma = std::make_unique<HexagonUserDMA>();
   }
 
   //! \brief Ensures all runtime resources are freed
   void ReleaseResources() {
+    CHECK(runtime_dma) << "runtime_dma was not created in AcquireResources";
+    runtime_dma.reset();
+
     CHECK(runtime_threads) << "runtime_threads was not created in AcquireResources";
     runtime_threads.reset();
-    DLOG(INFO) << "runtime_threads reset";
 
     CHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
     if (runtime_hexbuffs && !runtime_hexbuffs->empty()) {
-      DLOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
+      LOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
     }
     mgr = &hexbuffs;
-    DLOG(INFO) << "runtime_hexbuffs reset";
     runtime_hexbuffs.reset();
+
+    CHECK(runtime_vtcm) << "runtime_vtcm was not created in AcquireResources";
+    runtime_vtcm.reset();
   }
 
   /*! \brief Currently unimplemented interface to specify the active
@@ -150,7 +160,18 @@ class HexagonDeviceAPI final : public DeviceAPI {
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
 
   HexagonThreadManager* ThreadManager() {
-    return runtime_threads ? runtime_threads.get() : nullptr;
+    CHECK(runtime_threads) << "runtime_threads has not been created";
+    return runtime_threads.get();
+  }
+
+  HexagonUserDMA* UserDMA() {
+    CHECK(runtime_dma) << "runtime_dma has not been created";
+    return runtime_dma.get();
+  }
+
+  HexagonVtcmPool* VtcmPool() {
+    CHECK(runtime_vtcm) << "runtime_vtcm has not been created";
+    return runtime_vtcm.get();
   }
 
  protected:
@@ -184,6 +205,12 @@ class HexagonDeviceAPI final : public DeviceAPI {
   const unsigned threads{6};
   const unsigned pipe_size{1000};
   const unsigned stack_size{0x4000};  // 16KB
+
+  //! \brief User DMA manager
+  std::unique_ptr<HexagonUserDMA> runtime_dma;
+
+  //! \brief VTCM memory manager
+  std::unique_ptr<HexagonVtcmPool> runtime_vtcm;
 };
 }  // namespace hexagon
 }  // namespace runtime

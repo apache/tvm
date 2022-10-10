@@ -390,6 +390,26 @@ def LowerCustomDatatypes():
 def MakePackedAPI():
     """Transform the PrimFuncs in the module to a packed func API.
 
+    Prior to this pass, the PrimFunc may have Buffer arguments defined
+    in the `PrimFuncNode::buffer_map`.  This pass consumes the
+    `buffer_map`, using it to generate `TVMArgs` and `TVMRetValue*`
+    arguments that implement the `PackedFunc` API.
+
+    For static shapes, the `BufferNode::shape`, `BufferNode::strides`,
+    and `BufferNode::elem_offset` member variables are used to
+    generate runtime checks on the corresponding member variables in
+    the user-provided `DLTensor*` or `tvm.nd.array` argument.  (e.g. A
+    PrimFunc that accepts a buffer of shape `[16,32]` validates that
+    the `DLTensor::shape` array is `[16,32]`.)
+
+    For dynamic Buffers, in which one or more of these `BufferNode` member
+    variables use `tir.Var` that are not defined by other PrimFunc
+    parameters, these are instead used to define the variables based on
+    the corresponding `DLTensor` members.  (e.g. A PrimFunc that accepts a
+    buffer of shape `[tir.Var("n"), tir.Var("m")]`, when passed a
+    `DLTensor` of shape `[16,32]`, will define `n = 16` and `n=32`, based
+    on the argument's shape.
+
     Returns
     -------
     fpass : tvm.transform.Pass
@@ -400,6 +420,16 @@ def MakePackedAPI():
 
 def MakeUnpackedAPI():
     """Transform the PrimFuncs in the module to a C API compatible with internal calls.
+
+    Prior to this pass, the PrimFunc may have Buffer arguments defined in
+    the `PrimFuncNode::buffer_map`.  This pass consumes the `buffer_map`,
+    using it to generate `T*` arguments (e.g. `float32*`) that can be
+    directly called by a C API.
+
+    For static shapes, no runtime validation is performed to confirm that
+    the argument buffer's shape matches the expected shape.  For dynamic
+    shapes, `MakeUnpackedAPI` requires that the dynamic parameters be
+    passed as separate `tir.Var` parameters.
 
     Returns
     -------

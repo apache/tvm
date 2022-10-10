@@ -72,7 +72,7 @@ bool ShouldAnnotateEntryFunc(const IRModule mod) {
 
 /*! \return The default host target for a given device target */
 Target DefaultTargetHost(Target target) {
-  if (target.defined() && target->kind->device_type == kDLCPU) {
+  if (target.defined() && target->GetTargetDeviceType() == kDLCPU) {
     return target;
   } else {
     if (LLVMEnabled()) {
@@ -423,7 +423,8 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
 
   if (!target_host.defined()) {
     for (const auto& it : inputs) {
-      if (it.first->kind->device_type == kDLCPU || it.first->kind->device_type == kDLMicroDev) {
+      if (it.first->GetTargetDeviceType() == kDLCPU ||
+          it.first->GetTargetDeviceType() == kDLMicroDev) {
         target_host = it.first;
         break;
       }
@@ -460,7 +461,8 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
       // unless they're supposed to. Here if we overrode the target host
       // to allow lowering previously we check that it's meant to be placed
       // back into the host Module.
-      bool overrides_host_target = target->kind->device_type == target_host->kind->device_type;
+      bool overrides_host_target =
+          target->GetTargetDeviceType() == target_host->GetTargetDeviceType();
       bool non_host_target_kind = target->kind != target_host->kind;
       if (overrides_host_target && non_host_target_kind) {
         device_modules.push_back(codegen::Build(host_mod, it.first));

@@ -78,7 +78,7 @@ class CompilationConfigNode : public Object {
    * It is possible to have multiple primitive targets for the same device type. However given
    * primitive targets left and right where:
    *  - left appears before right in the array
-   *  - left->kind->device_type == right->kind->device_type
+   *  - left->GetTargetDeviceType() == right->GetTargetDeviceType()
    * then:
    *  - right.IsExternalCodegenFor(left) must be true
    * In this way the \p FindPrimitiveTargetForDeviceOrFail method will find the 'most general'

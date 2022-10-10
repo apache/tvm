@@ -33,6 +33,13 @@
 #include <unordered_map>
 #include <vector>
 
+#if TVM_BACKTRACE_ON_SEGFAULT
+#include <signal.h>
+
+#include <csignal>
+#include <cstring>
+#endif
+
 namespace tvm {
 namespace runtime {
 namespace {
@@ -117,6 +124,28 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
   }
   return 0;
 }
+
+#if TVM_BACKTRACE_ON_SEGFAULT
+void backtrace_handler(int sig) {
+  // Technically we shouldn't do any allocation in a signal handler, but
+  // Backtrace may allocate. What's the worst it could do? We're already
+  // crashing.
+  std::cerr << "!!!!!!! TVM encountered a Segfault !!!!!!!\n" << Backtrace() << std::endl;
+
+  // Re-raise signal with default handler
+  struct sigaction act;
+  std::memset(&act, 0, sizeof(struct sigaction));
+  act.sa_flags = SA_RESETHAND;
+  act.sa_handler = SIG_DFL;
+  sigaction(sig, &act, nullptr);
+  raise(sig);
+}
+
+__attribute__((constructor)) void install_signal_handler(void) {
+  // this may override already installed signal handlers
+  std::signal(SIGSEGV, backtrace_handler);
+}
+#endif
 }  // namespace
 
 std::string Backtrace() {

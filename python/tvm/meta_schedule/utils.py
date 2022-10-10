@@ -16,12 +16,11 @@
 # under the License.
 """Utilities for meta schedule"""
 import ctypes
-import logging
 import os
 import shutil
-from contextlib import contextmanager
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, List, Optional, Union
 
+import numpy as np  # type: ignore
 import psutil  # type: ignore
 from tvm._ffi import get_global_func, register_func
 from tvm.error import TVMError
@@ -86,7 +85,7 @@ def derived_object(cls: type) -> type:
     assert isinstance(cls.__base__, type)
     assert hasattr(
         cls, "_tvm_metadata"
-    ), "Please use the user-facing method overiding class, i.e., PyRunner."
+    ), "Please use the user-facing method overriding class, i.e., PyRunner."
 
     base = cls.__base__
     metadata = getattr(base, "_tvm_metadata")
@@ -114,7 +113,10 @@ def derived_object(cls: type) -> type:
 
         def __getattr__(self, name: str):
             """Bridge the attribute function."""
-            return self._inst.__getattribute__(name)
+            try:
+                return self._inst.__getattribute__(name)
+            except AttributeError:
+                return super(TVMDerivedObject, self).__getattr__(name)
 
         def __setattr__(self, name, value):
             if name not in ["_inst", "key", "handle"]:
@@ -157,14 +159,6 @@ def _cpu_count_impl(logical: bool = True) -> int:
     return psutil.cpu_count(logical=logical) or 1
 
 
-@register_func("meta_schedule._process_error_message")
-def _process_error_message(error_msg: str) -> str:
-    error_msg_lines = str(error_msg).splitlines()
-    if len(error_msg_lines) >= 50:
-        return "\n".join(error_msg_lines[:25] + ["..."] + error_msg_lines[-25:])
-    return error_msg
-
-
 def cpu_count(logical: bool = True) -> int:
     """Return the number of logical or physical CPUs in the system
 
@@ -191,6 +185,14 @@ def cpu_count(logical: bool = True) -> int:
     when measuring locally.
     """
     return _cpu_count_impl(logical)
+
+
+@register_func("meta_schedule.using_ipython")
+def _using_ipython():
+    try:
+        return get_ipython().__class__.__name__ == "ZMQInteractiveShell"  # type: ignore
+    except NameError:
+        return False
 
 
 def get_global_func_with_default_on_worker(
@@ -335,114 +337,7 @@ def _to_hex_address(handle: ctypes.c_void_p) -> str:
     return hex(ctypes.cast(handle, ctypes.c_void_p).value)
 
 
-@contextmanager
-def autotvm_silencer():
-    """A context manager that silences autotvm warnings."""
-    from tvm import autotvm  # pylint: disable=import-outside-toplevel
-
-    silent = autotvm.GLOBAL_SCOPE.silent
-    autotvm.GLOBAL_SCOPE.silent = True
-    try:
-        yield
-    finally:
-        autotvm.GLOBAL_SCOPE.silent = silent
-
-
-def make_logging_func(logger: logging.Logger) -> Optional[Callable]:
-    """Get the logging function.
-    Parameters
-    ----------
-    logger : logging.Logger
-        The logger instance.
-    Returns
-    -------
-    result : Optional[Callable]
-        The function to do the specified level of logging.
-    """
-    if logger is None:
-        return None
-
-    level2log = {
-        logging.DEBUG: logger.debug,
-        logging.INFO: logger.info,
-        logging.WARNING: logger.warning,
-        logging.ERROR: logger.error,
-        # logging.FATAL not included
-    }
-
-    def logging_func(level: int, msg: str):
-        def clear_notebook_output():
-            from IPython.display import clear_output  # type: ignore # pylint: disable=import-outside-toplevel
-
-            clear_output(wait=True)
-
-        if level < 0:
-            clear_notebook_output()
-        else:
-            level2log[level](msg)
-
-    return logging_func
-
-
-@register_func("meta_schedule.using_ipython")
-def _check_ipython_env():
-    try:
-        return get_ipython().__class__.__name__ == "ZMQInteractiveShell"  # type: ignore
-    except NameError:
-        return False
-
-
-def parameterize_config(config: Dict[str, Any], params: Dict[str, str]) -> Dict[str, Any]:
-    """Parameterize the given configuration.
-
-    Parameters
-    ----------
-    config : Dict[str, Any]
-        The given config dict.
-    Params : Dict[str, str]
-        The given parameters.
-
-    Returns
-    -------
-    result : Dict[str, Any]
-        The parameterized configuration.
-    """
-    result = {}
-    for k, v in config.items():
-        if isinstance(k, str):
-            k = k.format(**params)
-        if isinstance(v, str):
-            v = v.format(**params)
-        elif isinstance(v, dict):
-            v = parameterize_config(v, params)
-        elif isinstance(v, list):
-            v = [t.format(**params) for t in v]
-        result[k] = v
-    return result
-
-
-def batch_parameterize_config(
-    config: Dict[str, Any], params: List[Dict[str, str]]
-) -> Dict[str, Any]:
-    """Parameterize the given configuration with multiple parameters sets.
-
-    Parameters
-    ----------
-    config : Dict[str, Any]
-        The given config dict.
-    Params : List[Dict[str, str]]
-        List of the given multiple parameters sets.
-
-    Returns
-    -------
-    result : Dict[str, Any]
-        The parameterized configuration.
-    """
-    results = {}
-    for name, cfg in config.items():
-        for p in params:
-            p_name = name.format(**p)
-            if p_name not in results:
-                p_cfg = parameterize_config(cfg, p)
-                results[p_name] = p_cfg
-    return results
+def fork_seed(seed: Optional[int], n: int) -> List[int]:
+    # fmt: off
+    return np.random.RandomState(seed=seed).randint(1, 2 ** 30, size=n).tolist()
+    # fmt: on

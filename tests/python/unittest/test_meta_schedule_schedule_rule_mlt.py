@@ -16,10 +16,12 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 from tvm import meta_schedule as ms
-from tvm import te, target
+from tvm import target, te
 from tvm.meta_schedule.testing import te_workload
-from tvm.meta_schedule.testing.schedule_rule import get_rules
-from tvm.meta_schedule.testing.space_generation import check_sketches
+from tvm.meta_schedule.testing.space_generation import (
+    check_sketches,
+    generate_design_space,
+)
 from tvm.script import tir as T
 from tvm.target import Target
 
@@ -128,13 +130,12 @@ def test_cpu_matmul():
     ]
 
     mod = te.create_prim_func(te_workload.matmul(512, 512, 512))
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="llvm",
         mod=mod,
         target=Target("llvm"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=get_rules("llvm", ms.schedule_rule.MultiLevelTiling),
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.MultiLevelTiling,
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -253,13 +254,12 @@ def test_cpu_matmul_relu():
         ("SamplePerfectTile", [64, 8]),
     ]
     mod = te.create_prim_func(te_workload.matmul_relu(512, 512, 512))
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="llvm",
         mod=mod,
         target=Target("llvm"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=get_rules("llvm", ms.schedule_rule.MultiLevelTiling),
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.MultiLevelTiling,
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -360,13 +360,12 @@ def test_cuda_matmul():
         ("SampleCategorical", 0),
     ]
     mod = te.create_prim_func(te_workload.matmul(512, 512, 512))
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("nvidia/geforce-rtx-3080"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=get_rules("cuda", ms.schedule_rule.MultiLevelTiling),
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.MultiLevelTiling,
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -479,13 +478,12 @@ def test_cuda_matmul_relu():
         ("SampleCategorical", 3),
     ]
     mod = te.create_prim_func(te_workload.matmul_relu(512, 512, 512))
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("nvidia/geforce-rtx-3080"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=get_rules("cuda", ms.schedule_rule.MultiLevelTiling),
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.MultiLevelTiling,
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -511,13 +509,12 @@ def test_cuda_sum_with_trivial_block_iter():
 
     # Expect nothing to happen - the rule is not supposed to be applied in this case
     mod = sum_with_trivial_block_iter
-    (sch,) = ms.TuneContext(
+    (sch,) = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("nvidia/geforce-rtx-3080"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=get_rules("cuda", ms.schedule_rule.MultiLevelTiling),
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.MultiLevelTiling,
+    )
     assert not sch.trace.simplified(remove_postproc=True).insts
 
 
@@ -593,10 +590,11 @@ def test_multi_level_tiling_hexagon():
         te_workload.conv2d_nhwc(1, H, W, I, O, 3, 1, 1, 1, in_dtype="float16", out_dtype="float16")
     )
 
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target(target_hexagon, host=target_hexagon),
-        space_generator=ms.space_generator.PostOrderApply(),
+        types=None,
         sch_rules=[
             ms.schedule_rule.MultiLevelTilingWideVector(
                 structure="SRSRS",
@@ -606,8 +604,7 @@ def test_multi_level_tiling_hexagon():
                 reuse_write=None,
             )
         ],
-        task_name="test",
-    ).generate_design_space()
+    )
 
     decision_0 = [
         ("SamplePerfectTile", [1, 1, 1]),

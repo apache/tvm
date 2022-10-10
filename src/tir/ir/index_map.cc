@@ -169,23 +169,48 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer
     input_iters.Set(initial_indices[i], ranges[i]);
   }
 
-  std::unordered_map<const VarNode*, arith::IntSet> dom_map;
-  for (size_t i = 0; i < initial_indices.size(); i++) {
-    dom_map[initial_indices[i].get()] = arith::IntSet::FromRange(ranges[i]);
-  }
-
   arith::Analyzer local_analyzer;
   if (!analyzer) {
     analyzer = &local_analyzer;
   }
 
+  auto iter_map = DetectIterMap(final_indices, input_iters, /* predicate = */ 1,
+                                /*check_level=*/arith::IterMapLevel::NoCheck, analyzer,
+                                /*simplify_trivial_iterators=*/false);
   Array<Range> output;
-  for (const auto& final_index : final_indices) {
-    auto int_set = arith::EvalSet(final_index, dom_map);
-    output.push_back(Range::FromMinExtent(analyzer->Simplify(int_set.min()),
-                                          analyzer->Simplify(int_set.max() - int_set.min() + 1)));
-  }
+  if (iter_map->indices.size()) {
+    // Preferred route, requires the map to be expressible as an
+    // affine sum.  Since the terms are orthogonal, the extent of the
+    // sum is the extent of the largest term.
+    for (const auto& index : iter_map->indices) {
+      Optional<PrimExpr> extent = NullOpt;
+      for (const auto& term : index->args) {
+        PrimExpr term_extent = term->extent * term->scale;
+        if (extent.defined()) {
+          extent = tvm::max(extent.value(), term_extent);
+        } else {
+          extent = term_extent;
+        }
+      }
+      output.push_back(Range::FromMinExtent(index->base, extent.value_or(1)));
+    }
 
+  } else {
+    // Fall-back method, more general but can ignore intended padding.
+    // For example, [N] mapped through i=>[i//4,i%4] should have shape
+    // [ceildiv(N,4), 4].  However, for N<4, this method instead
+    // results in a shape [1, N].
+    std::unordered_map<const VarNode*, arith::IntSet> dom_map;
+    for (size_t i = 0; i < initial_indices.size(); i++) {
+      dom_map[initial_indices[i].get()] = arith::IntSet::FromRange(ranges[i]);
+    }
+
+    for (const auto& final_index : final_indices) {
+      auto int_set = arith::EvalSet(final_index, dom_map);
+      output.push_back(Range::FromMinExtent(analyzer->Simplify(int_set.min()),
+                                            analyzer->Simplify(int_set.max() - int_set.min() + 1)));
+    }
+  }
   return output;
 }
 
@@ -206,6 +231,60 @@ Array<PrimExpr> IndexMapNode::MapShape(const Array<PrimExpr>& shape,
   }
 
   return output;
+}
+
+runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray arr_src) const {
+  auto shape = arr_src.Shape();
+  ICHECK(shape.size() == initial_indices.size())
+      << "The rank of the input array should be " << initial_indices.size() << " but got "
+      << shape.size();
+  size_t size_1d = 1;
+  Array<PrimExpr> orig_shape;
+  for (size_t i = 0; i < shape.size(); ++i) {
+    size_1d *= shape[i];
+    orig_shape.push_back(PrimExpr(static_cast<int>((shape[i]))));
+  }
+  auto dst_shape = MapShape(orig_shape);
+
+  std::vector<int64_t> dst_shape_int;
+  for (size_t i = 0; i < dst_shape.size(); ++i) {
+    dst_shape_int.push_back(dst_shape[i].as<IntImmNode>()->value);
+  }
+
+  auto elem_bytes = (arr_src->dtype.bits / 8) * arr_src->dtype.lanes;
+  std::vector<uint8_t> bytes_src(size_1d * elem_bytes);
+  arr_src.CopyToBytes(bytes_src.data(), bytes_src.size());
+
+  std::vector<uint8_t> bytes_dst(bytes_src.size());
+
+  for (size_t i = 0; i < size_1d; ++i) {
+    // Convert a linear coordinate to an N-d coordinate tuple
+    // z * height * width + y * width + x -> (z, y, x)
+    Array<PrimExpr> src_indices;
+    auto div_factor = size_1d;
+    auto src_linear_index = i;
+    for (auto s : shape) {
+      div_factor /= s;
+      src_indices.push_back(PrimExpr(static_cast<int>((src_linear_index / div_factor))));
+      src_linear_index %= div_factor;
+    }
+    auto dst_indices = MapIndices(src_indices);
+
+    // Convert an N-d coordinate to a linear coordinate
+    // (z, y, x) -> z * height * width + y * width + x
+    size_t dst_linear_index = 0;
+    auto mul_factor = size_1d;
+    for (size_t j = 0; j < dst_indices.size(); ++j) {
+      mul_factor /= dst_shape_int[j];
+      dst_linear_index += dst_indices[j].as<IntImmNode>()->value * mul_factor;
+    }
+    std::copy(bytes_src.begin() + i * elem_bytes, bytes_src.begin() + (i + 1) * elem_bytes,
+              bytes_dst.begin() + dst_linear_index * elem_bytes);
+  }
+
+  auto arr_dst = runtime::NDArray::Empty(dst_shape_int, arr_src->dtype, arr_src->device);
+  arr_dst.CopyFromBytes(bytes_dst.data(), bytes_dst.size());
+  return arr_dst;
 }
 
 /*!
@@ -288,6 +367,9 @@ TVM_REGISTER_GLOBAL("tir.IndexMapMapShape").set_body_typed([](IndexMap map, Arra
   return map->MapShape(shape);
 });
 TVM_REGISTER_GLOBAL("tir.IndexMapInverse").set_body_method(&IndexMap::Inverse);
+
+TVM_REGISTER_GLOBAL("tir.IndexMapMapNDArray")
+    .set_body_typed([](IndexMap map, runtime::NDArray arr) { return map->MapNDArray(arr); });
 
 TVM_REGISTER_GLOBAL("tir.IndexMapNonSurjectiveInverse")
     .set_body_typed([](IndexMap forward, Array<Range> initial_ranges) {

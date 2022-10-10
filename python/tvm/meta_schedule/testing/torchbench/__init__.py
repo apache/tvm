@@ -14,17 +14,3 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""A callback that echos the statistics of the tuning process to the console"""
-from tvm._ffi import register_object
-
-from .. import _ffi_api
-from .measure_callback import MeasureCallback
-
-
-@register_object("meta_schedule.EchoStatistics")
-class EchoStatistics(MeasureCallback):
-    def __init__(self) -> None:
-        """A callback that echos the statistics of the tuning process to the console"""
-        self.__init_handle_by_constructor__(
-            _ffi_api.MeasureCallbackEchoStatistics,  # type: ignore # pylint: disable=no-member
-        )

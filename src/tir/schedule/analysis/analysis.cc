@@ -1646,6 +1646,15 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
   }
 }
 
+PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, arith::Analyzer* analyzer) {
+  auto simplified = analyzer->Simplify(expr);
+  if (simplified->IsInstance<IntImmNode>()) {
+    return expr;
+  } else {
+    return simplified;
+  }
+}
+
 TVM_REGISTER_NODE_TYPE(TensorizeInfoNode);
 
 /*! \brief Auxiliary data structure of information extracted from tensor intrin description */

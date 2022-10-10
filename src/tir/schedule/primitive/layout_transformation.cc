@@ -699,7 +699,9 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
 
   void RewriteBufferAccess(Buffer* buffer, Array<PrimExpr>* indices) {
     *buffer = new_buffer_;
-    *indices = index_map_->MapIndices(*indices, analyzer_);
+    *indices = index_map_->MapIndices(*indices);
+    (*indices).MutateByApply(
+        [&](const PrimExpr& e) { return SimplifyNonTrivialExpr(e, analyzer_); });
   }
 
   using Parent = arith::IRMutatorWithAnalyzer;
@@ -1113,7 +1115,7 @@ class IndexMapNotApplicableToBlockIterError : public ScheduleError {
 
   IRModule mod() const final { return mod_; }
 
-  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
  private:
   IRModule mod_;
@@ -1194,22 +1196,14 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   Array<PrimExpr> transformed_block_iters = index_map->MapIndices(block_vars);
   Array<PrimExpr> new_block_iter_range = index_map->MapShape(block_iter_range_array);
 
-  auto iter_map = arith::DetectIterMap(
-      /*indices=*/transformed_block_iters, /*input_iters=*/block_iter_dom, /*predicate=*/Bool(true),
-      /*check_level=*/arith::IterMapLevel::Bijective, &analyzer,
-      /*simplify_trivial_iterators=*/true);
-  if (iter_map->indices.empty()) {
-    throw NotBijectiveAffineIndexMapError(self->mod, index_map);
-  }
-
   // Step 5: Create the new block after transformation.
 
   // Step 5.1: Create new block iters. After applying the IndexMap f to block iters ax_0, ..., ax_n,
   // create block iter each expression in f(ax_0, ..., ax_n).
   Array<IterVar> new_block_iters;  // new block iters
   Array<PrimExpr> new_block_vars;  // iter_var->var of new block iters
-  for (size_t i = 0; i < index_map->final_indices.size(); ++i) {
-    Var new_block_var{"v" + std::to_string(i), DataType::Int(32)};
+  for (size_t i = 0; i < transformed_block_iters.size(); ++i) {
+    Var new_block_var{"v" + std::to_string(i), transformed_block_iters[i]->dtype};
     new_block_vars.push_back(new_block_var);
     IterVarType iter_type = DetectNewBlockIterType(transformed_block_iters[i], block_iter_type);
     if (iter_type == kOpaque) {
@@ -1221,18 +1215,28 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
 
   // Step 5.2: Update the block body. Use the inverse map f^{-1} to replace the original block iters
   // in the body.
+  Map<Var, PrimExpr> inverse_subst_map;
+  // Construct the inverse map
+  {
+    Array<Range> initial_ranges;
+    for (const PrimExpr& extent : block_iter_range_array) {
+      initial_ranges.push_back(Range::FromMinExtent(make_const(extent.dtype(), 0), extent));
+    }
+    IndexMap inverse_index_map{nullptr};
+    try {
+      inverse_index_map = index_map.Inverse(initial_ranges);
+    } catch (...) {
+      throw NotBijectiveAffineIndexMapError(self->mod, index_map);
+    }
 
-  auto inverse_map = arith::InverseAffineIterMap(iter_map->indices, new_block_vars);
-  // Trivial block iters will be simplified in DetectIterMap, they should be mapped to constant
-  // zero.
-  for (const auto& iter_var : block_ptr->iter_vars) {
-    if (inverse_map.find(iter_var->var) == inverse_map.end()) {
-      ICHECK(is_one(iter_var->dom->extent));
-      inverse_map.Set(iter_var->var, 0);
+    Array<PrimExpr> inversed_new_block_vars = inverse_index_map->MapIndices(
+        new_block_vars);  // old block vars written in terms of new block vars
+
+    for (int i = 0, n = block_vars.size(); i < n; ++i) {
+      inverse_subst_map.Set(Downcast<Var>(block_vars[i]), inversed_new_block_vars[i]);
     }
   }
-
-  Block new_block = Downcast<Block>(Substitute(GetRef<Block>(block_ptr), inverse_map));
+  Block new_block = Downcast<Block>(Substitute(GetRef<Block>(block_ptr), inverse_subst_map));
   new_block.CopyOnWrite()->iter_vars = new_block_iters;
   new_block = Downcast<Block>(BlockBufferAccessSimplifier::Simplify(new_block, &analyzer));
 
@@ -1241,7 +1245,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   // Make new loop vars
   Array<PrimExpr> new_loop_vars;
   for (int i = 0; i < static_cast<int>(new_block_iters.size()); ++i) {
-    new_loop_vars.push_back(Var("ax" + std::to_string(i), DataType::Int(32)));
+    new_loop_vars.push_back(Var("ax" + std::to_string(i), new_block_iters[i]->var.dtype()));
   }
 
   // Make new block realize

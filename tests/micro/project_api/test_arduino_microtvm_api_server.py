@@ -23,16 +23,17 @@ from unittest import mock
 from packaging import version
 import pytest
 
+import tvm
 from tvm.micro.project_api import server
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, tvm.micro.get_microtvm_template_projects("arduino"))
 import microtvm_api_server
 
 sys.path.pop(0)
 
 
 class TestGenerateProject:
-    DEFAULT_OPTIONS = {"arduino_cli_cmd": "arduino-cli", "arduino_board": "nano33ble"}
+    DEFAULT_OPTIONS = {"arduino_cli_cmd": "arduino-cli", "board": "nano33ble"}
 
     def _set_pathlib_path_exists(self, value):
         with mock.patch.object(Path, "exists") as mock_exists:
@@ -122,8 +123,7 @@ class TestGenerateProject:
         handler._get_fqbn = mock.MagicMock(return_value="arduino:mbed_nano:nano33")
         mock_run.return_value.stdout = bytes(self.BOARD_CONNECTED_V18, "utf-8")
         assert (
-            handler._auto_detect_port({**self.DEFAULT_OPTIONS, "arduino_board": "nano33"})
-            == "/dev/ttyACM1"
+            handler._auto_detect_port({**self.DEFAULT_OPTIONS, "board": "nano33"}) == "/dev/ttyACM1"
         )
 
     BAD_CLI_VERSION = "arduino-cli  Version: 0.7.1 Commit: 7668c465 Date: 2019-12-31T18:24:32Z\n"
@@ -133,13 +133,17 @@ class TestGenerateProject:
     def test_auto_detect_port(self, mock_run):
         handler = microtvm_api_server.Handler()
         mock_run.return_value.stdout = bytes(self.GOOD_CLI_VERSION, "utf-8")
-        handler._check_platform_version(self.DEFAULT_OPTIONS)
+        arduino_cli_cmd = self.DEFAULT_OPTIONS.get("arduino_cli_cmd")
+        warning_as_error = self.DEFAULT_OPTIONS.get("warning_as_error")
+
+        cli_command = handler._get_arduino_cli_cmd(arduino_cli_cmd)
+        handler._check_platform_version(cli_command=cli_command, warning_as_error=warning_as_error)
         assert handler._version == version.parse("0.21.1")
 
         handler = microtvm_api_server.Handler()
         mock_run.return_value.stdout = bytes(self.BAD_CLI_VERSION, "utf-8")
         with pytest.raises(server.ServerError) as error:
-            handler._check_platform_version({"warning_as_error": True})
+            handler._check_platform_version(cli_command=cli_command, warning_as_error=True)
         mock_run.reset_mock()
 
     @mock.patch("subprocess.run")
@@ -147,7 +151,7 @@ class TestGenerateProject:
         mock_run.return_value.stdout = bytes(self.GOOD_CLI_VERSION, "utf-8")
 
         def side_effect(cmd, *args, **kwargs):
-            if cmd[1] == "upload":
+            if cmd[1] == "flash":
                 raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
             return mock.DEFAULT
 
@@ -178,7 +182,7 @@ class TestGenerateProject:
         # Test we checked version then called upload
         assert mock_run.call_count == 2
         assert mock_run.call_args_list[0][0] == (["arduino-cli", "version"],)
-        assert mock_run.call_args_list[1][0][0][0:2] == ["arduino-cli", "upload"]
+        assert mock_run.call_args_list[1][0][0][0:2] == ["make", "flash"]
         mock_run.reset_mock()
 
         # Test exception raised when `arduino-cli upload` returns error code
@@ -188,4 +192,8 @@ class TestGenerateProject:
 
         # Version information should be cached and not checked again
         mock_run.assert_called_once()
-        assert mock_run.call_args[0][0][0:2] == ["arduino-cli", "upload"]
+        assert mock_run.call_args[0][0][0:2] == ["make", "flash"]
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

@@ -291,7 +291,7 @@ project_options = {}  # You can use options to provide platform-specific options
 
 if use_physical_hw:
     template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr"))
-    project_options = {"project_type": "host_driven", "zephyr_board": BOARD}
+    project_options = {"project_type": "host_driven", "board": BOARD}
 
 # Create a temporary directory
 

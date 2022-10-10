@@ -866,7 +866,7 @@ TIR_REGISTER_PURE_UNARY_OP("tir.erf");
 
 TIR_REGISTER_PURE_UNARY_OP("tir.tanh").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.sigmoid");
+TIR_REGISTER_PURE_UNARY_OP("tir.sigmoid").set_attr<TVectorizable>("TVectorizable", true);
 
 TIR_REGISTER_PURE_UNARY_OP("tir.sqrt").set_attr<TVectorizable>("TVectorizable", true);
 

@@ -1,8 +1,8 @@
 ---
 name: "\U00002744 Flaky Test"
-about: Report a flaky test, make sure to include links to CI runs, a sample failure log, and the name of the test(s)
+about: Report flaky tests, make sure to include link to CI runs, a sample failure log, and the name of the test(s). Find the list of label tags [here](https://github.com/apache/tvm/wiki/Issue-Triage-Labels).
 title: "[Flaky Test] "
-labels: "test: flaky"
+labels: "needs-triage, test: flaky"
 ---
 
 Thanks for participating in the TVM community! We use https://discuss.tvm.ai for any general usage questions and discussions. The issue tracker is used for actionable items such as feature proposals discussion, roadmaps, and bug tracking. You are always welcomed to post on the forum first :smile_cat:
@@ -16,3 +16,9 @@ These tests were found to be flaky (intermittently failing on `main` or failed i
 ### Jenkins Links
 
 - Please provide link(s) to failed CI runs. If runs are for a PR, explain why your PR did not break the test (e.g. did not touch that part of the codebase)
+
+### Triage
+
+Please refer to the list of label tags linked above to find the relevant tags and add them here in a bullet format (example below).
+
+* needs-triage

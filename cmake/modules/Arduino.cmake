@@ -28,6 +28,7 @@ if(USE_MICRO)
       "apps/microtvm/arduino/template_project/src/host_driven *.c -> arduino/src/host_driven"
       "apps/microtvm/arduino/template_project/src/host_driven *.ino -> arduino/src/host_driven"
       "apps/microtvm/arduino/template_project/crt_config *.h -> arduino/crt_config"
+      "apps/microtvm/arduino/template_project Makefile.template -> arduino"
     )
 
     foreach(job_spec IN LISTS ARDUINO_FILE_COPY_JOBS)
