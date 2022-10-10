@@ -76,6 +76,8 @@ class TracedScheduleNode : public ConcreteScheduleNode {
                     const Array<BlockRV> consumer_blocks = {}) final;
   BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
                      const String& storage_scope) final;
+  Array<BlockRV> CacheInplace(const BlockRV& block_rv, int read_buffer_index,
+                              const String& storage_scope) final;
   BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
                   BufferIndexType buffer_index_type) final;
   /******** Schedule: Compute location ********/

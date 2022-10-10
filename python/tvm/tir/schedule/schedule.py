@@ -1190,6 +1190,95 @@ class Schedule(Object):
         )
 
     @type_checked
+    def cache_inplace(
+        self,
+        block: Union[BlockRV, str],
+        read_buffer_index: Union[int, str, Buffer],
+        storage_scope: str,
+    ) -> List[BlockRV]:
+        """Create blocks that reads & write a buffer region into a cache block.
+        It requires the the target block both read & write the target buffer.
+        Mainly for inplace operation.
+
+        Parameters
+        ----------
+        block : Union[BlockRV, str]
+            The target block operates on the target buffer.
+
+        read_buffer_index: int
+            The index of the buffer in block's read region, the unique
+            name of a read buffer in the block, or a Buffer object
+            that is within the blocks read region.
+
+        storage_scope: str
+            The target storage scope.
+
+
+        Returns
+        -------
+        cached_blocks : List[BlockRV]
+            The blocks of the cache stage, read cache first, write cache second
+
+        Examples
+        --------
+        Before cache_inplace, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_cache_inplace(data_io: T.Buffer[(64), "int32"]):
+                for i0 in T.serial(1):
+                    with T.block("A"):
+                        T.reads(data_io[:64])
+                        T.writes(data_io[:64])
+                        T.evaluate(T.call_extern("call_impl", data_io.data, dtype=""))
+
+        Create the schedule and cache_inplace:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_cache_inplace)
+            block_a = sch.get_block("A")
+            sch.cache_inplace(block_a, 0, "local")
+            print(sch.mod["main"].script())
+
+        After applying cache_inplace, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def cache_inplace(data_io: T.Buffer[64, "int32"]) -> None:
+                data_io_local = T.alloc_buffer([64], dtype="int32", scope="local")
+                for i0 in T.serial(1):
+                    for ax0 in T.serial(64):
+                        with T.block("data_io_local"):
+                            v0 = T.axis.spatial(64, ax0)
+                            T.reads(data_io[v0])
+                            T.writes(data_io_local[v0])
+                            data_io_local[v0] = data_io[v0]
+                    with T.block("A"):
+                        T.reads(data_io_local[0 : 64])
+                        T.writes(data_io_local[0 : 64])
+                        T.evaluate(T.call_extern("call_impl", data_io_local.data, dtype=""))
+                    for ax0 in T.serial(64):
+                        with T.block("data_io_local"):
+                            v0 = T.axis.spatial(64, ax0)
+                            T.reads(data_io_local[v0])
+                            T.writes(data_io[v0])
+                            data_io[v0] = data_io_local[v0]
+
+        """
+        block = self._normalize_block_arg(block)
+
+        if not isinstance(read_buffer_index, int):
+            _, read_buffer_index, _ = self._normalize_buffer_arg(
+                block, read_buffer_index, required_buffer_type="read"
+            )
+        return _ffi_api.ScheduleCacheInplace(  # type: ignore # pylint: disable=no-member
+            self, block, read_buffer_index, storage_scope
+        )
+
+    @type_checked
     def reindex(
         self,
         block: Union[BlockRV, str],
