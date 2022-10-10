@@ -348,7 +348,13 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
     ]
 
     def __init__(
-        self, serial_number: str, rpc_info: dict, workspace: Union[str, pathlib.Path] = None, hexagon_debug: bool = False, clear_logcat: bool = False, sysmon_profile: bool = False
+        self,
+        serial_number: str,
+        rpc_info: dict,
+        workspace: Union[str, pathlib.Path] = None,
+        hexagon_debug: bool = False,
+        clear_logcat: bool = False,
+        sysmon_profile: bool = False,
     ):
         """Configure a new HexagonLauncherAndroid
 
@@ -367,7 +373,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         clear_logcat: bool, optional
             Should the server clear logcat before running.
         sysmon_profile: bool, optional
-            Should the server run sysmon profiler in the background. 
+            Should the server run sysmon profiler in the background.
         """
         if not rpc_info.get("workspace_base"):
             rpc_info["workspace_base"] = self.ANDROID_HEXAGON_TEST_BASE_DIR
@@ -522,21 +528,24 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         )
         sysmon_process = subprocess.Popen(
             self._adb_device_sub_cmd
-            + ["shell", "/data/local/tmp/sysMonApp profiler --debugLevel 0 --samplePeriod 1 --q6 cdsp"],
+            + [
+                "shell",
+                "/data/local/tmp/sysMonApp profiler --debugLevel 0 --samplePeriod 1 --q6 cdsp",
+            ],
             stdin=subprocess.PIPE,
         )
         return sysmon_process
-
 
     def _stop_sysmon(self):
         if self._sysmon_process is not None:
             self._sysmon_process.communicate(input=b"\n")
             self._sysmon_process = None
 
-
     def _retrieve_sysmon(self):
         pathlib.Path("./sysmon_output/").mkdir(exist_ok=True)
-        subprocess.call(self._adb_device_sub_cmd + ["pull", "/sdcard/sysmon_cdsp.bin", "./sysmon_output/"])
+        subprocess.call(
+            self._adb_device_sub_cmd + ["pull", "/sdcard/sysmon_cdsp.bin", "./sysmon_output/"]
+        )
         subprocess.call(self._adb_device_sub_cmd + ["root"])
         hexagon_sdk_root = os.environ.get("HEXAGON_SDK_ROOT", default="")
         subprocess.call(
@@ -544,23 +553,31 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
             shell=True,
         )
 
-
     def _clear_debug_logs(self):
         subprocess.call(self._adb_device_sub_cmd + ["shell", "logcat", "-c"])
-
 
     def _retrieve_debug_logs(self):
         run_start_time = subprocess.check_output(
             self._adb_device_sub_cmd
-            + ["shell", "stat", f"{self._workspace}/android_bash.sh | grep 'Change' | grep -oe '[0-9].*'"]
+            + [
+                "shell",
+                "stat",
+                f"{self._workspace}/android_bash.sh | grep 'Change' | grep -oe '[0-9].*'",
+            ]
         )
         run_start_time = run_start_time[:-1].decode("UTF-8")
         subprocess.call(
             self._adb_device_sub_cmd
-            + ["shell", "logcat", "-t", f'"{run_start_time}"', "-f", f"{self._workspace}/logcat.txt"]
+            + [
+                "shell",
+                "logcat",
+                "-t",
+                f'"{run_start_time}"',
+                "-f",
+                f"{self._workspace}/logcat.txt",
+            ]
         )
         subprocess.call(self._adb_device_sub_cmd + ["pull", f"{self._workspace}/logcat.txt", "."])
-
 
     def _print_cdsp_logs(self):
         crash_count = 0
@@ -726,7 +743,16 @@ def _is_port_in_use(port: int) -> bool:
 
 
 # pylint: disable=invalid-name
-def HexagonLauncher(serial_number: str, rpc_info: dict, workspace: Union[str, pathlib.Path] = None, hexagon_debug: bool = False, clear_logcat: bool = False, sysmon_profile: bool = False):
+def HexagonLauncher(
+    serial_number: str,
+    rpc_info: dict,
+    workspace: Union[str, pathlib.Path] = None,
+    hexagon_debug: bool = False,
+    clear_logcat: bool = False,
+    sysmon_profile: bool = False,
+):
     if serial_number == "simulator":
         return HexagonLauncherSimulator(rpc_info, workspace)
-    return HexagonLauncherAndroid(serial_number, rpc_info, workspace, hexagon_debug, clear_logcat, sysmon_profile)
+    return HexagonLauncherAndroid(
+        serial_number, rpc_info, workspace, hexagon_debug, clear_logcat, sysmon_profile
+    )
