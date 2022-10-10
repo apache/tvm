@@ -36,6 +36,7 @@ class BasicConv2dTests:
         strides,
         padding,
         dilation,
+        out_layout,
         dtype,
         schedule_name,
     ):
@@ -63,6 +64,14 @@ class BasicConv2dTests:
 
         input1 = relay.var("input", relay.TensorType(ishape, dtype))
         weight1 = change_constant_shape(weight0, "HWIO", kernel_layout)
+        inputs = {"input": np.random.randint(low=-128, high=127, size=ishape, dtype=dtype)}
+        output_list = generate_ref_data(ref_mod, inputs)
+
+        # Reshape output dictionary to match out_layout
+        assert len(output_list) == 1
+        axis_order = ["NHWC".index(c) for c in out_layout]
+        output_tensor_name, output_tensor = next(iter(output_list.items()))
+        output_list[output_tensor_name] = np.transpose(output_tensor, axis_order)
 
         out1 = relay.op.nn.conv2d(
             input1,
@@ -74,13 +83,9 @@ class BasicConv2dTests:
             data_layout="NHWC",
             kernel_layout=kernel_layout,
             out_dtype="int32",
-            out_layout="NHWC",
+            out_layout=out_layout,
         )
         mod = tvm.IRModule.from_expr(relay.Function([input1], out1))
-
-        inputs = {"input": np.random.randint(low=-128, high=127, size=ishape, dtype=dtype)}
-        output_list = generate_ref_data(ref_mod, inputs)
-
         compile_and_run(
             AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
             runner=AOT_CORSTONE300_RUNNER,
@@ -126,6 +131,7 @@ class TestConv2d_DSP_HWOI(BasicConv2dTests):
     )
     dtype = tvm.testing.parameter("int8", "int16")
     kernel_layout = tvm.testing.parameter("HWOI")
+    out_layout = tvm.testing.parameter("NHWC")
     schedule_name = tvm.testing.parameter("conv2d_nhwc_dsp.arm_cpu")
 
 
@@ -144,6 +150,7 @@ class TestConv2d_HWIO(BasicConv2dTests):
     )
     dtype = tvm.testing.parameter("int8", "int16")
     kernel_layout = tvm.testing.parameter("HWIO")
+    out_layout = tvm.testing.parameter("NHWC")
     schedule_name = tvm.testing.parameter("conv2d_nhwc_spatial_pack.arm_cpu")
 
 
@@ -153,26 +160,15 @@ class TestConv2d_Tensordot(BasicConv2dTests):
         # ((1, 32, 32, 1), (3, 3), 12, 1, 0),
         # ((1, 32, 10, 3), (3, 3), 16, 1, 0),
         # ((1, 96, 96, 3), (3, 3), 8, (2, 2), (0, 0, 1, 1)),
-        ((4, 16, 16, 8), (5, 5), 8, 2, (0, 3, 3, 0)),
-        ((4, 16, 16, 8), (5, 5), 16, 2, (0, 3, 3, 0)),
-        ((4, 16, 16, 8), (5, 5), 8, 2, 0),
-        ((4, 16, 16, 8), (5, 5), 16, 2, 0),
-        ((1, 16, 16, 32), (1, 1), 64, (2, 2), 0),
+        ((1, 32, 32, 16), (3, 3), 16, 1, (0, 2, 2, 0)),
         ((1, 16, 16, 32), (1, 1), 64, (2, 2), 0),
         ((1, 49, 10, 1), (10, 4), 64, (2, 1), (4, 1, 5, 1)),
-        ((1, 32, 32, 16), (3, 3), 16, 1, (0, 2, 2, 0)),
-        ((1, 32, 32, 16), (3, 3), 16, 1, 0),
-        ((1, 32, 32, 16), (3, 3), 16, 1, 0),
-        ((1, 49, 10, 1), (10, 4), 64, (2, 2), (4, 1, 5, 1)),
-        ((1, 16, 16, 8), (3, 3), 16, 2, (0, 0, 1, 1)),
-        ((1, 16, 16, 8), (3, 3), 16, 2, (1, 1, 2, 2)),
-        ((1, 16, 16, 8), (5, 5), 16, 2, (3, 3, 2, 2)),
-        ((1, 32, 32, 16), (3, 3), 16, 1, 0),
-        ((1, 16, 16, 32), (1, 1), 64, 1, 0),
+        ((4, 16, 16, 16), (5, 5), 8, 2, 0),
     )
     dilation = tvm.testing.parameter(1)
     dtype = tvm.testing.parameter("int8", "int16", "int32")
     kernel_layout = tvm.testing.parameter("OHWI")
+    out_layout = tvm.testing.parameter("NHWC", "NCHW")
     schedule_name = tvm.testing.parameter("conv2d_nhwc_ohwi_dsp.arm_cpu")
 
 
