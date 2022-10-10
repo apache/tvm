@@ -47,6 +47,7 @@ macro(print_summary)
     message(STATUS "  Build type            : ${CMAKE_BUILD_TYPE}")
     get_directory_property(READABLE_COMPILE_DEFS DIRECTORY ${PROJECT_SOURCE_DIR} COMPILE_DEFINITIONS)
     message(STATUS "  Compile definitions   : ${READABLE_COMPILE_DEFS}")
+    MESSAGE(STATUS "  C Compiler            : ${CMAKE_COMPILER_IS_GNUCC}")
 
     list(SORT TVM_ALL_OPTIONS)
     message(STATUS "  Options:")

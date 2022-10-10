@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 project(tvm C CXX)
 
-MESSAGE(STATUS "c compiler :  ${CMAKE_COMPILER_IS_GNUCC}")
-message(STATUS "system name : ${CMAKE_SYSTEM_NAME}")
+
 if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
   set(IS_WINDOWS 1)
   message(STATUS "host is windows")
@@ -850,5 +849,3 @@ endif()
 
 dump_options_to_file("${TVM_ALL_OPTIONS}")
 
-
-add_subdirectory(apps/lower_cpp)
