@@ -17,7 +17,10 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm
 from tvm import meta_schedule as ms
-from tvm.meta_schedule.testing.space_generation import check_sketches
+from tvm.meta_schedule.testing.space_generation import (
+    check_sketches,
+    generate_design_space,
+)
 from tvm.script import tir as T
 from tvm.target import Target
 
@@ -252,10 +255,11 @@ def test_parallel_vectorize_unroll():
     ]
 
     mod = Matmul
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="llvm",
         mod=mod,
         target=Target("llvm --num-cores=32"),
-        space_generator=ms.space_generator.PostOrderApply(),
+        types=None,
         sch_rules=[
             ms.schedule_rule.ParallelizeVectorizeUnroll(
                 max_jobs_per_core=16,
@@ -264,8 +268,7 @@ def test_parallel_vectorize_unroll():
                 unroll_explicit=True,
             ),
         ],
-        task_name="test",
-    ).generate_design_space()
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -276,10 +279,11 @@ def test_parallel_vectorize_unroll():
 
 def test_parallel_vectorize_unroll_spatial():
     mod = PureSpatial
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="llvm",
         mod=mod,
         target=Target("llvm --num-cores=32"),
-        space_generator=ms.space_generator.PostOrderApply(),
+        types=None,
         sch_rules=[
             ms.schedule_rule.ParallelizeVectorizeUnroll(
                 max_jobs_per_core=-1,
@@ -288,8 +292,7 @@ def test_parallel_vectorize_unroll_spatial():
                 unroll_explicit=True,
             ),
         ],
-        task_name="test",
-    ).generate_design_space()
+    )
     assert len(actual) == 1
     trace = actual[0].trace.simplified(remove_postproc=True)
     assert not trace.insts

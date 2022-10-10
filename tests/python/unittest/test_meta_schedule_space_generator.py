@@ -18,7 +18,6 @@
 # pylint: disable=missing-function-docstring
 
 import math
-import sys
 
 import pytest
 import tvm
@@ -94,7 +93,11 @@ def test_meta_schedule_design_space_generator_union():
 def test_meta_schedule_design_space_generator_NIE():
     @derived_object
     class TestPySpaceGenerator(PySpaceGenerator):
-        pass
+        def __init__(self):
+            super().__init__()
+            self.sch_rules = []
+            self.postprocs = []
+            self.mutator_probs = {}
 
     with pytest.raises(
         TVMError, match="PySpaceGenerator's InitializeWithTuneContext method not implemented!"

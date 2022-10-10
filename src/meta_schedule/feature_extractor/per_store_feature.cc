@@ -1042,6 +1042,17 @@ struct Feature {
   /*!
    * \brief See the wiki page [1] for details
    *
+   * Arithmetic intensity is FLOPs/unique bytes of memory touched. A value is computed
+   * for each set of loop nests starting with just the innermost loop and
+   * reaching to include all loops. There are a variable number of loops, so
+   * n_samples are taken from the curve of arithmetic intensity vs flops. This
+   * biases the values towards larger loops.
+   *
+   * Note that the denominator is unique bytes of memory touched. Repeated
+   * access to the same byte of memory counts as only a single byte touched.
+   *
+   * Values are scaled by log2(x + 1).
+   *
    * [1] https://en.wikipedia.org/wiki/Roofline_model
    */
   std::vector<double> arith_intensity_curve;
@@ -1060,7 +1071,7 @@ struct Feature {
     std::vector<double> memory_bytes;
     memory_bytes.resize(n_loops);
     for (int i = 0; i < n_loops; ++i) {
-      memory_bytes[n_loops - 1 - i] = std::log2(for_touched_bytes[i]);
+      memory_bytes[n_loops - 1 - i] = for_touched_bytes[i];
     }
     // Calculate `compute_ops` and `cur_compute_ops`
     std::vector<double> compute_ops;
@@ -1072,7 +1083,7 @@ struct Feature {
       if (const int64_t* extent = GetLoopIntExtent(loops[i])) {
         total_compute_ops *= *extent;
       }
-      compute_ops.push_back(std::log2(total_compute_ops));
+      compute_ops.push_back(total_compute_ops);
     }
     // Fill the feature set
     if (total_compute_ops <= 0 || compute_ops.empty()) {
@@ -1081,7 +1092,7 @@ struct Feature {
       }
       return;
     }
-    total_compute_ops = compute_ops.back();  // i.e. total_compute_ops = log2(total_compute_ops)
+    total_compute_ops = compute_ops.back();
     int p = 0;
     for (int i = 0; i < n_samples; ++i) {
       double& result = arith_intensity_curve[i];
@@ -1094,13 +1105,13 @@ struct Feature {
       }
       CHECK_LT(p, n_loops);
       if (p == 0) {
-        result = compute_ops[p] / memory_bytes[p];
+        result = slog(compute_ops[p] / memory_bytes[p]);
       } else {
         double base = compute_ops[p - 1] / memory_bytes[p - 1];
         double slope =
             (compute_ops[p] / memory_bytes[p] - compute_ops[p - 1] / memory_bytes[p - 1]) /
             (compute_ops[p] - compute_ops[p - 1]);
-        result = base + slope * (cur_compute_ops - compute_ops[p - 1]);
+        result = slog(base + slope * (cur_compute_ops - compute_ops[p - 1]));
       }
     }
   }

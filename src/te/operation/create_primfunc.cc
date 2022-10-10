@@ -108,14 +108,16 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
   Stmt VisitStmt_(const BlockNode* _block) final {
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(_block));
     if (Optional<ObjectRef> ann = block->annotations.Get(topi_attr)) {
-      Array<Buffer> buffers = Downcast<Array<Buffer>>(ann);
-      for (Buffer buffer : buffers) {
+      Array<Buffer> new_buffers;
+      for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
         auto it = buffer2index_.find(buffer);
         if (it != buffer2index_.end()) {
           layout_free_buffer_indices_.insert(it->second);
+        } else {
+          new_buffers.push_back(buffer);
         }
       }
-      block.CopyOnWrite()->annotations.erase(topi_attr);
+      block.CopyOnWrite()->annotations.Set(topi_attr, new_buffers);
     }
     return std::move(block);
   }
@@ -473,10 +475,11 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
   const auto* complete = runtime::Registry::Get("script.Complete");
   ICHECK(complete);
   func = (*complete)(std::move(func), info->root_alloc);
-  return LayoutFreePlaceholdersNormalizer().Process(std::move(func));
+  return func;
 }
 
-PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
+PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
+                                     const Array<runtime::NDArray>& constants) {
   // Infomations used in CreatePrimFunc and its sub-functions.
   CreateFuncInfo info(arg_list);
   // Root body stmts.
@@ -494,14 +497,15 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
   for (const te::Operation& op : order) {
     RewriteStageToBlock(op, &info, &root_stmts, &analyzer);
   }
+
   // Step 4. Create func and complete prim func.
-  return GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
+  auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
+  func = tir::BindParams(func, constants);
+  return LayoutFreePlaceholdersNormalizer().Process(std::move(func));
 }
 
-PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
-                                     const Array<runtime::NDArray>& constants) {
-  PrimFunc func = CreatePrimFunc(arg_list);
-  return tir::BindParams(func, constants);
+PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
+  return CreatePrimFuncWithConstants(arg_list, {});
 }
 
 TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_typed(CreatePrimFunc);

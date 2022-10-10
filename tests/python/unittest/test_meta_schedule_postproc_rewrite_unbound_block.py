@@ -17,25 +17,25 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
 import tvm
+from tvm import meta_schedule as ms
 from tvm import tir
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.postproc import RewriteUnboundBlock
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.tir.schedule.schedule import Schedule
 
 
 def _target() -> Target:
     return Target("cuda --max_threads_per_block=1024", host="llvm")
 
 
-def _create_context(mod, target) -> TuneContext:
-    ctx = TuneContext(
+def _create_context(mod, target) -> ms.TuneContext:
+    ctx = ms.TuneContext(
         mod=mod,
         target=target,
-        postprocs=[
-            RewriteUnboundBlock(),
-        ],
+        space_generator=ms.space_generator.PostOrderApply(
+            sch_rules=[],
+            postprocs=[ms.postproc.RewriteUnboundBlock()],
+            mutator_probs={},
+        ),
         task_name="test",
     )
     return ctx
@@ -363,7 +363,7 @@ def test_rewrite_cooperative_fetch():
     ctx = _create_context(mod, target)
     sch = tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
-    assert ctx.postprocs[0].apply(sch)
+    assert ctx.space_generator.postprocs[0].apply(sch)
     tvm.ir.assert_structural_equal(sch.mod, After_cooperative_fetch)
 
 
@@ -373,7 +373,7 @@ def test_rewrite_norm_bmn():
     ctx = _create_context(mod, target)
     sch = tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
-    assert ctx.postprocs[0].apply(sch)
+    assert ctx.space_generator.postprocs[0].apply(sch)
     tvm.ir.assert_structural_equal(sch.mod, After_norm_bmn)
 
 
@@ -383,7 +383,7 @@ def test_rewrite_cuda_loop_split_no_reduction():
     ctx = _create_context(mod, target)
     sch = tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
-    assert ctx.postprocs[0].apply(sch)
+    assert ctx.space_generator.postprocs[0].apply(sch)
     tvm.ir.assert_structural_equal(sch.mod, Bert_fused_reshape_transpose_reshape_after_rub)
 
 
@@ -393,7 +393,7 @@ def test_rewrite_cuda_loop_split_no_reduction_large():
     ctx = _create_context(mod, target)
     sch = tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
-    assert ctx.postprocs[0].apply(sch)
+    assert ctx.space_generator.postprocs[0].apply(sch)
     tvm.ir.assert_structural_equal(sch.mod, Bert_fused_reshape_transpose_reshape_after_rub_large)
 
 
@@ -403,7 +403,7 @@ def test_rewrite_cuda_loop_split_for_kind():
     ctx = _create_context(mod, target)
     sch = tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
-    assert ctx.postprocs[0].apply(sch)
+    assert ctx.space_generator.postprocs[0].apply(sch)
     tvm.ir.assert_structural_equal(sch.mod["main"], after_unrolled_loop)
 
 

@@ -35,7 +35,6 @@ from tvm.script import tir as T
 
 
 @tvm.testing.parametrize_targets("llvm", "cuda")
-@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/12955")
 def test_estimate_peak_flops(target, dev):
     server = rpc.Server(key="roofline_flops")
     remote = rpc.connect("127.0.0.1", server.port, key="roofline_flops")

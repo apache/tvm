@@ -38,6 +38,7 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/index_map.h>
 #include <tvm/tir/schedule/schedule.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 #include <tvm/topi/tags.h>
 
@@ -48,6 +49,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../printer/text_printer.h"
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
 #include "../transforms/meta_schedule_layout_rewrite.h"
@@ -303,6 +305,66 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
 
 int LowerToTECompute::const_index = 0;
 
+using namespace tvm::tir;
+
+class LayoutFreeConstantCollector : public StmtVisitor {
+ public:
+  Array<runtime::NDArray> constants;
+
+ private:
+  void VisitStmt_(const BlockNode* op) final {
+    StmtVisitor::VisitStmt_(op);
+    if (Optional<ObjectRef> ann = op->annotations.Get("layout_free_placeholders")) {
+      for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
+        layout_free_buffer_vars_.insert(buffer->data.get());
+      }
+    }
+  }
+
+  void VisitStmt_(const AllocateConstNode* op) final {
+    StmtVisitor::VisitStmt_(op);
+    if (auto it = layout_free_buffer_vars_.find(op->buffer_var.get());
+        it != layout_free_buffer_vars_.end()) {
+      constants.push_back(op->data.value());
+    }
+  }
+
+  std::unordered_set<const tir::VarNode*> layout_free_buffer_vars_;
+};
+
+using NDArrayMap =
+    std::unordered_map<runtime::NDArray, runtime::NDArray, ObjectPtrHash, ObjectPtrEqual>;
+
+// Replace constants in AllocateConst nodes according to the given mapping
+class AllocateConstReplaceConstant : public StmtExprMutator {
+ public:
+  explicit AllocateConstReplaceConstant(const NDArrayMap& constant_map)
+      : constant_map_(constant_map) {}
+
+  static PrimFunc Rewrite(PrimFunc f, const NDArrayMap& constant_map) {
+    AllocateConstReplaceConstant rewriter(constant_map);
+    PrimFuncNode* n = f.CopyOnWrite();
+    n->body = rewriter(std::move(n->body));
+    return f;
+  }
+
+ private:
+  Stmt VisitStmt_(const AllocateConstNode* op) final {
+    if (auto it = constant_map_.find(op->data.value()); it != constant_map_.end()) {
+      auto rewriten_constant = it->second;
+      Array<PrimExpr> rewritten_extents;
+      for (auto s : rewriten_constant.Shape()) {
+        rewritten_extents.push_back(PrimExpr(static_cast<int>(s)));
+      }
+      return AllocateConst(op->buffer_var, op->dtype, rewritten_extents, rewriten_constant,
+                           op->body, op->annotations, op->span);
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
+  NDArrayMap constant_map_;
+};
+
 // Construct a schedule for a given Relay primitive function and target.
 class ScheduleBuilder : public ExprVisitor {
  public:
@@ -367,19 +429,99 @@ class ScheduleBuilder : public ExprVisitor {
           constants.push_back(const_node->data);
         }
         if (Optional<PrimFunc> f = tir_converter(te_args, constants)) {
+          IRModule query_mod = backend::PrimFuncToIRModule(f.value());
           if (Optional<TuningRecord> opt_record = database_.value()->QueryTuningRecord(
-                  /*mod=*/backend::PrimFuncToIRModule(f.value()),
+                  /*mod=*/query_mod,
                   /*target=*/target_,
                   /*workload_name=*/prim_fn_var->name_hint)) {
+            LayoutFreeConstantCollector const_collector;
+            const_collector(f.value()->body);
+
             static InstructionKind kind_transform_layout = InstructionKind::Get("TransformLayout");
             TuningRecord record = opt_record.value();
             for (const Instruction& inst : record->trace->insts) {
               if (inst->kind.same_as(kind_transform_layout)) {
                 ICHECK_EQ(inst->attrs.size(), 4);
-                MetaScheduleLayoutRewriter::LayoutQueuePush(Downcast<IndexMap>(inst->attrs[2]));
+                auto index_map = Downcast<IndexMap>(inst->attrs[2]);
+
+                if (!const_collector.constants.empty()) {
+                  // In this case, RewriteLayout is acting on an AllocateConst node.
+                  // After tuning, we reach this code path twice: First by
+                  // the Relay MetaScheduleLayoutRewrite pass, and next by the final
+                  // compilation (Relay to TE schedule lowering).
+                  //
+                  // Due to Relay MetaScheduleLayoutRewrite and FoldConstant passes,
+                  // the Relay subgraph for which we query the database during the
+                  // final compilation has its weight tensor transformed according to
+                  // the index map, determined during tuning. For example,
+                  //
+                  // fn (%p0: Tensor[(1, 56, 56, 64), float32]) {
+                  //   %0 = nn.conv2d(%p0, meta[relay.Constant][0],
+                  //                       /*ty=Tensor[(4, 2, 2, 3, 3, 32, 8), float32]*/, ...);
+                  //   add(%0, meta[relay.Constant][1])
+                  // }
+                  //
+                  // Note that the database does not have an entry corresponding to such subgraphs,
+                  // since an input subgraph to the tuning system always has its weight tensor in
+                  // the original layout, e.g.
+                  //
+                  // fn (%p0: Tensor[(1, 56, 56, 64), float32]) {
+                  //   %0 = nn.conv2d(%p0, meta[relay.Constant][0],
+                  //                       /*ty=Tensor[(3, 3, 64, 64), float32]*/, ...);
+                  //   add(%0, meta[relay.Constant][1])
+                  // }
+                  //
+                  // Thus, in both of the two cases where we reach this code path, we need careful
+                  // logic to make sure that (1) the database lookup during the final compilation
+                  // succeeds and (2) the application of a schedule trace is well defined.
+
+                  ICHECK(const_collector.constants.size() == 1)
+                      << "Only one layout-free constant is supported by RewriteLayout for now";
+                  auto constant = const_collector.constants[0];
+
+                  if (constant.Shape().size() == index_map->initial_indices.size()) {
+                    // This is the first case, reached during the MetaScheduleLayoutRewrite pass.
+                    //
+                    // A layout-free constant having the same rank as an input to the index map
+                    // is assumed to be transformed by this index map.
+                    // TODO(masahi): If there are multiple layout-free constants in one
+                    // TIR mod (e.g. conv2d -> conv2d fusion), this assumption does not hold.
+                    // We need to determine which constant the given index map acts on.
+                    //
+                    // We know that, during the final compilation, we will query the database
+                    // for a subgraph that the tuner has never seen. We workaround this problem
+                    // by adding a dummy entry to the database. The dummy entry is carefully
+                    // constructed so that the lookup during the final compilation would succeed.
+                    runtime::NDArray rewritten_constant = index_map->MapNDArray(constant);
+                    auto f_dummy = AllocateConstReplaceConstant::Rewrite(
+                        f.value(), {{constant, rewritten_constant}});
+                    auto workload_dummy =
+                        database_.value()->CommitWorkload(backend::PrimFuncToIRModule(f_dummy));
+                    TuningRecord rec_dummy(record->trace, workload_dummy, record->run_secs,
+                                           record->target, record->args_info);
+                    database_.value()->CommitTuningRecord(rec_dummy);
+                  } else {
+                    // The constant is already transformed, so this is the second case, reached
+                    // during the final compilation.
+                    //
+                    // The schedule trace is supposed to be applied to the weight in its original
+                    // layout. But as explained above, the Relay subgraph we get in this case
+                    // has its weight tensor transformed according to the corresponding index map.
+                    // So effectively, we undo the layout transformation on the weight to restore
+                    // the original PrimFunc that the schedule trace is supposed to act on.
+                    ICHECK(index_map->inverse_index_map);
+                    auto inverse_map = Downcast<IndexMap>(index_map->inverse_index_map.value());
+                    ICHECK(constant.Shape().size() == inverse_map->initial_indices.size());
+                    runtime::NDArray orig_constant = inverse_map->MapNDArray(constant);
+                    auto f_ = AllocateConstReplaceConstant::Rewrite(f.value(),
+                                                                    {{constant, orig_constant}});
+                    query_mod = backend::PrimFuncToIRModule(f_);
+                  }
+                }
+                MetaScheduleLayoutRewriter::LayoutQueuePush(index_map);
               }
             }
-            Schedule sch = Schedule::Traced(record->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
+            Schedule sch = Schedule::Traced(query_mod, /*seed=*/-1, /*debug_mask=*/0,
                                             tir::ScheduleErrorRenderLevel::kDetail);
             record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
             IRModule mod = sch->mod();
@@ -387,7 +529,18 @@ class ScheduleBuilder : public ExprVisitor {
             mod = tir::transform::RemoveWeightLayoutRewriteBlock()(std::move(mod));
             prim_func = Downcast<PrimFunc>(mod->Lookup("main"));
           } else {
-            LOG(WARNING) << "Cannot find workload: " << prim_fn_var->name_hint;
+            int dispatch = backend::UseMetaScheduleDispatch();
+            // (dispatch & 2): controls whether to print TVMScript for missing TIR
+            // (dispatch & 4): controls whether to raise fatal errors for missing TIR
+            if (dispatch & 2) {
+              LOG(WARNING) << "Cannot find workload: " << prim_fn_var->name_hint << "\n"
+                           << tir::AsTVMScript(f.value());
+            } else {
+              LOG(WARNING) << "Cannot find workload: " << prim_fn_var->name_hint;
+            }
+            if (dispatch & 4) {
+              LOG(FATAL);
+            }
           }
         }
       }

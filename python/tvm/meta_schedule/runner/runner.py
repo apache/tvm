@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Runners"""
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Union
 
 # isort: off
 from typing_extensions import Literal
@@ -167,6 +167,8 @@ class PyRunnerFuture:
 class Runner(Object):
     """The abstract runner interface"""
 
+    RunnerType = Union["Runner", Literal["local", "rpc"]]
+
     def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
         """Run the built artifact and get runner futures.
 
@@ -181,6 +183,24 @@ class Runner(Object):
             The runner futures.
         """
         return _ffi_api.RunnerRun(self, runner_inputs)  # type: ignore # pylint: disable=no-member
+
+    @staticmethod
+    def create(  # pylint: disable=keyword-arg-before-vararg
+        kind: Literal["local", "rpc"] = "local",
+        *args,
+        **kwargs,
+    ) -> "Runner":
+        """Create a Runner."""
+        from . import LocalRunner, RPCRunner  # pylint: disable=import-outside-toplevel
+
+        if kind == "local":
+            return LocalRunner(*args, **kwargs)  # type: ignore
+        elif kind == "rpc":
+            return RPCRunner(*args, **kwargs)  # type: ignore
+        raise ValueError(f"Unknown Runner: {kind}")
+
+
+create = Runner.create  # pylint: disable=invalid-name
 
 
 @register_object("meta_schedule.PyRunner")
@@ -228,18 +248,3 @@ class PyRunner:
             The runner futures.
         """
         raise NotImplementedError
-
-
-def create(  # pylint: disable=keyword-arg-before-vararg
-    kind: Literal["local", "rpc"] = "local",
-    *args,
-    **kwargs,
-) -> Runner:
-    """Create a Runner."""
-    from . import LocalRunner, RPCRunner  # pylint: disable=import-outside-toplevel
-
-    if kind == "local":
-        return LocalRunner(*args, **kwargs)  # type: ignore
-    elif kind == "rpc":
-        return RPCRunner(*args, **kwargs)  # type: ignore
-    raise ValueError(f"Unknown Runner: {kind}")

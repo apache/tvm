@@ -21,8 +21,8 @@ import glob
 import json
 import os
 
-from tqdm import tqdm  # type: ignore
 import tvm
+from tqdm import tqdm  # type: ignore
 from tvm import meta_schedule as ms
 from tvm.ir import save_json
 from tvm.meta_schedule.testing.relay_workload import _load_cache
@@ -60,7 +60,7 @@ def extract_and_save_tasks(cache_file):
     mod, params_bytearray, _ = _load_cache(args.model_cache_dir, cache_file)
     params = load_param_dict(params_bytearray)
     try:
-        extracted_tasks = ms.extract_task_from_relay(mod, target=args.target, params=params)
+        extracted_tasks = ms.relay_integration.extract_tasks(mod, target=args.target, params=params)
     except tvm.error.TVMError as error:
         print(str(error))
         return

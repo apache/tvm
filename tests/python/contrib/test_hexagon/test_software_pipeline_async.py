@@ -30,7 +30,10 @@ outer = tvm.testing.parameter(8, 16)
 inner = tvm.testing.parameter(64, 128)
 dtype = tvm.testing.parameter("uint8", "float16")
 scope = tvm.testing.parameter("global", "global.vtcm")
-sched = tvm.testing.parameter("cache_read", "cache_write", "cache_read_write")
+# TODO(Straw) Add back "cache_write" schedule type once we have upstreamed
+# buffer dependency analysis in InjectSoftwarePipeline pass
+# to insert approprite TIR "wait" attributes for this schedule
+sched = tvm.testing.parameter("cache_read", "cache_read_write")
 
 
 @tvm.testing.fixture

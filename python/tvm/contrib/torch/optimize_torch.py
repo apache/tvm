@@ -28,28 +28,17 @@ and returns a custom TorchScript operator
 import base64
 import contextlib
 import tempfile
-from typing import Dict, Optional, Tuple, Union
-import warnings
+from typing import Optional, Tuple, Union
 
 import torch
 import torch.utils.dlpack
-
 import tvm
+from tvm import meta_schedule as ms
 from tvm import relay
 from tvm._ffi import get_global_func, register_func
-from tvm.ir.module import IRModule
-from tvm.ir.transform import PassContext
-from tvm.meta_schedule import TuneConfig, default_config
-from tvm.meta_schedule.relay_integration import extract_task_from_relay
-from tvm.meta_schedule.tune import tune_extracted_tasks
-from tvm.meta_schedule.utils import autotvm_silencer
-from tvm.runtime import vm
-from tvm.runtime.module import Module
-from tvm.runtime.ndarray import NDArray
-from tvm.target.target import Target
+from tvm.target import Target
 
 
-# The python wrapper for GraphExecutorFactory
 class GraphExecutorFactoryWrapper(torch.nn.Module):
     def __init__(self, module: tvm.runtime.Module):
         super().__init__()
@@ -62,75 +51,32 @@ class GraphExecutorFactoryWrapper(torch.nn.Module):
         return ret
 
 
-def llvm_target():
-    return "llvm -num-cores"
-
-
 @register_func("script_torch.save_to_base64")
 def save_to_base64(obj) -> bytes:
     with tempfile.NamedTemporaryFile(suffix=".so") as tmpfile:
         obj.export_library(tmpfile.name)
-        with open(tmpfile.name, "rb") as tfile:
-            return base64.b64encode(tfile.read())
-
-
-def tune_relay_auto(
-    mod: IRModule,
-    target: Union[str, Target],
-    config: TuneConfig,
-    work_dir: str,
-    backend: str = "graph",
-    params: Optional[Dict[str, NDArray]] = None,
-) -> Union[Module, vm.Executable]:
-    """A wrapper of `tune_relay` but provide a default setting for the config.
-
-    Parameters
-    ----------
-    mod : IRModule
-        The module to tune.
-    target : Union[str, Target]
-        The target to tune for.
-    config : TuneConfig
-        The search strategy config.
-    params : Optional[Dict[str, tvm.runtime.NDArray]]
-        The associated parameters of the program
-    work_dir : Optional[str]
-        The working directory to save intermediate results.
-    backend : str = "graph"
-        The backend to use for relay compilation(graph / vm).
-
-    Returns
-    -------
-    lib : Union[Module, tvm.runtime.vm.Executable]
-        The built runtime module or vm Executable for the given relay workload.
-    """
-    target = default_config.target(target)
-    extracted_tasks = extract_task_from_relay(mod, target, params)
-    if config is None:
-        config = TuneConfig(
-            num_trials_per_iter=16,
-            max_trials_global=16 * len(extracted_tasks),
-        )
-    database = tune_extracted_tasks(extracted_tasks, config, work_dir)
-    relay_build = {"graph": relay.build, "vm": relay.vm.compile}[backend]
-    with target, autotvm_silencer(), database:
-        with PassContext(
-            opt_level=3,
-            config={
-                "relay.backend.use_meta_schedule": True,
-                "relay.backend.use_meta_schedule_dispatch": target.kind.name != "cuda",
-                "relay.backend.tir_converter": "default",
-            },
-        ):
-            return relay_build(mod, target=target, params=params)
+        with open(tmpfile.name, "rb") as temp_file:
+            return base64.b64encode(temp_file.read())
 
 
 def optimize_torch(
     func,
     example_inputs,
-    tuning_config=None,
-    target=None,
+    *,
+    max_trials_global: int,
     work_dir=None,
+    target: Union[str, Target] = "cpu",
+    max_trials_per_task: Optional[int] = None,
+    num_trials_per_iter: int = 64,
+    builder: ms.Builder.BuilderType = "local",
+    runner: ms.Runner.RunnerType = "local",
+    database: ms.Database.DatabaseType = "json",
+    cost_model: ms.CostModel.CostModelType = "xgb",
+    measure_callbacks: ms.MeasureCallback.CallbackListType = "default",
+    task_scheduler: ms.TaskScheduler.TaskSchedulerType = "gradient",
+    space: ms.SpaceGenerator.SpaceGeneratorType = "post-order-apply",
+    strategy: ms.SearchStrategy.SearchStrategyType = "evolutionary",
+    seed: Optional[int] = None,
 ):
     """Load PyTorch model that could be traced by TorchScript, then optimize it via MetaSchedule.
 
@@ -139,22 +85,37 @@ def optimize_torch(
     func : callable or torch.nn.Module
         A Python function or nn.Module that could run by TorchScript's trace.
         (ie: torch.jit.trace(model, input))
-
     example_inputs : tuple or torch.Tensor
         Inputs to `torch.jit.trace`.
-
-    tuning_config : tvm.meta_schedule.TuneConfig
-        The configuration for tuning by MetaSchedule.
-        If user doesn't set the config, the tuning will run with a default setting.
-        Here, the total number of trials is proportional
-        to the number of tunable tasks in the input module.
-
+    max_trials_global : int
+        The maximum number of trials to run globally.
+    work_dir : Optional[str]
+        The working directory to save intermediate results.
     target : Optional[Union[str, Target]]
         The target of the compilation.
         If user doesn't set the target, the module will be built for the CPU target.
-
-    work_dir : Optional[str]
-        The working directory to save intermediate results.
+    max_trials_per_task : Optional[int]
+        The maximum number of trials to run per task.
+    num_trials_per_iter : int
+        The number of trials to run per iteration
+    builder : Builder.BuilderType
+        The builder.
+    runner : Runner.RunnerType
+        The runner.
+    database : Database.DatabaseType
+        The database.
+    cost_model : CostModel.CostModelType
+        The cost model.
+    measure_callbacks : MeasureCallback.CallbackListType
+        The measure callbacks.
+    task_scheduler : TaskScheduler.TaskSchedulerType
+        The task scheduler.
+    space : SpaceGenerator.SpaceGeneratorType
+        The space generator to use.
+    strategy : SearchStrategy.SearchStrategyType
+        The search strategy to use.
+    seed : Optional[int]
+        The random seed to use.
 
     Returns
     -------
@@ -163,33 +124,47 @@ def optimize_torch(
         which is the subclass of the original nn.Module.
     """
 
-    if target is None:
-        target = llvm_target()
-
-    if tuning_config is None:
-        warning_msg = (
-            "Using the default tuning parameters.",
-            "The default number of trials is set to a small value to let tuning finish quickly.",
-            "For optimal performance, it is recommended to provide",
-            "the `tuning_config` argument with a bigger number of trials.",
-        )
-        warnings.warn(" ".join(warning_msg), stacklevel=2)
+    if target == "cpu":
+        target = f"llvm --num-cores {ms.utils.cpu_count(logical=False)}"
+    if not isinstance(target, Target):
+        target = Target(target)
 
     # If `func` is already a traced module this statement makes no effect
     jit_mod = torch.jit.trace(func, example_inputs)
-
     if isinstance(example_inputs, torch.Tensor):
         example_inputs = [example_inputs]
-
     shape_list = [(f"inp_{idx}", i.shape) for idx, i in enumerate(example_inputs)]
     mod, params = relay.frontend.from_pytorch(jit_mod, shape_list)  # IRmodule
+
     if work_dir:
         context_manager = contextlib.nullcontext(work_dir)
     else:
         context_manager = tempfile.TemporaryDirectory()
-    with context_manager as work_dir_path:
-        executor_factory = tune_relay_auto(
-            mod=mod, params=params, config=tuning_config, target=target, work_dir=work_dir_path
+    with context_manager as work_dir:  # pylint: disable=redefined-argument-from-local
+        database = ms.relay_integration.tune_relay(
+            mod=mod,
+            params=params,
+            target=target,
+            work_dir=work_dir,
+            max_trials_global=max_trials_global,
+            max_trials_per_task=max_trials_per_task,
+            num_trials_per_iter=num_trials_per_iter,
+            builder=builder,
+            runner=runner,
+            database=database,
+            cost_model=cost_model,
+            measure_callbacks=measure_callbacks,
+            task_scheduler=task_scheduler,
+            space=space,
+            strategy=strategy,
+            seed=seed,
+        )
+        executor_factory = ms.relay_integration.compile_relay(
+            database=database,
+            mod=mod,
+            target=target,
+            params=params,
+            backend="graph",
         )
 
     save_runtime_mod = get_global_func("tvmtorch.save_runtime_mod")
