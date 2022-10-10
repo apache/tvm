@@ -116,9 +116,11 @@ class AutoTVMInst(object):
         # mod, params = relay.frontend.from_pytorch(torchscript_model, shape_list)
 
         # mod, params, input_shape, out_shape = get_network(network, batch_size=1)
+        # tasks = autotvm.task.extract_from_program(
+        #     mod["main"], target=self.target, params=params, ops=(relay.op.get("nn.conv2d"),)
+        # )
         tasks = autotvm.task.extract_from_program(
-            mod["main"], target=self.target, params=params, ops=(relay.op.get("nn.conv2d"),)
-        )
+            mod["main"], target=self.target, params=params)
         ntasks = []
         if os.path.exists(self.log_file):
             with autotvm.apply_history_best(self.log_file) as appHistBest:
