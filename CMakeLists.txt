@@ -559,7 +559,10 @@ add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_o
 target_include_directories(tvm PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
-set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "-Wl,--exclude-all-symbols")
+if (IS_MINGW)
+  set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "-Wl,--exclude-all-symbols")
+endif (IS_MINGW)
+
 if(BUILD_STATIC_RUNTIME)
   add_library(tvm_runtime STATIC $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
   set(NOTICE_MULTILINE
