@@ -19,6 +19,7 @@
 
 import numpy as np
 import tvm
+import pytest
 
 from tvm.script import tir as T
 from numpy.random import default_rng
@@ -108,6 +109,8 @@ def input_w(size_w):
 
 @tvm.testing.fixture
 def expected_output(size_a, size_w, input_a, input_w):
+    if tvm.testing.utils.IS_IN_CI and (size_a > 1024 or size_w > 1):
+        pytest.skip("Skipping test since it takes too long in CI.")
     expected_output = np.zeros((size_a, VRMPY_SIZE_INT32), dtype="int32")
     for n in range(size_a):
         for x in range(size_w):
@@ -272,10 +275,10 @@ class TestAsyncDMAPipeline:
     )
 
     size_w = tvm.testing.parameter(
-        1 * 1 * 32,
-        3 * 3 * 32,
-        7 * 7 * 32,
-        9 * 9 * 32,
+        1 * 1,
+        3 * 3,
+        7 * 7,
+        9 * 9,
     )
 
     @tvm.testing.requires_hexagon
@@ -290,8 +293,7 @@ class TestAsyncDMAPipeline:
     ):
 
         if tvm.testing.utils.IS_IN_CI and (size_a > 1024 or size_w > 1):
-            print("skipping test due to ci")
-            return
+            pytest.skip("Skipping test since it takes too long in CI.")
 
         sch = conv_approximation(size_a, size_w)
         base_runtime = evaluate(hexagon_session, sch, input_a, input_w, size_a, expected_output)
