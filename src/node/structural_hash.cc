@@ -55,8 +55,10 @@ void ReflectionVTable::SHashReduce(const Object* self, SHashReducer reducer) con
 // In particular, when we traverse unordered_map, we should first sort
 // the entries by keys(or hash of keys) before traversing.
 
-class VarCountingSHashHandler : public SHashReducer::Handler {
+class SHashHandlerDefault::Impl {
  public:
+  explicit Impl(SHashHandlerDefault* parent) : parent_(parent) {}
+
   /*! \brief Pending reduce tasks. */
   struct Task {
     /*!
@@ -81,15 +83,13 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
         : object(object), reduced_hash(reduced_hash), map_free_vars(map_free_vars) {}
   };
 
-  VarCountingSHashHandler() {}
-
-  void MarkGraphNode() final {
+  void MarkGraphNode() {
     // need to push to pending tasks in this case
     ICHECK(!allow_push_to_stack_ && !task_stack_.empty());
     task_stack_.back().graph_node_hash = true;
   }
 
-  bool LookupHashedValue(const ObjectRef& key, size_t* hash_value) final {
+  bool LookupHashedValue(const ObjectRef& key, size_t* hash_value) {
     auto it = hash_memo_.find(key);
     if (it != hash_memo_.end()) {
       hash_value[0] = it->second;
@@ -98,11 +98,11 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     return false;
   }
 
-  void SHashReduceHashedValue(size_t hashed_value) final {
+  void SHashReduceHashedValue(size_t hashed_value) {
     pending_tasks_.emplace_back(Task(ObjectRef(nullptr), hashed_value, false));
   }
 
-  void SHashReduceFreeVar(const runtime::Object* var, bool map_free_vars) final {
+  void SHashReduceFreeVar(const runtime::Object* var, bool map_free_vars) {
     ICHECK(!hash_memo_.count(GetRef<ObjectRef>(var)));
     if (map_free_vars) {
       // use counter value.
@@ -115,7 +115,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     }
   }
 
-  void SHashReduce(const ObjectRef& object, bool map_free_vars) final {
+  void SHashReduce(const ObjectRef& object, bool map_free_vars) {
     // Directly push the result
     // Note: it is still important to push the result to pendng tasks
     // so that the reduction order of hash values stays the same.
@@ -149,6 +149,11 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     size_t ret = result_stack_.back();
     result_stack_.pop_back();
     return ret;
+  }
+
+  void DispatchSHash(const ObjectRef& object, bool map_free_vars) {
+    ICHECK(object.defined());
+    vtable_->SHashReduce(object.get(), SHashReducer(parent_, map_free_vars));
   }
 
  protected:
@@ -219,7 +224,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
           ICHECK_EQ(pending_tasks_.size(), 0U);
           allow_push_to_stack_ = false;
           // dispatch hash, reduce to the current slot.
-          this->DispatchSHash(entry.object, entry.map_free_vars);
+          parent_->DispatchSHash(entry.object, entry.map_free_vars);
           allow_push_to_stack_ = true;
           // Move pending tasks to the stack until the marked point.
           while (pending_tasks_.size() != 0) {
@@ -231,13 +236,9 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     }
   }
 
-  // The default equal as registered in the structural equal vtable.
-  void DispatchSHash(const ObjectRef& object, bool map_free_vars) {
-    ICHECK(object.defined());
-    vtable_->SHashReduce(object.get(), SHashReducer(this, map_free_vars));
-  }
-
  private:
+  // The owner of this impl
+  SHashHandlerDefault* parent_;
   // free var counter.
   size_t free_var_counter_{0};
   // graph node counter.
@@ -256,14 +257,43 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
   std::unordered_map<ObjectRef, size_t, ObjectPtrHash, ObjectPtrEqual> hash_memo_;
 };
 
+SHashHandlerDefault::SHashHandlerDefault() { impl = new Impl(this); }
+SHashHandlerDefault::~SHashHandlerDefault() { delete impl; }
+
+void SHashHandlerDefault::SHashReduceHashedValue(size_t hashed_value) {
+  return impl->SHashReduceHashedValue(hashed_value);
+}
+
+void SHashHandlerDefault::SHashReduce(const ObjectRef& key, bool map_free_vars) {
+  impl->SHashReduce(key, map_free_vars);
+}
+
+void SHashHandlerDefault::SHashReduceFreeVar(const runtime::Object* var, bool map_free_vars) {
+  impl->SHashReduceFreeVar(var, map_free_vars);
+}
+
+bool SHashHandlerDefault::LookupHashedValue(const ObjectRef& key, size_t* hashed_value) {
+  return impl->LookupHashedValue(key, hashed_value);
+}
+
+void SHashHandlerDefault::MarkGraphNode() { impl->MarkGraphNode(); }
+
+size_t SHashHandlerDefault::Hash(const ObjectRef& object, bool map_free_vars) {
+  return impl->Hash(object, map_free_vars);
+}
+
+void SHashHandlerDefault::DispatchSHash(const ObjectRef& key, bool map_free_vars) {
+  impl->DispatchSHash(key, map_free_vars);
+}
+
 TVM_REGISTER_GLOBAL("node.StructuralHash")
     .set_body_typed([](const ObjectRef& object, bool map_free_vars) -> int64_t {
-      size_t hashed_value = VarCountingSHashHandler().Hash(object, map_free_vars);
+      size_t hashed_value = SHashHandlerDefault().Hash(object, map_free_vars);
       return static_cast<int64_t>(hashed_value);
     });
 
 size_t StructuralHash::operator()(const ObjectRef& object) const {
-  return VarCountingSHashHandler().Hash(object, false);
+  return SHashHandlerDefault().Hash(object, false);
 }
 
 // SEQualReduce traits for runtime containers.

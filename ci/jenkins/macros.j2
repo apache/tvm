@@ -23,7 +23,8 @@
 sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/{{ test_dir_name }} --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/{{ test_dir_name }} --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -86,6 +87,24 @@ def {{ method_name }}() {
     }
   },
 {% endfor %}
+{% endmacro %}
+
+{% macro build_step(name, condition, node, docker_image, ws) %}
+  '{{ name }}': {
+    if ({{ condition }}) {
+      node('{{ node }}') {
+        ws({{ per_exec_ws(ws) }}) {
+          init_git()
+          docker_init({{ docker_image }})
+          timeout(time: max_time, unit: 'MINUTES') {
+            {{ caller() | trim | indent(width=6) }}
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('{{ name }}')
+    }
+  },
 {% endmacro %}
 
 {% macro test_step_body(name, node, ws, docker_image, platform) %}
@@ -158,19 +177,19 @@ def {{ method_name }}() {
 
 {% macro upload_artifacts(tag, filenames, folders=None) %}
 sh(
-            script: """
-              set -eux
-              . ci/scripts/retry.sh
-              {% for filename in filenames %}
-              md5sum {{ filename }}
-              retry 3 aws s3 cp --no-progress {{ filename }} s3://${s3_prefix}/{{ tag }}/{{ filename }}
-              {% endfor %}
-              {% for folder in (folders or []) %}
-              retry 3 aws s3 cp --no-progress {{ folder }} s3://${s3_prefix}/{{ tag }}/{{ folder }} --recursive
-              {% endfor %}
-            """,
-            label: 'Upload artifacts to S3',
-          )
+      script: """
+        set -eux
+        . ci/scripts/retry.sh
+        {% for filename in filenames %}
+        md5sum {{ filename }}
+        retry 3 aws s3 cp --no-progress {{ filename }} s3://${s3_prefix}/{{ tag }}/{{ filename }}
+        {% endfor %}
+        {% for folder in (folders or []) %}
+        retry 3 aws s3 cp --no-progress {{ folder }} s3://${s3_prefix}/{{ tag }}/{{ folder }} --recursive
+        {% endfor %}
+      """,
+      label: 'Upload artifacts to S3',
+    )
 {% endmacro %}
 
 {% macro download_artifacts(tag, filenames, folders=None) %}
