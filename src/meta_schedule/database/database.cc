@@ -16,8 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/meta_schedule/module_equality.h>
-
+#include "../module_equality.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -61,8 +60,9 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
       String b64_mod = Downcast<String>(json_array->at(1));
       std::string json_mod = Base64Decode(b64_mod);
       mod = Downcast<IRModule>(LoadJSON(json_mod));
+      std::stringstream(str_shash) >> shash;
     }
-    std::stringstream(str_shash) >> shash;
+
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                << "\nThe error is: " << e.what();
@@ -158,6 +158,7 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
 
 /******** Database ********/
 DatabaseNode::DatabaseNode(String mod_eq_name) { mod_eq_ = ModuleEquality::Create(mod_eq_name); }
+DatabaseNode::~DatabaseNode() = default;
 
 Optional<TuningRecord> DatabaseNode::QueryTuningRecord(const IRModule& mod, const Target& target,
                                                        const String& workload_name) {

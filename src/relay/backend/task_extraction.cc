@@ -17,12 +17,12 @@
  * under the License.
  */
 #include <tvm/meta_schedule/extracted_task.h>
-#include <tvm/meta_schedule/module_equality.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/function.h>
 #include <tvm/target/target.h>
 
+#include "../../meta_schedule/module_equality.h"
 #include "../../te/operation/create_primfunc.h"
 #include "./te_compiler_cache.h"
 #include "./utils.h"

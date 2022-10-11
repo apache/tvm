@@ -17,8 +17,7 @@
  * under the License.
  */
 
-#include <tvm/meta_schedule/module_equality.h>
-
+#include "../module_equality.h"
 #include "../utils.h"
 
 #define TVM_META_SCHEDULE_CHECK_PROB_RANGE(p, name)                               \
@@ -35,7 +34,8 @@ using tir::Schedule;
 /*! \brief An auxiliary data structure to help deduplicate IRModules */
 class IRModuleSet {
  public:
-  explicit IRModuleSet(const ModuleEquality& mod_eq) : tab_(0, ItemHash(), ItemEqual(mod_eq)) {}
+  explicit IRModuleSet(const ModuleEquality& mod_eq)
+      : tab_(/*bucket_count*/ 0, ItemHash(), ItemEqual(mod_eq)) {}
 
   /*! \brief Add an IRModule to the set */
   void Add(const IRModule& mod, size_t shash) { tab_.insert(Item{mod, shash}); }

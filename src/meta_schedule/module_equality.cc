@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "module_equality.h"
+
 #include <tvm/ir/module.h>
-#include <tvm/meta_schedule/module_equality.h>
 
 #include <memory>
 

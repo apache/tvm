@@ -22,7 +22,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/meta_schedule/arg_info.h>
-#include <tvm/meta_schedule/module_equality.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/string.h>
@@ -36,6 +35,8 @@
 
 namespace tvm {
 namespace meta_schedule {
+
+class ModuleEquality;
 
 /*! \brief A workload, i.e. an IRModule and its structural hash. */
 class WorkloadNode : public runtime::Object {
@@ -177,7 +178,7 @@ class DatabaseNode : public runtime::Object {
   explicit DatabaseNode(String mod_eq_name = "structural");
 
   /*! \brief Default destructor */
-  virtual ~DatabaseNode() = default;
+  virtual ~DatabaseNode();
   /*!
    * \brief Check if the database has the given workload.
    * \param mod The IRModule to be searched for.

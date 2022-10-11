@@ -93,7 +93,7 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
 
 Database Database::ScheduleFnDatabase(runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn,
                                       String mod_eq_name) {
-  ObjectPtr<ScheduleFnDatabaseNode> n = make_object<ScheduleFnDatabaseNode>();
+  ObjectPtr<ScheduleFnDatabaseNode> n = make_object<ScheduleFnDatabaseNode>(mod_eq_name);
   n->schedule_fn = std::move(schedule_fn);
   return Database(n);
 }

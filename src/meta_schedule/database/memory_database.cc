@@ -16,8 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/meta_schedule/module_equality.h>
-
+#include "../module_equality.h"
 #include "../utils.h"
 
 namespace tvm {

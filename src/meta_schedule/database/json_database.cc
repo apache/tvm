@@ -16,12 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/meta_schedule/module_equality.h>
-
 #include <set>
 #include <thread>
 #include <unordered_map>
 
+#include "../module_equality.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -154,7 +153,7 @@ class JSONDatabaseNode : public DatabaseNode {
 Database Database::JSONDatabase(String path_workload, String path_tuning_record, bool allow_missing,
                                 String mod_eq_name) {
   int num_threads = std::thread::hardware_concurrency();
-  ObjectPtr<JSONDatabaseNode> n = make_object<JSONDatabaseNode>();
+  ObjectPtr<JSONDatabaseNode> n = make_object<JSONDatabaseNode>(mod_eq_name);
   // Load `n->workloads2idx_` from `path_workload`
   std::vector<Workload> workloads;
   {
