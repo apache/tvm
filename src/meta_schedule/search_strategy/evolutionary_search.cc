@@ -17,7 +17,8 @@
  * under the License.
  */
 
-#include "../module_equality.h"
+#include <tvm/meta_schedule/module_equality.h>
+
 #include "../utils.h"
 
 #define TVM_META_SCHEDULE_CHECK_PROB_RANGE(p, name)                               \
@@ -34,6 +35,8 @@ using tir::Schedule;
 /*! \brief An auxiliary data structure to help deduplicate IRModules */
 class IRModuleSet {
  public:
+  explicit IRModuleSet(const ModuleEquality& mod_eq) : tab_(0, ItemHash(), ItemEqual(mod_eq)) {}
+
   /*! \brief Add an IRModule to the set */
   void Add(const IRModule& mod, size_t shash) { tab_.insert(Item{mod, shash}); }
   /*! \brief Check if the IRModule is in the set */
@@ -48,10 +51,16 @@ class IRModuleSet {
     size_t operator()(const Item& hash) const { return hash.shash; }
   };
   struct ItemEqual {
+    explicit ItemEqual(const ModuleEquality& mod_eq) : mod_eq_(mod_eq) {}
+    ItemEqual& operator=(const ItemEqual& other) { return *this; }
+
     bool operator()(const Item& lhs, const Item& rhs) const {
-      return lhs.shash == rhs.shash && ModuleEqual()(lhs.mod, rhs.mod);
+      return lhs.shash == rhs.shash && mod_eq_.Equal(lhs.mod, rhs.mod);
     }
+
+    const ModuleEquality& mod_eq_;
   };
+
   std::unordered_set<Item, ItemHash, ItemEqual> tab_;
 };
 
@@ -272,7 +281,8 @@ class EvolutionarySearchNode : public SearchStrategyNode {
           num_trials_per_iter(num_trials_per_iter),
           st(0),
           ed(num_trials_per_iter),
-          num_empty_iters(0) {
+          num_empty_iters(0),
+          measured_workloads_(database->GetModuleEquality()) {
       design_spaces.reserve(design_spaces.size());
       for (const Schedule& space : design_space_schedules) {
         design_spaces.push_back(space->trace().value()->Simplified(true));
@@ -323,6 +333,8 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     /*! \brief An interface method to be called by it's counterpart in EvolutionarySearchNode */
     inline void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                                     const Array<RunnerResult>& results);
+    /*! \brief Compute the hash for the given module */
+    inline size_t ModuleHash(const IRModule& mod) const;
   };
 
   /*! \brief The tuning context of the evolutionary search strategy. */
@@ -513,7 +525,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
 
 std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
     std::vector<Schedule> population, int num) {
-  IRModuleSet exists;
+  IRModuleSet exists(database_->GetModuleEquality());
   {
     auto _ = Profiler::TimedScope("EvoSearch/Evolve/Misc/CopyMeasuredWorkloads");
     ICHECK_GT(num, 0);
@@ -532,7 +544,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
       for (int i = 0, n = population.size(); i < n; ++i) {
         Schedule sch = population.at(i);
         IRModule mod = sch->mod();
-        size_t shash = ModuleHash()(mod);
+        size_t shash = ModuleHash(mod);
         double score = scores.at(i);
         if (!exists.Has(mod, shash)) {
           exists.Add(mod, shash);
@@ -662,7 +674,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickWithEpsGreedy(
       }
     }
     IRModule mod = sch->mod();
-    size_t shash = ModuleHash()(mod);
+    size_t shash = ModuleHash(mod);
     if (!measured_workloads.Has(mod, shash)) {
       measured_workloads.Add(mod, shash);
       results.push_back(sch);
@@ -714,6 +726,10 @@ void EvolutionarySearchNode::State::NotifyRunnerResults(
   ed += results.size();
 }
 
+size_t EvolutionarySearchNode::State::ModuleHash(const IRModule& mod) const {
+  return database_->GetModuleEquality().Hash(mod);
+}
+
 SearchStrategy SearchStrategy::EvolutionarySearch(int population_size,         //
                                                   double init_measured_ratio,  //
                                                   int init_min_unmeasured,     //
@@ -755,7 +771,7 @@ Array<Schedule> EvolutionarySearchEvolveWithCostModel(EvolutionarySearch self,
   std::vector<Schedule> schs = self->state_->EvolveWithCostModel(population_vec, num);
   for (Schedule sch : schs) {
     IRModule mod = sch->mod();
-    size_t shash = ModuleHash()(mod);
+    size_t shash = self->state_->ModuleHash(mod);
     if (!self->state_->measured_workloads_.Has(mod, shash)) {
       self->state_->measured_workloads_.Add(mod, shash);
       result.push_back(sch);

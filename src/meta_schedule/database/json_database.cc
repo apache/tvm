@@ -16,11 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/meta_schedule/module_equality.h>
+
 #include <set>
 #include <thread>
 #include <unordered_map>
 
-#include "../module_equality.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -68,6 +69,10 @@ void JSONFileAppendLine(const String& path, const std::string& line) {
 /*! \brief The default database implementation, which mimics two database tables with two files. */
 class JSONDatabaseNode : public DatabaseNode {
  public:
+  explicit JSONDatabaseNode(String mod_eq_name = "structural")
+      : DatabaseNode(mod_eq_name),
+        workloads2idx_(/*bucket_count*/ 0, WorkloadHash(), WorkloadEqual(GetModuleEquality())) {}
+
   /*! \brief The path to the workload table */
   String path_workload;
   /*! \brief The path to the tuning record table */
@@ -89,12 +94,14 @@ class JSONDatabaseNode : public DatabaseNode {
 
  public:
   bool HasWorkload(const IRModule& mod) {
-    return workloads2idx_.find(Workload(mod, ModuleHash()(mod))) != workloads2idx_.end();
+    return workloads2idx_.find(Workload(mod, GetModuleEquality().Hash(mod))) !=
+           workloads2idx_.end();
   }
 
   Workload CommitWorkload(const IRModule& mod) {
     // Try to insert `mod` into `workloads_`
-    auto [it, inserted] = this->workloads2idx_.emplace(Workload(mod, ModuleHash()(mod)), -1);
+    auto [it, inserted] =
+        this->workloads2idx_.emplace(Workload(mod, GetModuleEquality().Hash(mod)), -1);
     Workload workload = it->first;
     // If `mod` is new in `workloads2idx_`, append it to the workload file
     if (inserted) {
@@ -122,7 +129,7 @@ class JSONDatabaseNode : public DatabaseNode {
     results.reserve(top_k);
     int counter = 0;
     for (const TuningRecord& record : this->tuning_records_) {
-      if (WorkloadEqual()(record->workload, workload)) {
+      if (WorkloadEqual(GetModuleEquality())(record->workload, workload)) {
         results.push_back(record);
         if (++counter == top_k) {
           break;
@@ -144,8 +151,8 @@ class JSONDatabaseNode : public DatabaseNode {
   int64_t Size() { return tuning_records_.size(); }
 };
 
-Database Database::JSONDatabase(String path_workload, String path_tuning_record,
-                                bool allow_missing) {
+Database Database::JSONDatabase(String path_workload, String path_tuning_record, bool allow_missing,
+                                String mod_eq_name) {
   int num_threads = std::thread::hardware_concurrency();
   ObjectPtr<JSONDatabaseNode> n = make_object<JSONDatabaseNode>();
   // Load `n->workloads2idx_` from `path_workload`

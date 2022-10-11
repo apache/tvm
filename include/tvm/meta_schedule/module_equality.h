@@ -16,14 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_META_SCHEDULE_MODULE_EQUAILITY_H_
-#define TVM_META_SCHEDULE_MODULE_EQUAILITY_H_
+#ifndef TVM_META_SCHEDULE_MODULE_EQUALITY_H_
+#define TVM_META_SCHEDULE_MODULE_EQUALITY_H_
 
 #include <tvm/ir/module.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
 
 #include <memory>
+#include <string>
 
 namespace tvm {
 namespace meta_schedule {
@@ -32,29 +33,33 @@ class ModuleEquality {
  public:
   virtual ~ModuleEquality() = default;
 
-  virtual size_t Hash(IRModule mod) = 0;
-  virtual bool Equal(IRModule lhs, IRModule rhs) = 0;
-};
+  virtual size_t Hash(IRModule mod) const = 0;
+  virtual bool Equal(IRModule lhs, IRModule rhs) const = 0;
 
-class ModuleEqualityStructural : public ModuleEquality {
- public:
-  size_t Hash(IRModule mod) { return tvm::StructuralHash()(mod); }
-  bool Equal(IRModule lhs, IRModule rhs) { return tvm::StructuralEqual()(lhs, rhs); }
+  static std::unique_ptr<ModuleEquality> Create(const std::string& mod_eq_name);
 };
 
 class ModuleHash {
  public:
-  size_t operator()(const IRModule& mod) const;
+  explicit ModuleHash(const ModuleEquality& mod_eq) : mod_eq_(mod_eq) {}
+  size_t operator()(const IRModule& mod) const { return mod_eq_.Hash(mod); }
+
+ private:
+  const ModuleEquality& mod_eq_;
 };
 
 class ModuleEqual {
  public:
-  bool operator()(const IRModule& lhs, const IRModule& rhs) const;
-};
+  explicit ModuleEqual(const ModuleEquality& mod_eq) : mod_eq_(mod_eq) {}
+  bool operator()(const IRModule& lhs, const IRModule& rhs) const {
+    return mod_eq_.Equal(lhs, rhs);
+  }
 
-void SetModuleEquality(std::unique_ptr<ModuleEquality> eq);
+ private:
+  const ModuleEquality& mod_eq_;
+};
 
 }  // namespace meta_schedule
 }  // namespace tvm
 
-#endif
+#endif  // TVM_META_SCHEDULE_MODULE_EQUALITY_H_

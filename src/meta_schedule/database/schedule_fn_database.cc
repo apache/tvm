@@ -23,6 +23,8 @@ namespace meta_schedule {
 
 class ScheduleFnDatabaseNode : public DatabaseNode {
  public:
+  explicit ScheduleFnDatabaseNode(String mod_eq_name = "structural") : DatabaseNode(mod_eq_name) {}
+
   runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn;
 
   void VisitAttrs(AttrVisitor* v) {
@@ -89,7 +91,8 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
   }
 };
 
-Database Database::ScheduleFnDatabase(runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn) {
+Database Database::ScheduleFnDatabase(runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn,
+                                      String mod_eq_name) {
   ObjectPtr<ScheduleFnDatabaseNode> n = make_object<ScheduleFnDatabaseNode>();
   n->schedule_fn = std::move(schedule_fn);
   return Database(n);

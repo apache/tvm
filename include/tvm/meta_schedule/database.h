@@ -22,6 +22,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/meta_schedule/arg_info.h>
+#include <tvm/meta_schedule/module_equality.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/string.h>
@@ -30,6 +31,8 @@
 #include <tvm/target/target.h>
 #include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/trace.h>
+
+#include <memory>
 
 namespace tvm {
 namespace meta_schedule {
@@ -94,7 +97,12 @@ struct WorkloadHash {
 
 /*! \brief The equality check for Workload */
 struct WorkloadEqual {
+  explicit WorkloadEqual(const ModuleEquality& mod_eq) : mod_eq_(mod_eq) {}
+
   bool operator()(const Workload& a, const Workload& b) const;
+
+ private:
+  const ModuleEquality& mod_eq_;
 };
 
 /*! \brief The class of measure candidates. */
@@ -166,6 +174,8 @@ class TuningRecord : public runtime::ObjectRef {
 /* \brief The abstract interface of database. */
 class DatabaseNode : public runtime::Object {
  public:
+  explicit DatabaseNode(String mod_eq_name = "structural");
+
   /*! \brief Default destructor */
   virtual ~DatabaseNode() = default;
   /*!
@@ -230,13 +240,23 @@ class DatabaseNode : public runtime::Object {
   virtual Optional<IRModule> QueryIRModule(const IRModule& mod, const Target& target,
                                            const String& workload_name);
 
+  const ModuleEquality& GetModuleEquality() const {
+    ICHECK(mod_eq_);
+    return *mod_eq_;
+  }
+
   static constexpr const char* _type_key = "meta_schedule.Database";
   TVM_DECLARE_BASE_OBJECT_INFO(DatabaseNode, runtime::Object);
+
+ private:
+  std::unique_ptr<ModuleEquality> mod_eq_;
 };
 
 /*! \brief The database with customized methods on the python-side. */
 class PyDatabaseNode : public DatabaseNode {
  public:
+  explicit PyDatabaseNode(String mod_eq_name = "structural");
+
   /*!
    * \brief The function type of `HasWorkload` method.
    * \param mod The IRModule to be searched for.
@@ -403,14 +423,14 @@ class PyDatabaseNode : public DatabaseNode {
 class Database : public runtime::ObjectRef {
  public:
   /*! An in-memory database. */
-  TVM_DLL static Database MemoryDatabase();
+  TVM_DLL static Database MemoryDatabase(String mod_eq_name = "structural");
   /*!
    * \brief A database for injecting handcrafted schedule functions.
    * \param schedule_fn The function to do scheduling, which takes a TIR schedule,
    * and returns a boolean indicating if the schedule is successful.
    */
   TVM_DLL static Database ScheduleFnDatabase(
-      runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn);
+      runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn, String mod_eq_name = "structural");
   /*!
    * \brief Create a default database that uses JSON file for tuning records.
    * \param path_workload The path to the workload table.
@@ -418,7 +438,7 @@ class Database : public runtime::ObjectRef {
    * \param allow_missing Whether to create new file when the given path is not found.
    */
   TVM_DLL static Database JSONDatabase(String path_workload, String path_tuning_record,
-                                       bool allow_missing);
+                                       bool allow_missing, String mod_eq_name = "structural");
   /*!
    * \brief A database composed of multiple databases, allowing users to guide IR rewriting using
    * combined knowledge of those databases. To each query, it returns the best record among all the
@@ -456,7 +476,8 @@ class Database : public runtime::ObjectRef {
                                      PyDatabaseNode::FQueryTuningRecord f_query_tuning_record,
                                      PyDatabaseNode::FQuerySchedule f_query_schedule,
                                      PyDatabaseNode::FQueryIRModule f_query_ir_module,
-                                     PyDatabaseNode::FSize f_size);
+                                     PyDatabaseNode::FSize f_size,
+                                     String mod_eq_name = "structural");
   /*! \return The current Database in the scope. */
   static Optional<Database> Current();
   /*! \brief Entering the scope of the context manager */

@@ -17,12 +17,12 @@
  * under the License.
  */
 #include <tvm/meta_schedule/extracted_task.h>
+#include <tvm/meta_schedule/module_equality.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/function.h>
 #include <tvm/target/target.h>
 
-#include "../../meta_schedule/module_equality.h"
 #include "../../te/operation/create_primfunc.h"
 #include "./te_compiler_cache.h"
 #include "./utils.h"
@@ -32,8 +32,11 @@ namespace relay {
 namespace backend {
 
 Array<meta_schedule::ExtractedTask> ExtractTask(IRModule mod, Target target,
-                                                Map<String, runtime::NDArray> params) {
+                                                Map<String, runtime::NDArray> params,
+                                                String mod_eq_name) {
   using meta_schedule::ExtractedTask;
+  using meta_schedule::ModuleEqual;
+  using meta_schedule::ModuleHash;
   backend::FTECompilerTIRConverter tir_converter = backend::GetTIRConverter();
   backend::BindParamsInModule(mod, params);
   // is_vm=true for backward compatibility
@@ -43,8 +46,12 @@ Array<meta_schedule::ExtractedTask> ExtractTask(IRModule mod, Target target,
   mod = transform::Sequential(pass_seqs)(std::move(mod));
 
   std::vector<ExtractedTask> tasks;
-  std::unordered_map<IRModule, ExtractedTask, meta_schedule::ModuleHash, meta_schedule::ModuleEqual>
-      cache;
+
+  auto mod_eq = meta_schedule::ModuleEquality::Create(mod_eq_name);
+
+  std::unordered_map<IRModule, ExtractedTask, ModuleHash, ModuleEqual> cache(
+      /*bucket_count*/ 0, ModuleHash(*mod_eq), ModuleEqual(*mod_eq));
+
   PostOrderVisit(mod->Lookup("main"), [&target, &tasks, &cache, &tir_converter](const Expr& exp) {
     if (exp->IsInstance<FunctionNode>()) {
       Function relay_func = Downcast<Function>(exp);

@@ -31,8 +31,10 @@ class ScheduleFnDatabase(Database):
     def __init__(
         self,
         schedule_fn: Callable[[Schedule], bool],
+        module_equality: str = "structural",
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.DatabaseScheduleFnDatabase,  # type: ignore # pylint: disable=no-member
             schedule_fn,
+            module_equality,
         )

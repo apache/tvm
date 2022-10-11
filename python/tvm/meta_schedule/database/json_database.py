@@ -46,6 +46,7 @@ class JSONDatabase(Database):
         *,
         work_dir: Optional[str] = None,
         allow_missing: bool = True,
+        module_equality: str = "structural",
     ) -> None:
         """Constructor.
 
@@ -77,4 +78,5 @@ class JSONDatabase(Database):
             path_workload,
             path_tuning_record,
             allow_missing,
+            module_equality,
         )

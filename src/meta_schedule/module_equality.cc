@@ -16,50 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "module_equality.h"
-
 #include <tvm/ir/module.h>
+#include <tvm/meta_schedule/module_equality.h>
 
 #include <memory>
 
 namespace tvm {
 namespace meta_schedule {
 
-class ModuleEqualityManager {
+class ModuleEqualityStructural : public ModuleEquality {
  public:
-  ModuleEqualityManager();
-
-  static ModuleEqualityManager* Get();
-
-  void Set(std::unique_ptr<ModuleEquality> eq) { cur_ = std::move(eq); }
-
-  size_t Hash(IRModule mod) { return cur_->Hash(mod); }
-
-  bool Equal(IRModule lhs, IRModule rhs) { return cur_->Equal(lhs, rhs); }
-
- private:
-  std::unique_ptr<ModuleEquality> cur_;
+  size_t Hash(IRModule mod) const { return tvm::StructuralHash()(mod); }
+  bool Equal(IRModule lhs, IRModule rhs) const { return tvm::StructuralEqual()(lhs, rhs); }
 };
 
-ModuleEqualityManager::ModuleEqualityManager() {
-  cur_ = std::make_unique<ModuleEqualityStructural>();
-}
-
-ModuleEqualityManager* ModuleEqualityManager::Get() {
-  static ModuleEqualityManager manager;
-  return &manager;
-}
-
-size_t ModuleHash::operator()(const IRModule& mod) const {
-  return ModuleEqualityManager::Get()->Hash(mod);
-}
-
-bool ModuleEqual::operator()(const IRModule& lhs, const IRModule& rhs) const {
-  return ModuleEqualityManager::Get()->Equal(lhs, rhs);
-}
-
-void SetModuleEquality(std::unique_ptr<ModuleEquality> eq) {
-  ModuleEqualityManager::Get()->Set(std::move(eq));
+std::unique_ptr<ModuleEquality> ModuleEquality::Create(const std::string& mod_eq_name) {
+  if (mod_eq_name == "structural") {
+    return std::make_unique<ModuleEqualityStructural>();
+  }
+  LOG(FATAL) << "Unknown module equality " << mod_eq_name;
+  return nullptr;
 }
 
 }  // namespace meta_schedule
