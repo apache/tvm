@@ -39,7 +39,7 @@ def get_logger(name: str) -> Logger:
     return logging.getLogger(name)
 
 
-def get_logging_func(logger: Logger) -> Optional[Callable[[int, str], None]]:
+def get_logging_func(logger: Logger) -> Optional[Callable[[int, str, int, str], None]]:
     """Get the logging function.
 
     Parameters
