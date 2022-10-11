@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-{% set version = '0.10.dev0' %}
+{% set version = '0.11.dev0' %}
 {% set pkg_name = 'tvm' %}
 {% set cuda_tag = cuda_version | replace('.', '') %} # [cuda]
 {% set pkg_name = pkg_name + '-cu' + cuda_tag %} # [cuda]
