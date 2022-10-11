@@ -18,10 +18,12 @@
 """ Test different strategies for loading data into vtcm before running HVX workloads. """
 
 import numpy as np
-import tvm
-
-from tvm.script import tir as T
 from numpy.random import default_rng
+
+import tvm
+from tvm.script import tir as T
+
+from .infrastructure import get_hexagon_target
 
 TEST_OUTPUT_TEMPLATE = "Test with {} MB of data to load... \n    -No VTCM: {} Gops \n    -Basic VTCM: {} Gops \n    -Vectorized: {} Gops\n    -Vectorized and Parallelized: {} Gops\n    -Preallocated and Vectorized: {} Gops\n    -Preallocated, Vectorized, and Parallelized: {} Gops\n    -Single DMA: {} Gops\n    -Preloaded: {} Gops\n"
 
@@ -299,26 +301,27 @@ def evaluate_result(operations, tag, time, result, expected_output):
 
 
 def setup_and_run(hexagon_session, sch, a, b, c, operations, mem_scope="global"):
-    target_hexagon = tvm.target.hexagon("v69")
-    func_tir = tvm.build(
-        sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
-    )
+    func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v69"))
     module = hexagon_session.load_module(func_tir)
 
     a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device, mem_scope=mem_scope)
     b_hexagon = tvm.runtime.ndarray.array(b, device=hexagon_session.device, mem_scope=mem_scope)
     c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device, mem_scope=mem_scope)
-    timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=100, repeat=10)
+
+    # These are reduced for CI but number=100 and repeat=10 does a good job of removing noise.
+    number = 1
+    repeat = 1
+
+    timer = module.time_evaluator(
+        "__tvm_main__", hexagon_session.device, number=number, repeat=repeat
+    )
     time = timer(a_hexagon, b_hexagon, c_hexagon)
     gops = round(operations * 128 * 3 / time.mean / 1e9, 4)
     return gops, c_hexagon.asnumpy()
 
 
 def setup_and_run_preallocated(hexagon_session, sch, a, b, c, operations):
-    target_hexagon = tvm.target.hexagon("v69")
-    func_tir = tvm.build(
-        sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
-    )
+    func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v69"))
     module = hexagon_session.load_module(func_tir)
 
     a_vtcm = np.zeros((a.size), dtype="uint8")
@@ -338,7 +341,13 @@ def setup_and_run_preallocated(hexagon_session, sch, a, b, c, operations):
         c_vtcm, device=hexagon_session.device, mem_scope="global.vtcm"
     )
 
-    timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=100, repeat=10)
+    # These are reduced for CI but number=100 and repeat=10 does a good job of removing noise.
+    number = 1
+    repeat = 1
+
+    timer = module.time_evaluator(
+        "__tvm_main__", hexagon_session.device, number=number, repeat=repeat
+    )
     time = timer(a_hexagon, b_hexagon, c_hexagon, a_vtcm_hexagon, b_vtcm_hexagon, c_vtcm_hexagon)
     gops = round(operations * 128 * 3 / time.mean / 1e9, 4)
     return gops, c_hexagon.asnumpy()
@@ -372,12 +381,12 @@ def expected_output(operations, input_a, input_b, input_c):
 
 
 class TestMatMulVec:
-
+    # Removed most of these to speedup CI.
     operations = tvm.testing.parameter(
         1024,
-        2048,
-        4096,
-        5 * 2048,  # 3.93MB of total transfer
+        # 2048,
+        # 4096,
+        # 5 * 2048,  # 3.93MB of total transfer
         # 16384, #Only works on 8Gen1 HDK's
         # 5 * 4096,  # 7.86MB of total transfer. Only works on 8Gen1 HDK's
     )

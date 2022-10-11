@@ -382,12 +382,14 @@ def expected_layout_attr(
     for i0, i1, i2 in T.grid(128, 128, 128):
         with T.block("C"):
             x, y, k = T.axis.remap("SSR", [i0, i1, i2])
+            T.block_attr({"layout_free_placeholders": []})
             with T.init():
                 C[x, y] = T.float32(0)
             C[x, y] = C[x, y] + A[x, k] * B[y, k]
     for i0, i1 in T.grid(128, 128):
         with T.block("D"):
             x, y = T.axis.remap("SS", [i0, i1])
+            T.block_attr({"layout_free_placeholders": [C]})
             D[x, y] = C[x, y] + T.float32(1)
 
 

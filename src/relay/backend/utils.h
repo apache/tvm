@@ -632,6 +632,13 @@ inline bool IsMetaScheduleEnabled() {
       .value();
 }
 
+/*! \brief Consider MetaSchedule's dispatch option. */
+inline int UseMetaScheduleDispatch() {
+  return transform::PassContext::Current()
+      ->GetConfig<Integer>("relay.backend.use_meta_schedule_dispatch", Integer(0))
+      .value()
+      ->value;
+}
 /*!
  * \brief Method in TECompiler to convert TE compute to scheduleable TIR
  * \param args The arguments of the TE compute

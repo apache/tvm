@@ -16,7 +16,12 @@
 # under the License.
 """Meta Schedule MeasureCallback."""
 
-from typing import Callable, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, List, Union
+
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
@@ -34,6 +39,8 @@ if TYPE_CHECKING:
 @register_object("meta_schedule.MeasureCallback")
 class MeasureCallback(Object):
     """Rules to apply after measure results is available."""
+
+    CallbackListType = Union[List["MeasureCallback"], "MeasureCallback", Literal["default"]]
 
     def apply(
         self,
@@ -66,6 +73,13 @@ class MeasureCallback(Object):
             builder_results,
             runner_results,
         )
+
+    @staticmethod
+    def create(kind: Literal["default"]) -> List["MeasureCallback"]:
+        """Create a list of measure callbacks."""
+        if kind == "default":
+            return _ffi_api.MeasureCallbackDefault()  # type: ignore # pylint: disable=no-member
+        raise ValueError(f"Unknown kind of MeasureCallback list: {kind}")
 
 
 @register_object("meta_schedule.PyMeasureCallback")

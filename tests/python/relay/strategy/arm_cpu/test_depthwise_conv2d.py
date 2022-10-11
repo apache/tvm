@@ -150,26 +150,66 @@ class TestDepthwiseConv2d_NHWC_HWOI(BasicDepthwiseConv2dTests):
 class TestDepthwiseConv2d_NHWC_HWOI_DSP(BasicDepthwiseConv2dTests):
     """This test is for depthwise_conv2d_nhwc_dsp.arm_cpu schedule."""
 
-    data_shape, kernel_size, num_filter, strides, padding, dilation = tvm.testing.parameters(
-        # The LLVM implementation doesn't support "SAME" and "VALID" padding,
-        # so padding must be explicitly specified.
-        # Depthwise_conv2d parameters from MobileNetV1 0.25x
-        ((1, 48, 48, 8), (3, 3), 8, (1, 1), 1, 1),
-        ((1, 48, 48, 16), (3, 3), 16, (2, 2), (1, 1, 0, 0), 1),
-        ((1, 24, 24, 32), (3, 3), 32, (1, 1), 1, 1),
-        ((1, 24, 24, 32), (3, 3), 32, (2, 2), (1, 1, 0, 0), 1),
-        ((1, 12, 12, 64), (3, 3), 64, (1, 1), 1, 1),
-        ((1, 12, 12, 64), (3, 3), 64, (2, 2), (1, 1, 0, 0), 1),
-        ((1, 6, 6, 128), (3, 3), 128, (1, 1), 1, 1),
-        ((1, 6, 6, 128), (3, 3), 128, (2, 2), (1, 1, 0, 0), 1),
-        ((1, 3, 3, 256), (3, 3), 256, (1, 1), 1, 1),
+    # Tests that work with both int8 and int16 data types. Tuple elements are:
+    # data_shape, kernel_size, num_filter, strides, padding
+    dtype_parameterized_tests = [
+        # Depthwise_conv2d parameters from MobileNetV1 0.25x. The LLVM implementation doesn't
+        # support "SAME" and "VALID" padding, so padding must be explicitly specified.
+        ((1, 48, 48, 8), (3, 3), 8, (1, 1), 1),
+        ((1, 48, 48, 16), (3, 3), 16, (2, 2), (1, 1, 0, 0)),
+        ((1, 24, 24, 32), (3, 3), 32, (1, 1), 1),
+        ((1, 24, 24, 32), (3, 3), 32, (2, 2), (1, 1, 0, 0)),
+        ((1, 12, 12, 64), (3, 3), 64, (1, 1), 1),
+        ((1, 12, 12, 64), (3, 3), 64, (2, 2), (1, 1, 0, 0)),
+        ((1, 6, 6, 128), (3, 3), 128, (1, 1), 1),
+        ((1, 6, 6, 128), (3, 3), 128, (2, 2), (1, 1, 0, 0)),
+        ((1, 3, 3, 256), (3, 3), 256, (1, 1), 1),
         # Asymmetric height and width
-        ((1, 25, 5, 64), (3, 3), 64, (1, 1), 1, 1),
+        ((1, 25, 5, 64), (3, 3), 64, (1, 1), 1),
+        # Larger kernel
+        ((1, 24, 24, 8), (5, 5), 8, (1, 1), 1),
+        # Asymmetric kernel
+        ((1, 24, 24, 8), (3, 5), 8, (1, 1), 1),
+    ]
+
+    data_shape, kernel_size, num_filter, strides, padding, dtype = tvm.testing.parameters(
+        # Make a copy of each parameterized test for int8 and one for int16
+        *map(lambda t: t + ("int8",), dtype_parameterized_tests),
+        *map(lambda t: t + ("int16",), dtype_parameterized_tests),
+        # Test the int16 implementation with channel numbers not divisible by four
+        ((1, 48, 48, 6), (3, 3), 6, (1, 1), 1, "int16"),
     )
+    dilation = tvm.testing.parameter(1)
     data_layout = tvm.testing.parameter("NHWC")
-    dtype = tvm.testing.parameter("int8")
     kernel_layout = tvm.testing.parameter("HWOI")
     schedule_name = tvm.testing.parameter("depthwise_conv2d_nhwc_dsp.arm_cpu")
+
+
+class TestDepthwiseConv2d_Tensordot(BasicDepthwiseConv2dTests):
+    data_shape, kernel_size, num_filter, strides, padding, dtype = tvm.testing.parameters(
+        # Currently, our schedule requires kernel_w be divisible by the number of simd lanes given
+        # its dtype. This means 3x3 and 5x5 kernels do not work on int16 or int8 for now. If you had
+        # to, you could hack around this by padding the data and kernel.
+        ((1, 8, 48, 48), (3, 3), 8, (1, 1), 1, "int32"),
+        ((1, 16, 48, 48), (3, 3), 16, (2, 2), (1, 1, 0, 0), "int32"),
+        ((1, 32, 24, 24), (3, 3), 32, (1, 1), 1, "int32"),
+        ((1, 32, 24, 24), (3, 3), 32, (2, 2), (1, 1, 0, 0), "int32"),
+        ((1, 64, 12, 12), (3, 3), 64, (1, 1), 1, "int32"),
+        ((1, 64, 12, 12), (3, 3), 64, (2, 2), (1, 1, 0, 0), "int32"),
+        ((1, 128, 6, 6), (3, 3), 128, (1, 1), 1, "int32"),
+        ((1, 128, 6, 6), (3, 3), 128, (2, 2), (1, 1, 0, 0), "int32"),
+        ((1, 256, 3, 3), (3, 3), 256, (1, 1), 1, "int32"),
+        ((1, 64, 25, 5), (3, 3), 64, (1, 1), 1, "int32"),
+        ((1, 8, 24, 24), (5, 5), 8, (1, 1), 1, "int32"),
+        ((1, 8, 24, 24), (3, 5), 8, (1, 1), 1, "int32"),
+        # These "evenly divisible" kernels work on smaller dtypes.
+        ((1, 8, 48, 48), (3, 2), 8, 1, 0, "int16"),
+        ((1, 8, 48, 48), (4, 4), 8, 1, 0, "int8"),
+    )
+    dilation = tvm.testing.parameter(1)
+    data_layout = tvm.testing.parameter("NCHW")
+    kernel_layout = tvm.testing.parameter("OIHW")
+    schedule_name = tvm.testing.parameter("depthwise_conv2d_nchw_oihw_dsp.arm_cpu")
 
 
 if __name__ == "__main__":

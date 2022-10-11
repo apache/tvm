@@ -427,7 +427,7 @@ html_context = {
     "header_dropdown": header_dropdown,
     "header_logo": header_logo,
     "header_logo_link": header_logo_link,
-    "version_prefixes": ["main", "v0.8.0/", "v0.9.0/"],
+    "version_prefixes": ["main", "v0.8.0/", "v0.9.0/", "v0.10.0/"],
 }
 
 # add additional overrides

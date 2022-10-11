@@ -227,6 +227,10 @@
 #define TVM_CXX_COMPILER_PATH ""
 #endif
 
+#ifndef TVM_INFO_USE_CCACHE
+#define TVM_INFO_USE_CCACHE "NOT-FOUND"
+#endif
+
 namespace tvm {
 
 /*!
@@ -318,6 +322,8 @@ TVM_DLL Map<String, String> GetLibInfo() {
       {"USE_CLML", TVM_INFO_USE_CLML},
       {"USE_CLML_GRAPH_EXECUTOR", TVM_INFO_USE_CLML_GRAPH_EXECUTOR},
       {"USE_UMA", TVM_INFO_USE_UMA},
+      {"USE_CCACHE", TVM_INFO_USE_CCACHE},
+      {"BACKTRACE_ON_SEGFAULT", TVM_INFO_BACKTRACE_ON_SEGFAULT},
   };
   return result;
 }

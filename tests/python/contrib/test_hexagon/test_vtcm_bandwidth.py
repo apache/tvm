@@ -18,11 +18,12 @@
 """Test theoretical bandwith for data transfers to VTCM for different strategies."""
 
 import numpy as np
-from tests.python.contrib.test_hexagon.infrastructure import allocate_hexagon_array
-import tvm
-
-from tvm.script import tir as T
 from numpy.random import default_rng
+
+import tvm
+from tvm.script import tir as T
+
+from .infrastructure import get_hexagon_target
 
 MB = 1024**2
 KB = 1024
@@ -81,10 +82,7 @@ def single_dma_operator(size):
 def evaluate(hexagon_session, sch, size):
     a_shape = size
 
-    target_hexagon = tvm.target.hexagon("v69")
-    func_tir = tvm.build(
-        sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
-    )
+    func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v69"))
     module = hexagon_session.load_module(func_tir)
 
     rng = default_rng()
@@ -96,10 +94,13 @@ def evaluate(hexagon_session, sch, size):
         a_vtcm, device=hexagon_session.device, mem_scope="global.vtcm"
     )
 
-    # a_hexagon = allocate_hexagon_array(hexagon_session.device, data=a, mem_scope="global")
-    # a_vtcm_hexagon = allocate_hexagon_array(hexagon_session.device, data=a_vtcm, mem_scope="global.vtcm")
+    # These are reduced for CI but number=100 and repeat=10 does a good job of removing noise.
+    number = 1
+    repeat = 1
 
-    timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=100, repeat=10)
+    timer = module.time_evaluator(
+        "__tvm_main__", hexagon_session.device, number=number, repeat=repeat
+    )
     runtime = timer(a_hexagon, a_vtcm_hexagon)
 
     gbps = round((size / 2**30) / runtime.mean, 4)
@@ -110,18 +111,19 @@ def evaluate(hexagon_session, sch, size):
 
 class TestMatMulVec:
 
+    # Removed most of these to speedup CI.
     size = tvm.testing.parameter(
-        10 * KB,
-        20 * KB,
-        40 * KB,
-        80 * KB,
-        160 * KB,
-        320 * KB,
+        # 10 * KB,
+        # 20 * KB,
+        # 40 * KB,
+        # 80 * KB,
+        # 160 * KB,
+        # 320 * KB,
         640 * KB,
-        MB,
-        2 * MB,
-        3 * MB,
-        4 * MB,
+        # MB,
+        # 2 * MB,
+        # 3 * MB,
+        # 4 * MB,
         # 8 * MB,  # Only works on 8gen1 HDKs
     )
 

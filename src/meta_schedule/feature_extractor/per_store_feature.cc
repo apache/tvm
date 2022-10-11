@@ -836,6 +836,7 @@ void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
       // while others are discarded
       int64_t numel;
       feature.access_shape = utils::RelaxAndUnion(feature.multi_indices, &numel, analyzer);
+      numel = std::max<int64_t>(0, numel);
       feature.loop_accessed_numel[i][buffer] = numel;
       touched_bytes += numel * buffer->dtype.bytes();
       (*buffer_touched_under_loop)[loop][buffer].push_back(numel);
@@ -976,7 +977,8 @@ void Feature::SubFeature::SetFeature(const LoopNest& loop_nest, int64_t cache_li
     this->lines = 1;
     this->unique_lines = 1;
   } else {
-    this->unique_bytes = this->loop_accessed_numel.front().at(buffer) * dtype_bytes;
+    this->unique_bytes =
+        static_cast<double>(this->loop_accessed_numel.front().at(buffer)) * dtype_bytes;
     this->lines = static_cast<double>(loop_nest.prod) / this->prod_non_strided_loop_extent *
                   std::min(1.0, 1.0 * this->min_stride * dtype_bytes / cache_line_bytes);
     this->lines = std::max(1.0, this->lines);
@@ -1040,6 +1042,17 @@ struct Feature {
   /*!
    * \brief See the wiki page [1] for details
    *
+   * Arithmetic intensity is FLOPs/unique bytes of memory touched. A value is computed
+   * for each set of loop nests starting with just the innermost loop and
+   * reaching to include all loops. There are a variable number of loops, so
+   * n_samples are taken from the curve of arithmetic intensity vs flops. This
+   * biases the values towards larger loops.
+   *
+   * Note that the denominator is unique bytes of memory touched. Repeated
+   * access to the same byte of memory counts as only a single byte touched.
+   *
+   * Values are scaled by log2(x + 1).
+   *
    * [1] https://en.wikipedia.org/wiki/Roofline_model
    */
   std::vector<double> arith_intensity_curve;
@@ -1058,7 +1071,7 @@ struct Feature {
     std::vector<double> memory_bytes;
     memory_bytes.resize(n_loops);
     for (int i = 0; i < n_loops; ++i) {
-      memory_bytes[n_loops - 1 - i] = std::log2(for_touched_bytes[i]);
+      memory_bytes[n_loops - 1 - i] = for_touched_bytes[i];
     }
     // Calculate `compute_ops` and `cur_compute_ops`
     std::vector<double> compute_ops;
@@ -1070,7 +1083,7 @@ struct Feature {
       if (const int64_t* extent = GetLoopIntExtent(loops[i])) {
         total_compute_ops *= *extent;
       }
-      compute_ops.push_back(std::log2(total_compute_ops));
+      compute_ops.push_back(total_compute_ops);
     }
     // Fill the feature set
     if (total_compute_ops <= 0 || compute_ops.empty()) {
@@ -1079,7 +1092,7 @@ struct Feature {
       }
       return;
     }
-    total_compute_ops = compute_ops.back();  // i.e. total_compute_ops = log2(total_compute_ops)
+    total_compute_ops = compute_ops.back();
     int p = 0;
     for (int i = 0; i < n_samples; ++i) {
       double& result = arith_intensity_curve[i];
@@ -1092,13 +1105,13 @@ struct Feature {
       }
       CHECK_LT(p, n_loops);
       if (p == 0) {
-        result = compute_ops[p] / memory_bytes[p];
+        result = slog(compute_ops[p] / memory_bytes[p]);
       } else {
         double base = compute_ops[p - 1] / memory_bytes[p - 1];
         double slope =
             (compute_ops[p] / memory_bytes[p] - compute_ops[p - 1] / memory_bytes[p - 1]) /
             (compute_ops[p] - compute_ops[p - 1]);
-        result = base + slope * (cur_compute_ops - compute_ops[p - 1]);
+        result = slog(base + slope * (cur_compute_ops - compute_ops[p - 1]));
       }
     }
   }

@@ -108,6 +108,11 @@ bool ProducerCoversConsumer(const Array<PrimExpr>& buffer_shape,
     produced = arith::Intersect({produced, buffer_size});
     consumed = arith::Intersect({consumed, buffer_size});
 
+    produced = arith::IntSet::Interval(analyzer->Simplify(produced.min()),
+                                       analyzer->Simplify(produced.max()));
+    consumed = arith::IntSet::Interval(analyzer->Simplify(consumed.min()),
+                                       analyzer->Simplify(consumed.max()));
+
     if (!analyzer->CanProve((analyzer->canonical_simplify(produced.min() - consumed.min()) <= 0) &&
                             (analyzer->canonical_simplify(consumed.max() - produced.max()) <= 0))) {
       return false;
@@ -341,6 +346,7 @@ class BlockInfoCollector : private StmtVisitor {
               if (!ProducerCoversConsumer(buffer->shape, produced_region, consumed_region,
                                           &analyzer_)) {
                 region_cover = false;
+                self_->block_info.at(consumer_block_sref).region_cover = region_cover;
                 break;
               }
             }

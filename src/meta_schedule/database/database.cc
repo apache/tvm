@@ -217,6 +217,9 @@ Database Database::PyDatabase(PyDatabaseNode::FHasWorkload f_has_workload,
                               PyDatabaseNode::FCommitTuningRecord f_commit_tuning_record,
                               PyDatabaseNode::FGetTopK f_get_top_k,
                               PyDatabaseNode::FGetAllTuningRecords f_get_all_tuning_records,
+                              PyDatabaseNode::FQueryTuningRecord f_query_tuning_record,
+                              PyDatabaseNode::FQuerySchedule f_query_schedule,
+                              PyDatabaseNode::FQueryIRModule f_query_ir_module,
                               PyDatabaseNode::FSize f_size) {
   ObjectPtr<PyDatabaseNode> n = make_object<PyDatabaseNode>();
   n->f_has_workload = f_has_workload;
@@ -224,6 +227,9 @@ Database Database::PyDatabase(PyDatabaseNode::FHasWorkload f_has_workload,
   n->f_commit_tuning_record = f_commit_tuning_record;
   n->f_get_top_k = f_get_top_k;
   n->f_get_all_tuning_records = f_get_all_tuning_records;
+  n->f_query_tuning_record = f_query_tuning_record;
+  n->f_query_schedule = f_query_schedule;
+  n->f_query_ir_module = f_query_ir_module;
   n->f_size = f_size;
   return Database(n);
 }

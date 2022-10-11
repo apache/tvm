@@ -282,7 +282,6 @@ def test_trace_simplified_2():
         )
     )
     trace = trace.simplified(remove_postproc=False)
-    print(trace.show())
     assert str(trace) == "\n".join(
         (
             "# from tvm import tir",

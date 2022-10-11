@@ -19,13 +19,13 @@
 import os
 import json
 import argparse
+import logging
 import re
-from urllib import error
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 
 
-from git_utils import git, GitHubRepo, parse_remote, find_ccs
-from cmd_utils import tags_from_title
+from git_utils import git, GitHubRepo, parse_remote, find_ccs, dry_run_token
+from cmd_utils import tags_from_title, init_log
 
 
 GITHUB_NAME_REGEX = r"@[a-zA-Z0-9-]+"
@@ -168,6 +168,51 @@ def add_ccs_to_body(body: str, to_cc: List[str]) -> str:
     return "\n".join(lines)
 
 
+def determine_users_to_cc(
+    issue: Dict[str, Any], github: GitHubRepo, team_issue: str, issue_data: Optional[Dict[str, Any]]
+) -> List[str]:
+    if issue_data is None:
+        issue_data = fetch_issue(github, issue_number=int(team_issue))
+
+    # Fetch the list of teams
+    teams = parse_teams(issue_data, issue_number=int(team_issue))
+
+    logging.info(f"Found these teams in issue #{team_issue}\n{json.dumps(teams, indent=2)}")
+
+    title = issue["title"]
+    if "author" in issue:
+        author = issue["author"]["login"]
+    else:
+        author = issue["user"]["login"]
+    tags = tags_from_title(title)
+    if isinstance(issue["labels"], dict):
+        tags += tags_from_labels(issue["labels"]["nodes"])
+    else:
+        tags += tags_from_labels(issue["labels"])
+
+    tags = [t.lower() for t in tags]
+    logging.info(f"Found tags: {tags}")
+
+    # Update the PR or issue based on tags in the title and GitHub tags
+    to_cc = [teams.get(t, []) for t in tags]
+    to_cc = list(set(item for sublist in to_cc for item in sublist))
+    to_cc = [user for user in to_cc if user != author]
+    return to_cc
+
+
+def get_tags(pr_data: Dict[str, Any], github: GitHubRepo, team_issue: int) -> str:
+    to_cc = determine_users_to_cc(
+        issue=pr_data, github=github, team_issue=team_issue, issue_data=None
+    )
+
+    logging.info(f"Users to cc based on labels: {to_cc}")
+    description = "<sub>See [#10317](https://github.com/apache/tvm/issues/10317) for details</sub>"
+    if len(to_cc) == 0:
+        return "No users to tag found in teams " + description
+
+    return "cc " + ", ".join([f"@{user}" for user in to_cc]) + " " + description
+
+
 if __name__ == "__main__":
     help = "Automatically tag people based on PR / issue labels"
     parser = argparse.ArgumentParser(description=help)
@@ -183,20 +228,16 @@ if __name__ == "__main__":
         help="run but don't send any request to GitHub",
     )
     args = parser.parse_args()
+    init_log()
 
     remote = git(["config", "--get", f"remote.{args.remote}.url"])
     user, repo = parse_remote(remote)
 
+    github = GitHubRepo(token=dry_run_token(args.dry_run), user=user, repo=repo)
     if args.team_issue_json:
         issue_data = json.loads(args.team_issue_json)
     else:
-        github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
         issue_data = fetch_issue(github, issue_number=int(args.team_issue))
-
-    # Fetch the list of teams
-    teams = parse_teams(issue_data, issue_number=int(args.team_issue))
-
-    print(f"Found these teams in issue #{args.team_issue}\n{json.dumps(teams, indent=2)}")
 
     # Extract the payload from GitHub Actions
     issue = json.loads(os.getenv("ISSUE", "null"))
@@ -213,33 +254,27 @@ if __name__ == "__main__":
     item = issue if issue is not None else pr
     title = item["title"]
     body = item["body"]
-    author = item["user"]["login"]
-    tags = tags_from_title(item["title"]) + tags_from_labels(item["labels"])
 
-    tags = [t.lower() for t in tags]
-    print(f"Found tags: {tags}")
-
-    # Update the PR or issue based on tags in the title and GitHub tags
-    to_cc = [teams.get(t, []) for t in tags]
-    to_cc = list(set(item for sublist in to_cc for item in sublist))
-    to_cc = [user for user in to_cc if user != author]
+    to_cc = determine_users_to_cc(
+        issue=item, github=github, team_issue=args.team_issue, issue_data=issue_data
+    )
     existing_tags = list(set(re.findall(GITHUB_NAME_REGEX, body)))
     existing_tags = set(tag.replace("@", "") for tag in existing_tags)
-    print(f"Found existing tags: {existing_tags}")
+    logging.info(f"Found existing tags: {existing_tags}")
     to_cc = [user for user in to_cc if user not in existing_tags]
-    print("Users to cc based on labels", to_cc)
+    logging.info("Users to cc based on labels", to_cc)
 
     # Create the new PR/issue body
     if len(to_cc) == 0:
-        print("No one to cc, exiting")
+        logging.info("No one to cc, exiting")
         exit(0)
 
     new_body = add_ccs_to_body(body, to_cc)
     if new_body is None:
-        print(f"Everyone to cc is already cc'ed, no update needed")
+        logging.info(f"Everyone to cc is already cc'ed, no update needed")
         exit(0)
 
-    print(f"Changing body from:\n----\n{body}\n----\nto:\n----\n{new_body}\n----")
+    logging.info(f"Changing body from:\n----\n{body}\n----\nto:\n----\n{new_body}\n----")
 
     # Set the PR/issue body on GitHub
     data = {"body": new_body}
@@ -255,4 +290,4 @@ if __name__ == "__main__":
     if not args.dry_run:
         github.post(url, data=data)
     else:
-        print(f"Dry run, would have updated {url} with {data}")
+        logging.info(f"Dry run, would have updated {url} with {data}")

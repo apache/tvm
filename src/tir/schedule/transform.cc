@@ -103,6 +103,14 @@ ReplaceBufferMutator::ReplaceBufferMutator(const Buffer& old_buffer, Buffer new_
   buffer_var_map_[old_buffer->data.get()] = std::move(new_buffer);
 }
 
+ReplaceBufferMutator::ReplaceBufferMutator(const Map<Buffer, Buffer>& buffer_map,
+                                           Map<Block, Block>* block_sref_reuse)
+    : block_sref_reuse_(block_sref_reuse) {
+  for (const auto& [old_buffer, new_buffer] : buffer_map) {
+    buffer_var_map_[old_buffer->data.get()] = new_buffer;
+  }
+}
+
 PrimExpr ReplaceBufferMutator::VisitExpr_(const VarNode* var) {
   auto it = buffer_var_map_.find(var);
   return it != buffer_var_map_.end() ? it->second->data : GetRef<Var>(var);
@@ -169,12 +177,12 @@ Stmt ReplaceBufferMutator::VisitStmt_(const BlockNode* block) {
   };
 
   // Step 1. Mutate `match_buffers`. If an old buffer appears as a source of MatchBufferRegion,
-  Array<MatchBufferRegion> match_buffers = MutateArray(block->match_buffers, f_mutate_match_buffer);
+  Array<MatchBufferRegion> match_buffers = block->match_buffers.Map(f_mutate_match_buffer);
   // Step 2. Mutate the read/write region.
-  Array<BufferRegion> reads = MutateArray(block->reads, f_mutate_read_write_region);
-  Array<BufferRegion> writes = MutateArray(block->writes, f_mutate_read_write_region);
+  Array<BufferRegion> reads = block->reads.Map(f_mutate_read_write_region);
+  Array<BufferRegion> writes = block->writes.Map(f_mutate_read_write_region);
   // Step 3. Mutate `alloc_buffers` for the old buffer allocated in this block.
-  Array<Buffer> alloc_buffers = MutateArray(block->alloc_buffers, f_mutate_alloc_buffers);
+  Array<Buffer> alloc_buffers = block->alloc_buffers.Map(f_mutate_alloc_buffers);
   // Step 4. Recursively mutate the block.
   Block mutated_block = Downcast<Block>(StmtMutator::VisitStmt_(block));
 
@@ -280,11 +288,15 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
 }
 
 Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::BlockRV& block_rv,
-                                      const String& intrin_name) {
-  Optional<tir::TensorizeInfo> opt_tensorize_info = GetTensorizeLoopMapping(
-      sch->state(), sch->GetSRef(block_rv), tir::TensorIntrin::Get(intrin_name)->desc);
+                                      const String& intrin_name, bool allow_padding) {
+  Optional<tir::TensorizeInfo> opt_tensorize_info =
+      GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block_rv),
+                              tir::TensorIntrin::Get(intrin_name).value()->desc, allow_padding);
   if (!opt_tensorize_info) return NullOpt;
   const tir::TensorizeInfoNode* info = opt_tensorize_info.value().get();
+  if (info->block_iter_paddings.defined()) {
+    sch->PadEinsum(block_rv, info->block_iter_paddings.value());
+  }
   // Construct a mapping from tir loops back to LoopRVs
   Map<tir::StmtSRef, LoopRV> loop2rv;
   {
@@ -347,12 +359,23 @@ void BlockBufferAccessSimplifier::SimplifyAccessRegion(Array<BufferRegion>* old_
   auto fmutate = [this](const BufferRegion& buffer_region) {
     std::vector<Range> new_buffer_region;
     for (const auto& range : buffer_region->region) {
-      new_buffer_region.push_back(Range::FromMinExtent(analyzer_->Simplify(range->min),
-                                                       analyzer_->Simplify(range->extent)));
+      if (is_one(range->extent) && range->min->IsInstance<VarNode>()) {
+        new_buffer_region.push_back(Range::FromMinExtent(
+            SimplifyNonTrivialExpr(range->min, analyzer_), make_const(range->min.dtype(), 1)));
+      } else {
+        new_buffer_region.push_back(
+            Range::FromMinExtent(SimplifyNonTrivialExpr(range->min, analyzer_),
+                                 SimplifyNonTrivialExpr(range->extent, analyzer_)));
+      }
     }
     return BufferRegion(buffer_region->buffer, new_buffer_region);
   };
   (*old_access_regions).MutateByApply(fmutate);
+}
+
+void BlockBufferAccessSimplifier::SimplifyBufferIndices(Array<PrimExpr>* indices) {
+  (*indices).MutateByApply(
+      [this](const PrimExpr& expr) { return SimplifyNonTrivialExpr(expr, analyzer_); });
 }
 
 Stmt BlockBufferAccessSimplifier::VisitStmt_(const BlockNode* op) {
@@ -364,13 +387,15 @@ Stmt BlockBufferAccessSimplifier::VisitStmt_(const BlockNode* op) {
 }
 
 Stmt BlockBufferAccessSimplifier::VisitStmt_(const BufferStoreNode* op) {
-  auto node = Downcast<BufferStore>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
-  return VisitBufferAccess(std::move(node));
+  BufferStore node = Downcast<BufferStore>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
+  SimplifyBufferIndices(&node.CopyOnWrite()->indices);
+  return std::move(node);
 }
 
 PrimExpr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
-  auto node = Downcast<BufferLoad>(arith::IRMutatorWithAnalyzer::VisitExpr_(op));
-  return VisitBufferAccess(std::move(node));
+  BufferLoad node = Downcast<BufferLoad>(arith::IRMutatorWithAnalyzer::VisitExpr_(op));
+  SimplifyBufferIndices(&node.CopyOnWrite()->indices);
+  return std::move(node);
 }
 
 }  // namespace tir

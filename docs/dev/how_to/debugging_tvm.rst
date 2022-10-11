@@ -17,7 +17,7 @@
 
 .. _debugging-tvm:
 
-Debuggging TVM
+Debugging TVM
 ==============
 
 **NOTE**: This page is a work in-progress. Everyone is welcomed to add suggestions and tips via

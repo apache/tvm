@@ -82,7 +82,7 @@ def vm_estimate_seconds(device, the_vm, func_name, args):
 def estimate_seconds(mod, target):
     """Returns the mean execution time of "main" in mod on target with params. The module
     may contain "Primitive" functions, possibly with "Compiler" attributes."""
-    device = tvm.device(target.kind.device_type)
+    device = tvm.device(target.get_target_device_type())
 
     try:
         # Build the module.

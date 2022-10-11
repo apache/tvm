@@ -23,21 +23,19 @@ import tempfile
 
 import numpy as np
 import pytest
+
 import tvm.script
 import tvm.testing
 from tvm.contrib.hexagon.build import HexagonLauncherRPC
 from tvm.script import tir as T
 
 from . import benchmark_util as bu
+from .infrastructure import get_hexagon_target
 
 _SHOULD_SKIP_BENCHMARKS, _SKIP_BENCHMARKS_REASON = bu.skip_bencharks_flag_and_reason()
 
 # This is a fixed detail of the v68 architecture.
 HVX_VECTOR_BYTES = 128
-
-_HEXAGON_TARGET = tvm.target.hexagon("v69", link_params=True)
-
-_SUPER_TARGET = tvm.target.Target(_HEXAGON_TARGET, host=_HEXAGON_TARGET)
 
 # NOTE on server ports:
 # These tests use different port numbers for the RPC server (7070 + ...).
@@ -219,7 +217,7 @@ def _benchmark_hexagon_elementwise_add_kernel(
                     input2,
                     output,
                 ],
-                _SUPER_TARGET,
+                get_hexagon_target("v69"),
                 name=_PRIMFUNC_NAME,
             )
 

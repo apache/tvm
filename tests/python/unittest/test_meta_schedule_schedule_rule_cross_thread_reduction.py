@@ -19,7 +19,10 @@
 import tvm
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing import te_workload
-from tvm.meta_schedule.testing.space_generation import check_sketches
+from tvm.meta_schedule.testing.space_generation import (
+    check_sketches,
+    generate_design_space,
+)
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.te import create_prim_func
@@ -279,15 +282,12 @@ def test_gpu_softmax_mn():
         ("SampleCategorical", 7),
     ]
     mod = create_prim_func(te_workload.softmax_mn(n=256, m=256))
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("nvidia/geforce-rtx-3090", host="llvm"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=[
-            ms.schedule_rule.CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512])
-        ],
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.CrossThreadReduction,
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -477,15 +477,12 @@ def test_gpu_softmax_mn_after_inline():
     ]
 
     mod = Softmax_mn_after_inline
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("nvidia/geforce-rtx-3090", host="llvm"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=[
-            ms.schedule_rule.CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512])
-        ],
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.CrossThreadReduction,
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -555,15 +552,12 @@ def test_gpu_batch_norm_bmn():
     ]
 
     mod = create_prim_func(te_workload.norm_bmn(B=1, M=512, N=512))
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("nvidia/geforce-rtx-3090", host="llvm"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=[
-            ms.schedule_rule.CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512])
-        ],
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.CrossThreadReduction,
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -572,7 +566,200 @@ def test_gpu_batch_norm_bmn():
     )
 
 
+@T.prim_func
+def argmax(
+    idx: T.Buffer[(128, 128), "int32"],
+    val: T.Buffer[(128, 128), "float32"],
+    argmax_v0: T.Buffer[(128,), "int32"],
+    argmax_v1: T.Buffer[(128,), "float32"],
+) -> None:
+    for i0, i1 in T.grid(128, 128):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                argmax_v1[i] = T.min_value("float32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = v_argmax_v1
+
+
+@T.prim_func
+def argmax_32(
+    idx: T.Buffer[(1, 32), "int32"],
+    val: T.Buffer[(1, 32), "float32"],
+    argmax_v0: T.Buffer[(1,), "int32"],
+    argmax_v1: T.Buffer[(1,), "float32"],
+) -> None:
+    for i0, i1 in T.grid(1, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(1, i0)
+            k = T.axis.reduce(32, i1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                argmax_v1[i] = T.min_value("float32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = v_argmax_v1
+
+
+def test_gpu_argmax():
+    @T.prim_func
+    def argmax_0(
+        idx: T.Buffer[(128, 128), "int32"],
+        val: T.Buffer[(128, 128), "float32"],
+        argmax_v0: T.Buffer[128, "int32"],
+        argmax_v1: T.Buffer[128, "float32"],
+    ) -> None:
+        # body
+        # with T.block("root")
+        for i0, i1 in T.grid(128, 128):
+            with T.block("argmax"):
+                i, k = T.axis.remap("SR", [i0, i1])
+                T.reads(idx[i, k], val[i, k])
+                T.writes(argmax_v0[i], argmax_v1[i])
+                with T.init():
+                    argmax_v0[i] = -1
+                    argmax_v1[i] = T.float32(-3.4028234663852886e38)
+                v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+                v_argmax_v1: T.float32 = T.Select(
+                    argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
+                )
+                argmax_v0[i] = v_argmax_v0
+                argmax_v1[i] = v_argmax_v1
+
+    @T.prim_func
+    def argmax_1(
+        idx: T.Buffer[(128, 128), "int32"],
+        val: T.Buffer[(128, 128), "float32"],
+        argmax_v0: T.Buffer[128, "int32"],
+        argmax_v1: T.Buffer[128, "float32"],
+    ) -> None:
+        # body
+        # with T.block("root")
+        for i0, i1_0 in T.grid(128, 2):
+            for i1_1 in T.thread_binding(64, thread="threadIdx.x"):
+                with T.block("argmax"):
+                    i = T.axis.spatial(128, i0)
+                    k = T.axis.reduce(128, i1_0 * 64 + i1_1)
+                    T.reads(idx[i, k], val[i, k])
+                    T.writes(argmax_v0[i], argmax_v1[i])
+                    with T.init():
+                        argmax_v0[i] = -1
+                        argmax_v1[i] = T.float32(-3.4028234663852886e38)
+                    v_argmax_v0: T.int32 = T.Select(
+                        argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
+                    )
+                    v_argmax_v1: T.float32 = T.Select(
+                        argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
+                    )
+                    argmax_v0[i] = v_argmax_v0
+                    argmax_v1[i] = v_argmax_v1
+
+    decision_0 = []  # type: ignore
+    decision_1 = [
+        ("SampleCategorical", 4),
+    ]
+
+    mod = argmax
+    actual = generate_design_space(
+        kind="cuda",
+        mod=mod,
+        target=Target("nvidia/geforce-rtx-3090", host="llvm"),
+        types=ms.schedule_rule.CrossThreadReduction,
+    )
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[argmax_0, argmax_1],
+        expected_decisions=[decision_0, decision_1],
+    )
+
+
+def test_gpu_argmax_32():
+    @T.prim_func
+    def argmax_0(
+        idx: T.Buffer[(1, 32), "int32"],
+        val: T.Buffer[(1, 32), "float32"],
+        argmax_v0: T.Buffer[(1,), "int32"],
+        argmax_v1: T.Buffer[(1,), "float32"],
+    ) -> None:
+        # body
+        # with T.block("root")
+        for i0, i1 in T.grid(1, 32):
+            with T.block("argmax"):
+                i, k = T.axis.remap("SR", [i0, i1])
+                T.reads(idx[i, k], val[i, k])
+                T.writes(argmax_v0[i], argmax_v1[i])
+                with T.init():
+                    argmax_v0[i] = -1
+                    argmax_v1[i] = T.float32(-3.4028234663852886e38)
+                v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+                v_argmax_v1: T.float32 = T.Select(
+                    argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
+                )
+                argmax_v0[i] = v_argmax_v0
+                argmax_v1[i] = v_argmax_v1
+
+    @T.prim_func
+    def argmax_1(
+        idx: T.Buffer[(1, 32), "int32"],
+        val: T.Buffer[(1, 32), "float32"],
+        argmax_v0: T.Buffer[(1,), "int32"],
+        argmax_v1: T.Buffer[(1,), "float32"],
+    ) -> None:
+        # body
+        # with T.block("root")
+        for i0, i1_0 in T.grid(1, 1):
+            for i1_1 in T.thread_binding(64, thread="threadIdx.x"):
+                with T.block("argmax"):
+                    i = T.axis.spatial(1, i0)
+                    k = T.axis.reduce(32, i1_0 * 64 + i1_1)
+                    T.where(i1_0 * 64 + i1_1 < 32)
+                    T.reads(idx[i, k], val[i, k])
+                    T.writes(argmax_v0[i], argmax_v1[i])
+                    with T.init():
+                        argmax_v0[i] = -1
+                        argmax_v1[i] = T.float32(-3.4028234663852886e38)
+                    v_argmax_v0: T.int32 = T.Select(
+                        argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
+                    )
+                    v_argmax_v1: T.float32 = T.Select(
+                        argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
+                    )
+                    argmax_v0[i] = v_argmax_v0
+                    argmax_v1[i] = v_argmax_v1
+
+    decision_0 = []  # type: ignore
+    decision_1 = [
+        ("SampleCategorical", 4),
+    ]
+
+    mod = argmax_32
+    actual = generate_design_space(
+        kind="cuda",
+        mod=mod,
+        target=Target("nvidia/geforce-rtx-3090", host="llvm"),
+        types=ms.schedule_rule.CrossThreadReduction,
+    )
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[argmax_0, argmax_1],
+        expected_decisions=[decision_0, decision_1],
+    )
+
+
 if __name__ == "__main__":
     test_gpu_softmax_mn()
     test_gpu_softmax_mn_after_inline()
     test_gpu_batch_norm_bmn()
+    test_gpu_argmax()
+    test_gpu_argmax_32()

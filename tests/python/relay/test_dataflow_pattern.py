@@ -1840,5 +1840,35 @@ def test_matched_outside_but_dominated():
     tvm.ir.assert_structural_equal(actual_mod, expected_mod)
 
 
+def test_partition_parallel_branch_with_same_input():
+    """In this example, conv2d's two consumer(add and multiply) on two different branches are
+    merged into one partition, make sure that the partitioned function has no redundant parameters"""
+    # Pattern
+    path1 = is_op("multiply")(wildcard(), wildcard())
+    path2 = is_op("add")(wildcard(), wildcard())
+    pattern = is_op("add")(path1, path2)
+
+    i = relay.Var("input")
+    w = relay.Var("weight")
+    l = relay.Var("left")
+    r = relay.Var("right")
+
+    conv2d = relay.op.nn.conv2d(i, w)
+    branch1 = relay.multiply(l, conv2d)
+    branch2 = relay.add(conv2d, r)
+    add = relay.add(branch1, branch2)
+
+    lf = relay.Var("leftf")
+    mf = relay.Var("midf")
+    rf = relay.Var("rightf")
+    f = relay.Function([lf, mf, rf], (lf * mf) + (mf + rf)).with_attr(
+        "PartitionedFromPattern", "multiply_add_add_"
+    )
+
+    partitioned = pattern.partition(add)
+    reference = f(l, conv2d, r)
+    assert tvm.ir.structural_equal(partitioned, reference)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
