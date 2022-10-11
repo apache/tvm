@@ -393,7 +393,7 @@ def validate_requirements_by_piece() -> typing.List[str]:
 
 
 def parse_semver(
-        package: str, constraint: str, problems: typing.List[str]
+    package: str, constraint: str, problems: typing.List[str]
 ) -> typing.Tuple[typing.List[str], int, int]:
     """Parse a semantic versioning constraint of the form "^X.[.Y[.Z[...]]]]"
 
@@ -429,7 +429,7 @@ def parse_semver(
         m.group("patch")
         + (f"-{m.group('prerelease')}" if m.group("prerelease") else "")
         + (f"+{m.group('buildmetadata')}" if m.group("buildmetadata") else ""),
-        ]
+    ]
 
     # Major/minor version handling is simple
     for i, p in enumerate(min_ver_parts[:2]):
@@ -572,9 +572,9 @@ def semver_to_requirements(dep: str, constraint: str, joined_deps: typing.List[s
     ), f"should not happen: validated semver {constraint} parses with problems:{text_problems}"
 
     max_ver_parts = (
-            min_ver_parts[:fixed_index]
-            + [str(fixed_part + 1)]
-            + ["0" for _ in min_ver_parts[fixed_index + 1 :]]
+        min_ver_parts[:fixed_index]
+        + [str(fixed_part + 1)]
+        + ["0" for _ in min_ver_parts[fixed_index + 1 :]]
     )
     joined_deps.append(f'{dep}>={".".join(min_ver_parts)},<{".".join(max_ver_parts)}')
 
