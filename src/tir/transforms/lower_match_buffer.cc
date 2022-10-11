@@ -23,17 +23,19 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include "../../printer/text_printer.h"
 #include "../ir/functor_common.h"
 #include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
-class MatchBufferLower : public StmtExprMutator {
+class MatchBufferLower : public DataTypeLegalizer {
  public:
   explicit MatchBufferLower(const PrimFunc& func) {
     for (const Var& param : func->params) {
@@ -188,14 +190,14 @@ class MatchBufferLower : public StmtExprMutator {
       Array<PrimExpr> buffer_start_indices = source_buffer->ElemOffset(indices);
       if (buffer_start_indices.size() == 1) {
         Bind(buffer->elem_offset, buffer_start_indices[0], buffer->name + ".elem_offset");
-        CHECK(analyzer_.CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
+        CHECK(analyzer_.CanProve(truncmod(buffer_start_indices[0], buffer->offset_factor) == 0))
             << "The source elem_offset " << buffer_start_indices[0]
             << " does not satisfy the offset_factor " << buffer->offset_factor << ".";
       } else {
         // Non-zero elem_offset is ill-defined for non-flat memory.
         // If needed in the future, will require `Array<PrimExpr>
         // elem_offsets`, with one offset for each flattened index.
-        Bind(buffer->elem_offset, 0);
+        Bind(buffer->elem_offset, make_zero(buffer->elem_offset.dtype()));
       }
     }
 
@@ -229,7 +231,7 @@ class MatchBufferLower : public StmtExprMutator {
   }
 
   void Bind(const PrimExpr& arg, PrimExpr value, const std::string& arg_name = "argument") {
-    CHECK_EQ(arg.dtype(), value.dtype())
+    CHECK_EQ(arg.dtype().code(), value.dtype().code())
         << "The data type mismatched: " << arg->dtype << " vs. " << value->dtype;
     // Handle recursive case
     value = Substitute(std::move(value), var_map_);
@@ -238,7 +240,7 @@ class MatchBufferLower : public StmtExprMutator {
       auto it = var_map_.find(v);
       if (it == var_map_.end()) {
         var_map_.Set(v, value);
-        analyzer_.Bind(v, value);
+        // analyzer_.Bind(v, value);
       } else {
         AssertBinding((*it).second, value, arg_name);
       }
@@ -247,10 +249,21 @@ class MatchBufferLower : public StmtExprMutator {
     }
   }
 
+  PrimExpr LookUpArgBind(const PrimExpr& arg) {
+    if (arg->IsInstance<VarNode>()) {
+      Var v = Downcast<Var>(arg);
+      if (auto it = var_map_.find(v); it != var_map_.end()) {
+        return (*it).second;
+      }
+    }
+    return arg;
+  }
+
   void AssertBinding(const PrimExpr& lhs, const PrimExpr& rhs,
                      const std::string& arg_name = "argument") {
-    CHECK(analyzer_.CanProve(lhs == rhs)) << "The buffer match constraint for " << arg_name
-                                          << " unmet: " << lhs << "==" << rhs << ".";
+    CHECK(analyzer_.CanProve(LookUpArgBind(lhs) == rhs))
+        << "The buffer match constraint for " << arg_name << " unmet: " << lhs << "==" << rhs
+        << ".";
   }
 
  private:
@@ -264,7 +277,9 @@ class MatchBufferLower : public StmtExprMutator {
 
 PrimFunc LowerMatchBuffer(PrimFunc func) {
   auto fptr = func.CopyOnWrite();
+  // LOG(INFO) << "BeforeLMB:\n" << tir::AsTVMScript(func);
   fptr->body = MatchBufferLower(func)(std::move(fptr->body));
+  // LOG(INFO) << "AfterLMB:\n" << tir::AsTVMScript(func);
   return func;
 }
 

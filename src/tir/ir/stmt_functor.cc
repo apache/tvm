@@ -21,6 +21,7 @@
  */
 #include <tvm/ir/module.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 

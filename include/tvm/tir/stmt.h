@@ -858,6 +858,7 @@ class IfThenElse : public Stmt {
                      Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(IfThenElse, Stmt, IfThenElseNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IfThenElseNode);
 };
 
 /*!
