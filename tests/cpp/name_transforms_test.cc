@@ -21,6 +21,7 @@
 
 #include <gtest/gtest.h>
 #include <tvm/runtime/container/string.h>
+#include <tvm/runtime/name_mangling.h>
 
 using namespace tvm::relay::backend;
 using namespace tvm::runtime;
