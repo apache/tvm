@@ -431,13 +431,13 @@ def get_shape(src_shape, src_layout, dst_layout):
     return get_const_tuple(tuple([src_shape[i.value] for i in dst_indices]))
 
 
-def change_constant_shape(src, src_layout, dst_layout):
-    """Makes a copy of a Relay constant, reshaping it to a new data layout.
+def change_ndarray_layout(arr, src_layout, dst_layout):
+    """Makes a copy of an ndarray, reshaping it to a new data layout.
 
     Parameter
     ---------
-    src : relay.Constant
-        The Constant to be reformatted.
+    arr : numpy.ndarray
+        The ndarray to be reformatted.
 
     src_layout : str
         The current layout of the Relay constant. Must be alphabetic (e.g. NHWC
@@ -449,13 +449,12 @@ def change_constant_shape(src, src_layout, dst_layout):
 
     Returns
     -------
-    dst_shape : relay.Constant
-        A copy of the Constant with the new layout.
+    dst_shape : numpy.ndarray
+        A copy of the ndarray with the new layout.
     """
     assert src_layout.isalpha() and dst_layout.isalpha()
     axis_order = [src_layout.index(c) for c in dst_layout]
-    reshaped = np.transpose(src.data.numpy(), axis_order)
-    return relay.Constant(tvm.nd.array(reshaped))
+    return np.transpose(arr, axis_order)
 
 
 def within_index(b, e, s, i):
