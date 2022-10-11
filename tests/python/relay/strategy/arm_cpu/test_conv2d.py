@@ -98,9 +98,9 @@ class TestConv2d_NCHW_Spatial_Pack(GeneralizedConv2dTests):
 
     groups = tvm.testing.parameter(1)
     data_shape, kernel_size, num_filter, strides, padding, dilation, in_dtype = tvm.testing.parameters(
-        ((1, 16, 32, 32), (3, 3), 12, 1, 0, 1, "int8"),
-        ((1, 16, 32, 32), (3, 3), 12, 1, 0, 1, "int16"),
-        ((1, 32, 16, 16), (3, 3), 12, 1, 0, 1, "int16"),
+        ((1, 32, 32, 16), (3, 3), 12, 1, 0, 1, "int8"),
+        ((1, 32, 32, 16), (3, 3), 12, 1, 0, 1, "int16"),
+        ((1, 16, 16, 32), (3, 3), 12, 1, 0, 1, "int16"),
     )
     data_layout, kernel_layout, out_layout = tvm.testing.parameters(("NCHW", "OIHW", "NCHW"),)
     schedule_name = tvm.testing.parameter("conv2d_nchw_spatial_pack.arm_cpu")
