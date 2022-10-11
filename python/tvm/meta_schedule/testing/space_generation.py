@@ -32,10 +32,12 @@ from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 def get_rules(
     kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"],
-    types: Union[type, Tuple[type, ...]],
+    types: Optional[Union[type, Tuple[type, ...]]],
 ) -> List[ms.ScheduleRule]:
     """Get default schedule rules"""
     rules = ms.ScheduleRule.create(kind)
+    if types is None:
+        return rules
     return [rule for rule in rules if isinstance(rule, types)]
 
 
@@ -43,9 +45,10 @@ def generate_design_space(
     kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"],
     mod: IRModule,
     target: Target,
-    types: Union[type, Tuple[type, ...]],
+    types: Optional[Union[type, Tuple[type, ...]]] = None,
     sch_rules: Optional[List[ms.ScheduleRule]] = None,
 ) -> List[Schedule]:
+    """Generate design space"""
     if sch_rules is None:
         sch_rules = get_rules(kind, types)
     else:
