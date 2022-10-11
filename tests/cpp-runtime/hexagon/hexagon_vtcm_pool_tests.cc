@@ -44,26 +44,26 @@ TEST_F(HexagonVtcmPoolTest, basic) {
   void* ptr2;
 
   ptr = vtcm_pool->Allocate(max_bytes);
-  CHECK((reinterpret_cast<size_t>(ptr) & 0x7FF) == 0)
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
       << "Must be multiple of 2k " << ptr << " " << max_bytes;
   vtcm_pool->Free(ptr, max_bytes);
 
   ptr = vtcm_pool->Allocate(two_k_block);
-  CHECK((reinterpret_cast<size_t>(ptr) & 0x7FF) == 0)
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
       << "Must be multiple of 2k " << ptr << " " << two_k_block;
   vtcm_pool->Free(ptr, two_k_block);
 
   ptr = vtcm_pool->Allocate(one_k_block);
-  CHECK((reinterpret_cast<size_t>(ptr) & 0x7F) == 0)
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
       << "Must be multiple of 128 " << ptr << " " << one_k_block;
   vtcm_pool->Free(ptr, one_k_block);
 
   ptr = vtcm_pool->Allocate(min_bytes);
-  CHECK((reinterpret_cast<size_t>(ptr) & 0x7F) == 0)
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
       << "Must be multiple of 128 " << ptr << " " << min_bytes;
 
   ptr2 = vtcm_pool->Allocate(one_k_block);
-  CHECK((reinterpret_cast<size_t>(ptr) & 0x7F) == 0)
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
       << "Must be multiple of 128 " << ptr2 << " " << one_k_block;
   vtcm_pool->Free(ptr, min_bytes);
   vtcm_pool->Free(ptr2, one_k_block);
@@ -134,6 +134,48 @@ TEST_F(HexagonVtcmPoolTest, free_alloc_combinations) {
 
   // Make sure at the end we have the full amount
   // available again
-  ptr4 = vtcm_pool->Allocate(max_less_3_blocks);
-  vtcm_pool->Free(ptr4, max_less_3_blocks);
+  ptr4 = vtcm_pool->Allocate(max_bytes);
+  vtcm_pool->Free(ptr4, max_bytes);
+}
+
+// Test alignment edge cases allocating through HexagonBuffer
+TEST_F(HexagonVtcmPoolTest, vtcm_alignment) {
+  std::unique_ptr<HexagonBufferManager> test_hexbuffs = std::make_unique<HexagonBufferManager>();
+  void* ptr;
+
+  // Invalid alignments
+  EXPECT_THROW(test_hexbuffs->AllocateHexagonBuffer(min_bytes, 128+1, String("global")), InternalError);
+  EXPECT_THROW(test_hexbuffs->AllocateHexagonBuffer(min_bytes, 2048+1, String("global")), InternalError);
+
+  // Valid alignments, sizes need to be adjusted
+  ptr = test_hexbuffs->AllocateHexagonBuffer(1, 128, String("global"));
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
+      << "Must be multiple of 128 " << ptr;
+
+  ptr = test_hexbuffs->AllocateHexagonBuffer(127, 128, String("global"));
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
+      << "Must be multiple of 128 " << ptr;
+
+  ptr = test_hexbuffs->AllocateHexagonBuffer(129, 128, String("global"));
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
+      << "Must be multiple of 128 " << ptr;
+
+  ptr = test_hexbuffs->AllocateHexagonBuffer(1, 2048, String("global"));
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
+      << "Must be multiple of 2k " << ptr;
+
+  ptr = test_hexbuffs->AllocateHexagonBuffer(2047, 2048, String("global"));
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
+      << "Must be multiple of 2k " << ptr;
+
+  ptr = test_hexbuffs->AllocateHexagonBuffer(2049, 2048, String("global"));
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
+      << "Must be multiple of 2k " << ptr;
+
+  test_hexbuffs.reset();
+
+  // Make sure at the end we have the full amount
+  // available again
+  ptr = vtcm_pool->Allocate(max_bytes);
+  vtcm_pool->Free(ptr, max_bytes);
 }

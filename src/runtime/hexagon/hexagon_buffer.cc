@@ -62,22 +62,15 @@ struct VTCMAllocation : public Allocation {
     CHECK((alignment <= 0x80) || (alignment == 0x800))
         << "VTCMAllocation called for invalid alignment " << alignment;
 
-    if ((alignment == 0x800) && (nbytes & 0x7FF)) {
-      // Caller has requested 2k alignment, but the size is not a multiple of 2k.
+    if (alignment == 0x800) {
       // Adjust size to be a multiple of 2k so that we will allocate from the front of the pool.
-      nbytes = nbytes >> 11;
-      nbytes = nbytes << 11;
-      nbytes += 0x800;
-      DLOG(INFO) << "VTCMAllocation size adjusted for alignment " << allocation_nbytes_ << " to "
-                 << nbytes;
-      allocation_nbytes_ = nbytes;
-    } else if ((alignment <= 0x80) && (nbytes & 0x7F)) {
-      // Caller has requested alignment of 128 or less, but the size is not a multiple of 128.
+      nbytes = (nbytes + 0x7ff) & -0x800;
+    } else if (alignment <= 0x80) {
       // Adjust size to be a multiple of 128 so that we will allocate from the back of the pool
       // in 128 byte increments.
-      nbytes = nbytes >> 7;
-      nbytes = nbytes << 7;
-      nbytes += 0x80;
+      nbytes = (nbytes + 0x7f) & -0x80;
+    }
+    if (allocation_nbytes_ != nbytes) {
       DLOG(INFO) << "VTCMAllocation size adjusted for alignment " << allocation_nbytes_ << " to "
                  << nbytes;
       allocation_nbytes_ = nbytes;
