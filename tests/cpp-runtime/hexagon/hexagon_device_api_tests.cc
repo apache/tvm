@@ -156,8 +156,9 @@ TEST_F(HexagonDeviceAPITest, runtime_buffer_manager) {
   void* runtime_buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
   CHECK(runtime_buf != nullptr);
   hexapi->ReleaseResources();
-  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, runtime_buf), InternalError);
+  hexapi->FreeDataSpace(hex_dev, runtime_buf);
   hexapi->AcquireResources();
+  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, runtime_buf), InternalError);
 }
 
 // Ensure RPC buffer manager is always available

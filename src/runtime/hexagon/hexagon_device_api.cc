@@ -119,15 +119,17 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignme
     alignment = kHexagonAllocAlignment;
   }
   CHECK(runtime_hexbuffs) << "runtime_hexbuffs is not initalized";
-  void* ptr = runtime_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, String("global"));
-  return ptr;
+  return runtime_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, String("global"));
 }
 
 void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
   CHECK(ptr) << "buffer pointer is null";
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  CHECK(runtime_hexbuffs) << "runtime_hexbuffs is not initalized";
-  runtime_hexbuffs->FreeHexagonBuffer(ptr);
+  if (runtime_hexbuffs) {
+    runtime_hexbuffs->FreeHexagonBuffer(ptr);
+  } else {
+    LOG(INFO) << "FreeDataSpace called when runtime_hexbuffs is not initialized";
+  }
 }
 
 void* HexagonDeviceAPI::AllocRpcDataSpace(Device dev, size_t nbytes, size_t alignment,
@@ -139,9 +141,7 @@ void* HexagonDeviceAPI::AllocRpcDataSpace(Device dev, size_t nbytes, size_t alig
     alignment = kHexagonAllocAlignment;
   }
   CHECK(rpc_hexbuffs) << "rpc_hexbuffs is not initalized";
-  void* ptr = rpc_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, String("global"));
-  DLOG(INFO) << "AllocRpcDataSpace nbytes: " << nbytes << " ptr: " << ptr;
-  return ptr;
+  return rpc_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, String("global"));
 }
 
 void HexagonDeviceAPI::FreeRpcDataSpace(Device dev, void* ptr) {
