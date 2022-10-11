@@ -239,36 +239,41 @@ def main():
     assert Target(ARGS.target).kind.name in ["llvm", "cuda"]
     dev_type = "cpu" if Target(ARGS.target).kind.name == "llvm" else "cuda"
     records = database.get_all_tuning_records()
-    for i, record in enumerate(records):
-        original_mod = record.workload.mod
-        sch = Schedule(original_mod)
-        record.trace.apply_to_schedule(sch=sch, remove_postproc=False)
-        scheduled_mod = sch.mod
-        flag = False
-        try:
-            flag = validate_correctness(
-                original_mod=original_mod,
-                scheduled_mod=scheduled_mod,
-                target=ARGS.target,
-                baseline_target=ARGS.baseline_target,
-                dev_type=dev_type,
-                rpc_config=ARGS.rpc_config,
-            )
-        except Exception as e:  # pylint: disable=broad-except, invalid-name
-            print(
-                ("\n\n").join(
-                    [
-                        "Validation failed!",
-                        "Original IRModule:" + DELIMITOR + original_mod.script(),
-                        "Scheduled IRModule:" + DELIMITOR + scheduled_mod.script(),
-                        "Exception" + DELIMITOR + str(e),
-                    ]
+    with ms.Profiler() as profiler:
+        for i, record in enumerate(records):
+            scope_name = f"validate #{i}"
+            with profiler.timeit(scope_name):
+                original_mod = record.workload.mod
+                sch = Schedule(original_mod)
+                record.trace.apply_to_schedule(sch=sch, remove_postproc=False)
+                scheduled_mod = sch.mod
+                flag = False
+                try:
+                    flag = validate_correctness(
+                        original_mod=original_mod,
+                        scheduled_mod=scheduled_mod,
+                        target=ARGS.target,
+                        baseline_target=ARGS.baseline_target,
+                        dev_type=dev_type,
+                        rpc_config=ARGS.rpc_config,
+                    )
+                except Exception as e:  # pylint: disable=broad-except, invalid-name
+                    print(
+                        ("\n\n").join(
+                            [
+                                "Validation failed!",
+                                "Original IRModule:" + DELIMITOR + original_mod.script(),
+                                "Scheduled IRModule:" + DELIMITOR + scheduled_mod.script(),
+                                "Exception" + DELIMITOR + str(e),
+                            ]
+                        )
+                    )
+            if flag:
+                print(
+                    f"Progress {i+1: 6d} / {len(records): 6d} checked, used {float(profiler.get()[scope_name]): 3.3f} sec."
                 )
-            )
-        if flag:
-            print(f"Progress {i+1: 6d} / {len(records): 6d} checked.")
-        else:
-            return
+            else:
+                return
 
     print("Validation passed!")
 
