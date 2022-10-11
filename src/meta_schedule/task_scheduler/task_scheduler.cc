@@ -312,7 +312,7 @@ void TaskSchedulerNode::PrintTuningStatistics() {
 
   if (using_ipython()) {
     print_interactive_table(p.AsStr());
-    std::cout << os.str() << std::endl;
+    std::cout << os.str() << std::endl << std::flush;
     TVM_PY_LOG(DEBUG, this->logger) << "\n" << p.AsStr() << os.str();
   } else {
     TVM_PY_LOG(INFO, this->logger) << "\n" << p.AsStr() << os.str();

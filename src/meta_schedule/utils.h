@@ -43,7 +43,6 @@
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
-#include <filesystem>
 #include <string>
 #include <utility>
 #include <vector>
@@ -84,17 +83,13 @@ class PyLogMessage {
   };
 
   explicit PyLogMessage(const char* file, int lineno, PackedFunc logger, Level logging_level)
-      : file_(file), lineno_(lineno), logger_(logger), logging_level_(logging_level) {
-    if (this->logger_ != nullptr) {
-      stream_ << "[" << std::filesystem::path(file_).filename().string() << ":" << lineno_ << "] ";
-    }
-  }
+      : file_(file), lineno_(lineno), logger_(logger), logging_level_(logging_level) {}
 
   TVM_NO_INLINE ~PyLogMessage() {
     ICHECK(logging_level_ != Level::CLEAR)
         << "Cannot use CLEAR as logging level in TVM_PY_LOG, please use TVM_PY_LOG_CLEAR_SCREEN.";
     if (this->logger_ != nullptr) {
-      logger_(static_cast<int>(logging_level_), stream_.str());
+      logger_(static_cast<int>(logging_level_), std::string(file_), lineno_, stream_.str());
     } else {
       if (logging_level_ == Level::INFO) {
         runtime::detail::LogMessage(file_, lineno_).stream() << stream_.str();
@@ -152,7 +147,7 @@ inline void print_interactive_table(const String& data) {
  */
 inline void clear_logging(const char* file, int lineno, PackedFunc logging_func) {
   if (logging_func.defined() && using_ipython()) {
-    logging_func(static_cast<int>(PyLogMessage::Level::CLEAR), "");
+    logging_func(static_cast<int>(PyLogMessage::Level::CLEAR), file, lineno, "");
   } else {
     // this would clear all logging output in the console
     runtime::detail::LogMessage(file, lineno).stream() << "\033c\033[3J\033[2J\033[0m\033[H";
