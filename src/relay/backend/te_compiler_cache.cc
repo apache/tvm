@@ -528,6 +528,9 @@ class ScheduleBuilder : public ExprVisitor {
             ICHECK_EQ(mod->functions.size(), 1);
             mod = tir::transform::RemoveWeightLayoutRewriteBlock()(std::move(mod));
             prim_func = Downcast<PrimFunc>(mod->Lookup("main"));
+            // Need to copy attrs from relay function over to prim func. Most notably the structural
+            // hash.
+            prim_func = WithAttrs(prim_func, relay_func->attrs->dict);
           } else {
             int dispatch = backend::UseMetaScheduleDispatch();
             // (dispatch & 2): controls whether to print TVMScript for missing TIR
