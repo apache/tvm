@@ -41,7 +41,9 @@ class TensorIntrinMismatchError : public ScheduleError {
 
   String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "The stmt {0} doesn't match the tensor intrin\n " << rhs_stmt_;
+    os << "The stmt {0} doesn't match the tensor intrin\nThe pattern attempting to be matched:\n"
+       << lhs_stmt_ << "\nDoes not match the tensorize description:\n"
+       << rhs_stmt_;
     for (const auto& msg : error_messages_) {
       os << msg << std::endl;
     }

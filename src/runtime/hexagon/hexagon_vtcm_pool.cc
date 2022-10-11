@@ -64,6 +64,7 @@ void* HexagonVtcmPool::Allocate(size_t nbytes) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   CHECK(!free_.empty()) << "No free VTCM";
+  CHECK(nbytes >= 0x80) << "Minimum VTCM alloation must be 128 bytes - nbytes " << nbytes;
 
   // If this is not aligned on a 2k block, allocate from the end to avoid fragmentation
   if (nbytes & size_t(0x7FF)) {
