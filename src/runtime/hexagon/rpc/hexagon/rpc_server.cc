@@ -152,14 +152,13 @@ class HexagonPageAllocator {
  public:
   using ArenaPageHeader = tvm::support::ArenaPageHeader;
 
-  explicit HexagonPageAllocator(TIOHandler* io) : io_(io), dev_(DLDevice{kDLCPU, 0}) {}
+  explicit HexagonPageAllocator(TIOHandler* io) : io_(io) {}
 
   ArenaPageHeader* allocate(size_t min_size) {
     size_t npages = ((min_size + kPageSize - 1) / kPageSize);
     void* data;
 
-    data = HexagonDeviceAPI::Global()->AllocRpcDataSpace(dev_, npages * kPageSize, kPageAlign,
-                                                         DLDataType{kDLInt, 1, 1});
+    data = HexagonDeviceAPI::Global()->AllocRpcBuffer(npages * kPageSize, kPageAlign);
 
     ArenaPageHeader* header = static_cast<ArenaPageHeader*>(data);
     header->size = npages * kPageSize;
@@ -167,16 +166,13 @@ class HexagonPageAllocator {
     return header;
   }
 
-  void deallocate(ArenaPageHeader* page) {
-    HexagonDeviceAPI::Global()->FreeRpcDataSpace(dev_, page);
-  }
+  void deallocate(ArenaPageHeader* page) { HexagonDeviceAPI::Global()->FreeRpcBuffer(page); }
 
   static const constexpr int kPageSize = 2 << 10;
   static const constexpr int kPageAlign = 8;
 
  private:
   TIOHandler* io_;
-  Device dev_;
 };
 
 class HexagonRPCServer {

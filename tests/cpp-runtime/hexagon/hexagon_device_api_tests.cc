@@ -164,14 +164,14 @@ TEST_F(HexagonDeviceAPITest, runtime_buffer_manager) {
 // Ensure RPC buffer manager is always available
 TEST_F(HexagonDeviceAPITest, rpc_buffer_manager) {
   void* rpc_buf;
-  rpc_buf = hexapi->AllocRpcDataSpace(hex_dev, nbytes, alignment, int8);
+  rpc_buf = hexapi->AllocRpcBuffer(nbytes, alignment);
   CHECK(rpc_buf != nullptr);
   hexapi->ReleaseResources();
-  hexapi->FreeRpcDataSpace(hex_dev, rpc_buf);
-  rpc_buf = hexapi->AllocRpcDataSpace(hex_dev, nbytes, alignment, int8);
+  hexapi->FreeRpcBuffer(rpc_buf);
+  rpc_buf = hexapi->AllocRpcBuffer(nbytes, alignment);
   CHECK(rpc_buf != nullptr);
   hexapi->AcquireResources();
-  hexapi->FreeRpcDataSpace(hex_dev, rpc_buf);
+  hexapi->FreeRpcBuffer(rpc_buf);
 }
 
 // Ensure thread manager is properly configured and destroyed
