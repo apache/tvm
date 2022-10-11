@@ -22,7 +22,7 @@ from numbers import Integral
 
 import numpy as np
 import tvm
-from tvm import relay, te
+from tvm import te
 from tvm.tir import bijective_layout, layout
 from . import cpp, tag
 

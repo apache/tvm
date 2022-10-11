@@ -105,7 +105,7 @@ def _wrap_te_compute(
     return te.compute(
         tuple(shape[i] for i in forward_order),
         lambda *args: fcompute(*(args[i] for i in reverse_order)),
-        **kwargs
+        **kwargs,
     )
 
 

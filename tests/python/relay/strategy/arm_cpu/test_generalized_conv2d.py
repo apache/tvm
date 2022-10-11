@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Helper class for testing variations of 2D convolution. Should be used by subclassing
+`GeneralizedConv2dTests`, and then setting the arguments using tvm.testing.parameter(s)."""
+
 from numpy.random import randint
 import tvm
 import tvm.testing
@@ -24,6 +27,11 @@ from tvm.topi.utils import change_ndarray_layout
 
 
 class GeneralizedConv2dTests:
+    """Superclass which can be used to test regular, depthwise, or grouped conv2D. Cannot be used
+    for 5D data formats (NCHWc and such) as written, but could be extended. Might also be worth
+    abstracting some of this logic into an even more general class that could be used for other
+    operators."""
+
     @tvm.testing.requires_corstone300
     def test_conv2d(
         self,
@@ -43,19 +51,22 @@ class GeneralizedConv2dTests:
         """Test a subgraph with a single conv2d operator."""
 
         ref_input_data = randint(low=-128, high=127, size=data_shape, dtype=in_dtype)
-        ref_input_var = relay.var("input", relay.TensorType(data_shape, in_dtype)) # NHWC layout
-        kernel_shape = (*kernel_size, data_shape[-1], num_filter) # HWIO layout
+        ref_input_var = relay.var("input", relay.TensorType(data_shape, in_dtype))  # NHWC layout
+        kernel_shape = (*kernel_size, data_shape[-1] // groups, num_filter)  # HWIO layout
         ref_kernel_data = randint(low=-10, high=10, size=kernel_shape, dtype=in_dtype)
 
+        is_depthwise = (num_filter == data_shape[3])
+        ref_kernel_layout = "HWOI" if is_depthwise else "HWIO"
         ref_relay_op = relay.op.nn.conv2d(
             ref_input_var,
-            relay.const(ref_kernel_data),
+            relay.const(change_ndarray_layout(ref_kernel_data, "HWIO", ref_kernel_layout)),
             kernel_size=kernel_size,
             strides=strides,
             padding=padding,
+            groups=groups,
             dilation=(dilation, dilation),
             data_layout="NHWC",
-            kernel_layout="HWIO",
+            kernel_layout=ref_kernel_layout,
             out_dtype="int32",
             out_layout="NHWC",
         )
@@ -64,7 +75,6 @@ class GeneralizedConv2dTests:
 
         # Reshape output dictionary to match out_layout
         assert len(ref_outputs) == 1
-        axis_order = ["NHWC".index(c) for c in out_layout]
         output_tensor_name, output_tensor = next(iter(ref_outputs.items()))
         ref_outputs[output_tensor_name] = change_ndarray_layout(output_tensor, "NHWC", out_layout)
 
@@ -78,6 +88,7 @@ class GeneralizedConv2dTests:
             kernel_size=kernel_size,
             strides=strides,
             padding=padding,
+            groups=groups,
             dilation=(dilation, dilation),
             data_layout=data_layout,
             kernel_layout=kernel_layout,
@@ -88,7 +99,7 @@ class GeneralizedConv2dTests:
         test_model = AOTTestModel(
             module=tvm.IRModule.from_expr(test_function),
             inputs={"input": test_input_data},
-            outputs=ref_outputs
+            outputs=ref_outputs,
         )
 
         compile_and_run(

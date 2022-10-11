@@ -14,14 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Tests for arm_cpu schedules for grouped conv2d."""
 
-import tvm.testing
 from test_generalized_conv2d import GeneralizedConv2dTests
+from tvm.testing import parameter, parameters, main
+
 
 class TestGroupConv2d_NCHW_OIHW(GeneralizedConv2dTests):
     """This test is for group_conv2d_nchw.arm_cpu schedule."""
 
-    data_shape, kernel_size, num_filter, strides, padding, dilation = tvm.testing.parameters(
+    data_shape, kernel_size, num_filter, strides, padding, dilation = parameters(
         ((1, 16, 32, 32), (3, 3), 12, 1, 0, 1),
         ((1, 16, 32, 10), (3, 3), 16, 1, 0, 1),
         ((1, 16, 32, 32), (3, 3), 16, 1, (0, 2, 2, 0), 1),
@@ -30,16 +32,19 @@ class TestGroupConv2d_NCHW_OIHW(GeneralizedConv2dTests):
         ((1, 16, 32, 32), (3, 3), 16, 1, (0, 2, 2, 0), 2),
         ((1, 16, 32, 32), (3, 3), 32, 1, (1, 1, 2, 2), 2),
     )
-    groups = tvm.testing.parameter(2, 4)
-    in_dtype = tvm.testing.parameter("int8", "int16")
-    data_layout, kernel_layout, out_layout = tvm.testing.parameters(("NCHW", "OIHW", "NCHW"),)
-    schedule_name = tvm.testing.parameter("group_conv2d_nchw.arm_cpu")
+    groups = parameter(2, 4)
+    in_dtype = parameter("int8", "int16")
+
+    data_layout = parameter("NCHW")
+    kernel_layout = parameter("OIHW")
+    out_layout = parameter("NCHW")
+    schedule_name = parameter("group_conv2d_nchw.arm_cpu")
 
 
 class TestGroupConv2d_NHWC_HWIO(GeneralizedConv2dTests):
     """This test is for group_conv2d_nhwc.generic schedule."""
 
-    data_shape, kernel_size, num_filter, strides, padding, dilation = tvm.testing.parameters(
+    data_shape, kernel_size, num_filter, strides, padding, dilation = parameters(
         ((1, 32, 32, 16), (3, 3), 12, 1, 0, 1),
         ((1, 32, 10, 16), (3, 3), 16, 1, 0, 1),
         ((1, 49, 10, 16), (10, 4), 64, (2, 1), (4, 1, 5, 1), 1),
@@ -49,11 +54,14 @@ class TestGroupConv2d_NHWC_HWIO(GeneralizedConv2dTests):
         ((1, 32, 32, 16), (3, 3), 16, 1, (0, 2, 2, 0), 2),
         ((1, 32, 32, 16), (3, 3), 16, 1, (1, 1, 2, 2), 2),
     )
-    groups = tvm.testing.parameter(2, 4)
-    in_dtype = tvm.testing.parameter("int8", "int16")
-    data_layout, kernel_layout, out_layout = tvm.testing.parameters(("NHWC", "HWIO", "NHWC"),)
-    schedule_name = tvm.testing.parameter("group_conv2d_nhwc.generic")
+    groups = parameter(2, 4)
+    in_dtype = parameter("int8", "int16")
+
+    data_layout = parameter("NHWC")
+    kernel_layout = parameter("HWIO")
+    out_layout = parameter("NHWC")
+    schedule_name = parameter("group_conv2d_nhwc.generic")
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    main()
