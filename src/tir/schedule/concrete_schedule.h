@@ -153,6 +153,8 @@ class ConcreteScheduleNode : public ScheduleNode {
                         const Array<IntImm>& axis_separators) override;
   /******** Schedule: Padding decomposition ********/
   BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) override;
+  /******** Schedule: Buffer transformation ********/
+  void RollingBuffer(const BlockRV& block_rv, int buffer_index) override;
   /******** Schedule: Misc ********/
   void EnterPostproc() override {}
 

@@ -561,6 +561,18 @@ void TracedScheduleNode::PadEinsum(const BlockRV& block_rv, const Array<Integer>
       /*outputs=*/{}));
 }
 
+/******** Schedule: Buffer transformation ********/
+
+void TracedScheduleNode::RollingBuffer(const BlockRV& block_rv, int buffer_index) {
+  ConcreteScheduleNode::RollingBuffer(block_rv, buffer_index);
+  static const InstructionKind& kind = InstructionKind::Get("RollingBuffer");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block_rv},
+      /*attrs=*/{Integer(buffer_index)},
+      /*outputs=*/{}));
+}
+
 /******** Schedule: Misc ********/
 
 void TracedScheduleNode::EnterPostproc() {

@@ -681,6 +681,9 @@ class ScheduleNode : public runtime::Object {
    */
   virtual void PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) = 0;
 
+  /******** Schedule: Buffer transformation ********/
+  virtual void RollingBuffer(const BlockRV& block_rv, int buffer_index) = 0;
+
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */
   virtual void EnterPostproc() = 0;
