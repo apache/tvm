@@ -185,5 +185,32 @@ class TestDepthwiseConv2d_NHWC_HWOI_DSP(BasicDepthwiseConv2dTests):
     schedule_name = tvm.testing.parameter("depthwise_conv2d_nhwc_dsp.arm_cpu")
 
 
+class TestDepthwiseConv2d_Tensordot(BasicDepthwiseConv2dTests):
+    data_shape, kernel_size, num_filter, strides, padding, dtype = tvm.testing.parameters(
+        # Currently, our schedule requires kernel_w be divisible by the number of simd lanes given
+        # its dtype. This means 3x3 and 5x5 kernels do not work on int16 or int8 for now. If you had
+        # to, you could hack around this by padding the data and kernel.
+        ((1, 8, 48, 48), (3, 3), 8, (1, 1), 1, "int32"),
+        ((1, 16, 48, 48), (3, 3), 16, (2, 2), (1, 1, 0, 0), "int32"),
+        ((1, 32, 24, 24), (3, 3), 32, (1, 1), 1, "int32"),
+        ((1, 32, 24, 24), (3, 3), 32, (2, 2), (1, 1, 0, 0), "int32"),
+        ((1, 64, 12, 12), (3, 3), 64, (1, 1), 1, "int32"),
+        ((1, 64, 12, 12), (3, 3), 64, (2, 2), (1, 1, 0, 0), "int32"),
+        ((1, 128, 6, 6), (3, 3), 128, (1, 1), 1, "int32"),
+        ((1, 128, 6, 6), (3, 3), 128, (2, 2), (1, 1, 0, 0), "int32"),
+        ((1, 256, 3, 3), (3, 3), 256, (1, 1), 1, "int32"),
+        ((1, 64, 25, 5), (3, 3), 64, (1, 1), 1, "int32"),
+        ((1, 8, 24, 24), (5, 5), 8, (1, 1), 1, "int32"),
+        ((1, 8, 24, 24), (3, 5), 8, (1, 1), 1, "int32"),
+        # These "evenly divisible" kernels work on smaller dtypes.
+        ((1, 8, 48, 48), (3, 2), 8, 1, 0, "int16"),
+        ((1, 8, 48, 48), (4, 4), 8, 1, 0, "int8"),
+    )
+    dilation = tvm.testing.parameter(1)
+    data_layout = tvm.testing.parameter("NCHW")
+    kernel_layout = tvm.testing.parameter("OIHW")
+    schedule_name = tvm.testing.parameter("depthwise_conv2d_nchw_oihw_dsp.arm_cpu")
+
+
 if __name__ == "__main__":
     tvm.testing.main()

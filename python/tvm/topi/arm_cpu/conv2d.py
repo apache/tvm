@@ -37,6 +37,10 @@ from .mprofile.dsp.conv2d import (
     conv2d_nhwc_dsp_compute,
     conv2d_nhwc_dsp_schedule,
 )
+from .mprofile.dsp.tensordot_conv2ds import (
+    conv2d_nhwc_ohwi_dsp_compute,
+    tensordot_conv2ds_schedule,
+)
 
 
 @autotvm.register_topi_compute("conv2d_nchw_spatial_pack.arm_cpu")
@@ -518,3 +522,15 @@ def conv2d_nhwc_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
 def schedule_conv2d_nhwc_dsp(cfg, outs):
     """Create schedule for conv2d_nhwc_dsp"""
     return conv2d_nhwc_dsp_schedule(cfg, outs)
+
+
+@autotvm.register_topi_compute("conv2d_nhwc_ohwi_dsp.arm_cpu")
+def conv2d_nhwc_ohwi_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute conv2d_nhwc_ohwi with v7e-m DSP instructions and the tensordot kernel."""
+    return conv2d_nhwc_ohwi_dsp_compute(cfg, data, kernel, strides, padding, dilation, out_dtype)
+
+
+@autotvm.register_topi_schedule("conv2d_nhwc_ohwi_dsp.arm_cpu")
+def schedule_conv2d_nhwc_ohwi_dsp(cfg, outs):
+    """Create schedule for conv2d_nhwc_ohwi."""
+    return tensordot_conv2ds_schedule(cfg, outs)
