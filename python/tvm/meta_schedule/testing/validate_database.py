@@ -270,7 +270,8 @@ def main():
                     )
             if flag:
                 print(
-                    f"Progress {i+1: 6d} / {len(records): 6d} checked, used {float(profiler.get()[scope_name]): 3.3f} sec."
+                    f"Progress {i+1: 6d} / {len(records): 6d} checked,"
+                    f" used {float(profiler.get()[scope_name]): 3.3f} sec."
                 )
             else:
                 return
