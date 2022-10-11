@@ -664,9 +664,9 @@ def fixed_point_multiply(x, multiplier, shift):
         value = x(*indices)
         return tvm.tir.q_multiply_shift(
             value,
-            tvm.tir.const(multiplier, "int32"),
-            tvm.tir.const(31, "int32"),
-            tvm.tir.const(shift, "int32"),
+            tvm.tir.const(multiplier, "int32"),  ##ztl
+            tvm.tir.const(31, "int32"),          ####ztl
+            tvm.tir.const(shift, "int32"),             #######ztl
         )
 
     return te.compute(x.shape, _compute)

@@ -71,8 +71,8 @@ class QConfigNode : public Object {
   int nbit_weight = 8;
   int nbit_activation = 32;
   int nbit_bias = 32;
-  DataType dtype_input = DataType::Int(8);
-  DataType dtype_weight = DataType::Int(8);
+  DataType dtype_input = DataType::Int(32);
+  DataType dtype_weight = DataType::Int(32);
   DataType dtype_activation = DataType::Int(32);
   DataType dtype_bias = DataType::Int(32);
   std::string estimator_activation = "MSE";

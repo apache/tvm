@@ -126,6 +126,45 @@ def checkpoint(data):
 reg.register_injective_schedule("annotation.checkpoint")
 
 
+def checkpointbiass(data):
+    """Annotate an expression to be a checkpoint for the checkpointing memory optimization.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.checkpointbiass(data)
+
+
+reg.register_injective_schedule("annotation.checkpointbiass")
+
+
+def checkpointsiso(data):
+    """Annotate an expression to be a checkpoint for the checkpointing memory optimization.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.checkpointsiso(data)
+
+
+reg.register_injective_schedule("annotation.checkpointsiso")
+
+
+
 def compiler_begin(data, compiler):
     """Annotate an expression to indicate that it is the beginning of
     a regeion that will be handled by the given compiler.

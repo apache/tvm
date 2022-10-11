@@ -123,6 +123,81 @@ Mark the end of bitpacking.
                              return {topi::identity(inputs[0])};
                            });
 
+
+Expr CheckPointBiasS(Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointbiass");
+  return Call(op, {data}, Attrs{}, {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.checkpointbiass").set_body_typed([](Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointbiass");
+  return Call(op, {data}, Attrs{}, {});
+});
+
+RELAY_REGISTER_OP("annotation.checkpointbiass")
+    .describe(R"code(
+Mark a checkpointbiass for checkpointing memory optimization.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_support_level(10)
+    .add_argument("data", "Tensor", "The input data.")
+    .add_type_rel("Identity", IdentityRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute",
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype) -> Array<te::Tensor> {
+                             Array<te::Tensor> outputs;
+                             for (size_t i = 0; i < inputs.size(); ++i) {
+                               outputs.push_back(topi::identity(inputs[i]));
+                             }
+                             return outputs;
+                           });
+
+
+
+
+
+
+
+Expr CheckPointSiso(Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointsiso");
+  return Call(op, {data}, Attrs{}, {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.checkpointsiso").set_body_typed([](Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointsiso");
+  return Call(op, {data}, Attrs{}, {});
+});
+
+RELAY_REGISTER_OP("annotation.checkpointsiso")
+    .describe(R"code(
+Mark a checkpointsiso for checkpointing memory optimization.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_support_level(10)
+    .add_argument("data", "Tensor", "The input data.")
+    .add_type_rel("Identity", IdentityRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute",
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype) -> Array<te::Tensor> {
+                             Array<te::Tensor> outputs;
+                             for (size_t i = 0; i < inputs.size(); ++i) {
+                               outputs.push_back(topi::identity(inputs[i]));
+                             }
+                             return outputs;
+                           });
+
+
+Expr CheckPoint(Expr data) {
+  static const Op& op = Op::Get("annotation.checkpoint");
+  return Call(op, {data}, Attrs{}, {});
+}
+
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.checkpoint").set_body_typed([](Expr data) {
   static const Op& op = Op::Get("annotation.checkpoint");
   return Call(op, {data}, Attrs{}, {});

@@ -185,7 +185,7 @@ TVM_REGISTER_OP("tir.q_multiply_shift")
           return x << exp;
         } else {
           // power of 2 is less than 0, round and then apply right shift.
-          DataType lp_dtype = DataType::Int(32, x.dtype().lanes());
+          DataType lp_dtype = DataType::Int(32, x.dtype().lanes());   //////////////ztl
           PrimExpr one = make_const(lp_dtype, 1);
           exp = -exp;
           PrimExpr rounding_factor = one << (exp - 1);
@@ -194,11 +194,11 @@ TVM_REGISTER_OP("tir.q_multiply_shift")
         }
       } else {
         // Only int32 types are supported (any number of lanes is allowed)
-        ICHECK(y.dtype().code() == DLDataTypeCode::kDLInt && y.dtype().bits() == 32);
-        ICHECK(s.dtype().code() == DLDataTypeCode::kDLInt && s.dtype().bits() == 32);
+        ICHECK(y.dtype().code() == DLDataTypeCode::kDLInt && y.dtype().bits() == 32);    //////////ztl
+        ICHECK(s.dtype().code() == DLDataTypeCode::kDLInt && s.dtype().bits() == 32); ///////ztl
 
         DataType hp_dtype = DataType::Int(64, x.dtype().lanes());
-        DataType lp_dtype = DataType::Int(32, x.dtype().lanes());
+        DataType lp_dtype = DataType::Int(32, x.dtype().lanes()); ////////////ztl
 
         // 1) Calculating the integer multiplier and integer shift
         PrimExpr zero = make_const(s.dtype(), 0);

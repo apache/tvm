@@ -20,6 +20,9 @@ from __future__ import absolute_import as _abs
 
 from .quantize import *
 from ._collect import collect
+from ._collectwj import collect_wj
+from ._collectwj_1 import collect_wj_1
 from ._partition import register_partition_function
+from ._collectwj_2 import collect_wj_2
 from ._annotate import register_annotate_inference_function_dict
 from .model_output import print_model

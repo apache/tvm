@@ -119,7 +119,7 @@ def _scalar_type_inference(value):
         dtype = "float32"
     elif isinstance(value, int):
         # We intentionally convert the python int to int32 since it's more common in DL.
-        dtype = "int32"
+        dtype = "int32"        ###ztl
     else:
         raise NotImplementedError(
             "Cannot automatically inference the type." " value={}".format(value)

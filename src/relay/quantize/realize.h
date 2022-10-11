@@ -48,11 +48,13 @@ class QRealizeExpr : public TempExpr {
 class QRealizeIntExprNode : public QRealizeExprNode {
  public:
   Expr dom_scale;
+  Expr zero_point;
   DataType dtype;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
     v->Visit("dom_scale", &dom_scale);
+    v->Visit("zero_point", &zero_point);
     v->Visit("dtype", &dtype);
   }
 
@@ -64,8 +66,8 @@ class QRealizeIntExprNode : public QRealizeExprNode {
 
 class QRealizeIntExpr : public QRealizeExpr {
  public:
-  TVM_DLL QRealizeIntExpr(Expr data, Expr dom_scale, DataType dtype);
-
+  TVM_DLL QRealizeIntExpr(Expr data, Expr dom_scale, Expr zero_point, DataType dtype);
+  //TVM_DLL QRealizeIntExpr(Expr data, Expr dom_scale, DataType dtype);
   TVM_DEFINE_OBJECT_REF_METHODS(QRealizeIntExpr, QRealizeExpr, QRealizeIntExprNode);
 };
 

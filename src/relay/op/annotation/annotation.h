@@ -37,6 +37,15 @@ namespace relay {
 /*! \brief Wraps \p data in a "stop_fusion" annotation. */
 Expr StopFusion(Expr data);
 
+Expr CheckPoint(Expr data);
+
+//Expr CheckPointPsum(Expr data);
+Expr CheckPointSiso(Expr data);
+Expr CheckPointBiasS(Expr data);
+//Expr CheckPointBias(Expr data);
+//Expr CheckPointZpi(Expr data);
+//Expr CheckPointZpw(Expr data);
+
 /*! \brief Wraps \p data in a "cast_hint" annotation for \p dtype. */
 Expr CastHint(Expr data, DataType dtype);
 

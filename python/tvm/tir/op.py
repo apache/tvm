@@ -1119,7 +1119,7 @@ def q_multiply_shift(x, y, q, s):
     y : PrimExpr
         The result.
     """
-    return call_intrin("int32", "tir.q_multiply_shift", x, y, q, s)
+    return call_intrin("int32", "tir.q_multiply_shift", x, y, q, s)    #####ztl
 
 
 def fmod(x, y):
