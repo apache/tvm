@@ -60,7 +60,8 @@ class GradientBasedNode final : public TaskSchedulerNode {
     int n_tasks = this->tasks_.size();
     // Step 1. Check if it's in round robin mode.
     if (round_robin_rounds_ == 0) {
-      TVM_PY_LOG(INFO, this->logger) << "\n" << this->TuningStatistics();
+      TVM_PY_LOG_CLEAR_SCREEN(this->logger);
+      this->PrintTuningStatistics();
     }
     if (round_robin_rounds_ < n_tasks) {
       return round_robin_rounds_++;

@@ -211,8 +211,8 @@ def print_interactive_table(data: str) -> None:
     data : str
         The serialized performance table from MetaSchedule table printer.
     """
-    import pandas as pd  # pylint: disable=import-outside-toplevel
-    from IPython.display import display  # pylint: disable=import-outside-toplevel
+    import pandas as pd  # type: ignore # pylint: disable=import-outside-toplevel
+    from IPython.display import display  # type: ignore # pylint: disable=import-outside-toplevel
 
     pd.set_option("display.max_rows", None)
     pd.set_option("display.max_colwidth", None)

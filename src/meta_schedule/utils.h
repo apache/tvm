@@ -43,6 +43,7 @@
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <string>
 #include <utility>
 #include <vector>
@@ -85,7 +86,7 @@ class PyLogMessage {
   explicit PyLogMessage(const char* file, int lineno, PackedFunc logger, Level logging_level)
       : file_(file), lineno_(lineno), logger_(logger), logging_level_(logging_level) {
     if (this->logger_ != nullptr) {
-      stream_ << "" << file_ << ":" << lineno_ << " ";
+      stream_ << "[" << std::filesystem::path(file_).filename().string() << ":" << lineno_ << "] ";
     }
   }
 
