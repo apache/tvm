@@ -19,6 +19,7 @@
 
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/name_mangling.h>
+#include <tvm/runtime/registry.h>
 
 #include <algorithm>
 #include <cctype>
@@ -36,6 +37,8 @@ std::string SanitizeName(const std::string& name) {
 
   return sanitized_input;
 }
+
+TVM_REGISTER_GLOBAL("runtime.SanitizeName").set_body_typed(SanitizeName);
 
 }  // namespace runtime
 }  // namespace tvm

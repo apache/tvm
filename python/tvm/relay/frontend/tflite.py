@@ -30,7 +30,7 @@ from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
 from .. import qnn as _qnn
-from ..backend.name_transforms import sanitize_name
+from tvm.runtime.name_mangling import sanitize_name
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
 from .common import lstm_cell, to_int_list, shape_of, try_infer_value
