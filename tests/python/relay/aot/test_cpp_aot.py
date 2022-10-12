@@ -206,11 +206,12 @@ def test_pass_wrong_device_arg():
 @pytest.mark.parametrize("target_kind", ["c", "llvm"])
 @pytest.mark.parametrize("input_name", ["input:0", "input@0", "input_0"])
 def test_aot_input_name_with_special_character(target_kind: str, input_name: str):
+    """Test name mangling in AOT for input names with special characters."""
     dtype = "float32"
-    input = relay.var(input_name, shape=(10, 5), dtype=dtype)
+    input_1 = relay.var(input_name, shape=(10, 5), dtype=dtype)
     weight = relay.var("weight", shape=(1, 5), dtype=dtype)
-    output = relay.add(input, weight)
-    func = relay.Function([input, weight], output)
+    output = relay.add(input_1, weight)
+    func = relay.Function([input_1, weight], output)
 
     input_data = np.random.rand(10, 5).astype(dtype)
     weight_data = np.random.rand(1, 5).astype(dtype)
@@ -233,6 +234,10 @@ def test_aot_input_name_with_special_character(target_kind: str, input_name: str
         runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
         inputs = {name: input_data}
         runner.set_input(**inputs)
+
+        input_ind = runner.get_input_index(name)
+        assert (runner.get_input(input_ind).asnumpy() == input_data).all
+
         runner.run()
         assert (runner.get_output(0).asnumpy() == expected_output).all()
 
