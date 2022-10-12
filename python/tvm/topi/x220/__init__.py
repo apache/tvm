@@ -14,21 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-argument
-"""The default schedule used by various operators"""
-import tvm
-from tvm import te
 
+# pylint: disable=redefined-builtin, wildcard-import
+"""x220 specific declaration and schedules."""
+from __future__ import absolute_import as _abs
 
-def default_schedule(outs, auto_inline):
-    """Default schedule for lwc."""
-    target = tvm.target.Target.current(allow_none=False)
-    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
-    if target.kind.name not in ("lwc"):
-        raise RuntimeError("schedule not registered for '%s'" % target)
-    s = te.create_schedule([x.op for x in outs])
-    if auto_inline:
-        x = outs[0]
-        te.schedule.AutoInlineInjective(s)
-        s[x].fuse(s[x].op.axis)
-    return s
+from .depthwise_conv2d import *
+from .nn import *

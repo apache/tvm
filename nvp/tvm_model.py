@@ -109,7 +109,7 @@ class VectorProcessor():
             try:
                 dur = self.latency[slot][type]
             except:
-                raise TypeError("Currently NOt Supported latency config; Slot: %s, Type: %s"%(slot, type))
+                raise TypeError("Currently Not Supported latency config; Slot: %s, Type: %s"%(slot, type))
             if slot == 'Control':
                 if all([self.slot[s]==None for s in self.slot.keys()]): # If all slots are IDLE, 'Occupy'!!
                     for s in self.slot.keys():
@@ -129,18 +129,23 @@ class VectorProcessor():
             rdy_nodes.remove(fn)
             out_nodes.append(fn)
 
-        #2. Newly ready nodes: Remove from in_nodes & Add to rdy_nodes
+        #2. Newly readied nodes: Remove from in_nodes & Add to rdy_nodes
+        tmp = []
         for fn in free_nodes:
             for s in self.graph.successors(fn):
                 if set(self.graph.predecessors(s)).issubset(set(out_nodes)):
-                    in_nodes.remove(s)
-                    rdy_nodes.append(s)                                                                         
+                    # in_nodes.remove(s)
+                    # rdy_nodes.append(s)
+                    tmp.append(s)
+        tmp = list(dict.fromkeys(tmp)) # remove duplicates
+        in_nodes = [n for n in in_nodes if n not in tmp] # remove newly_ready_nodes from in_nodes
+        rdy_nodes.extend(tmp) # add newly_ready_nodes to rdy_nodes
 
         return in_nodes, rdy_nodes, out_nodes
 
     def print_status(self, clk, in_nodes, rdy_nodes, out_nodes):
         if self.debug:
-            print(clk)
+            print("CLK: %s"%(clk))
             print(">> in_nodes: %s\n   rdy_nodes: %s\n   out_nodes: %s"
                     %(in_nodes, rdy_nodes, out_nodes))
             for key in self.slot.keys():

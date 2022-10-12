@@ -30,3 +30,4 @@ from . import rocm
 from . import intel_graphics
 from . import hexagon
 from . import adreno
+from . import x220

@@ -2,25 +2,33 @@ import tvm
 from tvm import relay
 from tvm.relay.testing import init
 
-def get_lowered_tir(mod):
+def get_lowered_tir(module, model):
     """
       Argument
       ========
-      mod : IRModule that contains RelayOp only 
+      module : IRModule that contains RelayOp only
       
       Returns
       ========
       ret : IRModule that contains TIR only
     """
     LowerTE = tvm._ffi.get_global_func("relay.tec.LowerTE")
-    host_target = tvm.target.Target("llvm")
-    prim_target = tvm.target.Target("lwc", host=host_target) # FIXME: add new target device
+    if model == "llvm":
+      prim_target =tvm.target.Target("llvm")
+    elif model == "hexagon":
+      prim_target = tvm.target.Target("hexagon")
+    elif model == "cuda":
+      prim_target = tvm.target.Target("cuda")
+    elif model == "x220":
+      prim_target = tvm.target.Target("x220")
+    else:
+      raise NotImplementedError("Currently NOT supported model: %s"%(model))
     ctxt = tvm.transform.PassContext()
     config = tvm.target.make_compilation_config(ctxt, prim_target)
-    mod = tvm.relay.transform.PlanDevices(config)(mod)
-    mod = tvm.relay.transform.FuseOps(fuse_opt_level=0)(mod)
-    mod = tvm.relay.transform.InferType()(mod)
-    mod = LowerTE("default", config)(mod)
+    module = tvm.relay.transform.PlanDevices(config)(module)
+    module = tvm.relay.transform.FuseOps(fuse_opt_level=0)(module)
+    module = tvm.relay.transform.InferType()(module)
+    module = LowerTE("default", config)(module)
 
-    keys = [key for key in mod.functions.keys()]
-    return mod.functions[keys[1]]
+    keys = [key for key in module.functions.keys()]
+    return module.functions[keys[1]]
