@@ -17,6 +17,14 @@
  * under the License.
  */
 
+/*!
+ * \file tvm/runtime/name_mangling.h
+ * \brief Utility functions for name mangling which are used
+ *  in Backend and Runtime.
+ */
+#ifndef TVM_RUNTIME_NAME_MANGLING_H_
+#define TVM_RUNTIME_NAME_MANGLING_H_
+
 #include <string>
 
 namespace tvm {
@@ -31,3 +39,5 @@ std::string SanitizeName(const std::string& name);
 
 }  // namespace runtime
 }  // namespace tvm
+
+#endif  // TVM_RUNTIME_NAME_MANGLING_H_
