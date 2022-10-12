@@ -118,15 +118,28 @@ def test_implied_split():
     _verify_schedule(sch, [A], pool_b)
 
 
-def test_upscale():
-    A = te.placeholder((1, 12, 12, 16), name="A", dtype="int8")
-    pool = topi.nn.pool2d(A, (1, 1), (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
-    upscale = te.compute((1, 24, 24, 16), lambda nn, hh, ww, cc: pool[nn, hh // 2, ww // 2, cc])
+@pytest.mark.parametrize("kernel_shape", [(1, 1), (3, 3)])
+def test_upscale(kernel_shape):
+    output_shape = (1, 24, 24, 16)
+    input_shape = (
+        output_shape[0],
+        output_shape[1] // 2 + 2 * (kernel_shape[0] - 1),
+        output_shape[2] // 2 + 2 * (kernel_shape[1] - 1),
+        output_shape[3],
+    )
+    A = te.placeholder(input_shape, name="A", dtype="int8")
+    pool_a = topi.nn.pool2d(A, kernel_shape, (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
+    pool_b = topi.nn.pool2d(
+        pool_a, kernel_shape, (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC"
+    )
+    upscale = te.compute((1, 24, 24, 16), lambda nn, hh, ww, cc: pool_b[nn, hh // 2, ww // 2, cc])
 
     sch = tvm.te.create_schedule([upscale.op])
     oi, ii = _tile_nd(sch, upscale, (1, 5, 5, 16))
-    sch[pool].compute_at(sch[upscale], oi[-1])
-    sch[pool].rolling_buffer()
+    sch[pool_b].compute_at(sch[upscale], oi[-1])
+    sch[pool_b].rolling_buffer()
+    sch[pool_a].compute_at(sch[upscale], oi[-1])
+    sch[pool_a].rolling_buffer()
 
     _verify_schedule(sch, [A], upscale)
 

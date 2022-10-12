@@ -126,15 +126,16 @@ class RollingBufferInjector : public StmtExprMutator {
         // We use the bound information of the BufferRealize to calculate
         // how we can legally roll
         auto stride{0};
+        auto divisor{1};
         Optional<Var> iter_var{};
         for (auto bound : buffer_realize->bounds) {
+          divisor = 1;
           if (auto floor_div = bound->min.as<FloorDivNode>()) {
             // Handle the case of fractional strides
             // They take this form: floordiv(hh.outer, 2)
             // Strip the floordiv and keep track of the divisor
-            auto divisor{Downcast<IntImm>(floor_div->b)->value};
+            divisor = Downcast<IntImm>(floor_div->b)->value;
             bound = Range::FromMinExtent(floor_div->a, bound->extent, bound->span);
-            stride = std::ceil(stride / divisor);
           }
           if (bound->min.as<IntImmNode>()) {
             // If the bound is an int, we can't roll over it
@@ -155,6 +156,7 @@ class RollingBufferInjector : public StmtExprMutator {
             iter_var = GetRef<Var>(a);
             stride = b->value;
           }
+          stride = std::ceil(static_cast<float>(stride) / divisor);
           bound_iter_vars.push_back(iter_var);
           if (iter_var) {
             bound_overlaps.push_back(Downcast<IntImm>(bound->extent)->value - stride);
