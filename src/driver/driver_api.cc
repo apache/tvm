@@ -51,6 +51,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.is_entry_func", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.add_lower_pass", Array<Array<ObjectRef>>);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.debug_keep_trivial_loop", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.use_async_copy", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.merge_async_commit_queue_scope", Bool);
 
 using runtime::PackedFunc;
 using runtime::TVMArgs;
@@ -202,7 +203,9 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::ManifestSharedMemoryLocalStage());
   pass_list.push_back(tir::transform::CompactBufferAllocation());
   pass_list.push_back(tir::transform::LowerMatchBuffer());
-  pass_list.push_back(tir::transform::InjectSoftwarePipeline());
+  bool merge_async_commit_queue_scope =
+      pass_ctx->GetConfig<Bool>("tir.merge_async_commit_queue_scope", Bool(true)).value();
+  pass_list.push_back(tir::transform::InjectSoftwarePipeline(merge_async_commit_queue_scope));
   pass_list.push_back(tir::transform::LowerOpaqueBlock());
   pass_list.push_back(tir::transform::FlattenBuffer());
   pass_list.push_back(tir::transform::BF16Legalize());
