@@ -146,7 +146,7 @@ class SimplifyConsecutiveCast : public DFPatternRewrite {
       // BFloat cast cannot be omitted
       return false;
     }
-    if (origin.code() < cast.code()) {
+    if (origin.code() < cast.code() && origin.bits() <= cast.bits()) {
       // Loosely have a hiearchy to datatypes
       // e.g. int --> uint --> float has increasing range of numbers they can represent
       return true;
