@@ -19,10 +19,13 @@
 from test_generalized_conv2d import GeneralizedConv2dTests
 from tvm.testing import parameter, parameters, main
 
+
 class Conv2dTests(GeneralizedConv2dTests):
     """Helper for constructing regular Conv2ds. Always sets groups to 1. We set the kernel layout
     here as we must pick something, but the x86 implementation here supports several."""
+
     groups = parameter(1)
+
     def setup_method(self):
         self.ref_kernel_layout = "HWIO"
 
