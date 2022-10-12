@@ -302,7 +302,7 @@ class RewriteSimplifier {
      * (conjunctive normal form).
      *
      * Example:
-     *   (a || b) && c => (a && c) || (b && c)
+     *   (a && b) || c => (a || c) && (b || c)
      */
     kConvertBooleanToAndOfOrs = (1 << 1),
   };
