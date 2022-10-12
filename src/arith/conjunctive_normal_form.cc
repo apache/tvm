@@ -174,13 +174,20 @@ void AndOfOrs::VisitAndExpressions(const PrimExpr& expr,
                                    std::function<void(const PrimExpr&)> callback) {
   PVar<PrimExpr> x, y, z;
   if ((x && y).Match(expr)) {
+    // These are separate AND conditions, recurse into them in case
+    // they contain AND internally.
     VisitAndExpressions(x.Eval(), callback);
     VisitAndExpressions(y.Eval(), callback);
   } else if ((x || y).Match(expr)) {
+    // This may be the bottom-most breakdown, but either x or y may
+    // themselves contain AND.  (e.g. (A && B) || (C && D) should be
+    // split into (A || C), (A || D), (B || C), and (B || D).)
+    // Recurse into each, then reconstruct an OR condition.
     VisitAndExpressions(x.Eval(), [&](const PrimExpr& x_part) {
       VisitAndExpressions(y.Eval(), [&](const PrimExpr& y_part) { callback(x_part || y_part); });
     });
   } else {
+    // This is bottom-most breakdown.
     callback(expr);
   }
 }
@@ -189,13 +196,20 @@ void AndOfOrs::VisitOrExpressions(const PrimExpr& expr,
                                   std::function<void(const PrimExpr&)> callback) {
   PVar<PrimExpr> x, y, z;
   if ((x || y).Match(expr)) {
+    // These are separate OR conditions, recurse into them in case
+    // they contain OR internally.
     VisitOrExpressions(x.Eval(), callback);
     VisitOrExpressions(y.Eval(), callback);
   } else if ((x && y).Match(expr)) {
+    // This may be the bottom-most breakdown, but either x or y may
+    // themselves contain OR.  (e.g. (A || B) && (C || D) should be
+    // split into (A && C), (A && D), (B && C), and (B && D).)
+    // Recurse into each, then reconstruct an AND condition.
     VisitOrExpressions(x.Eval(), [&](const PrimExpr& x_part) {
       VisitOrExpressions(y.Eval(), [&](const PrimExpr& y_part) { callback(x_part && y_part); });
     });
   } else {
+    // This is bottom-most breakdown.
     callback(expr);
   }
 }
