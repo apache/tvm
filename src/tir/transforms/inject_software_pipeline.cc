@@ -1222,9 +1222,11 @@ namespace transform {
  * \brief Transform annotated loops into pipelined one that parallelize producers and consumers.
  * \return The IR transform pass.
  */
-Pass InjectSoftwarePipeline(bool merge_async_commit_queue_scope) {
+Pass InjectSoftwarePipeline() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* fptr = f.CopyOnWrite();
+    bool merge_async_commit_queue_scope =
+        ctx->GetConfig<Bool>("tir.merge_async_commit_queue_scope", Bool(true)).value();
     fptr->body = software_pipeline::PipelineInjector::Inject(f, merge_async_commit_queue_scope);
     fptr->body = ConvertSSA(std::move(fptr->body));
     return f;

@@ -629,7 +629,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  *
  * \return The IR transform pass.
  */
-TVM_DLL Pass InjectSoftwarePipeline(bool merge_async_commit_queue_scope);
+TVM_DLL Pass InjectSoftwarePipeline();
 
 TVM_DLL Pass BindParams(const Array<runtime::NDArray>& constants);
 
