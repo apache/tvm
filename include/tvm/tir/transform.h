@@ -674,7 +674,7 @@ TVM_DLL Pass InjectPTXAsyncCopy();
  * \brief Remove the weight layout rewrite block
  * \return The pass.
  */
-TVM_DLL Pass RemoveWeightLayoutRewriteBlock();
+TVM_DLL Pass RemoveWeightLayoutRewriteBlock(bool skip_ndarray_rewrite=false);
 
 /*!
  * \brief Add the explicit local stage for the shared memory access on GPU.
