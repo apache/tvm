@@ -55,18 +55,21 @@ class GeneralizedConv2dTests:
         kernel_shape = (*kernel_size, data_shape[-1] // groups, num_filter)  # HWIO layout
         ref_kernel_data = randint(low=-10, high=10, size=kernel_shape, dtype=in_dtype)
 
-        is_depthwise = (num_filter == data_shape[3])
-        ref_kernel_layout = "HWOI" if is_depthwise else "HWIO"
+        # Our x86 depthwise implementation only supports HWOI with NHWC, so we need to change our
+        # kernel layout to work around this. We can't just change the whole thing to HWIO or
+        # something else, as then group conv2d would not work. Eventually, we should switch to using
+        # TensorFlow to create the reference output so we can ensure our implementation is right.
+
         ref_relay_op = relay.op.nn.conv2d(
             ref_input_var,
-            relay.const(change_ndarray_layout(ref_kernel_data, "HWIO", ref_kernel_layout)),
+            relay.const(change_ndarray_layout(ref_kernel_data, "HWIO", self.ref_kernel_layout)),
             kernel_size=kernel_size,
             strides=strides,
             padding=padding,
             groups=groups,
             dilation=(dilation, dilation),
             data_layout="NHWC",
-            kernel_layout=ref_kernel_layout,
+            kernel_layout=self.ref_kernel_layout,
             out_dtype="int32",
             out_layout="NHWC",
         )

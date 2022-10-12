@@ -20,7 +20,13 @@ from test_generalized_conv2d import GeneralizedConv2dTests
 from tvm.testing import parameter, parameters, main
 
 
-class TestGroupConv2d_NCHW_OIHW(GeneralizedConv2dTests):
+class GroupConv2dTests(GeneralizedConv2dTests):
+    """Helper for constructing group Conv2ds. Sets the kernel layout to what x86 code supports."""
+    def setup_method(self):
+        self.ref_kernel_layout = "HWIO"
+
+
+class TestGroupConv2d_NCHW_OIHW(GroupConv2dTests):
     """This test is for group_conv2d_nchw.arm_cpu schedule."""
 
     data_shape, kernel_size, num_filter, strides, padding, dilation = parameters(
@@ -41,7 +47,7 @@ class TestGroupConv2d_NCHW_OIHW(GeneralizedConv2dTests):
     schedule_name = parameter("group_conv2d_nchw.arm_cpu")
 
 
-class TestGroupConv2d_NHWC_HWIO(GeneralizedConv2dTests):
+class TestGroupConv2d_NHWC_HWIO(GroupConv2dTests):
     """This test is for group_conv2d_nhwc.generic schedule."""
 
     data_shape, kernel_size, num_filter, strides, padding, dilation = parameters(
