@@ -34,13 +34,15 @@ namespace tir {
 
 class RemoveLayoutRewriteBlock : public StmtMutator {
  public:
-  static std::tuple<PrimFunc, Map<Buffer, Buffer>, std::unordered_map<const VarNode*, IndexMap>>
+  static std::tuple<PrimFunc, Map<Buffer, Buffer>, std::unordered_map<const VarNode*, IndexMap>,
+                    std::unordered_map<const VarNode*, Array<PrimExpr>>>
   Rewrite(PrimFunc f) {
     RemoveLayoutRewriteBlock rewriter;
 
     PrimFuncNode* n = f.CopyOnWrite();
     n->body = rewriter(std::move(n->body));
-    return std::make_tuple(f, rewriter.buf_map_, rewriter.buffer_var_to_index_map_);
+    return std::make_tuple(f, rewriter.buf_map_, rewriter.buffer_var_to_index_map_,
+                           rewriter.buffer_var_to_rewritten_shape_);
   }
 
  private:
@@ -95,6 +97,8 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
     }
     buffer_var_to_index_map_[load->buffer->data.get()] = IndexMap(load_indices, store->indices);
 
+    buffer_var_to_rewritten_shape_[load->buffer->data.get()] = store->buffer->shape;
+
     return Stmt(n);
   }
 
@@ -106,6 +110,8 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
   /*! \brief Maps a buffer load to an index map associated with the load / store
     in a layout rewrite block. */
   std::unordered_map<const VarNode*, IndexMap> buffer_var_to_index_map_;
+  /*! \brief Maps a buffer load to the shape of the corresponding rewritten buffer. */
+  std::unordered_map<const VarNode*, Array<PrimExpr>> buffer_var_to_rewritten_shape_;
 };
 
 // After RemoveLayoutRewriteBlock, the body of a compute update block references a
@@ -139,9 +145,15 @@ using BufferVarMap = std::unordered_map<const tir::VarNode*, const tir::VarNode*
 
 class AllocateConstRewrite : public StmtExprMutator {
  public:
-  AllocateConstRewrite(const BufferVarMap& buffer_var_map,
-                       const std::unordered_map<const VarNode*, IndexMap>& buffer_var_to_index_map)
-      : buffer_var_map_(buffer_var_map), buffer_var_to_index_map_(buffer_var_to_index_map) {}
+  AllocateConstRewrite(
+      const BufferVarMap& buffer_var_map,
+      const std::unordered_map<const VarNode*, IndexMap>& buffer_var_to_index_map,
+      const std::unordered_map<const VarNode*, Array<PrimExpr>>& buffer_var_to_rewritten_shape,
+      bool skip_ndarray_rewrite)
+      : buffer_var_map_(buffer_var_map),
+        buffer_var_to_index_map_(buffer_var_to_index_map),
+        buffer_var_to_rewritten_shape_(buffer_var_to_rewritten_shape),
+        skip_ndarray_rewrite_(skip_ndarray_rewrite) {}
 
  private:
   Stmt VisitStmt_(const BlockNode* op) final {
@@ -163,8 +175,10 @@ class AllocateConstRewrite : public StmtExprMutator {
   Stmt VisitStmt_(const AllocateConstNode* alloc) final {
     if (auto it = buffer_var_to_index_map_.find(alloc->buffer_var.get());
         it != buffer_var_to_index_map_.end()) {
+      ICHECK(buffer_var_to_rewritten_shape_.count(alloc->buffer_var.get()));
       auto new_body = StmtMutator::VisitStmt(alloc->body);
-      auto rewritten_ndarray = it->second->MapNDArray(alloc->data.value());
+      auto rewritten_ndarray = RewriteNDArray(
+          alloc->data.value(), it->second, buffer_var_to_rewritten_shape_[alloc->buffer_var.get()]);
       Array<PrimExpr> rewritten_extents;
       for (auto s : rewritten_ndarray.Shape()) {
         rewritten_extents.push_back(PrimExpr(static_cast<int>(s)));
@@ -187,13 +201,32 @@ class AllocateConstRewrite : public StmtExprMutator {
     return ExprMutator::VisitExpr_(op);
   }
 
+  runtime::NDArray RewriteNDArray(runtime::NDArray src, const IndexMap& index_map,
+                                  const Array<PrimExpr>& dst_shape) {
+    if (skip_ndarray_rewrite_) {
+      // Only the shape of the destination array needs to be correct.
+      std::vector<int64_t> dst_shape_int;
+      for (auto s : dst_shape) {
+        ICHECK(s->IsInstance<IntImmNode>());
+        dst_shape_int.push_back(s.as<IntImmNode>()->value);
+      }
+      return src.CreateView(dst_shape_int, src.DataType());
+    } else {
+      return index_map->MapNDArray(src);
+    }
+  }
+
   /*! \brief Maps a buffer store to a load in a layout rewrite block */
   BufferVarMap buffer_var_map_;
   /*! \brief Maps a buffer load to an index map associated with the load / store
     in a layout rewrite block. */
   std::unordered_map<const VarNode*, IndexMap> buffer_var_to_index_map_;
+  /*! \brief Maps a buffer load to the shape of the corresponding rewritten buffer. */
+  std::unordered_map<const VarNode*, Array<PrimExpr>> buffer_var_to_rewritten_shape_;
   /*! \brief Maps load buffer variables to newly created buffers */
   std::unordered_map<const VarNode*, Buffer> new_load_buf_;
+  /*! \brief Whether or not to skip rewriting of NDArray contents */
+  bool skip_ndarray_rewrite_;
 };
 
 class CollectAllocateConstBufferVars : public StmtVisitor {
@@ -208,11 +241,12 @@ class CollectAllocateConstBufferVars : public StmtVisitor {
 
 class WeightLayoutRewriteBlockRemover : public StmtMutator {
  public:
-  static PrimFunc Remove(PrimFunc f) {
+  static PrimFunc Remove(PrimFunc f, bool skip_ndarray_rewrite) {
     CollectAllocateConstBufferVars collector;
     collector(f->body);
 
-    auto [f_, buf_map, buffer_var_to_index_map] = RemoveLayoutRewriteBlock().Rewrite(f);
+    auto [f_, buf_map, buffer_var_to_index_map, buffer_var_to_rewritten_shape] =
+        RemoveLayoutRewriteBlock().Rewrite(f);
 
     BufferVarMap buffer_var_map;
     for (const auto& [load_buf, store_buf] : buf_map) {
@@ -224,7 +258,8 @@ class WeightLayoutRewriteBlockRemover : public StmtMutator {
 
     PrimFuncNode* n = f_.CopyOnWrite();
 
-    AllocateConstRewrite rewriter(buffer_var_map, buffer_var_to_index_map);
+    AllocateConstRewrite rewriter(buffer_var_map, buffer_var_to_index_map,
+                                  buffer_var_to_rewritten_shape, skip_ndarray_rewrite);
     n->body = rewriter(std::move(n->body));
 
     Map<tir::Var, Buffer> buffer_map;
@@ -243,9 +278,9 @@ class WeightLayoutRewriteBlockRemover : public StmtMutator {
 
 namespace transform {
 
-Pass RemoveWeightLayoutRewriteBlock() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    return WeightLayoutRewriteBlockRemover::Remove(std::move(f));
+Pass RemoveWeightLayoutRewriteBlock(bool skip_ndarray_rewrite) {
+  auto pass_func = [skip_ndarray_rewrite](PrimFunc f, IRModule m, PassContext ctx) {
+    return WeightLayoutRewriteBlockRemover::Remove(std::move(f), skip_ndarray_rewrite);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.RemoveWeightLayoutRewriteBlock", {});
 }

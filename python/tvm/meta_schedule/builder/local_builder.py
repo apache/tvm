@@ -257,7 +257,7 @@ def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, NDA
     from tvm.tir.transform import RemoveWeightLayoutRewriteBlock
 
     # pylint: enable=import-outside-toplevel
-    mod = RemoveWeightLayoutRewriteBlock()(mod)
+    mod = RemoveWeightLayoutRewriteBlock(skip_ndarray_rewrite=True)(mod)
     return tvm_build(mod, target=target)
 
 

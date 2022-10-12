@@ -301,7 +301,7 @@ Pass SimplifyForFeatureExtraction() {
  */
 Sequential PassListForPerStoreFeature() {
   return Sequential({
-      tir::transform::RemoveWeightLayoutRewriteBlock(),
+      tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_ndarray_rewrite*/ true),
       tir::transform::SimplifyForFeatureExtraction(),
       tir::transform::LowerCrossThreadReduction(),
       tir::transform::LowerInitBlock(),

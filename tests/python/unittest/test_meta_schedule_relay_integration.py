@@ -539,32 +539,33 @@ def test_rewrite_layout_link_params():
     executor = relay.backend.Executor("graph", {"link-params": link_params})
     mod = mod.with_attr("executor", executor)
 
-    with tempfile.TemporaryDirectory() as work_dir:
-        database = ms.relay_integration.tune_relay(
-            mod=mod,
-            target=target,
-            params=params,
-            work_dir=work_dir,
-            max_trials_global=4,
-            strategy="replay-trace",
-        )
+    for strategy in ["replay-trace", "evolutionary"]:
+        with tempfile.TemporaryDirectory() as work_dir:
+            database = ms.relay_integration.tune_relay(
+                mod=mod,
+                target=target,
+                params=params,
+                work_dir=work_dir,
+                max_trials_global=4,
+                strategy=strategy,
+            )
 
-        lib = ms.relay_integration.compile_relay(
-            database=database,
-            mod=mod,
-            target=target,
-            params=params,
-        )
+            lib = ms.relay_integration.compile_relay(
+                database=database,
+                mod=mod,
+                target=target,
+                params=params,
+            )
 
-    dev = tvm.device(target, 0)
-    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+        dev = tvm.device(target, 0)
+        runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
-    runtime.set_input("data", data_np)
-    runtime.run()
+        runtime.set_input("data", data_np)
+        runtime.run()
 
-    out = runtime.get_output(0).numpy()
+        out = runtime.get_output(0).numpy()
 
-    np.testing.assert_allclose(ref, out, rtol=1e-4, atol=1e-4)
+        np.testing.assert_allclose(ref, out, rtol=1e-4, atol=1e-4)
 
 
 if __name__ == "__main__":
