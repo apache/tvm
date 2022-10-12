@@ -82,12 +82,13 @@ class AndOfOrs {
   /*! \brief Remove instances of true/false from internal representation
    *
    * To avoid invalidating iterators, `SimplifyWithinChunks` and
-   * `SimplifyAcrossChunks` may replace keys, but may not remove keys from
-   * the internal representation.  For example, `(a < 5) && (a < 10)`
-   * would be simplified to `(a < 5) && true`.  The `Cleanup` function
-   * removes these leftover instances of true/false.
+   * `SimplifyAcrossChunks` may replace keys, but may not remove keys
+   * from the internal representation.  For example, `(a < 5) && (a <
+   * 10)` would be simplified to `(a < 5) && true`.  The
+   * `RemoveTrueFalse` function removes these leftover instances of
+   * true/false.
    */
-  void Cleanup();
+  void RemoveTrueFalse();
 
   /*! \brief Internal utility function used to convert to internal form */
   static void VisitAndExpressions(const PrimExpr& expr,
@@ -263,9 +264,9 @@ void AndOfOrs::TrySimplifyAnd(Key* a_ptr, Key* b_ptr, Analyzer* analyzer) {
 
 void AndOfOrs::Simplify(Analyzer* analyzer) {
   SimplifyWithinChunks(analyzer);
-  Cleanup();
+  RemoveTrueFalse();
   SimplifyAcrossChunks(analyzer);
-  Cleanup();
+  RemoveTrueFalse();
 }
 
 void AndOfOrs::SimplifyWithinChunks(Analyzer* analyzer) {
@@ -354,7 +355,7 @@ void AndOfOrs::SimplifyAcrossChunks(Analyzer* analyzer) {
   }
 }
 
-void AndOfOrs::Cleanup() {
+void AndOfOrs::RemoveTrueFalse() {
   for (auto& chunk : chunks_) {
     // Any occurrence of True inside an OR makes the entire expression True.
     if (std::any_of(chunk.begin(), chunk.end(), [&](Key key) { return key == key_true_; })) {
