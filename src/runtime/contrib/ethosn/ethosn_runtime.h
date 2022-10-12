@@ -110,32 +110,33 @@ class EthosnModule : public ModuleNode {
 /*!
  * \brief Error codes for evaluating the result of inference on the NPU.
  */
-enum class WaitErrorCode { Success = 0, Timeout = 1, Error = 2 };
+enum class InferenceWaitErrorCode { kSuccess = 0, kTimeout = 1, kError = 2 };
 
 /*!
  * \brief A helper class holding the status of inference on the NPU and
  * associated error message(s) if any occurred.
+ *
+ * Similar to the implementation of 'WaitStatus' in the driver stack:
+ * https://github.com/ARM-software/ethos-n-driver-stack/blob/22.08/armnn-ethos-n-backend/workloads/EthosNPreCompiledWorkload.cpp#L48
  */
-class WaitStatus {
+class InferenceWaitStatus {
  public:
-  WaitStatus() : error_code_(WaitErrorCode::Success), error_description_("") {}
+  InferenceWaitStatus() : error_code_(InferenceWaitErrorCode::kSuccess), error_description_("") {}
 
-  explicit WaitStatus(WaitErrorCode errorCode, std::string errorDescription = "")
+  explicit InferenceWaitStatus(InferenceWaitErrorCode errorCode, std::string errorDescription = "")
       : error_code_(errorCode), error_description_(errorDescription) {}
 
-  WaitStatus(const WaitStatus&) = default;
-  WaitStatus(WaitStatus&&) = default;
-  WaitStatus& operator=(const WaitStatus&) = default;
-  WaitStatus& operator=(WaitStatus&&) = default;
+  InferenceWaitStatus(const InferenceWaitStatus&) = default;
+  InferenceWaitStatus(InferenceWaitStatus&&) = default;
+  InferenceWaitStatus& operator=(const InferenceWaitStatus&) = default;
+  InferenceWaitStatus& operator=(InferenceWaitStatus&&) = default;
 
-  explicit operator bool() const noexcept { return error_code_ == WaitErrorCode::Success; }
-
-  WaitErrorCode GetErrorCode() const { return error_code_; }
-
+  explicit operator bool() const { return error_code_ == InferenceWaitErrorCode::kSuccess; }
+  InferenceWaitErrorCode GetErrorCode() const { return error_code_; }
   std::string GetErrorDescription() const { return error_description_; }
 
  private:
-  WaitErrorCode error_code_;
+  InferenceWaitErrorCode error_code_;
   std::string error_description_;
 };
 

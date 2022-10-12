@@ -49,7 +49,7 @@ namespace ethosn {
 
 namespace dl = ::ethosn::driver_library;
 
-WaitStatus WaitForInference(dl::Inference* inference, int timeout) {
+InferenceWaitStatus WaitForInference(dl::Inference* inference, int timeout) {
   // Wait for inference to complete
   int fd = inference->GetFileDescriptor();
   struct pollfd fds;
@@ -62,26 +62,29 @@ WaitStatus WaitForInference(dl::Inference* inference, int timeout) {
   int poll_error_code = errno;
 
   if (poll_result < 0) {
-    return WaitStatus(WaitErrorCode::Error, "Error while waiting for the inference to complete (" +
-                                                std::string(strerror(poll_error_code)) + ")");
+    return InferenceWaitStatus(InferenceWaitErrorCode::kError,
+                               "Error while waiting for the inference to complete (" +
+                                   std::string(strerror(poll_error_code)) + ")");
   } else if (poll_result == 0) {
-    return WaitStatus(WaitErrorCode::Timeout,
-                      "Timed out while waiting for the inference to complete.");
+    return InferenceWaitStatus(InferenceWaitErrorCode::kTimeout,
+                               "Timed out while waiting for the inference to complete.");
   }
 
   // poll_result > 0
   dl::InferenceResult npu_result;
   if (read(fd, &npu_result, sizeof(npu_result)) != static_cast<ssize_t>(sizeof(npu_result))) {
-    return WaitStatus(WaitErrorCode::Error, "Failed to read inference result status (" +
-                                                std::string(strerror(poll_error_code)) + ")");
+    return InferenceWaitStatus(
+        InferenceWaitErrorCode::kError,
+        "Failed to read inference result status (" + std::string(strerror(poll_error_code)) + ")");
   }
 
   if (npu_result != dl::InferenceResult::Completed) {
-    return WaitStatus(WaitErrorCode::Error, "Inference failed with status " +
-                                                std::to_string(static_cast<uint32_t>(npu_result)));
+    return InferenceWaitStatus(
+        InferenceWaitErrorCode::kError,
+        "Inference failed with status " + std::to_string(static_cast<uint32_t>(npu_result)));
   }
 
-  return WaitStatus(WaitErrorCode::Success);
+  return InferenceWaitStatus(InferenceWaitErrorCode::kSuccess);
 }
 
 void CreateBuffers(std::vector<std::shared_ptr<dl::Buffer>>* fm,
@@ -135,9 +138,9 @@ bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
   // Execute the inference.
   std::unique_ptr<dl::Inference> inference(
       npu->ScheduleInference(ifm_raw, n_inputs, ofm_raw, n_outputs));
-  WaitStatus result = WaitForInference(inference.get(), 60);
+  InferenceWaitStatus result = WaitForInference(inference.get(), 60);
 
-  if (result.GetErrorCode() != WaitErrorCode::Success) {
+  if (result.GetErrorCode() != InferenceWaitErrorCode::kSuccess) {
     LOG(FATAL) << "An error has occured waiting for the inference of a sub-graph on the NPU: "
                << result.GetErrorDescription();
   }

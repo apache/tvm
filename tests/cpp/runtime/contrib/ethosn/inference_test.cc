@@ -19,7 +19,7 @@
 
 /*!
  * \file tests/cpp/runtime/contrib/ethosn/inference_test.cc
- * \brief Tests to check runtime components used during inference.
+ * \brief Tests to check Arm(R) Ethos(TM)-N runtime components used during inference.
  */
 
 #ifdef ETHOSN_HW
@@ -32,25 +32,39 @@ namespace tvm {
 namespace runtime {
 namespace ethosn {
 
-TEST(WaitForInference, FailedResultRead) {
-  const int inference_error = 3;
+TEST(WaitForInference, InferenceScheduled) {
+  const int inference_result = 0 /* Scheduled */;
   const int timeout = 0;
-  dl::Inference inference = dl::Inference(inference_error);
-  WaitStatus result = WaitForInference(&inference, timeout);
 
-  ASSERT_EQ(result.GetErrorCode(), WaitErrorCode::Error);
-  ICHECK_EQ(result.GetErrorDescription(),
-            "Failed to read inference result status (No such file or directory)");
+  dl::Inference inference = dl::Inference(inference_result);
+  InferenceWaitStatus result = WaitForInference(&inference, timeout);
+
+  ASSERT_EQ(result.GetErrorCode(), InferenceWaitErrorCode::kTimeout);
+  ICHECK_EQ(result.GetErrorDescription(), "Timed out while waiting for the inference to complete.");
 }
 
-TEST(WaitForInference, InferenceTimeout) {
-  const int inference_scheduled = 0;
+TEST(WaitForInference, InferenceRunning) {
+  const int inference_result = 1 /* Running */;
   const int timeout = 0;
-  dl::Inference inference = dl::Inference(inference_scheduled);
-  WaitStatus result = WaitForInference(&inference, timeout);
 
-  ASSERT_EQ(result.GetErrorCode(), WaitErrorCode::Timeout);
+  dl::Inference inference = dl::Inference(inference_result);
+  InferenceWaitStatus result = WaitForInference(&inference, timeout);
+
+  ASSERT_EQ(result.GetErrorCode(), InferenceWaitErrorCode::kTimeout);
+  std::cout << result.GetErrorDescription() << std::endl;
   ICHECK_EQ(result.GetErrorDescription(), "Timed out while waiting for the inference to complete.");
+}
+
+TEST(WaitForInference, InferenceError) {
+  const int inference_result = 3 /* Error */;
+  const int timeout = 0;
+
+  dl::Inference inference = dl::Inference(inference_result);
+  InferenceWaitStatus result = WaitForInference(&inference, timeout);
+
+  ASSERT_EQ(result.GetErrorCode(), InferenceWaitErrorCode::kError);
+  ICHECK_EQ(result.GetErrorDescription(),
+            "Failed to read inference result status (No such file or directory)");
 }
 
 }  // namespace ethosn
