@@ -22,6 +22,7 @@ from tvm.testing import parameter, parameters, main
 
 class DepthwiseConv2dTests(GeneralizedConv2dTests):
     """Helper for constructing depthwise Conv2ds. Sets kernel layout to what x86 code supports."""
+
     def setup_method(self):
         self.ref_kernel_layout = "HWOI"
 
