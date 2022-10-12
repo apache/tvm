@@ -62,7 +62,6 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
       mod = Downcast<IRModule>(LoadJSON(json_mod));
       std::stringstream(str_shash) >> shash;
     }
-
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                << "\nThe error is: " << e.what();

@@ -20,8 +20,6 @@
 #define TVM_META_SCHEDULE_MODULE_EQUALITY_H_
 
 #include <tvm/ir/module.h>
-#include <tvm/node/structural_equal.h>
-#include <tvm/node/structural_hash.h>
 
 #include <memory>
 #include <string>
@@ -29,6 +27,7 @@
 namespace tvm {
 namespace meta_schedule {
 
+/*! \brief Method to compute hash and determine equality of modules  */
 class ModuleEquality {
  public:
   virtual ~ModuleEquality() = default;
@@ -36,9 +35,17 @@ class ModuleEquality {
   virtual size_t Hash(IRModule mod) const = 0;
   virtual bool Equal(IRModule lhs, IRModule rhs) const = 0;
 
+  /*!
+   * \brief Create a ModuleEquality instance
+   * \param mod_eq_name A string to specify the module equality testing and hashing method.
+   *  It must be one of the followings:
+   *    - "structural": Use StructuralEqual/Hash
+   * \return An owning pointer to the created instance
+   */
   static std::unique_ptr<ModuleEquality> Create(const std::string& mod_eq_name);
 };
 
+/*! \brief Functor to compute hash a module using the provided method. */
 class ModuleHash {
  public:
   explicit ModuleHash(const ModuleEquality& mod_eq) : mod_eq_(mod_eq) {}
@@ -48,6 +55,7 @@ class ModuleHash {
   const ModuleEquality& mod_eq_;
 };
 
+/*! \brief Functor to determine equality of modules using the provided method. */
 class ModuleEqual {
  public:
   explicit ModuleEqual(const ModuleEquality& mod_eq) : mod_eq_(mod_eq) {}

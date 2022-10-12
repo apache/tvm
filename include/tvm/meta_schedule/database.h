@@ -103,6 +103,7 @@ struct WorkloadEqual {
   bool operator()(const Workload& a, const Workload& b) const;
 
  private:
+  /*! \brief The module equality testing and hashing method */
   const ModuleEquality& mod_eq_;
 };
 
@@ -175,6 +176,12 @@ class TuningRecord : public runtime::ObjectRef {
 /* \brief The abstract interface of database. */
 class DatabaseNode : public runtime::Object {
  public:
+  /*!
+   * \brief Constructor
+   * \param mod_eq_name A string to specify the module equality testing and hashing method.
+   *  It must be one of the followings:
+   *    - "structural": Use StructuralEqual/Hash
+   */
   explicit DatabaseNode(String mod_eq_name = "structural");
 
   /*! \brief Default destructor */
@@ -241,6 +248,7 @@ class DatabaseNode : public runtime::Object {
   virtual Optional<IRModule> QueryIRModule(const IRModule& mod, const Target& target,
                                            const String& workload_name);
 
+  /*! \brief Return a reference to the owned module equality method instance. */
   const ModuleEquality& GetModuleEquality() const {
     ICHECK(mod_eq_);
     return *mod_eq_;
@@ -250,12 +258,19 @@ class DatabaseNode : public runtime::Object {
   TVM_DECLARE_BASE_OBJECT_INFO(DatabaseNode, runtime::Object);
 
  private:
+  /*! \brief The module equality testing and hashing method */
   std::unique_ptr<ModuleEquality> mod_eq_;
 };
 
 /*! \brief The database with customized methods on the python-side. */
 class PyDatabaseNode : public DatabaseNode {
  public:
+  /*!
+   * \brief Constructor
+   * \param mod_eq_name A string to specify the module equality testing and hashing method.
+   *  It must be one of the followings:
+   *    - "structural": Use StructuralEqual/Hash
+   */
   explicit PyDatabaseNode(String mod_eq_name = "structural");
 
   /*!
@@ -423,12 +438,15 @@ class PyDatabaseNode : public DatabaseNode {
  */
 class Database : public runtime::ObjectRef {
  public:
-  /*! An in-memory database. */
+  /*! An in-memory database.
+   * \param mod_eq_name A string to specify the module equality testing and hashing method.
+   */
   TVM_DLL static Database MemoryDatabase(String mod_eq_name = "structural");
   /*!
    * \brief A database for injecting handcrafted schedule functions.
    * \param schedule_fn The function to do scheduling, which takes a TIR schedule,
    * and returns a boolean indicating if the schedule is successful.
+   * \param mod_eq_name A string to specify the module equality testing and hashing method.
    */
   TVM_DLL static Database ScheduleFnDatabase(
       runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn, String mod_eq_name = "structural");
@@ -437,6 +455,7 @@ class Database : public runtime::ObjectRef {
    * \param path_workload The path to the workload table.
    * \param path_tuning_record The path to the database table.
    * \param allow_missing Whether to create new file when the given path is not found.
+   * \param mod_eq_name A string to specify the module equality testing and hashing method.
    */
   TVM_DLL static Database JSONDatabase(String path_workload, String path_tuning_record,
                                        bool allow_missing, String mod_eq_name = "structural");
@@ -467,6 +486,7 @@ class Database : public runtime::ObjectRef {
    * \param f_query_schedule The packed function of `QuerySchedule`.
    * \param f_query_ir_module The packed function of `QueryIRModule`.
    * \param f_size The packed function of `Size`.
+   * \param mod_eq_name A string to specify the module equality testing and hashing method.
    * \return The created database.
    */
   TVM_DLL static Database PyDatabase(PyDatabaseNode::FHasWorkload f_has_workload,

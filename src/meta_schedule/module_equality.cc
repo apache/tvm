@@ -19,6 +19,8 @@
 #include "module_equality.h"
 
 #include <tvm/ir/module.h>
+#include <tvm/node/structural_equal.h>
+#include <tvm/node/structural_hash.h>
 
 #include <memory>
 

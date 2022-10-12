@@ -26,7 +26,18 @@ from .database import Database
 
 @register_object("meta_schedule.ScheduleFnDatabase")
 class ScheduleFnDatabase(Database):
-    """A database for injecting handcrafted schedule functions."""
+    """A database for injecting handcrafted schedule functions.
+
+    Parameters
+    ----------
+    schedule_fn : Callable[[Schedule], bool],
+        The function to do scheduling, which takes a TIR schedule, and returns
+        a boolean indicating if the schedule is committed to the database.
+    module_equality : Optional[str]
+        A string to specify the module equality testing and hashing method.
+        It must be one of the followings:
+          - "structural": Use StructuralEqual/Hash
+    """
 
     def __init__(
         self,

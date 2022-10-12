@@ -137,6 +137,10 @@ def extract_tasks(
         The pass configuration
     executor : Optional[relay.backend.Executor]
         The executor to use
+    module_equality : Optional[str]
+        A string to specify the module equality testing and hashing method.
+        It must be one of the followings:
+          - "structural": Use StructuralEqual/Hash
 
     Returns
     -------
@@ -276,6 +280,10 @@ def tune_relay(
         The search strategy to use
     seed : Optional[int]
         The random seed
+    module_equality : Optional[str]
+        A string to specify the module equality testing and hashing method.
+        It must be one of the followings:
+          - "structural": Use StructuralEqual/Hash
 
     Returns
     -------
