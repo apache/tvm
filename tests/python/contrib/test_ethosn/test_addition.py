@@ -227,7 +227,7 @@ def test_addition_to_reinterpret_quantize(lhs_shape, lhs_is_constant, rhs_shape,
     outputs = []
     for npu in [False, True]:
         mod = tei.make_module(model, {})
-        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu, optimize_partitions=False))
     tei.verify(outputs, dtype, 1)
 
 

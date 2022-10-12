@@ -143,7 +143,7 @@ def get_host_op_count(mod):
     return c.count
 
 
-def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
+def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1, optimize_partitions=True):
     """Build a network with or without Ethos-N offloading.
 
     Parameters
@@ -158,10 +158,18 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
         The number of ops expected to remain on the host.
     npu_partitions : int, optional
         The number of Ethos-N partitions expected.
+    optimize_partitions : bool, optional
+        Disable the pass that optimizes NPU partitions post partitioning.
     """
     relay.backend.te_compiler.get().clear()
     with tvm.transform.PassContext(
-        opt_level=3, config={"relay.ext.ethos-n.options": {"variant": get_ethosn_variant()}}
+        opt_level=3,
+        config={
+            "relay.ext.ethos-n.options": {
+                "variant": get_ethosn_variant(),
+                "inline_non_compute_intensive_partitions": optimize_partitions,
+            }
+        },
     ):
         with tvm.target.Target("llvm"):
             if npu:
@@ -228,8 +236,20 @@ def run(lib, inputs, outputs, npu=True):
     return out
 
 
-def build_and_run(mod, inputs, outputs, params, npu=True, expected_host_ops=0, npu_partitions=1):
-    lib = build(mod, params, npu, expected_host_ops, npu_partitions)
+def build_and_run(
+    mod,
+    inputs,
+    outputs,
+    params,
+    npu=True,
+    expected_host_ops=0,
+    npu_partitions=1,
+    optimize_partitions=True,
+):
+    """
+    Convenient wrapper for building and running a module on the NPU.
+    """
+    lib = build(mod, params, npu, expected_host_ops, npu_partitions, optimize_partitions)
     return run(lib, inputs, outputs, npu)
 
 
