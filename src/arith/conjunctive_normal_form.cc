@@ -254,8 +254,8 @@ void AndOfOrs::TrySimplifyOr(Key* a_ptr, Key* b_ptr, Analyzer* analyzer) {
       a = GetKey(simplified_or->a);
       b = GetKey(simplified_or->b);
     } else {
-      a = key_false_;
-      b = GetKey(simplified);
+      a = GetKey(simplified);
+      b = key_false_;
     }
   }
 }
@@ -270,8 +270,8 @@ void AndOfOrs::TrySimplifyAnd(Key* a_ptr, Key* b_ptr, Analyzer* analyzer) {
       a = GetKey(simplified_and->a);
       b = GetKey(simplified_and->b);
     } else {
-      a = key_true_;
-      b = GetKey(simplified);
+      a = GetKey(simplified);
+      b = key_true_;
     }
   }
 }
