@@ -11,7 +11,7 @@ def Run(args):
     RelayIRModule = gen_module(args.layer)
 
     #2. Relay IR module --> nested TIR
-    nestedTIR = get_lowered_tir(RelayIRModule)
+    nestedTIR = get_lowered_tir(RelayIRModule, args.model)
     print(nestedTIR)
 
     #3. nested TIR --> Empty Graph
@@ -28,7 +28,7 @@ def Run(args):
 def main():
     parser = argparse.ArgumentParser(description='Running TVM to predict NVP latency')
     parser.add_argument('-l', '--layer', required=True, help='Layer name (e.g., relu, leaky_relu, dwconv, ...')
-    parser.add_argument('-m', '--model', required=True, help='Model name (e.g., x220')
+    parser.add_argument('-m', '--model', required=True, help='Model name (e.g., x220, llvm')
     parser.add_argument('-v', '--viz', default='type', help='How to visualize node details (e.g., type, typeNum, name)')
     parser.add_argument('-d', '--debug', action='store_true')
     args = parser.parse_args()

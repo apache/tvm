@@ -22,11 +22,13 @@ from .default import default_schedule as _default_schedule
 
 def schedule_conv1d_ncw(outs):
     """Schedule for conv1d_ncw
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of conv1d_ncw
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -37,11 +39,13 @@ def schedule_conv1d_ncw(outs):
 
 def schedule_conv1d_nwc(outs):
     """Schedule for conv1d_nwc
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of conv1d_nwc
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -52,11 +56,13 @@ def schedule_conv1d_nwc(outs):
 
 def schedule_group_conv1d_ncw(outs):
     """Schedule for group_conv1d_ncw
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of group_conv1d_ncw
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -67,11 +73,13 @@ def schedule_group_conv1d_ncw(outs):
 
 def schedule_group_conv1d_nwc(outs):
     """Schedule for group_conv1d_nwc
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of group_conv1d_nwc
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -82,11 +90,13 @@ def schedule_group_conv1d_nwc(outs):
 
 def schedule_conv2d_hwcn(outs):
     """Schedule for conv2d_hwcn
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of conv2d_hwcn
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -97,11 +107,13 @@ def schedule_conv2d_hwcn(outs):
 
 def schedule_conv2d_nchw(outs):
     """Schedule for conv2d_nchw
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of conv2d_nchw
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -112,11 +124,13 @@ def schedule_conv2d_nchw(outs):
 
 def schedule_conv2d_nhwc_pack(outs):
     """Schedule for conv2d_nhwc_pack
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of conv2d_nhwc_pack
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -127,11 +141,13 @@ def schedule_conv2d_nhwc_pack(outs):
 
 def schedule_conv2d_nhwc(outs):
     """Schedule for conv2d_nhwc
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of conv2d_nchw
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -142,12 +158,14 @@ def schedule_conv2d_nhwc(outs):
 
 def schedule_conv2d_NCHWc(outs):
     """Schedule for conv2d_NCHW[x]c
+
     Parameters
     ----------
     outs : Array of Tensor
         The computation graph description of conv2d_NCHWc
         in the format of an array of tensors.
         The number of filter, i.e., the output channel.
+
     Returns
     -------
     sch : Schedule
@@ -158,12 +176,14 @@ def schedule_conv2d_NCHWc(outs):
 
 def schedule_conv2d_NCHWc_int8(outs):
     """Schedule for conv2d_NCHW[x]c_int8
+
     Parameters
     ----------
     outs : Array of Tensor
         The computation graph description of conv2d_NCHWc_int8
         in the format of an array of tensors.
         The number of filter, i.e., the output channel.
+
     Returns
     -------
     sch : Schedule
@@ -174,11 +194,13 @@ def schedule_conv2d_NCHWc_int8(outs):
 
 def schedule_conv2d_winograd_weight_transform(outs):
     """Schedule for weight transformation of winograd
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of this operator
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -201,11 +223,13 @@ def schedule_conv2d_winograd_weight_transform(outs):
 
 def schedule_conv2d_gemm_weight_transform(outs):
     """Schedule for weight transformation of gemm
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of this operator
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -218,11 +242,13 @@ def schedule_conv2d_gemm_weight_transform(outs):
 
 def schedule_conv3d_winograd_weight_transform(outs):
     """Schedule for weight transformation of 3D winograd
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of this operator
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -253,11 +279,13 @@ def schedule_conv3d_winograd_weight_transform(outs):
 
 def schedule_conv2d_winograd_without_weight_transform(outs):
     """Schedule for winograd without weight transformation
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of this operator
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -285,11 +313,13 @@ def schedule_conv2d_winograd_nnpack_weight_transform(outs):
 
 def schedule_conv3d_ncdhw(outs):
     """Schedule for conv3d_ncdhw
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of conv2d_nchw
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -300,11 +330,13 @@ def schedule_conv3d_ncdhw(outs):
 
 def schedule_conv3d_ndhwc(outs):
     """Schedule for conv3d_ndhwc
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of conv3d_ndhwc
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -315,11 +347,13 @@ def schedule_conv3d_ndhwc(outs):
 
 def schedule_conv3d_transpose_ncdhw(outs):
     """Schedule for conv3d_transpose_ncdhw
+
     Parameters
     ----------
     outs: Array of Tensor
         The computation graph description of conv3d_transpose_ncdhw
         in the format of an array of tensors.
+
     Returns
     -------
     s: Schedule
@@ -330,11 +364,13 @@ def schedule_conv3d_transpose_ncdhw(outs):
 
 def schedule_conv2d_transpose_nchw(outs):
     """Schedule for conv2d_transpose_nchw
+
     Parameters
     ----------
     outs: Array of Tensor
         The computation graph description of conv2d_transpose_nchw
         in the format of an array of tensors.
+
     Returns
     -------
     s: Schedule
@@ -345,11 +381,13 @@ def schedule_conv2d_transpose_nchw(outs):
 
 def schedule_conv1d_transpose_ncw(outs):
     """Schedule for conv1d_transpose_ncw
+
     Parameters
     ----------
     outs: Array of Tensor
         The computation graph description of conv2d_transpose_ncw
         in the format of an array of tensors.
+
     Returns
     -------
     s: Schedule
@@ -360,17 +398,26 @@ def schedule_conv1d_transpose_ncw(outs):
 
 def schedule_depthwise_conv2d_nchw(outs):
     """Schedule for depthwise_conv2d_nchw
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of depthwise_conv2d_nchw
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
         The computation schedule for the op.
     """
-    return _default_schedule(outs, False)
+    s = te.create_schedule([x.op for x in outs])
+    output = outs[0]
+    acc = s[output].op.input_tensors[0]
+    input, filter = acc.op.input_tensors[0], acc.op.input_tensors[1]
+    # b, c, i, j, di, dj = s[acc].all_iter_vars
+    s[acc].compute_at(s[output], output.op.axis[3])
+    # s[filter].compute_at(s[acc], acc.op.axis[3])
+    return s
 
 
 def schedule_depthwise_conv2d_nhwc(outs):
@@ -380,6 +427,7 @@ def schedule_depthwise_conv2d_nhwc(outs):
     outs: Array of Tensor
           The computation graph description of depthwise_conv2d_nhwc
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -395,6 +443,7 @@ def schedule_depthwise_conv2d_NCHWc(outs):
     outs: Array of Tensor
           The computation graph description of depthwise_conv2d_nhwc
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -405,11 +454,13 @@ def schedule_depthwise_conv2d_NCHWc(outs):
 
 def schedule_group_conv2d_nchw(outs):
     """Schedule for group_conv2d_nchw
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of group_conv2d_nchw
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -420,11 +471,13 @@ def schedule_group_conv2d_nchw(outs):
 
 def schedule_group_conv2d_transpose_nchw(outs):
     """Schedule for group_conv2d_transpose_nchw
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of group_conv2d_nhwc
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -435,11 +488,13 @@ def schedule_group_conv2d_transpose_nchw(outs):
 
 def schedule_group_conv2d_nhwc(outs):
     """Schedule for group_conv2d_nhwc
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of group_conv2d_nhwc
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -450,11 +505,13 @@ def schedule_group_conv2d_nhwc(outs):
 
 def schedule_deformable_conv2d_nchw(outs):
     """Schedule for deformable_conv2d_nchw
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of deformable_conv2d_nchw
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -466,11 +523,13 @@ def schedule_deformable_conv2d_nchw(outs):
 def schedule_deformable_conv2d_nhwc(outs):
     """Schedule for deformable_conv2d_nhwc.
     We only use the default schedule here and rely on auto_scheduler.
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of deformable_conv2d_nhwc
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -481,11 +540,13 @@ def schedule_deformable_conv2d_nhwc(outs):
 
 def schedule_bitserial_conv2d_nchw(outs):
     """Schedule for bitserial_conv2d_nchw
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of bitserial_conv2d_nchw
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -496,11 +557,13 @@ def schedule_bitserial_conv2d_nchw(outs):
 
 def schedule_bitserial_conv2d_nhwc(outs):
     """Schedule for bitserial_conv2d_nhwc
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of bitserial_conv2d_nchw
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -526,11 +589,13 @@ def schedule_bitserial_dense(outs):
 
 def schedule_reduce(outs):
     """Schedule for reduction
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of reduce
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -541,11 +606,13 @@ def schedule_reduce(outs):
 
 def schedule_softmax(outs):
     """Schedule for softmax
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of softmax
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -556,11 +623,13 @@ def schedule_softmax(outs):
 
 def schedule_fast_softmax(outs):
     """Schedule for fast_softmax
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of fast_softmax
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -571,11 +640,13 @@ def schedule_fast_softmax(outs):
 
 def schedule_matmul(outs):
     """Schedule for matmul
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of matmul
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -586,11 +657,13 @@ def schedule_matmul(outs):
 
 def schedule_dense(outs):
     """Schedule for dense
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of dense
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -601,13 +674,16 @@ def schedule_dense(outs):
 
 def schedule_pool(outs, layout):
     """Schedule for pool
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of pool
           in the format of an array of tensors.
+
     layout: str
         Data layout.
+
     Returns
     -------
     sch: Schedule
@@ -618,6 +694,7 @@ def schedule_pool(outs, layout):
 
 def schedule_pool_grad(outs):
     """Schedule for pool_grad
+
     Parameters
     ----------
     outs: Array of Tensor
@@ -629,11 +706,13 @@ def schedule_pool_grad(outs):
 
 def schedule_adaptive_pool(outs):
     """Schedule for adaptive pool
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of adaptive pool
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -644,11 +723,13 @@ def schedule_adaptive_pool(outs):
 
 def schedule_binarize_pack(outs):
     """Schedule for binarize_pack
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of binarize_pack
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -664,6 +745,7 @@ def schedule_bitpack(outs):
     outs: Array of Tensor
         The computation graph description of bitpack
         in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -674,11 +756,13 @@ def schedule_bitpack(outs):
 
 def schedule_binary_dense(outs):
     """Schedule for binary_dense
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of binary_dense
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -689,11 +773,13 @@ def schedule_binary_dense(outs):
 
 def schedule_lrn(outs):
     """Schedule for lrn
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of lrn
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -704,11 +790,13 @@ def schedule_lrn(outs):
 
 def schedule_sparse_dense(outs):
     """Schedule for sparse_dense
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of sparse_dense
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -719,11 +807,13 @@ def schedule_sparse_dense(outs):
 
 def schedule_sparse_transpose(outs):
     """Schedule for sparse_transpose
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of sparse_transpose
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -734,11 +824,13 @@ def schedule_sparse_transpose(outs):
 
 def schedule_sparse_conv2d(outs):
     """Schedule for sparse_conv2d
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of sparse_conv2d
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -749,11 +841,13 @@ def schedule_sparse_conv2d(outs):
 
 def schedule_batch_matmul(outs):
     """Schedule for batch_matmul
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of sparse_transpose
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -764,11 +858,13 @@ def schedule_batch_matmul(outs):
 
 def schedule_batch_norm(outs):
     """Schedule for batch_norm
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of sparse_transpose
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -779,11 +875,13 @@ def schedule_batch_norm(outs):
 
 def schedule_correlation_nchw(outs):
     """Schedule for correlation_nchw
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of correlation_nchw
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
@@ -794,10 +892,12 @@ def schedule_correlation_nchw(outs):
 
 def schedule_lstm(outs):
     """Schedule for LSTM
+
     Parameters
     ----------
     outs : Array of Tensor
         The outputs of LSTM (hidden states and cell states).
+
     Returns
     -------
     sch: Schedule

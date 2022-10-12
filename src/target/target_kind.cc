@@ -432,8 +432,8 @@ TVM_REGISTER_TARGET_KIND("composite", kDLCPU)  // line break
 TVM_REGISTER_TARGET_KIND("test", kDLCPU)  // line break
     .set_target_parser(TestTargetParser);
 
-TVM_REGISTER_TARGET_KIND("lwc", kDLX330) // line break
-    .set_default_keys({"x330"});
+TVM_REGISTER_TARGET_KIND("x220", kDLX220) // line break
+    .set_default_keys({"x220"});
 
 /**********  Registry  **********/
 
