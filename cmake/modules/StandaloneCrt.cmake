@@ -53,7 +53,6 @@ else()
          "include/tvm/runtime c_*_api.h -> include/tvm/runtime"
          "include/tvm/runtime metadata_types.h -> include/tvm/runtime"
          "include/tvm/runtime/crt *.h -> include/tvm/runtime/crt"
-         "include/tvm/support ssize.h -> include/tvm/support"
          "src/runtime/crt Makefile -> ."
          "src/runtime/crt/include *.h -> include"
          "src/runtime/crt/aot_executor *.c -> src/runtime/crt/aot_executor"
@@ -69,6 +68,7 @@ else()
          "src/runtime/crt/microtvm_rpc_server *.cc -> src/runtime/crt/microtvm_rpc_server"
          "src/runtime/minrpc *.h -> src/runtime/minrpc"
          "src/support generic_arena.h -> src/support"
+         "src/support ssize.h -> src/support"
          "src/runtime/crt crt_config-template.h -> template"
          )
 

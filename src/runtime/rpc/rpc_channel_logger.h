@@ -25,11 +25,11 @@
 #define TVM_RUNTIME_RPC_RPC_CHANNEL_LOGGER_H_
 
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/support/ssize.h>
 
 #include <memory>
 #include <utility>
 
+#include "../../support/ssize.h"
 #include "../minrpc/minrpc_server_logging.h"
 #include "rpc_channel.h"
 

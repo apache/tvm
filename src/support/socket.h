@@ -50,13 +50,13 @@
 #endif
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/ssize.h>
 
 #include <cstring>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "../support/ssize.h"
 #include "../support/utils.h"
 
 #if defined(_WIN32)
