@@ -193,9 +193,9 @@ def estimate_peak_fma_flops(
     # assume that the first argument's dtype is the one we want
     dtype = list(func.buffer_map.values())[0].dtype
     if "int" in dtype:
-        flops = np.sum(features["float_addsub"] + features["float_mul"] + features["float_mad"])
-    else:
         flops = np.sum(features["int_addsub"] + features["int_mul"] + features["int_mad"])
+    else:
+        flops = np.sum(features["float_addsub"] + features["float_mul"] + features["float_mad"])
     peak_flops = estimate_peak_fma_vector_flops(
         target, dev, remote, dtype, vec_width, num_vector_registers
     )
