@@ -21,14 +21,119 @@ this is a depthwise convolution, the optimal data layout is NCHW and kernel layo
 
 import textwrap
 
+import numpy as np
+
 from tvm import te, tir
 
 from .common import num_simd_lanes_per_word
 
 
+def _is_pow_2(number):
+    """Checks if `number` is a power of `2`."""
+    return number & (number-1) == 0 and number > 0
+
+
+def _count_factorization_2s(number):
+    """Returns the number of times `2` appears in the factorization of `number`."""
+    assert isinstance(number, int)
+    count = 0
+    while number % 2 == 0:
+        number // 2
+        count += 1
+    return count
+
+
+
 def _get_func_name(in_dtype, tensor_h, jump, tensor_w, suffix):
     """Gets the C function name of the tensordot function."""
     return f"tensordot_{in_dtype}_h{tensor_h}_j{jump}_w{tensor_w}_{suffix}"
+
+
+def static_kernel_reshape(kernel, tensor_w, strides, simd_lanes):
+    """When we get the kernel, it will be in the correct data layout (it will be altered during the
+    legalization step). For the int32 dtype, we're done. But for int8 and int16, we still have an
+    issue: non-word-aligned memory loads on Cortex-M take way longer! This manifests in two ways:
+
+      1. Let's do depthwise convolution with a `Mx5` kernel, `in_dtype == "int16"`, `tensor_w = 48`,
+         and `strides = (1, 2)`. The input tensor will be formatted along word boundries as:
+         ```
+             0x0000   0x0001 | 0x0002   0x0003 | 0x0004   0x0005 | ...
+             0x0030   0x0031 | 0x0032   0x0033 | 0x0034   0x0035 | ...
+         ```
+         However, the input tensor will look like:
+         ```
+             0x0000   0x0001 | 0x0002   0x0003 | 0x0004
+             0x0005 | 0x0006   0x0007 | 0x0008   0x0009
+         ```
+         To be fast, we will want to run `SMLAD(0x0030   0x0031, 0x0005 | 0x0006)` and so on when
+         convolving the second rows. But since `0x0005 | 0x0006` spans a word boundry, we can't do
+         this fast! Starting two bytes to the right doesn't help either, as then `0x0031 | 0x0032`
+         spans a word boundry.
+
+         The problem is even worse than it sounds. Suppose `tensor_w = 49` instead. We cannot easily
+         pad the input tensor without taking up time (due to MetaScheduler's padding optimizations),
+         so every other row is *guaranteed* to not be word aligned. And with the `int8` dtype, three
+         in four rows will not start word aligned!
+
+         Luckily, we have a clever solution - *pad the kernel so it is misaligned in the same way*.
+         In our first example (with `in_dtype == "int16"` and `tensor_w = 48`), we add two bytes of
+         zeros to the end of each row in the kernel. If instead `tensor_w = 49`, we don't need
+         padding at all with the `int16` dtype, though we must pad with two bytes for `int8`.
+
+         Note that doing this padding *always* makes us faster, even though we do more total memory
+         loads in some cases and the unaligned access penalty is only one cycle.
+
+
+      2. The second problem is more straightfoward - consider when the horizontal stride (in bytes)
+         is *not* a multiple of the number of SIMD lanes. This is guaranteed to shift the word
+         alignment for every horizontal stride (and sometimes on vertical strides too), leading to
+         unaligned word divides between the input tensor and kernel. Note that in practice, this
+         issue rarely happens for regular Conv2Ds, and happens *all the time* for depthwise Conv2Ds.
+
+         The solution is to create copies of the kernel in memory for every SIMD lane offset. This
+         does take up more flash memory, but kernels are small enough this is probably fine. We must
+         also take our padding from issue #1 into account here.
+
+         This change *does not* always make us faster, because switching between kernel copies with
+         different offsets takes 1-2 cycles (1 normally, 2 when it prevents pipelining). A depthwise
+         convolution with `in_dtype == "int8"` and a `1x1` kernel would incur more overhead via this
+         mechanism then we'd save by preventing unaligned access. However, this is an edge case no
+         one would ever use in practice (IRL they'd use a broadcast multiply), as are the other
+         cases where this change hurts performance. Hence, we will do it whenever the strides aren't
+         a mulitple of SIMD lanes.
+
+
+    We could fix this by padding the input tensor, but doing this without using more time (or
+    messing up MetaScheduler's padding optimizations) is hard. Luckily, we can fix both by only
+    modifying the kernel.
+
+    This function performs these fixes, and works in full generality (to make supporting Arm MVE
+    easier). Note that we don't care about the word width and in_dtype - we only care about the
+    quotient of their lengths (word_width / in_dtype = simd_lanes)."""
+
+    assert _is_pow_2(simd_lanes)
+    kernel_h, kernel_w = kernel.shape
+
+    # We want kernel_w % simd_lanes to equal tensor_w % simd_lanes
+    zero_pad_w = (tensor_w - kernel_w) % simd_lanes
+    padded_kernel = np.pad(kernel, ((0, 0), (0, zero_pad_w)))
+
+    shift_w = stride_w % simd_lanes
+    shift_h = stride_h * tensor_w % simd_lanes
+    copy_shift = min(_count_factorization_2s(shift_w), _count_factorization_2s(shift_h))
+
+    num_kernel_copies = simd_lanes // copy_shift
+    len_kernel_copies = (kernel_w + zero_pad_w) * kernel_h + copy_shift
+    assert (num_kernel_copies * len_kernel_copies) % simd_lanes == 0
+
+    flat_kernel = np.ravel(padded_kernel)
+    flat_output = np.zeros((num_kernel_copies * len_kernel_copies))
+
+    # Copy our flattened kernel at each location
+    for i in range(num_kernel_copies):
+        flat_output[i * len_kernel_copies:(i+1) * len_kernel_copies] = flat_kernel
+
+    return flat_output.reshape(num_kernel_copies, len_kernel_copies)
 
 
 def make_intrin_tensordot(slices, strides, tensordot_params):
