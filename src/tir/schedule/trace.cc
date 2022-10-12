@@ -255,6 +255,7 @@ void TraceNode::ApplyToSchedule(
                                        const Optional<ObjectRef>& decision)>
         decision_provider) const {
   std::unordered_map<const Object*, const Object*> rv_map;
+  static auto kind_get_child_blocks = tir::InstructionKind::Get("GetChildBlocks");
   for (const Instruction& inst : this->insts) {
     if (remove_postproc && inst->kind->IsPostproc()) {
       break;
@@ -266,7 +267,20 @@ void TraceNode::ApplyToSchedule(
       decision = decision_provider(inst, inputs, attrs, decision);
     }
     Array<ObjectRef> outputs = inst->kind->f_apply_to_schedule(sch, inputs, attrs, decision);
-    TranslateAddOutputRVs(inst->outputs, outputs, &rv_map);
+    if (inst->kind.same_as(kind_get_child_blocks)) {
+      // We want to allow a trace generated for a single conv2d block to be applied to
+      // conv2d -> elemwise blocks, where two conv2d are the same workload.
+      // GetChildBlocks returns a different number of blocks for the two cases above, which violates
+      // the assumption made by TranslateAddOutputRVs: old_outputs.size() == new_outputs.size().
+      // We workaround this problem by assuming that the prefix of the "new" outputs matches with
+      // the "old" outputs, and truncating the new outputs accordingly.
+      ICHECK(inst->outputs.size() <= outputs.size());
+      TranslateAddOutputRVs(
+          inst->outputs, Array<ObjectRef>(outputs.begin(), outputs.begin() + inst->outputs.size()),
+          &rv_map);
+    } else {
+      TranslateAddOutputRVs(inst->outputs, outputs, &rv_map);
+    }
   }
 }
 

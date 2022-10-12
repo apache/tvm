@@ -45,12 +45,12 @@ String GetRuleKindFromTarget(const Target& target) {
     }
     return "cuda";
   }
-  if (target->kind->name == "rocm") {
+
+  const std::unordered_set<std::string> other_gpu_targets{"rocm", "vulkan", "metal"};
+  if (other_gpu_targets.count(target->kind->name)) {
     return "cuda";
   }
-  if (target->kind->name == "vulkan") {
-    return "cuda";
-  }
+
   LOG(FATAL) << "Unsupported target: " << target;
   throw;
 }

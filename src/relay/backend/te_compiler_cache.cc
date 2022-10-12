@@ -52,6 +52,8 @@
 #include "../../printer/text_printer.h"
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
+#include "../src/meta_schedule/default_schedule.h"
+#include "../src/meta_schedule/module_equality.h"
 #include "../transforms/meta_schedule_layout_rewrite.h"
 #include "utils.h"
 
@@ -614,9 +616,17 @@ class ScheduleBuilder : public ExprVisitor {
                 MetaScheduleLayoutRewriter::LayoutQueuePush(index_map);
               }
             }
+
             Schedule sch = Schedule::Traced(query_mod, /*seed=*/-1, /*debug_mask=*/0,
                                             tir::ScheduleErrorRenderLevel::kDetail);
-            record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
+
+            if (!meta_schedule::ModuleEquality::Create("ignore-ndarray")
+                     ->Equal(query_mod, opt_record.value()->workload->mod)) {
+              meta_schedule::ScheduleFusedBlocks(sch, record->trace, target_);
+            } else {
+              record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
+            }
+
             IRModule mod = sch->mod();
             ICHECK_EQ(mod->functions.size(), 1);
             mod = tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_ndarray_rewrite*/ false)(

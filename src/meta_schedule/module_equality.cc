@@ -21,10 +21,14 @@
 #include <tvm/ir/module.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
+#include <tvm/tir/function.h>
+#include <tvm/tir/stmt.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include <memory>
 
 #include "../node/ndarray_hash_equal.h"
+#include "../tir/schedule/analysis.h"
 
 namespace tvm {
 namespace meta_schedule {
@@ -65,6 +69,34 @@ class SHashHandlerIgnoreNDArray : public SHashHandlerDefault {
   }
 };
 
+const tir::BlockNode* GetAnchorBlock(IRModule mod) {
+  using namespace tir;
+
+  struct BlockCollector : public StmtVisitor {
+    void VisitStmt_(const BlockNode* block) override {
+      blocks.push_back(block);
+      StmtVisitor::VisitStmt(block->body);
+    }
+    std::vector<const BlockNode*> blocks;
+  };
+
+  auto prim_func = FindEntryFunc(mod, nullptr);
+  BlockCollector collector;
+  collector(prim_func->body);
+
+  ICHECK(collector.blocks.size() > 0);
+
+  for (auto block : collector.blocks) {
+    if (!block->reads.empty() && !block->writes.empty()) {
+      return block;
+    }
+  }
+
+  LOG(FATAL) << "Cannot find a suitable anchor block";
+
+  return collector.blocks[0];
+}
+
 class ModuleEqualityIgnoreNDArray : public ModuleEquality {
  public:
   size_t Hash(IRModule mod) const { return SHashHandlerIgnoreNDArray().Hash(mod, false); }
@@ -73,11 +105,26 @@ class ModuleEqualityIgnoreNDArray : public ModuleEquality {
   }
 };
 
+class ModuleEqualityAnchorBlock : public ModuleEquality {
+  size_t Hash(IRModule mod) const {
+    auto anchor_block = GetAnchorBlock(mod);
+    return SHashHandlerIgnoreNDArray().Hash(GetRef<tir::Block>(anchor_block), false);
+  }
+  bool Equal(IRModule lhs, IRModule rhs) const {
+    auto anchor_block_lhs = GetAnchorBlock(lhs);
+    auto anchor_block_rhs = GetAnchorBlock(rhs);
+    return SEqualHandlerIgnoreNDArray().Equal(GetRef<tir::Block>(anchor_block_lhs),
+                                              GetRef<tir::Block>(anchor_block_rhs), false);
+  }
+};
+
 std::unique_ptr<ModuleEquality> ModuleEquality::Create(const std::string& mod_eq_name) {
   if (mod_eq_name == "structural") {
     return std::make_unique<ModuleEqualityStructural>();
   } else if (mod_eq_name == "ignore-ndarray") {
     return std::make_unique<ModuleEqualityIgnoreNDArray>();
+  } else if (mod_eq_name == "anchor-block") {
+    return std::make_unique<ModuleEqualityAnchorBlock>();
   }
   LOG(FATAL) << "Unknown module equality " << mod_eq_name;
   return nullptr;
