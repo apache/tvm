@@ -964,14 +964,26 @@ def InjectPTXAsyncCopy():
     return _ffi_api.InjectPTXAsyncCopy()  # type: ignore
 
 
-def RemoveWeightLayoutRewriteBlock():
+def RemoveWeightLayoutRewriteBlock(skip_ndarray_rewrite=False):
     """Remove weight layout rewrite block before benchmarking during tuning stage.
+
+    Parameters
+    ----------
+    skip_ndarray_rewrite : bool
+        If True, exact rewrite of NDArray, according to the given index map, will be skipped.
+        Only the shape of the NDArray is transformed correctly, and the content of the destination
+        array will be filled with random values.
+
+        When this pass is called many times during MetaSchedule tuning, the raw data of NDArray,
+        before and after rewrite, does not matter. Since NDArray layout rewrite, using IndexMap's
+        MapNDArray, is currently slow, skipping the exact rewrite is sometimes necessary.
+
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.RemoveWeightLayoutRewriteBlock()  # type: ignore
+    return _ffi_api.RemoveWeightLayoutRewriteBlock(skip_ndarray_rewrite)  # type: ignore
 
 
 def ManifestSharedMemoryLocalStage():
