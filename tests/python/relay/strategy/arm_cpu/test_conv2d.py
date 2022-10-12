@@ -19,11 +19,17 @@
 from test_generalized_conv2d import GeneralizedConv2dTests
 from tvm.testing import parameter, parameters, main
 
+class Conv2dTests(GeneralizedConv2dTests):
+    """Helper for constructing regular Conv2ds. Always sets groups to 1. We set the kernel layout
+    here as we must pick something, but the x86 implementation here supports several."""
+    groups = parameter(1)
+    def setup_method(self):
+        self.ref_kernel_layout = "HWIO"
 
-class TestConv2d_NHWC_DSP(GeneralizedConv2dTests):
+
+class TestConv2d_NHWC_DSP(Conv2dTests):
     """This test is for conv2d_nhwc_dsp.arm_cpu schedule."""
 
-    groups = parameter(1)
     data_shape, kernel_size, num_filter, strides, padding, dilation = parameters(
         # TODO(mehrdadh): Fails due to https://github.com/apache/tvm/issues/11216
         # ((1, 32, 32, 1), (3, 3), 12, 1, 0, 1),
@@ -59,10 +65,9 @@ class TestConv2d_NHWC_DSP(GeneralizedConv2dTests):
     schedule_name = parameter("conv2d_nhwc_dsp.arm_cpu")
 
 
-class TestConv2d_NHWC_Spatial_Pack(GeneralizedConv2dTests):
+class TestConv2d_NHWC_Spatial_Pack(Conv2dTests):
     """This test is for conv2d_nhwc_spatial_pack.arm_cpu schedule."""
 
-    groups = parameter(1)
     data_shape, kernel_size, num_filter, strides, padding, dilation = parameters(
         ((1, 32, 32, 1), (3, 3), 12, 1, 0, 1),
         ((1, 32, 10, 3), (3, 3), 16, 1, 0, 1),
@@ -81,10 +86,9 @@ class TestConv2d_NHWC_Spatial_Pack(GeneralizedConv2dTests):
     schedule_name = parameter("conv2d_nhwc_spatial_pack.arm_cpu")
 
 
-class TestConv2d_Tensordot(GeneralizedConv2dTests):
+class TestConv2d_Tensordot(Conv2dTests):
     """This test is for the regular conv2d schedule tensorized using tensordot."""
 
-    groups = parameter(1)
     data_shape, kernel_size, num_filter, strides, padding = parameters(
         # Disabled because these kernels are not an integral number of words
         # ((1, 32, 32, 1), (3, 3), 12, 1, 0),
@@ -104,10 +108,9 @@ class TestConv2d_Tensordot(GeneralizedConv2dTests):
     schedule_name = parameter("conv2d_nhwc_ohwi_dsp.arm_cpu")
 
 
-class TestConv2d_NCHW_Spatial_Pack(GeneralizedConv2dTests):
+class TestConv2d_NCHW_Spatial_Pack(Conv2dTests):
     """This test is for conv2d_nchw_spatial_pack.arm_cpu schedule."""
 
-    groups = parameter(1)
     data_shape, kernel_size, num_filter, strides, padding, dilation, in_dtype = parameters(
         ((1, 32, 32, 16), (3, 3), 12, 1, 0, 1, "int8"),
         ((1, 32, 32, 16), (3, 3), 12, 1, 0, 1, "int16"),

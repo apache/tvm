@@ -20,7 +20,13 @@ from test_generalized_conv2d import GeneralizedConv2dTests
 from tvm.testing import parameter, parameters, main
 
 
-class TestDepthwiseConv2d_NCHW_OIHW(GeneralizedConv2dTests):
+class DepthwiseConv2dTests(GeneralizedConv2dTests):
+    """Helper for constructing depthwise Conv2ds. Sets kernel layout to what x86 code supports."""
+    def setup_method(self):
+        self.ref_kernel_layout = "HWOI"
+
+
+class TestDepthwiseConv2d_NCHW_OIHW(DepthwiseConv2dTests):
     """This test is for depthwise_conv2d_nchw.arm_cpu schedule."""
 
     data_shape, groups, kernel_size, num_filter, strides, padding, dilation = parameters(
@@ -40,7 +46,7 @@ class TestDepthwiseConv2d_NCHW_OIHW(GeneralizedConv2dTests):
     schedule_name = parameter("depthwise_conv2d_nchw.arm_cpu")
 
 
-class TestDepthwiseConv2d_NHWC_HWOI(GeneralizedConv2dTests):
+class TestDepthwiseConv2d_NHWC_HWOI(DepthwiseConv2dTests):
     """This test is for depthwise_conv2d_nhwc.generic schedule."""
 
     data_shape, groups, kernel_size, num_filter, strides, padding, dilation = parameters(
@@ -61,7 +67,7 @@ class TestDepthwiseConv2d_NHWC_HWOI(GeneralizedConv2dTests):
     schedule_name = parameter("depthwise_conv2d_nhwc.generic")
 
 
-class TestDepthwiseConv2d_NHWC_HWOI_DSP(GeneralizedConv2dTests):
+class TestDepthwiseConv2d_NHWC_HWOI_DSP(DepthwiseConv2dTests):
     """This test is for depthwise_conv2d_nhwc_dsp.arm_cpu schedule. The tests that are parameterized
     by dtype work for both int8 and int16, while the others only work on the specified dtype."""
 
@@ -96,7 +102,7 @@ class TestDepthwiseConv2d_NHWC_HWOI_DSP(GeneralizedConv2dTests):
     schedule_name = parameter("depthwise_conv2d_nhwc_dsp.arm_cpu")
 
 
-class TestDepthwiseConv2d_Tensordot(GeneralizedConv2dTests):
+class TestDepthwiseConv2d_Tensordot(DepthwiseConv2dTests):
     """This test is for the depthwise_conv2d schedule tensorized using tensordot."""
 
     data_shape, groups, kernel_size, num_filter, strides, padding, in_dtype = parameters(
