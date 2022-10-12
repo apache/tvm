@@ -49,7 +49,7 @@ namespace quantize {
 using namespace relay::transform;
 
 Expr QRealizeIntExprNode::Realize() const {
-  printf("QRealizeIntExprNode\n");
+  //printf("QRealizeIntExprNode\n");
   Expr data = this->data;
   // dequantize
   Expr zero_point = this->zero_point;
@@ -62,7 +62,7 @@ Expr QRealizeIntExprNode::Realize() const {
 
   data = Cast(data, DataType::Float(32));
   data = Multiply(data, dom_scale);
-  printf("QRealizeIntExprNode done\n");
+  //printf("QRealizeIntExprNode done\n");
   return data;
 }
 
@@ -134,7 +134,7 @@ inline Expr MulAndDiv_nobias(Expr data, float s1, float s2, DataType dtype,
 
 
 Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
-  printf("quantizerealize\n");
+  //printf("quantizerealize\n");
   const QConfig& cfg = QConfig::Current();
   // do not handle data type cast
   const auto param = ref_call->attrs.as<SimulatedQuantizeAttrs>();
@@ -165,7 +165,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
   // x * idom_scale = y * odom_scale
   // => y = x * idom_scale / odom_scale
   if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
-    printf("int32->int8\n");
+    //printf("int32->int8\n");
     // int32->int8
     Expr data = n->data;
     
@@ -175,19 +175,19 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
     float odom_scale_imm = static_cast<float>(odom_scale_imms[0]);
 
     if (idom_scale_imm == odom_scale_imm) {
-      printf("1\n");
+      //printf("1\n");
       // same domain scale, only clip
       data = Add(data, (MakeConstantScalar(n->dtype, static_cast<int>(zero_point_imm))));
       data = Clip(data, clip_min_imm, clip_max_imm);
       data = Clip(data, clip_min_imm, clip_max_imm);
-      printf("int32->int8 done\n");
+      //printf("int32->int8 done\n");
       return QRealizeIntExpr(data, dom_scale, zero_point, n->dtype);
     }
 
     float shift_nbit = std::log2(odom_scale_imm / idom_scale_imm);
     ICHECK_NE(shift_nbit, 0);
     if (static_cast<int>(shift_nbit) == shift_nbit) {
-      printf("2\n");
+      //printf("2\n");
       if (shift_nbit > 0) {
         // use right shift
         if (cfg->round_for_shift) {
@@ -202,18 +202,18 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
       }
       data = Add(data, (MakeConstantScalar(n->dtype, static_cast<int>(zero_point_imm))));
       data = Clip(data, clip_min_imm, clip_max_imm);
-      printf("int32->int8 done\n");
+      //printf("int32->int8 done\n");
       return QRealizeIntExpr(data, dom_scale, zero_point, n->dtype);
     } else {
       data = Cast(data, DataType::Int(64));
       if(cfg->per_channel){
-        printf("3\n");
+        //printf("3\n");
         //data = Cast(data, DataType::Float(64));
         data = Cast(data, DataType::Float(32));
         //if 这个simulated_quantize算子！是！跟在conv后面
-        // printf("\nsi/so:\n");
+        // //printf("\nsi/so:\n");
         // for(int i=0; i<idom_scale_imms.size(); i++){
-        //   printf("%lf",idom_scale_imms[i]);
+        //   //printf("%lf",idom_scale_imms[i]);
         // }
         data = Multiply(data, CheckPointSiso(Divide(Cast(n->dom_scale, DataType::Float(32)), dom_scale)));
         //data = Multiply(data, (Divide(CheckPoint(Cast(n->dom_scale, DataType::Float(32))), dom_scale)));
@@ -233,13 +233,13 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
       data = Add(data, (MakeConstantScalar(DataType::Int(64), zero_point_imm)));
       data = (Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype));
       //data = Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype);
-      printf("int32->int8 done\n");
+      //printf("int32->int8 done\n");
       return QRealizeIntExpr(data, dom_scale, zero_point, n->dtype);
     }
   }
 
   // quantize from real
-  printf("quantize from real\n");
+  //printf("quantize from real\n");
   Expr round_data;
   Expr scaled_data;
   Expr zp_added;
@@ -270,7 +270,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
   else{
     round_data = Clip(Round(zp_added), clip_min_imm, clip_max_imm);}
   
-  printf("quantize from real done\n");
+  //printf("quantize from real done\n");
   return QRealizeIntExpr(round_data, dom_scale, zero_point, DataType::Float(32));
 }
 
@@ -285,7 +285,7 @@ RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
     .set_attr<FForwardRewrite>("FQRealizeRewrite", QuantizeRealize);
 
 Expr Conv2dRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
-  printf("Conv2dRealize\n");
+  //printf("Conv2dRealize\n");
   const QConfig& cfg = QConfig::Current();
   ICHECK_EQ(new_args.size(), 2);
   if (new_args[0].as<QRealizeIntExprNode>() && new_args[1].as<QRealizeIntExprNode>()) {
@@ -338,7 +338,7 @@ Expr Conv2dRealize(const Call& ref_call, const Array<Expr>& new_args, const Obje
       mul = Multiply(MakeConstantScalar(DataType::Float(32), lhs_dom_scale_imm), MakeConstantScalar(DataType::Float(32), rhs_dom_scale_imm));
     }////////
     Expr dom_scale = FoldConstantOpt(mul);
-    printf("Conv2dRealize done\n");
+    //printf("Conv2dRealize done\n");
     return QRealizeIntExpr(ret, dom_scale, zero_point, out_dtype);
   }
   ICHECK(!new_args[0]->IsInstance<TempExprNode>() || !new_args[1]->IsInstance<TempExprNode>());
@@ -348,7 +348,7 @@ Expr Conv2dRealize(const Call& ref_call, const Array<Expr>& new_args, const Obje
 RELAY_REGISTER_OP("nn.conv2d").set_attr<FForwardRewrite>("FQRealizeRewrite", Conv2dRealize);
 
 Expr Conv1dRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
-  printf("Conv1dRealize\n");
+  //printf("Conv1dRealize\n");
   const QConfig& cfg = QConfig::Current();
   CHECK_EQ(new_args.size(), 2);
   if (!new_args[0]->IsInstance<TempExprNode>() && !new_args[1]->IsInstance<TempExprNode>()) {
@@ -406,14 +406,14 @@ Expr Conv1dRealize(const Call& ref_call, const Array<Expr>& new_args, const Obje
     mul = Multiply(MakeConstantScalar(DataType::Float(32), lhs_dom_scale_imm), MakeConstantScalar(DataType::Float(32), rhs_dom_scale_imm));
   }
   Expr dom_scale = FoldConstantOpt(mul);
-  printf("Conv1dRealize done\n");
+  //printf("Conv1dRealize done\n");
   return QRealizeIntExpr(ret, dom_scale, zero_point, out_dtype);
 }
 
 RELAY_REGISTER_OP("nn.conv1d").set_attr<FForwardRewrite>("FQRealizeRewrite", Conv1dRealize);
 
 Expr DenseRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
-  printf("DenseRealize\n");
+  //printf("DenseRealize\n");
   const QConfig& cfg = QConfig::Current();
   ICHECK_EQ(new_args.size(), 2);
   if (!new_args[0]->IsInstance<TempExprNode>() || !new_args[1]->IsInstance<TempExprNode>()) {
@@ -453,13 +453,13 @@ Expr DenseRealize(const Call& ref_call, const Array<Expr>& new_args, const Objec
   Expr mul = Multiply(MakeConstantScalar(DataType::Float(32), lhs_dom_scale_imm), MakeConstantScalar(DataType::Float(32), rhs_dom_scale_imm));
   Expr dom_scale = FoldConstantOpt(mul);
   return QRealizeIntExpr(ret, dom_scale, zero_point, out_dtype);
-  printf("DenseRealize done\n");
+  //printf("DenseRealize done\n");
 }
 
 RELAY_REGISTER_OP("nn.dense").set_attr<FForwardRewrite>("FQRealizeRewrite", DenseRealize);
 
 Expr MulRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
-  printf("MulRealize\n");
+  //printf("MulRealize\n");
   const QConfig& cfg = QConfig::Current();
   ICHECK_EQ(new_args.size(), 2);
   if (new_args[0].as<QRealizeIntExprNode>() && new_args[1].as<QRealizeIntExprNode>()) {
@@ -495,7 +495,7 @@ Expr MulRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectR
     Expr mul = Multiply(MakeConstantScalar(DataType::Float(32), lhs_dom_scale_imm), MakeConstantScalar(DataType::Float(32), rhs_dom_scale_imm));
     Expr dom_scale = FoldConstantOpt(mul);
     return QRealizeIntExpr(ret, dom_scale, zero_point, dtype);
-    printf("MulRealize done\n");
+    //printf("MulRealize done\n");
   }
   ICHECK(!new_args[0]->IsInstance<TempExprNode>() || !new_args[1]->IsInstance<TempExprNode>());
   return Expr(nullptr);
@@ -504,7 +504,7 @@ Expr MulRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectR
 RELAY_REGISTER_OP("multiply").set_attr<FForwardRewrite>("FQRealizeRewrite", MulRealize);
 
 float ChooseDomScale(const Array<Expr>& ref_args, const std::vector<const QRealizeIntExprNode*>& nptrs) {
-  printf("ChooseDomScale\n");
+  //printf("ChooseDomScale\n");
   if (nptrs.size() == 2) {
     // x = a * s1, y = b * s2
     // x + y = (a * s1 / s2 + b) * s2, if s1 > s2
@@ -520,12 +520,12 @@ float ChooseDomScale(const Array<Expr>& ref_args, const std::vector<const QReali
     return s;
     //float s1 = GetScalarFromConstant<float>(nptrs[0]->dom_scale);
     //float s2 = GetScalarFromConstant<float>(nptrs[1]->dom_scale);
-    printf("ChooseDomScale done\n");
+    //printf("ChooseDomScale done\n");
     
   } else {
     const QConfig& cfg = QConfig::Current();
     float scale = cfg->global_scale;
-    printf("ChooseDomScale done\n");
+    //printf("ChooseDomScale done\n");
     return scale / std::pow(2.0, cfg->nbit_activation - 1);
   }
 }
@@ -546,7 +546,7 @@ std::vector<ValueType> GetConcrete(const Array<PrimExpr>& vals) {
 Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args,
                             DataType* dtype_ptr, Expr* scale_ptr,
                             DataType dtype = DataType::Void()) {
-  printf("UnifyDTypeScale\n");
+  //printf("UnifyDTypeScale\n");
   static const Op& simulated_quantize = Op::Get("relay.op.annotation.simulated_quantize");
   const QConfig& cfg = QConfig::Current();
   std::vector<const QRealizeIntExprNode*> nptrs;
@@ -578,15 +578,15 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
       dtype = cfg->dtype_activation;
     }
   }
-  printf("add unify type\n");
+  //printf("add unify type\n");
   Op opp = Downcast<Op>(ref_args[1].as<CallNode>()->op);
   if(opp->name == "relay.op.annotation.simulated_quantize"){
-    printf("add unify type into\n");
+    //printf("add unify type into\n");
     zp.Set(0,Cast(zp[0],dtype));
     zp.Set(1,Cast(zp[1],DataType::Float(32)));
     ret.Set(0,Cast(ret[0],dtype));
     ret.Set(1,Cast(ret[1],DataType::Float(32)));
-    printf("add unify type into done\n");
+    //printf("add unify type into done\n");
   }
   else{
     for (size_t i = 0; i < ret.size(); ++i) {
@@ -604,17 +604,22 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
   }
 
   float s;
+  float s_0;
+  float s_1;
   std::vector<float> s_vector;
+  std::vector<float> s_vector_0;
+  std::vector<float> s_vector_1;
   Expr dom_scale;
+  Expr dom_scale_1;
   // unify the dom_scale
-  printf("###1");
-  printf("###2");
-  //printf( "add[0].dom_scale->shape.size()=%d\n",static_cast<int>(nptrs[0]->dom_scale->type_as<TensorTypeNode>()->shape.size()) );
+  //printf("###1");
+  //printf("###2");
+  ////printf( "add[0].dom_scale->shape.size()=%d\n",static_cast<int>(nptrs[0]->dom_scale->type_as<TensorTypeNode>()->shape.size()) );
   Op op = Downcast<Op>(ref_args[1].as<CallNode>()->op);
-  //printf("%s",op->name.c_str);
+  ////printf("%s",op->name.c_str);
   if(op->name == "relay.op.annotation.simulated_quantize"){
     if(ref_args[1].as<CallNode>()->attrs.as<SimulatedQuantizeAttrs>()->kind == kQBias && cfg->per_channel && nptrs[0]->dom_scale->type_as<TensorTypeNode>()->shape.size()!=0 ){
-      printf("add in bias with per_channels\n");
+      //printf("add in bias with per_channels\n");
       s_vector = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[0]->dom_scale);
       std::vector<float> output_multipliers;
       for (size_t i = 0; i < s_vector.size(); i++) {
@@ -630,11 +635,11 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
       //ret.Set(1,Divide(Cast(ret[1],DataType::Float(32)), Cast(dom_scale, DataType::Float(32))));
       ret.Set(1,CheckPointBiasS(Multiply(Cast(ret[1],DataType::Float(32)), output_multiplier)));// add[1] = bias/dom_scale = (192,1,1)*(192,1,1)
       ret.Set(1, Cast(Round(ret[1]), dtype));
-      printf("add in bias with per_channels done\n");
+      //printf("add in bias with per_channels done\n");
     }
     //当遇到shi
     else if(ref_args[1].as<CallNode>()->attrs.as<SimulatedQuantizeAttrs>()->kind == kQBias && (!cfg->per_channel || nptrs[0]->dom_scale->type_as<TensorTypeNode>()->shape.size()==0 )){
-      printf("add in bias without per_channel\n");
+      //printf("add in bias without per_channel\n");
       s_vector = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[0]->dom_scale);
       s = static_cast<float>(s_vector[0]);
       //dom_scale = MakeConstantScalar(dtype, s);
@@ -644,10 +649,10 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
       //ret.Set(1,Divide(ret[1], dom_scale));
       ret.Set(1,CheckPointBiasS(Divide(Cast(ret[1], DataType::Float(32)), dom_scale )));
       ret.Set(1, Cast(Round(ret[1]), dtype));
-      printf("add in bias without per_channel done\n");
+      //printf("add in bias without per_channel done\n");
     }
     else{
-      printf("add fixedpoint mul");
+      //printf("add fixedpoint mul");
       s = ChooseDomScale(ref_args,nptrs);
       dom_scale = MakeConstantScalar(DataType::Float(32), s);
       for (size_t i = 0; i < ret.size(); ++i) {
@@ -660,7 +665,8 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
     }
   }
   else{
-    printf("last is not simulated_quantize");
+    //printf("last is not simulated_quantize");
+    /*
     s = ChooseDomScale(ref_args,nptrs);
     dom_scale = MakeConstantScalar(DataType::Float(32), s);
     for (size_t i = 0; i < ret.size(); ++i) {
@@ -670,15 +676,30 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
       ret.Set(i,Subtract(ret[i], zp[i]));
       ret.Set(i, MulAndDiv_nobias(ret[i], cur_s, s, dtype, ref_args[i]->type_as<TensorTypeNode>()->shape));
     }
+    */
+      s_vector_0 = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[0]->dom_scale);
+      s_0 = static_cast<float>(s_vector_0[0]);
+      s_vector_1 = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[1]->dom_scale);
+      s_1 = static_cast<float>(s_vector_1[0]);
+      //dom_scale = MakeConstantScalar(dtype, s);
+      dom_scale = MakeConstantScalar(DataType::Float(32), s_0);
+      dom_scale_1 = MakeConstantScalar(DataType::Float(32), s_1);
+
+      ret.Set(0,Subtract(ret[0], zp[0]));
+      ret.Set(1,(Subtract(ret[1], zp[1])));   
+      //ret.Set(1,Divide(ret[1], dom_scale));
+      ret.Set(1,(Multiply(Cast(ret[1], DataType::Float(32)), Divide(dom_scale_1, dom_scale) )));
+      ret.Set(1, Cast(Round(ret[1]), dtype));
+
   }
   *dtype_ptr = dtype;
   *scale_ptr = dom_scale;
-  printf("UnifyDTypeScale done\n");
+  //printf("UnifyDTypeScale done\n");
   return ret;
 }
 
 Expr AddRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
-  printf("AddRealize\n");
+  //printf("AddRealize\n");
   ICHECK_EQ(new_args.size(), 2);
   if (new_args[0].as<QRealizeIntExprNode>() && new_args[1].as<QRealizeIntExprNode>()) {
     DataType dtype;
@@ -697,7 +718,7 @@ Expr AddRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectR
     Expr ret;
     ret = ForwardOp(ref_call, ret_args);
     
-    printf("AddRealize done\n");
+    //printf("AddRealize done\n");
     return QRealizeIntExpr(ret, dom_scale, zero_point, dtype);
   }
 
@@ -708,7 +729,7 @@ Expr AddRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectR
 RELAY_REGISTER_OP("add").set_attr<FForwardRewrite>("FQRealizeRewrite", AddRealize);
 
 Expr ClipRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
-  printf("ClipRealize\n");
+  //printf("ClipRealize\n");
   ICHECK_EQ(new_args.size(), 1);
   if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
 
@@ -725,7 +746,7 @@ Expr ClipRealize(const Call& ref_call, const Array<Expr>& new_args, const Object
 
     Expr ret = Call(ref_call->op, {n->data}, Attrs(attrs), ref_call->type_args);
     Expr zero_point = MakeConstantScalar(DataType::Float(32), 0);//其实没必要存在，为了保证输入参数的统一。
-    printf("ClipRealize done\n");
+    //printf("ClipRealize done\n");
     return QRealizeIntExpr(ret, n->dom_scale, zero_point, n->dtype);
   }
   ICHECK(!new_args[0]->IsInstance<TempExprNode>());
@@ -735,7 +756,7 @@ Expr ClipRealize(const Call& ref_call, const Array<Expr>& new_args, const Object
 RELAY_REGISTER_OP("clip").set_attr<FForwardRewrite>("FQRealizeRewrite", ClipRealize);
 
 Expr ConcatenateRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
-  printf("ConcatenateRealize\n");
+  //printf("ConcatenateRealize\n");
   ICHECK_EQ(new_args.size(), 1);
   ICHECK_EQ(ref_call->args.size(), 1);
 
@@ -751,7 +772,7 @@ Expr ConcatenateRealize(const Call& ref_call, const Array<Expr>& new_args, const
     Expr dom_scale;
     Array<Expr> ret_args = UnifyDTypeScale(ref_arr, arr, &dtype, &dom_scale);
     Expr ret = ForwardOp(ref_call, {Tuple(ret_args)});
-    printf("ConcatenateRealize done\n");
+    //printf("ConcatenateRealize done\n");
     Expr zero_point = MakeConstantScalar(DataType::Float(32), 0);//其实没必要存在，为了保证输入参数的统一。
     return QRealizeIntExpr(ret, dom_scale, zero_point, dtype);
   } else {
@@ -766,13 +787,13 @@ RELAY_REGISTER_OP("concatenate").set_attr<FForwardRewrite>("FQRealizeRewrite", C
 
 /* \brief forward the original operator */
 Expr IdentityRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
-  printf("IdentityRealize\n");
+  //printf("IdentityRealize\n");
   ICHECK_EQ(new_args.size(), 1);
   if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
     Expr ret = ForwardOp(ref_call, {n->data});
     //Expr zero_point = MakeConstantScalar(DataType::Float(32), 0);//其实没必要存在，为了保证输入参数的统一。
     Expr zero_point = n -> zero_point;
-    printf("IdentityRealize done\n");
+    //printf("IdentityRealize done\n");
     return QRealizeIntExpr(ret, n->dom_scale, zero_point, n->dtype);
   }
   ICHECK(!new_args[0]->IsInstance<TempExprNode>());
@@ -796,7 +817,7 @@ RELAY_REGISTER_OP("annotation.stop_fusion")
 /* \brief for unary operators which requantize its input to dtype_nbit */
 Expr CastDtypeInputRealize(const Call& ref_call, const Array<Expr>& new_args,
                            const ObjectRef& ctx) {
-  printf("CastDtypeInputRealize\n");
+  //printf("CastDtypeInputRealize\n");
   const QConfig& cfg = QConfig::Current();
   ICHECK_EQ(new_args.size(), 1);
   if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
@@ -807,7 +828,7 @@ Expr CastDtypeInputRealize(const Call& ref_call, const Array<Expr>& new_args,
     Expr zero_point = MakeConstantScalar(DataType::Float(32), 0);//其实没必要存在，为了保证输入参数的统一。
     data = Subtract(data, MakeConstantScalar(cfg->dtype_input, zero_point_imm));
     Expr ret = ForwardOp(ref_call, {data});
-    printf("CastDtypeInputRealize done\n");
+    //printf("CastDtypeInputRealize done\n");
     return QRealizeIntExpr(ret, n->dom_scale, zero_point, cfg->dtype_input);
   }
   ICHECK(!new_args[0]->IsInstance<TempExprNode>());
@@ -821,7 +842,7 @@ RELAY_REGISTER_OP("nn.max_pool1d")
     .set_attr<FForwardRewrite>("FQRealizeRewrite", CastDtypeInputRealize);
 
 Expr AvgPoolRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
-  printf("AvgPoolRealize\n");
+  //printf("AvgPoolRealize\n");
   const QConfig& cfg = QConfig::Current();
   ICHECK_EQ(new_args.size(), 1);
   if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
@@ -835,7 +856,7 @@ Expr AvgPoolRealize(const Call& ref_call, const Array<Expr>& new_args, const Obj
     data = Subtract(data, MakeConstantScalar(cfg->dtype_activation, zero_point_imm));
 
     Expr ret = (ForwardOp(ref_call, {data}));
-    printf("AvgPoolRealize done\n");
+    //printf("AvgPoolRealize done\n");
     return QRealizeIntExpr(ret, n->dom_scale, zero_point, cfg->dtype_activation);
   }
   ICHECK(!new_args[0]->IsInstance<TempExprNode>());
@@ -848,14 +869,14 @@ RELAY_REGISTER_OP("nn.global_avg_pool2d")
     .set_attr<FForwardRewrite>("FQRealizeRewrite", AvgPoolRealize);
 
 Expr CastHintRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
-  printf("CastHintRealize\n");
+  //printf("CastHintRealize\n");
   const auto param = ref_call->attrs.as<CastHintAttrs>();
   ICHECK_EQ(new_args.size(), 1);
   if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
     Expr ret = Cast(n->data, param->dtype);
     Expr zero_point = n->zero_point;
     //Expr zero_point = MakeConstantScalar(DataType::Float(32), 0);//其实没必要存在，为了保证输入参数的统一。
-    printf("CastHintRealize done\n");
+    //printf("CastHintRealize done\n");
     return QRealizeIntExpr(ret, n->dom_scale, zero_point, param->dtype);
   }
   ICHECK(!new_args[0]->IsInstance<TempExprNode>());
@@ -866,7 +887,7 @@ RELAY_REGISTER_OP("annotation.cast_hint")
     .set_attr<FForwardRewrite>("FQRealizeRewrite", CastHintRealize);
 
 Expr BatchMatmulRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
-  //printf("BatchMatmulRealize\n");
+  ////printf("BatchMatmulRealize\n");
   const QConfig& cfg = QConfig::Current();
   ICHECK_EQ(new_args.size(), 2);
   if (!new_args[0]->IsInstance<TempExprNode>() || !new_args[1]->IsInstance<TempExprNode>()) {
