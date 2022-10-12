@@ -742,5 +742,79 @@ class TestRewriteAsAndOfOrsWithTopLevelAnd(BaseBeforeAfter):
         T.evaluate((A[0] or A[1]) and (A[1] or A[2]) and (A[1] or A[3]))
 
 
+class TestRewriteAsAndOfOrsWithSimplificationBetweenGroups(BaseBeforeAfter):
+    """Apply rewrite rules between OR groups that differ by a single element
+
+    The expression `(k==20 and k!=30)` could be rewritten into `(k==20)`.
+    However, by default these two terms must appear as part of an explict part
+    of the simplified expression.  The AndOfOr simplification checks for
+    rewrite patterns of the form `(A or B) and (A or C)`, where `(B and C)` can
+    simplify to a single expression `D`.  These can be rewritten to `(A or D)`.
+    """
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (i == 0 or j == 10 or k == 20) and (i == 0 or j == 10 or k != 30)
+
+    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = i == 0 or j == 10 or k == 20
+
+
+class TestRewriteAsAndOfOrsWithSimplificationBetweenReorderedGroups(BaseBeforeAfter):
+    """Rewrite rules between OR groups do not depend on order
+
+    Like TestRewriteAsAndOfOrsWithSimplificationBetweenGroups, but the groups
+    are ordered differently.  If this removes a group entirely, the result is
+    ordered according to the first group in the expression.
+    """
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (i == 0 or j == 10 or k == 20) and (j == 10 or k != 30 or i == 0)
+
+    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = i == 0 or j == 10 or k == 20
+
+
+class TestRewriteAsAndOfOrUsingSimplificationAcrossAnd(BaseBeforeAfter):
+    """Apply AndNode rewrites to non-adjacent expressions
+
+    The RewriteSimplifier rules only check for simplifications between
+    left/right branches of an And/Or node.  Simplifications that would require
+    rearranging components in a chain of And/Or nodes are not performed.
+    """
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (k == 20) and ((i == 0 or j == 10) and (k != 30))
+
+    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (k == 20) and (i == 0 or j == 10)
+
+
+class TestRewriteAsAndOfOrUsingSimplificationWithinOr(BaseBeforeAfter):
+    """Rewrite rules between OR groups do not depend on order
+
+    The RewriteSimplifier rules only check for simplifications between
+    left/right branches of an And/Or node.  Simplifications that would require
+    rearranging components in a chain of And/Or nodes are not performed.
+
+    This test validates that `(i == 20) or (i != 30)` can be rewritten to
+    `(i != 30)`, even when there's an intervening clause between the
+    clauses being simplified.
+    """
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (i == 20) or (j == 0) or (i != 30)
+
+    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (i != 30) or (j == 0)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
