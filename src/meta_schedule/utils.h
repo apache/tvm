@@ -82,32 +82,32 @@ class PyLogMessage {
     // FATAL not included
   };
 
-  explicit PyLogMessage(const char* file, int lineno, PackedFunc logger, Level logging_level)
-      : file_(file), lineno_(lineno), logger_(logger), logging_level_(logging_level) {}
+  explicit PyLogMessage(const char* filename, int lineno, PackedFunc logger, Level logging_level)
+      : filename_(filename), lineno_(lineno), logger_(logger), logging_level_(logging_level) {}
 
   TVM_NO_INLINE ~PyLogMessage() {
     ICHECK(logging_level_ != Level::CLEAR)
         << "Cannot use CLEAR as logging level in TVM_PY_LOG, please use TVM_PY_LOG_CLEAR_SCREEN.";
     if (this->logger_ != nullptr) {
-      logger_(static_cast<int>(logging_level_), std::string(file_), lineno_, stream_.str());
+      logger_(static_cast<int>(logging_level_), std::string(filename_), lineno_, stream_.str());
     } else {
       if (logging_level_ == Level::INFO) {
-        runtime::detail::LogMessage(file_, lineno_).stream() << stream_.str();
+        runtime::detail::LogMessage(filename_, lineno_).stream() << stream_.str();
       } else if (logging_level_ == Level::WARNING) {
-        runtime::detail::LogMessage(file_, lineno_).stream() << "Warning: " << stream_.str();
+        runtime::detail::LogMessage(filename_, lineno_).stream() << "Warning: " << stream_.str();
       } else if (logging_level_ == Level::ERROR) {
-        runtime::detail::LogMessage(file_, lineno_).stream() << "Error: " << stream_.str();
+        runtime::detail::LogMessage(filename_, lineno_).stream() << "Error: " << stream_.str();
       } else if (logging_level_ == Level::DEBUG) {
-        runtime::detail::LogMessage(file_, lineno_).stream() << "Debug: " << stream_.str();
+        runtime::detail::LogMessage(filename_, lineno_).stream() << "Debug: " << stream_.str();
       } else {
-        runtime::detail::LogFatal(file_, lineno_).stream() << stream_.str();
+        runtime::detail::LogFatal(filename_, lineno_).stream() << stream_.str();
       }
     }
   }
   std::ostringstream& stream() { return stream_; }
 
  private:
-  const char* file_;
+  const char* filename_;
   int lineno_;
   std::ostringstream stream_;
   PackedFunc logger_;
