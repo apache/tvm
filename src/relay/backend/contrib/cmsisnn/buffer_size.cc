@@ -16,141 +16,198 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/*!
+ * \file src/relay/backend/contrib/cmsisnn/buffer_size.cc
+ * \brief This file contains CMSIS-NN buffer size functions similar to present
+ *  here:
+ * https://github.com/ARM-software/CMSIS_5/tree/51263182d16c92649a48144ba56c0945f9fce60e/CMSIS/NN
+ */
 
 #include "buffer_size.h"
 
-#include <tvm/ir/attrs.h>
-#include <tvm/ir/transform.h>
-
-#include "compiler_attrs.h"
+#include <stdint.h>
 
 namespace tvm {
 namespace relay {
 namespace contrib {
 namespace cmsisnn {
 
-int Conv2dBufferSize(bool is_int16, Target target, int32_t padding_w, int32_t padding_h,
-                     int32_t input_n, int32_t input_h, int32_t input_c, int32_t output_h,
-                     int32_t output_w, int32_t stride_w, int32_t stride_h, int32_t dilation_w,
-                     int32_t dilation_h, int32_t filter_w, int32_t filter_h) {
-  int size = -1;
-  if (is_int16) {
-    size = Conv2dBufferSizeInt16(target, padding_w, padding_h, input_n, input_h, input_c, output_h,
-                                 output_w, stride_w, stride_h, dilation_w, dilation_h, filter_w,
-                                 filter_h);
+#define USE_FAST_DW_CONV_FUNCTION(dw_conv_params, filter_dims, input_dims) \
+  dw_conv_params->ch_mult == 1 && dw_conv_params->dilation.w == 1 &&       \
+      dw_conv_params->dilation.h == 1 && filter_dims->w * filter_dims->h * input_dims->c < 512
+
+#define CH_IN_BLOCK_MVE (124)
+
+int32_t AvgpoolS16GetBufferSize(bool has_mve, bool has_dsp, const int output_x, const int ch_src) {
+  (void)output_x;
+  if (has_dsp && !has_mve) {
+    return (ch_src * (int32_t)sizeof(int32_t));
   } else {
-    size = Conv2dBufferSizeInt8(target, padding_w, padding_h, input_n, input_h, input_c, output_h,
-                                output_w, stride_w, stride_h, dilation_w, dilation_h, filter_w,
-                                filter_h);
+    (void)ch_src;
   }
-  return size;
+  return 0;
 }
 
-int Conv2dBufferSizeInt8(Target target, int32_t padding_w, int32_t padding_h, int32_t input_n,
-                         int32_t input_h, int32_t input_c, int32_t output_h, int32_t output_w,
-                         int32_t stride_w, int32_t stride_h, int32_t dilation_w, int32_t dilation_h,
-                         int32_t filter_w, int32_t filter_h) {
-  bool is1x1 = (padding_w == 0) && (padding_h == 0) && (input_c % 4 == 0) && (stride_w == 1) &&
-               (stride_h == 1) && (filter_w == 1) && (filter_h == 1) && (dilation_w == 1) &&
-               (dilation_h == 1);
-  bool is1xN = (output_h == 1) && (input_h == 1) && (filter_h == 1) && (output_w % 4 == 0) &&
-               (input_n == 1) && (dilation_w == 1) && (dilation_h == 1);
+int32_t AvgpoolS8GetBufferSize(bool has_mve, bool has_dsp, const int output_x, const int ch_src) {
+  (void)output_x;
 
-  bool has_mve = target->GetFeature<Bool>("has_mve").value_or(Bool(false));
-
-  if (is1x1) {
+  if (has_dsp && !has_mve) {
+    return (ch_src * sizeof(int32_t));
+  } else {
+    (void)ch_src;
     return 0;
   }
+}
 
-  if (is1xN) {
-    if (has_mve) {
-      return 0;
-    }
-    return (2 * input_c * filter_w * filter_h) * (int32_t)sizeof(int16_t);
+int32_t ConvolveFastS16GetBufferSize(bool has_mve, bool has_dsp, const Dims* input_dims,
+                                     const Dims* filter_dims) {
+  if (has_dsp && !has_mve) {
+    return (2 * input_dims->c * filter_dims->w * filter_dims->h) * (int32_t)sizeof(int16_t);
+  } else {
+    (void)input_dims;
+    (void)filter_dims;
+    return 0;
   }
+}
 
-  if (has_mve || is1xN) {
-    int32_t col_length = input_c * filter_w * filter_h;
+int32_t ConvolveS8GetBufferSize(bool has_mve, bool has_dsp, const Dims* input_dims,
+                                const Dims* filter_dims) {
+  if (has_mve) {
+    int32_t col_length = input_dims->c * filter_dims->w * filter_dims->h;
+    // Get number of complete int16 lanes(multiple of 8) for given col_length. This is dependent on
+    // implementation of  arm_nn_mat_mult_s8
     col_length = (col_length + 7) / 8;
+    // 4 -> number of im2col buffers, 8 -> 8 elements per Q register
     return 4 * col_length * 8 * (int32_t)sizeof(int8_t);
   } else {
-    return (2 * input_c * filter_w * filter_h) * (int32_t)sizeof(int16_t);
+    return (2 * input_dims->c * filter_dims->w * filter_dims->h) * (int32_t)sizeof(int16_t);
   }
-  return 0;
 }
 
-int Conv2dBufferSizeInt16(Target target, int32_t padding_w, int32_t padding_h, int32_t input_n,
-                          int32_t input_h, int32_t input_c, int32_t output_h, int32_t output_w,
-                          int32_t stride_w, int32_t stride_h, int32_t dilation_w,
-                          int32_t dilation_h, int32_t filter_w, int32_t filter_h) {
-  bool has_mve = target->GetFeature<Bool>("has_mve").value_or(Bool(false));
-  bool has_dsp = target->GetFeature<Bool>("has_dsp").value_or(Bool(false));
+int32_t DepthwiseConvWrapperS8GetBufferSize(bool has_mve, bool has_dsp,
+                                            const DepthwiseConvParams* dw_conv_params,
+                                            const Dims* input_dims, const Dims* filter_dims,
+                                            const Dims* output_dims) {
+  (void)dw_conv_params;
+  int32_t size = 0;
 
-  if (has_dsp && !has_mve) {
-    if ((filter_w * filter_h * input_c < 512) && dilation_w == 1 && dilation_h == 1) {
-      return (2 * input_c * filter_w * filter_h) * (int32_t)sizeof(int16_t);
-    }
+  if (input_dims->c == output_dims->c && input_dims->n == 1 && dw_conv_params->dilation.w == 1 &&
+      dw_conv_params->dilation.h == 1) {
+    size = DepthwiseConvS8OptGetBufferSize(has_mve, has_dsp, input_dims, filter_dims);
   }
-  return 0;
-}
 
-int DepthwiseConv2dBufferSize(bool is_int16, Target target, int32_t input_n, int32_t input_c,
-                              int32_t output_c, int32_t filter_w, int32_t filter_h,
-                              int32_t dilation_w, int32_t dilation_h, int32_t depth_multiplier) {
-  int size = -1;
-  if (is_int16) {
-    size = DepthwiseConv2dBufferSizeInt16(target, input_n, input_c, output_c, filter_w, filter_h,
-                                          dilation_w, dilation_h, depth_multiplier);
-  } else {
-    size = DepthwiseConv2dBufferSizeInt8(target, input_n, input_c, output_c, filter_w, filter_h,
-                                         dilation_w, dilation_h, depth_multiplier);
-  }
   return size;
 }
 
-int DepthwiseConv2dBufferSizeInt8(Target target, int32_t input_n, int32_t input_c, int32_t output_c,
-                                  int32_t filter_w, int32_t filter_h, int32_t dilation_w,
-                                  int32_t dilation_h, int32_t depth_multiplier) {
-  bool has_mve = target->GetFeature<Bool>("has_mve").value_or(Bool(false));
-  bool has_dsp = target->GetFeature<Bool>("has_dsp").value_or(Bool(false));
+int32_t DepthwiseConvWrapperS16GetBufferSize(bool has_mve, bool has_dsp,
+                                             const DepthwiseConvParams* dw_conv_params,
+                                             const Dims* input_dims, const Dims* filter_dims,
+                                             const Dims* output_dims) {
+  (void)dw_conv_params;
+  (void)input_dims;
+  (void)filter_dims;
+  (void)output_dims;
+  int32_t size = 0;
 
-  if (input_c == output_c && input_n == 1 && dilation_w == 1 && dilation_h == 1) {
+  if (USE_FAST_DW_CONV_FUNCTION(dw_conv_params, filter_dims, input_dims)) {
+    size = DepthwiseConvFastS16GetBufferSize(has_mve, has_dsp, input_dims, filter_dims);
+  }
+
+  return size;
+}
+
+int32_t DepthwiseConvS8OptGetBufferSize(bool has_mve, bool has_dsp, const Dims* input_dims,
+                                        const Dims* filter_dims) {
+  if (has_mve) {
+    (void)input_dims;
+    return (4 * CH_IN_BLOCK_MVE * filter_dims->w * filter_dims->h) * (int32_t)sizeof(int8_t);
+  } else if (has_dsp) {
+    return (input_dims->c * filter_dims->w * filter_dims->h) * sizeof(int16_t);
+  } else {
+    (void)input_dims;
+    (void)filter_dims;
+    return 0;
+  }
+}
+
+int32_t ConvolveWrapperS8GetBufferSize(bool has_mve, bool has_dsp, const ConvParams* conv_params,
+                                       const Dims* input_dims, const Dims* filter_dims,
+                                       const Dims* output_dims) {
+  if ((conv_params->padding.w == 0) && (conv_params->padding.h == 0) &&
+      (conv_params->stride.w == 1) && (conv_params->stride.h == 1) && (filter_dims->w == 1) &&
+      (filter_dims->h == 1) && (conv_params->dilation.w == 1 && conv_params->dilation.h == 1)) {
+    return Convolve1x1S8FastGetBufferSize(has_mve, has_dsp, input_dims);
+  } else if ((input_dims->h == 1) && (output_dims->w % 4 == 0) && (conv_params->dilation.w == 1) &&
+             (filter_dims->h == 1)) {
+    return Convolve1XNS8GetBufferSize(has_mve, has_dsp, input_dims, filter_dims);
+  } else {
+    return ConvolveS8GetBufferSize(has_mve, has_dsp, input_dims, filter_dims);
+  }
+}
+
+int32_t ConvolveS16GetBufferSize(bool has_mve, bool has_dsp, const Dims* input_dims,
+                                 const Dims* filter_dims) {
+  (void)input_dims;
+  (void)filter_dims;
+  return 0;
+}
+
+int32_t DepthwiseConvFastS16GetBufferSize(bool has_mve, bool has_dsp, const Dims* input_dims,
+                                          const Dims* filter_dims) {
+  if (has_dsp) {
     if (has_mve) {
-      return (4 * CH_IN_BLOCK_MVE * filter_w * filter_h) * (int32_t)sizeof(int8_t);
-    } else if (has_dsp) {
-      return (input_c * filter_w * filter_h) * (int32_t)sizeof(int16_t);
+      return 4 * input_dims->c * filter_dims->w * filter_dims->h * sizeof(int16_t) + 8;
+    } else {
+      return input_dims->c * filter_dims->w * filter_dims->h * sizeof(int16_t);
     }
+  } else {
+    (void)input_dims;
+    (void)filter_dims;
+    return 0;
   }
-  return 0;
 }
 
-int DepthwiseConv2dBufferSizeInt16(Target target, int32_t input_n, int32_t input_c,
-                                   int32_t output_c, int32_t filter_w, int32_t filter_h,
-                                   int32_t dilation_w, int32_t dilation_h,
-                                   int32_t depth_multiplier) {
-  bool has_mve = target->GetFeature<Bool>("has_mve").value_or(Bool(false));
-  bool has_dsp = target->GetFeature<Bool>("has_dsp").value_or(Bool(false));
-
-  if (depth_multiplier == 1 && dilation_w == 1 && dilation_h == 1 &&
-      filter_w * filter_h * input_c < 512) {
-    if (has_dsp) {
-      if (has_mve) {
-        return 4 * input_c * filter_w * filter_h * (int32_t)sizeof(int16_t) + 8;
-      } else {
-        return input_c * filter_w * filter_h * (int32_t)sizeof(int16_t);
-      }
-    }
+int32_t Convolve1XNS8GetBufferSize(bool has_mve, bool has_dsp, const Dims* input_dims,
+                                   const Dims* filter_dims) {
+  if (!has_mve) {
+    return ConvolveS8GetBufferSize(has_mve, has_dsp, input_dims, filter_dims);
+  } else {
+    (void)input_dims;
+    (void)filter_dims;
+    return 0;
   }
-  return 0;
 }
 
-int AvgPoolBufferSize(Target target, int32_t input_c) {
-  bool has_mve = target->GetFeature<Bool>("has_mve").value_or(Bool(false));
-  bool has_dsp = target->GetFeature<Bool>("has_dsp").value_or(Bool(false));
+int32_t ConvolveWrapperS16GetBufferSize(bool has_mve, bool has_dsp, const ConvParams* conv_params,
+                                        const Dims* input_dims, const Dims* filter_dims,
+                                        const Dims* output_dims) {
+  (void)conv_params;
+  (void)output_dims;
 
   if (has_dsp && !has_mve) {
-    return (input_c * sizeof(int32_t));
+    if (filter_dims->w * filter_dims->h * input_dims->c < 512 &&
+        (conv_params->dilation.w == 1 && conv_params->dilation.h == 1)) {
+      return ConvolveFastS16GetBufferSize(has_mve, has_dsp, input_dims, filter_dims);
+    }
+
+    return ConvolveS16GetBufferSize(has_mve, has_dsp, input_dims, filter_dims);
+  } else {
+    return ConvolveS16GetBufferSize(has_mve, has_dsp, input_dims, filter_dims);
   }
+}
+
+int32_t Convolve1x1S8FastGetBufferSize(bool has_mve, bool has_dsp, const Dims* input_dims) {
+  (void)input_dims;
+  return 0;
+}
+
+int32_t FullyConnectedS8GetBufferSize(bool has_mve, bool has_dsp, const Dims* filter_dims) {
+  (void)filter_dims;
+  return 0;
+}
+
+int32_t FullyConnectedS16GetBufferSize(bool has_mve, bool has_dsp, const Dims* filter_dims) {
+  (void)filter_dims;
   return 0;
 }
 

@@ -208,6 +208,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
     Array<PrimExpr> input_shape = conv2d_call->args[0]->type_as<TensorTypeNode>()->shape;
     int32_t input_n = qnn::get_const_int(input_shape[0]);
     int32_t input_h = qnn::get_const_int(input_shape[1]);
+    int32_t input_w = qnn::get_const_int(input_shape[2]);
     int32_t input_c = qnn::get_const_int(input_shape[3]);
 
     // CMSIS-NN data structure "cmsis_nn_dims" for weights expects following layouts
@@ -217,6 +218,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
     Array<PrimExpr> bias_shape{1, 1, 1, out_channels};
 
     Array<PrimExpr> output_shape = conv2d_call->type_as<TensorTypeNode>()->shape;
+    int32_t output_n = qnn::get_const_int(output_shape[0]);
     int32_t output_h = qnn::get_const_int(output_shape[1]);
     int32_t output_w = qnn::get_const_int(output_shape[2]);
     int32_t output_c = qnn::get_const_int(output_shape[3]);
@@ -243,8 +245,10 @@ class RelayToTIRVisitor : public MixedModeMutator {
                                              filter_shape[filter_pos_w], out_channels};
       filter_shape = depthwise_filter_shape;
     }
+    int32_t filter_n = qnn::get_const_int(filter_shape[0]);
     int32_t filter_h = qnn::get_const_int(filter_shape[1]);
     int32_t filter_w = qnn::get_const_int(filter_shape[2]);
+    int32_t filter_c = qnn::get_const_int(filter_shape[3]);
 
     tvm::Array<PrimExpr> call_ext_args = {tir::StringImm(cmsisnn_api), input, filter, multiplier};
     if (bias_add_call) {
@@ -256,15 +260,39 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     PrimExpr context_buffer_var = tir::StringImm("NULL");
     Target target = CreateTarget(transform::PassContext::Current());
+    bool has_mve = target->GetFeature<Bool>("has_mve").value_or(Bool(false));
+    bool has_dsp = target->GetFeature<Bool>("has_dsp").value_or(Bool(false));
+    Dims input_dims = {input_n, input_h, input_w, input_c};
+    Dims filter_dims = {filter_n, filter_h, filter_w, filter_c};
+    Dims output_dims = {output_n, output_h, output_w, output_c};
+
     size_t context_buffer_size;
     if (is_depthwise) {
-      context_buffer_size =
-          DepthwiseConv2dBufferSize(is_int16, target, input_n, input_c, output_c, filter_w,
-                                    filter_h, dilation_w, dilation_h, depth_multiplier);
+      DepthwiseConvParams dw_conv_params = {input_offset,           output_offset,
+                                            depth_multiplier,       {stride_w, stride_h},
+                                            {padding_w, padding_h}, {dilation_w, dilation_h},
+                                            {clip_min, clip_max}};
+      if (is_int16) {
+        context_buffer_size = DepthwiseConvWrapperS16GetBufferSize(
+            has_mve, has_dsp, &dw_conv_params, &input_dims, &filter_dims, &output_dims);
+      } else {
+        context_buffer_size = DepthwiseConvWrapperS8GetBufferSize(
+            has_mve, has_dsp, &dw_conv_params, &input_dims, &filter_dims, &output_dims);
+      }
     } else {
-      context_buffer_size = Conv2dBufferSize(is_int16, target, padding_w, padding_h, input_n,
-                                             input_h, input_c, output_h, output_w, stride_w,
-                                             stride_h, dilation_w, dilation_h, filter_w, filter_h);
+      ConvParams conv_params = {input_offset,
+                                output_offset,
+                                {stride_w, stride_h},
+                                {padding_w, padding_h},
+                                {dilation_w, dilation_h},
+                                {clip_min, clip_max}};
+      if (is_int16) {
+        context_buffer_size = ConvolveWrapperS16GetBufferSize(
+            has_mve, has_dsp, &conv_params, &input_dims, &filter_dims, &output_dims);
+      } else {
+        context_buffer_size = ConvolveWrapperS8GetBufferSize(
+            has_mve, has_dsp, &conv_params, &input_dims, &filter_dims, &output_dims);
+      }
     }
 
     if (context_buffer_size) {
@@ -460,7 +488,10 @@ class RelayToTIRVisitor : public MixedModeMutator {
     if (pool_name == "cmsis-nn.qnn_avg_pool2d") {
       Target target = CreateTarget(transform::PassContext::Current());
       int32_t input_c = qnn::get_const_int(input_shape[3]);
-      context_buffer_size = AvgPoolBufferSize(target, input_c);
+      int32_t output_w = qnn::get_const_int(output_shape[2]);
+      bool has_mve = target->GetFeature<Bool>("has_mve").value_or(Bool(false));
+      bool has_dsp = target->GetFeature<Bool>("has_dsp").value_or(Bool(false));
+      context_buffer_size = AvgpoolS8GetBufferSize(has_mve, has_dsp, output_w, input_c);
       if (context_buffer_size) {
         std::string context_buffer_name = "context_buffer_" + std::to_string(context_buffer_id_++);
         context_buffer_var = tir::Var(context_buffer_name,
