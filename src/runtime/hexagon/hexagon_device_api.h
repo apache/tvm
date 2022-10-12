@@ -48,7 +48,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
   static HexagonDeviceAPI* Global();
 
   //! \brief Constructor
-  HexagonDeviceAPI() { mgr = &hexbuffs; }
+  HexagonDeviceAPI() {}
 
   //! \brief Destructor
   ~HexagonDeviceAPI() {}
@@ -60,7 +60,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
     CHECK_EQ(runtime_hexbuffs, nullptr);
     runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
-    mgr = runtime_hexbuffs.get();
+    released_runtime_buffers.clear();
 
     CHECK_EQ(runtime_threads, nullptr);
     runtime_threads = std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size);
@@ -78,10 +78,10 @@ class HexagonDeviceAPI final : public DeviceAPI {
     runtime_threads.reset();
 
     CHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
-    if (runtime_hexbuffs && !runtime_hexbuffs->empty()) {
-      LOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
+    if (!runtime_hexbuffs->empty()) {
+      DLOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
+      released_runtime_buffers = runtime_hexbuffs->current_allocations();
     }
-    mgr = &hexbuffs;
     runtime_hexbuffs.reset();
 
     CHECK(runtime_vtcm) << "runtime_vtcm was not created in AcquireResources";
@@ -105,6 +105,12 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Free the allocated HexagonBuffer.
   void FreeDataSpace(Device dev, void* ptr) final;
+
+  //! \brief Hexagon-only interface to allocate buffers used for the RPC server
+  void* AllocRpcBuffer(size_t nbytes, size_t alignment);
+
+  //! \brief Hexagon-only interface to free buffers used for the RPC server
+  void FreeRpcBuffer(void* ptr);
 
   /*! \brief Request a dynamically allocated HexagonBuffer from a workspace pool.
    *  \returns The underlying allocation pointer.
@@ -190,15 +196,21 @@ class HexagonDeviceAPI final : public DeviceAPI {
            (DLDeviceType(dev.device_type) == kDLCPU);
   }
 
-  //! \brief Manages underlying HexagonBuffer allocations
-  // runtime_hexbuffs is used for runtime allocations.  It is created
-  // with a call to AcquireResources, and destroyed on ReleaseResources.
-  // hexbuffs is used for all allocations outside of the session lifetime.
-  HexagonBufferManager hexbuffs;
+  //! \brief Manages RPC HexagonBuffer allocations
+  // rpc_hexbuffs is used only in Alloc/FreeRpcBuffer.  It is static because it lives for the
+  // lifetime of the static Device API.
+  HexagonBufferManager rpc_hexbuffs;
+
+  //! \brief Manages runtime HexagonBuffer allocations
+  // runtime_hexbuffs is used for runtime allocations, separate from rpc_hexbuffs.  It is created
+  // with a call to AcquireResources, and destroyed on ReleaseResources.  The buffers in this
+  // manager are scoped to the lifetime of a user application session.
   std::unique_ptr<HexagonBufferManager> runtime_hexbuffs;
 
-  //! \brief Current buffer manager
-  HexagonBufferManager* mgr;
+  //! \brief Keeps a list of released runtime HexagonBuffer allocations
+  // ReleaseResources can be called when there are still buffers in runtime_hexbuffs.  This list
+  // stores the buffers that were released.
+  std::vector<void*> released_runtime_buffers;
 
   //! \brief Thread manager
   std::unique_ptr<HexagonThreadManager> runtime_threads;
