@@ -110,6 +110,7 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
   /*! \brief Maps a buffer load to an index map associated with the load / store
     in a layout rewrite block. */
   std::unordered_map<const VarNode*, IndexMap> buffer_var_to_index_map_;
+  /*! \brief Maps a buffer load to the shape of the corresponding rewritten buffer. */
   std::unordered_map<const VarNode*, Array<PrimExpr>> buffer_var_to_rewritten_shape_;
 };
 
@@ -148,7 +149,7 @@ class AllocateConstRewrite : public StmtExprMutator {
       const BufferVarMap& buffer_var_map,
       const std::unordered_map<const VarNode*, IndexMap>& buffer_var_to_index_map,
       const std::unordered_map<const VarNode*, Array<PrimExpr>>& buffer_var_to_rewritten_shape,
-       bool skip_ndarray_rewrite)
+      bool skip_ndarray_rewrite)
       : buffer_var_map_(buffer_var_map),
         buffer_var_to_index_map_(buffer_var_to_index_map),
         buffer_var_to_rewritten_shape_(buffer_var_to_rewritten_shape),
@@ -203,6 +204,7 @@ class AllocateConstRewrite : public StmtExprMutator {
   runtime::NDArray RewriteNDArray(runtime::NDArray src, const IndexMap& index_map,
                                   const Array<PrimExpr>& dst_shape) {
     if (skip_ndarray_rewrite_) {
+      // Only the shape of the destination array needs to be correct.
       std::vector<int64_t> dst_shape_int;
       for (auto s : dst_shape) {
         ICHECK(s->IsInstance<IntImmNode>());
@@ -219,9 +221,11 @@ class AllocateConstRewrite : public StmtExprMutator {
   /*! \brief Maps a buffer load to an index map associated with the load / store
     in a layout rewrite block. */
   std::unordered_map<const VarNode*, IndexMap> buffer_var_to_index_map_;
+  /*! \brief Maps a buffer load to the shape of the corresponding rewritten buffer. */
   std::unordered_map<const VarNode*, Array<PrimExpr>> buffer_var_to_rewritten_shape_;
   /*! \brief Maps load buffer variables to newly created buffers */
   std::unordered_map<const VarNode*, Buffer> new_load_buf_;
+  /*! \brief Whether or not to skip rewriting of NDArray contents */
   bool skip_ndarray_rewrite_;
 };
 
@@ -255,8 +259,7 @@ class WeightLayoutRewriteBlockRemover : public StmtMutator {
     PrimFuncNode* n = f_.CopyOnWrite();
 
     AllocateConstRewrite rewriter(buffer_var_map, buffer_var_to_index_map,
-                                  buffer_var_to_rewritten_shape,
-				  skip_ndarray_rewrite);
+                                  buffer_var_to_rewritten_shape, skip_ndarray_rewrite);
     n->body = rewriter(std::move(n->body));
 
     Map<tir::Var, Buffer> buffer_map;
