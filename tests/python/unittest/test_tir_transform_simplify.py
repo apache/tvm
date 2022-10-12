@@ -727,11 +727,18 @@ class TestRewriteAsAndOfOrsWithTopLevelAnd(BaseBeforeAfter):
         T.evaluate((A[0] or A[1]) and (A[1] or (A[0] and A[2] and A[3])))
 
     def expected(A: T.Buffer[4, "bool"]):
-        # If the simplification is applied to the OrNode, then the
-        # redundant `(A[1] or A[0])` isn't canceled out
+        # If the simplification is applied to the OrNode, then a
+        # redundant `(A[1] or A[0])` would't be canceled out.  When
+        # applying SimplifyAsAndOfOrs to the top-level AndNode, the
+        # internal representation is `[[0,1], [1,0], [1,2], [1,3]]`, and
+        # the redundant `[1,0]` can be removed.
         #
-        # T.evaluate((A[0] or A[1]) and ((A[1] or A[0]) and (A[1] or A[2]) and (A[1] or A[3])))
-        #
+        # If the simplification were only applied when encountering an
+        # OrNode, the internal representation would be `[[0,1]]` during
+        # the first call and `[[1,0], [1,2], [1,3]]` during the second
+        # call.  As a result, the `[0,1]` and `[1,0]` representations
+        # wouldn't occur within the same call, and the redundant `[1,0]`
+        # wouldn't be removed.
         T.evaluate((A[0] or A[1]) and (A[1] or A[2]) and (A[1] or A[3]))
 
 
