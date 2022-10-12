@@ -129,23 +129,23 @@ class AndOfOrs {
    *
    * `chunks[i][j]` is the j-th expression in the i-th OR-group.
    */
-  std::vector<std::vector<Key>> chunks;
+  std::vector<std::vector<Key>> chunks_;
 
   /*! \brief Mapping from internal Key to PrimExpr */
-  std::unordered_map<Key, PrimExpr, StructuralHash, StructuralEqual> key_to_expr;
+  std::unordered_map<Key, PrimExpr, StructuralHash, StructuralEqual> key_to_expr_;
 
   /*! \brief Mapping from PrimExpr to internal Key */
-  std::unordered_map<PrimExpr, Key, StructuralHash, StructuralEqual> expr_to_key;
+  std::unordered_map<PrimExpr, Key, StructuralHash, StructuralEqual> expr_to_key_;
 
   /*! \brief Cached key representing tir::Bool(true) */
-  Key key_true;
+  Key key_true_;
 
   /*! \brief Cached key representing tir::Bool(false) */
-  Key key_false;
+  Key key_false_;
 };
 
 AndOfOrs::AndOfOrs(const PrimExpr& expr)
-    : key_true(GetKey(Bool(true))), key_false(GetKey(Bool(false))) {
+    : key_true_(GetKey(Bool(true))), key_false_(GetKey(Bool(false))) {
   VisitAndExpressions(expr, [&](const PrimExpr& outer_expr) {
     std::vector<Key> or_components;
     VisitOrExpressions(outer_expr, [&](const PrimExpr& inner_expr) {
@@ -158,13 +158,13 @@ AndOfOrs::AndOfOrs(const PrimExpr& expr)
     });
 
     bool is_permutation =
-        std::any_of(chunks.begin(), chunks.end(), [&](const std::vector<Key>& prev_components) {
+        std::any_of(chunks_.begin(), chunks_.end(), [&](const std::vector<Key>& prev_components) {
           return or_components.size() == prev_components.size() &&
                  std::is_permutation(prev_components.begin(), prev_components.end(),
                                      or_components.begin());
         });
     if (!is_permutation) {
-      chunks.push_back(std::move(or_components));
+      chunks_.push_back(std::move(or_components));
     }
   });
 }
@@ -200,26 +200,26 @@ void AndOfOrs::VisitOrExpressions(const PrimExpr& expr,
 }
 
 AndOfOrs::Key AndOfOrs::GetKey(const PrimExpr& expr) {
-  auto it = expr_to_key.find(expr);
-  if (it != expr_to_key.end()) {
+  auto it = expr_to_key_.find(expr);
+  if (it != expr_to_key_.end()) {
     return it->second;
   }
 
-  Key key{expr_to_key.size()};
-  expr_to_key[expr] = key;
-  key_to_expr[key] = expr;
+  Key key{expr_to_key_.size()};
+  expr_to_key_[expr] = key;
+  key_to_expr_[key] = expr;
   return key;
 }
 
 PrimExpr AndOfOrs::GetExpr(AndOfOrs::Key key) const {
-  auto it = key_to_expr.find(key);
-  ICHECK(it != key_to_expr.end());
+  auto it = key_to_expr_.find(key);
+  ICHECK(it != key_to_expr_.end());
   return it->second;
 }
 
 PrimExpr AndOfOrs::AsPrimExpr() const {
   PrimExpr expr = Bool(true);
-  for (const auto& chunk : chunks) {
+  for (const auto& chunk : chunks_) {
     PrimExpr chunk_expr = Bool(false);
     for (Key j : chunk) {
       chunk_expr = chunk_expr || GetExpr(j);
@@ -239,7 +239,7 @@ void AndOfOrs::TrySimplifyOr(Key* a_ptr, Key* b_ptr, Analyzer* analyzer) {
       a = GetKey(simplified_or->a);
       b = GetKey(simplified_or->b);
     } else {
-      a = key_false;
+      a = key_false_;
       b = GetKey(simplified);
     }
   }
@@ -255,7 +255,7 @@ void AndOfOrs::TrySimplifyAnd(Key* a_ptr, Key* b_ptr, Analyzer* analyzer) {
       a = GetKey(simplified_and->a);
       b = GetKey(simplified_and->b);
     } else {
-      a = key_true;
+      a = key_true_;
       b = GetKey(simplified);
     }
   }
@@ -269,7 +269,7 @@ void AndOfOrs::Simplify(Analyzer* analyzer) {
 }
 
 void AndOfOrs::SimplifyWithinChunks(Analyzer* analyzer) {
-  for (auto& chunk : chunks) {
+  for (auto& chunk : chunks_) {
     for (size_t expr_i = 0; expr_i < chunk.size(); expr_i++) {
       for (size_t expr_j = expr_i + 1; expr_j < chunk.size(); expr_j++) {
         Key& key_i = chunk[expr_i];
@@ -282,10 +282,10 @@ void AndOfOrs::SimplifyWithinChunks(Analyzer* analyzer) {
 }
 
 void AndOfOrs::SimplifyAcrossChunks(Analyzer* analyzer) {
-  for (size_t i_and = 0; i_and < chunks.size(); i_and++) {
-    for (size_t j_and = i_and + 1; j_and < chunks.size(); j_and++) {
-      auto& i_chunk = chunks[i_and];
-      auto& j_chunk = chunks[j_and];
+  for (size_t i_and = 0; i_and < chunks_.size(); i_and++) {
+    for (size_t j_and = i_and + 1; j_and < chunks_.size(); j_and++) {
+      auto& i_chunk = chunks_[i_and];
+      auto& j_chunk = chunks_[j_and];
 
       if (i_chunk.size() == 1 && j_chunk.size() == 1) {
         auto& key_i = i_chunk[0];
@@ -308,7 +308,7 @@ void AndOfOrs::SimplifyAcrossChunks(Analyzer* analyzer) {
         // J = (i_0 || i_1 || ... || i_N || j_0 || ... || j_N)
         // I && J == I == I && true
 
-        j_chunk = {key_true};
+        j_chunk = {key_true_};
         continue;
       }
 
@@ -327,7 +327,7 @@ void AndOfOrs::SimplifyAcrossChunks(Analyzer* analyzer) {
         // J = (j_0 || ... || j_N)
         // I && J == J == true && J
 
-        i_chunk = {key_true};
+        i_chunk = {key_true_};
         continue;
       }
 
@@ -355,29 +355,29 @@ void AndOfOrs::SimplifyAcrossChunks(Analyzer* analyzer) {
 }
 
 void AndOfOrs::Cleanup() {
-  for (auto& chunk : chunks) {
+  for (auto& chunk : chunks_) {
     // Any occurrence of True inside an OR makes the entire expression True.
-    if (std::any_of(chunk.begin(), chunk.end(), [&](Key key) { return key == key_true; })) {
-      chunk = {key_true};
+    if (std::any_of(chunk.begin(), chunk.end(), [&](Key key) { return key == key_true_; })) {
+      chunk = {key_true_};
     } else {
       // Any occurrence of False inside an OR can be removed
       chunk.erase(
-          std::remove_if(chunk.begin(), chunk.end(), [&](Key key) { return key == key_false; }),
+          std::remove_if(chunk.begin(), chunk.end(), [&](Key key) { return key == key_false_; }),
           chunk.end());
     }
   }
 
   // Any occurence of False inside an AND makes the entire expression False.
-  if (std::any_of(chunks.begin(), chunks.end(),
+  if (std::any_of(chunks_.begin(), chunks_.end(),
                   [&](const std::vector<Key>& chunk) { return chunk.size() == 0; })) {
-    chunks = {{}};
+    chunks_ = {{}};
   } else {
     // Any occurrence of True inside an AND can be removed.
-    chunks.erase(std::remove_if(chunks.begin(), chunks.end(),
-                                [&](const std::vector<Key>& chunk) {
-                                  return chunk.size() == 1 && chunk[0] == key_true;
-                                }),
-                 chunks.end());
+    chunks_.erase(std::remove_if(chunks_.begin(), chunks_.end(),
+                                 [&](const std::vector<Key>& chunk) {
+                                   return chunk.size() == 1 && chunk[0] == key_true_;
+                                 }),
+                  chunks_.end());
   }
 }
 
