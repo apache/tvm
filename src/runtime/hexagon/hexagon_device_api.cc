@@ -142,9 +142,6 @@ void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
 void* HexagonDeviceAPI::AllocRpcBuffer(size_t nbytes, size_t alignment) {
   CHECK(nbytes) << "number of bytes is zero";
   CHECK(alignment) << "alignment is zero";
-  if (alignment < kHexagonAllocAlignment) {
-    alignment = kHexagonAllocAlignment;
-  }
   return rpc_hexbuffs.AllocateHexagonBuffer(nbytes, alignment, String("global"));
 }
 
@@ -166,7 +163,10 @@ void* HexagonDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_
 
 void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  CHECK(runtime_hexbuffs == nullptr || runtime_hexbuffs->count(data) != 0)
+  CHECK(runtime_hexbuffs) << "Attempted to free Hexagon workspace with "
+                          << "HexagonDeviceAPI::FreeWorkspace outside of a session.  "
+                          << "Please call HexagonDeviceAPI::AcquireResources";
+  CHECK(runtime_hexbuffs->count(data) != 0)
       << "Attempt made to free unknown or already freed workspace allocation";
   dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }

@@ -80,7 +80,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
     CHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
     if (!runtime_hexbuffs->empty()) {
       DLOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
-      released_runtime_buffers = runtime_hexbuffs->vector();
+      released_runtime_buffers = runtime_hexbuffs->current_allocations();
     }
     runtime_hexbuffs.reset();
 
