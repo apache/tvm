@@ -88,7 +88,7 @@ def test_estimate_peak_bandwidth_gpu():
     target = tvm.target.Target("cuda")
     dev = remote.device(str(target))
     # This test uses vectorized instructions so we need a target that supports them
-    bandwidth = tvm.utils.roofline.cuda.estimate_peak_bandwidth_global(target, dev, remote)
+    bandwidth = tvm.utils.roofline.cuda.estimate_peak_bandwidth_global_mem(target, dev, remote)
     # should be able to hit a 100 GB/s on a GPU. GTX 280 hits 140 GB/s and
     # it is really old.
     assert (

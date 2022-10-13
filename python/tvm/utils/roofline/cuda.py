@@ -205,7 +205,12 @@ def estimate_peak_flops(
     assert nvcc.have_tensorcore(
         dev.compute_version
     ), "CUDA roofline only works with devices that have tensorcores"
-    flops = np.sum(features["float_addsub"] + features["float_mul"] + features["float_mad"])
+    flops = np.sum(
+        features["float_addsub"]
+        + features["float_mul"]
+        + features["float_mad"] * 2
+        + features["float_divmod"]
+    )
     peak_flops = estimate_peak_flops_tensorcore(target, dev, remote)
     return flops, peak_flops, "float16 tensorcore"
 
@@ -228,7 +233,7 @@ def peak_bandwidth_tir(a: T.handle, b: T.handle, blocks: T.int32, warp_size: T.i
 
 
 @functools.lru_cache(maxsize=None)
-def estimate_peak_bandwidth_global(
+def estimate_peak_bandwidth_global_mem(
     target: Target,
     dev: Device,
     remote: Optional[RPCSession] = None,
@@ -302,8 +307,9 @@ def estimate_peak_bandwidth(
         Name of the memory being used.
     """
     loaded_bytes = 0.0
-    # assume no more than 100 buffers
-    for i in range(100):
+
+    i = 0
+    while True:
         # autoscheduler features do not take into account that 1.
         # global and shared memory have very different performance
         # characteristics -- both are included in the same bytes
@@ -317,5 +323,6 @@ def estimate_peak_bandwidth(
         if not key in features.keys():
             break
         loaded_bytes += np.sum(features[key])
-    peak_bandwidth = estimate_peak_bandwidth_global(target, dev, remote)
+        i += 1
+    peak_bandwidth = estimate_peak_bandwidth_global_mem(target, dev, remote)
     return loaded_bytes, peak_bandwidth, "global"

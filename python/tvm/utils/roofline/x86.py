@@ -193,9 +193,19 @@ def estimate_peak_fma_flops(
     # assume that the first argument's dtype is the one we want
     dtype = list(func.buffer_map.values())[0].dtype
     if "int" in dtype:
-        flops = np.sum(features["int_addsub"] + features["int_mul"] + features["int_mad"])
+        flops = np.sum(
+            features["int_addsub"]
+            + features["int_mul"]
+            + features["int_mad"] * 2
+            + features["int_divmod"]
+        )
     else:
-        flops = np.sum(features["float_addsub"] + features["float_mul"] + features["float_mad"])
+        flops = np.sum(
+            features["float_addsub"]
+            + features["float_mul"]
+            + features["float_mad"] * 2
+            + features["float_divmod"]
+        )
     peak_flops = estimate_peak_fma_vector_flops(
         target, dev, remote, dtype, vec_width, num_vector_registers
     )
@@ -315,10 +325,11 @@ def estimate_peak_bandwidth(
     # yet.
     peak_bandwidth = estimate_peak_bandwidth_dram(target, dev, remote, vec_width)
     loaded_bytes = 0.0
-    # assume no more than 100 buffers
-    for i in range(100):
+    i = 0
+    while True:
         key = f"B{i}.bytes"
         if not key in features.keys():
             break
         loaded_bytes += np.sum(features[key])
+        i += 1
     return loaded_bytes, peak_bandwidth, "DRAM"
