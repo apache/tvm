@@ -839,5 +839,3 @@ endif()
 
 dump_options_to_file("${TVM_ALL_OPTIONS}")
 
-
-add_subdirectory(apps/lower_cpp)
