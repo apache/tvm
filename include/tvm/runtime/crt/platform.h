@@ -40,7 +40,11 @@ extern "C" {
  *
  * \param code An error code.
  */
+#if defined(_MSC_VER)
+__declspec(noreturn) void TVMPlatformAbort(tvm_crt_error_t code);
+#else
 void __attribute__((noreturn)) TVMPlatformAbort(tvm_crt_error_t code);
+#endif
 
 /*! \brief Called by the microTVM RPC server to implement TVMLogf.
  *
