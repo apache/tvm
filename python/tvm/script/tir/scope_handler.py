@@ -23,7 +23,7 @@ import numpy as np
 import tvm.tir
 from tvm.runtime import Object, String, convert
 from tvm.ir import Span, Range
-from tvm.tir import Stmt, PrimExpr, IterVar, Var, Buffer, BufferRegion, ForKind, IntImm
+from tvm.tir import Stmt, PrimExpr, IterVar, Var, Buffer, BufferRegion, ForKind
 
 from .node import BufferSlice
 
