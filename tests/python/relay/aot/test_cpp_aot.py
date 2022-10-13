@@ -236,7 +236,7 @@ def test_aot_input_name_with_special_character(target_kind: str, input_name: str
         runner.set_input(**inputs)
 
         input_ind = runner.get_input_index(name)
-        assert (runner.get_input(input_ind).asnumpy() == input_data).all
+        assert (runner.get_input(input_ind).asnumpy() == input_data).all()
 
         runner.run()
         assert (runner.get_output(0).asnumpy() == expected_output).all()
