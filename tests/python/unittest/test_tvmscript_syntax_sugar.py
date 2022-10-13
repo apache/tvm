@@ -406,7 +406,8 @@ def test_int64_loop():
         for i in range(T.int64(0), T.int64(128)):
             for j in range(T.int64(0), T.int64(128)):
                 with T.block("C"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                    vi = T.axis.spatial(T.int64(128), i)
+                    vj = T.axis.spatial(T.int64(128), j)
                     B[vi, vj] = A[vi, vj] + 1.0
 
     assert_structural_equal(int64_grid, int64_grid_expanded)
