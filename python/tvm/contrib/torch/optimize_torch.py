@@ -73,7 +73,7 @@ def optimize_torch(
     database: ms.Database.DatabaseType = "json",
     cost_model: ms.CostModel.CostModelType = "xgb",
     measure_callbacks: ms.MeasureCallback.CallbackListType = "default",
-    task_scheduler: ms.TaskScheduler.TaskSchedulerType = "gradient",
+    task_scheduler: ms.task_scheduler.TaskScheduler.TaskSchedulerType = "gradient",
     space: ms.SpaceGenerator.SpaceGeneratorType = "post-order-apply",
     strategy: ms.SearchStrategy.SearchStrategyType = "evolutionary",
     seed: Optional[int] = None,
@@ -167,7 +167,9 @@ def optimize_torch(
             backend="graph",
         )
 
-    save_runtime_mod = get_global_func("tvmtorch.save_runtime_mod")
-    save_runtime_mod(executor_factory.module)
+    # save_runtime_mod = get_global_func("tvmtorch.save_runtime_mod")
+    from tvm._ffi import lis
+    print(tvm._ffi.list_global_func_names())
+    # save_runtime_mod(executor_factory.module)
 
     return GraphExecutorFactoryWrapper(torch.classes.tvm_torch.GraphExecutorFactoryWrapper())

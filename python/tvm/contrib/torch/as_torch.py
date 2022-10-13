@@ -63,7 +63,7 @@ class OperatorModuleWrapper(torch.nn.Module):
         database: ms.Database.DatabaseType = "json",
         cost_model: ms.CostModel.CostModelType = "xgb",
         measure_callbacks: ms.MeasureCallback.CallbackListType = "default",
-        task_scheduler: ms.TaskScheduler.TaskSchedulerType = "round-robin",
+        task_scheduler: ms.task_scheduler.TaskScheduler.TaskSchedulerType = "round-robin",
         space: ms.SpaceGenerator.SpaceGeneratorType = "post-order-apply",
         strategy: ms.SearchStrategy.SearchStrategyType = "replay_trace",
         task_name: str = "main",
