@@ -445,6 +445,13 @@ def test_simplify_consecutive_cast():
     expected = run_infer_type(relay.cast(expr1, "float32"))
     assert tvm.ir.structural_equal(actual, expected)
 
+    x = relay.var("x", shape=(3, 4), dtype="int64")
+    expr1 = relay.cast(x, "bool")
+    expr2 = relay.cast(expr1, "int32")
+    actual = run_opt_pass(expr2, relay.transform.SimplifyExpr())
+    expected = run_infer_type(expr2)
+    assert tvm.ir.structural_equal(actual, expected)
+
 
 def test_concretize_reshape_like():
     data = relay.var("data", shape=(2, 3, 4), dtype="float32")
