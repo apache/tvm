@@ -34,7 +34,6 @@ from tvm.runtime.profiling import Report
 from tvm.script import tir as T
 
 
-@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/12955")
 @tvm.testing.requires_llvm
 @pytest.mark.parametrize("dtype", ["float32", "int8", "int32"])
 def test_estimate_peak_flops_cpu(dtype):
@@ -50,7 +49,6 @@ def test_estimate_peak_flops_cpu(dtype):
     ), f"FLOP/s should be between 10^9 and 10^14, but it is {flops}"
 
 
-@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/12955")
 @tvm.testing.requires_cuda
 def test_estimate_peak_flops_gpu():
     server = rpc.Server(key="roofline_flops_gpu")
