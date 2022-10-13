@@ -27,7 +27,7 @@
 extern "C" {
 
 // disable under msvc
-#ifndef _MSC_VER
+#if !defined(_MSC_VER) && !defined(__MINGW32__)
 
 TVM_DLL TVM_WEAK uint16_t __gnu_f2h_ieee(float a) {
   return __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(a);

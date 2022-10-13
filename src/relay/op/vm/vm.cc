@@ -107,7 +107,7 @@ TVM_REGISTER_GLOBAL("relay.op.vm.invoke_tvm_op")
     .set_body_typed([](Expr func, Expr inputs, Expr outputs, DictAttrs attrs) {
       return InvokeTVMOp(std::move(func), std::move(inputs), std::move(outputs), std::move(attrs));
     });
-
+TVM_REGISTER_NODE_TYPE(DictAttrsNode);
 RELAY_REGISTER_OP("vm.invoke_tvm_op")
     .describe(R"code(Invoke an operation compiled by TVM.)code" TVM_ADD_FILELINE)
     .set_num_inputs(3)

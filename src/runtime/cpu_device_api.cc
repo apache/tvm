@@ -46,7 +46,7 @@ class CPUDeviceAPI final : public DeviceAPI {
   }
   void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
     void* ptr;
-#if _MSC_VER
+#if _MSC_VER || defined(__MINGW32__)
     ptr = _aligned_malloc(nbytes, alignment);
     if (ptr == nullptr) throw std::bad_alloc();
 #elif defined(__ANDROID__) && __ANDROID_API__ < 17
@@ -61,7 +61,7 @@ class CPUDeviceAPI final : public DeviceAPI {
   }
 
   void FreeDataSpace(Device dev, void* ptr) final {
-#if _MSC_VER
+#if _MSC_VER || defined(__MINGW32__)
     _aligned_free(ptr);
 #else
     free(ptr);
