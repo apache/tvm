@@ -24,7 +24,7 @@ from tvm.relay.backend.name_transforms import (
     prefix_name,
     prefix_generated_name,
 )
-from tvm.runtime.name_mangling import sanitize_name
+from tvm.runtime.name_transforms import sanitize_name
 
 
 def test_to_c_function_style():

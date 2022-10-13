@@ -206,7 +206,7 @@ def test_pass_wrong_device_arg():
 @pytest.mark.parametrize("target_kind", ["c", "llvm"])
 @pytest.mark.parametrize("input_name", ["input:0", "input@0", "input_0"])
 def test_aot_input_name_with_special_character(target_kind: str, input_name: str):
-    """Test name mangling in AOT for input names with special characters."""
+    """Test name transforms in AOT for input names with special characters."""
     dtype = "float32"
     input_1 = relay.var(input_name, shape=(10, 5), dtype=dtype)
     weight = relay.var("weight", shape=(1, 5), dtype=dtype)
@@ -228,7 +228,7 @@ def test_aot_input_name_with_special_character(target_kind: str, input_name: str
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"
     mod.export_library(test_so_path, cc="c++", options=["-std=gnu++17", "-g3", "-O0"])
-    # test both original name and mangled name
+    # test both original name and transformed name
     for name in ["input_0", input_name]:
         loaded_mod = tvm.runtime.load_module(test_so_path)
         runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))

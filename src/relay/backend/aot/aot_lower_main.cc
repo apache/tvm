@@ -23,7 +23,7 @@
  */
 #include "./aot_lower_main.h"
 
-#include <tvm/runtime/name_mangling.h>
+#include <tvm/runtime/name_transforms.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/transform.h>
 

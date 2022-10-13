@@ -17,28 +17,27 @@
  * under the License.
  */
 
-#include <tvm/runtime/logging.h>
-#include <tvm/runtime/name_mangling.h>
-#include <tvm/runtime/registry.h>
+/*!
+ * \file tvm/runtime/name_transforms.h
+ * \brief Transformations which are applied on names to generate appropriately named.
+ *  These functions are used in both Runtime and Backend.
+ */
+#ifndef TVM_RUNTIME_NAME_TRANSFORMS_H_
+#define TVM_RUNTIME_NAME_TRANSFORMS_H_
 
-#include <algorithm>
-#include <cctype>
 #include <string>
 
 namespace tvm {
 namespace runtime {
 
-std::string SanitizeName(const std::string& name) {
-  ICHECK(!name.empty()) << "Name is empty";
-
-  auto isNotAlnum = [](char c) { return !std::isalnum(c); };
-  std::string sanitized_input = name;
-  std::replace_if(sanitized_input.begin(), sanitized_input.end(), isNotAlnum, '_');
-
-  return sanitized_input;
-}
-
-TVM_REGISTER_GLOBAL("runtime.SanitizeName").set_body_typed(SanitizeName);
+/*!
+ * \brief Sanitize name for output into compiler artifacts
+ * \param name Original name
+ * \return Sanitized name
+ */
+std::string SanitizeName(const std::string& name);
 
 }  // namespace runtime
 }  // namespace tvm
+
+#endif  // TVM_RUNTIME_NAME_TRANSFORMS_H_

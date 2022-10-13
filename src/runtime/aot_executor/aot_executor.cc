@@ -27,7 +27,7 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/name_mangling.h>
+#include <tvm/runtime/name_transforms.h>
 
 #include <limits>
 #include <memory>

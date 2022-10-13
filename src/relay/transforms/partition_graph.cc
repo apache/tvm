@@ -36,7 +36,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/name_mangling.h>
+#include <tvm/runtime/name_transforms.h>
 
 #include <unordered_map>
 #include <unordered_set>

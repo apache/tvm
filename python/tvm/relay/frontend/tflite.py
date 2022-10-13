@@ -23,7 +23,7 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.ir import IRModule
-from tvm.runtime.name_mangling import sanitize_name
+from tvm.runtime.name_transforms import sanitize_name
 
 from ... import nd as _nd
 from .. import analysis

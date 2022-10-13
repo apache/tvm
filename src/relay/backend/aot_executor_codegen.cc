@@ -29,7 +29,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/runtime.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/name_mangling.h>
+#include <tvm/runtime/name_transforms.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>

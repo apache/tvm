@@ -19,7 +19,7 @@
 
 #include "name_transforms.h"
 
-#include <tvm/runtime/name_mangling.h>
+#include <tvm/runtime/name_transforms.h>
 #include <tvm/runtime/registry.h>
 
 #include <cctype>

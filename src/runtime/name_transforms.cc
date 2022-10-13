@@ -17,27 +17,28 @@
  * under the License.
  */
 
-/*!
- * \file tvm/runtime/name_mangling.h
- * \brief Utility functions for name mangling which are used
- *  in Backend and Runtime.
- */
-#ifndef TVM_RUNTIME_NAME_MANGLING_H_
-#define TVM_RUNTIME_NAME_MANGLING_H_
+#include <tvm/runtime/logging.h>
+#include <tvm/runtime/name_transforms.h>
+#include <tvm/runtime/registry.h>
 
+#include <algorithm>
+#include <cctype>
 #include <string>
 
 namespace tvm {
 namespace runtime {
 
-/*!
- * \brief Sanitize name for output into compiler artifacts
- * \param name Original name
- * \return Sanitized name
- */
-std::string SanitizeName(const std::string& name);
+std::string SanitizeName(const std::string& name) {
+  ICHECK(!name.empty()) << "Name is empty";
+
+  auto isNotAlnum = [](char c) { return !std::isalnum(c); };
+  std::string sanitized_input = name;
+  std::replace_if(sanitized_input.begin(), sanitized_input.end(), isNotAlnum, '_');
+
+  return sanitized_input;
+}
+
+TVM_REGISTER_GLOBAL("runtime.SanitizeName").set_body_typed(SanitizeName);
 
 }  // namespace runtime
 }  // namespace tvm
-
-#endif  // TVM_RUNTIME_NAME_MANGLING_H_
