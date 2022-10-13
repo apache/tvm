@@ -23,7 +23,6 @@ extern "C" {
 #include <HAP_farf.h>
 #include <HAP_perf.h>
 #include <qurt_error.h>
-#include <qurt_hvx.h>
 }
 
 #include <dlfcn.h>
