@@ -73,7 +73,7 @@ def optimize_torch(
     database: ms.Database.DatabaseType = "json",
     cost_model: ms.CostModel.CostModelType = "xgb",
     measure_callbacks: ms.MeasureCallback.CallbackListType = "default",
-    task_scheduler: ms.task_scheduler.TaskScheduler.TaskSchedulerType = "gradient",
+    task_scheduler: ms.TaskScheduler.TaskSchedulerType = "gradient",
     space: ms.SpaceGenerator.SpaceGeneratorType = "post-order-apply",
     strategy: ms.SearchStrategy.SearchStrategyType = "evolutionary",
     seed: Optional[int] = None,
