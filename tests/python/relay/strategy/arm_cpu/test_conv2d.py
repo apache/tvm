@@ -17,14 +17,18 @@
 """Tests for arm_cpu schedules for regular conv2d."""
 
 from test_generalized_conv2d import GeneralizedConv2dTests
-from tvm.testing import parameter, parameters, main
+from tvm.testing import fixture, main, parameter, parameters
 
 
 class Conv2dTests(GeneralizedConv2dTests):
     """Helper for constructing regular Conv2ds. Always sets groups to 1. We set the kernel layout
     here as we must pick something, but the x86 implementation here supports several."""
 
-    groups = parameter(1)
+    @fixture
+    def groups(self):
+        """Using a fixture instead of a parameter stops Pytest from adding the (redundant) number of
+        groups to the name of each test."""
+        return 1
 
     def setup_method(self):
         self.ref_kernel_layout = "HWIO"

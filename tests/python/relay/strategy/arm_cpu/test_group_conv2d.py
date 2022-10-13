@@ -17,7 +17,7 @@
 """Tests for arm_cpu schedules for grouped conv2d."""
 
 from test_generalized_conv2d import GeneralizedConv2dTests
-from tvm.testing import parameter, parameters, main
+from tvm.testing import main, parameter, parameters
 
 
 class GroupConv2dTests(GeneralizedConv2dTests):

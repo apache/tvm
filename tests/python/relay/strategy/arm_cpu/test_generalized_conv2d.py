@@ -30,7 +30,11 @@ class GeneralizedConv2dTests:
     """Superclass which can be used to test regular, depthwise, or grouped conv2D. Cannot be used
     for 5D data formats (NCHWc and such) as written, but could be extended. Might also be worth
     abstracting some of this logic into an even more general class that could be used for other
-    operators."""
+    operators.
+
+    Note that data_shape should always be a tuple of length four indicating the data shape in NHWC
+    format (it will later be reshaped according to the given data_layout), and kernel_size should be
+    a length two tuple giving the height and width of the kernel."""
 
     @tvm.testing.requires_corstone300
     def test_conv2d(
