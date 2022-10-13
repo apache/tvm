@@ -25,6 +25,7 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "hexagon_buffer.h"
 
@@ -83,6 +84,18 @@ class HexagonBufferManager {
   bool empty() {
     std::lock_guard<std::mutex> lock(map_mutex_);
     return hexagon_buffer_map_.empty();
+  }
+
+  //! \brief Returns a vector of currently allocated pointers, owned by the manager.
+  // Note - this should only be used by the device API to keep track of what
+  // was in the manager when HexagonDeviceAPI::ReleaseResources is called.
+  std::vector<void*> current_allocations() {
+    std::vector<void*> allocated;
+    std::lock_guard<std::mutex> lock(map_mutex_);
+    for (const auto& [data_ptr, buffer] : hexagon_buffer_map_) {
+      allocated.push_back(data_ptr);
+    }
+    return allocated;
   }
 
  private:

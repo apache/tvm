@@ -71,42 +71,70 @@ using namespace tir;
 // handled by CanonicalSimplifier.
 //
 
+CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, const PrimExpr& y) {
+  CompareResult output = CompareResult::kUnknown;
+
+  auto is_finished = [&output]() {
+    return output == CompareResult::kEQ || output == CompareResult::kLT ||
+           output == CompareResult::kGT;
+  };
+
+  output = CompareResult(output & TryCompareUsingConstIntBounds(x, y));
+
+  if (is_finished()) return output;
+
+  if (enabled_extensions_ & kTransitivelyProveInequalities) {
+    output = CompareResult(output & TryCompareUsingKnownInequalities(x, y));
+  }
+
+  return output;
+}
+
+CompareResult RewriteSimplifier::Impl::TryCompareUsingConstIntBounds(const PrimExpr& x,
+                                                                     const PrimExpr y) {
+  return TryCompare(x - y, 0);
+}
+
+CompareResult RewriteSimplifier::Impl::TryCompareUsingKnownInequalities(const PrimExpr& x,
+                                                                        const PrimExpr& y) {
+  return analyzer_->transitive_comparisons.TryCompare(x, y);
+}
+
 // try to prove x equals val
-RewriteSimplifier::Impl::CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x,
-                                                                           int64_t val) {
+CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, int64_t val) {
   PrimExpr diff = this->VisitExpr(x);
   if (const auto* ptr = diff.as<IntImmNode>()) {
     if (ptr->value == val) {
-      return kEQ;
+      return CompareResult::kEQ;
     } else if (ptr->value > val) {
-      return kGT;
+      return CompareResult::kGT;
     } else if (ptr->value < val) {
-      return kLT;
+      return CompareResult::kLT;
     }
   }
   ConstIntBound dbound = analyzer_->const_int_bound(diff);
   if (dbound->min_value == val && dbound->max_value == val) {
-    return kEQ;
+    return CompareResult::kEQ;
   }
   if (dbound->min_value > val) {
-    return kGT;
+    return CompareResult::kGT;
   }
   if (dbound->max_value < val) {
-    return kLT;
+    return CompareResult::kLT;
   }
   if (dbound->min_value >= val) {
-    return kGE;
+    return CompareResult::kGE;
   }
   if (dbound->max_value <= val) {
-    return kLE;
+    return CompareResult::kLE;
   }
   if (val == 0) {
     ModularSet dmod = analyzer_->modular_set(diff);
     if (dmod->base != 0) {
-      return kNE;
+      return CompareResult::kNE;
     }
   }
-  return kUnknown;
+  return CompareResult::kUnknown;
 }
 
 void RewriteSimplifier::Impl::Update(const Var& var, const PrimExpr& info, bool can_override) {
@@ -252,6 +280,12 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
     literal_constraints_.resize(old_literal_size);
   };
   return frecover;
+}
+
+void RewriteSimplifier::Impl::SetEnabledExtensions(Extension flags) { enabled_extensions_ = flags; }
+
+RewriteSimplifier::Extension RewriteSimplifier::Impl::GetEnabledExtensions() const {
+  return enabled_extensions_;
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
@@ -1333,10 +1367,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const EQNode* op) {
   }
 
   if (IsIndexType(op->a.dtype())) {
-    CompareResult result = TryCompare(op->a - op->b, 0);
-    if (result == kEQ) {
+    CompareResult result = TryCompare(op->a, op->b);
+    if (result == CompareResult::kEQ) {
       return make_const(op->dtype, true);
-    } else if (result == kNE || result == kGT || result == kLT) {
+    } else if (result == CompareResult::kNE || result == CompareResult::kGT ||
+               result == CompareResult::kLT) {
       return make_const(op->dtype, false);
     }
     TVM_TRY_REWRITE(x - c1 == 0, x == c1);
@@ -1382,11 +1417,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LTNode* op) {
   }
 
   if (IsIndexType(op->a.dtype())) {
-    CompareResult result = TryCompare(op->a - op->b, 0);
-    if (result == kLT) {
+    CompareResult result = TryCompare(op->a, op->b);
+    if (result == CompareResult::kLT) {
       return make_const(op->dtype, true);
     }
-    if (result == kEQ || result == kGT || result == kGE) {
+    if (result == CompareResult::kEQ || result == CompareResult::kGT ||
+        result == CompareResult::kGE) {
       return make_const(op->dtype, false);
     }
 
@@ -1740,6 +1776,13 @@ void RewriteSimplifier::Update(const Var& var, const PrimExpr& info, bool allow_
 
 std::function<void()> RewriteSimplifier::EnterConstraint(const PrimExpr& constraint) {
   return impl_->EnterConstraint(constraint);
+}
+
+void RewriteSimplifier::SetEnabledExtensions(Extension flags) {
+  impl_->SetEnabledExtensions(flags);
+}
+RewriteSimplifier::Extension RewriteSimplifier::GetEnabledExtensions() const {
+  return impl_->GetEnabledExtensions();
 }
 
 RewriteSimplifier::RewriteSimplifier(Analyzer* parent) : impl_(new Impl(parent)) {}

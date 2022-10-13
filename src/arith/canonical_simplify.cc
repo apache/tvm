@@ -891,7 +891,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const DivNode* op) {
           lhs.CopyOnWrite()->AddToSelf(pconst->value / cval);
         } else {
           // if 0 <= extra < cval, it means the extra can be eliminated.
-          if (TryCompare(temp, cval) != kLT) {
+          if (TryCompare(temp, cval) != CompareResult::kLT) {
             lhs.CopyOnWrite()->AddToSelf(SplitDivConst(ToSplitExpr(temp), cval, kTruncDiv), 1);
           }
         }
@@ -945,7 +945,8 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
         lhs.CopyOnWrite()->AddToSelf(floordiv(pconst->value, cval));
       } else {
         // if 0 <= extra < cval, it means the extra can be eliminated.
-        if (!(TryCompare(temp, cval) == kLT && analyzer_->CanProveGreaterEqual(temp, 0))) {
+        if (!(TryCompare(temp, cval) == CompareResult::kLT &&
+              analyzer_->CanProveGreaterEqual(temp, 0))) {
           lhs.CopyOnWrite()->AddToSelf(SplitDivConst(ToSplitExpr(temp), cval, kFloorDiv), 1);
         }
       }
@@ -1052,7 +1053,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ModNode* op) {
           return truncmod(temp, c1.Eval());
         } else {
           // If temp < cval && temp >=0 then can remove the mod.
-          if (TryCompare(temp, cval) == kLT) {
+          if (TryCompare(temp, cval) == CompareResult::kLT) {
             return temp;
           } else {
             // contonue to use logic below.
@@ -1113,7 +1114,8 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
         return floormod(temp, c1.Eval());
       } else {
         // If temp < cval && temp >=0 then can remove the mod.
-        if (TryCompare(temp, cval) == kLT && analyzer_->CanProveGreaterEqual(temp, 0)) {
+        if (TryCompare(temp, cval) == CompareResult::kLT &&
+            analyzer_->CanProveGreaterEqual(temp, 0)) {
           return temp;
         } else {
           // contonue to use logic below.

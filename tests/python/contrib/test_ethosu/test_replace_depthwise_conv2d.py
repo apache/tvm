@@ -75,7 +75,10 @@ from .infra import make_ethosu_depthwise_conv2d, get_convolutional_args
         ],
     ],
 )
-def test_depthwise_conv2d_single(trial):
+@tvm.testing.skip_parameterizations(
+    "trial3", reason="See https://github.com/apache/tvm/issues/12841"
+)
+def test_depthwise_conv2d_single(request, trial):
     def _get_func(
         ifm_shape,
         channels,

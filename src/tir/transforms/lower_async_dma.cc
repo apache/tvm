@@ -94,9 +94,6 @@ class AsyncDMALowerer : public StmtExprMutator {
       ICHECK(queue_id_node);
       int queue_id = queue_id_node->value;
 
-      // save queue ID for inspection in `wait` transform
-      queue_ids.insert(queue_id);
-
       // walk the graph to verify this is a mem copy ...
       // 1) async_commit_queue_scope contains async_scope
       auto async_scope = op->body.as<AttrStmtNode>();
@@ -160,6 +157,10 @@ class AsyncDMALowerer : public StmtExprMutator {
         arith::Analyzer analyzer;
         return analyzer.Simplify(Substitute(std::move(expr), loop_var_remap));
       });
+
+      // now that we are about to perform the `copy` transform
+      // save queue ID for inspection in `wait` transform
+      queue_ids.insert(queue_id);
 
       return Evaluate(Call(DataType::Int(32), builtin::dma_copy(),
                            {queue_id,

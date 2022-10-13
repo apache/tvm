@@ -27,10 +27,13 @@ from ..utils import traverse_inline, get_const_tuple, get_const_int
 from ..nn.utils import get_pad_tuple
 from .tensor_intrin import smlal_int16_int32
 from .arm_utils import is_aarch64_arm
-
 from .mprofile.dsp.depthwise_conv2d import (
     depthwise_conv2d_nhwc_dsp_compute,
     depthwise_conv2d_nhwc_dsp_schedule,
+)
+from .mprofile.dsp.tensordot_conv2ds import (
+    depthwise_conv2d_nchw_oihw_dsp_compute,
+    tensordot_conv2ds_schedule,
 )
 
 
@@ -718,3 +721,17 @@ def depthwise_conv2d_nhwc_dsp(cfg, data, kernel, strides, padding, dilation, out
 def schedule_depthwise_conv2d_nhwc_dsp(cfg, outs):
     """Create schedule for conv2d_nhwc_dsp"""
     return depthwise_conv2d_nhwc_dsp_schedule(cfg, outs)
+
+
+@autotvm.register_topi_compute("depthwise_conv2d_nchw_oihw_dsp.arm_cpu")
+def depthwise_conv2d_nchw_oihw_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute depthwise_conv2d_nchw_oihw with v7e-m DSP instructions and the tensordot kernel."""
+    return depthwise_conv2d_nchw_oihw_dsp_compute(
+        cfg, data, kernel, strides, padding, dilation, out_dtype
+    )
+
+
+@autotvm.register_topi_schedule("depthwise_conv2d_nchw_oihw_dsp.arm_cpu")
+def schedule_depthwise_conv2d_nchw_oihw_dsp(cfg, outs):
+    """Create schedule for depthwise_conv2d_nchw_oihw."""
+    return tensordot_conv2ds_schedule(cfg, outs)

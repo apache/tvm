@@ -22,9 +22,8 @@ from numbers import Integral
 
 import numpy as np
 import tvm
-from tvm import te
+from tvm import relay, te
 from tvm.tir import bijective_layout, layout
-
 from . import cpp, tag
 
 
@@ -430,6 +429,33 @@ def get_shape(src_shape, src_layout, dst_layout):
     dst_indices = layout_mapping.forward_index(tvm.runtime.convert(list(range(len(src_layout)))))
 
     return get_const_tuple(tuple([src_shape[i.value] for i in dst_indices]))
+
+
+def change_constant_shape(src, src_layout, dst_layout):
+    """Makes a copy of a Relay constant, reshaping it to a new data layout.
+
+    Parameter
+    ---------
+    src : relay.Constant
+        The Constant to be reformatted.
+
+    src_layout : str
+        The current layout of the Relay constant. Must be alphabetic (e.g. NHWC
+        or OIHW, but not NCHW2c).
+
+    dst_layout : str
+        The desired layout of new the Relay constant. Must be alphabetic (e.g. NHWC
+        or OIHW, but not NCHW2c).
+
+    Returns
+    -------
+    dst_shape : relay.Constant
+        A copy of the Constant with the new layout.
+    """
+    assert src_layout.isalpha() and dst_layout.isalpha()
+    axis_order = [src_layout.index(c) for c in dst_layout]
+    reshaped = np.transpose(src.data.numpy(), axis_order)
+    return relay.Constant(tvm.nd.array(reshaped))
 
 
 def within_index(b, e, s, i):

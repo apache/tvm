@@ -206,7 +206,17 @@ for _dtype in ["float", "uint", "int"]:
             _name = _dtype + _size + _lanes
             globals()[_name] = ConcreteType(_name)
 
-boolean = ConcreteType("bool")
+
+# All other DataType annotations are represented with the same string
+# as is used by `tvm.runtime.DataType`.  This does redefine the Python
+# built-in bool, but only within the context of `tvm.script.tir.ty`
+# and `tvm.script.tir` modules.  The `T.boolean` alias is maintained
+# for backwards compatibility.
+
+bool = ConcreteType("bool")  # pylint: disable=redefined-builtin
+boolean = bool
+
+
 handle = ConcreteType("handle")
 void = VoidType()
 Ptr = GenericPtrType()

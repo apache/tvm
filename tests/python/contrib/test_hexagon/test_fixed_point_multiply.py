@@ -14,14 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import re
+import numpy as np
 
 import tvm.testing
 from tvm import relay
 from tvm.relay.backend import Executor
 from tvm.contrib.hexagon.session import Session
 
-import re
-import numpy as np
+from .infrastructure import get_hexagon_target
 
 
 @tvm.testing.requires_hexagon
@@ -37,13 +38,12 @@ def test_vmpy_intrinsic_presence():
     relay_mod = tvm.IRModule.from_expr(y)
 
     params = {}
-    target_hexagon = tvm.target.hexagon("v68")
     executor = Executor("graph", {"link-params": True})
 
     with tvm.transform.PassContext(opt_level=3):
         hexagon_lowered = tvm.relay.build(
             relay_mod,
-            tvm.target.Target(target_hexagon, host=target_hexagon),
+            get_hexagon_target("v68"),
             executor=executor,
             params=params,
         )

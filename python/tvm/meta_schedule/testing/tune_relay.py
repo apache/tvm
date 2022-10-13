@@ -131,7 +131,7 @@ def _parse_args():
 logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
 )
-logging.getLogger("tvm.meta_schedule").setLevel(logging.INFO)
+logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 ARGS = _parse_args()
 
 
@@ -164,30 +164,34 @@ def main():
         print(f"  input_shape: {item['shape']}")
         print(f"  input_dtype: {item['dtype']}")
 
-    runner = ms.runner.RPCRunner(
-        rpc_config=ARGS.rpc_config,
-        evaluator_config=ms.runner.EvaluatorConfig(
-            number=ARGS.number,
-            repeat=ARGS.repeat,
-            min_repeat_ms=ARGS.min_repeat_ms,
-            enable_cpu_cache_flush=ARGS.cpu_flush,
-        ),
-        alloc_repeat=1,
-    )
-
     with ms.Profiler() as profiler:
-        lib = ms.tune_relay(
+        database = ms.relay_integration.tune_relay(
             mod=mod,
             target=ARGS.target,
-            config=ms.TuneConfig(
-                strategy="evolutionary",
-                num_trials_per_iter=64,
-                max_trials_per_task=ARGS.num_trials,
-                max_trials_global=ARGS.num_trials,
+            work_dir=ARGS.work_dir,
+            max_trials_global=ARGS.num_trials,
+            num_trials_per_iter=64,
+            params=params,
+            runner=ms.runner.RPCRunner(  # type: ignore
+                rpc_config=ARGS.rpc_config,
+                evaluator_config=ms.runner.EvaluatorConfig(
+                    number=ARGS.number,
+                    repeat=ARGS.repeat,
+                    min_repeat_ms=ARGS.min_repeat_ms,
+                    enable_cpu_cache_flush=ARGS.cpu_flush,
+                ),
+                alloc_repeat=1,
+            ),
+            cost_model=ms.cost_model.XGBModel(  # type: ignore
+                extractor=ms.feature_extractor.PerStoreFeature(),
                 adaptive_training=ARGS.adaptive_training,
             ),
-            runner=runner,  # type: ignore
-            work_dir=ARGS.work_dir,
+            strategy=ms.search_strategy.EvolutionarySearch(),
+        )
+        lib = ms.relay_integration.compile_relay(
+            database=database,
+            mod=mod,
+            target=ARGS.target,
             params=params,
             backend=ARGS.backend,
         )

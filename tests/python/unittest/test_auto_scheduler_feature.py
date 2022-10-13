@@ -262,6 +262,17 @@ def test_dense_lowered():
     assert total_bytes_loaded > 2 * 128 * 128 * 4  # 4 bytes per float32
 
 
+@T.prim_func
+def negative_extent(A: T.Buffer[(1,), "float32"]):
+    for j in range(0, -1):
+        A[j] = A[j] + 1.0
+
+
+def test_negative_extent():
+    features = auto_scheduler.feature.named_features_from_primfunc(negative_extent)
+    assert features["B0.unique_bytes"] == 0
+
+
 if __name__ == "__main__":
     test_cpu_matmul()
     test_cpu_fusion()

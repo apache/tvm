@@ -147,22 +147,31 @@ TEST_F(HexagonDeviceAPITest, DISABLED_alloc_free_diff_dev) {
   EXPECT_THROW(hexapi->FreeDataSpace(cpu_dev, buf), InternalError);
 }
 
-// Alloc a non-runtime buffer
-// Alloc a runtime buffer
-// "Release" resources for runtime
-// Verify the runtime buffer cannot be freed, but the non-runtime buffer can
-// This test should be run last
-TEST_F(HexagonDeviceAPITest, leak_resources) {
+// Ensure runtime buffer manager is properly configured and destroyed
+// in Acquire/Release
+TEST_F(HexagonDeviceAPITest, runtime_buffer_manager) {
   hexapi->ReleaseResources();
-  void* pre_runtime_buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
-  CHECK(pre_runtime_buf != nullptr);
+  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8), InternalError);
   hexapi->AcquireResources();
   void* runtime_buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
   CHECK(runtime_buf != nullptr);
   hexapi->ReleaseResources();
-  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, runtime_buf), InternalError);
-  hexapi->FreeDataSpace(hex_dev, pre_runtime_buf);
+  hexapi->FreeDataSpace(hex_dev, runtime_buf);
   hexapi->AcquireResources();
+  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, runtime_buf), InternalError);
+}
+
+// Ensure RPC buffer manager is always available
+TEST_F(HexagonDeviceAPITest, rpc_buffer_manager) {
+  void* rpc_buf;
+  rpc_buf = hexapi->AllocRpcBuffer(nbytes, alignment);
+  CHECK(rpc_buf != nullptr);
+  hexapi->ReleaseResources();
+  hexapi->FreeRpcBuffer(rpc_buf);
+  rpc_buf = hexapi->AllocRpcBuffer(nbytes, alignment);
+  CHECK(rpc_buf != nullptr);
+  hexapi->AcquireResources();
+  hexapi->FreeRpcBuffer(rpc_buf);
 }
 
 // Ensure thread manager is properly configured and destroyed

@@ -23,7 +23,12 @@ import tvm
 import tvm.testing
 from tvm import te
 from tvm.topi.hexagon import qnn
-from ..infrastructure import allocate_hexagon_array, transform_numpy, quantize_np
+from ..infrastructure import (
+    allocate_hexagon_array,
+    transform_numpy,
+    quantize_np,
+    get_hexagon_target,
+)
 
 
 class TestDequantizeSlice2d:
@@ -78,8 +83,6 @@ class TestDequantizeSlice2d:
         """
         Top level testing function for dequantize
         """
-        target_hexagon = tvm.target.hexagon("v69")
-        target = tvm.target.Target(target_hexagon, host=target_hexagon)
 
         dequant_input = te.placeholder(input_shape, name="A", dtype=dtype)
 
@@ -104,7 +107,7 @@ class TestDequantizeSlice2d:
         )
         with tvm.transform.PassContext(opt_level=3):
             tir_irm = tvm.lower(tir_s.mod, [dequant_input, dequant_output], name="dequantize")
-            runtime_module = tvm.build(tir_irm, target=target, name="dequantize")
+            runtime_module = tvm.build(tir_irm, target=get_hexagon_target("v69"), name="dequantize")
         mod = hexagon_session.load_module(runtime_module)
 
         mod(input_data, output_data)

@@ -672,9 +672,17 @@ TVM_DLL Pass InjectPTXAsyncCopy();
 
 /*!
  * \brief Remove the weight layout rewrite block
+ * \param skip_ndarray_rewrite If True, exact rewrite of NDArray, according to the given index map,
+ *  will be skipped. Only the shape of the NDArray is transformed correctly, and the content of
+ *  the destination array will be filled with random values.
+ *
+ *  When this pass is called many times during MetaSchedule tuning, the raw data of NDArray,
+ *  before and after rewrite, does not matter. Since NDArray layout rewrite, using IndexMap's
+ *  MapNDArray, is currently slow, skipping the exact rewrite is sometimes necessary.
+ *
  * \return The pass.
  */
-TVM_DLL Pass RemoveWeightLayoutRewriteBlock();
+TVM_DLL Pass RemoveWeightLayoutRewriteBlock(bool skip_ndarray_rewrite = false);
 
 /*!
  * \brief Add the explicit local stage for the shared memory access on GPU.
