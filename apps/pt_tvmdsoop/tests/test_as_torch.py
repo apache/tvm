@@ -85,10 +85,6 @@ def func_with_part_access_region(a: T.handle, b: T.handle, c: T.handle) -> None:
                 C[vi, vj] = B[vi, vj] + T.float32(1)
 
 
-config = TuneConfig(
-)
-
-
 @as_torch
 @tvm.script.ir_module
 class MyModule:
@@ -228,7 +224,7 @@ def test_tvmscript_torch_loop_split():
     result = torch.sum(x.cpu(), dim=1).numpy()
 
     loop_split.tune(
-        "nvidia/geforce-rtx-3070", 
+        "nvidia/geforce-rtx-3070",
         max_trials_global=128,
         strategy="replay-trace",
     )
