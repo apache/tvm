@@ -30,13 +30,13 @@
 // the max number of entries recorded for each instrumented location.
 #define LWP_BUFFER_SIZE (LWP_COUNTER_SIZE * 100)
 
-unsigned int lwp_counter[LWP_COUNTER_SIZE] = {0};
-unsigned int lwp_buffer[LWP_BUFFER_SIZE];
-unsigned int* __lwp_counter = lwp_counter;
-unsigned int* __lwp_buffer_ptr = lwp_buffer;
-unsigned int __lwp_buffer_size = LWP_BUFFER_SIZE;
-unsigned int __lwp_enable_flag = 1;
-unsigned int __lwp_buffer_count = 0;
+uint32_t lwp_counter[LWP_COUNTER_SIZE] = {0};
+uint32_t lwp_buffer[LWP_BUFFER_SIZE];
+uint32_t* __lwp_counter = lwp_counter;
+uint32_t* __lwp_buffer_ptr = lwp_buffer;
+uint32_t __lwp_buffer_size = LWP_BUFFER_SIZE;
+uint32_t __lwp_enable_flag = 1;
+uint32_t __lwp_buffer_count = 0;
 
 bool WriteLWPOutput(const std::string& out_json) {
   std::ostringstream s;
@@ -55,14 +55,12 @@ bool WriteLWPOutput(const std::string& out_json) {
   }
   s << "\t],\n\n";
   s << "\t\"loop_counts\":[\n";
-  bool need_comma = false;
   for (size_t i = 0; i < LWP_COUNTER_SIZE; i++) {
     s << "\t\t" << lwp_counter[i] / 2;
     if (i < LWP_COUNTER_SIZE - 1)
       s << ",\n";
     else
       s << "\n";
-    need_comma = true;
   }
   s << "\t]\n}\n";
   std::ofstream ofc(out_json);

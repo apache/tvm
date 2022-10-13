@@ -750,7 +750,12 @@ TVM_DLL const Op& undef();
 /*!
  * \brief Profiling intrinsic
  */
-TVM_DLL const Op& profile_intrinsic();
+TVM_DLL const Op& start_profile_intrinsic();
+
+/*!
+ * \brief Profiling intrinsic
+ */
+TVM_DLL const Op& end_profile_intrinsic();
 
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {

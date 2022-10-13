@@ -22,7 +22,6 @@ import argparse
 import os
 from re import search, compile
 from collections import OrderedDict
-from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
 
 ENABLE_DEBUG = False
 """
@@ -317,7 +316,8 @@ def get_load_addr(binary_path: str, serial_number: str, lwp_json: str, run_log: 
         lines = f.read()
         a = pattern.search(lines)
         load_addr = int(a.group(1), 16)
-
+    if ENABLE_DEBUG:
+      print('load_addr : ', load_addr)
     return load_addr
 
 

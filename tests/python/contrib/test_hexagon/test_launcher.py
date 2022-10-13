@@ -19,17 +19,13 @@
 import pytest
 
 import numpy as np
-import os
 
 import tvm.testing
 from tvm import relay, te
 from tvm.contrib.hexagon.session import Session
 from tvm.relay.backend import Executor, Runtime
-from tvm.contrib import utils
 from tvm.contrib.hexagon.build import HexagonLauncherRPC
-
 from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
-from tvm.contrib.hexagon.profiling.process_lwp_data import process_lwp_output
 
 from .infrastructure import get_hexagon_target
 
@@ -579,6 +575,7 @@ def test_lwp(
     hexagon_server_process,
     hexagon_launcher: HexagonLauncherRPC,
     hexagon_session: Session,
+    hexagon_debug
 ):
     dtype = "float32"
     data = relay.var("data", relay.TensorType((1, 64, 64, 3), dtype))
@@ -605,9 +602,6 @@ def test_lwp(
     data_in = np.random.rand(1, 64, 64, 3).astype(dtype=dtype)
     params = {"weight": weight_in}
     inputs = {"data": data_in}
-    temp = utils.tempdir(keep_for_debug=True)
-    dso_binary = "test_binary.so"
-    dso_binary_path = temp.relpath(dso_binary)
 
     with tvm.transform.PassContext(opt_level=3, config={"tir.instrument_lwp": True}):
         lowered = tvm.relay.build(
@@ -616,56 +610,16 @@ def test_lwp(
             runtime=runtime,
             executor=executor,
         )
-        # Save binary file to post-process lwp output
-        lowered.get_lib().save(dso_binary_path)
-        profiler = HexagonProfiler()
+        # Create HexagonProfiler object
+        profiler = HexagonProfiler(lowered, hexagon_server_process, hexagon_debug)
 
     graph_mod = hexagon_session.get_executor_from_factory(lowered)
     graph_mod.set_input(**params)
     graph_mod.run(**inputs)
     hexagon_output = graph_mod.get_output(0).numpy()
 
-    # Get profiling data
-    remote_path = ""
-    android_serial_number = os.environ.get("ANDROID_SERIAL_NUMBER")
-    if android_serial_number is not None and android_serial_number != "simulator":
-        # Get the workspace on the device to extract lwp output
-        remote_path = hexagon_server_process["launcher"]._workspace
-
-    prof_out = hexagon_launcher.get_profile_output(profiler, hexagon_session, remote_path, temp)
-
-    # Process lightweight profiling output into an easily readable csv file
-    # The post-processing requires following parameters:
-    # 1) Path of the binary file
-    # 2) android_serial_number
-    # 3) Path of the lwp json file (lwp.json) which gets created in the current directory
-    # 4) Path to the run log depending on the environment:
-    #    a) For on-device runs:
-    #       Use logcat output as the run log
-    #       To get the logcat output:
-    #       - Create /vendor/lib/rfsa/adsp/tvm_rpc_android.farf on the device
-    #       - Run logcat command in the background or in a separate terminal while
-    #         running the test:
-    #         adb -s <device-id> logcat -c && adb -s <device-id> logcat 2>&1 | tee /tmp//logcat.log
-    #    b) For simulator runs:
-    #       Use "stdout.txt" as the run log. There is no need to specify the full path to
-    #       "stdout.txt" as it will be inferred based on 'prof_out' location.
-    # 5) lwp processed output file -  "lwp.csv"
-    #
-    # NOTE: For on-device run, the logcat output needs to be collected manually and its path
-    # must be passed to 'process_lwp_output' as mentioned above.
-    #
-    lwp_csv = temp.relpath("lwp.csv")
-    if android_serial_number == "simulator":
-        process_lwp_output(dso_binary_path, android_serial_number, prof_out, "stdout.txt", lwp_csv)
-    else:
-        # For on-device run
-        if os.path.exists("/tmp/logcat.log"):
-            process_lwp_output(
-                dso_binary_path, android_serial_number, prof_out, "/tmp/logcat.log", lwp_csv
-            )
-        else:
-            print("WARNING: Error processing lwp output - missing logcat file")
+    # Get lightweight profiling output as a CSV file
+    profiler.get_profile_output(hexagon_launcher, hexagon_session, hexagon_server_process)
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):
@@ -688,6 +642,7 @@ def test_lwp_multiple_conv2d(
     hexagon_server_process,
     hexagon_launcher: HexagonLauncherRPC,
     hexagon_session: Session,
+    hexagon_debug
 ):
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
@@ -722,10 +677,6 @@ def test_lwp_multiple_conv2d(
     runtime = Runtime("cpp")
     executor = Executor("graph")
 
-    temp = utils.tempdir()
-    dso_binary = "test_binary.so"
-    dso_binary_path = temp.relpath(dso_binary)
-
     weight1_data = np.random.rand(w1_shape[0], w1_shape[1], w1_shape[2], w1_shape[3]).astype(
         dtype=dtype
     )
@@ -746,56 +697,16 @@ def test_lwp_multiple_conv2d(
             runtime=runtime,
             executor=executor,
         )
-        # Save binary file to post-process lwp output
-        lowered.get_lib().save(dso_binary_path)
-        profiler = HexagonProfiler()
+        # Create HexagonProfiler object
+        profiler = HexagonProfiler(lowered, hexagon_server_process, hexagon_debug)
 
     graph_mod = hexagon_session.get_executor_from_factory(lowered)
     graph_mod.set_input(**params)
     graph_mod.run(**inputs)
     hexagon_output = graph_mod.get_output(0).numpy()
 
-    # Get profiling data
-    remote_path = ""
-    android_serial_number = os.environ.get("ANDROID_SERIAL_NUMBER")
-    if android_serial_number is not None and android_serial_number != "simulator":
-        # Get the workspace on the device to extract lwp output
-        remote_path = hexagon_server_process["launcher"]._workspace
-
-    prof_out = hexagon_launcher.get_profile_output(profiler, hexagon_session, remote_path, temp)
-
-    # Process lightweight profiling output into an easily readable csv file
-    # The post-processing requires following parameters:
-    # 1) Path of the binary file
-    # 2) android_serial_number
-    # 3) Path of the lwp json file (lwp.json) which gets created in the current directory
-    # 4) Path to the run log depending on the environment:
-    #    a) For on-device runs:
-    #       Use logcat output as the run log
-    #       To get the logcat output:
-    #       - Create /vendor/lib/rfsa/adsp/tvm_rpc_android.farf on the device
-    #       - Run logcat command in the background or in a separate terminal while
-    #         running the test:
-    #         adb -s <device-id> logcat -c && adb -s <device-id> logcat 2>&1 | tee /tmp//logcat.log
-    #    b) For simulator runs:
-    #       Use "stdout.txt" as the run log. There is no need to specify the full path to
-    #       "stdout.txt" as it will be inferred based on 'prof_out' location.
-    # 5) lwp processed output file -  "lwp.csv"
-    #
-    # NOTE: For on-device run, the logcat output needs to be collected manually and its path
-    # must be passed to 'process_lwp_output' as mentioned above.
-    #
-    lwp_csv = temp.relpath("lwp.csv")
-    if android_serial_number == "simulator":
-        process_lwp_output(dso_binary_path, android_serial_number, prof_out, "stdout.txt", lwp_csv)
-    else:
-        # For on-device run
-        if os.path.exists("/tmp/logcat.log"):
-            process_lwp_output(
-                dso_binary_path, android_serial_number, prof_out, "/tmp/logcat.log", lwp_csv
-            )
-        else:
-            print("WARNING: Error processing lwp output - missing logcat file")
+    # Get lightweight profiling output as a CSV file
+    profiler.get_profile_output(hexagon_launcher, hexagon_session, hexagon_server_process)
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):

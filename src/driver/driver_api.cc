@@ -256,6 +256,10 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(
       tir::transform::CommonSubexprElimTIR(!disable_cse_tir, enable_equiv_terms_in_cse_tir));
 
+  // This pass instruments the loops with the profile builtin calls to capture the runtime
+  // performance data (only enabled for Hexagon at the moment). To ensure that no other
+  // optimizations are performed on the instrumented code, this pass must be added at the end
+  // of the list.
   if (instrument_lwp) {
     pass_list.push_back(tir::transform::InstrumentProfileIntrinsics());
   }

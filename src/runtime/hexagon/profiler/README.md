@@ -57,9 +57,7 @@ The steps involved are as follows:
 1) While building a model, set `tir.instrument_lwp` to `True`.
    By default, the builtin calls will only be inserted for the loops with siblings. But it
    can be altered using LWP config options as described above.
-2) Save the binary file as it will be needed to process the profiling data (lwp.json) later.
-3) Create `HexagonProfiler` object. It is passed to `get_profile_output` to check if the model was
-built with profiling enabled before copying the data from the device.
+2) Create `HexagonProfiler` object
 
 ```
 with tvm.transform.PassContext(opt_level=3, config={"tir.instrument_lwp": True}):
@@ -69,83 +67,32 @@ with tvm.transform.PassContext(opt_level=3, config={"tir.instrument_lwp": True})
         ...
     )
 
-    # Save binary file to post-process lwp output
-    lowered.get_lib().save(dso_binary_path)
-
     # Create HexagonProfiler object. It sets the profiling mode based on the PassContext config.
-    profiler = HexagonProfiler()
+    # '--hexagon-debug' to pytest can be used to retain any temp or test directories to
+    # inspect the profiling data.
+    profiler = HexagonProfiler(lowered, hexagon_server_process, hexagon_debug)
 ```
 
-4) Run the model and get profile data (`lwp.json`) from the device (or the simulator):
+4) Run the model and get the profiling data as a CSV file. It is done by post-processing
+   'lwp.json' file generated during runtime.
 
+```
+    graph_mod.run(**inputs)
+
+    # Get lightweight profiling output as a CSV file
+    profiler.get_profile_output(hexagon_launcher, hexagon_session, hexagon_server_process)
+```
 **Note:**
 
-- For on-device runs, 'lwp.json' is generated in the same remote directory where 'tvm_rpc_android'
-is copied. This remote path is needed to copy the file from the device and can be found in
-'hexagon_server_process["launcher"].workspace'.
-
-- For the simulator runs, the remote path is not needed as the 'lwp.json' file is generated in the
-simulator test output directory.
-
-```
-    remote_path = ""
-    if android_serial_number is not None and android_serial_number != "simulator":
-        # Get the workspace on the device to extract lwp output
-        remote_path = hexagon_server_process["launcher"]._workspace
-
-    # Get profile data (lwp.json) from the device
-    prof_out = hexagon_launcher.get_profile_output(profiler, hexagon_session, remote_path, temp)
-
-```
-
-5) Process `lwp.json` and construct an easy-to-read csv file.
-
-This step requires several parameters as explained below:
-
-- Path of the binary file
-- android_serial_number
-- Path of the lwp json file (lwp.json) which gets created in the current directory
-- Path to the run log depending on the environment:
-  - For on-device runs:
-     Use logcat output as the run log
-     To get the logcat output:
-     - Create /vendor/lib/rfsa/adsp/tvm_rpc_android.farf on the device
-     - Run logcat command in the background or in a separate terminal while
-       running the test:
-       adb -s <device-id> logcat -c && adb -s <device-id> logcat 2>&1 | tee /tmp//logcat.log
-  - For simulator runs:
-     Use "stdout.txt" as the run log. There is no need to specify the full path to
-     "stdout.txt" as it will be inferred based on 'prof_out' location.
-- lwp processed output file -  "lwp.csv"
-
-**Note:** For on-device run, the logcat output needs to be collected manually and its path
-must be passed to 'process_lwp_output' as mentioned above.
-
-```
-    lwp_csv = temp.relpath("lwp.csv")
-    if android_serial_number == "simulator":
-        process_lwp_output(dso_binary_path, android_serial_number, prof_out, "stdout.txt", lwp_csv)
-    else:
-        # For on-device run
-        if os.path.exists("/tmp/logcat.log"):
-            process_lwp_output(
-                dso_binary_path, android_serial_number, prof_out, "/tmp/logcat.log", lwp_csv
-            )
-        else:
-            print("WARNING: Error processing lwp output - missing logcat file")
-```
+- For on-device runs, 'lwp.json' is copied into a temp directory along with the test .so and the processed
+  CSV file
+- For the simulator runs, the file is generated in the simulator test output directory. Test  .so
+  will still be in a separate temp directory. lwp CSV file will also be in the same directory.
 
 **Helpful Hints:**
 
-1) The above code snippet generates 'lwp.csv' in the temporary directory which gets deleted when the
-test exits. To keep the temp directory, set `keep_for_debug` to `True` while creating it. Alternatively,
-you can set `lwp_csv` to "/tmp/lwp.csv".
-
-```
-temp = utils.tempdir(keep_for_debug=True)
-```
-
-2) To prevent the test directories on the Hexagon device from being deleted, pass `--hexagon-debug` to pytest.
+- To prevent the test directories on the Hexagon device as well as temporary test directory on x86
+from being deleted for profiling related runs, pass `--hexagon-debug` to pytest.
 
 ```
 python -m pytest --hexagon-debug tests/python/contrib/test_hexagon/test_launcher.py::test_lwp

@@ -343,8 +343,6 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         self,
         hex_profiler: HexagonProfiler,
         session: Session,
-        remote_path: Union[str, pathlib.Path] = None,
-        temp_dir: TempDirectory = None,
     ) -> str:
         """Extract profile output.
 
@@ -355,10 +353,6 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         session : Session
             Remote session. The session must be established (via __enter__)
             prior to calling this function.
-        remote_path: Union[str, pathlib.Path]
-            Remote path for on-device runs (ignored for the simulator run)
-        temp_dir : TempDirectory
-            Local directory where profile output can be saved (ignored for the simulator run)
 
         Returns
         -------
@@ -407,6 +401,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
     ):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
+
         _check_call_verbose(self._adb_device_sub_cmd + ["push", str(local_path), str(remote_path)])
 
     def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]) -> pathlib.Path:
@@ -551,12 +546,12 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self,
         hex_profiler: HexagonProfiler,
         session: Session,
-        remote_path: Union[str, pathlib.Path] = None,
-        temp_dir: TempDirectory = None,
     ):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         profile_data = ""
         if hex_profiler.is_lwp_enabled():
+            temp_dir = hex_profiler.get_temp_dir()
+            remote_path = hex_profiler.get_remote_path()
             if not temp_dir:
                 raise RuntimeError("tempdir not passed")
             fname = "lwp.json"
@@ -683,8 +678,6 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
         self,
         hex_profiler: HexagonProfiler,
         session: Session,
-        remote_path: Union[str, pathlib.Path] = None,
-        temp_dir: TempDirectory = None,
     ):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         profile_data = ""

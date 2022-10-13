@@ -49,7 +49,7 @@ struct LoopInfo {
     has_parallel = false;
   }
   unsigned id;
-  unsigned depth;
+  int32_t depth;
   int32_t height;
   bool has_siblings;
   // Set to 'true' if ForKind::kParallel is set for the current loop or one of its ancestor
@@ -110,8 +110,9 @@ class LoopAnalyzer : public StmtExprVisitor {
     } else if (stmt->IsInstance<IfThenElseNode>()) {
       const IfThenElseNode* n = stmt.as<IfThenElseNode>();
       unsigned height = TraverseLoop(n->then_case, parent_depth, has_parallel);
-      if (n->else_case.defined())
+      if (n->else_case.defined()) {
         height = std::max(height, TraverseLoop(n->else_case, parent_depth, has_parallel));
+      }
       return height;
     } else if (stmt->IsInstance<ForNode>()) {
       const ForNode* f = stmt.as<ForNode>();
@@ -193,9 +194,11 @@ class InstrumentIntrin : public StmtMutator {
       return stmt;
     }
     PrimExpr id = static_cast<int32_t>(loop_info.id);
-    PrimExpr call = Call(DataType::Handle(), builtin::profile_intrinsic(), {id});
-    const Stmt profile = Evaluate(call);
-    Stmt new_stmt = SeqStmt({profile, stmt, profile});
+    PrimExpr start_call = Call(DataType::Handle(), builtin::start_profile_intrinsic(), {id});
+    PrimExpr end_call = Call(DataType::Handle(), builtin::end_profile_intrinsic(), {id});
+    const Stmt start_profile = Evaluate(start_call);
+    const Stmt end_profile = Evaluate(end_call);
+    Stmt new_stmt = SeqStmt({start_profile, stmt, end_profile});
     return new_stmt;
   }
 
@@ -215,10 +218,11 @@ class CheckParallelLoops : public StmtExprVisitor {
 
  private:
   void VisitStmt_(const ForNode* op) final {
-    if (op->kind == ForKind::kParallel)
+    if (op->kind == ForKind::kParallel) {
       has_parallel = true;
-    else
+    } else {
       StmtExprVisitor::VisitStmt_(op);
+    }
   }
 
   bool has_parallel = false;
@@ -230,9 +234,11 @@ PrimFunc AddProfileBuiltins(PrimFunc func, int32_t max_instr_depth, int32_t min_
 
   PrimExpr e = start_id++;
   if (!disable_func_instrumentation) {
-    PrimExpr call = Call(DataType::Handle(), builtin::profile_intrinsic(), {e});
-    const Stmt profile = Evaluate(call);
-    func_ptr->body = SeqStmt({profile, std::move(func_ptr->body), profile});
+    PrimExpr start_call = Call(DataType::Handle(), builtin::start_profile_intrinsic(), {e});
+    PrimExpr end_call = Call(DataType::Handle(), builtin::end_profile_intrinsic(), {e});
+    const Stmt start_profile = Evaluate(start_call);
+    const Stmt end_profile = Evaluate(end_call);
+    func_ptr->body = SeqStmt({start_profile, std::move(func_ptr->body), end_profile});
   }
   InstrumentIntrin p(max_instr_depth, min_instr_height, instr_siblings);
   p.GetLoopInfo(func_ptr);
