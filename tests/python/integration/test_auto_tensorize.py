@@ -277,7 +277,7 @@ def test_vnni_dense():
     )
 
 
-@pytest.mark.skip("Only tested locally on sm_86 (for cuda) which is not supported by CI")
+@pytest.mark.skip_if(tvm.testing.IS_IN_CI, reason="Only tested locally on sm_86")
 @tvm.testing.requires_gpu
 def test_dp4a_dense():
     _test_dense("int8", SCH_RULES_FOR_DP4A, POSTPROCS_FOR_DP4A, "nvidia/geforce-rtx-3070")
@@ -297,7 +297,7 @@ def test_vnni_conv2d():
     )
 
 
-@pytest.mark.skip("Only tested locally on sm_86 (for cuda) which is not supported by CI")
+@pytest.mark.skip_if(tvm.testing.IS_IN_CI, reason="Only tested locally on sm_86")
 @tvm.testing.requires_gpu
 def test_dp4a_conv2d():
     _test_conv2d("int8", SCH_RULES_FOR_DP4A, POSTPROCS_FOR_DP4A, "nvidia/geforce-rtx-3070")
