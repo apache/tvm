@@ -167,9 +167,9 @@ def optimize_torch(
             backend="graph",
         )
 
-    # save_runtime_mod = get_global_func("tvmtorch.save_runtime_mod")
-    from tvm._ffi import lis
-    print(tvm._ffi.list_global_func_names())
-    # save_runtime_mod(executor_factory.module)
+    save_runtime_mod = get_global_func("tvmtorch.save_runtime_mod", allow_missing=True)
+    if save_runtime_mod is None:
+        raise ValueError('optimize_torch requires the flag /"USE_PT_TVMDSOOP/" set in config.cmake')
+    save_runtime_mod(executor_factory.module)
 
     return GraphExecutorFactoryWrapper(torch.classes.tvm_torch.GraphExecutorFactoryWrapper())
