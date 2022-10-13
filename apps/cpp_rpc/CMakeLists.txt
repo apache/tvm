@@ -26,6 +26,7 @@ if(WIN32)
   target_compile_definitions(tvm_rpc PUBLIC -DNOMINMAX)
 endif()
 
+
 if (OS)
    if (OS STREQUAL "Linux")
       set_property(TARGET tvm_rpc PROPERTY LINK_FLAGS -lpthread)
@@ -56,6 +57,10 @@ if (BUILD_FOR_ANDROID AND USE_HEXAGON)
   endif()
   list(APPEND TVM_RPC_LINKER_LIBS cdsprpc log)
 endif()
+if(IS_MINGW)
+  message(STATUS "Build with RPC support... add ws2.lib on windows")
+  list(APPEND TVM_RPC_LINKER_LIBS Ws2_32.lib)
+endif(IS_MINGW )
 
 if(USE_ETHOSN)
   if (ETHOSN_RUNTIME_LIBRARY)
