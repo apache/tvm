@@ -76,9 +76,10 @@ def _register_external_op_helper(op_name, supported=True):
         if "concatenate" in op_name or "cast" in op_name:
             return supported
         args = expr.args
-        if any([x.checked_type.dtype == "int64" for x in args]):
-            logger.info("DNNL does not support int64.")
-            return False
+        # todo: fix check for concatenate with truple inputs
+        # if any([x.checked_type.dtype == "int64" for x in args]):
+        #     logger.info("DNNL does not support int64.")
+        #     return False
         # DNNL does not support pooling with ceil_mode = True.
         if "pool" in op_name:
             attrs = dict(get_attrs(expr))

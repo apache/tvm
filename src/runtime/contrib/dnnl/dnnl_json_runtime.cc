@@ -330,43 +330,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
           {{DNNL_ARG_FROM, src_tr}, {DNNL_ARG_TO, dst_tr}});
   }
 
-  void Concat(const size_t& nid) {
-    auto node = nodes_[nid];
-
-    int num_inputs = node.GetInputs().size();
-    std::vector<TensorRequisite> src_trs;
-    for (int i = 0; i < num_inputs; i++) {
-      src_trs.emplace_back(GetInput(nid, i));
-    }
-    auto dst_tr = GetOutput(nid, 0);
-
-    int axis = std::stoi(node.GetAttr<std::vector<std::string>>("axis")[0]);
-    if (axis < 0) {
-        axis = dst_tr.dims().size() + axis;
-    }
-    ICHECK_LT(axis, dst_tr.dims().size());
-
-    std::vector<dnnl::memory::desc> src_mds;
-    for(const auto& src_tr:src_trs){
-      src_mds.emplace_back(src_tr.desc());
-    }
-
-    auto concat_prim_desc = dnnl::concat::primitive_desc(axis, src_mds, engine_);
-    for (int i = 0; i < num_inputs;i++){
-      src_trs[i] = src_trs[i].RequestLayout(concat_prim_desc.src_desc(i));
-    }
-    dst_tr = dst_tr.RequestLayout(concat_prim_desc.dst_desc());
-    auto scratchpad_tr = TensorRequisite::AsIs(concat_prim_desc.scratchpad_desc());
-
-    std::unordered_map<int, TensorRequisite> args;
-    for (int i = 0; i < num_inputs; i++) {
-      args.insert({DNNL_ARG_MULTIPLE_SRC + i, src_trs[i]});
-    }
-    args.insert({DNNL_ARG_SCRATCHPAD, scratchpad_tr});
-    args.insert({DNNL_ARG_DST, dst_tr});
-    Submit(dnnl::concat(concat_prim_desc), args);
-  }
-
 
   void Convolution(const size_t& nid) {
     auto node = nodes_[nid];
@@ -840,6 +803,43 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     Submit(dnnl::binary(binary_prim_desc),
            {{DNNL_ARG_SRC_0, lhs_tr}, {DNNL_ARG_SRC_1, rhs_tr}, {DNNL_ARG_DST, dst_tr}});
+  }
+
+  void Concat(const size_t& nid) {
+    auto node = nodes_[nid];
+
+    int num_inputs = node.GetInputs().size();
+    std::vector<TensorRequisite> src_trs;
+    for (int i = 0; i < num_inputs; i++) {
+      src_trs.emplace_back(GetInput(nid, i));
+    }
+    auto dst_tr = GetOutput(nid, 0);
+
+    int axis = std::stoi(node.GetAttr<std::vector<std::string>>("axis")[0]);
+    if (axis < 0) {
+        axis = dst_tr.dims().size() + axis;
+    }
+    ICHECK_LT(axis, dst_tr.dims().size());
+
+    std::vector<dnnl::memory::desc> src_mds;
+    for(const auto& src_tr:src_trs){
+      src_mds.emplace_back(src_tr.desc());
+    }
+
+    auto concat_prim_desc = dnnl::concat::primitive_desc(axis, src_mds, engine_);
+    for (int i = 0; i < num_inputs;i++){
+      src_trs[i] = src_trs[i].RequestLayout(concat_prim_desc.src_desc(i));
+    }
+    dst_tr = dst_tr.RequestLayout(concat_prim_desc.dst_desc());
+    auto scratchpad_tr = TensorRequisite::AsIs(concat_prim_desc.scratchpad_desc());
+
+    std::unordered_map<int, TensorRequisite> args;
+    for (int i = 0; i < num_inputs; i++) {
+      args.insert({DNNL_ARG_MULTIPLE_SRC + i, src_trs[i]});
+    }
+    args.insert({DNNL_ARG_SCRATCHPAD, scratchpad_tr});
+    args.insert({DNNL_ARG_DST, dst_tr});
+    Submit(dnnl::concat(concat_prim_desc), args);
   }
 
   template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
