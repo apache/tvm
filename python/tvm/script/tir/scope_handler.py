@@ -605,7 +605,7 @@ class ForScopeHandler(ScopeHandler):
 
     def create_loop_info(
         self,
-        begin: PrimExpr,
+        begin: Optional[PrimExpr],
         end: PrimExpr,
         kind: ForKind,
         thread_binding: Optional[str] = None,
@@ -616,8 +616,8 @@ class ForScopeHandler(ScopeHandler):
 
         Parameters
         ----------
-        begin : PrimExpr
-            The beginning value.
+        begin : Optional[PrimExpr]
+            The beginning value. If None, it will be set to 0.
 
         end : PrimExpr
             The endding value.
@@ -639,11 +639,14 @@ class ForScopeHandler(ScopeHandler):
         for : For
             The constructed For.
         """
-        begin, end = [convert(_) for _ in [begin, end]]
+        end = convert(end)
+        if begin is None:
+            begin = tvm.tir.const(0, end.dtype)
+            extent = end
+        else:
+            begin = convert(begin)
+            extent = self.context.analyzer.simplify(end - begin)
         assert self.context and self.node, "call 'exit_scope' before 'enter_scope'"
-        extent = end if begin == 0 else self.context.analyzer.simplify(end - begin)
-        if begin == 0 and isinstance(extent, PrimExpr):
-            begin = IntImm(extent.dtype, 0, begin.span)
         self.annotations: Mapping[str, Object] = {}
         if annotations is not None:
             self.annotations = {
@@ -665,8 +668,7 @@ class Serial(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
         ):
             if end is None:
-                end = begin
-                begin = 0
+                end, begin = begin, end
             self.create_loop_info(begin, end, ForKind.SERIAL, annotations=annotations)
 
         super().__init__(serial)
@@ -683,8 +685,7 @@ class Parallel(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
         ):
             if end is None:
-                end = begin
-                begin = 0
+                end, begin = begin, end
             self.create_loop_info(begin, end, ForKind.PARALLEL, annotations=annotations)
 
         super().__init__(parallel)
@@ -701,8 +702,7 @@ class Vectorized(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
         ):
             if end is None:
-                end = begin
-                begin = 0
+                end, begin = begin, end
             self.create_loop_info(begin, end, ForKind.VECTORIZED, annotations=annotations)
 
         super().__init__(vectorized)
@@ -719,8 +719,7 @@ class Unroll(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
         ):
             if end is None:
-                end = begin
-                begin = 0
+                end, begin = begin, end
             self.create_loop_info(begin, end, ForKind.UNROLLED, annotations=annotations)
 
         super().__init__(unroll)
@@ -744,8 +743,7 @@ class ThreadBinding(ForScopeHandler):
                 else:
                     raise ValueError("Thread cannot be None for thread_binding")
             if end is None:
-                end = begin
-                begin = 0
+                end, begin = begin, end
             thread_iter_var = IterVar(None, None, IterVar.ThreadIndex, thread)
             self.create_loop_info(
                 begin,
@@ -771,8 +769,7 @@ class RangeHandler(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
         ):
             if end is None:
-                end = begin
-                begin = 0
+                end, begin = begin, end
             self.create_loop_info(begin, end, ForKind.SERIAL, annotations=annotations)
 
         super().__init__(for_range)
@@ -788,6 +785,6 @@ class Grid(ForScopeHandler):
     def __init__(self):
         def grid(*extents: List[PrimExpr]):
             for extent in extents:
-                self.create_loop_info(0, extent, ForKind.SERIAL)
+                self.create_loop_info(None, extent, ForKind.SERIAL)
 
         super().__init__(grid)
