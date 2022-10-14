@@ -333,7 +333,11 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     /*! \brief An interface method to be called by it's counterpart in EvolutionarySearchNode */
     inline void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                                     const Array<RunnerResult>& results);
-    /*! \brief Compute the hash for the given module */
+    /*!
+     * \brief Compute the hash for the given module.
+     * \param mod The input TIR module.
+     * \return The calculated hash.
+     */
     inline size_t ModuleHash(const IRModule& mod) const;
   };
 

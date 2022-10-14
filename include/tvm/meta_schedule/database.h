@@ -438,7 +438,8 @@ class PyDatabaseNode : public DatabaseNode {
  */
 class Database : public runtime::ObjectRef {
  public:
-  /*! An in-memory database.
+  /*!
+   * \brief An in-memory database.
    * \param mod_eq_name A string to specify the module equality testing and hashing method.
    */
   TVM_DLL static Database MemoryDatabase(String mod_eq_name = "structural");

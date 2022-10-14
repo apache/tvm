@@ -71,7 +71,7 @@ Array<meta_schedule::ExtractedTask> ExtractTask(IRModule mod, Target target,
           return;
         }
 
-	// Note that the cache is key-ed on the tir mod, rather than the relay mod
+        // Note that the cache is key-ed on the tir mod, rather than the relay mod
         IRModule relay_mod({{GlobalVar(fused_name), relay_func}});
         ExtractedTask task(fused_name, relay_mod, target, {tir_mod}, 1);
         tasks.push_back(task);
