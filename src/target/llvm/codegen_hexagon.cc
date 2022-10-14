@@ -195,6 +195,7 @@ llvm::Value* CodeGenHexagon::VisitExpr_(const BufferLoadNode* op) {
 }
 
 llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
+#if TVM_LLVM_VERSION >= 150
   if (op->op.same_as(builtin::start_profile_intrinsic()) || op->op.same_as(builtin::end_profile_intrinsic())) {
     llvm::Value* id = MakeValue(op->args[0]);
     auto instrprof_id = llvm::Intrinsic::hexagon_instrprof_custom;
@@ -210,6 +211,7 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
     llvm::Type* t_int8_p_ = t_int8_->getPointerTo();
     return builder_->CreateCall(func, {llvm::ConstantExpr::getBitCast(name_var, t_int8_p_), id});
   }
+#endif
   return CodeGenCPU::CreateIntrinsic(op);
 }
 
