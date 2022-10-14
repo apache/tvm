@@ -283,10 +283,10 @@ def test_dp4a_dense():
     _test_dense("int8", SCH_RULES_FOR_DP4A, POSTPROCS_FOR_DP4A, "nvidia/geforce-rtx-3070")
     # Uncomment to test on vulkan or rocm target
     # _test_dense(
-    #     "int8", sch_rules_for_dp4a, postprocs_for_dp4a, "vulkan -from_device=0"
+    #     "int8", SCH_RULES_FOR_DP4A, POSTPROCS_FOR_DP4A, "vulkan -from_device=0"
     # )
     # _test_dense(
-    #     "int8", sch_rules_for_sdot4, postprocs_for_dp4a, "rocm"
+    #     "int8", SCH_RULES_FOR_SDOT4, POSTPROCS_FOR_DP4A, "rocm"
     # )
 
 
@@ -303,10 +303,10 @@ def test_dp4a_conv2d():
     _test_conv2d("int8", SCH_RULES_FOR_DP4A, POSTPROCS_FOR_DP4A, "nvidia/geforce-rtx-3070")
     # Uncomment to test on vulkan or rocm target
     # _test_conv2d(
-    #     "int8", sch_rules_for_dp4a, postprocs_for_dp4a, "vulkan -from_device=0"
+    #     "int8", SCH_RULES_FOR_DP4A, POSTPROCS_FOR_DP4A, "vulkan -from_device=0"
     # )
     # _test_conv2d(
-    #     "int8", sch_rules_for_sdot4, postprocs_for_dp4a, "rocm"
+    #     "int8", SCH_RULES_FOR_SDOT4, POSTPROCS_FOR_DP4A, "rocm"
     # )
 
 
@@ -342,16 +342,16 @@ def test_dp4a_bert_int8():
     #     params,
     #     input_info,
     #     "vulkan -from_device=0",
-    #     sch_rules_for_dp4a,
-    #     postprocs_for_dp4a,
+    #     SCH_RULES_FOR_DP4A,
+    #     POSTPROCS_FOR_DP4A,
     # )
     # _test_bert_int8(
     #     relay_mod,
     #     params,
     #     input_info,
     #     "rocm",
-    #     sch_rules_for_sdot4,
-    #     postprocs_for_dp4a,
+    #     SCH_RULES_FOR_SDOT4
+    #     POSTPROCS_FOR_DP4A,
     # )
 
 
