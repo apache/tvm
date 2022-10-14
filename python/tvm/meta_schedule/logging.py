@@ -93,11 +93,11 @@ def create_loggers(
 
     global_logger_name = "tvm.meta_schedule"
     global_logger = logging.getLogger(global_logger_name)
+    if global_logger.level is logging.NOTSET:
+        global_logger.setLevel(logging.DEBUG)
     console_logging_level = logging._levelToName[  # pylint: disable=protected-access
         global_logger.level
     ]
-    if global_logger.level is logging.NOTSET:
-        global_logger.setLevel(logging.DEBUG)
 
     config["loggers"].setdefault(
         global_logger_name,
@@ -111,7 +111,7 @@ def create_loggers(
     config["loggers"].setdefault(
         "{logger_name}",
         {
-            "level": "INFO",
+            "level": "DEBUG",
             "handlers": [
                 "{logger_name}.file",
             ],
