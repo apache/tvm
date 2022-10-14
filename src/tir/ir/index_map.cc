@@ -147,6 +147,37 @@ IndexMap IndexMap::Inverse(Array<Range> initial_ranges) const {
   return inverse;
 }
 
+/*!
+ * \brief Evaluator to compute the mapped indices of a given index map.
+ */
+class IndexMapEvaluator : public DataTypeLegalizer {
+ public:
+  explicit IndexMapEvaluator(const IndexMap& index_map) : index_map_(index_map) {}
+
+  Array<PrimExpr> Eval(const Array<PrimExpr>& arguments, arith::Analyzer* analyzer) {
+    var_map_.clear();
+    ICHECK_EQ(arguments.size(), index_map_->initial_indices.size());
+    for (int i = 0; i < static_cast<int>(arguments.size()); ++i) {
+      var_map_.Set(index_map_->initial_indices[i], arguments[i]);
+    }
+    Array<PrimExpr> result = index_map_->final_indices;
+    result.MutateByApply([&](PrimExpr expr) { return analyzer->Simplify(this->VisitExpr(expr)); });
+    return result;
+  }
+
+  PrimExpr VisitExpr_(const VarNode* op) final {
+    if (auto it = var_map_.find(GetRef<Var>(op)); it != var_map_.end()) {
+      return (*it).second;
+    } else {
+      return GetRef<PrimExpr>(op);
+    }
+  }
+
+ private:
+  IndexMap index_map_;
+  Map<Var, PrimExpr> var_map_;
+};
+
 Array<PrimExpr> IndexMapNode::MapIndices(const Array<PrimExpr>& indices,
                                          arith::Analyzer* analyzer) const {
   ICHECK_EQ(indices.size(), initial_indices.size());
@@ -162,9 +193,7 @@ Array<PrimExpr> IndexMapNode::MapIndices(const Array<PrimExpr>& indices,
     analyzer = &local_analyzer;
   }
 
-  Array<PrimExpr> output = final_indices.Map(
-      [&](PrimExpr index) { return analyzer->Simplify(Substitute(std::move(index), vmap)); });
-
+  Array<PrimExpr> output = IndexMapEvaluator(GetRef<IndexMap>(this)).Eval(indices, analyzer);
   return output;
 }
 
@@ -172,8 +201,10 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer
   ICHECK_EQ(ranges.size(), initial_indices.size());
 
   Map<Var, Range> input_iters;
+  int max_bits = 0;
   for (size_t i = 0; i < initial_indices.size(); i++) {
     input_iters.Set(initial_indices[i], ranges[i]);
+    max_bits = std::max(max_bits, ranges[i]->extent.dtype().bits());
   }
 
   arith::Analyzer local_analyzer;
@@ -218,6 +249,15 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer
                                             analyzer->Simplify(int_set.max() - int_set.min() + 1)));
     }
   }
+  auto output_dtype = DataType::Int(max_bits);
+  output.MutateByApply([&](const Range& range) {
+    if (range->min.dtype() != output_dtype || range->extent.dtype() != output_dtype) {
+      return Range::FromMinExtent(cast(output_dtype, range->min),
+                                  cast(output_dtype, range->extent));
+    } else {
+      return range;
+    }
+  });
   return output;
 }
 
@@ -227,7 +267,7 @@ Array<PrimExpr> IndexMapNode::MapShape(const Array<PrimExpr>& shape,
 
   Array<Range> ranges;
   for (auto& dim : shape) {
-    ranges.push_back(Range(0, dim));
+    ranges.push_back(Range(make_zero(dim.dtype()), dim));
   }
   Array<Range> mapped = MapRanges(std::move(ranges), analyzer);
 
