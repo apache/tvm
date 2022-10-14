@@ -387,5 +387,31 @@ def test_func_call():
     #         A[i] = A[ind]
 
 
+def test_int64_loop():
+    @T.prim_func
+    def int64_grid(
+        A: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+        B: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+    ) -> None:
+        for i, j in T.grid(T.int64(128), T.int64(128)):
+            with T.block("C"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                B[vi, vj] = A[vi, vj] + 1.0
+
+    @T.prim_func
+    def int64_grid_expanded(
+        A: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+        B: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+    ) -> None:
+        for i in range(T.int64(0), T.int64(128)):
+            for j in range(T.int64(0), T.int64(128)):
+                with T.block("C"):
+                    vi = T.axis.spatial(T.int64(128), i)
+                    vj = T.axis.spatial(T.int64(128), j)
+                    B[vi, vj] = A[vi, vj] + 1.0
+
+    assert_structural_equal(int64_grid, int64_grid_expanded)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
