@@ -964,7 +964,7 @@ class LayerNormalization(OnnxOpConverter):
         axis = tuple(range(axis, rank)) if axis >= 0 else tuple(range(rank + axis, rank))
         dtype = infer_type(x).checked_type.dtype
         mean = _op.mean(x, axis, keepdims=True)
-        var = _op.variance(x, axis, keepdims=True)
+        var = _op.variance(x, axis, keepdims=True, mean=mean)
         inv_stdev = _op.divide(
             _op.const(1, dtype=dtype), _op.sqrt(_op.add(var, _op.const(eps, dtype=dtype)))
         )
