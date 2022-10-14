@@ -300,7 +300,7 @@ def test_let():
 
 
 def test_seq():
-    assert_parses_as("(); ()", relay.Let(_, UNIT, UNIT))
+    assert_parses_as("let %_ = (); ()", relay.Let(_, UNIT, UNIT))
 
     assert_parses_as("let %_ = 1; ()", relay.Let(X, relay.const(1), UNIT))
 

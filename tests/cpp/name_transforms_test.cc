@@ -20,6 +20,8 @@
 #include "../src/relay/backend/name_transforms.h"
 
 #include <gtest/gtest.h>
+#include <tvm/relay/expr.h>
+#include <tvm/relay/type.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/name_transforms.h>
 
@@ -93,4 +95,17 @@ TEST(NameTransforms, CombinedLogic) {
   ASSERT_EQ(ToCFunctionStyle(PrefixGeneratedName({"model", "Run"})), "TVMGenModelRun");
   ASSERT_EQ(ToCVariableStyle(PrefixName({"Device", "target", "t"})), "tvm_device_target_t");
   ASSERT_EQ(ToCVariableStyle(PrefixGeneratedName({"model", "Devices"})), "tvmgen_model_devices");
+}
+
+TEST(NameTransforms, RelayVar) {
+  using namespace tvm;
+  auto tensor_type = relay::TensorType({2, 3}, ::tvm::runtime::DataType::Float(32));
+  relay::Var a = relay::Var("input:", tensor_type);
+  relay::Var b = relay::Var("input+", tensor_type);
+  relay::Var c = relay::Var("input@", tensor_type);
+  relay::Var d = relay::Var("input_", tensor_type);
+  ASSERT_EQ(a->name_hint(), "input_");
+  ASSERT_EQ(b->name_hint(), "input_");
+  ASSERT_EQ(c->name_hint(), "input_");
+  ASSERT_EQ(d->name_hint(), "input_");
 }
