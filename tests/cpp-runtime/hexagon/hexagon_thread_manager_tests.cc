@@ -20,6 +20,7 @@
 #include <gtest/gtest.h>
 #include <tvm/runtime/logging.h>
 
+#include "../src/runtime/hexagon/hexagon_device_api.h"
 #include "../src/runtime/hexagon/hexagon_thread_manager.h"
 
 using namespace tvm::runtime;
@@ -28,7 +29,7 @@ using namespace tvm::runtime::hexagon;
 class HexagonThreadManagerTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    htm = new HexagonThreadManager(threads, stack_size, pipe_size);
+    htm = HexagonDeviceAPI::Global()->ThreadManager();
     streams = htm->GetStreamHandles();
   }
   void TearDown() override { delete htm; }

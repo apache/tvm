@@ -50,6 +50,11 @@ class HexagonHmx {
 
   //! \brief Acquisition context ID
   unsigned int context_id_;
+
+  void PowerOn();
+  void PowerOff();
+  void Acquire();
+  void Release();
 };
 
 }  // namespace hexagon

@@ -37,7 +37,16 @@ namespace runtime {
 namespace hexagon {
 
 HexagonHmx::HexagonHmx() {
-  // Power on
+  PowerOn();
+  Acquire();
+}
+
+HexagonHmx::~HexagonHmx() {
+  Release();
+  PowerOff();
+}
+
+void HexagonHmx::PowerOn() {
   HAP_power_request_t pwr_req;
   int nErr;
 
@@ -47,35 +56,9 @@ HexagonHmx::HexagonHmx() {
   if ((nErr = HAP_power_set(hap_pwr_ctx_, &pwr_req))) {
     LOG(FATAL) << "InternalError: HAP_power_set failed\n";
   }
-
-  // Acquire
-  compute_res_attr_t compute_res_attr;
-
-  if ((nErr = HAP_compute_res_attr_init(&compute_res_attr))) {
-    LOG(FATAL) << "InternalError: HAP_compute_res_attr_init failed\n";
-  }
-
-  if ((nErr = HAP_compute_res_attr_set_hmx_param(&compute_res_attr, 1))) {
-    LOG(FATAL) << "InternalError: HAP_compute_res_attr_set_hmx_param failed\n";
-  }
-
-  context_id_ = HAP_compute_res_acquire(&compute_res_attr, COMPUTE_RES_ACQ_TIMEOUT);
-
-  if (!context_id_) {
-    LOG(FATAL) << "InternalError: HAP_compute_res_acquire failed\n";
-  }
-
-  if ((nErr = HAP_compute_res_hmx_lock(context_id_))) {
-    LOG(FATAL) << "InternalError: Unable to lock HMX!";
-  }
 }
 
-HexagonHmx::~HexagonHmx() {
-  // Release
-  HAP_compute_res_hmx_unlock((unsigned int)context_id_);
-  HAP_compute_res_release((unsigned int)context_id_);
-
-  // Power off
+void HexagonHmx::PowerOff() {
   HAP_power_request_t pwr_req;
   int nErr;
 
@@ -86,6 +69,31 @@ HexagonHmx::~HexagonHmx() {
   }
 
   HAP_utils_destroy_context(hap_pwr_ctx_);
+}
+
+void HexagonHmx::Acquire() {
+  compute_res_attr_t compute_res_attr;
+  int nErr;
+
+  if ((nErr = HAP_compute_res_attr_init(&compute_res_attr))) {
+    LOG(FATAL) << "InternalError: HAP_compute_res_attr_init failed\n";
+  }
+  if ((nErr = HAP_compute_res_attr_set_hmx_param(&compute_res_attr, 1))) {
+    LOG(FATAL) << "InternalError: HAP_compute_res_attr_set_hmx_param failed\n";
+  }
+  context_id_ = HAP_compute_res_acquire(&compute_res_attr, COMPUTE_RES_ACQ_TIMEOUT);
+
+  if (!context_id_) {
+    LOG(FATAL) << "InternalError: HAP_compute_res_acquire failed\n";
+  }
+  if ((nErr = HAP_compute_res_hmx_lock(context_id_))) {
+    LOG(FATAL) << "InternalError: Unable to lock HMX!";
+  }
+}
+
+void HexagonHmx::Release() {
+  HAP_compute_res_hmx_unlock((unsigned int)context_id_);
+  HAP_compute_res_release((unsigned int)context_id_);
 }
 
 }  // namespace hexagon
