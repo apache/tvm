@@ -223,6 +223,7 @@ def dense_pack_strategy_hexagon(attrs, inputs, out_type, target):
 
     return strategy
 
+
 @fast_softmax_strategy.register("hexagon")
 def fast_softmax_strategy_cpu(attrs, inputs, out_type, target):
     """fast_softmax hexagon strategy"""
