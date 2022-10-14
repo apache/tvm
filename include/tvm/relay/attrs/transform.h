@@ -405,6 +405,23 @@ struct FixedPointMultiplyAttrs : public tvm::AttrsNode<FixedPointMultiplyAttrs> 
   }
 };
 
+/*! \brief Attributes for per channel/per axes FixedPointMultiply operator */
+struct FixedPointMultiplyPerAxisAttrs : public tvm::AttrsNode<FixedPointMultiplyPerAxisAttrs> {
+  bool is_lshift_required;
+  bool is_rshift_required;
+  Array<Integer> axes;
+
+  TVM_DECLARE_ATTRS(FixedPointMultiplyPerAxisAttrs, "relay.attrs.FixedPointMultiplyPerAxisAttrs") {
+    TVM_ATTR_FIELD(is_lshift_required)
+        .describe("Whether left shift is required in fixed point multiplication.")
+        .set_default(false);
+    TVM_ATTR_FIELD(is_rshift_required)
+        .describe("Whether right shift is required in fixed point multiplication.")
+        .set_default(false);
+    TVM_ATTR_FIELD(axes).describe("List of axes on which input data was quantized.");
+  }
+};
+
 /*! \brief Attributes for LayoutTransform operator */
 struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
   std::string src_layout;

@@ -98,6 +98,11 @@ TIR_DEFINE_BUILTIN_FUNC(q_multiply_shift)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
     .set_attr<TVectorizable>("TVectorizable", true);
 
+TIR_DEFINE_BUILTIN_FUNC(q_multiply_shift_per_axis)
+    .set_num_inputs(7)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+    .set_attr<TVectorizable>("TVectorizable", true);
+
 TIR_DEFINE_BUILTIN_FUNC(isnullptr).set_num_inputs(1).set_attr<TCallEffectKind>(
     "TCallEffectKind", Integer(CallEffectKind::kPure));
 

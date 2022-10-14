@@ -108,6 +108,32 @@ Expr FixedPointMultiplyToNearest(Expr tensor, double multiplier,
   return Cast(tensor, DataType::Int(32));
 }
 
+Expr FixedPointMultiplyPerChannel(Expr tensor, const std::vector<double>& multipliers, int axis) {
+  DataType dtype = DataType::Int(32);
+  int64_t n_channels = static_cast<int64_t>(multipliers.size());
+
+  std::vector<int32_t> fixed_pt_multipliers, lshifts, rshifts;
+  bool is_lshift_required = false, is_rshift_required = false;
+  for (auto multiplier : multipliers) {
+    auto [fixed_pt_multiplier, shift] = GetFixedPointMultiplierShift(multiplier);
+    int lshift = shift > 0 ? shift : 0;
+    int rshift = shift > 0 ? 0 : -shift;
+    fixed_pt_multipliers.push_back(fixed_pt_multiplier);
+    lshifts.push_back(lshift);
+    rshifts.push_back(rshift);
+    is_lshift_required = is_lshift_required | (lshift != 0);
+    is_rshift_required = is_rshift_required | (rshift != 0);
+  }
+
+  auto left_shift_expr = MakeConstantTensor(dtype, {n_channels}, lshifts);
+  auto right_shift_expr = MakeConstantTensor(dtype, {n_channels}, rshifts);
+  auto fixed_pt_multiplier_expr = MakeConstantTensor(dtype, {n_channels}, fixed_pt_multipliers);
+
+  return FixedPointMultiplyPerAxis(tensor, fixed_pt_multiplier_expr, left_shift_expr,
+                                   right_shift_expr, is_lshift_required, is_rshift_required,
+                                   {axis});
+}
+
 Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
                                   const Array<IndexExpr>& input_shape, int channel_axis,
                                   const std::string& rounding) {
@@ -195,6 +221,11 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
 
   // 6) The fixed point multiplication keeps the value in int32 range. Casting back to int32.
   return Cast(tensor, DataType::Int(32));
+}
+
+Expr FixedPointMultiplyPerChannelToNearest(Expr tensor, std::vector<double> multipliers,
+                                           const Array<IndexExpr>& input_shape, int channel_axis) {
+  return FixedPointMultiplyPerChannel(tensor, multipliers, input_shape, channel_axis, "TONEAREST");
 }
 
 std::string SelectRequntizeParameter(const std::string& arg_value, const std::string& cfg_value,

@@ -21,7 +21,7 @@ CXXFLAGS ?= -Werror -Wall -std=c++11 -DTVM_HOST_USE_GRAPH_EXECUTOR_MODULE
 LDFLAGS ?= -Werror -Wall
 
 # Codegen produces spurious lines like: int32_t arg2_code = ((int32_t*)arg_type_ids)[(2)];
-MODEL_CFLAGS ?= -Wno-error=unused-variable -Wno-error=missing-braces
+MODEL_CFLAGS ?= -Wno-error=unused-variable -Wno-error=missing-braces -Wno-error=unused-const-variable
 
 AR ?= ${PREFIX}ar
 CC ?= ${PREFIX}gcc
