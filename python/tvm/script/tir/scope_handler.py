@@ -642,11 +642,14 @@ class ForScopeHandler(ScopeHandler):
         end = convert(end)
         if begin is None:
             begin = tvm.tir.const(0, end.dtype)
-            extent = end
         else:
             begin = convert(begin)
-            extent = self.context.analyzer.simplify(end - begin)
         assert self.context and self.node, "call 'exit_scope' before 'enter_scope'"
+        extent = (
+            end
+            if self.context.analyzer.can_prove_equal(begin, 0)
+            else self.context.analyzer.simplify(end - begin)
+        )
         self.annotations: Mapping[str, Object] = {}
         if annotations is not None:
             self.annotations = {

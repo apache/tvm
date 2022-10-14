@@ -19,7 +19,7 @@ import tvm._ffi
 
 from .base import Node
 from . import _ffi_api
-from ..runtime import const
+from ..runtime import const, convert
 
 
 class BaseExpr(Node):
@@ -119,7 +119,7 @@ class Range(Node):
 
     def __init__(self, begin, end=None, span=None):
         if end is None:
-            end = begin
+            end = convert(begin)
             begin = const(0, dtype=end.dtype, span=span)
         self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, span)
 
