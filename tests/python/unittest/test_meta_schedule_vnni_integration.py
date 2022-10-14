@@ -41,7 +41,7 @@ def _schedule_dense(m: Optional[int], do_tune: bool):
     """
 
     def schedule_fn(sch, dense_block: Optional[BlockRV] = None) -> bool:
-        if "dense" not in sch.mod.attrs["task_name"]:
+        if sch.mod.attrs is not None and "dense" not in sch.mod.attrs["task_name"]:
             return False
         if dense_block is None:
             dense_block = sch.get_block("compute")
@@ -204,7 +204,7 @@ def test_vnni_schedule_fn_tune():
     with tempfile.TemporaryDirectory() as work_dir:
         # postprocs=lambda: [] is important to prevent default post processors from
         # tampering with the manual schedule.
-        tasks = ms.relay_integration.extracted_tasks_to_tune_contexts(
+        tasks, weights = ms.relay_integration.extracted_tasks_to_tune_contexts(
             list(
                 filter(
                     lambda task: "dense" in task.task_name,
@@ -214,15 +214,16 @@ def test_vnni_schedule_fn_tune():
             work_dir=work_dir,
             space=ms.space_generator.PostOrderApply(
                 f_block_filter=None,
-                sch_rules=None,
+                sch_rules="from-target",
                 postprocs=[],
-                mutator_probs=None,
+                mutator_probs="from-target",
             ),
         )
         database = ms.relay_integration.tune_tasks(
             tasks=tasks,
-            task_weights=[1.0] * len(tasks),
+            task_weights=weights,
             work_dir=work_dir,
+            max_trials_per_task=32,
             max_trials_global=20000,
         )
     with database, tvm.transform.PassContext(

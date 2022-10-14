@@ -297,6 +297,14 @@ class RewriteSimplifier {
      * if_then_else(i<j && j<k, i<k, false) => if_then_else(i<j && j<k, true, false)
      */
     kTransitivelyProveInequalities = (1 << 0),
+
+    /* When simplifying a boolean expression, convert to an AND of ORs
+     * (conjunctive normal form).
+     *
+     * Example:
+     *   (a && b) || c => (a || c) && (b || c)
+     */
+    kConvertBooleanToAndOfOrs = (1 << 1),
   };
 
   /*! \brief Enable an optional extension or extensions

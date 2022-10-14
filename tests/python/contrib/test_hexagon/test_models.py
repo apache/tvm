@@ -51,7 +51,7 @@ def test_mobilenet(hexagon_session: Session):
 
     data_in = np.random.rand(1, 3, 224, 224).astype(dtype=dtype)
 
-    input_name = "input"
+    input_name = "data"
     shape_dict = {input_name: data_in.shape}
     relay_mod, params = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
     inputs = {input_name: data_in}
@@ -98,7 +98,7 @@ def test_mobilenet_aot(hexagon_session: Session, aot_host_target, aot_target, en
 
     data_in = np.random.rand(1, 3, 224, 224).astype(dtype=dtype)
 
-    input_name = "input"
+    input_name = "data"
     shape_dict = {input_name: data_in.shape}
     relay_mod, params = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
     inputs = {input_name: data_in}

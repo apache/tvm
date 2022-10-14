@@ -25,7 +25,6 @@ import torch
 import torch.nn
 
 import tvm
-from tvm.meta_schedule.tune import TuneConfig
 from tvm.target.target import Target
 import tvm.testing
 from tvm.contrib.torch import as_torch
@@ -84,14 +83,6 @@ def func_with_part_access_region(a: T.handle, b: T.handle, c: T.handle) -> None:
                 vi, vj = T.axis.remap("SS", [i, j])
                 T.writes(C[vi, vj])
                 C[vi, vj] = B[vi, vj] + T.float32(1)
-
-
-config = TuneConfig(
-    strategy="replay_trace",
-    num_trials_per_iter=128,
-    max_trials_per_task=128,
-    max_trials_global=128,
-)
 
 
 @as_torch
@@ -232,7 +223,11 @@ def test_tvmscript_torch_loop_split():
 
     result = torch.sum(x.cpu(), dim=1).numpy()
 
-    loop_split.tune(config, Target("nvidia/geforce-rtx-3070"))
+    loop_split.tune(
+        "nvidia/geforce-rtx-3070",
+        max_trials_global=128,
+        strategy="replay-trace",
+    )
     loop_split(x, y)
 
     tvm.testing.assert_allclose(y.cpu().numpy(), result, atol=1e-5, rtol=1e-5)
@@ -246,7 +241,10 @@ def test_tvmscript_torch_elementwise_with_root():
     result = a1 + 2
 
     func = elementwise_with_root(128, 128, "float32")
-    func.tune(config)
+    func.tune(
+        max_trials_global=128,
+        strategy="replay-trace",
+    )
     func(a1, a2, a3)
 
     tvm.testing.assert_allclose(a3.numpy(), result.numpy(), atol=1e-5, rtol=1e-5)
