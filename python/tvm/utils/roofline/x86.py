@@ -16,6 +16,7 @@
 # under the License.
 """Estimate peak flops and bandwidth for x86 devices"""
 import functools
+import re
 from typing import Dict, Optional, Tuple
 
 import numpy as np
@@ -324,12 +325,7 @@ def estimate_peak_bandwidth(
     # that has a very low arithmetic intensity and we haven't come up with one
     # yet.
     peak_bandwidth = estimate_peak_bandwidth_dram(target, dev, remote, vec_width)
-    loaded_bytes = 0.0
-    i = 0
-    while True:
-        key = f"B{i}.bytes"
-        if not key in features.keys():
-            break
-        loaded_bytes += np.sum(features[key])
-        i += 1
+    loaded_bytes = sum(
+        [np.sum(x) for (k, x) in features.items() if re.match(r"^B[0-9]+\.bytes$", k) is not None]
+    )
     return loaded_bytes, peak_bandwidth, "DRAM"

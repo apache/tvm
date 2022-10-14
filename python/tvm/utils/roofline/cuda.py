@@ -16,6 +16,7 @@
 # under the License.
 """Estimation of peak flops and memory bandwidth for cuda devices"""
 import functools
+import re
 from typing import Dict, Optional, Tuple
 
 import numpy as np
@@ -306,23 +307,21 @@ def estimate_peak_bandwidth(
     name : str
         Name of the memory being used.
     """
-    loaded_bytes = 0.0
-
-    i = 0
-    while True:
-        # autoscheduler features do not take into account that 1.
-        # global and shared memory have very different performance
-        # characteristics -- both are included in the same bytes
-        # touched count 2. multiple threads accessing the same byte
-        # of memory does not use the same amount of bandwidth as
-        # multiple threads accessing different bytes of memory. We
-        # use unique bytes accessed here to avoid these two issues,
-        # but this does bias results towards being more compute
-        # bound.
-        key = f"B{i}.unique_bytes"
-        if not key in features.keys():
-            break
-        loaded_bytes += np.sum(features[key])
-        i += 1
+    # autoscheduler features do not take into account that 1.
+    # global and shared memory have very different performance
+    # characteristics -- both are included in the same bytes
+    # touched count 2. multiple threads accessing the same byte
+    # of memory does not use the same amount of bandwidth as
+    # multiple threads accessing different bytes of memory. We
+    # use unique bytes accessed here to avoid these two issues,
+    # but this does bias results towards being more compute
+    # bound.
+    loaded_bytes = sum(
+        [
+            np.sum(x)
+            for (k, x) in features.items()
+            if re.match(r"^B[0-9]+\.unique_bytes$", k) is not None
+        ]
+    )
     peak_bandwidth = estimate_peak_bandwidth_global_mem(target, dev, remote)
     return loaded_bytes, peak_bandwidth, "global"
