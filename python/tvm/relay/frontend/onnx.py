@@ -5913,7 +5913,7 @@ def from_onnx(
             for opset_identifier in model.opset_import:
                 # As per https://github.com/onnx/onnx/blob/main/docs/IR.md
                 # All operator sets except the default one must specify the operator version
-                if str(opset_identifier.name) in ["ai.onnx", ""]:
+                if str(opset_identifier.domain) in ["ai.onnx", ""]:
                     opset_in_model = opset_identifier.version
                     break
     except AttributeError:
