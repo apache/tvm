@@ -735,7 +735,7 @@ def test_tensorize_matmul_mixed_dtype():
     ii = s.get_loops(update)[-3]
     s.tensorize(ii, "test_mma_intrin")
     tvm.ir.assert_structural_equal(s.mod["main"], tensorized_matmul_int64_shape)
-    verify_trace_roundtrip(sch=s, mod=func)
+    verify_trace_roundtrip(sch=s, mod=matmul_int64_shape)
 
 
 if __name__ == "__main__":
