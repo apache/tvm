@@ -83,7 +83,7 @@ using support::LinkNode;
 
 constexpr uint32_t kMaxFusedOps = 256;
 
-extern  const Op stop_fusion_op;
+extern const Op stop_fusion_op;
 
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.FuseOps.max_depth", Integer);
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.FuseOps.link_params", Bool);
