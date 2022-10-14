@@ -297,8 +297,8 @@ def test_vnni_conv2d():
     )
 
 
-@pytest.mark.skip_if(tvm.testing.IS_IN_CI, reason="Only tested locally on sm_86")
 @tvm.testing.requires_gpu
+@pytest.mark.skip_if(tvm.testing.IS_IN_CI, reason="Only tested locally on sm_86")
 def test_dp4a_conv2d():
     _test_conv2d("int8", SCH_RULES_FOR_DP4A, POSTPROCS_FOR_DP4A, "nvidia/geforce-rtx-3070")
     # Uncomment to test on vulkan or rocm target
