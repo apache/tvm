@@ -291,7 +291,7 @@ def tune_relay(
         The database that contains the tuning records
     """
     tasks, task_weights = extracted_tasks_to_tune_contexts(
-        extracted_tasks=extract_tasks(mod, target, params),
+        extracted_tasks=extract_tasks(mod, target, params, module_equality=module_equality),
         work_dir=work_dir,
         space=space,
         strategy=strategy,
