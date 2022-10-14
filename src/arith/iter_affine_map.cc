@@ -1739,7 +1739,9 @@ class IterMapToExprNormalizer : public ExprMutator {
 bool IterMapRewriter::CanProveDivisible(const PrimExpr& lhs, const PrimExpr& rhs) {
   const auto* clhs = lhs.as<IntImmNode>();
   const auto* crhs = rhs.as<IntImmNode>();
-  if (clhs && crhs) {
+  if (crhs && crhs->value == 0) {
+    return false;
+  } else if (clhs && crhs) {
     return clhs->value % crhs->value == 0;
   }
 
