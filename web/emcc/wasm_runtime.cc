@@ -73,8 +73,14 @@ namespace detail {
   abort();
 }
 
-void LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
-  std::cout << "[INFO] " << file << ":" << lineno << ": " << message << std::endl;
+void LogMessageImpl(const std::string& file, int lineno, int level, const std::string& message) {
+  static const char* level_strings_[] = {
+      "[DEBUG] ",
+      "[INFO] ",
+      "[WARNING] ",
+      "[ERROR] ",
+  };
+  std::cout << level_strings_[level] << file << ":" << lineno << ": " << message << std::endl;
 }
 
 }  // namespace detail
