@@ -291,23 +291,19 @@ class SEqualHandlerDefault::Impl {
       }
       if (equal_map_rhs_.count(rhs)) return false;
 
-      SEqualReducer reducer = GetReducer(lhs, rhs, map_free_vars, current_paths);
-      return vtable_->SEqualReduce(lhs.get(), rhs.get(), reducer);
+      if (!IsPathTracingEnabled()) {
+        return vtable_->SEqualReduce(lhs.get(), rhs.get(),
+                                     SEqualReducer(parent_, nullptr, map_free_vars));
+      } else {
+        PathTracingData tracing_data = {current_paths.value(), lhs, rhs, first_mismatch_};
+        return vtable_->SEqualReduce(lhs.get(), rhs.get(),
+                                     SEqualReducer(parent_, &tracing_data, map_free_vars));
+      }
     };
     return CheckResult(compute(), lhs, rhs, current_paths);
   }
 
  protected:
-  SEqualReducer GetReducer(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars,
-                           const Optional<ObjectPathPair>& current_paths) {
-    if (!IsPathTracingEnabled()) {
-      return SEqualReducer(parent_, nullptr, map_free_vars);
-    } else {
-      PathTracingData tracing_data = {current_paths.value(), lhs, rhs, first_mismatch_};
-      return SEqualReducer(parent_, &tracing_data, map_free_vars);
-    }
-  }
-
   // Check the result.
   bool CheckResult(bool result, const ObjectRef& lhs, const ObjectRef& rhs,
                    const Optional<ObjectPathPair>& current_paths) {
