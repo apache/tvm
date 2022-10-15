@@ -494,9 +494,10 @@ def concatenate_rewrite(ref_call, new_args, ctx):
     #zzk_debug: Will this cause some problems?
     for i, k in enumerate(kind_list):
         if k is None:
-            expr_list[i] = attach_simulated_quantize(expr_list[i], QAnnotateKind.ACTIVATION, "qactivation")
+            qnode_name = get_layer_name(expr_list[i])
+            expr_list[i] = attach_simulated_quantize(expr_list[i], QAnnotateKind.INPUT, qnode_name)
     expr = _forward_op(ref_call, [_expr.Tuple(expr_list)])
-    return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+    return QAnnotateExpr(expr, QAnnotateKind.INPUT)
 register_annotate_inference_function_dict("concatenate", concatenate_rewrite)
 
 
@@ -632,10 +633,25 @@ def calibrate_rewrite(ref_call, new_args, ctx):
     conv2d_op = _op.get("nn.conv2d")
     conv1d_op = _op.get("nn.conv1d")
     pad_op = _op.get("nn.pad")
-    
+
     # get the lenth of argument
     args_out = []
-    for arg in new_args:
+
+    def visit_arg(arg):
+        global layer_count
+        global layer_count
+        global have_annotated_node
+        global split_op_dict
+        global input_dict        
+        
+        nonlocal weight_count
+        nonlocal quantize_op
+        nonlocal split_op
+        nonlocal conv2d_op
+        nonlocal conv1d_op
+        nonlocal pad_op
+        nonlocal args_out
+
         if(isinstance(arg, _expr.Call)):
             if(arg.op != quantize_op):
                 print("Something went wrong, this op is {}, last op is {}.".format(ref_call.op.name, arg.op.name))
@@ -680,10 +696,18 @@ def calibrate_rewrite(ref_call, new_args, ctx):
             else:
                 args_out.append(arg)
         elif(isinstance(arg, _expr.Tuple)):
-            args_out.append(arg)
+            for index in range(len(arg)):
+                arg_tmp = arg[index]
+                visit_arg(arg_tmp)
         else:
             print("Something is wrong.")
             raise ValueError
+
+    for arg in new_args:
+        visit_arg(arg)
+        
+    if ref_call.op.name == "concatenate":
+        args_out = [_expr.Tuple(args_out)]
 
     expr = _forward_op(ref_call, args_out)
 
