@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Parser dispatching infrastructure"""
 
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Type
 
@@ -122,7 +123,7 @@ def register_op(operand_type: Type, op_node_type: AST, operand_index: int):
     return func
 
 
-def get_op(  # pylint: disable=invalid-name
+def get_op(
     operand_type: Type,
     op_node_type: Type,
     operand_index: int,
