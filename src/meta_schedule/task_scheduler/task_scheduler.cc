@@ -232,9 +232,8 @@ Array<RunnerResult> TaskSchedulerNode::JoinRunningTask(int task_id) {
   }
   TaskCleanUp(task, task_id, results);
   TVM_PY_LOG_CLEAR_SCREEN(this->logger);
-  TVM_PY_LOG(INFO, this->logger) << "[Updated] Task #" << task_id << ": " << task->ctx->task_name
-                                 << "\n"
-                                 << this->TuningStatistics();
+  TVM_PY_LOG(INFO, this->logger) << "[Updated] Task #" << task_id << ": " << task->ctx->task_name;
+  this->PrintTuningStatistics();
   return results;
 }
 
@@ -257,12 +256,11 @@ void TaskSchedulerNode::TerminateTask(int task_id) {
   --this->remaining_tasks_;
   TVM_PY_LOG_CLEAR_SCREEN(this->logger);
   TVM_PY_LOG(INFO, this->logger) << "Task #" << task_id
-                                 << " has finished. Remaining task(s): " << this->remaining_tasks_
-                                 << "\n"
-                                 << this->TuningStatistics();
+                                 << " has finished. Remaining task(s): " << this->remaining_tasks_;
+  this->PrintTuningStatistics();
 }
 
-std::string TaskSchedulerNode::TuningStatistics() const {
+void TaskSchedulerNode::PrintTuningStatistics() {
   std::ostringstream os;
   int n_tasks = this->tasks_.size();
   int total_trials = 0;
@@ -307,11 +305,18 @@ std::string TaskSchedulerNode::TuningStatistics() const {
     }
   }
   p.Separator();
-  os << p.AsStr()                                  //
-     << "\nTotal trials: " << total_trials         //
+
+  os << "\nTotal trials: " << total_trials         //
      << "\nTotal latency (us): " << total_latency  //
      << "\n";
-  return os.str();
+
+  if (using_ipython()) {
+    print_interactive_table(p.AsStr());
+    std::cout << os.str() << std::endl << std::flush;
+    TVM_PY_LOG(DEBUG, this->logger) << "\n" << p.AsStr() << os.str();
+  } else {
+    TVM_PY_LOG(INFO, this->logger) << "\n" << p.AsStr() << os.str();
+  }
 }
 
 TaskScheduler TaskScheduler::PyTaskScheduler(
@@ -369,8 +374,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTerminateTask")
     .set_body_method<TaskScheduler>(&TaskSchedulerNode::TerminateTask);
 TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTouchTask")
     .set_body_method<TaskScheduler>(&TaskSchedulerNode::TouchTask);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTuningStatistics")
-    .set_body_method<TaskScheduler>(&TaskSchedulerNode::TuningStatistics);
+TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerPrintTuningStatistics")
+    .set_body_method<TaskScheduler>(&TaskSchedulerNode::PrintTuningStatistics);
 
 }  // namespace meta_schedule
 }  // namespace tvm

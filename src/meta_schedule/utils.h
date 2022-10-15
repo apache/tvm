@@ -82,36 +82,32 @@ class PyLogMessage {
     // FATAL not included
   };
 
-  explicit PyLogMessage(const char* file, int lineno, PackedFunc logger, Level logging_level)
-      : file_(file), lineno_(lineno), logger_(logger), logging_level_(logging_level) {
-    if (this->logger_ != nullptr) {
-      stream_ << "" << file_ << ":" << lineno_ << " ";
-    }
-  }
+  explicit PyLogMessage(const char* filename, int lineno, PackedFunc logger, Level logging_level)
+      : filename_(filename), lineno_(lineno), logger_(logger), logging_level_(logging_level) {}
 
   TVM_NO_INLINE ~PyLogMessage() {
     ICHECK(logging_level_ != Level::CLEAR)
         << "Cannot use CLEAR as logging level in TVM_PY_LOG, please use TVM_PY_LOG_CLEAR_SCREEN.";
     if (this->logger_ != nullptr) {
-      logger_(static_cast<int>(logging_level_), stream_.str());
+      logger_(static_cast<int>(logging_level_), std::string(filename_), lineno_, stream_.str());
     } else {
       if (logging_level_ == Level::INFO) {
-        runtime::detail::LogMessage(file_, lineno_).stream() << stream_.str();
+        runtime::detail::LogMessage(filename_, lineno_).stream() << stream_.str();
       } else if (logging_level_ == Level::WARNING) {
-        runtime::detail::LogMessage(file_, lineno_).stream() << "Warning: " << stream_.str();
+        runtime::detail::LogMessage(filename_, lineno_).stream() << "Warning: " << stream_.str();
       } else if (logging_level_ == Level::ERROR) {
-        runtime::detail::LogMessage(file_, lineno_).stream() << "Error: " << stream_.str();
+        runtime::detail::LogMessage(filename_, lineno_).stream() << "Error: " << stream_.str();
       } else if (logging_level_ == Level::DEBUG) {
-        runtime::detail::LogMessage(file_, lineno_).stream() << "Debug: " << stream_.str();
+        runtime::detail::LogMessage(filename_, lineno_).stream() << "Debug: " << stream_.str();
       } else {
-        runtime::detail::LogFatal(file_, lineno_).stream() << stream_.str();
+        runtime::detail::LogFatal(filename_, lineno_).stream() << stream_.str();
       }
     }
   }
   std::ostringstream& stream() { return stream_; }
 
  private:
-  const char* file_;
+  const char* filename_;
   int lineno_;
   std::ostringstream stream_;
   PackedFunc logger_;
@@ -132,6 +128,18 @@ inline bool using_ipython() {
 }
 
 /*!
+ * \brief Print out the performance table interactively in jupyter notebook.
+ * \param str The serialized performance table.
+ */
+inline void print_interactive_table(const String& data) {
+  const auto* f_print_interactive_table =
+      runtime::Registry::Get("meta_schedule.print_interactive_table");
+  ICHECK(f_print_interactive_table->defined())
+      << "Cannot find print_interactive_table function in registry.";
+  (*f_print_interactive_table)(data);
+}
+
+/*!
  * \brief A helper function to clear logging output for ipython kernel and console.
  * \param file The file name.
  * \param lineno The line number.
@@ -139,7 +147,7 @@ inline bool using_ipython() {
  */
 inline void clear_logging(const char* file, int lineno, PackedFunc logging_func) {
   if (logging_func.defined() && using_ipython()) {
-    logging_func(static_cast<int>(PyLogMessage::Level::CLEAR), "");
+    logging_func(static_cast<int>(PyLogMessage::Level::CLEAR), file, lineno, "");
   } else {
     // this would clear all logging output in the console
     runtime::detail::LogMessage(file, lineno).stream() << "\033c\033[3J\033[2J\033[0m\033[H";
