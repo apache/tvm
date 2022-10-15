@@ -21,7 +21,9 @@ from tvm.script._parser.core.diagnostics import Source
 from tvm.script._parser.core.evaluator import ExprEvaluator
 
 
-def calc(expr, extra_vars={}):
+def _calc(expr, extra_vars=None):
+    if extra_vars is None:
+        extra_vars = {}
     source = Source(expr)
     mod_ast = source.as_ast()
     mod_body_ast = mod_ast.body
@@ -31,15 +33,15 @@ def calc(expr, extra_vars={}):
 
 
 def test_evaluator_basic():
-    assert calc("1, 3.14, True, 'str'") == (1, 3.14, True, "str")
+    assert _calc("1, 3.14, True, 'str'") == (1, 3.14, True, "str")
 
 
 def test_evaluator_op():
-    assert calc("1 + 2, 1 - 2, 1 * 2, 1 / 2") == (3, -1, 2, 0.5)
+    assert _calc("1 + 2, 1 - 2, 1 * 2, 1 / 2") == (3, -1, 2, 0.5)
 
 
 def test_evaluator_value_table():
-    res = calc("a + b, a - b, a * b, a / b", {"a": 1, "b": 2})
+    res = _calc("a + b, a - b, a * b, a / b", {"a": 1, "b": 2})
     a, b = 1, 2
     assert res == (a + b, a - b, a * b, a / b)
 
@@ -48,11 +50,11 @@ def test_evaluator_func_call():
     def func(a, b):
         return a + b, a - b, a * b, a / b
 
-    assert calc("func(1, 2)", {"func": func}) == func(1, 2)
+    assert _calc("func(1, 2)", {"func": func}) == func(1, 2)
 
 
 def test_evaluator_slice():
-    res = calc("a, a[1:], a[:5], a[1: 5], a[1: 5: 2]", {"a": [1, 2, 3, 4, 5, 6]})
+    res = _calc("a, a[1:], a[:5], a[1: 5], a[1: 5: 2]", {"a": [1, 2, 3, 4, 5, 6]})
     a = [1, 2, 3, 4, 5, 6]
     assert res == (a, a[1:], a[:5], a[1:5], a[1:5:2])
 
