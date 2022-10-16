@@ -391,7 +391,7 @@ class LogMessage {
 
  private:
   std::ostringstream stream_;
-  static const char* level_strings_[];
+  TVM_DLL static const char* level_strings_[];
 };
 
 #endif
