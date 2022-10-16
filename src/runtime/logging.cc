@@ -21,6 +21,15 @@
 #include <stdexcept>
 #include <string>
 
+#if (TVM_LOG_CUSTOMIZE == 0)
+const char* ::tvm::runtime::detail::LogMessage::level_strings_[] = {
+    "Debug: ",    // TVM_LOG_LEVEL_DEBUG
+    "",           // TVM_LOG_LEVEL_INFO
+    "Warning: ",  // TVM_LOG_LEVEL_WARNING
+    "Error: ",    // TVM_LOG_LEVEL_ERROR
+};
+#endif
+
 #if TVM_LOG_STACK_TRACE
 #if TVM_USE_LIBBACKTRACE
 
@@ -211,13 +220,6 @@ std::string Backtrace() { return ""; }
 namespace tvm {
 namespace runtime {
 namespace detail {
-
-const char* LogMessage::level_strings_[] = {
-    "Debug: ",    // TVM_LOG_LEVEL_DEBUG
-    "",           // TVM_LOG_LEVEL_INFO
-    "Warning: ",  // TVM_LOG_LEVEL_WARNING
-    "Error: ",    // TVM_LOG_LEVEL_ERROR
-};
 
 namespace {
 constexpr const char* kSrcPrefix = "/src/";
