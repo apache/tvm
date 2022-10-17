@@ -5906,7 +5906,16 @@ def from_onnx(
     graph = model.graph
 
     try:
-        opset_in_model = model.opset_import[0].version if model.opset_import else 1
+        opset_in_model = 1
+        if model.opset_import:
+            # TODO: for now we only really support ai.onnx op set
+            # TODO: handle other namespaces well see https://github.com/apache/tvm/issues/10950
+            for opset_identifier in model.opset_import:
+                # As per https://github.com/onnx/onnx/blob/main/docs/IR.md
+                # All operator sets except the default one must specify the operator version
+                if str(opset_identifier.domain) in ["ai.onnx", ""]:
+                    opset_in_model = opset_identifier.version
+                    break
     except AttributeError:
         opset_in_model = 1
 
