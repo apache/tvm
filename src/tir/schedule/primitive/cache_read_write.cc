@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <unordered_set>
+
 #include "../utils.h"
 
 namespace tvm {
