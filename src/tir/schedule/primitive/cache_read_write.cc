@@ -75,8 +75,8 @@ struct CacheStageInfo {
   Stmt cache_stage;
   /*! \brief The map used for ScheduleStateNode::Replace. */
   Map<Block, Block> block_reuse;
-  /*! \brief A list of blocks that will consume the new cache. */
-  Array<StmtSRef> consumer_blocks;
+  /*! \brief A set of blocks that will consume the new cache. */
+  std::unordered_set<StmtSRef, ObjectHash, ObjectEqual> consumer_blocks;
 };
 
 /*! \brief Return the buffer region realted with the buffer */
@@ -1135,10 +1135,9 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
 
   // info.consumer_blocks indicates which buffers should consume the cache.
   for (auto consumer : consumer_blocks) {
-    info.consumer_blocks.push_back(consumer);
-    auto children = tir::GetChildBlocks(self, consumer);
-    for (auto child: children) {
-      info.consumer_blocks.push_back(child);
+    info.consumer_blocks.insert(consumer);
+    for (auto child : tir::GetChildBlocks(self, consumer)) {
+      info.consumer_blocks.insert(child);
     }
   }
 
@@ -1297,7 +1296,7 @@ Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref, int
   // Create the corresponding buffer allocation
   info.alloc = info.write_buffer;
   // Indicate which buffers should consume the cache.
-  info.consumer_blocks.push_back(block_sref);
+  info.consumer_blocks.insert(block_sref);
 
   // Cache read step 1. Detect insert position
   CacheInplaceLocDetector::Detect(self, block_sref, scope_sref, &info);
