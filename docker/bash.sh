@@ -330,16 +330,6 @@ DOCKER_ENV+=( --env CI_BUILD_HOME="${REPO_MOUNT_POINT}"
               --env CI_IMAGE_NAME="${DOCKER_IMAGE_NAME}"
             )
 
-
-# Pass tvm test data folder through to the docker container, to avoid
-# repeated downloads.  Check if we have permissions to write to the
-# directory first, since the CI may not.
-TEST_DATA_PATH="${TVM_DATA_ROOT_PATH:-${HOME}/.tvm_test_data}"
-if [[ -d "${TEST_DATA_PATH}" && -w "${TEST_DATA_PATH}" ]]; then
-    DOCKER_MOUNT+=( --volume "${TEST_DATA_PATH}":"${REPO_MOUNT_POINT}"/.tvm_test_data )
-fi
-
-
 # Remove the container once it finishes running (--rm) and share the
 # PID namespace (--pid=host).  The process inside does not have pid 1
 # and SIGKILL is propagated to the process inside, allowing jenkins to
