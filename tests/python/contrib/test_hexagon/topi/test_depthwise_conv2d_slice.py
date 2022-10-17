@@ -335,4 +335,3 @@ class Testdwconv2dSlice:
 
 if __name__ == "__main__":
     tvm.testing.main()
-

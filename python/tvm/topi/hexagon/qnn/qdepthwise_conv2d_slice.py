@@ -215,4 +215,3 @@ def qdepthwise_conv2d_schedule(
     # wi_ci = sch.fuse(w_inner,c_inner)
     # sch.vectorize(wi_ci)
     return sch
-

@@ -318,4 +318,3 @@ def get_fixed_point_value(flp: float, dtype: str = "int16") -> Tuple[int, int]:
 def saturate(x: te.Tensor, dtype: str):
     """Saturate value for the specified data type"""
     return te.max(te.min_value(dtype), te.min(x, te.max_value(dtype)))
-
