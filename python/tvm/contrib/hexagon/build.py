@@ -145,7 +145,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         ...
 
     @abc.abstractmethod
-    def stop_server(self, cleanup=True):
+    def stop_server(self):
         """Stop the RPC server"""
         ...
 
@@ -585,8 +585,8 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         context_lines = 0
         print_buffer = ""
         try:
-            with open("./logcat.txt", "r") as fp:
-                for line in fp:
+            with open("./logcat.txt", "r") as f:
+                for line in f:
                     if "Process on cDSP CRASHED" in line:
                         if crash_count <= 5:
                             print(print_buffer, "\n")
@@ -604,7 +604,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
                 f"There were {crash_count} crashes on the cDSP during execution... "
                 + "Crash printing is limited to the first 5."
             )
-        except:
+        except FileNotFoundError:
             print("Unable to parse logcat file.")
 
     def start_server(self):
@@ -731,7 +731,7 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
     def cleanup_directory(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
 
-    def stop_server(self, cleanup=True):
+    def stop_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._server_process.terminate()
 
@@ -751,6 +751,7 @@ def HexagonLauncher(
     clear_logcat: bool = False,
     sysmon_profile: bool = False,
 ):
+    """Creates a HexagonLauncher"""
     if serial_number == "simulator":
         return HexagonLauncherSimulator(rpc_info, workspace)
     return HexagonLauncherAndroid(
