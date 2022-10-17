@@ -85,7 +85,7 @@ def dwconv2d_schedule(
     outs: te.Tensor,
     ins: typing.List[te.Tensor],
     transform_activation_layout: str,
-    transform_weights: typing.Callable,
+    transform_weights: str,
 ) -> tvm.tir.Schedule:
     """STIR schedule definition for the compute defined above by dwconv2d_compute.
         - Auto-generated prim_func before applying schedule primitives for reference
@@ -128,11 +128,12 @@ def dwconv2d_schedule(
     sch = tvm.tir.Schedule(prim_func)
     compute = sch.get_block("Output")
     transform_layout_fn = get_layout_transform_fn(transform_activation_layout)
+    transform_layout_weights = get_layout_transform_fn(transform_weights)
     # Apply layout_transform for activation
     sch.transform_layout(compute, ins[0].name, transform_layout_fn)
 
     # Apply layout_transform for weights
-    sch.transform_layout(compute, ins[1].name, transform_weights)
+    sch.transform_layout(compute, ins[1].name, transform_layout_weights)
 
     # Apply layout_transform for output
     sch.transform_layout(compute, outs.name, transform_layout_fn)
