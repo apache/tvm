@@ -27,8 +27,8 @@ import tvm.ir
 from tvm import relay, te
 from tvm.runtime import ndarray as _nd
 
-from . import _ffi_api
 from ..backend.utils import mangle_module_name
+from . import _ffi_api
 
 
 def build_config(opt_level=2, required_pass=None, disabled_pass=None, trace=None):
@@ -1484,3 +1484,8 @@ def CollagePartition(config, cost_estimator=None):
         cost_estimator = relay.collage.CostEstimator()
 
     return _ffi_api.CollagePartition(config, cost_estimator)
+
+
+def DivToMul():
+    """Transform division by a constant to multiplication by the inverse of the constant"""
+    return _ffi_api.DivToMul()
