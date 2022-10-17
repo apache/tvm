@@ -1132,8 +1132,15 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   info.write_buffer = WithScope(read_buffer, storage_scope);
   // Create the corresponding buffer allocation
   info.alloc = info.write_buffer;
-  // Indicate which buffers should consume the cache.
-  info.consumer_blocks = consumer_blocks;
+
+  // info.consumer_blocks indicates which buffers should consume the cache.
+  for (auto consumer : consumer_blocks) {
+    info.consumer_blocks.push_back(consumer);
+    auto children = tir::GetChildBlocks(self, consumer);
+    for (auto child: children) {
+      info.consumer_blocks.push_back(child);
+    }
+  }
 
   // Step 3. Update cache stage info.
   BufferRegion cache_region{nullptr};
