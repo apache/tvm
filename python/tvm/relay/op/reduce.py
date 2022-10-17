@@ -322,7 +322,7 @@ def mean(data, axis=None, keepdims=False, exclude=False):
     return _make.mean(data, axis, keepdims, exclude)
 
 
-def variance(data, axis=None, keepdims=False, exclude=False, unbiased=False, mean=None):
+def variance(data, axis=None, keepdims=False, exclude=False, unbiased=False, with_mean=None):
     """Computes the variance of data over given axes.
 
     Parameters
@@ -347,7 +347,7 @@ def variance(data, axis=None, keepdims=False, exclude=False, unbiased=False, mea
     unbiased : bool
         If this is set to True, the unbiased estimation will be used.
 
-    mean : Optional[relay.Expr]
+    with_mean : Optional[relay.Expr]
         To compute variance given an already computed mean
 
     Returns
@@ -356,7 +356,7 @@ def variance(data, axis=None, keepdims=False, exclude=False, unbiased=False, mea
         The computed result.
     """
     axis = [axis] if isinstance(axis, int) else axis
-    m = mean(data, axis, True, exclude) if mean is None else mean
+    m = mean(data, axis, True, exclude) if with_mean is None else with_mean
     return _make._variance(data, m, axis, keepdims, exclude, unbiased)
 
 
