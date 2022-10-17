@@ -278,7 +278,7 @@ class LocalRunner(PyRunner):
             max_workers=1,  # one local worker
             timeout=timeout_sec,
             initializer=initializer,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,  # suppress the stderr output
         )
         self._sanity_check()
 
