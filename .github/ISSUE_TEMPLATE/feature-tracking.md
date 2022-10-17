@@ -1,6 +1,6 @@
 ---
 name: "\U0001F527 Feature Tracking"
-about: List clear, small actionable items so we can track the progress of the change. Find the list of label tags [here](https://github.com/apache/tvm/wiki/Issue-Triage-Labels).
+about: List clear, small actionable items so we can track the progress of the change. Find the list of label tags at https://tinyurl.com/5fnd5rkn.
 title: "[Tracking Issue] "
 labels: "needs-triage, type:rfc-tracking"
 ---
@@ -14,6 +14,6 @@ Issues that are inactive for a period of time may get closed. We adopt this poli
 
 ### Triage
 
-Please refer to the list of label tags linked above to find the relevant tags and add them here in a bullet format (example below).
+Please refer to the list of label tags [here](https://github.com/apache/tvm/wiki/Issue-Triage-Labels) to find the relevant tags and add them below in a bullet format (example below).
 
 * needs-triage

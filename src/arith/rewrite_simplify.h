@@ -98,6 +98,10 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   // Optionally enabled extensions
   Extension enabled_extensions_{kNone};
 
+  /*! Whether the simplifier is current
+   */
+  bool recursively_visiting_boolean_{false};
+
   // maximum number of recursion allowed during a single pass.
   static const constexpr int kMaxRecurDepth = 5;
 

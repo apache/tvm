@@ -1,6 +1,6 @@
 ---
 name: "\U00002744 Flaky Test"
-about: Report flaky tests, make sure to include link to CI runs, a sample failure log, and the name of the test(s). Find the list of label tags [here](https://github.com/apache/tvm/wiki/Issue-Triage-Labels).
+about: Report flaky tests, make sure to include link to CI runs, a sample failure log, and the name of the test(s). Find the list of label tags at https://tinyurl.com/5fnd5rkn.
 title: "[Flaky Test] "
 labels: "needs-triage, test: flaky"
 ---
@@ -19,6 +19,6 @@ These tests were found to be flaky (intermittently failing on `main` or failed i
 
 ### Triage
 
-Please refer to the list of label tags linked above to find the relevant tags and add them here in a bullet format (example below).
+Please refer to the list of label tags [here](https://github.com/apache/tvm/wiki/Issue-Triage-Labels) to find the relevant tags and add them below in a bullet format (example below).
 
 * needs-triage

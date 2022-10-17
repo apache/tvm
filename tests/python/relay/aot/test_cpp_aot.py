@@ -118,7 +118,7 @@ def test_conv2d(enable_usmp, target_kind):
 
 @pytest.mark.parametrize("enable_usmp", [True, False])
 @pytest.mark.parametrize("target_kind", ["c", "llvm"])
-def test_mobilenet(enable_usmp, target_kind):
+def test_mobilenet(enable_usmp: bool, target_kind: str):
     """Full network test with Mobilenet"""
     ir_mod, params = testing.mobilenet.get_workload(batch_size=1)
     data_shape = [int(x) for x in ir_mod["main"].checked_type.arg_types[0].shape]
@@ -201,6 +201,45 @@ def test_pass_wrong_device_arg():
             in str(error.exception)
         )
     # TODO write asserts for # and type of device.
+
+
+@pytest.mark.parametrize("target_kind", ["c", "llvm"])
+@pytest.mark.parametrize("input_name", ["input:0", "input@0", "input_0"])
+def test_aot_input_name_with_special_character(target_kind: str, input_name: str):
+    """Test name transforms in AOT for input names with special characters."""
+    dtype = "float32"
+    input_1 = relay.var(input_name, shape=(10, 5), dtype=dtype)
+    weight = relay.var("weight", shape=(1, 5), dtype=dtype)
+    output = relay.add(input_1, weight)
+    func = relay.Function([input_1, weight], output)
+
+    input_data = np.random.rand(10, 5).astype(dtype)
+    weight_data = np.random.rand(1, 5).astype(dtype)
+    expected_output = input_data + weight_data
+    params = {"weight": weight_data}
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        mod = tvm.relay.build(
+            tvm.IRModule.from_expr(func),
+            target=target_kind,
+            params=params,
+            executor=tvm.relay.backend.Executor("aot", {"interface-api": "packed"}),
+        )
+    temp_dir = tvm.contrib.utils.TempDirectory()
+    test_so_path = temp_dir / "test.so"
+    mod.export_library(test_so_path, cc="c++", options=["-std=gnu++17", "-g3", "-O0"])
+    # test both original name and transformed name
+    for name in ["input_0", input_name]:
+        loaded_mod = tvm.runtime.load_module(test_so_path)
+        runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
+        inputs = {name: input_data}
+        runner.set_input(**inputs)
+
+        input_ind = runner.get_input_index(name)
+        assert (runner.get_input(input_ind).asnumpy() == input_data).all()
+
+        runner.run()
+        assert (runner.get_output(0).asnumpy() == expected_output).all()
 
 
 if __name__ == "__main__":

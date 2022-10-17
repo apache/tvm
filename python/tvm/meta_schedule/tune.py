@@ -40,6 +40,7 @@ def tune_tasks(
     cost_model: CostModel.CostModelType = "xgb",
     measure_callbacks: MeasureCallback.CallbackListType = "default",
     task_scheduler: TaskScheduler.TaskSchedulerType = "gradient",
+    module_equality: str = "structural",
 ) -> Database:
     """Tune a list of tasks. Using a task scheduler.
 
@@ -69,6 +70,12 @@ def tune_tasks(
         The measure callbacks.
     task_scheduler : TaskScheduler.TaskSchedulerType
         The task scheduler.
+    module_equality : Optional[str]
+        A string to specify the module equality testing and hashing method.
+        It must be one of the followings:
+          - "structural": Use StructuralEqual/Hash
+          - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
+                              equality testing and hashing.
 
     Returns
     -------
@@ -86,9 +93,9 @@ def tune_tasks(
     if not isinstance(runner, Runner):
         runner = Runner.create(runner)
     if database == "json":
-        database = Database.create(database, work_dir=work_dir)
+        database = Database.create(database, work_dir=work_dir, module_equality=module_equality)
     elif not isinstance(database, Database):
-        database = Database.create(database)
+        database = Database.create(database, module_equality=module_equality)
     if not isinstance(cost_model, CostModel):
         cost_model = CostModel.create(cost_model)
     if isinstance(measure_callbacks, MeasureCallback):

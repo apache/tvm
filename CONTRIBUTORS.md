@@ -173,6 +173,7 @@ We do encourage everyone to work anything they are interested in.
 - [Jon Soifer](https://github.com/soiferj): @soiferj
 - [Adam Straw](https://github.com/adstraw): @adstraw
 - [Chris Sullivan](https://github.com/csullivan): @csullivan
+- [Anirudh Sundar Subramaniam](https://github.com/quic-sanirudh): @quic-sanirudh
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
 - [Jorn Tuyls](https://github.com/jtuyls): @jtuyls

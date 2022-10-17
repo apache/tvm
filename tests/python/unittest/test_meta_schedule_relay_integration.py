@@ -568,5 +568,64 @@ def test_rewrite_layout_link_params():
         np.testing.assert_allclose(ref, out, rtol=1e-4, atol=1e-4)
 
 
+def test_module_equality_ignore_ndarray():
+    target = "llvm --num-cores=4"
+
+    data_shape = (128, 128)
+    weight_shape1 = (128, 128)
+    weight_shape2 = (128, 128)
+
+    data = relay.var("data", shape=data_shape, dtype="float32")
+    weight1 = relay.var("weight1", shape=weight_shape1, dtype="float32")
+    weight2 = relay.var("weight2", shape=weight_shape2, dtype="float32")
+    dense1 = relay.nn.dense(data, weight1)
+    dense2 = relay.nn.dense(dense1, weight2)
+    mod = tvm.IRModule.from_expr(dense2)
+
+    weight1_np = np.random.randn(*weight_shape1).astype("float32")
+    weight2_np = np.random.randn(*weight_shape2).astype("float32")
+
+    params = {"weight1": weight1_np, "weight2": weight2_np}
+
+    executor = relay.backend.Executor("graph", {"link-params": True})
+    mod = mod.with_attr("executor", executor)
+
+    # Without using ignore-ndarray for module equality, we get duplicated tasks
+    assert len(ms.relay_integration.extract_tasks(mod, target, params)) == 2
+
+    module_eqality = "ignore-ndarray"
+    extracted_tasks = ms.relay_integration.extract_tasks(
+        mod, target, params, module_equality=module_eqality
+    )
+
+    assert len(extracted_tasks) == 1
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        tasks, task_weights = ms.relay_integration.extracted_tasks_to_tune_contexts(
+            extracted_tasks, work_dir, strategy="replay-trace"
+        )
+        database = ms.tune.tune_tasks(
+            tasks=tasks,
+            task_weights=task_weights,
+            work_dir=work_dir,
+            max_trials_global=4,
+            module_equality=module_eqality,
+        )
+        lib = ms.relay_integration.compile_relay(database, mod, target, params)
+
+    dev = tvm.device(target, 0)
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    data_np = np.random.randn(*data_shape).astype("float32")
+
+    runtime.set_input("data", data_np)
+    runtime.run()
+
+    out = runtime.get_output(0).numpy()
+
+    ref = np.dot(np.dot(data_np, weight1_np.transpose()), weight2_np.transpose())
+    np.testing.assert_allclose(ref, out, rtol=1e-4, atol=1e-4)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -23,6 +23,7 @@
  */
 #include "./aot_lower_main.h"
 
+#include <tvm/runtime/name_transforms.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/transform.h>
 
@@ -227,7 +228,7 @@ class AOTMainLowerer : public MixedModeVisitor {
 
     for (auto input : lowered_main_func->params) {
       input_vars_.push_back(input);
-      std::string input_name = SanitizeName(input->name_hint());
+      std::string input_name = tvm::runtime::SanitizeName(input->name_hint());
       // We don't want the compiler changing input names in the
       // event of a sanitization collision. Therefore, enforcing
       // the var created to use the input_name strictly.
@@ -518,7 +519,7 @@ class AOTMainLowerer : public MixedModeVisitor {
         return;
       }
       if (target_attr_map[target_kind.value()]) {
-        std::string context_name = SanitizeName(device_context_name);
+        std::string context_name = tvm::runtime::SanitizeName(device_context_name);
         tir::Var device_context_var("device_context_" + context_name, DataType::Handle());
 
         auto pair = target_contexts.find(target_kind.value());

@@ -72,9 +72,9 @@ bool TensorizeComparator::VisitStmt(const Stmt& n, const Stmt& other) {
 }
 
 bool TensorizeComparator::VisitExpr(const PrimExpr& n, const PrimExpr& other) {
-  bool equal =
-      n.same_as(other) || ((n->type_index() == other->type_index()) && n->dtype == other->dtype &&
-                           ExprComparator::VisitExpr(n, other));
+  bool equal = n.same_as(other) ||
+               ((n->type_index() == other->type_index()) &&
+                n.dtype().code() == other.dtype().code() && ExprComparator::VisitExpr(n, other));
   if (!equal && assert_mode_) {
     std::ostringstream os;
     os << "Expression mismatch: " << n << " vs " << other;
@@ -185,7 +185,7 @@ bool TensorizeComparator::VisitExpr_(const VarNode* op, const PrimExpr& other) {
   const auto* rhs = other.as<VarNode>();
   auto lhs = GetRef<Var>(op);
   if (lhs.same_as(other)) return true;
-  if (op->dtype != rhs->dtype) return false;
+  if (op->dtype.code() != rhs->dtype.code()) return false;
   auto it = equal_map_.find(lhs);
   return it != equal_map_.end() && it->second.same_as(other);
 }
@@ -208,7 +208,9 @@ bool TensorizeComparator::DefEqual(const Var& lhs, const Var& rhs) {
   if (it != equal_map_.end()) return it->second.same_as(rhs);
   // Otherwise remap lhs to rhs
   equal_map_[lhs] = rhs;
-  analyzer_.Bind(lhs, rhs);
+  // Cast if necessary. This allows the workload and the tensor intrin to have different dtypes in
+  // the indices.
+  analyzer_.Bind(lhs, cast(lhs.dtype(), rhs));
   return true;
 }
 
