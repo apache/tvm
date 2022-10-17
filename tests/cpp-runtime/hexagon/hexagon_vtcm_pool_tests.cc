@@ -71,6 +71,33 @@ TEST_F(HexagonVtcmPoolTest, basic) {
   EXPECT_THROW(ptr = vtcm_pool->Allocate(1), InternalError);
 }
 
+TEST_F(HexagonVtcmPoolTest, small_allocations) {
+  void* ptr1;
+  void* ptr2;
+  void* ptr3;
+  void* ptr4;
+
+  // Allocate small chunk from the back
+  ptr1 = vtcm_pool->Allocate(min_bytes);
+
+  // Allocate from the front
+  ptr2 = vtcm_pool->Allocate(two_k_block);
+
+  // Allocate the rest
+  ptr3 = vtcm_pool->Allocate(max_bytes - min_bytes - two_k_block);
+
+  // Should be no more memory left
+  EXPECT_THROW(ptr4 = vtcm_pool->Allocate(min_bytes), InternalError);
+
+  vtcm_pool->Free(ptr1, min_bytes);
+  vtcm_pool->Free(ptr2, two_k_block);
+  vtcm_pool->Free(ptr3, max_bytes - min_bytes - two_k_block);
+
+  // Make sure at the end we have the full amount available again
+  ptr4 = vtcm_pool->Allocate(max_bytes);
+  vtcm_pool->Free(ptr4, max_bytes);
+}
+
 TEST_F(HexagonVtcmPoolTest, no_free_vtcm) {
   void* ptr = vtcm_pool->Allocate(max_bytes);
   EXPECT_THROW(vtcm_pool->Allocate(min_bytes), InternalError);
@@ -132,8 +159,7 @@ TEST_F(HexagonVtcmPoolTest, free_alloc_combinations) {
   vtcm_pool->Free(ptr3, two_k_block);
   vtcm_pool->Free(ptr2, two_k_block);
 
-  // Make sure at the end we have the full amount
-  // available again
+  // Make sure at the end we have the full amount available again
   ptr4 = vtcm_pool->Allocate(max_bytes);
   vtcm_pool->Free(ptr4, max_bytes);
 }
@@ -170,8 +196,7 @@ TEST_F(HexagonVtcmPoolTest, vtcm_alignment) {
 
   test_hexbuffs.reset();
 
-  // Make sure at the end we have the full amount
-  // available again
+  // Make sure at the end we have the full amount available again
   ptr = vtcm_pool->Allocate(max_bytes);
   vtcm_pool->Free(ptr, max_bytes);
 }
