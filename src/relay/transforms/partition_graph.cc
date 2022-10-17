@@ -36,6 +36,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/name_transforms.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -507,7 +508,7 @@ class NameMangleExtFuncs : public MixedModeMutator {
       if (auto* fn = pair.second.as<FunctionNode>()) {
         auto func = GetRef<Function>(fn);
         if (func->GetAttr<String>(attr::kCompiler).defined()) {
-          auto fn_name_mangled = relay::backend::SanitizeName(mangle_fn_(pair.first->name_hint));
+          auto fn_name_mangled = tvm::runtime::SanitizeName(mangle_fn_(pair.first->name_hint));
           GlobalVar gvar = GlobalVar(fn_name_mangled);
           mangled_gvars_[pair.first->name_hint] = gvar;
         }
@@ -526,7 +527,7 @@ class NameMangleExtFuncs : public MixedModeMutator {
         if (func->GetAttr<String>(attr::kCompiler).defined()) {
           auto new_dict = func->attrs->dict;
           new_dict.Set(tvm::attr::kGlobalSymbol,
-                       String(relay::backend::SanitizeName(mangle_fn_(pair.first->name_hint))));
+                       String(tvm::runtime::SanitizeName(mangle_fn_(pair.first->name_hint))));
           func = WithFields(func, func->params, VisitExpr(func->body), func->ret_type,
                             func->type_params, DictAttrs(new_dict));
 

@@ -25,6 +25,7 @@
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/name_transforms.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/usmp/utils.h>

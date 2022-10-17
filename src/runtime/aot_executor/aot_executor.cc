@@ -27,6 +27,7 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/name_transforms.h>
 
 #include <limits>
 #include <memory>
@@ -98,7 +99,7 @@ PackedFunc AotExecutor::GetFunction(const std::string& name,
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       if (String::CanConvertFrom(args[0])) {
-        int in_idx = this->GetInputIndex(args[0].operator String());
+        int in_idx = this->GetInputIndex(tvm::runtime::SanitizeName(args[0].operator String()));
         if (in_idx >= 0) this->SetInput(in_idx, args[1]);
       } else {
         this->SetInput(args[0], args[1]);
@@ -107,7 +108,7 @@ PackedFunc AotExecutor::GetFunction(const std::string& name,
   } else if (name == "set_input_zero_copy") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       if (String::CanConvertFrom(args[0])) {
-        int in_idx = this->GetInputIndex(args[0].operator String());
+        int in_idx = this->GetInputIndex(tvm::runtime::SanitizeName(args[0].operator String()));
         if (in_idx >= 0) this->SetInputZeroCopy(in_idx, args[1]);
       } else {
         this->SetInputZeroCopy(args[0], args[1]);
@@ -116,7 +117,7 @@ PackedFunc AotExecutor::GetFunction(const std::string& name,
   } else if (name == "set_output_zero_copy") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       if (String::CanConvertFrom(args[0])) {
-        int out_idx = this->GetOutputIndex(args[0].operator String());
+        int out_idx = this->GetOutputIndex(tvm::runtime::SanitizeName(args[0].operator String()));
         if (out_idx >= 0) this->SetOutputZeroCopy(out_idx, args[1]);
       } else {
         this->SetOutputZeroCopy(args[0], args[1]);
@@ -134,7 +135,7 @@ PackedFunc AotExecutor::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       int in_idx = 0;
       if (String::CanConvertFrom(args[0])) {
-        in_idx = this->GetInputIndex(args[0].operator String());
+        in_idx = this->GetInputIndex(tvm::runtime::SanitizeName(args[0].operator String()));
       } else {
         in_idx = args[0];
       }
@@ -153,7 +154,7 @@ PackedFunc AotExecutor::GetFunction(const std::string& name,
   } else if (name == "get_input_index") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK(String::CanConvertFrom(args[0])) << "Input key is not a string";
-      *rv = this->GetInputIndex(args[0].operator String());
+      *rv = this->GetInputIndex(tvm::runtime::SanitizeName(args[0].operator String()));
     });
   } else {
     return PackedFunc();
