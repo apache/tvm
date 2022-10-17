@@ -19,15 +19,14 @@
 extern "C" {
 #include <AEEStdDef.h>
 #include <AEEStdErr.h>
+#include <HAP_compute_res.h>
 #include <HAP_farf.h>
 #include <HAP_power.h>
-#include <HAP_compute_res.h>
 #include <qurt_error.h>
 }
 
-#include "hexagon_hmx.h"
-
 #include "hexagon_common.h"
+#include "hexagon_hmx.h"
 
 // Minimum timeout per SDK docs, excluding 0
 #define COMPUTE_RES_ACQ_TIMEOUT 200
@@ -67,7 +66,6 @@ void HexagonHmx::PowerOff() {
   if ((nErr = HAP_power_set(hap_pwr_ctx_, &pwr_req))) {
     LOG(FATAL) << "InternalError: HAP_power_set failed\n";
   }
-
   HAP_utils_destroy_context(hap_pwr_ctx_);
 }
 

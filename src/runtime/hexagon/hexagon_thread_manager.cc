@@ -42,6 +42,7 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   SpawnThreads(thread_stack_size_bytes, thread_pipe_size_words);
 
   DLOG(INFO) << "Acquiring hardware resources";
+  // TODO(HWE): Move these bindings to specific threads
   hmx_ = std::make_unique<HexagonHmx>();
   hvx_ = std::make_unique<HexagonHvx>();
 

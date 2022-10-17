@@ -24,9 +24,8 @@ extern "C" {
 #include <qurt_hvx.h>
 }
 
-#include "hexagon_hvx.h"
-
 #include "hexagon_common.h"
+#include "hexagon_hvx.h"
 
 namespace tvm {
 namespace runtime {
