@@ -24,7 +24,7 @@ import tempfile
 import pytest
 
 
-def skip_bencharks_flag_and_reason():
+def skip_benchmarks_flag_and_reason():
     """
     Returns one of these tuples:
         (False, '') or

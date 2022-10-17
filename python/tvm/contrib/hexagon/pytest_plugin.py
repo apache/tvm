@@ -28,7 +28,7 @@ import pytest
 import tvm
 import tvm.rpc.tracker
 from tvm.contrib.hexagon.build import HexagonLauncher, HexagonLauncherRPC
-from tvm.contrib.hexagon.session import Session
+from tvm.contrib.hexagon.session import Session, create_session
 
 HEXAGON_TOOLCHAIN = "HEXAGON_TOOLCHAIN"
 TVM_TRACKER_HOST = "TVM_TRACKER_HOST"
@@ -274,7 +274,7 @@ def hexagon_session(hexagon_launcher: HexagonLauncherRPC) -> Session:
     if hexagon_launcher is None:
         yield None
     else:
-        with hexagon_launcher.start_session() as session:
+        with create_session(hexagon_launcher._workspace, hexagon_launcher._rpc_info) as session:
             yield session
 
 

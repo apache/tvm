@@ -163,7 +163,7 @@ def test_resnet50(hexagon_launcher):
             params=params,
         )
 
-    with hexagon_launcher.start_session() as session:
+    with create_session(hexagon_launcher._workspace, hexagon_launcher._rpc_info) as session:
         graph_mod = session.get_executor_from_factory(hexagon_lowered)
         graph_mod.set_input(input_name, inp.copy())
         graph_mod.run()

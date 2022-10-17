@@ -31,6 +31,7 @@ from tvm.relay.backend.executor_factory import (
     GraphExecutorFactoryModule,
 )
 from .tools import export_module
+from .build import HEXAGON_REMOTE_DEVICE_KEY
 
 
 class Session:
@@ -38,9 +39,6 @@ class Session:
 
     Parameters
     ----------
-    launcher : HexagonLauncherRPC
-        The launcher from which this session was started.
-
     remote_kw : dict
         Remote configs for RPC tracker.
 
@@ -54,13 +52,13 @@ class Session:
 
     def __init__(
         self,
-        launcher: "HexagonLauncherRPC",
+        remote_workspace: Union[str, pathlib.Path],
         remote_kw: dict,
         session_name: str = "hexagon-rpc",
         remote_stack_size_bytes: int = 256 * 1024,  # Min size for main thread in QuRT/sim
         rpc_receive_buffer_size_bytes: int = 256 * 1024 * 1024,  # Size for passing hexagon tests
     ):
-        self._launcher = launcher
+        self._workspace = str(remote_workspace)
         self._session_name: str = session_name
         self._remote_stack_size_bytes: int = remote_stack_size_bytes
         self._rpc_receive_buffer_size_bytes: int = rpc_receive_buffer_size_bytes
@@ -142,7 +140,12 @@ class Session:
         pathlib.Path :
             Uploaded file remote path.
         """
-        return self._launcher.upload(local_path, remote_filename)
+        upload_func = self._rpc.get_function("tvm.rpc.server.upload")
+        remote_path = f"{self._workspace}/{remote_filename}"
+        with open(local_path, mode="rb") as src_f:
+            data = bytearray(src_f.read())
+        upload_func(remote_path, data)
+        return remote_path
 
     def load_module(self, module: Union[str, pathlib.Path, tvm.runtime.Module]):
         """Load TVM module.
@@ -206,7 +209,6 @@ class Session:
             Runtime graph module that can be used to execute the graph.
 
         """
-
         graph_mod = self.load_module(module_name)
         self._set_device_type(graph_mod)
         return tvm.contrib.graph_executor.create(graph_json, graph_mod, self.device)

@@ -35,6 +35,8 @@ from tvm.meta_schedule.runner import RunnerInput
 from tvm.script import tir as T
 from tvm.tir import FloatImm
 from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
+from tvm.contrib.hexagon.pytest_plugin import android_serial_number
+from tvm.contrib.hexagon.session import create_session
 
 from .infrastructure import get_hexagon_target
 
@@ -62,7 +64,7 @@ class MatmulModule:
 
 @tvm.testing.requires_hexagon
 def test_builder_runner(hexagon_launcher):
-    if hexagon_launcher._serial_number == "simulator":
+    if android_serial_number() == "simulator":
         pytest.skip(msg="Tuning on simulator not supported.")
 
     mod = MatmulModule
@@ -175,7 +177,7 @@ def verify_dense(sch, target, M, N, K, hexagon_session):
 
 @tvm.testing.requires_hexagon
 def test_vrmpy_dense(hexagon_launcher):
-    if hexagon_launcher._serial_number == "simulator":
+    if android_serial_number() == "simulator":
         pytest.skip(msg="Tuning on simulator not supported.")
 
     do_tune = True
@@ -213,7 +215,7 @@ def test_vrmpy_dense(hexagon_launcher):
             )
             sch = ms.tir_integration.compile_tir(database, workload, target)
 
-    with hexagon_launcher.start_session() as session:
+    with create_session(hexagon_launcher._workspace, hexagon_launcher._rpc_info) as session:
         verify_dense(sch, get_hexagon_target("v68"), M, N, K, session)
 
 
@@ -273,7 +275,7 @@ class Module_vrmpy_auto_tensorize:
 
 @tvm.testing.requires_hexagon
 def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
-    if hexagon_launcher._serial_number == "simulator":
+    if android_serial_number() == "simulator":
         pytest.skip(msg="Tuning on simulator not supported.")
 
     M, N, K = 128, 768, 768
@@ -330,13 +332,13 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
     else:
         sch = tvm.tir.Schedule(Module_vrmpy_auto_tensorize, debug_mask="all")
 
-    with hexagon_launcher.start_session() as session:
+    with create_session(hexagon_launcher._workspace, hexagon_launcher._rpc_info) as session:
         verify_dense(sch, get_hexagon_target("v68"), M, N, K, session)
 
 
 @tvm.testing.requires_hexagon
 def test_conv2d_relay_auto_schedule(hexagon_launcher):
-    if hexagon_launcher._serial_number == "simulator":
+    if android_serial_number() == "simulator":
         pytest.skip(msg="Tuning on simulator not supported.")
 
     I, O, H, W = 64, 64, 56, 56
@@ -397,7 +399,7 @@ def test_conv2d_relay_auto_schedule(hexagon_launcher):
             target=target,
         )
 
-    with hexagon_launcher.start_session() as session:
+    with create_session(hexagon_launcher._workspace, hexagon_launcher._rpc_info) as session:
         rt_mod = session.get_executor_from_factory(lib)
 
         rt_mod.set_input("data", data_np)
@@ -416,7 +418,7 @@ def test_dense_relay_auto_schedule(hexagon_launcher):
     This is for testing RewriteLayout postproc. Without this postproc,
     dense on Hexagon is extremely slow.
     """
-    if hexagon_launcher._serial_number == "simulator":
+    if android_serial_number() == "simulator":
         pytest.skip(msg="Tuning on simulator not supported.")
 
     target_hexagon = tvm.target.hexagon("v69")
@@ -456,7 +458,7 @@ def test_dense_relay_auto_schedule(hexagon_launcher):
             target=target,
         )
 
-    with hexagon_launcher.start_session() as session:
+    with create_session(hexagon_launcher._workspace, hexagon_launcher._rpc_info) as session:
         rt_mod = session.get_executor_from_factory(lib)
 
         rt_mod.set_input("data", data_np)

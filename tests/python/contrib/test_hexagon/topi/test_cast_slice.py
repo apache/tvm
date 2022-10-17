@@ -22,6 +22,8 @@ import tvm
 import tvm.testing
 from tvm import te
 import tvm.topi.hexagon.slice_ops as sl
+from tvm.contrib.hexagon.pytest_plugin import android_serial_number
+
 from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 
@@ -74,7 +76,7 @@ class TestCastF16F32Slice2d:
         """
         Top level testing function for cast fp16 to fp32
         """
-        if hexagon_session._launcher._serial_number != "simulator":
+        if android_serial_number() != "simulator":
             pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
 
         cast_input = te.placeholder(input_shape, name="A", dtype=dtype)
@@ -160,7 +162,7 @@ class TestCastF32F16Slice2d:
         """
         Top level testing function for cast fp32 to fp16
         """
-        if hexagon_session._launcher._serial_number != "simulator":
+        if android_serial_number() != "simulator":
             pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
 
         cast_input = te.placeholder(input_shape, name="A", dtype=dtype)

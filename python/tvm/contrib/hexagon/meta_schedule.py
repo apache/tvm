@@ -35,6 +35,7 @@ from tvm.meta_schedule.runner.rpc_runner import (
 
 from .build import HexagonLauncherRPC
 from .tools import export_module
+from .session import create_session
 
 
 @derived_object
@@ -100,7 +101,7 @@ class HexagonRPCRunner(PyRunner):
 
 
 def _worker_func(hexagon_launcher, evaluator_config, alloc_repeat, artifact_path, args_info):
-    with hexagon_launcher.start_session() as session:
+    with create_session(hexagon_launcher._workspace, hexagon_launcher._rpc_info) as session:
         device = session.device
         _, remote_path = os.path.split(artifact_path)
         uploaded = session.upload(artifact_path, remote_path)

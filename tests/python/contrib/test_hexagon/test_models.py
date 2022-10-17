@@ -24,6 +24,7 @@ import tvm.testing
 from tvm import relay
 from tvm.contrib.hexagon.session import Session
 from tvm.relay.backend import Executor, Runtime
+from tvm.contrib.hexagon.pytest_plugin import android_serial_number
 
 from .infrastructure import get_hexagon_target
 
@@ -90,7 +91,7 @@ def test_mobilenet(hexagon_session: Session):
 @tvm.testing.requires_hexagon
 def test_mobilenet_aot(hexagon_session: Session, aot_host_target, aot_target, enable_usmp):
     """Test mobilenet with aot executor"""
-    if hexagon_session._launcher._serial_number == "simulator":
+    if android_serial_number() == "simulator":
         pytest.skip(msg="Skip on simulator due to long runtime.")
 
     dtype = "float32"
