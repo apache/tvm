@@ -37,7 +37,7 @@ class HexagonThreadManagerTest : public ::testing::Test {
   std::vector<TVMStreamHandle> streams;
   int answer{0};
   const unsigned threads{6};
-  const unsigned pipe_size{100};
+  const unsigned pipe_size{1000};
   const unsigned stack_size{0x4000};  // 16KB
 };
 
@@ -162,7 +162,7 @@ TEST_F(HexagonThreadManagerTest, pipe_fill) {
   CHECK_EQ(answer, 42);
 }
 
-TEST_F(HexagonThreadManagerTest, DISABLED_pipe_overflow) {
+TEST_F(HexagonThreadManagerTest, pipe_overflow) {
   // fill the pipe
   for (int i = 0; i < pipe_size; ++i) {
     htm->Dispatch(streams[0], get_the_answer, &answer);
