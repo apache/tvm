@@ -72,9 +72,23 @@ def conv_approximation(size_a, size_w):
     return tvm.tir.Schedule(operator)
 
 
-def evaluate(hexagon_session, sch, a, b, size_a, expected_output, use_async_copy=0):
+def evaluate(
+    hexagon_session,
+    sch,
+    a,
+    b,
+    size_a,
+    expected_output,
+    use_async_copy=0,
+    merge_async_commit_queue_scope=False,
+):
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
-    with tvm.transform.PassContext(config={"tir.use_async_copy": use_async_copy}):
+    with tvm.transform.PassContext(
+        config={
+            "tir.use_async_copy": use_async_copy,
+            "tir.merge_async_commit_queue_scope": merge_async_commit_queue_scope,
+        }
+    ):
         func_tir = tvm.build(
             sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
         )
@@ -259,6 +273,29 @@ def get_fake_conv_vtcm_schedule(size_a, size_w, blocks=2):
     return sch
 
 
+def get_multi_input_fake_conv_vtcm_schedule(size_a, size_w, blocks=2):
+    sch = conv_approximation(size_a, size_w)
+
+    compute_block = sch.get_block("C")
+
+    n = sch.get_loops(compute_block)[0]
+    no, _ = sch.split(n, [blocks, None])
+
+    cache_read_block_a = sch.cache_read(compute_block, 0, "global.vtcm")
+    sch.compute_at(cache_read_block_a, no)
+    sch.fuse(*sch.get_loops(cache_read_block_a)[1:])
+
+    cache_read_block_b = sch.cache_read(compute_block, 1, "global.vtcm")
+    sch.compute_at(cache_read_block_b, no)
+    sch.fuse(*sch.get_loops(cache_read_block_b)[1:])
+
+    cache_read_block_c = sch.cache_write(compute_block, 0, "global.vtcm")
+    sch.reverse_compute_at(cache_read_block_c, no)
+    sch.fuse(*sch.get_loops(cache_read_block_c)[1:])
+
+    return sch
+
+
 def print_results(test_key, runtimes):
     print(test_key)
     for runtime in runtimes.items():
@@ -321,6 +358,22 @@ class TestAsyncDMAPipeline:
             hexagon_session, sch, input_a, input_w, size_a, expected_output, use_async_copy=1
         )
 
+        sch = get_multi_input_fake_conv_vtcm_schedule(size_a, size_w)
+        n = sch.get_loops(sch.get_block("C"))[0]
+        sch.annotate(n, "software_pipeline_stage", [0, 0, 1, 2])
+        sch.annotate(n, "software_pipeline_order", [0, 1, 2, 3])
+        sch.annotate(n, "software_pipeline_async_stages", [0, 2])
+        async_multi_input_output_runtime = evaluate(
+            hexagon_session,
+            sch,
+            input_a,
+            input_w,
+            size_a,
+            expected_output,
+            use_async_copy=1,
+            merge_async_commit_queue_scope=False,
+        )
+
         sch = get_fake_conv_vtcm_schedule(size_a, size_w)
         n = sch.get_loops(sch.get_block("C"))[0]
         sch.annotate(n, "software_pipeline_stage", [0, 1, 2])
@@ -349,5 +402,6 @@ class TestAsyncDMAPipeline:
                 "async_dma_input": async_input_runtime,
                 "async_dma_output": async_output_runtime,
                 "async_dma_input_output": async_input_output_runtime,
+                "async_dma_multi_input_output": async_multi_input_output_runtime,
             },
         )
