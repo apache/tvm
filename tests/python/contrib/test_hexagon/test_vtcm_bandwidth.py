@@ -121,9 +121,9 @@ class TestMatMulVec:
         # 320 * KB,
         640 * KB,
         # MB,
-        # 2 * MB,
-        # 3 * MB,
-        # 4 * MB,
+        2 * MB,
+        3 * MB,
+        4 * MB,
         # 8 * MB,  # Only works on 8gen1 HDKs
     )
 

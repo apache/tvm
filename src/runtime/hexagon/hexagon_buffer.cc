@@ -237,8 +237,9 @@ void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& 
 
   // Finally, do the memory copies.
   for (const auto& copy : macro_copies) {
-    int error_code = hexagon_user_dma_1d_sync(copy.dest, copy.src, copy.num_bytes);
-    CHECK_EQ(error_code, 0);
+    // int error_code = hexagon_user_dma_1d_sync(copy.dest, copy.src, copy.num_bytes);
+    std::memcpy(copy.dest, copy.src, copy.num_bytes);
+    //CHECK_EQ(error_code, 0);
   }
 }
 

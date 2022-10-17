@@ -67,11 +67,17 @@ int HexagonUserDMA::Copy(int queue_id, void* dst, void* src, uint32_t length) {
   dma_desc_set_dstcomp(dma_desc, DESC_COMP_NONE);
   dma_desc_set_srccomp(dma_desc, DESC_COMP_NONE);
   dma_desc_set_bypassdst(dma_desc, DESC_BYPASS_OFF);
-  dma_desc_set_bypasssrc(dma_desc, DESC_BYPASS_OFF);
+  // dma_desc_set_bypasssrc(dma_desc, DESC_BYPASS_OFF);
   dma_desc_set_order(dma_desc, DESC_ORDER_ORDER);
   dma_desc_set_done(dma_desc, DESC_DONE_INCOMPLETE);
   dma_desc_set_src(dma_desc, src32);
   dma_desc_set_dst(dma_desc, dst32);
+
+  if ((src32 & 0xfff00000) == 0xfec00000) {
+    dma_desc_set_bypasssrc(dma_desc, DESC_BYPASS_OFF);
+  } else {
+    dma_desc_set_bypasssrc(dma_desc, DESC_BYPASS_ON);
+  }
 
   if (first_dma_) {
     // `dmstart` first descriptor
