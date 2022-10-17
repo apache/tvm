@@ -1210,8 +1210,9 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     if (iter_type == kOpaque) {
       throw OpaqueNewIterTypeError(self->mod, GetRef<Block>(block_ptr), transformed_block_iters[i]);
     }
+    auto dtype = new_block_var.dtype();
     new_block_iters.push_back(IterVar(
-        /*dom=*/Range::FromMinExtent(make_zero(new_block_var.dtype()), new_block_iter_range[i]),
+        /*dom=*/Range::FromMinExtent(make_zero(dtype), new_block_iter_range[i]),
         /*var=*/std::move(new_block_var), /*iter_type=*/iter_type));
   }
 
