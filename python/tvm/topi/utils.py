@@ -22,7 +22,7 @@ from numbers import Integral
 
 import numpy as np
 import tvm
-from tvm import relay, te
+from tvm import te
 from tvm.tir import bijective_layout, layout
 from . import cpp, tag
 
@@ -452,6 +452,8 @@ def change_constant_shape(src, src_layout, dst_layout):
     dst_shape : relay.Constant
         A copy of the Constant with the new layout.
     """
+    from tvm import relay
+
     assert src_layout.isalpha() and dst_layout.isalpha()
     axis_order = [src_layout.index(c) for c in dst_layout]
     reshaped = np.transpose(src.data.numpy(), axis_order)
