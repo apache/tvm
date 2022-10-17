@@ -40,6 +40,8 @@ class ModuleEquality {
    * \param mod_eq_name A string to specify the module equality testing and hashing method.
    *  It must be one of the followings:
    *    - "structural": Use StructuralEqual/Hash
+   *    - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
+   *                        equality testing and hashing.
    * \return An owning pointer to the created instance
    */
   static std::unique_ptr<ModuleEquality> Create(const std::string& mod_eq_name);
