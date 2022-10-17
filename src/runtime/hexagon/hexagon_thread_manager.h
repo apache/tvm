@@ -190,11 +190,11 @@ class HexagonThreadManager {
 
   //! \brief HMX hardware resource.
   // TODO(HWE): Move binding of HMX to a specific thread
-  HexagonHmx hmx_;
+  std::unique_ptr<HexagonHmx> hmx_;
 
   //! \brief HVX hardware resource.
   // TODO(HWE): Move binding of individual HVX instances to a specific thread
-  HexagonHvx hvx_;
+  std::unique_ptr<HexagonHvx> hvx_;
 };
 
 }  // namespace hexagon
