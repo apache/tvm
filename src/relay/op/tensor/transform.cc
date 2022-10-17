@@ -2557,6 +2557,7 @@ RELAY_REGISTER_OP("broadcast_to")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(4)
     .add_type_rel("BroadCastTo", BroadCastToRel)
+    .set_attrs_type<InitOpAttrs>()
     .set_attr<FTVMCompute>("FTVMCompute", BroadCastToCompute)
     .set_attr<TOpPattern>("TOpPattern", kBroadcast);
 
