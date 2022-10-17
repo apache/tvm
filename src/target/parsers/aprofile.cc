@@ -34,9 +34,8 @@ namespace target {
 namespace parsers {
 namespace aprofile {
 
-const std::regex version_regex("\\+v(\\d+\\.\\d+)a");
-
 static inline double GetArchVersion(Array<String> mattr) {
+  std::regex version_regex("\\+v(\\d+\\.\\d+)a");
   std::smatch version;
 
   for (const String& attr : mattr) {
