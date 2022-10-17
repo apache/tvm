@@ -19,11 +19,11 @@
 
 import tvm
 from tvm import te, topi
-from ..utils import get_const_tuple
-from ..nn.utils import get_pad_tuple
-from ..nn.pad import pad
-from .. import tag, nn
-from ..x86.concat import concatenate
+from ...utils import get_const_tuple
+from ...nn.utils import get_pad_tuple
+from ...nn.pad import pad
+from ... import tag, nn
+from ...x86.concat import concatenate
 
 
 def clip_cast(val, dtype):
