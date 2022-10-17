@@ -30,9 +30,19 @@ namespace qnn {
 
 namespace transform {
 
+Pass QnnLegalize() {
+  runtime::TypedPackedFunc<Function(Function, IRModule, tvm::transform::PassContext)> pass_func =
+      [=](Function f, IRModule m, tvm::transform::PassContext pc) {
+        return Downcast<Function>(relay::legalize::Legalize(f, "FTVMQnnLegalize"));
+      };
+  return tvm::relay::transform::CreateFunctionPass(pass_func, 1, "qnn.Legalize", {"InferType"});
+}
+
+TVM_REGISTER_GLOBAL("relay.qnn._transform.QnnLegalize").set_body_typed(QnnLegalize);
+
 Pass Legalize() {
   Array<Pass> pass_seqs;
-  pass_seqs.push_back(relay::transform::Legalize("FTVMQnnLegalize"));
+  pass_seqs.push_back(QnnLegalize());
   pass_seqs.push_back(relay::transform::Legalize("FTVMQnnCanonicalize"));
   relay::transform::Pass seq = relay::transform::Sequential(pass_seqs);
   return seq;

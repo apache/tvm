@@ -598,6 +598,12 @@ TVM_DLL Pass RemoveStandaloneReshapes();
 
 }  // namespace transform
 
+namespace legalize {
+
+TVM_DLL Expr Legalize(const Expr& expr, const std::string& legalize_map_attr_name);
+
+}  // namespace legalize
+
 /*!
  * \brief Bind the free variables to a Relay expression. This is a helper
  * function usually called by other pass functions to help optimizations.

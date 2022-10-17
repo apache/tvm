@@ -65,8 +65,6 @@ def default_schedule(outs):
 def qnn_quantize(data, output_scale, output_zero_point, axis, out_dtype):
     """Compute for qnn.quantize
 
-    Note! This is POC code. There was no goal to implement high performance compute function.
-
     Q_output = clamp((round(input_tensor/output_scale) + output_zero_point),
                      out_dtype::min,
                      out_dtype::max)
@@ -106,8 +104,6 @@ def schedule_qnn_quantize(outs):
 def qnn_dequantize(data, input_scale, input_zero_point, axis):
     """Compute for qnn.dequantize
 
-    Note! This is POC code. There was no goal to implement high performance compute function.
-
     fp_output = input_scale * (Q_input - input_zero_point)
     """
 
@@ -140,8 +136,6 @@ def schedule_qnn_dequantize(outs):
 
 def qnn_requantize(data, input_scale, input_zp, output_scale, output_zp, axis, out_dtype):
     """Compute for qnn.requantize
-
-    Note! This is POC code. There was no goal to implement high performance compute function.
 
     Q_output = zp_output + round((scale_input)/(scale_output) * (Q_input - zp_input))
 
@@ -187,8 +181,6 @@ def qnn_add(
     lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point, output_scale, output_zero_point
 ):
     """Compute for qnn.add
-
-    Note! This is POC code. There was no goal to implement high performance compute function.
 
     Q_output = zp_output + round((lhs_scale)/(scale_output) * (lhs_input - lhs_zp_input))
                          + round((rhs_scale)/(scale_output) * (rhs_input - rhs_zp_input))
@@ -252,8 +244,6 @@ def requantize_tensor(tensor, i_scale, i_zp, o_scale, o_zp, out_dtype):
 
 def qnn_concatenate(data, axis, out_dtype):
     """Compute for qnn.concatenate
-
-    Note! This is POC code. There was no goal to implement high performance compute function.
 
     Parameters
     ----------
@@ -337,10 +327,11 @@ def qnn_conv2d(  # Conv2d inputs
     oshape,
     odtype,
 ):
-    """Compute for qnn.conv2d with NCHW layout
+    """Compute for qnn.conv2d with NCHW layout.
 
-    Note! This is POC code. There was no goal to implement high performance compute function.
-
+    Output data type should be specified through the 'odtype' parameter. qnn.conv2d leverages int32
+    type to store intermediate results. If 'odtype' differs from int32, you need to specify
+    requantization parameters.
     """
     in_channel = data.shape[1]  # NCHW layout
     kernel_height = weight.shape[2]  # OIHW layout
@@ -458,8 +449,9 @@ def qnn_depthwise_conv2d(  # Conv2d inputs
 ):
     """Compute for qnn.conv2d with NCHW layout
 
-    Note! This is POC code. There was no goal to implement high performance compute function.
-
+    Output data type should be specified through the 'odtype' parameter. qdepthwise nn.conv2d
+    leverages int32 type to store intermediate results. If 'odtype' differs from int32, you need to
+    specify requantization parameters.
     """
     kernel_height = weight.shape[2]  # OIHW layout
     kernel_width = weight.shape[3]  # OIHW layout
@@ -567,8 +559,9 @@ def qnn_dense(
 ):
     """Compute for qnn.dense
 
-    Note! This is POC code. There was no goal to implement high performance compute function.
-
+    Output data type should be specified through the 'odtype' parameter. qnn.dense leverages int32
+    type to store intermediate results. If 'odtype' differs from int32, you need to specify
+    requantization parameters.
     """
     M, K = get_const_tuple(data.shape)
     N, _ = get_const_tuple(weight.shape)
@@ -643,11 +636,7 @@ def qnn_batch_matmul(
     transpose_b,
     out_dtype,
 ):
-    """Compute for qnn.dense
-
-    Note! This is POC code. There was no goal to implement high performance compute function.
-
-    """
+    """Compute for qnn.batch_matmul"""
 
     # Preprocess tensor_a: subtract zp
     a_sub_zp = te.compute(

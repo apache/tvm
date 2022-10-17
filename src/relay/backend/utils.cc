@@ -231,10 +231,13 @@ Array<Pass> GetPassPrefix(Target homogeneous_target, bool is_vm) {
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   pass_seqs.push_back(transform::ToBasicBlockNormalForm());
   // Run all dialect legalization passes.
-  // Skip these passes for Hexagon target.
-  if ((is_homogeneous && homogeneous_target->GetTargetDeviceType() != kDLHexagon) ||
-      !is_homogeneous)
+  if (is_homogeneous && homogeneous_target->GetTargetDeviceType() == kDLHexagon) {
+    // Run QNN Legalize.
+    pass_seqs.push_back(relay::qnn::transform::QnnLegalize());
+  } else {
+    // Run QNN Legalize + QNN Canonicalize.
     pass_seqs.push_back(relay::qnn::transform::Legalize());
+  }
 
   // Legalize pass is restricted to homogeneous execution for now.
   if (is_homogeneous) {

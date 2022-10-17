@@ -51,6 +51,13 @@ namespace transform {
  */
 TVM_DLL Pass Legalize();
 
+/*!
+ * \brief Legalizes a QNN expr (without QNN Canonicalization).
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass QnnLegalize();
+
 }  // namespace transform
 
 }  // namespace qnn

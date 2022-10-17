@@ -25,4 +25,4 @@ from .dequantize import (
 )
 
 from .quantize import quantize_compute, tir_quantize_schedule
-from .qnn import *
+from .nn import *

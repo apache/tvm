@@ -124,11 +124,11 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
 }
 
 // Helper class that is used during lowering to TE.
-// It matches sequence of Ops and lower them into single TOPI operation. Has sense for Hexagon only.
-// All supported patterns are enumerated in "supported_patterns_"
-class PatternMatcher {
+// It matches sequence of Ops and lower them into single TOPI operation. All supported patterns are
+// enumerated in "supported_patterns_".
+class QnnPatternMatcher {
  public:
-  PatternMatcher()
+  QnnPatternMatcher()
       : qnn_conv2d_op_(Op::Get("qnn.conv2d")),
         qnn_dense_op_(Op::Get("qnn.dense")),
         qnn_requantize_op_(Op::Get("qnn.requantize")),
@@ -288,7 +288,7 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
     static auto flower_call = tvm::runtime::Registry::Get("relay.backend.lower_call");
     ICHECK(flower_call) << "relay.backend.lower_call is not registered.";
 
-    if (target_->GetTargetDeviceType() == kDLHexagon) pattern_matcher_.Register(call_node);
+    pattern_matcher_.Register(call_node);
 
     Array<te::Tensor> inputs;
     int count_tuple = 0;
@@ -385,7 +385,7 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
   std::string candidate_name_;
 
  private:
-  PatternMatcher pattern_matcher_;
+  QnnPatternMatcher pattern_matcher_;
 
   tvm::Target target_;
   std::ostringstream readable_name_stream_;
