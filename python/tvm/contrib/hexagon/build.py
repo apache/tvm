@@ -549,7 +549,8 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         subprocess.call(self._adb_device_sub_cmd + ["root"])
         hexagon_sdk_root = os.environ.get("HEXAGON_SDK_ROOT", default="")
         subprocess.call(
-            f"{hexagon_sdk_root}/tools/utils/sysmon/parser_linux_v2/HTML_Parser/sysmon_parser ./sysmon_output/sysmon_cdsp.bin --outdir ./sysmon_output/",
+            f"{hexagon_sdk_root}/tools/utils/sysmon/parser_linux_v2/HTML_Parser/sysmon_parser "
+            + "./sysmon_output/sysmon_cdsp.bin --outdir ./sysmon_output/",
             shell=True,
         )
 
@@ -600,9 +601,8 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
                 print(print_buffer, "\n")
 
             print(
-                "There were {} crashes on the cDSP during execution... Crash printing is limited to the first 5.".format(
-                    crash_count
-                )
+                f"There were {crash_count} crashes on the cDSP during execution... "
+                + "Crash printing is limited to the first 5."
             )
         except:
             print("Unable to parse logcat file.")

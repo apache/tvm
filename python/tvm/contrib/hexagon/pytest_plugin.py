@@ -20,9 +20,7 @@
     values from testing parameters """
 
 import os
-from pathlib import Path
 import random
-import subprocess
 from typing import Optional, Union
 
 import pytest
@@ -334,6 +332,8 @@ def clear_logcat(request) -> bool:
 
 
 def pytest_addoption(parser):
+    """Add pytest options."""
+
     parser.addoption("--gtest_args", action="store", default="")
 
     parser.addoption(
@@ -346,7 +346,8 @@ def pytest_addoption(parser):
         "--hexagon-debug",
         action="store_true",
         default=False,
-        help="If set true, it will keep the hexagon test directories on the target. Additionally logcat logs will be copied from device and cdsp errors printed out.",
+        help="If set true, it will keep the hexagon test directories on the target. "
+        + "Additionally logcat logs will be copied from device and cdsp errors printed out.",
     )
     parser.addoption(
         "--sysmon-profile",
