@@ -452,12 +452,10 @@ def change_constant_shape(src, src_layout, dst_layout):
     dst_shape : relay.Constant
         A copy of the Constant with the new layout.
     """
-    from tvm import relay
-
     assert src_layout.isalpha() and dst_layout.isalpha()
     axis_order = [src_layout.index(c) for c in dst_layout]
     reshaped = np.transpose(src.data.numpy(), axis_order)
-    return relay.Constant(tvm.nd.array(reshaped))
+    return tvm.relay.Constant(tvm.nd.array(reshaped))
 
 
 def within_index(b, e, s, i):
