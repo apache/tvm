@@ -181,6 +181,8 @@ class DatabaseNode : public runtime::Object {
    * \param mod_eq_name A string to specify the module equality testing and hashing method.
    *  It must be one of the followings:
    *    - "structural": Use StructuralEqual/Hash
+   *    - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
+   *                        equality testing and hashing.
    */
   explicit DatabaseNode(String mod_eq_name = "structural");
 
@@ -270,6 +272,8 @@ class PyDatabaseNode : public DatabaseNode {
    * \param mod_eq_name A string to specify the module equality testing and hashing method.
    *  It must be one of the followings:
    *    - "structural": Use StructuralEqual/Hash
+   *    - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
+   *                        equality testing and hashing.
    */
   explicit PyDatabaseNode(String mod_eq_name = "structural");
 
