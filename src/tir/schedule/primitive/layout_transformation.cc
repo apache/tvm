@@ -369,7 +369,8 @@ class TransformLayoutPlanner : private StmtExprVisitor {
           ss << "v_" << var->name_hint;
           Var virtual_var(ss.str(), var.dtype());
           new_iter_values.push_back(var);
-          new_iter_vars.push_back(IterVar(Range::FromMinExtent(0, dim), virtual_var, kDataPar));
+          new_iter_vars.push_back(
+              IterVar(Range::FromMinExtent(make_zero(dim.dtype()), dim), virtual_var, kDataPar));
           new_access_indices.push_back(virtual_var);
           loop_var_to_virtual_var.Set(var, virtual_var);
         }
@@ -990,7 +991,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   auto [inverse, padding_predicate] = [&]() {
     Array<Range> region;
     for (const auto& dim : old_buffer->shape) {
-      region.push_back(Range::FromMinExtent(0, dim));
+      region.push_back(Range::FromMinExtent(make_zero(dim.dtype()), dim));
     }
     return index_map.NonSurjectiveInverse(region);
   }();
@@ -1209,8 +1210,10 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     if (iter_type == kOpaque) {
       throw OpaqueNewIterTypeError(self->mod, GetRef<Block>(block_ptr), transformed_block_iters[i]);
     }
-    new_block_iters.push_back(IterVar(/*dom=*/Range::FromMinExtent(0, new_block_iter_range[i]),
-                                      /*var=*/std::move(new_block_var), /*iter_type=*/iter_type));
+    auto dtype = new_block_var.dtype();
+    new_block_iters.push_back(IterVar(
+        /*dom=*/Range::FromMinExtent(make_zero(dtype), new_block_iter_range[i]),
+        /*var=*/std::move(new_block_var), /*iter_type=*/iter_type));
   }
 
   // Step 5.2: Update the block body. Use the inverse map f^{-1} to replace the original block iters
