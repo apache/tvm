@@ -50,7 +50,7 @@ C_SOURCES += $(STM32_RUNTIME_PATH)/ai_runtime_api.c
 #
 # Application sources
 #
-C_SOURCES += $(SRC_PATH)/main.c 
+C_SOURCES += $(SRC_PATH)/main.c
 
 vpath %.c $(sort $(dir $(C_SOURCES)))
 

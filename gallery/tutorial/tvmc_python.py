@@ -20,7 +20,7 @@ Getting Starting using TVMC Python: a high-level API for TVM
 **Author**:
 `Jocelyn Shiue <https://github.com/CircleSpin>`_
 
-Hi! Here we explain the scripting tool designed for the complete TVM beginner. 🙂                                                                                                      
+Hi! Here we explain the scripting tool designed for the complete TVM beginner. 🙂
 
 Before we get started let's get an example model if you don't already have one.
 Follow the steps to download a resnet model via the terminal:

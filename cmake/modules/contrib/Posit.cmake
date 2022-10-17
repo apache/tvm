@@ -20,7 +20,7 @@ if(USE_BYODT_POSIT)
   if (NOT UNIVERSAL_PATH)
     message(FATAL_ERROR "Fail to get Universal path")
   endif(NOT UNIVERSAL_PATH)
-  
+
   include_directories(${UNIVERSAL_PATH}/include)
   list(APPEND COMPILER_SRCS "src/target/datatype/posit/posit-wrapper.cc")
 endif(USE_BYODT_POSIT)

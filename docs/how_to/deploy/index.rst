@@ -36,7 +36,7 @@ Unlike traditional deep learning frameworks. TVM stack is divided into two major
 - TVM runtime, which runs on the target devices.
 
 In order to integrate the compiled module, we **do not** need to build entire
-TVM on the target device. You only need to build the TVM compiler stack on your 
+TVM on the target device. You only need to build the TVM compiler stack on your
 desktop and use that to cross-compile modules that are deployed on the target device.
 
 We only need to use a light-weight runtime API that can be integrated into various platforms.
@@ -77,9 +77,9 @@ architecture to be able to run the cross compiled model.
 Cross compile the TVM runtime for other architectures
 -----------------------------------------------------
 
-In the example :ref:`above <build-tvm-runtime-on-target-device>` the runtime library was 
-compiled on a Raspberry Pi. Producing the runtime library can be done much faster on 
-hosts that have high performace processors with ample resources (such as laptops, workstation) 
+In the example :ref:`above <build-tvm-runtime-on-target-device>` the runtime library was
+compiled on a Raspberry Pi. Producing the runtime library can be done much faster on
+hosts that have high performace processors with ample resources (such as laptops, workstation)
 compared to a target devices such as a Raspberry Pi. In-order to cross compile the runtime the toolchain
 for the target device must be installed. After installing the correct toolchain,
 the main difference compared to compiling natively is to pass some additional command
@@ -105,7 +105,7 @@ cross-compile for aarch64
         -DCMAKE_FIND_ROOT_PATH=/usr/aarch64-linux-gnu \
         -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
         -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
-        -DMACHINE_NAME=aarch64-linux-gnu 
+        -DMACHINE_NAME=aarch64-linux-gnu
 
     make -j$(nproc) runtime
 
@@ -135,7 +135,7 @@ cross-compile for RISC-V
         -DCMAKE_FIND_ROOT_PATH=/usr/riscv64-linux-gnu \
         -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
         -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
-        -DMACHINE_NAME=riscv64-linux-gnu 
+        -DMACHINE_NAME=riscv64-linux-gnu
 
     make -j$(nproc) runtime
 
@@ -147,7 +147,7 @@ The ``file`` command can be used to query the architecture of the produced runti
    file libtvm_runtime.so
    libtvm_runtime.so: ELF 64-bit LSB shared object, UCB RISC-V, version 1 (GNU/Linux), dynamically linked, BuildID[sha1]=e9ak845b3d7f2c126dab53632aea8e012d89477e, not stripped
 
-    
+
 Optimize and tune models for target devices
 -------------------------------------------
 

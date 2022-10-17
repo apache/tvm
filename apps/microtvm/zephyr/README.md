@@ -16,4 +16,3 @@
 <!--- under the License. -->
 
 This directory contains code to interface microTVM with the [Zephyr RTOS](https://zephyrproject.org/).
-

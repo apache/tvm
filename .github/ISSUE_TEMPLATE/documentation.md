@@ -24,4 +24,3 @@ Otherwise, specify what actions should be taken to provide additional clarity/re
 Please refer to the list of label tags [here](https://github.com/apache/tvm/wiki/Issue-Triage-Labels) to find the relevant tags and add them below in a bullet format (example below).
 
 * needs-triage
-

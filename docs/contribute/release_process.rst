@@ -57,7 +57,7 @@ It is recommended to open a Github issue to collect feedbacks for the release no
 Prepare the Release Candidate
 -----------------------------
 
-There may be some code changes necessary to the release branch before the release. Ensure all version numbers are up to date 
+There may be some code changes necessary to the release branch before the release. Ensure all version numbers are up to date
 
 
 Prepare the GPG Key
@@ -145,12 +145,12 @@ Create GPG signature as well as the hash of the file,
 	shasum -a 512 apache-tvm-src-v0.6.0.rc0.tar.gz > apache-tvm-src-v0.6.0.rc0.tar.gz.sha512
 
 
-Update TVM Version on Main 
+Update TVM Version on Main
 --------------------------
 
-After cutting a release candidate, make sure to update the version numbers throughout `main`. For example if we are 
-releasing `v0.10.0` we want to bump the version numbers throughout the codebase from `v0.10.dev0` to `v0.11.dev0`. An 
-example of how to do this can be found here: `https://github.com/apache/tvm/pull/12190 <https://github.com/apache/tvm/pull/12190>`_. 
+After cutting a release candidate, make sure to update the version numbers throughout `main`. For example if we are
+releasing `v0.10.0` we want to bump the version numbers throughout the codebase from `v0.10.dev0` to `v0.11.dev0`. An
+example of how to do this can be found here: `https://github.com/apache/tvm/pull/12190 <https://github.com/apache/tvm/pull/12190>`_.
 
 Upload the Release Candidate
 ----------------------------

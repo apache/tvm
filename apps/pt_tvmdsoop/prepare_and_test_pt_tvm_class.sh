@@ -22,12 +22,12 @@ echo "TVM_ROOT=${TVM_ROOT}"
 export PYTHONPATH=${TVM_ROOT}/python
 
 if [ ! -f $TVM_ROOT/build/libtvm.so ]; then
-    echo "$TVM_ROOT/build/libtvm.so missing" 
+    echo "$TVM_ROOT/build/libtvm.so missing"
     exit 1
 fi
 
 if [ ! -f $TVM_ROOT/build/libtvm_runtime.so ]; then
-    echo "$TVM_ROOT/build/libtvm_runtime.so missing" 
+    echo "$TVM_ROOT/build/libtvm_runtime.so missing"
     exit 1
 fi
 
@@ -43,4 +43,3 @@ if [ "$?" -eq 0 ]; then
 
     LD_LIBRARY_PATH=${TVM_ROOT}/build:./build:$LD_LIBRARY_PATH python3 -m pytest -v ./tests
 fi
-

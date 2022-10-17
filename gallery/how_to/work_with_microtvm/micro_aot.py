@@ -24,8 +24,8 @@ microTVM Host-Driven AoT
 `Alan MacDonald <https://github.com/alanmacd>`_
 
 This tutorial is showcasing microTVM host-driven AoT compilation with
-a TFLite model. AoTExecutor reduces the overhead of parsing graph at runtime 
-compared to GraphExecutor. Also, we can have better memory management using ahead 
+a TFLite model. AoTExecutor reduces the overhead of parsing graph at runtime
+compared to GraphExecutor. Also, we can have better memory management using ahead
 of time compilation. This tutorial can be executed on a x86 CPU using C runtime (CRT)
 or on Zephyr platform on a microcontroller/board supported by Zephyr.
 """

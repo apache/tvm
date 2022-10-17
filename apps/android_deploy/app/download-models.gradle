@@ -78,4 +78,3 @@ tasks.whenTaskAdded { task ->
         task.dependsOn 'extractModels'
     }
 }
-
