@@ -50,16 +50,16 @@ class Module1:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         placeholder_3 = T.match_buffer(
-            placeholder, [1, 8, 8, 3], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder, [192], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         placeholder_4 = T.match_buffer(
-            placeholder_1, [48], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder_1, [48], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         placeholder_5 = T.match_buffer(
-            placeholder_2, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1
+            placeholder_2, [16], dtype="int32", elem_offset=0, align=64, offset_factor=1
         )
         ethosu_conv2d_1 = T.match_buffer(
-            ethosu_conv2d, [1, 8, 8, 16], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            ethosu_conv2d, [1024], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         # body
         T.evaluate(
@@ -72,7 +72,7 @@ class Module1:
                 8,
                 0,
                 8,
-                T.load("uint8", placeholder_3.data, 0),
+                placeholder_3[0],
                 0,
                 0,
                 0,
@@ -89,7 +89,7 @@ class Module1:
                 8,
                 0,
                 8,
-                T.load("uint8", ethosu_conv2d_1.data, 0),
+                ethosu_conv2d_1[0],
                 0,
                 0,
                 0,
@@ -105,10 +105,10 @@ class Module1:
                 1,
                 1,
                 1,
-                T.load("uint8", placeholder_4.data, 0),
+                placeholder_4[0],
                 0,
                 12,
-                T.load("uint8", placeholder_5.data, 0),
+                placeholder_5[0],
                 0,
                 0,
                 0,
@@ -142,20 +142,20 @@ class Module2:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         placeholder_3 = T.match_buffer(
-            placeholder, [1, 8, 8, 3], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder, [192], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         placeholder_4 = T.match_buffer(
-            placeholder_1, [16, 1, 1, 3], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder_1, [48], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         placeholder_5 = T.match_buffer(
-            placeholder_2, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1
+            placeholder_2, [16], dtype="int32", elem_offset=0, align=64, offset_factor=1
         )
         # Per-channel weight scales
         placeholder_7 = T.match_buffer(
-            placeholder_6, [16], dtype="float32", elem_offset=0, align=128, offset_factor=1
+            placeholder_6, [16], dtype="float32", elem_offset=0, align=64, offset_factor=1
         )
         ethosu_conv2d_1 = T.match_buffer(
-            ethosu_conv2d, [1, 8, 8, 16], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            ethosu_conv2d, [1024], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         # body
         T.evaluate(
@@ -168,7 +168,7 @@ class Module2:
                 8,
                 0,
                 8,
-                T.load("uint8", placeholder_3.data, 0),
+                placeholder_3[0],
                 0,
                 0,
                 0,
@@ -185,7 +185,7 @@ class Module2:
                 8,
                 0,
                 8,
-                T.load("uint8", ethosu_conv2d_1.data, 0),
+                ethosu_conv2d_1[0],
                 0,
                 0,
                 0,
@@ -201,10 +201,10 @@ class Module2:
                 1,
                 1,
                 1,
-                T.load("uint8", placeholder_4.data, 0),
+                placeholder_4[0],
                 0,
                 12,
-                T.load("uint8", placeholder_5.data, 0),
+                placeholder_5[0],
                 0,
                 0,
                 0,
@@ -252,6 +252,19 @@ def test_get_optimal_block_config():
 
     for test_case in block_configs_cases:
         assert vela_api._get_optimal_block_config(test_case["test"]) == test_case["ref"]
+
+
+@pytest.mark.parametrize(
+    "block_config_str, expected_block_config",
+    [("4x4x8", vapi.NpuShape3D(4, 4, 8)), ("3x7x16", vapi.NpuShape3D(3, 7, 16))],
+)
+def test_force_block_config(block_config_str, expected_block_config):
+    config = {
+        "dev_force_block_config": block_config_str,
+    }
+    with tvm.transform.PassContext(config={"relay.ext.ethos-u.options": config}):
+        block_config = vela_api.get_optimal_block_config(None, vapi.NpuAccelerator.Ethos_U55_128)
+        assert block_config == expected_block_config
 
 
 def test_compress_weights():

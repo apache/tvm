@@ -34,7 +34,7 @@ int32_t TVMEthosULaunch(tvm_device_ethos_u_t* context, void* cms_data, size_t cm
   return 0;
 }
 
-int32_t TVMDeviceEthosUActivate(tvm_device_ethos_u_t* context) {}
-int32_t TVMDeviceEthosUOpen(tvm_device_ethos_u_t* context) {}
-int32_t TVMDeviceEthosUClose(tvm_device_ethos_u_t* context) {}
-int32_t TVMDeviceEthosUDeactivate(tvm_device_ethos_u_t* context) {}
+int32_t TVMDeviceEthosUActivate(tvm_device_ethos_u_t* context) { return 0; }
+int32_t TVMDeviceEthosUOpen(tvm_device_ethos_u_t* context) { return 0; }
+int32_t TVMDeviceEthosUClose(tvm_device_ethos_u_t* context) { return 0; }
+int32_t TVMDeviceEthosUDeactivate(tvm_device_ethos_u_t* context) { return 0; }

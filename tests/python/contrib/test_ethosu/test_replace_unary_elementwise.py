@@ -22,7 +22,7 @@ import tvm.script
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir import spec
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
 from .infra import make_ethosu_unary_elementwise
 
 
@@ -33,8 +33,8 @@ def _get_unary_elementwise_args(call, include_buffers=False, remove_constants=Fa
     for i, arg in enumerate(args):
         if isinstance(arg, tvm.tir.expr.IntImm) or isinstance(arg, tvm.tir.expr.FloatImm):
             unary_elementwise_args.append(arg.value)
-        elif isinstance(arg, tvm.tir.expr.Load) and not include_buffers:
-            unary_elementwise_args.append(arg.index)
+        elif isinstance(arg, tvm.tir.expr.BufferLoad) and not include_buffers:
+            unary_elementwise_args.append(arg.indices[0])
         else:
             unary_elementwise_args.append(arg)
 
@@ -69,7 +69,7 @@ def test_unary_elementwise_single(
     )
     func = relay.Function(relay.analysis.free_vars(unary_elementwise), unary_elementwise)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = lower_to_tir(func)
+    mod, _ = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):
@@ -147,6 +147,7 @@ def test_unary_elementwise_single(
             clip_max=100 if activation == "CLIP" else 0,
         ),
         rounding_mode=rounding_mode,
+        block_config=spec.SerialBlockConfig(0, 0, 0),
     )
 
     assert data[0] == ["ethosu_unary_elementwise"] + list(serial_unary_elementwise)

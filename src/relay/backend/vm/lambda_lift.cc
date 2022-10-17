@@ -102,8 +102,7 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
 
     if (function_nesting() == 1) {
       // We don't need to lift global functions.
-      return Function(func_node->params, VisitExpr(func_node->body), func_node->ret_type,
-                      func_node->type_params, func_node->attrs, func_node->span);
+      return WithFields(GetRef<Function>(func_node), func_node->params, VisitExpr(func_node->body));
     }
 
     auto name = GenerateName(func);
@@ -112,7 +111,6 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
     auto free_type_vars = FreeTypeVars(func, module_);
 
     Array<Var> captured_vars;
-    std::vector<VirtualDevice> captured_var_virtual_devices;
     bool recursive = false;
     for (const auto& var : free_vars) {
       if (!letrec_.empty() && var == letrec_.back()) {
@@ -120,7 +118,6 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
         continue;
       }
       captured_vars.push_back(var);
-      captured_var_virtual_devices.push_back(GetVirtualDevice(var));
     }
 
     // Freshen all the captured vars.
@@ -128,6 +125,7 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
     Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
       auto var = Var(free_var->name_hint(), free_var->checked_type());
+      var->virtual_device_ = GetVirtualDevice(free_var);
       typed_captured_vars.push_back(var);
       rebinding_map.Set(free_var, var);
     }
@@ -174,6 +172,8 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
     if (captured_vars.empty() && free_type_vars.empty()) {
       lifted_func = Function(body->params, body->body, body->ret_type, body->type_params,
                              body->attrs, body->span);
+      // We also need to copy the virtual device
+      lifted_func->virtual_device_ = body->virtual_device();
     } else {
       // When a closure is locally bound in a program, we have its full type information
       // avalible to us.
@@ -188,15 +188,14 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
       // construct the "closure" function with fully annotated arguments, no longer relying
       // on type inference.
       size_t before_arity = body->params.size();
-      auto rebound_body = Function(func->params, Bind(body->body, rebinding_map), func->ret_type,
-                                   func->type_params, func->attrs, func->span);
+      VLOG(9) << "Binding " << rebinding_map << " into\n" << PrettyPrint(body->body);
+      auto rebound_body = WithFields(func, func->params, Bind(body->body, rebinding_map));
       size_t after_arity = rebound_body->params.size();
       CHECK_EQ(before_arity, after_arity);
       lifted_func =
           Function(typed_captured_vars, rebound_body, /*ret_type=*/func->func_type_annotation(),
                    free_type_vars, /*attrs=*/{}, func->span);
-      lifted_func =
-          MaybeFunctionOnDevice(lifted_func, captured_var_virtual_devices, result_virtual_device);
+      lifted_func->virtual_device_ = result_virtual_device;
       lifted_func = MarkClosure(lifted_func);
     }
 

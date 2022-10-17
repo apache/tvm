@@ -28,10 +28,20 @@ from . import _ffi_api
 class BlockConfig(Object):
     """BlockConfig class"""
 
-    def __init__(self, output_shape: List[int], compute_cycles: int, output_cycles: int):
+    def __init__(
+        self,
+        input_shape: List[int],
+        output_shape: List[int],
+        compute_cycles: int,
+        output_cycles: int,
+    ):
         self.__init_handle_by_constructor__(
-            _ffi_api.BlockConfig, output_shape, compute_cycles, output_cycles
+            _ffi_api.BlockConfig, input_shape, output_shape, compute_cycles, output_cycles
         )
+
+    @property
+    def input_shape(self) -> List[int]:
+        return list(self._input_shape)
 
     @property
     def output_shape(self) -> List[int]:
@@ -44,6 +54,18 @@ class BlockConfig(Object):
     @property
     def output_cycles(self) -> int:
         return int(self._output_cycles)
+
+    def __ge__(self, other: "BlockConfig"):
+        if len(self.output_shape) != len(other.output_shape):
+            return False
+
+        return all(a >= b for a, b in zip(self.output_shape, other.output_shape))
+
+    def __lt__(self, other: "BlockConfig"):
+        if len(self.output_shape) != len(other.output_shape):
+            return False
+
+        return other >= self
 
     def __repr__(self) -> str:
         return f"BlockConfig(output_shape={self.output_shape})"

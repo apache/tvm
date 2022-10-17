@@ -145,11 +145,11 @@ class DeviceAwareExprFunctor<void(const Expr& n)> : public ExprFunctor<void(cons
       return DeviceAwareVisitExpr_(function_node);
     } else {
       // Function parameters come into scope.
-      for (size_t i = 0; i < function_node->params.size(); ++i) {
-        PushBoundVar(function_node->params[i], GetFunctionParamVirtualDevice(function_node, i));
+      for (auto param : function_node->params) {
+        PushBoundVar(param, param->virtual_device());
       }
       // Entering scope of function body.
-      VirtualDevice virtual_device = GetFunctionResultVirtualDevice(function_node);
+      VirtualDevice virtual_device = function_node->virtual_device();
       VLOG(2) << "entering " << virtual_device << " for function:" << std::endl
               << PrettyPrint(GetRef<Function>(function_node));
       PushVirtualDevice(virtual_device);
@@ -347,6 +347,14 @@ class DeviceAwareExprMutator : public ExprMutator, public LexicalOnDeviceMixin {
    */
   virtual Expr PostVisitLetBlock_(const LetNode* pre_let_node, const LetNode* post_let_node);
 };
+
+/*!
+ * \brief Returs a map from Relay expression node to its virtual device using the annotations
+ * and \p virtual_device fields of \p expr. The map's lifetime must not exceed that of
+ * \p expr itself.
+ */
+std::unordered_map<const ExprNode*, VirtualDevice> RecoverVirtualDeviceMap(const IRModule& mod,
+                                                                           const Expr& expr);
 
 }  // namespace transform
 }  // namespace relay

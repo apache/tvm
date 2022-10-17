@@ -131,8 +131,8 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
         # pylint: disable=invalid-name, simplifiable-if-statement
         # TODO(tkonolige): use tensorcores for block multiply
         # TODO(tkonolige): use vectorize on loads
-        # TODO(tkonolige): seperate implementation if M is small
-        # TODO(tkonolige): seperate implementation for large block sizes
+        # TODO(tkonolige): separate implementation if M is small
+        # TODO(tkonolige): separate implementation for large block sizes
         ib = tvm.tir.ir_builder.create()
 
         if tvm.target.Target.current(allow_none=False).kind.name == "cuda":
@@ -149,7 +149,6 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
         warp_size = int(tvm.target.Target.current(allow_none=False).thread_warp_size)
         m = data.shape[1]
         nb = w_indptr.shape[0] - 1
-        nnzb = w_data.shape[0]
         # treat csr like block size 1 bsr
         if len(w_data.shape) == 1:
             bs_n = 1
@@ -181,7 +180,7 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
 
         out_ptr = ib.buffer_ptr(out)
         data_ptr = ib.buffer_ptr(data)
-        w_data_ptr = ib.buffer_ptr(w_data, shape=(nnzb, bs_n, bs_k))
+        w_data_ptr = ib.buffer_ptr(w_data)
         w_indices_ptr = ib.buffer_ptr(w_indices)
         w_indptr_ptr = ib.buffer_ptr(w_indptr)
 
@@ -238,10 +237,11 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
             elem_idx = bb * rowlength_bi + tx
             with ib.for_range(0, bs_n, name="y", kind="unroll") as y:
                 with ib.for_range(0, bs_k, name="z", kind="unroll") as z:
-                    if use_warp_storage:
-                        w_data_cache[tx, y, z] = w_data_ptr[row_start + elem_idx, y, z]
-                    else:
-                        w_data_cache[warp, tx, y, z] = w_data_ptr[row_start + elem_idx, y, z]
+                    data_indices = [row_start + elem_idx] + (
+                        [y, z] if len(w_data.shape) > 1 else []
+                    )
+                    cache_indices = [tx, y, z] if use_warp_storage else [warp, tx, y, z]
+                    w_data_cache[cache_indices] = w_data_ptr[data_indices]
             with ib.for_range(0, mi, name="i") as i:
                 # thread local block matmul
                 with ib.for_range(0, bs_m, name="x", kind="unroll") as x:

@@ -94,8 +94,7 @@ def generate_jit_model(index):
 def test_detection_models():
     img = "test_street_small.jpg"
     img_url = (
-        "https://raw.githubusercontent.com/dmlc/web-data/"
-        "master/gluoncv/detection/street_small.jpg"
+        "https://raw.githubusercontent.com/dmlc/web-data/master/gluoncv/detection/street_small.jpg"
     )
     download(img_url, img)
 

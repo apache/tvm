@@ -365,14 +365,18 @@ def affine_grid_func(attrs, inputs, _):
 def compute_grid_sample(attrs, inputs, out_dtype):
     method = attrs.method
     layout = attrs.layout
-    return [topi.image.grid_sample(inputs[0], inputs[1], method, layout)]
+    padding_mode = attrs.padding_mode
+    align_corners = attrs.align_corners
+    return [
+        topi.image.grid_sample(inputs[0], inputs[1], method, layout, padding_mode, align_corners)
+    ]
 
 
 reg.register_injective_schedule("image.grid_sample")
 
 
 @script
-def _grid_sample_func(data, grid):
+def _grid_sample_func_nchw(data, grid):
     out = output_tensor((4,), "int64")
     out[0] = int64(data[0])
     out[1] = int64(data[1])
@@ -381,9 +385,27 @@ def _grid_sample_func(data, grid):
     return out
 
 
+@script
+def _grid_sample_func_ncdhw(data, grid):
+    out = output_tensor((5,), "int64")
+    out[0] = int64(data[0])
+    out[1] = int64(data[1])
+    out[2] = int64(grid[2])
+    out[3] = int64(grid[3])
+    out[4] = int64(grid[4])
+    return out
+
+
 @reg.register_shape_func("image.grid_sample", False)
 def grid_sample_func(attrs, inputs, _):
     """
     Shape function for grid_sample op.
     """
-    return [_grid_sample_func(inputs[0], inputs[1])]
+    if attrs.layout == "NCHW":
+        script_func = _grid_sample_func_nchw
+    elif attrs.layout == "NCDHW":
+        script_func = _grid_sample_func_ncdhw
+    else:
+        msg = f"layout {attrs.layout} is not supported"
+        raise ValueError(msg)
+    return [script_func(inputs[0], inputs[1])]

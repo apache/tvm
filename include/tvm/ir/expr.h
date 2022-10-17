@@ -134,6 +134,220 @@ class PrimExpr : public BaseExpr {
 };
 
 /*!
+ * \brief add operator
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator+(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief subtraction operator
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator-(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief negation.
+ *
+ * \param a input.
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator-(PrimExpr a);
+
+/*!
+ * \brief multiplication operator
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator*(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief division operator
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator/(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief left shift operator
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator<<(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief right shift operator
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator>>(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief greater
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator>(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief greater_equal
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator>=(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief less
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator<(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief less_equal
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator<=(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief equal
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator==(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief not_equal
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator!=(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief and
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note This operator does eager constant folding.
+ */
+TVM_DLL PrimExpr operator&&(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief or
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note This operator does eager constant folding.
+ */
+TVM_DLL PrimExpr operator||(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief not
+ *
+ * \param a left operand
+ * \return The result expression.
+ * \note This operator does eager constant folding.
+ */
+TVM_DLL PrimExpr operator!(PrimExpr a);
+
+/*!
+ * \brief take bitwise and of two values
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator&(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief take bitwise or of two values
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator|(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief take bitwise xor of two values
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator^(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief take bitwise negation of two values
+ *
+ * \param a the input expression.
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr operator~(PrimExpr a);
+
+/*!
  * \brief Base node of all non-primitive expressions.
  *
  * RelayExpr supports tensor types, functions and ADT as
@@ -178,6 +392,11 @@ class RelayExprNode : public BaseExprNode {
    *
    * For expressions that have the function type, the virtual device describes where the result of
    * the call to the function or closure is stored (instead of where the function itself is stored).
+   * For example, the virtual device of f = fn(x) { body } is the virtual device of f(y), not where
+   * the function itself is stored. Note that f(y)'s virtual device will be the same as the virtual
+   * device of body. For more details, see the documentation in
+   * src/relay/transforms/device_planner.cc.
+   *
    * The VirtualDevice's Target field describes how the body of the function should be compiled.
    *
    * Set to VirtualDevice::FullyUnconstrained by default.
@@ -190,6 +409,13 @@ class RelayExprNode : public BaseExprNode {
   /*!
    * \return The virtual device (VirtualDevice).
    * If the virtual device is not defined, returns VirtualDevice::FullyUnconstrained().
+   * Note that for function types, the virtual device is the device where the result of a
+   * call to the function is stored, not where the function itself lives.
+   * For example, the virtual device of f = fn(x) { body } is the virtual device of f(y), not where
+   * the function itself is stored. Note that f(y)'s virtual device will be the same as the virtual
+   * device of body.
+   *
+   * See the documentation of the virtual_device_ field (above) for more details.
    */
   VirtualDevice virtual_device() const;
 
@@ -248,9 +474,10 @@ class GlobalVarNode : public RelayExprNode {
  */
 class GlobalVar : public RelayExpr {
  public:
-  TVM_DLL explicit GlobalVar(String name_hint, Type type = {});
+  TVM_DLL explicit GlobalVar(String name_hint, Type type = {}, Span span = {});
 
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelayExpr, GlobalVarNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(GlobalVarNode);
 };
 
 // PrimExprs that are useful as runtime containers.
@@ -374,6 +601,12 @@ inline Bool operator&&(const Bool& a, const Bool& b) {
   return Bool(a.operator bool() && b.operator bool());
 }
 
+inline bool operator==(const Bool& a, bool b) { return a.operator bool() == b; }
+inline bool operator==(bool a, const Bool& b) { return a == b.operator bool(); }
+inline bool operator==(const Bool& a, const Bool& b) {
+  return a.operator bool() == b.operator bool();
+}
+
 /*!
  * \brief Container of constant int that adds more constructors.
  *
@@ -419,7 +652,7 @@ class Integer : public IntImm {
   /*!
    * \brief convert to int64_t
    */
-  operator int64_t() const {
+  int64_t IntValue() const {
     ICHECK(data_ != nullptr) << " Trying to reference a null Integer";
     return (*this)->value;
   }
@@ -531,10 +764,10 @@ struct PackedFuncValueConverter<PrimExpr> {
       return PrimExpr(ObjectPtr<Object>(nullptr));
     }
     if (val.type_code() == kDLInt) {
-      return PrimExpr(val.operator int());
+      return IntImm(runtime::DataType::Int(32), val.operator int());
     }
     if (val.type_code() == kDLFloat) {
-      return PrimExpr(static_cast<float>(val.operator double()));
+      return FloatImm(runtime::DataType::Float(32), val.operator double());
     }
 
     return PrimExpr::FromObject_(val.AsObjectRef<ObjectRef>());

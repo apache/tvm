@@ -16,11 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name
 """GEMM kernel generator and profiler for CUTLASS."""
-import re
 from .gemm_operation import GemmOperation, EmitGemmInstance
 from .gemm_profiler import GemmProfilerEmitter
 from .gen_tensor_op import ProfilerEngine, GENERATOR_FUNC_TABLE, EPILOGUE_MAP
 from .library import (
+    DataType,
     EpilogueFunctor,
     SwizzlingFunctor,
     TensorDescription,
@@ -63,8 +63,9 @@ def create_gemm_operator_with_epilogue(
         swizzling_functor,
     )
 
-    return op.procedural_name(), EmitGemmInstance().emit(
-        op, no_beta_scaling=no_beta_scaling, batched=batched
+    return (
+        op.procedural_name(),
+        EmitGemmInstance().emit(op, no_beta_scaling=no_beta_scaling, batched=batched),
     )
 
 
@@ -86,6 +87,14 @@ def enumerate_gemm_operators(
             A = TensorDescription(element_a, LayoutType.RowMajor, alignment)
             B = TensorDescription(element_b, LayoutType.ColumnMajor, alignment)
             C = TensorDescription(element_c, LayoutType.RowMajor, alignment)
+
+            if element_c == DataType.s32 and A.alignment == 1:
+                tile_description.threadblock_shape[0] = min(
+                    tile_description.threadblock_shape[0], 128
+                )
+                tile_description.threadblock_shape[1] = min(
+                    tile_description.threadblock_shape[1], 128
+                )
 
             op = GemmOperation(
                 tile_description.minimum_compute_capability,
@@ -150,17 +159,6 @@ class CutlassGemmProfiler:
         self.sm = sm
         self.cache = {}
 
-    def check_align(self, op_name, M, N, K):
-        """Filter out kernels that cannot be supported."""
-        match = re.match(".*_align([1-9]+)", op_name)
-        assert match is not None and len(match.groups()) == 1
-        # The same alignment is used for all axes
-        align = int(match.groups()[0])
-        # TODO(masahi): CUTLASS alignment check on gemm kernels is too restrictive.
-        # See https://github.com/NVIDIA/cutlass/issues/362.
-        # When the above issue is resolved, we can remove the alignment check on M below.
-        return all([dim % align == 0 for dim in [M, N, K]])
-
     def get_default(
         self, op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32=True, batched=False
     ):
@@ -168,8 +166,17 @@ class CutlassGemmProfiler:
         For now, the default kernel was picked arbitrary.
         """
         ops = GENERATOR_FUNC_TABLE[self.sm](
-            out_dtype, arg0_dtype, arg1_dtype, enumerate_gemm_operators, use_3xtf32
+            out_dtype,
+            arg0_dtype,
+            arg1_dtype,
+            enumerate_gemm_operators,
+            lambda align: align == 1,  # Only request align1 kernels
+            use_3xtf32,
+            profile_all_alignments=True,  # To include all align1 kernels
+            # TODO(masahi): Invesitigate when fp32 accumulation is needed for gemm
+            accumlator_dtype=out_dtype,
         )
+
         default_kernel_name = DEFAULT_KERNELS[self.sm][(arg0_dtype, out_dtype)]
 
         if arg0_dtype == "float32":
@@ -200,7 +207,8 @@ class CutlassGemmProfiler:
         arg0_dtype,
         arg1_dtype,
         use_3xtf32,
-        profile_all=True,
+        profile_all_alignments=False,
+        find_first_valid=False,
         use_multiprocessing=False,
     ):
         """
@@ -211,22 +219,29 @@ class CutlassGemmProfiler:
             op = self.cache[(M, N, K)]
             return op
 
+        # TODO(masahi): CUTLASS alignment check on gemm kernels is too restrictive.
+        # See https://github.com/NVIDIA/cutlass/issues/362.
+        # When the above issue is resolved, we can remove the alignment check on M below.
+
         ops = GENERATOR_FUNC_TABLE[self.sm](
             out_dtype,
             arg0_dtype,
             arg1_dtype,
             enumerate_gemm_operators,
-            use_3xtf32=use_3xtf32,
+            lambda align: all([dim % align == 0 for dim in [M, N, K]]),
+            use_3xtf32,
+            profile_all_alignments=profile_all_alignments,
+            # TODO(masahi): Invesitigate when fp32 accumulation is needed for gemm
+            accumlator_dtype=out_dtype,
         )
-        ops = list(filter(lambda op: self.check_align(op["name"], M, N, K), ops))
 
-        if profile_all:
+        if not find_first_valid:
             self.engine.compile_all(ops, use_multiprocessing)
 
         for op in ops:
             out = self.engine.evaluate(op, [M, N, K])
             op["runtime"] = out
-            if out < float("inf") and not profile_all:
+            if out < float("inf") and find_first_valid:
                 self.cache[(M, N, K)] = op
                 return op
 
@@ -244,12 +259,13 @@ class CutlassGemmProfiler:
         arg0_dtype,
         arg1_dtype,
         use_3xtf32=True,
-        profile_all=True,
+        profile_all_alignments=False,
+        find_first_valid=False,
         use_multiprocessing=False,
         batched=False,
     ):
         """Profile and select the best kernel from candidate kernels.
-        If profile_all is False, return immediately after the first applicable kernel is found.
+        If find_first_valid is True, return immediately after the first applicable kernel is found.
         If use_multiprocessing is True, compile all profiler executables in parallel.
         """
         op = self.select_op(
@@ -260,7 +276,8 @@ class CutlassGemmProfiler:
             arg0_dtype,
             arg1_dtype,
             use_3xtf32,
-            profile_all=profile_all,
+            profile_all_alignments=profile_all_alignments,
+            find_first_valid=find_first_valid,
             use_multiprocessing=use_multiprocessing,
         )
 

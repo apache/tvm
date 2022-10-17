@@ -23,6 +23,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/executor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/op.h>
@@ -66,8 +67,9 @@ bool IsComplexConstant(const Expr& expr) {
 // or make a more powerful partial evaluator.
 class ConstantFolder : public MixedModeMutator {
  public:
-  explicit ConstantFolder(IRModule module)
+  explicit ConstantFolder(IRModule module, bool fold_qnn)
       : module_(std::move(module)),
+        fold_qnn_(fold_qnn),
         device_copy_op_(Op::Get("device_copy")),
         shape_of_op_(Op::Get("shape_of")),
         vm_shape_of_op_(Op::Get("vm.shape_of")),
@@ -157,8 +159,6 @@ class ConstantFolder : public MixedModeMutator {
       return std::move(pre_call);
     }
 
-    static auto fnoncomputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
-
     const auto* op_node = post_call->op.as<OpNode>();
     if (op_node == nullptr) {
       // Only evaluate primitives.
@@ -181,8 +181,15 @@ class ConstantFolder : public MixedModeMutator {
     if (Optional<Expr> opt_result = EvaluateNdarraySize(pre_call)) {
       return opt_result.value();
     }
-    if ((fnoncomputational.count(op) && fnoncomputational[op]) || op == device_copy_op_ ||
-        op == shape_of_op_ || op == vm_shape_of_op_ || op == ndarray_size_op_) {
+    static auto fnoncomputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
+    static auto qnn_canonicalize = Op::GetAttrMap<FTVMLegalize>("FTVMQnnCanonicalize");
+    bool is_no_qnn_canonicalized = !qnn_canonicalize.count(op);
+    bool is_no_computational = fnoncomputational.count(op) && fnoncomputational[op];
+    if (is_no_computational && (is_no_qnn_canonicalized || !fold_qnn_)) {
+      return std::move(post_call);
+    }
+    if (op == device_copy_op_ || op == shape_of_op_ || op == vm_shape_of_op_ ||
+        op == ndarray_size_op_) {
       // We should think about potentially constant evaluation over these ops too.
       return std::move(post_call);
     }
@@ -254,8 +261,15 @@ class ConstantFolder : public MixedModeMutator {
     // needed for both execution and creation(due to JIT)
     With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
 
-    Expr result = ObjectToExpr(
-        Eval(expr, module_->type_definitions, module_->Imports(), eval_cpu_dev_, eval_cpu_target_));
+    Map<String, ObjectRef> dict = (module_->attrs.defined())
+                                      ? Map<String, ObjectRef>(module_->attrs.CopyOnWrite()->dict)
+                                      : Map<String, ObjectRef>();
+
+    // always use graph executor with no link-params
+    dict.Set(tvm::attr::kExecutor,
+             relay::Executor::Create("graph", {{"link-params", Bool(false)}}));
+    Expr result = ObjectToExpr(Eval(expr, module_->type_definitions, module_->Imports(),
+                                    eval_cpu_dev_, eval_cpu_target_, dict));
     VLOG(1) << "Evaluated to constant:" << std::endl << PrettyPrint(result);
     return result;
   }
@@ -379,6 +393,9 @@ class ConstantFolder : public MixedModeMutator {
   // Module
   IRModule module_;
 
+  // Whether to fold constants for QNN operations.
+  bool fold_qnn_;
+
   // The kDLCPU device assumed to be available to the compiler. Used only when evaluating
   // sub-expressions.
   Device eval_cpu_dev_{kDLCPU, /*device_id=*/0};
@@ -409,20 +426,20 @@ TVM_REGISTER_GLOBAL("relay.analysis.check_constant").set_body_typed(IsComplexCon
  * from their p.o.v. Furthermore, this function can be called before conversion to ANF so
  * we must avoid all recursion.
  */
-Expr FoldConstantExpr(const Expr& expr, const IRModule& mod) {
+Expr FoldConstantExpr(const Expr& expr, const IRModule& mod, bool fold_qnn) {
   VLOG_CONTEXT << "FoldConstantExpr";
   VLOG(1) << "folding:" << std::endl << PrettyPrint(expr);
-  Expr result = ConstantFolder(mod).VisitExpr(expr);
+  Expr result = ConstantFolder(mod, fold_qnn).VisitExpr(expr);
   VLOG(1) << "folded to:" << std::endl << PrettyPrint(result);
   return result;
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FoldConstantExpr").set_body_typed(FoldConstantExpr);
 
-Pass FoldConstant() {
+Pass FoldConstant(bool fold_qnn) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(FoldConstantExpr(f, m));
+        return Downcast<Function>(FoldConstantExpr(f, m, fold_qnn));
       };
   return CreateFunctionPass(pass_func, 2, "FoldConstant", {});
 }

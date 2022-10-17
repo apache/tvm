@@ -26,6 +26,7 @@ from tvm import relay
 from tvm.script import tir as T
 import tvm.testing
 import numpy as np
+import os
 
 HOST_DEVICE = tvm.device("cpu")
 HOST_TARGET = tvm.target.Target("llvm")
@@ -36,10 +37,7 @@ CPU_TARGET = tvm.target.Target("llvm").with_host(HOST_TARGET)
 GPU_DEVICE = tvm.device("cuda")
 GPU_TARGET = tvm.target.Target("cuda").with_host(HOST_TARGET)
 
-TARGETS = {
-    tvm.tir.IntImm("int32", CPU_DEVICE.device_type): CPU_TARGET,
-    tvm.tir.IntImm("int32", GPU_DEVICE.device_type): GPU_TARGET,
-}
+TARGETS = [CPU_TARGET, GPU_TARGET]
 
 HOST = tvm.target.VirtualDevice(HOST_DEVICE, HOST_TARGET)  # device_type=1
 CPU = tvm.target.VirtualDevice(CPU_DEVICE, CPU_TARGET)  # device_type=1
@@ -54,10 +52,12 @@ CTXT = tvm.transform.PassContext(config={"relay.fallback_device_type": DEFAULT.d
 core = tvm.IRModule()
 core.import_from_std("core.rly")
 
+recover_virtual_device_map = tvm._ffi.get_global_func("relay.transform.RecoverVirtualDeviceMap")
+
 
 def rewrite_and_assert(in_mod, expected_mod):
     """Manually run the pass and assert it's structurally equals to the expected."""
-    config = tvm.target.make_compilation_config(CTXT, TARGETS, HOST_TARGET)
+    config = tvm.target.make_compilation_config(CTXT, TARGETS)
     actual_mod = relay.transform.InferType()(in_mod)
     actual_mod = relay.transform.PlanDevices(config)(actual_mod)
     actual_mod = relay.transform.InferType()(actual_mod)
@@ -132,10 +132,9 @@ def test_plain():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
-                      %c: Tensor[(5, 7), float32], %d: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][1], meta[VirtualDevice][1], meta[VirtualDevice][1], meta[VirtualDevice][1]],
-                      result_virtual_device=meta[VirtualDevice][1]) {
+            def @main(%a {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32],
+                      %c {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %d {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][1]) {
               %0 = add(%a, %b);
               %1 = add(%c, %d);
               subtract(%0, %1)
@@ -177,10 +176,9 @@ def test_left_add_on_cpu():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
-                      %c: Tensor[(5, 7), float32], %d: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0], meta[VirtualDevice][1], meta[VirtualDevice][1]],
-                      result_virtual_device=meta[VirtualDevice][1]) {
+            def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      %c {virtual_device= meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %d {virtual_device= meta[VirtualDevice][1]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][1]) {
               %0 = add(%a, %b);
               %1 = on_device(%0, virtual_device=meta[VirtualDevice][0], constrain_result=True);
               %2 = device_copy(%1, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
@@ -224,10 +222,9 @@ def test_left_add_on_cpu_via_copy():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
-                      %c: Tensor[(5, 7), float32], %d: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0], meta[VirtualDevice][1], meta[VirtualDevice][1]],
-                      result_virtual_device=meta[VirtualDevice][1]) {
+            def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      %c {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %d {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][1]) {
               %0 = add(%a, %b);
               %1 = on_device(%0, virtual_device=meta[VirtualDevice][0], constrain_result=True);
               %2 = device_copy(%1, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
@@ -244,6 +241,82 @@ def test_left_add_on_cpu_via_copy():
         return np.subtract(np.add(a, b), np.add(c, d))
 
     exercise(input(), expected(), ref, rands((5, 7), 4))
+
+
+def test_left_add_on_cpu_via_copy_as_map():
+    metatable = {"VirtualDevice": [CPU, GPU]}
+
+    # As for test_left_add_on_cpu, but with an explicit device_copy.
+    def input():
+        return tvm.parser.parse(
+            """
+            #[version = "0.0.5"]
+            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
+                      %c: Tensor[(5, 7), float32], %d: Tensor[(5, 7), float32]) {
+              %0 = add(%a, %b);
+              %1 = device_copy(%0, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
+              %2 = add(%c, %d);
+              subtract(%1, %2)
+            }
+        """,
+            "from_string",
+            None,
+            metatable,
+        )
+
+    config = tvm.target.make_compilation_config(CTXT, TARGETS, HOST_TARGET)
+    actual_mod = relay.transform.InferType()(input())
+    actual_mod = relay.transform.PlanDevices(config)(actual_mod)
+    actual_mod = relay.transform.CapturePostDfsIndexInSpans()(actual_mod)
+
+    # Same expected result as for test_left_add_on_cpu, but we'll include indexes to help
+    # the test make sense.
+    def expected():
+        return tvm.parser.parse(
+            """
+            #[version = "0.0.5"]
+            def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], // index 0
+                      %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], // index 1
+                      %c {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], // index 2
+                      %d {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], // index 3
+                      virtual_device=meta[VirtualDevice][1]) {
+              %0 = add(%a, %b);                                                            // index 8
+              %1 = on_device(%0,
+                             virtual_device=meta[VirtualDevice][0],
+                             constrain_result=True);                                       // index 9
+              %2 = device_copy(%1,
+                               src_virtual_device=meta[VirtualDevice][0],
+                               dst_virtual_device=meta[VirtualDevice][1]);                 // index 10
+              %3 = add(%c, %d);                                                            // index 11
+              subtract(%2, %3)                                                             // index 12
+            }                                                                              // index 13
+        """,
+            "from_string",
+            None,
+            metatable,
+        )
+
+    # Make sure actual matches.
+    tvm.ir.assert_structural_equal(actual_mod, expected(), True)
+
+    # Recover all the inferred virtual devices in map form
+    raw_map = recover_virtual_device_map(actual_mod, actual_mod["main"])
+    # Rewrite the map to be from post-dfs indexes to device types
+    map = {e.span.line: d.device_type for e, d in raw_map.items()}
+    # Now we can express the expected map
+    expected_map = {
+        0: CPU.device_type,  # %a
+        1: CPU.device_type,  # %b
+        2: GPU.device_type,  # %c
+        3: GPU.device_type,  # %d
+        8: CPU.device_type,  # first add
+        9: CPU.device_type,  # on_device
+        10: GPU.device_type,  # device_copy
+        11: GPU.device_type,  # second add
+        12: GPU.device_type,  # subtract
+        13: GPU.device_type,  # @main
+    }
+    assert map == expected_map
 
 
 def test_both_adds_on_cpu():
@@ -271,10 +344,9 @@ def test_both_adds_on_cpu():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
-                      %c: Tensor[(5, 7), float32], %d: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0], meta[VirtualDevice][0], meta[VirtualDevice][0]],
-                      result_virtual_device=meta[VirtualDevice][1]) {
+            def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      %c {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %d {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][1]) {
               %0 = add(%a, %b);
               %1 = on_device(%0, virtual_device=meta[VirtualDevice][0], constrain_result=True);
               %2 = add(%c, %d);
@@ -319,8 +391,8 @@ def test_sharing():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][1]) {
+            def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][1]) {
               %0 = add(%a, %b);
               %1 = on_device(%0, virtual_device=meta[VirtualDevice][0], constrain_result=True);
               %2 = on_device(%0, virtual_device=meta[VirtualDevice][0], constrain_result=True);
@@ -366,10 +438,9 @@ def test_let_on_cpu():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
-                      %c: Tensor[(5, 7), float32], %d: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0], meta[VirtualDevice][1], meta[VirtualDevice][1]],
-                      result_virtual_device=meta[VirtualDevice][1]) {
+            def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      %c {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %d {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][1]) {
               %0 = add(%a, %b);
               let %l = on_device(%0, virtual_device=meta[VirtualDevice][0], constrain_result=True);
               let %r = on_device(add(%c, %d), virtual_device=meta[VirtualDevice][1], constrain_result=True);
@@ -416,12 +487,11 @@ def test_func_param_on_cpu():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
-                      %c: Tensor[(5, 7), float32], %d: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0], meta[VirtualDevice][0], meta[VirtualDevice][0]],
-                      result_virtual_device=meta[VirtualDevice][0]) {
-              let %f = fn (%x, %y,
-                           param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][0]) {
+            def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      %c {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %d {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][0]) {
+              let %f = fn (%x {virtual_device=meta[VirtualDevice][0]}, %y {virtual_device=meta[VirtualDevice][0]},
+                           virtual_device=meta[VirtualDevice][0]) {
                 add(%x, %y)
               };
               %0 = %f(%a, %b);
@@ -468,12 +538,11 @@ def test_func_result_on_cpu():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
-                      %c: Tensor[(5, 7), float32], %d: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0], meta[VirtualDevice][1], meta[VirtualDevice][1]],
-                      result_virtual_device=meta[VirtualDevice][1]) {
-              let %f = fn (%x, %y,
-                           param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][0]) {
+            def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      %c {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %d {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][1]) {
+              let %f = fn (%x {virtual_device=meta[VirtualDevice][0]}, %y {virtual_device=meta[VirtualDevice][0]},
+                           virtual_device=meta[VirtualDevice][0]) {
                 add(%x, %y)
               };
               %1 = %f(%a, %b);
@@ -527,16 +596,16 @@ def test_higher_order():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][1], meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][1]) {
-              let %f = fn (%g, param_virtual_devices=[meta[VirtualDevice][1]], result_virtual_device=meta[VirtualDevice][1]) {
-                fn (%a, param_virtual_devices=[meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][1]) {
+            def @main(%x {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][1]) {
+              let %f = fn (%g {virtual_device=meta[VirtualDevice][1]}, virtual_device=meta[VirtualDevice][1]) {
+                fn (%a {virtual_device=meta[VirtualDevice][0]}, virtual_device=meta[VirtualDevice][1]) {
                   %0 = device_copy(%a, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
                   %1 = %g(%0);
                   add(%1, %x)
                 }
               };
-              let %h = fn (%b, param_virtual_devices=[meta[VirtualDevice][1]], result_virtual_device=meta[VirtualDevice][1]) {
+              let %h = fn (%b  {virtual_device=meta[VirtualDevice][1]}, virtual_device=meta[VirtualDevice][1]) {
                 negative(%b)
               };
               %2 = %f(%h);
@@ -588,11 +657,11 @@ def test_function_in_tuple():
     def expected():
         return tvm.parser.parse(
             """
-            #[version = "0.0.5"] 
-            def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][0]) {
-              let %f = fn (%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
-                           param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][0]) {
+            #[version = "0.0.5"]
+            def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][0]) {
+              let %f = fn (%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                           virtual_device=meta[VirtualDevice][0]) {
                 add(%a, %b)
               };
               let %t = on_device((%f, %x), virtual_device=meta[VirtualDevice][0], constrain_result=True);
@@ -619,7 +688,7 @@ def test_device_copy():
     def input():
         return tvm.parser.parse(
             """
-            #[version = "0.0.5"] 
+            #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32]) {
               %0 = device_copy(%x, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
               add(%0, meta[relay.Constant][0])
@@ -633,9 +702,9 @@ def test_device_copy():
     def expected():
         return tvm.parser.parse(
             """
-            #[version = "0.0.5"] 
-            def @main(%x: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][1]) {
+            #[version = "0.0.5"]
+            def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][1]) {
               %0 = device_copy(%x, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
               add(%0, meta[relay.Constant][0])
             }
@@ -660,7 +729,7 @@ def test_shape_of():
     def input():
         return tvm.parser.parse(
             """
-            #[version = "0.0.5"] 
+            #[version = "0.0.5"]
             def @main(%x: Tensor[(?, ?), float32]) {
               %0 = on_device(%x, virtual_device=meta[VirtualDevice][1], constrain_result=True);
               vm.shape_of(%0, dtype="int64")
@@ -675,8 +744,8 @@ def test_shape_of():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%x: Tensor[(?, ?), float32],
-                      param_virtual_devices=[meta[VirtualDevice][1]], result_virtual_device=meta[VirtualDevice][0]) {
+            def @main(%x {virtual_device=meta[VirtualDevice][1]}: Tensor[(?, ?), float32],
+                      virtual_device=meta[VirtualDevice][0]) {
               vm.shape_of(%x, dtype="int64")
             }
         """,
@@ -711,8 +780,8 @@ def test_alloc_storage():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%size: int64, %alignment: int64,
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][1]) {
+            def @main(%size {virtual_device=meta[VirtualDevice][0]}: int64, %alignment {virtual_device=meta[VirtualDevice][0]}: int64,
+                      virtual_device=meta[VirtualDevice][1]) {
               memory.alloc_storage(%size, %alignment, virtual_device=meta[VirtualDevice][1])
             }
         """,
@@ -750,7 +819,7 @@ def test_alloc_tensor():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%sto: Storage[], param_virtual_devices=[meta[VirtualDevice][1]], result_virtual_device=meta[VirtualDevice][1]) {
+            def @main(%sto {virtual_device=meta[VirtualDevice][1]}: Storage[], virtual_device=meta[VirtualDevice][1]) {
               %0 = on_device(0, virtual_device=meta[VirtualDevice][0], constrain_result=True);
               %1 = on_device(meta[relay.Constant][0], virtual_device=meta[VirtualDevice][0], constrain_result=True);
               memory.alloc_tensor(%sto, %0, %1, const_shape=meta[relay.Constant][0], assert_shape=[])
@@ -789,8 +858,8 @@ def test_reshape_tensor():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%x: Tensor[(2, 8), float32],
-                      param_virtual_devices=[meta[VirtualDevice][1]], result_virtual_device=meta[VirtualDevice][1]) {
+            def @main(%x {virtual_device=meta[VirtualDevice][1]}: Tensor[(2, 8), float32],
+                      virtual_device=meta[VirtualDevice][1]) {
               %0 = on_device(meta[relay.Constant][0], virtual_device=meta[VirtualDevice][0], constrain_result=True);
               vm.reshape_tensor(%x, %0, newshape=[2, 4, 2])
             }
@@ -827,8 +896,8 @@ def test_dynamic_input():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%x0: Tensor[(?, ?), float32], %x1: Tensor[(?, ?), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][0]) {
+            def @main(%x0 {virtual_device=meta[VirtualDevice][0]}: Tensor[(?, ?), float32], %x1 {virtual_device=meta[VirtualDevice][0]}: Tensor[(?, ?), float32],
+                      virtual_device=meta[VirtualDevice][0]) {
               add(%x0, %x1)
             }
         """,
@@ -867,9 +936,8 @@ def test_redundant_annotation():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32], %z: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0], meta[VirtualDevice][1]],
-                      result_virtual_device=meta[VirtualDevice][1]) {
+            def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %z {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][1]) {
               %0 = add(%x, %y);
               %1 = on_device(%0, virtual_device=meta[VirtualDevice][0], constrain_result=True);
               %2 = device_copy(%1, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
@@ -914,9 +982,8 @@ def test_annotate_expr():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32], %z: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][1], meta[VirtualDevice][1], meta[VirtualDevice][0]],
-                      result_virtual_device=meta[VirtualDevice][0]) {
+            def @main(%x {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %z {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][0]) {
               %0 = add(%x, %y);
               %1 = on_device(%0, virtual_device=meta[VirtualDevice][1], constrain_result=True);
               %2 = device_copy(%1, src_virtual_device=meta[VirtualDevice][1], dst_virtual_device=meta[VirtualDevice][0]);
@@ -957,9 +1024,8 @@ def test_annotate_all():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32], %z: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0], meta[VirtualDevice][0]],
-                      result_virtual_device=meta[VirtualDevice][0]) {
+            def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %z {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][0]) {
               %0 = add(%x, %y);
               subtract(%0, %z)
             }
@@ -1015,10 +1081,9 @@ def test_conv_network():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%data1: Tensor[(1, 64, 56, 56), float32], %data2: Tensor[(1, 64, 56, 56), float32],
-                      %weight: Tensor[(64, 64, 3, 3), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0], meta[VirtualDevice][0]],
-                      result_virtual_device=meta[VirtualDevice][0]) {
+            def @main(%data1 {virtual_device=meta[VirtualDevice][0]}: Tensor[(1, 64, 56, 56), float32], %data2 {virtual_device=meta[VirtualDevice][0]}: Tensor[(1, 64, 56, 56), float32],
+                      %weight {virtual_device=meta[VirtualDevice][0]}: Tensor[(64, 64, 3, 3), float32],
+                      virtual_device=meta[VirtualDevice][0]) {
               %0 = nn.conv2d(%data1, %weight, padding=[1, 1, 1, 1], channels=64, kernel_size=[3, 3]);
               %1 = on_device(%0, virtual_device=meta[VirtualDevice][0], constrain_result=True);
               %2 = nn.conv2d(%data2, %weight, padding=[1, 1, 1, 1], channels=64, kernel_size=[3, 3]);
@@ -1068,8 +1133,8 @@ def test_tuple_get_item():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%x: Tensor[(3, 3, 4), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][1]) {
+            def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(3, 3, 4), float32],
+                      virtual_device=meta[VirtualDevice][1]) {
               %0 = split(%x, indices_or_sections=3);
               let %t = on_device(%0, virtual_device=meta[VirtualDevice][0], constrain_result=True);
               %1 = %t.0;
@@ -1136,8 +1201,8 @@ def test_propogation():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%x: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][0]) {
+            def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][0]) {
               %0 = negative(%x);
               %1 = on_device(%0, virtual_device=meta[VirtualDevice][0], constrain_result=True);
               %2 = device_copy(%1, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
@@ -1206,8 +1271,8 @@ def test_fusible_network():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][1], meta[VirtualDevice][1]], result_virtual_device=meta[VirtualDevice][0]) {
+            def @main(%x {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][0]) {
               %0 = add(%x, %y);
               %1 = on_device(%0, virtual_device=meta[VirtualDevice][1], constrain_result=True);
               %2 = device_copy(%1, src_virtual_device=meta[VirtualDevice][1], dst_virtual_device=meta[VirtualDevice][0]);
@@ -1272,10 +1337,9 @@ def test_unpropagatable_graph():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
-                      %c: Tensor[(5, 7), float32], %d: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0], meta[VirtualDevice][1], meta[VirtualDevice][1]],
-                      result_virtual_device=meta[VirtualDevice][0]) {
+            def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      %c {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %d {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][0]) {
               %0 = multiply(%c, %d);
               %1 = on_device(%0, virtual_device=meta[VirtualDevice][1], constrain_result=True);
               %2 = add(%a, %b);
@@ -1327,13 +1391,12 @@ def test_conditional():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%x: bool, %y: Tensor[(5, 7), float32], %z: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0], meta[VirtualDevice][0]],
-                      result_virtual_device=meta[VirtualDevice][0]) {
-              let %f = fn (%a, param_virtual_devices=[meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][0]) {
+            def @main(%x {virtual_device=meta[VirtualDevice][0]}: bool, %y {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %z {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][0]) {
+              let %f = fn (%a {virtual_device=meta[VirtualDevice][0]}, virtual_device=meta[VirtualDevice][0]) {
                 add(%a, %y)
               };
-              let %g = fn (%a1, param_virtual_devices=[meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][0]) {
+              let %g = fn (%a1 {virtual_device=meta[VirtualDevice][0]}, virtual_device=meta[VirtualDevice][0]) {
                 subtract(%a1, %y)
               };
               let %h = on_device(if (%x) {
@@ -1373,7 +1436,7 @@ def test_global():
               %0 = on_device(%b, virtual_device=meta[VirtualDevice][0]);
               add(%a, %0)
             }
-            
+
             def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32]) -> Tensor[(5, 7), float32] {
               @f(%y, %x)
             }
@@ -1387,16 +1450,14 @@ def test_global():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @f(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
-                   param_virtual_devices=[meta[VirtualDevice][1], meta[VirtualDevice][0]],
-                   result_virtual_device=meta[VirtualDevice][1]) -> Tensor[(5, 7), float32] {
+            def @f(%a {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                   virtual_device=meta[VirtualDevice][1]) -> Tensor[(5, 7), float32] {
               %0 = device_copy(%b, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
               add(%a, %0)
             }
-            
-            def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][1]],
-                      result_virtual_device=meta[VirtualDevice][1]) -> Tensor[(5, 7), float32] {
+
+            def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][1]) -> Tensor[(5, 7), float32] {
               @f(%y, %x)
             }
         """,
@@ -1438,8 +1499,8 @@ def test_ref():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][1], meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][1]) {
+            def @main(%x {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][1]) {
               let %r = on_device(ref(%x), virtual_device=meta[VirtualDevice][1], constrain_result=True);
               %0 = device_copy(%y, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
               on_device(ref_write(%r, %0), virtual_device=meta[VirtualDevice][1], constrain_result=True);
@@ -1495,8 +1556,8 @@ def test_adt():
               Cons(A, List[A]),
               Nil,
             }
-            def @main(%x : Tensor[(5, 7), float32], %y : Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][0]) {
+            def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][0]) {
               %0 = Nil;
               %1 = Cons(%y, %0);
               let %l = on_device(Cons(%x, %1), virtual_device=meta[VirtualDevice][0], constrain_result=True);
@@ -1534,14 +1595,12 @@ def test_free_on_device():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @on_scope_b(%x: Tensor[(5, 7), float32],
-                            param_virtual_devices=[meta[VirtualDevice][2]],
-                            result_virtual_device=meta[VirtualDevice][2]) -> Tensor[(5, 7), float32] {
-              %x                
-            }                 
-            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32], %c: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][1], meta[VirtualDevice][2]],
-                      result_virtual_device=meta[VirtualDevice][1]) {
+            def @on_scope_b(%x {virtual_device=meta[VirtualDevice][2]}: Tensor[(5, 7), float32],
+                            virtual_device=meta[VirtualDevice][2]) -> Tensor[(5, 7), float32] {
+              %x
+            }
+            def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %c {virtual_device=meta[VirtualDevice][2]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][1]) {
               // %a's memory scope is unconstrained, so will take on "scopeB" and on_device has no effect
               %0 = @on_scope_b(on_device(%a, virtual_device=meta[VirtualDevice][0], constrain_body=False));
               // %b's memory scope is "scopeA", so will require a "scopeA"->"scopeB" copy.
@@ -1562,20 +1621,18 @@ def test_free_on_device():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @on_scope_b(%x: Tensor[(5, 7), float32],
-                            param_virtual_devices=[meta[VirtualDevice][2]],
-                            result_virtual_device=meta[VirtualDevice][2]) -> Tensor[(5, 7), float32] {
-              %x                
-            }                 
-            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32], %c: Tensor[(5, 7), float32],
-                      param_virtual_devices=[meta[VirtualDevice][2], meta[VirtualDevice][1], meta[VirtualDevice][2]],
-                      result_virtual_device=meta[VirtualDevice][1]) {
+            def @on_scope_b(%x {virtual_device=meta[VirtualDevice][2]}: Tensor[(5, 7), float32],
+                            virtual_device=meta[VirtualDevice][2]) -> Tensor[(5, 7), float32] {
+              %x
+            }
+            def @main(%a {virtual_device=meta[VirtualDevice][2]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %c {virtual_device=meta[VirtualDevice][2]}: Tensor[(5, 7), float32],
+                      virtual_device=meta[VirtualDevice][1]) {
               %0 = @on_scope_b(%a);
               %1 = device_copy(%b, src_virtual_device=meta[VirtualDevice][1], dst_virtual_device=meta[VirtualDevice][2]);
               %2 = @on_scope_b(%1);
               %3 = @on_scope_b(%c);
               %4 = add(add(%0, %2), %3);
-              %5 = on_device(%4, virtual_device=meta[VirtualDevice][2], constrain_result=True); 
+              %5 = on_device(%4, virtual_device=meta[VirtualDevice][2], constrain_result=True);
               device_copy(%5, src_virtual_device=meta[VirtualDevice][2], dst_virtual_device=meta[VirtualDevice][1])
             }
         """,
@@ -1648,12 +1705,11 @@ def test_lowered():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%x : Tensor[(128, 128), float32],
-                      %y : Tensor[(128, 128), float32],
-                      %z : Tensor[(128, 128), float32],
-                      param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][2], meta[VirtualDevice][1]],
-                      result_virtual_device=meta[VirtualDevice][2]) {
-              call_lowered(@gem, (%x, %y, %z))          
+            def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(128, 128), float32],
+                      %y {virtual_device=meta[VirtualDevice][2]}: Tensor[(128, 128), float32],
+                      %z {virtual_device=meta[VirtualDevice][1]}: Tensor[(128, 128), float32],
+                      virtual_device=meta[VirtualDevice][2]) {
+              call_lowered(@gem, (%x, %y, %z))
             }
             """,
             "from_string",
@@ -1671,13 +1727,12 @@ def test_lowered():
         return tvm.parser.parse(
             """
             #[version = "0.0.5"]
-            def @main(%x : Tensor[(128, 128), float32],
-                      %y : Tensor[(128, 128), float32],
-                      %z : Tensor[(128, 128), float32], 
-                      param_virtual_devices=[meta[VirtualDevice][1], meta[VirtualDevice][2], meta[VirtualDevice][1]],
-                      result_virtual_device=meta[VirtualDevice][2]) {
+            def @main(%x {virtual_device=meta[VirtualDevice][1]}: Tensor[(128, 128), float32],
+                      %y {virtual_device=meta[VirtualDevice][2]}: Tensor[(128, 128), float32],
+                      %z {virtual_device=meta[VirtualDevice][1]}: Tensor[(128, 128), float32],
+                      virtual_device=meta[VirtualDevice][2]) {
               %0 = device_copy(%z, src_virtual_device=meta[VirtualDevice][1], dst_virtual_device=meta[VirtualDevice][2]);
-              %1 = on_device(%0, virtual_device=meta[VirtualDevice][2], constrain_result=True);      
+              %1 = on_device(%0, virtual_device=meta[VirtualDevice][2], constrain_result=True);
               %2 = call_lowered(@gem, (%x, %y, %1));
               %3 = on_device(%2, virtual_device=meta[VirtualDevice][1], constrain_result=True);
               device_copy(%3, src_virtual_device=meta[VirtualDevice][1], dst_virtual_device=meta[VirtualDevice][2])
@@ -1691,8 +1746,89 @@ def test_lowered():
     exercise(input(), expected(), None, None)
 
 
-if __name__ == "__main__":
-    import sys
-    import pytest
+def test_stack_overflow():
+    metatable = {"VirtualDevice": [CPU, GPU]}
 
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    # Everything defaults to GPU
+    def input():
+        tmp = "test_stack_overflow_input.txt"
+        mod = """
+            #[version = "0.0.5"]
+            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
+                      %c: Tensor[(5, 7), float32], %d: Tensor[(5, 7), float32]) {
+            %0 = add(%a, %b);
+            %1 = add(%c, %d);
+            """
+
+        end = 1555
+        for i in range(2, end):
+            s1 = "\n\t" + "%" + str(i) + " = add(%" + str(i - 1) + ", %" + str(i - 2) + ");"
+            mod += s1
+        mod += "\n\t" + "add(%" + str(end - 1) + ", %" + str(end - 2) + ")"
+        mod += "\n\t}"
+
+        return tvm.parser.parse(
+            mod,
+            "from_string",
+            None,
+            metatable,
+        )
+
+    config = tvm.target.make_compilation_config(CTXT, TARGETS)
+    actual_mod = relay.transform.InferType()(input())
+    actual_mod = relay.transform.PlanDevices(config)(actual_mod)
+    relay.transform.InferType()(actual_mod)
+
+
+def test_primitive():
+    """Annotations on Primitive functions should be accepted, even though the body
+    of the Primitive function is not considered during PlanDevices."""
+    global_virtual_device = tvm.target.VirtualDevice(memory_scope="global")
+    texture_virtual_device = tvm.target.VirtualDevice(memory_scope="global.texture")
+    metatable = {
+        "VirtualDevice": [
+            global_virtual_device,
+            texture_virtual_device,
+        ]
+    }
+
+    mod = tvm.parser.parse(
+        """
+        #[version = "0.0.5"]
+        def @main(%data1: Tensor[(1, 32, 40, 40), float32],
+                  %data2: Tensor[(1, 32, 40, 40), float32]) {
+          %0 = fn (%a, Primitive=1) {
+            layout_transform(%a, src_layout="NCHW", dst_layout="NCHW4c")
+          };
+          %1 = %0(%data1);
+          %3 = %0(%data2);
+          %5 = fn (%a {virtual_device=meta[VirtualDevice][0]},  // global
+                   %b {virtual_device=meta[VirtualDevice][0]},  // global
+                   virtual_device=meta[VirtualDevice][1],       // texture 
+                   Primitive=1) {
+            add(%a, %b)
+          };
+          %6 = %5(%1, %3);
+          %10 = fn (%a, 
+                    virtual_device=meta[VirtualDevice][0],      // global 
+                    Primitive=1) {
+            layout_transform(%a, src_layout="NCHW4c", dst_layout="NCHW")
+          };
+          %10(%6)
+        }
+        """,
+        "from_string",
+        None,
+        metatable,
+    )
+    print(mod)
+
+    config = tvm.target.make_compilation_config(CTXT, GPU_TARGET)
+    mod = relay.transform.InferType()(mod)
+    # PlanDevices should succeed.
+    mod = relay.transform.PlanDevices(config)(mod)
+    print(mod)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

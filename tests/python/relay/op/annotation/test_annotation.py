@@ -16,6 +16,7 @@
 # under the License.
 """Unit tests for annotations."""
 import tvm
+import tvm.testing
 from tvm import relay
 import pytest
 
@@ -61,19 +62,5 @@ def test_on_device_free():
     assert not call.attrs.constrain_result
 
 
-def test_function_on_device():
-    x = relay.Var("x")
-    y = relay.Var("y")
-    f = relay.Function([x, y], relay.add(x, y))
-    func = relay.annotation.function_on_device(f, ["cpu", "cuda"], "cuda")
-    assert isinstance(func, relay.Function)
-    assert len(func.attrs["param_virtual_devices"]) == 2
-    assert func.attrs["param_virtual_devices"][0].device_type_int == 1  # ie kDLCPU
-    assert func.attrs["param_virtual_devices"][1].device_type_int == 2  # ie kDLCUDA
-    assert func.attrs["result_virtual_device"].device_type_int == 2  # ie KDLCUDA
-
-
 if __name__ == "__main__":
-    import sys
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

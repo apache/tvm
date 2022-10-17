@@ -45,13 +45,19 @@ namespace hexagon {
 
 class HexagonTransportChannel : public RPCChannel {
  public:
-  explicit HexagonTransportChannel(const std::string& uri, int remote_stack_size_bytes) {
+  explicit HexagonTransportChannel(const std::string& uri, int remote_stack_size_bytes,
+                                   uint32_t receive_buf_size_bytes) {
     if (_handle != AEE_EUNKNOWN) return;
 
     enable_unsigned_pd(true);
     set_remote_stack_size(remote_stack_size_bytes);
+
     AEEResult rc = hexagon_rpc_open(uri.c_str(), &_handle);
-    ICHECK(rc == AEE_SUCCESS) << "Hexagon RPC Open failed. URI: " << uri.c_str();
+    ICHECK(rc == AEE_SUCCESS) << "hexagon_rpc_open failed. URI: " << uri.c_str();
+
+    rc = hexagon_rpc_init(_handle, receive_buf_size_bytes);
+    ICHECK(rc == AEE_SUCCESS) << "hexagon_rpc_set_receive_buf_size failed. receive_buf_size_bytes: "
+                              << receive_buf_size_bytes;
   }
 
   size_t Send(const void* data, size_t size) override {
@@ -105,12 +111,17 @@ class HexagonTransportChannel : public RPCChannel {
 
 TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
+      ICHECK(args.size() >= 4) << args.size() << " is less than 4";
+
       std::string session_name = args[0];
       int remote_stack_size_bytes = args[1];
+      // For simulator, the third parameter is sim_args, ignore it.
+      int hexagon_rpc_receive_buf_size_bytes = args[3];
       HexagonTransportChannel* hexagon_channel =
-          new HexagonTransportChannel(hexagon_rpc_URI CDSP_DOMAIN, remote_stack_size_bytes);
+          new HexagonTransportChannel(hexagon_rpc_URI CDSP_DOMAIN, remote_stack_size_bytes,
+                                      static_cast<uint32_t>(hexagon_rpc_receive_buf_size_bytes));
       std::unique_ptr<RPCChannel> channel(hexagon_channel);
-      auto ep = RPCEndpoint::Create(std::move(channel), session_name, "", NULL);
+      auto ep = RPCEndpoint::Create(std::move(channel), session_name, "", nullptr);
       auto sess = CreateClientSession(ep);
       *rv = CreateRPCSessionModule(sess);
     });

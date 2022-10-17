@@ -30,6 +30,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/logging.h>
 
+#include <algorithm>
 #include <limits>
 #include <memory>
 #include <string>
@@ -78,11 +79,11 @@ class SimplifyReshape : public DFPatternRewrite {
 };
 
 /*!
- * \brief SimplifyCast matches the pattern of cast data to the same dtype.
+ * \brief SimplifySameCast matches the pattern of cast data to the same dtype.
  */
-class SimplifyCast : public DFPatternRewrite {
+class SimplifySameCast : public DFPatternRewrite {
  public:
-  SimplifyCast() {
+  SimplifySameCast() {
     data_pat_ = IsWildcard();
     like_pat_ = IsWildcard();
     pattern_ = IsOp("cast_like")({data_pat_, like_pat_}) || IsOp("cast")({data_pat_});
@@ -102,6 +103,60 @@ class SimplifyCast : public DFPatternRewrite {
  protected:
   DFPattern data_pat_;
   DFPattern like_pat_;
+};
+
+/*!
+ * \brief SimplifyConsecutiveCast matches the pattern of consecutive cast/cast_like ops
+ */
+class SimplifyConsecutiveCast : public DFPatternRewrite {
+ public:
+  SimplifyConsecutiveCast() {
+    data_ = IsWildcard();
+    cast1_ = IsOp("cast_like")({data_, IsWildcard()}) || IsOp("cast")({data_});
+    pattern_ = IsOp("cast_like")({cast1_, IsWildcard()}) || IsOp("cast")({cast1_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto data = node_map[data_][0];
+    auto cast1 = Downcast<Call>(node_map[cast1_][0]);
+    auto data_type = Downcast<TensorType>(data->checked_type());
+    DataType cast1_dtype = Downcast<TensorType>(cast1->checked_type())->dtype;
+
+    if (!IsWidenCast(data_type->dtype, cast1_dtype)) {
+      // Cannot remove the narrow cast
+      return post;
+    }
+
+    const CallNode* cast2 = post.as<CallNode>();
+    DataType cast2_dtype = Downcast<TensorType>(cast2->checked_type())->dtype;
+    auto expr = MakeCast(data, cast2_dtype);
+
+    // We need to set the checked type as it may be needed in the next callback
+    expr->checked_type_ = TensorType(data_type->shape, cast2_dtype);
+    return expr;
+  }
+
+  bool IsWidenCast(DataType origin, DataType cast) const {
+    /* Return whether casting from origin to cast results in more or the same precision.*/
+    if (origin.code() == cast.code() && origin.bits() <= cast.bits()) {
+      return true;
+    }
+    if (origin.code() == DataType::kBFloat || cast.code() == DataType::kBFloat) {
+      // BFloat cast cannot be omitted
+      return false;
+    }
+    if (origin.code() < cast.code() && origin.bits() <= cast.bits()) {
+      // Loosely have a hiearchy to datatypes
+      // e.g. int --> uint --> float has increasing range of numbers they can represent
+      return true;
+    }
+    return false;
+  }
+
+ protected:
+  DFPattern data_;
+  DFPattern cast1_;
 };
 
 /*!
@@ -280,7 +335,7 @@ class SimplifyTranspose : public DFPatternRewrite {
     if (auto attr = call->attrs.as<TransposeAttrs>()) {
       if (attr->axes.defined()) {
         for (int i = 0; i < ndim; ++i) {
-          int64_t axis = attr->axes[i];
+          int64_t axis = attr->axes[i].IntValue();
           axis += (axis < 0) ? ndim : 0;
           attr_axes.push_back(axis);
         }
@@ -492,8 +547,10 @@ class ConcretizeCollapseSumLikeRewrite : public ConcretizeLikeRewrite {
     static const Op& op = Op::Get("collapse_sum_to");
     auto attrs = make_object<InitOpAttrs>();
     attrs->shape = shape;
-    auto cshape =
-        MakeConstantTensor(DataType::Int(32), {static_cast<int64_t>(shape.size())}, shape);
+    std::vector<int64_t> s;
+    std::transform(shape.begin(), shape.end(), std::back_inserter(s),
+                   [](Integer i) { return i.IntValue(); });
+    auto cshape = MakeConstantTensor(DataType::Int(32), {static_cast<int64_t>(shape.size())}, s);
     return Call(op, {node_map[data_pat_][0], cshape}, Attrs(attrs));
   }
 };
@@ -506,6 +563,36 @@ class ConcretizeBroadcastToLikeRewrite : public ConcretizeLikeRewrite {
                   DataType dtype) const override {
     return MakeBroadCastTo(node_map[data_pat_][0], shape);
   }
+};
+
+/*!
+ * \brief Converts cast_like operator to cast. Not inheriting from ConcretizeLikeRewrite
+ * because even if shape is not static, still can concretize.
+ */
+class ConcretizeCastLikeRewrite : public DFPatternRewrite {
+ public:
+  ConcretizeCastLikeRewrite() {
+    data_pat_ = IsWildcard();
+    like_pat_ = IsWildcard();
+    pattern_ = IsOp("cast_like")({data_pat_, like_pat_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    const CallNode* call_node = pre.as<CallNode>();
+    ICHECK(call_node);
+
+    if (!call_node->checked_type().as<TensorTypeNode>()) {
+      return post;
+    }
+
+    const TensorTypeNode* like_ty = pre->checked_type().as<TensorTypeNode>();
+    return MakeCast(node_map[data_pat_][0], like_ty->dtype);
+  }
+
+ protected:
+  DFPattern data_pat_;
+  DFPattern like_pat_;
 };
 
 /*! \brief Eliminates expressions that are equivalent to identity. */
@@ -628,6 +715,74 @@ class SimplifyConsecutiveAdd : public DFPatternRewrite {
   DFPattern const2_;
 };
 
+/*! \brief Simplifying x/sqrt to x*sqrt */
+class SimplifyRSqrt : public DFPatternRewrite {
+ public:
+  SimplifyRSqrt() {
+    x_ = IsWildcard();
+    numerator_ = IsWildcard();
+    auto sqrt = IsOp("sqrt");
+    pattern_ = IsOp("divide")({numerator_, sqrt({x_})});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    static const Op& op = Op::Get("rsqrt");
+    auto x = node_map[x_][0];
+    auto numerator = node_map[numerator_][0];
+    return Call(Op::Get("multiply"), {numerator, Call(op, {x})});
+  }
+
+ private:
+  /*! \brief Pattern input */
+  DFPattern x_;
+  DFPattern numerator_;
+};
+
+/*! \brief Base class for simplifying dequantize followed by arg ops */
+class SimplifyDQArgFunc : public DFPatternRewrite {
+ public:
+  explicit SimplifyDQArgFunc(std::string op) : op_(op) {
+    x_ = IsWildcard();
+    dq_ = IsOp("qnn.dequantize")({x_, IsWildcard(), IsWildcard()});
+    pattern_ = IsOp(op_)({dq_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    const CallNode* call = pre.as<CallNode>();
+    ICHECK(call);
+    auto x = node_map[x_][0];
+    return Call(Op::Get(op_), {x}, call->attrs);
+  }
+
+ protected:
+  /*! \brief Pattern input */
+  DFPattern x_;
+  /*! \brief dequantize op */
+  DFPattern dq_;
+  /*! \brief Name of op to simplify */
+  String op_;
+};
+
+/*! \brief Simplify dequantize follwed by argmax */
+class SimplifyDQArgMax : public SimplifyDQArgFunc {
+ public:
+  SimplifyDQArgMax() : SimplifyDQArgFunc("argmax") {}
+};
+
+/*! \brief Simplify dequantize follwed by argmin */
+class SimplifyDQArgMin : public SimplifyDQArgFunc {
+ public:
+  SimplifyDQArgMin() : SimplifyDQArgFunc("argmin") {}
+};
+
+/*! \brief Simplify dequantize follwed by argsort */
+class SimplifyDQArgSort : public SimplifyDQArgFunc {
+ public:
+  SimplifyDQArgSort() : SimplifyDQArgFunc("argsort") {}
+};
+
 Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   // the rewrites will be applied in the given order, and repeated until fixed point
   DFPatternRewriteComposer composer;
@@ -637,12 +792,18 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<ConcretizeReshapeLikeRewrite>();
   composer.AddRewrite<ConcretizeCollapseSumLikeRewrite>();
   composer.AddRewrite<ConcretizeBroadcastToLikeRewrite>();
+  composer.AddRewrite<ConcretizeCastLikeRewrite>();
+  composer.AddRewrite<SimplifyRSqrt>();
   composer.AddRewrite<EliminateIdentityRewrite>();
   composer.AddRewrite<SimplifyReshape>();
   composer.AddRewrite<SimplifyTranspose>();
-  composer.AddRewrite<SimplifyCast>();
+  composer.AddRewrite<SimplifySameCast>();
+  composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<FullElementwise>();
   composer.AddRewrite<SimplifyConsecutiveAdd>();
+  composer.AddRewrite<SimplifyDQArgMax>();
+  composer.AddRewrite<SimplifyDQArgMin>();
+  composer.AddRewrite<SimplifyDQArgSort>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
 

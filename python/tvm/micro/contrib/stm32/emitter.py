@@ -44,7 +44,7 @@ DBAR = "=" * 60
 
 
 def _fix_name(node_name):
-    """ Replace ':' with '_' in names like 'InputImg:0' """
+    """Replace ':' with '_' in names like 'InputImg:0'"""
     return node_name.replace(":", "_")
 
 
@@ -116,7 +116,7 @@ def _get_tensor_size_bytes(dims, dltype):
 
 
 def _preprocess_code(src):
-    """ Hack the C code implementing the model. """
+    """Hack the C code implementing the model."""
     dst = "#include <stdio.h>\n" "#include <math.h>\n\n"
     dst = dst + src
     return dst
@@ -193,7 +193,7 @@ class CodeEmitter(object):
         self._quantization = {}
 
     def _extract_quantization_info(self, quantization):
-        """ Build dictionary with quantization infos."""
+        """Build dictionary with quantization infos."""
 
         for dl_tensor_name in self._input_data:
             if dl_tensor_name in quantization:
@@ -258,7 +258,7 @@ class CodeEmitter(object):
         return tensor
 
     def _compute_data_placement(self):
-        """ Compute inputs, outputs, weight, activation sizes"""
+        """Compute inputs, outputs, weight, activation sizes"""
 
         self._inputs = self._arg_nodes.copy()
 
@@ -482,8 +482,18 @@ class CodeEmitter(object):
         with tarfile.TarFile(model_library_format_path) as f:
             f.extractall(extract_path)
 
+        with open(os.path.join(extract_path, "metadata.json")) as metadata_f:
+            metadata = json.load(metadata_f)
+
+        all_module_names = []
+        for name in metadata["modules"].keys():
+            all_module_names.append(name)
+        assert len(metadata["modules"]) == 1, "Multiple modules is not supported."
+
         # Extract informations from the Model Library Format
-        graph_file = os.path.join(extract_path, "executor-config", "graph", "graph.json")
+        graph_file = os.path.join(
+            extract_path, "executor-config", "graph", f"{all_module_names[0]}.graph"
+        )
         with open(graph_file, "r") as f:
             # returns JSON object as a dictionary
             graph_dict = json.load(f)
@@ -548,7 +558,7 @@ class CodeEmitter(object):
         self._parse_model(quantization)
 
     def _emit_params_data(self, name, out_h, out_c):
-        """ Emits the network_data[c,h] files with parameters."""
+        """Emits the network_data[c,h] files with parameters."""
 
         name_upper = name.upper()
 
@@ -674,7 +684,7 @@ class CodeEmitter(object):
         )
 
     def _emit_close(self, name, out_h, out_c):
-        """ Emits the ai_model_info structure. """
+        """Emits the ai_model_info structure."""
 
         name_upper = name.upper()
 
@@ -794,7 +804,7 @@ class CodeEmitter(object):
         return None
 
     def _emit_tensor_init(self, dl_tensor_name, tensor, out_c):
-        """ Emits the tensor instantiation code. """
+        """Emits the tensor instantiation code."""
 
         dltype = tensor["dltype"]
         dims = tensor["dims"]
@@ -838,7 +848,7 @@ class CodeEmitter(object):
 
     def _emit_activation_buffers(self, name, out_c):
         # pylint: disable=unused-argument
-        """ Emits activation tensors, including inputs/outputs."""
+        """Emits activation tensors, including inputs/outputs."""
 
         out_c.write(
             textwrap.dedent(
@@ -905,7 +915,7 @@ class CodeEmitter(object):
         out_c.write(f"\n")
 
     def _emit_params_buffers(self, name, out_c):
-        """ Emits all parameter tensors."""
+        """Emits all parameter tensors."""
 
         out_c.write(
             textwrap.dedent(
@@ -922,7 +932,7 @@ class CodeEmitter(object):
         out_c.write(f"\n")
 
     def _emit_network(self, name, out_c):
-        """ Emits prototypes for the network operator functions."""
+        """Emits prototypes for the network operator functions."""
 
         out_c.write(
             textwrap.dedent(
@@ -967,7 +977,7 @@ class CodeEmitter(object):
         )
 
     def _emit_activation_init(self, name, out_c):
-        """ Emits buffer initialization code for activation tensors."""
+        """Emits buffer initialization code for activation tensors."""
 
         out_c.write(
             textwrap.dedent(
@@ -1015,7 +1025,7 @@ class CodeEmitter(object):
         )
 
     def _emit_params_init(self, name, out_c):
-        """ Emits buffer initialization code for params tensors."""
+        """Emits buffer initialization code for params tensors."""
 
         out_c.write(
             textwrap.dedent(
@@ -1063,13 +1073,13 @@ class CodeEmitter(object):
         )
 
     def _emit_init(self, name, out_c):
-        """ Emits buffer initialization code."""
+        """Emits buffer initialization code."""
 
         self._emit_activation_init(name, out_c)
         self._emit_params_init(name, out_c)
 
     def _emit_run(self, name, out_h, out_c):
-        """ Emits the run function code."""
+        """Emits the run function code."""
 
         out_h.write(
             textwrap.dedent(
@@ -1230,7 +1240,7 @@ class CodeEmitter(object):
         out_c.write(f"\n")
 
     def _emit_create_destroy(self, name, out_h, out_c):
-        """ Emits the create/destroy functions."""
+        """Emits the create/destroy functions."""
 
         out_h.write(
             textwrap.dedent(
@@ -1296,7 +1306,7 @@ class CodeEmitter(object):
         )
 
     def emit_code(self, dest_dir, model_name):
-        """ Emits the C code implementing the model. """
+        """Emits the C code implementing the model."""
 
         # Build the directory structure
         if os.path.exists(dest_dir):

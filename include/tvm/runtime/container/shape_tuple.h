@@ -133,8 +133,8 @@ class ShapeTuple : public ObjectRef {
    * \return the i-th element.
    */
   index_type operator[](size_t idx) const {
-    ICHECK(0 <= idx && idx < this->size())
-        << "IndexError: indexing " << idx << " on an array of size " << this->size();
+    ICHECK(idx < this->size()) << "IndexError: indexing " << idx << " on an array of size "
+                               << this->size();
     return this->data()[idx];
   }
 

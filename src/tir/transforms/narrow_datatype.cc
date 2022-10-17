@@ -187,7 +187,9 @@ class DataTypeVisitor final : public StmtExprVisitor {
   arith::ConstIntBoundAnalyzer::BoundMapType bound_;
 };
 
-class DataTypeRewriter : public StmtExprMutator {
+class DataTypeRewriter : public DataTypeLegalizer {
+  using Parent = DataTypeLegalizer;
+
  public:
   explicit DataTypeRewriter(int target_bits) : visitor_(target_bits) {}
 
@@ -205,42 +207,63 @@ class DataTypeRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
-    PrimExpr value = this->VisitExpr(op->value);
-    is_index_ = true;
-    PrimExpr index = this->VisitExpr(op->index);
-    is_index_ = false;
-    Stmt s = Store(op->buffer_var, op->value, index, op->predicate);
-    return StmtExprMutator::VisitStmt_(s.as<StoreNode>());
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
-    Stmt s = StmtExprMutator::VisitStmt_(op);
-    op = s.as<ForNode>();
-    ICHECK(op != nullptr) << "Expected type to be ForNode"
-                          << ", but get " << s->GetTypeKey();
-    PrimExpr e = VisitExpr(op->loop_var);
-    Var var = Downcast<Var>(e);
-    return For(var, cast(var.dtype(), op->min), cast(var.dtype(), op->extent), op->kind, op->body,
-               op->thread_binding, op->annotations);
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
-      Stmt s = StmtExprMutator::VisitStmt_(op);
-      op = s.as<AttrStmtNode>();
-      ICHECK(op != nullptr) << "Expected type to be AttrStmtNode"
-                            << ", but get " << s->GetTypeKey();
-      const IterVarNode* iv = op->node.as<IterVarNode>();
-      ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
-                            << ", but get " << op->node->GetTypeKey();
-      PrimExpr e = VisitExpr(iv->var);
-      Var var = Downcast<Var>(e);
-      if (ivmap_.find(iv) == ivmap_.end()) {
-        ivmap_[iv] = IterVar(iv->dom, var, iv->iter_type, iv->thread_tag);
-      }
-      return AttrStmt(ivmap_[iv], op->attr_key, cast(var.dtype(), op->value), op->body);
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    BufferStore store = GetRef<BufferStore>(op);
+
+    auto value = this->VisitExpr(op->value);
+    auto indices = VisitIndices(op->indices);
+
+    if (!value.same_as(op->value) || !indices.same_as(op->indices)) {
+      auto writer = store.CopyOnWrite();
+      writer->value = value;
+      writer->indices = indices;
     }
-    return StmtExprMutator::VisitStmt_(op);
+
+    return std::move(store);
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    BufferLoad load = GetRef<BufferLoad>(op);
+
+    auto indices = VisitIndices(op->indices);
+
+    if (!indices.same_as(op->indices)) {
+      auto writer = load.CopyOnWrite();
+      writer->indices = indices;
+    }
+
+    return std::move(load);
+  }
+
+  Array<PrimExpr> VisitIndices(Array<PrimExpr> indices) {
+    is_index_ = true;
+
+    auto fmutate = [this](const PrimExpr& index) { return this->VisitExpr(index); };
+    indices.MutateByApply(fmutate);
+
+    is_index_ = false;
+
+    return indices;
+  }
+
+  Stmt VisitStmt_(const IfThenElseNode* op) final {
+    IfThenElse updated = Downcast<IfThenElse>(Parent::VisitStmt_(op));
+    is_condition_ = true;
+    PrimExpr cond = VisitExpr(op->condition);
+    is_condition_ = false;
+    if (!cond.same_as(op->condition)) {
+      return std::move(IfThenElse(cond, updated->then_case, updated->else_case));
+    }
+    return std::move(updated);
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
@@ -250,7 +273,7 @@ class DataTypeRewriter : public StmtExprMutator {
       }
       return vmap_[op];
     }
-    return StmtExprMutator::VisitExpr_(op);
+    return Parent::VisitExpr_(op);
   }
 
   PrimExpr VisitExpr_(const SizeVarNode* op) final {
@@ -260,15 +283,7 @@ class DataTypeRewriter : public StmtExprMutator {
       }
       return vmap_[op];
     }
-    return StmtExprMutator::VisitExpr_(op);
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    is_index_ = true;
-    PrimExpr index = this->VisitExpr(op->index);
-    is_index_ = false;
-    PrimExpr e = Load(op->dtype, op->buffer_var, index, op->predicate);
-    return StmtExprMutator::VisitExpr_(e.as<LoadNode>());
+    return Parent::VisitExpr_(op);
   }
 
   PrimExpr VisitExpr_(const IntImmNode* op) final {
@@ -277,29 +292,20 @@ class DataTypeRewriter : public StmtExprMutator {
         return IntImm(visitor_.vmap[op], op->value);
       }
     }
-    return StmtExprMutator::VisitExpr_(op);
+    return Parent::VisitExpr_(op);
   }
 
   PrimExpr VisitExpr_(const CastNode* op) final {
     if (is_index_ && visitor_.vmap.find(op) != visitor_.vmap.end()) {
-      PrimExpr e = StmtExprMutator::VisitExpr_(op);
+      PrimExpr e = Parent::VisitExpr_(op);
       const CastNode* new_op = e.as<CastNode>();
       ICHECK(new_op != nullptr) << "Expected type to be CastNode"
                                 << ", but get " << e->GetTypeKey();
       return Cast(visitor_.vmap[op], new_op->value);
     }
-    return StmtExprMutator::VisitExpr_(op);
+    return Parent::VisitExpr_(op);
   }
 
-  PrimExpr VisitExpr_(const AddNode* op) final;
-  PrimExpr VisitExpr_(const SubNode* op) final;
-  PrimExpr VisitExpr_(const MulNode* op) final;
-  PrimExpr VisitExpr_(const DivNode* op) final;
-  PrimExpr VisitExpr_(const ModNode* op) final;
-  PrimExpr VisitExpr_(const FloorDivNode* op) final;
-  PrimExpr VisitExpr_(const FloorModNode* op) final;
-  PrimExpr VisitExpr_(const MinNode* op) final;
-  PrimExpr VisitExpr_(const MaxNode* op) final;
   PrimExpr VisitExpr_(const EQNode* op) final;
   PrimExpr VisitExpr_(const NENode* op) final;
   PrimExpr VisitExpr_(const LTNode* op) final;
@@ -314,65 +320,41 @@ class DataTypeRewriter : public StmtExprMutator {
   // a map from Var before rewrite to that after rewrite,
   // ensures one old Var maps to exactly one new Var
   std::unordered_map<const VarNode*, Var> vmap_;
-  // a map from IterVar before rewrite to that after rewrite,
-  // ensures one old IterVar maps to exactly one new IterVar
-  std::unordered_map<const IterVarNode*, IterVar> ivmap_;
-  // indicator of LoadNode::index and StoreNode::index
+  // indicator of index expr to rewrite
   bool is_index_{false};
-  // cached ops
-  const Op& builtin_pow_ = Op::Get("tir.pow");
+  // indicator of condition
+  bool is_condition_{false};
 };
 
-#define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC) \
-  PrimExpr DataTypeRewriter::VisitExpr_(const OP* op) {   \
-    PrimExpr a = this->VisitExpr(op->a);                  \
-    PrimExpr b = this->VisitExpr(op->b);                  \
-    if (a.same_as(op->a) && b.same_as(op->b)) {           \
-      return GetRef<PrimExpr>(op);                        \
-    } else {                                              \
-      return FUNC(a, b);                                  \
-    }                                                     \
+#define DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                          \
+  PrimExpr DataTypeRewriter::VisitExpr_(const OP* op) {                             \
+    bool is_index = is_index_;                                                      \
+    bool rewrite = is_condition_ && op->a->dtype.is_int() && op->b->dtype.is_int(); \
+    if (rewrite) {                                                                  \
+      is_index_ = true;                                                             \
+    }                                                                               \
+    auto result = Parent::VisitExpr_(op);                                           \
+    is_index_ = is_index;                                                           \
+    return std::move(result);                                                       \
   }
 
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(AddNode, operator+);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(SubNode, operator-);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MulNode, operator*);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(DivNode, div);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(ModNode, truncmod);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorDivNode, floordiv);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorModNode, floormod);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MinNode, min);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MaxNode, max);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=);
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=);
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
 
 PrimExpr DataTypeRewriter::VisitExpr_(const CallNode* op) {
-  PrimExpr e = StmtExprMutator::VisitExpr_(op);
-  op = e.as<CallNode>();
-  ICHECK(op != nullptr) << "Expected type to be CallNode"
-                        << ", but get " << e->GetTypeKey();
-
+  // handle if_then_else condition
   if (op->op.same_as(builtin::if_then_else())) {
-    return if_then_else(op->args[0], op->args[1], op->args[2]);
-  } else if (op->op.same_as(builtin::shift_right())) {
-    return op->args[0] >> op->args[1];
-  } else if (op->op.same_as(builtin::shift_left())) {
-    return op->args[0] << op->args[1];
-  } else if (op->op.same_as(builtin::bitwise_and())) {
-    return op->args[0] & op->args[1];
-  } else if (op->op.same_as(builtin::bitwise_or())) {
-    return op->args[0] | op->args[1];
-  } else if (op->op.same_as(builtin::bitwise_xor())) {
-    return op->args[0] ^ op->args[1];
-  } else if (op->op.same_as(builtin_pow_)) {
-    return pow(op->args[0], op->args[1]);
+    bool is_condition = is_condition_;
+    is_condition_ = true;
+    PrimExpr cond = VisitExpr(op->args[0]);
+    is_condition_ = is_condition;
+    return if_then_else(cond, VisitExpr(op->args[1]), VisitExpr(op->args[2]));
   }
-
-  return e;
+  return Parent::VisitExpr_(op);
 }
 
 Stmt NarrowDataType(Stmt stmt, int target_bits) { return DataTypeRewriter(target_bits)(stmt); }

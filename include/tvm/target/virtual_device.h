@@ -63,7 +63,7 @@ using MemoryScope = String;
  *
  * Some or all of these fields may be unconstrained, signaling that device planning is free to
  * choose a value consistent with the whole program. However if a \p target is given then the \p
- * device_type must equal \p target->kind->device_type.
+ * device_type must equal \p target->GetTargetDeviceType().
  *
  * Note that currently we assume if a function returns its result on a particular (virtual) device
  * then the function body is also executed on that device. See the overview comment in
@@ -162,12 +162,13 @@ using MemoryScope = String;
  *
  * These operations are needed during device planning.
  */
+
 class VirtualDeviceNode : public AttrsNode<VirtualDeviceNode> {
  private:
   /*!
    * \brief The \p DLDeviceType (represented as an int) of the virtual device. If \p target is
-   * known then this will be equal to \p target->kind->device_type. If \p target is null then the
-   * target is to be determined later.
+   * known then this will be equal to \p target->GetTargetDeviceType(). If \p target is null then
+   * the target is to be determined later.
    *
    * This is needed to support the legacy "on_device" and "device_copy" calls which only allow
    * a \p DLDeviceTypes (as an integer) to be given.
@@ -262,7 +263,7 @@ class VirtualDevice : public ObjectRef {
   /*!
    * \brief Construct a virtual device.
    * \param device_type The device type for the virtual device, or \p kInvalidDeviceType if
-   * unconstrained.  If \p target is defined then must match its \p target->kind->device_type.
+   * unconstrained.  If \p target is defined then must match its \p target->GetTargetDeviceType().
    * \param virtual_device_id The device id for the virtual device, or -1 if unconstrained.
    * \param target The target describing how to compile for the virtual device, or null if
    * unconstrained.
@@ -303,7 +304,7 @@ class VirtualDevice : public ObjectRef {
 
   /*! \brief Returns the \p VirtualDevice for \p target. */
   static VirtualDevice ForTarget(Target target) {
-    DLDeviceType device_type = static_cast<DLDeviceType>(target->kind->device_type);
+    DLDeviceType device_type = static_cast<DLDeviceType>(target->GetTargetDeviceType());
     return VirtualDevice(device_type, /*virtual_device_id=*/0, std::move(target));
   }
 
@@ -360,6 +361,13 @@ class VirtualDeviceCache {
   /*! \brief Already constructed VirtualDevices. */
   std::unordered_set<VirtualDevice, StructuralHash, StructuralEqual> cache_;
 };
+
+/*! brief The attribute key for the virtual device. This key will be promoted to first class on
+ * functions. For use in the parser and printer only.
+ *
+ * Type: VirtualDevice
+ */
+constexpr const char* kVirtualDevice = "virtual_device";
 
 }  // namespace tvm
 

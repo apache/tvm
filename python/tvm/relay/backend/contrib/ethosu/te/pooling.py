@@ -23,6 +23,7 @@ from tvm import te
 from tvm.contrib.ethosu.cascader import TESubgraph, EthosuPart, Propagator, register_matcher
 
 from .dma import dma_ofm_compute, dma_ifm_compute
+from .common import get_layout_transform_matrices
 
 
 def pooling_compute(
@@ -109,9 +110,12 @@ def pooling_compute(
     padding = [int(v) for v in padding]
     stride_h, stride_w = [int(v) for v in strides]
     pool_shape_h, pool_shape_w = [int(v) for v in pool_shape]
+    upscale_factor = 2 if upscale != "NONE" else 1
 
     # Compute operation for the IFM DMA pipeline
-    dmaed_ifm = dma_ifm_compute(ifm, ifm_layout, ifm_zero_point, ifm_scale, ofm_channels, padding)
+    dmaed_ifm = dma_ifm_compute(
+        ifm, ifm_layout, ifm_zero_point, ifm_scale, ofm_channels, padding, upscale_factor
+    )
 
     # Pooling compute operation
     ofm_height = (dmaed_ifm.shape[1] - pool_shape_h) // stride_h + 1
@@ -154,21 +158,8 @@ def pooling_compute(
         attrs=pooling_attrs,
     )
 
-    nhwc_to_nhcwb16 = [
-        [1, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0],
-        [0, 0, 0, 1 / 16, 0],
-        [0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 16],
-        [0, 0, 0, 0, 1],
-    ]
-    nhcwb16_to_nhwc = [
-        [1, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0],
-        [0, 0, 16, 0, 1, -16],
-        [0, 0, 0, 0, 0, 1],
-    ]
+    nhwc_to_nhcwb16, nhcwb16_to_nhwc = get_layout_transform_matrices(int(ofm_channels))
+
     ifm_matrix = [
         [1, 0, 0, 0, 0],
         [0, stride_h, 0, 0, (pool_shape_h - stride_h)],
@@ -228,7 +219,10 @@ def match_ethosu_pooling(output_tensor, device_config):
     pad = pool2d.op.input_tensors[0]
     if pad.op.name != "ethosu_pad":
         return None
-    convert_to_nhwc = pad.op.input_tensors[0]
+    upscale = pad.op.input_tensors[0]
+    if upscale.op.name != "ethosu_upscale":
+        return None
+    convert_to_nhwc = upscale.op.input_tensors[0]
     if convert_to_nhwc.op.name != "ethosu_convert_to_nhwc":
         return None
     read = convert_to_nhwc.op.input_tensors[0]
@@ -245,8 +239,8 @@ def match_ethosu_pooling(output_tensor, device_config):
     ifm_dtype = input_tensors[0].dtype
     ofm_dtype = output_tensor.dtype
 
-    ifm_channels = int(input_tensors[0].shape[3])
-    ofm_channels = ifm_channels
+    # Use channels from a stage of TE graph where the IFM is always NHWC
+    channels = int(pool2d.shape[3])
     pool_shape_h = int(pool2d.op.attrs["pool_shape_h"])
     pool_shape_w = int(pool2d.op.attrs["pool_shape_w"])
 
@@ -262,8 +256,8 @@ def match_ethosu_pooling(output_tensor, device_config):
         propagators[0],
         pool2d.op.attrs,
         output_tensor.shape,
-        ofm_channels,
-        ifm_channels,
+        channels,
+        channels,
         output_layout,
         input_layout,
         ifm_dtype,

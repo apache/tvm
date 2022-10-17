@@ -34,6 +34,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ExecutorNode>([](const ObjectRef& obj, ReprPrinter* p) {
       const Executor& executor = Downcast<Executor>(obj);
       p->stream << executor->name;
+      p->stream << executor->attrs;
     });
 
 /**********  Registry-related code  **********/
@@ -88,9 +89,11 @@ ExecutorRegEntry& ExecutorRegEntry::RegisterOrGet(const String& name) {
 /**********  Register Executors and options  **********/
 
 TVM_REGISTER_EXECUTOR("aot")
+    .add_attr_option<Bool>("link-params", Bool(true))
     .add_attr_option<Bool>("unpacked-api")
     .add_attr_option<String>("interface-api")
-    .add_attr_option<Integer>("workspace-byte-alignment");
+    .add_attr_option<Integer>("workspace-byte-alignment")
+    .add_attr_option<Integer>("constant-byte-alignment");
 
 TVM_REGISTER_EXECUTOR("graph").add_attr_option<Bool>("link-params", Bool(false));
 

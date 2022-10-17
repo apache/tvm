@@ -113,7 +113,7 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
    */
   Doc PrintMapAsAttributeValue(const Map<ObjectRef, ObjectRef>& map);
 
-  Doc PrintSpan(const Span& span, bool include_spans = true);
+  Doc PrintSpan(const Span& span);
 
   Doc Print(const ObjectRef& node, bool meta = false, bool try_inline = false);
 
@@ -152,13 +152,6 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   // Should only be triggered when op is a free variable being visited for the
   // first time.
   Doc VisitExpr_(const VarNode* op) final;
-  /*!
-   * \brief special method to print out const scalar
-   * \param dtype The data type
-   * \param value The value to be printed.
-   */
-  template <typename T>
-  static Doc ScalarLiteral(DataType dtype, const T& value);
   Doc VisitExpr_(const ConstantNode* op) final;
   Doc VisitExpr_(const TupleNode* op) final;
   Doc VisitExpr_(const TupleGetItemNode* op) final;
@@ -359,6 +352,8 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const BufferRealizeNode* op) override;
   Doc VisitStmt_(const ProducerRealizeNode* op) override;
   Doc VisitStmt_(const AllocateNode* op) override;
+  Doc VisitStmt_(const AllocateConstNode* op) override;
+  Doc VisitStmt_(const DeclBufferNode* op) override;
   Doc VisitStmt_(const IfThenElseNode* op) override;
   Doc VisitStmt_(const SeqStmtNode* op) override;
   Doc VisitStmt_(const EvaluateNode* op) override;
@@ -398,6 +393,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   static Doc PrintConstScalar(DataType dtype, const T& data);
   Doc GetUniqueName(std::string prefix);
   Doc AllocVar(const Var& var);
+  Doc AllocConst(const AllocateConst& var);
   Doc AllocBuf(const Buffer& buffer);
   Doc AllocProducer(const DataProducer& buffer);
   /*!

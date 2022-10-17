@@ -258,6 +258,25 @@ TOPI_DEFINE_BCAST_OP(floor_divide, {
 });
 
 /*!
+ * \fn trunc divide
+ * \brief Compute trunc(A / B) with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(trunc_divide, {
+  if (a.dtype().is_int() || a.dtype().is_uint()) {
+    return truncdiv(a, b);
+  } else {
+    return trunc(div(a, b));
+  }
+});
+
+/*!
  * \fn mod
  * \brief Compute A % B with auto-broadcasting.
  *
@@ -286,6 +305,25 @@ TOPI_DEFINE_BCAST_OP(floor_mod, {
     return floormod(a, b);
   } else {
     return a - floor_divide(a, b) * b;
+  }
+});
+
+/*!
+ * \fn trunc mod
+ * \brief Compute A - trunc_div(A, B) * B with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(trunc_mod, {
+  if (a.dtype().is_int() || a.dtype().is_uint()) {
+    return truncmod(a, b);
+  } else {
+    return a - trunc_divide(a, b) * b;
   }
 });
 

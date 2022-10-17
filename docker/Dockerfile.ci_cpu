@@ -16,19 +16,27 @@
 # under the License.
 
 # CI docker CPU env
-# tag: v0.62
 FROM ubuntu:18.04
+
+COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 
 RUN apt-get update --fix-missing
 
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
-COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
-RUN bash /install/ubuntu1804_install_python.sh
+COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
+RUN bash /install/ubuntu_install_cmake_source.sh
 
-# Globally disable pip cache
-RUN pip config set global.no-cache-dir false
+COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
+RUN bash /install/ubuntu_install_googletest.sh
+
+ENV TVM_VENV /venv/apache-tvm-py3.7
+COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
+COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
+RUN bash /install/ubuntu_install_python.sh
+ENV PATH ${TVM_VENV}/bin:$PATH
+ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
@@ -99,6 +107,10 @@ COPY install/ubuntu_download_arm_compute_lib_binaries.sh /install/ubuntu_downloa
 RUN bash /install/ubuntu_download_arm_compute_lib_binaries.sh
 
 # Caffe deps
+COPY install/ubuntu_install_boost.sh /install/ubuntu_install_boost.sh
+RUN bash /install/ubuntu_install_boost.sh
+
+# Caffe
 COPY install/ubuntu_install_caffe.sh /install/ubuntu_install_caffe.sh
 RUN bash /install/ubuntu_install_caffe.sh
 
@@ -116,17 +128,6 @@ RUN bash /install/ubuntu_install_androidsdk.sh
 ENV ANDROID_HOME=/opt/android-sdk-linux/
 ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147/
 
-# Arm(R) Ethos(TM)-U NPU driver
-COPY install/ubuntu_install_ethosu_driver_stack.sh /install/ubuntu_install_ethosu_driver_stack.sh
-RUN bash /install/ubuntu_install_ethosu_driver_stack.sh
-
-# Install Vela compiler
-COPY install/ubuntu_install_vela.sh /install/ubuntu_install_vela.sh
-RUN bash /install/ubuntu_install_vela.sh
-
-# Update PATH
-ENV PATH /opt/arm/gcc-arm-none-eabi/bin:/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4:$PATH
-
 # PaddlePaddle deps
 COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
 RUN bash /install/ubuntu_install_paddle.sh
@@ -134,3 +135,8 @@ RUN bash /install/ubuntu_install_paddle.sh
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh
+ENV PATH /opt/sccache:$PATH
+
+# Libxsmm deps
+COPY install/ubuntu_install_libxsmm.sh /install
+RUN bash /install/ubuntu_install_libxsmm.sh

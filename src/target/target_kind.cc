@@ -30,6 +30,7 @@
 #include <algorithm>
 
 #include "../node/attr_registry.h"
+#include "./parsers/cpu.h"
 
 namespace tvm {
 
@@ -145,15 +146,15 @@ void CheckOrSetAttr(Map<String, ObjectRef>* attrs, const String& name, const Str
 
 /*!
  * \brief Update the attributes in the CUDA target.
- * \param attrs The original attributes
+ * \param target The Target to update
  * \return The updated attributes
  */
-Map<String, ObjectRef> UpdateCUDAAttrs(Map<String, ObjectRef> attrs) {
+TargetJSON UpdateCUDAAttrs(TargetJSON target) {
   // Update -arch=sm_xx
   int archInt;
-  if (attrs.count("arch")) {
+  if (target.count("arch")) {
     // If -arch has been specified, validate the correctness
-    String archStr = Downcast<String>(attrs.at("arch"));
+    String archStr = Downcast<String>(target.at("arch"));
     archInt = ExtractIntWithPrefix(archStr, "sm_");
     ICHECK(archInt != -1) << "ValueError: CUDA target gets an invalid CUDA arch: -arch=" << archStr;
   } else {
@@ -165,23 +166,23 @@ Map<String, ObjectRef> UpdateCUDAAttrs(Map<String, ObjectRef> attrs) {
     } else {
       archInt = std::stod(version.operator std::string()) * 10 + 0.1;
     }
-    attrs.Set("arch", String("sm_") + std::to_string(archInt));
+    target.Set("arch", String("sm_") + std::to_string(archInt));
   }
-  return attrs;
+  return target;
 }
 
 /*!
  * \brief Update the attributes in the LLVM NVPTX target.
- * \param attrs The original attributes
+ * \param target The Target to update
  * \return The updated attributes
  */
-Map<String, ObjectRef> UpdateNVPTXAttrs(Map<String, ObjectRef> attrs) {
-  CheckOrSetAttr(&attrs, "mtriple", "nvptx64-nvidia-cuda");
+TargetJSON UpdateNVPTXAttrs(TargetJSON target) {
+  CheckOrSetAttr(&target, "mtriple", "nvptx64-nvidia-cuda");
   // Update -mcpu=sm_xx
   int arch;
-  if (attrs.count("mcpu")) {
+  if (target.count("mcpu")) {
     // If -mcpu has been specified, validate the correctness
-    String mcpu = Downcast<String>(attrs.at("mcpu"));
+    String mcpu = Downcast<String>(target.at("mcpu"));
     arch = ExtractIntWithPrefix(mcpu, "sm_");
     ICHECK(arch != -1) << "ValueError: NVPTX target gets an invalid CUDA arch: -mcpu=" << mcpu;
   } else {
@@ -193,22 +194,22 @@ Map<String, ObjectRef> UpdateNVPTXAttrs(Map<String, ObjectRef> attrs) {
     } else {
       arch = std::stod(version.operator std::string()) * 10 + 0.1;
     }
-    attrs.Set("mcpu", String("sm_") + std::to_string(arch));
+    target.Set("mcpu", String("sm_") + std::to_string(arch));
   }
-  return attrs;
+  return target;
 }
 
 /*!
  * \brief Update the attributes in the LLVM ROCm target.
- * \param attrs The original attributes
+ * \param target The Target to update
  * \return The updated attributes
  */
-Map<String, ObjectRef> UpdateROCmAttrs(Map<String, ObjectRef> attrs) {
-  CheckOrSetAttr(&attrs, "mtriple", "amdgcn-amd-amdhsa-hcc");
+TargetJSON UpdateROCmAttrs(TargetJSON target) {
+  CheckOrSetAttr(&target, "mtriple", "amdgcn-amd-amdhsa-hcc");
   // Update -mcpu=gfx
   int arch;
-  if (attrs.count("mcpu")) {
-    String mcpu = Downcast<String>(attrs.at("mcpu"));
+  if (target.count("mcpu")) {
+    String mcpu = Downcast<String>(target.at("mcpu"));
     arch = ExtractIntWithPrefix(mcpu, "gfx");
     ICHECK(arch != -1) << "ValueError: ROCm target gets an invalid GFX version: -mcpu=" << mcpu;
   } else {
@@ -219,7 +220,7 @@ Map<String, ObjectRef> UpdateROCmAttrs(Map<String, ObjectRef> attrs) {
     } else {
       arch = val.operator int();
     }
-    attrs.Set("mcpu", String("gfx") + std::to_string(arch));
+    target.Set("mcpu", String("gfx") + std::to_string(arch));
   }
   // Update -mattr before ROCm 3.5:
   //   Before ROCm 3.5 we needed code object v2, starting
@@ -235,13 +236,24 @@ Map<String, ObjectRef> UpdateROCmAttrs(Map<String, ObjectRef> attrs) {
   }
   if (version < 305) {
     Array<String> mattr;
-    if (attrs.count("mattr")) {
-      mattr = Downcast<Array<String>>(attrs.at("mattr"));
+    if (target.count("mattr")) {
+      mattr = Downcast<Array<String>>(target.at("mattr"));
     }
     mattr.push_back("-code-object-v3");
-    attrs.Set("mattr", mattr);
+    target.Set("mattr", mattr);
   }
-  return attrs;
+  return target;
+}
+
+/*!
+ * \brief Test Target Parser
+ * \param target The Target to update
+ * \return The updated attributes
+ */
+TargetJSON TestTargetParser(TargetJSON target) {
+  Map<String, ObjectRef> features = {{"is_test", Bool(true)}};
+  target.Set("features", features);
+  return target;
 }
 
 /**********  Register Target kinds and attributes  **********/
@@ -252,12 +264,7 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<String>("mtriple")
     .add_attr_option<String>("mfloat-abi")
     .add_attr_option<String>("mabi")
-    .add_attr_option<Bool>("system-lib")
-    .add_attr_option<String>("runtime")
     .add_attr_option<Integer>("num-cores")
-    .add_attr_option<Bool>("link-params", Bool(false))
-    .add_attr_option<Bool>("unpacked-api")
-    .add_attr_option<String>("interface-api")
     // Fast math flags, see https://llvm.org/docs/LangRef.html#fast-math-flags
     .add_attr_option<Bool>("fast-math")  // implies all the below
     .add_attr_option<Bool>("fast-math-nnan")
@@ -267,55 +274,80 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<Bool>("fast-math-contract")
     .add_attr_option<Bool>("fast-math-reassoc")
     .add_attr_option<Integer>("opt-level")
-    .set_default_keys({"cpu"});
+    // LLVM command line flags, see below
+    .add_attr_option<Array<String>>("cl-opt")
+    .set_default_keys({"cpu"})
+    // Force the external codegen kind attribute to be registered, even if no external
+    // codegen targets are enabled by the TVM build.
+    .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(false))
+    .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
+
+// Note regarding the "cl-opt" attribute:
+// Each string in the array has the format
+//   -optionname[[:type]=value]
+// where
+//   * optionname is the actual LLVM option (e.g. "unroll-threshold")
+//   * type is one of "bool", "int", "uint", or "string"
+//   * value is the corresponding option value (for "bool" type is can be 0 or "false"
+//     for false value, or 1 or "true" for true value)
+// If type is omitted, it is assumed to be "bool". If value is omitted, it is assumed
+// to be "true".
+//
+// The type must match the option type in LLVM. To find the type, search the LLVM
+// repository (https://github.com/llvm/llvm-project) for optionname, and look for
+// its definition: it will be a declaration of a variable of type cl::opt<T> with
+// optionname being an argument to the constructor. The T in the declaration is
+// the type.
+// For example, for unroll-threshold, we get the following declaration:
+// static cl::opt<unsigned>
+//     UnrollThreshold("unroll-threshold", cl::Hidden,
+//                     cl::desc("The cost threshold for loop unrolling"));
+// Hence the type is "uint".
 
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
-    .add_attr_option<Bool>("system-lib")
-    .add_attr_option<Bool>("link-params", Bool(false))
-    .add_attr_option<String>("runtime")
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("march")
-    .add_attr_option<String>("executor")
     .add_attr_option<Integer>("workspace-byte-alignment")
     .add_attr_option<Integer>("constants-byte-alignment")
-    .add_attr_option<Bool>("unpacked-api")
-    .add_attr_option<String>("interface-api")
-    .set_default_keys({"cpu"});
+    .set_default_keys({"cpu"})
+    .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
 
 TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("arch")
-    .add_attr_option<Bool>("system-lib")
-    .add_attr_option<Integer>("max_num_threads", Integer(1024))
-    .add_attr_option<Integer>("thread_warp_size", Integer(32))
-    .add_attr_option<Integer>("shared_memory_per_block")
-    .add_attr_option<Integer>("registers_per_block")
+    .add_attr_option<Integer>("max_shared_memory_per_block")
     .add_attr_option<Integer>("max_threads_per_block")
+    .add_attr_option<Integer>("thread_warp_size", Integer(32))
+    .add_attr_option<Integer>("registers_per_block")
+    .add_attr_option<Integer>("max_num_threads", Integer(1024))  // TODO(@zxybazh): deprecate it
     .set_default_keys({"cuda", "gpu"})
-    .set_attrs_preprocessor(UpdateCUDAAttrs);
+    .set_target_parser(UpdateCUDAAttrs);
 
 TVM_REGISTER_TARGET_KIND("nvptx", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
-    .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(1024))
     .add_attr_option<Integer>("thread_warp_size", Integer(32))
     .set_default_keys({"cuda", "gpu"})
-    .set_attrs_preprocessor(UpdateNVPTXAttrs);
+    .set_target_parser(UpdateNVPTXAttrs);
 
 TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
-    .add_attr_option<Bool>("system-lib")
+    .add_attr_option<Array<String>>("mattr")
+    // TODO(masahi): Support querying from a target device
+    // On RDNA cards, thread_warp_size should be 32
     .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .add_attr_option<Integer>("max_threads_per_block", Integer(256))
+    .add_attr_option<Integer>("max_shared_memory_per_block", Integer(65536))
     .add_attr_option<Integer>("thread_warp_size", Integer(64))
     .set_default_keys({"rocm", "gpu"})
-    .set_attrs_preprocessor(UpdateROCmAttrs);
+    .set_target_parser(UpdateROCmAttrs);
 
 TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
-    .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
     .add_attr_option<Integer>("thread_warp_size", Integer(1))
+    .add_attr_option<Integer>("texture_spatial_limit", Integer(16384))
     .set_default_keys({"opencl", "gpu"});
 
 // The metal has some limitations on the number of input parameters. This is why attribute
@@ -323,14 +355,13 @@ TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
 // information about this limitation can be found here:
 // https://developer.apple.com/documentation/metal/buffers/about_argument_buffers?language=objc
 TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
-    .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
     .add_attr_option<Integer>("thread_warp_size", Integer(16))
     .add_attr_option<Integer>("max_function_args", Integer(31))
     .set_default_keys({"metal", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
-    .add_attr_option<Bool>("system-lib")
+    .add_attr_option<Array<String>>("mattr")
     // Feature support
     .add_attr_option<Bool>("supports_float16")
     .add_attr_option<Bool>("supports_float32", Bool(true))
@@ -344,9 +375,11 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Bool>("supports_storage_buffer_storage_class")
     .add_attr_option<Bool>("supports_push_descriptor")
     .add_attr_option<Bool>("supports_dedicated_allocation")
+    .add_attr_option<Bool>("supports_integer_dot_product")
     .add_attr_option<Integer>("supported_subgroup_operations")
     // Physical device limits
     .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .add_attr_option<Integer>("max_threads_per_block", Integer(256))
     .add_attr_option<Integer>("thread_warp_size", Integer(1))
     .add_attr_option<Integer>("max_block_size_x")
     .add_attr_option<Integer>("max_block_size_y")
@@ -367,42 +400,37 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .set_default_keys({"vulkan", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
-    .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
     .set_default_keys({"webgpu", "gpu"});
 
-TVM_REGISTER_TARGET_KIND("sdaccel", kDLOpenCL)
-    .add_attr_option<Bool>("system-lib")
+TVM_REGISTER_TARGET_KIND("sdaccel", kDLOpenCL)  // line break
     .set_default_keys({"sdaccel", "hls"});
 
-TVM_REGISTER_TARGET_KIND("aocl", kDLAOCL)
-    .add_attr_option<Bool>("system-lib")
+TVM_REGISTER_TARGET_KIND("aocl", kDLAOCL)  // line break
     .set_default_keys({"aocl", "hls"});
 
-TVM_REGISTER_TARGET_KIND("aocl_sw_emu", kDLAOCL)
-    .add_attr_option<Bool>("system-lib")
+TVM_REGISTER_TARGET_KIND("aocl_sw_emu", kDLAOCL)  // line break
     .set_default_keys({"aocl", "hls"});
 
 TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
     .add_attr_option<Array<String>>("mattr")
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
-    .add_attr_option<Bool>("system-lib")
-    .add_attr_option<Bool>("link-params", Bool(false))
     .add_attr_option<Array<String>>("llvm-options")
+    .add_attr_option<Integer>("num-cores")
     .set_default_keys({"hexagon"});
 
-TVM_REGISTER_TARGET_KIND("stackvm", kDLCPU)  // line break
-    .add_attr_option<Bool>("system-lib");
+TVM_REGISTER_TARGET_KIND("stackvm", kDLCPU);
 
-TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev)  // line break
-    .add_attr_option<Bool>("system-lib");
+TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev);
 
-TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU)  // line break
-    .add_attr_option<Bool>("system-lib");
+TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU);
 
 TVM_REGISTER_TARGET_KIND("composite", kDLCPU)  // line break
     .add_attr_option<Array<Target>>("devices");
+
+TVM_REGISTER_TARGET_KIND("test", kDLCPU)  // line break
+    .set_target_parser(TestTargetParser);
 
 /**********  Registry  **********/
 

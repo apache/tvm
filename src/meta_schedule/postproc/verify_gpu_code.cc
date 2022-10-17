@@ -21,6 +21,83 @@
 #include "../utils.h"
 
 namespace tvm {
+namespace tir {
+
+class ThreadExtentChecker : private StmtVisitor {
+ public:
+  static bool Check(const Stmt& stmt, int thread_warp_size) {
+    try {
+      ICHECK(thread_warp_size > 0);
+      ThreadExtentChecker checker(thread_warp_size);
+      checker.VisitStmt(stmt);
+      return true;
+    } catch (const dmlc::Error& e) {
+      return false;
+    }
+  }
+
+ private:
+  explicit ThreadExtentChecker(int thread_warp_size) : thread_warp_size_(thread_warp_size) {}
+
+  void VisitStmt_(const ForNode* loop) {
+    runtime::ThreadScope thread_scope = GetThreadScope(loop);
+    if (IsThreadIdx(thread_scope)) {
+      if (const int64_t* p_ext = GetLoopIntExtent(loop)) {
+        int64_t ext = *p_ext;
+        if (thread_scope.dim_index == 0) {
+          std::swap(thread_idx_x, ext);
+          StmtVisitor::VisitStmt_(loop);
+          std::swap(thread_idx_x, ext);
+        } else if (thread_scope.dim_index == 1) {
+          std::swap(thread_idx_y, ext);
+          StmtVisitor::VisitStmt_(loop);
+          std::swap(thread_idx_y, ext);
+        } else if (thread_scope.dim_index == 2) {
+          std::swap(thread_idx_z, ext);
+          StmtVisitor::VisitStmt_(loop);
+          std::swap(thread_idx_z, ext);
+        } else {
+          StmtVisitor::VisitStmt_(loop);
+        }
+        return;
+      } else {
+        throw dmlc::Error("Dynamic thread extent");
+      }
+    }
+    StmtVisitor::VisitStmt_(loop);
+  }
+
+  void VisitStmt_(const BlockNode* block) {
+    int old_thread_idx_x = thread_idx_x;
+    if (block->annotations.count(attr::warp_execution)) {
+      thread_idx_x = thread_warp_size_;
+    }
+    if (Optional<Integer> low_inclusive =
+            GetAnn<Integer>(block, attr::meta_schedule_thread_extent_low_inclusive)) {
+      if (Optional<Integer> high_inclusive =
+              GetAnn<Integer>(block, attr::meta_schedule_thread_extent_high_inclusive)) {
+        int64_t low = low_inclusive.value()->value;
+        int64_t high = high_inclusive.value()->value;
+        int64_t thread_extent_product = thread_idx_x * thread_idx_y * thread_idx_z;
+        if (!(low <= thread_extent_product && thread_extent_product <= high)) {
+          throw dmlc::Error("Thread extent");
+        }
+      }
+    }
+    StmtVisitor::VisitStmt_(block);
+    thread_idx_x = old_thread_idx_x;
+  }
+
+  int64_t thread_idx_x = 1;
+  int64_t thread_idx_y = 1;
+  int64_t thread_idx_z = 1;
+  int thread_warp_size_ = -1;
+};
+
+}  // namespace tir
+}  // namespace tvm
+
+namespace tvm {
 namespace meta_schedule {
 
 /*! \brief Extract attribute from a target. */
@@ -37,16 +114,18 @@ Integer Extract(const Target& target, const char* name) {
 class VerifyGPUCodeNode : public PostprocNode {
  public:
   Map<String, PrimExpr> target_constraints_{nullptr};
+  int thread_warp_size_ = -1;
 
   void InitializeWithTuneContext(const TuneContext& context) final {
     ICHECK(context->target.defined());
     Target target = context->target.value();
     this->target_constraints_ = Map<String, PrimExpr>{
-        {"max_shared_memory_per_block", Extract(target, "shared_memory_per_block")},
-        {"max_local_memory_per_block", Extract(target, "registers_per_block")},
+        {"max_shared_memory_per_block", Extract(target, "max_shared_memory_per_block")},
         {"max_threads_per_block", Extract(target, "max_threads_per_block")},
         {"max_vthread", Integer(8)},
-        {"max_vector_bytes", Integer(16)}};
+        {"max_vector_bytes", Integer(16)},
+    };
+    thread_warp_size_ = Extract(target, "thread_warp_size").IntValue();
   }
 
   bool Verify(const IRModule& mod) const {
@@ -66,6 +145,9 @@ class VerifyGPUCodeNode : public PostprocNode {
       const GlobalVar& g_var = kv.first;
       const BaseFunc& base_func = kv.second;
       if (const auto* prim_func = base_func.as<tir::PrimFuncNode>()) {
+        if (!tir::ThreadExtentChecker::Check(prim_func->body, thread_warp_size_)) {
+          return false;
+        }
         IRModule lowered{nullptr};
         try {
           auto pass_list = Array<tvm::transform::Pass>();
@@ -81,18 +163,18 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tir::transform::UnifyThreadBinding());
           pass_list.push_back(tir::transform::CompactBufferAllocation());
           pass_list.push_back(tir::transform::LowerMatchBuffer());
+          pass_list.push_back(tir::transform::InjectSoftwarePipeline());
+          pass_list.push_back(tir::transform::LowerOpaqueBlock());
           pass_list.push_back(tir::transform::FlattenBuffer());
           pass_list.push_back(tir::transform::BF16Legalize());
           pass_list.push_back(tir::transform::NarrowDataType(32));
           pass_list.push_back(tir::transform::Simplify());
-
           // Phase 2
           pass_list.push_back(tir::transform::VectorizeLoop(true));
           pass_list.push_back(tir::transform::InjectVirtualThread());
           pass_list.push_back(tir::transform::InjectDoubleBuffer());
           pass_list.push_back(tir::transform::StorageRewrite());
           pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
-
           // Convert Function to IRModule
           transform::PassContext pass_ctx = transform::PassContext::Current();
           tir::PrimFunc f = WithAttr(GetRef<tir::PrimFunc>(prim_func), "global_symbol",
@@ -112,6 +194,12 @@ class VerifyGPUCodeNode : public PostprocNode {
       }
     }
     return true;
+  }
+
+  Postproc Clone() const {
+    ObjectPtr<VerifyGPUCodeNode> n = make_object<VerifyGPUCodeNode>(*this);
+    n->target_constraints_ = this->target_constraints_;
+    return Postproc(n);
   }
 
   static constexpr const char* _type_key = "meta_schedule.VerifyGPUCode";

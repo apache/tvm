@@ -26,7 +26,7 @@
 
 #include <functional>
 
-#include "./functor_common.h"
+#include "functor_common.h"
 
 namespace tvm {
 namespace tir {
@@ -58,10 +58,15 @@ void StmtVisitor::VisitStmt_(const AllocateNode* op) {
   this->VisitExpr(op->condition);
 }
 
+void StmtVisitor::VisitStmt_(const AllocateConstNode* op) {
+  VisitArray(op->extents, [this](const PrimExpr& e) { this->VisitExpr(e); });
+  this->VisitStmt(op->body);
+}
+
+void StmtVisitor::VisitStmt_(const DeclBufferNode* op) { this->VisitStmt(op->body); }
+
 void StmtVisitor::VisitStmt_(const StoreNode* op) {
-  this->VisitExpr(op->value);
-  this->VisitExpr(op->index);
-  this->VisitExpr(op->predicate);
+  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
 }
 
 void StmtVisitor::VisitStmt_(const BufferStoreNode* op) {
@@ -178,9 +183,8 @@ class StmtMutator::Internal {
       return arr;
     } else {
       bool allow_cow = false;
-      Array<T> copy = arr;
       std::swap(allow_cow, self->allow_copy_on_write_);
-      copy.MutateByApply(fmutate);
+      Array<T> copy = arr.Map(fmutate);
       std::swap(allow_cow, self->allow_copy_on_write_);
       return copy;
     }
@@ -319,6 +323,32 @@ Stmt StmtMutator::VisitStmt_(const AllocateNode* op) {
   }
 }
 
+Stmt StmtMutator::VisitStmt_(const AllocateConstNode* op) {
+  Array<PrimExpr> extents = Internal::Mutate(this, op->extents);
+  Stmt body = this->VisitStmt(op->body);
+
+  if (extents.same_as(op->extents) && body.same_as(op->body)) {
+    return GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->extents = std::move(extents);
+    n->body = std::move(body);
+    return Stmt(n);
+  }
+}
+
+Stmt StmtMutator::VisitStmt_(const DeclBufferNode* op) {
+  Stmt body = this->VisitStmt(op->body);
+
+  if (body.same_as(op->body)) {
+    return GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->body = std::move(body);
+    return Stmt(n);
+  }
+}
+
 Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
   Stmt then_case = this->VisitStmt(op->then_case);
@@ -339,18 +369,8 @@ Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const StoreNode* op) {
-  PrimExpr value = this->VisitExpr(op->value);
-  PrimExpr index = this->VisitExpr(op->index);
-  PrimExpr predicate = this->VisitExpr(op->predicate);
-  if (value.same_as(op->value) && index.same_as(op->index) && predicate.same_as(op->predicate)) {
-    return GetRef<Stmt>(op);
-  } else {
-    auto n = CopyOnWrite(op);
-    n->value = std::move(value);
-    n->index = std::move(index);
-    n->predicate = std::move(predicate);
-    return Stmt(n);
-  }
+  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+  return Stmt();
 }
 
 Stmt StmtMutator::VisitStmt_(const BufferStoreNode* op) {
@@ -640,28 +660,66 @@ class IRSubstitute : public StmtExprMutator {
   PrimExpr VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
     auto ret = vmap_(var);
-    if (ret.defined()) return ret.value();
+    if (ret.defined()) {
+      // Allow substitution of void variables with any expression. The TVM script parser
+      // uses void variables for lambda parameters (since exact types are not known yet).
+      if (!var.dtype().is_void()) {
+        PrimExpr ret_ex = Downcast<PrimExpr>(ret.value());
+        ICHECK(ret_ex.dtype() == var.dtype()) << "substituting " << var << ":" << var.dtype()
+                                              << " -> " << ret_ex << ":" << ret_ex.dtype();
+      }
+      return ret.value();
+    }
     return std::move(var);
   }
 
   PrimExpr VisitExpr_(const LoadNode* op) final {
-    PrimExpr ret = StmtExprMutator::VisitExpr_(op);
-    op = ret.as<LoadNode>();
-    if (auto mapped_var = vmap_(op->buffer_var)) {
-      return Load(op->dtype, Downcast<Var>(mapped_var.value()), op->index, op->predicate);
-    } else {
-      return ret;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
-    Stmt ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<StoreNode>();
-    if (auto mapped_var = vmap_(op->buffer_var)) {
-      return Store(Downcast<Var>(mapped_var.value()), op->value, op->index, op->predicate);
-    } else {
-      return ret;
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    Buffer new_buf = GetRemappedBuffer(node->buffer);
+
+    if (!new_buf.same_as(node->buffer)) {
+      auto writer = node.CopyOnWrite();
+      writer->buffer = new_buf;
     }
+
+    return node;
+  }
+
+  Buffer GetRemappedBuffer(Buffer buf) {
+    auto key = buf.get();
+    auto it = buf_remap_.find(key);
+    if (it != buf_remap_.end()) {
+      return it->second;
+    }
+
+    auto new_buffer_var = vmap_(buf->data);
+    if (new_buffer_var.defined() && !new_buffer_var.value().same_as(buf->data)) {
+      auto writer = buf.CopyOnWrite();
+      writer->data = Downcast<Var>(new_buffer_var);
+    }
+
+    buf_remap_[key] = buf;
+    return buf;
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -677,7 +735,17 @@ class IRSubstitute : public StmtExprMutator {
   }
 
  private:
+  // Caller provided function that defines the variables to be remapped.
   std::function<Optional<PrimExpr>(const Var&)> vmap_;
+
+  /* \brief Generated map to track buffers being remapped.
+   *
+   * If a `Var BufferNode::data` is remapped, then all buffers
+   * containing that data pointer should also be remapped.  This map
+   * is used to track buffer modifications, and ensure all instances
+   * of a buffer are replaced by the same modified buffer object.
+   */
+  std::unordered_map<const BufferNode*, Buffer> buf_remap_;
 };
 
 Stmt Substitute(Stmt stmt, std::function<Optional<PrimExpr>(const Var&)> vmap) {
@@ -745,6 +813,10 @@ TVM_REGISTER_GLOBAL("tir.IRTransform").set_body_typed(IRTransform);
 
 TVM_REGISTER_GLOBAL("tir.PostOrderVisit").set_body_typed([](ObjectRef node, PackedFunc f) {
   tir::PostOrderVisit(node, [f](const ObjectRef& n) { f(n); });
+});
+
+TVM_REGISTER_GLOBAL("tir.PreOrderVisit").set_body_typed([](ObjectRef node, PackedFunc f) {
+  tir::PreOrderVisit(node, [f](const ObjectRef& n) { return f(n); });
 });
 
 TVM_REGISTER_GLOBAL("tir.Substitute")

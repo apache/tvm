@@ -20,7 +20,9 @@ import builtins
 from typing import List, Any
 
 import tvm.tir
+from tvm.tir import FloatImm
 from ..registry import register
+from ...target import codegen
 from ..utils import get_param_list, tvm_span_from_synr
 
 
@@ -41,64 +43,25 @@ def bool(imm, span):
     return imm.astype("bool", span)
 
 
-@register
-def int8(imm, span):
-    return imm.astype("int8", span)
+# register all datatypes
+for _dtype in ["float", "uint", "int"]:
+    for _size in ["8", "16", "32", "64"]:
+        for _lanes in ["", "x4", "x8", "x16", "x32"]:
+            _name = _dtype + _size + _lanes
 
+            # nest closures so we copy the name string
+            def wrap(name):
+                def f(imm, span):
+                    if name.startswith("float"):
+                        if imm in {"inf", "-inf", "nan"}:
+                            return FloatImm(dtype=name, value=float(imm), span=span)
+                    return imm.astype(name, span)
 
-@register
-def int16(imm, span):
-    return imm.astype("int16", span)
+                f.__name__ = name
+                return f
 
-
-@register
-def int32(imm, span):
-    return imm.astype("int32", span)
-
-
-@register
-def int64(imm, span):
-    return imm.astype("int64", span)
-
-
-@register
-def uint8(imm, span):
-    return imm.astype("uint8", span)
-
-
-@register
-def uint16(imm, span):
-    return imm.astype("uint16", span)
-
-
-@register
-def uint32(imm, span):
-    return imm.astype("uint32", span)
-
-
-@register
-def uint64(imm, span):
-    return imm.astype("uint64", span)
-
-
-@register
-def float8(imm, span):
-    return imm.astype("float8", span)
-
-
-@register
-def float16(imm, span):
-    return imm.astype("float16", span)
-
-
-@register
-def float32(imm, span):
-    return imm.astype("float32", span)
-
-
-@register
-def float64(imm, span):
-    return imm.astype("float64", span)
+            _intrin = wrap(_name)
+            register(_intrin)
 
 
 @register
@@ -124,6 +87,16 @@ def floormod(x, y, span):
 @register
 def truncmod(x, y, span):
     return tvm.tir.truncmod(x, y, span)
+
+
+@register
+def truncdiv(x, y, span):
+    return tvm.tir.truncdiv(x, y, span)
+
+
+@register
+def ceildiv(x, y, span):
+    return tvm.tir.ceildiv(x, y, span)
 
 
 @register
@@ -202,6 +175,11 @@ def Select(cond, if_body, else_body, span):  # pylint: disable=invalid-name
 
 
 @register
+def Let(var, value, body, span):  # pylint: disable=invalid-name
+    return tvm.tir.Let(var, value, body, span)
+
+
+@register
 class EvaluateIntrin(Intrin):
     def __init__(self):
         def evaluate(value, span):
@@ -220,6 +198,17 @@ class StoreIntrin(Intrin):
 
 
 @register
+class AssumeIntrin(Intrin):
+    def __init__(self):
+        def assume(constraint, span):
+            return tvm.tir.Evaluate(
+                tvm.tir.call_intrin("bool", "tir.assume", constraint, span=span)
+            )
+
+        super().__init__(assume, stmt=True)
+
+
+@register
 def comm_reducer(lambda_io, identities, span):
     """Create a CommReducer from lambda inputs/outputs and the identities"""
     lambda_input = lambda_io[0]
@@ -234,3 +223,9 @@ def comm_reducer(lambda_io, identities, span):
         lambda_output = (lambda_output,)
 
     return tvm.tir.CommReducer(x, y, lambda_output, identities, span)
+
+
+@register
+def llvm_lookup_intrinsic_id(name, span):
+    # pylint: disable=unused-argument
+    return codegen.llvm_lookup_intrinsic_id(name)

@@ -26,6 +26,8 @@ from tvm.relay.testing import run_infer_type
 import tvm.topi.testing
 import tvm.testing
 
+executor_kind = tvm.testing.parameter("debug", "vm")
+
 
 def test_resize2d_infer_type():
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
@@ -37,7 +39,7 @@ def test_resize2d_infer_type():
 
 
 @tvm.testing.uses_gpu
-def test_resize2d():
+def test_resize2d(executor_kind):
     def verify_resize2d(dshape, scale, method, layout):
         if layout == "NHWC":
             size = (dshape[1] * scale, dshape[2] * scale)
@@ -62,12 +64,11 @@ def test_resize2d():
         )
 
         for target, dev in tvm.testing.enabled_targets():
-            for kind in ["vm", "debug"]:
-                mod = tvm.ir.IRModule.from_expr(func)
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_data, size
-                )
-                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
+            mod = tvm.ir.IRModule.from_expr(func)
+            op_res = relay.create_executor(
+                executor_kind, mod=mod, device=dev, target=target
+            ).evaluate()(x_data, size)
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
 
     for method in ["linear", "nearest_neighbor"]:
         for layout in ["NCHW", "NHWC"]:
@@ -76,5 +77,5 @@ def test_resize2d():
 
 
 if __name__ == "__main__":
-    test_resize_infer_type()
-    test_resize()
+    test_resize2d_infer_type()
+    test_resize2d()

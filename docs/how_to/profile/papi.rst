@@ -34,6 +34,7 @@ PAPI can either be installed using your package manager (``apt-get install libpa
 on Ubuntu), or from source here:
 https://bitbucket.org/icl/papi/src/master/.
 
+Pulling the latest version of PAPI from source has caused build issues before. Therefore, it is recommended to checkout tagged version ``papi-6-0-0-1-t``.
 
 Building TVM With PAPI
 ----------------------
@@ -61,6 +62,12 @@ is an example:
 
 .. code:: python
 
+    import tvm
+    from tvm import relay
+    from tvm.relay.testing import mlp
+    from tvm.runtime import profiler_vm
+    import numpy as np
+
     target = "llvm"
     dev = tvm.cpu()
     mod, params = mlp.get_workload(1)
@@ -70,7 +77,7 @@ is an example:
 
     data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=dev)
     report = vm.profile(
-        [data],
+        data,
         func_name="main",
         collectors=[tvm.runtime.profiling.PAPIMetricCollector()],
     )
@@ -93,7 +100,7 @@ You can also change which metrics are collected:
 .. code:: python
 
     report = vm.profile(
-        [data],
+        data,
         func_name="main",
         collectors=[tvm.runtime.profiling.PAPIMetricCollector({dev: ["PAPI_FP_OPS"])],
     )

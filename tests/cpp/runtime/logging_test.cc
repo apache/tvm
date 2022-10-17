@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <tvm/runtime/logging.h>
 
@@ -51,7 +52,7 @@ TEST(TvmLogDebugSettings, VLogEnabledDefault) {
 
 TEST(TvmLogDebugSettings, VLogEnabledComplex) {
   TvmLogDebugSettings settings =
-      TvmLogDebugSettings::ParseSpec("foo/bar.cc=3;baz.cc=-1;DEFAULT=2;another/file.cc=4");
+      TvmLogDebugSettings::ParseSpec("foo/bar.cc=3,baz.cc=-1,DEFAULT=2,another/file.cc=4");
   EXPECT_TRUE(settings.dlog_enabled());
   EXPECT_TRUE(settings.VerboseEnabled("my/filesystem/src/foo/bar.cc", 3));
   EXPECT_FALSE(settings.VerboseEnabled("my/filesystem/src/foo/bar.cc", 4));
@@ -60,8 +61,39 @@ TEST(TvmLogDebugSettings, VLogEnabledComplex) {
   EXPECT_FALSE(settings.VerboseEnabled("my/filesystem/src/baz.cc", 0));
 }
 
+#define MATCH_THROW(stmt, err_type, matcher)            \
+  try {                                                 \
+    stmt;                                               \
+  } catch (const err_type& e) {                         \
+    EXPECT_THAT(e.what(), matcher);                     \
+  } catch (...) {                                       \
+    EXPECT_FALSE("stmt threw an unexpected exception"); \
+  }
+
 TEST(TvmLogDebugSettings, IllFormed) {
-  EXPECT_THROW(TvmLogDebugSettings::ParseSpec("foo/bar.cc=bogus;"), InternalError);
+  MATCH_THROW(
+      TvmLogDebugSettings::ParseSpec("foo/bar.cc=bogus;"), InternalError,
+      ::testing::HasSubstr("TVM_LOG_DEBUG ill-formed at position 11: invalid level: \"bogus;\""));
+
+  MATCH_THROW(TvmLogDebugSettings::ParseSpec("DEFAULT=2;bar/baz.cc=2"), InternalError,
+              ::testing::HasSubstr(
+                  "TVM_LOG_DEBUG ill-formed at position 8: invalid level: \"2;bar/baz.cc=2\""));
+
+  MATCH_THROW(TvmLogDebugSettings::ParseSpec("DEFAULT=2,bar/baz.cc+2"), InternalError,
+              ::testing::HasSubstr("TVM_LOG_DEBUG ill-formed at position 22: expecting "
+                                   "\"=<level>\" after \"bar/baz.cc+2\""));
+}
+
+TEST(TvmLogDebugSettings, SpecPrefix) {
+  TvmLogDebugSettings settings = TvmLogDebugSettings::ParseSpec(
+      "../src/foo/bar.cc=3,src/baz.cc=3,foo/bar/src/another/file.cc=4");
+  EXPECT_TRUE(settings.dlog_enabled());
+  EXPECT_TRUE(settings.VerboseEnabled("my/filesystem/src/foo/bar.cc", 3));
+  EXPECT_TRUE(settings.VerboseEnabled("foo/bar.cc", 3));
+  EXPECT_TRUE(settings.VerboseEnabled("my/filesystem/src/baz.cc", 3));
+  EXPECT_TRUE(settings.VerboseEnabled("baz.cc", 3));
+  EXPECT_TRUE(settings.VerboseEnabled("my/filesystem/src/another/file.cc", 4));
+  EXPECT_TRUE(settings.VerboseEnabled("another/file.cc", 4));
 }
 
 }  // namespace

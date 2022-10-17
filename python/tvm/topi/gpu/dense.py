@@ -153,8 +153,8 @@ def _schedule_dense_large_batch(cfg, s, C):
     # create tuning space
     try:
         block_cand = [64, 128]
-        vthread_cand = [2 ** x for x in range(1, 7)]
-        n_thread_cand = [2 ** x for x in range(3, 7)]
+        vthread_cand = [2**x for x in range(1, 7)]
+        n_thread_cand = [2**x for x in range(3, 7)]
         cfg.define_split(
             "tile_x",
             batch,

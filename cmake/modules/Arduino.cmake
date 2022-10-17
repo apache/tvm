@@ -28,6 +28,7 @@ if(USE_MICRO)
       "apps/microtvm/arduino/template_project/src/host_driven *.c -> arduino/src/host_driven"
       "apps/microtvm/arduino/template_project/src/host_driven *.ino -> arduino/src/host_driven"
       "apps/microtvm/arduino/template_project/crt_config *.h -> arduino/crt_config"
+      "apps/microtvm/arduino/template_project Makefile.template -> arduino"
     )
 
     foreach(job_spec IN LISTS ARDUINO_FILE_COPY_JOBS)
@@ -43,7 +44,7 @@ if(USE_MICRO)
       math(EXPR job_spec_stop "${job_spec_length} - 3")
 
       list(GET job_spec 0 job_src_base)
-      set(job_src_base "${CMAKE_SOURCE_DIR}/${job_src_base}")
+      set(job_src_base "${CMAKE_CURRENT_SOURCE_DIR}/${job_src_base}")
       foreach(copy_pattern_index RANGE 1 "${job_spec_stop}" 3)
         list(GET job_spec ${copy_pattern_index} copy_pattern)
         math(EXPR copy_dest_index "${copy_pattern_index} + 2")

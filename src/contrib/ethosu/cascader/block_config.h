@@ -43,6 +43,12 @@ class BlockConfigNode : public Object {
   void VisitAttrs(AttrVisitor* v);
 
   /*!
+   * \brief Get the shape of input block.
+   * \return The input shape of the block config.
+   */
+  inline std::vector<int> GetInputBlockShape() const { return input_shape_; }
+
+  /*!
    * \brief Get the shape of output block.
    * \return The output shape of the block config.
    */
@@ -66,6 +72,8 @@ class BlockConfigNode : public Object {
  protected:
   friend class BlockConfig;
 
+  /*! \brief The shape of the input block */
+  std::vector<int> input_shape_;
   /*! \brief The shape of the output block */
   std::vector<int> output_shape_;
   /*! \brief Cycles required to compute this block */
@@ -80,7 +88,8 @@ class BlockConfigNode : public Object {
  */
 class BlockConfig : public ObjectRef {
  public:
-  BlockConfig(const std::vector<int>& output_shape, int compute_cycles, int output_cycles);
+  BlockConfig(const std::vector<int>& input_shape, const std::vector<int>& output_shape,
+              int compute_cycles, int output_cycles);
 
   TVM_DEFINE_OBJECT_REF_METHODS(BlockConfig, ObjectRef, BlockConfigNode);
 };

@@ -472,24 +472,25 @@ class ExprBinder : public MixedModeMutator, PatternMutator {
   const tvm::Map<Var, Expr>& args_map_;
 };
 
+// This function should be called SubstAndBind, since it assumes any variables introduced
+// in the substitution right hand side should be implicitly bound in the function.
 Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   if (const FunctionNode* func = expr.as<FunctionNode>()) {
     Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
     Array<Var> new_params;
-    std::vector<VirtualDevice> new_param_virtual_devices;
     for (size_t i = 0; i < func->params.size(); ++i) {
       if (!args_map.count(func->params[i])) {
         new_params.push_back(func->params[i]);
-        new_param_virtual_devices.push_back(GetFunctionParamVirtualDevice(func, i));
       }
     }
     if (new_body.same_as(func->body) && new_params.size() == func->params.size()) {
       return expr;
     }
+
     auto ret =
         Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
-    ret =
-        MaybeFunctionOnDevice(ret, new_param_virtual_devices, GetFunctionResultVirtualDevice(func));
+    ret->virtual_device_ = func->virtual_device();
+
     std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> set;
     for (const auto& v : FreeVars(expr)) {
       set.insert(v);
@@ -497,20 +498,16 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
     for (const auto& v : FreeVars(ret)) {
       if (set.count(v) == 0) {
         new_params.push_back(v);
-        if (!GetFunctionResultVirtualDevice(func)->IsFullyUnconstrained()) {
-          // TODO(mbs): The function has been annotated with a device, which means we are supposed
-          // to be preserving device annotations on every transformation. However there's no
-          // such context for the free vars in args_map.
-          LOG(WARNING) << "introduced free var '" << PrettyPrint(v)
-                       << "' into function body but no device is known for it";
-        }
-        new_param_virtual_devices.push_back(VirtualDevice::FullyUnconstrained());
       }
     }
+
     ret =
         Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
-    ret =
-        MaybeFunctionOnDevice(ret, new_param_virtual_devices, GetFunctionResultVirtualDevice(func));
+    ret->virtual_device_ = func->virtual_device();
+
+    VLOG(4) << "Expr:\n" << expr;
+    VLOG(4) << "Ret:\n" << ret;
+
     ICHECK_EQ(FreeVars(expr).size(), FreeVars(ret).size());
     return std::move(ret);
   } else {
@@ -527,6 +524,27 @@ TVM_REGISTER_GLOBAL("relay.ir.Bind").set_body([](TVMArgs args, TVMRetValue* ret)
     *ret = Bind(Downcast<Type>(input), args[1]);
   }
 });
+
+Function SubstituteBoundVars(const Function& func, const tvm::Map<Var, Expr>& args_map) {
+  Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
+  Array<Var> new_params;
+  for (size_t i = 0; i < func->params.size(); i++) {
+    if (!args_map.count(func->params[i])) {
+      new_params.push_back(func->params[i]);
+    } else {
+      if (const VarNode* var = args_map[func->params[i]].as<VarNode>()) {
+        new_params.push_back(GetRef<Var>(var));
+      } else {
+        ICHECK(false) << "Expected all values in args_map to be vars, but found "
+                      << args_map[func->params[i]]->GetTypeKey();
+      }
+    }
+  }
+  auto ret =
+      Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
+  ret->virtual_device_ = func->virtual_device();
+  return ret;
+}
 
 void ExpandANormalForm(const LetNode* op, std::function<void(const LetNode*)> pre_visit,
                        std::function<void(const LetNode*)> post_visit) {

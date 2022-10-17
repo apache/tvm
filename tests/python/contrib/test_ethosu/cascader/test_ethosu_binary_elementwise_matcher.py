@@ -27,25 +27,12 @@ from tvm.relay.backend.contrib.ethosu.te.binary_elementwise import (
     match_ethosu_binary_elementwise,
     binary_elementwise_compute,
 )
+from tvm.relay.backend.contrib.ethosu.te.common import get_layout_transform_matrices
 
 
-def _make_matrices(broadcast, ifm_layout, ifm2_layout, ofm_layout):
+def _make_matrices(broadcast, ifm_layout, ifm2_layout, ofm_layout, ofm_channels):
     broadcast_h, broadcast_w, broadcast_c = broadcast
-    nhwc_to_nhcwb16 = [
-        [1, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0],
-        [0, 0, 0, 1 / 16, 0],
-        [0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 16],
-        [0, 0, 0, 0, 1],
-    ]
-    nhcwb16_to_nhwc = [
-        [1, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0],
-        [0, 0, 16, 0, 1, -16],
-        [0, 0, 0, 0, 0, 1],
-    ]
+    nhwc_to_nhcwb16, nhcwb16_to_nhwc = get_layout_transform_matrices(ofm_channels)
     ifm_matrix = [
         [1, 0, 0, 0, 0],
         [0, 1, 0, 0, 0],
@@ -93,14 +80,8 @@ def test_ethosu_binary_elementwise_matcher(
     ifm2_shape = [1] + [1 if (b == 1) else a for a, b in zip(ofm_shape[1:], ifm2_broadcast)]
     ifm_channels = ifm_shape[3]
     ifm2_channels = ifm2_shape[3]
-    nhwc_to_nhcwb16 = [
-        [1, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0],
-        [0, 0, 0, 1 / 16, 0],
-        [0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 16],
-        [0, 0, 0, 0, 1],
-    ]
+    ofm_channels = ofm_shape[3]
+    nhwc_to_nhcwb16, _ = get_layout_transform_matrices(ofm_channels)
     broadcast = [1 if a == 1 else 0 for a in ifm2_shape[1:]]
     if ifm_layout == "NHCWB16":
         ifm_shape = [
@@ -173,10 +154,7 @@ def test_ethosu_binary_elementwise_matcher(
     output_stripe_config = cs.StripeConfig(ofm_shape, ofm_shape, ofm_shape, order, stripes, offset)
 
     (ifm_transform, ifm2_transform) = _make_matrices(
-        broadcast,
-        ifm_layout,
-        ifm2_layout,
-        ofm_layout,
+        broadcast, ifm_layout, ifm2_layout, ofm_layout, ofm_channels
     )
 
     device_config = cs.EthosuDeviceConfig("ethos-u55-256")
@@ -190,19 +168,10 @@ def test_ethosu_binary_elementwise_matcher(
     propagated_ifm = ifm_propagator.propagate(output_stripe_config).shape
     propagated_ifm2 = ifm2_propagator.propagate(output_stripe_config).shape
 
-    # Layout conversions will align the propagated IFMs to the brick, i.e. 16
-    # so the expected ifm(2)_shape needs to be rounded up to 16
-    if ifm_layout != ofm_layout:
-        assert ifm_shape[:-1] == propagated_ifm[:-1]
-        assert ((ifm_shape[-1] + 16 - 1) // 16) * 16 == propagated_ifm[-1]
-    else:
-        assert ifm_shape == propagated_ifm
-
-    if ifm2_layout != ofm_layout:
-        assert ifm2_shape[:-1] == propagated_ifm2[:-1]
-        assert ((ifm2_shape[-1] + 16 - 1) // 16) * 16 == propagated_ifm2[-1]
-    else:
-        assert ifm2_shape == propagated_ifm2
+    # The layout transforms that have the exact number of output channels in them
+    # will lose no information about the number of channels
+    assert ifm_shape == propagated_ifm
+    assert ifm2_shape == propagated_ifm2
 
 
 if __name__ == "__main__":

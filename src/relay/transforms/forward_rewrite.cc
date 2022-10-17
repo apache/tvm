@@ -136,6 +136,9 @@ class ForwardRewriter : private MixedModeMutator {
     }
     const auto* post_node = post.as<CallNode>();
     auto new_op = post_node->op;
+    if (new_op->IsInstance<FunctionNode>()) {
+      new_op = realizer_.Realize(new_op);
+    }
     bool unchanged = call_node->op.same_as(new_op);
 
     Array<Expr> call_args;

@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-argument
 """Schedule for dense operator"""
 import logging
+import tvm
 from tvm import te
 import tvm.autotvm as autotvm
 from tvm.contrib import cublas
@@ -133,9 +134,6 @@ def schedule_dense_int8(cfg, outs):
     return s
 
 
-_dp4a = dp4a("shared", "shared", "local")
-
-
 def _schedule_dense_int8(cfg, s, output):
     data, weight = s[output].op.input_tensors
     if len(weight.op.input_tensors) == 1 and weight.op.input_tensors[0] == data:
@@ -173,7 +171,12 @@ def _schedule_dense_int8(cfg, s, output):
     ko = CC.op.reduce_axis[0]
     ko, ki = s[CC].split(ko, factor=4)
     ko, kt = cfg["tile_k"].apply(s, CC, ko)
-    s[CC].tensorize(ki, _dp4a)
+    target = tvm.target.Target.current(allow_none=False)
+    do_tensorize = "+dotprod" in target.mattr or target.supports_integer_dot_product
+
+    if do_tensorize:
+        dtypes = (data.dtype, weight.dtype)
+        s[CC].tensorize(ki, dp4a("shared", "shared", "local", dtypes))
     by, vy, ty, yi = cfg["tile_y"].apply(s, output, n)
     bx, vx, tx, xi = cfg["tile_x"].apply(s, output, x)
 

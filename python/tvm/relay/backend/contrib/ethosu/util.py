@@ -23,7 +23,7 @@ Refer to the description inside such functions
 
 from inspect import signature
 from enum import Enum
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 import numpy as np  # type: ignore
 
 import tvm  # type: ignore
@@ -37,6 +37,20 @@ class QConv2DArgs(Enum):
     """
     This is a helper enum to obtain the correct index
     of qnn.conv2d arguments.
+    """
+
+    IFM = 0
+    WEIGHTS = 1
+    IFM_ZERO_POINT = 2
+    WEIGHTS_ZERO_POINT = 3
+    IFM_SCALE = 4
+    WEIGHTS_SCALE = 5
+
+
+class QConv2DTransposeArgs(Enum):
+    """
+    This is a helper enum to obtain the correct index
+    of qnn.conv2d_transpose arguments.
     """
 
     IFM = 0
@@ -113,6 +127,25 @@ class DequantizeArgs(Enum):
     IFM = 0
     IFM_SCALE = 1
     IFM_ZERO_POINT = 2
+
+
+class QDenseArgs(Enum):
+    """
+    This is a helper enum to access the correct index of
+    qnn.dense arguments
+    """
+
+    IFM = 0
+    WEIGHTS = 1
+    IFM_ZERO_POINT = 2
+    WEIGHTS_ZERO_POINT = 3
+    IFM_SCALE = 4
+    WEIGHTS_SCALE = 5
+
+
+def is_npu_func(func: relay.Function) -> bool:
+    """Check if the given function is an NPU function."""
+    return func.attrs and "Compiler" in func.attrs and func.attrs["Compiler"] == "ethos-u"
 
 
 def is_composite_func(func: relay.Function, name: str) -> bool:
@@ -208,6 +241,18 @@ def get_accelerator_config():
     return compiler_attrs.accelerator_config
 
 
+def is_cascader_enabled():
+    """Determine whether the cascader is enabled"""
+    compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
+    return compiler_attrs.enable_cascader
+
+
+def is_striping_enabled():
+    """Determine whether the cascader is enabled"""
+    compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
+    return compiler_attrs.enable_striping
+
+
 def get_arg_count(func):
     """Helper function to get the number of
     arguments in a python function"""
@@ -239,6 +284,31 @@ def calculate_size_bytes(expr):
     return element_size * elements
 
 
+@register_object("relay.ext.ethos-u.BaseAddress")
+class BaseAddress(Object):
+    """
+    This is a structure to hold base addresses for pointers
+    provided for the driver.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        primfunc_param_idx: int,
+        region: int,
+        size: int,
+        is_runtime_allocation: bool = False,
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.BaseAddress,  # type: ignore # pylint: disable=no-member
+            name,
+            primfunc_param_idx,
+            region,
+            size,
+            is_runtime_allocation,
+        )
+
+
 @register_object("relay.ext.ethos-u.CompilationArtifact")
 class CompilationArtifact(Object):
     """
@@ -248,19 +318,71 @@ class CompilationArtifact(Object):
 
     def __init__(
         self,
+        function_name: str,
         command_stream: str,
         encoded_constants: str,
-        scratch_size: int,
-        input_size: int,
-        output_size: int,
-        function_name: str,
+        base_addresses: List[BaseAddress],
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.CompilationArtifact,  # type: ignore # pylint: disable=no-member
+            function_name,
             command_stream,
             encoded_constants,
-            scratch_size,
-            input_size,
-            output_size,
-            function_name,
+            base_addresses,
         )
+
+
+def create_npu_function_pass(opt_level: int, name: str = ""):
+    """
+    A utility decorator that wraps a given class as an NPU function pass. That is,
+    a pass that behaves like a function pass and only traverses NPU external
+    functions. How each NPU function is mutated is defined by the
+    `transform_npu_function(global_variable, relay_function)` function which should
+    be created in the class that is to be decorated. See the example below.
+
+    Example
+    -------
+    This small example demonstrates a pass over NPU functions that performs no
+    mutation.
+
+    @create_npu_function_pass(opt_level=1)
+    class MyPass:
+        def transform_npu_function(self, global_var, func):
+            return func
+
+    mod = tvm.IRModule()
+    mod = MyPass()(mod)
+
+    Parameters
+    ----------
+    opt_level: int
+        Optimization level for the module pass.
+    name: str, optional
+        Name for the module pass.
+
+    Returns
+    -------
+    decorator
+        The npu_pass decorator.
+    """
+
+    def decorator(npu_pass_class):
+        @tvm.ir.transform.module_pass(name=name, opt_level=opt_level)
+        class ModulePassWrapper:
+            """The wrapper for the NPU pass."""
+
+            def __init__(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
+
+            def transform_module(self, mod: tvm.ir.IRModule, _) -> tvm.ir.IRModule:
+                npu_functions = filter(lambda x: is_npu_func(x[1]), mod.functions.items())
+                for global_var, func in npu_functions:
+                    npu_pass = npu_pass_class(*self.args, **self.kwargs)
+                    func = npu_pass.transform_npu_function(global_var, func)
+                    mod.update_func(global_var, func)
+                return mod
+
+        return ModulePassWrapper
+
+    return decorator

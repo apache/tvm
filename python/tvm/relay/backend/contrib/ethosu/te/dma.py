@@ -277,6 +277,38 @@ def pad_compute(tensor: te.Tensor, padding: tuple) -> te.Tensor:
     )
 
 
+def upscale_compute(tensor: te.Tensor, upscale_factor: int) -> te.Tensor:
+    """Apply upscaling to an NHWC tensor.
+
+    Parameters
+    ----------
+    tensor : te.Tensor
+        The tensor to pad.
+    upscale_factor : int
+        The factor by which to apply upscaling.
+
+    Returns
+    -------
+    te.Tensor
+        The upscaled tensor.
+
+    """
+    shape = tensor.shape
+
+    reason = f"The compiler only supports 2x2 upscaling, but factor was {upscale_factor}."
+    assert upscale_factor in (1, 2), reason
+    new_shape = (shape[0], shape[1] * upscale_factor, shape[2] * upscale_factor, shape[3])
+
+    upscale_attrs = {"op": "ethosu_upscale"}
+
+    return te.compute(
+        new_shape,
+        lambda nn, hh, ww, cc: tensor(nn, hh // upscale_factor, ww // upscale_factor, cc),
+        name="ethosu_upscale",
+        attrs=upscale_attrs,
+    )
+
+
 def dma_ifm_compute(
     ifm: te.Tensor,
     layout: str,
@@ -284,6 +316,7 @@ def dma_ifm_compute(
     scale: float,
     channels: int,
     padding: Tuple[int, int, int, int],
+    upscale_factor: Optional[int] = 1,
 ) -> te.Tensor:
     """A sequence of compute operators representing the DMA capabilities for an IFM.
 
@@ -301,6 +334,8 @@ def dma_ifm_compute(
         The number of valid channels for the data.
     padding : tuple
         The 4 dimensional padding as (pad_top, pad_left, pad_bottom, pad_right).
+    upscale_factor : Optional[int]
+        The factor by which to apply upscaling. By default there will be no upscaling.
 
     Returns
     -------
@@ -310,7 +345,8 @@ def dma_ifm_compute(
     """
     read_ifm = read_compute(ifm, zero_point, scale, layout=layout)
     convert_to_nhwc_ifm = convert_to_nhwc_compute(read_ifm, layout, channels)
-    return pad_compute(convert_to_nhwc_ifm, padding)
+    upscale_ifm = upscale_compute(convert_to_nhwc_ifm, upscale_factor)
+    return pad_compute(upscale_ifm, padding)
 
 
 def dma_ofm_compute(

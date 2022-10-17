@@ -38,6 +38,7 @@
 
 #include "../../support/str_escape.h"
 #include "../rpc/rpc_channel.h"
+#include "../rpc/rpc_channel_logger.h"
 #include "../rpc/rpc_endpoint.h"
 #include "../rpc/rpc_session.h"
 #include "crt_config.h"
@@ -175,11 +176,20 @@ class MicroTransportChannel : public RPCChannel {
     // confusion.
     unsigned int seed = random_seed.load();
     if (seed == 0) {
+#if defined(_MSC_VER)
       seed = (unsigned int)time(nullptr);
+      srand(seed);
+#else
+      seed = (unsigned int)time(nullptr);
+#endif
     }
     uint8_t initial_nonce = 0;
     for (int i = 0; i < kNumRandRetries && initial_nonce == 0; ++i) {
+#if defined(_MSC_VER)
+      initial_nonce = rand();  // NOLINT(runtime/threadsafe_fn)
+#else
       initial_nonce = rand_r(&seed);
+#endif
     }
     random_seed.store(seed);
     ICHECK_NE(initial_nonce, 0) << "rand() does not seem to be producing random values";
@@ -404,6 +414,13 @@ TVM_REGISTER_GLOBAL("micro._rpc_connect").set_body([](TVMArgs args, TVMRetValue*
     throw std::runtime_error(ss.str());
   }
   std::unique_ptr<RPCChannel> channel(micro_channel);
+  bool enable_logging = false;
+  if (args.num_args > 7) {
+    enable_logging = args[7];
+  }
+  if (enable_logging) {
+    channel.reset(new RPCChannelLogging(std::move(channel)));
+  }
   auto ep = RPCEndpoint::Create(std::move(channel), args[0], "", args[6]);
   auto sess = CreateClientSession(ep);
   *rv = CreateRPCSessionModule(sess);

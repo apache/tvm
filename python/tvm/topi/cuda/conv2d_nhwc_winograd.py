@@ -20,15 +20,17 @@
 """Winograd template for cuda backend"""
 
 import tvm
-from tvm import te
-from tvm import autotvm
+from tvm import autotvm, te
+
 from .. import nn
-from ..utils import get_const_int, get_const_tuple, traverse_inline
 from ..nn.winograd_util import winograd_transform_matrices
-from .tensor_intrin import intrin_wmma_load_matrix_A
-from .tensor_intrin import intrin_wmma_load_matrix_W
-from .tensor_intrin import intrin_wmma_store_matrix
-from .tensor_intrin import intrin_wmma_gemm
+from ..utils import get_const_int, get_const_tuple, traverse_inline
+from .tensor_intrin import (
+    intrin_wmma_gemm,
+    intrin_wmma_load_matrix_A,
+    intrin_wmma_load_matrix_W,
+    intrin_wmma_store_matrix,
+)
 
 
 def _infer_tile_size(data, kernel):
@@ -332,7 +334,13 @@ def nhwc_winograd_cuda(
         assert HSTR == 1 and WSTR == 1 and dilation_h == 1 and dilation_w == 1
 
     pt, pl, pb, pr = nn.get_pad_tuple(padding, (KH, KW))
-    data_pad = nn.pad(data, (0, pt, pl, 0), (0, pb, pr, 0), name="data_pad")
+    data_pad = nn.pad(
+        data,
+        (0, pt, pl, 0),
+        (0, pb, pr, 0),
+        name="data_pad",
+        attrs={"schedule_rule": "None"},
+    )
 
     r = KW
     m = tile_size
@@ -388,6 +396,7 @@ def nhwc_winograd_cuda(
             idxdiv(p, (nH * nW)), idxmod(idxdiv(p, nW), nH) * m + eps, idxmod(p, nW) * m + nu, c
         ],
         name="d",
+        attrs={"schedule_rule": "None"},
     )
 
     # Transform data
@@ -399,6 +408,7 @@ def nhwc_winograd_cuda(
             input_tile[p][ci][r_a][r_b] * B[r_a][eps] * B[r_b][nu], axis=[r_a, r_b]
         ),
         name="data_pack",
+        attrs={"schedule_rule": "meta_schedule.winograd_data_pack.cuda"},
     )
 
     # Convert data type of input feature maps and weights for tensorcore
@@ -430,6 +440,7 @@ def nhwc_winograd_cuda(
             bgemm[r_a][r_b][p][co] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]
         ),
         name="inverse",
+        attrs={"schedule_rule": "meta_schedule.winograd_inverse.cuda"},
     )
 
     # Output

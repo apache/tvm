@@ -17,6 +17,15 @@
 
 # This script configures the logging module and dependency on libbacktrace
 
+if(USE_CUSTOM_LOGGING)
+  # Set and propogate TVM_LOG_CUSTOMIZE flag is custom logging has been requested
+  target_compile_definitions(tvm_objs PUBLIC TVM_LOG_CUSTOMIZE=1)
+  target_compile_definitions(tvm_runtime_objs PUBLIC TVM_LOG_CUSTOMIZE=1)
+  target_compile_definitions(tvm_libinfo_objs PUBLIC TVM_LOG_CUSTOMIZE=1)
+  target_compile_definitions(tvm PUBLIC TVM_LOG_CUSTOMIZE=1)
+  target_compile_definitions(tvm_runtime PUBLIC TVM_LOG_CUSTOMIZE=1)
+endif()
+
 if("${USE_LIBBACKTRACE}" STREQUAL "AUTO")
   if(CMAKE_SYSTEM_NAME MATCHES "Linux")
     set(USE_LIBBACKTRACE ON)
@@ -43,4 +52,9 @@ if(USE_LIBBACKTRACE)
 else()
   target_compile_definitions(tvm_objs PRIVATE TVM_USE_LIBBACKTRACE=0)
   target_compile_definitions(tvm_runtime_objs PRIVATE TVM_USE_LIBBACKTRACE=0)
+endif()
+
+if(BACKTRACE_ON_SEGFAULT)
+  target_compile_definitions(tvm_objs PRIVATE TVM_BACKTRACE_ON_SEGFAULT)
+  target_compile_definitions(tvm_runtime_objs PRIVATE TVM_BACKTRACE_ON_SEGFAULT)
 endif()

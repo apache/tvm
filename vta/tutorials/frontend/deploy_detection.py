@@ -130,7 +130,7 @@ pack_dict = {
 # The ``start_pack`` and ``stop_pack`` labels indicate where
 # to start and end the graph packing relay pass: in other words
 # where to start and finish offloading to VTA.
-# the number 4 indicate the the ``start_pack`` index is 4, the
+# the number 4 indicate the ``start_pack`` index is 4, the
 # number 186 indicate the ``stop_pack index`` is 186, by using
 # name and index number, here we can located to correct place
 # where to start/end when there are multiple ``nn.max_pool2d``
@@ -232,7 +232,7 @@ with autotvm.tophub.context(target):
         mod = mod["main"]
 
     # Compile Relay program with AlterOpLayout disabled
-    with vta.build_config(disabled_pass={"AlterOpLayout"}):
+    with vta.build_config(disabled_pass={"AlterOpLayout", "tir.CommonSubexprElimTIR"}):
         lib = relay.build(
             mod, target=tvm.target.Target(target, host=env.target_host), params=params
         )

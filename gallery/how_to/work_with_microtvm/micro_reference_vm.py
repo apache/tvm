@@ -138,12 +138,12 @@ Then ``cd`` to the same path used on your host machine for TVM. For example, on 
 Running tests
 =============
 
-Once the VM has been provisioned, tests can executed using ``poetry``:
+Once the VM has been provisioned, tests can be executed using ``poetry``:
 
 .. code-block:: bash
 
     $ cd apps/microtvm/reference-vm/zephyr
-    $ poetry run python3 ../../../../tests/micro/qemu/test_zephyr.py --zephyr-board=stm32f746g_disco
+    $ poetry run python3 ../../../../tests/micro/zephyr/test_zephyr.py --board=stm32f746g_disco
 
 If you do not have physical hardware attached, but wish to run the tests using the
 local QEMU emulator running within the VM, run the following commands instead:
@@ -152,8 +152,14 @@ local QEMU emulator running within the VM, run the following commands instead:
 
     $ cd /Users/yourusername/path/to/tvm
     $ cd apps/microtvm/reference-vm/zephyr/
-    $ poetry run pytest ../../../../tests/micro/qemu/test_zephyr.py --zephyr-board=qemu_x86
+    $ poetry run pytest ../../../../tests/micro/zephyr/test_zephyr.py --board=qemu_x86
 
 
 
 """
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore

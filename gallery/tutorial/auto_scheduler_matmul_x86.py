@@ -38,7 +38,11 @@ We use matrix multiplication as an example in this tutorial.
   __name__ == "__main__":` block.
 """
 
-import os
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 
 import numpy as np
 import tvm
@@ -78,13 +82,13 @@ def matmul_add(N, L, M, dtype):
 # ----------------------
 # With the function defined, we can now create the task for the auto_scheduler
 # to search against. We specify the particular parameters for this matrix
-# multiplication, in this case a multiplication of to square matricies of size
+# multiplication, in this case a multiplication of two square matrices of size
 # 1024x1024. We then create a search task with N=L=M=1024 and dtype="float32"
 #
 # .. admonition:: Improve performance with custom targets
 #
 #   In order for TVM to take full advantage of specific hardware platforms,
-#   you will want to manuall specify your CPU capabilities. For example:
+#   you will want to manually specify your CPU capabilities. For example:
 #
 #     - replace ``llvm`` below with ``llvm -mcpu=core-avx2`` to enable AVX2
 #     - replace ``llvm`` below with ``llvm -mcpu=skylake-avx512`` to enable AVX-512

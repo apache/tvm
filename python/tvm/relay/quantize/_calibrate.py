@@ -159,7 +159,7 @@ def _set_params(mod, input_scale_func, weight_scale_func):
             def _make_const(val):
                 return _expr.const(val, "float32")
 
-            valid_range = 2 ** valid_bit
+            valid_range = 2**valid_bit
             const_params[ndom_scale] = _make_const(scale / valid_range)
             const_params[nclip_min] = _make_const(-(valid_range - 1))
             const_params[nclip_max] = _make_const((valid_range - 1))

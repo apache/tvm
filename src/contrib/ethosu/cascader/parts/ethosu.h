@@ -75,6 +75,14 @@ class EthosuPartNode : public PartNode {
   const std::vector<int64_t> GetBytesRead(const std::vector<int>& block_shape,
                                           const std::vector<int>& full_shape);
 
+  /*!
+   * \brief Get cost heuristic of using a given block config with the associated stripe config
+   * \param block_config The block config that is being checked for the cost
+   * \param output_stripe_config The striping configuration associated with the operator
+   * \return A cost heuristic representative of the choice
+   */
+  float CalculateCost(const BlockConfig& block_config, const StripeConfig& output_stripe_config);
+
   /*! \brief List of block configs that are valid for this part */
   std::vector<BlockConfig> valid_block_configs_;
   /*! \brief The output volume that is atomically computed */

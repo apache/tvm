@@ -41,6 +41,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/dataflow_matcher.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/transform.h>
@@ -505,27 +506,49 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
     size_t type_arity = fn_ty->arg_types.size();
     size_t number_of_args = arg_types.size();
+    bool is_variable = false;
 
-    if (type_arity != number_of_args) {
-      if (type_arity < number_of_args) {
-        this->EmitFatal(Diagnostic::Error(call->span)
-                        << "the function is provided too many arguments "
-                        << "expected " << type_arity << ", found " << number_of_args);
-      } else {
-        this->EmitFatal(Diagnostic::Error(call->span)
-                        << "the function is provided too few arguments "
-                        << "expected " << type_arity << ", found " << number_of_args);
+    if (const OpNode* opnode = call->op.as<OpNode>()) {
+      if (opnode->num_inputs == -1) {
+        is_variable = true;
       }
     }
 
-    for (size_t i = 0; i < fn_ty->arg_types.size(); i++) {
-      this->Unify(fn_ty->arg_types[i], arg_types[i], call->span, true, false);
+    if ((type_arity < number_of_args) && !is_variable) {
+      this->EmitFatal(Diagnostic::Error(call->span)
+                      << "the function is provided too many arguments "
+                      << "expected " << type_arity << ", found " << number_of_args);
+    } else if (type_arity > number_of_args) {
+      this->EmitFatal(Diagnostic::Error(call->span)
+                      << "the function is provided too few arguments "
+                      << "expected " << type_arity << ", found " << number_of_args);
     }
 
+    Array<Type> unified_arg_types;
+    if (!is_variable) {
+      for (size_t i = 0; i < fn_ty->arg_types.size(); i++) {
+        this->Unify(fn_ty->arg_types[i], arg_types[i], call->span, true, false);
+      }
+    } else {
+      for (size_t i = 0; i < number_of_args; i++) {
+        if (i < fn_ty->arg_types.size()) {
+          unified_arg_types.push_back(
+              this->Unify(fn_ty->arg_types[i], arg_types[i], call->span, false, false));
+        } else {
+          unified_arg_types.push_back(arg_types[i]);
+        }
+      }
+      unified_arg_types.push_back(fn_ty->ret_type);
+    }
     for (auto cs : fn_ty->type_constraints) {
       if (const auto* tr = cs.as<TypeRelationNode>()) {
-        solver_.AddConstraint(TypeRelation(tr->func, tr->args, tr->num_inputs, call->attrs),
-                              call->span);
+        if (!is_variable) {
+          solver_.AddConstraint(TypeRelation(tr->func, tr->args, tr->num_inputs, call->attrs),
+                                call->span);
+        } else {
+          solver_.AddConstraint(
+              TypeRelation(tr->func, unified_arg_types, number_of_args, call->attrs), call->span);
+        }
       } else {
         solver_.AddConstraint(cs, call->span);
       }
@@ -806,7 +829,7 @@ void EnsureCheckedType(const Expr& e) { AllCheckTypePopulated().VisitExpr(e); }
 
 // TODO(@jroesch): Can we optimize this?
 void AddGlobalTypes(IRModule mod) {
-  std::vector<std::pair<GlobalVar, Function> > updates;
+  std::vector<std::pair<GlobalVar, Function>> updates;
   for (const auto& it : mod->functions) {
     // Currently we don't type check TIR.
     // The inferencer will only check Relay functions
@@ -914,15 +937,9 @@ Type InferTypeLocal(const Expr& expr) {
   */
   SameTypedSubgraphExtractor subgraph_extractor;
   Expr sub_graph = subgraph_extractor(expr);
-  auto mod = IRModule::FromExpr(sub_graph);
-  mod = transform::InferType()(mod);
 
   Type result_type;
-  if (expr.as<FunctionNode>()) {
-    result_type = mod->Lookup("main")->checked_type();
-  } else {
-    result_type = mod->Lookup("main").as<FunctionNode>()->body->checked_type();
-  }
+  result_type = relay::InferType(sub_graph)->checked_type();
 
   expr->checked_type_ = result_type;
   return result_type;
@@ -944,7 +961,7 @@ Pass InferType() {
         // Add all the type annotations to the functions in the model.
         AddGlobalTypes(mod);
 
-        std::vector<std::pair<GlobalVar, Function> > updates;
+        std::vector<std::pair<GlobalVar, Function>> updates;
         for (const auto& it : updated_mod->functions) {
           // Currently we don't type check TIR.
           //

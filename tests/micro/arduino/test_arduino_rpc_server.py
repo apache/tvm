@@ -29,17 +29,13 @@ import onnx
 import pytest
 
 import tvm
+import tvm.testing
 from PIL import Image
 from tvm import relay
 from tvm.relay.testing import byoc
 from tvm.relay.backend import Executor, Runtime
 
 import test_utils
-
-# # A new project and workspace dir is created for EVERY test
-@pytest.fixture
-def workspace_dir(board):
-    return test_utils.make_workspace_dir("arduino_rpc_server", board)
 
 
 def _make_session(model, arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config):
@@ -48,7 +44,7 @@ def _make_session(model, arduino_board, arduino_cli_cmd, workspace_dir, mod, bui
         mod,
         workspace_dir / "project",
         {
-            "arduino_board": arduino_board,
+            "board": arduino_board,
             "arduino_cli_cmd": arduino_cli_cmd,
             "project_type": "host_driven",
             "verbose": bool(build_config.get("debug")),
@@ -63,8 +59,9 @@ def _make_sess_from_op(
     model, arduino_board, arduino_cli_cmd, workspace_dir, op_name, sched, arg_bufs, build_config
 ):
     target = tvm.target.target.micro(model)
+    runtime = Runtime("crt", {"system-lib": True})
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.build(sched, arg_bufs, target=target, name=op_name)
+        mod = tvm.build(sched, arg_bufs, target=target, runtime=runtime, name=op_name)
 
     return _make_session(model, arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config)
 
@@ -82,11 +79,11 @@ def _make_add_sess(model, arduino_board, arduino_cli_cmd, workspace_dir, build_c
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 @tvm.testing.requires_micro
 @pytest.mark.requires_hardware
-def test_compile_runtime(board, arduino_cli_cmd, tvm_debug, workspace_dir):
+def test_compile_runtime(board, arduino_cli_cmd, microtvm_debug, workspace_dir):
     """Test compiling the on-device runtime."""
 
     model = test_utils.ARDUINO_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
@@ -107,11 +104,11 @@ def test_compile_runtime(board, arduino_cli_cmd, tvm_debug, workspace_dir):
 
 @tvm.testing.requires_micro
 @pytest.mark.requires_hardware
-def test_platform_timer(board, arduino_cli_cmd, tvm_debug, workspace_dir):
+def test_platform_timer(board, arduino_cli_cmd, microtvm_debug, workspace_dir):
     """Test compiling the on-device runtime."""
 
     model = test_utils.ARDUINO_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
@@ -137,10 +134,10 @@ def test_platform_timer(board, arduino_cli_cmd, tvm_debug, workspace_dir):
 
 @tvm.testing.requires_micro
 @pytest.mark.requires_hardware
-def test_relay(board, arduino_cli_cmd, tvm_debug, workspace_dir):
+def test_relay(board, arduino_cli_cmd, microtvm_debug, workspace_dir):
     """Testing a simple relay graph"""
     model = test_utils.ARDUINO_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     shape = (10,)
     dtype = "int8"
@@ -152,8 +149,9 @@ def test_relay(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     func = relay.Function([x], z)
 
     target = tvm.target.target.micro(model)
+    runtime = Runtime("crt", {"system-lib": True})
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(func, target=target)
+        mod = tvm.relay.build(func, target=target, runtime=runtime)
 
     with _make_session(model, board, arduino_cli_cmd, workspace_dir, mod, build_config) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
@@ -169,10 +167,10 @@ def test_relay(board, arduino_cli_cmd, tvm_debug, workspace_dir):
 
 @tvm.testing.requires_micro
 @pytest.mark.requires_hardware
-def test_onnx(board, arduino_cli_cmd, tvm_debug, workspace_dir):
+def test_onnx(board, arduino_cli_cmd, microtvm_debug, workspace_dir):
     """Testing a simple ONNX model."""
     model = test_utils.ARDUINO_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     # Load test images.
     this_dir = pathlib.Path(__file__).parent
@@ -192,9 +190,9 @@ def test_onnx(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)
 
     target = tvm.target.target.micro(model)
+    runtime = Runtime("crt", {"system-lib": True})
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         executor = Executor("graph", {"link-params": True})
-        runtime = Runtime("crt", {"system-lib": True})
         lowered = relay.build(relay_mod, target, params=params, executor=executor, runtime=runtime)
         graph = lowered.get_graph_json()
 
@@ -233,8 +231,9 @@ def check_result(
     """Helper function to verify results"""
     TOL = 1e-5
     target = tvm.target.target.micro(model)
+    runtime = Runtime("crt", {"system-lib": True})
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(relay_mod, target=target)
+        mod = tvm.relay.build(relay_mod, target=target, runtime=runtime)
 
     with _make_session(
         model, arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config
@@ -259,10 +258,10 @@ def check_result(
 
 @tvm.testing.requires_micro
 @pytest.mark.requires_hardware
-def test_byoc_microtvm(board, arduino_cli_cmd, tvm_debug, workspace_dir):
+def test_byoc_microtvm(board, arduino_cli_cmd, microtvm_debug, workspace_dir):
     """This is a simple test case to check BYOC capabilities of microTVM"""
     model = test_utils.ARDUINO_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     x = relay.var("x", shape=(10, 10))
     w0 = relay.var("w0", shape=(10, 10))
@@ -343,10 +342,10 @@ def _make_add_sess_with_shape(
 )
 @tvm.testing.requires_micro
 @pytest.mark.requires_hardware
-def test_rpc_large_array(board, arduino_cli_cmd, tvm_debug, workspace_dir, shape):
+def test_rpc_large_array(board, arduino_cli_cmd, microtvm_debug, workspace_dir, shape):
     """Test large RPC array transfer."""
     model = test_utils.ARDUINO_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_tensors(sess):
@@ -364,4 +363,4 @@ def test_rpc_large_array(board, arduino_cli_cmd, tvm_debug, workspace_dir, shape
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

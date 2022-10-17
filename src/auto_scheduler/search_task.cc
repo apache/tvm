@@ -54,7 +54,7 @@ HardwareParams::HardwareParams(int num_cores, int vector_unit_bytes, int cache_l
 HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target,
                                                             const Target& target_host) {
   // There is no use of target_host so no updates here in the function.
-  const auto device_type = target->kind->device_type;
+  const auto device_type = target->GetTargetDeviceType();
   if (device_type == kDLCPU) {
     return HardwareParams(tvm::runtime::threading::MaxConcurrency(), 64, 64, 0, 0, 0, 0, 0);
   } else if (device_type == kDLCUDA || device_type == kDLROCM) {
@@ -91,7 +91,7 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
     int max_vthread_extent = warp_size / 4;
     return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
                           max_threads_per_block, max_vthread_extent, warp_size);
-  } else if (target->kind->device_type == kDLOpenCL) {
+  } else if (target->GetTargetDeviceType() == kDLOpenCL) {
     if (target->GetAttr<String>("device", "") == "mali") {
       // We cannot use device API to get hardware attributes like CUDA,
       // because like Mali target is normally on the remote machine.
@@ -104,8 +104,32 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
                             max_threads_per_block, max_vthread_extent, warp_size);
     } else {
       // add other opencl target
-      auto target_device = target->GetAttr<String>("device", "");
-      LOG(FATAL) << "No default hardware parameters for opencl target device: " << target_device;
+      auto dev = Device{static_cast<DLDeviceType>(device_type), 0};
+      auto device_name = "device_api.opencl";
+      auto func = tvm::runtime::Registry::Get(device_name);
+      ICHECK(func != nullptr) << "Cannot find OpenCL device_api in registry";
+      auto device_api = static_cast<tvm::runtime::DeviceAPI*>(((*func)()).operator void*());
+
+      tvm::runtime::TVMRetValue ret;
+      device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
+      int max_shared_memory_per_block = ret;
+
+      int max_local_memory_per_block = INT32_MAX;
+
+      device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock, &ret);
+      int max_threads_per_block = ret;
+
+      device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kWarpSize, &ret);
+      int warp_size = ret;
+
+      if (warp_size == 1) {
+        LOG(WARNING)
+            << "Warp size 1 is not recommended for OpenCL devices. Tuning might crash or stuck";
+      }
+
+      int max_vthread_extent = std::max(1, warp_size / 4);
+      return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
+                            max_threads_per_block, max_vthread_extent, warp_size);
     }
   } else if (device_type == kDLVulkan) {
     auto dev = Device{static_cast<DLDeviceType>(device_type), 0};

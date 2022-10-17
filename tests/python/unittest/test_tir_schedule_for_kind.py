@@ -277,6 +277,199 @@ def thread_bound_block_inside_init(a: T.handle, b: T.handle) -> None:
                         B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
 
 
+@T.prim_func
+def decomposed_gemm(
+    A: T.Buffer[(16, 16), "float32"],
+    B: T.Buffer[(16, 16), "float32"],
+    C: T.Buffer[(16, 16), "float32"],
+):
+    local = T.alloc_buffer((16, 16), "float32")
+    for i, j in T.grid(4, 4):
+        for ii, jj in T.grid(4, 4):
+            with T.block("init"):
+                vi = T.axis.S(16, i * 4 + ii)
+                vj = T.axis.S(16, j * 4 + jj)
+                local[vi, vj] = 0
+        for k, ii, jj in T.grid(16, 4, 4):
+            with T.block("update"):
+                vi = T.axis.S(16, i * 4 + ii)
+                vj = T.axis.S(16, j * 4 + jj)
+                vk = T.axis.R(16, k)
+                local[vi, vj] += A[vi, vk] * B[vj, vk]
+        for ii, jj in T.grid(4, 4):
+            with T.block("C"):
+                vi = T.axis.S(16, i * 4 + ii)
+                vj = T.axis.S(16, j * 4 + jj)
+                C[vi, vj] = local[vi, vj]
+
+
+@T.prim_func
+def decomposed_gemm_after_vectorize(
+    A: T.Buffer[(16, 16), "float32"],
+    B: T.Buffer[(16, 16), "float32"],
+    C: T.Buffer[(16, 16), "float32"],
+):
+    local = T.alloc_buffer((16, 16), "float32")
+    for i, j in T.grid(4, 4):
+        for ii, jj in T.grid(4, 4):
+            with T.block("init"):
+                vi = T.axis.S(16, i * 4 + ii)
+                vj = T.axis.S(16, j * 4 + jj)
+                local[vi, vj] = 0
+        for k, ii, jj in T.grid(16, 4, 4):
+            with T.block("update"):
+                vi = T.axis.S(16, i * 4 + ii)
+                vj = T.axis.S(16, j * 4 + jj)
+                vk = T.axis.R(16, k)
+                local[vi, vj] += A[vi, vk] * B[vj, vk]
+        for ii in range(4):
+            for jj in T.vectorized(4):
+                with T.block("C"):
+                    vi = T.axis.S(16, i * 4 + ii)
+                    vj = T.axis.S(16, j * 4 + jj)
+                    C[vi, vj] = local[vi, vj]
+
+
+@T.prim_func
+def nested_block_bind(
+    A: T.Buffer[(16, 16, 16, 16), "float32"], B: T.Buffer[(16, 16, 16), "float32"]
+):
+    for i, j in T.grid(16, 16):
+        with T.block("outer"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            for k, l in T.grid(16, 16):
+                with T.block("inner"):
+                    vk, vl = T.axis.remap("SR", [k, l])
+                    with T.init():
+                        B[vi, vj, vk] = 0.0
+                    B[vi, vj, vk] = B[vi, vj, vk] + A[vi, vj, vk, vl]
+
+
+@T.prim_func
+def thread_bound_nested_block(
+    A: T.Buffer[(16, 16, 16, 16), "float32"], B: T.Buffer[(16, 16, 16), "float32"]
+) -> None:
+    for i in T.serial(16):
+        for j in T.thread_binding(16, thread="blockIdx.x"):
+            with T.block("outer"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                for k in T.serial(16):
+                    for l in T.thread_binding(16, thread="threadIdx.x"):
+                        with T.block("inner"):
+                            vk, vl = T.axis.remap("SR", [k, l])
+                            with T.init():
+                                B[vi, vj, vk] = T.float32(0)
+                            B[vi, vj, vk] = B[vi, vj, vk] + A[vi, vj, vk, vl]
+
+
+@T.prim_func
+def nested_block_bind_after_cache_read(
+    A: T.Buffer[(16, 16), "float32"], B: T.Buffer[(16,), "float32"]
+) -> None:
+    for i in T.serial(16):
+        with T.block("outer"):
+            vi = T.axis.spatial(16, i)
+            A_shared = T.alloc_buffer([1, 16], dtype="float32", scope="shared")
+            for ax0, ax1 in T.grid(1, 16):
+                with T.block("A_shared"):
+                    v0 = T.axis.spatial(16, vi + ax0)
+                    v1 = T.axis.spatial(16, ax1)
+                    A_shared[v0, v1] = A[v0, v1]
+            for j in T.serial(16):
+                with T.block("inner"):
+                    vj = T.axis.reduce(16, j)
+                    with T.init():
+                        B[vi] = T.float32(0)
+                    B[vi] = B[vi] + A_shared[vi, vj]
+
+
+@T.prim_func
+def thread_bound_nested_block_after_cache_read(
+    A: T.Buffer[(16, 16), "float32"], B: T.Buffer[(16,), "float32"]
+) -> None:
+    for i in T.thread_binding(16, thread="blockIdx.x"):
+        with T.block("outer"):
+            vi = T.axis.spatial(16, i)
+            A_shared = T.alloc_buffer([1, 16], dtype="float32", scope="shared")
+            for ax0, ax1 in T.grid(1, 16):
+                with T.block("A_shared"):
+                    v0 = T.axis.spatial(16, vi + ax0)
+                    v1 = T.axis.spatial(16, ax1)
+                    A_shared[v0, v1] = A[v0, v1]
+            for j in T.thread_binding(16, thread="threadIdx.x"):
+                with T.block("inner"):
+                    vj = T.axis.reduce(16, j)
+                    with T.init():
+                        B[vi] = T.float32(0)
+                    B[vi] = B[vi] + A_shared[vi, vj]
+
+
+@T.prim_func
+def decomposed_gemm_parallelize_init(
+    A: T.Buffer[(16, 16), "float32"],
+    B: T.Buffer[(16, 16), "float32"],
+    C: T.Buffer[(16, 16), "float32"],
+) -> None:
+    local = T.alloc_buffer([16, 16], dtype="float32")
+    for i, j in T.grid(4, 4):
+        for ii in T.serial(4):
+            for jj in T.vectorized(4):
+                with T.block("init"):
+                    vi = T.axis.spatial(16, i * 4 + ii)
+                    vj = T.axis.spatial(16, j * 4 + jj)
+                    T.reads()
+                    T.writes(local[vi, vj])
+                    local[vi, vj] = 0
+        for k, ii, jj in T.grid(16, 4, 4):
+            with T.block("update"):
+                vi = T.axis.spatial(16, i * 4 + ii)
+                vj = T.axis.spatial(16, j * 4 + jj)
+                vk = T.axis.reduce(16, k)
+                T.reads(local[vi, vj], A[vi, vk], B[vj, vk])
+                T.writes(local[vi, vj])
+                local[vi, vj] = local[vi, vj] + A[vi, vk] * B[vj, vk]
+        for ii, jj in T.grid(4, 4):
+            with T.block("C"):
+                vi = T.axis.spatial(16, i * 4 + ii)
+                vj = T.axis.spatial(16, j * 4 + jj)
+                T.reads(local[vi, vj])
+                T.writes(C[vi, vj])
+                C[vi, vj] = local[vi, vj]
+
+
+@T.prim_func
+def scatter_compute(A: T.Buffer[(16,), "float32"], B: T.Buffer[(16,), "float32"]):
+    for i in T.grid(8):
+        with T.block("first_half"):
+            vi = T.axis.spatial(16, 8 + i)
+            B[vi] = A[vi - 8]
+
+    for i in T.grid(8):
+        with T.block("last_half"):
+            vi = T.axis.spatial(16, i)
+            B[vi] = A[vi + 8]
+
+
+@T.prim_func
+def scatter_compute_parallelize(
+    A: T.Buffer[(16,), "float32"], B: T.Buffer[(16,), "float32"]
+) -> None:
+    # body
+    # with T.block("root")
+    for i in T.parallel(8):
+        with T.block("first_half"):
+            vi = T.axis.spatial(16, 8 + i)
+            T.reads(A[vi - 8])
+            T.writes(B[vi])
+            B[vi] = A[vi - 8]
+    for i in T.parallel(8):
+        with T.block("last_half"):
+            vi = T.axis.spatial(16, i)
+            T.reads(A[vi + 8])
+            T.writes(B[vi])
+            B[vi] = A[vi + 8]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable
 
 
@@ -407,5 +600,60 @@ def test_block_inside_init():
     verify_trace_roundtrip(s, mod=block_inside_init)
 
 
+def test_vectorize_after_decompose():
+    s = tir.Schedule(decomposed_gemm, debug_mask="all")
+    jj = s.get_loops(s.get_block("C"))[-1]
+    s.vectorize(jj)
+    tvm.ir.assert_structural_equal(s.mod["main"], decomposed_gemm_after_vectorize)
+    verify_trace_roundtrip(s, mod=decomposed_gemm)
+
+
+def test_nested_block_bind():
+    s = tir.Schedule(nested_block_bind)
+    block_outer = s.get_block("outer")
+    block_inner = s.get_block("inner")
+    _, j = s.get_loops(block_outer)
+    _, l = s.get_loops(block_inner)
+    s.bind(l, "threadIdx.x")
+    s.bind(j, "blockIdx.x")
+    tvm.ir.assert_structural_equal(s.mod["main"], thread_bound_nested_block)
+    verify_trace_roundtrip(s, mod=nested_block_bind)
+
+
+def test_nexted_block_bind_after_cache_read():
+    s = tir.Schedule(nested_block_bind_after_cache_read)
+    block_outer = s.get_block("outer")
+    block_inner = s.get_block("inner")
+    (i,) = s.get_loops(block_outer)
+    (j,) = s.get_loops(block_inner)
+    s.bind(i, "blockIdx.x")
+    s.bind(j, "threadIdx.x")
+    tvm.ir.assert_structural_equal(s.mod["main"], thread_bound_nested_block_after_cache_read)
+    verify_trace_roundtrip(s, mod=nested_block_bind_after_cache_read)
+
+
+def test_vectorize_init():
+    s = tir.Schedule(decomposed_gemm, debug_mask="all")
+    init_blk = s.get_block("init")
+    upd_blk = s.get_block("update")
+    _, _, ii_0, jj_0 = s.get_loops(init_blk)
+    _, _, k_1, ii_1, jj_1 = s.get_loops(upd_blk)
+    s.vectorize(jj_0)
+    tvm.ir.assert_structural_equal(s.mod["main"], decomposed_gemm_parallelize_init)
+    verify_trace_roundtrip(s, mod=decomposed_gemm)
+
+
+def test_scatter_parallelize():
+    s = tir.Schedule(scatter_compute, debug_mask="all")
+    first = s.get_block("first_half")
+    last = s.get_block("last_half")
+    (i_0,) = s.get_loops(first)
+    (i_1,) = s.get_loops(last)
+    s.parallel(i_0)
+    s.parallel(i_1)
+    tvm.ir.assert_structural_equal(s.mod["main"], scatter_compute_parallelize)
+    verify_trace_roundtrip(s, mod=scatter_compute)
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

@@ -111,7 +111,9 @@ def test_in_bounds_vectorize_llvm():
     f = tvm.build(s, [A, C], "llvm")
     dev = tvm.cpu(0)
     # launch the kernel.
-    a = tvm.nd.empty((n,), A.dtype).copyfrom(np.random.uniform(size=(n, lanes)))
+    a = tvm.nd.empty((n,), A.dtype).copyfrom(
+        np.random.uniform(size=[n] + ([] if lanes == 1 else [lanes]))
+    )
     c = tvm.nd.empty((n,), C.dtype, dev)
     f(a, c)
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
@@ -161,7 +163,7 @@ def test_in_bounds_const_loop_partition_ir():
         if (
             isinstance(x, tvm.tir.AttrStmt)
             and x.attr_key == "buffer_bound"
-            and str(x.value) == str(n)
+            and tvm.ir.structural_equal(x.value.args, [n])
         ):
             return True
         return False

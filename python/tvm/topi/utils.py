@@ -17,14 +17,14 @@
 # pylint: disable=invalid-name
 """Common topi utilities"""
 from __future__ import absolute_import as _abs
+
 from numbers import Integral
+
 import numpy as np
-
-
 import tvm
-from tvm import te
-from tvm.tir import layout, bijective_layout
-from . import tag, cpp
+from tvm import relay, te
+from tvm.tir import bijective_layout, layout
+from . import cpp, tag
 
 
 class InvalidShapeError(ValueError):
@@ -310,9 +310,17 @@ def unravel_index(idx, shape):
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
     indices = []
-    for i in range(len(shape) - 1, -1, -1):
-        indices.append(idxm(idx, shape[i]))
-        idx = idxd(idx, shape[i])
+    for i, dim in enumerate(reversed(shape)):
+        if dim == 0:
+            indices.append(0)
+        elif i == len(shape) - 1:
+            # Assuming the index is in-bounds, the last coordinate is
+            # already less than dim, and doesn't need the be remainder
+            # mod dim.
+            indices.append(idx)
+        else:
+            indices.append(idxm(idx, dim))
+            idx = idxd(idx, dim)
     indices = indices[::-1]
     return indices
 
@@ -347,7 +355,15 @@ def const_matrix(matrix, name="const_matrix"):
                 )
         return now
 
-    return te.compute(matrix.shape, select_array, name=name, attrs={"const_matrix": True})
+    return te.compute(
+        matrix.shape,
+        select_array,
+        name=name,
+        attrs={
+            "const_matrix": True,
+            "schedule_rule": "meta_schedule.compute_inline",
+        },
+    )
 
 
 def get_max_power2_factor(n, max_value=None):
@@ -413,6 +429,33 @@ def get_shape(src_shape, src_layout, dst_layout):
     dst_indices = layout_mapping.forward_index(tvm.runtime.convert(list(range(len(src_layout)))))
 
     return get_const_tuple(tuple([src_shape[i.value] for i in dst_indices]))
+
+
+def change_constant_shape(src, src_layout, dst_layout):
+    """Makes a copy of a Relay constant, reshaping it to a new data layout.
+
+    Parameter
+    ---------
+    src : relay.Constant
+        The Constant to be reformatted.
+
+    src_layout : str
+        The current layout of the Relay constant. Must be alphabetic (e.g. NHWC
+        or OIHW, but not NCHW2c).
+
+    dst_layout : str
+        The desired layout of new the Relay constant. Must be alphabetic (e.g. NHWC
+        or OIHW, but not NCHW2c).
+
+    Returns
+    -------
+    dst_shape : relay.Constant
+        A copy of the Constant with the new layout.
+    """
+    assert src_layout.isalpha() and dst_layout.isalpha()
+    axis_order = [src_layout.index(c) for c in dst_layout]
+    reshaped = np.transpose(src.data.numpy(), axis_order)
+    return relay.Constant(tvm.nd.array(reshaped))
 
 
 def within_index(b, e, s, i):
@@ -507,3 +550,10 @@ def ceil_div(a, b):
 def swap(arr, axis):
     """swap arr[axis] and arr[-1]"""
     return arr[:axis] + [arr[-1]] + arr[axis + 1 : -1] + [arr[axis]]
+
+
+def is_target(names):
+    """Return True if the name of the current target is one of provided names"""
+    names = [names] if isinstance(names, str) else names
+    target = tvm.target.Target.current(allow_none=False)
+    return any(name in target.keys for name in names)

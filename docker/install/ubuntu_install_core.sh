@@ -18,21 +18,34 @@
 
 set -e
 set -u
+# Used for debugging RVM build
+set -x
 set -o pipefail
 
-# install libraries for building c++ core on ubuntu
-apt-get update && apt-get install -y --no-install-recommends \
-        git make google-mock libgtest-dev cmake wget unzip libtinfo-dev libz-dev \
-        libcurl4-openssl-dev libssl-dev libopenblas-dev g++ sudo \
-        apt-transport-https graphviz pkg-config curl
+export DEBIAN_FRONTEND=noninteractive
+export TZ=Etc/UTC
+ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
+echo $TZ > /etc/timezone
 
-if [[ -d /usr/src/googletest ]]; then
-  # Single package source (Ubuntu 18.04)
-  # googletest is installed via libgtest-dev
-  cd /usr/src/googletest && cmake CMakeLists.txt && make && cp -v {googlemock,googlemock/gtest}/*.a /usr/lib
-else
-  # Split source package (Ubuntu 16.04)
-  # libgtest-dev and google-mock
-  cd /usr/src/gtest && cmake CMakeLists.txt && make && cp -v *.a /usr/lib
-  cd /usr/src/gmock && cmake CMakeLists.txt && make && cp -v *.a /usr/lib
-fi
+# install libraries for building c++ core on ubuntu
+apt-get update && apt-install-and-clear -y --no-install-recommends \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    g++ \
+    gdb \
+    git \
+    graphviz \
+    libcurl4-openssl-dev \
+    libopenblas-dev \
+    libssl-dev \
+    libtinfo-dev \
+    libz-dev \
+    lsb-core \
+    make \
+    ninja-build \
+    parallel \
+    pkg-config \
+    sudo \
+    unzip \
+    wget \

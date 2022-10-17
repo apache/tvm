@@ -283,7 +283,7 @@ class DefuncMutator : public ExprMutator {
 
       auto apply_gv = GetApplyFunction(ft);
       auto body = this->VisitExpr(Bind(fn->body, free_var_bind_map));
-      AddApplyCase(apply_gv, ft, c, Function(fn->params, body, fn->ret_type, fn->type_params),
+      AddApplyCase(apply_gv, ft, c, WithFields(GetRef<Function>(fn), fn->params, body),
                    pattern_vars);
 
       return Call(c, call_args);
@@ -380,7 +380,7 @@ class DefuncMutator : public ExprMutator {
       map.Set(f->type_params[i], type_args[i]);
     }
     // copy with typevars removed
-    auto copy = TypeSubst(Function(f->params, f->body, f->ret_type, {}), map);
+    auto copy = TypeSubst(WithFields(f, {}, {}, {}, /* erase type params */ Array<TypeVar>()), map);
     return Downcast<Function>(copy);
   }
 
@@ -410,7 +410,8 @@ class DefuncMutator : public ExprMutator {
     }
 
     auto bind = Downcast<Function>(Bind(f, var_bind_map));
-    return Function(params, this->VisitExpr(bind->body), bind->ret_type, {});
+    return WithFields(bind, params, this->VisitExpr(bind->body), bind->ret_type,
+                      /* erase type params */ Array<TypeVar>());
   }
 };
 

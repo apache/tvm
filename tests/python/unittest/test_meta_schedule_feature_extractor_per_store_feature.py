@@ -18,11 +18,12 @@
 import sys
 from typing import Callable, List
 
-from numpy.testing import assert_allclose
 import pytest
-
 import tvm
-from tvm import meta_schedule as ms, te, tir
+import tvm.testing
+from numpy.testing import assert_allclose
+from tvm import meta_schedule as ms
+from tvm import te, tir
 from tvm.script import tir as T
 
 N_FEATURES = 164
@@ -46,6 +47,34 @@ def matmul(
             with T.init():
                 C[i, j] = T.float32(0)
             C[i, j] = C[i, j] + A[i, k] * B[k, j]
+
+
+# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
+# fmt: off
+
+# from tvm.script import tir as T
+@tvm.script.ir_module
+class LayoutTransform:
+    @T.prim_func
+    def main(placeholder: T.Buffer[(1, 16, 7, 7, 32), "float32"], placeholder_1: T.Buffer[(25088,), "float32"], T_layout_trans: T.Buffer[(1, 1, 7, 7, 512), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        # body
+        # with T.block("root")
+        for i0_i1_i2_i3_i4_fused in T.parallel(25088, annotations={"pragma_auto_unroll_max_step":64, "pragma_unroll_explicit":1}):
+            with T.block("T_layout_trans_1"):
+                ax0 = T.axis.spatial(1, 0)
+                ax1 = T.axis.spatial(1, 0)
+                ax2 = T.axis.spatial(7, i0_i1_i2_i3_i4_fused // 3584)
+                ax3 = T.axis.spatial(7, i0_i1_i2_i3_i4_fused % 3584 // 512)
+                ax4 = T.axis.spatial(512, i0_i1_i2_i3_i4_fused % 512)
+                T.reads(placeholder[0, (ax4 * 49 + ax2 * 7 + ax3) % 25088 // 1568, (ax2 * 7 + ax3) % 49 // 7, ax3 % 7, (ax4 * 49 + ax2 * 7 + ax3) % 1568 // 49], placeholder_1[(ax4 * 49 + ax2 * 7 + ax3) % 25088])
+                T.writes(T_layout_trans[ax0, ax1, ax2, ax3, ax4])
+                T_layout_trans[ax0, ax1, ax2, ax3, ax4] = T.if_then_else(ax0 < 1 and ax1 * 512 + ax4 < 512 and ax2 < 7 and ax3 < 7, T.Select(T.float32(0) < T.if_then_else(0 < 1 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 < 512 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7 < 7 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7 < 7, placeholder[0, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 // 32, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 % 32], T.float32(0), dtype="float32"), T.if_then_else(0 < 1 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 < 512 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7 < 7 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7 < 7, placeholder[0, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 // 32, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 % 32], T.float32(0), dtype="float32"), T.if_then_else(0 < 1 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 < 512 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7 < 7 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7 < 7, placeholder[0, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 // 32, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 % 32], T.float32(0), dtype="float32") * placeholder_1[((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088]), T.float32(0), dtype="float32")
+
+
+# fmt: on
+# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 
 
 def _make_context(target) -> ms.TuneContext:
@@ -315,7 +344,7 @@ def test_cpu_matmul():
             25.0,
             16.000022888183594,
             15.000043869018555,
-            10.001408576965332,
+            10.001408194392809,
             0.0,
         ],
         rtol=1e-5,
@@ -336,19 +365,22 @@ def test_cpu_matmul():
         atol=1e-5,
     )
     # Group 3: Arithmetic intensity
+    # arithmetic intensity = flops/bytes touched = 2*512*512*512/(3 * 4 * 512*512)
+    #                             add and multiply ^     3 arrays ^   ^ 4 bytes per f32
+    # = 85.3 but log2 is used so values should be around 6.4
     assert_allclose(
         actual=f[147:157],
         desired=[
-            0.7097842693328857,
-            0.7408391237258911,
-            0.8750449419021606,
-            0.9449487924575806,
-            1.0148526430130005,
-            1.0847564935684204,
-            1.113688349723816,
-            1.1394684314727783,
-            1.2119636535644531,
-            1.2971993684768677,
+            3.812599,
+            4.464822,
+            4.912349,
+            5.253426,
+            5.529086,
+            5.76043,
+            5.959752,
+            6.134849,
+            6.290977,
+            6.431846,
         ],
         rtol=1e-5,
         atol=1e-5,
@@ -951,8 +983,8 @@ def test_gpu():
             0.0,
             0.0,
             0.0,
-            22.00000034396526,
-            22.00000034396526,
+            21.584962959341485,
+            21.584962959341485,
             21.000000687930438,
             0.0,
             0.0,
@@ -1032,7 +1064,7 @@ def test_gpu():
             0.0,
             0.0,
             3.169925001442312,
-            10.001408194392809,
+            9.61654884377899,
             8.005624549193879,
             14.000088052430122,
             1.584962500721156,
@@ -1328,19 +1360,22 @@ def test_gpu():
         atol=1e-5,
     )
     # Group 3: Arithmetic intensity
+    # Arithmetic intensity is high here because of repeated use of a shared
+    # buffer. Multiple accesses to the same memory location are counted as a
+    # single byte, skewing these numbers towards higher intensity.
     assert_allclose(
         actual=f[147:157],
         desired=[
-            0.7097842504665767,
-            0.7548801745187567,
-            0.8775907547541741,
-            0.9957389916154509,
-            1.2446737395193135,
-            1.493608487423176,
-            1.7093103019954263,
-            1.8031580276850985,
-            1.9841832691827785,
-            2.204648076869754,
+            11.98533,
+            12.977811,
+            13.562714,
+            13.977722,
+            14.299632,
+            14.562654,
+            14.785038,
+            14.977677,
+            15.147597,
+            15.299596,
         ],
         rtol=1e-5,
         atol=1e-5,
@@ -1551,5 +1586,29 @@ def test_gpu():
     )
 
 
+def test_cpu_layout_transform():
+    extractor = ms.feature_extractor.PerStoreFeature()
+    (feature,) = extractor.extract_from(
+        _make_context(tvm.target.Target("llvm")),
+        candidates=[_make_candidate(lambda: tir.Schedule(LayoutTransform))],
+    )
+
+
+@T.prim_func
+def negative_extent(A: T.Buffer[(1,), "float32"]):
+    for j in range(0, -1):
+        A[j] = A[j] + 1.0
+
+
+def test_negative_extent():
+    extractor = ms.feature_extractor.PerStoreFeature()
+    (features,) = extractor.extract_from(
+        _make_context(tvm.target.Target("llvm")),
+        candidates=[_make_candidate(lambda: tir.Schedule(negative_extent))],
+    )
+    named_features = dict(zip(_feature_names(), list(features.numpy()[0, :])))
+    assert named_features["B0.unique_bytes"] == 0
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

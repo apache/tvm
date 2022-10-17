@@ -19,28 +19,42 @@
 
 /*!
  * \file src/relay/backend/contrib/cutlass/codegen.cc
- * \brief Implementation of CUTLASS codegen.
+ * \brief The 'custom' compilation pass for CUTLASS (invoked by the RelayToTIRTargetHook pass).
  */
 
+#include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/attrs/nn.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 
-#include <fstream>
 #include <numeric>
 #include <sstream>
 
+#include "../../../transforms/compiler_function_utils.h"
 #include "../../utils.h"
 #include "../codegen_c/codegen_c.h"
 
 namespace tvm {
 namespace relay {
 namespace contrib {
+namespace cutlass {
 
-using namespace backend;
+namespace {
+
+/*! \brief Return the "cutlass" Target instance to use to guide compilation. */
+Target GetCutlassTarget() {
+  Target target = Target::Current(/*allow_not_defined=*/true);
+  if (!target.defined() || target->kind->name != "cutlass") {
+    // Use the default CUTLASS compilation options if no specific "cutlass" target was given
+    // in the overall targets list. In that case target_hooks.cc will invoke the custom pass
+    // without pushing any target instance onto the implicit target stack.
+    target = Target("cutlass");
+  }
+  return target;
+}
+
 using Str2StrMap = std::unordered_map<std::string, std::string>;
 
 static Str2StrMap dtype_map = {{"float16", "cutlass::half_t"},
@@ -238,47 +252,62 @@ std::string BatchMatmulOp(std::string id, const Str2StrMap& attrs,
   return gemm_decl.str();
 }
 
-Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs) {
+Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs, bool is_dgrad = false,
+                      bool is_wgrad = false) {
   Str2StrMap args = ArgsCommon(attrs);
   auto arg0_shape = attrs["arg0_shape"].as<ArrayNode>();
   auto arg1_shape = attrs["arg1_shape"].as<ArrayNode>();
-  auto out_shape = attrs["ret_shape"].as<ArrayNode>();
-  args["N"] = GetDimAsStr(arg0_shape->at(0));
-  args["H"] = GetDimAsStr(arg0_shape->at(1));
-  args["W"] = GetDimAsStr(arg0_shape->at(2));
-  args["C"] = GetDimAsStr(arg0_shape->at(3));
-  args["K"] = GetDimAsStr(arg1_shape->at(0));
-  args["R"] = GetDimAsStr(arg1_shape->at(1));
-  args["S"] = GetDimAsStr(arg1_shape->at(1));
-  args["P"] = GetDimAsStr(out_shape->at(1));
-  args["Q"] = GetDimAsStr(out_shape->at(2));
+  auto ret_shape = attrs["ret_shape"].as<ArrayNode>();
+  auto activation_shape = arg0_shape;
+  auto weight_shape = arg1_shape;
+  auto output_shape = ret_shape;
+
+  if (is_dgrad) {
+    activation_shape = ret_shape;
+    output_shape = arg0_shape;
+  } else if (is_wgrad) {
+    activation_shape = arg1_shape;
+    weight_shape = ret_shape;
+    output_shape = arg0_shape;
+  }
+
+  args["N"] = GetDimAsStr(activation_shape->at(0));
+  args["H"] = GetDimAsStr(activation_shape->at(1));
+  args["W"] = GetDimAsStr(activation_shape->at(2));
+  args["C"] = GetDimAsStr(activation_shape->at(3));
+  args["P"] = GetDimAsStr(output_shape->at(1));
+  args["Q"] = GetDimAsStr(output_shape->at(2));
+  args["K"] = GetDimAsStr(output_shape->at(3));
+  args["R"] = GetDimAsStr(weight_shape->at(1));
+  args["S"] = GetDimAsStr(weight_shape->at(2));
   args["pad_h"] = GetDimAsStr(attrs["padding"].as<ArrayNode>()->at(0));
   args["pad_w"] = GetDimAsStr(attrs["padding"].as<ArrayNode>()->at(1));
   args["stride_h"] = GetDimAsStr(attrs["strides"].as<ArrayNode>()->at(0));
   args["stride_w"] = GetDimAsStr(attrs["strides"].as<ArrayNode>()->at(1));
   args["dilation_h"] = GetDimAsStr(attrs["dilation"].as<ArrayNode>()->at(0));
   args["dilation_w"] = GetDimAsStr(attrs["dilation"].as<ArrayNode>()->at(1));
+
   return args;
 }
 
 std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
                      const std::vector<std::string>& func_args, bool has_residual_block = false) {
-  bool has_bias = attrs.at("op_type").find("bias") != std::string::npos;
-  bool no_bias_scaling = attrs.at("op_type") != "cutlass.conv2d_bias_sigmoid" &&
-                         attrs.at("op_type") != "cutlass.conv2d_bias_silu" &&
-                         attrs.at("op_type") != "cutlass.conv2d_bias_hardswish";
+  auto op_type = attrs.at("op_type");
+  bool has_bias = op_type.find("bias") != std::string::npos;
+  bool no_bias_scaling = op_type != "cutlass.conv2d_bias_sigmoid" &&
+                         op_type != "cutlass.conv2d_bias_silu" &&
+                         op_type != "cutlass.conv2d_bias_hardswish";
 
+  const std::string op_name = attrs.at("op_name");
   std::ostringstream conv2d_decl;
-  CutlassPrint(conv2d_decl, "using ElementInputA = " + attrs.at("ElementInputA") + ";\n");
-  CutlassPrint(conv2d_decl, "using ElementInputB = " + attrs.at("ElementInputB") + ";\n");
-  CutlassPrint(conv2d_decl, "using ElementOutput = " + attrs.at("ElementOutput") + ";\n");
-  CutlassPrint(conv2d_decl, "using ElementComputeEpilogue = " + attrs.at("ElementOutput") + ";\n");
-
   CutlassPrint(conv2d_decl, attrs.at("op_def"));
-  CutlassPrint(conv2d_decl, "using Operation_" + attrs.at("op_name") +
-                                " = cutlass::conv::device::ImplicitGemmConvolution<" +
-                                attrs.at("op_name") + ">;\n");
-  CutlassPrint(conv2d_decl, "using Conv2d = Operation_" + attrs.at("op_name") + ";\n");
+  CutlassPrint(conv2d_decl, "using Operation_" + op_name +
+                                " = cutlass::conv::device::ImplicitGemmConvolution<" + op_name +
+                                ">;\n");
+  CutlassPrint(conv2d_decl, "using Conv2d = Operation_" + op_name + ";\n");
+  CutlassPrint(conv2d_decl, "using ElementInputA = Conv2d::ElementA;\n");
+  CutlassPrint(conv2d_decl, "using ElementInputB = Conv2d::ElementB;\n");
+  CutlassPrint(conv2d_decl, "using ElementComputeEpilogue = Conv2d::ElementAccumulator;\n");
 
   auto get_dim = [&attrs](const std::string& axis, const std::string& var_name, int axis_idx) {
     if (attrs.at(axis) == kAnyDim) {
@@ -304,14 +333,33 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
   CutlassPrint(conv2d_decl, "int dilation_h = " + attrs.at("dilation_h") + ";\n");
   CutlassPrint(conv2d_decl, "int dilation_w = " + attrs.at("dilation_w") + ";\n");
 
+  const bool use_split_k = op_name.find("splitk") != std::string::npos;
+
+  if (use_split_k) {
+    std::string split_k_slices = op_name.substr(op_name.find_last_not_of("0123456789") + 1);
+    CutlassPrint(conv2d_decl, "int split_k_slices = " + split_k_slices + ";\n");
+  } else {
+    CutlassPrint(conv2d_decl, "int split_k_slices = 1;\n");
+  }
+
   CutlassPrint(
       conv2d_decl,
       "cutlass::conv::Conv2dProblemSize problem_size(N, H, W, C, K, R, S, P, Q, pad_h, pad_w, "
-      "stride_h, stride_w, dilation_h, dilation_w, cutlass::conv::Mode::kCrossCorrelation, 1);\n");
+      "stride_h, stride_w, dilation_h, dilation_w, cutlass::conv::Mode::kCrossCorrelation, "
+      "split_k_slices);\n");
+
+  const std::string split_k_mode = use_split_k ? "kParallel" : "kSerial";
+  CutlassPrint(conv2d_decl,
+               "const cutlass::conv::SplitKMode split_k_mode = cutlass::conv::SplitKMode::" +
+                   split_k_mode + ";\n");
+
+  bool is_wgrad = op_type.find("backward_weight") != std::string::npos;
+  bool is_dgrad = op_type.find("conv2d_transpose") != std::string::npos;
 
   ICHECK(func_args.size() >= 2);
   CutlassPrint(conv2d_decl, "void* ptr_a = (void*)(" + func_args[0] + "->data);\n");
   CutlassPrint(conv2d_decl, "void* ptr_b = (void*)(" + func_args[1] + "->data);\n");
+
   if (has_residual_block) {
     ICHECK(func_args.size() >= 4);
     CutlassPrint(conv2d_decl, "void* ptr_bias = (void*)(" + func_args[2] + "->data);\n");
@@ -323,47 +371,81 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
 
   CutlassPrint(conv2d_decl, "void* ptr_out = (void*)(out0->data);\n");
   CutlassPrint(conv2d_decl, "ElementComputeEpilogue alpha = ElementComputeEpilogue(1);\n");
-  if (has_bias && no_bias_scaling && !has_residual_block) {
+  if ((!has_bias || no_bias_scaling) && !has_residual_block) {
     CutlassPrint(conv2d_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(0);\n");
   } else {
     CutlassPrint(conv2d_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(1);\n");
   }
   CutlassPrint(conv2d_decl, "using cutlass::layout::TensorNHWC;\n");
   CutlassPrint(conv2d_decl,
-               "TensorNHWC layout_A(TensorNHWC::packed(cutlass::make_Coord(N, H, W, C)));\n");
+               "auto activation_shape = TensorNHWC::packed(cutlass::make_Coord(N, H, W, C));\n");
   CutlassPrint(conv2d_decl,
-               "TensorNHWC layout_B(TensorNHWC::packed(cutlass::make_Coord(K, R, S, C)));\n");
+               "auto weight_shape = TensorNHWC::packed(cutlass::make_Coord(K, R, S, C));\n");
   CutlassPrint(conv2d_decl,
-               "TensorNHWC layout_C(TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K)));\n\n");
+               "auto output_oshape = TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K));\n");
+
+  if (is_wgrad) {
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_A(output_oshape);\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_B(activation_shape);\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_C(weight_shape);\n\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_D(weight_shape);\n\n");
+  } else if (is_dgrad) {
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_A(output_oshape);\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_B(weight_shape);\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_C(activation_shape);\n\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_D(activation_shape);\n\n");
+  } else {
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_A(activation_shape);\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_B(weight_shape);\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_C(output_oshape);\n\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_D(output_oshape);\n\n");
+  }
+
+  if (use_split_k) {
+    CutlassPrint(conv2d_decl, "using ElementOutput = EpilogueOutputOp::ElementOutput;\n");
+  } else {
+    CutlassPrint(conv2d_decl, "using ElementOutput = Conv2d::ElementC;\n");
+  }
+
+  std::string tensor_c_init = "{static_cast<ElementOutput*>(ptr_out), layout_C}";
+  if (has_residual_block) {
+    tensor_c_init = "{static_cast<ElementOutput*>(ptr_residual), layout_C}";
+  } else if (has_bias) {
+    tensor_c_init =
+        "{static_cast<ElementOutput*>(ptr_c_bias), cutlass::layout::TensorNHWC::Stride(0)}";
+  }
+
   CutlassPrint(conv2d_decl,
-               "TensorNHWC layout_D(TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K)));\n\n");
+               "cutlass::TensorRef<ElementOutput, TensorNHWC> tensor_c" + tensor_c_init + ";\n");
+  CutlassPrint(conv2d_decl,
+               "cutlass::TensorRef<ElementOutput, TensorNHWC> "
+               "tensor_d{static_cast<ElementOutput*>(ptr_out),layout_D};\n");
 
   CutlassPrint(conv2d_decl, "typename Conv2d::Arguments arguments{\n");
   CutlassPrint(conv2d_decl, " problem_size,\n");
   CutlassPrint(conv2d_decl, " {static_cast<ElementInputA*>(ptr_a), layout_A},\n");
   CutlassPrint(conv2d_decl, " {static_cast<ElementInputB*>(ptr_b), layout_B},\n");
 
-  if (has_residual_block) {
-    CutlassPrint(conv2d_decl, " {static_cast<ElementOutput*>(ptr_residual), layout_C},\n");
-  } else if (has_bias) {
-    CutlassPrint(
-        conv2d_decl,
-        " {static_cast<ElementOutput*>(ptr_c_bias), cutlass::layout::TensorNHWC::Stride(0)},\n");
+  if (use_split_k) {
+    CutlassPrint(conv2d_decl, "{nullptr, TensorNHWC()},\n");
+    CutlassPrint(conv2d_decl, "{nullptr, TensorNHWC()},\n");
   } else {
-    CutlassPrint(conv2d_decl, " {static_cast<ElementOutput*>(ptr_out), layout_C},\n");
+    CutlassPrint(conv2d_decl, " tensor_c,\n");
+    CutlassPrint(conv2d_decl, " tensor_d,\n");
   }
 
-  CutlassPrint(conv2d_decl, " {static_cast<ElementOutput*>(ptr_out),layout_D},\n");
-
   if (has_residual_block) {
+    ICHECK(use_split_k == false) << "Split-k not supported for residual block fusion";
     CutlassPrint(conv2d_decl, "{alpha, beta},\n");
     CutlassPrint(conv2d_decl, "cutlass::conv::SplitKMode::kSerial,\n");  // split_k_slices
     CutlassPrint(conv2d_decl, "static_cast<ElementOutput*>(ptr_bias),\n");
     CutlassPrint(conv2d_decl, "nullptr, 0, K};\n");
   } else if (has_bias && no_bias_scaling) {
-    CutlassPrint(conv2d_decl, " {alpha}\n};\n");
+    CutlassPrint(conv2d_decl, " {alpha},\n");
+    CutlassPrint(conv2d_decl, "split_k_mode\n};\n");
   } else {
-    CutlassPrint(conv2d_decl, "{alpha, beta}\n};\n");
+    CutlassPrint(conv2d_decl, "{alpha, beta},\n");
+    CutlassPrint(conv2d_decl, "split_k_mode\n};\n");
   }
 
   CutlassPrint(conv2d_decl, "Conv2d conv2d_op;\n");
@@ -374,18 +456,73 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
                "cutlass::device_memory::allocation<uint8_t> workspace(workspace_size);\n");
   // Check the problem size is supported or not
   CutlassPrint(conv2d_decl, "cutlass::Status status = conv2d_op.can_implement(arguments);\n");
-  CutlassPrint(conv2d_decl, "CHECK(status == cutlass::Status::kSuccess);\n");
+  CutlassPrint(conv2d_decl, "CHECK(status == cutlass::Status::kSuccess);\n\n");
+
+  if (use_split_k) {
+    CutlassPrint(conv2d_decl,
+                 "arguments.ref_D.reset(reinterpret_cast<ElementComputeEpilogue*>(workspace.get()),"
+                 " layout_D);\n\n");
+  }
+
   // Initialize CUTLASS kernel with arguments and workspace pointer
   CutlassPrint(conv2d_decl, "status = conv2d_op.initialize(arguments, workspace.get());\n");
-  CutlassPrint(conv2d_decl, "CHECK(status == cutlass::Status::kSuccess);\n");
+  CutlassPrint(conv2d_decl, "CHECK(status == cutlass::Status::kSuccess);\n\n");
+
+  if (use_split_k) {
+    CutlassPrint(
+        conv2d_decl,
+        "arguments.output_op = {ElementComputeEpilogue(1), ElementComputeEpilogue(0)}; \n");
+    CutlassPrint(conv2d_decl, "status = conv2d_op.update(arguments, workspace.get()); \n");
+    CutlassPrint(conv2d_decl, "CHECK(status == cutlass::Status::kSuccess);\n\n");
+  }
+
   // Launch initialized CUTLASS kernel
   CutlassPrint(conv2d_decl, "status = conv2d_op();\n");
-  CutlassPrint(conv2d_decl, "CHECK(status == cutlass::Status::kSuccess);\n");
+  CutlassPrint(conv2d_decl, "CHECK(status == cutlass::Status::kSuccess);\n\n");
+
+  if (use_split_k) {
+    CutlassPrint(conv2d_decl, "ReductionDevice reduction_op;\n");
+    CutlassPrint(conv2d_decl,
+                 "const static cutlass::conv::Operator kConvolutionalOperator = "
+                 "Conv2d::kConvolutionalOperator;\n");
+    CutlassPrint(conv2d_decl, "typename ReductionDevice::Arguments reduction_args(\n");
+    CutlassPrint(conv2d_decl,
+                 "cutlass::conv::implicit_gemm_problem_size(kConvolutionalOperator, "
+                 "problem_size).mn(),\n");
+    CutlassPrint(conv2d_decl, "problem_size.split_k_slices,\n");
+    CutlassPrint(conv2d_decl,
+                 "cutlass::conv::implicit_gemm_tensor_c_size(kConvolutionalOperator, "
+                 "problem_size),\n");
+    CutlassPrint(conv2d_decl, "{\n");
+    CutlassPrint(conv2d_decl,
+                 " reinterpret_cast<Conv2d::ElementAccumulator*> (workspace.get()),\n");
+    CutlassPrint(conv2d_decl,
+                 "ReductionStrideIndex(tensor_c.stride()[Conv2d::ImplicitGemmKernel::"
+                 "kTensorCStrideIdx])\n");
+    CutlassPrint(conv2d_decl, "},\n");
+    CutlassPrint(conv2d_decl, "{\n");
+    CutlassPrint(conv2d_decl, "tensor_d.data(),\n");
+    CutlassPrint(conv2d_decl,
+                 "ReductionStrideIndex(tensor_d.stride()[Conv2d::ImplicitGemmKernel::"
+                 "kTensorCStrideIdx])\n");
+    CutlassPrint(conv2d_decl, "},\n");
+    CutlassPrint(conv2d_decl, "{\n");
+    CutlassPrint(conv2d_decl, "tensor_c.data(),\n");
+    CutlassPrint(conv2d_decl,
+                 "ReductionStrideIndex(tensor_c.stride()[Conv2d::ImplicitGemmKernel::"
+                 "kTensorCStrideIdx])\n");
+    CutlassPrint(conv2d_decl, "},\n");
+    CutlassPrint(conv2d_decl, "   {alpha, beta}\n");
+    CutlassPrint(conv2d_decl, ");\n\n");
+    CutlassPrint(conv2d_decl, "status = reduction_op.initialize(reduction_args, nullptr);\n");
+    CutlassPrint(conv2d_decl, "status = reduction_op();\n");
+  }
 
   return conv2d_decl.str();
 }
 
-class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, public CodegenCBase {
+class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output>>,
+                       public CodegenCBase {
  public:
   CodegenCutlass(const std::string& id, const Map<String, ObjectRef>& attrs) {
     this->ext_func_id_ = id;
@@ -438,7 +575,7 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
     this->ExitScope();
     code_stream_ << "}\n";
 
-    this->GenerateBackendCFunc(ext_func_id_, ext_func_args_, const_array_name_, out, true);
+    this->GenerateBackendCFunc(ext_func_id_, ext_func_args_, /*const_arr_name=*/"", out, true);
     return code_stream_.str();
   }
 
@@ -471,11 +608,14 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
 
   GenerateBodyOutput GenerateCompositeFunctionCall(const FunctionNode* callee,
                                                    const CallNode* caller) {
+    using backend::GetRootCall;
+
     const auto pattern_name = callee->GetAttr<runtime::String>(attr::kComposite);
     ICHECK(pattern_name.defined()) << "Only functions with composite attribute are supported.";
 
     if (pattern_name == "cutlass.dense") {
-      const auto* dense_call = GetRootCall(callee->body.as<CallNode>(), 0, {"nn.dense"});
+      const auto* dense_call =
+          GetRootCall(callee->body.as<CallNode>(), 0, std::vector<std::string>{"nn.dense"});
       return GenerateBody(dense_call, "cutlass_dense", GetArgumentNames(caller),
                           DenseArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.dense_bias") {
@@ -510,11 +650,12 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
                           DenseArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.batch_matmul") {
       const auto* batch_matmul_call =
-          GetRootCall(callee->body.as<CallNode>(), 0, {"nn.batch_matmul"});
+          GetRootCall(callee->body.as<CallNode>(), 0, std::vector<std::string>{"nn.batch_matmul"});
       return GenerateBody(batch_matmul_call, "cutlass_batch_matmul", GetArgumentNames(caller),
                           BatchMatmulArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.conv2d") {
-      const auto* conv2d_call = GetRootCall(callee->body.as<CallNode>(), 0, {"nn.conv2d"});
+      const auto* conv2d_call =
+          GetRootCall(callee->body.as<CallNode>(), 0, std::vector<std::string>{"nn.conv2d"});
       return GenerateBody(conv2d_call, "cutlass_conv2d", GetArgumentNames(caller),
                           Conv2dArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.conv2d_bias") {
@@ -576,6 +717,16 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
       ICHECK(conv2d_call);
       return GenerateBody(conv2d_call, pattern_name.value(), GetArgumentNames(caller),
                           Conv2dArgs(std::ref(attrs_)));
+    } else if (pattern_name == "cutlass.conv2d_transpose") {
+      const auto* conv2d_call = GetRootCall(callee->body.as<CallNode>(), 0,
+                                            std::vector<std::string>{"nn.conv2d_transpose"});
+      return GenerateBody(conv2d_call, "cutlass_conv2d_transpose", GetArgumentNames(caller),
+                          Conv2dArgs(std::ref(attrs_), true, false));
+    } else if (pattern_name == "cutlass.conv2d_backward_weight") {
+      const auto* conv2d_call = GetRootCall(callee->body.as<CallNode>(), 0,
+                                            std::vector<std::string>{"nn.conv2d_backward_weight"});
+      return GenerateBody(conv2d_call, "cutlass_conv2d_backward_weight", GetArgumentNames(caller),
+                          Conv2dArgs(std::ref(attrs_), false, true));
     }
 
     LOG(FATAL) << "Unknown composite function: " << pattern_name;
@@ -630,7 +781,7 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
     return ret;
   }
   /*! \brief The id of the external cutlass ext_func. */
-  std::string ext_func_id_{""};
+  std::string ext_func_id_;
   /*! \brief The attrs of the external cutlass ext_func. */
   Map<String, ObjectRef> attrs_;
   /*!
@@ -642,28 +793,26 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
   Array<Var> ext_func_args_;
   /*! \brief Statement of the function that will be compiled using CUTLASS kernels. */
   std::vector<std::string> ext_func_body_;
-  /*! \brief The array declared to store the constant values. */
-  std::string const_array_name_;
   /*! \brief The declaration of intermediate buffers. */
   std::vector<std::string> buf_decl_;
 };  // class CodegenCutlass
 
-class CutlassModuleCodegen : public CSourceModuleCodegenBase {
+class CutlassModuleCodegen {
  public:
-  std::pair<std::string, Array<String>> GenCutlassFunc(const Function& func) {
-    ICHECK(func.defined()) << "Input error: expect a Relay function.";
-    // Record the external symbol for runtime lookup.
-    auto sid = GetExtSymbol(func);
-    const auto* attrs = func->attrs.as<DictAttrsNode>();
-    ICHECK(attrs != nullptr);
-    const auto dict = attrs->dict;
-    CodegenCutlass builder(sid, dict);
-    auto out = builder.VisitExpr(func->body);
-    code_stream_ << builder.JIT(out);
-    return {sid, {}};
+  explicit CutlassModuleCodegen(IRModule mod) : mod_(std::move(mod)) {}
+
+  runtime::Module CreateCSourceModule() {
+    EmitPreamble();
+    for (const auto& kv : mod_->functions) {
+      if (const auto* function_node = GetCutlassFunctionNode(kv.second)) {
+        GenCutlassFunc(GetRef<Function>(function_node));
+      }
+    }
+    return Finalize();
   }
 
-  runtime::Module CreateCSourceModule(const ObjectRef& ref) override {
+ private:
+  void EmitPreamble() {
     // create header
     code_stream_ << "#include <cstdint>\n";
     code_stream_ << "#include <cstdlib>\n";
@@ -676,10 +825,13 @@ class CutlassModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <cuda_fp16.h>\n";
     code_stream_ << "#include <cutlass/cutlass.h>\n";
     code_stream_ << "#include <cutlass/coord.h>\n";
+    code_stream_ << "#include <cutlass/tensor_ref.h>\n";
     code_stream_ << "#include <cutlass/util/host_tensor.h>\n";
     code_stream_ << "#include <cutlass/gemm/device/gemm.h>\n";
     code_stream_ << "#include <cutlass/gemm/device/gemm_batched.h>\n";
     code_stream_ << "#include <cutlass/conv/kernel/default_conv2d_fprop.h>\n";
+    code_stream_ << "#include <cutlass/conv/kernel/default_conv2d_wgrad.h>\n";
+    code_stream_ << "#include <cutlass/conv/kernel/default_conv2d_dgrad.h>\n";
     code_stream_ << "#include <cutlass/conv/device/implicit_gemm_convolution.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_bias_relu.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_gelu.h>\n";
@@ -688,34 +840,99 @@ class CutlassModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_hardswish.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_residual_block.h>\n";
     code_stream_ << "#include <cutlass/conv/kernel/default_conv2d_fprop_with_broadcast.h>\n";
-
-    ICHECK(ref->IsInstance<FunctionNode>());
-    auto res = GenCutlassFunc(Downcast<Function>(ref));
-    std::string code = code_stream_.str();
-    String sym = std::get<0>(res);
-    Array<String> variables = std::get<1>(res);
-    // Create a CSource module
-    const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
-    ICHECK(pf != nullptr) << "Cannot find CSource module to create the external runtime module";
-    return (*pf)(code, "cu", Array<String>{sym}, variables);
+    code_stream_ << "#include <cutlass/reduction/device/reduce_split_k.h>\n";
+    code_stream_ << "#include <cutlass/reduction/thread/reduction_operators.h>\n";
   }
 
- private:
-  /*! \brief The code stream that will be compiled by NVCC */
+  void GenCutlassFunc(const Function& function) {
+    ICHECK(function.defined()) << "Input error: expect a Relay function.";
+
+    // Record the external symbol for runtime lookup.
+    Optional<String> opt_global_symbol = function->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    ICHECK(opt_global_symbol.defined())
+        << "CUTLASS functions must have a " << tvm::attr::kGlobalSymbol << " attribute";
+    std::string sid = opt_global_symbol.value();
+    if (std::find(func_names_.begin(), func_names_.end(), sid) != func_names_.end()) {
+      // Already emitted.
+      return;
+    }
+    func_names_.push_back(sid);
+
+    const auto* attrs = function->attrs.as<DictAttrsNode>();
+    ICHECK(attrs != nullptr);
+    const auto dict = attrs->dict;
+    CodegenCutlass builder(sid, dict);
+    VLOG(1) << "Creating cutlass C code for '" << sid << "' from:\n" << PrettyPrint(function);
+    auto out = builder.VisitExpr(function->body);
+    code_stream_ << builder.JIT(out);
+  }
+
+  runtime::Module Finalize() {
+    ICHECK(!func_names_.empty())
+        << "Should only create CUTLASS CSourceModule if have at least one CUTLASS partition";
+    const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
+    ICHECK(pf != nullptr) << "Cannot find CSource module to create the external runtime module";
+    VLOG(1) << "Generated CUTLASS code:" << std::endl << code_stream_.str();
+    return (*pf)(code_stream_.str(), "cu", func_names_, /*const_vars=*/Array<String>());
+  }
+
+  /*!
+   * \brief Returns \p expr as function if it is a \p Function with "Compiler" attribute
+   * value "cutlass".
+   */
+  static const FunctionNode* GetCutlassFunctionNode(const Expr& expr) {
+    if (const auto* function_node = expr.as<FunctionNode>()) {
+      Optional<String> opt_compiler = function_node->GetAttr<String>(attr::kCompiler);
+      if (opt_compiler.defined() && opt_compiler.value() == "cutlass") {
+        return function_node;
+      }
+    }
+    return nullptr;
+  }
+
+  /*! \brief Module we are compiling. */
+  IRModule mod_;
+  /*! \brief The accumulated code stream that will be compiled by NVCC */
   std::ostringstream code_stream_;
+  /*! \brief The accumulated function names. */
+  Array<String> func_names_;
 };  // CutlassModuleCodegen
 
 /*!
- * \brief The external cutlass compiler/codegen tool. It takes a Relay
- * expression/module and compile it into a runtime module.
+ * \brief A small shim to redirect to the 'relay.ext.cutlass.compile_for_cutlass' Python
+ * function which does the main CUTLASS training, c-code generation and compilation steps.
  */
-runtime::Module CutlassCompiler(const ObjectRef& ref) {
-  CutlassModuleCodegen cutlass;
-  return cutlass.CreateCSourceModule(ref);
+tvm::transform::Pass CompileForCutlassImpl() {
+  auto pass_func = [=](IRModule mod, const tvm::transform::PassContext& pass_ctx) {
+    VLOG(1) << "CompileForCutlass input:" << std::endl << PrettyPrint(mod);
+    const auto* pf = runtime::Registry::Get("relay.ext.cutlass.compile_for_cutlass");
+    ICHECK(pf != nullptr) << "Cannot find compile_for_cutlass function";
+    Target target = GetCutlassTarget();
+    runtime::Module runtime_mod = (*pf)(mod, target);
+    Array<runtime::Module> external_mods =
+        mod->GetAttr<Array<runtime::Module>>(tvm::attr::kExternalMods).value_or({});
+    external_mods.push_back(runtime_mod);
+    return WithAttr(mod, tvm::attr::kExternalMods, external_mods);
+  };
+  return tvm::transform::CreateModulePass(pass_func, 0, "CompileForCutlass", {});
 }
 
-TVM_REGISTER_GLOBAL("relay.ext.cutlass").set_body_typed(CutlassCompiler);
+runtime::Module CreateCSourceModule(const IRModule& mod) {
+  VLOG(1) << "Creating CUTLASS CSource module from:" << std::endl << PrettyPrint(mod);
+  return CutlassModuleCodegen(mod).CreateCSourceModule();
+}
 
+}  // namespace
+
+TVM_REGISTER_GLOBAL("relay.ext.cutlass.create_c_source_module").set_body_typed(CreateCSourceModule);
+
+tvm::transform::Pass CompileForCutlass() {
+  return transform::Sequential(
+      {transform::OutlineCompilerFunctionsWithExistingGlobalSymbols("cutlass"),
+       CompileForCutlassImpl(), transform::MarkCompilerFunctionsAsExtern("cutlass")});
+}
+
+}  // namespace cutlass
 }  // namespace contrib
 }  // namespace relay
 }  // namespace tvm

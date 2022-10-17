@@ -29,6 +29,7 @@
 #include <tvm/te/tensor.h>
 #include <tvm/te/tensor_intrin.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/index_map.h>
 
 #include <string>
 #include <unordered_map>
@@ -257,6 +258,41 @@ class Stage : public ObjectRef {
    */
   TVM_DLL Stage& rolling_buffer();  // NOLINT(*)
   /*!
+   * \brief Defines a layout transformation to be applied to the buffer.
+   *
+   * The map from initial_index to final_index must be an
+   * invertible affine transformation.
+   *
+   * \param initial_indices An array of variables to represent a
+   * value's location in the tensor, using the pre-transformation
+   * layout.  These variables are used as binding occurrences to
+   * represent the initial indices when applying the initial->final
+   * mapping, and should not occur elsewhere in the
+   * Schedule. (i.e. Pass in newly constructed variables, not the
+   * initial IterVar::var)
+   *
+   * \param final_indices An array of expressions, giving the
+   * value's location in the tensor, using the post-transformation layout.
+   * Expressions should be in terms of the variables given in
+   * initial_indices.
+   *
+   * \param out_iter_vars An optional output location for the updated
+   * loop iteration variables.
+   *
+   * \return reference to self
+   */
+  TVM_DLL Stage& transform_layout(const Array<Var>& initial_indices,
+                                  const Array<PrimExpr>& final_indices,
+                                  Array<IterVar>* out_iter_vars = nullptr);
+  /*! \brief Defines separators between groups of axes.
+   *
+   * Used to define `BufferNode::axis_separators`, which has
+   * additional details.
+   *
+   * \param axis_separators A list of axis separators.
+   */
+  TVM_DLL Stage& set_axis_separators(const Array<IntImm>& axis_separators);
+  /*!
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.
    */
@@ -328,7 +364,7 @@ class Schedule : public ObjectRef {
                             const Array<Operation>& readers);
   /*!
    * \brief Create a cache write tensor for producing tensor.
-   *  The the tensor will take over body of original tensor op.
+   *  The tensor will take over body of original tensor op.
    *
    *  This function can be used to do data layout transformation.
    *  If there is a split/fuse/reorder on the data parallel axis of tensor
@@ -345,7 +381,7 @@ class Schedule : public ObjectRef {
   TVM_DLL Array<Tensor> cache_write(const Array<Tensor>& tensor, const std::string& scope);
   /*!
    * \brief Create a cache write tensor for producing tensor.
-   *  The the tensor will take over body of original tensor op.
+   *  The tensor will take over body of original tensor op.
    *
    *  This function can be used to do data layout transformation.
    *  If there is a split/fuse/reorder on the data parallel axis of tensor
@@ -466,9 +502,27 @@ class StageNode : public Object {
    *  while origin_op remains fixed.
    */
   Operation origin_op;
-  /*! \brief All the nodes in the iter var */
+  /*! \brief All the nodes in the iter var
+   *
+   * Each element of all_iter_vars represents an iteration variable
+   * that may appear within this stage's computation.  Any element
+   * of `all_iter_vars` that is in `leaf_iter_vars` represents a
+   * variable that is directly defined and usable within the stage's
+   * computation.  All other elements of `all_iter_vars` represent
+   * variables whose value must be computed from the variables in
+   * `leaf_iter_vars`.  (e.g. Support index k has been split by
+   * ``ko, ki = s.split(k, factor=4)``.  ko and ki will appear in
+   * `leaf_iter_vars`, while k will not, and must be computed as
+   * `4*ko + ki`.
+   */
   Array<IterVar> all_iter_vars;
-  /*! \brief The current active leaf iter vars in the stage. */
+  /*! \brief The current active leaf iter vars in the stage.
+   *
+   * Each element of leaf_iter_vars will either be replaced with the
+   * bound index (e.g. threadIdx.x), or will be expanded into a loop
+   * over the variable's extent.  `leaf_iter_vars` is a subset of
+   * `all_iter_vars`.
+   */
   Array<IterVar> leaf_iter_vars;
   /*!
    * \brief Specify threads to be launched at the stage.
@@ -500,6 +554,14 @@ class StageNode : public Object {
   bool double_buffer{false};
   /*! \brief Whether apply rolling buffer optimization to this stage */
   bool rolling_buffer{false};
+  /*! \brief Layout transformations to be applied onto the stage's tensors. */
+  Array<IndexMap> layout_transforms;
+  /*! \brief List of axes after which to divide physical axes.
+   *
+   * Used to populate `BufferNode::axis_separators`, which has
+   * additional details.
+   */
+  Array<IntImm> axis_separators;
   /*!
    * \brief The parent group of the current stage.
    *  The stage cannot be assigned to stages outside the group.
@@ -522,6 +584,8 @@ class StageNode : public Object {
     v->Visit("scope", &scope);
     v->Visit("is_output", &is_output);
     v->Visit("double_buffer", &double_buffer);
+    v->Visit("layout_transforms", &layout_transforms);
+    v->Visit("axis_separators", &axis_separators);
     v->Visit("group", &group);
     v->Visit("num_child_stages", &num_child_stages);
   }
@@ -769,6 +833,61 @@ class Singleton : public IterVarRelation {
   TVM_DLL explicit Singleton(IterVar iter);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Singleton, IterVarRelation, SingletonNode);
+};
+
+/*!
+ * \brief Transform iterator according to some arbitrary expression.
+ */
+class TransformNode : public IterVarRelationNode {
+ public:
+  /*! \brief The loop variables that were replaced by the transformation.
+   *
+   * Prior to applying a layout transformation, these represent the
+   * loops to iterate over a tensor as it is being computed, following
+   * a row-major traversal of the tensor's original shape in the
+   * compute definition.
+   */
+  Array<IterVar> original_variables;
+
+  /*! \brief The variables generated by the transformation.
+   *
+   * After to applying a layout transformation, these represent the
+   * loops to iterate over a tensor as it is being computed, following
+   * a row-major traversal of the transformed shape of the tensor.
+   */
+  Array<IterVar> transformed_variables;
+
+  /*! \brief Map from the original variables to the transformed variables.
+   *
+   * Used to determine iterator ranges over the transformed variables.
+   */
+  IndexMap forward_transformation;
+
+  /*! \brief Map from transformed variables to the original variables
+   *
+   * Used to rewrite expressions containing the original loop iterators
+   * in terms of the transformed loop iterators.
+   */
+  IndexMap inverse_transformation;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("original_variables", &original_variables);
+    v->Visit("transformed_variables", &transformed_variables);
+    v->Visit("forward_transformation", &forward_transformation);
+    v->Visit("inverse_transformation", &inverse_transformation);
+  }
+
+  static constexpr const char* _type_key = "Transform";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TransformNode, IterVarRelationNode);
+};
+
+class Transform : public IterVarRelation {
+ public:
+  TVM_DLL explicit Transform(Array<IterVar> original_variables,
+                             Array<IterVar> transformed_variables, IndexMap forward_transformation,
+                             IndexMap inverse_transformation);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Transform, IterVarRelation, TransformNode);
 };
 
 /*! \brief Container for specialization conditions. */

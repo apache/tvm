@@ -25,6 +25,8 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 #define TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 
+#include <tvm/ir/name_supply.h>
+#include <tvm/runtime/metadata.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -97,12 +99,6 @@ class CodeGenSourceBase {
    */
   std::string SSAGetID(std::string src, DataType t);
   /*!
-   * \brief get a unique name with the corresponding prefix
-   * \param prefix The prefix of the name
-   * \return The returned name.
-   */
-  std::string GetUniqueName(std::string prefix);
-  /*!
    * \brief mark the beginning of a new scope
    * \return The scope id.
    */
@@ -126,12 +122,12 @@ class CodeGenSourceBase {
   std::ostringstream stream;
   /*! \brief name of each variable */
   std::unordered_map<const tir::VarNode*, std::string> var_idmap_;
+  /*! \brief NameSupply for allocation */
+  NameSupply name_supply_ = NameSupply("");
 
  private:
   /*! \brief assignment map of ssa */
   std::unordered_map<std::string, SSAEntry> ssa_assign_map_;
-  /*! \brief name allocation map */
-  std::unordered_map<std::string, int> name_alloc_map_;
   /*! \brief array to check whether we are inside certain scope */
   std::vector<bool> scope_mark_;
   /*! \brief The current indentation value */
@@ -158,6 +154,20 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
                                     const Array<String>& const_vars = {});
 
 /*!
+ * \brief Wrap the submodules in a metadata module.
+ * \param params The variable to constant mapping that is collected by the host
+ *        module.
+ * \param target_module The main TIR-lowered internal runtime module
+ * \param modules All the external modules that needs to be imported inside the metadata module(s).
+ * \param target The target that all the modules are compiled for
+ * \param metadata Metadata which should be exported to the runtime.
+ * \return The wrapped module.
+ */
+runtime::Module CreateMetadataModule(
+    const std::unordered_map<std::string, runtime::NDArray>& params, runtime::Module target_module,
+    const Array<runtime::Module>& ext_modules, Target target, runtime::metadata::Metadata metadata);
+
+/*!
  * \brief Create a source module for viewing and limited saving for device.
  * \param data The code data to be viewed.
  * \param fmt The code. format.
@@ -168,6 +178,16 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
 runtime::Module DeviceSourceModuleCreate(
     std::string data, std::string fmt, std::unordered_map<std::string, runtime::FunctionInfo> fmap,
     std::string type_key, std::function<std::string(const std::string&)> fget_source = nullptr);
+
+/*!
+ * \brief Wrap the submodules that are to be wrapped in a c-source metadata module for C runtime.
+ * \param modules The modules to be wrapped.
+ * \param target the target the modules are compiled for.
+ * \param metadata the metadata needed for code generation.
+ * \return The wrapped module.
+ */
+runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
+                                               runtime::metadata::Metadata metadata);
 
 }  // namespace codegen
 }  // namespace tvm

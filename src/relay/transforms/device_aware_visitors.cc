@@ -38,7 +38,7 @@ LexicalOnDeviceMixin::LexicalOnDeviceMixin(const Optional<IRModule>& maybe_mod) 
   if (maybe_mod) {
     for (const auto& kv : maybe_mod.value()->functions) {
       if (const auto* function_node = kv.second.as<FunctionNode>()) {
-        VirtualDevice virtual_device = GetFunctionResultVirtualDevice(function_node);
+        VirtualDevice virtual_device = function_node->virtual_device();
         if (!virtual_device->IsFullyUnconstrained()) {
           VLOG(2) << "global '" << kv.first->name_hint << "' has virtual device " << virtual_device;
           global_var_virtual_devices_.emplace(kv.first, virtual_device);
@@ -74,7 +74,7 @@ VirtualDevice LexicalOnDeviceMixin::GetVirtualDevice(const Expr& expr) const {
       }
       // else: fallthrough to unconstrained
     } else {
-      return GetFunctionResultVirtualDevice(function_node);
+      return function_node->virtual_device();
     }
   } else {
     if (!expr_virtual_devices_.empty()) {
@@ -132,11 +132,11 @@ void DeviceAwareExprVisitor::VisitExpr_(const FunctionNode* function_node) {
     DeviceAwareVisitExpr_(function_node);
   } else {
     // Function parameters come into scope.
-    for (size_t i = 0; i < function_node->params.size(); ++i) {
-      PushBoundVar(function_node->params[i], GetFunctionParamVirtualDevice(function_node, i));
+    for (auto param : function_node->params) {
+      PushBoundVar(param, param->virtual_device());
     }
     // Entering scope of function body.
-    PushVirtualDevice(GetFunctionResultVirtualDevice(function_node));
+    PushVirtualDevice(function_node->virtual_device());
     EnterFunctionBody();
 
     DeviceAwareVisitExpr_(function_node);
@@ -218,11 +218,11 @@ Expr DeviceAwareExprMutator::VisitExpr_(const FunctionNode* function_node) {
     return DeviceAwareVisitExpr_(function_node);
   } else {
     // Function parameters come into scope.
-    for (size_t i = 0; i < function_node->params.size(); ++i) {
-      PushBoundVar(function_node->params[i], GetFunctionParamVirtualDevice(function_node, i));
+    for (auto param : function_node->params) {
+      PushBoundVar(param, param->virtual_device());
     }
     // Entering scope of function body.
-    PushVirtualDevice(GetFunctionResultVirtualDevice(function_node));
+    PushVirtualDevice(function_node->virtual_device());
     EnterFunctionBody();
 
     Expr result = DeviceAwareVisitExpr_(function_node);
@@ -314,6 +314,41 @@ Expr DeviceAwareExprMutator::PostVisitLetBlock_(const LetNode* pre_let_node,
     return GetRef<Expr>(post_let_node);
   }
 }
+
+std::unordered_map<const ExprNode*, VirtualDevice> RecoverVirtualDeviceMap(const IRModule& mod,
+                                                                           const Expr& expr) {
+  class Visitor : public DeviceAwareExprVisitor {
+   public:
+    explicit Visitor(const Optional<IRModule>& maybe_mod) : DeviceAwareExprVisitor(maybe_mod) {}
+
+    void VisitExpr(const Expr& expr) final {
+      if (expr->IsInstance<OpNode>() || expr->IsInstance<ConstructorNode>()) {
+        // Don't record for ops or constructors since they are 'device polymorphic'.
+      } else {
+        map_[expr.get()] = GetVirtualDevice(expr);
+      }
+      DeviceAwareExprVisitor::VisitExpr(expr);
+    }
+
+    std::unordered_map<const ExprNode*, VirtualDevice> map_;
+  };
+
+  Visitor visitor(mod);
+  visitor.VisitExpr(expr);
+  return std::move(visitor.map_);
+}
+
+// Export the helper function for testing.
+TVM_REGISTER_GLOBAL("relay.transform.RecoverVirtualDeviceMap")
+    .set_body_typed([](const IRModule& mod, const Expr& expr) {
+      std::unordered_map<const ExprNode*, VirtualDevice> raw_map =
+          RecoverVirtualDeviceMap(mod, expr);
+      Map<Expr, VirtualDevice> map;
+      for (const auto& kv : raw_map) {
+        map.Set(GetRef<Expr>(kv.first), kv.second);
+      }
+      return map;
+    });
 
 }  // namespace transform
 }  // namespace relay

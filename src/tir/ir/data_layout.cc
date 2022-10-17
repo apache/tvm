@@ -131,7 +131,6 @@ Layout::Layout(const std::string& name) {  // NOLINT(*)
     ICHECK_EQ(axis_str.size(), 1);
     char axis = axis_str[0];
     ICHECK((axis >= 'a' && axis <= 'z') || (axis >= 'A' && axis <= 'Z'));
-    ICHECK(!exist_axis[axis]) << "Invalid layout " << name << ": duplicate axis " << axis;
     exist_axis[axis] = true;
   }
   for (const IterVar& v : node->axes) {
@@ -182,15 +181,20 @@ Layout Layout::Split(const LayoutAxis& axis, size_t target_pos, int32_t factor) 
 int32_t Layout::FactorOf(const LayoutAxis& axis) const {
   if (!defined()) return -1;
   const LayoutAxis& sub = axis.ToSubordinate();
-  if (!this->defined()) return -1;
+
+  int32_t factor = 1;
+  bool has_sub = false;
   for (const IterVar& itvar : operator->()->axes) {
     if (sub == LayoutAxis::Get(itvar)) {
-      const auto* factor = itvar->dom->extent.as<IntImmNode>();
-      ICHECK(factor);
-      return factor->value;
+      has_sub = true;
+      int32_t val = itvar->dom->extent.as<IntImmNode>()->value;
+      ICHECK(val);
+      factor *= val;
     }
   }
-  return -1;
+  factor = has_sub ? factor : -1;
+
+  return factor;
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -199,16 +203,21 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "Layout(" << l->name << ")";
     });
 
-inline bool GetStoreRule(Array<PrimExpr>* rule, const Layout& src_layout,
-                         const Layout& dst_layout) {
-  if (!src_layout.defined() || src_layout.name().empty() || !dst_layout.defined() ||
-      dst_layout.name().empty()) {
+inline bool GetStoreRule(Array<PrimExpr>* index_rule, Array<PrimExpr>* shape_rule,
+                         const Layout& src_layout, const Layout& dst_layout) {
+  if (!src_layout.defined() || src_layout.name().empty()) {
+    LOG(WARNING) << "src layout '" << src_layout.name() << "' is invalid.";
     return false;
   }
+  if (!dst_layout.defined() || dst_layout.name().empty()) {
+    LOG(WARNING) << "dst layout '" << dst_layout.name() << "' is invalid.";
+    return false;
+  }
+
   for (size_t i = 0; i < dst_layout.ndim(); ++i) {
     const auto& store_axis = dst_layout[i];
     const IterVar& store_axis_impl = dst_layout->axes[i];
-    PrimExpr store(0);
+    PrimExpr index_store(0);
 
     for (size_t j = 0; j < src_layout.ndim(); ++j) {
       const auto& orig_axis = src_layout[j];
@@ -220,28 +229,64 @@ inline bool GetStoreRule(Array<PrimExpr>* rule, const Layout& src_layout,
           if (factor > 0) {
             orig_var = orig_var * factor;
           }
-          store = store + orig_var;
+          index_store = index_store + orig_var;
         } else {
-          store = store + orig_axis_impl->var;
+          PrimExpr factor(1);
+          for (size_t k = j + 1; k < src_layout.ndim(); ++k) {
+            if (LayoutAxis::Get(orig_axis_impl) == LayoutAxis::Get(src_layout->axes[k])) {
+              factor = factor * src_layout->axes[k]->dom->extent;
+            }
+          }
+          index_store = index_store + orig_axis_impl->var * factor;
         }
       }
     }
-    if (tir::is_zero(store)) {
-      // Not convertible
+    if (tir::is_zero(index_store)) {
+      LOG(WARNING) << "layout '" << src_layout.name() << "'-->'" << dst_layout.name()
+                   << "' is not convertible.";
       return false;
     }
 
+    PrimExpr shape_store = index_store;
     if (store_axis.IsPrimal()) {
       const int32_t factor = dst_layout.FactorOf(store_axis);
       if (factor > 0) {
-        store = indexdiv(store, PrimExpr(factor));
+        shape_store = shapediv(index_store, PrimExpr(factor));
+        index_store = indexdiv(index_store, PrimExpr(factor));
       }
     } else {
-      store = indexmod(store, store_axis_impl->dom->extent);
+      PrimExpr stride(1);
+      PrimExpr factor(1);
+      for (size_t j = i; j < dst_layout.ndim(); ++j) {
+        if (LayoutAxis::Get(store_axis_impl) == LayoutAxis::Get(dst_layout->axes[j])) {
+          stride = stride * dst_layout->axes[j]->dom->extent;
+          if (j > i) {
+            factor = factor * dst_layout->axes[j]->dom->extent;
+          }
+        }
+      }
+      shape_store = indexdiv(indexmod(index_store, stride), factor);
+      index_store = indexdiv(indexmod(index_store, stride), factor);
     }
 
-    rule->push_back(store);
+    index_rule->push_back(index_store);
+    shape_rule->push_back(shape_store);
   }
+
+  std::stringstream ss;
+  ss << "index rule for " << src_layout.name() << "-->" << dst_layout.name() << ": [ ";
+  for (const auto& r : *index_rule) {
+    ss << r << ", ";
+  }
+  ss << "]" << std::endl;
+
+  ss << "shape rule for " << src_layout.name() << "-->" << dst_layout.name() << ": [ ";
+  for (const auto& r : *shape_rule) {
+    ss << r << ", ";
+  }
+  ss << "]" << std::endl;
+  VLOG(1) << std::endl << ss.str();
+
   return true;
 }
 
@@ -265,7 +310,7 @@ Array<PrimExpr> BijectiveLayout::ForwardIndex(const Array<PrimExpr>& src_index) 
   const BijectiveLayoutNode* self = operator->();
   ICHECK_EQ(src_index.size(), self->src_layout->axes.size())
       << "Input mismatch with layout " << self->src_layout;
-  return TransformIndex(src_index, self->src_layout->axes, self->forward_rule);
+  return TransformIndex(src_index, self->src_layout->axes, self->index_forward_rule);
 }
 
 Array<PrimExpr> BijectiveLayout::BackwardIndex(const Array<PrimExpr>& dst_index) const {
@@ -273,7 +318,7 @@ Array<PrimExpr> BijectiveLayout::BackwardIndex(const Array<PrimExpr>& dst_index)
   const BijectiveLayoutNode* self = operator->();
   ICHECK_EQ(dst_index.size(), self->dst_layout->axes.size())
       << "Output mismatch with layout " << self->dst_layout;
-  return TransformIndex(dst_index, self->dst_layout->axes, self->backward_rule);
+  return TransformIndex(dst_index, self->dst_layout->axes, self->index_backward_rule);
 }
 
 inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
@@ -331,19 +376,41 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
       }
     }
   }
+
+  std::stringstream ss;
+  ss << "shape rule for " << Layout(src_axis).name() << "-->" << Layout(target_axis).name()
+     << ": [ ";
+  for (const auto& r : transform_rule) {
+    ss << r << ", ";
+  }
+  ss << "]" << std::endl;
+
+  ss << "shape transform: [ ";
+  for (const auto& s : src_shape) {
+    ss << s << ", ";
+  }
+  ss << "] --> [ ";
+  for (const auto& r : result) {
+    ss << r << ", ";
+  }
+  ss << "]" << std::endl;
+  VLOG(1) << std::endl << ss.str();
+
   return result;
 }
 
 Array<PrimExpr> BijectiveLayout::ForwardShape(const Array<PrimExpr>& shape) const {
   ICHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
-  return TransformShape(shape, self->src_layout->axes, self->dst_layout->axes, self->forward_rule);
+  return TransformShape(shape, self->src_layout->axes, self->dst_layout->axes,
+                        self->shape_forward_rule);
 }
 
 Array<PrimExpr> BijectiveLayout::BackwardShape(const Array<PrimExpr>& shape) const {
   ICHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
-  return TransformShape(shape, self->dst_layout->axes, self->src_layout->axes, self->backward_rule);
+  return TransformShape(shape, self->dst_layout->axes, self->src_layout->axes,
+                        self->shape_backward_rule);
 }
 
 BijectiveLayout::BijectiveLayout(Layout src_layout, Layout dst_layout) {
@@ -351,11 +418,11 @@ BijectiveLayout::BijectiveLayout(Layout src_layout, Layout dst_layout) {
 
   n->src_layout = std::move(src_layout);
   n->dst_layout = std::move(dst_layout);
-
   // To be consistent with previous behavior, a nullptr layout is created
   // when argument is invalid.
-  if (GetStoreRule(&n->forward_rule, n->src_layout, n->dst_layout)) {
-    ICHECK(GetStoreRule(&n->backward_rule, n->dst_layout, n->src_layout));
+  if (GetStoreRule(&n->index_forward_rule, &n->shape_forward_rule, n->src_layout, n->dst_layout)) {
+    ICHECK(GetStoreRule(&n->index_backward_rule, &n->shape_backward_rule, n->dst_layout,
+                        n->src_layout));
     data_ = std::move(n);
   }
 }

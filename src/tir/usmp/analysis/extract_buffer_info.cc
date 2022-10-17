@@ -36,6 +36,8 @@
 
 #include <stack>
 
+#include "../../../runtime/thread_storage_scope.h"
+
 namespace tvm {
 namespace tir {
 namespace usmp {
@@ -71,14 +73,16 @@ class BufferInfoExtractor : public StmtExprVisitor {
  private:
   void VisitStmt(const Stmt& n) override;
   void VisitStmt_(const AllocateNode* op) override;
+  void VisitStmt_(const AllocateConstNode* op) override;
   void VisitExpr_(const CallNode* op) override;
   void VisitExpr_(const VarNode* op) override;
-  void VisitExpr_(const LoadNode* op) override;
-  void VisitStmt_(const StoreNode* op) override;
+  void VisitExpr_(const BufferLoadNode* op) override;
+  void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
 
   void UpdateAliases(const Array<PrimExpr>& args, const PrimFunc& func);
   void RecordAllocateNodeInfo(const AllocateNode* op);
+  void RecordAllocateConstNodeInfo(const AllocateConstNode* op);
   void VisitPrimFunc(const PrimFunc& func, const Call& call);
 
   /*!
@@ -88,7 +92,11 @@ class BufferInfoExtractor : public StmtExprVisitor {
   /*!
    * \brief Records the order of calls in the main for stability.
    */
-  std::set<Call> call_order_;
+  std::vector<Call> call_order_;
+  /*!
+   * \brief Lookup to avoid adding duplicates to `call_order_`.
+   */
+  std::unordered_set<Call, ObjectPtrHash, ObjectPtrEqual> call_order_contents_;
   /*!
    * \brief Records first access in-terms of Stmts to each buffer per call
    *
@@ -146,6 +154,12 @@ class BufferInfoExtractor : public StmtExprVisitor {
      * loops structure.
      */
     std::unordered_set<Allocate, ObjectPtrHash, ObjectPtrEqual> allocate_nodes;
+    /*
+     * \brief We record the live allocate_const_nodes because once in loops
+     * the liveness range has to be extended to the whole of the nested
+     * loops structure.
+     */
+    std::unordered_set<AllocateConst, ObjectPtrHash, ObjectPtrEqual> allocate_const_nodes;
     /*!
      * \brief This is recorded to extend the liveness of all allocates within
      * nested loop structure.
@@ -225,10 +239,8 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
       auto pool_candidates =
           Downcast<Array<PoolInfo>>(op->annotations[kPoolCandidatesAllocateAttr]);
 
-      // TODO(@manupa-arm): improve the error when the responsible component for attaching a single
-      // pool is added
       ICHECK(pool_candidates.size() > 0)
-          << "The core compiler should at least attach a single PoolInfo. If there were no "
+          << "The AssignPoolInfo pass should at least attach a single PoolInfo. If there were no "
              "user-given arguments for memory pools, the default behaviour is a single size "
              "un-restricted pool is assigned";
       PrimFunc func = scope_stack_.top().func;
@@ -239,8 +251,24 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
         workspace_alignment =
             executor_config.value()->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
       }
-      auto buffer_info = BufferInfo(GetUniqueBufferName(op->buffer_var->name_hint), size_bytes,
-                                    pool_candidates, workspace_alignment);
+
+      BufferInfoKind bi_kind = BufferInfoKind::kIntermediate;
+      String buffer_info_name = op->buffer_var->name_hint;
+      if (op->annotations.find(kInputTensorAllocate) != op->annotations.end()) {
+        bi_kind = BufferInfoKind::kInput;
+        // using original input name instead of the buffer_var name
+        // because this name will be used in the lowering to convey
+        // the pool allocation.
+        buffer_info_name = Downcast<String>(op->annotations[kInputTensorAllocate]);
+      } else if (op->annotations.find(kOutputTensorAllocate) != op->annotations.end()) {
+        bi_kind = BufferInfoKind::kOutput;
+        // using original output name instead of the buffer_var name
+        // because this name will be used in the lowering to convey
+        // the pool allocation.
+        buffer_info_name = Downcast<String>(op->annotations[kOutputTensorAllocate]);
+      }
+      auto buffer_info = BufferInfo(GetUniqueBufferName(buffer_info_name), size_bytes,
+                                    pool_candidates, workspace_alignment, bi_kind);
       auto allocate = GetRef<Allocate>(op);
       allocate_infos[op->buffer_var] =
           AllocateInfo{allocate, scope_stack_.top().func, scope_stack_.top().call};
@@ -257,26 +285,76 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
 void BufferInfoExtractor::VisitStmt_(const AllocateNode* op) {
   ScopeInfo& current_scope_info = scope_stack_.top();
   const auto& type = Downcast<PointerType>(op->buffer_var->type_annotation);
-  const auto& storage_scope = type->storage_scope;
+  const auto& storage_scope = runtime::StorageScope::Create(type->storage_scope);
 
   // If the allocate is in a for loop, USMP currently only looks at serial for loops.
   // If its not a serial for loop, then memory planner will omit them in the current memory planning
   // process leaving them to as tir.allocate nodes for codegen. Additionally, the USMP can only work
   // with buffers that have global storage_scope
 
-  if (!current_scope_info.for_loop.defined()) {
-    RecordAllocateNodeInfo(op);
-  } else if (current_scope_info.for_loop.defined() &&
-             current_scope_info.for_loop->kind == ForKind::kSerial && storage_scope == "global") {
-    RecordAllocateNodeInfo(op);
+  if (storage_scope.rank == runtime::StorageRank::kGlobal) {
+    if (!current_scope_info.for_loop.defined()) {
+      RecordAllocateNodeInfo(op);
+    } else if (current_scope_info.for_loop.defined() &&
+               current_scope_info.for_loop->kind == ForKind::kSerial) {
+      RecordAllocateNodeInfo(op);
+    }
   }
   StmtExprVisitor::VisitStmt(op->body);
   current_scope_info.allocate_nodes.erase(GetRef<Allocate>(op));
 }
 
+void BufferInfoExtractor::VisitStmt_(const AllocateConstNode* op) {
+  ScopeInfo& current_scope_info = scope_stack_.top();
+  RecordAllocateConstNodeInfo(op);
+  StmtExprVisitor::VisitStmt(op->body);
+  current_scope_info.allocate_const_nodes.erase(GetRef<AllocateConst>(op));
+}
+
+void BufferInfoExtractor::RecordAllocateConstNodeInfo(const AllocateConstNode* op) {
+  if (!op->annotations.count(kPoolCandidatesAllocateAttr)) {
+    return;
+  }
+  Integer size_bytes = CalculateExtentsSize(op);
+  ICHECK(size_bytes.defined()) << "constant node size should be defined";
+  const auto& buffer_var = op->buffer_var;
+  if (allocate_infos.find(buffer_var) == allocate_infos.end()) {
+    // By default, the core compiler is assumed to attach the a default pool to each allocate.
+    ICHECK(op->annotations.count(kPoolCandidatesAllocateAttr))
+        << "Every statically sized allocate node needs an pool candidate attribute";
+    auto pool_candidates = Downcast<Array<PoolInfo>>(op->annotations[kPoolCandidatesAllocateAttr]);
+    ICHECK(pool_candidates.size() > 0)
+        << "The core compiler should at least attach a single PoolInfo. If there were no "
+           "user-given arguments for memory pools, the default behaviour is a single size "
+           "un-restricted pool is assigned";
+    PrimFunc func = scope_stack_.top().func;
+    Optional<tvm::relay::Executor> executor_config =
+        module_->GetAttr<tvm::relay::Executor>(tvm::attr::kExecutor);
+    Integer alignment = 16;
+    if (executor_config) {
+      alignment =
+          executor_config.value()->GetAttr<Integer>("constant-byte-alignment").value_or(alignment);
+    }
+    auto buffer_info = BufferInfo(GetUniqueBufferName(buffer_var->name_hint), size_bytes,
+                                  pool_candidates, alignment);
+    auto allocate = GetRef<AllocateConst>(op);
+    allocate_infos[buffer_var] =
+        AllocateInfo{allocate, scope_stack_.top().func, scope_stack_.top().call};
+    buffer_info_map_.Set(buffer_info, allocate);
+  } else {
+    // Update the allocate info with the latest call
+    AllocateInfo ai = allocate_infos[buffer_var];
+    ai.call = scope_stack_.top().call;
+    allocate_infos[buffer_var] = ai;
+  }
+}
+
 void BufferInfoExtractor::VisitStmt_(const ForNode* op) {
-  ScopeInfo si{scope_stack_.top().call, scope_stack_.top().func, GetRef<For>(op),
+  ScopeInfo si{scope_stack_.top().call,
+               scope_stack_.top().func,
+               GetRef<For>(op),
                scope_stack_.top().allocate_nodes,
+               scope_stack_.top().allocate_const_nodes,
                scope_stack_.top().initial_stmt_of_the_nested_loops};
   if (!scope_stack_.top().initial_stmt_of_the_nested_loops.defined()) {
     si.initial_stmt_of_the_nested_loops = Integer(current_stmt_idx_);
@@ -295,24 +373,24 @@ void BufferInfoExtractor::VisitStmt_(const ForNode* op) {
       update_call = ai.call;
     }
     if (scope_stack_.top().initial_stmt_of_the_nested_loops->value <
-        buffer_info_start_stmt_idx_[update_call][allocate]) {
+        buffer_info_start_stmt_idx_[update_call][allocate].IntValue()) {
       buffer_info_start_stmt_idx_[update_call].Set(
           allocate, scope_stack_.top().initial_stmt_of_the_nested_loops->value);
     }
-    if (current_stmt_idx_ > buffer_info_end_stmt_idx_[update_call][allocate]) {
+    if (current_stmt_idx_ > buffer_info_end_stmt_idx_[update_call][allocate].IntValue()) {
       buffer_info_end_stmt_idx_[update_call].Set(allocate, current_stmt_idx_);
     }
   }
   scope_stack_.pop();
 }
 
-void BufferInfoExtractor::VisitExpr_(const LoadNode* op) {
-  this->VisitExpr(op->buffer_var);
+void BufferInfoExtractor::VisitExpr_(const BufferLoadNode* op) {
+  this->VisitExpr(op->buffer->data);
   StmtExprVisitor::VisitExpr_(op);
 }
 
-void BufferInfoExtractor::VisitStmt_(const StoreNode* op) {
-  this->VisitExpr(op->buffer_var);
+void BufferInfoExtractor::VisitStmt_(const BufferStoreNode* op) {
+  this->VisitExpr(op->buffer->data);
   StmtExprVisitor::VisitStmt_(op);
 }
 
@@ -337,7 +415,13 @@ void BufferInfoExtractor::VisitExpr_(const VarNode* op) {
 
     ScopeInfo& currect_scope_info = scope_stack_.top();
     if (currect_scope_info.for_loop.defined()) {
-      currect_scope_info.allocate_nodes.insert(Downcast<Allocate>(allocate));
+      if (allocate->IsInstance<AllocateNode>()) {
+        currect_scope_info.allocate_nodes.insert(Downcast<Allocate>(allocate));
+      } else if (allocate->IsInstance<AllocateConstNode>()) {
+        currect_scope_info.allocate_const_nodes.insert(Downcast<AllocateConst>(allocate));
+      } else {
+        LOG(FATAL) << "Handling of " << allocate->GetTypeKey() << " is not implemented";
+      }
     }
   }
   StmtExprVisitor::VisitExpr_(op);
@@ -345,15 +429,17 @@ void BufferInfoExtractor::VisitExpr_(const VarNode* op) {
 
 Array<Var> static GetMatchedBuffers(const PrimFunc& func) {
   Array<Var> buffer_vars;
-  for (unsigned int i = 0; i < func->params.size() - 1; i++) {
-    Var param = func->params[i];
-    buffer_vars.push_back(func->buffer_map[param]->data);
-  }
-  Var last_param = func->params.back();
-  // Checks whether last var is present in the buffer map
-  // because it could be the resource handle
-  if (func->buffer_map.find(last_param) != func->buffer_map.end()) {
-    buffer_vars.push_back(func->buffer_map[last_param]->data);
+  if (func->params.size() > 0) {
+    for (unsigned int i = 0; i < func->params.size() - 1; i++) {
+      Var param = func->params[i];
+      buffer_vars.push_back(func->buffer_map[param]->data);
+    }
+    Var last_param = func->params.back();
+    // Checks whether last var is present in the buffer map
+    // because it could be the resource handle
+    if (func->buffer_map.find(last_param) != func->buffer_map.end()) {
+      buffer_vars.push_back(func->buffer_map[last_param]->data);
+    }
   }
   return buffer_vars;
 }
@@ -383,9 +469,16 @@ void BufferInfoExtractor::UpdateAliases(const Array<PrimExpr>& args, const PrimF
 }
 
 void BufferInfoExtractor::VisitPrimFunc(const PrimFunc& func, const Call& call) {
-  ScopeInfo si{call, func, scope_stack_.top().for_loop, scope_stack_.top().allocate_nodes,
+  ScopeInfo si{call,
+               func,
+               scope_stack_.top().for_loop,
+               scope_stack_.top().allocate_nodes,
+               scope_stack_.top().allocate_const_nodes,
                scope_stack_.top().initial_stmt_of_the_nested_loops};
-  call_order_.insert(call);
+  if (call_order_contents_.count(call) == 0) {
+    call_order_contents_.insert(call);
+    call_order_.push_back(call);
+  }
   scope_stack_.push(si);
   this->VisitStmt(func->body);
   scope_stack_.pop();
@@ -418,10 +511,11 @@ BufferInfoAnalysis BufferInfoExtractor::operator()(const PrimFunc& main_func) {
   // associated with each BufferNodes.
   std::vector<LivenessEvent> le_events_timeline;
   for (const auto& kv1 : buffer_info_map_) {
-    if (!kv1.second->IsInstance<AllocateNode>()) {
+    if (!kv1.second->IsInstance<AllocateNode>() && !kv1.second->IsInstance<AllocateConstNode>()) {
       continue;
     }
-    auto allocate = Downcast<Allocate>(kv1.second);
+
+    auto allocate = Downcast<Stmt>(kv1.second);
     auto buffer_info = Downcast<BufferInfo>(kv1.first);
 
     ICHECK(call_order_.size() >= buffer_info_end_stmt_idx_.size());
@@ -433,7 +527,7 @@ BufferInfoAnalysis BufferInfoExtractor::operator()(const PrimFunc& main_func) {
         LivenessEvent le_event_start;
         le_event_start.buffer_info = buffer_info;
         le_event_start.le_type = START;
-        le_event_start.tick = buffer_info_starts[allocate];
+        le_event_start.tick = buffer_info_starts[allocate].IntValue();
         le_events_timeline.push_back(le_event_start);
       }
     }
@@ -444,7 +538,7 @@ BufferInfoAnalysis BufferInfoExtractor::operator()(const PrimFunc& main_func) {
         LivenessEvent le_event_end;
         le_event_end.buffer_info = buffer_info;
         le_event_end.le_type = END;
-        le_event_end.tick = buffer_info_ends[allocate];
+        le_event_end.tick = buffer_info_ends[allocate].IntValue();
         le_events_timeline.push_back(le_event_end);
       }
     }
@@ -477,15 +571,49 @@ BufferInfoAnalysis BufferInfoExtractor::operator()(const PrimFunc& main_func) {
           le_event.buffer_info->conflicts.push_back(open_buffer_info);
         }
       }
-      open_set_size += le_event.buffer_info->size_bytes;
+      open_set_size += le_event.buffer_info->size_bytes.IntValue();
       if (open_set_size > max_open_set_size) {
         max_open_set_size = open_set_size;
       }
       open_set.insert(le_event.buffer_info);
     } else {
-      open_set_size -= le_event.buffer_info->size_bytes;
+      open_set_size -= le_event.buffer_info->size_bytes.IntValue();
       open_set.erase(le_event.buffer_info);
     }
+  }
+
+  // All ConstantPoolInfo items should have conflicts with each other
+  // as they will be placed in RO segment and pre-initialized. To achieve this
+  // first, split buffers to vars (WorkspacePoolInfo items) and constants (ConstantPoolInfo items):
+  Array<BufferInfo> buffer_info_vars;
+  Array<BufferInfo> buffer_info_constants;
+  for (const auto& kv : this->buffer_info_map_) {
+    const auto& stmt = kv.second;
+    if (stmt->IsInstance<AllocateConstNode>()) {
+      buffer_info_constants.push_back(kv.first);
+    } else {
+      buffer_info_vars.push_back(kv.first);
+    }
+  }
+  ICHECK(buffer_info_map_.size() == buffer_info_vars.size() + buffer_info_constants.size())
+      << "missing value";
+
+  Map<ObjectRef, ObjectRef> srch;
+  // Then intersect constants with each other, as all constants should exist at the same time:
+  for (const auto& buf : buffer_info_constants) {
+    srch.Set(buf, buf);
+    Array<ObjectRef> conflicts;
+    std::copy_if(buffer_info_constants.begin(), buffer_info_constants.end(),
+                 std::back_inserter(conflicts), [buf](const auto& b) { return b != buf; });
+    buf->conflicts.Assign(conflicts.begin(), conflicts.end());
+  }
+
+  // And third, remove all conflicts between constants and vars:
+  for (const auto& buf : buffer_info_vars) {
+    Array<ObjectRef> conflicts;
+    std::copy_if(buf->conflicts.begin(), buf->conflicts.end(), std::back_inserter(conflicts),
+                 [&srch](const auto& c) { return srch.end() == srch.find(c); });
+    buf->conflicts.Assign(conflicts.begin(), conflicts.end());
   }
   return BufferInfoAnalysis(this->buffer_info_map_, max_open_set_size);
 }

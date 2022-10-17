@@ -11,6 +11,7 @@ __pycache__/
 .Python
 env/
 build/
+build-*/
 develop-eggs/
 dist/
 downloads/
@@ -107,6 +108,8 @@ DerivedData/
 *.class
 jvm/*/target/
 jvm/*/*/target/
+jvm/native/*/generated
+jvm/native/src/main/native/org_apache_tvm_native_c_api.h
 *.worksheet
 *.idea
 *.iml
@@ -248,3 +251,20 @@ _docs/
 jvm/target
 .config/configstore/
 .ci-py-scripts/
+
+# Generated Hexagon files
+src/runtime/hexagon/rpc/hexagon_rpc.h
+src/runtime/hexagon/rpc/hexagon_rpc_skel.c
+src/runtime/hexagon/rpc/hexagon_rpc_stub.c
+
+# Local tvm-site checkout
+tvm-site/
+
+# Generated docs files
+gallery/how_to/work_with_microtvm/micro_tvmc.py
+
+# Test sample data files
+!tests/python/ci/sample_prs/*.json
+
+# Used in CI to communicate between Python and Jenkins
+.docker-image-names/

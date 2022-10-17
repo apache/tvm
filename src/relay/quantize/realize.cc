@@ -25,6 +25,8 @@
  *   graph.
  */
 
+#include "./realize.h"
+
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/transform.h>
@@ -38,45 +40,6 @@ namespace relay {
 namespace quantize {
 
 using namespace relay::transform;
-
-class QRealizeExpr;
-class QRealizeIntExpr;
-
-class QRealizeExprNode : public TempExprNode {
- public:
-  Expr data;
-  static constexpr const char* _type_key = "relay.quantize.QRealizeExpr";
-  TVM_DECLARE_BASE_OBJECT_INFO(QRealizeExprNode, TempExprNode);
-};
-
-class QRealizeExpr : public TempExpr {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(QRealizeExpr, TempExpr, QRealizeExprNode);
-};
-
-class QRealizeIntExprNode : public QRealizeExprNode {
- public:
-  Expr dom_scale;
-  DataType dtype;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("data", &data);
-    v->Visit("dom_scale", &dom_scale);
-    v->Visit("dtype", &dtype);
-  }
-
-  Expr Realize() const final;
-
-  static constexpr const char* _type_key = "relay.quantize.QRealizeIntExpr";
-  TVM_DECLARE_FINAL_OBJECT_INFO(QRealizeIntExprNode, QRealizeExprNode);
-};
-
-class QRealizeIntExpr : public QRealizeExpr {
- public:
-  TVM_DLL QRealizeIntExpr(Expr data, Expr dom_scale, DataType dtype);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(QRealizeIntExpr, QRealizeExpr, QRealizeIntExprNode);
-};
 
 Expr QRealizeIntExprNode::Realize() const {
   Expr data = this->data;
@@ -114,8 +77,7 @@ inline Expr MulAndDiv(Expr data, float s1, float s2, DataType dtype,
     return Multiply(data, MakeConstantScalar(dtype, factor));
   } else {
     if (cfg->rounding == "UPWARD") {
-      int32_t fixed_point_multiplier, shift;
-      std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift(factor);
+      auto [fixed_point_multiplier, shift] = qnn::GetFixedPointMultiplierShift(factor);
       data = relay::FixedPointMultiply(data, fixed_point_multiplier, shift);
     } else {
       data = qnn::FixedPointMultiplyToNearest(data, factor, data_shape);
@@ -172,8 +134,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
     } else {
       data = Cast(data, DataType::Int(64));
       if (cfg->rounding == "UPWARD") {
-        int32_t fixed_point_multiplier, shift;
-        std::tie(fixed_point_multiplier, shift) =
+        auto [fixed_point_multiplier, shift] =
             qnn::GetFixedPointMultiplierShift(idom_scale_imm / odom_scale_imm);
         data = relay::FixedPointMultiply(data, fixed_point_multiplier, shift);
       } else {
@@ -548,13 +509,14 @@ Expr BatchMatmulRealize(const Call& ref_call, const Array<Expr>& new_args, const
 
   Expr ldata = lhs->data;
   Expr rdata = rhs->data;
-  DataType dtype = cfg->dtype_input;
+  DataType dtype_input = cfg->dtype_input;
+  DataType dtype_weight = cfg->dtype_weight;
 
-  if (lhs->dtype != dtype) {
-    ldata = Cast(ldata, dtype);
+  if (lhs->dtype != dtype_input) {
+    ldata = Cast(ldata, dtype_input);
   }
-  if (rhs->dtype != dtype) {
-    rdata = Cast(rdata, dtype);
+  if (rhs->dtype != dtype_weight) {
+    rdata = Cast(rdata, dtype_weight);
   }
 
   const auto ref_attrs = ref_call->attrs.as<BatchMatmulAttrs>();

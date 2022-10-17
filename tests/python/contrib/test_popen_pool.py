@@ -16,6 +16,8 @@
 # under the License.
 """Test PopenPoolExecutor."""
 import pytest
+import os
+import psutil
 import time
 from tvm.contrib.popen_pool import PopenWorker, PopenPoolExecutor
 from tvm.testing import (
@@ -49,6 +51,32 @@ def test_popen_worker():
 
     proc.send(identity_after, [4, 0.0001])
     assert proc.recv() == 4
+
+
+def test_popen_worker_reuses():
+    proc = PopenWorker(maximum_uses=None)
+
+    proc.send(os.getpid)
+    initial_pid = proc.recv()
+
+    proc.send(os.getpid)
+    assert proc.recv() == initial_pid
+
+
+def test_popen_worker_recycles():
+    proc = PopenWorker(maximum_uses=2)
+
+    proc.send(os.getpid)
+    initial_pid = proc.recv()
+    assert psutil.pid_exists(initial_pid)
+
+    proc.send(os.getpid)
+    assert proc.recv() == initial_pid
+    assert psutil.pid_exists(initial_pid)
+
+    proc.send(os.getpid)
+    assert proc.recv() != initial_pid
+    assert not psutil.pid_exists(initial_pid)
 
 
 def test_popen_pool_executor():
@@ -88,6 +116,28 @@ def test_popen_initializer():
     assert test_global_state_3 == initargs[2]
 
 
+def test_popen_worker_recycles_with_initializer():
+    initargs = [1, 2, 3]
+    proc = PopenWorker(initializer=initializer, initargs=initargs, maximum_uses=3)
+
+    proc.send(os.getpid)
+    initial_pid = proc.recv()
+
+    proc.send(after_initializer)
+    assert list(proc.recv()) == initargs
+
+    proc.send(os.getpid)
+    assert proc.recv() == initial_pid
+
+    # The process should be recycled with this send.
+    proc.send(os.getpid)
+    assert proc.recv() != initial_pid
+
+    # But the initializer should've run this time as well.
+    proc.send(after_initializer)
+    assert list(proc.recv()) == initargs
+
+
 def test_popen_ffi():
     proc = PopenWorker(register_ffi)
 
@@ -107,23 +157,6 @@ def test_popen_ffi():
     assert proc.recv() == initargs[0]
 
 
-def test_popen_pool_executor_async():
-    pool = PopenPoolExecutor()
-    f1 = pool.submit(slow_summation, 9999999)
-    f2 = pool.submit(fast_summation, 9999999)
-    t1 = 0
-    t2 = 0
-    while True:
-        if t1 == 0 and f1.done():
-            t1 = time.time()
-        if t2 == 0 and f2.done():
-            t2 = time.time()
-        if t1 != 0 and t2 != 0:
-            break
-    assert t2 < t1, "Expected fast async job to finish first!"
-    assert f1.result() == f2.result()
-
-
 def test_popen_pool_executor_timeout():
     timeout = 0.5
 
@@ -138,10 +171,20 @@ def test_popen_pool_executor_timeout():
         assert isinstance(ex, TimeoutError)
 
 
+def test_popen_pool_executor_recycles():
+    pool = PopenPoolExecutor(max_workers=1, timeout=None, maximum_process_uses=2)
+
+    initial_pid = pool.submit(os.getpid).result()
+    assert initial_pid == pool.submit(os.getpid).result()
+    assert initial_pid != pool.submit(os.getpid).result()
+
+
 if __name__ == "__main__":
     test_popen_worker()
+    test_popen_worker_recycles()
     test_popen_pool_executor()
     test_popen_initializer()
+    test_popen_worker_recycles_with_initializer()
     test_popen_ffi()
-    test_popen_pool_executor_async()
     test_popen_pool_executor_timeout()
+    test_popen_pool_executor_recycles()

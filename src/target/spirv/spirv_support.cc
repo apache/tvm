@@ -32,32 +32,36 @@ namespace tvm {
 namespace codegen {
 
 SPIRVSupport::SPIRVSupport(tvm::Target target) {
-  ICHECK_EQ(target->kind->device_type, kDLVulkan)
+  ICHECK_EQ(target->GetTargetDeviceType(), kDLVulkan)
       << "SPIRVSupport can only be checked for vulkan device type";
 
   if (target->GetAttr<Integer>("vulkan_api_version")) {
-    vulkan_api_version = target->GetAttr<Integer>("vulkan_api_version").value();
+    vulkan_api_version = target->GetAttr<Integer>("vulkan_api_version").value().IntValue();
   }
 
   if (target->GetAttr<Integer>("supported_subgroup_operations")) {
     supported_subgroup_operations =
-        target->GetAttr<Integer>("supported_subgroup_operations").value();
+        target->GetAttr<Integer>("supported_subgroup_operations").value().IntValue();
   }
   if (target->GetAttr<Integer>("max_push_constants_size")) {
-    max_push_constants_size = target->GetAttr<Integer>("max_push_constants_size").value();
+    max_push_constants_size =
+        target->GetAttr<Integer>("max_push_constants_size").value().IntValue();
   }
   if (target->GetAttr<Integer>("max_uniform_buffer_range")) {
-    max_uniform_buffer_range = target->GetAttr<Integer>("max_uniform_buffer_range").value();
+    max_uniform_buffer_range =
+        target->GetAttr<Integer>("max_uniform_buffer_range").value().IntValue();
   }
   if (target->GetAttr<Integer>("max_storage_buffer_range")) {
-    max_storage_buffer_range = target->GetAttr<Integer>("max_storage_buffer_range").value();
+    max_storage_buffer_range =
+        target->GetAttr<Integer>("max_storage_buffer_range").value().IntValue();
   }
   if (target->GetAttr<Integer>("max_shared_memory_per_block")) {
-    max_shared_memory_per_block = target->GetAttr<Integer>("max_shared_memory_per_block").value();
+    max_shared_memory_per_block =
+        target->GetAttr<Integer>("max_shared_memory_per_block").value().IntValue();
   }
   if (target->GetAttr<Integer>("max_per_stage_descriptor_storage_buffer")) {
     max_per_stage_descriptor_storage_buffers =
-        target->GetAttr<Integer>("max_per_stage_descriptor_storage_buffer").value();
+        target->GetAttr<Integer>("max_per_stage_descriptor_storage_buffer").value().IntValue();
   }
   if (target->GetAttr<Bool>("supports_storage_buffer_storage_class")) {
     supports_storage_buffer_storage_class =
@@ -83,6 +87,19 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
   }
   if (target->GetAttr<Bool>("supports_int64")) {
     supports_int64 = target->GetAttr<Bool>("supports_int64").value();
+  }
+  // Check whether integer dot product is enabled in the target string.
+  if (target->GetAttr<Bool>("supports_integer_dot_product")) {
+    supports_integer_dot_product = target->GetAttr<Bool>("supports_integer_dot_product").value();
+  }
+  // Check whether integer dot product is enabled in mattr.
+  if (const Optional<Array<String>>& v = target->GetAttr<Array<String>>("mattr")) {
+    for (const String& s : v.value()) {
+      if (s.compare("+dotprod") == 0) {
+        supports_integer_dot_product = true;
+        break;
+      }
+    }
   }
 }
 

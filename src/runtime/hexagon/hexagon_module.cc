@@ -19,7 +19,7 @@
 
 /*!
  * \file hexagon_module.cc
- * \brief The HexagonHostModuleNode
+ * \brief The HexagonModuleNode
  */
 #include "hexagon_module.h"
 
@@ -36,27 +36,19 @@
 namespace tvm {
 namespace runtime {
 
-HexagonHostModuleNode::HexagonHostModuleNode(std::string data, std::string fmt,
-                                             std::unordered_map<std::string, FunctionInfo> fmap,
-                                             std::string asm_str, std::string obj_str,
-                                             std::string ir_str, std::string bc_str,
-                                             const std::set<std::string>& packed_c_abi)
-    : data_(data),
-      fmt_(fmt),
-      fmap_(fmap),
-      asm_(asm_str),
-      obj_(obj_str),
-      ir_(ir_str),
-      bc_(bc_str),
-      packed_c_abi_funcs_(packed_c_abi) {}
+HexagonModuleNode::HexagonModuleNode(std::string data, std::string fmt,
+                                     std::unordered_map<std::string, FunctionInfo> fmap,
+                                     std::string asm_str, std::string obj_str, std::string ir_str,
+                                     std::string bc_str)
+    : data_(data), fmt_(fmt), fmap_(fmap), asm_(asm_str), obj_(obj_str), ir_(ir_str), bc_(bc_str) {}
 
-PackedFunc HexagonHostModuleNode::GetFunction(const std::string& name,
-                                              const ObjectPtr<Object>& sptr_to_self) {
-  LOG(FATAL) << "HexagonHostModuleNode::GetFunction is not implemented.";
-  return nullptr;
+PackedFunc HexagonModuleNode::GetFunction(const std::string& name,
+                                          const ObjectPtr<Object>& sptr_to_self) {
+  LOG(FATAL) << "HexagonModuleNode::GetFunction is not implemented.";
+  return PackedFunc();
 }
 
-std::string HexagonHostModuleNode::GetSource(const std::string& format) {
+std::string HexagonModuleNode::GetSource(const std::string& format) {
   if (format == "s" || format == "asm") {
     return asm_;
   }
@@ -66,15 +58,12 @@ std::string HexagonHostModuleNode::GetSource(const std::string& format) {
   return "";
 }
 
-void HexagonHostModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
+void HexagonModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
   std::string fmt = runtime::GetFileFormat(file_name, format);
   if (fmt == "so" || fmt == "dll" || fmt == "hexagon") {
     std::string meta_file = GetMetaFilePath(file_name);
     SaveMetaDataToFile(meta_file, fmap_);
-#if !defined(__APPLE__)
-    std::string c = "cp " + data_ + " " + file_name;
-    ICHECK(std::system(c.c_str()) == 0) << "Cannot create " + file_name;
-#endif
+    CopyFile(data_, file_name);
   } else if (fmt == "s" || fmt == "asm") {
     ICHECK(!asm_.empty()) << "Assembler source not available";
     SaveBinaryToFile(file_name, asm_);
@@ -88,14 +77,21 @@ void HexagonHostModuleNode::SaveToFile(const std::string& file_name, const std::
     ICHECK(!bc_.empty()) << "LLVM IR bitcode not available";
     SaveBinaryToFile(file_name, bc_);
   } else {
-    LOG(FATAL) << "HexagonHostModuleNode::SaveToFile: unhandled format `" << fmt << "'";
+    LOG(FATAL) << "HexagonModuleNode::SaveToFile: unhandled format `" << fmt << "'";
   }
 }
 
-void HexagonHostModuleNode::SaveToBinary(dmlc::Stream* stream) {
+void HexagonModuleNode::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(fmt_);
   stream->Write(fmap_);
   stream->Write(data_);
+}
+
+Module HexagonModuleCreate(std::string data, std::string fmt,
+                           std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
+                           std::string obj_str, std::string ir_str, std::string bc_str) {
+  auto n = make_object<HexagonModuleNode>(data, fmt, fmap, asm_str, obj_str, ir_str, bc_str);
+  return Module(n);
 }
 
 }  // namespace runtime

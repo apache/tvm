@@ -55,8 +55,23 @@ bool QuantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   axis = (axis < 0) ? ((rank > 0) ? data->shape.size() + axis : 0) : axis;
 
   // If zero point and scale are scalar then axis doesnt matter.
-  bool scale_is_scalar = (types[1].as<TensorTypeNode>())->shape.size() == 0;
-  bool zp_is_scalar = (types[2].as<TensorTypeNode>())->shape.size() == 0;
+  bool scale_is_scalar, zp_is_scalar;
+
+  if (auto ttype = types[1].as<TensorTypeNode>()) {
+    scale_is_scalar = ttype->shape.size() == 0;
+  } else {
+    ICHECK(types[1].as<IncompleteTypeNode>())
+        << "Quantize: expect to be TensorType but get " << types[1];
+    return false;
+  }
+
+  if (auto ttype = types[2].as<TensorTypeNode>()) {
+    zp_is_scalar = ttype->shape.size() == 0;
+  } else {
+    ICHECK(types[2].as<IncompleteTypeNode>())
+        << "Quantize: expect to be TensorType but get " << types[2];
+    return false;
+  }
 
   if (!(scale_is_scalar && zp_is_scalar)) {
     ICHECK_LT(axis, rank > 0 ? rank : 1) << "axis " << quantize_attrs->axis << " is out of range";
@@ -76,8 +91,8 @@ bool QuantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const Array<tvm::PrimExpr> oshape = data->shape;
   const DataType out_dtype = quantize_attrs->out_dtype;
   ICHECK(out_dtype == DataType::Int(8) || out_dtype == DataType::UInt(8) ||
-         out_dtype == DataType::Int(32))
-      << "Output type should be one of [int8, unit8, int32] but was " << out_dtype;
+         out_dtype == DataType::Int(16) || out_dtype == DataType::Int(32))
+      << "Output type should be one of [int8, unit8, int16, int32] but was " << out_dtype;
   // assign output type
   reporter->Assign(types[3], TensorType(oshape, out_dtype));
   return true;
@@ -127,11 +142,10 @@ Expr QuantizeLower(const Expr& input_tensor, const Expr& output_scale,
 
   const int32_t min_val = GetQmin(out_dtype);
   const int32_t max_val = GetQmax(out_dtype);
-  auto scale_data = Divide(input_tensor, expanded_output_scale);
+  auto scale_data = Round(Divide(input_tensor, expanded_output_scale));
   auto add_zero_point = Add(scale_data, Cast(expanded_output_zero_point, DataType::Float(32)));
   auto clamped_output = Clip(add_zero_point, min_val, max_val);
-  auto rounded_clamped_output = Round(clamped_output);
-  return Cast(rounded_clamped_output, out_dtype);
+  return Cast(clamped_output, out_dtype);
 }
 
 Expr QuantizeQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,

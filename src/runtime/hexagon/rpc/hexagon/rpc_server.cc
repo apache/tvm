@@ -38,12 +38,8 @@ extern "C" {
 #include "../../../library_module.h"
 #include "../../../minrpc/minrpc_server.h"
 #include "../../hexagon/hexagon_common.h"
+#include "../../hexagon/hexagon_device_api.h"
 #include "hexagon_rpc.h"
-
-// TODO(mehrdadh): make this configurable.
-#define TVM_HEXAGON_RPC_BUFF_SIZE_BYTES 2 * 1024 * 1024
-
-#define TVM_LOG_CUSTOMIZE 1
 
 namespace tvm {
 namespace runtime {
@@ -59,30 +55,31 @@ class HexagonIOHandler {
  public:
   explicit HexagonIOHandler(uint8_t* read_buffer, size_t read_buffer_size_bytes)
       : read_buffer_{read_buffer},
+        read_buffer_index_{0},
         read_buffer_size_bytes_{read_buffer_size_bytes},
-        read_buffer_index_{0} {}
+        write_buffer_available_length_{0} {}
 
   void MessageStart(size_t message_size_bytes) {}
 
   ssize_t PosixWrite(const uint8_t* buf, size_t write_len_bytes) {
-    HEXAGON_PRINT(ALWAYS, "HexagonIOHandler PosixWrite called, write_len_bytes: %d",
-                  write_len_bytes);
-    size_t written_size = static_cast<size_t>(
-        write_buffer_.sputn(reinterpret_cast<const char*>(buf), write_len_bytes));
+    LOG(INFO) << "HexagonIOHandler PosixWrite called, write_len_bytes(" << write_len_bytes << ")";
+    int32_t written_size = write_buffer_.sputn(reinterpret_cast<const char*>(buf), write_len_bytes);
     if (written_size != write_len_bytes) {
-      HEXAGON_PRINT(ALWAYS, "HexagonIOHandler written_size failed");
+      LOG(ERROR) << "written_size(" << written_size << ") != write_len_bytes(" << write_len_bytes
+                 << ")";
     }
+    write_buffer_available_length_ += written_size;
     return (ssize_t)written_size;
   }
 
-  void MessageDone() {}
+  void MessageDone() { LOG(INFO) << "Message Done."; }
 
   ssize_t PosixRead(uint8_t* buf, size_t read_len_bytes) {
-    HEXAGON_PRINT(ALWAYS, "HexagonIOHandler PosixRead called, %d, %d", read_len_bytes,
-                  read_buffer_index_);
+    LOG(INFO) << "HexagonIOHandler PosixRead called, read_len_bytes(" << read_len_bytes
+              << "), read_buffer_index_(" << read_buffer_index_ << ")";
 
     uint32_t bytes_to_read = 0;
-    if ((read_buffer_index_ - read_len_bytes) < 0) {
+    if (read_buffer_index_ < read_len_bytes) {
       bytes_to_read = read_buffer_index_;
     } else {
       bytes_to_read = read_len_bytes;
@@ -91,10 +88,6 @@ class HexagonIOHandler {
     std::memcpy(buf, read_buffer_, bytes_to_read);
     read_buffer_ += bytes_to_read;
     read_buffer_index_ -= bytes_to_read;
-    if (bytes_to_read != read_len_bytes) {
-      HEXAGON_PRINT(ERROR, "Error bytes_to_read (%d) < read_len_bytes (%d).", bytes_to_read,
-                    read_len_bytes);
-    }
     return (ssize_t)bytes_to_read;
   }
 
@@ -106,39 +99,80 @@ class HexagonIOHandler {
    * \return The status
    */
   AEEResult SetReadBuffer(const uint8_t* data, size_t data_size_bytes) {
-    HEXAGON_PRINT(ALWAYS, "HexagonIOHandler SetReadBuffer called: %d, prev read_buffer_index_: ",
-                  data_size_bytes, read_buffer_index_);
+    LOG(INFO) << "HexagonIOHandler SetReadBuffer: data_size_bytes(" << data_size_bytes
+              << "), read_buffer_index_(" << read_buffer_index_ << "), read_buffer_size_bytes_("
+              << read_buffer_size_bytes_ << ")";
     if (data_size_bytes > read_buffer_size_bytes_) {
+      LOG(ERROR) << "ERROR: data_size_bytes(" << data_size_bytes << ") > read_buffer_size_bytes_("
+                 << read_buffer_size_bytes_ << ")";
       return AEE_EFAILED;
     }
-    read_buffer_ = data;
+    std::memcpy(reinterpret_cast<void*>(read_buffer_), reinterpret_cast<const void*>(data),
+                data_size_bytes);
     read_buffer_index_ = data_size_bytes;
     return AEE_SUCCESS;
   }
 
   /*!
-   * \brief Get pointer to the buffer that a packet has been written to.
+   * \brief Read from the write buffer that a packet has been written to.
    * \param buf The data pointer.
    * \param read_size_bytes The size of read in bytes.
    *
    * \return The size of data that is read in bytes.
    */
-  int64_t GetWriteBuffer(uint8_t* buf, size_t read_size_bytes) {
-    HEXAGON_PRINT(ALWAYS, "HexagonIOHandler GetWriteBuffer called, read_len_bytes: %d",
-                  read_size_bytes);
-    return write_buffer_.sgetn(reinterpret_cast<char*>(buf), read_size_bytes);
+  int64_t ReadFromWriteBuffer(uint8_t* buf, size_t read_size_bytes) {
+    LOG(INFO) << "HexagonIOHandler ReadFromWriteBuffer called, read_size_bytes: "
+              << read_size_bytes;
+    int64_t size = (int64_t)write_buffer_.sgetn(reinterpret_cast<char*>(buf), read_size_bytes);
+    write_buffer_available_length_ -= size;
+
+    // Clear buffer
+    if (write_buffer_available_length_ == 0) {
+      write_buffer_.str("");
+    }
+    return size;
   }
 
-  void Close() { HEXAGON_PRINT(ALWAYS, "HexagonIOHandler Close called"); }
+  void Close() { LOG(INFO) << "HexagonIOHandler Close called"; }
 
   void Exit(int code) { exit(code); }
 
  private:
-  const uint8_t* read_buffer_;
+  uint8_t* read_buffer_;
   uint32_t read_buffer_index_;
   size_t read_buffer_size_bytes_;
 
   std::stringbuf write_buffer_;
+  uint32_t write_buffer_available_length_;
+};
+
+// Internal allocator that redirects alloc to TVM's C API.
+template <typename TIOHandler>
+class HexagonPageAllocator {
+ public:
+  using ArenaPageHeader = tvm::support::ArenaPageHeader;
+
+  explicit HexagonPageAllocator(TIOHandler* io) : io_(io) {}
+
+  ArenaPageHeader* allocate(size_t min_size) {
+    size_t npages = ((min_size + kPageSize - 1) / kPageSize);
+    void* data;
+
+    data = HexagonDeviceAPI::Global()->AllocRpcBuffer(npages * kPageSize, kPageAlign);
+
+    ArenaPageHeader* header = static_cast<ArenaPageHeader*>(data);
+    header->size = npages * kPageSize;
+    header->offset = sizeof(ArenaPageHeader);
+    return header;
+  }
+
+  void deallocate(ArenaPageHeader* page) { HexagonDeviceAPI::Global()->FreeRpcBuffer(page); }
+
+  static const constexpr int kPageSize = 2 << 10;
+  static const constexpr int kPageAlign = 8;
+
+ private:
+  TIOHandler* io_;
 };
 
 class HexagonRPCServer {
@@ -151,13 +185,20 @@ class HexagonRPCServer {
    * \param data The data pointer
    * \param data_size_bytes The data size in bytes.
    *
-   * \return The size of data written to IOHandler.
+   * \return The size of data written to IOHandler if no error.
+   * Otherwise, returns -1;
    */
   int64_t Write(const uint8_t* data, size_t data_size_bytes) {
-    if (io_.SetReadBuffer(data, data_size_bytes) != AEE_SUCCESS) {
+    AEEResult rc = io_.SetReadBuffer(data, data_size_bytes);
+    if (rc != AEE_SUCCESS) {
+      LOG(ERROR) << "ERROR: SetReadBuffer failed: " << rc;
       return -1;
     }
-    rpc_server_.ProcessOnePacket();
+
+    if (!rpc_server_.ProcessOnePacket()) {
+      LOG(ERROR) << "ERROR: ProcessOnePacket failed";
+      return -1;
+    }
     return (int64_t)data_size_bytes;
   }
 
@@ -169,12 +210,12 @@ class HexagonRPCServer {
    * \return The size of data that is read in bytes.
    */
   int64_t Read(uint8_t* buf, size_t read_size_bytes) {
-    return io_.GetWriteBuffer(buf, read_size_bytes);
+    return io_.ReadFromWriteBuffer(buf, read_size_bytes);
   }
 
  private:
   HexagonIOHandler io_;
-  MinRPCServer<HexagonIOHandler> rpc_server_;
+  MinRPCServer<HexagonIOHandler, HexagonPageAllocator> rpc_server_;
 };
 
 }  // namespace hexagon
@@ -182,10 +223,17 @@ class HexagonRPCServer {
 }  // namespace tvm
 
 namespace {
-tvm::runtime::hexagon::HexagonRPCServer* get_hexagon_rpc_server() {
-  static tvm::runtime::hexagon::HexagonRPCServer g_hexagon_rpc_server(
-      new uint8_t[TVM_HEXAGON_RPC_BUFF_SIZE_BYTES], TVM_HEXAGON_RPC_BUFF_SIZE_BYTES);
-  return &g_hexagon_rpc_server;
+static tvm::runtime::hexagon::HexagonRPCServer* g_hexagon_rpc_server;
+tvm::runtime::hexagon::HexagonRPCServer* get_hexagon_rpc_server(
+    uint32_t rpc_receive_buff_size_bytes = 0) {
+  if (g_hexagon_rpc_server) {
+    return g_hexagon_rpc_server;
+  }
+  CHECK_GT(rpc_receive_buff_size_bytes, 0) << "RPC receive buffer size is not valid.";
+  static tvm::runtime::hexagon::HexagonRPCServer hexagon_rpc_server(
+      new uint8_t[rpc_receive_buff_size_bytes], rpc_receive_buff_size_bytes);
+  g_hexagon_rpc_server = &hexagon_rpc_server;
+  return g_hexagon_rpc_server;
 }
 }  // namespace
 
@@ -197,26 +245,32 @@ const tvm::runtime::PackedFunc get_runtime_func(const std::string& name) {
 }
 
 void reset_device_api() {
-  const tvm::runtime::PackedFunc api = get_runtime_func("device_api.hexagon.v2");
-  tvm::runtime::Registry::Register("device_api.hexagon", true).set_body(api);
+  const tvm::runtime::PackedFunc api = get_runtime_func("device_api.hexagon");
+  // Registering device_api.cpu as device_api.hexagon since we use hexagon as sub-target of LLVM.
+  tvm::runtime::Registry::Register("device_api.cpu", true).set_body(api);
 }
 
 int __QAIC_HEADER(hexagon_rpc_open)(const char* uri, remote_handle64* handle) {
   *handle = static_cast<remote_handle64>(reinterpret_cast<uintptr_t>(malloc(1)));
   if (!*handle) {
-    HEXAGON_PRINT(ERROR, "%s: cannot allocate memory", __func__);
+    LOG(ERROR) << __func__ << ": cannot allocate memory";
     return AEE_ENOMEMORY;
   }
   reset_device_api();
-  get_hexagon_rpc_server();
+
   return AEE_SUCCESS;
 }
 
 int __QAIC_HEADER(hexagon_rpc_close)(remote_handle64 handle) {
-  HEXAGON_PRINT(ALWAYS, "%s", __func__);
+  LOG(INFO) << __func__;
   if (handle) {
     free(reinterpret_cast<void*>(static_cast<uintptr_t>(handle)));
   }
+  return AEE_SUCCESS;
+}
+
+int __QAIC_HEADER(hexagon_rpc_init)(remote_handle64 _h, uint32_t buff_size_bytes) {
+  get_hexagon_rpc_server(buff_size_bytes);
   return AEE_SUCCESS;
 }
 
@@ -233,8 +287,8 @@ AEEResult __QAIC_HEADER(hexagon_rpc_send)(remote_handle64 _handle, const unsigne
   int64_t written_size = get_hexagon_rpc_server()->Write(reinterpret_cast<const uint8_t*>(data),
                                                          static_cast<size_t>(dataLen));
   if (written_size != dataLen) {
-    HEXAGON_PRINT(ERROR, "RPC Server Write failed, written_size (%d) != dataLen (%d)", written_size,
-                  dataLen);
+    LOG(ERROR) << "ERROR: hexagon_rpc_send failed, written_size (" << written_size
+               << ") != dataLen (" << dataLen << ")";
     return AEE_EFAILED;
   }
   return AEE_SUCCESS;
@@ -254,18 +308,24 @@ AEEResult __QAIC_HEADER(hexagon_rpc_receive)(remote_handle64 _handle, unsigned c
   int64_t read_size =
       get_hexagon_rpc_server()->Read(reinterpret_cast<uint8_t*>(buf), static_cast<size_t>(bufLen));
   *buf_written_size = read_size;
-  if (read_size == bufLen) {
+  if (read_size == static_cast<int64_t>(bufLen)) {
     return AEE_SUCCESS;
   } else {
-    HEXAGON_PRINT(ALWAYS, "RPC Server Read failed, read_size (%d) != dataLen (%d)", read_size,
-                  bufLen);
+    LOG(ERROR) << "ERROR: RPC Server Read failed, read_size (" << read_size << ") != bufLen ("
+               << static_cast<int64_t>(bufLen) << ")";
     return AEE_EFAILED;
   }
+}
+
+// Workaround for missing functions in 8.5.08
+extern "C" {
+__attribute__((weak)) void _Get_eh_data() {}
+__attribute__((weak)) void _Parse_fde_instr() {}
 }
 
 TVM_REGISTER_GLOBAL("tvm.hexagon.load_module")
     .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
       std::string soname = args[0];
       tvm::ObjectPtr<tvm::runtime::Library> n = tvm::runtime::CreateDSOLibraryObject(soname);
-      *rv = CreateModuleFromLibrary(n, tvm::runtime::hexagon::WrapPackedFunc);
+      *rv = CreateModuleFromLibrary(n);
     });

@@ -43,9 +43,11 @@
 #include "../ir/attr_functor.h"
 #include "../parser/meta_ref.h"
 #include "../relay/analysis/dependency_graph.h"
+#include "../support/scalars.h"
 #include "doc.h"
 #include "meta_data.h"
 #include "text_printer.h"
+#include "tvm/runtime/builtin_fp16.h"
 
 namespace tvm {
 namespace relay {
@@ -61,8 +63,17 @@ Doc RelayTextPrinter::PrintOptionalInfo(const Expr& expr) {
   }
   // default annotations
   if (annotate_ == nullptr) {
-    if ((expr.as<ConstantNode>() || expr.as<CallNode>()) && expr->checked_type_.defined()) {
-      doc << " /* ty=" << Print(expr->checked_type()) << " */";
+    if ((expr.as<ConstantNode>() || expr.as<CallNode>() || expr.as<VarNode>() ||
+         expr.as<FunctionNode>() || expr.as<TupleNode>() || expr.as<TupleGetItemNode>()) &&
+        (expr->checked_type_.defined() || expr->span.defined())) {
+      doc << " /*";
+      if (expr->checked_type_.defined()) {
+        doc << " ty=" << Print(expr->checked_type());
+      }
+      if (expr->span.defined()) {
+        doc << " span=" << PrintSpan(expr->span);
+      }
+      doc << " */";
     }
   } else {
     std::string annotated_expr = annotate_(expr);
@@ -219,10 +230,14 @@ Doc RelayTextPrinter::AllocVar(const Var& var) {
     name = "v" + name;
   }
   Doc val = GetUniqueName("%" + name);
-  memo_[var] = val;
+  memo_[var] = val;  // Referential occurrences will not include the following.
+  if (!var->virtual_device()->IsFullyUnconstrained()) {
+    val << " {" << kVirtualDevice << "=" << PrintAttributeValue(var->virtual_device()) << "}";
+  }
   if (var->type_annotation.defined()) {
     val << ": " << Print(var->type_annotation);
   }
+
   val << PrintOptionalInfo(var);
   return val;
 }
@@ -331,51 +346,17 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bo
 // first time.
 Doc RelayTextPrinter::VisitExpr_(const VarNode* op) { return AllocVar(GetRef<Var>(op)); }
 
-/*!
- * \brief special method to print out const scalar
- * \param dtype The data type
- * \param value The value to be printed.
- */
-template <typename T>
-Doc RelayTextPrinter::ScalarLiteral(DataType dtype, const T& value) {
-  std::ostringstream os;
-  if (dtype == DataType::Int(32)) {
-    os << value;
-  } else if (dtype == DataType::Float(32)) {
-    os << value << 'f';
-  } else if (dtype == DataType::Float(64)) {
-    os << value << "f64";
-  } else if (dtype == DataType::Bool()) {
-    return Doc::PyBoolLiteral(value != 0);
-  } else {
-    os << value;
-  }
-  return Doc::Text(os.str());
-}
-
 Doc RelayTextPrinter::VisitExpr_(const ConstantNode* op) {
   // Print out simple scalars directly.
-  if (op->is_scalar()) {
-    std::ostringstream os;
-    DataType dtype = DataType(op->data->dtype);
-    ICHECK_EQ(op->data->device.device_type, kDLCPU);
-    if (dtype == DataType::Int(32)) {
-      return ScalarLiteral(dtype, static_cast<const int32_t*>(op->data->data)[0]);
-    } else if (dtype == DataType::Int(64)) {
-      return ScalarLiteral(dtype, static_cast<const int64_t*>(op->data->data)[0]);
-    } else if (dtype == DataType::Float(32)) {
-      return ScalarLiteral(dtype, static_cast<const float*>(op->data->data)[0]);
-    } else if (dtype == DataType::Float(64)) {
-      return ScalarLiteral(dtype, static_cast<const double*>(op->data->data)[0]);
-    } else if (dtype == DataType::Bool()) {
-      return ScalarLiteral(dtype, static_cast<const uint8_t*>(op->data->data)[0]);
-    }
+  if (support::IsSimpleScalar(op)) {
+    return Doc::Text(support::NDArrayScalarToString(op->data));
   }
-  // default fall-back, record it as meta node.
+  // Fallbock: record it as a meta node.
   Doc doc;
   // Don't append optional_info. Because the entry function is Print,
   // and it will append the optional_info afterwards.
-  return doc << PrintExpr(GetRef<Expr>(op), true, false, false);
+  return doc << PrintExpr(GetRef<Expr>(op), /*meta=*/true, /*try_inline=*/false,
+                          /*optional_info=*/false);
 }
 
 Doc RelayTextPrinter::VisitExpr_(const TupleNode* op) {
@@ -389,21 +370,12 @@ Doc RelayTextPrinter::VisitExpr_(const TupleNode* op) {
   if (op->fields.size() == 1) {
     doc << ",";
   }
-  doc << ")";
-  if (op->span.defined()) {
-    doc << " /* " << PrintSpan(op->span) << " */";
-  }
-  return doc;
+  return doc << ")";
 }
 
 Doc RelayTextPrinter::VisitExpr_(const TupleGetItemNode* op) {
   Doc doc;
-  doc << Print(op->tuple) << "." << op->index;
-
-  if (op->span.defined()) {
-    doc << " /* " << PrintSpan(op->span) << " */";
-  }
-  return doc;
+  return doc << Print(op->tuple) << "." << op->index;
 }
 
 Doc RelayTextPrinter::VisitExpr_(const IfNode* op) {
@@ -417,6 +389,7 @@ Doc RelayTextPrinter::VisitExpr_(const IfNode* op) {
 
 Doc RelayTextPrinter::VisitExpr_(const LetNode* op) {
   int n = 0;
+  size_t l = doc_stack_.size();
   Expr let = GetRef<Let>(op);
   while (auto let_node = let.as<LetNode>()) {
     Doc doc;
@@ -427,11 +400,15 @@ Doc RelayTextPrinter::VisitExpr_(const LetNode* op) {
     ++n;
   }
   Doc doc = PrintScope(let);
+  Doc doc_last;
   for (int i = 0; i < n; ++i) {
-    doc = doc_stack_.back() << doc;
+    doc_last << doc_stack_[l + i];
+  }
+  doc_last << doc;
+  for (int i = 0; i < n; ++i) {
     doc_stack_.pop_back();
   }
-  return doc;
+  return doc_last;
 }
 
 Doc RelayTextPrinter::PrintFunc(const Doc& prefix, const relay::Function& fn) {
@@ -453,6 +430,11 @@ Doc RelayTextPrinter::PrintFunc(const Doc& prefix, const relay::Function& fn) {
   }
   for (const Doc& d : PrintDictAttrs(fn->attrs)) {
     params.push_back(d);
+  }
+  if (!fn->virtual_device()->IsFullyUnconstrained()) {
+    Doc vid_doc;
+    vid_doc << kVirtualDevice << "=" << PrintAttributeValue(fn->virtual_device());
+    params.push_back(vid_doc);
   }
   doc << Doc::Concat(params) << ") ";
   if (fn->ret_type.defined()) {
@@ -524,11 +506,7 @@ Doc RelayTextPrinter::VisitExpr_(const CallNode* op) {
   for (const Expr& arg : op->args) {
     args.push_back(Print(arg));
   }
-#if TVM_LOG_DEBUG
-  for (const Type& type_arg : op->type_args) {
-    args.push_back(Print(type_arg));
-  }
-#endif
+
   for (const Doc& d : PrintCallAttrs(op->attrs, op->op)) {
     args.push_back(d);
   }
@@ -544,9 +522,6 @@ Doc RelayTextPrinter::VisitExpr_(const CallNode* op) {
     return doc;
   } else {
     doc << "(" << Doc::Concat(args) << ")";
-    if (op->span.defined()) {
-      doc << " /* " << PrintSpan(op->span) << " */";
-    }
     return doc;
   }
 }
@@ -803,11 +778,21 @@ Doc RelayTextPrinter::VisitAttr_(const ArrayNode* op) {
 }
 
 Doc RelayTextPrinter::VisitAttr_(const tir::IntImmNode* op) {
-  return ScalarLiteral(op->dtype, op->value);
+  if (support::IsSimpleScalarDtype(op->dtype)) {
+    return Doc::Text(support::IntImmToString(GetRef<IntImm>(op)));
+  } else {
+    // Fallback: Print int64_t without width suffix.
+    return Doc::Text(std::to_string(op->value));
+  }
 }
 
 Doc RelayTextPrinter::VisitAttr_(const tir::FloatImmNode* op) {
-  return ScalarLiteral(op->dtype, op->value);
+  if (support::IsSimpleScalarDtype(op->dtype)) {
+    return Doc::Text(support::FloatImmToString(GetRef<FloatImm>(op)));
+  } else {
+    // Fallbock: Print double without width suffix.
+    return Doc::Text(std::to_string(op->value));
+  }
 }
 
 Doc RelayTextPrinter::VisitAttr_(const tir::StringImmNode* op) {
@@ -977,13 +962,11 @@ Doc RelayTextPrinter::PrintMapAsAttributeValue(const Map<ObjectRef, ObjectRef>& 
   return doc;
 }
 
-Doc RelayTextPrinter::PrintSpan(const Span& span, bool include_spans) {
+Doc RelayTextPrinter::PrintSpan(const Span& span) {
   Doc doc;
-  if (include_spans) {
-    const auto* span_node = span.as<SpanNode>();
-    ICHECK(span_node);
-    doc << span_node->source_name->name;
-  }
+  const auto* span_node = span.as<SpanNode>();
+  ICHECK(span_node);
+  doc << span_node->source_name->name << ":" << span_node->line << ":" << span_node->column;
   return doc;
 }
 

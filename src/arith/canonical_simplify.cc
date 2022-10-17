@@ -567,6 +567,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
         p->stream << ", ";
         p->Print(s);
       }
+      p->stream << ')';
     });
 
 // Sub-class RewriteSimplifier::Impl to take benefit of
@@ -715,8 +716,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const AddNode* op) {
   PrimExpr b = this->CanonicalMutate(op->b);
 
   // const folding
-  PrimExpr const_res = TryConstFold<Add>(a, b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<Add>(a, b)) return const_res.value();
 
   // canonical form simplification.
   SumExpr ret = ToSumExpr(std::move(a));
@@ -740,8 +740,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const SubNode* op) {
   PrimExpr b = this->CanonicalMutate(op->b);
 
   // const folding
-  PrimExpr const_res = TryConstFold<Sub>(a, b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<Sub>(a, b)) return const_res.value();
 
   // canonical form simplification.
   SumExpr ret = ToSumExpr(std::move(a));
@@ -765,8 +764,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const MulNode* op) {
   PrimExpr b = this->CanonicalMutate(op->b);
 
   // const folding
-  PrimExpr const_res = TryConstFold<Mul>(a, b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<Mul>(a, b)) return const_res.value();
 
   // x * c
   if (a.as<IntImmNode>()) {
@@ -869,8 +867,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const DivNode* op) {
   PrimExpr b = this->CanonicalMutate(op->b);
 
   // const folding
-  PrimExpr const_res = TryConstFold<Div>(a, b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<Div>(a, b)) return const_res.value();
   PVar<IntImm> c1;
   // x / c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
@@ -894,7 +891,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const DivNode* op) {
           lhs.CopyOnWrite()->AddToSelf(pconst->value / cval);
         } else {
           // if 0 <= extra < cval, it means the extra can be eliminated.
-          if (TryCompare(temp, cval) != kLT) {
+          if (TryCompare(temp, cval) != CompareResult::kLT) {
             lhs.CopyOnWrite()->AddToSelf(SplitDivConst(ToSplitExpr(temp), cval, kTruncDiv), 1);
           }
         }
@@ -927,8 +924,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
   PrimExpr b = this->CanonicalMutate(op->b);
 
   // const folding
-  PrimExpr const_res = TryConstFold<FloorDiv>(a, b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<FloorDiv>(a, b)) return const_res.value();
   PVar<IntImm> c1;
   // x / c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
@@ -949,7 +945,8 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
         lhs.CopyOnWrite()->AddToSelf(floordiv(pconst->value, cval));
       } else {
         // if 0 <= extra < cval, it means the extra can be eliminated.
-        if (!(TryCompare(temp, cval) == kLT && analyzer_->CanProveGreaterEqual(temp, 0))) {
+        if (!(TryCompare(temp, cval) == CompareResult::kLT &&
+              analyzer_->CanProveGreaterEqual(temp, 0))) {
           lhs.CopyOnWrite()->AddToSelf(SplitDivConst(ToSplitExpr(temp), cval, kFloorDiv), 1);
         }
       }
@@ -982,9 +979,13 @@ SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, 
     return lhs;
   }
   if (cval % lhs->scale == 0) {
-    // (x * c1) % (c2 * c1) => (x % c2) * c1
+    // The rationale:
+    //   (index % upper) / lower * scale % cval, given cval = scaled_cval * scale
+    //   by the rule (x * c1) % (c2 * c1) => (x % c2) * c1,
+    // = (index % upper) / lower % scaled_cval * scale
+    //   by the rule (x / c1) % c2  =>  (x % (c1 * c2)) / c1,
+    // = (index % upper) % (new_upper_factor) / lower * scale
     int64_t scaled_cval = cval / lhs->scale;
-    //  (x / c1) % c2  =>  (x % (c1 * c2)) / c2
     int64_t new_upper_factor = lhs->lower_factor * scaled_cval;
     // try to see if we can reduce the existing upper modular.
     if (lhs->upper_factor == SplitExprNode::kPosInf || lhs->upper_factor % new_upper_factor == 0) {
@@ -995,11 +996,13 @@ SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, 
       if (new_upper_factor < lhs->upper_factor && lhs->upper_factor != SplitExprNode::kPosInf) {
         auto updated = ToSplitExpr(this->VisitExpr(
             ModImpl(lhs->index, make_const(lhs.dtype(), new_upper_factor), div_mode)));
-        updated.CopyOnWrite()->scale = lhs->scale;
         // re-apply the lower_factor
         if (lhs->lower_factor != 1) {
-          return SplitDivConst(updated, lhs->lower_factor, div_mode);
+          auto ret = SplitDivConst(updated, lhs->lower_factor, div_mode);
+          ret.CopyOnWrite()->MulToSelf(lhs->scale);
+          return ret;
         } else {
+          updated.CopyOnWrite()->MulToSelf(lhs->scale);
           return updated;
         }
       } else {
@@ -1030,8 +1033,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ModNode* op) {
   PrimExpr b = this->CanonicalMutate(op->b);
 
   // const folding
-  PrimExpr const_res = TryConstFold<Mod>(a, b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<Mod>(a, b)) return const_res.value();
 
   PVar<IntImm> c1;
   // x % c1
@@ -1051,7 +1053,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ModNode* op) {
           return truncmod(temp, c1.Eval());
         } else {
           // If temp < cval && temp >=0 then can remove the mod.
-          if (TryCompare(temp, cval) == kLT) {
+          if (TryCompare(temp, cval) == CompareResult::kLT) {
             return temp;
           } else {
             // contonue to use logic below.
@@ -1098,8 +1100,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   PrimExpr b = this->CanonicalMutate(op->b);
 
   // const folding
-  PrimExpr const_res = TryConstFold<FloorMod>(a, b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<FloorMod>(a, b)) return const_res.value();
 
   PVar<IntImm> c1;
   // x % c1
@@ -1113,7 +1114,8 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
         return floormod(temp, c1.Eval());
       } else {
         // If temp < cval && temp >=0 then can remove the mod.
-        if (TryCompare(temp, cval) == kLT && analyzer_->CanProveGreaterEqual(temp, 0)) {
+        if (TryCompare(temp, cval) == CompareResult::kLT &&
+            analyzer_->CanProveGreaterEqual(temp, 0)) {
           return temp;
         } else {
           // contonue to use logic below.

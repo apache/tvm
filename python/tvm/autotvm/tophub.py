@@ -26,6 +26,7 @@ import logging
 from os import getenv
 import sys
 from pathlib import Path
+from tvm.ir.container import Array
 
 from .task import ApplyHistoryBest
 from ..target import Target
@@ -87,7 +88,7 @@ def context(target, extra_files=None):
     Parameters
     ----------
     target: Target or List of Target
-        The compilation target
+        The compilation targets
     extra_files: list of str, optional
         Extra log files to load
     """
@@ -97,7 +98,7 @@ def context(target, extra_files=None):
 
     best_context = ApplyHistoryBest([])
 
-    targets = target if isinstance(target, (list, tuple)) else [target]
+    targets = target if isinstance(target, (Array, list, tuple)) else [target]
 
     for tgt in targets:
         if isinstance(tgt, str):

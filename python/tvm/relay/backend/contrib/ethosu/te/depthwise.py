@@ -23,6 +23,7 @@ from tvm import te
 from tvm.contrib.ethosu.cascader import TESubgraph, EthosuPart, Propagator, register_matcher
 
 from .dma import dma_ofm_compute, dma_ifm_compute
+from .common import get_layout_transform_matrices
 
 
 def depthwise_conv2d_compute(
@@ -169,21 +170,8 @@ def depthwise_conv2d_compute(
         attrs=depthwise_conv2d_attrs,
     )
 
-    nhwc_to_nhcwb16 = [
-        [1, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0],
-        [0, 0, 0, 1 / 16, 0],
-        [0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 16],
-        [0, 0, 0, 0, 1],
-    ]
-    nhcwb16_to_nhwc = [
-        [1, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0],
-        [0, 0, 16, 0, 1, -16],
-        [0, 0, 0, 0, 0, 1],
-    ]
+    nhwc_to_nhcwb16, nhcwb16_to_nhwc = get_layout_transform_matrices(channels)
+
     ifm_matrix = [
         [1, 0, 0, 0, 0],
         [0, stride_h, 0, 0, (dilated_kernel_h - stride_h)],
@@ -267,7 +255,10 @@ def match_ethosu_depthwise_conv2d(output_tensor, device_config):
     pad = depthwise2d.op.input_tensors[0]
     if pad.op.name != "ethosu_pad":
         return None
-    convert_to_nhwc = pad.op.input_tensors[0]
+    upscale = pad.op.input_tensors[0]
+    if upscale.op.name != "ethosu_upscale":
+        return None
+    convert_to_nhwc = upscale.op.input_tensors[0]
     if convert_to_nhwc.op.name != "ethosu_convert_to_nhwc":
         return None
     read = convert_to_nhwc.op.input_tensors[0]
@@ -288,8 +279,7 @@ def match_ethosu_depthwise_conv2d(output_tensor, device_config):
     ifm_dtype = input_tensors[0].dtype
     ofm_dtype = output_tensor.dtype
 
-    ifm_channels = int(input_tensors[0].shape[3])
-    ofm_channels, kernel_height, kernel_width = (int(axis) for axis in input_tensors[1].shape[0:3])
+    channels, kernel_height, kernel_width = (int(axis) for axis in input_tensors[1].shape[0:3])
 
     subkernels = len(
         device_config.get_kernel_steps(depthwise2d.op.name, kernel_height, kernel_width, ifm_dtype)
@@ -303,8 +293,8 @@ def match_ethosu_depthwise_conv2d(output_tensor, device_config):
         propagators[0],
         depthwise2d.op.attrs,
         output_tensor.shape,
-        ofm_channels,
-        ifm_channels,
+        channels,
+        channels,
         output_layout,
         input_layout,
         ifm_dtype,

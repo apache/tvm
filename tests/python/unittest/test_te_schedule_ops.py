@@ -21,6 +21,12 @@ from tvm import te
 from tvm.driver.build_module import schedule_to_module
 
 
+def test_const():
+    x = tvm.te.const(1, "int32")
+    assert x.dtype == "int32"
+    assert isinstance(x, tvm.tir.IntImm)
+
+
 def test_schedule0():
     m = te.var("m")
     l = te.var("l")

@@ -26,7 +26,6 @@ import json
 import logging
 import threading
 import traceback
-import warnings
 
 import tvm
 from tvm import autotvm, transform
@@ -115,13 +114,7 @@ def extract_tasks(
         The weight (i.e. the number of appearance) of extracted tasks
     """
     # pylint: disable=import-outside-toplevel
-    if target_host is not None:
-        warnings.warn(
-            "target_host parameter is going to be deprecated. "
-            "Please pass in tvm.target.Target(target, host=target_host) instead."
-        )
-
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    target, target_host = Target.canon_target_and_host(target, target_host)
 
     # Run the compiler to collect all TOPI calls during compilation.
     env = TracingEnvironment(
@@ -329,9 +322,9 @@ def auto_schedule_topi(func_name, outs):
     """
 
     # pylint: disable=import-outside-toplevel
-    from tvm.auto_scheduler.measure import (
+    from tvm.auto_scheduler.measure import (  # lazily import to avoid recursive dependency
         prepare_input_map,
-    )  # lazily import to avoid recursive dependency
+    )
 
     io_tensors, has_layout_free, has_complex_op = traverse_to_get_io_tensors(outs)
     if not io_tensors:  # The compute includes dynamic shapes which are not supported yet.
@@ -343,7 +336,8 @@ def auto_schedule_topi(func_name, outs):
         logger.info("Failed to create a ComputeDAG for auto_scheduler: %s", str(err))
         return None
 
-    key = register_workload_tensors(dag.workload_key(), io_tensors)
+    workload_key = dag.workload_key()
+    key = register_workload_tensors(workload_key, io_tensors)
     target = tvm.target.Target.current()
 
     dispatch_ctx = DispatchContext.current
@@ -363,7 +357,7 @@ def auto_schedule_topi(func_name, outs):
         # in the task extraction mode
         if has_complex_op or env.tracing_mode == TracingMode.EXTRACT_TASK:
             env.add_workload_key(func_name, key)
-            input_map = prepare_input_map(io_tensors)
+            input_map = prepare_input_map(io_tensors, workload_key)
             if input_map:
                 env.add_workload_input_names(key, list(input_map.values()))
     elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
@@ -474,6 +468,11 @@ def rewrite_compute_body(compute_tensor, new_layout):
     return outputs[0] if num == 1 else outputs
 
 
+def rewrite_tensor_shape(tensor, shape):
+    """Rewrite the tensor shape"""
+    _ffi_api.RewriteTensorShape(tensor, shape)
+
+
 def is_auto_scheduler_enabled():
     """Return whether the auto-scheduler is enabled.
 
@@ -482,4 +481,7 @@ def is_auto_scheduler_enabled():
     enabled: bool
         Whether the auto-scheduler is enabled
     """
-    return PassContext.current().config.get("relay.backend.use_auto_scheduler", False)
+    return PassContext.current().config.get(
+        "relay.backend.use_auto_scheduler",
+        False,
+    )

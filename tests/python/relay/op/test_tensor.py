@@ -16,6 +16,7 @@
 # under the License.
 """Unit tests for tensor helpers."""
 import tvm
+import tvm.testing
 from tvm import relay
 import pytest
 
@@ -47,6 +48,4 @@ def test_device_copy_via_device():
 
 
 if __name__ == "__main__":
-    import sys
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

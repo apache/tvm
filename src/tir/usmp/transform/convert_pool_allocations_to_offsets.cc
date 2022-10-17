@@ -26,6 +26,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/usmp/transform.h>
@@ -53,14 +54,20 @@ class PoolAllocationToOffsetConverter : public StmtExprMutator {
       : pool_allocations_(pool_allocations), emit_tvmscript_printable_(emit_tvmscript_printable) {
     module_ = module->ShallowCopy();
     for (const auto& kv : pool_allocations) {
-      // TODO(@manupa-arm): add AllocateConstNode when it is available
-      ICHECK(kv.first->IsInstance<AllocateNode>());
-      Allocate allocate_node = Downcast<Allocate>(kv.first);
+      size_t extent_size = -1;
+      if (kv.first->IsInstance<AllocateNode>()) {
+        Allocate allocate_node = Downcast<Allocate>(kv.first);
+        extent_size = CalculateExtentsSize(allocate_node.operator->()).IntValue();
+      } else if (kv.first->IsInstance<AllocateConstNode>()) {
+        AllocateConst allocate_const_node = Downcast<AllocateConst>(kv.first);
+        extent_size = CalculateExtentsSize(allocate_const_node.operator->()).IntValue();
+      } else {
+        ICHECK(false) << "Not supported node type " << kv.first->GetTypeKey();
+      }
       PoolAllocation pool_allocation = kv.second;
       PoolInfo pool_info = pool_allocation->pool_info;
       int byte_pool_offset = pool_allocation->byte_offset->value;
-      int required_pool_size_for_allocation =
-          byte_pool_offset + CalculateExtentsSize(allocate_node.operator->());
+      int required_pool_size_for_allocation = byte_pool_offset + extent_size;
       if (all_pools_sizes_.find(pool_info) == all_pools_sizes_.end()) {
         all_pools_sizes_[pool_info] = required_pool_size_for_allocation;
       } else {
@@ -89,9 +96,12 @@ class PoolAllocationToOffsetConverter : public StmtExprMutator {
  private:
   PrimExpr VisitExpr_(const CallNode* op) override;
   Stmt VisitStmt_(const AllocateNode* op) override;
-  PrimExpr VisitExpr_(const LoadNode* op) override;
-  Stmt VisitStmt_(const StoreNode* op) override;
+  PrimExpr VisitExpr_(const VarNode* op) override;
+  PrimExpr VisitExpr_(const BufferLoadNode* op) override;
+  Stmt VisitStmt_(const BufferStoreNode* op) override;
 
+  Stmt VisitStmt_(const AllocateConstNode* op) override;
+  LetStmt ToLetStmt(const PoolAllocation& pool_allocation, const Var& buffer_var, const Stmt& body);
   /*! \brief This is a structure where the modified function
    * signature is kept while body of the function is mutated
    */
@@ -121,7 +131,7 @@ class PoolAllocationToOffsetConverter : public StmtExprMutator {
   /*! \brief This is a helper to append the pool args to
    * the callsite of the function.
    */
-  Array<PrimExpr> AppendPoolParamsToArgs(Array<PrimExpr> args, const PrimFunc& func);
+  Array<PrimExpr> AppendPoolParamsToArgs(Array<PrimExpr> args, bool has_device_context);
   /*! \brief Some arguments that used to be Allocate nodes
    * should be replaced by Let nodes in the pass that loads
    * the space from a pool variable.
@@ -130,6 +140,10 @@ class PoolAllocationToOffsetConverter : public StmtExprMutator {
   /*! \brief Obtain a resource handle if its there
    */
   Optional<Var> GetResourceHandle(const PrimFunc& func);
+  /*! \brief Get the Buffer object representing the mapped access into
+   *  the pool.
+   */
+  Buffer GetRemappedBuffer(Buffer buf);
 
   /*! \brief The tir::Var map to PoolInfo objects */
   Map<tir::Var, PoolInfo> primfunc_args_to_pool_info_map_;
@@ -146,17 +160,31 @@ class PoolAllocationToOffsetConverter : public StmtExprMutator {
   /*! \brief After mutation, each allocate buffer is replaced with tir::Var that is let bounded
    * to position from a pool as designated by a PoolAllocation
    */
-  Map<tir::Var, tir::Var> allocate_buf_to_let_var_;
+  Map<tir::Var, tir::Var> allocate_var_to_let_var_;
+  /*! \brief A map from the original buffer object
+   *
+   * Each key-value pair in this map satisfies
+   * ``allocate_buf_to_let_var[key->data] = value->data``.  However,
+   * since more than one `tir::Buffer` may use the same Var, they must
+   * be tracked separately.
+   */
+  Map<tir::Buffer, tir::Buffer> original_buf_to_let_buf_;
+
+  Map<String, Bool> signature_has_device_context_;
   /*! \brief A counter to give references to pools a reproducible unique set of names */
   int pool_var_count_ = 0;
   /*! \brief This toggles to remove non tvmscript printable items for IRModule for unit tests */
   bool emit_tvmscript_printable_ = false;
   /*! \brief A counter to give references to pools a reproducible unique set of names */
   std::unordered_set<PrimFunc, ObjectPtrHash, ObjectPtrEqual> visited_primfuncs;
+
+  Map<PoolInfo, Array<ConstantInfo>> pool_initializations_;
+  void AppdendConstInitializationData(ScopeInfo si);
 };
 
 Optional<Var> PoolAllocationToOffsetConverter::GetResourceHandle(const PrimFunc& func) {
-  if (func->buffer_map.find(func->params.back()) == func->buffer_map.end()) {
+  if (!func->params.empty() &&
+      func->buffer_map.find(func->params.back()) == func->buffer_map.end()) {
     return func->params.back();
   }
   return Optional<Var>();
@@ -180,21 +208,19 @@ PoolAllocationToOffsetConverter::ScopeInfo PoolAllocationToOffsetConverter::Upda
     String var_name = pool_ref_name + "_var";
     DataType elem_dtype = DataType::UInt(8);
     Var buffer_var(var_name, PointerType(PrimType(elem_dtype), "global"));
-    Var pool_var;
-    if (!emit_tvmscript_printable_) {
-      pool_var = Var(var_name, PointerType(PrimType(elem_dtype), "global"));
-    } else {
-      pool_var = Var(var_name, DataType::Handle(8));
-    }
+    Var pool_var = Var(var_name, PointerType(PrimType(elem_dtype), "global"));
     si.params.push_back(pool_var);
     si.pools_to_params.Set(pool_info, pool_var);
     si.allocated_pool_params.push_back(AllocatedPoolInfo(
-        allocated_pool_info->pool_info, allocated_pool_info->allocated_size, pool_var));
+        allocated_pool_info->pool_info, allocated_pool_info->allocated_size, si.params.size() - 1));
 
     int pool_size = all_pools_sizes_[pool_info];
     String buffer_var_name = pool_ref_name + "_buffer_var";
-    si.buffer_map.Set(pool_var, Buffer(buffer_var, elem_dtype, {pool_size}, {1}, 1, buffer_var_name,
-                                       16, 1, BufferType::kDefault));
+    si.buffer_map.Set(pool_var,
+                      Buffer(buffer_var /* data */, elem_dtype /* dtype */, {pool_size} /* shape */,
+                             {1} /* strides */, 0 /* elem_offset */, buffer_var_name /* name */,
+                             16 /* data_alignment */, 1 /* offset_factor */,
+                             BufferType::kDefault /* buffer-type */));
   }
   if (resource_handle) {
     si.params.push_back(resource_handle.value());
@@ -216,8 +242,8 @@ PrimFunc PoolAllocationToOffsetConverter::CreatePrimFuncWithPoolParams(
     if (emit_tvmscript_printable_) {
       original_attrs = DictAttrs();
     }
-    PrimFunc ret =
-        PrimFunc(si.params, new_body, original_primfunc->ret_type, si.buffer_map, original_attrs);
+    PrimFunc ret = PrimFunc(si.params, new_body, original_primfunc->ret_type, si.buffer_map,
+                            si.buffer_map, original_attrs);
     if (!emit_tvmscript_printable_) {
       ret = WithAttr(ret, tvm::attr::kPoolArgs, si.allocated_pool_params);
     }
@@ -228,10 +254,11 @@ PrimFunc PoolAllocationToOffsetConverter::CreatePrimFuncWithPoolParams(
 }
 
 Array<PrimExpr> PoolAllocationToOffsetConverter::AppendPoolParamsToArgs(Array<PrimExpr> args,
-                                                                        const PrimFunc& func) {
+                                                                        bool has_device_context) {
   Array<PrimExpr> new_args;
   PrimExpr resource_handle_arg;
-  if (args.size() == func->params.size() + 1) {
+  // name, params...params[, context]
+  if (has_device_context) {
     resource_handle_arg = args.back();
     args.pop_back();
   }
@@ -255,10 +282,10 @@ Array<PrimExpr> PoolAllocationToOffsetConverter::ReplaceAllocateArgsWithLetArgs(
   Array<PrimExpr> ret;
   for (const PrimExpr& arg : args) {
     if (arg->IsInstance<VarNode>() &&
-        allocate_buf_to_let_var_.find(Downcast<Var>(arg)) != allocate_buf_to_let_var_.end()) {
-      ret.push_back(allocate_buf_to_let_var_[Downcast<Var>(arg)]);
+        allocate_var_to_let_var_.find(Downcast<Var>(arg)) != allocate_var_to_let_var_.end()) {
+      ret.push_back(allocate_var_to_let_var_[Downcast<Var>(arg)]);
     } else {
-      ret.push_back(arg);
+      ret.push_back(VisitExpr(arg));
     }
   }
   return ret;
@@ -272,9 +299,18 @@ PrimExpr PoolAllocationToOffsetConverter::VisitExpr_(const CallNode* op) {
         module_->Lookup(func_name)->IsInstance<PrimFuncNode>()) {
       GlobalVar gv = module_->GetGlobalVar(func_name);
       PrimFunc func = Downcast<PrimFunc>(module_->Lookup(gv));
+
+      if (!signature_has_device_context_.count(func_name)) {
+        if (op->args.size() == func->params.size() + 2) {
+          signature_has_device_context_.Set(func_name, Bool(true));
+        } else {
+          signature_has_device_context_.Set(func_name, Bool(false));
+        }
+      }
+
       PrimFunc prim_func = CreatePrimFuncWithPoolParams(func);
       module_->Update(gv, prim_func);
-      new_args = AppendPoolParamsToArgs(op->args, prim_func);
+      new_args = AppendPoolParamsToArgs(op->args, signature_has_device_context_[func_name]);
       new_args = ReplaceAllocateArgsWithLetArgs(new_args);
     } else {
       new_args = ReplaceAllocateArgsWithLetArgs(op->args);
@@ -282,70 +318,143 @@ PrimExpr PoolAllocationToOffsetConverter::VisitExpr_(const CallNode* op) {
     return Call(op->dtype, op->op, new_args);
   }
   if (op->op->IsInstance<PrimFuncNode>()) {
+    String func_name = Downcast<StringImm>(op->args[0])->value;
     PrimFunc func = Downcast<PrimFunc>(op->op);
     PrimFunc prim_func = CreatePrimFuncWithPoolParams(func);
-    Array<PrimExpr> new_args = AppendPoolParamsToArgs(op->args, prim_func);
+    Array<PrimExpr> new_args =
+        AppendPoolParamsToArgs(op->args, signature_has_device_context_[func_name]);
     new_args = ReplaceAllocateArgsWithLetArgs(new_args);
     return Call(op->dtype, prim_func, new_args);
   }
   return StmtExprMutator::VisitExpr_(op);
 }
 
+LetStmt PoolAllocationToOffsetConverter::ToLetStmt(const PoolAllocation& pool_allocation,
+                                                   const Var& buffer_var, const Stmt& body) {
+  ScopeInfo scope_info = scope_stack.top();
+  Var param = scope_info.pools_to_params[pool_allocation->pool_info];
+  BufferLoad load_node = BufferLoad(scope_info.buffer_map[param], {pool_allocation->byte_offset});
+  Call address_of_load = Call(DataType::Handle(), builtin::address_of(), {load_node});
+
+  Type let_var_type = buffer_var->type_annotation;
+  if (emit_tvmscript_printable_) {
+    // Strip the storage_scope from the variable type, as TVMScript
+    // doesn't parsethe scoped pointers (e.g. ``T.Ptr[global T.int32]``)
+    // correctly.
+    let_var_type = PointerType(Downcast<PointerType>(let_var_type)->element_type);
+  }
+  Var let_var(buffer_var->name_hint + "_let", let_var_type);
+  allocate_var_to_let_var_.Set(buffer_var, let_var);
+  Stmt new_body = VisitStmt(body);
+  allocate_var_to_let_var_.erase(buffer_var);
+  return LetStmt(let_var, address_of_load, new_body);
+}
+
 Stmt PoolAllocationToOffsetConverter::VisitStmt_(const AllocateNode* op) {
   if (pool_allocations_.count(GetRef<Allocate>(op))) {
-    ScopeInfo scope_info = scope_stack.top();
-    PoolAllocation pool_allocation = pool_allocations_[GetRef<Allocate>(op)];
-    Var param = scope_info.pools_to_params[pool_allocation->pool_info];
-    Buffer buffer_var = scope_info.buffer_map[param];
-    Load load_node =
-        Load(DataType::UInt(8), buffer_var->data, pool_allocation->byte_offset, op->condition);
-    Call address_of_load = Call(DataType::Handle(8), builtin::address_of(), {load_node});
-    Var tir_var;
-    if (!emit_tvmscript_printable_) {
-      tir_var = Var(op->buffer_var->name_hint + "_let", op->buffer_var->type_annotation);
-    } else {
-      tir_var = Var(op->buffer_var->name_hint + "_let", DataType::Handle(8));
+    return ToLetStmt(pool_allocations_[GetRef<Stmt>(op)], op->buffer_var, op->body);
+  }
+  return StmtExprMutator::VisitStmt_(op);
+}
+
+Stmt PoolAllocationToOffsetConverter::VisitStmt_(const AllocateConstNode* op) {
+  if (pool_allocations_.count(GetRef<AllocateConst>(op))) {
+    const auto& result = ToLetStmt(pool_allocations_[GetRef<Stmt>(op)], op->buffer_var, op->body);
+
+    PoolInfo pool_info = pool_allocations_[GetRef<Stmt>(op)]->pool_info;
+    if (pool_initializations_.find(pool_info) == pool_initializations_.end()) {
+      pool_initializations_.Set(pool_info, {});
     }
-    allocate_buf_to_let_var_.Set(op->buffer_var, tir_var);
-    Stmt new_body = VisitStmt(op->body);
-    allocate_buf_to_let_var_.erase(op->buffer_var);
-    return LetStmt(tir_var, address_of_load, new_body);
+
+    auto consts = pool_initializations_[pool_info];
+    consts.push_back({result->var->name_hint, pool_allocations_[GetRef<Stmt>(op)]->byte_offset,
+                      op->data.value()});
+
+    pool_initializations_.Set(pool_info, consts);
+    return result;
   }
   return StmtExprMutator::VisitStmt_(op);
 }
 
-Stmt PoolAllocationToOffsetConverter::VisitStmt_(const StoreNode* op) {
-  if (allocate_buf_to_let_var_.find(op->buffer_var) != allocate_buf_to_let_var_.end()) {
-    return Store(allocate_buf_to_let_var_[op->buffer_var], VisitExpr(op->value), op->index,
-                 VisitExpr(op->predicate));
+Stmt PoolAllocationToOffsetConverter::VisitStmt_(const BufferStoreNode* op) {
+  BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+
+  Buffer remapped = GetRemappedBuffer(store->buffer);
+  if (!op->buffer.same_as(remapped)) {
+    store.CopyOnWrite()->buffer = remapped;
   }
-  return StmtExprMutator::VisitStmt_(op);
+  return std::move(store);
 }
 
-PrimExpr PoolAllocationToOffsetConverter::VisitExpr_(const LoadNode* op) {
-  if (allocate_buf_to_let_var_.find(op->buffer_var) != allocate_buf_to_let_var_.end()) {
-    return Load(op->dtype, allocate_buf_to_let_var_[op->buffer_var], op->index,
-                VisitExpr(op->predicate));
+PrimExpr PoolAllocationToOffsetConverter::VisitExpr_(const BufferLoadNode* op) {
+  BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+
+  Buffer remapped = GetRemappedBuffer(load->buffer);
+  if (!op->buffer.same_as(remapped)) {
+    load.CopyOnWrite()->buffer = remapped;
   }
+  return std::move(load);
+}
+
+PrimExpr PoolAllocationToOffsetConverter::VisitExpr_(const VarNode* op) {
+  auto it = allocate_var_to_let_var_.find(GetRef<Var>(op));
+  if (it != allocate_var_to_let_var_.end()) {
+    return (*it).second;
+  }
+
   return StmtExprMutator::VisitExpr_(op);
 }
 
+Buffer PoolAllocationToOffsetConverter::GetRemappedBuffer(Buffer original) {
+  {
+    auto it = original_buf_to_let_buf_.find(original);
+    if (it != original_buf_to_let_buf_.end()) {
+      return (*it).second;
+    }
+  }
+
+  Buffer remapped = original;
+
+  auto it = allocate_var_to_let_var_.find(original->data);
+  if (it != allocate_var_to_let_var_.end()) {
+    remapped = Buffer((*it).second, original->dtype, original->shape, original->strides,
+                      original->elem_offset, original->name, original->data_alignment,
+                      original->offset_factor, original->buffer_type, original->axis_separators,
+                      original->span);
+  }
+
+  original_buf_to_let_buf_.Set(original, remapped);
+  return remapped;
+}
+
+void PoolAllocationToOffsetConverter::AppdendConstInitializationData(
+    PoolAllocationToOffsetConverter::ScopeInfo si) {
+  for (AllocatedPoolInfo api : si.allocated_pool_params) {
+    const auto& it = pool_initializations_.find(api->pool_info);
+    if (it != pool_initializations_.end()) {
+      auto* pi = const_cast<ConstantPoolInfoNode*>(api->pool_info.as<ConstantPoolInfoNode>());
+      pi->constant_info_array = (*it).second;
+    }
+  }
+}
+
 IRModule PoolAllocationToOffsetConverter::operator()() {
-  GlobalVar gv = module_->GetGlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix);
+  GlobalVar gv = module_->GetGlobalVar(::tvm::runtime::symbol::tvm_module_main);
   PrimFunc main_func = Downcast<PrimFunc>(module_->Lookup(gv));
   ScopeInfo si = UpdateFunctionScopeInfo(main_func);
   this->scope_stack.push(si);
   Stmt main_func_body = this->VisitStmt(main_func->body);
   this->scope_stack.pop();
+  AppdendConstInitializationData(si);
   // We dont need attrs of PrimFunc that might include non printable attrs such as target
   // for unit tests where emit_tvmscript_printable_ is to be used.
   if (!emit_tvmscript_printable_) {
-    main_func =
-        PrimFunc(si.params, main_func_body, main_func->ret_type, si.buffer_map, main_func->attrs);
+    main_func = PrimFunc(si.params, main_func_body, main_func->ret_type, si.buffer_map, {},
+                         main_func->attrs);
     main_func = WithAttr(main_func, tvm::attr::kPoolArgs, si.allocated_pool_params);
   } else {
     main_func =
-        PrimFunc(si.params, main_func_body, main_func->ret_type, si.buffer_map, DictAttrs());
+        PrimFunc(si.params, main_func_body, main_func->ret_type, si.buffer_map, {}, DictAttrs());
   }
   module_->Update(gv, main_func);
   if (!emit_tvmscript_printable_) {

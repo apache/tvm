@@ -15,15 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Running TVM on bare metal Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU
-========================================================================
+Running TVM on bare metal Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU with CMSIS-NN
+======================================================================================
 **Author**:
 `Grant Watson <https://github.com/grant-arm>`_
 
 This section contains an example of how to use TVM to run a model
-on an Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU, using bare metal.
+on an Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU with CMSIS-NN, using bare metal.
 The Cortex(R)-M55 is a small, low-power CPU designed for use in embedded
-devices. The Ethos(TM)-U55 is a microNPU, specifically designed to accelerate
+devices. CMSIS-NN is a collection of kernels optimized for Arm(R) Cortex(R)-M CPUs.
+The Ethos(TM)-U55 is a microNPU, specifically designed to accelerate
 ML inference in resource-constrained embedded devices.
 
 In order to run the demo application without having access to a Cortex(R)-M55
@@ -35,6 +36,12 @@ It provides a programmer's view that is suitable for software development.
 In this tutorial, we will be compiling a MobileNet v1 model and instructing
 TVM to offload operators to the Ethos(TM)-U55 where possible.
 """
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 
 ################################################################################
 # Obtaining TVM
@@ -80,7 +87,7 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 #     attrs==21.2.0
 #     cloudpickle==2.0.0
 #     decorator==5.1.0
-#     ethos-u-vela==2.1.1
+#     ethos-u-vela==3.2.0
 #     flatbuffers==1.12
 #     lxml==4.6.3
 #     nose==1.3.7
@@ -121,9 +128,9 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 #   tar xvf mobilenet_v1_1.0_224_quant.tar
 #
 
-################################################################################
-# Compiling the model for Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU
-# ----------------------------------------------------------------------
+######################################################################################
+# Compiling the model for Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU with CMSIS-NN
+# ------------------------------------------------------------------------------------
 #
 # Once we've downloaded the MobileNet v1 model, the next step is to compile it.
 # To accomplish that, we are going to use ``tvmc compile``. The output we get from
@@ -133,12 +140,17 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 #
 # .. code-block:: bash
 #
-#   tvmc compile --target="ethos-u -accelerator_config=ethos-u55-256, c" \
+#   tvmc compile --target=ethos-u,cmsis-nn,c \
+#                --target-ethos-u-accelerator_config=ethos-u55-256 \
+#                --target-cmsis-nn-mcpu=cortex-m55 \
 #                --target-c-mcpu=cortex-m55 \
 #                --runtime=crt \
 #                --executor=aot \
 #                --executor-aot-interface-api=c \
 #                --executor-aot-unpacked-api=1 \
+#                --pass-config tir.usmp.enable=1 \
+#                --pass-config tir.usmp.algorithm=hill_climb \
+#                --pass-config tir.disable_storage_rewrite=1 \
 #                --pass-config tir.disable_vectorize=1 \
 #                ./mobilenet_v1_1.0_224_quant.tflite \
 #                --output-format=mlf
@@ -147,7 +159,9 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 ################################################################################
 # .. note:: Explanation of tvmc compile arguments:
 #
-#   * ``--target="ethos-u -accelerator_config=ethos-u55-256, c"`` : offload operators to the Ethos(TM)-U55 NPU where possible and fall back to using generated C code on the Cortex(R)-M where an operator is not supported on the NPU..
+#   * ``--target=ethos-u,cmsis-nn,c`` : offload operators to the microNPU where possible, falling back to CMSIS-NN and finally generated C code where an operator is not supported on the microNPU..
+#
+#   * ``--target-ethos-u-accelerator_config=ethos-u55-256`` : specifies the microNPU configuration
 #
 #   * ``--target-c-mcpu=cortex-m55`` : Cross-compile for the Cortex(R)-M55.
 #
@@ -159,11 +173,26 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 #
 #   * ``--executor-aot-unpacked-api=1`` : Use the unpacked API internally.
 #
+#   * ``--pass-config tir.usmp.enable=1`` : Enable Unified Static Memory Planning
+#
+#   * ``--pass-config tir.usmp.algorithm=hill_climb`` : Use the hill-climb algorithm for USMP
+#
+#   * ``--pass-config tir.disable_storage_rewrite=1`` : Disable storage rewrite
+#
 #   * ``--pass-config tir.disable_vectorize=1`` : Disable vectorize since there are no standard vectorized types in C.
 #
 #   * ``./mobilenet_v1_1.0_224_quant.tflite`` : The TFLite model that is being compiled.
 #
 #   * ``--output-format=mlf`` : Output should be generated in the Model Library Format.
+#
+
+################################################################################
+# .. note:: If you don't want to make use of the microNPU and want to offload
+#    operators to CMSIS-NN only:
+#
+#   * Use ``--target=cmsis-nn,c`` in place of ``--target=ethos-u,cmsis-nn,c``
+#
+#   * Remove the microNPU config parameter ``--target-ethos-u-accelerator_config=ethos-u55-256``
 #
 
 ################################################################################
@@ -412,6 +441,12 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 # `include files <https://github.com/apache/tvm/tree/main/apps/microtvm/ethosu/include>`_
 
 ################################################################################
+# .. note::
+#
+#   If you'd like to use FreeRTOS for task scheduling and queues, a sample application can be found here
+#   `demo_freertos.c <https://github.com/apache/tvm/blob/main/apps/microtvm/ethosu/src/demo_freertos.c>`
+
+################################################################################
 # Creating the linker script
 # --------------------------
 #
@@ -452,6 +487,13 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 #
 # An example Makefile can be found here:
 # `Makefile <https://github.com/apache/tvm/blob/main/apps/microtvm/ethosu/Makefile>`_
+
+################################################################################
+# .. note::
+#
+#    If you're using FreeRTOS, the Makefile builds it from the specified FREERTOS_PATH:
+#     ``make FREERTOS_PATH=<FreeRTOS directory>``
+#
 
 ################################################################################
 # Running the demo application

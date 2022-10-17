@@ -29,10 +29,11 @@ import shutil
 import tempfile
 import threading
 import time
+import traceback
 import typing
+import warnings
 from collections import namedtuple
 from random import getrandbits
-import warnings
 
 import tvm._ffi
 import tvm.ir.transform
@@ -140,24 +141,35 @@ class LocalBuilder(Builder):
                 try:
                     res = future.result()
                     if res.error is not None:
+                        assert len(res.error) == 2, (
+                            f"BuildResult errors should be a 2-tuple, but it is a {len(res.error)}"
+                            "-tuple. This should not happen!"
+                        )
+                        tb, exception = res.error
                         # instantiation error
-                        if isinstance(res.error, InstantiationError):
+                        if isinstance(exception, InstantiationError):
                             res = MeasureResult(
-                                (res.error,),
+                                (
+                                    tb,
+                                    exception,
+                                ),
                                 MeasureErrorNo.INSTANTIATION_ERROR,
                                 res.time_cost,
                                 time.time(),
                             )
 
                         else:
-                            if "InstantiationError" in str(res.error):
-                                msg = str(res.error)
+                            if "InstantiationError" in str(exception):
+                                msg = str(exception)
                                 try:
                                     msg = msg.split("\n")[-2].split(": ")[1]
                                 except Exception:  # pylint: disable=broad-except
                                     pass
                                 res = MeasureResult(
-                                    (InstantiationError(msg),),
+                                    (
+                                        tb,
+                                        InstantiationError(msg),
+                                    ),
                                     MeasureErrorNo.INSTANTIATION_ERROR,
                                     res.time_cost,
                                     time.time(),
@@ -165,18 +177,32 @@ class LocalBuilder(Builder):
 
                             else:  # tvm error
                                 res = MeasureResult(
-                                    (res.error,),
+                                    (
+                                        tb,
+                                        res.error,
+                                    ),
                                     MeasureErrorNo.COMPILE_HOST,
                                     res.time_cost,
                                     time.time(),
                                 )
                 except TimeoutError as ex:
+                    tb = traceback.format_exc()
                     res = MeasureResult(
-                        (ex,), MeasureErrorNo.BUILD_TIMEOUT, self.timeout, time.time()
+                        (
+                            tb,
+                            ex,
+                        ),
+                        MeasureErrorNo.BUILD_TIMEOUT,
+                        self.timeout,
+                        time.time(),
                     )
                 except ChildProcessError as ex:
+                    tb = traceback.format_exc()
                     res = MeasureResult(
-                        (ex,),
+                        (
+                            tb,
+                            ex,
+                        ),
                         MeasureErrorNo.RUNTIME_DEVICE,
                         self.timeout,
                         time.time(),
@@ -364,9 +390,16 @@ class RPCRunner(Runner):
                     res = future.result()
                     results.append(res)
                 except Exception as ex:  # pylint: disable=broad-except
+                    tb = traceback.format_exc()
                     results.append(
                         MeasureResult(
-                            (str(ex),), MeasureErrorNo.RUN_TIMEOUT, self.timeout, time.time()
+                            (
+                                tb,
+                                ex,
+                            ),
+                            MeasureErrorNo.RUN_TIMEOUT,
+                            self.timeout,
+                            time.time(),
                         )
                     )
 
@@ -463,7 +496,7 @@ class LocalRunner(RPCRunner):
 def _build_func_common(measure_input, runtime=None, check_gpu=None, build_option=None):
     """Common part for building a configuration"""
     target, task, config = measure_input
-    target, task.target_host = Target.check_and_update_host_consist(target, task.target_host)
+    target, task.target_host = Target.canon_target_and_host(target, task.target_host)
 
     with target:
         s, args = task.instantiate(config)
@@ -471,10 +504,6 @@ def _build_func_common(measure_input, runtime=None, check_gpu=None, build_option
         # check invalidity of template and code hash consistency
         if not config.valid():
             raise InstantiationError(config.errors)
-
-        opts = build_option or {}
-        if check_gpu:  # Add verify pass to filter out invalid configs in advance.
-            opts["tir.add_lower_pass"] = [(2, gpu_verify_pass(**check_gpu))]
 
         # if target is vta, we need to use vta build
         if (
@@ -486,7 +515,28 @@ def _build_func_common(measure_input, runtime=None, check_gpu=None, build_option
 
             func = vta.build(s, args, target_host=task.target_host)
         else:
-            with tvm.ir.transform.PassContext(config=opts):
+            current_pass_context: tvm.ir.transform.PassContext = (
+                tvm.ir.transform.PassContext.current()
+            )
+            current_config = dict(current_pass_context.config)
+            if build_option is not None:
+                current_config.update(build_option)
+
+            if "tir.add_lower_pass" in current_config:
+                current_add_lower_pass = list(current_config["tir.add_lower_pass"])
+            else:
+                current_add_lower_pass = []
+            if check_gpu:
+                current_add_lower_pass.append((2, gpu_verify_pass(**check_gpu)))
+            current_config["tir.add_lower_pass"] = current_add_lower_pass
+
+            with tvm.ir.transform.PassContext(
+                opt_level=current_pass_context.opt_level,
+                required_pass=current_pass_context.required_pass,
+                disabled_pass=current_pass_context.disabled_pass,
+                instruments=current_pass_context.instruments,
+                config=current_config,
+            ):
                 func = build(s, args, target_host=task.target_host, runtime=runtime)
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
@@ -546,7 +596,8 @@ class _WrappedBuildFunc:
             else:
                 func.export_library(filename, self.build_func)
         except Exception as e:  # pylint: disable=broad-except
-            return BuildResult(None, None, e, time.time() - tic)
+            tb = traceback.format_exc()
+            return BuildResult(None, None, (tb, e), time.time() - tic)
         return BuildResult(filename, arg_info, None, time.time() - tic)
 
 
@@ -660,7 +711,10 @@ def run_through_rpc(
             msg = msg[: msg.index("Stack trace returned")]
         if "CUDA Source" in msg:
             msg = msg[: msg.index("CUDA Source")]
-        costs = (RuntimeError(msg[:1024]),)
+        costs = (
+            traceback.format_exc(),
+            RuntimeError(msg[:1024]),
+        )
         errno = MeasureErrorNo.RUNTIME_DEVICE
     tstamp = time.time()
     time.sleep(cooldown_interval)
@@ -769,17 +823,22 @@ def check_remote(target, device_key, host=None, port=None, priority=100, timeout
     """
 
     def _check():
+        logger.debug("waiting for device...")
         remote = request_remote(device_key, host, port, priority)
         dev = remote.device(str(target))
         while not dev.exist:  # wait until we get an available device
             pass
+        logger.debug("device available")
 
     t = threading.Thread(
         target=_check,
     )
     t.start()
     t.join(timeout)
-    return not t.is_alive()
+
+    remote = request_remote(device_key, host, port, priority)
+    dev = remote.device(str(target))
+    return dev.exist
 
 
 def set_cuda_target_arch(arch):

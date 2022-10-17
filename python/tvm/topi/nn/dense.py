@@ -17,7 +17,8 @@
 # pylint: disable=invalid-name,unused-argument
 """TVM operator fully connected compute."""
 import tvm
-from tvm import te, auto_scheduler
+from tvm import auto_scheduler, te
+
 from .. import tag
 
 
@@ -29,6 +30,7 @@ def matmul(
     transpose_a=False,
     transpose_b=False,
     auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
 ):
     """The default implementation of matmul in topi.
 
@@ -55,6 +57,9 @@ def matmul(
     auto_scheduler_rewritten_layout: Optional[str] = ""
         The layout after auto-scheduler's layout rewrite pass.
 
+    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+        The original shape of the input tensor.
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -77,11 +82,19 @@ def matmul(
             auto_scheduler_rewritten_layout, ["j", "k"]
         )
         auto_scheduler.remove_index_check(tensor_b)
+    elif meta_schedule_original_shape:
+        auto_scheduler.rewrite_tensor_shape(tensor_b, meta_schedule_original_shape)
+        if transpose_b:
+            out_dim, red_dim = tensor_b.shape
+        else:
+            red_dim, out_dim = tensor_b.shape
     elif transpose_b:
         out_dim, red_dim = tensor_b.shape
     else:
         red_dim, out_dim = tensor_b.shape
-    assert in_dim == red_dim
+
+    # cmp should be done by values
+    assert int(in_dim) == int(red_dim)
 
     k = te.reduce_axis((0, in_dim), name="k")
     if (transpose_a, transpose_b) == (True, True):
@@ -154,7 +167,14 @@ def matmul_legalize(attrs, inputs, types):
     return None
 
 
-def dense(data, weight, bias=None, out_dtype=None, auto_scheduler_rewritten_layout=""):
+def dense(
+    data,
+    weight,
+    bias=None,
+    out_dtype=None,
+    auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
+):
     """The default implementation of dense in topi.
     This is an alias of matmul_nt operator for data tensor in non-transposed format and weight
     tensor in transposed format.
@@ -176,12 +196,24 @@ def dense(data, weight, bias=None, out_dtype=None, auto_scheduler_rewritten_layo
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
 
+    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+        The original shape of the input tensor.
+
     Returns
     -------
     output : tvm.te.Tensor
         2-D with shape [batch, out_dim]
     """
-    return matmul(data, weight, bias, out_dtype, False, True, auto_scheduler_rewritten_layout)
+    return matmul(
+        data,
+        weight,
+        bias,
+        out_dtype,
+        False,
+        True,
+        auto_scheduler_rewritten_layout,
+        meta_schedule_original_shape,
+    )
 
 
 @tvm.target.generic_func
@@ -273,4 +305,23 @@ def dense_alter_layout(attrs, inputs, tinfos, out_type):
     Unlike other TOPI functions, this function operates on both graph level and operator level.
     """
     # not to change by default
+    return None
+
+
+@tvm.target.generic_func
+def batch_matmul_legalize(attrs, inputs, types):
+    """Legalizes batch_matmul op.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current batch_matmul
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
     return None

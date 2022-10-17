@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 
 
@@ -50,6 +51,14 @@ def test_mul():
     assert m.base == 2
 
 
+def test_floormod():
+    analyzer = tvm.arith.Analyzer()
+    x, y = te.var("x"), te.var("y")
+    m = analyzer.modular_set(tvm.tir.floormod(x * 128 + y * 4, 256))
+    assert m.coeff == 4
+    assert m.base == 0
+
+
 def test_div_shift():
     analyzer = tvm.arith.Analyzer()
     x, y = te.var("x"), te.var("y")
@@ -69,6 +78,33 @@ def test_div_shift():
     # x is non-negative
     analyzer.update(x, tvm.arith.ConstIntBound(0, 100))
     m = analyzer.modular_set(tdiv(x * 4 + 2, 2))
+    assert m.coeff == 2
+    assert m.base == 1
+
+
+def test_mod():
+    analyzer = tvm.arith.Analyzer()
+    x, y = te.var("x"), te.var("y")
+    tmod = tvm.tir.truncmod
+    fmod = tvm.tir.floormod
+    # not sure if x is non-negative
+    m = analyzer.modular_set(tmod(x * 4 + 1, 4))
+    assert m.coeff == 1
+    assert m.base == 0
+    # no need to be positive if base == 0
+    m = analyzer.modular_set(tmod(x * 4, 4))
+    assert m.coeff == 4
+    assert m.base == 0
+    # floor mod tests
+    m = analyzer.modular_set(fmod(x * 4 + 3, 2))
+    assert m.coeff == 2
+    assert m.base == 1
+    m = analyzer.modular_set(fmod(x * 4 + 3, 8))
+    assert m.coeff == 4
+    assert m.base == 3
+    # x is non-negative
+    analyzer.update(x, tvm.arith.ConstIntBound(0, 100))
+    m = analyzer.modular_set(tmod(x * 4 + 3, 2))
     assert m.coeff == 2
     assert m.base == 1
 
@@ -165,17 +201,25 @@ def test_let():
     x = te.var("x")
     y = te.var("y")
     m = analyzer.modular_set(tvm.tir.Let(x, y * 10, x + 1))
-    m.coeff = 10
-    m.base = 1
+    assert m.coeff == 10
+    assert m.base == 1
+
+
+def test_bitwise_and():
+    analyzer = tvm.arith.Analyzer()
+    x = te.var("x")
+    y = te.var("y")
+
+    # RHS of bitwise_and is 2^p - 1
+    m = analyzer.modular_set((x * 16 + y * 4) & 31)
+    assert m.coeff == 4
+    assert m.base == 0
+
+    # arbitrary RHS
+    m = analyzer.modular_set((x * 16 + y * 4) & 17)
+    assert m.coeff == 1
+    assert m.base == 0
 
 
 if __name__ == "__main__":
-    test_let()
-    test_cast()
-    test_add_sub()
-    test_mul()
-    test_div_shift()
-    test_min_max_select()
-    test_mix_index()
-    test_constraint_scope()
-    test_intersect()
+    tvm.testing.main()

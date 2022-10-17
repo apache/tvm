@@ -17,8 +17,12 @@
 
 .. _doc_guide:
 
-Write Documentation for TVM
-===========================
+Documentation
+=============
+
+.. contents::
+  :depth: 2
+  :local:
 
 TVM documentation loosely follows the `formal documentation style described by
 Divio <https://documentation.divio.com>`_. This system has been chosen because
@@ -233,3 +237,21 @@ Please use sphinx's ``:ref:`` markup to refer to another location in the same do
    ----------
 
    You can use :ref:`document-my-section-tag` to refer to My Section.
+
+Documents with Images / Figures
+-------------------------------
+reStructuredText's `figure <https://docutils.sourceforge.io/docs/ref/rst/directives.html#figure>`_
+and `image <https://docutils.sourceforge.io/docs/ref/rst/directives.html#image>`_
+elements allow a document to include an image URL.
+
+Image files created for TVM documentation should reside in the `<https://github.com/tlc-pack/web-data>`_
+repository, while the `.rst` files *using* those images should reside in the main TVM repostitory
+(`<https://github.com/apache/tvm>`_).
+
+This will require two Github Pull Requests, one for the image files and another for the `.rst` files.
+Discussion between the contributor and reviewers may be necessary to coordinate the review process.
+
+*IMPORTANT NOTE:* When using two Pull Requests as described above, please merge the
+Pull Request in `<https://github.com/tlc-pack/web-data>`_ *before* merging
+the Pull Request in `<https://github.com/apache/tvm>`_.
+This helps ensure that all URL links in TVM's online documentation are valid.

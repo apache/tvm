@@ -64,8 +64,7 @@ Expr FixedPointMultiplyToNearest(Expr tensor, double multiplier,
   tensor = Cast(tensor, hp_dtype);
 
   // 1) Calculating the integer multiplier and integer shift
-  int32_t fixed_point_multiplier, shift;
-  std::tie(fixed_point_multiplier, shift) = GetFixedPointMultiplierShift(multiplier);
+  auto [fixed_point_multiplier, shift] = GetFixedPointMultiplierShift(multiplier);
   int left_shift = shift > 0 ? shift : 0;
   int right_shift = shift > 0 ? 0 : -shift;
 
@@ -128,8 +127,7 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
   std::vector<int32_t> fixed_pt_multipliers, lshifts, rshifts;
   bool is_lshift_required = false;
   for (auto multiplier : multipliers) {
-    int32_t fixed_pt_multiplier, shift;
-    std::tie(fixed_pt_multiplier, shift) = GetFixedPointMultiplierShift(multiplier);
+    auto [fixed_pt_multiplier, shift] = GetFixedPointMultiplierShift(multiplier);
     int lshift = shift > 0 ? shift : 0;
     int rshift = shift > 0 ? 0 : -shift;
     fixed_pt_multipliers.push_back(fixed_pt_multiplier);
@@ -197,6 +195,22 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
 
   // 6) The fixed point multiplication keeps the value in int32 range. Casting back to int32.
   return Cast(tensor, DataType::Int(32));
+}
+
+std::string SelectRequntizeParameter(const std::string& arg_value, const std::string& cfg_value,
+                                     const bool is_cfg_default, const std::string& name) {
+  if (arg_value == "None") {
+    return cfg_value;
+  } else {
+    if (!is_cfg_default && arg_value != cfg_value) {
+      DLOG(INFO) << "The value of parameter \"" << name
+                 << "\" from the non-default requantize config will not be used. The value "
+                    "provided from "
+                    "requantize function argument will be used instead. The value used is \""
+                 << arg_value << "\".";
+    }
+    return arg_value;
+  }
 }
 
 }  // namespace qnn

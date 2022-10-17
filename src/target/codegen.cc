@@ -68,7 +68,7 @@ class ModuleSerializer {
     // Only have one DSO module and it is in the root, then
     // we will not produce import_tree_.
     bool has_import_tree = true;
-    if (DSOExportable(mod_.operator->()) && mod_->imports().empty()) {
+    if (mod_->IsDSOExportable() && mod_->imports().empty()) {
       has_import_tree = false;
     }
     uint64_t sz = 0;
@@ -84,7 +84,7 @@ class ModuleSerializer {
 
     for (const auto& group : mod_group_vec_) {
       ICHECK_NE(group.size(), 0) << "Every allocated group must have at least one module";
-      if (!DSOExportable(group[0])) {
+      if (!group[0]->IsDSOExportable()) {
         ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
         std::string mod_type_key = group[0]->type_key();
         stream->Write(mod_type_key);
@@ -147,7 +147,7 @@ class ModuleSerializer {
     while (!stack.empty()) {
       runtime::ModuleNode* n = stack.back();
       stack.pop_back();
-      if (DSOExportable(n)) {
+      if (n->IsDSOExportable()) {
         // do not recursively expand dso modules
         // we will expand in phase 1
         dso_exportable_boundary.emplace_back(n);
@@ -174,7 +174,7 @@ class ModuleSerializer {
       runtime::ModuleNode* n = stack.back();
       stack.pop_back();
 
-      if (DSOExportable(n)) {
+      if (n->IsDSOExportable()) {
         mod_group_vec_[dso_module_index].emplace_back(n);
         mod2index_[n] = dso_module_index;
       } else {
@@ -217,10 +217,6 @@ class ModuleSerializer {
                                         unique_end);
       import_tree_row_ptr_.push_back(import_tree_child_indices_.size());
     }
-  }
-
-  bool DSOExportable(const runtime::ModuleNode* mod) {
-    return !std::strcmp(mod->type_key(), "llvm") || !std::strcmp(mod->type_key(), "c");
   }
 
   runtime::Module mod_;
@@ -295,7 +291,7 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
 }
 
 runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
-                                  const std::string& target_triple) {
+                                  const std::string& llvm_target_string) {
   std::string bin = SerializeModule(mod);
 
   uint64_t nbytes = bin.length();
@@ -313,7 +309,7 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   // the codegen function.
   const PackedFunc* codegen_f = runtime::Registry::Get(codegen_f_name);
   ICHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
-  return (*codegen_f)(blob_byte_array, system_lib, target_triple);
+  return (*codegen_f)(blob_byte_array, system_lib, llvm_target_string);
 }
 
 TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);

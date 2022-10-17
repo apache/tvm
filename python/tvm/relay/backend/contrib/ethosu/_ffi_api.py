@@ -18,3 +18,4 @@
 import tvm._ffi  # type: ignore
 
 tvm._ffi._init_api("relay.ext.ethos-u", __name__)
+tvm._ffi._init_api("tir.contrib.ethos-u", __name__)

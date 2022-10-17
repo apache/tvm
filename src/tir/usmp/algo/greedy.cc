@@ -61,11 +61,20 @@ size_t GreedyBase::round_up_to_byte_alignment(const size_t& non_aligned_byte_off
  */
 bool GreedyBase::IsValidPlacement(const PoolInfo& candidate_pool, const size_t& next_offset,
                                   const size_t& size_bytes) {
-  if (candidate_pool->size_hint_bytes == -1) {
+  Integer size_hint_bytes = -1;
+  if (const auto* p = candidate_pool.as<WorkspacePoolInfoNode>()) {
+    size_hint_bytes = p->size_hint_bytes;
+  } else if (const auto* p = candidate_pool.as<ConstantPoolInfoNode>()) {
+    size_hint_bytes = p->size_hint_bytes;
+  } else {
+    LOG(FATAL) << "Pool '" << candidate_pool->GetTypeKey() << "' is not supported";
+  }
+
+  if (size_hint_bytes == kUnrestrictedPoolSizeHint) {
     // this means pool is not bounded
     return true;
   }
-  auto pool_size = static_cast<size_t>(candidate_pool->size_hint_bytes->value);
+  auto pool_size = static_cast<size_t>(size_hint_bytes.IntValue());
   auto max_address = next_offset + size_bytes;
   if (max_address <= pool_size) {
     return true;
@@ -115,7 +124,8 @@ Map<BufferInfo, PoolAllocation> GreedyBase::PostSortAllocation(
       // We only look at already allocated BufferInfo in-terms of conflicts.
       if (pool_allocations.count(conflict_buf_info)) {
         auto pool_allocation = pool_allocations[conflict_buf_info];
-        next_offset = pool_allocation->byte_offset + conflict_buf_info->size_bytes;
+        next_offset =
+            pool_allocation->byte_offset.IntValue() + conflict_buf_info->size_bytes.IntValue();
         next_offset = round_up_to_byte_alignment(next_offset, conflict_buf_info->alignment->value);
         // Checks whether the next offset in the same pool as the conflicting BufferInfo is valid.
         if (IsValidPlacement(pool_allocation->pool_info, next_offset,
@@ -160,7 +170,7 @@ class GreedySize : public GreedyBase {
                     return a->conflicts.size() > b->conflicts.size();
                   }
                 }
-                return a->size_bytes > b->size_bytes;
+                return a->size_bytes.IntValue() > b->size_bytes.IntValue();
               });
     return PostSortAllocation(buffer_info_vec);
   }

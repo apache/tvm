@@ -31,6 +31,8 @@
 #include "../../../op/make_op.h"
 #include "../../../qnn/utils.h"
 #include "../../../transforms/pattern_utils.h"
+#include "../constant_transforms.h"
+#include "convolutions.h"
 
 namespace tvm {
 namespace relay {
@@ -63,22 +65,9 @@ class GenerateConstantsMutator : public MixedModeMutator {
     attrs->out_dtype = std::move(conv2d_attrs->out_dtype);
     *new_attrs = tvm::Attrs{attrs};
 
-    std::string kernel_layout = conv2d_attrs->kernel_layout.c_str();
-    int pos_o = kernel_layout.find("O");
-    int pos_h = kernel_layout.find("H");
-    int pos_w = kernel_layout.find("W");
-    int pos_i = kernel_layout.find("I");
-
-    IRModule kernel_module;
-    auto func_body = MakeTranspose(
-        kernel_expr, {Integer(pos_o), Integer(pos_h), Integer(pos_w), Integer(pos_i)});
-    auto kernel_func =
-        Function(FreeVars(func_body), func_body, Type(), FreeTypeVars(func_body, kernel_module));
-    GlobalVar kernel_var("main");
-    kernel_module->Add(kernel_var, kernel_func);
-    kernel_module = relay::transform::FoldConstant()(kernel_module);
-    kernel_func = Downcast<Function>(kernel_module->Lookup("main"));
-    return kernel_func->body;
+    Constant conv2d_kernel = Downcast<Constant>(kernel_expr);
+    conv2d_kernel = TransposeWeights(conv2d_kernel, conv2d_attrs->kernel_layout, "OHWI");
+    return conv2d_kernel;
   }
 
   /*!  * \brief Performs weight transpose and substitutes existing constants in the composite
@@ -111,11 +100,7 @@ class GenerateConstantsMutator : public MixedModeMutator {
 
     Array<PrimExpr> input_shape = conv2d_call->args[0]->type_as<TensorTypeNode>()->shape;
     Array<PrimExpr> kernel_shape = conv2d_call->args[1]->type_as<TensorTypeNode>()->shape;
-    std::string kernel_layout = conv2d_attrs->kernel_layout.c_str();
-    int kernel_pos_o = kernel_layout.find("O");
-    int groups = conv2d_attrs->groups;
-    if (groups != qnn::get_const_int(input_shape[3]) ||
-        groups != qnn::get_const_int(kernel_shape[kernel_pos_o])) {
+    if (!IsCMSISNNDepthwise(conv2d_attrs, input_shape, kernel_shape)) {
       // Transpose weights: HWIO -> OHWI for Conv2D
       conv2d_kernel = ConvertKernelLayout(conv2d_call->args[1], conv2d_attrs, &new_conv2d_attrs);
     }
@@ -123,8 +108,8 @@ class GenerateConstantsMutator : public MixedModeMutator {
     // Obtain input and output scales from Relay's Requantization
     int64_t out_channels = conv2d_attrs->channels.as<IntImmNode>()->value;
     float output_scale = GetScalarFromConstant<float>(requantize_call->args[3]);
-    auto input_scales = tvm::relay::qnn::GetFloatVectorFromConstant(requantize_call->args[1]);
-    ICHECK(input_scales.size() == static_cast<size_t>(out_channels));
+    auto input_scale = GetScalarFromConstant<float>(conv2d_call->args[4]);
+    auto filter_scales = tvm::relay::qnn::GetFloatVectorFromConstant(conv2d_call->args[5]);
 
     // Calculate requantization multiplier and shift
     Device dev{DLDeviceType::kDLCPU, 0};
@@ -134,10 +119,10 @@ class GenerateConstantsMutator : public MixedModeMutator {
     int32_t* multiplier = static_cast<int32_t*>(multiplier_nda->data);
     int32_t* shift = static_cast<int32_t*>(shift_nda->data);
     for (int i = 0; i < out_channels; ++i) {
-      double quantized_multiplier =
-          static_cast<double>(input_scales[i]) / static_cast<double>(output_scale);
+      double effective_output_scale =
+          static_cast<double>(input_scale) * filter_scales[i] / static_cast<double>(output_scale);
       std::tie(*(multiplier + i), *(shift + i)) =
-          tvm::relay::qnn::GetFixedPointMultiplierShift(quantized_multiplier);
+          tvm::relay::qnn::GetFixedPointMultiplierShift(effective_output_scale);
     }
 
     // Create constants from requantization multiplier and shift

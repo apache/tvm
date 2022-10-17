@@ -77,15 +77,30 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
 
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
+  /*! \brief Enable an optional extension or extensions
+   *
+   * \param flags A bitwise OR of all optional extensions that should
+   * be enabled.
+   */
+  void SetEnabledExtensions(Extension flags);
+
+  /*! \brief Return the currently enabled extensions */
+  Extension GetEnabledExtensions() const;
+
  protected:
-  /*! \brief internal structure for comparison. */
-  enum CompareResult { kUnknown, kEQ, kGT, kGE, kLT, kLE, kNE };
   // counter to record recursive rewrite depth.
   int recur_depth_{0};
   // internal variable map
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> var_map_;
 
   std::vector<PrimExpr> literal_constraints_;
+
+  // Optionally enabled extensions
+  Extension enabled_extensions_{kNone};
+
+  /*! Whether the simplifier is current
+   */
+  bool recursively_visiting_boolean_{false};
 
   // maximum number of recursion allowed during a single pass.
   static const constexpr int kMaxRecurDepth = 5;
@@ -98,6 +113,14 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
    */
   CompareResult TryCompare(const PrimExpr& x, int64_t val);
 
+  /*! Try to compare x against y
+   *
+   * \param x The lhs of the comparison
+   * \param y The rhs of the comparison
+   * \return comparison result.
+   */
+  CompareResult TryCompare(const PrimExpr& x, const PrimExpr& y);
+
   /*!
    * \brief Internal function to check whether or not to inline let.
    * \param op The let expr.
@@ -105,15 +128,29 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
    */
   bool CanInlineLet(const LetNode* op);
 
+  /*! \brief Internal function to apply constraints
+   *
+   * Tests whether the expression is known to be true or false based
+   * on existing constraints.  If the expression or its negation
+   * matches a constraint, return the boolean it should be replaced
+   * with.  Otherwise, return false.
+   */
+  Optional<PrimExpr> TryMatchLiteralConstraint(const PrimExpr& expr) const;
+
  private:
+  CompareResult TryCompareUsingKnownInequalities(const PrimExpr& x, const PrimExpr& y);
+  CompareResult TryCompareUsingConstIntBounds(const PrimExpr& x, const PrimExpr y);
+
   // Whether x >= val
   bool CanProveGreaterEqual(const PrimExpr& x, int64_t val) {
     return analyzer_->CanProveGreaterEqual(x, val);
   }
+  // Whether x < val
+  bool CanProveLess(const PrimExpr& x, int64_t val) { return analyzer_->CanProveLess(x, val); }
   // Whether x == val
   bool CanProveEqual(const PrimExpr& x, int64_t val) {
     // TODO(tqchen) refer back to super-analyzer.
-    return TryCompare(x, val) == kEQ;
+    return TryCompare(x, val) == CompareResult::kEQ;
   }
 
   // Recursive rewrite x

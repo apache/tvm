@@ -50,16 +50,16 @@ PrimFunc MakeUnpackedAPI(PrimFunc&& func) {
   auto* func_ptr = func.CopyOnWrite();
 
   // Setup device context
-  int target_device_type = target.value()->kind->device_type;
+  int target_device_type = target.value()->GetTargetDeviceType();
   Integer device_type(target_device_type);
   Integer device_id(0);
   PrimExpr node = StringImm("default");
   const Stmt nop = Evaluate(0);
   std::vector<Stmt> device_init;
 
-
   // Collect variables and buffers to map between
   Array<Var> args;
+
   for (const Var& param : func->params) {
     // Ideally all func params should have Buffers defined in the buffer_map
     // We should look to insert buffer_maps for all PrimFuncs that are returned
@@ -79,6 +79,7 @@ PrimFunc MakeUnpackedAPI(PrimFunc&& func) {
   func_ptr->body = MergeNest(device_init, func_ptr->body);
   func_ptr->params = args;
   func_ptr->ret_type = PrimType(DataType::Int(32));
+  func_ptr->buffer_map = Map<Var, Buffer>();
 
   // return the function.
   return std::move(func);

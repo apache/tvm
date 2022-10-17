@@ -14,32 +14,41 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""AOT with C Runtime Tests"""
 
 from collections import OrderedDict
-import sys
+import re
+import os
+import tarfile
+import pathlib
 
 import numpy as np
 import pytest
 
 import tvm
 from tvm import relay, TVMError
+from tvm.contrib import utils
 from tvm.ir.module import IRModule
 from tvm.relay import testing, transform
 from tvm.relay.testing import byoc
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.backend import Executor, Runtime
-from aot_test_utils import (
+from tvm.micro import model_library_format as mlf
+from tvm.micro import export_model_library_format
+from tvm.ir.instrument import pass_instrument
+from tvm.testing.aot import (
     AOTTestModel,
-    AOT_DEFAULT_RUNNER,
     generate_ref_data,
-    convert_to_relay,
     compile_and_run,
     compile_models,
-    parametrize_aot_options,
+    create_relay_module_and_inputs_from_tflite_file,
 )
+from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER, parametrize_aot_options
+from tvm.micro.testing.utils import get_conv2d_relay_module
 
 
 def test_error_c_interface_with_packed_api():
+    """Checks that an error occurs when using the packed API in combination with C interface"""
     interface_api = "c"
     use_unpacked_api = False
     test_runner = AOT_DEFAULT_RUNNER
@@ -47,7 +56,14 @@ def test_error_c_interface_with_packed_api():
     two = relay.add(relay.const(1), relay.const(1))
     func = relay.Function([], two)
 
-    with pytest.raises(tvm.TVMError, match="Packed interface required for packed operators"):
+    with pytest.raises(
+        tvm.TVMError,
+        match=re.escape(
+            'Either need interface_api == "packed" (got: c) or '
+            "unpacked-api == true (got: 0) when targeting "
+            "c runtime"
+        ),
+    ):
         compile_and_run(
             AOTTestModel(
                 module=IRModule.from_expr(func), inputs={}, outputs=generate_ref_data(func, {})
@@ -60,22 +76,8 @@ def test_error_c_interface_with_packed_api():
 
 @parametrize_aot_options
 def test_conv_with_params(interface_api, use_unpacked_api, test_runner):
-    RELAY_MODEL = """
-#[version = "0.0.5"]
-def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), int8]) {
-    %1 = nn.conv2d(
-         %data,
-         %weight,
-         padding=[2, 2],
-         channels=8,
-         kernel_size=[5, 5],
-         data_layout="NCHW",
-         kernel_layout="OIHW",
-         out_dtype="int32");
-  %1
-}
-"""
-    mod = tvm.parser.fromtext(RELAY_MODEL)
+    """Tests compilation of convolution with parameters"""
+    mod = get_conv2d_relay_module()
     main_func = mod["main"]
     shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
     type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
@@ -97,21 +99,25 @@ def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), 
 
 @parametrize_aot_options
 def test_add_with_params(interface_api, use_unpacked_api, test_runner):
-    x = relay.var("x", shape=(1, 10))
-    y = relay.var("y", shape=(1, 10))
-    z = relay.add(x, y)
-    func = relay.Function([x, y], z)
+    """Tests compilation of add with parameters"""
+    input_x = relay.var("x", shape=(1, 10))
+    input_y = relay.var("y", shape=(1, 10))
+    input_z = relay.add(input_x, input_y)
+    func = relay.Function([input_x, input_y], input_z)
 
-    x_in = np.ones((1, 10)).astype("float32")
-    y_in = np.random.uniform(size=(1, 10)).astype("float32")
+    input_x_data = np.ones((1, 10)).astype("float32")
+    input_y_data = np.random.uniform(size=(1, 10)).astype("float32")
 
-    params = {"x": x_in}
-    inputs = {"y": y_in}
+    params = {"x": input_x_data}
+    inputs = {"y": input_y_data}
     output_list = generate_ref_data(func, inputs, params)
 
     compile_and_run(
         AOTTestModel(
-            module=IRModule.from_expr(func), inputs=inputs, outputs=output_list, params=params
+            module=IRModule.from_expr(func),
+            inputs=inputs,
+            outputs=output_list,
+            params=params,
         ),
         test_runner,
         interface_api,
@@ -149,16 +155,87 @@ def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_sha
     )
 
 
+def test_packed_global_variables():
+    """Check packed global variables in codegen output."""
+    dtype = "float32"
+    ishape = (1, 32, 14, 14)
+    wshape = (32, 32, 3, 3)
+    interface_api = "packed"
+    use_unpacked_api = False
+
+    data0 = relay.var("data", shape=ishape, dtype=dtype)
+    weight0 = relay.var("weight", shape=wshape, dtype=dtype)
+    out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1), groups=1)
+    main_f = relay.Function([data0, weight0], out)
+    mod = tvm.IRModule()
+    mod["main"] = main_f
+    mod = transform.InferType()(mod)
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+    w1_data = np.random.uniform(0, 1, wshape).astype(dtype)
+
+    inputs = OrderedDict([("data", i_data), ("weight", w1_data)])
+
+    output_list = generate_ref_data(mod, inputs)
+    compiled_models_list = compile_models(
+        models=AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
+        interface_api=interface_api,
+        use_unpacked_api=use_unpacked_api,
+        workspace_byte_alignment=8,
+        enable_op_fusion=True,
+        pass_config=AOT_DEFAULT_RUNNER.pass_config,
+        use_runtime_executor=True,
+        target=tvm.target.Target("c"),
+    )
+    compiled_model = compiled_models_list[0]
+
+    tmp_path = utils.tempdir()
+    base_path = tmp_path.temp_dir
+
+    model = compiled_model.model
+    tar_file = os.path.join(base_path, f"{model.name}.tar")
+    export_model_library_format(compiled_model.executor_factory, tar_file)
+    t = tarfile.open(tar_file)
+    t.extractall(base_path)
+
+    file_list = []
+    for path in (pathlib.Path(base_path) / "codegen" / "host" / "src").iterdir():
+        if path.is_file():
+            file_list.append(path)
+    assert len(file_list) > 0
+
+    for path in file_list:
+        with open(path, "r") as lib_f:
+            lib1 = lib_f.readlines()
+
+        tvmgen_names = []
+        tvmgen_funcs = []
+        for line in lib1:
+            for item in line.split(" "):
+                # Find all names starting with tvmgen_default
+                if item.startswith("tvmgen_default"):
+                    # Collect any name starting with tvmgen_default
+                    tvmgen_names.append(item)
+                    # Collect all functions starting with tvmgen_default
+                    tvmgen_funcs += re.findall(r"(?<=).*(?=\()", item)
+
+        # Check if any function name has a packed variable name in all
+        # items that start with tvmgen_default
+        for func in tvmgen_funcs:
+            assert f"{func}_packed" not in tvmgen_names
+
+
 @parametrize_aot_options
 def test_concatenate(interface_api, use_unpacked_api, test_runner):
+    """Tests compilation of concatenate"""
     dtype = "float32"
-    x = relay.var("x", shape=(10, 5), dtype=dtype)
-    y = relay.var("y", shape=(10, 5), dtype=dtype)
-    t = relay.var("z", shape=(), dtype=dtype)
-    z = relay.concatenate((x, y), axis=1)
-    z = relay.add(z, t)
+    input_x = relay.var("x", shape=(10, 5), dtype=dtype)
+    input_y = relay.var("y", shape=(10, 5), dtype=dtype)
+    input_z = relay.var("z", shape=(), dtype=dtype)
+    concat_inputs = relay.concatenate((input_x, input_y), axis=1)
+    func_output = relay.add(input_z, concat_inputs)
     # Check result.
-    func = relay.Function([x, y, t], z)
+    func = relay.Function([input_x, input_y, input_z], func_output)
     x_data = np.random.rand(10, 5).astype(dtype)
     y_data = np.random.rand(10, 5).astype(dtype)
     t_data = np.random.uniform(size=()).astype(dtype)
@@ -175,13 +252,16 @@ def test_concatenate(interface_api, use_unpacked_api, test_runner):
 
 @parametrize_aot_options
 def test_nested_tuples(interface_api, use_unpacked_api, test_runner):
-    x = relay.var("x", shape=(10,))
-    x1 = x + relay.const(1.0)
-    x2 = x1 + relay.const(1.0)
-    x3 = x2 + relay.const(1.0)
-    x4 = x3 + relay.const(1.0)
-    out = relay.Tuple([x1, relay.Tuple([relay.Tuple([x2, x3]), x4])])
-    func = relay.Function([x], out)
+    """Tests compilation of functions with nested tuple outputs"""
+    input_x = relay.var("x", shape=(10,))
+    output_1 = input_x + relay.const(1.0)
+    output_2 = output_1 + relay.const(1.0)
+    output_3 = output_2 + relay.const(1.0)
+    output_4 = output_3 + relay.const(1.0)
+    full_output = relay.Tuple(
+        [output_1, relay.Tuple([relay.Tuple([output_2, output_3]), output_4])]
+    )
+    func = relay.Function([input_x], full_output)
 
     x_data = np.random.uniform(size=(10,)).astype(np.float32)
     inputs = {"x": x_data}
@@ -239,7 +319,8 @@ def test_add_const(interface_api, use_unpacked_api, test_runner):
 
 
 @parametrize_aot_options
-def test_mul_param(interface_api, use_unpacked_api, test_runner):
+def test_multiply(interface_api, use_unpacked_api, test_runner):
+    """Tests compilation of multiply"""
     x = relay.var("x", shape=(10, 10))
     y = relay.var("y", shape=(1, 10))
     func = relay.Function([x, y], relay.multiply(x, y))
@@ -275,6 +356,7 @@ def test_subtract(interface_api, use_unpacked_api, test_runner):
 
 @parametrize_aot_options
 def test_tuple_output(interface_api, use_unpacked_api, test_runner):
+    """Tests getting items from tuples"""
     x = relay.var("x", shape=(6, 9))
     y = relay.split(x, 3).astuple()
     a = relay.TupleGetItem(y, 0)
@@ -296,6 +378,7 @@ def test_tuple_output(interface_api, use_unpacked_api, test_runner):
     ["debug_calculated_workspaces", "workspace_byte_alignment"], [(True, 1), (True, 16), (False, 1)]
 )
 def test_mobilenet(debug_calculated_workspaces, workspace_byte_alignment):
+    """Full network test with Mobilenet"""
     use_unpacked_api = True
     interface_api = "c"
     test_runner = AOT_DEFAULT_RUNNER
@@ -326,33 +409,36 @@ def test_mobilenet(debug_calculated_workspaces, workspace_byte_alignment):
 
 @pytest.mark.parametrize("merge_compiler_regions", [False, True])
 def test_byoc_microtvm(merge_compiler_regions):
-    """This is a simple test to check BYOC capabilities of AOT - with and without merging compiler regions to test for https://github.com/apache/tvm/issues/9036"""
+    """
+    This is a simple test to check BYOC capabilities of AOT
+    with and without merging compiler regions to test for https://github.com/apache/tvm/issues/9036
+    """
     use_unpacked_api = False
     interface_api = "packed"
     test_runner = AOT_DEFAULT_RUNNER
 
-    x = relay.var("x", shape=(10, 10))
-    w0 = relay.var("w0", shape=(10, 10))
-    w1 = relay.var("w1", shape=(10, 10))
+    input_x = relay.var("x", shape=(10, 10))
+    input_w0 = relay.var("w0", shape=(10, 10))
+    input_w1 = relay.var("w1", shape=(10, 10))
 
     # z0 = x + w0
-    x_ = compiler_begin(x, "ccompiler")
-    w0_ = compiler_begin(w0, "ccompiler")
-    z0_ = relay.add(x_, w0_)
-    z0 = compiler_end(z0_, "ccompiler")
+    marked_input_x = compiler_begin(input_x, "ccompiler")
+    marked_input_w0 = compiler_begin(input_w0, "ccompiler")
+    add_x_and_w0 = relay.add(marked_input_x, marked_input_w0)
+    end_inner_add = compiler_end(add_x_and_w0, "ccompiler")
 
     # z1 = z0 + w1
-    z0__ = compiler_begin(z0, "ccompiler")
-    w1_ = compiler_begin(w1, "ccompiler")
-    z1_ = relay.add(z0__, w1_)
-    z1 = compiler_end(z1_, "ccompiler")
+    marked_inner_add = compiler_begin(end_inner_add, "ccompiler")
+    marked_w1 = compiler_begin(input_w1, "ccompiler")
+    add_nested_and_w1 = relay.add(marked_inner_add, marked_w1)
+    end_outer_add = compiler_end(add_nested_and_w1, "ccompiler")
 
     # z2 = z0 + z1
-    z2 = relay.add(z0, z1)
+    final_add = relay.add(end_inner_add, end_outer_add)
 
-    f = relay.Function([x, w0, w1], z2)
+    relay_func = relay.Function([input_x, input_w0, input_w1], final_add)
     mod = tvm.IRModule()
-    mod["main"] = f
+    mod["main"] = relay_func
 
     if merge_compiler_regions:
         mod = transform.MergeCompilerRegions()(mod)
@@ -380,34 +466,37 @@ def test_byoc_microtvm_multiple_subgraphs(merge_compiler_regions):
     interface_api = "packed"
     test_runner = AOT_DEFAULT_RUNNER
 
-    x = relay.var("x", shape=(10, 10))
-    w0 = relay.var("w0", shape=(10, 10))
-    w1 = relay.var("w1", shape=(10, 10))
-    w2 = relay.var("w2", shape=(10, 10))
-    w3 = relay.var("w3", shape=(10, 10))
-    w4 = relay.var("w4", shape=(10, 10))
-    w5 = relay.var("w5", shape=(10, 10))
-    w6 = relay.var("w6", shape=(10, 10))
-    w7 = relay.var("w7", shape=(10, 10))
+    input_x = relay.var("x", shape=(10, 10))
+    input_w0 = relay.var("w0", shape=(10, 10))
+    input_w1 = relay.var("w1", shape=(10, 10))
+    input_w2 = relay.var("w2", shape=(10, 10))
+    input_w3 = relay.var("w3", shape=(10, 10))
+    input_w4 = relay.var("w4", shape=(10, 10))
+    input_w5 = relay.var("w5", shape=(10, 10))
+    input_w6 = relay.var("w6", shape=(10, 10))
+    input_w7 = relay.var("w7", shape=(10, 10))
 
     # C compiler
-    z0 = relay.add(x, w0)
-    p0 = relay.subtract(z0, w1)
-    q0 = relay.multiply(p0, w2)
+    ccompiler_add_1 = relay.add(input_x, input_w0)
+    ccompiler_sub_1 = relay.subtract(ccompiler_add_1, input_w1)
+    ccompiler_mul_1 = relay.multiply(ccompiler_sub_1, input_w2)
 
-    z1 = relay.add(x, w3)
-    p1 = relay.subtract(z1, w4)
-    q1 = relay.multiply(p1, w5)
+    ccompiler_add_2 = relay.add(input_x, input_w3)
+    ccompiler_sub_2 = relay.subtract(ccompiler_add_2, input_w4)
+    ccompiler_mul_2 = relay.multiply(ccompiler_sub_2, input_w5)
 
     # Other parts on TVM
-    z2 = relay.add(x, w6)
-    q2 = relay.subtract(z2, w7)
+    tvm_add = relay.add(input_x, input_w6)
+    tvm_sub = relay.subtract(tvm_add, input_w7)
 
-    r = relay.concatenate((q0, q1, q2), axis=0)
-    f = relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], r)
+    concat_outputs = relay.concatenate((ccompiler_mul_1, ccompiler_mul_2, tvm_sub), axis=0)
+    relay_func = relay.Function(
+        [input_x, input_w0, input_w1, input_w2, input_w3, input_w4, input_w5, input_w6, input_w7],
+        concat_outputs,
+    )
     mod = tvm.IRModule()
     ann = byoc.CcompilerAnnotator()
-    mod["main"] = ann.visit(f)
+    mod["main"] = ann.visit(relay_func)
 
     if merge_compiler_regions:
         mod = transform.MergeCompilerRegions()(mod)
@@ -434,20 +523,27 @@ def test_byoc_microtvm_multiple_subgraphs(merge_compiler_regions):
 
 @parametrize_aot_options
 def test_add_name_mangling_with_params(interface_api, use_unpacked_api, test_runner):
-    x = relay.var("x", shape=(1, 10))
-    y = relay.var("y", shape=(1, 10))
-    z = relay.add(x, y)
-    func = relay.Function([x, y], z)
+    """Checks name mangling works with parameters"""
+    input_x = relay.var("x", shape=(1, 10))
+    input_y = relay.var("y", shape=(1, 10))
+    func_add = relay.add(input_x, input_y)
+    relay_func = relay.Function([input_x, input_y], func_add)
 
     x_in = np.ones((1, 10)).astype("float32")
     y_in = np.random.uniform(size=(1, 10)).astype("float32")
 
     params = {"x": x_in}
     inputs = {"y": y_in}
-    output_list = generate_ref_data(func, inputs, params)
+    output_list = generate_ref_data(relay_func, inputs, params)
 
     compile_and_run(
-        AOTTestModel(name="my_mod", module=func, inputs=inputs, outputs=output_list, params=params),
+        AOTTestModel(
+            name="my_mod",
+            module=relay_func,
+            inputs=inputs,
+            outputs=output_list,
+            params=params,
+        ),
         test_runner,
         interface_api,
         use_unpacked_api,
@@ -456,6 +552,7 @@ def test_add_name_mangling_with_params(interface_api, use_unpacked_api, test_run
 
 @parametrize_aot_options
 def test_multiple_models(interface_api, use_unpacked_api, test_runner):
+    """Compiles multiple models to ensure both can be compiled into one output"""
     # Identity model without params
     x = relay.var("x", "float32")
     mod1 = relay.Function([x], x)
@@ -465,22 +562,7 @@ def test_multiple_models(interface_api, use_unpacked_api, test_runner):
     params1 = None
 
     # Convolution model
-    RELAY_MODEL = """
-#[version = "0.0.5"]
-def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), int8]) {
-    %1 = nn.conv2d(
-         %data,
-         %weight,
-         padding=[2, 2],
-         channels=8,
-         kernel_size=[5, 5],
-         data_layout="NCHW",
-         kernel_layout="OIHW",
-         out_dtype="int32");
-  %1
-}
-"""
-    mod2 = tvm.parser.fromtext(RELAY_MODEL)
+    mod2 = get_conv2d_relay_module()
     main_func = mod2["main"]
     shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
     type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
@@ -495,10 +577,18 @@ def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), 
     compile_and_run(
         [
             AOTTestModel(
-                name="mod1", module=mod1, inputs=inputs1, outputs=output_list1, params=params1
+                name="mod1",
+                module=mod1,
+                inputs=inputs1,
+                outputs=output_list1,
+                params=params1,
             ),
             AOTTestModel(
-                name="mod2", module=mod2, inputs=inputs2, outputs=output_list2, params=params2
+                name="mod2",
+                module=mod2,
+                inputs=inputs2,
+                outputs=output_list2,
+                params=params2,
             ),
         ],
         test_runner,
@@ -508,12 +598,14 @@ def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), 
 
 
 def test_quant_mobilenet_tfl():
-    """Since in AOT we pass directly the output buffer from the user, in quantized networks sharing the output buffers is not possible.
-    This is because the output data type is int8 and the intermediate buffer are int32 or int16. We use mobilenet quantized to stress this
+    """Since in AOT we pass directly the output buffer from the user,
+    in quantized networks sharing the output buffers is not possible.
+    This is because the output data type is int8 and the intermediate
+    buffer are int32 or int16. We use mobilenet quantized to stress this
     situation and verify that the output buffer sharing is disabled in AOT."""
     pytest.importorskip("tflite")
 
-    import tvm.relay.testing.tf as tf_testing
+    import tvm.relay.testing.tf as tf_testing  # pylint: disable=import-outside-toplevel
 
     use_unpacked_api = True
     interface_api = "c"
@@ -524,13 +616,7 @@ def test_quant_mobilenet_tfl():
         "models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
         "mobilenet_v1_1.0_224_quant.tflite",
     )
-    with open(tflite_model_file, "rb") as f:
-        tflite_model_buf = f.read()
-    data_shape = (1, 224, 224, 3)
-    in_min, in_max = (0, 255)
-    data = np.random.randint(in_min, high=in_max, size=data_shape, dtype="uint8")
-    mod, params = convert_to_relay(tflite_model_buf, data, "input")
-    inputs = {"input": data}
+    mod, inputs, params = create_relay_module_and_inputs_from_tflite_file(tflite_model_file)
     output_list = generate_ref_data(mod, inputs, params)
     compile_and_run(
         AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
@@ -545,22 +631,22 @@ def test_transpose(interface_api, use_unpacked_api, test_runner):
     """Test that non-inpleaceable operations (e.g., transpose) do not happen in-place."""
 
     dtype = "float32"
-    x = relay.var("x", shape=(10, 5), dtype=dtype)
-    y = relay.var("y", shape=(10, 5), dtype=dtype)
-    t = relay.var("z", shape=(), dtype=dtype)
-    a = relay.add(x, y)
-    b = relay.transpose(a)
-    z = relay.add(b, t)
+    input_x = relay.var("x", shape=(10, 5), dtype=dtype)
+    input_y = relay.var("y", shape=(10, 5), dtype=dtype)
+    input_z = relay.var("z", shape=(), dtype=dtype)
+    first_add = relay.add(input_x, input_y)
+    transpose_add = relay.transpose(first_add)
+    final_add = relay.add(transpose_add, input_z)
     # Check result.
-    func = relay.Function([x, y, t], z)
+    relay_func = relay.Function([input_x, input_y, input_z], final_add)
     x_data = np.random.rand(10, 5).astype(dtype)
     y_data = np.random.rand(10, 5).astype(dtype)
     t_data = np.random.uniform(size=()).astype(dtype)
 
     inputs = {"x": x_data, "y": y_data, "z": t_data}
-    output_list = generate_ref_data(func, inputs)
+    output_list = generate_ref_data(relay_func, inputs)
     compile_and_run(
-        AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
+        AOTTestModel(module=IRModule.from_expr(relay_func), inputs=inputs, outputs=output_list),
         test_runner,
         interface_api,
         use_unpacked_api,
@@ -598,15 +684,15 @@ def test_name_sanitiser_name_clash():
     test_runner = AOT_DEFAULT_RUNNER
 
     dtype = "float32"
-    x = relay.var("input::-1", shape=(10, 5), dtype=dtype)
+    input_non_clashing = relay.var("input::-1", shape=(10, 5), dtype=dtype)
     # Next 2 input tensor names will clash once sanitized.
-    y = relay.var("input::-2", shape=(10, 5), dtype=dtype)
-    t = relay.var("input:--2", shape=(), dtype=dtype)
-    a = relay.add(x, y)
-    b = relay.transpose(a)
-    z = relay.add(b, t)
+    input_clashing_1 = relay.var("input::-2", shape=(10, 5), dtype=dtype)
+    input_clashing_2 = relay.var("input:--2", shape=(), dtype=dtype)
+    inner_add = relay.add(input_non_clashing, input_clashing_1)
+    transpose_add = relay.transpose(inner_add)
+    final_add = relay.add(transpose_add, input_clashing_2)
     # Check result.
-    func = relay.Function([x, y, t], z)
+    func = relay.Function([input_non_clashing, input_clashing_1, input_clashing_2], final_add)
     x_data = np.random.rand(10, 5).astype(dtype)
     y_data = np.random.rand(10, 5).astype(dtype)
     t_data = np.random.uniform(size=()).astype(dtype)
@@ -624,45 +710,13 @@ def test_name_sanitiser_name_clash():
         )
 
 
-# This tests for deprecated AOT executor arguments
-# TODO(Mousius) Remove deprecated arguments later
-def test_deprecated_target_arguments(capsys):
-    """Tests we can still use relay.build with -executor, -runtime and -link-params"""
-
-    interface_api = "c"
-    use_unpacked_api = True
-    test_runner = AOT_DEFAULT_RUNNER
-
-    x = relay.var("x", shape=(1, 10))
-    y = relay.var("y", shape=(1, 10))
-    z = relay.add(x, y)
-    func = relay.Function([x, y], z)
-
-    x_in = np.ones((1, 10)).astype("float32")
-    y_in = np.random.uniform(size=(1, 10)).astype("float32")
-
-    params = {"x": x_in}
-    inputs = {"y": y_in}
-    output_list = generate_ref_data(func, inputs, params)
-
-    compile_and_run(
-        AOTTestModel(
-            module=IRModule.from_expr(func), inputs=inputs, outputs=output_list, params=params
-        ),
-        test_runner,
-        interface_api,
-        use_unpacked_api,
-        use_runtime_executor=False,
-        target="c -executor=aot --link-params -runtime=c -interface-api=c --unpacked-api",
-    )
-
-
 def test_aot_codegen_backend_alloc_workspace_calls():
     """This test checks whether AoT lowering creates TVMBackendAllocWorkspace calls"""
 
     # The %data and %weight shapes in the following primitive Relay should create
     # small tensors that would get lowered to stack allocations in the CPU PrimFuncs.
     # However, the AoT executor codegen should retain them as TVMBAW calls
+    # pylint: disable=line-too-long
     relay_mod = tvm.parser.fromtext(
         """
         #[version = "0.0.5"]
@@ -686,6 +740,8 @@ def test_aot_codegen_backend_alloc_workspace_calls():
         }
         """
     )
+    # pylint: enable=line-too-long
+
     compiled_test_mods = compile_models(
         models=AOTTestModel(module=relay_mod, inputs=None, outputs=None),
         interface_api="c",
@@ -709,16 +765,282 @@ def test_constants_alignment(constants_byte_alignment):
     data = np.random.uniform(size=data_shape).astype("float32")
     inputs = {"data": data}
     output_list = generate_ref_data(mod, inputs, params)
-    target_opts = {"-constants-byte-alignment": constants_byte_alignment}
+    target = f"c -constants-byte-alignment={constants_byte_alignment}"
     compiled_test_mods = compile_models(
         AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
         interface_api,
         use_unpacked_api,
-        target_opts=target_opts,
+        target=tvm.target.Target(target, host=target),
     )
     source = compiled_test_mods[0].executor_factory.lib.imported_modules[0].get_source()
     assert f'__attribute__((section(".rodata.tvm"), aligned({constants_byte_alignment})))' in source
 
 
+def test_output_tensor_names():
+    """Test that the output names generated match those in the model"""
+    pytest.importorskip("tflite")
+
+    # pylint: disable=import-outside-toplevel
+    import tensorflow as tf
+    import tflite.Model
+
+    # pylint: enable=import-outside-toplevel
+
+    ifm_shape = (1, 299, 299, 3)
+    padding = "VALID"
+    strides = (1, 1)
+    dilation = (1, 1)
+    kernel_shape = (3, 2)
+
+    def create_tflite_graph_two_outs():
+        """Create a model with 2 output tensors"""
+
+        class Model(tf.Module):
+            """Simple TFLite test model"""
+
+            @tf.function
+            def tf_function(self, tf_input_x):
+                """Single TFLite function with two convolutions"""
+                tf_strides = [1, strides[0], strides[1], 1]
+                filter_shape = [kernel_shape[0], kernel_shape[1], 3, 3]
+                filter1 = tf.constant(
+                    np.arange(np.prod(filter_shape)).reshape(filter_shape),
+                    dtype=tf.float32,
+                )
+                first_conv2d = tf.nn.conv2d(
+                    tf_input_x,
+                    filters=filter1,
+                    strides=tf_strides,
+                    padding=padding,
+                    dilations=dilation,
+                )
+                first_conv2d = tf.nn.relu(first_conv2d)
+
+                filter2 = tf.constant(
+                    1000 + np.arange(np.prod(filter_shape)).reshape(filter_shape),
+                    dtype=tf.float32,
+                )
+                second_conv2d = tf.nn.conv2d(
+                    tf_input_x,
+                    filters=filter2,
+                    strides=strides,
+                    padding=padding,
+                    data_format="NHWC",
+                    dilations=dilation,
+                )
+                second_conv2d = tf.nn.relu(second_conv2d)
+                return first_conv2d, second_conv2d
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    tflite_graph = create_tflite_graph_two_outs()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+    mod, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": "int8"},
+    )
+
+    use_unpacked_api = True
+    interface_api = "c"
+    test_runner = AOT_DEFAULT_RUNNER
+
+    in_min, in_max = (-128, 127)
+    data = np.random.randint(in_min, high=in_max, size=ifm_shape, dtype="int8")
+    input_name = mod["main"].params[0].name_hint
+    inputs = {input_name: data}
+    output_list = generate_ref_data(mod, inputs, params)
+    compile_and_run(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
+
+    compiled_test_mods = compile_models(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        interface_api,
+        use_unpacked_api,
+    )
+
+    # Check that the names of the output tensors occur in the source code
+    source = compiled_test_mods[0].executor_factory.lib.get_source()
+    for output_name in output_list.keys():
+        assert output_name in source
+
+
+@pytest.mark.parametrize(
+    "workspace_byte_alignment,main_workspace_size",
+    [
+        (8, 14880),
+        (16, 14880),
+        (256, 15616),
+    ],
+)
+def test_workspace_calculation(workspace_byte_alignment, main_workspace_size):
+    """Checks calculated workspace against known values"""
+    mod, params = tvm.relay.testing.synthetic.get_workload()
+    target = "c"
+    runtime = Runtime("crt")
+    executor = Executor(
+        "aot",
+        {
+            "workspace-byte-alignment": workspace_byte_alignment,
+        },
+    )
+    with tvm.transform.PassContext(
+        opt_level=3,
+        config={
+            "tir.disable_vectorize": True,
+        },
+    ):
+        lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
+
+    mlf_memory_map = mlf._build_function_memory_map(lib.function_metadata)
+    assert mlf_memory_map["main"][0]["workspace_size_bytes"] == main_workspace_size
+
+
+@tvm.testing.requires_package("tflite")
+@tvm.testing.requires_cmsisnn
+def test_workspace_calculation_cmsis_nn():
+    """This tests cmsis_nn codegen for workspace calculation.
+    This is tested specially because cmsis-nn codegen creates
+    multiple PrimFuncs per offloaded relay function in a non
+    -hierarchical manner."""
+    pytest.importorskip("tflite")
+
+    # pylint: disable=import-outside-toplevel
+    from tvm.relay.op.contrib import cmsisnn
+    from tvm.contrib.download import download_testdata
+
+    # pylint: enable=import-outside-toplevel
+
+    target = "c"
+    runtime = Runtime("crt")
+    executor = Executor(
+        "aot",
+        {
+            "workspace-byte-alignment": 16,
+            "interface-api": "c",
+            "unpacked-api": True,
+        },
+    )
+
+    base_url = (
+        "https://github.com/ARM-software/ML-zoo/raw/"
+        "48a22ee22325d15d2371a6df24eb7d67e21dcc97"
+        "/models/keyword_spotting/cnn_small/tflite_int8"
+    )
+    file_to_download = "cnn_s_quantized.tflite"
+    file_saved = "cnn_s_quantized_15Dec2021.tflite"
+    model_file = download_testdata("{}/{}".format(base_url, file_to_download), file_saved)
+    mod, _, params = create_relay_module_and_inputs_from_tflite_file(model_file)
+    mod = cmsisnn.partition_for_cmsisnn(mod, params)
+    with tvm.transform.PassContext(
+        opt_level=3,
+        config={
+            "tir.disable_vectorize": True,
+        },
+    ):
+        lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
+    mlf_memory_map = mlf._build_function_memory_map(lib.function_metadata)
+    assert mlf_memory_map["main"][0]["workspace_size_bytes"] == 14256
+
+
+def test_aot_codegen_checks_returns():
+    """This test checks whether AoT lowering creates calls that check the return value correctly"""
+    input_x = relay.var("x", shape=(1, 10))
+    input_y = relay.var("y", shape=(1, 10))
+    func_add = relay.add(input_x, input_y)
+    func = relay.Function([input_x, input_y], func_add)
+
+    compiled_test_mods = compile_models(
+        models=AOTTestModel(module=IRModule.from_expr(func), inputs=None, outputs=None),
+        interface_api="c",
+        use_unpacked_api=True,
+    )
+    source = compiled_test_mods[0].executor_factory.lib.imported_modules[0].get_source()
+
+    main_ir_module = compiled_test_mods[0].executor_factory.lowered_ir_mods.items()[0][1]
+    main_func = main_ir_module["__tvm_main__"]
+
+    # Check operator call is wrapped properly
+    assert (
+        str(main_func.body[1])
+        == "tir.tvm_check_return(0, -1, tir.call_extern("
+        + '"tvmgen_default_fused_add",'
+        + " x_buffer_var, y_buffer_var, output_buffer_var))\n"
+    )
+    # TODO(Mousius) - Create a better place for C codegen tests
+    assert (
+        "if (tvmgen_default_fused_add(x_buffer_var, y_buffer_var, output_buffer_var) != 0 ) return -1;"  # pylint: disable=line-too-long
+        in source
+    )
+
+
+def test_aot_uses_anf():
+    """Checks that A-Normal Form is being used in the AOT lowering pipeline."""
+    input_x = relay.var("x", shape=(1, 10, 10, 10))
+    input_y = relay.var("y", shape=(1, 10, 10, 10))
+    func_add = relay.add(input_x, input_y)
+    func = relay.Function([input_x, input_y], func_add)
+
+    @pass_instrument
+    class CheckANFRuns:
+        def __init__(self):
+            self.did_run_anf = False
+
+        def run_before_pass(self, _, info):
+            if info.name == "ToANormalForm":
+                self.did_run_anf = True
+            if info.name == "LowerTE":
+                assert self.did_run_anf, "ToANormalForm pass should run before LowerTE."
+
+    check_run_anf = CheckANFRuns()
+
+    model = AOTTestModel(module=IRModule.from_expr(func), inputs=None, outputs=None)
+    runtime = Runtime("crt")
+    executor = Executor(
+        "aot",
+        {
+            "workspace-byte-alignment": 8,
+            "interface-api": "c",
+            "unpacked-api": True,
+        },
+    )
+    config = {"tir.disable_vectorize": True}
+
+    with tvm.transform.PassContext(opt_level=3, config=config, instruments=[check_run_anf]):
+        tvm.relay.build(
+            model.module,
+            tvm.target.Target("c"),
+            executor=executor,
+            runtime=runtime,
+            workspace_memory_pools=None,
+            params=model.params,
+            mod_name=model.name,
+        )
+
+    assert check_run_anf.did_run_anf, "Expected ToANormalForm pass to have run."
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

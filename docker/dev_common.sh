@@ -45,7 +45,7 @@ function filter_jenkinsfile() {
 function lookup_image_spec() {
     img_line=$(cat "${GIT_TOPLEVEL}/Jenkinsfile" | filter_jenkinsfile | grep -E "^${1} = ")
     if [ -n "${img_line}" ]; then
-        img_spec=$(echo "${img_line}" | sed -E "s/${1} = \"([^\"]*)\"/\1/")
+        img_spec=$(echo "${img_line}" | sed -E "s/${1} = '([^\"]*)'/\1/")
         has_similar_docker_image=1
         docker inspect "${1}" &>/dev/null || has_similar_docker_image=0
         if [ ${has_similar_docker_image} -ne 0 ]; then
@@ -56,14 +56,14 @@ function lookup_image_spec() {
 }
 
 function run_docker() {
+    docker_bash_args=( )
+    while [ "x${1:0:1}" == "x-" ]; do
+        docker_bash_args=( "${docker_bash_args[@]}" "$1" )
+        shift
+    done
     image_name="$1"  # Name of the Jenkinsfile var to find
     shift
 
-    image_spec=$(lookup_image_spec "${image_name}")
-    if [ -z "${image_spec}" ]; then
-        echo "${image_name}: not found in ${GIT_TOPLEVEL}/Jenkinsfile" >&2
-        exit 2
-    fi
-
-    "${GIT_TOPLEVEL}/docker/bash.sh" "${image_spec}" "$@"
+    docker_bash_args=( "${docker_bash_args[@]}" "${image_name}" "$@" )
+    "${GIT_TOPLEVEL}/docker/bash.sh" "${docker_bash_args[@]}"
 }

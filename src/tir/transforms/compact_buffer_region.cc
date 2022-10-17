@@ -45,18 +45,54 @@ using support::NDIntSet;
  * \brief simplify and return the region collected by NDIntSet. return the original
  * buffer shape if the int_set is empty.
  */
-Region SimplifyAndNarrowBufferRegionFromNDIntSet(const NDIntSet& nd_int_set,
-                                                 const Array<PrimExpr>& original_shape,
-                                                 arith::Analyzer* analyzer) {
+Region SimplifyAndNarrowBufferRegionFromNDIntSet(
+    const NDIntSet& nd_int_set, const Array<PrimExpr>& original_shape, arith::Analyzer* analyzer,
+    const std::vector<const ForNode*>& ancestor_loops) {
   Array<Range> result;
   result.reserve(nd_int_set.size());
   for (size_t i = 0; i < nd_int_set.size(); ++i) {
     const arith::IntSet& int_set = nd_int_set[i];
     Range range = int_set.CoverRange(Range(/*begin=*/0, /*end=*/original_shape[i]));
-    result.push_back(
-        Range::FromMinExtent(analyzer->Simplify(range->min), analyzer->Simplify(range->extent)));
+    PrimExpr min = analyzer->Simplify(tvm::max(0, range->min));
+    PrimExpr extent = analyzer->Simplify(tvm::min(original_shape[i], range->extent));
+
+    // Check the buffer region is not loop dependent, since loop dependent
+    // allocation is not supported yet.
+    auto is_loop_var = [&ancestor_loops](const VarNode* v) {
+      return std::any_of(ancestor_loops.begin(), ancestor_loops.end(),
+                         [v](const ForNode* n) { return n->loop_var.get() == v; });
+    };
+    if (UsesVar(extent, is_loop_var)) {
+      // try estimate a constant upperbound on region's extent
+      int64_t upperbound = analyzer->const_int_bound(extent)->max_value;
+      if (upperbound != arith::ConstIntBound::kPosInf) {
+        extent = make_const(extent->dtype, upperbound);
+      } else {
+        // or else we have to fallback to full region
+        min = make_zero(original_shape[i]->dtype);
+        extent = original_shape[i];
+      }
+    }
+
+    result.push_back(Range::FromMinExtent(min, extent));
   }
   return result;
+}
+
+/*! \brief a more constrained bound estimate for n-dimentional int set */
+NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
+                      const std::unordered_map<const VarNode*, arith::IntSet>& dom_map,
+                      arith::Analyzer* analyzer) {
+  std::unordered_map<Var, Range, ObjectPtrHash, ObjectEqual> var_dom;
+  for (const auto& it : dom_map) {
+    var_dom[GetRef<Var>(it.first)] = it.second.CoverRange(Range::FromMinExtent(0, 0));
+  }
+  Optional<Array<arith::IntSet>> eval_res =
+      arith::EstimateRegionUpperBound(region, var_dom, predicate, analyzer);
+  if (eval_res.defined()) {
+    return NDIntSet(eval_res.value().begin(), eval_res.value().end());
+  }
+  return support::NDIntSetEval(support::NDIntSetFromRegion(region), dom_map);
 }
 
 /*!
@@ -99,13 +135,11 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   void VisitExpr_(const VarNode* op) final { VisitBufferVar(GetRef<Var>(op)); }
 
   void VisitExpr_(const LoadNode* op) final {
-    StmtExprVisitor::VisitExpr_(op);
-    VisitBufferVar(op->buffer_var);
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
 
   void VisitStmt_(const StoreNode* op) final {
-    StmtExprVisitor::VisitStmt_(op);
-    VisitBufferVar(op->buffer_var);
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
   }
 
   void VisitStmt_(const ForNode* op) final {
@@ -116,6 +150,30 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
     dom_map_.erase(op->loop_var.get());
     ancestor_loops_.pop_back();
+  }
+
+  void VisitStmt_(const LetStmtNode* op) final {
+    StmtExprVisitor::VisitExpr(op->value);
+    if (arith::IsIndexType(op->value->dtype)) {
+      dom_analyzer_.Bind(op->var, op->value);
+      dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(op->value));
+    }
+    StmtExprVisitor::VisitStmt(op->body);
+    if (arith::IsIndexType(op->value->dtype)) {
+      dom_map_.erase(op->var.get());
+    }
+  }
+
+  void VisitExpr_(const LetNode* op) final {
+    StmtExprVisitor::VisitExpr(op->value);
+    if (arith::IsIndexType(op->value->dtype)) {
+      dom_analyzer_.Bind(op->var, op->value);
+      dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(op->value));
+    }
+    StmtExprVisitor::VisitExpr(op->body);
+    if (arith::IsIndexType(op->value->dtype)) {
+      dom_map_.erase(op->var.get());
+    }
   }
 
   void VisitStmt_(const IfThenElseNode* op) final {
@@ -149,7 +207,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       }
       return;
     }
-    return StmtExprVisitor::VisitExpr_(op);
+    StmtExprVisitor::VisitExpr_(op);
   }
 
   void VisitStmt_(const BlockNode* op) final {
@@ -193,9 +251,16 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       ICHECK(it != relaxed_accesses_.end())
           << buffer << " is allocated but not accessed within block scope";
       const NDIntSet& nd_int_set = it->second;
-      buffer_access_region_[buffer] =
-          SimplifyAndNarrowBufferRegionFromNDIntSet(nd_int_set, buffer->shape, &dom_analyzer_);
+      buffer_access_region_[buffer] = SimplifyAndNarrowBufferRegionFromNDIntSet(
+          nd_int_set, buffer->shape, &dom_analyzer_, ancestor_loops_);
     }
+  }
+
+  void VisitStmt_(const BlockRealizeNode* op) final {
+    PrimExpr cur_predicate = predicate_in_scope;
+    predicate_in_scope = op->predicate;
+    StmtExprVisitor::VisitStmt_(op);
+    predicate_in_scope = cur_predicate;
   }
 
   /**************** Helper functions ****************/
@@ -206,7 +271,6 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     if (it != buffer_var_in_scope_.end()) {
       const Buffer& buffer = it->second.first;
       size_t n_ancestor_loops = it->second.second;
-      NDIntSet nd_int_set = support::NDIntSetFromRegion(buffer_region->region);
       // Step 1. Stop ancestor loop vars out of the allocation block from
       // being relaxed unless NeedRelaxThread() is true.
       std::vector<arith::IntSet> non_relaxed(n_ancestor_loops);
@@ -217,12 +281,14 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
           continue;
         }
         auto dom_it = dom_map_.find(v);
-        ICHECK(dom_it != dom_map_.end());
+        ICHECK(dom_it != dom_map_.end())
+            << "Could not find domain for loop variable " << v->name_hint;
         non_relaxed[i] = dom_it->second;
         dom_map_.erase(dom_it);
       }
       // Step 2. Relax the access region
-      nd_int_set = support::NDIntSetEval(nd_int_set, dom_map_);
+      NDIntSet nd_int_set =
+          NDIntSetEval(buffer_region->region, predicate_in_scope, dom_map_, &dom_analyzer_);
       // Step 3. Restore the non-relaxed ancestor loops domain
       for (size_t i = 0; i < n_ancestor_loops; ++i) {
         const VarNode* v = ancestor_loops_[i]->loop_var.get();
@@ -279,6 +345,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
    */
   std::unordered_map<Var, std::pair<Buffer, size_t>, ObjectPtrHash, ObjectPtrEqual>
       buffer_var_in_scope_;
+  /*! \brief The block predicate of current scope */
+  PrimExpr predicate_in_scope{true};
 
   /*! \brief The map from loop vars to their iter range. */
   std::unordered_map<const VarNode*, arith::IntSet> dom_map_;

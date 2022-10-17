@@ -120,7 +120,7 @@ class ConstIntBoundAnalyzer {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  TVM_DLL ConstIntBound operator()(const PrimExpr& expr);
+  TVM_DLL ConstIntBound operator()(const PrimExpr& expr) const;
 
   /*!
    * \brief analyze the expr with the intermediate memorized to avoid redundant computation
@@ -135,7 +135,7 @@ class ConstIntBoundAnalyzer {
    *
    * \param var The variable of interest.
    * \param info The bound information.
-   * \param allow_override Whether do we allow override of existing information.
+   * \param allow_override whether we allow override of existing information.
    */
   TVM_DLL void Update(const Var& var, const ConstIntBound& info, bool allow_override = false);
   /*!
@@ -224,7 +224,7 @@ class ModularSetAnalyzer {
    *
    * \param var The variable of interest.
    * \param info The bound information.
-   * \param allow_override Whether do we allow override of existing information.
+   * \param allow_override whether we allow override of existing information.
    */
   TVM_DLL void Update(const Var& var, const ModularSet& info, bool allow_override = false);
 
@@ -263,11 +263,59 @@ class RewriteSimplifier {
    *
    * \param var The variable of interest.
    * \param new_expr
-   * \param allow_override Whether do we allow override of existing information.
+   * \param allow_override Whether we allow override of existing information.
    */
   TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool allow_override = false);
 
-  std::function<void()> EnterConstraint(const PrimExpr& constraint);
+  /*!
+   * \brief Update the internal state to enter constraint.
+   * \param constraint A constraint expression.
+   *
+   * \return an exit function that must be called to cleanup the constraint can be nullptr.
+   */
+  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint);
+
+  /*! \brief Flags to enable more computationally-intensive simplifications
+   *
+   * These simplifications may be required for specific schedules, but
+   * would impose too high a compile-time cost to enable by default.
+   * They can be enabled on an as-needed basis by calling
+   * `RewriteSimplifier::SetEnabledExtensions` prior to using
+   * `RewriteSimplifier::operator()`.
+   *
+   * Flags are defined as powers of two to allow future expansion.  To
+   * enable multiple extensions, a user should pass a bitwise OR of the
+   * flags for each desired extension.
+   */
+  enum Extension {
+    // No extensions enabled
+    kNone = 0,
+
+    /* When simplifying an inequality, attempt to use scope-based knowns.
+     *
+     * Example:
+     * if_then_else(i<j && j<k, i<k, false) => if_then_else(i<j && j<k, true, false)
+     */
+    kTransitivelyProveInequalities = (1 << 0),
+
+    /* When simplifying a boolean expression, convert to an AND of ORs
+     * (conjunctive normal form).
+     *
+     * Example:
+     *   (a && b) || c => (a || c) && (b || c)
+     */
+    kConvertBooleanToAndOfOrs = (1 << 1),
+  };
+
+  /*! \brief Enable an optional extension or extensions
+   *
+   * \param flags A bitwise OR of all optional extensions that should
+   * be enabled.
+   */
+  TVM_DLL void SetEnabledExtensions(Extension flags);
+
+  /*! \brief Return the currently enabled extensions */
+  TVM_DLL Extension GetEnabledExtensions() const;
 
  private:
   friend class Analyzer;
@@ -297,7 +345,7 @@ class CanonicalSimplifier {
    *
    * \param var The variable of interest.
    * \param new_expr
-   * \param allow_override Whether do we allow override of existing information.
+   * \param allow_override whether we allow override of existing information.
    */
   TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool allow_override = false);
 
@@ -309,6 +357,82 @@ class CanonicalSimplifier {
   class Impl;
   /*! \brief Internal impl */
   Impl* impl_;
+};
+
+/*! \brief Structure for representing result of known
+ *
+ * Values are assigned to allow these flags to be used in bitwise
+ * operations.
+ */
+enum class CompareResult : int {
+  kInconsistent = 0,
+  kEQ = 1,
+  kLT = 2,
+  kLE = 3,
+  kGT = 4,
+  kGE = 5,
+  kNE = 6,
+  kUnknown = 7
+};
+
+inline constexpr CompareResult operator&(CompareResult lhs, CompareResult rhs) {
+  return CompareResult(static_cast<int>(lhs) & static_cast<int>(rhs));
+}
+inline constexpr CompareResult operator|(CompareResult lhs, CompareResult rhs) {
+  return CompareResult(static_cast<int>(lhs) | static_cast<int>(rhs));
+}
+
+/*!
+ * \brief Using previously specified knowns, compare the expressions provided
+ *
+ * Given known expressions [(a OP b), (b OP c), ..., (y OP z)], search
+ * for a known result for `(a OP z)`.
+ */
+class TransitiveComparisonAnalyzer {
+ public:
+  /* \brief Using previously specified knowns, compare the expressions provided
+   *
+   * \param lhs The left-hand side of the comparison
+   *
+   * \param rhs The right-hand side of the comparison
+   *
+   * \return The most specific result that can be proven about the
+   * comparison.  If nothing can be proven, returns kUnknown.
+   */
+  TVM_DLL CompareResult TryCompare(const PrimExpr& lhs, const PrimExpr& rhs);
+
+  /*! \brief Bind a variable as being equal to a known expression
+   *
+   * \param var The variable of interest.
+   * \param expr The bound expression
+   * \param allow_override Whether to allow override of existing information.
+   */
+  TVM_DLL void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
+
+  /*! \brief Bind a variable as being within a specified range
+   *
+   * \param var The variable of interest.
+   * \param range The known range
+   * \param allow_override Whether to allow override of existing information.
+   */
+  TVM_DLL void Bind(const Var& var, const Range& range, bool allow_override = false);
+
+  /*!
+   * \brief Update the internal state to enter constraint.
+   * \param constraint A constraint expression.
+   *
+   * \return an exit function that must be called to cleanup the constraint can be nullptr.
+   */
+  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint);
+
+ private:
+  friend class Analyzer;
+  friend class ConstraintContext;
+  TransitiveComparisonAnalyzer();
+  TVM_DLL ~TransitiveComparisonAnalyzer();
+  class Impl;
+  /*! \brief Internal impl */
+  std::unique_ptr<Impl> impl_;
 };
 
 /*!
@@ -347,7 +471,7 @@ class ConstraintContext {
   /*! \brief The constraint */
   PrimExpr constraint_;
   /*! \brief function to be called in recovery */
-  std::function<void()> exit_;
+  std::vector<std::function<void()>> recovery_functions_;
 };
 
 /*!
@@ -364,6 +488,36 @@ class IntSetAnalyzer {
    * \return the result of the analysis.
    */
   TVM_DLL IntSet operator()(const PrimExpr& expr, const Map<Var, IntSet>& dom_map);
+
+  /*!
+   * \brief Find a symbolic integer set that contains all possible
+   *        values of expr given the domain of each variables, using
+   *        the domain map defined by bound variables.
+   *
+   * \param expr The expression of interest.
+   * \return the result of the analysis.
+   */
+  TVM_DLL IntSet operator()(const PrimExpr& expr);
+
+  /*!
+   * \brief Update binding of var to a new expression.
+   *
+   * \param var The variable of interest.
+   * \param new_interval_set The set of allowed values for this var.
+   * \param allow_override whether we allow override of existing information.
+   */
+  TVM_DLL void Update(const Var& var, const IntSet& new_interval_set, bool allow_override = false);
+
+  /*!
+   * \brief Update binding of var to a new expression.
+   *
+   * \param var The variable of interest.
+   * \param new_range The range of allowed values for this var.
+   * \param allow_override whether we allow override of existing information.
+   */
+  TVM_DLL void Bind(const Var& var, const Range& new_range, bool allow_override = false);
+
+  std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  private:
   friend class Analyzer;
@@ -401,17 +555,21 @@ class TVM_DLL Analyzer {
   CanonicalSimplifier canonical_simplify;
   /*! \brief sub-analyzer: int set */
   IntSetAnalyzer int_set;
+  /*! \brief sub-analyzer transitive comparisons */
+  TransitiveComparisonAnalyzer transitive_comparisons;
   /*! \brief constructor */
   Analyzer();
   /*!
    * \brief Notify all the sub-analyzers that var
    *        is created and binded to expr.
    *
-   *  Each var can only be binded once.
+   *  Each var can only be bound once.
    *
    * \param var The variable.
    * \param expr The expression we bind to.
-   * \param allow_override Whether we allow overriding an existing var's expression.
+   * \param allow_override Whether we allow overriding an existing var's
+   *        expression. This option should not be used if there is any dependency
+   *        between variables.
    */
   void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
   /*!
@@ -422,14 +580,18 @@ class TVM_DLL Analyzer {
    *
    * \param var The variable.
    * \param range The range we bind to.
-   * \param allow_override Whether we allow overriding an existing var's expression.
+   * \param allow_override Whether we allow overriding an existing var's
+   *        expression. This option should not be used if there is any dependency
+   *        between variables.
    */
   void Bind(const Var& var, const Range& range, bool allow_override = false);
   /*!
    * \brief Bind all the vars in the Map
    *
    * \param variables The {variable -> range} map.
-   * \param allow_override Whether we allow overriding an existing var's expression.
+   * \param allow_override Whether we allow overriding an existing var's
+   *        expression. This option should not be used if there is any dependency
+   *        between variables.
    */
   void Bind(const Map<Var, Range>& variables, bool allow_override = false);
   /*!

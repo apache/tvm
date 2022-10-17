@@ -23,6 +23,7 @@ from tvm.driver.build_module import schedule_to_module
 
 from . import passes as ethosu_passes
 from .scheduler import schedule
+from .. import util
 
 
 def lower_ethosu(sch, args, const_dict, name="main"):
@@ -77,6 +78,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
 
         mod = tvm.tir.transform.Simplify()(mod)
         mod = ethosu_passes.RemoveConcatenates()(mod)
+        mod = tvm.tir.transform.InjectRollingBuffer()(mod)
         mod = tvm.tir.transform.StorageFlatten(64)(mod)
         mod = tvm.tir.transform.UnrollLoop()(mod)
         mod = tvm.tir.transform.Simplify()(mod)
@@ -87,9 +89,25 @@ def lower_ethosu(sch, args, const_dict, name="main"):
         mod = ethosu_passes.ReplaceOperators()(mod)
         mod = tvm.tir.transform.RemoveNoOp()(mod)
         mod, const_dict = ethosu_passes.EncodeConstants(const_dict)(mod)
-        mod = tvm.tir.transform.StorageRewrite()(mod)
+        mod = ethosu_passes.HoistAllocates()(mod)
+        mod = tvm.tir.transform.RemoveNoOp()(mod)
+        #  MergeConstant pass currently does not support striped schedules.
+        #  It requires further investigation.
+        if not util.is_striping_enabled():
+            mod, const_dict = ethosu_passes.MergeConstants(const_dict)(mod)
+        mod = ethosu_passes.CopyComputeReordering()(mod)
+
+        # When striping is enabled and if storage_rewrite is not run
+        # the striping results in incorrect code generation. This needs
+        # further investigation. Until such a time that is fixed, disable_storage_rewrite
+        # user directive will be overridden if striping is enabled.
+        disable_storage_rewrite = curr_cfg.get("tir.disable_storage_rewrite", False)
+        if not disable_storage_rewrite or util.is_striping_enabled():
+            mod = tvm.tir.transform.StorageRewrite()(mod)
+
         mod = tvm.tir.transform.RemoveNoOp()(mod)
         mod = ethosu_passes.AnnotateAllocates()(mod)
+        mod, const_dict = ethosu_passes.CreatePrimFuncWithoutConstants(const_dict)(mod)
     return mod, const_dict
 
 
@@ -169,7 +187,42 @@ def extract_constants(func):
     return new_func, const_dict
 
 
-def lower_to_tir(func, cascader=None):
+@util.create_npu_function_pass(opt_level=1)
+class LowerToTIR:
+    """A pass that lowers NPU Relay functions to TIR. This pass wraps
+    the _lower_to_tir pass that operates function->function, while this
+    is IRModule->IRModule.
+
+    Attributes
+    ----------
+    scheduler : callable
+        A function to schedule NPU operations. For example,
+        scheduler.py/copy_constants.
+    """
+
+    def __init__(self, scheduler):
+        self.scheduler = scheduler
+
+    def transform_npu_function(self, _, func: relay.Function) -> relay.Function:
+        """Lower NPU functions to TIR."""
+
+        tir_mod, const_dict = _lower_to_tir(func, self.scheduler)
+
+        for param in const_dict.keys():
+            const_dict[param] = tvm.nd.array(const_dict[param])
+
+        compiler_name = "ethos-u"
+        primfunc = tir_mod["main"]
+        primfunc = primfunc.with_attr("global_symbol", func.attrs["global_symbol"])
+        primfunc = primfunc.with_attr("ethos-u.constants", const_dict)
+        primfunc = primfunc.with_attr("target", tvm.target.Target(compiler_name))
+        return primfunc
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+def _lower_to_tir(func, cascader=None):
     """Lower a Relay function to TIR for the Arm(R) Ethos(TM)-U NPU target.
 
     The Relay function should only contain operations supported

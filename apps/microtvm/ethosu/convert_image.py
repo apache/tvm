@@ -57,7 +57,8 @@ def create_headers(image_name):
     img_data = np.expand_dims(img_data, axis=0)
 
     # Create input header file
-    input_data = img_data.astype(np.int8)
+    input_data = img_data - 128
+    input_data = input_data.astype(np.int8)
     create_header_file("inputs", "ethosu_scratch", "input", input_data, "./include")
     # Create output header file
     output_data = np.zeros([1001], np.int8)

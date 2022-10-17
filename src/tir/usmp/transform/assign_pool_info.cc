@@ -42,25 +42,38 @@ class PoolInfoAssigner : public StmtExprMutator {
  public:
   explicit PoolInfoAssigner(const IRModule& module) {
     PrimFunc main_func =
-        Downcast<PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
+        Downcast<PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_module_main));
     ICHECK(main_func.defined()) << "main function is not in the module";
     Optional<Target> target_host = main_func->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target_host) << "main function does not have a target attr";
-    Array<usmp::PoolInfo> pool_infos =
-        module->GetAttr<Array<usmp::PoolInfo>>(tvm::attr::kPoolInfoIRModuleAttr)
-            .value_or({usmp::PoolInfo("global_workspace",
-                                      {{target_host.value(), usmp::kTargetPoolReadWriteAccess}},
-                                      usmp::kUnrestrictedPoolSizeHint, Bool(true))});
-    for (const usmp::PoolInfo& pool_info : pool_infos) {
-      for (const auto& kv : pool_info->target_access) {
-        Target tgt = kv.first;
-        if (target_pool_infos_.find(tgt) == target_pool_infos_.end()) {
-          target_pool_infos_.Set(tgt, Array<usmp::PoolInfo>());
+    WorkspaceMemoryPools workspace_pools =
+        module->GetAttr<WorkspaceMemoryPools>(tvm::attr::kWorkspaceMemoryPools)
+            .value_or(WorkspaceMemoryPools({CreateDefaultWorkspaceMemoryPool(module)}));
+    // make default ConstantPoolInfo if no constant and no workspace pool infos supplied
+    ConstantMemoryPools constant_pools =
+        module->GetAttr<ConstantMemoryPools>(tvm::attr::kConstantMemoryPools)
+            .value_or(
+                module->GetAttr<WorkspaceMemoryPools>(tvm::attr::kWorkspaceMemoryPools).defined()
+                    ? ConstantMemoryPools()
+                    : ConstantMemoryPools({CreateDefaultConstantMemoryPool(module)}));
+    auto to_map = [](auto pool_infos) {
+      Map<String, Array<PoolInfo>> pool_map;
+      for (const PoolInfo& pool_info : pool_infos) {
+        for (const auto& tgt : pool_info->targets) {
+          if (pool_map.find(tgt->str()) == pool_map.end()) {
+            pool_map.Set(tgt->str(), Array<PoolInfo>());
+          }
+          Array<PoolInfo> pool_info_arr = pool_map[tgt->str()];
+          pool_info_arr.push_back(pool_info);
+          pool_map.Set(tgt->str(), pool_info_arr);
         }
-        Array<usmp::PoolInfo> pool_info_arr = target_pool_infos_[tgt];
-        pool_info_arr.push_back(pool_info);
-        target_pool_infos_.Set(tgt, pool_info_arr);
       }
+      return pool_map;
+    };
+
+    target_pool_infos_ = to_map(workspace_pools->pools);
+    if (constant_pools.defined()) {
+      target_const_pool_infos_ = to_map(constant_pools->pools);
     }
     mod_ = module->ShallowCopy();
   }
@@ -69,23 +82,82 @@ class PoolInfoAssigner : public StmtExprMutator {
 
  private:
   Stmt VisitStmt_(const AllocateNode* op) override;
+  Stmt VisitStmt_(const AllocateConstNode* op) override;
 
   IRModule mod_;
-  Map<Target, Array<PoolInfo>> target_pool_infos_;
+  Map<String, Array<PoolInfo>> target_pool_infos_;
+  Map<String, Array<PoolInfo>> target_const_pool_infos_;
   PrimFunc func_;
+  WorkspacePoolInfo CreateDefaultWorkspaceMemoryPool(const IRModule& module);
+  ConstantPoolInfo CreateDefaultConstantMemoryPool(const IRModule& module) {
+    auto p = CreateDefaultWorkspaceMemoryPool(module);
+    return ConstantPoolInfo(
+        "global_const_workspace", {p->targets}, {},
+        PoolInfoProperties(kUnrestrictedPoolSizeHint, kUnknownClockFrequency, kUnknownReadBandwidth,
+                           kUnknownWriteBandwidth, 0, 0, {p->target_burst_bytes}, Bool(true)));
+  }
 };
+
+WorkspacePoolInfo PoolInfoAssigner::CreateDefaultWorkspaceMemoryPool(const tvm::IRModule& module) {
+  VLOG(1) << "Creating default memory pool for:" << std::endl << PrettyPrint(module);
+  Map<Target, String> target_access;
+  tir::PrimFunc tir_main_func =
+      Downcast<tir::PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_module_main));
+  Target target_host = tir_main_func->GetAttr<Target>(tvm::attr::kTarget).value();
+  for (const auto& kv : module->functions) {
+    BaseFunc func = kv.second;
+    Optional<Target> target = func->GetAttr<Target>(tvm::attr::kTarget);
+    target_access.Set(target.value_or(target_host), kTargetPoolReadWriteAccess);
+  }
+  Array<Target> targets;
+  for (const auto& kv : target_access) {
+    bool exist = false;
+    // Exclude targets with the same string representation
+    for (const auto& t : targets) {
+      if (t->str() == kv.first->str()) {
+        exist = true;
+      }
+    }
+    if (!exist) {
+      targets.push_back(kv.first);
+    }
+  }
+  return WorkspacePoolInfo(
+      "global_workspace", targets,
+      PoolInfoProperties(kUnrestrictedPoolSizeHint, kUnknownClockFrequency, kUnknownReadBandwidth,
+                         kUnknownWriteBandwidth, 0, 0, {{target_host, 1}}, Bool(true)));
+}
 
 Stmt PoolInfoAssigner::VisitStmt_(const AllocateNode* op) {
   Optional<Target> tgt = func_->GetAttr<Target>(tvm::attr::kTarget).value();
   ICHECK(tgt) << "The following PrimFunc does not have a target attr: \n" << func_;
   Map<String, ObjectRef> annotations = Map<String, ObjectRef>(op->annotations);
   if (op->annotations.find(kPoolCandidatesAllocateAttr) == op->annotations.end()) {
-    annotations.Set(kPoolCandidatesAllocateAttr, target_pool_infos_[tgt.value()]);
+    ICHECK(target_pool_infos_.count(tgt.value()->str()) > 0)
+        << "Target " << PrettyPrint(tgt) << " not found among " << PrettyPrint(target_pool_infos_);
+    annotations.Set(kPoolCandidatesAllocateAttr, target_pool_infos_[tgt.value()->str()]);
   }
   Stmt body = VisitStmt(op->body);
   auto allocate =
       Allocate(op->buffer_var, op->dtype, op->extents, op->condition, body, annotations);
-  return allocate;
+  return std::move(allocate);
+}
+
+Stmt PoolInfoAssigner::VisitStmt_(const AllocateConstNode* op) {
+  if (!target_const_pool_infos_.size()) {
+    return StmtExprMutator::VisitStmt_(op);
+  }
+  Optional<Target> tgt = func_->GetAttr<Target>(tvm::attr::kTarget).value();
+  ICHECK(tgt) << "The following PrimFunc does not have a target attr: \n" << func_;
+  Map<String, ObjectRef> annotations = Map<String, ObjectRef>(op->annotations);
+  if (op->annotations.find(kPoolCandidatesAllocateAttr) == op->annotations.end()) {
+    annotations.Set(kPoolCandidatesAllocateAttr, target_const_pool_infos_[tgt.value()->str()]);
+    annotations.Set(kTargetPoolReadOnlyAccess, Integer(1));
+  }
+  Stmt body = VisitStmt(op->body);
+  auto allocate_const =
+      AllocateConst(op->buffer_var, op->dtype, op->extents, op->data, body, annotations);
+  return std::move(allocate_const);
 }
 
 IRModule PoolInfoAssigner::operator()() {
@@ -94,8 +166,8 @@ IRModule PoolInfoAssigner::operator()() {
     if (kv.second->IsInstance<PrimFuncNode>()) {
       func_ = Downcast<PrimFunc>(kv.second);
       Stmt body = this->VisitStmt(func_->body);
-      PrimFunc new_prim_func =
-          PrimFunc(func_->params, body, func_->ret_type, func_->buffer_map, func_->attrs);
+      PrimFunc new_prim_func = PrimFunc(func_->params, body, func_->ret_type, func_->buffer_map,
+                                        func_->preflattened_buffer_map, func_->attrs);
       mod_->Update(gv, new_prim_func);
     }
   }

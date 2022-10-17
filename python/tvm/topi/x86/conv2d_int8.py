@@ -34,7 +34,16 @@ from .utils import target_has_sse42
 
 
 def _get_default_config_int8(
-    cfg, data, kernel, strides, padding, dilation, out_dtype, is_depthwise=False, layout="NCHW"
+    cfg,
+    data,
+    kernel,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    is_depthwise=False,
+    layout="NCHW",
+    int32_lanes=4,
 ):
     """
     Get default schedule config for the workload
@@ -50,11 +59,11 @@ def _get_default_config_int8(
         is_kernel_1x1 = wkl.kernel_h == 1 and wkl.kernel_w == 1
         if is_kernel_1x1:
             conv2d_generic.fallback_schedule_cpu_1x1_int8(
-                cfg, wkl, int32_lanes=16, num_int8_elements=4
+                cfg, wkl, int32_lanes=int32_lanes, num_int8_elements=4
             )
         else:
             conv2d_generic.fallback_schedule_cpu_common_int8(
-                cfg, wkl, int32_lanes=16, num_int8_elements=4
+                cfg, wkl, int32_lanes=int32_lanes, num_int8_elements=4
             )
 
 
@@ -111,7 +120,7 @@ def _pack_data(cfg, data, kernel):
     kernel = te.compute(
         (oc_chunk, ic_chunk, kh, kw, ic_bn // n_elems, oc_bn, n_elems),
         lambda occ, icc, k_h, k_w, icbc, ocb, icbb: kernel[
-            occ * oc_bn + ocb, icc * ic_bn + icbc * ic_bn // n_elems + icbb, k_h, k_w
+            occ * oc_bn + ocb, icc * ic_bn + icbc * n_elems + icbb, k_h, k_w
         ],
         name="kernel_vec",
     )
@@ -163,6 +172,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
             padding,
             dilation,
             out_dtype,
+            int32_lanes=16,
         )
 
     # Pack data if raw 4-D data is provided.

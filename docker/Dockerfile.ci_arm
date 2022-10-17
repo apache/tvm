@@ -20,11 +20,20 @@
 
 FROM ubuntu:18.04
 
+COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
+
 RUN apt-get update --fix-missing
-RUN apt-get install -y ca-certificates gnupg2
+
+RUN apt-install-and-clear -y ca-certificates gnupg2
 
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
+
+COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
+RUN bash /install/ubuntu_install_cmake_source.sh
+
+COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
+RUN bash /install/ubuntu_install_googletest.sh
 
 # Rust env
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
@@ -36,21 +45,40 @@ ENV PATH $PATH:$CARGO_HOME/bin
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh
+ENV PATH /opt/sccache:$PATH
 
 COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
 RUN bash /install/ubuntu_install_llvm.sh
 
-COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
-RUN bash /install/ubuntu1804_install_python.sh
-
-# Globally disable pip cache
-RUN pip config set global.no-cache-dir false
-
-COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
-RUN bash /install/ubuntu_install_cmake_source.sh
+ENV TVM_VENV /venv/apache-tvm-py3.7
+COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
+COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
+RUN bash /install/ubuntu_install_python.sh
+ENV PATH ${TVM_VENV}/bin:$PATH
+ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
+
+# TensorFlow deps
+COPY install/ubuntu_install_tensorflow_aarch64.sh /install/ubuntu_install_tensorflow_aarch64.sh
+RUN bash /install/ubuntu_install_tensorflow_aarch64.sh
+
+# TFLite deps
+COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
+RUN bash /install/ubuntu_install_tflite.sh
+
+# Caffe deps
+COPY install/ubuntu_install_boost.sh /install/ubuntu_install_boost.sh
+RUN bash /install/ubuntu_install_boost.sh
+
+# Caffe
+COPY install/ubuntu_install_caffe.sh /install/ubuntu_install_caffe.sh
+RUN bash /install/ubuntu_install_caffe.sh
+
+# ONNX
+COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
+RUN bash /install/ubuntu_install_onnx.sh
 
 # AutoTVM deps
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh

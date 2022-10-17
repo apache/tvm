@@ -224,7 +224,7 @@ def squeeze(data, axis=None):
     return _make.squeeze(data, axis)
 
 
-def reshape(data, newshape):
+def reshape(data, newshape, allowzero=False):
     """Reshape the input array.
 
     To give user more convenience in without doing manual shape inference,
@@ -237,6 +237,9 @@ def reshape(data, newshape):
 
             data.shape = (2,3,4), newshape = (4,0,2), result.shape = (4,3,2)
             data.shape = (2,3,4), newshape = (2,0,0), result.shape = (2,3,4)
+
+    Note: If the parameter allowzero is manually set to true, it specifies a
+    special case where 0 actually means a true empty tensor.
 
     ``-1`` infers the dimension of the output shape by using the remainder of
     the input dimensions keeping the size of the new array same as that of the input array.
@@ -282,6 +285,9 @@ def reshape(data, newshape):
     newshape : Union[int, Tuple[int], List[int]] or relay.Expr
         The new shape. Should be compatible with the original shape.
 
+    allowzero : Bool, optional
+        If true, then treat zero as true empty tensor rather than a copy instruction.
+
     Returns
     -------
     result : relay.Expr
@@ -290,7 +296,7 @@ def reshape(data, newshape):
     if isinstance(newshape, Constant):
         newshape = list(newshape.data.numpy())
     if isinstance(newshape, Expr):
-        return _dyn_make.reshape(data, newshape)
+        return _dyn_make.reshape(data, newshape, allowzero)
     if isinstance(newshape, int):
         newshape = [newshape]
     if isinstance(newshape, (tuple, list)):
@@ -304,7 +310,7 @@ def reshape(data, newshape):
                 except ValueError as err:
                     raise RuntimeError("Unrecognized shape type: %s" % err)
         newshape = tempshape
-    return _make.reshape(data, list(newshape))
+    return _make.reshape(data, list(newshape), allowzero)
 
 
 def argwhere(condition):
@@ -704,7 +710,6 @@ def tile(data, reps):
 
 def reverse(data, axis):
     """Reverses the order of elements along given axis while preserving array shape.
-    By default, repeat flattens the input array into 1-D and then repeats the elements.
 
     Parameters
     ----------
@@ -1824,3 +1829,106 @@ def invert_permutation(data):
         relay.invert_permutation(data) = [2, 4, 3, 0, 1]
     """
     return _make.invert_permutation(data)
+
+
+def stft(
+    data, n_fft, hop_length=None, win_length=None, window=None, normalized=False, onesided=True
+):
+    """
+    The STFT computes the Fourier transform of short overlapping windows of the input.
+    This gives frequency components of the signal as they change over time.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        Either a 1-D tensor or a 2-D batch tensor.
+
+    n_fft : int
+        The size of Fourier transform
+
+    hop_length : int, optional
+        The distance between neighboring sliding window frames. If is None,
+        it is treated as equal to floor(n_fft / 4).
+
+    win_length : int, optional
+        The size of window frame and STFT filter. If is None, it is treated as equal to n_fft.
+
+    window : relay.Expr, optional
+        A 1-D tensor window frame. If is None (default), it is treated as if
+        having 1 everywhere in the window.
+
+    normalized : bool, optional
+        Whether to return the normalized STFT results. Default value is False.
+
+    onesided : bool, optional
+        Whether to return onesided result or fill with conjugate symmetry. Default value is True.
+
+    Returns
+    -------
+    output : relay.Expr
+        Tensor containing the STFT result with shape [batch, N, T, 2], where N is the
+        number of frequencies where STFT is applied and T is the total number of frames used.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        data = [1, 2, 3, 4, 5, 6]
+        window = [4, 3, 2]
+        [n_fft, hop_length, win_length, normalized, onesided] = [3, 3, 3, False, True]
+        relay.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
+        -> [[[15.0000,  0.0000], [34.0000,  0.0000]], [[ 4.5000,  0.8660], [ 1.0000, -1.7321]]]
+    """
+    if hop_length is None:
+        hop_length = n_fft // 4
+
+    if win_length is None:
+        win_length = n_fft
+
+    if window is None:
+        window = _make.ones([n_fft], "int32")
+
+    return _make.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
+
+
+def trilu(data, k, upper=True):
+    """
+    Given a 2-D matrix or batches of 2-D matrices, returns the
+    upper or lower triangular part of the tensor.
+
+    Parameters
+    ----------
+    data: relay.Expr
+        The tensor that trilu will be applied to. Must be either
+        a 2D matrix or a tensor of batches of 2D matrices.
+
+    k: int
+        The number of diagonals above or below the main diagonal
+        to exclude or include.
+
+    upper: bool, optional
+        If True, only upper triangular values of input are kept,
+        if False, the lower triangular values are kept.
+
+
+    Returns
+    -------
+    ret : relay.Expr
+        The new tensor with appropriate diagonals set to zero.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[0, 1, 2],
+             [3, 4, 5],
+             [6, 7, 8]]
+
+        relay.trilu(x, True, 0) =
+            [[0, 1, 2],
+             [0, 4, 5],
+             [0, 0, 8]]
+    """
+    if not isinstance(k, Expr):
+        k = const(k, dtype="int32")
+    return _make.trilu(data, k, upper)

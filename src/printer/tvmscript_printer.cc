@@ -22,6 +22,7 @@
  * \brief Printer class to print Tensor IR to python syntax script
  */
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/serialization.h>
 #include <tvm/runtime/registry.h>
@@ -66,6 +67,70 @@ enum class ExprPrecedence : int {
   kOr = 6,
   /*! \brief Unknown precedence */
   kUnknown = 7,
+};
+
+/*! \brief Utility used for identifying usage of a buffer_var
+ *
+ * \details Find the Buffer object that corresponds to a variable or
+ *     allocation, based on the BufferLoad/BufferStore instances that
+ *     occur within the allocation's body.
+ */
+class BufferUsageFinder : public StmtExprVisitor {
+ public:
+  static Map<Var, Array<Buffer>> FindUsage(Map<Var, Array<Buffer>> usage, Stmt body) {
+    BufferUsageFinder visitor(std::move(usage));
+    visitor.VisitStmt(body);
+    return std::move(visitor.usage_);
+  }
+
+  void VisitExpr_(const VarNode* op) final {
+    Var var = GetRef<Var>(op);
+    if (!usage_.count(var)) {
+      usage_.Set(var, {});
+    }
+  }
+
+  void VisitExpr_(const BufferLoadNode* op) final {
+    VisitBuffer(op->buffer);
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitStmt_(const BufferStoreNode* op) final {
+    VisitBuffer(op->buffer);
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitStmt_(const DeclBufferNode* op) final {
+    buffers_declared_.insert(op->buffer.get());
+    StmtExprVisitor::VisitStmt_(op);
+    buffers_declared_.erase(op->buffer.get());
+  }
+
+ private:
+  explicit BufferUsageFinder(Map<Var, Array<Buffer>> usage) : usage_(usage) {}
+
+  void VisitBuffer(const Buffer& buffer) {
+    if (buffers_visited_.count(buffer.get())) {
+      return;
+    }
+    if (buffers_declared_.count(buffer.get())) {
+      return;
+    }
+    buffers_visited_.insert(buffer.get());
+
+    Array<Buffer> arr = usage_.Get(buffer->data).value_or({});
+    arr.push_back(buffer);
+    usage_.Set(buffer->data, arr);
+  }
+
+  // The search result.
+  Map<Var, Array<Buffer>> usage_;
+  // The buffers that have been visited so far, to avoid duplicate
+  // entries in the search result.
+  std::unordered_set<const BufferNode*> buffers_visited_;
+  // The buffers declared via `DeclBuffer`. These buffers are excluded from the result because
+  // T.buffer_decl shouldn't be printed for them.
+  std::unordered_set<const BufferNode*> buffers_declared_;
 };
 
 /*!
@@ -138,6 +203,16 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
    * 3. The iter range is equal to loop range
    */
   std::vector<std::pair<IterVar, PrimExpr>> block_var_remaps_;
+  /*!
+   * \brief Map from variables to the buffers they are used in.
+   *
+   * Used for identifying buffers that should be declared after the
+   * LetStmt or Allocate that generates their data pointer, rather
+   * than in the header.
+   */
+  Map<Var, Array<Buffer>> buffer_var_usage_;
+  /*! \brief Analyzer to simplify some expressions. */
+  arith::Analyzer ana_;
 
   Doc VisitExpr_(const CastNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const VarNode* op, ExprPrecedence* out_precedence) override;
@@ -181,6 +256,8 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const BufferStoreNode* op) override;
   Doc VisitStmt_(const BufferRealizeNode* op) override;
   Doc VisitStmt_(const AllocateNode* op) override;
+  Doc VisitStmt_(const AllocateConstNode* op) override;
+  Doc VisitStmt_(const DeclBufferNode* op) override;
   Doc VisitStmt_(const IfThenElseNode* op) override;
   Doc VisitStmt_(const SeqStmtNode* op) override;
   Doc VisitStmt_(const ForNode* op) override;
@@ -201,9 +278,12 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintRange(const RangeNode* op);
   Doc PrintArray(const ArrayNode* op);
   Doc PrintBuffer(const BufferNode* op);
+  Doc PrintBufferIndices(const Array<PrimExpr>& indices);
+  Doc PrintNonHeaderBufferDeclarations(const Array<Buffer>& aliasing_buffers);
   Doc AllocBufferDeclaration(const Buffer& buf);
   Doc PrintBlockVar(const IterVar& iter_var, const PrimExpr& value);
   Doc PrintBlockVarRemaps();
+  Doc PrintBlockPredicate(const BlockRealizeNode* op);
   Doc PrintBlockVars(const BlockRealizeNode* op);
   Doc PrintBlockAttr(const BlockRealizeNode* op);
   Doc PrintExpandedArray(const ArrayNode* op);
@@ -314,18 +394,16 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   }
 
   /*!
-   * \brief special method to print out const scalar
+   * \brief special method to print out const int64_t scalar
    * \param dtype The data type
    * \param data The pointer to hold the data.
    */
-  template <typename T>
-  Doc PrintConstScalar(DataType dtype, const T* data) const {
+  Doc PrintConstScalar(DataType dtype, const int64_t* data) const {
     Doc doc;
     std::ostringstream os;
-    if (dtype.is_float() || dtype.is_float16() || dtype.is_bfloat16()) {
-      os.precision(17);
-    }
+
     os << data[0];
+
     if (dtype == DataType::Int(32)) {
       doc << Doc::Text(os.str());
     } else if (dtype == DataType::Bool()) {
@@ -334,6 +412,29 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
       doc << tir_prefix_ << "." << runtime::DLDataType2String(dtype) << "(" << Doc::Text(os.str())
           << ")";
     }
+    return doc;
+  }
+
+  /*!
+   * \brief special method to print out const double scalar
+   * \param dtype The data type
+   * \param data The pointer to hold the data.
+   * \note this overriden function is created as std::isnan of msvc will complain about int64_t
+   */
+  Doc PrintConstScalar(DataType dtype, const double* data) const {
+    Doc doc;
+    std::ostringstream os;
+
+    os.precision(17);
+    if (std::isinf(data[0]) || std::isnan(data[0])) {
+      os << "\"" << data[0] << "\"";
+    } else {
+      os << data[0];
+    }
+
+    doc << tir_prefix_ << "." << runtime::DLDataType2String(dtype) << "(" << Doc::Text(os.str())
+        << ")";
+
     return doc;
   }
 
@@ -348,6 +449,31 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
     return header;
   }
 };
+
+/*!
+ * \brief special method to print NDArray in TIR
+ * \param arr the NDArray to be printed
+ * \param os the output stream where the NDArray will be printed to
+ */
+template <typename T>
+void NDArrayToTIR(::tvm::runtime::NDArray arr, std::ostream& os) {
+  int ndim = arr->ndim;
+  int tot_dim = 1;
+  for (int i = 0; i < ndim; i++) {
+    tot_dim *= arr->shape[i];
+  }
+  T* data_ptr = reinterpret_cast<T*>(arr->data);
+  constexpr int NUM_PRINT = 20;
+  os << "[";
+  for (int i = 0; i < tot_dim; i++) {
+    os << (i != 0 ? ", " : "") << data_ptr[i];
+    if (i == NUM_PRINT) {
+      os << "...";
+      break;
+    }
+  }
+  os << "]";
+}
 
 Doc TVMScriptPrinter::GetUniqueName(std::string prefix) {
   std::replace(prefix.begin(), prefix.end(), '.', '_');
@@ -416,6 +542,9 @@ Doc TVMScriptPrinter::AllocBufferDeclaration(const Buffer& buf) {
   }
   if (buf->buffer_type != BufferType::kDefault) {
     doc << ", type=" << Doc::StrLiteral("auto");
+  }
+  if (buf->axis_separators.size()) {
+    doc << ", axis_separators=" << Print(buf->axis_separators);
   }
   return doc;
 }
@@ -521,12 +650,20 @@ bool TVMScriptPrinter::IsSimpleBuffer(const Buffer& buf) {
   if (buf->buffer_type != BufferType::kDefault) {
     return false;
   }
+  if (buf->axis_separators.size()) {
+    return false;
+  }
   return true;
 }
 
 Doc TVMScriptPrinter::PrintInlineBufferBind(const Buffer& buffer) {
   Doc doc;
-  doc << tir_prefix_ << ".Buffer[" << PrintTuple(buffer->shape.as<ArrayNode>());
+  doc << tir_prefix_ << ".Buffer[";
+  if (buffer->shape.size() == 1) {
+    doc << Print(buffer->shape[0]);
+  } else {
+    doc << PrintTuple(buffer->shape.as<ArrayNode>());
+  }
   doc << ", " << PrintDType(buffer->dtype) << "]";
   return doc;
 }
@@ -628,12 +765,12 @@ Doc TVMScriptPrinter::VisitStmtDefault_(const Object* op) {
 
 Doc TVMScriptPrinter::VisitExpr_(const IntImmNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
-  return PrintConstScalar<int64_t>(op->dtype, &(op->value));
+  return PrintConstScalar(op->dtype, &(op->value));
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const FloatImmNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
-  return PrintConstScalar<double>(op->dtype, &(op->value));
+  return PrintConstScalar(op->dtype, &(op->value));
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const StringImmNode* op, ExprPrecedence* out_precedence) {
@@ -743,7 +880,7 @@ Doc TVMScriptPrinter::VisitExpr_(const BufferLoadNode* op, ExprPrecedence* out_p
   if (op->indices.size() == 0) {
     doc << Print(op->buffer) << "[()]";
   } else {
-    doc << Print(op->buffer) << Print(op->indices);
+    doc << Print(op->buffer) << PrintBufferIndices(op->indices);
   }
   return doc;
 }
@@ -827,60 +964,69 @@ Doc TVMScriptPrinter::VisitExpr_(const ReduceNode* op, ExprPrecedence* out_prece
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const LetStmtNode* op) {
+  if (!buffer_var_usage_.count(op->var)) {
+    buffer_var_usage_ = BufferUsageFinder::FindUsage(std::move(buffer_var_usage_), op->body);
+  }
+  Array<Buffer> buffer_usage = buffer_var_usage_.Get(op->var).value_or({});
+
   Doc doc;
   if (current_num_ != num_child_ - 1) {
     doc << "with " << tir_prefix_ << ".let(" << Print(op->var) << ", " << Print(op->value) << "):";
-    doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
+    doc << Doc::Indent(
+        4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(buffer_usage) << PrintBody(op->body));
   } else {
     if (memo_var_.find(op->var) == memo_var_.end()) var_not_in_headers_.insert(op->var.get());
     doc << Print(op->var) << ": " << Print(GetType(op->var)) << " = " << Print(op->value)
-        << Doc::NewLine() << PrintBody(op->body);
+        << Doc::NewLine();
+    doc << PrintNonHeaderBufferDeclarations(buffer_usage) << PrintBody(op->body);
   }
   return doc;
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const AttrStmtNode* op) {
   Doc doc;
-  // merge attr with realize when possible
-  if (op->node->IsInstance<BufferNode>() && op->attr_key == "realize_scope" &&
-      op->body->IsInstance<BufferRealizeNode>()) {
-    const auto* realize = Downcast<BufferRealize>(op->body).get();
-    if (realize->buffer.same_as(op->node)) {
-      if (current_num_ != num_child_ - 1) {
-        doc << "with " << tir_prefix_ << ".realize(" << Print(realize->buffer)
-            << Print(realize->bounds) << ", " << Print(op->value);
-        if (!is_one(realize->condition)) {
-          doc << ", " << Print(realize->condition);
+  if (op->node.defined()) {
+    // merge attr with realize when possible
+    if (op->node->IsInstance<BufferNode>() && op->attr_key == "realize_scope" &&
+        op->body->IsInstance<BufferRealizeNode>()) {
+      const auto* realize = Downcast<BufferRealize>(op->body).get();
+      if (realize->buffer.same_as(op->node)) {
+        if (current_num_ != num_child_ - 1) {
+          doc << "with " << tir_prefix_ << ".realize(" << Print(realize->buffer)
+              << Print(realize->bounds) << ", " << Print(op->value);
+          if (!is_one(realize->condition)) {
+            doc << ", " << Print(realize->condition);
+          }
+          doc << "):" << Doc::Indent(4, Doc::NewLine() << PrintBody(realize->body));
+        } else {
+          doc << tir_prefix_ << ".realize(" << Print(realize->buffer) << Print(realize->bounds)
+              << ", " << Print(op->value);
+          if (!is_one(realize->condition)) {
+            doc << ", " << Print(realize->condition);
+          }
+          doc << ")" << Doc::NewLine() << PrintBody(realize->body);
         }
-        doc << "):" << Doc::Indent(4, Doc::NewLine() << PrintBody(realize->body));
-      } else {
-        doc << tir_prefix_ << ".realize(" << Print(realize->buffer) << Print(realize->bounds)
-            << ", " << Print(op->value);
-        if (!is_one(realize->condition)) {
-          doc << ", " << Print(realize->condition);
-        }
-        doc << ")" << Doc::NewLine() << PrintBody(realize->body);
+        return doc;
       }
+    }
+    // concise thread env
+    if (op->node->IsInstance<IterVarNode>() &&
+        (op->attr_key == "thread_extent" || op->attr_key == "virtual_thread")) {
+      const auto* iter_var = Downcast<IterVar>(op->node).get();
+      var_not_in_headers_.insert(iter_var->var.get());
+      var_env_map_[iter_var->var] = iter_var->thread_tag;
+      if (current_num_ != num_child_ - 1) {
+        doc << "with " << tir_prefix_ << ".launch_thread(" << Print(iter_var->var) << ", "
+            << Print(op->value) << "):";
+        doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
+      } else {
+        doc << tir_prefix_ << ".launch_thread(" << Print(iter_var->var) << ", " << Print(op->value)
+            << ")";
+        doc << Doc::NewLine() << PrintBody(op->body);
+      }
+      TryDeallocVar(iter_var->var);
       return doc;
     }
-  }
-  // concise thread env
-  if (op->node->IsInstance<IterVarNode>() &&
-      (op->attr_key == "thread_extent" || op->attr_key == "virtual_thread")) {
-    const auto* iter_var = Downcast<IterVar>(op->node).get();
-    var_not_in_headers_.insert(iter_var->var.get());
-    var_env_map_[iter_var->var] = iter_var->thread_tag;
-    if (current_num_ != num_child_ - 1) {
-      doc << "with " << tir_prefix_ << ".launch_thread(" << Print(iter_var->var) << ", "
-          << Print(op->value) << "):";
-      doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
-    } else {
-      doc << tir_prefix_ << ".launch_thread(" << Print(iter_var->var) << ", " << Print(op->value)
-          << ")";
-      doc << Doc::NewLine() << PrintBody(op->body);
-    }
-    TryDeallocVar(iter_var->var);
-    return doc;
   }
   // default
   if (current_num_ != num_child_ - 1) {
@@ -921,37 +1067,169 @@ Doc TVMScriptPrinter::VisitStmt_(const BufferRealizeNode* op) {
   return Doc();
 }
 
+namespace {
+
+bool IsAllocateDeclBufferPattern(const AllocateNode* allocate) {
+  const Var& buffer_var = allocate->buffer_var;
+  const DeclBufferNode* decl_buffer = allocate->body.as<DeclBufferNode>();
+  if (!decl_buffer) {
+    return false;
+  }
+  const Buffer& buffer = decl_buffer->buffer;
+  if (!buffer_var.same_as(buffer->data)) {
+    return false;
+  }
+  if (allocate->dtype != buffer->dtype) {
+    return false;
+  }
+  if (!is_one(allocate->condition)) {
+    return false;
+  }
+  if (allocate->annotations.size()) {
+    return false;
+  }
+  if (allocate->extents.size() != buffer->shape.size()) {
+    return false;
+  }
+  tir::ExprDeepEqual expr_equal;
+  for (size_t i = 0, n = allocate->extents.size(); i < n; ++i) {
+    if (!expr_equal(allocate->extents[i], buffer->shape[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+}  // namespace
+
 Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
   var_not_in_headers_.insert(op->buffer_var.get());
-  Doc doc;
+
+  if (!buffer_var_usage_.count(op->buffer_var)) {
+    buffer_var_usage_ = BufferUsageFinder::FindUsage(std::move(buffer_var_usage_), op->body);
+  }
+  Array<Buffer> buffer_usage = buffer_var_usage_.Get(op->buffer_var).value_or({});
+
+  if (buffer_usage.empty()) {
+    if (IsAllocateDeclBufferPattern(op)) {
+      // As a syntax sugar, we identify the pattern of Allocate and DeclBuffer and print a single
+      // DeclBuffer statement. It is intentionally to call `Print` instead of `PrintBody` here to
+      // delegate the printing of the current node to `DeclBufferNode` while maintaining the
+      // same value of `current_num_` and `num_child_`.
+      return Print(op->body);
+    }
+  }
+
   auto storage_scope = GetPtrStorageScope(op->buffer_var);
+  Doc func_call;
+  func_call << tir_prefix_ << ".allocate(" << Print(op->extents) << ", " << PrintDType(op->dtype)
+            << ", " << Print(storage_scope);
+  if (!is_one(op->condition)) {
+    func_call << ", " << Print(op->condition);
+  }
+  if (!op->annotations.empty()) {
+    func_call << ", annotations={";
+    func_call << PrintAnnotations(op->annotations);
+    func_call << "}";
+  }
+  func_call << ")";
+
+  Doc doc;
   if (current_num_ != num_child_ - 1) {
-    doc << "with " << tir_prefix_ << ".allocate(" << Print(op->extents) << ", "
-        << PrintDType(op->dtype) << ", " << Print(storage_scope);
-    if (!is_one(op->condition)) {
-      doc << ", " << Print(op->condition);
-    }
-    if (!op->annotations.empty()) {
-      doc << ", annotations={";
-      doc << PrintAnnotations(op->annotations);
-      doc << "}";
-    }
-    doc << ") as " << Print(op->buffer_var) << ":";
-    doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
+    doc << "with " << func_call << " as " << Print(op->buffer_var) << ":";
+    doc << Doc::Indent(
+        4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(buffer_usage) << PrintBody(op->body));
   } else {
-    doc << Print(op->buffer_var) << " = " << tir_prefix_ << ".allocate(" << Print(op->extents)
-        << ", " << PrintDType(op->dtype) << ", " << Print(storage_scope);
-    if (!is_one(op->condition)) {
-      doc << ", " << Print(op->condition);
-    }
-    if (!op->annotations.empty()) {
-      doc << ", annotations={";
-      doc << PrintAnnotations(op->annotations);
-      doc << "}";
-    }
-    doc << ")" << Doc::NewLine() << PrintBody(op->body);
+    doc << Print(op->buffer_var) << " = " << func_call << Doc::NewLine();
+    doc << PrintNonHeaderBufferDeclarations(buffer_usage) << PrintBody(op->body);
   }
   TryDeallocVar(op->buffer_var);
+  return doc;
+}
+
+Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
+  std::stringstream ss;
+  ICHECK(alloc->data) << "Should be presented";
+  const auto& data = alloc->data.value();
+
+  if (alloc->dtype.is_int()) {
+    if (alloc->dtype.bits() == 8) {
+      NDArrayToTIR<int8_t>(data, ss);
+    } else if (alloc->dtype.bits() == 16) {
+      NDArrayToTIR<int16_t>(data, ss);
+    } else if (alloc->dtype.bits() == 32) {
+      NDArrayToTIR<int32_t>(data, ss);
+    } else if (alloc->dtype.bits() == 64) {
+      NDArrayToTIR<int64_t>(data, ss);
+    } else {
+      LOG(FATAL) << "DataType not supported";
+    }
+  } else if (alloc->dtype.is_uint()) {
+    if (alloc->dtype.bits() == 8) {
+      // NDArrayToTIR<uint8_t>(data, ss);
+    } else if (alloc->dtype.bits() == 16) {
+      NDArrayToTIR<uint16_t>(data, ss);
+    } else if (alloc->dtype.bits() == 32) {
+      NDArrayToTIR<uint32_t>(data, ss);
+    } else if (alloc->dtype.bits() == 64) {
+      NDArrayToTIR<int64_t>(data, ss);
+    } else {
+      LOG(FATAL) << "DataType not supported";
+    }
+  } else if (alloc->dtype.is_float()) {
+    if (alloc->dtype.bits() == 16) {
+      NDArrayToTIR<int16_t>(data, ss);
+    } else if (alloc->dtype.bits() == 32) {
+      NDArrayToTIR<float>(data, ss);
+    } else if (alloc->dtype.bits() == 64) {
+      NDArrayToTIR<double>(data, ss);
+    } else {
+      LOG(FATAL) << "DataType not supported";
+    }
+  } else {
+    LOG(FATAL) << "DataType not supported";
+  }
+  auto ndarray_str = ss.str();
+
+  var_not_in_headers_.insert(alloc->buffer_var.get());
+
+  if (!buffer_var_usage_.count(alloc->buffer_var)) {
+    buffer_var_usage_ = BufferUsageFinder::FindUsage(std::move(buffer_var_usage_), alloc->body);
+  }
+  Array<Buffer> buffer_usage = buffer_var_usage_.Get(alloc->buffer_var).value_or({});
+
+  Doc func_call;
+  func_call << tir_prefix_ << ".allocate_const(" << ndarray_str << ", " << PrintDType(alloc->dtype)
+            << ", " << Print(alloc->extents) << ")";
+
+  Doc doc;
+  var_not_in_headers_.insert(alloc->buffer_var.get());
+  if (current_num_ != num_child_ - 1) {
+    doc << "with " << func_call << " as " << Print(alloc->buffer_var) << ":";
+    doc << Doc::Indent(4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(buffer_usage)
+                                         << PrintBody(alloc->body));
+  } else {
+    doc << Print(alloc->buffer_var) << " = " << func_call << Doc::NewLine();
+    doc << PrintNonHeaderBufferDeclarations(buffer_usage) << PrintBody(alloc->body);
+  }
+  return doc;
+}
+
+Doc TVMScriptPrinter::VisitStmt_(const DeclBufferNode* op) {
+  const Buffer& buffer = op->buffer;
+  buf_not_in_headers_.insert(buffer.get());
+  Doc buffer_name = Print(op->buffer);
+  Doc func_call;
+  func_call << tir_prefix_ << ".decl_buffer(" << memo_buf_decl_.at(buffer) << ")";
+
+  Doc doc;
+  if (current_num_ != num_child_ - 1) {
+    doc << "with " << func_call << " as " << buffer_name << ":";
+    doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
+  } else {
+    doc << buffer_name << " = " << func_call << Doc::NewLine();
+    doc << PrintBody(op->body);
+  }
   return doc;
 }
 
@@ -975,6 +1253,14 @@ Doc TVMScriptPrinter::VisitStmt_(const SeqStmtNode* op) {
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const EvaluateNode* op) {
+  if (auto* call = op->value.as<CallNode>()) {
+    if (call->op.same_as(builtin::assume())) {
+      Doc doc;
+      doc << tir_prefix_ << ".assume(" << Print(call->args[0]) << ")";
+      return doc;
+    }
+  }
+
   Doc doc;
   doc << tir_prefix_ << ".evaluate(" << Print(op->value) << ")";
   return doc;
@@ -1030,17 +1316,23 @@ Doc TVMScriptPrinter::VisitStmt_(const WhileNode* op) {
 
 Doc TVMScriptPrinter::VisitType_(const PrimTypeNode* node) {
   Doc doc;
-  doc << tir_prefix_ << "." << runtime::DLDataType2String(node->dtype);
+  doc << tir_prefix_ << ".";
+  if (node->dtype.is_void()) {
+    doc << "void";
+  } else {
+    doc << runtime::DLDataType2String(node->dtype);
+  }
   return doc;
 }
 
 Doc TVMScriptPrinter::VisitType_(const PointerTypeNode* node) {
   Doc doc;
   doc << tir_prefix_ << ".Ptr[";
+  doc << Print(node->element_type);
   if (!node->storage_scope.empty()) {
-    doc << node->storage_scope << " ";
+    doc << ", " << Doc::StrLiteral(node->storage_scope);
   }
-  doc << Print(node->element_type) << "]";
+  doc << "]";
   return doc;
 }
 
@@ -1061,7 +1353,7 @@ Doc TVMScriptPrinter::VisitStmt_(const BufferStoreNode* op) {
   if (op->indices.size() == 0) {
     doc << Print(op->buffer) << "[()] = " << Print(op->value);
   } else {
-    doc << Print(op->buffer) << Print(op->indices) << " = " << Print(op->value);
+    doc << Print(op->buffer) << PrintBufferIndices(op->indices) << " = " << Print(op->value);
   }
   return doc;
 }
@@ -1126,6 +1418,14 @@ Doc TVMScriptPrinter::PrintBlockVarRemaps() {
   return doc;
 }
 
+Doc TVMScriptPrinter::PrintBlockPredicate(const BlockRealizeNode* op) {
+  Doc doc;
+  if (!is_one(op->predicate)) {
+    doc << Doc::NewLine() << tir_prefix_ << ".where(" << Print(op->predicate) << ")";
+  }
+  return doc;
+}
+
 Doc TVMScriptPrinter::PrintBlockVars(const BlockRealizeNode* op) {
   Doc doc;
   const auto* block_op = op->block.as<BlockNode>();
@@ -1166,10 +1466,7 @@ Doc TVMScriptPrinter::PrintBlockVars(const BlockRealizeNode* op) {
 Doc TVMScriptPrinter::PrintBlockAttr(const BlockRealizeNode* op) {
   const auto* block_op = op->block.as<BlockNode>();
   Doc block_attr_doc;
-  // print predicate, binding, read/write tensor region, annotations
-  if (!is_one(op->predicate)) {
-    block_attr_doc << Doc::NewLine() << tir_prefix_ << ".where(" << Print(op->predicate) << ")";
-  }
+  // print binding, read/write tensor region, annotations
   block_attr_doc << Doc::NewLine() << tir_prefix_ << ".reads("
                  << PrintExpandedArray(block_op->reads.as<ArrayNode>()) << ")";
   block_attr_doc << Doc::NewLine() << tir_prefix_ << ".writes("
@@ -1232,14 +1529,18 @@ Doc TVMScriptPrinter::PrintBlockName(const BlockNode* block_op) {
 Doc TVMScriptPrinter::VisitStmt_(const BlockRealizeNode* op) {
   const auto* block_op = op->block.as<BlockNode>();
   Doc doc = PrintOptionalInfo(GetRef<Stmt>(block_op));
-  // print block name and block vars
+  // print block name
   doc << PrintBlockName(block_op);
+  // Print block predicate.
+  Doc block_predicate = PrintBlockPredicate(op);
+  // Print the variable bindings, valid to use in block attributes and
+  // body
   Doc block_var = PrintBlockVars(op);
-  // print predicate, binding, read/write tensor region, annotations
+  // print read/write tensor region, annotations
   Doc block_attr_doc = PrintBlockAttr(op);
   // print body
   Doc body = PrintBlockBody(block_op);
-  doc << Doc::Indent(4, block_var << block_attr_doc << Doc::NewLine() << body);
+  doc << Doc::Indent(4, block_predicate << block_var << block_attr_doc << Doc::NewLine() << body);
   for (const auto& iter_var : block_op->iter_vars) {
     TryDeallocVar(iter_var->var);
   }
@@ -1337,24 +1638,79 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     if (simple_buf.count(buf)) continue;
     buf_not_in_headers_.insert(buf.get());
     body << Print(buf) << " = " << tir_prefix_ << ".match_buffer(";
+    ICHECK(memo_buf_decl_.count(buf));
     body << Print((*it).first) << ", " << memo_buf_decl_[buf];
     body << ")" << Doc::NewLine();
   }
+  // print preflattened buffer map
+  for (const auto& param : op->params) {
+    auto pf_buf_it = op->preflattened_buffer_map.find(param);
+    if (pf_buf_it != op->preflattened_buffer_map.end()) {
+      const Buffer& preflattened = (*pf_buf_it).second;
+
+      auto buf_it = op->buffer_map.find(param);
+      ICHECK(buf_it != op->buffer_map.end()) << "Found pre-flattened buffer " << preflattened->name
+                                             << " with no corresponding post-flatten buffer.";
+      const Buffer& postflattened = (*buf_it).second;
+
+      // Call Print() without assigning in order to fill memo_buf_decl_.
+      Print(preflattened);
+      buf_not_in_headers_.insert(preflattened.get());
+      ICHECK(memo_buf_decl_.count(preflattened));
+
+      body << tir_prefix_ << ".preflattened_buffer(" << Print(postflattened) << ", "
+           << memo_buf_decl_.at(preflattened) << ")" << Doc::NewLine();
+    }
+  }
   // print body
   body << "# body" << Doc::NewLine();
-  if (op->body->IsInstance<BlockRealizeNode>() &&
-      op->body.as<BlockRealizeNode>()->iter_values.empty()) {
-    const BlockNode* block = op->body.as<BlockRealizeNode>()->block.get();
-    if (block->annotations.empty()) {
-      // Skip print root block
-      body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
-      body << PrintBlockBody(block);
-    } else {
-      body << PrintBody(op->body);
+
+  Optional<Block> elided_root_block_body = [&]() -> Optional<Block> {
+    auto block_realize = op->body.as<BlockRealizeNode>();
+    if (!block_realize || block_realize->iter_values.size()) {
+      return NullOpt;
     }
+
+    const auto& block = block_realize->block;
+    if (block->annotations.size() || ContainsOptionalInfo(block)) {
+      return NullOpt;
+    }
+
+    // The autocomplete might recognize the body itself as being a
+    // root block, and fail to insert it.
+    bool autocomplete_would_insert_root_block = [&]() -> bool {
+      if (block->alloc_buffers.size()) {
+        return true;
+      }
+
+      auto* block_realize = block->body.as<BlockRealizeNode>();
+      if (block_realize && block_realize->block->iter_vars.size()) {
+        return true;
+      }
+      if (!block_realize && ContainsNode<BlockRealizeNode>(block->body)) {
+        return true;
+      }
+      return false;
+    }();
+
+    if (autocomplete_would_insert_root_block) {
+      return block;
+    } else {
+      return NullOpt;
+    }
+  }();
+
+  if (elided_root_block_body) {
+    // Skip printing of root block in cases where tvm::tir::ScriptComplete
+    // would re-insert it.
+    body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
+    body << PrintBlockBody(elided_root_block_body.value().get());
   } else {
+    // If this is a non-root block, or is an unskippable root block,
+    // just print it without skipping.
     body << PrintBody(op->body);
   }
+
   // print func attrs
   Doc header_attr;
   if (primFunc->attrs.defined()) {
@@ -1458,6 +1814,40 @@ Doc TVMScriptPrinter::PrintBuffer(const BufferNode* op) {
   return meta_.InMeta(buffer) ? meta_.GetMetaNode(buffer) : AllocBuf(buffer);
 }
 
+Doc TVMScriptPrinter::PrintBufferIndices(const Array<PrimExpr>& indices) {
+  Doc doc;
+  doc << '[';
+  for (size_t i = 0; i < indices.size(); ++i) {
+    if (i != 0) {
+      doc << ", ";
+    }
+    PrimExpr index = indices[i];
+    if (const RampNode* ramp = index.as<RampNode>()) {
+      // specify ramp printing as python index slice
+      if (auto* stride_imm = ramp->stride.as<IntImmNode>()) {
+        doc << Print(ramp->base) << ":" << Print(ramp->base + ramp->lanes * ramp->stride);
+        if (stride_imm->value != 1) {
+          doc << ":" << Print(ramp->stride);
+        }
+        continue;
+      }
+    }
+    doc << Print(index);
+  }
+  doc << ']';
+  return doc;
+}
+
+Doc TVMScriptPrinter::PrintNonHeaderBufferDeclarations(const Array<Buffer>& aliasing_buffers) {
+  Doc decls;
+  for (const auto& buf_usage : aliasing_buffers) {
+    decls << Print(buf_usage) << " = " << tir_prefix_ << ".buffer_decl("
+          << memo_buf_decl_[buf_usage] << ")" << Doc::NewLine();
+    buf_not_in_headers_.insert(buf_usage.get());
+  }
+  return decls;
+}
+
 Doc TVMScriptPrinter::PrintBufferRegion(const BufferRegionNode* op) {
   Doc doc;
   if (op->region.size() == 0) {
@@ -1468,7 +1858,7 @@ Doc TVMScriptPrinter::PrintBufferRegion(const BufferRegionNode* op) {
       if (i != 0) doc << ", ";
       const auto& range = op->region[i];
       if (!is_one(range->extent)) {
-        doc << Print(range->min) << " : " << Print(range->min + range->extent);
+        doc << Print(range->min) << " : " << Print(ana_.Simplify(range->min + range->extent));
       } else {
         doc << Print(range->min);
       }
@@ -1502,7 +1892,7 @@ Doc TVMScriptPrinter::PrintLoop(const For& loop) {
   if (is_zero(loop->min)) {
     res << Print(loop->extent);
   } else {
-    res << Print(loop->min) << ", " << Print(loop->min + loop->extent);
+    res << Print(loop->min) << ", " << Print(ana_.Simplify(loop->min + loop->extent));
   }
   if (loop->thread_binding.defined()) {
     res << ", thread=";
@@ -1541,7 +1931,13 @@ Doc TVMScriptPrinter::PrintTarget(const TargetNode* target) {
     if (it != config.begin()) {
       res << ", ";
     }
-    res << "\"" << (*it).first << "\":" << Print((*it).second);
+    res << "\"" << (*it).first << "\":";
+    if ((*it).first == "host") {
+      ICHECK(target->host.defined());
+      res << PrintTarget(target->GetHost().value().get());
+    } else {
+      res << Print((*it).second);
+    }
   }
   res << "})";
   return res;

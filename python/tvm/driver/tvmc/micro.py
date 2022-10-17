@@ -45,7 +45,7 @@ except (ImportError, NameError):
 
 
 @register_parser
-def add_micro_parser(subparsers, main_parser):
+def add_micro_parser(subparsers, main_parser, json_params):
     """Includes parser for 'micro' context and associated subcommands:
     create-project (create), build, and flash.
     """
@@ -231,6 +231,9 @@ def add_micro_parser(subparsers, main_parser):
         help="show this help message which includes platform-specific options and exit.",
     )
 
+    for one_entry in json_params:
+        micro.set_defaults(**one_entry)
+
 
 def drive_micro(args):
     # Call proper handler based on subcommand parsed.
@@ -263,7 +266,7 @@ def create_project_handler(args):
     try:
         project.generate_project_from_mlf(template_dir, project_dir, mlf_path, options)
     except ServerError as error:
-        print("The following error occured on the Project API server side: \n", error)
+        print("The following error occurred on the Project API server side: \n", error)
         sys.exit(1)
 
 
@@ -289,7 +292,7 @@ def build_handler(args):
         prj = project.GeneratedProject.from_directory(project_dir, options=options)
         prj.build()
     except ServerError as error:
-        print("The following error occured on the Project API server side: ", error)
+        print("The following error occurred on the Project API server side: ", error)
         sys.exit(1)
 
 
@@ -307,5 +310,5 @@ def flash_handler(args):
         prj = project.GeneratedProject.from_directory(project_dir, options=options)
         prj.flash()
     except ServerError as error:
-        print("The following error occured on the Project API server side: ", error)
+        print("The following error occurred on the Project API server side: ", error)
         sys.exit(1)

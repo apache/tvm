@@ -14,17 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import sys
+"""Test arm mprofile dsp."""
 import numpy as np
 import pytest
 import tvm
+import tvm.testing
 from tvm import relay
-from tests.python.relay.aot.aot_test_utils import (
-    AOTTestModel,
-    AOT_CORSTONE300_RUNNER,
-    generate_ref_data,
-    compile_and_run,
-)
+from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
+from tvm.micro.testing.aot_test_utils import AOT_CORSTONE300_RUNNER
 
 
 @tvm.testing.requires_corstone300
@@ -176,16 +173,16 @@ def test_conv1d(data_shape_nwc, kernel_size, num_filter, strides, padding, dtype
 
 @tvm.testing.requires_corstone300
 @pytest.mark.parametrize(
-    "M, K, N",
+    "dim_m, dim_k, dim_n",
     [
         (1, 32, 64),
         (3, 12, 10),
     ],
 )
-def test_dense(M, K, N):
+def test_dense(dim_m, dim_k, dim_n):
     """Test a subgraph with a single dense operator."""
-    ishape = (M, K)
-    wshape = (N, K)
+    ishape = (dim_m, dim_k)
+    wshape = (dim_n, dim_k)
 
     input0 = relay.var("input", relay.TensorType(ishape, "int8"))
     dense_f = relay.op.nn.batch_flatten(input0)
@@ -352,4 +349,4 @@ def test_avgpool_1d(data_shape_ncw, pool_size, strides, padding):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

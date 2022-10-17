@@ -21,6 +21,8 @@ import shutil
 import sys
 import pytest
 
+import tvm.testing
+
 import test_utils
 
 """
@@ -34,23 +36,29 @@ This unit test simulates a simple user workflow, where we:
 6. Use serial connection to ensure model behaves correctly
 """
 
-
 # Since these tests are sequential, we'll use the same project/workspace
-# directory for all tests in this file
+# directory for all tests in this file. Note that --board can't be loaded
+# from the fixture, since the fixture is function scoped (it has to be
+# for the tests to be named correctly via parameterization).
 @pytest.fixture(scope="module")
-def workspace_dir(request, board):
+def workflow_workspace_dir(request):
+    board = request.config.getoption("--board")
     return test_utils.make_workspace_dir("arduino_workflow", board)
 
 
 @pytest.fixture(scope="module")
-def project_dir(workspace_dir):
-    return workspace_dir / "project"
+def project_dir(workflow_workspace_dir):
+    return workflow_workspace_dir / "project"
 
 
-# We MUST pass workspace_dir, not project_dir, or the workspace will be dereferenced too soon
+# We MUST pass workspace_dir, not project_dir, or the workspace will be dereferenced
+# too soon. We can't use the board fixture either for the reason mentioned above.
 @pytest.fixture(scope="module")
-def project(board, arduino_cli_cmd, tvm_debug, workspace_dir):
-    return test_utils.make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir)
+def project(request, arduino_cli_cmd, microtvm_debug, workflow_workspace_dir):
+    board = request.config.getoption("--board")
+    return test_utils.make_kws_project(
+        board, arduino_cli_cmd, microtvm_debug, workflow_workspace_dir
+    )
 
 
 def _get_directory_elements(directory):
@@ -71,7 +79,7 @@ def test_project_folder_structure(project_dir, project):
 def test_project_model_integrity(project_dir, project):
     model_dir = project_dir / "src" / "model"
     assert _get_directory_elements(model_dir) == set(
-        ["default_lib0.c", "default_lib1.c", "model.tar"]
+        ["default_lib0.c", "default_lib1.c", "default_lib2.c", "model.tar"]
     )
 
 
@@ -161,7 +169,7 @@ SERIAL_OUTPUT_HEADERS = "category,runtime,yes,no,silence,unknown"
 def serial_output(uploaded_project):
     transport = uploaded_project.transport()
     transport.open()
-    out = transport.read(2048, -1)
+    out = transport.read(2048, 60)
     out_str = out.decode("utf-8")
     out_lines = out_str.split("\r\n")
 
@@ -218,4 +226,4 @@ def test_project_inference_runtime(serial_output):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

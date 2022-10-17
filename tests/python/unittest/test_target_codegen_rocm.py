@@ -105,7 +105,7 @@ def test_rocm_copy():
         dtype = np.random.choice(["float32", "float16", "int8", "int32"])
         logN = np.random.randint(1, 15)
         peturb = np.random.uniform(low=0.5, high=1.5)
-        check_rocm(dtype, int(peturb * (2 ** logN)))
+        check_rocm(dtype, int(peturb * (2**logN)))
 
 
 @tvm.testing.requires_rocm

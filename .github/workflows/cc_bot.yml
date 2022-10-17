@@ -32,6 +32,7 @@ concurrency:
 
 jobs:
   cc-reviewers:
+    if: github.repository == 'apache/tvm'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -43,4 +44,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eux
-          python tests/scripts/github_cc_reviewers.py || echo step failed
+          python ci/scripts/github_cc_reviewers.py || echo step failed

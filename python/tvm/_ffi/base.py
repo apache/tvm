@@ -28,7 +28,7 @@ from . import libinfo
 # ----------------------------
 string_types = (str,)
 integer_types = (int, np.int32)
-numeric_types = integer_types + (float, np.float32)
+numeric_types = integer_types + (float, np.float16, np.float32)
 
 # this function is needed for python3
 # to convert ctypes.char_p .value back to python str
@@ -255,7 +255,7 @@ def c2pyerror(err_msg):
     message = []
     for line in arr:
         if trace_mode:
-            if line.startswith("        "):
+            if line.startswith("        ") and len(stack_trace) > 0:
                 stack_trace[-1] += "\n" + line
             elif line.startswith("  "):
                 stack_trace.append(line)

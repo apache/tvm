@@ -57,6 +57,10 @@ class PerformanceInfo(Object):
     def write_bytes(self):
         return self._write_bytes
 
+    @property
+    def block_config(self):
+        return self._block_config
+
 
 @tvm._ffi.register_object("contrib.ethosu.cascader.Tensor")
 class Tensor(Object):

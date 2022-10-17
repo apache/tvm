@@ -231,5 +231,17 @@ This level supports dialect operators.
 .. autosummary::
    :nosignatures:
 
-   tvm.relay.qnn.op.requantize
+   tvm.relay.qnn.op.add
+   tvm.relay.qnn.op.batch_matmul
+   tvm.relay.qnn.op.concatenate
    tvm.relay.qnn.op.conv2d
+   tvm.relay.qnn.op.conv2d_transpose
+   tvm.relay.qnn.op.dense
+   tvm.relay.qnn.op.dequantize
+   tvm.relay.qnn.op.mul
+   tvm.relay.qnn.op.quantize
+   tvm.relay.qnn.op.requantize
+   tvm.relay.qnn.op.rsqrt
+   tvm.relay.qnn.op.simulated_dequantize
+   tvm.relay.qnn.op.simulated_quantize
+   tvm.relay.qnn.op.subtract

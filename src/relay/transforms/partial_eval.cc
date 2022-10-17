@@ -772,7 +772,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     if (func->HasNonzeroAttr(attr::kPrimitive)) {
       return ConstEvaluateFunc(func);
     }
-    std::vector<std::pair<Var, PStatic> > free_vars;
+    std::vector<std::pair<Var, PStatic>> free_vars;
     for (const auto& v : FreeVars(func)) {
       if (v != var) {
         free_vars.push_back(std::pair<Var, PStatic>(v, env_.Lookup(v)));
@@ -827,18 +827,18 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   Expr VisitFuncDynamic(const Function& func, const Func& f, const Expr& self) {
     return store_.Extend<Expr>([&]() {
       store_.Invalidate();
-      return Function(func->params, LetList::With([&](LetList* ll) {
-                        std::vector<PStatic> pv;
-                        for (const auto& v : func->params) {
-                          pv.push_back(NoStatic(v));
-                        }
-                        tvm::Array<Type> type_args;
-                        for (const auto& tp : func->type_params) {
-                          type_args.push_back(tp);
-                        }
-                        return f(HasStatic(MkSFunc(f), self), pv, Attrs(), type_args, ll)->dynamic;
-                      }),
-                      func->ret_type, func->type_params, func->attrs);
+      return WithFields(
+          func, func->params, LetList::With([&](LetList* ll) {
+            std::vector<PStatic> pv;
+            for (const auto& v : func->params) {
+              pv.push_back(NoStatic(v));
+            }
+            tvm::Array<Type> type_args;
+            for (const auto& tp : func->type_params) {
+              type_args.push_back(tp);
+            }
+            return f(HasStatic(MkSFunc(f), self), pv, Attrs(), type_args, ll)->dynamic;
+          }));
     });
   }
 

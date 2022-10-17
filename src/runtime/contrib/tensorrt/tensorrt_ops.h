@@ -49,13 +49,10 @@ namespace contrib {
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 
 /*!
- * \brief An input to a op may be either kTensor in the case of nvinfer::ITensor*
- * or kWeight for nvinfer1::Weights.
+ * \brief An input to a op may be either kTensor in the case of nvinfer::ITensor*,
+ * a kWeight for nvinfer1::Weights, or ignored (eg for the nn.pad value).
  */
-enum TensorRTInputType {
-  kTensor,
-  kWeight,
-};
+enum TensorRTInputType { kTensor, kWeight, kIgnored };
 
 /*!
  * \brief An input to a TensorRTOpConverter. The type of the input is either kTensor
@@ -76,7 +73,7 @@ struct TensorRTOpInput {
   std::vector<int> weight_shape;
 
   explicit TensorRTOpInput(nvinfer1::ITensor* tensor)
-      : tensor(tensor), weight({nvinfer1::DataType::kFLOAT, nullptr, 0}), type(kTensor) {}
+      : tensor(tensor), weight({tensor->getType(), nullptr, 0}), type(kTensor) {}
   TensorRTOpInput(nvinfer1::Weights weight, const std::vector<int>& shape)
       : tensor(nullptr), weight(weight), type(kWeight), weight_shape(shape) {}
 };
@@ -85,7 +82,9 @@ struct TensorRTOpInput {
 struct TensorRTOpConverterParams {
   /*! \brief The TRT network that the new layer should be added to. */
   nvinfer1::INetworkDefinition* network;
-  /*! \brief The corresponding serialized node. */
+  /*! \brief Index of JSON node. */
+  int nid;
+  /*! \brief The corresponding JSON node. */
   const JSONGraphNode& node;
   /*! \brief The type of op. */
   std::string op_name;
@@ -96,20 +95,25 @@ struct TensorRTOpConverterParams {
   /*! \brief Any newly allocated weights should be stored here also. */
   std::vector<nvinfer1::Weights>* trt_weights;
 
-  TensorRTOpConverterParams(nvinfer1::INetworkDefinition* network, const JSONGraphNode& node,
-                            std::vector<nvinfer1::Weights>* trt_weights)
-      : network(network), node(node), trt_weights(trt_weights) {
+  TensorRTOpConverterParams(nvinfer1::INetworkDefinition* network, int nid,
+                            const JSONGraphNode& node, std::vector<nvinfer1::Weights>* trt_weights)
+      : network(network), nid(nid), node(node), trt_weights(trt_weights) {
     op_name = node.GetOpName();
   }
+
+  std::string LayerName() const { return op_name + "(" + std::to_string(nid) + ")"; }
 };
 
 /*! \brief Base class for an op converter from Relay to TRT. */
 class TensorRTOpConverter {
  public:
+  virtual ~TensorRTOpConverter() = default;
+
+  /*! \brief Operator name. */
+  std::string op_name;
   /*! \brief Used to specify whether each input is tensor or weight. */
   const std::vector<TensorRTInputType> input_types;
-  /*! \brief If set to true, any number of tensor inputs can be used for the op.
-   */
+  /*! \brief If set to true, any number of tensor inputs can be used for the op. */
   const bool variable_input_count;
 
   /*!
@@ -123,8 +127,8 @@ class TensorRTOpConverter {
    * true. input_types vector will be ignored and any number of input tensors
    * can be used for this op. All inputs will be tensors and not weights.
    */
-  explicit TensorRTOpConverter(const std::vector<TensorRTInputType>& input_types,
-                               bool variable_input_count = false);
+  TensorRTOpConverter(std::string op_name, const std::vector<TensorRTInputType>& input_types,
+                      bool variable_input_count = false);
 
   /*!
    * \brief Convert to TRT. Implementation should use inputs and attributes
@@ -197,8 +201,7 @@ class TensorRTOpConverter {
  * \brief Get the map of available TensorRTOpConverters, where the key is the name of the relay op.
  * \return Map of TensorRTOpConverters.
  */
-const std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<TensorRTOpConverter>>>
-GetOpConverters();
+const std::unordered_map<std::string, std::unique_ptr<TensorRTOpConverter>>& GetOpConverters();
 
 }  // namespace contrib
 }  // namespace runtime

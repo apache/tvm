@@ -15,17 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """ Operation class for computation declaration."""
-# pylint: disable=invalid-name
-from numbers import Integral as _Integral
-from typing import List, Union
 import inspect
 
+# pylint: disable=invalid-name
+from numbers import Integral as _Integral
+from typing import List
+
 import tvm._ffi
+import tvm.arith._ffi_api
+import tvm.tir
+import tvm.tir._ffi_api
 from tvm._ffi.base import string_types
 from tvm.ir import Array
 from tvm.runtime import convert
-import tvm.tir
-import tvm.tir._ffi_api
 
 from . import _ffi_api
 from . import tag as _tag
@@ -56,7 +58,7 @@ def placeholder(shape, dtype=None, name="placeholder"):
     return _ffi_api.Placeholder(shape, dtype, name)
 
 
-def compute(shape, fcompute, name="compute", tag="", attrs=None):
+def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=None):
     """Construct a new tensor by computing over the shape domain.
 
     The compute rule is result[axis] = fcompute(axis)
@@ -78,6 +80,10 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
     attrs: dict, optional
         The additional auxiliary attributes about the compute.
 
+    varargs_names: list, optional
+        The names to use for each of the varargs. If not supplied, the varargs
+        will be called i1, i2, ...
+
     Returns
     -------
     tensor: Tensor
@@ -97,7 +103,16 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
         arg_names = ["i%d" % i for i in range(out_ndim)]
     elif argspec.varargs is not None:
         # if there is a varargs, it takes the remaining dimensions of out_ndim
-        arg_names = argspec.args + [f"i{i}" for i in range(out_ndim - len(argspec.args))]
+        num_remaining_args = out_ndim - len(argspec.args)
+        if varargs_names is not None:
+            if len(varargs_names) != num_remaining_args:
+                raise RuntimeError(
+                    f"Number of varargs ({num_remaining_args}) does not match number"
+                    f"of varargs_names ({len(varargs_names)})"
+                )
+            arg_names = argspec.args + varargs_names
+        else:
+            arg_names = argspec.args + [f"i{i}" for i in range(out_ndim - len(argspec.args))]
     else:
         arg_names = argspec.args
         # if there are fewer args than out dimensions, the remaining dimensions
@@ -172,7 +187,7 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag="", attr
     Returns
     -------
     tensor: Tensor or list of Tensors
-        The created tensor or tuple of tensors it it contains multiple outputs.
+        The created tensor or tuple of tensors contains multiple outputs.
 
     Example
     -------
@@ -267,7 +282,7 @@ def extern(
     Returns
     -------
     tensor: Tensor or list of Tensors
-        The created tensor or tuple of tensors it it contains multiple outputs.
+        The created tensor or tuple of tensors contains multiple outputs.
 
     Example
     -------
@@ -340,6 +355,89 @@ def extern(
     return res[0] if len(res) == 1 else res
 
 
+def extern_primfunc(input_tensors: List[_tensor.Tensor], primfunc: tvm.tir.PrimFunc, **kwargs):
+    """Compute tensors via a schedulable TIR PrimFunc
+
+    Parameters
+    ----------
+    input_tensors: list of Tensor
+        Input tensors that map to the corresponding primfunc input params.
+
+    primfunc: PrimFunc
+        The TIR PrimFunc
+
+    Returns
+    -------
+    tensor: Tensor or list of Tensors
+        The created tensor or tuple of tensors if it contains multiple outputs.
+
+    Example
+    -------
+    In the code below, a TVMScript defined TIR PrimFunc is inlined into
+    a TE ExternOp. Applying te.create_prim_func on this
+
+    .. code-block:: python
+
+        A = te.placeholder((128, 128), name="A")
+        B = te.placeholder((128, 128), name="B")
+
+        @T.prim_func
+        def before_split(a: T.handle, b: T.handle) -> None:
+            A = T.match_buffer(a, (128, 128))
+            B = T.match_buffer(b, (128, 128))
+            for i, j in T.grid(128, 128):
+                with T.block("B"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj] * 2.0
+
+        C = te.extern_primfunc([A, B], func)
+    """
+    access_map = {
+        k: tuple(v) for k, v in tvm.arith._ffi_api.DomainTouchedAccessMap(primfunc).items()
+    }
+    in_buffers = [buf for buf, access in access_map.items() if len(access[0])]
+    out_buffers = [buf for buf, access in access_map.items() if len(access[1])]
+    assert in_buffers, "PrimFunc has no input buffers"
+    assert out_buffers, "PrimFunc has no output buffers"
+
+    outputs = []
+    inplace = []
+    input_buffers = in_buffers
+    for obuf in out_buffers:
+        if obuf in in_buffers:
+            inplace.append(obuf)
+        else:
+            outputs.append(obuf)
+
+    if not outputs:
+        iobuf = inplace.pop()
+        input_buffers.remove(iobuf)
+        outputs = [iobuf]
+
+    assert len(input_buffers) == len(input_tensors), (
+        "The number of provided input input_tensors does not match the number of ",
+        "input buffers in the primfunc",
+    )
+    for tensor, buffer in zip(input_tensors, input_buffers):
+        # TODO(csullivan): Can a stronger comparison between Tensor<>Buffer be made?
+        assert len(tensor.shape) == len(buffer.shape)
+        for d1, d2 in zip(tensor.shape, buffer.shape):
+            assert d1 == d2, (
+                "The input input_tensors provided do not match the input buffers in the ",
+                "primfunc. Please check that the order of input te.Input_Tensors and the ",
+                "order of the primfunc variables in the params list agree.",
+            )
+    output = extern(
+        [buf.shape for buf in outputs],
+        input_tensors,
+        lambda ins, outs: primfunc.body,
+        in_buffers=input_buffers,
+        out_buffers=outputs,
+        **kwargs,
+    )
+    return output
+
+
 def var(name="tindex", dtype="int32", span=None):
     """Create a new variable with specified name and dtype
 
@@ -360,6 +458,28 @@ def var(name="tindex", dtype="int32", span=None):
         The result symbolic variable.
     """
     return tvm.tir.Var(name, dtype, span)
+
+
+def const(dtype="int32", span=None):
+    """Create a new constant with specified name and dtype
+
+    Parameters
+    ----------
+    name : str
+        The name
+
+    dtype : str
+        The data type
+
+    span : Optional[Span]
+        The location of this variable in the source.
+
+    Returns
+    -------
+    var : Var
+        The result symbolic variable.
+    """
+    return tvm.tir.const(dtype, span)
 
 
 def size_var(name="size", dtype="int32", span=None):
@@ -493,23 +613,3 @@ def create_prim_func(ops: List[_tensor.Tensor]) -> tvm.tir.PrimFunc:
     if not isinstance(ops, (list, tuple, Array)):
         ops = [ops]
     return _ffi_api.CreatePrimFunc(ops)
-
-
-def create_prim_func_from_outputs(
-    outputs: Union[_tensor.Tensor, List[_tensor.Tensor]],
-) -> tvm.tir.PrimFunc:
-    """Create a TensorIR PrimFunc from output tensor(s) in TE
-
-    Parameters
-    ----------
-    outputs : Union[Tensor, List[Tensor]]
-        The source expression.
-
-    Returns
-    -------
-    func : tir.PrimFunc
-        The created function.
-    """
-    if not isinstance(outputs, (list, tuple, Array)):
-        outputs = [outputs]
-    return _ffi_api.CreatePrimFuncFromOutputs(outputs)

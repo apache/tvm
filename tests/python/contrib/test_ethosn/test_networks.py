@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=wrong-import-position, wrong-import-order
 
 """Arm(R) Ethos(TM)-N integration end-to-end network tests"""
 
@@ -22,13 +23,13 @@ import pytest
 pytest.importorskip("tflite")
 pytest.importorskip("tensorflow")
 
+import tflite.Model
+
 from tvm import relay
 from tvm.testing import requires_ethosn
 from tvm.contrib import download
-from tvm.testing import requires_ethosn
-
 import tvm.relay.testing.tf as tf_testing
-import tflite.Model
+
 from . import infrastructure as tei
 
 
@@ -36,16 +37,13 @@ def _get_tflite_model(tflite_model_path, inputs_dict, dtype):
     with open(tflite_model_path, "rb") as f:
         tflite_model_buffer = f.read()
 
-    try:
-        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buffer, 0)
-    except AttributeError:
-        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buffer, 0)
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buffer, 0)
     shape_dict = {}
     dtype_dict = {}
-    for input in inputs_dict:
-        input_shape = inputs_dict[input]
-        shape_dict[input] = input_shape
-        dtype_dict[input] = dtype
+    for value in inputs_dict:
+        input_shape = inputs_dict[value]
+        shape_dict[value] = input_shape
+        dtype_dict[value] = dtype
 
     return relay.frontend.from_tflite(
         tflite_model,
@@ -118,18 +116,13 @@ def _test_image_network(
 
 @requires_ethosn
 def test_mobilenet_v1():
-    # If this test is failing due to a hash mismatch, please notify @mbaret and
+    """Compare compile hashes for mobilenetv1 with an expected result."""
+    # If this test is failing due to a hash mismatch, please notify @lhutton1 and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"0433d3c3947a067b36f0228bdb5f1838"}
-    if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-        _compile_hash = {"393a19dfb980345cdd3bbeddbc36424d"}
-    if tei.get_ethosn_api_version() == 2102:
-        _compile_hash = {"46ccafc840633633aca441645e41b444"}
-        if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-            _compile_hash = {"e4ed29dceb1187505948ab17fc3cc6d6"}
+    _compile_hash = {"c37fec1f214c7f93ce49ee4e3b587969"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
@@ -144,19 +137,39 @@ def test_mobilenet_v1():
 
 
 @requires_ethosn
-def test_inception_v3():
-    # If this test is failing due to a hash mismatch, please notify @mbaret and
+def test_resnet_50_int8():
+    """Compare compile hashes for resnet50 with an expected result."""
+    # If this test is failing due to a hash mismatch, please notify @lhutton1 and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"46ccafc840633633aca441645e41b444"}
-    if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-        _compile_hash = {"2c7ff5487e1a21e62b3b42eec624fed4"}
-    if tei.get_ethosn_api_version() == 2102:
-        _compile_hash = {"43dc2097127eb224c0191b1a15f8acca"}
-        if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-            _compile_hash = {"7db23387bdc5af6eaa1ae3f7d456caf0"}
+    _compile_hash = {
+        "f16dc9caa8e696bc5da8a5c6a644eb72",
+        "6e5fcbab831607b9da1039aff4e56871",
+        "41acecca37b2735bd580f6ec38d8c2e0",
+    }
+    _test_image_network(
+        model_url="https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/"
+        "models/Quantized/resnet_50_quantized.tflite",
+        model_sub_path="resnet_50_quantized.tflite",
+        input_dict={"input": (1, 224, 224, 3)},
+        compile_hash=_compile_hash,
+        output_count=1,
+        host_ops=9,
+        npu_partitions=3,
+    )
+
+
+@requires_ethosn
+def test_inception_v3():
+    """Compare compile hashes for inceptionv3 with an expected result."""
+    # If this test is failing due to a hash mismatch, please notify @lhutton1 and
+    # @Leo-arm. The hash is there to catch any changes in the behaviour of the
+    # codegen, which could come about from either a change in Support Library
+    # version or a change in the Ethos-N codegen. To update this requires running
+    # on hardware that isn't available in CI.
+    _compile_hash = {"cff892eb15944756f22dad4b83c756d2"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/tflite_11_05_08/inception_v3_quant.tgz",
@@ -171,18 +184,13 @@ def test_inception_v3():
 
 @requires_ethosn
 def test_inception_v4():
-    # If this test is failing due to a hash mismatch, please notify @mbaret and
+    """Compare compile hashes for inceptionv4 with an expected result."""
+    # If this test is failing due to a hash mismatch, please notify @lhutton1 and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"fab6c2297502f95d33079c6ce1a737f9"}
-    if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-        _compile_hash = {"4245dbd02e1432dc261a67fc8e632a00"}
-    if tei.get_ethosn_api_version() == 2102:
-        _compile_hash = {"fab6c2297502f95d33079c6ce1a737f9"}
-        if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-            _compile_hash = {"8da68849b75613ac3dffd3fff2dd87da"}
+    _compile_hash = {"c00c119506b34c8e87f81aa009b42431"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/inception_v4_299_quant_20181026.tgz",
@@ -197,18 +205,13 @@ def test_inception_v4():
 
 @requires_ethosn
 def test_ssd_mobilenet_v1():
-    # If this test is failing due to a hash mismatch, please notify @mbaret and
+    """Compare compile hashes for ssdmobilenetv1 with an expected result."""
+    # If this test is failing due to a hash mismatch, please notify @lhutton1 and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"2345cf5d6c0013bad7c76dcccee9d862", "7795b6c67178da9d1f9b98063bad75b1"}
-    if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-        _compile_hash = {"5ee8ed6af9a7f31fc14957b51a8e7423", "e6a91ccc47ba4c6b4614fcd676bd726f"}
-    if tei.get_ethosn_api_version() == 2102:
-        _compile_hash = {"7795b6c67178da9d1f9b98063bad75b1", "10826406ae724e52f360a06c35ced09d"}
-        if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-            _compile_hash = {"928dc6ae5ce49a4ad63ca87f7575970f", "b092f9820f7e9341fc53daa781b98772"}
+    _compile_hash = {"ec2b78852192058f88b64d45c26620d5", "f68cbeaaba03874ea735ce3f5eab9227"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip",
@@ -216,6 +219,6 @@ def test_ssd_mobilenet_v1():
         input_dict={"normalized_input_image_tensor": (1, 300, 300, 3)},
         compile_hash=_compile_hash,
         output_count=4,
-        host_ops=28,
+        host_ops=27,
         npu_partitions=2,
     )

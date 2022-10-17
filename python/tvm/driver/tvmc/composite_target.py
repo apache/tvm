@@ -18,13 +18,13 @@
 Provides support to composite target on TVMC.
 """
 import logging
+import warnings
 
 # Make sure Vitis AI codegen is registered
 import tvm.contrib.target.vitis_ai  # pylint: disable=unused-import
 
 from tvm.relay.op.contrib.arm_compute_lib import partition_for_arm_compute_lib
-from tvm.relay.op.contrib.ethosn import partition_for_ethosn77
-from tvm.relay.op.contrib.ethosn import partition_for_ethosn78
+from tvm.relay.op.contrib.ethosn import partition_for_ethosn
 from tvm.relay.op.contrib.cmsisnn import partition_for_cmsisnn
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tvm.relay.op.contrib.bnns import partition_for_bnns
@@ -56,13 +56,9 @@ REGISTERED_CODEGEN = {
         "config_key": "relay.ext.cmsisnn.options",
         "pass_pipeline": partition_for_cmsisnn,
     },
-    "ethos-n77": {
+    "ethos-n": {
         "config_key": "relay.ext.ethos-n.options",
-        "pass_pipeline": partition_for_ethosn77,
-    },
-    "ethos-n78": {
-        "config_key": "relay.ext.ethos-n.options",
-        "pass_pipeline": partition_for_ethosn78,
+        "pass_pipeline": partition_for_ethosn,
     },
     "ethos-u": {
         "config_key": "relay.ext.ethos-u.options",
@@ -75,6 +71,11 @@ REGISTERED_CODEGEN = {
     "vitis-ai": {
         "config_key": "relay.ext.vitis_ai.options",
         "pass_pipeline": partition_for_vitis_ai,
+    },
+    # Deprecated in favour of "ethos-n".
+    "ethos-n78": {
+        "config_key": "relay.ext.ethos-n.options",
+        "pass_pipeline": partition_for_ethosn,
     },
 }
 
@@ -104,6 +105,12 @@ def get_codegen_by_target(name):
         requested target codegen information
     """
     try:
+        if name == "ethos-n78":
+            warnings.warn(
+                "Please use 'ethos-n' instead of the deprecated 'ethos-n78' target, "
+                "which will be removed in a later release of TVM.",
+                DeprecationWarning,
+            )
         return REGISTERED_CODEGEN[name]
     except KeyError:
         raise TVMCException("Composite target %s is not defined in TVMC." % name)

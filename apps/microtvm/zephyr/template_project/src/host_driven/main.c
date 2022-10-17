@@ -28,20 +28,24 @@
  * intended to be a demonstration, since typically you will want to incorporate
  * this logic into your own application.
  */
-
 #include <drivers/gpio.h>
 #include <drivers/uart.h>
 #include <fatal.h>
 #include <kernel.h>
-#include <power/reboot.h>
 #include <random/rand32.h>
 #include <stdio.h>
 #include <sys/printk.h>
+#include <sys/reboot.h>
 #include <sys/ring_buffer.h>
+#include <timing/timing.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/microtvm_rpc_server.h>
 #include <unistd.h>
 #include <zephyr.h>
+
+#ifdef FVP
+#include "fvp/semihost.h"
+#endif
 
 #ifdef CONFIG_ARCH_POSIX
 #include "posix_board_if.h"
@@ -64,7 +68,7 @@ static size_t g_num_bytes_written = 0;
 static size_t g_num_bytes_in_rx_buffer = 0;
 
 // Called by TVM to write serial data to the UART.
-ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
+ssize_t uart_write(void* unused_context, const uint8_t* data, size_t size) {
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 1);
 #endif
@@ -80,6 +84,14 @@ ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
 #endif
 
   return size;
+}
+
+ssize_t serial_write(void* unused_context, const uint8_t* data, size_t size) {
+#ifdef FVP
+  return semihost_write(unused_context, data, size);
+#else
+  return uart_write(unused_context, data, size);
+#endif
 }
 
 // This is invoked by Zephyr from an exception handler, which will be invoked
@@ -130,7 +142,7 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
 }
 
 // Heap for use by TVMPlatformMemoryAllocate.
-K_HEAP_DEFINE(tvm_heap, 216 * 1024);
+K_HEAP_DEFINE(tvm_heap, HEAP_SIZE_BYTES);
 
 // Called by TVM to allocate memory.
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
@@ -144,11 +156,7 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
   return kTvmErrorNoError;
 }
 
-#define MILLIS_TIL_EXPIRY 200
-#define TIME_TIL_EXPIRY (K_MSEC(MILLIS_TIL_EXPIRY))
-K_TIMER_DEFINE(g_microtvm_timer, /* expiry func */ NULL, /* stop func */ NULL);
-
-uint32_t g_microtvm_start_time;
+volatile timing_t g_microtvm_start_time, g_microtvm_end_time;
 int g_microtvm_timer_running = 0;
 
 // Called to start system timer.
@@ -161,8 +169,7 @@ tvm_crt_error_t TVMPlatformTimerStart() {
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 1);
 #endif
-  k_timer_start(&g_microtvm_timer, TIME_TIL_EXPIRY, TIME_TIL_EXPIRY);
-  g_microtvm_start_time = k_cycle_get_32();
+  g_microtvm_start_time = timing_counter_get();
   g_microtvm_timer_running = 1;
   return kTvmErrorNoError;
 }
@@ -174,43 +181,14 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
     return kTvmErrorSystemErrorMask | 2;
   }
 
-  uint32_t stop_time = k_cycle_get_32();
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 0);
 #endif
 
-  // compute how long the work took
-  uint32_t cycles_spent = stop_time - g_microtvm_start_time;
-  if (stop_time < g_microtvm_start_time) {
-    // we rolled over *at least* once, so correct the rollover it was *only*
-    // once, because we might still use this result
-    cycles_spent = ~((uint32_t)0) - (g_microtvm_start_time - stop_time);
-  }
-
-  uint32_t ns_spent = (uint32_t)k_cyc_to_ns_floor64(cycles_spent);
-  double hw_clock_res_us = ns_spent / 1000.0;
-
-  // need to grab time remaining *before* stopping. when stopped, this function
-  // always returns 0.
-  int32_t time_remaining_ms = k_timer_remaining_get(&g_microtvm_timer);
-  k_timer_stop(&g_microtvm_timer);
-  // check *after* stopping to prevent extra expiries on the happy path
-  if (time_remaining_ms < 0) {
-    TVMLogf("negative time remaining");
-    return kTvmErrorSystemErrorMask | 3;
-  }
-  uint32_t num_expiries = k_timer_status_get(&g_microtvm_timer);
-  uint32_t timer_res_ms = ((num_expiries * MILLIS_TIL_EXPIRY) + time_remaining_ms);
-  double approx_num_cycles =
-      (double)k_ticks_to_cyc_floor32(1) * (double)k_ms_to_ticks_ceil32(timer_res_ms);
-  // if we approach the limits of the HW clock datatype (uint32_t), use the
-  // coarse-grained timer result instead
-  if (approx_num_cycles > (0.5 * (~((uint32_t)0)))) {
-    *elapsed_time_seconds = timer_res_ms / 1000.0;
-  } else {
-    *elapsed_time_seconds = hw_clock_res_us / 1e6;
-  }
-
+  g_microtvm_end_time = timing_counter_get();
+  uint64_t cycles = timing_cycles_get(&g_microtvm_start_time, &g_microtvm_end_time);
+  uint64_t ns_spent = timing_cycles_to_ns(cycles);
+  *elapsed_time_seconds = ns_spent / (double)1e9;
   g_microtvm_timer_running = 0;
   return kTvmErrorNoError;
 }
@@ -260,7 +238,6 @@ void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
 // The main function of this application.
 extern void __stdout_hook_install(int (*hook)(int));
 void main(void) {
-
 #ifdef CONFIG_LED
   int ret;
   led0_pin = device_get_binding(LED0);
@@ -279,9 +256,24 @@ void main(void) {
   tvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
   uart_rx_init(&uart_rx_rbuf, tvm_uart);
 
+  // Initialize system timing. We could stop and start it every time, but we'll
+  // be using it enough we should just keep it enabled.
+  timing_init();
+  timing_start();
+
+#ifdef FVP
+  init_semihosting();
+  // send some dummy log to speed up the initialization
+  for (int i = 0; i < 100; ++i) {
+    uart_write(NULL, "dummy log...\n", 13);
+  }
+  uart_write(NULL, "microTVM Zephyr runtime - running\n", 34);
+#endif
+
   // Initialize microTVM RPC server, which will receive commands from the UART and execute them.
-  microtvm_rpc_server_t server = MicroTVMRpcServerInit(write_serial, NULL);
+  microtvm_rpc_server_t server = MicroTVMRpcServerInit(serial_write, NULL);
   TVMLogf("microTVM Zephyr runtime - running");
+
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 0);
 #endif
@@ -289,18 +281,28 @@ void main(void) {
   // The main application loop. We continuously read commands from the UART
   // and dispatch them to MicroTVMRpcServerLoop().
   while (true) {
+#ifdef FVP
+    uint8_t data[128];
+    uint32_t bytes_read = semihost_read(data, 128);
+#else
     uint8_t* data;
     unsigned int key = irq_lock();
     uint32_t bytes_read = ring_buf_get_claim(&uart_rx_rbuf, &data, RING_BUF_SIZE_BYTES);
+#endif
     if (bytes_read > 0) {
-      g_num_bytes_in_rx_buffer -= bytes_read;
+      uint8_t* ptr = data;
       size_t bytes_remaining = bytes_read;
       while (bytes_remaining > 0) {
         // Pass the received bytes to the RPC server.
-        tvm_crt_error_t err = MicroTVMRpcServerLoop(server, &data, &bytes_remaining);
+        tvm_crt_error_t err = MicroTVMRpcServerLoop(server, &ptr, &bytes_remaining);
         if (err != kTvmErrorNoError && err != kTvmErrorFramingShortPacket) {
           TVMPlatformAbort(err);
         }
+#ifdef FVP
+      }
+    }
+#else
+        g_num_bytes_in_rx_buffer -= bytes_read;
         if (g_num_bytes_written != 0 || g_num_bytes_requested != 0) {
           if (g_num_bytes_written != g_num_bytes_requested) {
             TVMPlatformAbort((tvm_crt_error_t)0xbeef5);
@@ -315,6 +317,7 @@ void main(void) {
       }
     }
     irq_unlock(key);
+#endif
   }
 
 #ifdef CONFIG_ARCH_POSIX

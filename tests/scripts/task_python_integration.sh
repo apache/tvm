@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,8 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -euxo pipefail
 
 source tests/scripts/setup-pytest-env.sh
 export PYTHONPATH=${PYTHONPATH}:${TVM_PATH}/apps/extension/python
@@ -44,31 +43,32 @@ rm -rf lib
 make
 cd ../..
 
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-extensions apps/extension/tests
-run_pytest cython ${TVM_INTEGRATION_TESTSUITE_NAME}-extensions apps/extension/tests
+run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-extensions-0 apps/extension/tests
+run_pytest cython ${TVM_INTEGRATION_TESTSUITE_NAME}-extensions-1 apps/extension/tests
 
 # Test dso plugin
 cd apps/dso_plugin_module
 rm -rf lib
 make
 cd ../..
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module apps/dso_plugin_module
-run_pytest cython ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module apps/dso_plugin_module
+run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module-0 apps/dso_plugin_module
+run_pytest cython ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module-1 apps/dso_plugin_module
 
 # Do not enable TensorFlow op
 # TVM_FFI=cython sh prepare_and_test_tfop_module.sh
 # TVM_FFI=ctypes sh prepare_and_test_tfop_module.sh
 
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME} tests/python/integration
+run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-integration tests/python/integration
 
 # Ignoring Arm(R) Ethos(TM)-U NPU tests in the collective to run to run them in parallel in the next step.
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib tests/python/contrib --ignore=tests/python/contrib/test_ethosu
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib-test_ethosu tests/python/contrib/test_ethosu -n auto
-
+run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib tests/python/contrib --ignore=tests/python/contrib/test_ethosu --ignore=tests/python/contrib/test_cmsisnn 
 # forked is needed because the global registry gets contaminated
 TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" \
     run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-relay tests/python/relay
 
+# OpenCL texture test. Deselected specific tests that fails  in CI
+TVM_TEST_TARGETS="${TVM_RELAY_OPENCL_TEXTURE_TARGETS:-opencl}" \
+    run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-opencl-texture tests/python/relay/opencl_texture
 # Command line driver test
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-driver tests/python/driver
 
@@ -77,8 +77,3 @@ run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-target tests/python/target
 
 # Do not enable OpenGL
 # run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-webgl tests/webgl
-
-
-if [ -z "${TVM_INTEGRATION_GPU_ONLY:-}" ] && [ -z "${TVM_INTEGRATION_I386_ONLY:-}" ] ; then
-    run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-m7-simd tests/python/integration/test_arm_mprofile_dsp.py --enable-corstone300-tests
-fi

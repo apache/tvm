@@ -388,6 +388,7 @@ class BufferRealize : public Stmt {
                                  Span span = Span());
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BufferRealize, Stmt, BufferRealizeNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRealizeNode);
 };
 
 /*!
@@ -559,16 +560,18 @@ class AllocateNode : public StmtNode {
    *        Otherwise return 0.
    * \return The result.
    */
-  int32_t constant_allocation_size() const { return constant_allocation_size(extents); }
+  int64_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
   /*!
    * \brief If the buffer size is constant, return the size.
    *        Otherwise return 0.
    * \param extents The extents of the buffer.
    * \return The result.
    */
-  TVM_DLL static int32_t constant_allocation_size(const Array<PrimExpr>& extents);
+  TVM_DLL static int64_t ConstantAllocationSize(const Array<PrimExpr>& extents);
 
   static constexpr const char* _type_key = "tir.Allocate";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateNode, StmtNode);
 };
 
@@ -583,6 +586,134 @@ class Allocate : public Stmt {
                    Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocateNode);
+};
+
+/*!
+ * \brief Allocate a buffer that can be used in body.
+ */
+class AllocateConstNode : public StmtNode {
+ public:
+  /*! \brief The buffer variable. */
+  Var buffer_var;
+  /*! \brief The optional data associated to the constant.
+   */
+  Optional<runtime::NDArray> data;
+  /*!
+   * \brief If the PrimFunc containing the Stmt is added to IRModule, this is an optional index
+   * to indicate the index within "constants" attribute, that is a Array<NDArray> of IRModule.
+   */
+  Optional<Integer> irmod_storage_idx;
+  /*! \brief The type of the buffer. */
+  DataType dtype;
+  /*! \brief The extents of the buffer. */
+  Array<PrimExpr> extents;
+  /*! \brief The body to be executed. */
+  Stmt body;
+  /*!
+   * \brief Additional annotations about the allocation.
+   *
+   *  These annotations can be used as auxiliary hint
+   *  to future transformations.
+   */
+  Map<String, ObjectRef> annotations;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("buffer_var", &buffer_var);
+    v->Visit("data", &data);
+    v->Visit("irmod_storage_idx", &irmod_storage_idx);
+    v->Visit("dtype", &dtype);
+    v->Visit("extents", &extents);
+    v->Visit("body", &body);
+    v->Visit("annotations", &annotations);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const AllocateConstNode* other, SEqualReducer equal) const {
+    return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
+           equal(extents, other->extents) && equal(data, other->data) && equal(body, other->body) &&
+           equal(annotations, other->annotations);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(buffer_var);
+    hash_reduce(dtype);
+    hash_reduce(extents);
+    hash_reduce(body);
+    hash_reduce(annotations);
+    hash_reduce(data);
+  }
+
+  /*!
+   * \brief If the buffer size is constant, return the size.
+   *        Otherwise return 0.
+   * \return The result.
+   */
+  int64_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
+  /*!
+   * \brief If the buffer size is constant, return the size.
+   *        Otherwise return 0.
+   * \param extents The extents of the buffer.
+   * \return The result.
+   */
+  TVM_DLL static int64_t ConstantAllocationSize(const Array<PrimExpr>& extents);
+
+  static constexpr const char* _type_key = "tir.AllocateConst";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(AllocateConstNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to AllocateConstNode.
+ * \sa AllocateConstNode
+ */
+class AllocateConst : public Stmt {
+ public:
+  /* The constructor to create a IRNode with constant data
+   * depending on the type of ObjectRef, it will either
+   * create AllocateConstNode with irmod_storage_idx or data
+   */
+  TVM_DLL AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> extents,
+                        ObjectRef data_or_idx, Stmt body,
+                        Map<String, ObjectRef> annotations = Map<String, ObjectRef>(),
+                        Span span = Span());
+  TVM_DEFINE_OBJECT_REF_METHODS(AllocateConst, Stmt, AllocateConstNode);
+};
+
+/*! \brief Declare a buffer that can be used in the body */
+class DeclBufferNode : public StmtNode {
+ public:
+  /*! \brief The buffer being declared */
+  Buffer buffer;
+  /*! \brief The body to be executed */
+  Stmt body;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("buffer", &buffer);
+    v->Visit("body", &body);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const DeclBufferNode* other, SEqualReducer equal) const {
+    return equal(buffer, other->buffer) && equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(buffer);
+    hash_reduce(body);
+  }
+
+  static constexpr const char* _type_key = "tir.DeclBuffer";
+  TVM_DECLARE_FINAL_OBJECT_INFO(DeclBufferNode, StmtNode);
+};
+
+/*! \brief Managed reference to DeclBufferNode */
+class DeclBuffer : public Stmt {
+ public:
+  TVM_DLL DeclBuffer(Buffer buffer, Stmt body, Span span = Span());
+  TVM_DEFINE_OBJECT_REF_METHODS(DeclBuffer, Stmt, DeclBufferNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(DeclBufferNode);
 };
 
 /*!
@@ -902,12 +1033,12 @@ class WhileNode : public StmtNode {
   }
 
   bool SEqualReduce(const WhileNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(condition, other->condition) && equal.DefEqual(body, other->body);
+    return equal(condition, other->condition) && equal(body, other->body);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(condition);
-    hash_reduce.DefHash(body);
+    hash_reduce(condition);
+    hash_reduce(body);
   }
 
   static constexpr const char* _type_key = "tir.While";
@@ -1224,7 +1355,7 @@ class BlockRealize : public Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BlockRealizeNode);
 };
 
-/*! \brief namespace of possible attribute sin AttrStmt.attr_key */
+/*! \brief namespace of possible attributes in AttrStmt.attr_key */
 namespace attr {
 // The above attr does not pass to ir stage.
 /*! \brief Mark launching extent of thread, used by device API. */
@@ -1281,6 +1412,21 @@ constexpr const char* pragma_tensor_core = "pragma_tensor_core";
  */
 constexpr const char* prefetch_scope = "prefetch_scope";
 /*!
+ * \brief Marks the layout transforms to be used for a tensor.
+ *
+ * Only applies to a DataProducer, as it should be made part of the
+ * PrimFunc attributes for TIR.
+ */
+constexpr const char* layout_transforms = "layout_transforms";
+/*!
+ * \brief Marks the physical axis separators
+ *
+ * Only applies to a DataProducer, as it should be made part of the
+ * Buffer definition in a PrimFunc.  See `BufferNode::axis_separators`
+ * for more details.
+ */
+constexpr const char* axis_separators = "axis_separators";
+/*!
  * \brief Marks production of double buffer data
  */
 constexpr const char* double_buffer_scope = "double_buffer_scope";
@@ -1333,6 +1479,32 @@ constexpr const char* pipeline_exec_scope = "pipeline_exec_scope";
 constexpr const char* device_scope = "device_scope";
 
 /*!
+ * \brief Mark that the attached statement runs asynchronously.
+ */
+constexpr const char* async_scope = "async_scope";
+
+/*!
+ * \brief Annotations for invoking and synchronizing asynchronous operations.
+
+ * Synchronization is done in terms of "queue": It is an abstract entity associated
+ * with each asynchronous unit, and it tracks invocations and completions of asynchronous
+ * operations in the FIFO order.
+ *
+ * Similarly to PTX instructions commit_group and wait_group, these annotations express
+ * synchronization by "counting":
+ *
+ * async_commit_queue(i): Group one or more invocations of async operations in the given scope,
+ * and "commit" (or push) them to the queue i. A group of operations committed together is
+ * awaited as one chunk. Groups committed to the same queue complete in the FIFO order.
+ *
+ * async_wait_queue(i, N): Block until only N most recent committed groups are still in-flight at
+ * the queue i. N does not have to be a constant, but some backends may require a constant count.
+*/
+constexpr const char* async_commit_queue_scope = "async_commit_queue_scope";
+constexpr const char* async_wait_queue_scope = "async_wait_queue_scope";
+constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
+
+/*!
  * \brief Mark that the shape of TensorCore fragment
  */
 constexpr const char* fragment_shape = "fragment_shape";
@@ -1361,8 +1533,40 @@ constexpr const char* script_parsing_detect_access = "tir.script_parsing_detect_
  */
 constexpr const char* pragma_loop_partition_hint = "pragma_loop_partition_hint";
 
+/*! \brief Mark the stage of a statement in the software pipeline */
+constexpr const char* software_pipeline_stage = "software_pipeline_stage";
+
+/*! \brief Mark the order of a statement in the software pipeline */
+constexpr const char* software_pipeline_order = "software_pipeline_order";
+
+/*! \brief List stages in the software pipeline that should run asynchronously
+ * \note All statements in the provided stages are assumed to have asynchronous
+ *       semantics (e.g. CUDA async global to shared memory copy).
+ */
+constexpr const char* software_pipeline_async_stages = "software_pipeline_async_stages";
+
+/*! \brief Mark the buffers which is const access and can be transformed layout. */
+constexpr const char* layout_free_buffers = "layout_free_buffers";
+
+/*! \brief Mark the local stage for the shared memory access should be added. */
+constexpr const char* manifest_shared_memory_local_stage = "tir.manifest_shared_memory_local_stage";
+
 /*! \brief Mark the tiling structure of blocks that are applied by rule Multi-Level-Tiling */
 constexpr const char* meta_schedule_tiling_structure = "meta_schedule.tiling_structure";
+
+/*!
+ * \brief Mark that the loop should be further skip and bound to environment threads to enable
+ * cooperative fetching.
+ */
+constexpr const char* meta_schedule_cooperative_fetch = "meta_schedule.cooperative_fetch";
+
+/*! \brief The allowed range of thread extent in thread bindings */
+constexpr const char* meta_schedule_thread_extent_low_inclusive =
+    "meta_schedule.thread_extent_low_inclusive";
+
+/*! \brief The allowed range of thread extent in thread bindings */
+constexpr const char* meta_schedule_thread_extent_high_inclusive =
+    "meta_schedule.thread_extent_high_inclusive";
 
 /*! \brief Mark the block whose producer needs to be applied by rule Random-Compute-Location */
 constexpr const char* meta_schedule_random_compute_producer =
@@ -1379,6 +1583,22 @@ constexpr const char* meta_schedule_unroll_explicit = "meta_schedule.unroll_expl
 
 /*! \brief Mark auto-unroll setting on the block. */
 constexpr const char* meta_schedule_unroll_implicit = "meta_schedule.unroll_implicit";
+
+/*! \brief Mark that a block should be further rewritten using tensorization. */
+constexpr const char* meta_schedule_auto_tensorize = "meta_schedule.auto_tensorize";
+
+/*! \brief Mark that a block is a preprocessor block for layout rewrite. */
+constexpr const char* meta_schedule_layout_rewrite_preproc = "meta_schedule.layout_rewrite_preproc";
+/*!
+ * \brief Mark that the init statement of a block should be further rewritten using tensorization.
+ */
+constexpr const char* meta_schedule_auto_tensorize_init = "meta_schedule.auto_tensorize_init";
+
+/*!
+ * \brief Mark that a block is executed by a warp. This implies the extend of threadIdx.x is
+ * warp size.
+ */
+constexpr const char* warp_execution = "warp_execution";
 
 /*!
  * \brief Check if attr_key is a pragma key extension

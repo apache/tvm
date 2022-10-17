@@ -90,7 +90,7 @@ def verify_conv3d_ncdhw(
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv3d_ncdhw_implement)
         with tvm.target.Target(device):
             C = fcompute(
-                A, W, (stride, stride, stride), padding, (dilation, dilation, dilation), dtype
+                A, W, (stride, stride, stride), padding, (dilation, dilation, dilation), 1, dtype
             )
             if add_bias:
                 C = topi.add(C, bias)

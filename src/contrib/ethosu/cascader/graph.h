@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 
+#include "block_config.h"
 #include "propagator.h"
 
 namespace tvm {
@@ -71,6 +72,8 @@ class PerformanceInfoNode : public Object {
   std::vector<int64_t> read_bytes;
   /*! \brief The number of bytes written to the output tensor */
   int64_t write_bytes;
+  /*! \brief The block config used for this performance point */
+  BlockConfig block_config;
 
   static constexpr const char* _type_key = "contrib.ethosu.cascader.PerformanceInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(PerformanceInfoNode, Object);
@@ -85,11 +88,13 @@ class PerformanceInfoNode : public Object {
  */
 class PerformanceInfo : public ObjectRef {
  public:
-  PerformanceInfo(int64_t compute_cycles, std::vector<int64_t> read_bytes, int64_t write_bytes) {
+  PerformanceInfo(int64_t compute_cycles, std::vector<int64_t> read_bytes, int64_t write_bytes,
+                  BlockConfig block_config) {
     auto n = make_object<PerformanceInfoNode>();
     n->compute_cycles = compute_cycles;
     n->read_bytes = std::move(read_bytes);
     n->write_bytes = write_bytes;
+    n->block_config = block_config;
     data_ = std::move(n);
   }
 

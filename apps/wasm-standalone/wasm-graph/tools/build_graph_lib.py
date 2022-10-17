@@ -33,12 +33,10 @@ import numpy as np
 import tvm.relay as relay
 
 # This example uses resnet50-v2-7 model
-model_url = "".join(
-    [
-        "https://github.com/onnx/models/raw/",
-        "master/vision/classification/resnet/model/",
-        "resnet50-v2-7.onnx",
-    ]
+model_url = (
+    "https://github.com/onnx/models/raw/main/"
+    "vision/classification/resnet/model/"
+    "resnet50-v2-7.onnx"
 )
 
 
@@ -74,10 +72,15 @@ def build_graph_lib(opt_level):
     shape_dict = {input_name: img_data.shape}
 
     mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
-    target = "llvm -mtriple=wasm32-unknown-unknown -mattr=+simd128 --system-lib"
+    target = "llvm -mtriple=wasm32-unknown-unknown -mattr=+simd128"
 
     with tvm.transform.PassContext(opt_level=opt_level):
-        factory = relay.build(mod, target=target, params=params)
+        factory = relay.build(
+            mod,
+            target=target,
+            params=params,
+            runtime=tvm.relay.backend.Runtime("cpp", {"system-lib": True}),
+        )
 
     # Save the model artifacts to obj_file
     obj_file = os.path.join(out_dir, "graph.o")

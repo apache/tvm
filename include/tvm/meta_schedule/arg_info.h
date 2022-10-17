@@ -19,8 +19,12 @@
 #ifndef TVM_META_SCHEDULE_ARG_INFO_H_
 #define TVM_META_SCHEDULE_ARG_INFO_H_
 
+#include <tvm/ir/module.h>
 #include <tvm/node/node.h>
+#include <tvm/node/reflection.h>
 #include <tvm/runtime/container/shape_tuple.h>
+#include <tvm/runtime/data_type.h>
+#include <tvm/runtime/object.h>
 #include <tvm/tir/function.h>
 
 namespace tvm {
@@ -57,6 +61,13 @@ class ArgInfo : public runtime::ObjectRef {
    * \return An array of the argument information derived.
    */
   TVM_DLL static Array<ArgInfo, void> FromPrimFunc(const tir::PrimFunc& func);
+  /*!
+   * \brief Extract a list of the argument information from the entry func of an IRModule
+   * \param mod The IRModule to extract argument information from.
+   * \param remove_preproc Whether to remove the preprocessing blocks.
+   * \return An array of the argument information derived.
+   */
+  TVM_DLL static Array<ArgInfo, void> FromEntryFunc(const IRModule& mod, bool remove_preproc);
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ArgInfo, runtime::ObjectRef, ArgInfoNode);
 

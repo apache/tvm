@@ -39,17 +39,6 @@ namespace tir {
 // Get fragment information from tensor intrinsics
 class FragmentGetter : public StmtExprVisitor {
  public:
-  // fragment metadata
-  struct FragmentInfo {
-    // fragment shape
-    int m, n, k;
-    // fragment layout (row-major or column-major)
-    std::string layout;
-    FragmentInfo() = default;
-    FragmentInfo(int _m, int _n, int _k, const std::string& _layout)
-        : m(_m), n(_n), k(_k), layout(_layout) {}
-  };
-
   void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
 
@@ -83,9 +72,9 @@ class FragmentGetter : public StmtExprVisitor {
         // store metadata
         FragmentInfo info;
         if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
-          info = FragmentInfo(m->value, n->value, k->value, layout->value);
+          info = FragmentInfo(m->value, n->value, k->value, layout->value, scope);
         } else if (scope == "wmma.accumulator") {
-          info = FragmentInfo(m->value, n->value, k->value, "");
+          info = FragmentInfo(m->value, n->value, k->value, "", scope);
         }
         fragments[buffer_var] = info;
       }
@@ -103,28 +92,31 @@ class FragmentGetter : public StmtExprVisitor {
       ICHECK(k);
 
       std::string scope = GetPtrStorageScope(GetRef<Var>(buffer_var));
-      // Only wmma.accumulator can use tvm_fill_fragment
-      ICHECK_EQ(scope, "wmma.accumulator");
       if (fragments.count(buffer_var)) {
         FragmentInfo info = fragments[buffer_var];
         ICHECK_EQ(m->value, info.m);
         ICHECK_EQ(n->value, info.n);
         ICHECK_EQ(k->value, info.k);
       } else {
-        FragmentInfo info(m->value, n->value, k->value, "");
+        // default to row major ordering
+        FragmentInfo info(m->value, n->value, k->value, "row_major", scope);
         fragments[buffer_var] = info;
       }
     }
   }
 
   // Get memory scope
-  void VisitStmt_(const AttrStmtNode* op) final {
-    StmtExprVisitor::VisitStmt_(op);
-  }
+  void VisitStmt_(const AttrStmtNode* op) final { StmtExprVisitor::VisitStmt_(op); }
 
   // Fragment metadata for all fragments
   std::unordered_map<const VarNode*, FragmentInfo> fragments;
 };
+
+std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt) {
+  FragmentGetter getter;
+  getter(stmt);
+  return std::move(getter.fragments);
+}
 
 // Check shape of fragment making sure it is a valid shape for tvm_mma_sync
 class FragmentChecker : public StmtExprVisitor {
@@ -155,10 +147,16 @@ class FragmentChecker : public StmtExprVisitor {
  private:
   // A tool for checking shapes of two fragments
   bool CheckShape(const VarNode* buffer1, const VarNode* buffer2) {
-    ICHECK(fragment_getter.fragments.count(buffer1));
-    ICHECK(fragment_getter.fragments.count(buffer2));
-    FragmentGetter::FragmentInfo info1 = fragment_getter.fragments.at(buffer1);
-    FragmentGetter::FragmentInfo info2 = fragment_getter.fragments.at(buffer2);
+    CHECK(fragment_getter.fragments.count(buffer1))
+        << "Tensorecore fragment " << buffer1->name_hint
+        << " must be filled (with tvm_fill_fragment) or loaded (with tvm_load_matrix_sync) before "
+           "use.";
+    CHECK(fragment_getter.fragments.count(buffer2))
+        << "Tensorecore fragment " << buffer2->name_hint
+        << " must be filled (with tvm_fill_fragment) or loaded (with tvm_load_matrix_sync) before "
+           "use.";
+    FragmentInfo info1 = fragment_getter.fragments.at(buffer1);
+    FragmentInfo info2 = fragment_getter.fragments.at(buffer2);
     return info1.m == info2.m && info1.n == info2.n && info1.k == info2.k;
   }
   // Fragment infomation
@@ -175,7 +173,7 @@ class InferFragmenter : public StmtMutator {
     const VarNode* buffer = op->buffer_var.get();
     if (fragment_getter.fragments.count(buffer)) {
       // Add attribute to fragments allocation
-      FragmentGetter::FragmentInfo info = fragment_getter.fragments.at(buffer);
+      FragmentInfo info = fragment_getter.fragments.at(buffer);
 
       // Add shape attribute to all fragments
       std::string shape =

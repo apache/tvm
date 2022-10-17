@@ -40,11 +40,14 @@ void CheckACLError(const arm_compute::Status& status) {
 }
 
 arm_compute::Tensor MakeACLTensor(const JSONGraphNode& tensor_rep, void* data,
-                                  const DLTensor* scale, const DLTensor* offset) {
+                                  const DLTensor* scale, const DLTensor* offset,
+                                  bool apply_dim_correction, bool increase_dim_unit,
+                                  uint32_t entry_index) {
   arm_compute::Tensor tensor;
-  std::vector<int64_t> shape = tensor_rep.GetOpShape()[0];
-  DLDataType dtype = tensor_rep.GetOpDataType()[0];
-  arm_compute::TensorInfo info = MakeACLTensorInfo(shape, dtype, scale, offset);
+  std::vector<int64_t> shape = tensor_rep.GetOpShape()[entry_index];
+  DLDataType dtype = tensor_rep.GetOpDataType()[entry_index];
+  arm_compute::TensorInfo info =
+      MakeACLTensorInfo(shape, dtype, scale, offset, apply_dim_correction, increase_dim_unit);
   info.set_is_resizable(false);
   tensor.allocator()->init(info);
   if (data != nullptr) {
@@ -55,10 +58,11 @@ arm_compute::Tensor MakeACLTensor(const JSONGraphNode& tensor_rep, void* data,
 
 arm_compute::TensorInfo MakeACLTensorInfo(const std::vector<int64_t>& shape,
                                           const DLDataType& dtype, const DLTensor* scale,
-                                          const DLTensor* offset) {
+                                          const DLTensor* offset, bool apply_dim_correction,
+                                          bool increase_dim_unit) {
   arm_compute::TensorShape acl_shape;
   for (unsigned int i = shape.size(); i > 0; --i) {
-    acl_shape.set(shape.size() - i, shape[i - 1]);
+    acl_shape.set(shape.size() - i, shape[i - 1], apply_dim_correction, increase_dim_unit);
   }
   arm_compute::DataType acl_dtype = MakeACLDataType(dtype);
   arm_compute::TensorInfo info(acl_shape, 1, acl_dtype, arm_compute::DataLayout::NHWC);

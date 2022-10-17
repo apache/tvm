@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,8 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -euxo pipefail
 
 source tests/scripts/setup-pytest-env.sh
 
@@ -31,9 +30,10 @@ if [ -z "${TVM_UNITTEST_TESTSUITE_NAME:-}" ]; then
 fi
 
 # First run minimal test on both ctypes and cython.
-run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test tests/python/all-platform-minimal-test
-run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test tests/python/all-platform-minimal-test
+run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test-0 tests/python/all-platform-minimal-test
+run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test-1 tests/python/all-platform-minimal-test
 
 # Then run all unittests on both ctypes and cython.
-run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME} tests/python/unittest
-run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME} tests/python/unittest
+run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-0 tests/python/unittest
+run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME}-1 tests/python/unittest
+run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-ci tests/python/ci

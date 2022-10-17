@@ -18,7 +18,7 @@
 the Relay to TIR compilation process, to Vela API calls to
 generate command stream.
 """
-from typing import Dict, NamedTuple, Tuple, Union
+from typing import Dict, NamedTuple, Tuple, Union, List
 from enum import auto
 from enum import Enum
 import numpy as np  # type: ignore
@@ -29,6 +29,7 @@ from tvm.tir import stmt_functor
 from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.backend.contrib.ethosu import vela_api
 from tvm.relay.backend.contrib.ethosu.tir import spec
+from tvm.relay.backend.contrib.ethosu.tir import utils as tir_utils
 
 
 class BufferType(Enum):
@@ -40,15 +41,6 @@ class BufferType(Enum):
     input = auto()
     output = auto()
     shram = auto()
-
-
-_REGION_MAP = {
-    BufferType.constant: 0,
-    BufferType.scratch: 1,
-    BufferType.input: 3,
-    BufferType.output: 4,
-    BufferType.shram: int((1 << 8) | (3 << 0)),
-}
 
 
 class BufferInfo(NamedTuple):
@@ -81,6 +73,111 @@ def get_accelerator_arch_config(accel_type):
     return accel_config_str_map[accel_type]
 
 
+class RegionOffset(NamedTuple):
+    """A data structure to hold region and address offset corresponding to a tensor"""
+
+    region: int
+    offset: int
+
+
+def analyze_scratch_memory_acesses(mod: tvm.IRModule, candidate_regions_for_scratch: List[int]):
+    """
+    This function analyzes the IRModule for intermediary tensors that can be resulting
+    from a offset of pool variables (via Let nodes) and/or allocate nodes. The allocate
+    nodes will be folded into a single TVMBackendallocWorkspace call with offsets. Ultimately
+    this will produce a mapping from each such node to a RegionOffset named tuple that
+    has the region and the obtained offset, as mentioned above.
+
+    Parameters
+    ----------
+    mod: tvm.IRModule
+        The TIR module containing ethosu extern calls
+    candidate_regions_for_scratch: List[int]
+        A list of region integers that could be used for scratch regions
+
+    Returns
+    -------
+    scratch_region_map : Dict[tvm.tir.Var, RegionOffset]
+        A map between buffer vars to scratch regions they are assigned
+    tvm_backend_alloc_workspace_size : int
+        The size of tvm_backend_alloc_workspace call required to service
+        remaining allocate nodes if any
+    tvm_backend_alloc_workspace_region : int
+        The region associated with the tvm_backend_alloc_workspace
+    """
+    scratch_region_map = dict()
+    pool_var_region_map = dict()
+    # There should only be a single function
+    assert len(mod.functions.items()) == 1
+    primfunc = mod.functions.items()[0][1]
+    if "pool_args" in primfunc.attrs.keys():
+        pool_args = primfunc.attrs["pool_args"]
+        for pool_arg in pool_args:
+            pool_param = primfunc.params[int(pool_arg.pool_var_idx)]
+            pool_var_region_map[pool_param] = candidate_regions_for_scratch.pop()
+            scratch_region_map[pool_param] = RegionOffset(
+                region=pool_var_region_map[pool_param], offset=None
+            )
+
+    def analyze_pool_access(stmt):
+        if isinstance(stmt, tvm.tir.stmt.LetStmt):
+            call_address_of = stmt.value
+            load = call_address_of.args[0]
+            pool_var = load.buffer.data
+            scratch_region_map[stmt.var] = RegionOffset(
+                region=pool_var_region_map[pool_var], offset=int(load.indices[0])
+            )
+
+    tvm.tir.stmt_functor.post_order_visit(primfunc.body, analyze_pool_access)
+
+    dynamic_allocation_region = None
+    if len(candidate_regions_for_scratch) > 0:
+        dynamic_allocation_region = candidate_regions_for_scratch.pop()
+        dynamic_allocation_size = 0
+
+        # If there are tir.Allocate remaining by now, they need to be serviced via
+        # dynamic_allocation calls.
+        def analyze_remaining_allocates(stmt):
+            nonlocal dynamic_allocation_size
+            if isinstance(stmt, tvm.tir.stmt.Allocate):
+                allocate = stmt
+                pointer_type = allocate.buffer_var.type_annotation
+                storage_scope = pointer_type.storage_scope
+                if storage_scope == "global":
+                    dtype_bytes = np.iinfo(np.dtype(allocate.dtype)).bits // 8
+                    size_in_bytes = int(dtype_bytes * np.prod(list(allocate.extents)))
+                    # Every memory address the NPU access have to be 16 byte aligned
+                    size_in_bytes = util.round_up(size_in_bytes, 16)
+                    address = dynamic_allocation_size
+                    dynamic_allocation_size += size_in_bytes
+                    scratch_region_map[allocate.buffer_var] = RegionOffset(
+                        region=dynamic_allocation_region, offset=address
+                    )
+
+        tvm.tir.stmt_functor.post_order_visit(primfunc.body, analyze_remaining_allocates)
+
+    return (
+        scratch_region_map,
+        dynamic_allocation_size,
+        dynamic_allocation_region,
+    )
+
+
+def _get_region(buffer_type, var=None, scratch_region_map=None):
+    """A helper to obtain regions for buffer_types and buffer vars"""
+    static_regions = {
+        BufferType.constant: 0,
+        BufferType.input: 3,
+        BufferType.output: 4,
+        BufferType.shram: int((1 << 8) | (3 << 0)),
+    }
+    if buffer_type in static_regions.keys():
+        return static_regions[buffer_type]
+    assert buffer_type == BufferType.scratch
+    assert var in scratch_region_map.keys(), f"{var} is not analyzed for scratch regions"
+    return scratch_region_map[var].region
+
+
 def translate(tir_module, params):
     """This will take an tir module for the NPU
     and compile to command stream
@@ -102,20 +199,99 @@ def translate(tir_module, params):
     encoded_constants : str
         An hex string of the bytes that includes concat'd
         encoded weights, encoded biases and scales.
-    scratch_size : int
-        The size of the scratch buffer needed.
+    base_addresses : List[util.BaseAddress]
+        base addresses to be used by the driver
     """
 
+    # The NPU has 6 usable regions ranging from 0-6
+    # The regions 0, 3, and 4 is already used for input,
+    # output and constant, respectively (See _get_regions()).
+    # Thus, for scratch we are left with 5, 2 and 1.
+    candidate_regions_for_scratch = [5, 2, 1]
+    (
+        scratch_region_map,
+        dynamic_allocation_size,
+        dynamic_allocation_region,
+    ) = analyze_scratch_memory_acesses(tir_module, candidate_regions_for_scratch)
     buffer_info = extract_buffer_info(tir_module, params)
     call_extern_list = extract_call_extern_list(tir_module)
     _npu_ops = list()
     for call_extern in call_extern_list:
         _npu_ops.append(translate_ethosu_tir_call_extern(call_extern))
-    _npu_ops, constant_data, scratch_size = assign_addresses(buffer_info, _npu_ops)
+    _npu_ops, constant_data = assign_addresses(buffer_info, _npu_ops, scratch_region_map)
+    base_addresses = extract_param_base_addresses(tir_module, buffer_info, scratch_region_map)
+    if dynamic_allocation_size:
+        base_addresses.append(
+            util.BaseAddress(
+                name="dynamic_allocation",
+                primfunc_param_idx=None,
+                region=dynamic_allocation_region,
+                size=dynamic_allocation_size,
+                is_runtime_allocation=True,
+            )
+        )
     target_accel_config = vela_api.get_accelerator_config()
     cmds = vapi.npu_generate_register_command_stream(_npu_ops, target_accel_config)
     payload = vapi.npu_create_driver_payload(cmds, target_accel_config)
-    return payload.hex(), constant_data, scratch_size
+    return payload.hex(), constant_data, base_addresses
+
+
+def extract_param_base_addresses(mod, buffer_info, scratch_region_map) -> List[util.BaseAddress]:
+    """This function extracts base addresses to be used by the driver
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The TIR Module for NPU
+    buffer_info : Dict[tvm.tir.Var, BufferInfo]
+        Information regarding buffer vars used in the PrimFunc
+
+    Returns
+    -------
+    List[util.BaseAddress]
+        base addresses to be used by the driver
+    """
+    # There should only be a single function
+    assert len(mod.functions.items()) == 1
+    primfunc = mod.functions.items()[0][1]
+
+    buffer_map = tir_utils.collect_buffer_map(primfunc.body)
+
+    base_addresses = list()
+    idx = 0
+
+    for param in primfunc.params:
+        # constants are pooled together and handled specially
+        # this will change after tir.allocate_const.
+        # For now, we are skipping generating buffer addresses here
+        if buffer_info[param].btype == BufferType.constant:
+            continue
+
+        if param in buffer_map:
+            buffer = buffer_map[param]
+            dtype = buffer.dtype
+            element_size_bytes = np.iinfo(dtype).bits // 8
+            size_bytes = element_size_bytes * np.prod(list(buffer.shape))
+            base_addresses.append(
+                util.BaseAddress(
+                    param.name.replace("-", "_"),
+                    idx,
+                    _get_region(buffer_info[param].btype, param, scratch_region_map),
+                    size_bytes,
+                )
+            )
+        else:
+            base_addresses.append(
+                util.BaseAddress(
+                    param.name.replace("-", "_"),
+                    idx,
+                    _get_region(buffer_info[param].btype, param, scratch_region_map),
+                    0,
+                )
+            )
+        idx += 1
+
+    return base_addresses
 
 
 def extract_call_extern_list(mod):
@@ -158,7 +334,7 @@ def extract_buffer_info(
     ----------
     mod : tvm.IRModule
         The NPU TIR IRModule.
-    param_dict : Dict[int, np.ndarray]
+    param_dict : Dict[tvm.tir.Var, np.ndarray]
         A dictionary containing param idx --> const numpy.NDArray
 
     Returns
@@ -171,46 +347,50 @@ def extract_buffer_info(
     # There should only be a single function
     assert len(mod.functions.items()) == 1
     primfunc = mod.functions.items()[0][1]
-    for idx, const_data in param_dict.items():
-        param = primfunc.params[idx]
+
+    for param, const_data in param_dict.items():
+        if isinstance(param, tvm.tir.Buffer):
+            param = param.data
         buffer_info[param] = BufferInfo(
             const_data, const_data.shape, const_data.dtype, BufferType.constant
         )
 
-    for param in primfunc.params:
+    pool_param_indices = list()
+    if "pool_args" in primfunc.attrs.keys():
+        pool_args = primfunc.attrs["pool_args"]
+        pool_param_indices = [allocated_pool_info.pool_var_idx for allocated_pool_info in pool_args]
+
+    for idx, param in enumerate(primfunc.params):
         if param not in buffer_info.keys():
+            if idx in pool_param_indices:
+                btype = BufferType.scratch
+            else:
+                btype = BufferType.input_or_output
             buffer_info[param] = BufferInfo(
                 None,
                 None,
                 None,
-                BufferType.input_or_output,
+                btype,
             )
 
     def populate_allocate_buffer_info(stmt):
         if isinstance(stmt, tvm.tir.stmt.Allocate):
             allocate = stmt
-            if "placeholder" in allocate.buffer_var.name:
-                storage_scope = allocate.buffer_var.name.split(".")[-1]
-            else:
-                storage_scope = "global"
-
+            pointer_type = allocate.buffer_var.type_annotation
+            storage_scope = pointer_type.storage_scope
             if storage_scope == "local":
-                buffer_type = BufferType.shram
-            else:
-                buffer_type = BufferType.scratch
-            buffer_info[allocate.buffer_var] = BufferInfo(
-                None,
-                allocate.extents,
-                allocate.dtype,
-                buffer_type,
-            )
+                buffer_info[allocate.buffer_var] = BufferInfo(
+                    None,
+                    allocate.extents,
+                    allocate.dtype,
+                    BufferType.shram,
+                )
 
     tvm.tir.stmt_functor.post_order_visit(primfunc.body, populate_allocate_buffer_info)
-
     return buffer_info
 
 
-def assign_addresses(buffer_info, npu_ops):
+def assign_addresses(buffer_info, npu_ops, scratch_region_map):
     """This function will assign addresses to tensors
     within two buffers : scratch and constants.
     The scratch is the buffer created to hold all intermediary data
@@ -222,40 +402,62 @@ def assign_addresses(buffer_info, npu_ops):
         This is the dictionary obtained via calling extract_buffer_info.
         The key is the buffer name to BufferInfo
     npu_ops : list
+        A list of Vela NpuOps with tir.BufferLoads for addresses
         A list of Vela NpuOps with tir.Loads for addresses
+    scratch_region_map : Dict[tvm.tir.Var, RegionOffset]
+        A buffer_var to region and offset map.
     Returns
     -------
     npu_ops : list
         A list of Vela NpuOps with addesses within scratch and constant buffers
     constant_tensor : NDArray
         A unified constant data array of uint8 as the constant buffer
-    scratch_size : int
-        The size of the scratch tensor.
     """
 
     def replace_npu_fm_with_address(npu_fm):
-        assert isinstance(npu_fm.tiles.addresses[0], tvm.tir.Load)
-        # We currently does not support tiles
-        # Change this when tiles are needed
-        # (i.e. when using rolling buffers)
-        assert npu_fm.tiles.addresses[1:] == [0, 0, 0]
-        npu_fm.tiles.addresses[1:] = [0, 0, 0]
-        buffer = npu_fm.tiles.addresses[0].buffer_var
-        assert buffer in buffer_addresses.keys()
-        address, buffer_type = buffer_addresses[buffer]
-        index = npu_fm.tiles.addresses[0].index * (
+        assert isinstance(npu_fm.tiles.addresses[0], tvm.tir.BufferLoad)
+        buffer = npu_fm.tiles.addresses[0].buffer.data
+        if buffer in scratch_region_map.keys():
+            address = scratch_region_map[buffer].offset
+            region = scratch_region_map[buffer].region
+        else:
+            assert buffer in buffer_addresses.keys()
+            address, buffer_type = buffer_addresses[buffer]
+            region = _get_region(buffer_type)
+        assert (
+            len(npu_fm.tiles.addresses[0].indices) == 1
+        ), "Ethos-U translation expects flattened buffers"
+        index = npu_fm.tiles.addresses[0].indices[0] * (
             np.iinfo(np.dtype(npu_fm.tiles.addresses[0])).bits // 8
         )
         npu_fm.tiles.addresses[0] = address + int(index)
-        npu_fm.region = _REGION_MAP[buffer_type]
+        npu_fm.tiles.addresses[1] = (
+            address if isinstance(npu_fm.tiles.addresses[1], tvm.tir.BufferLoad) else 0
+        )
+        npu_fm.tiles.addresses[2] = (
+            address if isinstance(npu_fm.tiles.addresses[2], tvm.tir.BufferLoad) else 0
+        )
+        npu_fm.tiles.addresses[3] = 0
+        npu_fm.region = region
         return npu_fm
 
     def replace_npu_address_range_with_address(npu_addr_range):
-        assert isinstance(npu_addr_range.address, tvm.tir.Load)
-        buffer = npu_addr_range.address.buffer_var
+        assert isinstance(npu_addr_range.address, tvm.tir.BufferLoad)
+        buffer = npu_addr_range.address.buffer.data
+        index = int(
+            npu_addr_range.address.indices[0]
+            * (np.iinfo(np.dtype(npu_addr_range.address)).bits // 8)
+        )
+        if buffer in scratch_region_map.keys():
+            return vapi.NpuAddressRange(
+                scratch_region_map[buffer].region,
+                scratch_region_map[buffer].offset + index,
+                npu_addr_range.length,
+            )
         assert buffer in buffer_addresses.keys(), f"searching for buffer : {buffer}, but not found"
         address, buffer_type = buffer_addresses[buffer]
-        return vapi.NpuAddressRange(_REGION_MAP[buffer_type], address, npu_addr_range.length)
+        address = address + int(npu_addr_range.address.indices[0].value)
+        return vapi.NpuAddressRange(_get_region(buffer_type), address, npu_addr_range.length)
 
     def replace_tir_loads(npu_object):
         if isinstance(npu_object, vapi.NpuFeatureMap):
@@ -267,16 +469,15 @@ def assign_addresses(buffer_info, npu_ops):
     def classify_io(buffer):
         for _npu_op in npu_ops:
             if issubclass(type(_npu_op), vapi.NpuBlockOperation):
-                if _npu_op.ifm and _npu_op.ifm.tiles.addresses[0].buffer_var == buffer:
+                if _npu_op.ifm and _npu_op.ifm.tiles.addresses[0].buffer.data == buffer:
                     return BufferType.input
-                if _npu_op.ifm2 and _npu_op.ifm2.tiles.addresses[0].buffer_var == buffer:
+                if _npu_op.ifm2 and _npu_op.ifm2.tiles.addresses[0].buffer.data == buffer:
                     return BufferType.input
-                if _npu_op.ofm and _npu_op.ofm.tiles.addresses[0].buffer_var == buffer:
+                if _npu_op.ofm and _npu_op.ofm.tiles.addresses[0].buffer.data == buffer:
                     return BufferType.output
 
         raise ValueError(f"Unused IO : {buffer} in tir module.")
 
-    scratch_size = 0
     constant_hex_data = []
     total_constant_len = 0
     buffer_addresses = dict()
@@ -296,25 +497,24 @@ def assign_addresses(buffer_info, npu_ops):
             constant_hex_data.append(constant_tensor)
             total_constant_len += len(constant_tensor) // 2
         else:
-            if info.btype == BufferType.input_or_output:
-                buffer_type = classify_io(_buffer)
+            if info.btype == BufferType.input_or_output or info.btype == BufferType.input:
+                buffer_type = info.btype
+                if info.btype == BufferType.input_or_output:
+                    buffer_type = classify_io(_buffer)
                 assert buffer_type in (BufferType.input, BufferType.output)
                 address = 0
                 buffer_addresses[_buffer] = (address, buffer_type)
+                buffer_info[_buffer] = BufferInfo(
+                    values=None, shape=info.dtype, dtype=info.dtype, btype=buffer_type
+                )
             elif info.btype == BufferType.shram:
                 accl_config = util.get_accelerator_config()
                 arch_config = get_accelerator_arch_config(accl_config)
                 address = arch_config.lut_start_address
                 buffer_addresses[_buffer] = (address, info.btype)
             else:
-                dtype_bytes = np.iinfo(np.dtype(info.dtype)).bits // 8
-                size_in_bytes = int(dtype_bytes * np.prod(list(info.shape)))
-                # Every memory address the NPU access have to be 16 byte aligned
-                size_in_bytes = util.round_up(size_in_bytes, 16)
+                # These buffer_vars are already updated in scratch_region_map
                 assert info.btype == BufferType.scratch
-                address = scratch_size
-                scratch_size += size_in_bytes
-                buffer_addresses[_buffer] = (address, info.btype)
 
     for npu_op in npu_ops:
         for attr_name, attr in npu_op.__dict__.items():
@@ -327,11 +527,7 @@ def assign_addresses(buffer_info, npu_ops):
                 setattr(npu_op, attr_name, replace_tir_loads(attr))
 
     constant_data = "".join(constant_hex_data)
-    return (
-        npu_ops,
-        constant_data,
-        scratch_size,
-    )
+    return (npu_ops, constant_data)
 
 
 def translate_ethosu_tir_call_extern(tir_call_extern):
@@ -426,13 +622,30 @@ def _create_npu_op_conv2d(
     """This is a helper function to capture a list
     of arguments to create Vela NpuConv2DOperation object.
     """
+    has_two_weights = serial_2d_convolution.weight2.address != -1
+    has_two_biases = serial_2d_convolution.scale_bias2.address != -1
+
     npu_conv2d_op = vapi.NpuConv2DOperation()
     npu_conv2d_op.ifm = _create_npu_feature_map(serial_2d_convolution.ifm)
     npu_conv2d_op.ofm = _create_npu_feature_map(serial_2d_convolution.ofm)
     npu_conv2d_op.kernel = _create_npu_kernel(serial_2d_convolution.kernel)
-    npu_conv2d_op.weights = [_create_npu_address_range(serial_2d_convolution.weight)]
+    npu_conv2d_op.weights = (
+        [
+            _create_npu_address_range(serial_2d_convolution.weight),
+            _create_npu_address_range(serial_2d_convolution.weight2),
+        ]
+        if has_two_weights
+        else [_create_npu_address_range(serial_2d_convolution.weight)]
+    )
     weights_zero_point = np.int64(serial_2d_convolution.weight_zero_point.value)
-    npu_conv2d_op.biases = [_create_npu_address_range(serial_2d_convolution.scale_bias)]
+    npu_conv2d_op.biases = (
+        [
+            _create_npu_address_range(serial_2d_convolution.scale_bias),
+            _create_npu_address_range(serial_2d_convolution.scale_bias2),
+        ]
+        if has_two_biases
+        else [_create_npu_address_range(serial_2d_convolution.scale_bias)]
+    )
     npu_conv2d_op.padding = _create_npu_padding(serial_2d_convolution.padding)
 
     npu_conv2d_op.activation = _create_npu_activation(serial_2d_convolution.activation)
@@ -443,8 +656,7 @@ def _create_npu_op_conv2d(
         _convert_clip_bounds(npu_conv2d_op)
 
     npu_conv2d_op.rounding_mode = _create_npu_rounding_mode(serial_2d_convolution.rounding_mode)
-    npu_conv2d_op.upscale = _create_npu_resampling_mode(serial_2d_convolution.upscale)
-    accel_config = vela_api.get_accelerator_config()
+    npu_conv2d_op.ifm_upscale = _create_npu_resampling_mode(serial_2d_convolution.upscale)
     weights_shape_ohwi = [
         npu_conv2d_op.ofm.shape.depth,
         npu_conv2d_op.kernel.height,
@@ -456,8 +668,13 @@ def _create_npu_op_conv2d(
         weights_shape_ohwi=weights_shape_ohwi,
         ifm_bitdepth=npu_conv2d_op.ifm.data_type.size_in_bits(),
     )
-    block_config = vela_api.get_optimal_block_config(npu_conv2d_op, accel_config)
-    npu_conv2d_op.block_config = block_config
+    npu_conv2d_op.block_config = _create_npu_block_config(serial_2d_convolution.block_config)
+
+    if not npu_conv2d_op.block_config:
+        target_accel_config = vela_api.get_accelerator_config()
+        block_config = vela_api.get_optimal_block_config(npu_conv2d_op, target_accel_config)
+        npu_conv2d_op.block_config = block_config
+
     return npu_conv2d_op, weights_zero_point
 
 
@@ -506,10 +723,17 @@ def _create_npu_op_depthwise_conv2d(serial_2d_depthwise):
     npu_depthwise_conv2d_op.rounding_mode = _create_npu_rounding_mode(
         serial_2d_depthwise.rounding_mode
     )
-    npu_depthwise_conv2d_op.upscale = _create_npu_resampling_mode(serial_2d_depthwise.upscale)
-    target_accel_config = vela_api.get_accelerator_config()
-    block_config = vela_api.get_optimal_block_config(npu_depthwise_conv2d_op, target_accel_config)
-    npu_depthwise_conv2d_op.block_config = block_config
+    npu_depthwise_conv2d_op.ifm_upscale = _create_npu_resampling_mode(serial_2d_depthwise.upscale)
+    npu_depthwise_conv2d_op.block_config = _create_npu_block_config(
+        serial_2d_depthwise.block_config
+    )
+
+    if not npu_depthwise_conv2d_op.block_config:
+        target_accel_config = vela_api.get_accelerator_config()
+        block_config = vela_api.get_optimal_block_config(
+            npu_depthwise_conv2d_op, target_accel_config
+        )
+        npu_depthwise_conv2d_op.block_config = block_config
 
     return npu_depthwise_conv2d_op, weights_zero_point
 
@@ -620,6 +844,19 @@ def _create_npu_padding(serial_padding: spec.SerialPadding) -> vapi.NpuPadding:
     return padding
 
 
+def _create_npu_block_config(serial_block_config: spec.SerialBlockConfig) -> vapi.NpuShape3D:
+    """A helper function to convert a SerialBlockConfig into an NpuShape3D"""
+    if serial_block_config.height * serial_block_config.width * serial_block_config.depth == 0:
+        return None
+
+    block_config = vapi.NpuShape3D(
+        height=int(serial_block_config.height),
+        width=int(serial_block_config.width),
+        depth=int(serial_block_config.depth),
+    )
+    return block_config
+
+
 def _create_npu_activation(serial_activation: spec.SerialActivation) -> vapi.NpuActivation:
     """This is a helper function to capture a list
     of arguments to create Vela NpuActivation object."""
@@ -656,7 +893,7 @@ def _create_npu_resampling_mode(
     mode_map = {
         "NONE": vapi.NpuResamplingMode.NONE,
         "NEAREST": vapi.NpuResamplingMode.NEAREST,
-        "TRANSPOSE": vapi.NpuResamplingMode.TRANSPOSE,
+        "ZEROS": vapi.NpuResamplingMode.TRANSPOSE,
     }
     mode = str(mode.value)
     assert mode in mode_map.keys()
@@ -681,17 +918,18 @@ def _create_npu_rounding_mode(
 def _create_npu_dma_op(serial_copy):
     """This is a helper function to capture the list of arguments
     to create a NpuDmaOperation object"""
+    data_type_bytes = np.iinfo(np.dtype(serial_copy.read_address.dtype)).bits // 8
     src = vapi.NpuAddressRange(
         # region will be updated later
         region=0,
         address=serial_copy.read_address,
-        length=int(serial_copy.length.value),
+        length=int(serial_copy.length.value) * data_type_bytes,
     )
     dest = vapi.NpuAddressRange(
         # region will be updated later
         region=0,
         address=serial_copy.write_address,
-        length=int(serial_copy.length.value),
+        length=int(serial_copy.length.value) * data_type_bytes,
     )
     return vapi.NpuDmaOperation(src, dest)
 
@@ -737,11 +975,13 @@ def _create_npu_op_pooling(serial_pooling: spec.SerialPooling):
         _convert_clip_bounds(npu_pooling_op)
 
     npu_pooling_op.rounding_mode = _create_npu_rounding_mode(serial_pooling.rounding_mode)
-    npu_pooling_op.upscale = _create_npu_resampling_mode(serial_pooling.upscale)
+    npu_pooling_op.ifm_upscale = _create_npu_resampling_mode(serial_pooling.upscale)
+    npu_pooling_op.block_config = _create_npu_block_config(serial_pooling.block_config)
 
-    target_accel_config = vela_api.get_accelerator_config()
-    block_config = vela_api.get_optimal_block_config(npu_pooling_op, target_accel_config)
-    npu_pooling_op.block_config = block_config
+    if not npu_pooling_op.block_config:
+        target_accel_config = vela_api.get_accelerator_config()
+        block_config = vela_api.get_optimal_block_config(npu_pooling_op, target_accel_config)
+        npu_pooling_op.block_config = block_config
 
     return npu_pooling_op
 
@@ -805,10 +1045,16 @@ def _create_npu_op_binary_elementwise(serial_binary_elementwise: spec.SerialBina
     npu_binary_elementwise_op.rounding_mode = _create_npu_rounding_mode(
         serial_binary_elementwise.rounding_mode
     )
+    npu_binary_elementwise_op.block_config = _create_npu_block_config(
+        serial_binary_elementwise.block_config
+    )
 
-    target_accel_config = vela_api.get_accelerator_config()
-    block_config = vela_api.get_optimal_block_config(npu_binary_elementwise_op, target_accel_config)
-    npu_binary_elementwise_op.block_config = block_config
+    if not npu_binary_elementwise_op.block_config:
+        target_accel_config = vela_api.get_accelerator_config()
+        block_config = vela_api.get_optimal_block_config(
+            npu_binary_elementwise_op, target_accel_config
+        )
+        npu_binary_elementwise_op.block_config = block_config
 
     return npu_binary_elementwise_op
 
@@ -858,8 +1104,15 @@ def _create_npu_op_unary_elementwise(serial_unary_elementwise):
     npu_unary_elementwise_op.rounding_mode = _create_npu_rounding_mode(
         serial_unary_elementwise.rounding_mode
     )
-    target_accel_type = vela_api.get_accelerator_config()
-    block_config = vela_api.get_optimal_block_config(npu_unary_elementwise_op, target_accel_type)
-    npu_unary_elementwise_op.block_config = block_config
+    npu_unary_elementwise_op.block_config = _create_npu_block_config(
+        serial_unary_elementwise.block_config
+    )
+
+    if not npu_unary_elementwise_op.block_config:
+        target_accel_type = vela_api.get_accelerator_config()
+        block_config = vela_api.get_optimal_block_config(
+            npu_unary_elementwise_op, target_accel_type
+        )
+        npu_unary_elementwise_op.block_config = block_config
 
     return npu_unary_elementwise_op

@@ -17,38 +17,61 @@
  * under the License.
  */
 #include <set>
+#include <thread>
 #include <unordered_map>
 
+#include "../module_equality.h"
 #include "../utils.h"
 
 namespace tvm {
 namespace meta_schedule {
 
-/*! \brief The struct defining comparison function of sorting by mean run seconds. */
-struct SortTuningRecordByMeanRunSecs {
-  static const constexpr double kMaxMeanTime = 1e10;
-
-  static double Mean(const Array<FloatImm>& a) {
-    if (a.empty()) {
-      return kMaxMeanTime;
+/*!
+ * \brief Read lines from a json file.
+ * \param path The path to the json file.
+ * \param num_lines The number of threads used to concurrently parse the lines.
+ * \param allow_missing Whether to create new file when the given path is not found.
+ * \return An array containing lines read from the json file.
+ */
+std::vector<ObjectRef> JSONFileReadLines(const String& path, int num_threads, bool allow_missing) {
+  std::ifstream is(path);
+  if (is.good()) {
+    std::vector<String> json_strs;
+    for (std::string str; std::getline(is, str);) {
+      json_strs.push_back(str);
     }
-    double sum = 0.0;
-    for (const FloatImm& i : a) {
-      sum += i->value;
-    }
-    return sum / a.size();
+    int n = json_strs.size();
+    std::vector<ObjectRef> json_objs;
+    json_objs.resize(n);
+    support::parallel_for_dynamic(0, n, num_threads, [&](int thread_id, int task_id) {
+      json_objs[task_id] = JSONLoads(json_strs[task_id]);
+    });
+    return json_objs;
   }
+  CHECK(allow_missing) << "ValueError: File doesn't exist: " << path;
+  std::ofstream os(path);
+  CHECK(os.good()) << "ValueError: Cannot create new file: " << path;
+  return {};
+}
 
-  bool operator()(const TuningRecord& a, const TuningRecord& b) const {
-    double a_time = Mean(a->run_secs);
-    double b_time = Mean(b->run_secs);
-    return a_time < b_time;
-  }
-};
+/*!
+ * \brief Append a line to a json file.
+ * \param path The path to the json file.
+ * \param line The line to append.
+ */
+void JSONFileAppendLine(const String& path, const std::string& line) {
+  std::ofstream os(path, std::ofstream::app);
+  CHECK(os.good()) << "ValueError: Cannot open the file to write: " << path;
+  os << line << std::endl;
+}
 
 /*! \brief The default database implementation, which mimics two database tables with two files. */
 class JSONDatabaseNode : public DatabaseNode {
  public:
+  explicit JSONDatabaseNode(String mod_eq_name = "structural")
+      : DatabaseNode(mod_eq_name),
+        workloads2idx_(/*bucket_count*/ 0, WorkloadHash(), WorkloadEqual(GetModuleEquality())) {}
+
   /*! \brief The path to the workload table */
   String path_workload;
   /*! \brief The path to the tuning record table */
@@ -70,20 +93,19 @@ class JSONDatabaseNode : public DatabaseNode {
 
  public:
   bool HasWorkload(const IRModule& mod) {
-    return workloads2idx_.find(Workload(mod, tvm::StructuralHash()(mod))) != workloads2idx_.end();
+    return workloads2idx_.find(Workload(mod, GetModuleEquality().Hash(mod))) !=
+           workloads2idx_.end();
   }
 
   Workload CommitWorkload(const IRModule& mod) {
     // Try to insert `mod` into `workloads_`
-    decltype(this->workloads2idx_)::iterator it;
-    bool inserted = false;
-    std::tie(it, inserted) =
-        this->workloads2idx_.emplace(Workload(mod, tvm::StructuralHash()(mod)), -1);
+    auto [it, inserted] =
+        this->workloads2idx_.emplace(Workload(mod, GetModuleEquality().Hash(mod)), -1);
     Workload workload = it->first;
     // If `mod` is new in `workloads2idx_`, append it to the workload file
     if (inserted) {
       it->second = static_cast<int>(this->workloads2idx_.size()) - 1;
-      JSONFileAppendLine(this->path_workload, JSONObj2Str(workload->AsJSON()));
+      JSONFileAppendLine(this->path_workload, JSONDumps(workload->AsJSON()));
     }
     return it->first;
   }
@@ -91,7 +113,7 @@ class JSONDatabaseNode : public DatabaseNode {
   void CommitTuningRecord(const TuningRecord& record) {
     this->tuning_records_.insert(record);
     JSONFileAppendLine(this->path_tuning_record,
-                       JSONObj2Str(Array<ObjectRef>{
+                       JSONDumps(Array<ObjectRef>{
                            /*workload_index=*/Integer(this->workloads2idx_.at(record->workload)),
                            /*tuning_record=*/record->AsJSON()  //
                        }));
@@ -106,7 +128,7 @@ class JSONDatabaseNode : public DatabaseNode {
     results.reserve(top_k);
     int counter = 0;
     for (const TuningRecord& record : this->tuning_records_) {
-      if (WorkloadEqual()(record->workload, workload)) {
+      if (WorkloadEqual(GetModuleEquality())(record->workload, workload)) {
         results.push_back(record);
         if (++counter == top_k) {
           break;
@@ -116,41 +138,65 @@ class JSONDatabaseNode : public DatabaseNode {
     return results;
   }
 
+  Array<TuningRecord> GetAllTuningRecords() {
+    Array<TuningRecord> results;
+    results.reserve(Size());
+    for (const TuningRecord& record : this->tuning_records_) {
+      results.push_back(record);
+    }
+    return results;
+  }
+
   int64_t Size() { return tuning_records_.size(); }
 };
 
-Database Database::JSONDatabase(String path_workload, String path_tuning_record,
-                                bool allow_missing) {
-  ObjectPtr<JSONDatabaseNode> n = make_object<JSONDatabaseNode>();
+Database Database::JSONDatabase(String path_workload, String path_tuning_record, bool allow_missing,
+                                String mod_eq_name) {
+  int num_threads = std::thread::hardware_concurrency();
+  ObjectPtr<JSONDatabaseNode> n = make_object<JSONDatabaseNode>(mod_eq_name);
   // Load `n->workloads2idx_` from `path_workload`
   std::vector<Workload> workloads;
   {
-    Array<ObjectRef> json_objs = JSONStr2Obj(JSONFileReadLines(path_workload, allow_missing));
+    std::vector<ObjectRef> json_objs = JSONFileReadLines(path_workload, num_threads, allow_missing);
     int n_objs = json_objs.size();
     n->workloads2idx_.reserve(n_objs);
     workloads.reserve(n_objs);
     for (int i = 0; i < n_objs; ++i) {
       Workload workload = Workload::FromJSON(json_objs[i]);
+      auto recalc_hash = n->GetModuleEquality().Hash(workload->mod);
+      CHECK_EQ(recalc_hash, workload->shash)
+          << "ValueError: Module hash changed. Given: " << workload->shash
+          << "; Recalculated: " << recalc_hash;
       n->workloads2idx_.emplace(workload, i);
       workloads.push_back(workload);
     }
   }
   // Load `n->tuning_records_` from `path_tuning_record`
   {
-    Array<ObjectRef> json_objs = JSONStr2Obj(JSONFileReadLines(path_tuning_record, allow_missing));
-    for (const ObjectRef& json_obj : json_objs) {
-      int workload_index = -1;
-      ObjectRef tuning_record{nullptr};
-      try {
-        const ArrayNode* arr = json_obj.as<ArrayNode>();
-        ICHECK_EQ(arr->size(), 2);
-        workload_index = Downcast<Integer>(arr->at(0));
-        tuning_record = arr->at(1);
-      } catch (std::runtime_error& e) {
-        LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
-                   << "\nThe error is: " << e.what();
-      }
-      n->tuning_records_.insert(TuningRecord::FromJSON(tuning_record, workloads[workload_index]));
+    std::vector<ObjectRef> json_objs =
+        JSONFileReadLines(path_tuning_record, num_threads, allow_missing);
+    std::vector<TuningRecord> records;
+    records.resize(json_objs.size(), TuningRecord{nullptr});
+    support::parallel_for_dynamic(
+        0, json_objs.size(), num_threads, [&](int thread_id, int task_id) {
+          const ObjectRef& json_obj = json_objs[task_id];
+          Workload workload{nullptr};
+          try {
+            const ArrayNode* arr = json_obj.as<ArrayNode>();
+            ICHECK_EQ(arr->size(), 2);
+            workload = workloads[Downcast<Integer>(arr->at(0)).IntValue()];
+            records[task_id] = TuningRecord::FromJSON(arr->at(1), workload);
+          } catch (std::runtime_error& e) {
+            LOG(FATAL) << "ValueError: Unable to parse TuningRecord, on line " << (task_id + 1)
+                       << " of file " << path_tuning_record << ". The workload is:\n"
+                       << (workload.defined() ? tir::AsTVMScript(workload->mod) : "(null)")
+                       << "\nThe JSONObject of TuningRecord is:\n"
+                       << json_obj << "\nThe error message is:\n"
+                       << e.what();
+          }
+        });
+    for (const TuningRecord& record : records) {
+      n->tuning_records_.insert(record);
     }
   }
   n->path_workload = path_workload;

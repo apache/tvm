@@ -20,19 +20,22 @@
 # tag: v0.60
 FROM ubuntu:18.04
 
+COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
+
 RUN apt-get update --fix-missing
 
-RUN apt-get update && apt-get install -y wget git sudo make
+RUN apt-install-and-clear -y wget git sudo make parallel
 
-COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
-RUN bash /install/ubuntu1804_install_python.sh
+ENV TVM_VENV /venv/apache-tvm-py3.7
+COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
+COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
+RUN bash /install/ubuntu_install_python.sh
+ENV PATH ${TVM_VENV}/bin:$PATH
+ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
-# Globally disable pip cache
-RUN pip config set global.no-cache-dir false
+RUN apt-get update && apt-install-and-clear -y doxygen graphviz curl shellcheck
 
-RUN apt-get update && apt-get install -y doxygen graphviz curl
-
-RUN pip3 install cpplint pylint==2.4.4 mypy==0.902 black==20.8b1 flake8==3.9.2
+RUN pip3 install cpplint pylint==2.4.4 mypy==0.902 black==22.3.0 flake8==3.9.2 blocklint==0.2.3 jinja2==3.0.3
 
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
@@ -40,10 +43,6 @@ RUN bash /install/ubuntu_install_rust.sh
 ENV RUSTUP_HOME /opt/rust
 ENV CARGO_HOME /opt/rust
 ENV PATH $PATH:$CARGO_HOME/bin
-
-# wasmtime
-COPY install/ubuntu_install_wasmtime.sh /install/ubuntu_install_wasmtime.sh
-RUN bash /install/ubuntu_install_wasmtime.sh
 
 # java deps for rat
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh

@@ -300,6 +300,12 @@ def conv2d_transpose_legalize(attrs, inputs, types):
     """
     data, kernel = inputs
     kernel_layout = attrs["kernel_layout"]
+
+    target = tvm.target.Target.current(allow_none=True)
+    if target and "cudnn" in target.libs:
+        # cuDNN backend can directly operate on NHWC layout.
+        return None
+
     if attrs["data_layout"] == "NHWC":
         kernel = layout_transform(kernel, kernel_layout, "IOHW")
 

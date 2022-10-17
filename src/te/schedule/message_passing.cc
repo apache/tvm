@@ -79,6 +79,22 @@ void PassUpThreadBinding(const Stage& stage, std::unordered_map<IterVar, bool>* 
     } else if (const RebaseNode* s = rel.as<RebaseNode>()) {
       state[s->parent] = state[s->rebased];
     } else if (rel.as<SingletonNode>()) {
+    } else if (const TransformNode* s = rel.as<TransformNode>()) {
+      // Currently, this marks all original iter vars as deriving from
+      // a thread bind if any of the transformed variables are bound,
+      // even if the inverse expression for that iter var doesn't
+      // depend on the bound variable.
+
+      // TODO(Lunderberg): For each of original variable, check
+      // whether any variable in the inverse expression for it has a
+      // thread binding.
+      bool is_thread_binding = false;
+      for (const auto& iter_var : s->transformed_variables) {
+        is_thread_binding = is_thread_binding || state[iter_var];
+      }
+      for (const auto& iter_var : s->original_variables) {
+        state[iter_var] = is_thread_binding;
+      }
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -132,12 +148,16 @@ void PassDownDomain(const Stage& stage, std::unordered_map<IterVar, Range>* p_st
       };
       if (r->factor.defined()) {
         Update(p_state, r->inner,
-               Range::FromMinExtent(0, resolve_min_extent_for_split(r->inner, r->factor)), actx);
+               Range::FromMinExtent(0, cast(range_parent->extent.dtype(),
+                                            resolve_min_extent_for_split(r->inner, r->factor))),
+               actx);
         Update(p_state, r->outer,
                Range::FromMinExtent(0, ceil_div(range_parent->extent, r->factor)), actx);
       } else {
         Update(p_state, r->outer,
-               Range::FromMinExtent(0, resolve_min_extent_for_split(r->outer, r->nparts)), actx);
+               Range::FromMinExtent(0, cast(range_parent->extent.dtype(),
+                                            resolve_min_extent_for_split(r->outer, r->nparts))),
+               actx);
         Update(p_state, r->inner,
                Range::FromMinExtent(0, ceil_div(range_parent->extent, r->nparts)), actx);
       }
@@ -157,6 +177,29 @@ void PassDownDomain(const Stage& stage, std::unordered_map<IterVar, Range>* p_st
       Update(p_state, r->rebased, Range::FromMinExtent(0, state.at(r->parent)->extent), actx);
     } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
       Update(p_state, s->iter, Range::FromMinExtent(0, 1), actx);
+    } else if (const TransformNode* s = rel.as<TransformNode>()) {
+      bool missing_originals = false;
+      for (const auto& iter_var : s->original_variables) {
+        if (!state.count(iter_var)) {
+          ICHECK(allow_missing);
+          missing_originals = true;
+        }
+      }
+      if (missing_originals) {
+        continue;
+      }
+
+      Array<Range> original_ranges;
+      for (const auto& iter_var : s->original_variables) {
+        original_ranges.push_back(state[iter_var]);
+      }
+      Array<Range> updated_ranges = s->forward_transformation->MapRanges(original_ranges);
+
+      ICHECK_EQ(updated_ranges.size(), s->transformed_variables.size());
+      for (size_t i = 0; i < updated_ranges.size(); i++) {
+        Update(p_state, s->transformed_variables[i], updated_ranges[i], actx);
+      }
+
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -225,6 +268,29 @@ void PassUpIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
         state[s->parent] = value;
       }
     } else if (rel.as<SingletonNode>()) {
+    } else if (const TransformNode* s = rel.as<TransformNode>()) {
+      bool missing_transformed = false;
+      for (const auto& iter_var : s->transformed_variables) {
+        if (!state.count(iter_var)) {
+          ICHECK(allow_missing);
+          missing_transformed = true;
+        }
+      }
+      if (missing_transformed) {
+        continue;
+      }
+
+      Array<PrimExpr> transformed_indices;
+      for (const auto& iter_var : s->transformed_variables) {
+        transformed_indices.push_back(state[iter_var]);
+      }
+      Array<PrimExpr> original_indices = s->inverse_transformation->MapIndices(transformed_indices);
+
+      ICHECK_EQ(original_indices.size(), s->original_variables.size());
+      for (size_t i = 0; i < original_indices.size(); i++) {
+        state[s->original_variables[i]] = original_indices[i];
+      }
+
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -270,6 +336,28 @@ void PassDownIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
       state[s->rebased] = value;
     } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
       state[s->iter] = make_zero(s->iter->var.dtype());
+    } else if (const TransformNode* s = rel.as<TransformNode>()) {
+      bool missing_originals = false;
+      for (const auto& iter_var : s->original_variables) {
+        if (!state.count(iter_var)) {
+          ICHECK(allow_missing);
+          missing_originals = true;
+        }
+      }
+      if (missing_originals) {
+        continue;
+      }
+
+      Array<PrimExpr> original_indices;
+      for (const auto& iter_var : s->original_variables) {
+        original_indices.push_back(state[iter_var]);
+      }
+      Array<PrimExpr> transformed_indices = s->forward_transformation->MapIndices(original_indices);
+
+      ICHECK_EQ(transformed_indices.size(), s->transformed_variables.size());
+      for (size_t i = 0; i < transformed_indices.size(); i++) {
+        state[s->transformed_variables[i]] = transformed_indices[i];
+      }
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -351,6 +439,26 @@ void PassUpDomain(const RebaseNode* s, const std::unordered_map<IterVar, Range>&
   *parent = arith::EvalSet(s->rebased->var + parent_min, {{s->rebased, rebased}});
 }
 
+Array<IntSet> PassUpDomain(const TransformNode* s,
+                           const std::unordered_map<IterVar, Range>& dom_map,
+                           const Map<IterVar, IntSet>& transformed_domains) {
+  Array<IntSet> output;
+
+  Array<PrimExpr> transformed_indices;
+  for (const auto& iter_var : s->transformed_variables) {
+    transformed_indices.push_back(iter_var->var);
+  }
+
+  Array<PrimExpr> transformed_exprs = s->inverse_transformation->MapIndices(transformed_indices);
+
+  ICHECK_EQ(transformed_exprs.size(), s->original_variables.size());
+  for (size_t i = 0; i < transformed_exprs.size(); i++) {
+    output.push_back(arith::EvalSet(transformed_exprs[i], transformed_domains));
+  }
+
+  return output;
+}
+
 void PassUpDomain(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
                   std::unordered_map<IterVar, IntSet>* p_state) {
   auto& state = *p_state;
@@ -370,6 +478,16 @@ void PassUpDomain(const Stage& stage, const std::unordered_map<IterVar, Range>& 
       PassUpDomain(r, dom_map, state.at(r->rebased), &parent);
       state[r->parent] = parent;
     } else if (rel.as<SingletonNode>()) {
+    } else if (const TransformNode* r = rel.as<TransformNode>()) {
+      Map<IterVar, IntSet> transformed_domains;
+      for (const auto& var : r->transformed_variables) {
+        transformed_domains.Set(var, state.at(var));
+      }
+      auto original_ranges = PassUpDomain(r, dom_map, transformed_domains);
+      ICHECK_EQ(original_ranges.size(), r->original_variables.size());
+      for (size_t i = 0; i < original_ranges.size(); i++) {
+        state[r->original_variables[i]] = original_ranges[i];
+      }
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -417,6 +535,17 @@ void PassUpBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_sta
       } else {
         state[s->parent] |= state[s->rebased];
       }
+    } else if (const TransformNode* s = rel.as<TransformNode>()) {
+      for (const auto& original_var : s->original_variables) {
+        for (const auto& transformed_var : s->transformed_variables) {
+          if (!state.count(transformed_var)) {
+            ICHECK(allow_missing);
+            continue;
+          }
+          state[original_var] |= state[transformed_var];
+        }
+      }
+
     } else if (rel.as<SingletonNode>()) {
     } else {
       LOG(FATAL) << "unknown relation type";
@@ -462,6 +591,16 @@ void PassDownBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_s
         state[s->rebased] = state.at(s->parent);
       } else {
         state[s->rebased] |= state.at(s->parent);
+      }
+    } else if (const TransformNode* s = rel.as<TransformNode>()) {
+      for (const auto& original_var : s->original_variables) {
+        for (const auto& transformed_var : s->transformed_variables) {
+          if (!state.count(original_var)) {
+            ICHECK(allow_missing);
+            continue;
+          }
+          state[transformed_var] |= state[original_var];
+        }
       }
     } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
       state[s->iter] = 0;
@@ -509,6 +648,22 @@ void PassUpBoundCheck(const Stage& s, const Map<IterVar, Range>& dom_map,
       state[s->parent] = state.at(s->rebased);
     } else if (rel.as<SingletonNode>()) {
       // nop
+    } else if (const TransformNode* s = rel.as<TransformNode>()) {
+      // Currently, this marks all original iter vars as requiring
+      // bounds checks if any of the transformed variables require
+      // bounds checks, even if the inverse expression for that iter
+      // var doesn't depend on the bound variable.
+
+      // TODO(Lunderberg): For each of original variable, check
+      // whether any variable in the inverse expression for it
+      // requires bounds checking.
+      bool needs_bounds_check = false;
+      for (const auto& iter_var : s->transformed_variables) {
+        needs_bounds_check = needs_bounds_check || state[iter_var];
+      }
+      for (const auto& iter_var : s->original_variables) {
+        state[iter_var] = needs_bounds_check;
+      }
     } else {
       LOG(FATAL) << "unknown relation type";
     }

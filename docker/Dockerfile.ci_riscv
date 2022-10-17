@@ -1,0 +1,111 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# CI docker CPU env
+# tag: v0.62
+FROM ubuntu:18.04
+
+COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
+
+RUN apt-get update --fix-missing
+
+COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
+RUN bash /install/ubuntu_install_core.sh
+
+COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
+RUN bash /install/ubuntu_install_cmake_source.sh
+
+COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
+RUN bash /install/ubuntu_install_googletest.sh
+
+ENV TVM_VENV /venv/apache-tvm-py3.7
+COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
+COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
+RUN bash /install/ubuntu_install_python.sh
+ENV PATH ${TVM_VENV}/bin:$PATH
+ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
+
+COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
+RUN bash /install/ubuntu_install_python_package.sh
+
+COPY install/ubuntu1804_install_llvm.sh /install/ubuntu1804_install_llvm.sh
+RUN bash /install/ubuntu1804_install_llvm.sh
+
+# Rust env (build early; takes a while)
+COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
+RUN bash /install/ubuntu_install_rust.sh
+ENV RUSTUP_HOME /opt/rust
+ENV CARGO_HOME /opt/rust
+ENV PATH $PATH:$CARGO_HOME/bin
+
+# AutoTVM deps
+COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
+RUN bash /install/ubuntu_install_redis.sh
+
+# ANTLR deps
+COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
+RUN bash /install/ubuntu_install_java.sh
+
+# TensorFlow deps
+COPY install/ubuntu_install_tensorflow.sh /install/ubuntu_install_tensorflow.sh
+RUN bash /install/ubuntu_install_tensorflow.sh
+
+# TFLite deps
+COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
+RUN bash /install/ubuntu_install_tflite.sh
+
+# Install ONNX
+COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
+RUN bash /install/ubuntu_install_onnx.sh
+
+# sccache
+COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
+RUN bash /install/ubuntu_install_sccache.sh
+ENV PATH /opt/sccache:$PATH
+
+# Zephyr SDK deps
+COPY install/ubuntu_install_zephyr.sh /install/ubuntu_install_zephyr.sh
+COPY install/ubuntu_init_zephyr_project.sh /install/ubuntu_init_zephyr_project.sh
+COPY install/ubuntu_install_zephyr_sdk.sh /install/ubuntu_install_zephyr_sdk.sh
+RUN bash /install/ubuntu_install_zephyr.sh
+ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr
+
+# Download RISC-V gcc toolchain (linux)
+COPY install/ubuntu_download_xuantie_gcc_linux.sh /install/ubuntu_download_xuantie_gcc_linux.sh
+RUN bash /install/ubuntu_download_xuantie_gcc_linux.sh /opt/riscv/riscv64-unknown-linux-gnu
+
+# Download RISC-V gcc toolchain (baremetal)
+COPY install/ubuntu_download_xuantie_gcc_newlib.sh /install/ubuntu_download_xuantie_gcc_newlib.sh
+RUN bash /install/ubuntu_download_xuantie_gcc_newlib.sh /opt/riscv/riscv64-unknown-elf
+
+# Install RISC-V QEMU
+COPY install/ubuntu_download_xuantie_qemu.sh /install/ubuntu_download_xuantie_qemu.sh
+RUN bash /install/ubuntu_download_xuantie_qemu.sh /opt/riscv/qemu/
+
+# Install CSI-NN2
+COPY install/ubuntu_download_csinn2_compute_lib.sh /install/ubuntu_download_csinn2_compute_lib.sh
+RUN bash /install/ubuntu_download_csinn2_compute_lib.sh
+
+# Build spike (riscv-isa-sim) and proxy kernel (pk)
+COPY install/ubuntu_install_spike_sim.sh /install/ubuntu_install_spike_sim.sh
+RUN bash /install/ubuntu_install_spike_sim.sh /opt/riscv/riscv64-unknown-elf/
+
+# Update PATH
+ENV PATH /opt/riscv/riscv64-unknown-linux-gnu/bin:$PATH
+ENV PATH /opt/riscv/riscv64-unknown-elf/bin:$PATH
+ENV PATH /opt/riscv/qemu/bin:$PATH
+ENV PATH /opt/riscv/spike/bin:$PATH

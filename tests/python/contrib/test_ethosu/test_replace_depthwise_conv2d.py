@@ -22,7 +22,7 @@ pytest.importorskip("ethosu.vela")
 import tvm
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
 from .infra import make_ethosu_depthwise_conv2d, get_convolutional_args
 
 
@@ -75,7 +75,10 @@ from .infra import make_ethosu_depthwise_conv2d, get_convolutional_args
         ],
     ],
 )
-def test_depthwise_conv2d_single(trial):
+@tvm.testing.skip_parameterizations(
+    "trial3", reason="See https://github.com/apache/tvm/issues/12841"
+)
+def test_depthwise_conv2d_single(request, trial):
     def _get_func(
         ifm_shape,
         channels,
@@ -108,7 +111,7 @@ def test_depthwise_conv2d_single(trial):
         return func
 
     func = _get_func(*trial)
-    mod, _ = lower_to_tir(func)
+    mod, _ = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):
@@ -203,5 +206,8 @@ def test_depthwise_conv2d_single(trial):
         105 if activation == "CLIP" else 0,
         rounding_mode,
         "NONE",
+        0,
+        0,
+        0,
     ]
     assert data[0] == answer, data[0]

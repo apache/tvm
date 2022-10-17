@@ -23,6 +23,7 @@ from tvm import te  # type: ignore
 from tvm.contrib.ethosu.cascader import TESubgraph, EthosuPart, Propagator, register_matcher
 
 from .dma import dma_ofm_compute, dma_ifm_compute
+from .common import get_layout_transform_matrices
 
 
 def conv2d_compute(
@@ -115,10 +116,17 @@ def conv2d_compute(
     stride_h, stride_w = [int(v) for v in strides]
     dilation_h, dilation_w = [int(v) for v in dilation]
     ofm_channels, kernel_h, kernel_w, ifm_channels = [int(v) for v in weight.shape]
+    upscale_factor = 2 if upscale != "NONE" else 1
 
     # Compute operation for the IFM DMA pipeline
     dmaed_ifm = dma_ifm_compute(
-        ifm, ifm_layout, ifm_zero_point, ifm_scale, weight.shape[3], padding
+        ifm,
+        ifm_layout,
+        ifm_zero_point,
+        ifm_scale,
+        weight.shape[3],
+        padding,
+        upscale_factor,
     )
 
     # 2D Convolution compute operation
@@ -168,21 +176,8 @@ def conv2d_compute(
         attrs=conv2d_attrs,
     )
 
-    nhwc_to_nhcwb16 = [
-        [1, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0],
-        [0, 0, 0, 1 / 16, 0],
-        [0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 16],
-        [0, 0, 0, 0, 1],
-    ]
-    nhcwb16_to_nhwc = [
-        [1, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0],
-        [0, 0, 16, 0, 1, -16],
-        [0, 0, 0, 0, 0, 1],
-    ]
+    nhwc_to_nhcwb16, nhcwb16_to_nhwc = get_layout_transform_matrices(ofm_channels)
+
     ifm_matrix = [
         [1, 0, 0, 0, 0],
         [0, stride_h, 0, 0, (dilated_kernel_h - stride_h)],
@@ -267,7 +262,10 @@ def match_ethosu_conv2d(output_tensor, device_config):
     pad = conv2d.op.input_tensors[0]
     if pad.op.name != "ethosu_pad":
         return None
-    convert_to_nhwc = pad.op.input_tensors[0]
+    upscale = pad.op.input_tensors[0]
+    if upscale.op.name != "ethosu_upscale":
+        return None
+    convert_to_nhwc = upscale.op.input_tensors[0]
     if convert_to_nhwc.op.name != "ethosu_convert_to_nhwc":
         return None
     read = convert_to_nhwc.op.input_tensors[0]
@@ -289,7 +287,9 @@ def match_ethosu_conv2d(output_tensor, device_config):
     ifm_dtype = input_tensors[0].dtype
     ofm_dtype = output_tensor.dtype
 
-    ifm_channels = int(input_tensors[0].shape[3])
+    # Use channels from the weights tensor since that its shape doesn't change during layout
+    # conversion
+    ifm_channels = int(input_tensors[1].shape[3])
     ofm_channels, kernel_height, kernel_width = (int(axis) for axis in input_tensors[1].shape[0:3])
     kernel_elements = kernel_height * kernel_width
 

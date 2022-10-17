@@ -54,7 +54,7 @@ struct VMFunction;
  *  used by the virtual machine.
  *  - Code section, handling the VM functions and bytecode.
  */
-class Executable : public ModuleNode {
+class TVM_DLL Executable : public ModuleNode {
  public:
   /*!
    * \brief Get a PackedFunc from an executable module.
@@ -127,12 +127,25 @@ class Executable : public ModuleNode {
   void MoveLateBoundConstantsToFile(const std::string& path, size_t byte_limit);
 
   /*!
+   * \brief Get a map of all constants with larger that byte_limit in size.
+   */
+  Map<String, NDArray> GetLateBoundConstants(size_t byte_limit);
+
+  /*!
    * \brief Restores the late-bound constants for the executable (if any) from given byte-stream.
    *
    * Must be called after \p Load but before any other methods if \p MoveLateBoundConstantsToBinary
    * was used when saving. Otherwise can be ignored.
    */
   void LoadLateBoundConstantsFromStream(dmlc::Stream* stream);
+
+  /*!
+   * \brief Restores the late-bound constants for the executable (if any) from given map.
+   *
+   * Must be called after \p Load but before any other methods if \p MoveLateBoundConstantsToBinary
+   * was used when saving. Otherwise can be ignored.
+   */
+  void LoadLateBoundConstantsFromMap(Map<String, NDArray> map);
 
   /*!
    * \brief As for \p LoadLateBoundConstantsFromStream, but load from file at \p path.
@@ -217,6 +230,13 @@ class Executable : public ModuleNode {
    * to iterate on the way runtime::Module works in the backend of the compiler.
    */
   void SetLib(const runtime::Module& lib);
+
+  /*!
+   * \brief Get VMFunction.
+   * \param func_name The function's name.
+   * \return VMFunction.
+   */
+  const VMFunction& GetVMFunctionWithName(const std::string& func_name) const;
 
   /*!
    * \brief Get the arity of the VMFunction.

@@ -390,9 +390,68 @@ class Pass : public ObjectRef {
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(Pass, ObjectRef, PassNode);
+
+ private:
+  IRModule static AssertImmutableModule(const IRModule& mod, const PassNode* node,
+                                        const PassContext& pass_ctx);
 };
 
-class SequentialNode;
+/*!
+ * \brief The SequentialNode contains a set of passes that transform Relay
+ * programs from one AST to another semantically equivalent one.
+ *
+ * One example of this level of pass is that the pass manager needs to correctly
+ * perform a host of optimizations with a given optimization level and disabled
+ * passes.
+ */
+class SequentialNode : public PassNode {
+ public:
+  /* \brief The pass meta data.*/
+  PassInfo pass_info;
+
+  /*! \brief A list of passes that used to compose a sequential pass. */
+  tvm::Array<Pass> passes;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("pass_info", &pass_info);
+    v->Visit("passes", &passes);
+  }
+
+  /*!
+   * \brief Get the pass information/meta data.
+   */
+  PassInfo Info() const override { return pass_info; }
+
+  /*!
+   * \brief Resolve the pass dependency. It globs all required passes by
+   *        a given pass and executes them.
+   *
+   * \param mod The module that an optimization pass runs on.
+   *
+   * \return The updated module after resolving pass dependencies.
+   *
+   * TODO(zhiics) Build a dependency graph among the passes using provided
+   * metadata, i.e. required_passes. Likely, we can have a data structure, i.e.
+   * PassInfo, to store the relevant information including the parent passes.
+   */
+  void ResolveDependency(const IRModule& mod);
+
+  /*!
+   * \brief Perform optimizations on a series of passes. The aforementioned
+   *        typical pass manager jobs could be done by it. This function could
+   *        be overloaded to focus on different metrics, i.e. performance,
+   *        memory footprint, etc.
+   *
+   * \param mod The module that these passes are applied on.
+   * \param pass_ctx The context that these passes execute on.
+   *
+   * \return Return the updated module.
+   */
+  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
+
+  static constexpr const char* _type_key = "transform.Sequential";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SequentialNode, PassNode);
+};
 
 class Sequential : public Pass {
  public:
@@ -418,7 +477,7 @@ class Sequential : public Pass {
   explicit Sequential(ObjectPtr<Object> n) : Pass(n) {}
 
   const SequentialNode* operator->() const;
-  using ContainerType = Sequential;
+  using ContainerType = SequentialNode;
 };
 
 /*

@@ -152,8 +152,13 @@ class StatsCollector : private ExprMutator {
     const FunctionNode* func = new_e.as<FunctionNode>();
     ICHECK(func) << "Input shoule be Function";
     Expr new_body = Tuple(std::move(profile_data_));
-    return Function(FreeVars(new_body), new_body, NullValue<Type>(), func->type_params,
-                    func->attrs);
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return std::move(ret_func);
   }
 
  private:

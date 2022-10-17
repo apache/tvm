@@ -16,16 +16,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+set -euxo pipefail
+
+if [ -z "${TVM_VENV+x}" ]; then
+    echo "ERROR: expect TVM_VENV env var to be set"
+    exit 2
+fi
 
 apt-get update --fix-missing
 
-# Install dependencies
-apt-get install -y --no-install-recommends libboost-filesystem-dev libboost-python-dev \
-    libboost-system-dev libboost-thread-dev libboost-regex-dev protobuf-compiler \
+# # Install dependencies
+apt-install-and-clear -y --no-install-recommends protobuf-compiler \
     libprotobuf-dev libhdf5-serial-dev libopenblas-dev libgflags-dev libgoogle-glog-dev
+
 
 # install python packages
 pip install "numpy" "protobuf" "scikit-image" "six"
@@ -36,15 +39,23 @@ CAFFE_HOME="/opt/caffe"
 git clone --branch=ssd --depth 1 https://github.com/weiliu89/caffe /caffe_src
 cd /caffe_src
 
+
 echo "Building Caffe"
 mkdir /caffe_src/build && cd /caffe_src/build
-cmake .. -DCMAKE_INSTALL_PREFIX=${CAFFE_HOME} -DCMAKE_BUILD_TYPE=Release -DCPU_ONLY=1 \
-    -Dpython_version=3 -DUSE_OPENCV=OFF -DUSE_LEVELDB=OFF -DUSE_LMDB=OFF -DBUILD_docs=OFF -DBLAS=open
+cmake -DCMAKE_INSTALL_PREFIX=${CAFFE_HOME}\
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCPU_ONLY=1 \
+    -Dpython_version=3 \
+    -DUSE_OPENCV=OFF \
+    -DUSE_LEVELDB=OFF \
+    -DUSE_LMDB=OFF \
+    -DBUILD_docs=OFF \
+    -DBLAS=open \
+    ..
+
 make all -j$(expr $(nproc) - 1)
 make pycaffe -j$(expr $(nproc) - 1)
 make test -j$(expr $(nproc) - 1)
-make runtest -j$(expr $(nproc) - 1)
-make pytest -j$(expr $(nproc) - 1)
 
 echo "Installing Caffe to /opt/caffe"
 make install
@@ -54,4 +65,5 @@ cd / && rm -rf /caffe_src
 
 PYCAFFE_ROOT=${CAFFE_HOME}/python
 echo "${CAFFE_HOME}/lib" >> /etc/ld.so.conf.d/caffe.conf && ldconfig
-ln -s ${PYCAFFE_ROOT}/caffe /usr/local/lib/python3.6/dist-packages/caffe
+site_packages=$("${TVM_VENV}/bin/python3" -c 'import site; print(site.getsitepackages()[0])')
+ln -s ${PYCAFFE_ROOT}/caffe "${site_packages}/caffe"

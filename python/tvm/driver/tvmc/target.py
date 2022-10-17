@@ -26,6 +26,9 @@ import re
 import tvm
 from tvm.driver import tvmc
 from tvm.driver.tvmc import TVMCException
+from tvm.driver.tvmc.composite_target import get_codegen_by_target, get_codegen_names
+from tvm.ir.attrs import make_node, _ffi_api as attrs_api
+from tvm.ir.transform import PassContext
 from tvm.target import Target, TargetKind
 
 # pylint: disable=invalid-name
@@ -54,15 +57,36 @@ def _generate_target_kind_args(parser, kind_name):
             )
 
 
+def _generate_codegen_args(parser, codegen_name):
+    codegen = get_codegen_by_target(codegen_name)
+    pass_configs = PassContext.list_configs()
+
+    if codegen["config_key"] is not None and codegen["config_key"] in pass_configs:
+        target_group = parser.add_argument_group(f"target {codegen_name}")
+        attrs = make_node(pass_configs[codegen["config_key"]]["type"])
+        fields = attrs_api.AttrsListFieldInfo(attrs)
+        for field in fields:
+            for tvm_type, python_type in INTERNAL_TO_NATIVE_TYPE.items():
+                if field.type_info.startswith(tvm_type):
+                    target_option = field.name
+                    target_group.add_argument(
+                        f"--target-{codegen_name}-{target_option}",
+                        type=python_type,
+                        help=f"target {codegen_name} {target_option}{python_type}",
+                    )
+
+
 def generate_target_args(parser):
     """Walks through the TargetKind registry and generates arguments for each Target's options"""
     parser.add_argument(
         "--target",
         help="compilation target as plain string, inline JSON or path to a JSON file",
-        required=True,
+        required=False,
     )
     for target_kind in _valid_target_kinds():
         _generate_target_kind_args(parser, target_kind)
+    for codegen_name in get_codegen_names():
+        _generate_codegen_args(parser, codegen_name)
 
 
 def _reconstruct_target_kind_args(args, kind_name):
@@ -76,6 +100,27 @@ def _reconstruct_target_kind_args(args, kind_name):
     return kind_options
 
 
+def _reconstruct_codegen_args(args, codegen_name):
+    codegen = get_codegen_by_target(codegen_name)
+    pass_configs = PassContext.list_configs()
+    codegen_options = {}
+
+    if codegen["config_key"] is not None and codegen["config_key"] in pass_configs:
+        attrs = make_node(pass_configs[codegen["config_key"]]["type"])
+        fields = attrs_api.AttrsListFieldInfo(attrs)
+        for field in fields:
+            for tvm_type in INTERNAL_TO_NATIVE_TYPE:
+                if field.type_info.startswith(tvm_type):
+                    target_option = field.name
+                    var_name = (
+                        f"target_{codegen_name.replace('-', '_')}_{target_option.replace('-', '_')}"
+                    )
+                    option_value = getattr(args, var_name)
+                    if option_value is not None:
+                        codegen_options[target_option] = option_value
+    return codegen_options
+
+
 def reconstruct_target_args(args):
     """Reconstructs the target options from the arguments"""
     reconstructed = {}
@@ -83,6 +128,12 @@ def reconstruct_target_args(args):
         kind_options = _reconstruct_target_kind_args(args, target_kind)
         if kind_options:
             reconstructed[target_kind] = kind_options
+
+    for codegen_name in get_codegen_names():
+        codegen_options = _reconstruct_codegen_args(args, codegen_name)
+        if codegen_options:
+            reconstructed[codegen_name] = codegen_options
+
     return reconstructed
 
 
@@ -349,6 +400,10 @@ def target_from_cli(target, additional_target_options=None):
             target = _recombobulate_target(tvm_targets[0])
             target_host = _recombobulate_target(tvm_targets[1])
 
-        extra_targets = [t for t in parsed_targets if not t["is_tvm_target"]]
+        extra_targets = [
+            _combine_target_options(t, additional_target_options)
+            for t in parsed_targets
+            if not t["is_tvm_target"]
+        ]
 
     return tvm.target.Target(target, host=target_host), extra_targets

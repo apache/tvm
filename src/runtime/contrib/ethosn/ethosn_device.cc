@@ -74,103 +74,69 @@ bool WaitForInference(dl::Inference* inference, int timeout) {
   return true;
 }
 
-template <typename T>
-void CopyOutput(dl::Buffer* source_buffers[], std::vector<DLTensor*>* outputs) {
-  for (DLTensor* tensor : *outputs) {
-    dl::Buffer* source_buffer = source_buffers[0];
-    uint8_t* source_buffer_data = source_buffer->GetMappedBuffer();
-    size_t size = source_buffer->GetSize();
-    T* dest_pointer = static_cast<T*>(tensor->data);
-    std::copy_backward(source_buffer_data, source_buffer_data + size, dest_pointer + size);
-    source_buffers++;
+void CreateBuffers(std::vector<std::shared_ptr<dl::Buffer>>* fm,
+                   const std::vector<DLTensor*>& tensors, const std::vector<uint32_t>& tensor_sizes,
+                   bool input) {
+  for (size_t i = 0; i < tensors.size(); i++) {
+    auto* data = static_cast<uint8_t*>(tensors[i]->data);
+    if (input) {
+      (*fm)[i] = std::make_shared<dl::Buffer>(data, tensor_sizes[i], dl::DataFormat::NHWC);
+    } else {
+      (*fm)[i] = std::make_shared<dl::Buffer>(tensor_sizes[i], dl::DataFormat::NHWC);
+    }
   }
 }
 
-void CreateBuffers(std::vector<std::shared_ptr<dl::Buffer> >* fm,
-                   const std::vector<DLTensor*>& tensors) {
-  int index = 0;
-  for (auto buffer : tensors) {
-    auto* data = static_cast<uint8_t*>(buffer->data);
-    // The NPU only needs the size of the tensor * uint8_t.
-    auto data_size = static_cast<uint32_t>(GetDataSize(*buffer));
-    (*fm)[index++] = std::make_shared<dl::Buffer>(data, data_size, dl::DataFormat::NHWC);
-  }
-}
-
-#if _ETHOSN_API_VERSION_ <= 2102
-bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
-               const std::vector<uint32_t>& input_order,
-               const std::vector<uint32_t>& output_order) {
-#else
 bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
-               const std::vector<uint32_t>& input_order,
-               const std::vector<uint32_t>& output_order) {
-#endif
+               const std::vector<uint32_t>& input_order, const std::vector<uint32_t>& output_order,
+               const std::vector<uint32_t>& input_sizes,
+               const std::vector<uint32_t>& output_sizes) {
   // Unpack parameters
-  uint8_t argc = 0;
   size_t n_inputs = input_order.size();
   size_t n_outputs = output_order.size();
   std::vector<DLTensor*> inputs(n_inputs);
-  for (uint8_t i = 0; i < n_inputs; i++) {
-    inputs[input_order[i]] = args[argc++];
+  for (size_t i = 0; i < n_inputs; i++) {
+    inputs[i] = args[input_order[i]];
   }
   std::vector<DLTensor*> outputs(n_outputs);
-  for (uint8_t i = 0; i < n_outputs; i++) {
-    outputs[output_order[i]] = args[argc++];
+  size_t output_offset = n_inputs;
+  for (size_t i = 0; i < n_outputs; i++) {
+    outputs[i] = args[output_order[i] + output_offset];
   }
 
   // Set up input buffers
-  std::vector<std::shared_ptr<dl::Buffer> > ifm(inputs.size());
-  CreateBuffers(&ifm, inputs);
+  std::vector<std::shared_ptr<dl::Buffer>> ifm(n_inputs);
+  CreateBuffers(&ifm, inputs, input_sizes, true);
 
   // Set up output buffers
-  std::vector<std::shared_ptr<dl::Buffer> > ofm(outputs.size());
-  CreateBuffers(&ofm, outputs);
+  std::vector<std::shared_ptr<dl::Buffer>> ofm(n_outputs);
+  CreateBuffers(&ofm, outputs, output_sizes, false);
 
   // Raw pointers for the inference
-  dl::Buffer* ifm_raw[inputs.size()];
-  for (size_t i = 0; i < inputs.size(); i++) {
+  dl::Buffer* ifm_raw[n_inputs];
+  for (size_t i = 0; i < n_inputs; i++) {
     ifm_raw[i] = ifm[i].get();
   }
-  dl::Buffer* ofm_raw[outputs.size()];
-  for (size_t i = 0; i < outputs.size(); i++) {
+  dl::Buffer* ofm_raw[n_outputs];
+  for (size_t i = 0; i < n_outputs; i++) {
     ofm_raw[i] = ofm[i].get();
   }
 
-#if _ETHOSN_API_VERSION_ <= 2102
-  auto npu = std::make_unique<dl::Network>(*network);
-#endif
-
   // Execute the inference.
   std::unique_ptr<dl::Inference> result(
-      npu->ScheduleInference(ifm_raw, sizeof(ifm_raw) / sizeof(ifm_raw[0]), ofm_raw,
-                             sizeof(ofm_raw) / sizeof(ofm_raw[0])));
+      npu->ScheduleInference(ifm_raw, n_inputs, ofm_raw, n_outputs));
   bool inferenceCompleted = WaitForInference(result.get(), 60);
   if (inferenceCompleted) {
-    switch ((outputs)[0]->dtype.bits) {
-      case 8: {
-        dl::Buffer** ofms = &ofm_raw[0];
-        for (DLTensor* tensor : outputs) {
-          uint8_t* source_buffer_data = (*ofms++)->GetMappedBuffer();
-          uint8_t* dest_pointer = static_cast<uint8_t*>(tensor->data);
-          if (source_buffer_data != dest_pointer) {
-            CopyOutput<uint8_t>(ofm_raw, &outputs);
-            break;
-          }
-        }
-        break;
-      }
-      case 16:
-        CopyOutput<uint16_t>(ofm_raw, &outputs);
-        break;
-      case 32:
-        CopyOutput<uint32_t>(ofm_raw, &outputs);
-        break;
-      default:
-        break;
+    for (size_t i = 0; i < n_outputs; i++) {
+      DLTensor* tensor = outputs[i];
+      dl::Buffer* source_buffer = ofm_raw[i];
+      uint8_t* dest_buffer = static_cast<uint8_t*>(tensor->data);
+      size_t size = source_buffer->GetSize();
+      uint8_t* source_buffer_data = source_buffer->Map();
+      std::copy(source_buffer_data, source_buffer_data + size, dest_buffer);
+      source_buffer->Unmap();
     }
   }
-
   return inferenceCompleted;
 }
 
@@ -208,15 +174,10 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.test.infra.inference_result")
     });
 
 // Allow the ethos-n support code to be tested without a device
-#if _ETHOSN_API_VERSION_ <= 2102
-bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
-               const std::vector<uint32_t>& input_order,
-               const std::vector<uint32_t>& output_order) {
-#else
 bool Inference(tvm::runtime::TVMArgs args, dl::Network* /* npu */,
-               const std::vector<uint32_t>& input_order,
-               const std::vector<uint32_t>& output_order) {
-#endif
+               const std::vector<uint32_t>& input_order, const std::vector<uint32_t>& output_order,
+               const std::vector<uint32_t>& input_sizes,
+               const std::vector<uint32_t>& output_sizes) {
   std::vector<DLTensor*> outputs;
   for (int argc = input_order.size(); argc < args.size(); argc++) {
     outputs.push_back(args[argc]);

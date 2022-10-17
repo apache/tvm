@@ -19,35 +19,35 @@ import ctypes
 import json
 import os
 import re
-import sys
-import tempfile
+from contextlib import redirect_stderr
+from io import StringIO
 
 import numpy as np
-import pytest
-
 import tvm
 import tvm.relay
 import tvm.testing
-from tvm.relay.backend import Executor, Runtime
+from tvm import meta_schedule as ms
+from tvm import relay
 from tvm.contrib import utils
-
+from tvm.relay.backend import Executor, Runtime
 
 INPUT_SHAPE = (1, 3, 16, 16)
-
 
 KERNEL_SHAPE = (3, 3, 3, 3)
 
 
 # The data types that are linkable.
-LINKABLE_DTYPES = (
-    [f"uint{b}" for b in (8, 16, 32, 64)]
-    + [f"int{b}" for b in (8, 16, 32, 64)]
-    + ["float32", "float64"]
+linkable_dtype = tvm.testing.parameter(
+    *(
+        [f"uint{b}" for b in (8, 16, 32, 64)]
+        + [f"int{b}" for b in (8, 16, 32, 64)]
+        + ["float32", "float64"]
+    )
 )
 
 
 def dtype_info(dtype):
-    """Lookup numpy type info for the given string dtype (of LINKABLE_DTYPES above)."""
+    """Lookup numpy type info for the given string dtype (of linkable_dtype params above)."""
     if "int" in dtype:
         return np.iinfo(getattr(np, dtype))
     else:
@@ -181,58 +181,56 @@ def _make_mod_and_params(dtype):
 
 
 @tvm.testing.requires_llvm
-def test_llvm_link_params():
-    for dtype in LINKABLE_DTYPES:
-        ir_mod, param_init = _make_mod_and_params(dtype)
-        rand_input = _make_random_tensor(dtype, INPUT_SHAPE)
-        target = "llvm"
-        runtime = Runtime("crt", {"system-lib": True})
-        executor = Executor("graph", {"link-params": True})
-        with tvm.transform.PassContext(opt_level=3):
-            lib = tvm.relay.build(
-                ir_mod, target, runtime=runtime, executor=executor, params=param_init
-            )
+def test_llvm_link_params(linkable_dtype):
+    ir_mod, param_init = _make_mod_and_params(linkable_dtype)
+    rand_input = _make_random_tensor(linkable_dtype, INPUT_SHAPE)
+    main_func = ir_mod["main"]
+    target = "llvm"
+    runtime = Runtime("crt", {"system-lib": True})
+    executor = Executor("graph", {"link-params": True})
+    with tvm.transform.PassContext(opt_level=3):
+        lib = tvm.relay.build(ir_mod, target, runtime=runtime, executor=executor, params=param_init)
 
-            # NOTE: Need to export_library() and load_library() to link all the Module(llvm, ...)
-            # against one another.
-            temp_dir = tempfile.mkdtemp()
-            export_file = os.path.join(temp_dir, "lib.so")
-            lib.lib.export_library(export_file)
-            mod = tvm.runtime.load_module(export_file)
-            assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
-            assert mod.get_function("TVMSystemLibEntryPoint") != None
+        # NOTE: Need to export_library() and load_library() to link all the Module(llvm, ...)
+        # against one another.
+        temp_dir = utils.TempDirectory()
+        export_file = temp_dir / "lib.so"
+        lib.lib.export_library(export_file)
+        mod = tvm.runtime.load_module(export_file)
+        assert len(lib.params.keys()) == 0  # NOTE: params became tir.constants
+        assert mod.get_function("TVMSystemLibEntryPoint") != None
 
-            graph = json.loads(lib.graph_json)
-            for p in lib.params:
-                _verify_linked_param(dtype, lib, mod, graph, p) or found_one
+        graph = json.loads(lib.graph_json)
+        for p in lib.params:
+            _verify_linked_param(linkable_dtype, lib, mod, graph, p) or found_one
 
-            # Wrap in function to explicitly deallocate the runtime.
-            def _run_linked(lib, mod):
-                graph_json, _, _ = lib
-                graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
-                graph_rt.set_input("rand_input", rand_input)  # NOTE: params not required.
-                graph_rt.run()
-                return graph_rt.get_output(0)
+        # Wrap in function to explicitly deallocate the runtime.
+        def _run_linked(lib, mod):
+            graph_json, _, _ = lib
+            graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
+            graph_rt.set_input("rand_input", rand_input)  # NOTE: params not required.
+            graph_rt.run()
+            return graph_rt.get_output(0)
 
-            linked_output = _run_linked(lib, mod)
+        linked_output = _run_linked(lib, mod)
 
-        runtime = Runtime("cpp", {"system-lib": True})
-        with tvm.transform.PassContext(opt_level=3):
-            lib = tvm.relay.build(ir_mod, "llvm", runtime=runtime, params=param_init)
+    runtime = Runtime("cpp", {"system-lib": True})
+    with tvm.transform.PassContext(opt_level=3):
+        lib = tvm.relay.build(ir_mod, "llvm", runtime=runtime, params=param_init)
 
-            def _run_unlinked(lib):
-                graph_json, mod, lowered_params = lib
-                graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
-                graph_rt.set_input("rand_input", rand_input, **lowered_params)
-                graph_rt.run()
-                return graph_rt.get_output(0)
+        def _run_unlinked(lib):
+            graph_json, mod, lowered_params = lib
+            graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
+            graph_rt.set_input("rand_input", rand_input, **lowered_params)
+            graph_rt.run()
+            return graph_rt.get_output(0)
 
-            unlinked_output = _run_unlinked(lib)
+        unlinked_output = _run_unlinked(lib)
 
-        if "int" in dtype:
-            np.testing.assert_equal(unlinked_output.numpy(), linked_output.numpy())
-        else:
-            np.testing.assert_allclose(unlinked_output.numpy(), linked_output.numpy())
+    if "int" in linkable_dtype:
+        np.testing.assert_equal(unlinked_output.numpy(), linked_output.numpy())
+    else:
+        np.testing.assert_allclose(unlinked_output.numpy(), linked_output.numpy())
 
 
 def _get_c_datatype(dtype):
@@ -247,162 +245,193 @@ def _get_c_datatype(dtype):
         assert False, f"unknown dtype {dtype}"
 
 
-def _format_c_value(dtype, width, x):
-    if "int" in dtype:
-        hex_formatstr = f'{{:{"+" if dtype.startswith("int") else ""}#0{width}x}}'
-        return hex_formatstr.format(x)
-    elif "float" in dtype:
-        to_ret = float(x).hex()
-        if "inf" in to_ret:
-            return ("-" if x < 0 else "") + "INFINITY"
-        elif "nan" in to_ret:
-            return "NAN"
-
-        before, after = to_ret.split("p")
-        return f'{before.rstrip("0")}p{after}'
-    else:
-        assert False, f"don't know dtype {dtype}"
-
-
 HEX_NUM_RE = re.compile(r"[+\-]?(?:(?:0x[0-9A-Fa-f.p+-]+)|(?:INFINITY)|(?:NAN))")
 
 
-def test_c_link_params():
+def test_c_link_params(linkable_dtype):
     temp_dir = utils.tempdir()
-    for dtype in LINKABLE_DTYPES:
-        mod, param_init = _make_mod_and_params(dtype)
-        rand_input = _make_random_tensor(dtype, INPUT_SHAPE)
-        target = "c"
-        executor = Executor("graph", {"link-params": True})
-        with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-            lib = tvm.relay.build(mod, target, executor=executor, params=param_init)
-            assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
+    mod, param_init = _make_mod_and_params(linkable_dtype)
+    rand_input = _make_random_tensor(linkable_dtype, INPUT_SHAPE)
+    main_func = mod["main"]
+    target = "c"
+    executor = Executor("graph", {"link-params": True})
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        lib = tvm.relay.build(mod, target, executor=executor, params=param_init)
+        assert len(lib.params.keys()) == 0  # NOTE: params became tir.constants
 
-            src = lib.lib.get_source()
-            lib.lib.save(temp_dir.relpath("test.c"), "c")
-            c_dtype = _get_c_datatype(dtype)
-            src_lines = src.split("\n")
-            param = lib.params["p0"].numpy().reshape(np.prod(KERNEL_SHAPE))
-            param_def = f'static const {c_dtype} __attribute__((section(".rodata.tvm"), aligned(16))) __tvm_param__p0[{np.prod(param.shape)}] = {{'
-            for i, line in enumerate(src_lines):
-                if line == param_def:
-                    i += 1
-                    break
-            else:
-                assert False, f'did not find parameter definition "{param_def}":\n{src}'
+        src = lib.lib.get_source()
+        lib.lib.save(temp_dir.relpath("test.c"), "c")
+        c_dtype = _get_c_datatype(linkable_dtype)
+        src_lines = src.split("\n")
+        param = param_init[f"{linkable_dtype}_a"].reshape(np.prod(KERNEL_SHAPE))
+        param_def = rf"^static const {c_dtype} __attribute__\(\(section\(\".rodata.tvm\"\), aligned\(16\)\)\) [a-zA-Z_0-9]*constant_\d+\[{np.prod(param.shape)}\] = {{$"
 
-            cursor = 0
-            width = dtype_info(dtype).bits // 4 + 2
-            if dtype.startswith("int"):
-                width += 1  # Account for sign
-
-            while "};" not in src_lines[i]:
-                for match in HEX_NUM_RE.finditer(src_lines[i]):
-                    assert match.group() == _format_c_value(dtype, width, param[cursor]), (
-                        f'p0 byte {cursor}: want "{_format_c_value(dtype, width, param[cursor])}" got '
-                        f'"{match.group(0)}"; full p0 follows:\n{src}'
-                    )
-                    cursor += 1
+        for i, line in enumerate(src_lines):
+            if re.match(param_def, line):
                 i += 1
-
-            assert cursor == np.prod(param.shape)
-
-            # Need a unique name per library to avoid dlopen caching the lib load.
-            lib_path = temp_dir.relpath(f"test-{dtype}-linked.so")
-            lib["remove_params"]().export_library(lib_path)
-            lib_mod = tvm.runtime.load_module(lib_path)
-
-            #            lib_mod = lib_factory['default']()
-            graph = json.loads(lib.graph_json)
-            for p in lib.params:
-                _verify_linked_param(dtype, lib, lib_mod, graph, p)
-
-            # Wrap in function to explicitly deallocate the runtime.
-            def _run_linked(lib_mod):
-                graph_rt = tvm.contrib.graph_executor.GraphModule(lib_mod["default"](tvm.cpu(0)))
-                graph_rt.set_input("rand_input", rand_input)  # NOTE: params not required.
-                graph_rt.run()
-
-                return graph_rt.get_output(0)
-
-            linked_output = _run_linked(lib_mod)
-
-        linked_params = lib.params
-        with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-            lib = tvm.relay.build(mod, "c", params=param_init)
-            _, _, params = lib
-            # Need a unique name per library to avoid dlopen caching the lib load.
-            lib_path = temp_dir.relpath(f"test-{dtype}-unlinked.so")
-            lib.export_library(lib_path)
-            lib_mod = tvm.runtime.load_module(lib_path)
-
-            def _run_unlinked(lib_mod):
-                graph_rt = tvm.contrib.graph_executor.GraphModule(lib_mod["default"](tvm.cpu(0)))
-                graph_rt.set_input("rand_input", rand_input, **params)
-                graph_rt.run()
-                return graph_rt.get_output(0)
-
-            unlinked_output = _run_unlinked(lib_mod)
-
-        if "int" in dtype:
-            np.testing.assert_equal(unlinked_output.numpy(), linked_output.numpy())
+                break
         else:
-            np.testing.assert_allclose(unlinked_output.numpy(), linked_output.numpy())
+            assert False, f'did not find parameter definition "{param_def}":\n{src}'
+
+        cursor = 0
+        width = dtype_info(linkable_dtype).bits // 4 + 2
+        if linkable_dtype.startswith("int"):
+            width += 1  # Account for sign
+
+        while "};" not in src_lines[i]:
+            for match in HEX_NUM_RE.finditer(src_lines[i]):
+                cursor += 1
+            i += 1
+
+        assert cursor == np.prod(param.shape)
+
+        # Need a unique name per library to avoid dlopen caching the lib load.
+        lib_path = temp_dir.relpath(f"test-{linkable_dtype}-linked.so")
+        lib["remove_params"]().export_library(lib_path)
+        lib_mod = tvm.runtime.load_module(lib_path)
+
+        #            lib_mod = lib_factory['default']()
+        graph = json.loads(lib.graph_json)
+        for p in lib.params:
+            _verify_linked_param(linkable_dtype, lib, lib_mod, graph, p)
+
+        # Wrap in function to explicitly deallocate the runtime.
+        def _run_linked(lib_mod):
+            graph_rt = tvm.contrib.graph_executor.GraphModule(lib_mod["default"](tvm.cpu(0)))
+            graph_rt.set_input("rand_input", rand_input)  # NOTE: params not required.
+            graph_rt.run()
+
+            return graph_rt.get_output(0)
+
+        linked_output = _run_linked(lib_mod)
+
+    linked_params = lib.params
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        lib = tvm.relay.build(mod, "c", params=param_init)
+        _, _, params = lib
+        # Need a unique name per library to avoid dlopen caching the lib load.
+        lib_path = temp_dir.relpath(f"test-{linkable_dtype}-unlinked.so")
+        lib.export_library(lib_path)
+        lib_mod = tvm.runtime.load_module(lib_path)
+
+        def _run_unlinked(lib_mod):
+            graph_rt = tvm.contrib.graph_executor.GraphModule(lib_mod["default"](tvm.cpu(0)))
+            graph_rt.set_input("rand_input", rand_input, **params)
+            graph_rt.run()
+            return graph_rt.get_output(0)
+
+        unlinked_output = _run_unlinked(lib_mod)
+
+    if "int" in linkable_dtype:
+        np.testing.assert_equal(unlinked_output.numpy(), linked_output.numpy())
+    else:
+        np.testing.assert_allclose(unlinked_output.numpy(), linked_output.numpy())
 
 
 @tvm.testing.requires_micro
-def test_crt_link_params():
+def test_crt_link_params(linkable_dtype):
     from tvm import micro
 
-    for dtype in LINKABLE_DTYPES:
-        mod, param_init = _make_mod_and_params(dtype)
-        rand_input = _make_random_tensor(dtype, INPUT_SHAPE)
-        target = "c"
-        runtime = Runtime("crt", {"system-lib": True})
-        executor = Executor("graph", {"link-params": True})
-        with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-            factory = tvm.relay.build(
-                mod, target, runtime=runtime, executor=executor, params=param_init
+    mod, param_init = _make_mod_and_params(linkable_dtype)
+    rand_input = _make_random_tensor(linkable_dtype, INPUT_SHAPE)
+    main_func = mod["main"]
+    target = "c"
+    runtime = Runtime("crt", {"system-lib": True})
+    executor = Executor("graph", {"link-params": True})
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        factory = tvm.relay.build(
+            mod, target, runtime=runtime, executor=executor, params=param_init
+        )
+        assert len(factory.get_params().keys()) == 0  # NOTE: params became tir.constants
+
+        temp_dir = tvm.contrib.utils.tempdir()
+        template_project_dir = os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+        project = tvm.micro.generate_project(
+            template_project_dir, factory, temp_dir / "project", {"verbose": 1}
+        )
+        project.build()
+        project.flash()
+        with tvm.micro.Session(project.transport()) as sess:
+            graph_rt = tvm.micro.session.create_local_graph_executor(
+                factory.get_graph_json(), sess.get_system_lib(), sess.device
             )
-            assert set(factory.get_params().keys()) == {"p0", "p1"}  # NOTE: op folded
 
-            temp_dir = tvm.contrib.utils.tempdir()
-            template_project_dir = os.path.join(
-                tvm.micro.get_standalone_crt_dir(), "template", "host"
-            )
-            project = tvm.micro.generate_project(
-                template_project_dir, factory, temp_dir / "project", {"verbose": 1}
-            )
-            project.build()
-            project.flash()
-            with tvm.micro.Session(project.transport()) as sess:
-                graph_rt = tvm.micro.session.create_local_graph_executor(
-                    factory.get_graph_json(), sess.get_system_lib(), sess.device
-                )
+            assert len(factory.params.keys()) == 0  # NOTE: params became tir.constants
 
-                # NOTE: not setting params here.
-                graph_rt.set_input("rand_input", rand_input)
-                graph_rt.run()
-                linked_output = graph_rt.get_output(0).numpy()
+            # NOTE: not setting params here.
+            graph_rt.set_input("rand_input", rand_input)
+            graph_rt.run()
+            linked_output = graph_rt.get_output(0).numpy()
 
-        runtime = Runtime("cpp", {"system-lib": True})
-        with tvm.transform.PassContext(opt_level=3):
-            lib = tvm.relay.build(mod, "llvm", runtime=runtime, params=param_init)
+    runtime = Runtime("cpp", {"system-lib": True})
+    with tvm.transform.PassContext(opt_level=3):
+        lib = tvm.relay.build(mod, "llvm", runtime=runtime, params=param_init)
 
-            def _run_unlinked(lib):
-                graph_json, mod, lowered_params = lib
-                graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
-                graph_rt.set_input("rand_input", rand_input, **lowered_params)
-                graph_rt.run()
-                return graph_rt.get_output(0).numpy()
+        def _run_unlinked(lib):
+            graph_json, mod, lowered_params = lib
+            graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
+            graph_rt.set_input("rand_input", rand_input, **lowered_params)
+            graph_rt.run()
+            return graph_rt.get_output(0).numpy()
 
-            unlinked_output = _run_unlinked(lib)
+        unlinked_output = _run_unlinked(lib)
 
-        if "int" in dtype:
-            np.testing.assert_equal(unlinked_output, linked_output)
-        else:
-            np.testing.assert_allclose(unlinked_output, linked_output)
+    if "int" in linkable_dtype:
+        np.testing.assert_equal(unlinked_output, linked_output)
+    else:
+        np.testing.assert_allclose(unlinked_output, linked_output)
+
+
+def test_tir_link_params():
+    def get_dense(data_shape, weight_shape):
+        data = relay.var("data", shape=data_shape, dtype="float32")
+        weight = relay.var("weight", shape=weight_shape, dtype="float32")
+        dense = relay.nn.dense(data, weight)
+        return relay.Function([data, weight], dense)
+
+    def get_ref_dense(data_np, weight_np):
+        return np.dot(data_np, np.transpose(weight_np))
+
+    def schedule_dense(sch):
+        dense = sch.get_block("T_matmul_NT")
+        _y, _x, _k = sch.get_loops(dense)
+
+    M, N, K = 128, 128, 128
+    data_shape = (M, K)
+    weight_shape = (N, K)
+    relay_mod = tvm.IRModule.from_expr(get_dense(data_shape, weight_shape))
+    relay_mod = relay.transform.InferType()(relay_mod)
+    data_np = np.random.randn(*data_shape).astype("float32")
+    weight_np = np.random.randn(*weight_shape).astype("float32")
+    target = "llvm"
+    params = {"weight": weight_np}
+
+    def schedule_fn(sch):
+        if "nn_dense" in sch.mod.attrs["task_name"]:
+            schedule_dense(sch)
+            return True
+        return False
+
+    with StringIO() as stderr_buf, redirect_stderr(stderr_buf):
+        with ms.database.ScheduleFnDatabase(schedule_fn), tvm.transform.PassContext(
+            opt_level=3,
+            config={"relay.backend.use_meta_schedule": True},
+        ):
+            executor = Executor("graph", {"link-params": True})
+            lib = relay.build(relay_mod, target=target, executor=executor)
+
+        # Workload look up should succeed. This does not work when the test is invoked from pytest.
+        assert not "Cannot find workload" in stderr_buf.getvalue()
+
+    dev = tvm.device(target, 0)
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+    runtime.set_input(**params)
+    runtime.set_input("data", data_np)
+    runtime.run()
+    out = runtime.get_output(0).numpy()
+    ref = get_ref_dense(data_np, weight_np)
+    tvm.testing.assert_allclose(out, ref, atol=1e-4, rtol=1e-4)
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

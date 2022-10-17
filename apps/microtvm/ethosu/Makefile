@@ -19,13 +19,13 @@
 
 # Setup build environment
 BUILD_DIR := build
-STANDALONE_CRT_PATH := $(shell python3 -c "import tvm.micro; print(tvm.micro.get_standalone_crt_dir())")
 
 ARM_CPU = ARMCM55
 ETHOSU_PATH = /opt/arm/ethosu
 ETHOSU_DRIVER_PATH ?= ${ETHOSU_PATH}/core_driver
 CMSIS_PATH ?= ${ETHOSU_PATH}/cmsis
 ETHOSU_PLATFORM_PATH ?= ${ETHOSU_PATH}/core_platform
+STANDALONE_CRT_PATH := $(abspath $(BUILD_DIR))/runtime
 CORSTONE_300_PATH = ${ETHOSU_PLATFORM_PATH}/targets/corstone-300
 PKG_COMPILE_OPTS = -g -Wall -O2 -Wno-incompatible-pointer-types -Wno-format -mcpu=cortex-m55 -mthumb -mfloat-abi=hard -std=gnu99
 CMAKE ?= cmake
@@ -58,9 +58,27 @@ $(else)
 QUIET ?= @
 $(endif)
 
+ifdef FREERTOS_PATH
+DEMO_MAIN = src/demo_freertos.c
+FREERTOS_KERNEL = $(FREERTOS_PATH)/FreeRTOS/Source
+FREERTOS_FLAGS = -I$(FREERTOS_KERNEL)/include/ \
+	-I$(FREERTOS_KERNEL)/portable/GCC/ARM_CM33_NTZ/non_secure/
+FREERTOS_SOURCES = $(FREERTOS_KERNEL)/portable/GCC/ARM_CM33_NTZ/non_secure/port.c \
+	$(FREERTOS_KERNEL)/portable/GCC/ARM_CM33_NTZ/non_secure/portasm.c \
+	$(FREERTOS_KERNEL)/tasks.c \
+	$(FREERTOS_KERNEL)/list.c \
+	$(FREERTOS_KERNEL)/queue.c \
+	$(FREERTOS_KERNEL)/timers.c \
+	$(FREERTOS_KERNEL)/event_groups.c \
+	$(FREERTOS_KERNEL)/portable/MemMang/heap_3.c
+else
+DEMO_MAIN = src/demo_bare_metal.c
+endif
+
 CODEGEN_SRCS = $(wildcard $(abspath $(BUILD_DIR))/codegen/host/src/*.c)
 CODEGEN_OBJS = $(subst .c,.o,$(CODEGEN_SRCS))
 CMSIS_STARTUP_SRCS = $(wildcard ${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Source/*.c)
+CMSIS_NN_SOFTMAX_SRCS = $(shell find ${CMSIS_PATH}/CMSIS/NN/Source/SoftmaxFunctions/*.c)
 UART_SRCS = $(wildcard ${CORSTONE_300_PATH}/*.c)
 
 demo: $(BUILD_DIR)/demo
@@ -93,15 +111,15 @@ ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a:
 	$(QUIET)cd $(abspath $(BUILD_DIR)/ethosu_core_driver) && $(MAKE)
 
 # Build CMSIS-NN Softmax
-${BUILD_DIR}/cmsis_nn/Source/SoftmaxFunctions/libCMSISNNSoftmax.a:
-	$(QUIET)mkdir -p $(@D)
-	$(QUIET)cd $(CMSIS_PATH)/CMSIS/NN && $(CMAKE) -B $(abspath $(BUILD_DIR)/cmsis_nn) $(CMSIS_NN_CMAKE_FLAGS)
-	$(QUIET)cd $(abspath $(BUILD_DIR)/cmsis_nn) && $(MAKE) CMSISNNSoftmax	
+${BUILD_DIR}/libcmsis_nn_softmax.a: $(CMSIS_NN_SOFTMAX_SRCS)
+	$(QUIET)mkdir -p $(abspath $(BUILD_DIR)/libcmsis_nn)
+	$(QUIET)cd $(abspath $(BUILD_DIR)/libcmsis_nn) && $(CC) -c $(PKG_CFLAGS) -D${ARM_CPU} $^
+	$(QUIET)$(AR) -cr $(abspath $(BUILD_DIR)/libcmsis_nn_softmax.a) $(abspath $(BUILD_DIR))/libcmsis_nn/*.o
+	$(QUIET)$(RANLIB) $(abspath $(BUILD_DIR)/libcmsis_nn_softmax.a)
 
-# Build demo application
-$(BUILD_DIR)/demo: src/demo.c src/tvm_ethosu_runtime.c $(UART_SRCS) $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a ${BUILD_DIR}/cmsis_nn/Source/SoftmaxFunctions/libCMSISNNSoftmax.a
+$(BUILD_DIR)/demo: $(DEMO_MAIN) src/tvm_ethosu_runtime.c $(FREERTOS_SOURCES) $(UART_SRCS) $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a ${BUILD_DIR}/libcmsis_nn_softmax.a
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS)
+	$(QUIET)$(CC) $(PKG_CFLAGS) $(FREERTOS_FLAGS) -o $@ $^ $(PKG_LDFLAGS)
 
 clean:
 	$(QUIET)rm -rf $(BUILD_DIR)/codegen

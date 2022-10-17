@@ -25,8 +25,10 @@
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
 
+#include <algorithm>
 #include <stack>
 #include <unordered_set>
+#include <vector>
 
 #include "graph.h"
 
@@ -198,7 +200,7 @@ Stage& Stage::env_threads(Array<IterVar> threads) {
   ICHECK_EQ(self->env_threads.size(), 0U) << "Already set env_threads";
   Array<IterVar>& leaf_vars = self->leaf_iter_vars;
   Array<IterVar>& all_vars = self->all_iter_vars;
-  std::vector<ObjectRef> temp;
+  std::vector<IterVar> temp;
   for (IterVar iv : threads) {
     temp.push_back(iv);
   }
@@ -427,6 +429,80 @@ Stage& Stage::rolling_buffer() {
   StageNode* self = operator->();
   ICHECK(!self->is_output) << "Cannot apply rolling buffer on output";
   self->rolling_buffer = true;
+  return *this;
+}
+Stage& Stage::transform_layout(const Array<Var>& initial_indices,
+                               const Array<PrimExpr>& final_indices,
+                               Array<IterVar>* out_iter_vars) {
+  StageNode* self = operator->();
+  IndexMap map(initial_indices, final_indices);
+  self->layout_transforms.push_back(map);
+
+  auto* compute = self->op.as<ComputeOpNode>();
+
+  // Can only rewrite the indices of compute op nodes.
+  if (!compute) {
+    return *this;
+  }
+
+  CHECK_EQ(initial_indices.size(), compute->axis.size())
+      << "Expected number of initial indices in transformation to match the dimension of "
+      << self->op->name;
+
+  // Locate the IterVar objects for the data axes.
+  auto leaf_iter_range = [&]() -> std::pair<size_t, size_t> {
+    std::vector<size_t> leaf_var_indices;
+    for (const auto& axis : compute->axis) {
+      leaf_var_indices.push_back(
+          FindLeafVar(self->all_iter_vars.CopyOnWrite(), self->leaf_iter_vars.CopyOnWrite(), axis));
+    }
+    auto minmax_element = std::minmax_element(leaf_var_indices.begin(), leaf_var_indices.end());
+    return {*minmax_element.first, *minmax_element.second + 1};
+  }();
+  CHECK_EQ(leaf_iter_range.first + compute->axis.size(), leaf_iter_range.second)
+      << "Cannot transform indices if they have already been reordered";
+
+  // Determine the updated ranges of iteration.
+  Array<Range> initial_ranges;
+  for (const auto& iter_var : compute->axis) {
+    initial_ranges.push_back(iter_var->dom);
+  }
+  Array<Range> final_ranges = map->MapRanges(initial_ranges);
+
+  // Make IterVar objects to represent the new iterations.
+  auto inverse = map.Inverse(initial_ranges);
+  Array<IterVar> final_indices_iter;
+  ICHECK_EQ(inverse->initial_indices.size(), final_ranges.size());
+  for (size_t i = 0; i < inverse->initial_indices.size(); i++) {
+    final_indices_iter.push_back(IterVar(final_ranges[i], inverse->initial_indices[i], kDataPar));
+  }
+
+  // Append the new IterVar objects to all_iter_vars
+  for (const auto& iter_var : final_indices_iter) {
+    self->all_iter_vars.push_back(iter_var);
+  }
+
+  // Replace the existing IterVar objects in leaf_iter_vars with the
+  // new IterVar objects.
+  self->leaf_iter_vars.erase(self->leaf_iter_vars.begin() + leaf_iter_range.first,
+                             self->leaf_iter_vars.begin() + leaf_iter_range.second);
+  self->leaf_iter_vars.insert(self->leaf_iter_vars.begin() + leaf_iter_range.first,
+                              final_indices_iter.begin(), final_indices_iter.end());
+
+  // Define a relationship for each new axis
+  self->relations.push_back(Transform(compute->axis, final_indices_iter, map, inverse));
+
+  // Return the iteration variables as an output.
+  if (out_iter_vars) {
+    *out_iter_vars = final_indices_iter;
+  }
+
+  return *this;
+}
+
+Stage& Stage::set_axis_separators(const Array<IntImm>& axis_separators) {
+  StageNode* self = operator->();
+  self->axis_separators = axis_separators;
   return *this;
 }
 
@@ -711,6 +787,16 @@ Singleton::Singleton(IterVar iter) {
   data_ = std::move(n);
 }
 
+Transform::Transform(Array<IterVar> original_variables, Array<IterVar> transformed_variables,
+                     IndexMap forward_transformation, IndexMap inverse_transformation) {
+  auto n = make_object<TransformNode>();
+  n->original_variables = original_variables;
+  n->transformed_variables = transformed_variables;
+  n->forward_transformation = forward_transformation;
+  n->inverse_transformation = inverse_transformation;
+  data_ = std::move(n);
+}
+
 SpecializedCondition::SpecializedCondition(Array<PrimExpr> conditions) {
   ObjectPtr<SpecializedConditionNode> n = make_object<SpecializedConditionNode>();
   n->clauses = std::move(conditions);
@@ -894,6 +980,16 @@ TVM_REGISTER_GLOBAL("te.StageStorageAlign").set_body_method(&Stage::storage_alig
 TVM_REGISTER_GLOBAL("te.StageDoubleBuffer").set_body_method(&Stage::double_buffer);
 
 TVM_REGISTER_GLOBAL("te.StageRollingBuffer").set_body_method(&Stage::rolling_buffer);
+
+TVM_REGISTER_GLOBAL("te.StageTransformLayout")
+    .set_body_typed([](Stage stage, const Array<Var>& initial_indices,
+                       const Array<PrimExpr>& final_indices) {
+      Array<IterVar> new_iter_vars;
+      stage.transform_layout(initial_indices, final_indices, &new_iter_vars);
+      return new_iter_vars;
+    });
+
+TVM_REGISTER_GLOBAL("te.StageSetAxisSeparators").set_body_method(&Stage::set_axis_separators);
 
 TVM_REGISTER_GLOBAL("te.ScheduleNormalize").set_body_method(&Schedule::normalize);
 

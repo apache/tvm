@@ -16,7 +16,11 @@
 # under the License.
 """Wrapping existing transformations."""
 # pylint: disable=invalid-name
-from typing import Optional
+
+
+import enum
+from typing import Callable, Optional
+
 from . import _ffi_api
 from . import function_pass as _fpass
 
@@ -43,26 +47,6 @@ def Apply(ftransform):
     return _fpass.prim_func_pass(_transform, opt_level=0, name="Apply")  # type: ignore
 
 
-def Filter(fcond):
-    """Filter functions by the calling convention attribute.
-
-    Parameters
-    ----------
-    fcond : tvm.tir.PrimFunc -> bool
-        The condition of the filtering.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    # pylint: disable=unused-argument
-    def _transform(func, mod, ctx):
-        return func if fcond(func) else None
-
-    return _fpass.prim_func_pass(_transform, opt_level=0, name="Filter")  # type: ignore
-
-
 def InjectPrefetch():
     """Inject prefetch instructions into stmt.
 
@@ -72,6 +56,19 @@ def InjectPrefetch():
         The result pass
     """
     return _ffi_api.InjectPrefetch()  # type: ignore
+
+
+def ApplyLayoutTransforms():
+    """Reshape buffers that appear in the "layout_transform_map"
+    fucntion attribute.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    """
+    return _ffi_api.ApplyLayoutTransforms()  # type: ignore
 
 
 def StorageFlatten(cache_line_size, create_bound_attribute: bool = False):
@@ -256,6 +253,28 @@ def RemoveNoOp():
     return _ffi_api.RemoveNoOp()  # type: ignore
 
 
+def RemoveAssume():
+    """Remove all instances of builtin::assume
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveAssume()  # type: ignore
+
+
+def RemoveStoreUndef():
+    """Remove stores of undefined values from the Stmt.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveStoreUndef()  # type: ignore
+
+
 def BF16Legalize():
     """Legalize bf16 typed Ops.
     Runs BF16Promote, BF16CastElimination and BF16TypeLowering
@@ -311,6 +330,17 @@ def BF16TypeLowering():
     return _ffi_api.BF16TypeLowering()  # type: ignore
 
 
+def CommonSubexprElimTIR(enable_cse_tir: bool = True, identify_equiv_terms: bool = False):
+    """Replace redundant computations by new variables.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.CommonSubexprElimTIR(enable_cse_tir, identify_equiv_terms)  # type: ignore
+
+
 def RewriteUnsafeSelect():
     """Detect and rewrite unsafe select that contains memory access.
 
@@ -357,26 +387,49 @@ def LowerCustomDatatypes():
     return _ffi_api.LowerCustomDatatypes()  # type: ignore
 
 
-def MakePackedAPI(num_unpacked_params: int = -1):
+def MakePackedAPI():
     """Transform the PrimFuncs in the module to a packed func API.
 
-    Parameters
-    ----------
-    num_unpacked_params : int
-        Number of parameters that we hope to directly pass via normal arguments
-        following the PackedFunc input signature. If it is specified as -1 or it
-        is less than the number of arguments, the pass will packed arguments still.
+    Prior to this pass, the PrimFunc may have Buffer arguments defined
+    in the `PrimFuncNode::buffer_map`.  This pass consumes the
+    `buffer_map`, using it to generate `TVMArgs` and `TVMRetValue*`
+    arguments that implement the `PackedFunc` API.
+
+    For static shapes, the `BufferNode::shape`, `BufferNode::strides`,
+    and `BufferNode::elem_offset` member variables are used to
+    generate runtime checks on the corresponding member variables in
+    the user-provided `DLTensor*` or `tvm.nd.array` argument.  (e.g. A
+    PrimFunc that accepts a buffer of shape `[16,32]` validates that
+    the `DLTensor::shape` array is `[16,32]`.)
+
+    For dynamic Buffers, in which one or more of these `BufferNode` member
+    variables use `tir.Var` that are not defined by other PrimFunc
+    parameters, these are instead used to define the variables based on
+    the corresponding `DLTensor` members.  (e.g. A PrimFunc that accepts a
+    buffer of shape `[tir.Var("n"), tir.Var("m")]`, when passed a
+    `DLTensor` of shape `[16,32]`, will define `n = 16` and `n=32`, based
+    on the argument's shape.
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.MakePackedAPI(num_unpacked_params)  # type: ignore
+    return _ffi_api.MakePackedAPI()  # type: ignore
 
 
 def MakeUnpackedAPI():
     """Transform the PrimFuncs in the module to a C API compatible with internal calls.
+
+    Prior to this pass, the PrimFunc may have Buffer arguments defined in
+    the `PrimFuncNode::buffer_map`.  This pass consumes the `buffer_map`,
+    using it to generate `T*` arguments (e.g. `float32*`) that can be
+    directly called by a C API.
+
+    For static shapes, no runtime validation is performed to confirm that
+    the argument buffer's shape matches the expected shape.  For dynamic
+    shapes, `MakeUnpackedAPI` requires that the dynamic parameters be
+    passed as separate `tir.Var` parameters.
 
     Returns
     -------
@@ -588,6 +641,74 @@ def HoistIfThenElse(variant: Optional[str] = None):
         return _ffi_api.HoistIfThenElse()  # type: ignore
 
 
+class HoistedConditionals(enum.Flag):
+    """Flags for use in HoistExpressionConfig.conditional_types
+
+    Each bitflag represents a type of expression that should be
+    hoisted to the outermost loop possible.
+    """
+
+    Never = 0
+    """ No hoisting of conditionals """
+
+    IfElseStmt = 1
+    """ If set, look for hoist candidates in IfElseStmt """
+
+    IfElseExpr = 2
+    """ If set, look for hoist candidates in tir.if_then_else """
+
+    BooleanExpression = 4
+    """ If set, look for hoist candidates in all boolean expressions """
+
+    UsingBlockVar = 8
+    """ If set, allow hoisting of conditionals that use a block variable (e.g. threadIdx.x)  """
+
+    All = IfElseStmt | IfElseExpr | BooleanExpression | UsingBlockVar
+    """ Enable all hoisting of conditionals"""
+
+
+class HoistedLetBindings(enum.Flag):
+    """Flags for use in HoistExpressionConfig.let_binding_types
+
+    Each bitflag represents a type of let binding expression that should be
+    hoisted to the outermost loop possible.
+    """
+
+    Never = 0
+    """ No hoisting of let bindings """
+
+    RequiredByConditional = 1
+    """ Bindings that are used by a hoisted conditional """
+
+    LetStmt = 2
+    """ Bindings occuring in LetStmt """
+
+    LetExpr = 4
+    """ Bindings occuring in Let expressions """
+
+    All = RequiredByConditional | LetStmt | LetExpr
+    """ Enable all hoisting of let bindings """
+
+
+def HoistExpression():
+    """Generalized verison of HoistIfThenElse.
+
+    Hoist loop-invariant expressions to outside the eligible loops.
+    Searches for expressions in:
+
+    * LetStmt bindings
+    * IfThenElse conditions
+    * Boolean operators
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    """
+    return _ffi_api.HoistExpression()  # type: ignore
+
+
 def LowerCrossThreadReduction():
     """Lower cross-thread reduction from thread bindings to
     intrinsic function calls.
@@ -693,10 +814,20 @@ def LowerMatchBuffer():
     return _ffi_api.LowerMatchBuffer()  # type: ignore
 
 
+def LowerOpaqueBlock():
+    """Remove the block to ensure that the TIR can not be scheduled again.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerOpaqueBlock()  # type: ignore
+
+
 def FlattenBuffer():
-    """Flatten the multi-dimensional BufferLoad and BufferStore
-    to single dimensional Load/Store. Also remove Block to
-    ensure that the flattened TIR can not be scheduled again.
+    """Flatten the multi-dimensional BufferLoad and BufferStore to single dimensional
+    BufferLoad/BufferStore for the TIR not contains opaque block.
 
     Returns
     -------
@@ -749,3 +880,118 @@ def ConvertForLoopsToSerial():
         The result pass
     """
     return _ffi_api.ConvertForLoopsToSerial()  # type: ignore
+
+
+def InjectSoftwarePipeline():
+    """Transform annotated loops into pipelined one that parallelize producers and consumers
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectSoftwarePipeline()  # type: ignore
+
+
+def ExtractPrimFuncConstants():
+    """Collects and unificates tir non-scalar constants to module's attr 'Constants' array.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ExtractPrimFuncConstants()  # type: ignore
+
+
+def RenormalizeSplitPattern():
+    """Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RenormalizeSplitPattern()  # type: ignore
+
+
+def BindTarget(target):
+    """Annotate a PrimFunc with a given target.
+    Parameters
+    -------
+    target : tvm.target.Target
+        target
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.BindTarget(target)  # type: ignore
+
+
+def AnnotateEntryFunc():
+    """Set a PrimFunc as the entry point if it is only function in IRModule.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.AnnotateEntryFunc()  # type: ignore
+
+
+def Filter(fcond: Callable):
+    """Filter out PrimFuncs that does not satisfy the given condition.
+    `fcond` should be a function that takes a primfunc and returns boolean.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.Filter(fcond)  # type: ignore
+
+
+def InjectPTXAsyncCopy():
+    """Rewrite global to shared memory copy on CUDA with asyncronous copy.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectPTXAsyncCopy()  # type: ignore
+
+
+def RemoveWeightLayoutRewriteBlock(skip_ndarray_rewrite=False):
+    """Remove weight layout rewrite block before benchmarking during tuning stage.
+
+    Parameters
+    ----------
+    skip_ndarray_rewrite : bool
+        If True, exact rewrite of NDArray, according to the given index map, will be skipped.
+        Only the shape of the NDArray is transformed correctly, and the content of the destination
+        array will be filled with random values.
+
+        When this pass is called many times during MetaSchedule tuning, the raw data of NDArray,
+        before and after rewrite, does not matter. Since NDArray layout rewrite, using IndexMap's
+        MapNDArray, is currently slow, skipping the exact rewrite is sometimes necessary.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveWeightLayoutRewriteBlock(skip_ndarray_rewrite)  # type: ignore
+
+
+def ManifestSharedMemoryLocalStage():
+    """Add the explicit local stage for the shared memory access on GPU.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ManifestSharedMemoryLocalStage()  # type: ignore

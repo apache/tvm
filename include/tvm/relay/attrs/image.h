@@ -46,9 +46,9 @@ struct Resize1DAttrs : public tvm::AttrsNode<Resize1DAttrs> {
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Resize1DAttrs, "relay.attrs.Resize1DAttrs") {
-    TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >()).describe("Output Size.");
+    TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr>>()).describe("Output Size.");
     TVM_ATTR_FIELD(roi)
-        .set_default(NullValue<Array<FloatImm> >())
+        .set_default(NullValue<Array<FloatImm>>())
         .describe("Region of Interest for coordinate transformation mode 'tf_crop_and_resize'");
     TVM_ATTR_FIELD(layout).set_default("NCW").describe(
         "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
@@ -99,9 +99,9 @@ struct Resize2DAttrs : public tvm::AttrsNode<Resize2DAttrs> {
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Resize2DAttrs, "relay.attrs.Resize2DAttrs") {
-    TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >()).describe("Output Size.");
+    TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr>>()).describe("Output Size.");
     TVM_ATTR_FIELD(roi)
-        .set_default(NullValue<Array<FloatImm> >())
+        .set_default(NullValue<Array<FloatImm>>())
         .describe("Region of Interest for coordinate transformation mode 'tf_crop_and_resize'");
     TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
         "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
@@ -152,9 +152,9 @@ struct Resize3DAttrs : public tvm::AttrsNode<Resize3DAttrs> {
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Resize3DAttrs, "relay.attrs.Resize3DAttrs") {
-    TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >()).describe("Output Size.");
+    TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr>>()).describe("Output Size.");
     TVM_ATTR_FIELD(roi)
-        .set_default(NullValue<Array<FloatImm> >())
+        .set_default(NullValue<Array<FloatImm>>())
         .describe("Region of Interest for coordinate transformation mode 'tf_crop_and_resize'");
     TVM_ATTR_FIELD(layout).set_default("NCDHW").describe(
         "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
@@ -200,7 +200,7 @@ struct CropAndResizeAttrs : public tvm::AttrsNode<CropAndResizeAttrs> {
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(CropAndResizeAttrs, "relay.attrs.CropAndResizeAttrs") {
-    TVM_ATTR_FIELD(crop_size).set_default(NullValue<Array<IndexExpr> >()).describe("Target Size.");
+    TVM_ATTR_FIELD(crop_size).set_default(NullValue<Array<IndexExpr>>()).describe("Target Size.");
     TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
         "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
         "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
@@ -275,18 +275,45 @@ struct AffineGridAttrs : public tvm::AttrsNode<AffineGridAttrs> {
 struct GridSampleAttrs : public tvm::AttrsNode<GridSampleAttrs> {
   String method;
   String layout;
+  String padding_mode;
+  bool align_corners;
 
   TVM_DECLARE_ATTRS(GridSampleAttrs, "relay.attrs.GridSampleAttrs") {
     TVM_ATTR_FIELD(method)
         .set_default("bilinear")
         .describe(
             "Specify the mode to use for scaling."
-            "bilinear - Bilinear Interpolation");
+            "nearest - 2D or 3D Nearest Interpolation."
+            "bilinear - '2D Bilinear' or '3D Trilinear' Interpolation."
+            "bicubic - 2D Bicubic Interpolation.");
     TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
-        "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
-        "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
-        "dimensions respectively. Resize is applied on the 'H' and"
-        "'W' dimensions.");
+        "Dimension ordering of input data. Can be 'NCHW', 'NCDHW', etc."
+        "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+        "dimensions respectively."
+        "2D Resize is applied on the 'H' and 'W' dimensions."
+        "3D Resize is applied on the 'D' and 'H' and 'W' dimensions.");
+    TVM_ATTR_FIELD(padding_mode)
+        .set_default("zeros")
+        .describe(
+            "If :attr:'grid' has values outside the range of '[-1, 1]', the corresponding"
+            "outputs are handled as defined by padding_mode. Options are"
+            "padding_mode='zeros': use '0' for out-of-bound grid locations,"
+            "padding_mode='border': use border values for out-of-bound grid locations"
+            "padding_mode='reflection': use values at locations reflected by"
+            "the border for out-of-bound grid locations. For location far away"
+            "from the border, it will keep being reflected until becoming in bound,"
+            "e.g., (normalized) pixel location 'x = -3.5' reflects by border '-1'"
+            "and becomes 'x' = 1.5, then reflects by border '1' and becomes"
+            "'x' = -0.5");
+    TVM_ATTR_FIELD(align_corners)
+        .set_default(true)
+        .describe(
+            "Geometrically, we consider the pixels of the"
+            "input as squares rather than points."
+            "If set to True, the extrema (-1 and 1) are considered as referring"
+            "to the center points of the input's corner pixels. If set to False, they"
+            "are instead considered as referring to the corner points of the input's corner"
+            "pixels, making the sampling more resolution agnostic.");
   }
 };
 

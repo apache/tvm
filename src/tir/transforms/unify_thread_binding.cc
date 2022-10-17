@@ -102,17 +102,16 @@ class ThreadBindingUnifier : public StmtExprMutator {
           << "` should have the same extent. However, there are two loops with extent "
           << new_iter_var->dom->extent << " and " << dom->extent << ", which are not equal";
     } else {
-      ObjectPtr<IterVarNode> p_new_iter_var = make_object<IterVarNode>(*old_iter_var.get());
-      p_new_iter_var->var = Var(thread_tag);
-      p_new_iter_var->dom = dom;
-      new_iter_var = IterVar(p_new_iter_var);
+      new_iter_var = IterVar(dom, Var(thread_tag, dom->extent.dtype()), old_iter_var->iter_type,
+                             old_iter_var->thread_tag);
       thread_tag2iter_var_map_.Set(thread_tag, new_iter_var);
       launch_threads_.push_back(new_iter_var);
     }
 
     // Step 4. We will substitute the occurrences of the old variable in the old IterVar with the
-    // new variable in further mutation. Thus, we store the mapping entry.
-    var_substitution_map_.Set(old_var, new_iter_var->var);
+    // new variable in further mutation. Thus, we store the mapping entry. Cast to old dtype if
+    // needed (we assume both old and new dtype are valid for the range of the thread extent).
+    var_substitution_map_.Set(old_var, cast(old_var.dtype(), new_iter_var->var));
 
     // Step 5. Mutate recursively, update the body with the new IterVar, and restore the depth
     // counter. Emit for-loops to launch threads if current statement is the outermost thread
@@ -151,7 +150,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
   PrimExpr VisitExpr_(const VarNode* var) final {
     // If this variable appears as a key in `var_substitution_map_`, we substitute it with its
     // corresponding value in the mapping.
-    Map<Var, Var>::iterator it = var_substitution_map_.find(GetRef<Var>(var));
+    Map<Var, PrimExpr>::iterator it = var_substitution_map_.find(GetRef<Var>(var));
     return it != var_substitution_map_.end() ? (*it).second : GetRef<Var>(var);
   }
 
@@ -166,7 +165,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
    */
   Array<IterVar> launch_threads_;
   /*! \brief A mapping from old variables to new variables, which is used for substitution */
-  Map<Var, Var> var_substitution_map_;
+  Map<Var, PrimExpr> var_substitution_map_;
   /*! \brief A integer counter storing the depth of thread bindings of "blockIdx.x/y/z" */
   int thread_block_depth_ = 0;
   /*! \brief An analyzer used for equality proof */

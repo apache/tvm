@@ -20,7 +20,7 @@ pytest.importorskip("ethosu.vela")
 import tvm
 from tvm import relay
 from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_te
-from tvm.relay.backend.contrib.ethosu.tir.scheduler import Convolution2DCompute
+from tvm.relay.backend.contrib.ethosu.tir.scheduler import OperatorCompute
 import tvm.relay.backend.contrib.ethosu.op as ethosu_ops
 
 
@@ -51,8 +51,8 @@ def test_ethosu_conv2d():
     lowered = lower_to_te(mod["main"])
     assert len(lowered.outputs) == 1
     assert len(lowered.inputs) == 4
-    conv2d_compute = Convolution2DCompute.from_output(lowered.outputs[0])
-    assert conv2d_compute.conv2d.name == "ethosu_conv2d"
+    conv2d_compute = OperatorCompute.from_output(lowered.outputs[0])
+    assert conv2d_compute.op.name == "ethosu_conv2d"
     input_shapes = set()
     for inp in lowered.inputs:
         input_shapes.add(tuple([x.value for x in inp.shape]))

@@ -31,6 +31,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "constraint_extract.h"
 #include "interval_set.h"
 #include "pattern_match.h"
 
@@ -63,7 +64,7 @@ IntervalSet Intersect(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
   PrimExpr min_value = max(a->min_value, b->min_value);
   if ((max_value.dtype().is_int() || max_value.dtype().is_uint()) &&
       (min_value.dtype().is_int() || min_value.dtype().is_uint()) &&
-      analyzer->CanProveGreaterEqual(min_value - max_value, 1)) {
+      analyzer->CanProve(max_value < min_value)) {
     return IntervalSet::Empty();
   } else {
     return IntervalSet(min_value, max_value);
@@ -105,14 +106,18 @@ TVM_DECLARE_LOGICAL_OP(Not);
  * \note this can possibly relax the set.
  */
 template <typename Op>
-inline IntervalSet Combine(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine(Analyzer* analyzer, IntervalSet a, IntervalSet b, DataType dtype) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
-    PrimExpr res = TryConstFold<Op>(a->min_value, b->min_value);
-    if (!res.defined()) res = Op(a->min_value, b->min_value);
-    return IntervalSet::SinglePoint(res);
+    PrimExpr expr;
+    if (auto res = TryConstFold<Op>(a->min_value, b->min_value)) {
+      expr = res.value();
+    } else {
+      expr = Op(a->min_value, b->min_value);
+    }
+    return IntervalSet::SinglePoint(expr);
   }
   if (is_logical_op<Op>::value) {
-    return IntervalSet(make_const(a->min_value.dtype(), 0), make_const(a->min_value.dtype(), 1));
+    return IntervalSet(make_const(dtype, 0), make_const(dtype, 1));
   }
   if (a->IsEmpty()) return a;
   if (b->IsEmpty()) return b;
@@ -122,7 +127,8 @@ inline IntervalSet Combine(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
 }
 
 template <>
-inline IntervalSet Combine<tir::Add>(Analyzer* analyer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Add>(Analyzer* analyer, IntervalSet a, IntervalSet b,
+                                     DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value + b->min_value);
   }
@@ -136,7 +142,8 @@ inline IntervalSet Combine<tir::Add>(Analyzer* analyer, IntervalSet a, IntervalS
 }
 
 template <>
-inline IntervalSet Combine<tir::Sub>(Analyzer* analyer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Sub>(Analyzer* analyer, IntervalSet a, IntervalSet b,
+                                     DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value - b->min_value);
   }
@@ -150,7 +157,8 @@ inline IntervalSet Combine<tir::Sub>(Analyzer* analyer, IntervalSet a, IntervalS
 }
 
 template <>
-inline IntervalSet Combine<tir::Mul>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Mul>(Analyzer* analyzer, IntervalSet a, IntervalSet b,
+                                     DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value * b->min_value);
   }
@@ -183,7 +191,8 @@ inline IntervalSet Combine<tir::Mul>(Analyzer* analyzer, IntervalSet a, Interval
 }
 
 template <>
-inline IntervalSet Combine<tir::Div>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Div>(Analyzer* analyzer, IntervalSet a, IntervalSet b,
+                                     DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value / b->min_value);
   }
@@ -216,7 +225,8 @@ inline IntervalSet Combine<tir::Div>(Analyzer* analyzer, IntervalSet a, Interval
 }
 
 template <>
-inline IntervalSet Combine<tir::Mod>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Mod>(Analyzer* analyzer, IntervalSet a, IntervalSet b,
+                                     DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(truncmod(a->min_value, b->min_value));
   }
@@ -244,7 +254,8 @@ inline IntervalSet Combine<tir::Mod>(Analyzer* analyzer, IntervalSet a, Interval
 }
 
 template <>
-inline IntervalSet Combine<tir::FloorDiv>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::FloorDiv>(Analyzer* analyzer, IntervalSet a, IntervalSet b,
+                                          DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(floordiv(a->min_value, b->min_value));
   }
@@ -277,7 +288,8 @@ inline IntervalSet Combine<tir::FloorDiv>(Analyzer* analyzer, IntervalSet a, Int
 }
 
 template <>
-inline IntervalSet Combine<tir::FloorMod>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::FloorMod>(Analyzer* analyzer, IntervalSet a, IntervalSet b,
+                                          DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(floormod(a->min_value, b->min_value));
   }
@@ -294,7 +306,10 @@ inline IntervalSet Combine<tir::FloorMod>(Analyzer* analyzer, IntervalSet a, Int
         // a mod b = a - (a / b) * b if a_max / b == a_min / b
         auto qmax = a->HasUpperBound() ? floordiv(a->max_value, divisor) : pos_inf();
         auto qmin = a->HasLowerBound() ? floordiv(a->min_value, divisor) : neg_inf();
-        if (analyzer->CanProve(qmax == qmin)) {
+        // We can compare +/- inf against each other, but cannot use
+        // operator== between the symbolic limits and an integer.
+        bool compatible_dtypes = !(qmin.dtype().is_handle() ^ qmax.dtype().is_handle());
+        if (compatible_dtypes && analyzer->CanProve(qmax == qmin)) {
           auto tmax = a->max_value - divisor * qmin;
           auto tmin = a->min_value - divisor * qmin;
           return IntervalSet(tmin, tmax);
@@ -311,7 +326,8 @@ inline IntervalSet Combine<tir::FloorMod>(Analyzer* analyzer, IntervalSet a, Int
 }
 
 template <>
-inline IntervalSet Combine<tir::Max>(Analyzer* analzyer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Max>(Analyzer* analzyer, IntervalSet a, IntervalSet b,
+                                     DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(max(a->min_value, b->min_value));
   }
@@ -321,7 +337,8 @@ inline IntervalSet Combine<tir::Max>(Analyzer* analzyer, IntervalSet a, Interval
 }
 
 template <>
-inline IntervalSet Combine<tir::Min>(Analyzer* analzyer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Min>(Analyzer* analzyer, IntervalSet a, IntervalSet b,
+                                     DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(min(a->min_value, b->min_value));
   }
@@ -345,8 +362,13 @@ using namespace tir;
 // We might use better set analysis in the future to replace the intervalset.
 class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
  public:
-  IntervalSetEvaluator(Analyzer* analyzer, const Map<Var, IntSet>& dom_map, bool eval_vec = false)
-      : analyzer_(analyzer), dom_map_(dom_map), eval_vec_(eval_vec) {}
+  IntervalSetEvaluator(Analyzer* analyzer, const Map<Var, IntSet>& dom_map,
+                       const std::vector<std::pair<Var, IntSet>>* dom_constraints = nullptr,
+                       bool eval_vec = false)
+      : analyzer_(analyzer),
+        dom_map_(dom_map),
+        dom_constraints_(dom_constraints),
+        eval_vec_(eval_vec) {}
 
   IntervalSet Eval(const PrimExpr& val) { return this->VisitExpr(val); }
   // evaluate and relax the set
@@ -366,18 +388,40 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
 
   IntervalSet VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
+
+    Array<IntSet> values;
+    if (dom_constraints_) {
+      for (const auto& constraint : *dom_constraints_) {
+        if (var.same_as(constraint.first)) {
+          values.push_back(constraint.second);
+        }
+      }
+    }
+
     auto it = dom_map_.find(var);
     if (it != dom_map_.end()) {
-      IntervalSet res = ToIntervalSet((*it).second);
-      if (res->min_value.same_as(var) && res->max_value.same_as(var)) {
-        return res;
-      }
-      // recursively evaluate mapped result
-      // in case the domain contains variables to be relaxed.
-      return Eval(res);
-    } else {
+      values.push_back((*it).second);
+    }
+
+    if (values.empty()) {
       return IntervalSet::SinglePoint(var);
     }
+
+    IntSet intersection = [&]() {
+      if (values.size() == 1) {
+        return values.front();
+      } else {
+        return Intersect(values);
+      }
+    }();
+
+    IntervalSet res = ToIntervalSet(intersection);
+    if (res->min_value.same_as(var) && res->max_value.same_as(var)) {
+      return res;
+    }
+    // recursively evaluate mapped result
+    // in case the domain contains variables to be relaxed.
+    return Eval(res);
   }
 
   IntervalSet VisitExpr_(const AddNode* op) final { return VisitBinaryExpr_<Add>(op); }
@@ -423,10 +467,12 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
       int64_t vstride = stride.Eval()->value;
       if (vstride > 0) {
         return Combine<Add>(analyzer_, base,
-                            IntervalSet(make_zero(t), make_const(t, vstride * op->lanes - 1)));
+                            IntervalSet(make_zero(t), make_const(t, vstride * (op->lanes - 1))),
+                            op->dtype);
       } else {
         return Combine<Add>(analyzer_, base,
-                            IntervalSet(make_const(t, vstride * op->lanes + 1), make_zero(t)));
+                            IntervalSet(make_const(t, vstride * (op->lanes - 1)), make_zero(t)),
+                            op->dtype);
       }
     }
     DLOG(WARNING) << "cannot evaluate set on expression " << GetRef<PrimExpr>(op);
@@ -453,6 +499,24 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
     return IntervalSet(min_value, max_value);
   }
 
+  IntervalSet VisitExpr_(const BufferLoadNode* op) final {
+    if (!(op->dtype.is_int() || op->dtype.is_uint())) {
+      DLOG(WARNING) << "cannot evaluate set BufferLoad which loads from a " << op->dtype
+                    << " buffer";
+      return IntervalSet::Everything();
+    }
+    // If the indices do not contain any variables to be relaxed, return the BufferLoad itself.
+    // Otherwise return `IntervalSet::everything()` since we have no knowledge on the buffer data.
+    for (const PrimExpr& index : op->indices) {
+      if (UsesVar(index, [dom_map = &this->dom_map_](const VarNode* var) {
+            return dom_map->find(GetRef<Var>(var)) != dom_map->end();
+          })) {
+        return IntervalSet::Everything();
+      }
+    }
+    return IntervalSet::SinglePoint(GetRef<PrimExpr>(op));
+  }
+
   IntervalSet VisitExprDefault_(const Object* op) final {
     DLOG(WARNING) << "cannot evaluate set type " << op->GetTypeKey();
     return IntervalSet::Everything();
@@ -472,7 +536,7 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
     if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
       return IntervalSet::SinglePoint(GetRef<PrimExpr>(op));
     }
-    return Combine<TOp>(analyzer_, a, b);
+    return Combine<TOp>(analyzer_, a, b, op->dtype);
   }
 
   // recursive depth
@@ -480,6 +544,7 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
   // analyzer
   Analyzer* analyzer_;
   const Map<Var, IntSet>& dom_map_;
+  const std::vector<std::pair<Var, IntSet>>* dom_constraints_;
   bool eval_vec_{false};
 };
 
@@ -491,8 +556,35 @@ class IntSetAnalyzer::Impl {
     return IntervalSetEvaluator(analyzer_, dom_map).Eval(expr);
   }
 
+  IntSet Eval(const PrimExpr& expr) const {
+    return IntervalSetEvaluator(analyzer_, dom_map_, &dom_constraints_, true).Eval(expr);
+  }
+
+  void Bind(const Var& var, const Range& range, bool allow_override) {
+    Update(var, IntSet::FromRange(range), allow_override);
+  }
+
+  void Update(const Var& var, const IntSet& info, bool override_info);
+  void Bind(const Var& var, const PrimExpr& expr, bool override_info);
+  std::function<void()> EnterConstraint(const PrimExpr& constraint);
+
  private:
+  // Utility function to split a boolean condition into the domain
+  // bounds implied by that condition.
+  static std::vector<std::pair<Var, IntSet>> DetectBoundInfo(const PrimExpr& cond);
+
+  // The parent arith::Analyzer
   Analyzer* analyzer_;
+
+  // Map of variables to global variable bounds (e.g. loop iterator
+  // ranges)
+  Map<Var, IntSet> dom_map_;
+
+  // List of implicit scope-dependent bounds (e.g. inside the body of
+  // an if-statement).  Maintained as a list of constraints, rather
+  // than as a `Map<Var,IntSet>`, to avoid computing an Intersection
+  // until required.
+  std::vector<std::pair<Var, IntSet>> dom_constraints_;
 };
 
 IntSetAnalyzer::IntSetAnalyzer(Analyzer* parent) : impl_(new Impl(parent)) {}
@@ -503,6 +595,93 @@ IntSet IntSetAnalyzer::operator()(const PrimExpr& expr, const Map<Var, IntSet>& 
   return impl_->Eval(expr, dom_map);
 }
 
+IntSet IntSetAnalyzer::operator()(const PrimExpr& expr) { return impl_->Eval(expr); }
+
+void IntSetAnalyzer::Update(const Var& var, const IntSet& info, bool allow_override) {
+  impl_->Update(var, info, allow_override);
+}
+
+void IntSetAnalyzer::Bind(const Var& var, const Range& range, bool allow_override) {
+  impl_->Bind(var, range, allow_override);
+}
+
+void IntSetAnalyzer::Impl::Update(const Var& var, const IntSet& info, bool can_override) {
+  if (!can_override) {
+    auto it = dom_map_.find(var);
+    if (it != dom_map_.end()) {
+      const IntSet& old_info = (*it).second;
+
+      ICHECK(ExprDeepEqual()(old_info.min(), info.min()))
+          << "Trying to update var \'" << var << "\'"
+          << " with a different minimum value: "
+          << "original=" << old_info.min() << ", new=" << info.min();
+
+      ICHECK(ExprDeepEqual()(old_info.max(), info.max()))
+          << "Trying to update var \'" << var << "\'"
+          << " with a different maximum value: "
+          << "original=" << old_info.max() << ", new=" << info.max();
+    }
+  }
+  dom_map_.Set(var, info);
+}
+
+void IntSetAnalyzer::Impl::Bind(const Var& var, const PrimExpr& expr, bool can_override) {
+  Update(var, Eval(expr), can_override);
+}
+
+std::vector<std::pair<Var, IntSet>> IntSetAnalyzer::Impl::DetectBoundInfo(
+    const PrimExpr& constraint) {
+  PVar<Var> x;
+  PVar<PrimExpr> limit;
+
+  std::vector<std::pair<Var, IntSet>> bounds;
+  for (const PrimExpr& subconstraint : ExtractConstraints(constraint)) {
+    if ((x <= limit).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(SymbolicLimits::neg_inf_, limit.Eval())});
+    } else if ((x < limit).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(SymbolicLimits::neg_inf_, limit.Eval() - 1)});
+    } else if ((x >= limit).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(limit.Eval(), SymbolicLimits::pos_inf_)});
+    } else if ((x > limit).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(limit.Eval() + 1, SymbolicLimits::pos_inf_)});
+    } else if ((x == limit).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::SinglePoint(limit.Eval())});
+    }
+
+    if ((limit >= x).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(SymbolicLimits::neg_inf_, limit.Eval())});
+    } else if ((limit > x).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(SymbolicLimits::neg_inf_, limit.Eval() - 1)});
+    } else if ((limit <= x).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(limit.Eval(), SymbolicLimits::pos_inf_)});
+    } else if ((limit < x).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(limit.Eval() + 1, SymbolicLimits::pos_inf_)});
+    } else if ((limit == x).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::SinglePoint(limit.Eval())});
+    }
+  }
+  return bounds;
+}
+
+std::function<void()> IntSetAnalyzer::EnterConstraint(const PrimExpr& constraint) {
+  return impl_->EnterConstraint(constraint);
+}
+
+std::function<void()> IntSetAnalyzer::Impl::EnterConstraint(const PrimExpr& constraint) {
+  auto bounds = DetectBoundInfo(constraint);
+
+  if (bounds.size() == 0) return nullptr;
+
+  size_t old_size = dom_constraints_.size();
+  dom_constraints_.insert(dom_constraints_.end(), bounds.begin(), bounds.end());
+  size_t new_size = dom_constraints_.size();
+  auto frecover = [old_size, new_size, this]() {
+    ICHECK_EQ(dom_constraints_.size(), new_size);
+    dom_constraints_.resize(old_size);
+  };
+  return frecover;
+}
+
 // Quickly adapt to IntSet interface
 // TODO(tqchen): revisit IntSet interface as well.
 Range IntSet::CoverRange(Range max_range) const {
@@ -511,7 +690,7 @@ Range IntSet::CoverRange(Range max_range) const {
   const IntervalSetNode* s_int = (*this).as<IntervalSetNode>();
   ICHECK(s_int != nullptr);
   if (s_int->HasUpperBound() && s_int->HasLowerBound()) {
-    return Range::FromMinExtent(s_int->min_value,
+    return Range::FromMinExtent(analyzer.Simplify(s_int->min_value),
                                 analyzer.Simplify(s_int->max_value + 1 - s_int->min_value));
   }
   return max_range;
@@ -570,6 +749,20 @@ bool IntSet::CanProveNonNegative() const {
   if (const IntervalSetNode* s_int = (*this).as<IntervalSetNode>()) {
     auto min = analyzer.Simplify(s_int->min_value);
     return is_zero(min) || is_positive_const(min);
+  }
+  return false;
+}
+
+bool IntSet::HasLowerBound() const {
+  if (const IntervalSetNode* s_int = (*this).as<IntervalSetNode>()) {
+    return s_int->HasLowerBound();
+  }
+  return false;
+}
+
+bool IntSet::HasUpperBound() const {
+  if (const IntervalSetNode* s_int = (*this).as<IntervalSetNode>()) {
+    return s_int->HasUpperBound();
   }
   return false;
 }
@@ -745,13 +938,13 @@ Map<Var, IntSet> ConvertDomMap(const std::unordered_map<const VarNode*, IntSet>&
 
 IntSet EvalSet(PrimExpr e, const Map<Var, IntSet>& dom_map) {
   Analyzer ana;
-  return IntervalSetEvaluator(&ana, dom_map, false).Eval(e);
+  return IntervalSetEvaluator(&ana, dom_map, {}, false).Eval(e);
 }
 
 IntSet IntSet::Vector(PrimExpr x) {
   Analyzer ana;
   Map<Var, IntSet> dmap;
-  return IntervalSetEvaluator(&ana, dmap, true).Eval(x);
+  return IntervalSetEvaluator(&ana, dmap, {}, true).Eval(x);
 }
 
 IntSet EvalSet(PrimExpr e, const Map<IterVar, IntSet>& dom_map) {
@@ -764,6 +957,9 @@ IntSet EvalSet(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom
 
 IntSet EvalSet(Range r, const Map<Var, IntSet>& dom_map) {
   Analyzer ana;
+  if ((r->min->dtype.is_int() || r->min->dtype.is_uint()) && ana.CanProveEqual(r->extent, 1)) {
+    return EvalSet(r->min, dom_map);
+  }
   IntervalSetEvaluator m(&ana, dom_map);
   // Simplifying first can give tighter bounds if r->min and r->extent share variables
   PrimExpr sum = r->min + r->extent - 1;
@@ -824,21 +1020,63 @@ IntSet EvalSet(Range r, const Map<IterVar, IntSet>& dom_map) {
   return EvalSet(r, ConvertDomMap(dom_map));
 }
 
-Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
-                                                 const Map<Var, Range>& var_dom,
-                                                 const PrimExpr& predicate, Analyzer* analyzer) {
+Map<Var, arith::IntSet> AsIntSet(const Map<Var, Range>& var_dom) {
+  Map<Var, arith::IntSet> result;
+  for (auto kv : var_dom) {
+    const Var& var = kv.first;
+    const Range& range = kv.second;
+    result.Set(var, arith::IntSet::FromRange(range));
+  }
+  return result;
+}
+
+/*! \brief Helper function to convert IterSumExpr to the actual touched range. */
+static Optional<IntSet> EvalIterSum(const IterSumExpr& iter_min, const PrimExpr& extent,
+                                    Analyzer* analyzer) {
+  if (iter_min->args.empty()) {
+    return IntSet::FromMinExtent(iter_min->base, extent);
+  }
+  ICHECK_EQ(iter_min->args.size(), 1) << "The `EvalIterSum` expects fused iter sum expr";
+  const IterSplitExpr& split = iter_min->args[0];
+  if (!analyzer->CanProve(extent >= split->scale)) {
+    return NullOpt;
+  }
+
+  const PrimExpr& base = iter_min->base;
+  // IterSplitExpr: (source // lower_factor) % extent * scale
+  // where `(source // lower_factor) % extent` is within [0, extent - 1]
+  if (analyzer->CanProve(split->scale < 0)) {
+    // If scale is negative, the var dom is [(extent - 1) * scale, 0]
+    // The total base is `base + (extent - 1) * scale`,
+    // while total extent is `dom_extent + (extent - 1) * (-scale)`
+    const PrimExpr& var_extent = (split->extent - 1) * split->scale;
+    return IntSet::FromMinExtent(base + var_extent, extent - var_extent);
+  } else {
+    // If scale is positive, the var dom is [0, (extent - 1) * scale]
+    // The total dom is [base, dom_extent + (extent - 1) * scale]
+    return IntSet::FromMinExtent(base, extent + (split->extent - 1) * split->scale);
+  }
+}
+
+Optional<Array<IntSet>> EstimateRegionStrictBound(const Array<Range>& region,
+                                                  const Map<Var, Range>& var_dom,
+                                                  const PrimExpr& predicate, Analyzer* analyzer) {
   int ndim = region.size();
   Array<IterSumExpr> iter_sum_exprs{nullptr};
   {
     Array<PrimExpr> affine_indices;
     affine_indices.reserve(ndim);
     for (const Range& range : region) {
+      if (!is_const_number(range->extent)) {
+        // dynamic extent is not supported yet.
+        return NullOpt;
+      }
       affine_indices.push_back(range->min);
     }
-    DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
-    iter_sum_exprs = DetectIterMap(
+    auto res = DetectIterMap(
         /*indices=*/affine_indices, /*input_iters=*/var_dom,
-        /*predicate=*/predicate, /*require_bijective=*/false, analyzer, diag_ctx);
+        /*predicate=*/predicate, /*check_level=*/IterMapLevel::Surjective, analyzer);
+    iter_sum_exprs = res->indices;
   }
   if (iter_sum_exprs.empty()) {
     return NullOpt;
@@ -849,31 +1087,57 @@ Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
   for (int i = 0; i < ndim; ++i) {
     const IterSumExpr& sum_expr = iter_sum_exprs[i];
     const Range& range = region[i];
-    if (sum_expr->args.empty()) {
-      result.push_back(IntSet::FromMinExtent(sum_expr->base, range->extent));
-      continue;
-    }
-    ICHECK_EQ(sum_expr->args.size(), 1);
-    const IterSplitExpr& split = sum_expr->args[0];
-    if (!analyzer->CanProve(range->extent >= split->scale)) {
+    Optional<IntSet> int_set = EvalIterSum(sum_expr, range->extent, analyzer);
+    if (int_set.defined()) {
+      result.push_back(int_set.value());
+    } else {
       return NullOpt;
     }
+  }
+  return result;
+}
 
-    const PrimExpr& base = sum_expr->base;
-    // IterSplitExpr: (source // lower_factor) % extent * scale
-    // where `(source // lower_factor) % extent` is within [0, extent - 1]
-    if (analyzer->CanProve(split->scale < 0)) {
-      // If scale is negative, the var dom is [(extent - 1) * scale, 0]
-      // The total base is `base + (extent - 1) * scale`,
-      // while total extent is `dom_extent + (extent - 1) * (-scale)`
-      const PrimExpr& var_extent = (split->extent - 1) * split->scale;
-      result.push_back(IntSet::FromMinExtent(base + var_extent, range->extent - var_extent));
-    } else {
-      // If scale is positive, the var dom is [0, (extent - 1) * scale]
-      // The total dom is [base, dom_extent + (extent - 1) * scale]
-      result.push_back(
-          IntSet::FromMinExtent(base, range->extent + (split->extent - 1) * split->scale));
+Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
+                                                 const Map<Var, Range>& var_dom,
+                                                 const PrimExpr& predicate,
+                                                 arith::Analyzer* analyzer) {
+  return EstimateRegionStrictBound(region, var_dom, predicate, analyzer);
+}
+
+Array<IntSet> EstimateRegionUpperBound(const Array<Range>& region, const Map<Var, Range>& var_dom,
+                                       const PrimExpr& predicate, Analyzer* analyzer) {
+  if (Optional<Array<arith::IntSet>> result = EstimateRegionStrictBound(
+          /*region=*/region,
+          /*var_dom=*/var_dom,
+          /*predicate=*/predicate, /*analyzer=*/analyzer)) {
+    return result.value();
+  }
+  Array<IntSet> result;
+  result.reserve(region.size());
+  // try estimate each dimension independently
+  for (const Range& range : region) {
+    auto res = DetectIterMap(
+        /*indices=*/{range->min}, /*input_iters=*/var_dom,
+        /*predicate=*/predicate, /*check_level=*/IterMapLevel::Surjective, analyzer);
+    if (!res->indices.empty()) {
+      ICHECK_EQ(res->indices.size(), 1U);
+      IterSumExpr sum_expr = res->indices[0];
+
+      // dynamic extent is not supported yet.
+      PrimExpr extent = range->extent;
+      if (!is_const_number(extent)) {
+        IntSet relaxed = EvalSet(extent, AsIntSet(var_dom));
+        ICHECK(relaxed.HasUpperBound());
+        extent = relaxed.max();
+      }
+
+      if (Optional<IntSet> int_set = EvalIterSum(sum_expr, range->extent, analyzer)) {
+        result.push_back(int_set.value());
+        continue;
+      }
     }
+    // fallback to coarse grained evalset
+    result.push_back(EvalSet(range, AsIntSet(var_dom)));
   }
   return result;
 }
@@ -906,6 +1170,18 @@ TVM_REGISTER_GLOBAL("arith.EstimateRegionLowerBound")
                        PrimExpr predicate) -> Optional<Array<IntSet>> {
       Analyzer analyzer;
       return EstimateRegionLowerBound(region, var_dom, predicate, &analyzer);
+    });
+TVM_REGISTER_GLOBAL("arith.EstimateRegionStrictBound")
+    .set_body_typed([](Array<Range> region, Map<Var, Range> var_dom,
+                       PrimExpr predicate) -> Optional<Array<IntSet>> {
+      Analyzer analyzer;
+      return EstimateRegionStrictBound(region, var_dom, predicate, &analyzer);
+    });
+TVM_REGISTER_GLOBAL("arith.EstimateRegionUpperBound")
+    .set_body_typed([](Array<Range> region, Map<Var, Range> var_dom,
+                       PrimExpr predicate) -> Optional<Array<IntSet>> {
+      Analyzer analyzer;
+      return EstimateRegionUpperBound(region, var_dom, predicate, &analyzer);
     });
 
 TVM_REGISTER_GLOBAL("arith.PosInf").set_body_typed([]() { return SymbolicLimits::pos_inf_; });

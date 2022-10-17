@@ -340,6 +340,63 @@ class Allocate(Stmt):
         )
 
 
+@tvm._ffi.register_object("tir.AllocateConst")
+class AllocateConst(Stmt):
+    """Allocate constant node.
+
+    Parameters
+    ----------
+    buffer_var : Var
+        The buffer variable.
+
+    dtype : str
+        The data type of the buffer.
+
+    extents : list of Expr
+        The extents of the allocate
+
+    data_or_idx : Union[NDArray, int]
+        If an NDArray, this is the const data associated with the
+        constant.  If an integer, this is the index into the
+        "constants" attribute of the `IRModule` that contains the
+        `AllocateConst`.
+
+    body : Stmt
+        The body statement.
+
+    annotations : Optional[Map]
+        Additional annotations about the allocation.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
+    """
+
+    def __init__(self, buffer_var, dtype, extents, data_or_idx, body, annotations=None, span=None):
+        self.__init_handle_by_constructor__(
+            _ffi_api.AllocateConst, buffer_var, dtype, extents, data_or_idx, body, annotations, span
+        )
+
+
+@tvm._ffi.register_object("tir.DeclBuffer")
+class DeclBuffer(Stmt):
+    """DeclBuffer node.
+
+    Parameters
+    ----------
+    buffer: Buffer
+        The buffer being declared.
+
+    body: Stmt
+        The body statement to be executed.
+
+    span: Optional[Span]
+        The location of this DeclBuffer in the source code.
+    """
+
+    def __init__(self, buffer, body, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.DeclBuffer, buffer, body, span)
+
+
 @tvm._ffi.register_object("tir.AttrStmt")
 class AttrStmt(Stmt):
     """AttrStmt node.

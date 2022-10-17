@@ -27,8 +27,12 @@ class AddToDatabaseNode : public MeasureCallbackNode {
              const Array<MeasureCandidate>& measure_candidates,
              const Array<BuilderResult>& builder_results,
              const Array<RunnerResult>& runner_results) final {
-    TuneContext task = task_scheduler->tasks[task_id];
-    Database database = task_scheduler->database;
+    if (!task_scheduler->database_.defined()) {
+      return;
+    }
+    auto _ = Profiler::TimedScope("MeasureCallback/AddToDatabase");
+    TuneContext task = task_scheduler->tasks_[task_id]->ctx;
+    Database database = task_scheduler->database_.value();
     Workload workload = database->CommitWorkload(task->mod.value());
     Target target = task->target.value();
     ICHECK_EQ(runner_results.size(), measure_candidates.size());
@@ -36,13 +40,16 @@ class AddToDatabaseNode : public MeasureCallbackNode {
     for (int i = 0; i < n; ++i) {
       RunnerResult result = runner_results[i];
       MeasureCandidate candidate = measure_candidates[i];
-      if (result->error_msg.defined()) {
-        continue;
+      Array<FloatImm> run_secs{nullptr};
+      if (result->run_secs.defined()) {
+        run_secs = result->run_secs.value();
+      } else {
+        run_secs = Array<FloatImm>{FloatImm(DataType::Float(32), 1e10)};
       }
       database->CommitTuningRecord(TuningRecord(
           /*trace=*/candidate->sch->trace().value(),
-          /*run_secs=*/result->run_secs.value(),
           /*workload=*/workload,
+          /*run_secs=*/run_secs,
           /*target=*/target,
           /*args_info=*/candidate->args_info));
     }

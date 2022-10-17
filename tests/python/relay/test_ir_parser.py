@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
+import tvm.testing
 from tvm import relay
 import tvm.relay.testing
-import pytest
 from numpy import isclose
 from typing import Union
 
@@ -172,6 +173,26 @@ def test_int_literal():
     assert get_scalar(parse_text("-05")) == -5
     assert get_scalar(parse_text("9223372036854775807")) == 9223372036854775807
 
+    assert get_scalar(parse_text("-42i")) == -42
+    assert get_scalar(parse_text("-42i16")) == -42
+    assert get_scalar(parse_text("-42i32")) == -42
+    assert get_scalar(parse_text("-42i64")) == -42
+
+    assert_parses_as("-42i16", relay.const(-42, "int16"))
+    assert_parses_as("-42i32", relay.const(-42, "int32"))
+    assert_parses_as("-42i", relay.const(-42, "int32"))
+    assert_parses_as("-42", relay.const(-42, "int32"))
+    assert_parses_as("-42i64", relay.const(-42, "int64"))
+    assert_parses_as("2147483647", relay.const(2147483647, "int32"))
+    assert_parses_as("2147483648", relay.const(2147483648, "int64"))
+
+    with pytest.raises(tvm.error.DiagnosticError):
+        # Unrepresentable
+        parse_text("2147483648i32")
+    with pytest.raises(tvm.error.DiagnosticError):
+        # Unrepresentable
+        parse_text("32768i16")
+
 
 def test_float_literal():
     assert get_scalar(parse_text("1.0f")) == 1.0
@@ -189,10 +210,27 @@ def test_float_literal():
     assert isclose(get_scalar(parse_text("1.0E-1f")), 1.0e-1)
     assert get_scalar(parse_text("1.0E+1f")) == 1.0e1
 
+    assert get_scalar(parse_text("3f16")) == 3.0
+    assert get_scalar(parse_text("3f32")) == 3.0
+
+    assert_parses_as("3f16", relay.const(3.0, "float16"))
+    assert_parses_as("3f32", relay.const(3.0, "float32"))
+    assert_parses_as("3f", relay.const(3.0, "float32"))
+    assert_parses_as("3f64", relay.const(3.0, "float64"))
+
+    with pytest.raises(tvm.error.DiagnosticError):
+        # Unrepresentable
+        parse_text("3.40283e+38f32")
+    with pytest.raises(tvm.error.DiagnosticError):
+        # Unrepresentable
+        parse_text("65505f16")
+
 
 def test_bool_literal():
     assert get_scalar(parse_text("True")) == True
     assert get_scalar(parse_text("False")) == False
+
+    assert_parses_as("True", relay.const(True, "bool"))
 
 
 def test_negative():
@@ -991,6 +1029,4 @@ def test_init_module_and_metatable():
 
 
 if __name__ == "__main__":
-    import sys
-
-    pytest.main(sys.argv)
+    tvm.testing.main()

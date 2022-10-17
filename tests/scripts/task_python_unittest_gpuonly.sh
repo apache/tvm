@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euo pipefail
+set -euxo pipefail
 
 export PYTEST_ADDOPTS="-m gpu ${PYTEST_ADDOPTS:-}"
 
@@ -33,5 +33,5 @@ export TVM_UNITTEST_TESTSUITE_NAME=python-unittest-vulkan
 
 source tests/scripts/setup-pytest-env.sh
 
-run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME} tests/python/unittest/test_target_codegen_vulkan.py
-run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME} tests/python/unittest/test_target_codegen_vulkan.py
+run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-0 tests/python/unittest/test_target_codegen_vulkan.py
+run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME}-1 tests/python/unittest/test_target_codegen_vulkan.py

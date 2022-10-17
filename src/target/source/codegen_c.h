@@ -124,37 +124,39 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    */
   virtual void InitFuncState(const PrimFunc& f);
   // expression
-  void VisitExpr_(const VarNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const LoadNode* op, std::ostream& os) override;       // NOLINT(*)
-  void VisitExpr_(const LetNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os) override;       // NOLINT(*)
-  void VisitExpr_(const AddNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const SubNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const MulNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const DivNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const ModNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const MinNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const MaxNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const EQNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const NENode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const LTNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const LENode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const GTNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const GENode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const AndNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const OrNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const CastNode* op, std::ostream& os) override;       // NOLINT(*)
-  void VisitExpr_(const NotNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const SelectNode* op, std::ostream& os) override;     // NOLINT(*)
-  void VisitExpr_(const RampNode* op, std::ostream& os) override;       // NOLINT(*)
-  void VisitExpr_(const ShuffleNode* op, std::ostream& os) override;    // NOLINT(*)
-  void VisitExpr_(const BroadcastNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const IntImmNode* op, std::ostream& os) override;     // NOLINT(*)
-  void VisitExpr_(const FloatImmNode* op, std::ostream& os) override;   // NOLINT(*)
-  void VisitExpr_(const StringImmNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const VarNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const LoadNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const BufferLoadNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const LetNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const AddNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const SubNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const MulNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const DivNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const ModNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const MinNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const MaxNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const EQNode* op, std::ostream& os) override;          // NOLINT(*)
+  void VisitExpr_(const NENode* op, std::ostream& os) override;          // NOLINT(*)
+  void VisitExpr_(const LTNode* op, std::ostream& os) override;          // NOLINT(*)
+  void VisitExpr_(const LENode* op, std::ostream& os) override;          // NOLINT(*)
+  void VisitExpr_(const GTNode* op, std::ostream& os) override;          // NOLINT(*)
+  void VisitExpr_(const GENode* op, std::ostream& os) override;          // NOLINT(*)
+  void VisitExpr_(const AndNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const OrNode* op, std::ostream& os) override;          // NOLINT(*)
+  void VisitExpr_(const CastNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const NotNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const SelectNode* op, std::ostream& os) override;      // NOLINT(*)
+  void VisitExpr_(const RampNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const ShuffleNode* op, std::ostream& os) override;     // NOLINT(*)
+  void VisitExpr_(const BroadcastNode* op, std::ostream& os) override;   // NOLINT(*)
+  void VisitExpr_(const IntImmNode* op, std::ostream& os) override;      // NOLINT(*)
+  void VisitExpr_(const FloatImmNode* op, std::ostream& os) override;    // NOLINT(*)
+  void VisitExpr_(const StringImmNode* op, std::ostream& os) override;   // NOLINT(*)
   // statment
   void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const StoreNode* op) override;
+  void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
@@ -163,6 +165,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   void VisitStmt_(const AssertStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
+  void VisitStmt_(const AllocateConstNode* op) override;
+  void VisitStmt_(const DeclBufferNode* op) override;
 
   /*!
    * \brief Print expr representing the thread tag
@@ -175,9 +179,9 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   virtual void PrintVecBinaryOp(const std::string& op, DataType op_type, PrimExpr lhs, PrimExpr rhs,
                                 std::ostream& os);  // NOLINT(*)
   // print vector load
-  virtual std::string GetVecLoad(DataType t, const VarNode* buffer, PrimExpr base);
+  virtual std::string GetVecLoad(DataType t, const BufferNode* buffer, PrimExpr base);
   // print vector store
-  virtual void PrintVecStore(const VarNode* buffer, DataType t, PrimExpr base,
+  virtual void PrintVecStore(const BufferNode* buffer, DataType t, PrimExpr base,
                              const std::string& value);  // NOLINT(*)
   // print load of single element
   virtual void PrintVecElemLoad(const std::string& vec, DataType t, int i,
@@ -192,11 +196,15 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // Print restrict keyword for a given Var if applicable
   virtual void PrintRestrict(const Var& v, std::ostream& os);
 
+  virtual void SetConstantsByteAlignment(Integer constants_byte_alignment) {
+    constants_byte_alignment_ = constants_byte_alignment;
+  }
+
  protected:
   // Print reference to struct location
   std::string GetStructRef(DataType t, const PrimExpr& buffer, const PrimExpr& index, int kind);
   // Print reference to a buffer as type t in index.
-  virtual std::string GetBufferRef(DataType t, const VarNode* buffer, PrimExpr index);
+  virtual std::string GetBufferRef(DataType t, const BufferNode* buffer, PrimExpr index);
 
   /*!
    * \brief Handle volatile loads.
@@ -206,7 +214,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * does not implement volatile member functions. CUDA codegen will cast
    * away volatile qualifier from CUDA __half types.
    */
-  virtual void HandleVolatileLoads(const std::string& value, const LoadNode* op, std::ostream& os) {
+  virtual void HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
+                                   std::ostream& os) {
     // By default, do nothing but print the loaded value.
     os << value;
   }
@@ -262,6 +271,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // cache commonly used ops
   const Op& builtin_call_extern_ = builtin::call_extern();
   const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
+  Integer constants_byte_alignment_ = 16;
 
  private:
   /*! \brief whether to print in SSA form */

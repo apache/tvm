@@ -17,18 +17,23 @@
 # pylint: disable=invalid-name, unused-argument
 """Backend QNN related feature registration"""
 import numpy as np
-
+from scipy import special
 import tvm
 from tvm import relay
 from tvm._ffi.base import TVMError
-from .. import op as reg
+from tvm.relay.qnn.op.canonicalizations import create_integer_lookup_op
+
 from ....topi.x86.utils import target_has_sse42
+from ....topi.utils import is_target
+from .. import op as reg
 
 #################################################
 # Register the functions for different operators.
 #################################################
 
 # Registering QNN Conv2D legalization function.
+
+
 @reg.register_qnn_legalize("qnn.conv2d")
 def legalize_qnn_conv2d(attrs, inputs, types):
     return qnn_conv2d_legalize(attrs, inputs, types)
@@ -44,6 +49,41 @@ def legalize_qnn_conv2d_transpose(attrs, inputs, types):
 @reg.register_qnn_legalize("qnn.dense")
 def legalize_qnn_dense(attrs, inputs, types):
     return qnn_dense_legalize(attrs, inputs, types)
+
+
+def register_qnn_unary_op_legalize(op_name, floating_point_func):
+    """Register unary qnn op for legalization via table lookup op."""
+
+    def legalize_qnn_unary_op(attrs, inputs, types):
+        return create_integer_lookup_op(
+            input_arg=inputs[0],
+            floating_point_func=floating_point_func,
+            in_scale=inputs[1],
+            in_zero_point=inputs[2],
+            out_scale=inputs[3],
+            out_zero_point=inputs[4],
+            in_dtype=types[0].dtype,
+            out_dtype=types[0].dtype,
+        )
+
+    return reg.register_qnn_legalize(op_name, legalize_qnn_unary_op)
+
+
+def hardswish_func(x):
+    x2 = x + 3.0
+    x2 = np.clip(x2, 0.0, 6.0)
+    return x * x2 / 6.0
+
+
+register_qnn_unary_op_legalize("qnn.sqrt", np.sqrt)
+register_qnn_unary_op_legalize("qnn.rsqrt", lambda arr: 1 / np.sqrt(arr))
+register_qnn_unary_op_legalize("qnn.exp", np.exp)
+register_qnn_unary_op_legalize("qnn.erf", special.erf)
+register_qnn_unary_op_legalize("qnn.sigmoid", lambda arr: 1 / (1 + np.exp(-arr)))
+register_qnn_unary_op_legalize("qnn.hardswish", hardswish_func)
+register_qnn_unary_op_legalize("qnn.tanh", np.tanh)
+register_qnn_unary_op_legalize("qnn.log", np.log)
+register_qnn_unary_op_legalize("qnn.abs", np.abs)
 
 
 # Default to None. If overridden by target, this will not be run.
@@ -63,12 +103,30 @@ def qnn_conv2d_transpose_legalize(attrs, inputs, types):
     # Collect the input exprs.
     data, kernel, input_zero_point, kernel_zero_point, _, _ = inputs
 
-    shift_data = relay.subtract(
-        relay.cast(data, dtype="int16"), relay.cast(input_zero_point, "int16")
-    )
-    shift_kernel = relay.subtract(
-        relay.cast(kernel, dtype="int16"), relay.cast(kernel_zero_point, "int16")
-    )
+    # If input zero point is a scalar, we can directly subtract it.
+    if len(types[2].shape) == 0:
+        shift_data = relay.subtract(
+            relay.cast(data, dtype="int16"), relay.cast(input_zero_point, "int16")
+        )
+    # Otherwise it needs to be broadcast.
+    else:
+        shift_data = relay.nn.bias_add(
+            relay.cast(data, dtype="int16"),
+            -relay.cast(input_zero_point, dtype="int16"),
+        )
+
+    # If kernel zero point is a scalar, we can directly subtract it.
+    if len(types[3].shape) == 0:
+        shift_kernel = relay.subtract(
+            relay.cast(kernel, dtype="int16"), relay.cast(kernel_zero_point, "int16")
+        )
+    # Otherwise it needs to be broadcast.
+    else:
+        shift_kernel = relay.nn.bias_add(
+            relay.cast(kernel, dtype="int16"),
+            -relay.cast(kernel_zero_point, dtype="int16"),
+        )
+
     return relay.nn.conv2d_transpose(shift_data, shift_kernel, **attrs)
 
 
@@ -167,7 +225,7 @@ def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
 
         shift_kernel = relay.nn.bias_add(
             relay.cast(kernel, dtype="int16"),
-            relay.cast(kernel_zero_point, dtype="int16"),
+            -relay.cast(kernel_zero_point, dtype="int16"),
             output_axis,
         )
     new_attrs = {k: attrs[k] for k in attrs.keys()}
@@ -366,7 +424,8 @@ def is_aarch64_arm():
 
 @qnn_conv2d_legalize.register("arm_cpu")
 def _qnn_conv2d_legalize_arm_cpu(attrs, inputs, types):
-    # ARM prefers the dtypes to be same.
+    target = tvm.target.Target.current(allow_none=False)
+    has_asimd = is_aarch64_arm() or "+neon" in target.mattr
     is_depthwise = relay.op.strategy.is_depthwise_conv2d(
         types[0].shape,
         attrs["data_layout"],
@@ -374,18 +433,23 @@ def _qnn_conv2d_legalize_arm_cpu(attrs, inputs, types):
         attrs["kernel_layout"],
         attrs["groups"],
     )
-    use_int8_on_arm = (not is_depthwise) and is_aarch64_arm() and attrs["data_layout"] == "NHWC"
-    if use_int8_on_arm or is_fast_int8_on_arm():
-        return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
-    return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.conv2d)
+    use_int8_on_arm = (not is_depthwise) and attrs["data_layout"] == "NHWC"
+    has_dotprod = is_fast_int8_on_arm()
+    other_options = use_int8_on_arm or has_dotprod
+    if has_asimd and not other_options:
+        return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.conv2d)
+    # ARM prefers the dtypes to be same.
+    return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
 
 
 @qnn_dense_legalize.register("arm_cpu")
 def _qnn_dense_legalize_arm_cpu(attrs, inputs, types):
+    target = tvm.target.Target.current(allow_none=False)
+    has_asimd = is_aarch64_arm() or "+neon" in target.mattr
+    if has_asimd and not is_fast_int8_on_arm():
+        return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.dense)
     # ARM prefers the dtypes to be same.
-    if is_fast_int8_on_arm():
-        return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.dense)
-    return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.dense)
+    return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.dense)
 
 
 ##########################
@@ -410,17 +474,27 @@ def _qnn_dense_legalize_intel_cpu(attrs, inputs, types):
 
 
 #####################
-# CUDA legalizations.
+# CUDA and vulkan legalizations.
 #####################
 
 
-@qnn_conv2d_legalize.register("cuda")
+@qnn_conv2d_legalize.register(["cuda", "gpu"])
 def _qnn_conv2d_legalize_cuda(attrs, inputs, types):
-    # CUDA prefers both datatypes to be int8.
-    return helper_change_dtypes_to_int8(attrs, inputs, types, relay.qnn.op.conv2d)
+    if is_target("vulkan"):
+        # prefers the dtypes to be same. Mixed type is not yet supported.
+        return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
+    if is_target(["cuda", "rocm"]):
+        # CUDA prefers both datatypes to be int8.
+        return helper_change_dtypes_to_int8(attrs, inputs, types, relay.qnn.op.conv2d)
+    return None
 
 
-@qnn_dense_legalize.register("cuda")
+@qnn_dense_legalize.register(["cuda", "gpu"])
 def _qnn_dense_legalize_cuda(attrs, inputs, types):
-    # CUDA prefers both datatypes to be the int8.
-    return helper_change_dtypes_to_int8(attrs, inputs, types, relay.qnn.op.dense)
+    if is_target("vulkan"):
+        # prefers the dtypes to be same. Mixed type is not yet supported.
+        return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.dense)
+    if is_target(["cuda", "rocm"]):
+        # CUDA prefers both datatypes to be the int8.
+        return helper_change_dtypes_to_int8(attrs, inputs, types, relay.qnn.op.dense)
+    return None

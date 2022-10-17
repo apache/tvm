@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -23,6 +23,6 @@
 # Jenkinsfile from the ci-docker-staging branch, but the task scripts
 # from the PR branch.
 
-set -euo pipefail
+set -euxo pipefail
 
 ./tests/scripts/task_config_build_gpu_other.sh

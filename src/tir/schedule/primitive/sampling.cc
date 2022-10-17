@@ -184,7 +184,7 @@ int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_st
   }
 
   *decision = Integer(i);  // decision is guaranteed not to be nullptr.
-  return candidates[i];
+  return candidates[i].IntValue();
 }
 
 std::function<int32_t()> MakeMultinomialSampler(
@@ -299,29 +299,19 @@ std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandS
     return SamplePerfectTile(rand_state, extent, n_splits);
   }
   CHECK_GE(n_splits, 2) << "ValueError: Cannot tile a loop into " << n_splits << " splits";
-  std::vector<int32_t> innermost_candidates;
-  innermost_candidates.reserve(max_innermost_factor);
-  for (int32_t i = 1; i <= max_innermost_factor; ++i) {
-    if (extent % i == 0) {
-      innermost_candidates.push_back(i);
+  while (true) {
+    std::vector<int64_t> result = SamplePerfectTile(rand_state, extent, n_splits);
+    if (result.back() <= max_innermost_factor) {
+      return result;
     }
   }
-  // N.B. Theoretically sampling evenly breaks the uniform sampling of the global sampling space.
-  // We should do multiple factorization to weight the choices. However, it would lead to slower
-  // sampling speed. On the other hand, considering potential tricks we might do on the innermost
-  // loop, in which sampling uniformly does not help, let's leave it as it is for now, and maybe add
-  // more heuristics in the future
-  int32_t innermost = innermost_candidates[SampleInt(rand_state, 0, innermost_candidates.size())];
-  std::vector<int64_t> result = SamplePerfectTile(rand_state, extent / innermost, n_splits - 1);
-  result.push_back(innermost);
-  return result;
 }
 
 std::vector<int64_t> SamplePerfectTile(
     support::LinearCongruentialEngine::TRandState* rand_state,  //
     const tir::StmtSRef& loop_sref, int32_t n_splits, int32_t max_innermost_factor,
     Optional<Array<Integer>>* decision) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   const int64_t* extent = GetLoopIntExtent(loop);
   std::vector<int64_t> result;
   if (extent == nullptr) {
@@ -348,7 +338,9 @@ std::vector<int64_t> SamplePerfectTile(
   } else {
     // Case 3. Use fresh new sampling result
     result = SamplePerfectTile(rand_state, *extent, n_splits, max_innermost_factor);
-    ICHECK_LE(result.back(), max_innermost_factor);
+    if (max_innermost_factor != -1) {
+      ICHECK_LE(result.back(), max_innermost_factor);
+    }
   }
   *decision = support::AsArray<int64_t, Integer>(result);
   return result;
@@ -358,9 +350,7 @@ tir::StmtSRef SampleComputeLocation(tir::ScheduleState self,
                                     support::LinearCongruentialEngine::TRandState* rand_state,
                                     const StmtSRef& block_sref, Optional<Integer>* decision) {
   // Step 1. Collect all possible compute-at locations.
-  Array<tir::StmtSRef> location_srefs;
-  std::vector<int> location_indices;
-  std::tie(location_srefs, location_indices) = CollectComputeLocation(self, block_sref);
+  auto [location_srefs, location_indices] = CollectComputeLocation(self, block_sref);
   ICHECK_EQ(location_srefs.size(), location_indices.size());
 
   // Step 2. If there was a previous decision, keep the decision unchanged if it exists in the

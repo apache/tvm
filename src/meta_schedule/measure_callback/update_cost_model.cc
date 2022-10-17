@@ -27,13 +27,27 @@ class UpdateCostModelNode : public MeasureCallbackNode {
              const Array<MeasureCandidate>& measure_candidates,
              const Array<BuilderResult>& builder_results,
              const Array<RunnerResult>& runner_results) final {
-    TuneContext task = task_scheduler->tasks[task_id];
-    ICHECK(task_scheduler->cost_model.defined())  //
-        << "Cost model must be defined for the task scheduler!";
-    ICHECK(task->measure_candidates.defined())  //
-        << "Task's measure candidates must be present!";
-    CostModel cost_model = task_scheduler->cost_model.value();
-    cost_model->Update(task, task->measure_candidates.value(), runner_results);
+    auto _ = Profiler::TimedScope("MeasureCallback/UpdateCostModel");
+    const TaskRecord& task = task_scheduler->tasks_[task_id];
+    if (!task_scheduler->cost_model_.defined()) {
+      return;
+    }
+    CostModel cost_model = task_scheduler->cost_model_.value();
+    ICHECK(task->measure_candidates.defined()) << "Task's measure candidates must be present!";
+    ICHECK_EQ(measure_candidates.size(), builder_results.size());
+    ICHECK_EQ(runner_results.size(), builder_results.size());
+    int n = builder_results.size();
+    Array<MeasureCandidate> pruned_candidate;
+    Array<RunnerResult> pruned_runner_result;
+    pruned_candidate.reserve(n);
+    pruned_runner_result.reserve(n);
+    for (int i = 0; i < n; i++) {
+      if (!builder_results[i]->error_msg.defined()) {
+        pruned_candidate.push_back(measure_candidates[i]);
+        pruned_runner_result.push_back(runner_results[i]);
+      }
+    }
+    cost_model->Update(task->ctx, pruned_candidate, pruned_runner_result);
   }
 
   static constexpr const char* _type_key = "meta_schedule.UpdateCostModel";

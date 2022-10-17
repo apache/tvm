@@ -25,20 +25,15 @@ from tvm.relay import op as _op
 from tvm.relay.frontend.common import infer_shape
 
 from .common import logger
-from .pytorch_utils import is_version_greater_than
+from .pytorch_utils import is_version_greater_than, getattr_attr_name
 
 
-class QNNParam:
+class QNNParam(object):
     """A placeholder for weight quantization parameters"""
 
     def __init__(self, weight, bias, scale, zero_point):
         self.weight = weight
-
-        if bias is not None:
-            self.bias = bias.detach().numpy()
-        else:
-            self.bias = None
-
+        self.bias = None if bias is None else bias.detach().numpy()
         self.scale = _expr.const(scale)
         self.zero_point = _expr.const(zero_point, dtype="int32")
 
@@ -113,7 +108,7 @@ def make_conv_packed_param(qweight, bias, packed_params):
 
 
 def get_weight_quant_params(script_module, packed_param_names):
-    """Retrive and unpack weight parameters from quantized modules"""
+    """Retrieve and unpack weight parameters from quantized modules"""
     import torch
 
     param_name = "_packed_params"
@@ -276,6 +271,8 @@ def _get_quant_param_for_input(input_value):
         "quantized::add_scalar": (2, 3),
         "quantized::hardswish": (1, 2),
         "quantized::conv_transpose2d": qconv_indices,
+        "quantized::leaky_relu": (3, 4),
+        "aten::sigmoid": (1, 2),
     }
 
     def dfs(current_node):
@@ -292,8 +289,8 @@ def _get_quant_param_for_input(input_value):
         for arg in current_node.inputs():
             return dfs(arg.node())
 
-        # shouldn't happen
-        assert False, "No producer for %s" % (str(current_node))
+        # If input_value is not quantized, we reach here.
+        return None, None
 
     return dfs(input_value.node())
 
@@ -399,6 +396,33 @@ def _add_output_quant_params_to_scalar_op(node, graph, input_scale, input_zero_p
     node.addInput(out_zero_point_node.output())
 
 
+def _add_output_quant_params_to_sigmoid_op(node, graph):
+    """
+    Refer to aten/src/ATen/native/quantized/cpu/qsigmoid.cpp,
+    the output scale and zp of sigmoid op are two fixed numbers.
+    So we need to make two new constant nodes in the input IR and
+    add these params to the inputs of sigmoid op.
+    """
+    # pylint: disable=c-extension-no-member
+    import torch
+
+    # suppose scale_type is uint8
+    out_scale = 1.0 / 256
+    out_zero_point = 0
+
+    # create new constant nodes and add them to graph
+    out_scale_node = graph.create("prim::Constant")
+    out_zero_point_node = graph.create("prim::Constant")
+    out_scale_node.insertBefore(node)
+    out_zero_point_node.insertBefore(node)
+    out_scale_node.f_("value", out_scale)
+    out_zero_point_node.i_("value", out_zero_point)
+    out_scale_node.output().setType(torch._C.FloatType.get())
+    out_zero_point_node.output().setType(torch._C.IntType.get())
+    node.addInput(out_scale_node.output())
+    node.addInput(out_zero_point_node.output())
+
+
 def add_input_quant_params_to_op_inputs(graph):
     """
     In Torch, input quant params are not explicitly passed around
@@ -437,6 +461,7 @@ def add_input_quant_params_to_op_inputs(graph):
         "quantized::mul": 2,
         "aten::dequantize": 1,
         "aten::mean": 1,
+        "aten::sigmoid": 1,
         "aten::upsample_nearest2d": 1,
         "aten::upsample_bilinear2d": 1,
         "aten::relu_": 1,
@@ -447,6 +472,7 @@ def add_input_quant_params_to_op_inputs(graph):
         "quantized::hardswish": 1,
         "aten::hardsigmoid": 1,
         "quantized::conv_transpose2d": 1,
+        "quantized::leaky_relu": 1,
     }
 
     need_input_quant_param = set(num_quantized_inputs.keys())
@@ -473,8 +499,9 @@ def add_input_quant_params_to_op_inputs(graph):
         else:
             for i in range(num_quantized_inputs[operator]):
                 scale, zp = _get_quant_param_for_input(node.inputsAt(i))
-                input_scales.append(scale)
-                input_zero_points.append(zp)
+                if scale is not None and zp is not None:
+                    input_scales.append(scale)
+                    input_zero_points.append(zp)
 
         if operator in ["quantized::add_scalar", "quantized::mul_scalar"]:
             scalar = node.inputsAt(1).node().f("value")
@@ -484,13 +511,17 @@ def add_input_quant_params_to_op_inputs(graph):
             # see the comments in this function above
             _add_output_quant_params_to_scalar_op(node, graph, inp_scale, inp_zero_point, scalar)
 
+        if operator == "aten::sigmoid":
+            _add_output_quant_params_to_sigmoid_op(node, graph)
+
         for scale, zp in zip(input_scales, input_zero_points):
             node.addInput(scale)
             node.addInput(zp)
 
-        if "conv" in operator or "linear" in operator:
+        if "quantized::conv" in operator or "quantized::linear" in operator:
             # This is required for quantizing the bias
-            input_scales_for_bias[node.inputsAt(1).debugName()] = scale.node().f("value")
+            assert len(input_scales) == 1, "One quantized parameter expected for qconv or qlinear."
+            input_scales_for_bias[node.inputsAt(1).debugName()] = input_scales[0].node().f("value")
 
     return input_scales_for_bias
 
@@ -503,23 +534,65 @@ def add_quant_params(params, quant_params):
             params[qparam.bias_var.name_hint] = tvm.nd.array(qparam.bias)
 
 
+def inline_input_quant_params_for_fx(graph, params):
+    """
+    Canonicalize input scale and zero point access for FX-quantized graphs.
+    We expect input qparams to aten::quantize_per_tensor to be prim::Constant, but that's
+    not the case for FX-based quantized models as shown below.
+    We replace prim::GetAttr with prim::Constant so that FX-based quantized models can be
+    converted in the same way as eager-mode based quantized models.
+
+    Before:
+    %pan_input_zero_point_1 : Tensor = prim::GetAttr[name="pan_input_zero_point_1"](%backbone)
+    %pan_input_scale_1 : Tensor = prim::GetAttr[name="pan_input_scale_1"](%backbone)
+    ...
+    %quantize_per_tensor_2 ... = aten::quantize_per_tensor(...,
+                                       %pan_input_scale_1, %pan_input_zero_point_1, ...)
+
+    After:
+    %2402 : int = prim::Constant[value=0]()
+    %2403 : float = prim::Constant[value=1.]()
+    %quantize_per_tensor_2 ...  = aten::quantize_per_tensor(..., %2403, %2402, ...)
+    """
+    # pylint: disable=c-extension-no-member
+    import torch
+
+    def get_full_attr_name(current):
+        current_attr = getattr_attr_name(current)
+        inputs = list(current.inputs())
+        if len(inputs) == 1 and inputs[0].node().kind() == "prim::GetAttr":
+            return get_full_attr_name(inputs[0].node()) + "." + current_attr
+        return current_attr
+
+    for node in graph.findAllNodes("prim::GetAttr", recurse=True):
+        out_name = node.output().debugName()
+
+        if "_scale" in out_name or "_zero_point" in out_name:
+            full_attr = get_full_attr_name(node)
+            assert full_attr in params, "%s not found in param dict." % full_attr
+            param_np = params[full_attr].numpy()
+            new_const_node = graph.create("prim::Constant")
+            new_const_node.insertBefore(node)
+
+            if "_scale" in out_name:
+                new_const_node.f_("value", param_np)
+                new_const_node.output().setType(torch._C.FloatType.get())
+            else:
+                new_const_node.i_("value", param_np.item())
+                new_const_node.output().setType(torch._C.IntType.get())
+
+            node.replaceAllUsesWith(new_const_node)
+
+
 def apply_with_upcast(data, func):
     inp = _op.cast(data, dtype="int32")
     out = func(inp)
     return _op.cast(out, "uint8")
 
 
-def quantized_mean(data, input_scale, input_zero_point, func_fp32):
-    # refer to aten/src/ATen/native/quantized/cpu/qreduction.cpp
+def apply_with_fp32_fallback(data, input_scale, input_zero_point, func_fp32):
     dequantized = relay.qnn.op.dequantize(data, input_scale, input_zero_point)
     out = func_fp32(dequantized)
-    return relay.qnn.op.quantize(out, input_scale, input_zero_point, out_dtype="uint8", axis=1)
-
-
-def quantized_upsample(data, input_scale, input_zero_point, func_fp32):
-    # currently piggy backs to fp32, it gets identical output as torch
-    data = relay.qnn.op.dequantize(data, input_scale, input_zero_point)
-    out = func_fp32(data)
     return relay.qnn.op.quantize(out, input_scale, input_zero_point, out_dtype="uint8", axis=1)
 
 
@@ -529,10 +602,27 @@ def quantized_relu(data, input_zero_point):
     return _op.tensor.maximum(data, zp)
 
 
+def quantized_sigmoid(inputs):
+    data = inputs[0]
+    output_scale = _expr.const(inputs[1])
+    output_zero_point = _expr.const(inputs[2])
+    input_scale = _expr.const(inputs[3])
+    input_zero_point = _expr.const(inputs[4])
+    return relay.qnn.op.sigmoid(
+        data, input_scale, input_zero_point, output_scale, output_zero_point
+    )
+
+
 def _quantize_per_tensor():
     def _impl(inputs, _):
+        dim = len(infer_shape(inputs[0]))
+        if dim > 1:
+            axis = 1
+        else:
+            axis = 0
+
         return relay.qnn.op.quantize(
-            inputs[0], _expr.const(inputs[1]), _expr.const(inputs[2]), out_dtype="uint8", axis=1
+            inputs[0], _expr.const(inputs[1]), _expr.const(inputs[2]), out_dtype="uint8", axis=axis
         )
 
     return _impl
@@ -889,6 +979,39 @@ def _relu6():
     return _impl
 
 
+def _leaky_relu(fp32_piggy_back=False):
+    # refer to src/ATen/native/quantized/cpu/qrelu.cpp
+    def _impl_fp32(inputs, _):
+        alpha = inputs[1]
+        output_scale = _expr.const(inputs[3])
+        output_zero_point = _expr.const(inputs[4])
+        input_scale = _expr.const(inputs[5])
+        input_zero_point = _expr.const(inputs[6])
+        dequant = relay.qnn.op.dequantize(inputs[0], input_scale, input_zero_point)
+        dequantized = _op.nn.leaky_relu(dequant, alpha)
+        return relay.qnn.op.quantize(
+            dequantized, output_scale, output_zero_point, out_dtype="uint8"
+        )
+
+    def _impl_int8(inputs, _):
+        alpha = inputs[1]
+        output_scale = _expr.const(inputs[3])
+        output_zero_point = _expr.const(inputs[4])
+        input_scale = _expr.const(inputs[5])
+        input_zero_point = _expr.const(inputs[6])
+        return relay.qnn.op.leaky_relu(
+            inputs[0], alpha, input_scale, input_zero_point, output_scale, output_zero_point
+        )
+
+    def _impl(inputs, _):
+        assert len(inputs) == 7, "Input quant params not found in op inputs"
+        if fp32_piggy_back:
+            return _impl_fp32(inputs, _)
+        return _impl_int8(inputs, _)
+
+    return _impl
+
+
 def _mul_scalar():
     # this is used for mobilenet v3
     def _impl(inputs, _):
@@ -915,14 +1038,10 @@ def _mul_scalar():
     return _impl
 
 
-def _hswish():
-    # refer to src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp
-    # They fallback to fp32
-    def _impl(inputs, _):
-        assert len(inputs) == 5, "Input quant params not found in op inputs"
-        # TODO(masahi): Replace this with integer only compute.
-        # We do not have to strictly follow how PyTorch does it.
-
+def _hswish(fp32_piggy_back=False):
+    def _impl_fp32(inputs):
+        # refer to src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp
+        # They fallback to fp32
         def relu6(x):
             return _op.tensor.clip(x, 0.0, 6.0)
 
@@ -940,6 +1059,21 @@ def _hswish():
         return relay.qnn.op.quantize(
             dequantized_hswish, output_scale, output_zero_point, out_dtype="uint8"
         )
+
+    def _impl_int8(inputs):
+        output_scale = _expr.const(inputs[1])
+        output_zero_point = _expr.const(inputs[2])
+        input_scale = _expr.const(inputs[3])
+        input_zero_point = _expr.const(inputs[4])
+        return relay.qnn.op.hardswish(
+            inputs[0], input_scale, input_zero_point, output_scale, output_zero_point
+        )
+
+    def _impl(inputs, _):
+        assert len(inputs) == 5, "Input quant params not found in op inputs"
+        if fp32_piggy_back:
+            return _impl_fp32(inputs)
+        return _impl_int8(inputs)
 
     return _impl
 
@@ -1085,7 +1219,8 @@ convert_map = {
     "quantized::add_scalar": _add_scalar(),
     "quantized::mul_scalar": _mul_scalar(),
     "quantized::relu6": _relu6(),
+    "quantized::leaky_relu": _leaky_relu(),
     "quantized::linear_dynamic": _linear_dynamic(),
-    "quantized::hardswish": _hswish(),
+    "quantized::hardswish": _hswish(fp32_piggy_back=False),
     "quantized::conv_transpose2d": _quantized_conv_transpose2d(),
 }

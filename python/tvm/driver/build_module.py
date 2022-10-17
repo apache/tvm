@@ -17,11 +17,13 @@
 
 # pylint: disable=invalid-name
 """The build utils in python."""
-import warnings
-
 from typing import Union, Optional, List, Mapping
 
+import warnings
+
 import tvm.tir
+
+from tvm import te
 
 from tvm.runtime import Module
 from tvm.runtime import ndarray
@@ -29,7 +31,6 @@ from tvm.ir import container
 from tvm.tir import PrimFunc
 from tvm.ir.module import IRModule
 from tvm.te import tensor
-from tvm.te import schedule
 from tvm.target import Target
 from tvm.tir.buffer import Buffer
 from tvm.tir.expr import Var
@@ -62,7 +63,7 @@ def get_binds(args, compact=False, binds=None):
 
 
 def schedule_to_module(
-    sch: schedule.Schedule,
+    sch: te.Schedule,
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
     name: str = "main",
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
@@ -91,7 +92,7 @@ def schedule_to_module(
 
 
 def lower(
-    inp: Union[schedule.Schedule, PrimFunc, IRModule],
+    inp: Union[te.Schedule, PrimFunc, IRModule],
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
     name: str = "main",
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
@@ -129,13 +130,15 @@ def lower(
         return ffi.lower_module(inp, simple_mode)
     if isinstance(inp, PrimFunc):
         return ffi.lower_primfunc(inp, name, simple_mode)
-    if isinstance(inp, schedule.Schedule):
+    if isinstance(inp, te.Schedule):
         return ffi.lower_schedule(inp, args, name, binds, simple_mode)
-    raise ValueError("Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
+    raise ValueError(
+        f"Expected input to be an IRModule, PrimFunc or te.Schedule, but got {type(inp)}"
+    )
 
 
 def build(
-    inputs: Union[schedule.Schedule, PrimFunc, IRModule, Mapping[str, IRModule]],
+    inputs: Union[te.Schedule, PrimFunc, IRModule, Mapping[str, IRModule]],
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
     target: Optional[Union[str, Target]] = None,
     target_host: Optional[Union[str, Target]] = None,
@@ -150,8 +153,7 @@ def build(
 
     Parameters
     ----------
-    inputs : Union[tvm.te.schedule.Schedule,
-        tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
+    inputs : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
         The input to be built
 
     args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
@@ -219,7 +221,7 @@ def build(
     ----
     See the note on :any:`tvm.target` on target string format.
     """
-    if isinstance(inputs, schedule.Schedule):
+    if isinstance(inputs, te.Schedule):
         if args is None:
             raise ValueError("args must be given for build from schedule")
         input_mod = lower(inputs, args, name=name, binds=binds)
@@ -234,14 +236,9 @@ def build(
         input_mod = lower(inputs)
     elif not isinstance(inputs, (dict, container.Map)):
         raise ValueError(
-            f"Inputs must be Schedule, IRModule or dict of target to IRModule, "
+            f"Inputs must be te.Schedule, IRModule, PrimFunc, "
+            f"or dict of target to IRModule, "
             f"but got {type(inputs)}."
-        )
-
-    if target_host is not None:
-        warnings.warn(
-            "target_host parameter is going to be deprecated. "
-            "Please pass in tvm.target.Target(target, host=target_host) instead."
         )
 
     if not isinstance(inputs, (dict, container.Map)):
@@ -261,11 +258,17 @@ def build(
             raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
         annotated_mods[tar] = mod.with_attr("runtime", runtime)
 
-    annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
+    # TODO(mbs): Both CompilationConfig and TIRToRuntime implement the same host target
+    #  defaulting logic, but there's currently no way to get back the decided host.
+    if target_host is not None:
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
+        )
 
+    annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
     if not target_host:
         for tar, mod in annotated_mods.items():
-            tar = Target(tar)
             device_type = ndarray.device(tar.kind.name, 0).device_type
             if device_type == ndarray.cpu(0).device_type:
                 target_host = tar
@@ -273,11 +276,11 @@ def build(
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
-    annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
+    annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
 
-    rt_mod_host = _driver_ffi.preprocess_module(annotated_mods, target_host)
+    rt_mod_host = _driver_ffi.tir_to_runtime(annotated_mods, target_host)
 
-    annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
+    annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
 
     if not isinstance(target_host, Target):
         target_host = Target(target_host)

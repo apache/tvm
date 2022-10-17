@@ -34,18 +34,13 @@ Trace::Trace(Array<Instruction> insts, Map<Instruction, ObjectRef> decisions) {
 
 /**************** Utilities  ****************/
 
-bool IsPostproc(const InstructionKind& inst_kind) {
-  static InstructionKind inst_enter_postproc = InstructionKind::Get("EnterPostproc");
-  return inst_kind.same_as(inst_enter_postproc);
-}
-
 int GetNumValidInstructions(const Array<Instruction>& insts, bool remove_postproc) {
   if (!remove_postproc) {
     return insts.size();
   }
   int n_insts = 0;
   for (const Instruction& inst : insts) {
-    if (!IsPostproc(inst->kind)) {
+    if (!inst->kind->IsPostproc()) {
       ++n_insts;
     } else {
       break;
@@ -84,6 +79,9 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
                 << "TypeError: Expect 'tir.Var', but gets: " << dst->GetTypeKey();
             return GetRef<Var>(static_cast<const VarNode*>(dst));
           }));
+    } else if (input->IsInstance<ArrayNode>()) {
+      // Recursively convert elements of the array into a new list of ObjectRefs.
+      result.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), rv_map));
     } else {
       ICHECK(false) << "TypeError: Cannot recognize the type of an input random variable: "
                     << input->GetTypeKey();
@@ -117,6 +115,9 @@ Array<ObjectRef> TranslateInputRVs(
     } else if (input->IsInstance<ArrayNode>()) {
       // Case 4: array
       results.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), rv_names));
+    } else if (input->IsInstance<MapNode>()) {
+      // Case 5: dict
+      results.push_back(input);
     } else if (input->IsInstance<BlockRVNode>() || inputs->IsInstance<LoopRVNode>() ||
                inputs->IsInstance<VarNode>()) {
       LOG(FATAL) << "IndexError: Random variable is not defined " << input;
@@ -144,13 +145,18 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
       results.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), named_rvs));
       continue;
     }
+    // Case 5. dict
+    if (input->IsInstance<MapNode>()) {
+      results.push_back(input);
+      continue;
+    }
     const auto* str = input.as<StringObj>();
     CHECK(str) << "TypeError: Expect String, but gets: " << input->GetTypeKey();
     CHECK_GT(str->size, 0) << "ValueError: Empty string is not allowed in input names";
     const char* name = str->data;
     int64_t size = str->size;
     // Case 2. string
-    if (size > 2 && name[0] == '"' && name[size - 1] == '"') {
+    if (size >= 2 && name[0] == '"' && name[size - 1] == '"') {
       results.push_back(String(std::string(name + 1, size - 2)));
       continue;
     }
@@ -250,7 +256,7 @@ void TraceNode::ApplyToSchedule(
         decision_provider) const {
   std::unordered_map<const Object*, const Object*> rv_map;
   for (const Instruction& inst : this->insts) {
-    if (remove_postproc && IsPostproc(inst->kind)) {
+    if (remove_postproc && inst->kind->IsPostproc()) {
       break;
     }
     Array<ObjectRef> inputs = TranslateInputRVs(inst->inputs, rv_map);
@@ -274,7 +280,7 @@ ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
   int i = 0;
   for (const Instruction& inst : this->insts) {
     const InstructionKind& kind = inst->kind;
-    if (remove_postproc && IsPostproc(kind)) {
+    if (remove_postproc && kind->IsPostproc()) {
       break;
     }
     json_insts.push_back(Array<ObjectRef>{
@@ -303,7 +309,7 @@ Array<String> TraceNode::AsPython(bool remove_postproc) const {
   Array<String> py_trace;
   py_trace.reserve(this->insts.size());
   for (const Instruction& inst : this->insts) {
-    if (remove_postproc && IsPostproc(inst->kind)) {
+    if (remove_postproc && inst->kind->IsPostproc()) {
       break;
     }
     Array<ObjectRef> attrs;
@@ -473,16 +479,22 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TraceNode>([](const ObjectRef& obj, ReprPrinter* p) {
       const auto* self = obj.as<TraceNode>();
       ICHECK_NOTNULL(self);
+      p->stream << "# from tvm import tir\n";
+      p->stream << "def apply_trace(sch: tir.Schedule) -> None:\n";
       Array<String> repr = self->AsPython(/*remove_postproc=*/false);
       bool is_first = true;
       for (const String& line : repr) {
         if (is_first) {
           is_first = false;
         } else {
-          p->stream << std::endl;
+          p->stream << '\n';
         }
-        p->stream << line;
+        p->stream << "  " << line;
       }
+      if (is_first) {
+        p->stream << "  pass";
+      }
+      p->stream << std::flush;
     });
 
 /**************** Instruction Registration ****************/

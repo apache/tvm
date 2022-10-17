@@ -58,9 +58,9 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
           // on remotes, we accept a nullptr for collectors.
           if (collectors.defined()) {
             std::vector<profiling::MetricCollector> cs(collectors.begin(), collectors.end());
-            prof_ = profiling::Profiler(devices, cs);
+            prof_ = profiling::Profiler(devices, cs, {{String("Executor"), String("VM")}});
           } else {
-            prof_ = profiling::Profiler(devices, {});
+            prof_ = profiling::Profiler(devices, {}, {{String("Executor"), String("VM")}});
           }
 
           auto invoke = VirtualMachine::GetFunction("invoke", sptr_to_self);
@@ -73,11 +73,11 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
           invoke(arg_name);
           prof_.operator*().Stop();
           auto report = prof_.operator*().Report();
-          prof_ = dmlc::optional<profiling::Profiler>();  // releases hardware counters
+          prof_ = std::nullopt;  // releases hardware counters
           return report;
         });
   } else if (name == "profile_rpc") {
-    // We cannot return a Report over RPC because TMV RPC mechanism only
+    // We cannot return a Report over RPC because TVM RPC mechanism only
     // supports a subset of Object classes. Instead we serialize it on the
     // remote (here) and deserialize it on the other end.
     return TypedPackedFunc<std::string(std::string)>([sptr_to_self, this](std::string arg_name) {
@@ -90,9 +90,8 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
   }
 }
 
-void VirtualMachineDebug::LoadExecutable(Executable* exec) {
+void VirtualMachineDebug::LoadExecutable(const ObjectPtr<Executable>& exec) {
   VirtualMachine::LoadExecutable(exec);
-  ICHECK(exec_);
   for (auto kv : exec_->primitive_map) {
     packed_index_map_[kv.second] = kv.first;
   }
@@ -137,7 +136,7 @@ void VirtualMachineDebug::OpStartHook(Instruction instr) {
       prof_.operator*().StartCall("VM::AllocStorage", dev,
                                   {{"VM::Argument Shapes", String(shape.str())}});
     } else {
-      prof_.operator*().StartCall("VM::UnknownOp", devices_[1], {});
+      prof_.operator*().StartCall("VM::UnknownOp", GetDevice(exec_->host_device_index), {});
     }
   }
 }
@@ -204,15 +203,13 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
 
 runtime::Module CreateVirtualMachineDebug(Executable* exec) {
   auto vm = make_object<VirtualMachineDebug>();
-  vm->LoadExecutable(exec);
+  vm->LoadExecutable(GetObjectPtr<Executable>(exec));
   return runtime::Module(vm);
 }
 
 TVM_REGISTER_GLOBAL("runtime._VirtualMachineDebug").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   auto* exec = dynamic_cast<Executable*>(mod.operator->());
-  ICHECK(exec) << "Virtual machine has not been defined yet."
-               << "\n";
   *rv = CreateVirtualMachineDebug(exec);
 });
 

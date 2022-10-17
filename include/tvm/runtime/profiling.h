@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_PROFILING_H_
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/container/map.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
@@ -192,6 +193,11 @@ class ReportNode : public Object {
    * because these metrics include the overhead of the executor.
    */
   Map<String, Map<String, ObjectRef>> device_metrics;
+  /*! Configuration used for this profiling run. Includes number of threads, executor.
+   *
+   * Values must be an object type that can be used with device_metrics.
+   */
+  Map<String, ObjectRef> configuration;
   /*! \brief Output `calls` in CSV format.
    *
    * Note that this does not include `device_metrics`, it only includes per-call metrics.
@@ -255,9 +261,11 @@ class Report : public ObjectRef {
   /*! Construct a Report from a set of calls (with associated metrics) and per-device metrics.
    * \param calls Function calls and associated metrics.
    * \param device_metrics Per-device metrics for overall execution.
+   * \param configuration Configuration data specific to this profiling run.
    */
   explicit Report(Array<Map<String, ObjectRef>> calls,
-                  Map<String, Map<String, ObjectRef>> device_metrics);
+                  Map<String, Map<String, ObjectRef>> device_metrics,
+                  Map<String, ObjectRef> configuration);
 
   /*! Deserialize a Report from a JSON object. Needed for sending the report over RPC.
    * \param json Serialized json report from `ReportNode::AsJSON`.
@@ -366,8 +374,10 @@ class Profiler {
    * \param devs The list of devices the profiler will be running on. Should
    *             include all devices used by profiled operators.
    * \param metric_collectors Additional `MetricCollector`s to use with this profiler.
+   * \param configuration Additional configuration data to add to the outputted profiling report.
    */
-  explicit Profiler(std::vector<Device> devs, std::vector<MetricCollector> metric_collectors);
+  explicit Profiler(std::vector<Device> devs, std::vector<MetricCollector> metric_collectors,
+                    std::unordered_map<String, ObjectRef> configuration = {});
   /*! \brief Start the profiler.
    *
    * This function should only be called once per object.
@@ -400,7 +410,7 @@ class Profiler {
    *  \returns A `Report` that can either be formatted as CSV (with `.AsCSV`)
    *  or as a human readable table (with `.AsTable`).
    */
-  profiling::Report Report(bool aggregate = true, bool sort = true);
+  profiling::Report Report();
   /*! \brief Check if the profiler is currently running.
    * \returns Whether or not the profiler is running.
    */
@@ -412,6 +422,7 @@ class Profiler {
   std::vector<CallFrame> calls_;
   std::stack<CallFrame> in_flight_;
   std::vector<MetricCollector> collectors_;
+  std::unordered_map<String, ObjectRef> configuration_;
 };
 
 /* \brief A duration in time. */
@@ -457,6 +468,21 @@ class CountNode : public Object {
 
   static constexpr const char* _type_key = "runtime.profiling.Count";
   TVM_DECLARE_FINAL_OBJECT_INFO(CountNode, Object);
+};
+
+/* \brief A ratio of two things. */
+class RatioNode : public Object {
+ public:
+  /* The ratio as a double precision floating point number. */
+  double ratio;
+
+  /* \brief Construct a new ratio.
+   * \param a The ratio.
+   */
+  explicit RatioNode(double a) : ratio(a) {}
+
+  static constexpr const char* _type_key = "runtime.profiling.Ratio";
+  TVM_DECLARE_FINAL_OBJECT_INFO(RatioNode, Object);
 };
 
 /*! \brief String representation of an array of NDArray shapes
@@ -510,6 +536,56 @@ String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype);
  */
 PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
                            int warmup_iters, Array<MetricCollector> collectors);
+
+/*!
+ * \brief Wrap a timer function to measure the time cost of a given packed function.
+ *
+ * Approximate implementation:
+ * \code{.py}
+ * f() // warmup
+ * for i in range(repeat)
+ *   f_preproc()
+ *   while True:
+ *     start = time()
+ *     for j in range(number):
+ *       f()
+ *     duration_ms = time() - start
+ *     if duration_ms >= min_repeat_ms:
+ *       break
+ *     else:
+ *        number = (min_repeat_ms / (duration_ms / number) + 1
+ *   if cooldown_interval_ms and i % repeats_to_cooldown == 0:
+ *     sleep(cooldown_interval_ms)
+ * \endcode
+ *
+ * \param f The function argument.
+ * \param dev The device.
+ * \param number The number of times to run this function for taking average.
+ *        We call these runs as one `repeat` of measurement.
+ * \param repeat The number of times to repeat the measurement.
+ *        In total, the function will be invoked (1 + number x repeat) times,
+ *        where the first one is warm up and will be discarded.
+ *        The returned result contains `repeat` costs,
+ *        each of which is an average of `number` costs.
+ * \param min_repeat_ms The minimum duration of one `repeat` in milliseconds.
+ *        By default, one `repeat` contains `number` runs. If this parameter is set,
+ *        the parameters `number` will be dynamically adjusted to meet the
+ *        minimum duration requirement of one `repeat`.
+ *        i.e., When the run time of one `repeat` falls below this time,
+ *        the `number` parameter will be automatically increased.
+ * \param limit_zero_time_iterations The maximum number of repeats when
+ *        measured time is equal to 0.  It helps to avoid hanging during measurements.
+ * \param cooldown_interval_ms The cooldown interval in milliseconds between the number of repeats
+ *        defined by `repeats_to_cooldown`.
+ * \param repeats_to_cooldown The number of repeats before the
+ *        cooldown is activated.
+ * \param f_preproc The function to be executed before we execute time
+ *        evaluator.
+ * \return f_timer A timer function.
+ */
+PackedFunc WrapTimeEvaluator(PackedFunc f, Device dev, int number, int repeat, int min_repeat_ms,
+                             int limit_zero_time_iterations, int cooldown_interval_ms,
+                             int repeats_to_cooldown, PackedFunc f_preproc = nullptr);
 
 }  // namespace profiling
 }  // namespace runtime

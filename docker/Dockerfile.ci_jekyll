@@ -19,6 +19,9 @@
 # tag: v0.50
 FROM ubuntu:16.04
 
-RUN apt-get update && apt-get install -y sudo wget
-RUN apt-get update && apt-get install -y ruby-full build-essential zlib1g-dev
+COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
+
+RUN apt-get update
+
+RUN apt-install-and-clear -y sudo wget ruby-full build-essential zlib1g-dev
 RUN gem install jekyll bundler

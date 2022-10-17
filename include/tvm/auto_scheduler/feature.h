@@ -33,6 +33,7 @@
 
 #include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/auto_scheduler/measure.h>
+#include <tvm/tir/function.h>
 
 #include <string>
 #include <vector>
@@ -41,14 +42,15 @@ namespace tvm {
 namespace auto_scheduler {
 
 /*!
- * \brief Get per-store feature from a TIR Stmt
- * \param stmt The input lowered TIR statement
+ * \brief Get per-store features from a TIR PrimFunc
+ * \param func The input lowered TIR PrimFunc
  * \param cache_line_size The size of cache line in bytes
  * \param max_n_bufs The maximum number of extracted buffers for one statement
  * \param ret The returned feature vector
+ * \param log_scale Should the outputs be scaled by log2(1+x).
  */
-void GetPerStoreFeature(const Stmt& stmt, int cache_line_size, int max_n_bufs,
-                        std::vector<float>* ret);
+void GetPerStoreFeature(const PrimFunc& func, int cache_line_size, int max_n_bufs,
+                        std::vector<float>* ret, bool log_scale = true);
 
 /*
  * \brief Get the names of elements in the feature vector. Use this for debug and inspection.
@@ -68,7 +70,7 @@ void GetPerStoreFeatureName(int max_n_bufs, std::vector<std::string>* ret);
  */
 void GetPerStoreFeaturesFromStates(const Array<State>& states, const SearchTask& task,
                                    int skip_first_n_feature_extraction, int max_n_bufs,
-                                   std::vector<std::vector<float> >* features);
+                                   std::vector<std::vector<float>>* features);
 
 /*!
  * \brief Get per-store feature from states of different tasks
@@ -81,7 +83,7 @@ void GetPerStoreFeaturesFromStates(const Array<State>& states, const SearchTask&
  */
 void GetPerStoreFeaturesFromStates(const Array<State>& states, const std::vector<SearchTask>& tasks,
                                    int skip_first_n_feature_extraction, int max_n_bufs,
-                                   std::vector<std::vector<float> >* features);
+                                   std::vector<std::vector<float>>* features);
 
 /*!
  * \brief Get per-store features from a log file
@@ -94,7 +96,7 @@ void GetPerStoreFeaturesFromStates(const Array<State>& states, const std::vector
  * \param task_ids The task ids for all states
  */
 void GetPerStoreFeaturesFromFile(const std::string& filename, int max_lines, int max_n_bufs,
-                                 std::vector<std::vector<float> >* features,
+                                 std::vector<std::vector<float>>* features,
                                  std::vector<float>* normalized_throughputs,
                                  std::vector<int>* task_ids);
 
@@ -112,7 +114,7 @@ void GetPerStoreFeaturesFromFile(const std::string& filename, int max_lines, int
 void GetPerStoreFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
                                          const Array<MeasureResult>& results,
                                          int skip_first_n_feature_extraction, int max_n_bufs,
-                                         std::vector<std::vector<float> >* features,
+                                         std::vector<std::vector<float>>* features,
                                          std::vector<float>* normalized_throughputs,
                                          std::vector<int>* task_ids);
 

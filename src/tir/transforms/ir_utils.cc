@@ -101,45 +101,98 @@ class IRConvertSSA final : public StmtExprMutator {
     const Var& v = op->var;
     if (defined_.count(v.get())) {
       PrimExpr value = this->VisitExpr(op->value);
-      Var new_var(v->name_hint, v.dtype());
-      scope_[v.get()].push_back(new_var);
+      ScopedRedefine redefine(this, v);
       PrimExpr body = this->VisitExpr(op->body);
-      scope_[v.get()].pop_back();
-      return Let(new_var, value, body);
+      return Let(redefine.new_var, value, body);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitExpr_(op);
     }
   }
+
   PrimExpr VisitExpr_(const LoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<LoadNode>();
-    const VarNode* v = op->buffer_var.get();
-    if (scope_.count(v) && !scope_[v].empty()) {
-      return Load(op->dtype, scope_[v].back(), op->index, op->predicate);
-    } else {
-      return expr;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
+
   Stmt VisitStmt_(const StoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<StoreNode>();
-    const VarNode* v = op->buffer_var.get();
-    if (scope_.count(v) && !scope_[v].empty()) {
-      return Store(scope_[v].back(), op->value, op->index, op->predicate);
-    } else {
-      return stmt;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
   }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    auto output = VisitBufferAccess(std::move(node));
+    return std::move(output);
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    auto output = VisitBufferAccess(std::move(node));
+    return std::move(output);
+  }
+
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    DeclBuffer decl = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    Buffer new_buffer = GetRemappedBuffer(decl->buffer);
+    if (!new_buffer.same_as(decl->buffer)) {
+      decl.CopyOnWrite()->buffer = std::move(new_buffer);
+    }
+    return std::move(decl);
+  }
+
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    Buffer new_buf = GetRemappedBuffer(node->buffer);
+    if (!new_buf.same_as(node->buffer)) {
+      auto writer = node.CopyOnWrite();
+      writer->buffer = new_buf;
+    }
+
+    return node;
+  }
+
+  Buffer GetRemappedBuffer(Buffer buf) {
+    // Determine the buffer var that should be in the updated buffer,
+    // given the current scope.  If no redefines are present, then the
+    // buffer var is unchanged.
+    Var new_buffer_var = buf->data;
+    auto var_it = scope_.find(buf->data.get());
+    if (var_it != scope_.end() && !var_it->second.empty()) {
+      new_buffer_var = var_it->second.back();
+    }
+
+    // If no mapping is required, return the original buffer.
+    if (new_buffer_var.same_as(buf->data)) {
+      return buf;
+    }
+
+    // If the current scope already has a mapping of this buffer, use
+    // the mapped buffer.
+    auto key = buf.get();
+    std::vector<Buffer>& buffers = buf_remap_[key];
+    if (buffers.size() && buffers.back()->data.same_as(new_buffer_var)) {
+      return buffers.back();
+    }
+
+    // Otherwise, make and return a new buffer object that uses the
+    // new buffer, pushing it onto the scoped stack of existing
+    // buffers.  This will be popped when the new_buffer_var
+    // redefinition is popped.
+    Buffer new_buf(new_buffer_var, buf->dtype, buf->shape, buf->strides, buf->elem_offset,
+                   buf->name, buf->data_alignment, buf->offset_factor, buf->buffer_type,
+                   buf->axis_separators, buf->span);
+    buffers.push_back(new_buf);
+    return new_buf;
+  }
+
   Stmt VisitStmt_(const LetStmtNode* op) final {
     const Var& v = op->var;
     if (defined_.count(v.get())) {
       PrimExpr value = this->VisitExpr(op->value);
-      Var new_var(v->name_hint, v.dtype());
-      scope_[v.get()].push_back(new_var);
+      ScopedRedefine redefine(this, v);
       Stmt body = this->VisitStmt(op->body);
-      scope_[v.get()].pop_back();
-      return LetStmt(new_var, value, body);
+      return LetStmt(redefine.new_var, value, body);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
@@ -148,12 +201,10 @@ class IRConvertSSA final : public StmtExprMutator {
   Stmt VisitStmt_(const ForNode* op) final {
     const Var& v = op->loop_var;
     if (defined_.count(v.get())) {
-      Var new_var(v->name_hint, v.dtype());
-      scope_[v.get()].push_back(new_var);
+      ScopedRedefine redefine(this, v);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      scope_[v.get()].pop_back();
       op = stmt.as<ForNode>();
-      return For(new_var, op->min, op->extent, op->kind, op->body, op->thread_binding,
+      return For(redefine.new_var, op->min, op->extent, op->kind, op->body, op->thread_binding,
                  op->annotations);
     } else {
       defined_.insert(v.get());
@@ -163,12 +214,10 @@ class IRConvertSSA final : public StmtExprMutator {
   Stmt VisitStmt_(const AllocateNode* op) final {
     const Var& v = op->buffer_var;
     if (defined_.count(v.get())) {
-      Var new_var(v->name_hint, v->type_annotation);
-      scope_[v.get()].push_back(new_var);
+      ScopedRedefine redefine(this, v);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      scope_[v.get()].pop_back();
       op = stmt.as<AllocateNode>();
-      return Allocate(new_var, op->dtype, op->extents, op->condition, op->body);
+      return Allocate(redefine.new_var, op->dtype, op->extents, op->condition, op->body);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
@@ -189,8 +238,34 @@ class IRConvertSSA final : public StmtExprMutator {
   }
 
  private:
+  struct ScopedRedefine {
+    ScopedRedefine(IRConvertSSA* parent, Var old_var) : parent(parent), old_var(old_var) {
+      if (old_var->type_annotation.defined()) {
+        new_var = Var(old_var->name_hint, old_var->type_annotation);
+      } else {
+        new_var = Var(old_var->name_hint, old_var->dtype);
+      }
+      parent->scope_[old_var.get()].push_back(new_var);
+    }
+
+    ~ScopedRedefine() {
+      parent->scope_[old_var.get()].pop_back();
+      for (auto& kv : parent->buf_remap_) {
+        std::vector<Buffer>& buffers = kv.second;
+        if (buffers.size() && (buffers.back()->data.get() == new_var.get())) {
+          buffers.pop_back();
+        }
+      }
+    }
+
+    IRConvertSSA* parent;
+    Var old_var;
+    Var new_var;
+  };
+
   std::unordered_map<const VarNode*, std::vector<Var>> scope_;
   std::unordered_set<const VarNode*> defined_;
+  std::unordered_map<const BufferNode*, std::vector<Buffer>> buf_remap_;
 };
 
 Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }
@@ -373,6 +448,13 @@ void ConditionalBoundsContext::ExitWithScope() {
       }
     }
   }
+}
+
+std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op) {
+  ICHECK(op && op->attr_key == tir::attr::async_wait_queue_scope);
+  auto inner = op->body.as<AttrStmtNode>();
+  ICHECK(inner && inner->attr_key == tir::attr::async_wait_inflight_count);
+  return std::make_pair(op->value, inner->value);
 }
 
 }  // namespace tir

@@ -127,7 +127,7 @@ class NDArray(NDArrayBase):
             raise TypeError("type %s not supported" % str(type(value)))
 
     def copyfrom(self, source_array):
-        """Perform an synchronize copy from the array.
+        """Perform a synchronous copy from the array.
 
         Parameters
         ----------
@@ -218,6 +218,8 @@ class NDArray(NDArrayBase):
             dtype = str(t)
         if dtype == "int4":
             dtype = "int8"
+        if dtype == "bfloat16":
+            dtype = "uint16"
         np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags["C_CONTIGUOUS"]
         data = np_arr.ctypes.data_as(ctypes.c_void_p)
@@ -234,20 +236,50 @@ class NDArray(NDArrayBase):
             return np_arr_ret.reshape(shape)
         return np_arr
 
-    def copyto(self, target):
+    def copyto(self, target, mem_scope=None):
         """Copy array to target
 
         Parameters
         ----------
         target : NDArray
             The target array to be copied, must have same shape as this array.
+
+        mem_scope : Optional[str]
+            The memory scope of the array.
         """
         if isinstance(target, NDArrayBase):
             return self._copyto(target)
         if isinstance(target, Device):
-            res = empty(self.shape, self.dtype, target)
+            res = empty(self.shape, self.dtype, target, mem_scope)
             return self._copyto(res)
         raise ValueError("Unsupported target type %s" % str(type(target)))
+
+    def _create_view(self, shape):
+        """Create a view into an existing array.
+
+        The view shares the same allocation and datatype as the
+        existing array, but can have a different array shape.  This is
+        useful for runtimes that support non-flat memory, where both
+        the physical shape of an allocation and the logical shape of
+        the tensor it represents may need to be independently
+        specified.
+
+        Warning: This function should not be used outside of low-level
+        manipulations, as it breaks non-aliasing assumptions made by
+        TVM.  This function may also be removed/replaced in the
+        future.
+
+        Parameters
+        ----------
+        shape: Union[tvm.runtime.ShapeTuple, Sequence[typing.SupportsInt]]
+
+            The shape of the view.
+        """
+
+        if not isinstance(shape, tvm.runtime.ShapeTuple):
+            shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
+
+        return _ffi_api.TVMArrayCreateView(self, shape)
 
 
 def device(dev_type, dev_id=0):
@@ -305,7 +337,7 @@ def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):
 
     Parameters
     ----------
-    shape : tuple of int
+    shape : Union[tvm.runtime.ShapeTuple, Sequence[typing.SupportsInt]]
         The shape of the array.
 
     dtype : type or str
@@ -322,18 +354,10 @@ def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):
     arr : tvm.nd.NDArray
         The array tvm supported.
     """
-    shape_imm = []
-    for s in shape:
-        if isinstance(s, tvm.tir.IntImm):
-            shape_imm.append(s.value)
-        else:
-            shape_imm.append(int(s))
-    arr = np.array(shape_imm, "int64")
-    ptr = arr.ctypes.data_as(ctypes.POINTER(ctypes.c_int64))
-    shape_ptr = ctypes.cast(ptr, ctypes.c_void_p)
-    ndim = len(shape_imm)
+    if not isinstance(shape, tvm.runtime.ShapeTuple):
+        shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
     dtype = DataType(dtype)
-    arr = _ffi_api.TVMArrayAllocWithScope(shape_ptr, ndim, dtype, device, mem_scope)
+    arr = _ffi_api.TVMArrayAllocWithScope(shape, dtype, device, mem_scope)
     return arr
 
 
@@ -553,7 +577,7 @@ cl = opencl
 mtl = metal
 
 
-def array(arr, device=cpu(0)):
+def array(arr, device=cpu(0), mem_scope=None):
     """Create an array from source arr.
 
     Parameters
@@ -563,6 +587,9 @@ def array(arr, device=cpu(0)):
 
     device : Device, optional
         The device device to create the array
+
+    mem_scope : Optional[str]
+        The memory scope of the array
 
     Returns
     -------
@@ -574,7 +601,7 @@ def array(arr, device=cpu(0)):
 
     if not isinstance(arr, (np.ndarray, NDArray)):
         arr = np.array(arr)
-    return empty(arr.shape, arr.dtype, device).copyfrom(arr)
+    return empty(arr.shape, arr.dtype, device, mem_scope).copyfrom(arr)
 
 
 # Register back to FFI

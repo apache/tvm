@@ -45,7 +45,7 @@ following variables set:
 ```
 cmake -DCMAKE_C_COMPILER=/path/to/hexagon-clang \
       -DCMAKE_CXX_COMPILER=/path/to/hexagon-clang++ \
-      -DUSE_HEXAGON_ARCH=v65|v66|v68 \
+      -DUSE_HEXAGON_ARCH=v65|v66|v68|v69 \
       -DUSE_HEXAGON_SDK=/path/to/hexagon/SDK \
       /path/to/apps/hexagon_launcher/cmake/hexagon
 ```
@@ -63,7 +63,7 @@ cmake -DCMAKE_TOOLCHAIN_FILE=/path/to/android-ndk/build/cmake/android.toolchain.
       -DANDROID_ABI=arm64-v8a \
       -DANDROID_PLATFORM=android-28 \
       -DUSE_HEXAGON_SDK=/p/Hexagon_SDK/4.3.0.0
-      -DUSE_HEXAGON_ARCH=v65|v66|v68
+      -DUSE_HEXAGON_ARCH=v65|v66|v68|v69
       /path/to/apps/hexagon_launcher/cmake/android
 ```
 
@@ -118,7 +118,7 @@ mod, params = relay.frontend.from_tflite(
     tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict
 )
 
-target = tvm.target.hexagon('v68', link_params=True)
+target = tvm.target.hexagon('v68')
 with tvm.transform.PassContext(opt_level=3):
     lib = relay.build(mod, tvm.target.Target(target, host=target), params=params, mod_name="default")
 
@@ -168,6 +168,25 @@ A sample output JSON from running the Inception V3 model may look like
     }
   ]
 }
+```
+
+When using AoT, the `target` needs to be `llvm`:
+```
+aot_target = "llvm -keys=hexagon -mattr=+hvxv69,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp -mcpu=hexagonv69 -mtriple=hexagon"
+aot_host_target = aot_target
+```
+
+Build the relay module specifying AoT as executor and CPP as runtime, and save it via `export_library`:
+```
+lowered = tvm.relay.build(
+    relay_mod,
+    params=params,
+    target=tvm.target.Target(aot_target, host=aot_host_target),
+    runtime=Runtime("cpp"),
+    executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
+)
+
+lowered.export_library("model-aot.so", tvm.contrib.hexagon.link_shared)
 ```
 
 # Disclaimer

@@ -28,6 +28,7 @@
 #include <iomanip>
 
 #include "../../arith/pattern_match.h"
+#include "codegen_params.h"
 
 namespace tvm {
 namespace codegen {
@@ -44,33 +45,33 @@ void CodeGenC::InitFuncState(const PrimFunc& f) {
 
 void CodeGenC::ReserveKeywordsAsUnique() {
   // skip the first underscore, so SSA variable starts from _1
-  GetUniqueName("_");
-  GetUniqueName("extern");
-  GetUniqueName("void");
-  GetUniqueName("int");
-  GetUniqueName("float");
-  GetUniqueName("double");
-  GetUniqueName("char");
-  GetUniqueName("unsigned");
-  GetUniqueName("short");
-  GetUniqueName("long");
-  GetUniqueName("if");
-  GetUniqueName("else");
-  GetUniqueName("switch");
-  GetUniqueName("case");
-  GetUniqueName("default");
-  GetUniqueName("for");
-  GetUniqueName("do");
-  GetUniqueName("while");
-  GetUniqueName("goto");
-  GetUniqueName("register");
-  GetUniqueName("continue");
-  GetUniqueName("break");
-  GetUniqueName("typedef");
-  GetUniqueName("struct");
-  GetUniqueName("enum");
-  GetUniqueName("union");
-  GetUniqueName("return");
+  name_supply_->ReserveName("_");
+  name_supply_->ReserveName("extern");
+  name_supply_->ReserveName("void");
+  name_supply_->ReserveName("int");
+  name_supply_->ReserveName("float");
+  name_supply_->ReserveName("double");
+  name_supply_->ReserveName("char");
+  name_supply_->ReserveName("unsigned");
+  name_supply_->ReserveName("short");
+  name_supply_->ReserveName("long");
+  name_supply_->ReserveName("if");
+  name_supply_->ReserveName("else");
+  name_supply_->ReserveName("switch");
+  name_supply_->ReserveName("case");
+  name_supply_->ReserveName("default");
+  name_supply_->ReserveName("for");
+  name_supply_->ReserveName("do");
+  name_supply_->ReserveName("while");
+  name_supply_->ReserveName("goto");
+  name_supply_->ReserveName("register");
+  name_supply_->ReserveName("continue");
+  name_supply_->ReserveName("break");
+  name_supply_->ReserveName("typedef");
+  name_supply_->ReserveName("struct");
+  name_supply_->ReserveName("enum");
+  name_supply_->ReserveName("union");
+  name_supply_->ReserveName("return");
 }
 
 void CodeGenC::AddFunction(const PrimFunc& f) {
@@ -158,78 +159,58 @@ void CodeGenC::PrintSSAAssign(const std::string& target, const std::string& src,
 }
 
 // Print a reference expression to a buffer.
-std::string CodeGenC::GetBufferRef(DataType t, const VarNode* buffer, PrimExpr index) {
+std::string CodeGenC::GetBufferRef(DataType t, const BufferNode* buffer, PrimExpr index) {
+  const VarNode* buffer_var = buffer->data.get();
   std::ostringstream os;
-  std::string vid = GetVarID(buffer);
+  std::string vid = GetVarID(buffer_var);
   std::string scope;
-  if (alloc_storage_scope_.count(buffer)) {
-    scope = alloc_storage_scope_.at(buffer);
+  if (alloc_storage_scope_.count(buffer_var)) {
+    scope = alloc_storage_scope_.at(buffer_var);
   }
-  bool is_vol = IsVolatile(buffer);
-  if (t.lanes() == 1) {
-    if (!HandleTypeMatch(buffer, t) || is_vol) {
-      os << "((";
-      if (is_vol) {
-        os << "volatile ";
-      }
-      // Scope may not be part of type.
-      if (!scope.empty() && IsScopePartOfType()) {
-        PrintStorageScope(scope, os);
-      }
-      PrintType(t, os);
-      os << "*)" << vid << ')';
-    } else {
-      os << vid;
-    }
-    os << "[(";
-    PrintExpr(index, os);
-    os << ")";
-    if (t.bits() == 4 || (t.bits() == 1 && t.is_int())) {
-      os << " / " << (32 / t.bits());
-    }
-    os << ']';
-  } else {
-    // Buffer declared as vector type.
-    // optimize for case where it is in register,
-    if (HandleTypeMatch(buffer, t) && !is_vol) {
-      // optimize for constant access
-      if (auto* ptr = index.as<tir::IntImmNode>()) {
-        int64_t offset = ptr->value;
-        ICHECK_EQ(offset % t.lanes(), 0) << "Find unaligned vector load to a vector type";
-        os << vid << '[' << (offset / t.lanes()) << ']';
-        return os.str();
-      }
-    }
-    os << "((";
+  bool is_vol = IsVolatile(buffer_var);
+
+  auto ptr_cast = [this, is_vol, scope](DataType pointed_to) {
+    std::ostringstream ptr_os;
+    ptr_os << "(";
     if (is_vol) {
-      os << "volatile ";
+      ptr_os << "volatile ";
     }
     if (!scope.empty() && IsScopePartOfType()) {
-      PrintStorageScope(scope, os);
+      PrintStorageScope(scope, ptr_os);
     }
-    PrintType(t, os);
-    os << "*)(";
-    if (!HandleTypeMatch(buffer, t.element_of())) {
-      os << '(';
-      if (!scope.empty() && IsScopePartOfType()) {
-        PrintStorageScope(scope, os);
-      }
-      PrintType(t.element_of(), os);
-      os << "*)";
-    }
-    if (t.bits() == 4 || (t.bits() == 1 && t.is_int())) {
-      os << vid << ") + (";
-      PrintExpr(index, os);
-      os << ")";
-      os << " / " << t.lanes();
-      os << ")[0]";
-    } else {
-      os << vid << " + (";
-      PrintExpr(index, os);
-      os << ")";
-      os << "))[0]";
-    }
+    PrintType(pointed_to, ptr_os);
+    ptr_os << "*)";
+    return ptr_os.str();
+  };
+
+  DataType buffer_element_dtype = buffer->dtype;
+
+  std::string buffer_str = vid;
+  if (!HandleTypeMatch(buffer_var, buffer_element_dtype) || is_vol) {
+    std::stringstream temp;
+    temp << "(" << ptr_cast(buffer_element_dtype) << vid << ")";
+    buffer_str = temp.str();
   }
+
+  std::string index_str = PrintExpr(index);
+  if (t.bits() == 4 || (t.bits() == 1 && t.is_int())) {
+    // This is a special case, because CodegenCUDA::PrintType()
+    // returns "int" for bool and for 4-bit integers. In most cases,
+    // we divide by the number of lanes to determine the index.
+    // However, the backing type for scalar int4 and scalar bool is
+    // int32.  Therefore, we need to divide by the ratio of their
+    // sizes in that case.
+    int div_factor = (t.lanes() == 1) ? (32 / t.bits()) : t.lanes();
+
+    os << "*("
+       << "(" << ptr_cast(t) << vid << ")"
+       << " + " << index_str << " / " << div_factor << ")";
+  } else if (t == buffer_element_dtype) {
+    os << buffer_str << "[" << index_str << "]";
+  } else {
+    os << "*" << ptr_cast(t) << "(" << buffer_str << " + " << index_str << ")";
+  }
+
   return os.str();
 }
 
@@ -333,11 +314,11 @@ void CodeGenC::PrintVecElemStore(const std::string& vec, DataType t, int i,
   stream << vec << ".s" << std::hex << i << " = " << value << ";\n" << std::dec;
 }
 
-std::string CodeGenC::GetVecLoad(DataType t, const VarNode* buffer, PrimExpr base) {
+std::string CodeGenC::GetVecLoad(DataType t, const BufferNode* buffer, PrimExpr base) {
   return GetBufferRef(t, buffer, base);
 }
 
-void CodeGenC::PrintVecStore(const VarNode* buffer, DataType t, PrimExpr base,
+void CodeGenC::PrintVecStore(const BufferNode* buffer, DataType t, PrimExpr base,
                              const std::string& value) {
   std::string ref = GetBufferRef(t, buffer, base);
   this->PrintIndent();
@@ -547,7 +528,15 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (auto* ptr_op = op->op.as<OpNode>()) {
     auto call_op = GetRef<Op>(ptr_op);
 
-    if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
+    if (op->op.same_as(builtin::tvm_check_return())) {
+      const CallNode* call = op->args[2].as<CallNode>();
+      os << "if (";
+      VisitExpr_(call, os);
+      os << " != ";
+      PrintExpr(op->args[0], os);
+      os << " ) return ";
+      PrintExpr(op->args[1], os);
+    } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       ICHECK_GE(op->args.size(), 1U);
       auto func = Downcast<StringImm>(op->args[0]);
       this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), func->value, op->args, true, os);
@@ -585,17 +574,10 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       PrintExpr(op->args[2], os);
       os << ")";
     } else if (op->op.same_as(builtin::address_of())) {
-      const LoadNode* l = op->args[0].as<LoadNode>();
-      ICHECK(op->args.size() == 1 && l);
-      os << "((";
-      this->PrintType(l->dtype.element_of(), os);
-      os << " *)" << this->GetVarID(l->buffer_var.get()) << " + "
-         << "(";
-      this->PrintExpr(l->index, os);
-      if (l->dtype.bits() == 4 || (l->dtype.bits() == 1 && l->dtype.is_int())) {
-        os << " / " << (32 / l->dtype.bits());
-      }
-      os << "))";
+      const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
+      ICHECK(op->args.size() == 1 && load);
+      ICHECK_EQ(load->indices.size(), 1) << "CodeGenC only supports flat memory allocations.";
+      os << "(&(" << GetBufferRef(load->dtype, load->buffer.get(), load->indices[0]) << "))";
     } else if (op->op.same_as(builtin::tvm_struct_get())) {
       ICHECK_EQ(op->args.size(), 3U);
       os << GetStructRef(op->dtype, op->args[0], op->args[1], op->args[2].as<IntImmNode>()->value);
@@ -648,19 +630,61 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs,
   }
 }
 
+void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
+  std::string symbol_name = op->buffer_var->name_hint;
+  int64_t num_elements = 1;
+  const auto& data = op->data.value();
+
+  for (int64_t dim : data.Shape()) {
+    num_elements *= dim;
+  }
+
+  decl_stream << "\n"
+              << "#ifdef __cplusplus\n"
+              << "extern \"C\" {\n"
+              << "#endif\n"
+              << "static const ";
+
+  PrintType(data.DataType(), decl_stream);
+
+  // Allocate the global static variable
+  decl_stream << " __attribute__((section(\".rodata.tvm\"), "
+              << "aligned(" << constants_byte_alignment_->value << "))) " << symbol_name << "["
+              << num_elements << "] = {\n";
+  NDArrayDataToC(data, 4, decl_stream);
+
+  decl_stream << "};\n"
+              << "#ifdef __cplusplus\n"
+              << "}  // extern \"C\"\n"
+              << "#endif\n";
+  var_idmap_[op->buffer_var.operator->()] = symbol_name;
+  this->PrintStmt(op->body);
+}
+
+void CodeGenC::VisitStmt_(const DeclBufferNode* op) { this->PrintStmt(op->body); }
+
 void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
+  LOG(FATAL) << "Unexpected deprecated LoadNode.  Use BufferLoadNode instead.";
+}
+
+void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
+  ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
+
+  DataType value_dtype = op->dtype;
+  PrimExpr index = op->indices[0];
+  Var buffer_var = op->buffer->data;
+  DataType element_dtype = op->buffer->dtype;
+
   int lanes = op->dtype.lanes();
   // delcare type.
-  if (op->dtype.lanes() == 1) {
-    std::string ref = GetBufferRef(op->dtype, op->buffer_var.get(), op->index);
+  if (value_dtype.lanes() == element_dtype.lanes()) {
+    std::string ref = GetBufferRef(op->dtype, op->buffer.get(), index);
     HandleVolatileLoads(ref, op, os);
   } else {
-    ICHECK(is_one(op->predicate)) << "predicated load is not supported";
-
     bool can_vector_load = false;
     arith::PVar<PrimExpr> base;
-    if (arith::ramp(base, 1, op->dtype.lanes()).Match(op->index)) {
-      const RampNode* ramp = op->index.as<RampNode>();
+    if (arith::ramp(base, 1, op->dtype.lanes()).Match(index)) {
+      const RampNode* ramp = index.as<RampNode>();
       ICHECK(ramp);
       arith::ModularSet me = arith::Analyzer().modular_set(ramp->base);
       // The condition: {k * coeff + base} divisible by the alignment for any k
@@ -670,19 +694,19 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
     }
 
     if (can_vector_load) {
-      std::string ref = GetVecLoad(op->dtype, op->buffer_var.get(), base.Eval());
+      std::string ref = GetVecLoad(op->dtype, op->buffer.get(), base.Eval());
       HandleVolatileLoads(ref, op, os);
     } else {
       std::ostringstream svalue_expr;
-      std::string sindex = SSAGetID(PrintExpr(op->index), op->index.dtype());
-      std::string vid = GetVarID(op->buffer_var.get());
+      std::string sindex = SSAGetID(PrintExpr(index), index.dtype());
+      std::string vid = GetVarID(buffer_var.get());
       DataType elem_type = op->dtype.element_of();
       for (int i = 0; i < lanes; ++i) {
         std::ostringstream value_temp;
-        if (!HandleTypeMatch(op->buffer_var.get(), elem_type)) {
+        if (!HandleTypeMatch(buffer_var.get(), elem_type)) {
           value_temp << "((";
-          if (op->buffer_var.get()->dtype.is_handle()) {
-            auto it = alloc_storage_scope_.find(op->buffer_var.get());
+          if (buffer_var.get()->dtype.is_handle()) {
+            auto it = alloc_storage_scope_.find(buffer_var.get());
             if (it != alloc_storage_scope_.end()) {
               PrintStorageScope(it->second, value_temp);
             }
@@ -693,7 +717,7 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
           value_temp << vid;
         }
         value_temp << '[';
-        PrintVecElemLoad(sindex, op->index.dtype(), i, value_temp);
+        PrintVecElemLoad(sindex, index.dtype(), i, value_temp);
         value_temp << ']';
         PrintVecElemLoadExpr(op->dtype, i, value_temp.str(), svalue_expr);
       }
@@ -703,35 +727,44 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenC::VisitStmt_(const StoreNode* op) {
-  DataType t = op->value.dtype();
-  if (t.lanes() == 1) {
+  LOG(FATAL) << "Unexpected deprecated StoreNode.  Use BufferStoreNode instead.";
+}
+
+void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
+  ICHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
+
+  DataType value_dtype = op->value.dtype();
+  DataType element_dtype = op->buffer->dtype;
+  PrimExpr index_expr = op->indices[0];
+  Var buffer_var = op->buffer->data;
+
+  if (value_dtype.lanes() == element_dtype.lanes()) {
     std::string value = this->PrintExpr(op->value);
-    std::string ref = this->GetBufferRef(t, op->buffer_var.get(), op->index);
+    std::string ref = this->GetBufferRef(value_dtype, op->buffer.get(), index_expr);
     this->PrintIndent();
     stream << ref << " = " << value << ";\n";
   } else {
-    ICHECK(is_one(op->predicate)) << "Predicated store is not supported";
     arith::PVar<PrimExpr> base;
 
-    if (arith::ramp(base, 1, t.lanes()).Match(op->index)) {
+    if (arith::ramp(base, 1, value_dtype.lanes()).Match(index_expr)) {
       std::string value = this->PrintExpr(op->value);
-      this->PrintVecStore(op->buffer_var.get(), t, base.Eval(), value);
+      this->PrintVecStore(op->buffer.get(), value_dtype, base.Eval(), value);
     } else {
       // The assignment below introduces side-effect, and the resulting value cannot
       // be reused across multiple expression, thus a new scope is needed
       int vec_scope = BeginScope();
 
-      // store elements seperately
-      std::string index = SSAGetID(PrintExpr(op->index), op->index.dtype());
+      // store elements separately
+      std::string index = SSAGetID(PrintExpr(index_expr), index_expr.dtype());
       std::string value = SSAGetID(PrintExpr(op->value), op->value.dtype());
-      std::string vid = GetVarID(op->buffer_var.get());
-      for (int i = 0; i < t.lanes(); ++i) {
+      std::string vid = GetVarID(buffer_var.get());
+      for (int i = 0; i < value_dtype.lanes(); ++i) {
         this->PrintIndent();
-        DataType elem_type = t.element_of();
-        if (!HandleTypeMatch(op->buffer_var.get(), elem_type)) {
+        DataType elem_type = value_dtype.element_of();
+        if (!HandleTypeMatch(buffer_var.get(), elem_type)) {
           stream << "((";
-          if (op->buffer_var.get()->dtype.is_handle()) {
-            auto it = alloc_storage_scope_.find(op->buffer_var.get());
+          if (buffer_var.get()->dtype.is_handle()) {
+            auto it = alloc_storage_scope_.find(buffer_var.get());
             if (it != alloc_storage_scope_.end()) {
               PrintStorageScope(it->second, stream);
             }
@@ -742,7 +775,7 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
           stream << vid;
         }
         stream << '[';
-        PrintVecElemLoad(index, op->index.dtype(), i, stream);
+        PrintVecElemLoad(index, index_expr.dtype(), i, stream);
         stream << "] = ";
         PrintVecElemLoad(value, op->value.dtype(), i, stream);
         stream << ";\n";
@@ -820,7 +853,7 @@ void CodeGenC::VisitStmt_(const AllocateNode* op) {
   std::string vid = AllocVarID(op->buffer_var.get());
 
   this->PrintIndent();
-  int32_t constant_size = op->constant_allocation_size();
+  size_t constant_size = op->ConstantAllocationSize();
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
   auto scope = GetPtrStorageScope(op->buffer_var);
@@ -948,7 +981,7 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
   std::string vid = this->PrintExpr(op->value);
   if (vid != "") {
     this->PrintIndent();
-    this->stream << "(void)" << vid << ";\n";
+    this->stream << vid << ";\n";
   }
 }
 

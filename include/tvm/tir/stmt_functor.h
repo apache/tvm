@@ -29,6 +29,7 @@
 #include <tvm/node/functor.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/stmt.h>
 
 #include <unordered_map>
@@ -87,6 +88,8 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const ForNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const WhileNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AllocateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const AllocateConstNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const DeclBufferNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const StoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const BufferStoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const BufferRealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
@@ -113,6 +116,8 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(ForNode);
     IR_STMT_FUNCTOR_DISPATCH(WhileNode);
     IR_STMT_FUNCTOR_DISPATCH(AllocateNode);
+    IR_STMT_FUNCTOR_DISPATCH(AllocateConstNode);
+    IR_STMT_FUNCTOR_DISPATCH(DeclBufferNode);
     IR_STMT_FUNCTOR_DISPATCH(StoreNode);
     IR_STMT_FUNCTOR_DISPATCH(AssertStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(ProducerStoreNode);
@@ -155,6 +160,8 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const AllocateNode* op) override;
+  void VisitStmt_(const AllocateConstNode* op) override;
+  void VisitStmt_(const DeclBufferNode* op) override;
   void VisitStmt_(const StoreNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const BufferRealizeNode* op) override;
@@ -255,6 +262,8 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
   Stmt VisitStmt_(const ForNode* op) override;
   Stmt VisitStmt_(const WhileNode* op) override;
   Stmt VisitStmt_(const AllocateNode* op) override;
+  Stmt VisitStmt_(const AllocateConstNode* op) override;
+  Stmt VisitStmt_(const DeclBufferNode* op) override;
   Stmt VisitStmt_(const StoreNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
   Stmt VisitStmt_(const BufferRealizeNode* op) override;
@@ -409,6 +418,98 @@ inline T Substitute(T input, const std::unordered_map<const VarNode*, PrimExpr>&
  */
 TVM_DLL void PreOrderVisit(const ObjectRef& stmt_or_expr,
                            const std::function<bool(const ObjectRef&)>& fvisit);
+
+/*!
+ * \brief Renew the definition nodes for a TIR, including Var, Buffer and IterVar.
+ *        This pass works as a simple DeepCopy to duplicate a function with different Vars and
+ *        Buffers but the same behavior
+ * \param func The input PrimFunc.
+ * \return The renewed func.
+ */
+TVM_DLL PrimFunc RenewDefs(const PrimFunc& func);
+
+/*!
+ * \brief Check if the statement contains the specified node type.
+ *
+ * This utility potentially walks the entire statement, and should
+ * therefore not be used if it could otherwise be merged with another
+ * pass.
+ *
+ * \param stmt The statement to be searched
+ * \return Whether stmt contains Node
+ */
+template <typename Node, typename = std::enable_if_t<std::is_base_of_v<StmtNode, Node>>>
+bool ContainsNode(const Stmt& stmt) {
+  struct Visitor : StmtVisitor {
+    // Early bail-out, if we already found the node.
+    void VisitStmt(const Stmt& stmt) final {
+      if (contains_node) {
+        return;
+      }
+      StmtVisitor::VisitStmt(stmt);
+    }
+
+    void VisitStmt_(const Node* block) override { contains_node = true; }
+
+    bool contains_node{false};
+  };
+
+  Visitor visitor;
+  visitor(stmt);
+  return visitor.contains_node;
+}
+
+/*!
+ * \brief Legalize the data types of expressions to make sure they are consistent with other
+ * parts of the program.
+ *
+ * It enforces the following rules:
+ * - The data type of the index variable in a loop must be consistent with the data type of the loop
+ *  bounds.
+ * - The data type of the binary and ternary expressions must be consistent with the data types of
+ * each of their operands.
+ * - The data type of the bounds and binding values of block iter vars must be consistent with the
+ * data type of the block iter vars.
+ *
+ * Usually we enforce the consistency of data types when constructing the IR nodes. However, such
+ * inconsistency may happen as a result of IR mutation in some passes. This class can be used as
+ * base class of such passes to ensure the consistency of data types.
+ */
+class DataTypeLegalizer : public StmtExprMutator {
+ public:
+  Stmt VisitStmt_(const ForNode* op) override;
+
+  Stmt VisitStmt_(const AttrStmtNode* op) override;
+  Stmt VisitStmt_(const BlockRealizeNode* op) override;
+  Stmt VisitStmt_(const BlockNode* op) override;
+  PrimExpr VisitExpr_(const SelectNode* op) override;
+  PrimExpr VisitExpr_(const RampNode* op) override;
+  PrimExpr VisitExpr_(const AddNode* op) override;
+  PrimExpr VisitExpr_(const SubNode* op) override;
+  PrimExpr VisitExpr_(const MulNode* op) override;
+  PrimExpr VisitExpr_(const DivNode* op) override;
+  PrimExpr VisitExpr_(const ModNode* op) override;
+  PrimExpr VisitExpr_(const FloorDivNode* op) override;
+  PrimExpr VisitExpr_(const FloorModNode* op) override;
+  PrimExpr VisitExpr_(const MinNode* op) override;
+  PrimExpr VisitExpr_(const MaxNode* op) override;
+  PrimExpr VisitExpr_(const EQNode* op) override;
+  PrimExpr VisitExpr_(const NENode* op) override;
+  PrimExpr VisitExpr_(const LTNode* op) override;
+  PrimExpr VisitExpr_(const LENode* op) override;
+  PrimExpr VisitExpr_(const GTNode* op) override;
+  PrimExpr VisitExpr_(const GENode* op) override;
+  PrimExpr VisitExpr_(const CallNode* op) override;
+
+  using StmtExprMutator::VisitExpr_;
+  using StmtExprMutator::VisitStmt_;
+
+ protected:
+  // a map from IterVar before rewrite to that after rewrite,
+  // ensures one old IterVar maps to exactly one new IterVar
+  std::unordered_map<const IterVarNode*, IterVar> ivmap_;
+};
+
 }  // namespace tir
 }  // namespace tvm
 

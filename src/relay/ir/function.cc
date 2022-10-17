@@ -112,7 +112,7 @@ FuncType FunctionNode::func_type_annotation() const {
 const FunctionNode* AsOptimizableFunctionNode(const BaseFunc& base_func) {
   if (const auto* function_node = base_func.as<FunctionNode>()) {
     if (!function_node->GetAttr<String>(attr::kCompiler).defined() &&
-        !function_node->GetAttr<String>(attr::kExternalSymbol).defined() &&
+        !function_node->HasNonzeroAttr(attr::kExtern) &&
         !function_node->HasNonzeroAttr(attr::kSkipOptimization)) {
       return function_node;
     }
@@ -126,6 +126,14 @@ TVM_REGISTER_GLOBAL("relay.ir.Function")
     .set_body_typed([](tvm::Array<Var> params, Expr body, Type ret_type,
                        tvm::Array<TypeVar> ty_params, tvm::DictAttrs attrs) {
       return Function(params, body, ret_type, ty_params, attrs);
+    });
+TVM_REGISTER_GLOBAL("relay.ir.FunctionWithFields")
+    .set_body_typed([](Function function, Optional<Array<Var>> opt_params, Optional<Expr> opt_body,
+                       Optional<Type> opt_ret_type, Optional<Array<TypeVar>> opt_ty_params,
+                       Optional<DictAttrs> opt_attrs, Optional<VirtualDevice> opt_virtual_device,
+                       Optional<Span> opt_span) {
+      return WithFields(function, opt_params, opt_body, opt_ret_type, opt_ty_params, opt_attrs,
+                        opt_virtual_device, opt_span);
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,11 +16,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -euxo pipefail
 
-mkdir -p build
-cd build
+BUILD_DIR=$1
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
 cp ../cmake/config.cmake .
 
 echo set\(USE_SORT ON\) >> config.cmake
@@ -29,7 +29,6 @@ echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
 echo set\(USE_PROFILER ON\) >> config.cmake
 echo set\(USE_LLVM llvm-config-11\) >> config.cmake
 echo set\(USE_ANTLR ON\) >> config.cmake
-echo set\(CMAKE_CXX_COMPILER g++\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
 echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
 echo set\(USE_VTA_FSIM ON\) >> config.cmake

@@ -57,11 +57,17 @@ struct VulkanGetBufferMemoryRequirements2Functions {
   PFN_vkGetBufferMemoryRequirements2KHR vkGetBufferMemoryRequirements2KHR{nullptr};
 };
 
+struct VulkanQueueInsertDebugUtilsLabelFunctions {
+  explicit VulkanQueueInsertDebugUtilsLabelFunctions(VkInstance instance);
+
+  PFN_vkQueueInsertDebugUtilsLabelEXT vkQueueInsertDebugUtilsLabelEXT{nullptr};
+};
+
 /*!
  * \brief Stores the capabilities/limits queried from the physical device.
  *
  * The member variables here have a 1-1 mapping to Target parameters,
- * if target->kind->device_type==kDLVulkan.  A separate struct is used
+ * if target->GetTargetDeviceType()==kDLVulkan.  A separate struct is used
  * to maintain the boundary between the Vulkan runtime in
  * libtvm_runtime.so, and the Target object in libtvm.so.
  */
@@ -81,6 +87,7 @@ struct VulkanDeviceProperties {
   bool supports_storage_buffer_storage_class{false};
   bool supports_push_descriptor{false};
   bool supports_dedicated_allocation{false};
+  bool supports_integer_dot_product{false};
   uint32_t supported_subgroup_operations{0};
   uint32_t max_num_threads{1};
   uint32_t thread_warp_size{1};
@@ -211,6 +218,8 @@ class VulkanDevice {
   std::unique_ptr<VulkanDescriptorTemplateKHRFunctions> descriptor_template_khr_functions{nullptr};
   std::unique_ptr<VulkanGetBufferMemoryRequirements2Functions>
       get_buffer_memory_requirements_2_functions{nullptr};
+  std::unique_ptr<VulkanQueueInsertDebugUtilsLabelFunctions>
+      queue_insert_debug_utils_label_functions{nullptr};
   // Memory type index for compute
   uint32_t compute_mtype_index{0};
 
@@ -218,6 +227,10 @@ class VulkanDevice {
   uint32_t queue_family_index{uint32_t(-1)};
 
   bool UseImmediate() const { return descriptor_template_khr_functions != nullptr; }
+
+  bool UseDebugUtilsLabel() const { return queue_insert_debug_utils_label_functions != nullptr; }
+
+  VkQueue Queue() const { return queue; }
 
  private:
   /*! \brief Helper function for move assignment/construction

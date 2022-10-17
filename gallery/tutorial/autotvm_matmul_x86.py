@@ -28,7 +28,7 @@ can be used to write schedule templates that can be searched by AutoTVM to
 find the optimal schedule. This process is called Auto-Tuning, which helps
 automate the process of optimizing tensor computation.
 
-This tutorial builds on the previous `tutorial on how to write a matrix
+This tutorial builds on the previous :doc:`tutorial on how to write a matrix
 multiplication using TE <tensor_expr_get_started>`.
 
 There are two steps in auto-tuning.
@@ -44,6 +44,12 @@ workflow is illustrated by a matrix multiplication example.
   To get it to run, you will need to wrap the body of this tutorial in a
   :code:`if __name__ == "__main__":` block.
 """
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 
 ################################################################################
 # Install dependencies
@@ -201,7 +207,7 @@ def matmul_v1(N, L, M, dtype):
 # knob. This is the lowest level API to define the space, and gives an explicit
 # enumeration of the parameter space to search. However, we also provide
 # another set of APIs that can make the definition of the search space easier
-# and smarter. Where possible, we receomment you use this higher-level API
+# and smarter. Where possible, we recommend you use this higher-level API
 #
 # In the following example, we use :any:`ConfigSpace.define_split` to define a
 # split knob. It will enumerate all the possible ways to split an axis and
@@ -267,7 +273,7 @@ def matmul(N, L, M, dtype):
 # Step 2: Use AutoTVM to Optimize the Matrix Multiplication
 # ---------------------------------------------------------
 # In Step 1, we wrote a matrix multiplication template that allowed us to
-# paramaterize the block size used in the `split` schedule. We can now conduct
+# parameterize the block size used in the `split` schedule. We can now conduct
 # a search over this parameter space. The next step is to pick a tuner to guide
 # the exploration of this space.
 #
@@ -295,7 +301,7 @@ def matmul(N, L, M, dtype):
 #
 # You can choose the tuner according to the size of your space, your time
 # budget and other factors.  For example, if your space is very small (less
-# than 1000), a gridsearch tuner or a random tuner is good enough. If your
+# than 1000), a grid-search tuner or a random tuner is good enough. If your
 # space is at the level of 10^9 (this is the space size of a conv2d operator on
 # CUDA GPU), XGBoostTuner can explore more efficiently and find better configs.
 
@@ -342,7 +348,7 @@ tuner.tune(
 ################################################################################
 # With tuning completed, we can choose the configuration from the log file that
 # has the best measured performance and compile the schedule with the
-# corresponding parameters. We also do a quick verfication that the schedule is
+# corresponding parameters. We also do a quick verification that the schedule is
 # producing correct answers.  We can call the function :code:`matmul` directly
 # under the :any:`autotvm.apply_history_best` context. When we call this
 # function, it will query the dispatch context with its argument and get the
@@ -371,7 +377,7 @@ tvm.testing.assert_allclose(c_np, c_tvm.numpy(), rtol=1e-4)
 # TVM to search a parameter space and choose optimized schedule configurations.
 # To gain a deeper understanding of how this works, we recommend expanding on
 # this example by adding new search parameters to the schedule based on
-# schedule operations demonstated in the `Getting Started With Tensor
+# schedule operations demonstrated in the :ref: `Getting Started With Tensor
 # Expressions <tensor_expr_get_started>_` tutorial. In the upcoming sections, we
-# will demonstate the AutoScheduler, a method for TVM to optimize common
+# will demonstrate the AutoScheduler, a method for TVM to optimize common
 # operators without the need for the user to provide a user-defined template.

@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.mutator import MutateComputeLocation, Mutator
+from tvm import meta_schedule as ms
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir import Schedule
@@ -61,10 +60,17 @@ def _sch(decision: int) -> Schedule:
     return sch
 
 
-def _make_mutator(target: Target) -> Mutator:
-    mutator = MutateComputeLocation()
-    mutator.initialize_with_tune_context(TuneContext(mod=add, target=target))
-    return mutator
+def _make_mutator(target: Target) -> ms.Mutator:
+    ctx = ms.TuneContext(
+        mod=add,
+        target=target,
+        space_generator=ms.space_generator.PostOrderApply(
+            sch_rules=[],
+            postprocs=[],
+            mutator_probs={ms.mutator.MutateComputeLocation(): 1.0},
+        ),
+    )
+    return list(ctx.space_generator.mutator_probs.keys())[0]
 
 
 def test_mutate_compute_location_add():

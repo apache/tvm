@@ -21,3 +21,7 @@ design space.
 """
 from .mutator import Mutator, PyMutator
 from .mutate_compute_location import MutateComputeLocation
+from .mutate_tile_size import MutateTileSize
+from .mutate_thread_binding import MutateThreadBinding
+from .mutate_parallel import MutateParallel
+from .mutate_unroll import MutateUnroll

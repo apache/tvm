@@ -66,6 +66,7 @@ def test_ethosu_pooling_matcher(pool_shape, stride, padding, ifm_layout, ofm_lay
         padding,
         ifm_layout,
         ofm_layout,
+        ofm_channels=ofm_channels,
     )
 
     device_config = cs.EthosuDeviceConfig("ethos-u55-256")

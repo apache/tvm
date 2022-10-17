@@ -374,6 +374,10 @@ class HybridParser(ast.NodeVisitor):
 
     def visit_Subscript(self, node):
         args = self.visit(node.slice)
+        if sys.version_info >= (3, 9):
+            if not isinstance(node.slice, ast.Tuple):
+                args = [args]
+
         arr = self.visit(node.value)
         if isinstance(arr, Array):
             for i in args:
@@ -511,7 +515,13 @@ class HybridParser(ast.NodeVisitor):
 
         if iter_var is None:
             _internal_assert(kind is not None, "The loop iterating function parse error!")
-            offset = iter_var = tvm.te.var(_name)
+            if isinstance(ext, _expr.PrimExpr):
+                dtype = ext.dtype
+            elif isinstance(ext, int):
+                dtype = "int32"
+            else:
+                raise NotImplementedError(f"Unsupported type of ext: {type(ext)}")
+            offset = iter_var = tvm.te.var(_name, dtype=dtype)
             if not tvm.tir.analysis.expr_deep_equal(low, tvm.runtime.const(0, "int32")):
                 offset = iter_var + low
             self.add_symbol(_name, Symbol.LoopVar, offset)

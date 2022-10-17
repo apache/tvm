@@ -19,13 +19,13 @@
 from typing import Tuple, Any, Callable, Optional, List, Union, Mapping
 
 import synr
+import numpy as np
 import tvm.tir
-from tvm.runtime import Object
+from tvm.runtime import Object, String, convert
 from tvm.ir import Span, Range
 from tvm.tir import Stmt, PrimExpr, IterVar, Var, Buffer, BufferRegion, ForKind
 
 from .node import BufferSlice
-from .utils import buffer_slice_to_region
 
 from ..context_maintainer import ContextMaintainer
 from ..registry import register
@@ -158,6 +158,157 @@ class Allocate(WithScopeHandler):
 
 
 @register
+class AllocateConst(WithScopeHandler):
+    """With scope handler T.allocate_const(data, extents, dtype, condition)
+
+    TIR constant node to represent non-scalar constant
+    """
+
+    def __init__(self):
+        def allocate_const(raw_data, dtype, shape, annotations=None, span=None):
+            list_data = []
+            for i in raw_data:
+                list_data.append(i.value)
+            nd_data = tvm.nd.array(np.asarray(list_data, dtype=dtype))
+            n = tvm.tir.AllocateConst(
+                self.buffer_var,
+                dtype,
+                shape,
+                nd_data,
+                self.body,
+                annotations=annotations,
+                span=span,
+            )
+            return n
+
+        super().__init__(allocate_const, concise_scope=True, def_symbol=True)
+        self.buffer_var = None
+
+    def enter_scope(
+        self,
+        node: synr.ast.Node,
+        context: ContextMaintainer,
+        arg_list: List[Any],
+        span: synr.ast.Span,
+    ):
+        # define buffer vars in symbol table
+        if isinstance(node, synr.ast.With):
+            vars = WithScopeHandler.get_optional_vars(node, context)
+            if len(vars) != 1:
+                context.report_error(f"Unexpected number of vars: 1 vs. {len(vars)}", node.span)
+            name = vars[0].id.name
+            var_span = vars[0].id.span
+        elif isinstance(node, synr.ast.Assign):
+            if len(node.lhs) != 1:
+                context.report_error(f"Unexpected number of vars: 1 vs. {len(node.lhs)}", node.span)
+            name = node.lhs[0].id.name
+            var_span = node.lhs[0].id.span
+        else:
+            raise Exception("Internal Bug")
+
+        def setup_buffer_var(data, dtype, shape, annotations: dict = None, span: Span = None):
+            """Setup buffer var for a given type."""
+            buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype))
+            self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)
+
+        setup_buffer_var(*arg_list, span=tvm_span_from_synr(var_span))
+        context.update_symbol(name, self.buffer_var, node)
+
+
+@register
+class DeclBuffer(WithScopeHandler):
+    """Special Stmt decl_buffer(shape, dtype, data, strides, elem_offset, scope, align,
+                                offset_factor, buffer_type, axis_separators)
+    Example
+    -------
+    .. code-block:: python
+        A = T.decl_buffer((128, 128), dtype="float32")
+    """
+
+    def __init__(self):
+        def decl_buffer(
+            shape,
+            dtype="float32",
+            data=None,
+            strides=None,
+            elem_offset=None,
+            scope="global",
+            align=-1,
+            offset_factor=0,
+            buffer_type="default",
+            axis_separators=None,
+            span=None,
+        ):
+            decl_buffer = tvm.tir.DeclBuffer(self.buffer, self.body, span=span)
+            if data is None:
+                # when data is not specified, the buffer is implicitly allocated
+                return tvm.tir.Allocate(
+                    self.buffer.data,
+                    dtype,
+                    shape,
+                    tvm.runtime.convert(True),
+                    decl_buffer,
+                    span=span,
+                )
+            return decl_buffer
+
+        super().__init__(decl_buffer, concise_scope=True, def_symbol=True)
+
+    def enter_scope(
+        self,
+        node: synr.ast.Node,
+        context: ContextMaintainer,
+        arg_list: List[Any],
+        span: synr.ast.Span,
+    ):
+        # define buffer vars in symbol table
+        if isinstance(node, synr.ast.With):
+            vars = WithScopeHandler.get_optional_vars(node, context)
+            if len(vars) != 1:
+                context.report_error(f"Unexpected number of vars: 1 vs. {len(vars)}", node.span)
+            name = vars[0].id.name
+            var_span = vars[0].id.span
+        elif isinstance(node, synr.ast.Assign):
+            if len(node.lhs) != 1:
+                context.report_error(f"Unexpected number of vars: 1 vs. {len(node.lhs)}", node.span)
+            name = node.lhs[0].id.name
+            var_span = node.lhs[0].id.span
+        else:
+            raise Exception("Internal Bug")
+
+        def setup_buffer(
+            shape,
+            dtype,
+            data,
+            strides,
+            elem_offset,
+            scope,
+            align,
+            offset_factor,
+            buffer_type,
+            axis_separators,
+            span: Span = None,
+        ):
+            self.buffer = tvm.tir.decl_buffer(
+                shape=shape,
+                dtype=dtype,
+                data=data,
+                strides=strides,
+                elem_offset=elem_offset,
+                scope=scope,
+                data_alignment=align,
+                offset_factor=offset_factor,
+                buffer_type=buffer_type,
+                axis_separators=axis_separators,
+                name=name,
+                span=span,
+            )
+
+        setup_buffer(*arg_list, span=tvm_span_from_synr(var_span))
+        context.update_symbol(name, self.buffer, node)
+
+
+@register
 class LaunchThread(WithScopeHandler):
     """With scope handler T.launch_thread(env_var, extent)"""
 
@@ -247,6 +398,9 @@ class Let(WithScopeHandler):
 
         super().__init__(let, concise_scope=False, def_symbol=False)
 
+    def __call__(self, var: tvm.tir.Var, value: tvm.tir.PrimExpr, body: tvm.tir.PrimExpr):
+        return tvm.tir.Let(var, value, body)
+
 
 @register
 class Block(WithScopeHandler):
@@ -261,12 +415,10 @@ class Block(WithScopeHandler):
 
             # create block read/write regions
             reads: List[BufferRegion] = (
-                [buffer_slice_to_region(read) for read in block_info.reads]
-                if block_info.reads
-                else []
+                [read.as_buffer_region() for read in block_info.reads] if block_info.reads else []
             )
             writes: List[BufferRegion] = (
-                [buffer_slice_to_region(write) for write in block_info.writes]
+                [write.as_buffer_region() for write in block_info.writes]
                 if block_info.writes
                 else []
             )
@@ -401,18 +553,24 @@ class ForScopeHandler(ScopeHandler):
 
         self.node = node
         self.context = context
-        # generate loop vars
-        self.loop_vars = [
-            tvm.te.var(name, dtype="int32", span=span) for name, span in zip(loop_var_names, spans)
-        ]
         # collect loop infos by calling self.func
         call_with_error_reporting(context.report_error, span, self.func, *arg_list)
-        if len(self.loop_vars) != len(self.loop_info):
+        if len(loop_var_names) != len(self.loop_info):
             self.context.report_error(
-                f"Inconsistent number of vars and loops, got {len(self.loop_vars)} "
+                f"Inconsistent number of vars and loops, got {len(loop_var_names)} "
                 + f"vs {len(self.loop_info)}",
                 self.node.span,
             )
+        # generate loop vars
+        self.loop_vars = []
+        for name, lv_span, li in zip(loop_var_names, spans, self.loop_info):
+            if not li.begin.dtype.startswith("int"):
+                raise NotImplementedError(f"Unsupported dtype in loop begin: {li.begin.dtype}")
+            if not li.extent.dtype.startswith("int"):
+                raise NotImplementedError(f"Unsupported dtype in loop extent: {li.extent.dtype}")
+            dtype = "int64" if "int64" in [li.begin.dtype, li.extent.dtype] else "int32"
+            self.loop_vars.append(tvm.te.var(name, dtype=dtype, span=lv_span))
+
         for loop_var, loop_info in zip(self.loop_vars, self.loop_info):
             context.update_symbol(loop_var.name, loop_var, node)
             context.loop_stack[loop_var] = Range.from_min_extent(loop_info.begin, loop_info.extent)
@@ -447,7 +605,7 @@ class ForScopeHandler(ScopeHandler):
 
     def create_loop_info(
         self,
-        begin: PrimExpr,
+        begin: Optional[PrimExpr],
         end: PrimExpr,
         kind: ForKind,
         thread_binding: Optional[str] = None,
@@ -458,8 +616,8 @@ class ForScopeHandler(ScopeHandler):
 
         Parameters
         ----------
-        begin : PrimExpr
-            The beginning value.
+        begin : Optional[PrimExpr]
+            The beginning value. If None, it will be set to 0.
 
         end : PrimExpr
             The endding value.
@@ -481,10 +639,25 @@ class ForScopeHandler(ScopeHandler):
         for : For
             The constructed For.
         """
+        end = convert(end)
+        if begin is None:
+            begin = tvm.tir.const(0, end.dtype)
+        else:
+            begin = convert(begin)
         assert self.context and self.node, "call 'exit_scope' before 'enter_scope'"
-        extent = end if begin == 0 else self.context.analyzer.simplify(end - begin)
-        self.annotations = annotations
-        self.loop_info.append(LoopInfo(begin, extent, kind, thread_binding, self.annotations))
+        extent = (
+            end
+            if self.context.analyzer.can_prove_equal(begin, 0)
+            else self.context.analyzer.simplify(end - begin)
+        )
+        self.annotations: Mapping[str, Object] = {}
+        if annotations is not None:
+            self.annotations = {
+                key: String(val) if isinstance(val, str) else val
+                for key, val in annotations.items()
+            }
+
+        self.loop_info.append(LoopInfo(begin, extent, kind, thread_binding, annotations))
 
 
 @register
@@ -498,8 +671,7 @@ class Serial(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
         ):
             if end is None:
-                end = begin
-                begin = 0
+                end, begin = begin, end
             self.create_loop_info(begin, end, ForKind.SERIAL, annotations=annotations)
 
         super().__init__(serial)
@@ -516,8 +688,7 @@ class Parallel(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
         ):
             if end is None:
-                end = begin
-                begin = 0
+                end, begin = begin, end
             self.create_loop_info(begin, end, ForKind.PARALLEL, annotations=annotations)
 
         super().__init__(parallel)
@@ -534,8 +705,7 @@ class Vectorized(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
         ):
             if end is None:
-                end = begin
-                begin = 0
+                end, begin = begin, end
             self.create_loop_info(begin, end, ForKind.VECTORIZED, annotations=annotations)
 
         super().__init__(vectorized)
@@ -552,8 +722,7 @@ class Unroll(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
         ):
             if end is None:
-                end = begin
-                begin = 0
+                end, begin = begin, end
             self.create_loop_info(begin, end, ForKind.UNROLLED, annotations=annotations)
 
         super().__init__(unroll)
@@ -577,8 +746,7 @@ class ThreadBinding(ForScopeHandler):
                 else:
                     raise ValueError("Thread cannot be None for thread_binding")
             if end is None:
-                end = begin
-                begin = 0
+                end, begin = begin, end
             thread_iter_var = IterVar(None, None, IterVar.ThreadIndex, thread)
             self.create_loop_info(
                 begin,
@@ -604,8 +772,7 @@ class RangeHandler(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
         ):
             if end is None:
-                end = begin
-                begin = 0
+                end, begin = begin, end
             self.create_loop_info(begin, end, ForKind.SERIAL, annotations=annotations)
 
         super().__init__(for_range)
@@ -621,6 +788,6 @@ class Grid(ForScopeHandler):
     def __init__(self):
         def grid(*extents: List[PrimExpr]):
             for extent in extents:
-                self.create_loop_info(0, extent, ForKind.SERIAL)
+                self.create_loop_info(None, extent, ForKind.SERIAL)
 
         super().__init__(grid)

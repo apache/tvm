@@ -24,7 +24,6 @@ from tvm import topi
 from tvm.relay.backend import te_compiler
 from tvm.relay.testing import run_infer_type
 from tvm.relay.testing.temp_op_attr import TempOpAttr
-import tvm.testing
 
 
 @autotvm.register_topi_compute("test/conv2d_1")
@@ -259,6 +258,30 @@ def test_compile_nhwc_pack():
     func = subtract
     mod = relay.Function(relay.analysis.free_vars(func), func)
     relay.build(mod, target="llvm")
+
+
+def test_compile_propogate_hash():
+    data = relay.var("data", shape=(1, 1, 1, 1024), dtype="uint8")
+    weight = relay.var("weight", shape=(1, 1, 1024, 1001), dtype="int8")
+    p2 = relay.var("p2", shape=(1, 1, 1, 1), dtype="int32")
+    conv = relay.nn.conv2d(
+        data,
+        weight,
+        kernel_size=(1, 1),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="int32",
+    )
+    multiply = relay.multiply(relay.const(-22, dtype="int32"), p2)
+    tile = relay.tile(multiply, reps=(1, 1, 1, 1001))
+    subtract = relay.subtract(conv, tile)
+
+    func = subtract
+    mod = tvm.IRModule.from_expr(relay.Function(relay.analysis.free_vars(func), func))
+    vm = relay.vm.VMCompiler()
+    opt_mod, _ = vm.optimize(mod, target="llvm")
+    for f in opt_mod.functions.values():
+        assert "hash" in f.attrs.keys()
 
 
 if __name__ == "__main__":

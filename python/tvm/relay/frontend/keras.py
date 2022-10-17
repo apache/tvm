@@ -635,9 +635,11 @@ def _convert_pooling(
             _op.nn.global_max_pool2d(inexpr, **global_pool_params), keras_layer, etab, data_layout
         )
     if pool_type == "GlobalAveragePooling2D":
-        return _convert_flatten(
-            _op.nn.global_avg_pool2d(inexpr, **global_pool_params), keras_layer, etab, data_layout
-        )
+        global_avg_pool2d = _op.nn.global_avg_pool2d(inexpr, **global_pool_params)
+        keep_dims = len(keras_layer.input.shape) == len(keras_layer.output.shape)
+        if keep_dims:
+            return global_avg_pool2d
+        return _convert_flatten(global_avg_pool2d, keras_layer, etab, data_layout)
     pool_h, pool_w = keras_layer.pool_size
     stride_h, stride_w = keras_layer.strides
     params = {
@@ -967,7 +969,8 @@ def _convert_lstm(
     in_shape = tuple(dim if dim else 1 for dim in _as_list(input_shape)[0])
     kernel_weight = etab.new_const(weightList[0].transpose([1, 0]))
     recurrent_weight = etab.new_const(weightList[1].transpose([1, 0]))
-    in_bias = etab.new_const(weightList[2])
+    if keras_layer.use_bias:
+        in_bias = etab.new_const(weightList[2])
     units = list(weightList[0].shape)[1]
     time_steps = in_shape[1]
     in_data = _op.squeeze(in_data, axis=[0])
@@ -976,7 +979,9 @@ def _convert_lstm(
     out_list = []  # store h outputs in case return_sequences is True
     for data in in_data:
         ixh1 = _op.nn.dense(data, kernel_weight, units=units)
-        ixh2 = _op.nn.bias_add(_op.nn.dense(next_h, recurrent_weight, units=units), bias=in_bias)
+        ixh2 = _op.nn.dense(next_h, recurrent_weight, units=units)
+        if keras_layer.use_bias:
+            ixh2 = _op.nn.bias_add(ixh2, bias=in_bias)
         gate = ixh1 + ixh2
         gates = _op.split(gate, indices_or_sections=4, axis=1)
         in_gate = _convert_recurrent_activation(gates[0], keras_layer)
@@ -1007,10 +1012,13 @@ def _convert_simple_rnn(
     weightList = keras_layer.get_weights()
     kernel_weight = etab.new_const(weightList[0].transpose([1, 0]))
     recurrent_weight = etab.new_const(weightList[1].transpose([1, 0]))
-    in_bias = etab.new_const(weightList[2])
+    if keras_layer.use_bias:
+        in_bias = etab.new_const(weightList[2])
     units = list(weightList[0].shape)[1]
     in_data = _op.nn.batch_flatten(in_data)
-    ixh = _op.nn.bias_add(_op.nn.dense(in_data, kernel_weight, units=units), bias=in_bias)
+    ixh = _op.nn.dense(in_data, kernel_weight, units=units)
+    if keras_layer.use_bias:
+        ixh = _op.nn.bias_add(ixh, bias=in_bias)
     prev_op = _op.nn.batch_flatten(prev_op)
     ixh2 = _op.nn.dense(prev_op, recurrent_weight, units=units)
     output = ixh + ixh2
@@ -1033,10 +1041,13 @@ def _convert_gru(
     weightList = keras_layer.get_weights()
     kernel_weight = etab.new_const(weightList[0].transpose([1, 0]))
     recurrent_weight = etab.new_const(weightList[1].transpose([1, 0]))
-    in_bias = etab.new_const(weightList[2])
+    if keras_layer.use_bias:
+        in_bias = etab.new_const(weightList[2])
     units = list(weightList[0].shape)[1]
     in_data = _op.nn.batch_flatten(in_data)
-    matrix_x = _op.nn.bias_add(_op.nn.dense(in_data, kernel_weight, units=units), in_bias)
+    matrix_x = _op.nn.dense(in_data, kernel_weight, units=units)
+    if keras_layer.use_bias:
+        matrix_x = _op.nn.bias_add(matrix_x, in_bias)
     # inputs projected by all gate matrices at once
     split_indices = [keras_layer.units, 2 * keras_layer.units]
     gates = _op.split(matrix_x, indices_or_sections=split_indices, axis=1)
@@ -1414,10 +1425,6 @@ def from_keras(model, shape=None, layout="NCHW"):
                 if (
                     hasattr(model, "_node_key")
                     and not model._node_key(keras_layer, node_idx) in model._network_nodes
-                ) or (
-                    # TFlite >=2.6
-                    not keras.engine.functional._make_node_key(keras_layer.name, node_idx)
-                    in model._network_nodes
                 ):
                     continue
             inexpr = []
@@ -1438,6 +1445,7 @@ def from_keras(model, shape=None, layout="NCHW"):
                 node_attributes = zip_node
             else:
                 node_attributes = node.iterate_inbound()
+
             for inbound_layer, n_idx, t_idx, _ in node_attributes:
                 if isinstance(inbound_layer, input_layer_class):
                     expr_name = inbound_layer.name

@@ -51,7 +51,7 @@ def generate_tensor_op_common(
         data_type = [
             math_inst.element_a,
             math_inst.element_b,
-            math_inst.element_accumulator,
+            math_inst.element_c,
             math_inst.element_accumulator,
         ]
 
@@ -62,7 +62,16 @@ def generate_tensor_op_common(
     return ops
 
 
-def generate_sm75_tensor_op_1688(out_dtype, arg0_dtype, arg1_dtype, op_creator):
+def generate_sm75_tensor_op_1688(
+    out_dtype,
+    arg0_dtype,
+    arg1_dtype,
+    op_creator,
+    check_align,
+    _,
+    profile_all_alignments=False,
+    accumlator_dtype="float32",
+):
     """Generate GEMM or Conv2D kernels for Turing."""
     assert out_dtype in ["float32", "float16", "int32"]
     min_cc = 75
@@ -75,6 +84,7 @@ def generate_sm75_tensor_op_1688(out_dtype, arg0_dtype, arg1_dtype, op_creator):
                 DataType.f16,
                 DataType.f16,
                 dtype_map[out_dtype],
+                dtype_map[accumlator_dtype],
                 OpcodeClass.TensorOp,
                 MathOperation.multiply_add,
             )
@@ -98,6 +108,7 @@ def generate_sm75_tensor_op_1688(out_dtype, arg0_dtype, arg1_dtype, op_creator):
                 dtype_map[arg0_dtype],
                 dtype_map[arg1_dtype],
                 DataType.s32,
+                DataType.s32,
                 OpcodeClass.TensorOp,
                 MathOperation.multiply_add_saturate,
             ),
@@ -114,6 +125,12 @@ def generate_sm75_tensor_op_1688(out_dtype, arg0_dtype, arg1_dtype, op_creator):
             ([64, 64, 64], 2, [2, 2, 1], min_cc, max_cc),
         ]
 
+    alignment_constraints = [align for align in alignment_constraints if check_align(align)]
+    assert len(alignment_constraints) > 0
+
+    if not profile_all_alignments:
+        alignment_constraints = [alignment_constraints[0]]
+
     def get_tile_descriptions(math_inst):
         return [
             TileDescription(threadblock_shape, stages, warp_count, math_inst, min_cc, max_cc)
@@ -125,7 +142,16 @@ def generate_sm75_tensor_op_1688(out_dtype, arg0_dtype, arg1_dtype, op_creator):
     )
 
 
-def generate_sm80_tensor_op_16816(out_dtype, arg0_dtype, arg1_dtype, op_creator, use_3xtf32=True):
+def generate_sm80_tensor_op_16816(
+    out_dtype,
+    arg0_dtype,
+    arg1_dtype,
+    op_creator,
+    check_align,
+    use_3xtf32=True,
+    profile_all_alignments=False,
+    accumlator_dtype="float32",
+):
     """Generate GEMM or Conv2D kernels for Ampere."""
     min_cc = 80
     max_cc = 1024
@@ -160,6 +186,7 @@ def generate_sm80_tensor_op_16816(out_dtype, arg0_dtype, arg1_dtype, op_creator,
                 DataType.f16,
                 DataType.f16,
                 dtype_map[out_dtype],
+                dtype_map[accumlator_dtype],
                 OpcodeClass.TensorOp,
                 MathOperation.multiply_add,
             )
@@ -170,6 +197,7 @@ def generate_sm80_tensor_op_16816(out_dtype, arg0_dtype, arg1_dtype, op_creator,
         math_instructions = [
             MathInstruction(
                 [16, 8, 8],
+                DataType.f32,
                 DataType.f32,
                 DataType.f32,
                 DataType.f32,
@@ -205,6 +233,7 @@ def generate_sm80_tensor_op_16816(out_dtype, arg0_dtype, arg1_dtype, op_creator,
                 dtype_map[arg0_dtype],
                 dtype_map[arg1_dtype],
                 DataType.s32,
+                DataType.s32,
                 OpcodeClass.TensorOp,
                 MathOperation.multiply_add_saturate,
             ),
@@ -218,15 +247,32 @@ def generate_sm80_tensor_op_16816(out_dtype, arg0_dtype, arg1_dtype, op_creator,
             for threadblock_shape, stages, warp_count, min_cc, max_cc in tile_descriptions
         ]
 
+    alignment_constraints = [align for align in alignment_constraints if check_align(align)]
+
+    if len(alignment_constraints) > 0 and not profile_all_alignments:
+        alignment_constraints = [alignment_constraints[0]]
+
     if arg0_dtype != "float32" and arg1_dtype != "float32":
-        sm75_kernels = generate_sm75_tensor_op_1688(out_dtype, arg0_dtype, arg1_dtype, op_creator)
+        sm75_kernels = generate_sm75_tensor_op_1688(
+            out_dtype,
+            arg0_dtype,
+            arg1_dtype,
+            op_creator,
+            check_align,
+            False,
+            profile_all_alignments,
+            accumlator_dtype=accumlator_dtype,
+        )
     else:
         # TF32 (float32 + float32 case) is only supported on sm80
         sm75_kernels = []
 
-    sm80_kernels = generate_tensor_op_common(
-        math_instructions, alignment_constraints, get_tile_descriptions, op_creator
-    )
+    if len(alignment_constraints) > 0:
+        sm80_kernels = generate_tensor_op_common(
+            math_instructions, alignment_constraints, get_tile_descriptions, op_creator
+        )
+    else:
+        sm80_kernels = []
 
     # TODO(masahi): For int8 kernels, The CUTLASS generator modifies the output tensor alignment
     # after ops are created. Revisit how important this modification is.
@@ -259,6 +305,8 @@ EPILOGUE_MAP = {
     "cutlass.conv2d_bias_relu": (EpilogueFunctor.LinearCombinationRelu, True),
     "cutlass.conv2d_bias": (EpilogueFunctor.LinearCombinationBias, True),
     "cutlass.conv2d": (EpilogueFunctor.LinearCombination, False),
+    "cutlass.conv2d_transpose": (EpilogueFunctor.LinearCombination, False),
+    "cutlass.conv2d_backward_weight": (EpilogueFunctor.LinearCombination, False),
 }
 
 
@@ -284,10 +332,11 @@ class ProfilerEngine:
         opath = os.path.join(self.binary_prefix, op["name"])
         if os.path.exists(opath):
             return
-        fi = tempfile.NamedTemporaryFile("w", delete=False, suffix=".cu")
+        fi = tempfile.NamedTemporaryFile("w", delete=False, prefix=self.binary_prefix, suffix=".cu")
         fi.write(op["src"])
         fi.close()
         cmd = self.cmd.format(cflags=self.cflags, src=fi.name, output=opath)
+        logger.info("invoking compilation %s", cmd)
         os.system(cmd)
         os.unlink(fi.name)
 
@@ -313,8 +362,12 @@ class ProfilerEngine:
         for arg in args:
             cmd.append(str(arg))
         try:
+            logger.info("invoking evaluation %s", cmd)
             sp = subprocess.run(cmd, capture_output=True, check=True)
             rt = float(sp.stdout)
+            if rt == 0.0:
+                # This seems to happen with split-k using invalid split-k-slices
+                rt = float("inf")
             logger.info("%s, %f", op_name, rt)
         except subprocess.CalledProcessError:
             rt = float("inf")

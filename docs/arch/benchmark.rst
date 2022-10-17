@@ -104,7 +104,7 @@ Here is sample data encoded as JSON:
     },
     "workload_metadata":{
       "class":"vision",
-      "doc_url":"https://github.com/onnx/models/blob/master/vision/body_analysis/arcface/README.md",
+      "doc_url":"https://github.com/onnx/models/blob/main/vision/body_analysis/arcface/README.md",
       "md5":"66074b860f905295aab5a842be57f37d",
       "opset":8,
       "type":"body_analysis",

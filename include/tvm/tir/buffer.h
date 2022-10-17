@@ -55,8 +55,22 @@ class BufferNode : public Object {
   Var data;
   /*! \brief data type in the content of the tensor */
   DataType dtype;
-  /*! \brief The shape of the buffer */
+  /*! \brief The type of the buffer prior to flattening
+   *
+   * This contains the shape as it is accessed by
+   * BufferLoad/BufferStore nodes, and used by the low-level code
+   * generators.
+   */
   Array<PrimExpr> shape;
+  /*!
+   * \brief Separators between input axes when generating flattened output axes
+   *
+   * For buffers representing flat 1-d memory (e.g. any buffer in
+   * RAM), this should be an empty array.  For buffers representing
+   * non-flat memory, each entry in axis_separators should be the
+   * first input axis that is part of a new flattened axis.
+   */
+  Array<IntImm> axis_separators;
   /*!
    * \brief The strides of each dimension
    *  This can be an empty array, indicating array is contiguous
@@ -89,6 +103,7 @@ class BufferNode : public Object {
     v->Visit("dtype", &dtype);
     v->Visit("shape", &shape);
     v->Visit("strides", &strides);
+    v->Visit("axis_separators", &axis_separators);
     v->Visit("elem_offset", &elem_offset);
     v->Visit("name", &name);
     v->Visit("data_alignment", &data_alignment);
@@ -98,10 +113,11 @@ class BufferNode : public Object {
   }
 
   bool SEqualReduce(const BufferNode* other, SEqualReducer equal) const {
-    // Use DefEqual as buffer can define variables
-    // in its semantics, skip name as name is not important.
+    // Use DefEqual as buffer can define variables in its semantics,
+    // skip name as name is not important.
     return equal.DefEqual(data, other->data) && equal(dtype, other->dtype) &&
            equal.DefEqual(shape, other->shape) && equal.DefEqual(strides, other->strides) &&
+           equal.DefEqual(axis_separators, other->axis_separators) &&
            equal.DefEqual(elem_offset, other->elem_offset) &&
            equal(data_alignment, other->data_alignment) && equal(buffer_type, other->buffer_type);
   }
@@ -112,6 +128,7 @@ class BufferNode : public Object {
     hash_reduce.DefHash(shape);
     hash_reduce.DefHash(strides);
     hash_reduce.DefHash(elem_offset);
+    hash_reduce.DefHash(axis_separators);
     hash_reduce(data_alignment);
     hash_reduce(buffer_type);
   }
@@ -127,7 +144,7 @@ class BufferNode : public Object {
    * without adjusting for number of lanes.  (e.g. The number of
    * float16x4 elements in a buffer of type float16x4.)
    */
-  PrimExpr ElemOffset(Array<PrimExpr> index) const;
+  Array<PrimExpr> ElemOffset(Array<PrimExpr> index) const;
 
   static constexpr const char* _type_key = "tir.Buffer";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -146,7 +163,7 @@ class Buffer : public ObjectRef {
   // A default value will be picked.
   TVM_DLL Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
                  PrimExpr elem_offset, String name, int data_alignment, int offset_factor,
-                 BufferType buffer_type, Span span = Span());
+                 BufferType buffer_type, Array<IntImm> axis_separators = {}, Span span = Span());
 
   /*!
    * \brief Return a new buffer that is equivalent with current one
@@ -169,10 +186,11 @@ class Buffer : public ObjectRef {
    * \param ptr_type The type of the pointer.
    * \param content_lanes The number of lanes for the (data) type.
    * \param offset The offset of ptr.
+   * \param input_extent The extent of ptr.
    */
   TVM_DLL PrimExpr access_ptr(int access_mask, DataType ptr_type = DataType::Handle(),
-                              int content_lanes = 1,
-                              PrimExpr offset = IntImm(DataType::Int(32), 0)) const;
+                              int content_lanes = 1, PrimExpr offset = IntImm(DataType::Int(32), 0),
+                              Optional<PrimExpr> input_extent = NullOpt) const;
   /*!
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index
@@ -185,6 +203,19 @@ class Buffer : public ObjectRef {
    * \param value The value to be stored.
    */
   TVM_DLL Stmt vstore(Array<PrimExpr> begin, PrimExpr value) const;
+
+  /*!
+   * \brief Get a flattened version of the buffer
+   */
+  Buffer GetFlattenedBuffer() const;
+
+  /*! \brief Determine the offset in the buffer of the given index.
+   *
+   * Returns the buffer offset, in number of elements of type dtype,
+   * without adjusting for number of lanes.  (e.g. The number of
+   * float16x4 elements in a buffer of type float16x4.)
+   */
+  Array<PrimExpr> OffsetOf(Array<PrimExpr> index) const;
 
   /*!
    * \brief Return the storage scope associated with this buffer.
@@ -201,12 +232,14 @@ class Buffer : public ObjectRef {
  * \param dtype The content data type.
  * \param name The name of the buffer
  * \param storage_scope The storage scope associated with this buffer
+ * \param axis_separators Divisions defining the groups of axes that will be flattened together.
  * \param span The location of this object in the source code.
  * \return The created buffer.
  * \sa Buffer for complete constructor.
  */
 TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                           String name = "buffer", String storage_scope = "", Span span = Span());
+                           String name = "buffer", String storage_scope = "",
+                           Array<IntImm> axis_separators = {}, Span span = Span());
 
 /*!
  * \brief Base node for data producers.
@@ -262,6 +295,23 @@ class DataProducer : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(DataProducer, ObjectRef, DataProducerNode);
 };
 
+/*!
+ * \brief Creates TIR Buffer for provided parameters
+ * \param shape shape of the buffer
+ * \param dtype data type
+ * \param name buffer name
+ * \param data_alignment alignment requirement of data pointer in bytes
+ * \param offset_factor Factor of elem_offset field, elem_offset is guaranteed to be
+ *                      multiple of offset_factor
+                        User can specify data_alignment and offset_factor to be 0
+ *                      A default value will be picked.
+ * \param compact If the statement has already bound to a compact buffer.
+ * \param memory_scope memory scope of the buffer
+ */
+TVM_DLL tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype,
+                                              std::string name, int data_alignment,
+                                              int offset_factor, bool compact,
+                                              std::string memory_scope = "");
 }  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_BUFFER_H_

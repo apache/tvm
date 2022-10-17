@@ -118,4 +118,4 @@ def test_conv1d_transpose_ncw(
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

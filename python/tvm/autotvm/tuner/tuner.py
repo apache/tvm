@@ -43,12 +43,14 @@ class Tuner(object):
         self.recorder = None
 
         self.task = task
+        self.space = self.task.config_space
 
         # keep the current best
         self.best_config = None
         self.best_flops = 0
         self.best_measure_pair = None
         self.best_iter = 0
+        self.error_ct_threshold = 150
 
         # time to leave
         self.ttl = None
@@ -138,14 +140,16 @@ class Tuner(object):
                 if res.error_no == 0:
                     flops = inp.task.flop / np.mean(res.costs)
                     error_ct = 0
+                    result_msg = res
                 else:
                     flops = 0
                     error_ct += 1
-                    error = res.costs[0]
+                    tb, error = res.costs
                     if isinstance(error, str):
-                        errors.append(error)
+                        errors.append(tb + "\n" + error)
                     else:
-                        errors.append(str(error))
+                        errors.append(tb + "\n" + str(error))
+                    result_msg = errors[-1]
 
                 if flops > self.best_flops:
                     self.best_flops = flops
@@ -159,7 +163,7 @@ class Tuner(object):
                     si_prefix,
                     format_si_prefix(flops, si_prefix),
                     format_si_prefix(self.best_flops, si_prefix),
-                    res,
+                    result_msg,
                     config,
                 )
 
@@ -174,7 +178,7 @@ class Tuner(object):
                 logger.debug("Early stopped. Best iter: %d.", self.best_iter)
                 break
 
-            if error_ct > 150:
+            if error_ct > self.error_ct_threshold:
                 logging.basicConfig()
                 logger.warning("Too many errors happen in the tuning. Switching to debug mode.")
                 logger.setLevel(logging.DEBUG)
@@ -214,3 +218,12 @@ class Tuner(object):
             will be done.
         """
         raise NotImplementedError()
+
+    def set_error_threshold(self, threshold):
+        """Modify error counter threshold, which controls switch to debug mode
+
+        Parameters
+        ----------
+        threshold: New threshold value
+        """
+        self.error_ct_threshold = threshold

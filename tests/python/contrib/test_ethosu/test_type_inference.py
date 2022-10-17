@@ -91,6 +91,32 @@ def test_ethosu_conv2d_invalid_dtypes(ifm_dtype, weight_dtype, scale_bias_dtype)
         run_opt_pass(func, relay.transform.InferType())
 
 
+def test_ethosu_conv2d_invalid_upscale_method():
+    invalid_upscale_method = "FOO"
+    ifm_channels = 55
+    ofm_channels = 122
+    kernel_shape = (3, 2)
+    padding = (0, 1, 2, 3)
+    strides = (1, 2)
+    dilation = (2, 1)
+    ifm = relay.var("ifm", shape=(1, 56, 72, 55), dtype="int8")
+    conv2d = make_ethosu_conv2d(
+        ifm,
+        ifm_channels,
+        ofm_channels,
+        kernel_shape,
+        padding,
+        strides,
+        dilation,
+        weight_dtype="int8",
+        scale_bias_dtype="uint8",
+        upscale=invalid_upscale_method,
+    )
+    func = relay.Function([ifm], conv2d)
+    with pytest.raises(TVMError):
+        run_opt_pass(func, relay.transform.InferType())
+
+
 @pytest.mark.parametrize(
     "ifm_shape, ifm_layout", [((1, 46, 71, 55), "NHWC"), ((1, 46, 4, 71, 16), "NHCWB16")]
 )
@@ -222,6 +248,23 @@ def test_ethosu_pooling_invalid_dtype():
         ofm_channels,
         strides,
         padding,
+    )
+    func = relay.Function([ifm], pooling)
+    with pytest.raises(TVMError):
+        run_opt_pass(func, relay.transform.InferType())
+
+
+def test_ethosu_pooling_invalid_upscale_method():
+    invalid_upscale_method = "FOO"
+    ifm = relay.var("ifm", shape=[1, 56, 72, 55], dtype="int8")
+    pooling = make_ethosu_pooling(
+        ifm,
+        "MAX",
+        (3, 2),
+        55,
+        (1, 2),
+        (0, 1, 2, 3),
+        upscale=invalid_upscale_method,
     )
     func = relay.Function([ifm], pooling)
     with pytest.raises(TVMError):

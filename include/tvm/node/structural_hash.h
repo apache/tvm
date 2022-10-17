@@ -25,6 +25,7 @@
 
 #include <tvm/node/functor.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/ndarray.h>
 
 #include <functional>
 #include <string>
@@ -197,6 +198,52 @@ class SHashReducer {
    *        by their in-memory address.
    */
   bool map_free_vars_;
+};
+
+/*! \brief The default handler for hash key computation
+ *
+ * Users can derive from this class and override the DispatchSHash method,
+ * to customize hashing.
+ */
+class SHashHandlerDefault : public SHashReducer::Handler {
+ public:
+  SHashHandlerDefault();
+  virtual ~SHashHandlerDefault();
+
+  void SHashReduceHashedValue(size_t hashed_value) override;
+  void SHashReduce(const ObjectRef& key, bool map_free_vars) override;
+  void SHashReduceFreeVar(const runtime::Object* var, bool map_free_vars) override;
+  bool LookupHashedValue(const ObjectRef& key, size_t* hashed_value) override;
+  void MarkGraphNode() override;
+
+  /*!
+   * \brief The entry point for hashing
+   * \param object The object to be hashed.
+   * \param map_free_vars Whether or not to remap variables if possible.
+   * \return The hash result.
+   */
+  virtual size_t Hash(const ObjectRef& object, bool map_free_vars);
+
+ protected:
+  /*!
+   * \brief The dispatcher for hashing of intermediate objects
+   * \param object An intermediate object to be hashed.
+   * \param map_free_vars Whether or not to remap variables if possible.
+   * \return The hash result.
+   */
+  virtual void DispatchSHash(const ObjectRef& object, bool map_free_vars);
+
+ private:
+  class Impl;
+  Impl* impl;
+};
+
+class SEqualReducer;
+struct NDArrayContainerTrait {
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+  static void SHashReduce(const runtime::NDArray::Container* key, SHashReducer hash_reduce);
+  static bool SEqualReduce(const runtime::NDArray::Container* lhs,
+                           const runtime::NDArray::Container* rhs, SEqualReducer equal);
 };
 
 }  // namespace tvm

@@ -21,6 +21,7 @@
 #include <cmath>
 #include <memory>
 #include <numeric>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -249,7 +250,23 @@ Pass SimplifyForFeatureExtraction() {
     static Stmt Run(Stmt stmt) { return Simplifier()(std::move(stmt)); }
 
    private:
-    PrimExpr VisitExpr_(const SelectNode* node) final { return make_const(node->dtype, 1.0); }
+    static bool HasBufferLoad(const PrimExpr& expr) {
+      bool found = false;
+      PostOrderVisit(expr, [&found](const ObjectRef& node) {
+        if (node->IsInstance<BufferLoadNode>()) {
+          found = true;
+        }
+      });
+      return found;
+    }
+
+    PrimExpr VisitExpr_(const SelectNode* node) final {
+      if (HasBufferLoad(node->true_value) || HasBufferLoad(node->false_value) ||
+          HasBufferLoad(node->condition)) {
+        return GetRef<Select>(node);
+      }
+      return make_const(node->dtype, 1.0);
+    }
 
     PrimExpr VisitExpr_(const VarNode* var) final {
       if (unit_vars_.count(GetRef<Var>(var))) {
@@ -284,6 +301,7 @@ Pass SimplifyForFeatureExtraction() {
  */
 Sequential PassListForPerStoreFeature() {
   return Sequential({
+      tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_ndarray_rewrite*/ true),
       tir::transform::SimplifyForFeatureExtraction(),
       tir::transform::LowerCrossThreadReduction(),
       tir::transform::LowerInitBlock(),
@@ -818,6 +836,7 @@ void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
       // while others are discarded
       int64_t numel;
       feature.access_shape = utils::RelaxAndUnion(feature.multi_indices, &numel, analyzer);
+      numel = std::max<int64_t>(0, numel);
       feature.loop_accessed_numel[i][buffer] = numel;
       touched_bytes += numel * buffer->dtype.bytes();
       (*buffer_touched_under_loop)[loop][buffer].push_back(numel);
@@ -867,7 +886,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::Analyzer* 
   // Calculate this->prod
   int64_t& prod = this->prod_non_strided_loop_extent = 1;
   for (int j = n_loops - 1; j > i; --j) {
-    if (const int64_t* extent = GetLoopIntExtent(loops[n_loops - 1])) {
+    if (const int64_t* extent = GetLoopIntExtent(loops[j])) {
       prod *= *extent;
     }
   }
@@ -876,7 +895,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::Analyzer* 
 void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_touch_bytes,
                                    const ForBufferMap<IntVec>& buffer_touched_under_loop) {
   const BufferNode* buffer = this->buffer;
-  // Step 0. Collect all `Var`s that appears in the buffer region
+  // Step 3.1. Collect all `Var`s that appears in the buffer region
   std::unordered_set<const VarNode*> region_vars;
   for (const MultiIndex& multi_index : this->multi_indices) {
     for (const PrimExpr& index : multi_index) {
@@ -958,7 +977,8 @@ void Feature::SubFeature::SetFeature(const LoopNest& loop_nest, int64_t cache_li
     this->lines = 1;
     this->unique_lines = 1;
   } else {
-    this->unique_bytes = this->loop_accessed_numel.front().at(buffer) * dtype_bytes;
+    this->unique_bytes =
+        static_cast<double>(this->loop_accessed_numel.front().at(buffer)) * dtype_bytes;
     this->lines = static_cast<double>(loop_nest.prod) / this->prod_non_strided_loop_extent *
                   std::min(1.0, 1.0 * this->min_stride * dtype_bytes / cache_line_bytes);
     this->lines = std::max(1.0, this->lines);
@@ -1022,6 +1042,17 @@ struct Feature {
   /*!
    * \brief See the wiki page [1] for details
    *
+   * Arithmetic intensity is FLOPs/unique bytes of memory touched. A value is computed
+   * for each set of loop nests starting with just the innermost loop and
+   * reaching to include all loops. There are a variable number of loops, so
+   * n_samples are taken from the curve of arithmetic intensity vs flops. This
+   * biases the values towards larger loops.
+   *
+   * Note that the denominator is unique bytes of memory touched. Repeated
+   * access to the same byte of memory counts as only a single byte touched.
+   *
+   * Values are scaled by log2(x + 1).
+   *
    * [1] https://en.wikipedia.org/wiki/Roofline_model
    */
   std::vector<double> arith_intensity_curve;
@@ -1040,7 +1071,7 @@ struct Feature {
     std::vector<double> memory_bytes;
     memory_bytes.resize(n_loops);
     for (int i = 0; i < n_loops; ++i) {
-      memory_bytes[n_loops - 1 - i] = std::log2(for_touched_bytes[i]);
+      memory_bytes[n_loops - 1 - i] = for_touched_bytes[i];
     }
     // Calculate `compute_ops` and `cur_compute_ops`
     std::vector<double> compute_ops;
@@ -1052,7 +1083,7 @@ struct Feature {
       if (const int64_t* extent = GetLoopIntExtent(loops[i])) {
         total_compute_ops *= *extent;
       }
-      compute_ops.push_back(std::log2(total_compute_ops));
+      compute_ops.push_back(total_compute_ops);
     }
     // Fill the feature set
     if (total_compute_ops <= 0 || compute_ops.empty()) {
@@ -1061,7 +1092,7 @@ struct Feature {
       }
       return;
     }
-    total_compute_ops = compute_ops.back();  // i.e. total_compute_ops = log2(total_compute_ops)
+    total_compute_ops = compute_ops.back();
     int p = 0;
     for (int i = 0; i < n_samples; ++i) {
       double& result = arith_intensity_curve[i];
@@ -1074,13 +1105,13 @@ struct Feature {
       }
       CHECK_LT(p, n_loops);
       if (p == 0) {
-        result = compute_ops[p] / memory_bytes[p];
+        result = slog(compute_ops[p] / memory_bytes[p]);
       } else {
         double base = compute_ops[p - 1] / memory_bytes[p - 1];
         double slope =
             (compute_ops[p] / memory_bytes[p] - compute_ops[p - 1] / memory_bytes[p - 1]) /
             (compute_ops[p] - compute_ops[p - 1]);
-        result = base + slope * (cur_compute_ops - compute_ops[p - 1]);
+        result = slog(base + slope * (cur_compute_ops - compute_ops[p - 1]));
       }
     }
   }
@@ -1152,6 +1183,64 @@ struct Feature {
 
 }  // namespace group5
 
+namespace group6 {
+
+/*! \brief The auxiliary feature extractor for workloads */
+class WorkloadEmbeddingExtractor : private StmtVisitor {
+ public:
+  static std::vector<double> Extract(const IRModule& mod) {
+    WorkloadEmbeddingExtractor self;
+    for (const auto& kv : mod->functions) {
+      if (const PrimFuncNode* func = kv.second.as<PrimFuncNode>()) {
+        self(func->body);
+      }
+    }
+    return self.embedding;
+  }
+
+ private:
+  void VisitStmt_(const BlockNode* block) final {
+    StmtVisitor::VisitStmt_(block);
+    std::string name = block->name_hint;
+    std::for_each(name.begin(), name.end(), [](char& c) { c = ::tolower(c); });
+    if (name.find("softmax") != std::string::npos) {
+      embedding[0] = 1.0;
+    } else if ((name.find("max") != std::string::npos) || (name.find("min") != std::string::npos)) {
+      embedding[1] = 1.0;
+    } else if (name.find("add") != std::string::npos) {
+      embedding[2] = 1.0;
+    } else if (name.find("batch_matmul") != std::string::npos) {
+      embedding[3] = 1.0;
+    } else if (name.find("matmul") != std::string::npos) {
+      embedding[4] = 1.0;
+    } else if (name.find("depthwiseconv2d") != std::string::npos) {
+      embedding[5] = 1.0;
+    } else if (name.find("conv2d_winograd") != std::string::npos) {
+      embedding[6] = 1.0;
+    } else if (name.find("conv2d") != std::string::npos) {
+      embedding[7] = 1.0;
+    }
+  }
+
+  std::vector<double> embedding = std::vector<double>(8, 0.0);
+};
+
+/*! \brief Group 6 feature */
+struct Feature {
+  explicit Feature(const IRModule& mod) {
+    this->feature = WorkloadEmbeddingExtractor::Extract(mod);
+  }
+
+  void Export(std::vector<double>* v) const {
+    v->insert(v->end(), std::begin(feature), std::end(feature));
+  }
+
+  std::vector<double> feature;  // The workload embedding
+  static constexpr int64_t kCount = 8;
+};
+
+}  // namespace group6
+
 /*! \brief The feature extracted */
 struct Feature {
   const BufferNode* buffer = nullptr;
@@ -1161,6 +1250,7 @@ struct Feature {
   std::unique_ptr<group3::Feature> group3 = nullptr;
   std::unique_ptr<group4::Feature> group4 = nullptr;
   std::unique_ptr<group5::Feature> group5 = nullptr;
+  std::shared_ptr<group6::Feature> group6 = nullptr;
 
   bool operator<(const Feature& other) const { return buffer_order < other.buffer_order; }
 };
@@ -1266,6 +1356,7 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
   int buffers_per_store;
   int arith_intensity_curve_num_samples;
   int cache_line_bytes;
+  bool extract_workload;
   int feature_vector_length;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -1291,7 +1382,6 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
       feature.group3->Export(&result);
       feature.group4->Export(&result, feature.group5->outer_prod);
       feature.group5->Export(&result);
-      ICHECK_EQ(static_cast<int>(result.size()), feature_vector_length);
     }
   }
 
@@ -1300,10 +1390,19 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
     bool is_gpu = tune_context->target.value()->kind->name == "cuda";
     std::vector<runtime::NDArray> results;
     results.resize(candidates.size());
-    auto f = [this, is_gpu, &candidates, &results](int, int task_id) -> void {
+    std::unique_ptr<tir::group6::Feature> feature_group6 = nullptr;
+    if (extract_workload) {
+      feature_group6 = std::make_unique<tir::group6::Feature>(tune_context->mod.value());
+    }
+    auto f = [this, is_gpu, &feature_group6, &candidates, &results](int, int task_id) -> void {
       const auto& candidate = candidates[task_id];
       std::vector<std::vector<double>> features;
-      ExtractSingle(candidate->sch->mod(), is_gpu, &features);
+      ExtractSingle(DeepCopyIRModule(candidate->sch->mod()), is_gpu, &features);
+      if (extract_workload) {
+        for (auto& feature : features) {
+          feature_group6->Export(&feature);
+        }
+      }
       results[task_id] = tir::utils::AsNDArray(features);
     };
     support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);
@@ -1316,16 +1415,20 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
 
 FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,
                                                    int arith_intensity_curve_num_samples,
-                                                   int cache_line_bytes) {
+                                                   int cache_line_bytes, bool extract_workload) {
   ObjectPtr<PerStoreFeatureNode> n = make_object<PerStoreFeatureNode>();
   n->buffers_per_store = buffers_per_store;
   n->arith_intensity_curve_num_samples = arith_intensity_curve_num_samples;
   n->cache_line_bytes = cache_line_bytes;
+  n->extract_workload = extract_workload;
   n->feature_vector_length = tir::group1::Feature::kCount +                                  //
                              tir::group2::Feature::SubFeature::kCount * buffers_per_store +  //
                              arith_intensity_curve_num_samples +                             //
                              tir::group4::Feature::kCount +                                  //
                              tir::group5::Feature::kCount;
+  if (extract_workload) {
+    n->feature_vector_length += tir::group6::Feature::kCount;
+  }
   return FeatureExtractor(n);
 }
 

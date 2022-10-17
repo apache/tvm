@@ -51,10 +51,10 @@ class MatchBufferLower : public StmtExprMutator {
     Stmt stmt = StmtExprMutator ::VisitStmt_(op);
     op = stmt.as<BlockNode>();
     ICHECK(op != nullptr);
-    Array<BufferRegion> reads = MutateArray(
-        op->reads, std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));
-    Array<BufferRegion> writes = MutateArray(
-        op->writes, std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));
+    Array<BufferRegion> reads =
+        op->reads.Map(std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));
+    Array<BufferRegion> writes = op->writes.Map(
+        std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));
 
     if (reads.same_as(op->reads) && writes.same_as(op->writes) && op->match_buffers.empty()) {
       return stmt;
@@ -177,7 +177,7 @@ class MatchBufferLower : public StmtExprMutator {
     Bind(buffer->data, source_buffer->data, buffer->name + ".data");
 
     // Step.2.2. Update element offset
-    // Note we create Load via vload and try to reuse index calculate.
+    // We use the ElemOffset method to avoid duplicating the index calculation.
     {
       Array<PrimExpr> indices;
       indices.reserve(source->region.size());
@@ -185,11 +185,18 @@ class MatchBufferLower : public StmtExprMutator {
         indices.push_back(range->min);
       }
 
-      Load load = Downcast<Load>(source_buffer.vload(indices, source_buffer->dtype));
-      Bind(buffer->elem_offset, load->index, buffer->name + ".elem_offset");
-      CHECK(analyzer_.CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
-          << "The source elem_offset " << load->index << " does not satisfy the offset_factor "
-          << buffer->offset_factor << ".";
+      Array<PrimExpr> buffer_start_indices = source_buffer->ElemOffset(indices);
+      if (buffer_start_indices.size() == 1) {
+        Bind(buffer->elem_offset, buffer_start_indices[0], buffer->name + ".elem_offset");
+        CHECK(analyzer_.CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
+            << "The source elem_offset " << buffer_start_indices[0]
+            << " does not satisfy the offset_factor " << buffer->offset_factor << ".";
+      } else {
+        // Non-zero elem_offset is ill-defined for non-flat memory.
+        // If needed in the future, will require `Array<PrimExpr>
+        // elem_offsets`, with one offset for each flattened index.
+        Bind(buffer->elem_offset, 0);
+      }
     }
 
     // Step 2.3. Check and update strides

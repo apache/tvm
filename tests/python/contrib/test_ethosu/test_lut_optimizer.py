@@ -27,10 +27,9 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay.backend.contrib.ethosu.codegen import LUTsOptimizer
-from tvm.relay.backend.contrib.ethosu.codegen import relay_to_tir_func
+from tvm.relay.backend.contrib.ethosu.codegen import relay_to_tir
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 
-from .test_codegen import _get_tflite_graph
 from . import infra
 
 
@@ -49,6 +48,7 @@ def test_merge_lut_into_conv():
         id2 = infra.make_ethosu_identity(conv2, lut=lut2, activation="SIGMOID")
 
         func = relay.Function(relay.analysis.free_vars(id2), id2)
+        func = func.with_attr("Compiler", "ethos-u")
         mod = tvm.IRModule.from_expr(func)
         return mod
 
@@ -61,6 +61,7 @@ def test_merge_lut_into_conv():
         )
 
         func = relay.Function(relay.analysis.free_vars(conv2), conv2)
+        func = func.with_attr("Compiler", "ethos-u")
         mod = tvm.IRModule.from_expr(func)
         mod = relay.transform.InferType()(mod)
         return mod
@@ -84,6 +85,7 @@ def test_multiple_luts():
         id2 = infra.make_ethosu_identity(id1, lut=lut2, activation="TANH")
 
         func = relay.Function(relay.analysis.free_vars(id2), id2)
+        func = func.with_attr("Compiler", "ethos-u")
         mod = tvm.IRModule.from_expr(func)
         return mod
 
@@ -94,6 +96,7 @@ def test_multiple_luts():
         id2 = infra.make_ethosu_identity(conv1, lut=lut2, activation="TANH")
 
         func = relay.Function(relay.analysis.free_vars(id2), id2)
+        func = func.with_attr("Compiler", "ethos-u")
         mod = tvm.IRModule.from_expr(func)
         mod = relay.transform.InferType()(mod)
         return mod
@@ -117,12 +120,12 @@ def test_lut_optimizer_runs_in_compilation_pipeline():
         op = tf.nn.depthwise_conv2d(op, weight2, (1, 1, 1, 1), "VALID")
         return tf.nn.tanh(op)
 
-    mod, _ = _get_tflite_graph(get_graph, [ifm_shape])
+    mod, _ = infra.get_tflite_graph(get_graph, [ifm_shape])
     mod = partition_for_ethosu(mod)
+    mod = relay_to_tir(mod)
 
     external_gv_name = mod["main"].body.op.name_hint
-    external_func = mod[external_gv_name]
-    prim_func = relay_to_tir_func(external_func)
+    prim_func = mod[external_gv_name]
 
     # Check for hints in the TIR prim func that the LUT optimization pass has ran.
     # If the module was optimized, there should be no identity operations.

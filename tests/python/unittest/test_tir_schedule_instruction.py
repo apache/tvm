@@ -19,6 +19,7 @@
 import sys
 
 import pytest
+import tvm.testing
 from tvm.tir.schedule import BlockRV, Instruction, InstructionKind, LoopRV
 
 
@@ -65,4 +66,4 @@ def test_inst_construct_2():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

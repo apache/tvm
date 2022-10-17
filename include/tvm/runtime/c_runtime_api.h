@@ -66,7 +66,7 @@
 #endif
 
 // TVM version
-#define TVM_VERSION "0.9.dev0"
+#define TVM_VERSION "0.11.dev0"
 
 // TVM Runtime is DLPack compatible.
 #include <dlpack/dlpack.h>
@@ -298,7 +298,7 @@ TVM_DLL int TVMCbArgToReturn(TVMValue* value, int* code);
  * \param type_codes The type codes of the arguments
  * \param num_args Number of arguments.
  * \param ret The return value handle.
- * \param resource_handle The handle additional resouce handle from fron-end.
+ * \param resource_handle The handle additional resouce handle from front-end.
  * \return 0 if success, -1 if failure happens, set error via TVMAPISetLastError.
  * \sa TVMCFuncSetReturn
  */
@@ -307,7 +307,7 @@ typedef int (*TVMPackedCFunc)(TVMValue* args, int* type_codes, int num_args, TVM
 
 /*!
  * \brief C callback to free the resource handle in C packed function.
- * \param resource_handle The handle additional resouce handle from fron-end.
+ * \param resource_handle The handle additional resouce handle from front-end.
  */
 typedef void (*TVMPackedCFuncFinalizer)(void* resource_handle);
 

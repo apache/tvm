@@ -24,6 +24,7 @@
 #ifndef TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
 #define TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
 
+#include <tvm/runtime/metadata.h>
 #include <tvm/runtime/packed_func.h>
 
 #include <string>
@@ -59,6 +60,8 @@ enum class StorageRank {
   kWMMAMatrixB = 5,
   /*! \brief wmma scope memory of accumulator */
   kWMMAAccumulator = 6,
+  /*! \brief global scope texture memory */
+  kTexture = 7,
 };
 
 /*!
@@ -108,6 +111,8 @@ struct StorageScope {
         return "wmma.matrix_b" + tag;
       case StorageRank::kWMMAAccumulator:
         return "wmma.accumulator" + tag;
+      case StorageRank::kTexture:
+        return "texture" + tag;
       default:
         LOG(FATAL) << "unknown storage scope";
         return "";
@@ -143,6 +148,9 @@ struct StorageScope {
     } else if (s.compare(0, 16, "wmma.accumulator") == 0) {
       r.rank = StorageRank::kWMMAAccumulator;
       r.tag = s.substr(16, std::string::npos);
+    } else if (s.compare(0, 7, "texture") == 0) {
+      r.rank = StorageRank::kTexture;
+      r.tag = s.substr(7, std::string::npos);
     } else {
       LOG(FATAL) << "unknown storage scope " << s;
     }
@@ -205,7 +213,7 @@ class LaunchParamConfig {
     std::vector<bool> filled(6, false);
     for (size_t i = 0; i < launch_param_tags.size(); ++i) {
       const std::string& tag = launch_param_tags[i];
-      if (tag == kUseDynamicSharedMemoryTag) {
+      if (tag == launch_param::kUseDynamicSharedMemoryTag) {
         ICHECK_EQ(i, launch_param_tags.size() - 1)
             << "kUseDynamicSharedMemoryTag should be the last tag in launch_param_tags.";
         use_dyn_shared_memory_ = true;
@@ -227,7 +235,7 @@ class LaunchParamConfig {
     ThreadWorkLoad w;
     std::fill(w.work_size, w.work_size + 6, 1);
     for (size_t i = 0; i < arg_index_map_.size(); ++i) {
-      // Dynamic shapes can result in 0 dim size. Guard to ensure that the dim size is atleast 1.
+      // Dynamic shapes can result in 0 dim size. Guard to ensure that the dim size is at least 1.
       size_t size = static_cast<size_t>(x.values[base_ + i].v_int64);
       if (size > 0) {
         w.work_size[arg_index_map_[i]] = size;

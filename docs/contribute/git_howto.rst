@@ -21,6 +21,10 @@
 Git Usage Tips
 ==============
 
+.. contents::
+  :depth: 2
+  :local:
+
 Here are some tips for git workflow.
 
 How to resolve a conflict with ``main``

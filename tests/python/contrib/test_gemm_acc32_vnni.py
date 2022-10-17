@@ -57,7 +57,9 @@ def test_fc_int8_acc32():
             (m, n),
             lambda i, j: te.sum(
                 X[i, ak].astype("int32")
-                * packedW[j / 16, (ak / 4) * 16 + j % 16, ak % 4].astype("int32"),
+                * packedW[
+                    tvm.tir.indexdiv(j, 16), tvm.tir.indexdiv(ak, 4) * 16 + j % 16, ak % 4
+                ].astype("int32"),
                 axis=ak,
             ),
             name="F",

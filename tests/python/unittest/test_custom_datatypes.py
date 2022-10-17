@@ -21,6 +21,7 @@ import numpy as np
 import pytest
 import tvm
 import tvm.topi.testing
+import tvm.testing
 from tvm import relay
 from tvm.relay.testing.layers import batch_norm_infer
 from tvm.target.datatype import (
@@ -512,7 +513,12 @@ def run_batchnorm(src_dtype, dst_dtype, rtol=1e-6, atol=1e-6):
 
 
 def test_myfloat():
-    setup_myfloat()
+    try:
+        setup_myfloat()
+    except tvm._ffi.base.TVMError as e:
+        if "float is already registered" not in str(e):
+            # Ignore this specific error which can happen if this test runs twice within the same process
+            raise e
     run_ops("float32", "custom[myfloat]32", rtol=1e-6, atol=1e-6)
     run_conv2d("float32", "custom[myfloat]32", rtol=1e-6, atol=1e-6)
     run_batchnorm("float32", "custom[myfloat]32", rtol=1e-6, atol=1e-6)
@@ -560,4 +566,4 @@ def test_posites2():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

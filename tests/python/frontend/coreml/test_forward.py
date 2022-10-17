@@ -14,32 +14,34 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""
+CoreML testcases
+====================
+This article is a test script to test CoreML operator with Relay.
+"""
+from os import path
+from enum import Enum
+import tempfile
 import numpy as np
 
-from coremltools.models.neural_network import NeuralNetworkBuilder
-from coremltools.models import datatypes
-
 import tvm
-from tvm import te
-from tvm.contrib import graph_executor
-from tvm import topi
 import tvm.topi.testing
-from tvm import relay
+import tvm.testing
+from tvm.contrib import graph_executor
 from tvm.topi.testing import conv2d_nchw_python
+from tvm import relay
+import model_zoo
 
 import coremltools as cm
-import model_zoo
-import tvm.testing
-import tempfile
-from os import path
-import tvm
-import tvm.relay as relay
-import tensorflow.keras as keras
+from coremltools.models.neural_network import NeuralNetworkBuilder
+from coremltools.models import datatypes
+from tensorflow import keras
 
 
 def get_tvm_output(
     func, x, params, target, device, out_shape=(1, 1000), input_name="image", dtype="float32"
 ):
+    """Generic function to execute and get tvm output"""
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(func, target, params=params)
     m = graph_executor.GraphModule(lib["default"](device))
@@ -82,9 +84,9 @@ def run_tvm_graph(
     if isinstance(input_data, list):
         shape_dict = {}
         dtype_dict = {}
-        for i, e in enumerate(input_name):
-            shape_dict[e] = input_data[i].shape
-            dtype_dict[e] = input_data[i].dtype
+        for i, inp in enumerate(input_name):
+            shape_dict[inp] = input_data[i].shape
+            dtype_dict[inp] = input_data[i].dtype
     else:
         shape_dict = {input_name: input_data.shape}
         dtype_dict = {input_name: input_data.dtype}
@@ -93,13 +95,11 @@ def run_tvm_graph(
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target, params=params)
 
-    from tvm.contrib import graph_executor
-
     m = graph_executor.GraphModule(lib["default"](device))
     # set inputs
     if isinstance(input_data, list):
-        for i, e in enumerate(input_name):
-            m.set_input(e, tvm.nd.array(input_data[i].astype(input_data[i].dtype)))
+        for i, inp in enumerate(input_name):
+            m.set_input(inp, tvm.nd.array(input_data[i].astype(input_data[i].dtype)))
     else:
         m.set_input(input_name, tvm.nd.array(input_data.astype(input_data.dtype)))
 
@@ -120,7 +120,8 @@ def run_tvm_graph(
         return tvm_output.numpy()
 
 
-def verify_AddLayerParams(input_dim, alpha=2):
+def verify_add_layer_params(input_dim, alpha=2):
+    """Verify add layer params"""
     dtype = "float32"
 
     a_np1 = np.random.uniform(size=input_dim).astype(dtype)
@@ -142,13 +143,14 @@ def verify_AddLayerParams(input_dim, alpha=2):
 
 
 @tvm.testing.uses_gpu
-def test_forward_AddLayerParams():
-    verify_AddLayerParams((1, 2, 2), 0)
-    verify_AddLayerParams((1, 2, 2), 1)
-    verify_AddLayerParams((1, 3, 3), 2)
+def test_forward_add_layer_params():
+    verify_add_layer_params((1, 2, 2), 0)
+    verify_add_layer_params((1, 2, 2), 1)
+    verify_add_layer_params((1, 3, 3), 2)
 
 
-def verify_MultiplyLayerParams(input_dim, alpha):
+def verify_multiply_layer_params(input_dim, alpha):
+    """Verify multiply layer params"""
     dtype = "float32"
 
     a_np1 = np.random.uniform(size=input_dim).astype(dtype)
@@ -174,13 +176,14 @@ def verify_MultiplyLayerParams(input_dim, alpha):
 
 
 @tvm.testing.uses_gpu
-def test_forward_MultiplyLayerParams():
-    verify_MultiplyLayerParams((1, 2, 2), 0)
-    verify_MultiplyLayerParams((1, 2, 2), 1)
-    verify_MultiplyLayerParams((1, 3, 3), 2)
+def test_forward_multiply_layer_params():
+    verify_multiply_layer_params((1, 2, 2), 0)
+    verify_multiply_layer_params((1, 2, 2), 1)
+    verify_multiply_layer_params((1, 3, 3), 2)
 
 
-def verify_ConcatLayerParams(input1_dim, input2_dim):
+def verify_concat_layer_params(input1_dim, input2_dim):
+    """Verify concat layer params"""
     dtype = "float32"
 
     a_np1 = np.random.uniform(size=input1_dim).astype(dtype)
@@ -188,7 +191,7 @@ def verify_ConcatLayerParams(input1_dim, input2_dim):
 
     b_np = np.concatenate((a_np1, a_np2), axis=1)
     inputs = [("input1", datatypes.Array(*input1_dim)), ("input2", datatypes.Array(*input2_dim))]
-    output = [("output", datatypes.Array(*b_np.shape))]
+    output = [("output", datatypes.Array(*b_np.shape))]  # pylint:disable=not-an-iterable
     builder = NeuralNetworkBuilder(inputs, output)
     builder.add_elementwise(
         name="Concate", input_names=["input1", "input2"], output_name="output", mode="CONCAT"
@@ -202,12 +205,12 @@ def verify_ConcatLayerParams(input1_dim, input2_dim):
 
 
 @tvm.testing.uses_gpu
-def test_forward_ConcatLayerParams():
-    verify_ConcatLayerParams((1, 1, 2, 2), (1, 2, 2, 2))
-    verify_ConcatLayerParams((1, 2, 4, 4), (1, 3, 4, 4))
+def test_forward_concat_layer_params():
+    verify_concat_layer_params((1, 1, 2, 2), (1, 2, 2, 2))
+    verify_concat_layer_params((1, 2, 4, 4), (1, 3, 4, 4))
 
 
-def verify_UpsampleLayerParams(input_dim, scale, mode):
+def _verify_upsample_layer_params(input_dim, scale, mode):
     dtype = "float32"
 
     a_np = np.full(input_dim, 1, dtype=dtype)
@@ -221,9 +224,9 @@ def verify_UpsampleLayerParams(input_dim, scale, mode):
 
     b_np = tvm.topi.testing.resize2d_python(a_np, (scale, scale), "NCHW", method, coord_trans)
 
-    input = [("input", datatypes.Array(*input_dim))]
+    input_data = [("input", datatypes.Array(*input_dim))]
     output = [("output", datatypes.Array(*b_np.shape))]
-    builder = NeuralNetworkBuilder(input, output)
+    builder = NeuralNetworkBuilder(input_data, output)
     builder.add_upsample(
         name="Upsample",
         scaling_factor_h=scale,
@@ -240,20 +243,21 @@ def verify_UpsampleLayerParams(input_dim, scale, mode):
 
 
 @tvm.testing.uses_gpu
-def test_forward_UpsampleLayerParams():
-    verify_UpsampleLayerParams((1, 16, 32, 32), 2, "NN")
-    verify_UpsampleLayerParams((1, 4, 6, 6), 3, "BILINEAR")
+def test_forward_upsample_layer_params():
+    """Upsample Layer Params"""
+    _verify_upsample_layer_params((1, 16, 32, 32), 2, "NN")
+    _verify_upsample_layer_params((1, 4, 6, 6), 3, "BILINEAR")
 
 
-def verify_l2_normalize(input_dim, eps):
+def _verify_l2_normalize(input_dim, eps):
     dtype = "float32"
 
     a_np = np.random.uniform(size=input_dim).astype(dtype)
     b_np = tvm.topi.testing.l2_normalize_python(a_np, eps, 1)
 
-    input = [("input", datatypes.Array(*input_dim))]
+    input_data = [("input", datatypes.Array(*input_dim))]
     output = [("output", datatypes.Array(*b_np.shape))]
-    builder = NeuralNetworkBuilder(input, output)
+    builder = NeuralNetworkBuilder(input_data, output)
     builder.add_l2_normalize(name="L2", epsilon=eps, input_name="input", output_name="output")
 
     model = cm.models.MLModel(builder.spec)
@@ -264,18 +268,18 @@ def verify_l2_normalize(input_dim, eps):
 
 @tvm.testing.uses_gpu
 def test_forward_l2_normalize():
-    verify_l2_normalize((1, 3, 20, 20), 0.001)
+    _verify_l2_normalize((1, 3, 20, 20), 0.001)
 
 
-def verify_lrn(input_dim, size, bias, alpha, beta):
+def _verify_lrn(input_dim, size, bias, alpha, beta):
     dtype = "float32"
     axis = 1
     a_np = np.random.uniform(size=input_dim).astype(dtype)
     b_np = tvm.topi.testing.lrn_python(a_np, size, axis, bias, alpha, beta)
 
-    input = [("input", datatypes.Array(*input_dim))]
+    input_data = [("input", datatypes.Array(*input_dim))]
     output = [("output", datatypes.Array(*b_np.shape))]
-    builder = NeuralNetworkBuilder(input, output)
+    builder = NeuralNetworkBuilder(input_data, output)
     builder.add_lrn(
         name="LRN",
         input_name="input",
@@ -294,10 +298,10 @@ def verify_lrn(input_dim, size, bias, alpha, beta):
 
 @tvm.testing.uses_gpu
 def test_forward_lrn():
-    verify_lrn((1, 3, 10, 20), 3, 1.0, 1.0, 0.5)
+    _verify_lrn((1, 3, 10, 20), 3, 1.0, 1.0, 0.5)
 
 
-def verify_average(input_dim1, input_dim2, axis=0):
+def _verify_average(input_dim1, input_dim2, axis=0):
     dtype = "float32"
 
     a_np1 = np.random.uniform(size=input_dim1).astype(dtype)
@@ -321,12 +325,12 @@ def verify_average(input_dim1, input_dim2, axis=0):
 
 @tvm.testing.uses_gpu
 def test_forward_average():
-    verify_average((1, 3, 20, 20), (1, 3, 20, 20))
-    verify_average((3, 20, 20), (1, 3, 20, 20))
-    verify_average((20, 20), (1, 3, 20, 20))
+    _verify_average((1, 3, 20, 20), (1, 3, 20, 20))
+    _verify_average((3, 20, 20), (1, 3, 20, 20))
+    _verify_average((20, 20), (1, 3, 20, 20))
 
 
-def verify_max(input_dim):
+def _verify_max(input_dim):
     dtype = "float32"
 
     a_np1 = np.random.uniform(size=input_dim).astype(dtype)
@@ -361,11 +365,11 @@ def verify_max(input_dim):
 
 @tvm.testing.uses_gpu
 def test_forward_max():
-    verify_max((1, 3, 20, 20))
-    verify_max((20, 20))
+    _verify_max((1, 3, 20, 20))
+    _verify_max((20, 20))
 
 
-def verify_min(input_dim):
+def _verify_min(input_dim):
     dtype = "float32"
 
     a_np1 = np.random.uniform(size=input_dim).astype(dtype)
@@ -400,11 +404,12 @@ def verify_min(input_dim):
 
 @tvm.testing.uses_gpu
 def test_forward_min():
-    verify_min((1, 3, 20, 20))
-    verify_min((20, 20))
+    _verify_min((1, 3, 20, 20))
+    _verify_min((20, 20))
 
 
 def verify_unary_sqrt(input_dim):
+    """Verify unary sqrt"""
     dtype = "float32"
 
     a_np = np.random.uniform(size=input_dim).astype(dtype)
@@ -422,6 +427,7 @@ def verify_unary_sqrt(input_dim):
 
 
 def verify_unary_rsqrt(input_dim, epsilon=0):
+    """Verify unary rsqrt"""
     dtype = "float32"
 
     a_np = np.random.uniform(size=input_dim).astype(dtype)
@@ -441,6 +447,7 @@ def verify_unary_rsqrt(input_dim, epsilon=0):
 
 
 def verify_unary_inverse(input_dim, epsilon=0):
+    """Verify unary inverse"""
     dtype = "float32"
 
     a_np = np.random.uniform(size=input_dim).astype(dtype)
@@ -460,6 +467,7 @@ def verify_unary_inverse(input_dim, epsilon=0):
 
 
 def verify_unary_power(input_dim, alpha):
+    """Verify unary power"""
     dtype = "float32"
 
     a_np = np.random.uniform(size=input_dim).astype(dtype)
@@ -479,6 +487,7 @@ def verify_unary_power(input_dim, alpha):
 
 
 def verify_unary_exp(input_dim):
+    """Verify unary exp"""
     dtype = "float32"
 
     a_np = np.random.uniform(size=input_dim).astype(dtype)
@@ -496,6 +505,7 @@ def verify_unary_exp(input_dim):
 
 
 def verify_unary_log(input_dim):
+    """Verify unary log"""
     dtype = "float32"
 
     a_np = np.random.uniform(size=input_dim).astype(dtype)
@@ -513,6 +523,7 @@ def verify_unary_log(input_dim):
 
 
 def verify_unary_abs(input_dim):
+    """Verify unary abs"""
     dtype = "float32"
 
     a_np = np.random.uniform(-100.0, 100.0, size=input_dim).astype(dtype)
@@ -530,6 +541,7 @@ def verify_unary_abs(input_dim):
 
 
 def verify_unary_threshold(input_dim, alpha):
+    """Verify unary threshold"""
     dtype = "float32"
 
     a_np = np.random.uniform(-100.0, 100.0, size=input_dim).astype(dtype)
@@ -550,6 +562,7 @@ def verify_unary_threshold(input_dim, alpha):
 
 @tvm.testing.uses_gpu
 def test_forward_unary():
+    """All unary"""
     verify_unary_sqrt((1, 3, 20, 20))
     verify_unary_rsqrt((1, 3, 20, 20))
     verify_unary_rsqrt((1, 3, 20, 20), epsilon=1e-6)
@@ -566,9 +579,10 @@ def test_forward_unary():
 
 @tvm.testing.uses_gpu
 def test_forward_reduce():
-    from enum import Enum
+    """Reduce"""
 
     class ReduceAxis(Enum):
+        # pylint: disable=invalid-name
         CHW = 0
         HW = 1
         C = 2
@@ -591,7 +605,7 @@ def test_forward_reduce():
         elif axis == ReduceAxis.W:
             np_axis = -1
 
-        if ref_func == np.argmax:
+        if ref_func is np.argmax:
             ref_val = np.expand_dims(ref_func(a_np, np_axis), np_axis).astype(dtype)
         else:
             ref_val = ref_func(a_np, np_axis, keepdims=True)
@@ -625,6 +639,7 @@ def test_forward_reduce():
 
 
 def verify_reshape(input_dim, target_shape, mode):
+    """Reshape"""
     dtype = "float32"
 
     a_np = np.random.uniform(-100.0, 100.0, size=input_dim).astype(dtype)
@@ -653,11 +668,11 @@ def test_forward_reshape():
         verify_reshape((1, 3, 20, 20), (1, 12, 10, 10), mode)
 
 
-def verify_split(input_dim, nOutputs):
+def _verify_split(input_dim, out_nums):
     dtype = "float32"
 
     a_np = np.random.uniform(-100.0, 100.0, size=input_dim).astype(dtype)
-    ref_val = np.split(a_np, nOutputs, axis=-3)
+    ref_val = np.split(a_np, out_nums, axis=-3)
 
     inputs = [("input", datatypes.Array(*input_dim))]
 
@@ -682,7 +697,8 @@ def verify_split(input_dim, nOutputs):
 
 
 def test_forward_split():
-    verify_split(
+    """Split"""
+    _verify_split(
         (
             1,
             4,
@@ -691,7 +707,7 @@ def test_forward_split():
         ),
         2,
     )
-    verify_split(
+    _verify_split(
         (
             1,
             3,
@@ -703,6 +719,7 @@ def test_forward_split():
 
 
 def verify_image_scaler(input_dim, blue_bias=0.0, green_bias=0.0, red_bias=0.0, image_scale=1.0):
+    """Verify image scaler"""
     dtype = "float32"
     a_np = np.random.uniform(size=input_dim).astype(dtype)
     # make sure it is valid image format CHW.
@@ -748,23 +765,24 @@ def test_forward_image_scaler():
     )
 
 
-def verify_convolution(input_dim, filter, padding):
+def verify_convolution(input_dim, filter_, padding):
+    """Verify convolution"""
     dtype = "float32"
-    N, C, H, W = input_dim
-    OC, _, KH, KW = filter
+    _, c, h, width = input_dim
+    out_c, _, kernel_h, kernel_w = filter_
     a_np = np.random.uniform(size=input_dim).astype(dtype)
-    w_np = np.random.uniform(size=(OC, C, KH, KW)).astype(dtype)
+    w_np = np.random.uniform(size=(out_c, c, kernel_h, kernel_w)).astype(dtype)
     w_np_cm = np.transpose(w_np, axes=(2, 3, 1, 0))
     b_np = conv2d_nchw_python(a_np, w_np, [1, 1], padding)
-    inputs = [("input1", datatypes.Array(C, H, W))]
-    output = [("output", datatypes.Array(*b_np.shape))]
+    inputs = [("input1", datatypes.Array(c, h, width))]
+    output = [("output", datatypes.Array(*b_np.shape))]  # pylint:disable=not-an-iterable
     builder = NeuralNetworkBuilder(inputs, output)
     builder.add_convolution(
         name="conv",
         kernel_channels=3,
-        output_channels=OC,
-        height=KH,
-        width=KW,
+        output_channels=out_c,
+        height=kernel_h,
+        width=kernel_w,
         stride_height=1,
         stride_width=1,
         border_mode=padding.lower(),
@@ -784,13 +802,12 @@ def verify_convolution(input_dim, filter, padding):
 
 @tvm.testing.uses_gpu
 def test_forward_convolution():
-    verify_convolution((1, 3, 224, 224), filter=(32, 3, 3, 3), padding="VALID")
-    verify_convolution((1, 3, 224, 224), filter=(32, 3, 3, 3), padding="SAME")
+    verify_convolution((1, 3, 224, 224), filter_=(32, 3, 3, 3), padding="VALID")
+    verify_convolution((1, 3, 224, 224), filter_=(32, 3, 3, 3), padding="SAME")
 
 
 def test_can_build_keras_to_coreml_to_relay():
-    """Test multiple conversion paths and importing from
-    a saved file."""
+    """Test multiple conversion paths and importing from a saved file."""
     model = keras.models.Sequential()
     model.add(
         keras.layers.Conv2D(
@@ -827,21 +844,4 @@ def test_can_build_keras_to_coreml_to_relay():
 
 
 if __name__ == "__main__":
-    test_forward_AddLayerParams()
-    test_forward_ConcatLayerParams()
-    test_forward_MultiplyLayerParams()
-    test_forward_UpsampleLayerParams()
-    test_forward_l2_normalize()
-    test_forward_lrn()
-    test_forward_average()
-    test_forward_max()
-    test_forward_min()
-    test_forward_unary()
-    test_forward_reduce()
-    test_forward_reshape()
-    test_forward_split()
-    test_mobilenet_checkonly()
-    test_resnet50_checkonly()
-    test_forward_image_scaler()
-    test_forward_convolution()
-    test_can_build_keras_to_coreml_to_relay()
+    tvm.testing.main()

@@ -20,7 +20,6 @@
 /*!
  * \file tvm/target/compilation_config.h
  * \brief A helper class to collect all the targets in canonical form necessary for compilation.
- * CAUTION: Preliminary, currently only used to support device planning, very likely to change.
  */
 
 #ifndef TVM_TARGET_COMPILATION_CONFIG_H_
@@ -28,44 +27,36 @@
 
 #include <tvm/target/virtual_device.h>
 
+#include <string>
+
 namespace tvm {
 
 /*!
  * \brief Gathers the \p Targets and distinguished \p VirtualDevices in canonical form needed to
- * compile a Relay module. Centralizes any setup and validation logic needed to transition
- * from configuration options conveyed implicitly (eg in \p PassContexts) or explicitly
- * (eg a a list of \p Targets) to the configuration.
+ * compile a Relay module for execution over possibly heterogeneous devices. Centralizes the
+ * validation and canonicalization logic needed to transition from targets supplied by the Python
+ * APIs to a single internal representation. Also holds a cache of canonical \p VirtualDevices
+ * so that structural equal virtual devices have pointer equal canonical virtual devices.
  *
- * CAUTION: This is subject to change as we rework compilation options in general. See
- * https://github.com/apache/tvm-rfcs/blob/main/rfcs/0028-command-line-registry-composition.md.
- * So far this class is only focussed on carrying just the configuration needed by PlanDevices,
- * and removing target-munging code duplication and inconsistencies between the three major build
- * flows for the VM (relay/backend/vm/compile.cc), Graph/AOT (relay/backend/build_module.cc) and
- * Interpreter (relay/backend/interpreter.cc). Over time we expect more global compiler
- * configuration (eg for executor and runtime config, for system memory pool configuration, etc)
- * to migrate into this class, and instances thereof to be attached to \p IRModules using a
- * well-known attribute.
+ * The construction of \p CompilationConfig is idempotent, in that given the same \p PassContext
+ * \p ctx and an arbitrary \p Array<Target> \p raw_targets:
+ *
+ * \code
+ *   CompilationConfig(ctxt, raw_targets)
+ *      is structurally equal to
+ *   CompilationConfig(ctxt, CompilationConfig(ctxt, raw_targets)->primitive_targets)
+ * \endcode
+ *
+ * TODO(mbs): This is subject to change as we rework compilation options in general. This class
+ * is probably better called a 'CompositeTarget', and may be better made a sub-class of Target or
+ * some other common-target-root class.
  */
 class CompilationConfigNode : public Object {
  public:
   /*!
-   * \brief The legacy targets map, mapping device type to the corresponding \p Target to use
-   * when compiling primitive functions. Does not include an entry for the host target, however
-   * each \p Target in this map will have it's \p host field set to the \p host_target.
-   *
-   * Currently we require at most one \p Target per \p DLDeviceType, though we want to get rid of
-   * that limitation.
-   *
-   * CAUTION: Since keys are \p Integers they are compared by object equality not integer
-   * value.
-   *
-   * TODO(mbs): Remove once codegen updated for new target conventions.
-   */
-  TargetMap legacy_target_map;
-
-  /*!
    * \brief The host target. Used for 'scalar' data and code (such as shapes and shape
    * functions) and residual Relay expressions and data (such as conditionals and ADTs).
+   * Each \p primitive_target below will have this exact target object as its 'host'.
    *
    * Note that it is possible for a \p Target used for primitive operations to be structurally
    * equal to the host \p Target (up to the \p host field.) However the \p Target objects will
@@ -74,16 +65,43 @@ class CompilationConfigNode : public Object {
   Target host_target;
 
   /*!
-   * \brief Vector of all available \p Targets for compiling primitive operators. May contain
-   * a \p Target for the same device type as for the \p host_target, however the \p host_target
-   * should be used for all host computations and data. Each \p Target will have \p host_target
-   * as its host.
+   * \brief Vector of all available \p Targets for partitioning or compiling primitive tensor
+   * operators (kernels). May contain a \p Target for the same device type as for the
+   * \p host_target, however the \p host_target should be used for all host computations and data.
+   * Each \p Target will have \p host_target as its 'host'.
+   *
+   * Primitive targets must be unique by their kind name. In this way the
+   * \p FindPrimitiveTargetForKind method will find the unique target for the given kind name.
+   * This method is used when transitioning from an external codegen "Compiler" attribute value
+   * to the external codegen target representing that compiler.
+   *
+   * It is possible to have multiple primitive targets for the same device type. However given
+   * primitive targets left and right where:
+   *  - left appears before right in the array
+   *  - left->GetTargetDeviceType() == right->GetTargetDeviceType()
+   * then:
+   *  - right.IsExternalCodegenFor(left) must be true
+   * In this way the \p FindPrimitiveTargetForDeviceOrFail method will find the 'most general'
+   * target for the requested device type. This method is used when transitioning from a device
+   * constraint to the target needed to compile for that device.
+   *
+   * In the homogeneous case primitive_targets will have just one entry, which will be pointer equal
+   * to optional_homogeneous_target.
+   *
+   * In the homogenous case where the 'host' is the same device as used for compiling kernels it
+   * is *not* the case that optional_homogenous_target == host_target. This is because all
+   * primitive always have their host field set to the host_target. Ie, it is valid to have:
+   * \code
+   *   host_target=Target("llvm")
+   *   optional_homogenous_target=Target("llvm", host=host_target)
+   * \endcode
    */
   Array<Target> primitive_targets;
 
   /*!
    * \brief \p VirtualDevice for primitive operators which are not otherwise constrained to a
-   * particular device.
+   * particular device. Used by the PlanDevices pass to determine a virtual device for every
+   * sub-expression.
    */
   VirtualDevice default_primitive_virtual_device = VirtualDevice::FullyUnconstrained();
 
@@ -94,25 +112,46 @@ class CompilationConfigNode : public Object {
    * \brief If defined then compile and/or run in 'homogenous execution mode'. In this mode all
    * primitives are compiled for this target only.
    *
-   * This is to support legacy passes which have not been adapted to hetrogeneous execution and
+   * This is to support legacy passes which have not been adapted to heterogeneous execution and
    * rely on an implicit global \p Target to be in scope.
    *
-   * TODO(mbs): Remove once all passes are 'hetrogeneous aware'.
+   * TODO(mbs): Remove once all passes are 'heterogeneous aware'.
    */
   Target optional_homogeneous_target;
 
   void VisitAttrs(AttrVisitor* v);
 
   /*!
-   * \brief Returns a \p VirtualDevice agreeing with \p virtual_device on all its constrained
-   * fields, however:
-   * - If the target is null then it is filled in from the known available primitive targets by
-   *   matching on device type. Fails if no such target is known.
-   * - The returned object is unique for the field values w.r.t. all other \p VirtualDevices
-   * returned by this method.
+   * \brief Returns the unique \p Target to use for \p device_type. Fail if no such target exists.
+   *
+   * This will be the first primitive target with matching device type.
+   */
+  Target FindPrimitiveTargetForDeviceOrFail(DLDeviceType device_type) const;
+
+  /*!
+   * \brief Returns the unique \p Target to use for \p kind_name. Returns null if none such.
+   */
+  Optional<Target> FindPrimitiveTargetForKind(const std::string& kind_name) const;
+
+  /*!
+   * \brief Returns a \p Target structurally equal to \p target, however prefer a structually equal
+   * known host or primitive target if the configuration has one.
+   */
+  Target CanonicalTarget(const Target& target) const;
+
+  /*!
+   * \brief Returns a \p VirtualDevice which is structurally equal to \p virtual_device on all its
+   * constrained fields, however:
+   * - If \p virtual_device has a device type but not a target, fill in a target using
+   *   \p FindPrimitiveTargetOrFail. This is the one place we allow targets to be defaulted
+   *   from device types alone.
+   * - If \p virtual_device has a target, also canonicalize it using \p CanonicalTarget.
+   * The returned object will be unique for the adjusted virtual device w.r.t. all other
+   * \p VirtualDevices returned by this method.
    *
    * We call the result the 'canonical' \p VirtualDevice. Two canonical \p VirtualDevices are
-   * structurally equal if and only if they are pointer equal.
+   * structurally equal if and only if they are pointer equal. In this way we can build maps
+   * from virtual devices using just pointer equality.
    */
   VirtualDevice CanonicalVirtualDevice(const VirtualDevice& virtual_device) const;
 
@@ -121,31 +160,20 @@ class CompilationConfigNode : public Object {
 
  private:
   /*!
-   * \brief Establishes the default \p VirtualDevice for primitives and the \p VirtualDevice for the
-   * host given:
-   *  - the vector of available primitive \p Targets.
-   *  - any host \p Target.
+   * \brief Sets the primitive targets, the host target, the default primitive virtual device, and
+   * the host virtual device given:
+   *  - the vector of 'raw' targets (in any order) supplied by one of the TVM entry points.
    *  - any "relay.fallback_device_type" attribute on \p pass_ctx.
    *  - whether the LLVM backend is available.
-   * If necessary, creates new default \p Targets to match the required devices.
-   *
-   * NOTE: The implementation is a bit convoluted since it tries to maintain backwards
-   * compatibility with legacy methods for conveying \p Targets.
-   *
-   * CAUTION: Recreated the primitive_targets so that they all have the given/constructed
-   * host_target as their host (cf CheckAndUpdateHostConsistency).
+   * Will look for a suitable host target in the given primitive targets, but if none found may
+   * reuse a raw target or create a default CPU target.
    */
-  void EstablishDefaultVirtualDevices(const transform::PassContext& pass_ctx);
+  void Init(const transform::PassContext& pass_ctx, const Array<Target>& raw_targets);
 
   /*!
-   * \brief Returns a freshly constructed \p Target to represent \p device_type.
+   * \brief Returns a freshly constructed CPU \p Target.
    */
-  static Target MakeDefaultTarget(DLDeviceType device_type);
-
-  /*!
-   * \brief Return the \p Target to use for \p device_type. Fail if no such target exists.
-   */
-  Target FindPrimitiveTargetOrFail(DLDeviceType device_type) const;
+  static Target MakeDefaultCPUTarget();
 
   /*!
    * \brief A cache of constructed virtual devices.
@@ -163,13 +191,11 @@ class CompilationConfigNode : public Object {
 class CompilationConfig : public ObjectRef {
  public:
   /*!
-   * \brief Constructs the compilation config given the available \p Targets in the
-   * \p legacy_target_map_arg and an optional \p optional_host_target_arg. May use
-   * 'relay.fallback_device_type' and the availability of the LLVM compilation module
-   * to decide on appropriate default devices.
+   * \brief Constructs the compilation config given the settings in \p pass_ctx and supplied
+   * \p raw_targets. See \p CompilationConfigNode::Init for details.
    */
-  TVM_DLL CompilationConfig(const transform::PassContext& pass_ctx, TargetMap legacy_target_map_arg,
-                            Target optional_host_target_arg);
+  TVM_DLL CompilationConfig(const transform::PassContext& pass_ctx,
+                            const Array<Target>& raw_targets);
 
   TVM_DEFINE_OBJECT_REF_METHODS(CompilationConfig, ObjectRef, CompilationConfigNode);
 };

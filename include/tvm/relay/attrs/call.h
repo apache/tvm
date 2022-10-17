@@ -35,7 +35,7 @@ namespace relay {
  * \brief Metadata for calls to TIR functions, useful for program analysis crossing Relay and TIR.
  */
 struct CallLoweredAttrs : public tvm::AttrsNode<CallLoweredAttrs> {
-  /*! \brief The metadata attached to the call node. */
+  /*! \brief Additional metadata attached to the call node. Should be replaced by explict fields. */
   Map<String, ObjectRef> metadata;
 
   TVM_DECLARE_ATTRS(CallLoweredAttrs, "relay.attrs.CallLoweredAttrs") {

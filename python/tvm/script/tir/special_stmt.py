@@ -25,13 +25,11 @@ from tvm.ir.expr import PrimExpr, Range
 
 import tvm.tir
 from tvm.runtime import Object, String
-from tvm import te
 from tvm.target import Target
 from tvm.ir import Span
-from tvm.tir import IntImm, IterVar
+from tvm.tir import IntImm, IterVar, Var
 
 from .node import BufferSlice
-from .utils import buffer_slice_to_region
 
 from ..context_maintainer import BlockInfo, ContextMaintainer
 from ..registry import register
@@ -101,7 +99,7 @@ class SpecialStmt:
 @register
 class MatchBuffer(SpecialStmt):
     """Special Stmt match_buffer(param, shape, dtype, data, strides, elem_offset, scope, align,
-                                 offset_factor, buffer_type)
+                                 offset_factor, buffer_type, axis_separators)
 
     Note
     ----
@@ -123,8 +121,8 @@ class MatchBuffer(SpecialStmt):
     def __init__(self):
         def match_buffer(
             param,
-            shape,
-            dtype="float32",
+            shape=None,
+            dtype=None,
             data=None,
             strides=None,
             elem_offset=None,
@@ -132,6 +130,7 @@ class MatchBuffer(SpecialStmt):
             align=-1,
             offset_factor=0,
             buffer_type="default",
+            axis_separators=None,
             span=None,
         ):
             if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
@@ -147,27 +146,64 @@ class MatchBuffer(SpecialStmt):
                 offset_factor, "offset_factor", self.context.report_error, self.node.span
             )
             buffer_name: str = self.node.lhs[0].id.name
-            buffer = tvm.tir.decl_buffer(
-                shape,
-                dtype,
-                buffer_name,
-                data,
-                strides,
-                elem_offset,
-                scope,
-                align,
-                offset_factor,
-                buffer_type,
-                span=span,
-            )
+
             if isinstance(param, tvm.tir.Var):
+                if shape is None:
+                    self.context.report_error(
+                        "Shape must be specified when binding input param",
+                        self.node.rhs.span,
+                    )
+
+                if dtype is None:
+                    dtype = "float32"
+
+                buffer = tvm.tir.decl_buffer(
+                    shape,
+                    dtype,
+                    buffer_name,
+                    data,
+                    strides,
+                    elem_offset,
+                    scope,
+                    align,
+                    offset_factor,
+                    buffer_type,
+                    axis_separators,
+                    span=span,
+                )
                 if param not in self.context.func_params:
                     self.context.report_error(
                         "Can not bind non-input param to buffer", self.node.rhs.params[0].span
                     )
                 self.context.func_buffer_map[param] = buffer
+
             elif isinstance(param, BufferSlice):
-                buffer_region = buffer_slice_to_region(param)
+                buffer_region = param.as_buffer_region()
+
+                if shape is None:
+                    shape = [dim.extent for dim in buffer_region.region]
+
+                if dtype is None:
+                    dtype = buffer_region.buffer.dtype
+
+                if elem_offset is None and offset_factor == 0:
+                    offset_factor = 1
+
+                buffer = tvm.tir.decl_buffer(
+                    shape,
+                    dtype,
+                    buffer_name,
+                    data,
+                    strides,
+                    elem_offset,
+                    scope,
+                    align,
+                    offset_factor,
+                    buffer_type,
+                    axis_separators,
+                    span=span,
+                )
+
                 self.context.current_block_scope().match_buffers.append(
                     tvm.tir.MatchBufferRegion(buffer, buffer_region)
                 )
@@ -185,7 +221,7 @@ class MatchBuffer(SpecialStmt):
 @register
 class BufferDeclare(SpecialStmt):
     """Special Stmt buffer_decl(shape, dtype, data, strides, elem_offset, scope, align,
-                                offset_factor, buffer_type)
+                                offset_factor, buffer_type, axis_separators)
     Example
     -------
     .. code-block:: python
@@ -203,6 +239,7 @@ class BufferDeclare(SpecialStmt):
             align=-1,
             offset_factor=0,
             buffer_type="default",
+            axis_separators=None,
             span=None,
         ):
             if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
@@ -229,6 +266,7 @@ class BufferDeclare(SpecialStmt):
                 align,
                 offset_factor,
                 buffer_type,
+                axis_separators,
                 span=span,
             )
             self.context.update_symbol(buffer_name, buffer, self.node)
@@ -240,7 +278,7 @@ class BufferDeclare(SpecialStmt):
 @register
 class AllocBuffer(SpecialStmt):
     """Special function alloc_buffer(shape, dtype, data, strides, elem_offset, scope, align,
-                                     offset_factor, buffer_type)
+                                     offset_factor, buffer_type, axis_separators)
 
     Example
     -------
@@ -260,6 +298,7 @@ class AllocBuffer(SpecialStmt):
             align=-1,
             offset_factor=0,
             buffer_type="default",
+            axis_separators=None,
             span=None,
         ):
             if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
@@ -287,6 +326,7 @@ class AllocBuffer(SpecialStmt):
                 align,
                 offset_factor,
                 buffer_type,
+                axis_separators,
                 span=span,
             )
             if self.context.current_block_scope():
@@ -486,7 +526,6 @@ class BlockAxis(SpecialStmt):
         if var_name in [iter_var.var.name for iter_var in block_scope.iter_vars]:
             self.context.report_error("Duplicate block axis " + var_name, self.node.span)
 
-        block_var = tvm.tir.Var(var_name, dtype="int32")
         dom = tvm.runtime.convert(dom)
         if isinstance(dom, PrimExpr):
             dom = tvm.ir.Range(dom)
@@ -497,6 +536,7 @@ class BlockAxis(SpecialStmt):
                 f"Block axis domain expected PrimExpr or Range, but got {type(dom)}",
                 self.node.span,
             )
+        block_var = tvm.tir.Var(var_name, dtype=dom.extent.dtype)
         value = tvm.runtime.convert(value)
         if not isinstance(value, PrimExpr):
             self.context.report_error(
@@ -800,7 +840,7 @@ class VarDef(SpecialStmt):
                 self.context.report_error(
                     f"VarDef expected assign to only one var, but got {names}", span
                 )
-            v = te.var(names[0], dtype, span=span)
+            v = Var(names[0], dtype, span=span)
             self.context.update_symbol(v.name, v, self.node)
 
         super().__init__(var, def_symbol=True)
@@ -821,7 +861,7 @@ class BufferVarDef(SpecialStmt):
                     f"VarDef expected assign to only one var, but got {names}", span
                 )
             ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
-            v = te.var(names[0], ptr_type, span=span)
+            v = Var(names[0], ptr_type, span=span)
             self.context.update_symbol(v.name, v, self.node)
 
         super().__init__(buffer_var, def_symbol=True)
@@ -841,7 +881,7 @@ class EnvThread(SpecialStmt):
                 self.context.report_error(
                     f"VarDef expected assign to only one var, but got {names}", span
                 )
-            v = te.var(names[0], span=span)
+            v = Var(names[0], dtype="int32", span=span)
             self.context.func_var_env_dict[v] = env_name
             self.context.update_symbol(v.name, v, self.node)
 
@@ -862,6 +902,79 @@ class FuncAttr(SpecialStmt):
             self.context.func_dict_attr = dict_attr
 
         super().__init__(func_attr, def_symbol=False)
+
+
+@register
+class PreflattenedBufferMap(SpecialStmt):
+    """Special Stmt for declaring the PrimFunc::preflattened_buffer_map
+
+    Example
+    -------
+    .. code-block:: python
+         A0 = T.match_buffer(A, (48,), dtype="float32")
+         T.preflattened_buffer_map(A, (1, 4, 4, 3), elem_offset=1, align=4, dtype="float32")
+    """
+
+    def __init__(self):
+        def preflattened_buffer(
+            postflattened,
+            shape,
+            dtype="float32",
+            data=None,
+            strides=None,
+            elem_offset=None,
+            scope="global",
+            align=-1,
+            offset_factor=0,
+            buffer_type="default",
+            span=None,
+        ):
+
+            param = None
+            for key, value in self.context.func_buffer_map.items():
+                if value.same_as(postflattened):
+                    param = key
+                    break
+
+            assert (
+                param is not None
+            ), f"Post-flatten buffer {postflattened.name} does not appear in the buffer map."
+
+            if data is None:
+                data = self.context.func_buffer_map[param].data
+
+            buffer_name: str = f"{postflattened.name}_preflatten"
+            if align != -1:
+                if isinstance(align, IntImm):
+                    align = align.value
+                else:
+                    assert isinstance(align, int), f"align: want int or IntImm, got {align!r}"
+
+            if offset_factor != 0:
+                if isinstance(offset_factor, IntImm):
+                    offset_factor = offset_factor.value
+                else:
+                    assert isinstance(
+                        offset_factor, int
+                    ), f"offset_factor: want int or IntImm, got {offset_factor!r}"
+
+            preflattened = tvm.tir.decl_buffer(
+                shape,
+                dtype,
+                buffer_name,
+                data,
+                strides,
+                elem_offset,
+                scope,
+                align,
+                offset_factor,
+                buffer_type,
+                span=span,
+            )
+
+            self.context.func_preflattened_buffer_map[param] = preflattened
+
+        super().__init__(preflattened_buffer, def_symbol=False)
 
 
 @register

@@ -177,24 +177,98 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 
  private:
   // find conflicting entry in vec.
-  bool FindConflict(const std::vector<AccessEntry>& vec, const AccessEntry& e, bool loop_carry) {
-    for (const AccessEntry& x : vec) {
-      if (x.buffer.same_as(e.buffer)) {
-        // Assumes no race between threads
-        // Same index value means no conflicts
-        // TODO(tqchen) more standard set based testing.
-        if (e.touched.IsSinglePoint() && x.touched.IsSinglePoint()) {
-          if (ExprDeepEqual()(e.touched.PointValue(), x.touched.PointValue())) continue;
-        }
-        if (x.double_buffer_write && e.type == kRead && !loop_carry) continue;
+  bool FindConflict(const std::vector<AccessEntry>& prev, const AccessEntry& curr,
+                    bool loop_carry) {
+    for (const AccessEntry& x : prev) {
+      if (FindConflict(x, curr, loop_carry)) {
         return true;
       }
     }
     return false;
   }
 
+  bool FindConflict(const AccessEntry& prev, const AccessEntry& curr, bool loop_carry) {
+    // Access to different buffers does not conflict.
+    if (!prev.buffer.same_as(curr.buffer)) {
+      return false;
+    }
+
+    // Assumes no race between threads
+    // Same index value means no conflicts
+    // TODO(tqchen) more standard set based testing.
+    bool has_same_index = true;
+    for (size_t i = 0; i < prev.touched.size(); i++) {
+      const auto& prev_intset = prev.touched[i];
+      const auto& curr_intset = curr.touched[i];
+
+      bool provably_same_index =
+          prev_intset.IsSinglePoint() && curr_intset.IsSinglePoint() &&
+          ExprDeepEqual()(prev_intset.PointValue(), curr_intset.PointValue());
+
+      if (!provably_same_index) {
+        has_same_index = false;
+        break;
+      }
+    }
+    if (has_same_index) {
+      return false;
+    }
+
+    // If this is a read into a double buffer that was previously
+    // swapped out, then it doesn't conflict.
+    if (prev.double_buffer_write && curr.type == kRead && !loop_carry) {
+      return false;
+    }
+
+    // If nothing else allows sharing the same buffer, then they are
+    // in conflict.
+    return true;
+  }
+
  private:
   // synchronization scope
+  StorageScope sync_scope_;
+};
+
+// There are cases where necessary syncthreads is not inserted by ThreadSyncInserter.
+// For example, syncthreads is needed after async_wait_queue in the second loop below,
+// but since ThreadSyncInserter is not aware of the asynchronous semantics, it cannot tell
+// that the syncthreads is needed there.
+//
+// // Pipeline prologue
+// for i in range(125):
+//    async_commit_queue(0):
+//       async_scope:
+//          shared[(i + 3) % 4] = ...
+// ...
+//
+// // Pipeline Epilogue
+// for i in range(3):
+//    async_wait_queue(0, 2 - i):
+//       local[...] = shared[(i + 125) % 4]
+
+// This class adds syncthreads after all async_wait_queue. That includes syncthreads that
+// can be inserted by ThreadSyncInserter as well, but ThreadSyncInserter will not insert
+// duplicate syncthreads if it finds an existing one at the synchronization point.
+class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
+ public:
+  explicit ThreadSyncAfterWaitQueueInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
+
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    if (op->attr_key == attr::async_wait_queue_scope) {
+      auto sync = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
+                                {StringImm(sync_scope_.to_string())}));
+      auto inner = op->body.as<AttrStmtNode>();
+      ICHECK(inner && inner->attr_key == tir::attr::async_wait_inflight_count);
+      auto zero = make_zero(DataType::Int(32));
+      auto new_body = SeqStmt({sync, inner->body});
+      return AttrStmt(zero, tir::attr::async_wait_queue_scope, op->value,
+                      AttrStmt(zero, tir::attr::async_wait_inflight_count, inner->value, new_body));
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
+ private:
   StorageScope sync_scope_;
 };
 
@@ -222,16 +296,25 @@ class ThreadSyncInserter : public StmtExprMutator {
     }
   }
   PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
+  }
+
+  Stmt VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     if (sync_scope_.rank == StorageRank::kGlobal &&
-        GetScope(op->buffer_var).rank == StorageRank::kGlobal) {
-      ++rw_stats_[op->buffer_var].read_count;
+        GetScope(op->buffer->data).rank == StorageRank::kGlobal) {
+      ++rw_stats_[op->buffer->data].read_count;
     }
     return StmtExprMutator::VisitExpr_(op);
   }
-  Stmt VisitStmt_(const StoreNode* op) final {
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
     if (sync_scope_.rank == StorageRank::kGlobal &&
-        GetScope(op->buffer_var).rank == StorageRank::kGlobal) {
-      ++rw_stats_[op->buffer_var].write_count;
+        GetScope(op->buffer->data).rank == StorageRank::kGlobal) {
+      ++rw_stats_[op->buffer->data].write_count;
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -343,6 +426,9 @@ class ThreadSyncInserter : public StmtExprMutator {
 
 Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
   StorageScope sync_scope = StorageScope::Create(storage_scope);
+  if (sync_scope.rank == StorageRank::kShared && sync_scope.tag == "") {
+    stmt = ThreadSyncAfterWaitQueueInserter(sync_scope)(stmt);
+  }
   ThreadSyncPlanner planner(sync_scope);
   planner(stmt);
   return ThreadSyncInserter(sync_scope, planner.syncs_inserted_)(std::move(stmt));

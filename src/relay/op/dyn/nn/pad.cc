@@ -77,7 +77,8 @@ Array<te::Tensor> PadCompute(const Attrs& attrs, const Array<te::Tensor>& inputs
   auto data = inputs[0];
   auto pad_width = inputs[1];
 
-  const PrimExpr& pad_value = inputs[2](Array<PrimExpr>());
+  te::Tensor cast_pad_value = topi::cast(inputs[2], inputs[0]->dtype);
+  const PrimExpr& pad_value = cast_pad_value(Array<PrimExpr>());
 
   Array<IndexExpr> pad_before;
   Array<IndexExpr> pad_after;

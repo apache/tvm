@@ -619,6 +619,26 @@ def test_add_op_scalar(target, dev):
         check_result(target, dev, [x_data, y_data], x_data + y_data, mod)
 
 
+def test_add_op_scalar_float16(target, dev):
+    """
+    test_add_op_scalar_float16:
+        fn (x, y) {
+            return x + y;
+        }
+    """
+    mod = tvm.IRModule()
+    x = relay.var("x", shape=(), dtype="float16")  # Default to float16
+    y = relay.var("y", shape=(), dtype="float16")  # Default to float16
+    func = relay.Function([x, y], relay.op.add(x, y))
+    x_y_data = [
+        (np.array(10.0, dtype="float16"), np.array(1.0, dtype="float16")),
+        (np.float16(10.0), np.float16(1.0)),
+    ]
+    for (x_data, y_data) in x_y_data:
+        mod["main"] = func
+        check_result(target, dev, [x_data, y_data], x_data + y_data, mod)
+
+
 def test_add_op_scalar_int(target, dev):
     """
     test_add_op_scalar_int:
@@ -826,16 +846,15 @@ def test_constant_shape_with_external_codegen():
     assert "shape_func" in opt_mod.astext(False)
 
 
-def test_vm_rpc():
+def prepare_vm_model(path, tensor_shape):
     """
-    This test checks to make sure you can export a VMExecutable,
-    upload it to a remote machine using RPC and then execute it
-    on the other machine.
+    Virtual Machine is compiled for simple topology and
+    exported as library to given path
     """
     target = tvm.target.Target("llvm --host=llvm")
 
     # Build a IRModule.
-    x = relay.var("x", shape=(10, 1))
+    x = relay.var("x", shape=tensor_shape)
     f = relay.Function([x], x + x)
     mod = IRModule.from_expr(f)
 
@@ -843,9 +862,22 @@ def test_vm_rpc():
     vm_exec = vm.compile(mod, target=target)
 
     # Export to Disk
+    vm_exec.mod.export_library(path)
+
+
+def test_vm_rpc():
+    """
+    This test checks to make sure you can export a VMExecutable,
+    upload it to a remote machine using RPC and then execute it
+    on the other machine.
+    """
+    # Shape for input and output tensors
+    shape = (10, 1)
+
+    # Export to Disk
     temp = utils.tempdir()
     path = temp.relpath("vm_library.so")
-    vm_exec.mod.export_library(path)
+    prepare_vm_model(path, shape)
 
     # Use local rpc server for testing.
     # Server must use popen so it doesn't inherit the current process state. It
@@ -861,7 +893,7 @@ def test_vm_rpc():
         device = remote.cpu()
         # Build a VM out of the executable and context.
         vm_factory = runtime.vm.VirtualMachine(rexec, device)
-        np_input = np.random.uniform(size=(10, 1)).astype("float32")
+        np_input = np.random.uniform(size=shape).astype("float32")
         input_tensor = tvm.nd.array(np_input, device)
         # Invoke its "main" function.
         out = vm_factory.invoke("main", input_tensor)
@@ -869,6 +901,72 @@ def test_vm_rpc():
         np.testing.assert_allclose(out.numpy(), np_input + np_input)
 
     check_remote(rpc.Server("127.0.0.1"))
+
+
+def test_vm_invoke_with_outputs_rpc():
+    """
+    This test checks to make sure you can export a VMExecutable,
+    upload it to a remote machine using RPC and then execute it
+    on the other machine with preallocated outputs.
+    """
+    # Shape for input and output tensors
+    shape = (3, 2)
+
+    # Export to Disk
+    temp = utils.tempdir()
+    path = temp.relpath("vm_library.so")
+    prepare_vm_model(path, shape)
+
+    # Use local rpc server for testing.
+    # Server must use popen so it doesn't inherit the current process state. It
+    # will crash otherwise.
+    def check_remote_invoke_with_outputs(server):
+        remote = rpc.connect(server.host, server.port, session_timeout=10)
+
+        # Upload the serialized Executable.
+        remote.upload(path)
+        # Get a handle to remote Executable.
+        rexec = remote.load_module("vm_library.so")
+
+        device = remote.cpu()
+        # Build a VM out of the executable and context.
+        vm_factory = runtime.vm.VirtualMachine(rexec, device)
+        np_input = np.random.uniform(size=shape).astype("float32")
+        input_tensor = tvm.nd.array(np_input, device)
+        np_output = np.empty(shape, dtype="float32")
+        output_tensor = tvm.nd.array(np_output, device)
+        # Invoke its "main" function.
+        vm_factory.invoke_with_outputs(
+            "main", input_args={"x": input_tensor}, output_args=[output_tensor]
+        )
+        # Check the result.
+        np.testing.assert_allclose(output_tensor.numpy(), np_input + np_input)
+
+    check_remote_invoke_with_outputs(rpc.Server("127.0.0.1"))
+
+
+def test_vm_invoke_with_outputs():
+    target = tvm.target.Target("llvm")
+    shape = (3, 2)
+
+    # Build a IRModule.
+    x = relay.var("x", shape=shape)
+    f = relay.Function([x], x + x)
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    np_input = np.random.uniform(size=shape).astype("float32")
+    input_tensor = tvm.nd.array(np_input)
+    np_output = np.empty(shape, dtype="float32")
+    output_tensor = tvm.nd.array(np_output)
+    # Invoke
+    vm_factory.invoke_with_outputs(
+        "main", input_args={"x": input_tensor}, output_args=[output_tensor]
+    )
+    # Check the result.
+    np.testing.assert_allclose(output_tensor.numpy(), np_input + np_input)
 
 
 def test_get_output_single():
@@ -921,6 +1019,155 @@ def test_get_input_index(target, dev):
     assert vm_factory.get_input_index(data_1) == 1
     assert vm_factory.get_input_index(data_0) == 0
     assert vm_factory.get_input_index("invalid") == -1
+
+
+def get_one_input_relay_mod(tensor_type, shape, data_name):
+    x = relay.var(data_name, shape=shape, dtype=tensor_type)
+    y = relay.exp(x)
+    f = relay.Function([x], y)
+    return IRModule.from_expr(f)
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_one_set_input(target, dev):
+    dtype = "float32"
+    in_shape = [1, 2, 3, 3]
+    in_data_name_0 = "d0"
+
+    mod = get_one_input_relay_mod(dtype, in_shape, in_data_name_0)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    exe = runtime.vm.VirtualMachine(vm_exec, dev)
+
+    data0_core = np.random.uniform(size=in_shape).astype(dtype)
+    data0 = tvm.nd.array(data0_core)
+    ref_res_core = np.exp(data0_core)
+    ref_res = tvm.nd.array(ref_res_core)
+
+    exe.set_input("main", data0)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    data_dict = {in_data_name_0: data0}
+    exe.set_input("main", **data_dict)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+
+def get_multiple_input_relay_mod(tensor_type, shape, data_name0, data_name1):
+    x, y = [relay.var(c, shape=shape, dtype=tensor_type) for c in [data_name0, data_name1]]
+    f = relay.Function([x, y], x + y)
+    return IRModule.from_expr(f)
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_multiple_set_input(target, dev):
+    dtype = "float32"
+    in_shape = [1, 2, 3, 3]
+    in_data_name_0 = "d0"
+    in_data_name_1 = "d1"
+
+    mod = get_multiple_input_relay_mod(dtype, in_shape, in_data_name_0, in_data_name_1)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    exe = runtime.vm.VirtualMachine(vm_exec, dev)
+
+    data0_core = np.random.uniform(size=in_shape).astype(dtype)
+    data0 = tvm.nd.array(data0_core)
+    data1_core = np.random.uniform(size=in_shape).astype(dtype)
+    data1 = tvm.nd.array(data1_core)
+    ref_res_core = data0_core + data1_core
+    ref_res = tvm.nd.array(ref_res_core)
+
+    exe.set_input("main", data0, data1)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    data_dict = {in_data_name_1: data1, in_data_name_0: data0}
+    exe.set_input("main", **data_dict)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_one_set_one_input(target, dev):
+    dtype = "float32"
+    in_shape = [1, 2, 3, 3]
+    in_data_name_0 = "d0"
+
+    mod = get_one_input_relay_mod(dtype, in_shape, in_data_name_0)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    exe = runtime.vm.VirtualMachine(vm_exec, dev)
+
+    data0_core = np.random.uniform(size=in_shape).astype(dtype)
+    data0 = tvm.nd.array(data0_core)
+    ref_res_core = np.exp(data0_core)
+    ref_res = tvm.nd.array(ref_res_core)
+
+    exe.set_one_input("main", 0, data0)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    exe.set_one_input("main", in_data_name_0, data0)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    data_dict = {in_data_name_0: data0}
+    exe.set_one_input("main", **data_dict)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_multiple_set_one_input(target, dev):
+    dtype = "float32"
+    in_shape = [1, 2, 3, 3]
+    in_data_name_0 = "d0"
+    in_data_name_1 = "d1"
+
+    mod = get_multiple_input_relay_mod(dtype, in_shape, in_data_name_0, in_data_name_1)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    exe = runtime.vm.VirtualMachine(vm_exec, dev)
+
+    data0_core = np.random.uniform(size=in_shape).astype(dtype)
+    data0 = tvm.nd.array(data0_core)
+    data1_core = np.random.uniform(size=in_shape).astype(dtype)
+    data1 = tvm.nd.array(data1_core)
+    ref_res_core = data0_core + data1_core
+    ref_res = tvm.nd.array(ref_res_core)
+
+    exe.set_one_input("main", 1, data1)
+    exe.set_one_input("main", 0, data0)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    exe.set_one_input("main", in_data_name_1, data1)
+    exe.set_one_input("main", in_data_name_0, data0)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    data_dict = {in_data_name_1: data1}
+    exe.set_one_input("main", **data_dict)
+    data_dict = {in_data_name_0: data0}
+    exe.set_one_input("main", **data_dict)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
 
 
 @tvm.testing.parametrize_targets("llvm")
@@ -1123,7 +1370,7 @@ def test_let_bound_constants():
     mod = IRModule.from_expr(f)
 
     compiler = VMCompiler()
-    compiler.optimize(mod, "llvm")
+    compiler.optimize(mod, target="llvm")
 
 
 def test_large_constants():
@@ -1174,7 +1421,147 @@ def test_large_constants():
     tvm.testing.assert_allclose(expected, actual.numpy())
 
 
-if __name__ == "__main__":
-    import sys
+def test_load_late_bound_consts_with_no_late_bound_consts():
+    """Check that load_late_bound_consts handles a model with no late bound consts."""
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
 
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    const_data = np.random.rand(1).astype("float64")
+    x = relay.var("x", shape=(1,), dtype="float64")
+    const = relay.const(const_data, dtype="float64")
+
+    func = relay.Function([x], relay.op.add(x, const))
+    mod = tvm.IRModule.from_expr(func)
+
+    vm_exec = vm.compile(mod, target=target)
+
+    temp = utils.tempdir()
+    path_consts = temp.relpath("consts")
+    path_dso = temp.relpath("lib.so")
+
+    # Ensure const_data is below the byte threshold for a late-bound const.
+    byte_limit = len(const_data.tobytes()) + 1
+    vm_exec.move_late_bound_consts(path_consts, byte_limit=byte_limit)
+    vm_exec.mod.export_library(path_dso)
+
+    mod = runtime.load_module(path_dso)
+    mod["load_late_bound_consts"](path_consts)
+
+    x_data = np.random.rand(1).astype("float64")
+    loaded_vm = runtime.vm.VirtualMachine(mod, dev)
+    actual = loaded_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
+
+
+def test_vm_save_and_load_without_designating_late_bound_consts():
+    """Check that a VM can be saved and loaded without late-bound consts in play.
+
+    Specifically, this test ensures that the machinery behind late-bound const
+    loading does not assume the need to load late-bound consts (and cause an error)
+    when the user did not choose to designate any consts as such.
+    """
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+
+    const_data = np.random.rand(1).astype("float64")
+    x = relay.var("x", shape=(1,), dtype="float64")
+    const = relay.const(const_data, dtype="float64")
+
+    func = relay.Function([x], relay.op.add(x, const))
+    mod = tvm.IRModule.from_expr(func)
+
+    vm_exec = vm.compile(mod, target=target)
+
+    code, lib = vm_exec.save()
+    exe = runtime.vm.Executable.load_exec(code, lib)
+
+    x_data = np.random.rand(1).astype("float64")
+    loaded_vm = runtime.vm.VirtualMachine(exe, dev)
+    actual = loaded_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
+
+
+def test_load_and_save_constants_via_map():
+    """Large constants can be serialized outside of executable"""
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+
+    # fn(x) { add(x, <large constant>) }
+    x = relay.var("x", shape=(1000, 1000))
+    const_data = np.random.rand(1000, 1000).astype("float32")
+    const = relay.const(const_data, dtype="float32")
+    func = relay.Function([x], relay.op.add(x, const))
+    mod = tvm.IRModule.from_expr(func)
+
+    # Compile to executable.
+    vm_exec = vm.compile(mod, target=target)
+
+    consts_map = vm_exec.get_late_bound_consts(byte_limit=256)
+
+    # Save to constants and library files
+    temp = utils.tempdir()
+    path_dso = temp.relpath("lib.so")
+    vm_exec.mod.export_library(path_dso)
+
+    # Load library files and constants
+    mod = runtime.load_module(path_dso)
+    mod["load_late_bound_consts_from_map"](consts_map)
+
+    # Test main
+    x_data = np.random.rand(1000, 1000).astype("float32")
+    the_vm = runtime.vm.VirtualMachine(mod, dev)
+    actual = the_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
+
+    # We load the mod again so it's missing the consts.
+    mod = runtime.load_module(path_dso)
+    exe = runtime.vm.Executable(mod)
+
+    # Also test loading consts via the VM's wrapper API.
+    exe.load_late_bound_consts_from_map(consts_map)
+
+    # Test main again with consts now loaded via the above API.
+    x_data = np.random.rand(1000, 1000).astype("float32")
+    the_vm = runtime.vm.VirtualMachine(exe, dev)
+    actual = the_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
+
+
+def test_load_late_bound_consts_via_map_with_no_late_bound_consts():
+    """Check that load_late_bound_consts handles a model with no late bound consts."""
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+
+    const_data = np.random.rand(1).astype("float64")
+    x = relay.var("x", shape=(1,), dtype="float64")
+    const = relay.const(const_data, dtype="float64")
+
+    func = relay.Function([x], relay.op.add(x, const))
+    mod = tvm.IRModule.from_expr(func)
+
+    vm_exec = vm.compile(mod, target=target)
+
+    temp = utils.tempdir()
+    path_dso = temp.relpath("lib.so")
+
+    # Ensure const_data is below the byte threshold for a late-bound const.
+    byte_limit = len(const_data.tobytes()) + 1
+    consts_map = vm_exec.get_late_bound_consts(byte_limit=byte_limit)
+    vm_exec.mod.export_library(path_dso)
+
+    mod = runtime.load_module(path_dso)
+    mod["load_late_bound_consts_from_map"](consts_map)
+
+    x_data = np.random.rand(1).astype("float64")
+    loaded_vm = runtime.vm.VirtualMachine(mod, dev)
+    actual = loaded_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

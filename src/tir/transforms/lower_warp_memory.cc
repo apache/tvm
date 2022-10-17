@@ -101,7 +101,7 @@ namespace tir {
 
 // Visitor to find m in pattern
 // store warp_mem[m * warp_index + (width * m) * y + x]
-class WarpStoreCoeffFinder : private StmtVisitor {
+class WarpStoreCoeffFinder : private StmtExprVisitor {
  public:
   WarpStoreCoeffFinder(const VarNode* buffer, Var warp_index, arith::Analyzer* analyzer)
       : buffer_(buffer), warp_index_(warp_index), analyzer_(analyzer) {}
@@ -113,20 +113,44 @@ class WarpStoreCoeffFinder : private StmtVisitor {
 
  private:
   /// Visitor implementation
-  void VisitStmt_(const StoreNode* op) final {
-    if (op->buffer_var.get() == buffer_) {
-      if (op->value.dtype().lanes() == 1) {
-        UpdatePattern(op->index);
-      } else {
-        arith::PVar<PrimExpr> base;
-        ICHECK(arith::ramp(base, 1, op->value.dtype().lanes()).Match(op->index))
-            << "LowerWarpMemory failed due to store index=" << op->index
-            << ", can only handle continuous store";
-        UpdatePattern(base.Eval());
-      }
-    } else {
-      StmtVisitor::VisitStmt_(op);
+  void VisitExpr_(const CallNode* op) final {
+    if (op->op.same_as(builtin::ptx_ldmatrix()) && op->args[3].as<VarNode>() == buffer_) {
+      UpdatePattern(op->args[4]);
+    } else if (op->op.same_as(builtin::mma_fill()) && op->args[1].as<VarNode>() == buffer_) {
+      auto* local_size = op->args[0].as<IntImmNode>();
+      ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
+      warp_coeff_ = local_size->value;
     }
+
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+  }
+
+  void VisitStmt_(const BufferStoreNode* op) final {
+    if (op->buffer->data.get() != buffer_) {
+      StmtVisitor::VisitStmt_(op);
+      return;
+    }
+
+    ICHECK_EQ(op->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
+                                     << "Has StorageFlatten (TE-based schedule) or "
+                                     << "FlattenBuffer (TIR-based schedules) been run?";
+
+    PrimExpr index = op->indices[0];
+    if (op->value.dtype().lanes() != 1) {
+      arith::PVar<PrimExpr> base;
+      ICHECK(arith::ramp(base, 1, op->value.dtype().lanes()).Match(index))
+          << "LowerWarpMemory failed due to store index=" << index
+          << ", can only handle continuous store";
+      UpdatePattern(base.Eval());
+
+      index = base.Eval();
+    }
+
+    UpdatePattern(index);
   }
 
   void UpdatePattern(const PrimExpr& index) {
@@ -215,7 +239,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
   // warp memory to local memory.
   Stmt Rewrite(const AllocateNode* op) {
     buffer_ = op->buffer_var.get();
-    int alloc_size = op->constant_allocation_size();
+    int alloc_size = op->ConstantAllocationSize();
     ICHECK_GT(alloc_size, 0) << "warp memory only support constant alloc size";
     alloc_size *= op->dtype.lanes();
     std::tie(warp_index_, width_) = WarpIndexFinder(warp_size_).Find(op->body);
@@ -233,41 +257,98 @@ class WarpAccessRewriter : protected StmtExprMutator {
   }
 
  protected:
+  PrimExpr RewriteIndicesAt(const CallNode* op, const std::vector<int>& indices) {
+    Array<PrimExpr> new_args = op->args;
+    for (int i : indices) {
+      if (op->args[i].get() == buffer_) {
+        PrimExpr local_index = SplitIndexByGroup(op->args[i + 1]).first;
+        new_args.Set(i + 1, local_index);
+      }
+    }
+    return Call(op->dtype, op->op, new_args);
+  }
+
+  PrimExpr VisitExpr_(const CallNode* op) override {
+    if (op->op.same_as(builtin::ptx_mma())) {
+      return RewriteIndicesAt(op, {6, 8, 10});
+    }
+
+    if (op->op.same_as(builtin::ptx_ldmatrix())) {
+      return RewriteIndicesAt(op, {3});
+    }
+
+    if (op->op.same_as(builtin::mma_store())) {
+      return RewriteIndicesAt(op, {3});
+    }
+
+    if (op->op.same_as(builtin::mma_fill())) {
+      return RewriteIndicesAt(op, {1});
+    }
+
+    return StmtExprMutator::VisitExpr_(op);
+  }
+
   PrimExpr VisitExpr_(const VarNode* op) override {
     ICHECK(op != buffer_) << "Cannot access address of warp memory directly";
     return StmtExprMutator::VisitExpr_(op);
   }
 
   Stmt VisitStmt_(const StoreNode* op) override {
-    if (op->buffer_var.get() == buffer_) {
-      PrimExpr local_index, group;
-      std::tie(local_index, group) = SplitIndexByGroup(op->index);
-      PrimExpr new_value = VisitExpr(op->value);
-      return Store(op->buffer_var, new_value, local_index, op->predicate);
-    } else {
-      return StmtExprMutator::VisitStmt_(op);
-    }
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
   }
 
   PrimExpr VisitExpr_(const LoadNode* op) override {
-    if (op->buffer_var.get() == buffer_) {
-      PrimExpr local_index, group;
-      std::tie(local_index, group) = SplitIndexByGroup(op->index);
-      // invariance: local index must do not contain warp id
-      ICHECK(!UsesVar(local_index, [this](const VarNode* var) { return var == warp_index_.get(); }))
-          << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->index
-          << " local_index=" << local_index;
-      PrimExpr load_value = Load(op->dtype, op->buffer_var, local_index, op->predicate);
-      if (analyzer_->CanProveEqual(group, warp_index_)) {
-        return load_value;
-      }
-      PrimExpr mask = Call(DataType::UInt(32), builtin::tvm_warp_activemask(), {});
-      return Call(load_value.dtype(), builtin::tvm_warp_shuffle(),
-                  {mask, load_value, group, width_, warp_size_});
-    } else {
-      return StmtExprMutator::VisitExpr_(op);
-    }
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) override {
+    auto store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+
+    if (store->buffer->data.get() == buffer_) {
+      ICHECK_EQ(store->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
+                                          << "Has StorageFlatten (TE-based schedule) or "
+                                          << "FlattenBuffer (TIR-based schedules) been run?";
+
+      auto [local_index, group] = SplitIndexByGroup(store->indices[0]);
+      (void)group;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
+
+      auto writer = store.CopyOnWrite();
+      writer->indices = {local_index};
+    }
+
+    return std::move(store);
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) override {
+    auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+
+    if (load->buffer->data.get() != buffer_) {
+      return std::move(load);
+    }
+
+    ICHECK_EQ(op->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
+                                     << "Has StorageFlatten (TE-based schedule) or "
+                                     << "FlattenBuffer (TIR-based schedules) been run?";
+
+    auto [local_index, group] = SplitIndexByGroup(op->indices[0]);
+    // invariance: local index must do not contain warp id
+    ICHECK(!UsesVar(local_index, [this](const VarNode* var) { return var == warp_index_.get(); }))
+        << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->indices[0]
+        << " local_index=" << local_index;
+
+    auto writer = load.CopyOnWrite();
+    writer->indices = {local_index};
+
+    if (analyzer_->CanProveEqual(group, warp_index_)) {
+      return std::move(load);
+    }
+
+    PrimExpr mask = Call(DataType::UInt(32), builtin::tvm_warp_activemask(), {});
+    return Call(load.dtype(), builtin::tvm_warp_shuffle(), {mask, load, group, width_, warp_size_});
+  }
+
   // Split the index to the two component
   // <local_index, source_index>
   // local index is the index in the local
@@ -275,12 +356,10 @@ class WarpAccessRewriter : protected StmtExprMutator {
   // in this access pattern.
   std::pair<PrimExpr, PrimExpr> SplitIndexByGroup(const PrimExpr& index) {
     if (index.dtype().lanes() != 1) {
-      PrimExpr local_index, group;
-
       arith::PVar<PrimExpr> base;
       ICHECK(arith::ramp(base, 1, index.dtype().lanes()).Match(index));
 
-      std::tie(local_index, group) = SplitIndexByGroup(base.Eval());
+      auto [local_index, group] = SplitIndexByGroup(base.Eval());
       local_index = Ramp(local_index, make_const(local_index.dtype(), 1), index.dtype().lanes());
       return std::make_pair(local_index, group);
     }
@@ -390,7 +469,7 @@ Pass LowerWarpMemory() {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target.defined()) << "LowerWarpMemory: Require the target attribute";
-    int warp_size = target.value()->GetAttr<Integer>("thread_warp_size", 1).value();
+    int warp_size = target.value()->GetAttr<Integer>("thread_warp_size", 1).value().IntValue();
     WarpMemoryRewriter warp_memory_rewriter(warp_size);
     auto stmt = warp_memory_rewriter.Rewrite(std::move(n->body));
     n->body = UpdatePointerStorageScope(warp_memory_rewriter.new_storage_scopes_)(stmt);

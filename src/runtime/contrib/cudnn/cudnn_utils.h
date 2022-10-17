@@ -71,6 +71,8 @@ struct ConvEntry {
   cudnnTensorFormat_t tensor_format;
   cudnnTensorDescriptor_t input_desc;
   cudnnFilterDescriptor_t filter_desc;
+  cudnnTensorDescriptor_t bias_desc;
+  cudnnActivationDescriptor_t activation_desc;
   cudnnTensorDescriptor_t output_desc;
   cudnnConvolutionFwdAlgo_t fwd_algo;
   cudnnConvolutionBwdDataAlgo_t bwd_data_algo;

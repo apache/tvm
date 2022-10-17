@@ -56,6 +56,76 @@ class TVMArgValue;
 class TVMMovableArgValueWithContext_;
 class TVMRetValue;
 class TVMArgsSetter;
+template <typename FType>
+class TypedPackedFunc;
+template <typename TSignature>
+struct SignaturePrinter;
+
+/*!
+ * \brief Object container class that backs PackedFunc.
+ * \note Do not use this function directly, use PackedFunc.
+ */
+class PackedFuncObj : public Object {
+ public:
+  /*!
+   * \brief Call the function in packed format.
+   * \param args The arguments
+   * \param rv The return value.
+   */
+  TVM_ALWAYS_INLINE void CallPacked(TVMArgs args, TVMRetValue* rv) const;
+
+  static constexpr const uint32_t _type_index = TypeIndex::kRuntimePackedFunc;
+  static constexpr const char* _type_key = "runtime.PackedFunc";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PackedFuncObj, Object);
+
+ protected:
+  /*!
+   * \brief Internal struct for extracting the callable method from callable type.
+   */
+  template <class TPackedFuncSubObj>
+  struct Extractor {
+    /*!
+     * \brief Extracting the callable method from callable type.
+     * \param obj The base packed function object class.
+     * \param args The arguments
+     * \param rv The return value.
+     */
+    static void Call(const PackedFuncObj* obj, TVMArgs args, TVMRetValue* rv);
+  };
+
+  /*! \brief The internal callable function type. */
+  using FCallPacked = void(const PackedFuncObj*, TVMArgs, TVMRetValue*);
+
+  /*!
+   * \brief Constructing a packed function object from a function pointer.
+   * \param f_call_pack The function pointer used to call the packed function.
+   */
+  explicit PackedFuncObj(FCallPacked* f_call_pack) : f_call_packed_(f_call_pack) {}
+
+  /*! \brief Delete the default constructor explicitly. */
+  PackedFuncObj() = delete;
+
+  /*! \brief Internal callable function pointer used to call the packed function. */
+  FCallPacked* f_call_packed_;
+};
+
+/*! \brief Derived object class for constructing PackedFuncObj. */
+template <class TCallable>
+class PackedFuncSubObj : public PackedFuncObj {
+  using TStorage = typename std::remove_cv<typename std::remove_reference<TCallable>::type>::type;
+
+ public:
+  /*! \brief The type of derived object class */
+  using TSelf = PackedFuncSubObj<TCallable>;
+  /*!
+   * \brief Derived object class for constructing PackedFuncObj.
+   * \param callable The type-erased callable object.
+   */
+  explicit PackedFuncSubObj(TCallable callable)
+      : PackedFuncObj(Extractor<TSelf>::Call), callable_(callable) {}
+  /*! \brief Type-erased filed for storing callable object*/
+  mutable TStorage callable_;
+};
 
 /*!
  * \brief Packed function is a type-erased function.
@@ -65,36 +135,23 @@ class TVMArgsSetter;
  *  It is the unified function function type of TVM.
  *  It corresponds to TVMFunctionHandle in C runtime API.
  */
-class PackedFunc {
+class PackedFunc : public ObjectRef {
  public:
+  /*! \brief Constructor from null */
+  PackedFunc(std::nullptr_t null) : ObjectRef(nullptr) {}  // NOLINT(*)
   /*!
-   * \brief The internal std::function
-   * \param args The arguments to the function.
-   * \param rv The return value.
-   *
-   * \code
-   *   // Example code on how to implemented FType
-   *   void MyPackedFunc(TVMArgs args, TVMRetValue* rv) {
-   *     // automatically convert arguments to desired type.
-   *     int a0 = args[0];
-   *     float a1 = args[1];
-   *     ...
-   *     // automatically assign values to rv
-   *     std::string my_return_value = "x";
-   *     *rv = my_return_value;
-   *   }
-   * \endcode
+   * \brief Constructing a packed function from a callable type
+   *        whose signature is consistent with `PackedFunc`
+   * \param data the internal container of packed function.
    */
-  using FType = std::function<void(TVMArgs args, TVMRetValue* rv)>;
-  /*! \brief default constructor */
-  PackedFunc() {}
-  /*! \brief constructor from null */
-  PackedFunc(std::nullptr_t null) {}  // NOLINT(*)
-  /*!
-   * \brief constructing a packed function from a std::function.
-   * \param body the internal container of packed function.
-   */
-  explicit PackedFunc(FType body) : body_(body) {}
+  template <typename TCallable,
+            typename = std::enable_if_t<
+                std::is_convertible<TCallable, std::function<void(TVMArgs, TVMRetValue*)>>::value &&
+                !std::is_base_of<TCallable, PackedFunc>::value>>
+  explicit PackedFunc(TCallable data) {
+    using ObjType = PackedFuncSubObj<TCallable>;
+    data_ = make_object<ObjType>(std::forward<TCallable>(data));
+  }
   /*!
    * \brief Call packed function by directly passing in unpacked format.
    * \param args Arguments to be passed.
@@ -116,18 +173,17 @@ class PackedFunc {
    * \param args The arguments
    * \param rv The return value.
    */
-  inline void CallPacked(TVMArgs args, TVMRetValue* rv) const;
-  /*! \return the internal body function */
-  inline FType body() const;
+  TVM_ALWAYS_INLINE void CallPacked(TVMArgs args, TVMRetValue* rv) const;
   /*! \return Whether the packed function is nullptr */
-  bool operator==(std::nullptr_t null) const { return body_ == nullptr; }
+  bool operator==(std::nullptr_t null) const { return data_ == nullptr; }
   /*! \return Whether the packed function is not nullptr */
-  bool operator!=(std::nullptr_t null) const { return body_ != nullptr; }
+  bool operator!=(std::nullptr_t null) const { return data_ != nullptr; }
 
- private:
-  /*! \brief internal container of packed function */
-  FType body_;
+  TVM_DEFINE_OBJECT_REF_METHODS(PackedFunc, ObjectRef, PackedFuncObj);
 };
+
+/*! \brief Using static function to output TypedPackedFunc signature */
+using FSig = std::string();
 
 /*!
  * \brief Please refer to \ref TypedPackedFuncAnchor "TypedPackedFunc<R(Args..)>"
@@ -540,6 +596,13 @@ class TVMPODValue_ {
     TVM_CHECK_TYPE_CODE(type_code_, kTVMModuleHandle);
     return Module(ObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
   }
+  operator PackedFunc() const {
+    if (type_code_ == kTVMNullptr) {
+      return PackedFunc(ObjectPtr<Object>(nullptr));
+    }
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMPackedFuncHandle);
+    return PackedFunc(ObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
+  }
   operator Device() const {
     TVM_CHECK_TYPE_CODE(type_code_, kDLDevice);
     return value_.v_device;
@@ -601,6 +664,7 @@ class TVMArgValue : public TVMPODValue_ {
   using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator Device;
   using TVMPODValue_::operator Module;
+  using TVMPODValue_::operator PackedFunc;
   using TVMPODValue_::AsObjectRef;
   using TVMPODValue_::IsObjectRef;
 
@@ -619,11 +683,6 @@ class TVMArgValue : public TVMPODValue_ {
           << " to a string.";
       return AsObjectRef<tvm::runtime::String>().operator std::string();
     }
-  }
-  operator PackedFunc() const {
-    if (type_code_ == kTVMNullptr) return PackedFunc();
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMPackedFuncHandle);
-    return *ptr<PackedFunc>();
   }
   template <typename FType>
   operator TypedPackedFunc<FType>() const {
@@ -661,9 +720,9 @@ class TVMMovableArgValue_ : public TVMPODValue_ {
   using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator Device;
   using TVMPODValue_::operator Module;
+  using TVMPODValue_::operator PackedFunc;
   // reuse conversion rule from ArgValue.
   operator std::string() const { return AsArgValue().operator std::string(); }
-  operator PackedFunc() const { return AsArgValue().operator PackedFunc(); }
   template <typename FType>
   operator TypedPackedFunc<FType>() const {
     return TypedPackedFunc<FType>(operator PackedFunc());
@@ -699,12 +758,16 @@ class TVMMovableArgValueWithContext_ {
    * \param value The other return value.
    * \param type_code The code associated with the type of the value.
    * \param arg_index In a function call, this argument is at index arg_index (0-indexed).
-   * \param optional_name Name of the function being called. Can be nullptr if the function is not
+   * \param optional_name Name of the function being called. Can be nullptr if the function is not.
+   * \param f_sig Pointer to static function outputting signature of the function being called.
    * named.
    */
   TVMMovableArgValueWithContext_(TVMValue value, int type_code, int arg_index,
-                                 const std::string* optional_name)
-      : value_(value, type_code), arg_index_(arg_index), optional_name_(optional_name) {}
+                                 const std::string* optional_name, FSig* f_sig)
+      : value_(value, type_code),
+        arg_index_(arg_index),
+        optional_name_(optional_name),
+        f_sig_(f_sig) {}
 
   template <typename T>
   operator T() const {
@@ -712,7 +775,8 @@ class TVMMovableArgValueWithContext_ {
       return value_;  // implicit conversion happens here
     } catch (dmlc::Error& e) {
       LOG(FATAL) << "In function " << (optional_name_ == nullptr ? "<anonymous>" : *optional_name_)
-                 << ": error while converting argument " << arg_index_ << ": " << e.what();
+                 << (f_sig_ == nullptr ? "" : (*f_sig_)()) << ": error while converting argument "
+                 << arg_index_ << ": " << e.what();
       throw;  // never reached, LOG(FATAL) throws, but this silences a warning.
     }
   }
@@ -721,6 +785,7 @@ class TVMMovableArgValueWithContext_ {
   TVMMovableArgValue_ value_;
   int arg_index_;
   const std::string* optional_name_;
+  FSig* f_sig_;
 };
 
 /*!
@@ -756,6 +821,7 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator Device;
   using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator Module;
+  using TVMPODValue_::operator PackedFunc;
   using TVMPODValue_::AsObjectRef;
   using TVMPODValue_::IsObjectRef;
 
@@ -778,11 +844,6 @@ class TVMRetValue : public TVMPODValue_ {
     return value_.v_type;
   }
   operator DataType() const { return DataType(operator DLDataType()); }
-  operator PackedFunc() const {
-    if (type_code_ == kTVMNullptr) return PackedFunc();
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMPackedFuncHandle);
-    return *ptr<PackedFunc>();
-  }
   template <typename FType>
   operator TypedPackedFunc<FType>() const {
     return TypedPackedFunc<FType>(operator PackedFunc());
@@ -852,6 +913,7 @@ class TVMRetValue : public TVMPODValue_ {
       ObjectRef::FFIClearAfterMove(&other);
     } else {
       SwitchToPOD(kTVMNullptr);
+      value_.v_handle = nullptr;
     }
     return *this;
   }
@@ -860,11 +922,7 @@ class TVMRetValue : public TVMPODValue_ {
     return *this;
   }
   TVMRetValue& operator=(PackedFunc f) {
-    if (f == nullptr) {
-      this->SwitchToPOD(kTVMNullptr);
-    } else {
-      this->SwitchToClass(kTVMPackedFuncHandle, f);
-    }
+    this->SwitchToObject(kTVMPackedFuncHandle, std::move(f.data_));
     return *this;
   }
   template <typename FType>
@@ -941,7 +999,7 @@ class TVMRetValue : public TVMPODValue_ {
         break;
       }
       case kTVMPackedFuncHandle: {
-        SwitchToClass<PackedFunc>(kTVMPackedFuncHandle, other);
+        *this = other.operator PackedFunc();
         break;
       }
       case kTVMModuleHandle: {
@@ -995,6 +1053,7 @@ class TVMRetValue : public TVMPODValue_ {
       other.data_ = nullptr;
     } else {
       SwitchToPOD(kTVMNullptr);
+      value_.v_handle = nullptr;
     }
   }
   void Clear() {
@@ -1005,7 +1064,7 @@ class TVMRetValue : public TVMPODValue_ {
         delete ptr<std::string>();
         break;
       case kTVMPackedFuncHandle:
-        delete ptr<PackedFunc>();
+        static_cast<Object*>(value_.v_handle)->DecRef();
         break;
       case kTVMNDArrayHandle: {
         NDArray::FFIDecRef(static_cast<TVMArrayHandle>(value_.v_handle));
@@ -1148,9 +1207,19 @@ inline TVMArgValue TVMArgs::operator[](int i) const {
 
 inline int TVMArgs::size() const { return num_args; }
 
-inline void PackedFunc::CallPacked(TVMArgs args, TVMRetValue* rv) const { body_(args, rv); }
+template <class TPackedFuncSubObj>
+void PackedFuncObj::Extractor<TPackedFuncSubObj>::Call(const PackedFuncObj* obj, TVMArgs args,
+                                                       TVMRetValue* rv) {
+  (static_cast<const TPackedFuncSubObj*>(obj))->callable_(args, rv);
+}
 
-inline PackedFunc::FType PackedFunc::body() const { return body_; }
+TVM_ALWAYS_INLINE void PackedFuncObj::CallPacked(TVMArgs args, TVMRetValue* rv) const {
+  (*f_call_packed_)(this, args, rv);
+}
+
+TVM_ALWAYS_INLINE void PackedFunc::CallPacked(TVMArgs args, TVMRetValue* rv) const {
+  (static_cast<PackedFuncObj*>(data_.get()))->CallPacked(args, rv);
+}
 
 // internal namespace
 inline const char* ArgTypeCode2Str(int type_code) {
@@ -1212,6 +1281,61 @@ inline void for_each(const F& f, Args&&... args) {  // NOLINT(*)
   for_each_dispatcher<sizeof...(Args) == 0, 0, F>::run(f, std::forward<Args>(args)...);
 }
 
+namespace parameter_pack {
+
+template <typename... EnumArgs>
+struct EnumeratedParamPack {
+  struct Invoke {
+    template <template <size_t i, typename TArgument> class Functor, typename... ExtraParams>
+    static void F(ExtraParams&&... extra_params) {
+      using TExpander = int[];
+      (void)TExpander{
+          0,
+          (Functor<EnumArgs::i, typename EnumArgs::T>::F(extra_params...), 0)...,
+      };
+    }
+  };
+};
+
+template <typename... Args>
+struct EnumerateImpl {
+ private:
+  template <size_t _i, typename _T>
+  struct Item {
+    static const constexpr size_t i = _i;
+    using T = _T;
+  };
+
+  template <typename...>
+  struct Zipper;
+
+  template <std::size_t... id>
+  struct Zipper<std::integer_sequence<std::size_t, id...>> {
+    using T = EnumeratedParamPack<Item<id, Args>...>;
+  };
+
+ public:
+  using T = typename Zipper<std::index_sequence_for<Args...>>::T;
+};
+
+template <typename... Args>
+using Enumerate = typename EnumerateImpl<Args...>::T;
+
+template <typename... Args>
+struct ParamPack {
+  template <template <size_t i, typename TArgument> class Functor, typename... ExtraParams>
+  static void InvokeWithoutArg(ExtraParams&&... extra_params) {
+    Enumerate<Args...>::Invoke::template F<Functor, ExtraParams...>(
+        std::forward<ExtraParams>(extra_params)...);
+  }
+};
+
+}  // namespace parameter_pack
+
+/*!
+ * \brief Template class to get function signature of a function or functor.
+ * \tparam T The function/functor type.
+ */
 template <typename T>
 struct func_signature_helper {
   using FType = void;
@@ -1220,28 +1344,36 @@ struct func_signature_helper {
 template <typename T, typename R, typename... Args>
 struct func_signature_helper<R (T::*)(Args...)> {
   using FType = R(Args...);
+  using ParamType = parameter_pack::ParamPack<Args...>;
+  using RetType = R;
   static_assert(!std::is_reference<R>::value, "TypedPackedFunc return reference");
 };
 
 template <typename T, typename R, typename... Args>
 struct func_signature_helper<R (T::*)(Args...) const> {
   using FType = R(Args...);
+  using ParamType = parameter_pack::ParamPack<Args...>;
+  using RetType = R;
   static_assert(!std::is_reference<R>::value, "TypedPackedFunc return reference");
 };
 
 /*!
- * \brief template class to get function signature of a function or functor.
+ * \brief Template class to get function signature of a function or functor.
  * \tparam T The function/functor type.
  */
 template <typename T>
 struct function_signature {
   using FType = typename func_signature_helper<decltype(&T::operator())>::FType;
+  using ParamType = typename func_signature_helper<decltype(&T::operator())>::ParamType;
+  using RetType = typename func_signature_helper<decltype(&T::operator())>::RetType;
 };
 
 // handle case of function.
 template <typename R, typename... Args>
 struct function_signature<R(Args...)> {
   using FType = R(Args...);
+  using ParamType = parameter_pack::ParamPack<Args...>;
+  using RetType = R;
   static_assert(!std::is_reference<R>::value, "TypedPackedFunc return reference");
 };
 
@@ -1249,7 +1381,132 @@ struct function_signature<R(Args...)> {
 template <typename R, typename... Args>
 struct function_signature<R (*)(Args...)> {
   using FType = R(Args...);
+  using ParamType = detail::parameter_pack::ParamPack<Args...>;
+  using RetType = R;
   static_assert(!std::is_reference<R>::value, "TypedPackedFunc return reference");
+};
+
+template <typename TSignature>
+struct SignaturePrinter;
+
+namespace type2str {
+
+template <typename T>
+struct TypeSimplifier;
+
+template <typename T>
+struct Type2Str {
+  template <typename = std::enable_if_t<std::is_base_of<ObjectRef, T>::value>>
+  static std::string v() {
+    return T::ContainerType::_type_key;
+  }
+};
+template <>
+struct Type2Str<int> {
+  static std::string v() { return "int"; }
+};
+template <>
+struct Type2Str<double> {
+  static std::string v() { return "double"; }
+};
+template <>
+struct Type2Str<int64_t> {
+  static std::string v() { return "int64_t"; }
+};
+template <>
+struct Type2Str<uint64_t> {
+  static std::string v() { return "uint64_t"; }
+};
+template <>
+struct Type2Str<bool> {
+  static std::string v() { return "bool"; }
+};
+template <>
+struct Type2Str<void> {
+  static std::string v() { return "void"; }
+};
+template <>
+struct Type2Str<std::basic_string<char>> {
+  static std::string v() { return "basic_string<char>"; }
+};
+template <typename K, typename V>
+struct Type2Str<Map<K, V>> {
+  static std::string v() {
+    return "Map<" + TypeSimplifier<K>::v() + ", " + TypeSimplifier<V>::v() + ">";
+  }
+};
+template <>
+struct Type2Str<DLDevice> {
+  static std::string v() { return "DLDevice"; }
+};
+template <>
+struct Type2Str<DLTensor> {
+  static std::string v() { return "DLTensor"; }
+};
+template <>
+struct Type2Str<DataType> {
+  static std::string v() { return "DataType"; }
+};
+template <>
+struct Type2Str<DLDataType> {
+  static std::string v() { return "DLDataType"; }
+};
+template <>
+struct Type2Str<TVMRetValue> {
+  static std::string v() { return "TVMRetValue"; }
+};
+template <>
+struct Type2Str<TVMArgValue> {
+  static std::string v() { return "TVMArgValue"; }
+};
+template <typename FType>
+struct Type2Str<TypedPackedFunc<FType>> {
+  static std::string v() { return SignaturePrinter<function_signature<FType>>::F(); }
+};
+template <typename T>
+struct Type2Str<Array<T>> {
+  static std::string v() { return "Array<" + TypeSimplifier<T>::v() + ">"; }
+};
+
+/*!
+ * \brief Template class to remove const, pointer and reference of original type.
+ * \tparam T The original type.
+ */
+template <typename T>
+struct TypeSimplifier {
+  static std::string v() {
+    using U = typename std::remove_cv<
+        typename std::remove_reference<typename std::remove_pointer<T>::type>::type>::type;
+    return (std::is_const<T>::value ? "const " : "") + Type2Str<U>::v() +
+           (std::is_pointer<T>::value ? "*" : "") + (std::is_reference<T>::value ? "&" : "");
+  }
+};
+
+}  // namespace type2str
+
+/*!
+ * \brief Template class to generate static function outputting signature of a function or functor.
+ * \tparam TSignature The function/functor signature type generated by `function_signature`.
+ */
+template <typename TSignature>
+struct SignaturePrinter {
+  using ParamType = typename TSignature::ParamType;
+  using RetType = typename TSignature::RetType;
+
+  template <size_t i, typename TArgument>
+  struct PrintParamType {
+    static void F(std::ostream& os) {
+      os << (i == 0 ? "" : ", ") << i << ": " << type2str::TypeSimplifier<TArgument>::v();
+    }
+  };
+
+  static std::string F() {
+    std::ostringstream oss;
+    oss << "(";
+    ParamType::template InvokeWithoutArg<PrintParamType>(oss);
+    oss << ") -> " << type2str::TypeSimplifier<RetType>::v();
+    return oss.str();
+  }
 };
 }  // namespace detail
 
@@ -1312,15 +1569,6 @@ class TVMArgsSetter {
     values_[i].v_handle = const_cast<TVMByteArray*>(&value);
     type_codes_[i] = kTVMBytes;
   }
-  TVM_ALWAYS_INLINE void operator()(size_t i, const PackedFunc& value) const {
-    if (value != nullptr) {
-      values_[i].v_handle = const_cast<PackedFunc*>(&value);
-      type_codes_[i] = kTVMPackedFuncHandle;
-    } else {
-      values_[i].v_handle = nullptr;
-      type_codes_[i] = kTVMNullptr;
-    }
-  }
   template <typename FType>
   TVM_ALWAYS_INLINE void operator()(size_t i, const TypedPackedFunc<FType>& value) const {
     operator()(i, value.packed());
@@ -1366,7 +1614,8 @@ inline TVMRetValue PackedFunc::operator()(Args&&... args) const {
   int type_codes[kArraySize];
   detail::for_each(TVMArgsSetter(values, type_codes), std::forward<Args>(args)...);
   TVMRetValue rv;
-  body_(TVMArgs(values, type_codes, kNumArgs), &rv);
+  (static_cast<PackedFuncObj*>(data_.get()))
+      ->CallPacked(TVMArgs(values, type_codes, kNumArgs), &rv);
   return rv;
 }
 
@@ -1374,22 +1623,22 @@ namespace detail {
 template <typename R, int nleft, int index, typename F>
 struct unpack_call_dispatcher {
   template <typename... Args>
-  TVM_ALWAYS_INLINE static void run(const std::string* optional_name, const F& f,
+  TVM_ALWAYS_INLINE static void run(const std::string* optional_name, FSig* f_sig, const F& f,
                                     const TVMArgs& args_pack, TVMRetValue* rv,
                                     Args&&... unpacked_args) {
     // construct a movable argument value
     // which allows potential move of argument to the input of F.
     unpack_call_dispatcher<R, nleft - 1, index + 1, F>::run(
-        optional_name, f, args_pack, rv, std::forward<Args>(unpacked_args)...,
+        optional_name, f_sig, f, args_pack, rv, std::forward<Args>(unpacked_args)...,
         TVMMovableArgValueWithContext_(args_pack.values[index], args_pack.type_codes[index], index,
-                                       optional_name));
+                                       optional_name, f_sig));
   }
 };
 
 template <typename R, int index, typename F>
 struct unpack_call_dispatcher<R, 0, index, F> {
   template <typename... Args>
-  TVM_ALWAYS_INLINE static void run(const std::string* optional_name, const F& f,
+  TVM_ALWAYS_INLINE static void run(const std::string* optional_name, FSig* f_sig, const F& f,
                                     const TVMArgs& args_pack, TVMRetValue* rv,
                                     Args&&... unpacked_args) {
     using RetType = decltype(f(std::forward<Args>(unpacked_args)...));
@@ -1404,7 +1653,7 @@ struct unpack_call_dispatcher<R, 0, index, F> {
 template <int index, typename F>
 struct unpack_call_dispatcher<void, 0, index, F> {
   template <typename... Args>
-  TVM_ALWAYS_INLINE static void run(const std::string* optional_name, const F& f,
+  TVM_ALWAYS_INLINE static void run(const std::string* optional_name, FSig* f_sig, const F& f,
                                     const TVMArgs& args_pack, TVMRetValue* rv,
                                     Args&&... unpacked_args) {
     f(std::forward<Args>(unpacked_args)...);
@@ -1414,11 +1663,12 @@ struct unpack_call_dispatcher<void, 0, index, F> {
 template <typename R, int nargs, typename F>
 TVM_ALWAYS_INLINE void unpack_call(const std::string* optional_name, const F& f,
                                    const TVMArgs& args, TVMRetValue* rv) {
+  FSig* f_sig = detail::SignaturePrinter<detail::function_signature<F>>::F;
   CHECK_EQ(nargs, args.size()) << "Function "
                                << (optional_name == nullptr ? "<anonymous>" : *optional_name)
-                               << " expects " << nargs << " arguments but " << args.size()
-                               << " were provided";
-  unpack_call_dispatcher<R, nargs, 0, F>::run(optional_name, f, args, rv);
+                               << (f_sig == nullptr ? "" : (*f_sig)()) << " expects " << nargs
+                               << " arguments but " << args.size() << " were provided";
+  unpack_call_dispatcher<R, nargs, 0, F>::run(optional_name, f_sig, f, args, rv);
 }
 
 template <typename FType>
@@ -1472,10 +1722,11 @@ TypedPackedFunc<R(Args...)>::TypedPackedFunc(TVMMovableArgValueWithContext_&& va
 template <typename R, typename... Args>
 template <typename FType>
 inline void TypedPackedFunc<R(Args...)>::AssignTypedLambda(FType flambda, std::string name) {
-  packed_ = PackedFunc([flambda, name](const TVMArgs& args, TVMRetValue* rv) {
+  FSig* f_sig = detail::SignaturePrinter<detail::function_signature<FType>>::F;
+  packed_ = PackedFunc([flambda, name, f_sig](const TVMArgs& args, TVMRetValue* rv) {
     if (args.size() != sizeof...(Args)) {
-      LOG(FATAL) << "Function " << name << " expects " << sizeof...(Args) << " arguments, but "
-                 << args.size() << " were provided.";
+      LOG(FATAL) << "Function " << name << (f_sig == nullptr ? "" : (*f_sig)()) << " expects "
+                 << sizeof...(Args) << " arguments, but " << args.size() << " were provided.";
     }
     detail::unpack_call<R, sizeof...(Args)>(&name, flambda, args, rv);
   });
@@ -1484,10 +1735,11 @@ inline void TypedPackedFunc<R(Args...)>::AssignTypedLambda(FType flambda, std::s
 template <typename R, typename... Args>
 template <typename FType>
 inline void TypedPackedFunc<R(Args...)>::AssignTypedLambda(FType flambda) {
-  packed_ = PackedFunc([flambda](const TVMArgs& args, TVMRetValue* rv) {
+  FSig* f_sig = detail::SignaturePrinter<detail::function_signature<FType>>::F;
+  packed_ = PackedFunc([flambda, f_sig](const TVMArgs& args, TVMRetValue* rv) {
     if (args.size() != sizeof...(Args)) {
-      LOG(FATAL) << "Function <anonymous> expects " << sizeof...(Args) << " arguments, but "
-                 << args.size() << " were provided.";
+      LOG(FATAL) << "Function <anonymous> " << (*f_sig)() << " expects " << sizeof...(Args)
+                 << " arguments, but " << args.size() << " were provided.";
     }
     detail::unpack_call<R, sizeof...(Args)>(nullptr, flambda, args, rv);
   });
@@ -1518,6 +1770,11 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
                 ptr->IsInstance<Module::ContainerType>())) {
       values_[i].v_handle = ptr;
       type_codes_[i] = kTVMModuleHandle;
+    } else if (std::is_base_of<PackedFunc::ContainerType, ContainerType>::value ||
+               (std::is_base_of<ContainerType, PackedFunc::ContainerType>::value &&
+                ptr->IsInstance<PackedFunc::ContainerType>())) {
+      values_[i].v_handle = ptr;
+      type_codes_[i] = kTVMPackedFuncHandle;
     } else if (std::is_rvalue_reference<decltype(value)>::value) {
       values_[i].v_handle = const_cast<Object**>(&(value.data_.data_));
       type_codes_[i] = kTVMObjectRValueRefArg;
@@ -1527,6 +1784,7 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
     }
   } else {
     type_codes_[i] = kTVMNullptr;
+    values_[i].v_handle = nullptr;
   }
 }
 
@@ -1543,6 +1801,10 @@ inline bool TVMPODValue_::IsObjectRef() const {
     return type_code_ == kTVMModuleHandle &&
            static_cast<Object*>(value_.v_handle)->IsInstance<ContainerType>();
   }
+  if (std::is_base_of<PackedFunc::ContainerType, ContainerType>::value) {
+    return type_code_ == kTVMPackedFuncHandle &&
+           static_cast<Object*>(value_.v_handle)->IsInstance<ContainerType>();
+  }
   // NOTE: we don't pass NDArray and runtime::Module as RValue ref.
   if (type_code_ == kTVMObjectRValueRefArg) {
     return ObjectTypeChecker<TObjectRef>::Check(*static_cast<Object**>(value_.v_handle));
@@ -1551,6 +1813,8 @@ inline bool TVMPODValue_::IsObjectRef() const {
           type_code_ == kTVMNDArrayHandle) ||
          (std::is_base_of<ContainerType, Module::ContainerType>::value &&
           type_code_ == kTVMModuleHandle) ||
+         (std::is_base_of<ContainerType, PackedFunc::ContainerType>::value &&
+          type_code_ == kTVMPackedFuncHandle) ||
          (type_code_ == kTVMObjectHandle &&
           ObjectTypeChecker<TObjectRef>::Check(static_cast<Object*>(value_.v_handle)));
 }
@@ -1584,6 +1848,14 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
         << "Expected " << ContainerType::_type_key << " but got " << data->GetTypeKey();
     return TObjectRef(data);
   }
+  if (std::is_base_of<PackedFunc::ContainerType, ContainerType>::value) {
+    // Casting to a sub-class of PackedFunc
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMPackedFuncHandle);
+    ObjectPtr<Object> data = GetObjectPtr<Object>(static_cast<Object*>(value_.v_handle));
+    CHECK(data->IsInstance<ContainerType>())
+        << "Expected " << ContainerType::_type_key << " but got " << data->GetTypeKey();
+    return TObjectRef(data);
+  }
   if (type_code_ == kTVMObjectHandle) {
     // normal object type check.
     Object* ptr = static_cast<Object*>(value_.v_handle);
@@ -1606,6 +1878,10 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
   } else if (std::is_base_of<ContainerType, Module::ContainerType>::value &&
              type_code_ == kTVMModuleHandle) {
     // Casting to a base class that Module can sub-class
+    return TObjectRef(GetObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
+  } else if (std::is_base_of<ContainerType, PackedFunc::ContainerType>::value &&
+             type_code_ == kTVMPackedFuncHandle) {
+    // Casting to a base class that PackedFunc can sub-class
     return TObjectRef(GetObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
   } else {
     TVM_CHECK_TYPE_CODE(type_code_, kTVMObjectHandle);
@@ -1631,6 +1907,7 @@ inline TVMRetValue& TVMRetValue::operator=(TObjectRef other) {
     SwitchToObject(kTVMObjectHandle, std::move(other.data_));
   } else {
     SwitchToPOD(kTVMNullptr);
+    value_.v_handle = nullptr;
   }
   return *this;
 }

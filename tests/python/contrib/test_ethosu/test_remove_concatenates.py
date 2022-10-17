@@ -19,37 +19,35 @@ import pytest
 pytest.importorskip("ethosu.vela")
 import tvm
 import tvm.script
-from tvm.script import tir
+from tvm.script import tir as T
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
 from .infra import make_ethosu_conv2d
 
 
 # fmt: off
 @tvm.script.ir_module
 class ReferenceModule:
-    @tir.prim_func
-    def main(placeholder: tir.handle, placeholder_1: tir.handle, placeholder_2: tir.handle, placeholder_3: tir.handle, placeholder_4: tir.handle, placeholder_5: tir.handle, placeholder_6: tir.handle, placeholder_7: tir.handle, placeholder_8: tir.handle, placeholder_9: tir.handle, T_concat: tir.handle) -> None:
+    @T.prim_func
+    def main(placeholder: T.Buffer[(1536,), "int8"], placeholder_1: T.Buffer[(1280,), "int8"], T_concat: T.Buffer[(4096,), "int8"]) -> None:
         # function attr dict
-        tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = tir.match_buffer(placeholder_2, [2992], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_1 = tir.match_buffer(placeholder_4, [2992], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_10 = tir.match_buffer(placeholder_1, [1, 8, 10, 16], dtype="int8", elem_offset=0, align=128, offset_factor=1)
-        buffer_2 = tir.match_buffer(placeholder_9, [160], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_3 = tir.match_buffer(placeholder_8, [2992], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_4 = tir.match_buffer(placeholder_5, [160], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_5 = tir.match_buffer(placeholder_6, [2992], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        T_concat_1 = tir.match_buffer(T_concat, [1, 8, 32, 16], dtype="int8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_11 = tir.match_buffer(placeholder, [1, 8, 12, 16], dtype="int8", elem_offset=0, align=128, offset_factor=1)
-        buffer_6 = tir.match_buffer(placeholder_7, [160], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_7 = tir.match_buffer(placeholder_3, [160], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+        buffer = T.buffer_decl([2992], "uint8")
+        buffer_1 = T.buffer_decl([160], "uint8")
+        buffer_2 = T.buffer_decl([2992], "uint8")
+        buffer_3 = T.buffer_decl([160], "uint8")
+        buffer_4 = T.buffer_decl([2992], "uint8")
+        buffer_5 = T.buffer_decl([160], "uint8")
+        buffer_6 = T.buffer_decl([2992], "uint8")
+        buffer_7 = T.buffer_decl([160], "uint8")
         # body
-        T_concat_2 = tir.allocate([2816], "int8", "global", annotations={"disable_lower_builtin": True})
-        tir.evaluate(tir.call_extern("ethosu_conv2d", "int8", 8, 10, 16, 8, 0, 10, tir.load("int8", placeholder_10.data, 0), 0, 0, 0, tir.float32(0.5), 10, "NHWC", 160, 16, 1, "int8", 8, 10, 16, 8, 0, 10, tir.load("int8", T_concat_2, 192), 0, 0, 0, tir.float32(0.25), 14, "NHWC", 352, 16, 1, 3, 3, 1, 1, 1, 1, tir.load("uint8", buffer_1.data, 0), 2992, 12, tir.load("uint8", buffer_4.data, 0), 160, 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", dtype="handle"))
-        tir.evaluate(tir.call_extern("ethosu_conv2d", "int8", 8, 10, 16, 8, 0, 10, tir.load("int8", T_concat_2, 192), 0, 0, 0, tir.float32(0.5), 10, "NHWC", 352, 16, 1, "int8", 8, 10, 16, 8, 0, 10, tir.load("int8", T_concat_1.data, 352), 0, 0, 0, tir.float32(0.25), 14, "NHWC", 512, 16, 1, 3, 3, 1, 1, 1, 1, tir.load("uint8", buffer_3.data, 0), 2992, 12, tir.load("uint8", buffer_2.data, 0), 160, 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", dtype="handle"))
-        tir.evaluate(tir.call_extern("ethosu_conv2d", "int8", 8, 12, 16, 8, 0, 12, tir.load("int8", placeholder_11.data, 0), 0, 0, 0, tir.float32(0.5), 10, "NHWC", 192, 16, 1, "int8", 8, 12, 16, 8, 0, 12, tir.load("int8", T_concat_2, 0), 0, 0, 0, tir.float32(0.25), 14, "NHWC", 352, 16, 1, 3, 3, 1, 1, 1, 1, tir.load("uint8", buffer.data, 0), 2992, 12, tir.load("uint8", buffer_7.data, 0), 160, 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", dtype="handle"))
-        tir.evaluate(tir.call_extern("ethosu_conv2d", "int8", 8, 22, 16, 8, 0, 22, tir.load("int8", T_concat_2, 0), 0, 0, 0, tir.float32(0.5), 10, "NHWC", 352, 16, 1, "int8", 8, 22, 16, 8, 0, 22, tir.load("int8", T_concat_1.data, 0), 0, 0, 0, tir.float32(0.25), 14, "NHWC", 512, 16, 1, 3, 3, 1, 1, 1, 1, tir.load("uint8", buffer_5.data, 0), 2992, 12, tir.load("uint8", buffer_6.data, 0), 160, 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", dtype="handle"))
+        T_concat_1_data = T.allocate([2816], "int8", "global", annotations={"disable_lower_builtin":True})
+        T_concat_1 = T.buffer_decl([2816], "int8", data=T_concat_1_data)
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 10, 16, 8, 0, 10, placeholder_1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 160, 16, 1, "int8", 8, 10, 16, 8, 0, 10, T_concat_1[192], 0, 0, 0, T.float32(0.25), 14, "NHWC", 352, 16, 1, 3, 3, 1, 1, 1, 1, buffer[0], 2992, T.int8(-1), T.int8(-1), 12, buffer_1[0], 160, T.int8(-1), T.int8(-1), 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 10, 16, 8, 0, 10, T_concat_1[192], 0, 0, 0, T.float32(0.5), 10, "NHWC", 352, 16, 1, "int8", 8, 10, 16, 8, 0, 10, T_concat[352], 0, 0, 0, T.float32(0.25), 14, "NHWC", 512, 16, 1, 3, 3, 1, 1, 1, 1, buffer_2[0], 2992, T.int8(-1), T.int8(-1), 12, buffer_3[0], 160, T.int8(-1), T.int8(-1), 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 12, 16, 8, 0, 12, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 192, 16, 1, "int8", 8, 12, 16, 8, 0, 12, T_concat_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 352, 16, 1, 3, 3, 1, 1, 1, 1, buffer_4[0], 2992, T.int8(-1), T.int8(-1), 12, buffer_5[0], 160, T.int8(-1), T.int8(-1), 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 22, 16, 8, 0, 22, T_concat_1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 352, 16, 1, "int8", 8, 22, 16, 8, 0, 22, T_concat[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 512, 16, 1, 3, 3, 1, 1, 1, 1, buffer_6[0], 2992, T.int8(-1), T.int8(-1), 12, buffer_7[0], 160, T.int8(-1), T.int8(-1), 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
     __tvm_meta__ = None
 # fmt: on
 
@@ -69,7 +67,7 @@ def test_concat():
         return func
 
     func = _get_func()
-    mod, _ = lower_to_tir(func)
+    mod, _ = _lower_to_tir(func)
     script = mod.script(show_meta=True)
     test_mod = tvm.script.from_source(script)
 

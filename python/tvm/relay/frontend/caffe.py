@@ -58,6 +58,7 @@ class OperatorConverter(object):
             "LRN": self.convert_lrn,
             "Permute": self.convert_permute,
             "Pooling": self.convert_pooling,
+            "Power": self.convert_power,
             "PReLU": self.convert_prelu,
             "ReLU": self.convert_relu,
             "Reshape": self.convert_reshape,
@@ -639,7 +640,7 @@ class OperatorConverter(object):
         return out
 
     def convert_reduction(self, op):
-        """ Convert Reduction layer """
+        """Convert Reduction layer"""
         reduction_dic = ["NOP", "SUM", "ASUM", "SUMSQ", "MEAN"]
 
         inputs = op.bottom
@@ -762,6 +763,19 @@ class OperatorConverter(object):
 
         return out
 
+    def convert_power(self, op):
+        """Convert Power layer"""
+        inputs = op.bottom
+        in_expr = self.exp_tab.get_expr(inputs[0])
+        power = _expr.const(op.power_param.power)
+        scale = _expr.const(op.power_param.scale)
+        shift = _expr.const(op.power_param.shift)
+
+        out = _op.multiply(in_expr, scale)
+        out = _op.add(out, shift)
+        out = _op.power(out, power)
+        return out
+
     def check_unsupported_ops(self):
         """Check unsupported Caffe ops in our converter."""
         unsupported_ops_set = set()
@@ -871,7 +885,7 @@ class OperatorConverter(object):
 
 
 def _rebuild_layers(predict_layer):
-    """Rebuild caffe layer. If the the caffe net include in-place layers, repalce its top
+    """Rebuild caffe layer. If the caffe net include in-place layers, repalce its top
     with its name and update the bottom of other layer that is related to it.
     """
     # dict of input name that will be changed to new name

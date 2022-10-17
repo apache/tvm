@@ -52,7 +52,6 @@ _dense_implementations = {
     ],
     "mali": [(topi.mali.dense, topi.mali.schedule_dense)],
     "bifrost": [(topi.bifrost.dense, topi.bifrost.schedule_dense)],
-    "rocm": [(topi.rocm.dense, topi.rocm.schedule_dense)],
     "hls": [(topi.nn.dense, topi.hls.schedule_dense)],
 }
 
@@ -182,4 +181,4 @@ def test_dense_cuda_int8(
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

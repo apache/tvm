@@ -15,9 +15,32 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
 if(USE_MICRO)
+
+if(MSVC)
+
+  # When building for Windows, use standard CMake for compatibility with
+  # Visual Studio build tools and not require Make to be on the system.
+
+  set(CRT_CONFIG, "src/runtime/micro/crt_config.h")
+
+  add_library(host_standalone_crt
+              STATIC
+              3rdparty/libcrc/src/crcccitt.c
+              src/runtime/crt/microtvm_rpc_common/frame_buffer.cc
+              src/runtime/crt/microtvm_rpc_common/framing.cc
+              src/runtime/crt/microtvm_rpc_common/session.cc
+              src/runtime/crt/microtvm_rpc_common/write_stream.cc)
+
+  target_include_directories(host_standalone_crt
+                             PRIVATE
+                             3rdparty/libcrc/include
+                             src/runtime/micro)
+
+else()
+
   message(STATUS "Build standalone CRT for microTVM")
-  tvm_file_glob(GLOB crt_srcs src/runtime/crt/**)
 
   function(tvm_crt_define_targets)
     # Build an isolated build directory, separate from the TVM tree.
@@ -28,9 +51,12 @@ if(USE_MICRO)
          "3rdparty/dlpack/include *.h -> include"
          "3rdparty/dmlc-core/include *.h -> include"
          "include/tvm/runtime c_*_api.h -> include/tvm/runtime"
+         "include/tvm/runtime metadata_types.h -> include/tvm/runtime"
          "include/tvm/runtime/crt *.h -> include/tvm/runtime/crt"
          "src/runtime/crt Makefile -> ."
          "src/runtime/crt/include *.h -> include"
+         "src/runtime/crt/aot_executor *.c -> src/runtime/crt/aot_executor"
+         "src/runtime/crt/aot_executor_module *.c -> src/runtime/crt/aot_executor_module"
          "src/runtime/crt/common *.c -> src/runtime/crt/common"
          "src/runtime/crt/graph_executor *.c -> src/runtime/crt/graph_executor"
          "src/runtime/crt/graph_executor_module *.c -> src/runtime/crt/graph_executor_module"
@@ -42,6 +68,7 @@ if(USE_MICRO)
          "src/runtime/crt/microtvm_rpc_server *.cc -> src/runtime/crt/microtvm_rpc_server"
          "src/runtime/minrpc *.h -> src/runtime/minrpc"
          "src/support generic_arena.h -> src/support"
+         "src/support ssize.h -> src/support"
          "src/runtime/crt crt_config-template.h -> template"
          )
 
@@ -57,7 +84,7 @@ if(USE_MICRO)
       math(EXPR job_spec_stop "${job_spec_length} - 3")
 
       list(GET job_spec 0 job_src_base)
-      set(job_src_base "${CMAKE_SOURCE_DIR}/${job_src_base}")
+      set(job_src_base "${CMAKE_CURRENT_SOURCE_DIR}/${job_src_base}")
       foreach(copy_pattern_index RANGE 1 "${job_spec_stop}" 3)
         list(GET job_spec ${copy_pattern_index} copy_pattern)
         math(EXPR copy_dest_index "${copy_pattern_index} + 2")
@@ -93,7 +120,7 @@ if(USE_MICRO)
     endforeach()
 
     set(make_common_args
-        "CRT_CONFIG=${CMAKE_SOURCE_DIR}/src/runtime/micro/crt_config.h"
+        "CRT_CONFIG=${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/micro/crt_config.h"
         "BUILD_DIR=${host_build_dir_abspath}"
         "EXTRA_CFLAGS=-fPIC"
         "EXTRA_CXXFLAGS=-fPIC"
@@ -124,9 +151,9 @@ if(USE_MICRO)
     # Create the `crttest` target if we can find GTest.  If not, we create dummy
     # targets that give the user an informative error message.
     if(GTEST_FOUND)
-      tvm_file_glob(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*.cc)
+      tvm_file_glob(GLOB TEST_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tests/crt/*.cc)
       add_executable(crttest ${TEST_SRCS})
-      target_include_directories(crttest SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_SOURCE_DIR}/src/runtime/micro)
+      target_include_directories(crttest SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/micro)
       target_link_libraries(crttest PRIVATE ${cmake_crt_libraries} GTest::GTest GTest::Main pthread dl)
       set_target_properties(crttest PROPERTIES EXCLUDE_FROM_ALL 1)
       set_target_properties(crttest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
@@ -146,4 +173,6 @@ if(USE_MICRO)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${TVM_CRT_LINKER_LIB})
   endif()
 
-endif(USE_MICRO)
+endif()
+
+endif()

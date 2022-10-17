@@ -19,85 +19,8 @@
 from tvm import te
 from tvm import autotvm
 from tvm.contrib import rocblas
-from .. import generic, nn
+from .. import generic
 from .. import tag
-from ..utils import traverse_inline
-
-
-@autotvm.register_topi_compute("dense.rocm")
-def dense(cfg, data, weight, bias=None, out_dtype=None):
-    """Dense operator for rocm backend.
-
-    Parameters
-    ----------
-    data : tvm.te.Tensor
-        2-D with shape [batch, in_dim]
-
-    weight : tvm.te.Tensor
-        2-D with shape [out_dim, in_dim]
-
-    bias : tvm.te.Tensor, optional
-        1-D with shape [out_dim]
-
-    out_dtype : str
-        The output type. This is used for mixed precision.
-
-    Returns
-    -------
-    output : tvm.te.Tensor
-        2-D with shape [batch, out_dim]
-    """
-    assert len(data.shape) == 2 and len(weight.shape) == 2, "only support 2-dim dense"
-    if bias is not None:
-        assert len(bias.shape) == 1
-    if out_dtype is None:
-        out_dtype = data.dtype
-    return nn.dense(data, weight, bias, out_dtype)
-
-
-@autotvm.register_topi_schedule("dense.rocm")
-def schedule_dense(cfg, outs):
-    """Schedule for dense operator.
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-        The computation graph description of dense
-        in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-        The computation schedule for dense.
-    """
-    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
-    s = te.create_schedule([x.op for x in outs])
-
-    def _callback(op):
-        if op.tag == "dense":
-            Dense = op.output(0)
-            num_thread = 64
-            k = Dense.op.reduce_axis[0]
-            ko, kf = s[Dense].split(k, factor=num_thread)
-            DenseF = s.rfactor(Dense, kf)
-
-            if Dense.op in s.outputs:
-                Out = Dense
-            else:
-                Out = outs[0].op.output(0)
-                s[Dense].compute_at(s[Out], s[Out].op.axis[1])
-            s[Out].bind(s[Out].op.axis[0], te.thread_axis("blockIdx.y"))
-            s[Out].bind(s[Out].op.axis[1], te.thread_axis("blockIdx.x"))
-
-            tx = s[Dense].op.reduce_axis[0]
-            thread_x = te.thread_axis("threadIdx.x")
-            s[Dense].bind(tx, thread_x)
-            s[DenseF].compute_at(s[Dense], tx)
-            s[Dense].set_store_predicate(thread_x.var.equal(0))
-            s[Out].set_store_predicate(thread_x.var.equal(0))
-
-    traverse_inline(s, outs[0].op, _callback)
-    return s
 
 
 @autotvm.register_topi_compute("dense_rocblas.rocm")

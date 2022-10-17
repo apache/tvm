@@ -114,17 +114,28 @@ class EthosUModuleNode : public ModuleNode {
     return PackedFunc();
   }
 
-  const char* type_key() const override { return "c"; }
+  const char* type_key() const final { return "c"; }
 
   static Module Create(Array<CompilationArtifact> compilation_artifacts) {
     auto n = make_object<EthosUModuleNode>(compilation_artifacts);
     return Module(n);
   }
 
+  bool IsDSOExportable() const final { return true; }
+
+  bool ImplementsFunction(const String& name, bool query_imports) final {
+    return std::find_if(compilation_artifacts_.begin(), compilation_artifacts_.end(),
+                        [&name](const CompilationArtifact& artifact) {
+                          return artifact->function_name == name;
+                        }) != compilation_artifacts_.end();
+  }
+
  private:
   std::string c_source;
   Array<CompilationArtifact> compilation_artifacts_;
+  Map<Integer, String> pool_var_names_;
   int indent_{0};
+  constexpr static int kMaxBaseAddresses_ = 6;
 
   /*!
    * \brief Convert the raw string of hex values into a hex string
@@ -150,7 +161,7 @@ class EthosUModuleNode : public ModuleNode {
    * \return string of code that updates the base_addrs array with the base address of the given
    * array
    */
-  std::string SetBaseAddress(int index, std::string name, std::string size) {
+  std::string SetBaseAddress(int index, std::string name, int size) {
     std::stringstream ss;
     ss << "  base_addrs[" << index << "] = (uintptr_t)(" << name << ");\n";
     ss << "  base_addrs_size[" << index << "] = " << size << ";\n";
@@ -178,11 +189,24 @@ class EthosUModuleNode : public ModuleNode {
   }
 
   /*!
-   * \brief Creates a runtime function header
+   * \brief Creates a runtime function signature
    */
-  void PrintRuntimeFunctionHeader(std::stringstream& ss, std::string func_name) {
-    ss << "TVM_DLL int32_t ";
-    ss << func_name << "(void* input, void* output, void* resource_handle) {\n";
+  void PrintRuntimeFunctionSignature(std::stringstream& ss,
+                                     const relay::contrib::ethosu::CompilationArtifact& artifact,
+                                     std::string func_name) {
+    ss << "TVM_DLL int32_t " << func_name;
+    ss << "(";
+    std::unordered_map<int, relay::contrib::ethosu::BaseAddress> param_idx_to_base_address;
+    for (const relay::contrib::ethosu::BaseAddress& base_address : artifact->base_addresses) {
+      if (base_address->primfunc_param_idx.defined()) {
+        param_idx_to_base_address[base_address->primfunc_param_idx.IntValue()] = base_address;
+      }
+    }
+    for (unsigned int i = 0; i < param_idx_to_base_address.size(); i++) {
+      relay::contrib::ethosu::BaseAddress base_address = param_idx_to_base_address[i];
+      ss << "void* " << base_address->name << ",";
+    }
+    ss << "void* resource_handle) {\n";
   }
 
   /*!
@@ -216,7 +240,6 @@ class EthosUModuleNode : public ModuleNode {
     std::stringstream ss;
 
     size_t weights_size = (compilation_artifact->encoded_constants.size() / 2);
-    size_t scratch_size = compilation_artifact->scratch_size;
     ss << "// Update linker script to place .rodata.tvm in memory that can be accessed by the "
           "NPU\n";
     if (weights_size > 0) {
@@ -234,61 +257,41 @@ class EthosUModuleNode : public ModuleNode {
     ss << "\n";
 
     PrintExternCPrefix(ss);
-    ss << "static int32_t " << func_no_dashes + "_(int8_t* in0, "
-       << "size_t in0_size, int8_t* out0, size_t out0_size, void* resource_handle) {\n";
-    ss << "  int num_tensors = 5;\n";
+    PrintRuntimeFunctionSignature(ss, compilation_artifact, func_no_dashes);
     ss << "  void* cms_data = (void*)(" << func_no_dashes << "_cms_data_data);\n";
-    ss << "  int64_t device_type = kDLCPU;\n";
-    ss << "  int64_t device_id = 0;\n";
-    ss << "  const size_t weights_size = " << std::to_string(weights_size) << ";\n";
-    ss << "  const size_t scratch_size = " << std::to_string(scratch_size) << ";\n";
     ss << "  const size_t cms_data_size = sizeof(" << func_no_dashes << "_cms_data_data);\n";
-    if (scratch_size > 0) {
-      ss << "  int8_t* scratch = (int8_t*) TVMBackendAllocWorkspace(device_type, device_id, "
-            "(uint64_t)scratch_size, 0, 16);\n";
-    } else {
-      ss << "  int8_t* scratch = NULL;\n";
+    ss << "  size_t base_addrs_size[" << kMaxBaseAddresses_ << "] = {0};\n";
+    ss << "  uint64_t base_addrs[" << kMaxBaseAddresses_ << "] = {0};\n";
+    ss << "\n";
+
+    ss << SetBaseAddress(0, func_no_dashes + "_weights", weights_size);
+    for (const relay::contrib::ethosu::BaseAddress& base_address :
+         compilation_artifact->base_addresses) {
+      if (base_address->is_runtime_allocation) {
+        ss << "  int8_t* " << base_address->name
+           << " = (int8_t*) TVMBackendAllocWorkspace(kDLCPU, 0, (uint64_t)" << base_address->size
+           << ", 0, 16);\n";
+      }
+      ss << SetBaseAddress(base_address->region->value, base_address->name.c_str(),
+                           base_address->size->value);
     }
-    ss << "  size_t base_addrs_size[num_tensors];\n";
-    ss << "  uint64_t base_addrs[num_tensors];\n";
     ss << "\n";
-    ss << SetBaseAddress(0, func_no_dashes + "_weights", "weights_size");
-    ss << SetBaseAddress(1, "scratch", "scratch_size");
-    ss << SetBaseAddress(2, "scratch", "scratch_size");
-    ss << SetBaseAddress(3, "in0", "in0_size");
-    ss << SetBaseAddress(4, "out0", "out0_size");
-    ss << "\n";
+
     ss << "  int32_t result = TVMEthosULaunch(resource_handle, cms_data, cms_data_size, "
-          "base_addrs, base_addrs_size, num_tensors);\n";
-    if (scratch_size > 0) {
-      ss << "  TVMBackendFreeWorkspace(device_type, device_id, scratch);\n";
+          "base_addrs, base_addrs_size, "
+       << kMaxBaseAddresses_ << ");\n";
+
+    for (const relay::contrib::ethosu::BaseAddress& base_address :
+         compilation_artifact->base_addresses) {
+      if (base_address->is_runtime_allocation) {
+        ss << "  TVMBackendFreeWorkspace(kDLCPU, 0, " << base_address->name << ");\n";
+      }
     }
     ss << "  return result;\n";
     ss << "}\n";
     ss << "\n";
     PrintExternCPostfix(ss);
     ss << "\n";
-    PrintExternCPrefix(ss);
-    ss << "// Wrapper function is provided to allow for easier debugging\n";
-    ss << "inline static int32_t " + func_no_dashes +
-              "_wrapper_(void* input, void* output, void* resource_handle) {\n";
-    ss << "  size_t input_data_size = " << compilation_artifact->input_size << ";\n";
-    ss << "  size_t output_data_size = " << compilation_artifact->output_size << ";\n";
-    ss << "  return " + func_no_dashes +
-              "_((int8_t*)input, input_data_size, (int8_t*)output, output_data_size, " +
-              "resource_handle);\n";
-    ss << "}\n";
-    PrintExternCPostfix(ss);
-    ss << "\n";
-    PrintExternCPrefix(ss);
-    PrintRuntimeFunctionHeader(ss, func_no_dashes);
-    EnterScope();
-    PrintIndents(ss);
-    ss << "return " << func_no_dashes << "_wrapper_(input, output, resource_handle);\n";
-    ExitScope();
-    ss << "}\n";
-    PrintExternCPostfix(ss);
-
     return ss.str();
   }
 };

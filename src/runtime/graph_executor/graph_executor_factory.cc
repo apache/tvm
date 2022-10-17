@@ -24,6 +24,7 @@
 
 #include "./graph_executor_factory.h"
 
+#include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
@@ -57,6 +58,14 @@ PackedFunc GraphExecutorFactory::GetFunction(
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->graph_json_; });
 
+  } else if (name == "get_graph_params") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      Map<String, tvm::runtime::NDArray> params;
+      for (const auto& kv : params_) {
+        params.Set(kv.first, kv.second);
+      }
+      *rv = params;
+    });
   } else if (name == "debug_create") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       ICHECK_GE(args.size(), 2);

@@ -18,10 +18,12 @@ import sys
 import pytest
 import random
 import tvm
-from tvm.tir.usmp.utils import BufferInfo, PoolInfo
+import tvm.testing
+from tvm.tir.usmp.utils import BufferInfo
+from tvm import WorkspacePoolInfo, PoolInfoProperties
 
 
-def _check_max_workspace_size(buffer_pool_allocations, pool_info, size):
+def _check_max_workspace_size(buffer_pool_allocations, pool_info, size, tolerance=0):
     """Helper to check maximum allocated memory size"""
     max_workspace_size = 0
     for buffer_info, pool_allocation in buffer_pool_allocations.items():
@@ -31,7 +33,7 @@ def _check_max_workspace_size(buffer_pool_allocations, pool_info, size):
                 max_workspace_size = size_candidate
     _diff = max_workspace_size.value - size
     return (
-        (max_workspace_size.value == size),
+        (max_workspace_size.value == size if tolerance == 0 else tolerance > 100 * _diff / size),
         "'{}': expected {} got {}, diff {:0.2f}% ({} bytes)".format(
             pool_info.pool_name, size, max_workspace_size, 100 * _diff / size, _diff
         ),
@@ -45,13 +47,10 @@ def _verify_conflicts(buffer_info, pool_allocation, buffer_info_map):
 
         if conflict_pool_allocation.pool_info == pool_allocation.pool_info:
             assert conflict_pool_allocation.byte_offset != pool_allocation.byte_offset
-            l2 = (
-                max(
-                    conflict_pool_allocation.byte_offset + conflict.size_bytes,
-                    pool_allocation.byte_offset + buffer_info.size_bytes,
-                )
-                - min(conflict_pool_allocation.byte_offset, pool_allocation.byte_offset)
-            )
+            l2 = max(
+                conflict_pool_allocation.byte_offset + conflict.size_bytes,
+                pool_allocation.byte_offset + buffer_info.size_bytes,
+            ) - min(conflict_pool_allocation.byte_offset, pool_allocation.byte_offset)
             assert (
                 conflict.size_bytes + buffer_info.size_bytes <= l2
             ), 'Conflicting: \n"{} @{}"\n"{} @{}"'.format(
@@ -65,7 +64,13 @@ def _verify_all_conflicts(buffer_pool_allocations):
         _verify_conflicts(buffer_info, pool_allocation, buffer_pool_allocations)
 
 
-def test_bounded(random_len=150, pools=[PoolInfo("default", {}, 65535), PoolInfo("slow", {})]):
+def test_bounded(
+    random_len=150,
+    pools=[
+        WorkspacePoolInfo("default", [], PoolInfoProperties(65535)),
+        WorkspacePoolInfo("slow", []),
+    ],
+):
     """Tests two pools, one is bounded and one is not limited"""
     random.seed(0)
     mem_range = [BufferInfo(str(i), random.randrange(1, 65535), pools) for i in range(random_len)]
@@ -330,7 +335,7 @@ def find_maximum_from_intervals(intervals):
 def test_intervals(intervals):
     """Tests supplied intervals"""
     random.seed(0)
-    result = run_intervals(intervals)
+    result = run_intervals(intervals, 5)
     assert result["tir.usmp.algo.hill_climb"] == True, f" {result}"
 
 
@@ -350,10 +355,10 @@ def test_random_intervals(interval_len=16):
     return run_intervals(intervals)
 
 
-def run_intervals(intervals):
+def run_intervals(intervals, tolerance=0):
     """Helper to run intervals"""
     expected_mem = find_maximum_from_intervals(intervals)
-    pools = [PoolInfo("default", {})]
+    pools = [WorkspacePoolInfo("default", [])]
     buffers = []
     # populate
     for i, (start, stop, size) in enumerate(intervals):
@@ -386,7 +391,9 @@ def run_intervals(intervals):
         print()
 
         _verify_all_conflicts(buffer_info_arr)
-        result[alg], msg = _check_max_workspace_size(buffer_info_arr, pools[0], expected_mem)
+        result[alg], msg = _check_max_workspace_size(
+            buffer_info_arr, pools[0], expected_mem, tolerance
+        )
         if not result[alg]:
             print(alg, msg)
 
@@ -394,4 +401,4 @@ def run_intervals(intervals):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

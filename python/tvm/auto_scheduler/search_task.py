@@ -380,9 +380,9 @@ class SearchTask(Object):
         The ComputeDAG for the corresponding compute declaration.
     workload_key : str
         The workload key for the corresponding compute declaration.
-    target : tvm.target.Target
+    target : any target-like object, see Target.canon_target
         The target device of this search task.
-    target_host : Optional[tvm.target.Target]
+    target_host : None or any target-like object, see Target.canon_target
         The target host device of this search task.
     hardware_params : Optional[HardwareParams]
         Hardware parameters used in this search task.
@@ -448,7 +448,7 @@ class SearchTask(Object):
 
         assert target is not None, "Must specify a target."
 
-        target, target_host = Target.check_and_update_host_consist(target, target_host)
+        target, target_host = Target.canon_target_and_host(target, target_host)
 
         if layout_rewrite_option is None:
             layout_rewrite_option = LayoutRewriteOption.get_target_default(target)
@@ -481,7 +481,7 @@ class SearchTask(Object):
             desc,
         )
 
-    def tune(self, tuning_options, search_policy=None):
+    def tune(self, tuning_options, search_policy=None, adaptive_training=False):
         """Run auto scheduling search for a task
 
         Parameters
@@ -492,7 +492,7 @@ class SearchTask(Object):
             The search policy to be used for schedule search.
         """
         if search_policy is None:
-            cost_model = XGBModel()
+            cost_model = XGBModel(adaptive_training=adaptive_training)
             search_policy = SketchPolicy(self, cost_model)
 
         _ffi_api.AutoSchedule(search_policy, tuning_options)
@@ -559,9 +559,7 @@ class SearchTask(Object):
         raise ValueError("Invalid print_mode: %s" % print_mode)
 
     def __getstate__(self):
-        self.target, self.target_host = Target.check_and_update_host_consist(
-            self.target, self.target_host
-        )
+        self.target, self.target_host = Target.canon_target_and_host(self.target, self.target_host)
         return {
             "compute_dag": self.compute_dag,
             "workload_key": self.workload_key,
@@ -587,7 +585,7 @@ class SearchTask(Object):
         if workload[0] not in WORKLOAD_FUNC_REGISTRY:
             register_workload_tensors(state["workload_key"], state["compute_dag"].tensors)
 
-        state["target"], state["target_host"] = Target.check_and_update_host_consist(
+        state["target"], state["target_host"] = Target.canon_target_and_host(
             state["target"], state["target_host"]
         )
         self.__init_handle_by_constructor__(

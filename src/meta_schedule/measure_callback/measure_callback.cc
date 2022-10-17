@@ -21,12 +21,30 @@
 namespace tvm {
 namespace meta_schedule {
 
+void PyMeasureCallbackNode::Apply(const TaskScheduler& task_scheduler,                //
+                                  int task_id,                                        //
+                                  const Array<MeasureCandidate>& measure_candidates,  //
+                                  const Array<BuilderResult>& builds,                 //
+                                  const Array<RunnerResult>& results) {
+  ICHECK(f_apply != nullptr) << "PyMeasureCallback's Apply method not implemented!";
+  auto _ = Profiler::TimedScope("MeasureCallback/" + this->f_as_string());
+  return f_apply(task_scheduler, task_id, measure_candidates, builds, results);
+}
+
 MeasureCallback MeasureCallback::PyMeasureCallback(PyMeasureCallbackNode::FApply f_apply,  //
                                                    PyMeasureCallbackNode::FAsString f_as_string) {
   ObjectPtr<PyMeasureCallbackNode> n = make_object<PyMeasureCallbackNode>();
   n->f_apply = std::move(f_apply);
   n->f_as_string = std::move(f_as_string);
   return MeasureCallback(n);
+}
+
+Array<MeasureCallback, void> MeasureCallback::Default() {
+  return {
+      MeasureCallback::AddToDatabase(),
+      MeasureCallback::RemoveBuildArtifact(),
+      MeasureCallback::UpdateCostModel(),
+  };
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -45,6 +63,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackApply")
     .set_body_method<MeasureCallback>(&MeasureCallbackNode::Apply);
 TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackPyMeasureCallback")
     .set_body_typed(MeasureCallback::PyMeasureCallback);
+TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackDefault")
+    .set_body_typed(MeasureCallback::Default);
 
 }  // namespace meta_schedule
 }  // namespace tvm

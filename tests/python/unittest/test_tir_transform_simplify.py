@@ -15,7 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
+
 from tvm import te
+from tvm.script import tir as T
 
 
 def test_stmt_simplify():
@@ -30,7 +33,7 @@ def test_stmt_simplify():
     body = tvm.tir.LetStmt(n, 10, ib.get())
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C, n], body))
     body = tvm.tir.transform.Simplify()(mod)["main"].body
-    assert isinstance(body.body, tvm.tir.Store)
+    assert isinstance(body.body, tvm.tir.BufferStore)
 
 
 def test_thread_extent_simplify():
@@ -48,7 +51,7 @@ def test_thread_extent_simplify():
     body = tvm.tir.LetStmt(n, 10, ib.get())
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C, n], body))
     body = tvm.tir.transform.Simplify()(mod)["main"].body
-    assert isinstance(body.body.body.body, tvm.tir.Store)
+    assert isinstance(body.body.body.body, tvm.tir.BufferStore)
 
 
 def test_if_likely():
@@ -133,9 +136,685 @@ def test_complex_likely_elimination():
     assert "if" not in str(stmt)
 
 
+class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
+    transitively_prove_inequalities = False
+    convert_boolean_to_and_of_ors = False
+
+    def transform(self):
+        def inner(mod):
+            config = {
+                "tir.Simplify": {
+                    "transitively_prove_inequalities": self.transitively_prove_inequalities,
+                    "convert_boolean_to_and_of_ors": self.convert_boolean_to_and_of_ors,
+                }
+            }
+            with tvm.transform.PassContext(config=config):
+                mod = tvm.tir.transform.Simplify()(mod)
+            return mod
+
+        return inner
+
+
+class TestLoadStoreNoop(BaseBeforeAfter):
+    """Store of a value that was just read from the same location is a no-op."""
+
+    def before(A: T.Buffer[(1,), "float32"]):
+        A[0] = A[0]
+
+    def expected(A: T.Buffer[(1,), "float32"]):
+        T.evaluate(0)
+
+
+class TestLoadStoreNoopAfterSimplify(BaseBeforeAfter):
+    """As test_load_store_noop, but requiring simplification to identify.
+
+    Previously, a bug caused the self-assignment of a buffer to
+    checked based on the pre-simplification assignment, not the
+    post-simplification.  This test is to identify any similar
+    regression.
+    """
+
+    def before(A: T.Buffer[(1,), "float32"]):
+        A[0] = A[0] + (5.0 - 5.0)
+
+    def expected(A: T.Buffer[(1,), "float32"]):
+        T.evaluate(0)
+
+
+class TestNestedCondition(BaseBeforeAfter):
+    """Nested IfThenElse with the same condition can be simplified.
+
+    Requires const_int_bound to narrow scope of i within the
+    conditional, or for rewrite_simplify to recognize the literal
+    constraint.
+    """
+
+    def before(A: T.Buffer[(16,), "float32"]):
+        for i in T.serial(16):
+            if i == 5:
+                if i == 5:
+                    A[i] = 0.0
+
+    def expected(A: T.Buffer[(16,), "float32"]):
+        for i in T.serial(16):
+            if i == 5:
+                A[i] = 0.0
+
+
+class TestNestedProvableCondition(BaseBeforeAfter):
+    """Simplify inner conditional using constraint from outer.
+
+    Requires const_int_bound to narrow scope of i within the
+    conditional.
+    """
+
+    def before(A: T.Buffer[(16,), "float32"]):
+        for i in T.serial(16):
+            if i == 5:
+                if i < 7:
+                    A[i] = 0.0
+
+    def expected(A: T.Buffer[(16,), "float32"]):
+        for i in T.serial(16):
+            if i == 5:
+                A[i] = 0.0
+
+
+class TestNestedVarCondition(BaseBeforeAfter):
+    """Simplify inner conditional using constraint from outer.
+
+    Requires for rewrite_simplify to recognize the repeated
+    constraint.
+    """
+
+    def before(A: T.Buffer[(16,), "float32"], n: T.int32):
+        for i in T.serial(16):
+            if i == n:
+                if i == n:
+                    A[i] = 0.0
+
+    def expected(A: T.Buffer[(16,), "float32"], n: T.int32):
+        for i in T.serial(16):
+            if i == n:
+                A[i] = 0.0
+
+
+class TestAlteredBufferContents(BaseBeforeAfter):
+    """No simplification of data-dependent conditionals.
+
+    A literal constraint must not be propagated if the values
+    referenced may change.  TIR requires single assignment of
+    variables, so Var objects may be assumed constant, but BufferLoad
+    may not.
+    """
+
+    def before(A: T.Buffer[(1,), "int32"], n: T.int32):
+        if A[0] == n:
+            A[0] = A[0] + 1
+            if A[0] == n:
+                A[0] = 0
+
+    expected = before
+
+
+class TestNegationOfCondition(BaseBeforeAfter):
+    """Use negation of outer condition to simplify innner.
+
+    Within the body of an if statement, the negation of the
+    condition is known to be false.
+    """
+
+    def before(A: T.Buffer[(16,), "int32"]):
+        for i in T.serial(16):
+            if i == 5:
+                if i != 5:
+                    A[i] = 0
+                else:
+                    A[i] = 1
+
+    def expected(A: T.Buffer[(16,), "int32"]):
+        for i in T.serial(16):
+            if i == 5:
+                A[i] = 1
+
+
+class TestNegationOfNotEqual(BaseBeforeAfter):
+    """As TestNegationOfVarCondition, but with a != outer condition.
+
+    Because ConstIntBoundAnalyzer only tracks the min and max allowed
+    values, the outer i!=5 condition does provide a constraint on the
+    bounds.  This test relies on RewriteSimplifier to recognize
+    ``i==5`` as the negation of a literal constraint.
+    """
+
+    def before(A: T.Buffer[(16,), "int32"]):
+        for i in T.serial(16):
+            if i != 5:
+                if i == 5:
+                    A[i] = 0
+                else:
+                    A[i] = 1
+
+    def expected(A: T.Buffer[(16,), "int32"]):
+        for i in T.serial(16):
+            if i != 5:
+                A[i] = 1
+
+
+class TestNegationOfVarCondition(BaseBeforeAfter):
+    """As TestNegationOfVarCondition, but with a dynamic condition.
+
+    This simplification cannot be done with ConstIntBoundAnalyzer, and
+    must rely on RewriteSimplifier recognizing the repeated literal.
+    """
+
+    def before(A: T.Buffer[(16,), "int32"], n: T.int32):
+        for i in T.serial(16):
+            if i == n:
+                if i != n:
+                    A[i] = 0
+                else:
+                    A[i] = 1
+
+    def expected(A: T.Buffer[(16,), "int32"], n: T.int32):
+        for i in T.serial(16):
+            if i == n:
+                A[i] = 1
+
+
+class TestLiteralConstraintSplitBooleanAnd(BaseBeforeAfter):
+    """Split a boolean AND into independent constraints
+
+    A single if condition may impose multiple literal constraints.
+    Each constraint that is ANDed together to form the condition
+    should be treated as an independent constraint.  The use of n in
+    the condition is to ensure we exercise RewriteSimplifier.
+    """
+
+    def before(A: T.Buffer[(16, 16), "int32"], n: T.int32):
+        for i, j in T.grid(16, 16):
+            if i == n and j == n:
+                if i == n:
+                    A[i, j] = 0
+
+    def expected(A: T.Buffer[(16, 16), "int32"], n: T.int32):
+        for i, j in T.grid(16, 16):
+            if i == n and j == n:
+                A[i, j] = 0
+
+
+class TestLiteralConstraintSplitBooleanOr(BaseBeforeAfter):
+    """Split a boolean OR into independent constraints
+
+    Similar to TestLiteralConstraintSplitBooleanAnd, but splitting a
+    boolean OR into independent conditions.  This uses the
+    simplification that ``!(x || y) == !x && !y``.
+
+    The use of ``n`` in the condition is to ensure we exercise
+    RewriteSimplifier.
+    """
+
+    def before(A: T.Buffer[(16, 16), "int32"], n: T.int32):
+        for i, j in T.grid(16, 16):
+            if i == n or j == n:
+                A[i, j] = 0
+            else:
+                if i == n:
+                    A[i, j] = 1
+                else:
+                    A[i, j] = 2
+
+    def expected(A: T.Buffer[(16, 16), "int32"], n: T.int32):
+        for i, j in T.grid(16, 16):
+            if i == n or j == n:
+                A[i, j] = 0
+            else:
+                A[i, j] = 2
+
+
+class TestProveConditionUsingLet(BaseBeforeAfter):
+    """Simplify conditions using non-inlined let bindings
+
+    Not all let bindings are inlined when they occur in later
+    expressions.  However, even if they are not inlined, they may be
+    used to prove the value of a condition.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            if condition or i >= 3:
+                A[i] = condition
+
+    @T.prim_func
+    def expected(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            A[i] = condition
+
+
+class TestProveLetCondition(BaseBeforeAfter):
+    """Simplify conditions using non-inlined let bindings
+
+    Not all let bindings are inlined when they occur in later
+    expressions.  However, even if they are not inlined, they may be
+    used to prove the value of a condition.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            if i < 3:
+                if condition:
+                    A[i] = condition
+
+    @T.prim_func
+    def expected(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            if i < 3:
+                A[i] = condition
+
+
+class TestProveRepeatedLetCondition(BaseBeforeAfter):
+    """Simplify conditions using non-inlined let bindings
+
+    A variable may be used as a literal constraint, and be recognized
+    as being True within the context of the constraint.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            if condition:
+                if condition:
+                    A[i] = condition
+
+    @T.prim_func
+    def expected(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            if condition:
+                A[i] = True
+
+
+class TestIfThenElseExpr(BaseBeforeAfter):
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if i < 12:
+                A[i] = T.if_then_else(i < 12, 1.0, 2.0, dtype="float32")
+
+    @T.prim_func
+    def expected(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if i < 12:
+                A[i] = 1.0
+
+
+class TestCeilLog2Int(BaseBeforeAfter):
+    """Simplify expressions resulting from topi.math.ceil_log2"""
+
+    @T.prim_func
+    def before(A: T.Buffer[1, "int32"]):
+        A[0] = T.cast(
+            T.ceil(T.log2(T.cast(14, "float64"), dtype="float64"), dtype="float64"), dtype="int32"
+        )
+
+    @T.prim_func
+    def expected(A: T.Buffer[1, "int32"]):
+        A[0] = 4
+
+
+class TestLeftCeilLog2LowerBound(BaseBeforeAfter):
+    """Integer bounds are propagated through topi.math.ceil_log2"""
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            x = T.cast(
+                T.ceil(T.log2(T.cast(i + 1024 + 1, "float64"), dtype="float64"), dtype="float64"),
+                dtype="int32",
+            )
+            if x == 11:
+                A[i] = 0.0
+
+    @T.prim_func
+    def expected(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            A[i] = 0.0
+
+
+class TestLeftShiftLowerBound(BaseBeforeAfter):
+    """Integer bounds are propagated through left shift
+
+    min(1 << i) = 1 << min(i)
+                = 1 << 0
+                = 1
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if T.shift_left(1, i, dtype="int32") >= 1:
+                A[i] = 0.0
+
+    @T.prim_func
+    def expected(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            A[i] = 0.0
+
+
+class TestLeftShiftUpperBound(BaseBeforeAfter):
+    """Integer bounds are propagated through left shift
+
+    max(31 << i) = 31 << max(i)
+                 = 31 << 15
+                 = 1015808
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if T.shift_left(31, i, dtype="int32") <= 1015808:
+                A[i] = 0.0
+
+    @T.prim_func
+    def expected(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            A[i] = 0.0
+
+
+class TestLeftShiftOfNegativeValue(BaseBeforeAfter):
+    """No const int bounds of left shift of negative value.
+
+    This is target dependent, and does not currently have a specified
+    behavior in TIR.  For example, in CodeGenC, this generates C code
+    with undefined behavior.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if -64 <= T.shift_left(-i, 4, dtype="int32"):
+                A[i] = 0.0
+
+    expected = before
+
+
+class TestLeftShiftByNegativeValue(BaseBeforeAfter):
+    """No const int bounds of left shift by negative bit count.
+
+    This is target dependent, and does not currently have a specified
+    behavior in TIR.  For example, in CodeGenC, this generates C code
+    with undefined behavior.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if T.shift_left(16, -i, dtype="int32") <= 16:
+                A[i] = 0.0
+
+    expected = before
+
+
+class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
+    """Remove comparisons that may be proven using multiple others
+
+    For example, the `0 < i` and `i <= j` conditions can be used to prove
+    that `0 < j`.
+    """
+
+    transitively_prove_inequalities = True
+
+    i, j, k = [tvm.tir.Var(name, "int32") for name in "ijk"]
+    zero = tvm.tir.IntImm("int32", 0)
+
+    test_case = tvm.testing.parameter(
+        (tvm.tir.all(zero < i, i <= j), zero < j, True),
+        # Transitive comparisons from LT
+        (tvm.tir.all(i < j, j < k), i < k, True),
+        (tvm.tir.all(i < j, j == k), i < k, True),
+        (tvm.tir.all(i < j, j <= k), i < k, True),
+        (tvm.tir.all(i < j, j > k), i < k, False),
+        (tvm.tir.all(i < j, j >= k), i < k, False),
+        (tvm.tir.all(i < j, j != k), i < k, False),
+        # Transitive comparisons from LE
+        (tvm.tir.all(i <= j, j < k), i < k, True),
+        (tvm.tir.all(i <= j, j == k), i == k, False),
+        (tvm.tir.all(i <= j, j == k), i <= k, True),
+        (tvm.tir.all(i <= j, j <= k), i <= k, True),
+        (tvm.tir.all(i <= j, j <= k), i < k, False),
+        (tvm.tir.all(i <= j, j > k), i < k, False),
+        (tvm.tir.all(i <= j, j >= k), i < k, False),
+        (tvm.tir.all(i <= j, j != k), i < k, False),
+        # Transitive comparisons from GT
+        (tvm.tir.all(i > j, j > k), i > k, True),
+        (tvm.tir.all(i > j, j == k), i > k, True),
+        (tvm.tir.all(i > j, j >= k), i > k, True),
+        (tvm.tir.all(i > j, j < k), i > k, False),
+        (tvm.tir.all(i > j, j <= k), i > k, False),
+        (tvm.tir.all(i > j, j != k), i > k, False),
+        # Transitive comparisons from GE
+        (tvm.tir.all(i >= j, j > k), i > k, True),
+        (tvm.tir.all(i >= j, j == k), i == k, False),
+        (tvm.tir.all(i >= j, j == k), i >= k, True),
+        (tvm.tir.all(i >= j, j >= k), i >= k, True),
+        (tvm.tir.all(i >= j, j >= k), i > k, False),
+        (tvm.tir.all(i >= j, j < k), i > k, False),
+        (tvm.tir.all(i >= j, j <= k), i > k, False),
+        (tvm.tir.all(i >= j, j != k), i > k, False),
+        # GT or LT may be used to prove NE
+        (tvm.tir.all(i == j, j != k), i != k, True),
+        (tvm.tir.all(i == j, j < k), i != k, True),
+        (tvm.tir.all(i == j, j > k), i != k, True),
+        (tvm.tir.all(i == j, j != k), i < k, False),
+        (tvm.tir.all(i == j, j != k), i > k, False),
+        # Because these are integers, x<y is equivalent to x <= y-1,
+        # and may be used in equivalent simplifications.
+        (tvm.tir.all(i <= j - 1, j < k), i < k, True),
+        (tvm.tir.all(i <= j - 1, j == k), i < k, True),
+        (tvm.tir.all(i <= j - 1, j <= k), i < k, True),
+        (tvm.tir.all(i <= j - 1, j > k), i < k, False),
+        (tvm.tir.all(i <= j - 1, j >= k), i < k, False),
+        (tvm.tir.all(i <= j - 1, j != k), i < k, False),
+        # Either or both inequalities may have an additive offset.
+        (tvm.tir.all(i <= j + 5, j <= k + 7), i <= k + 12, True),
+        (tvm.tir.all(i <= j + 5, j <= k + 7), i <= k + 11, False),
+        # For floats, x < y + c1 and y < z + c2 implies that x < z + (c1 + c2).
+        # Because this simplification applies to integers, transitive
+        # application of LT or GT can give a tighter constraint.
+        #
+        # i < j + c1, j < k + c2
+        # i <= j + c1 - 1, j <= k + c2 - 1
+        # i + 1 - c1 <= j, j <= k + c2 - 1
+        # i + 1 - c1 <= k + c2 - 1
+        # i <= k + c1 + c2 - 2
+        # i < k + (c1 + c2 - 1)
+        #
+        (tvm.tir.all(i < j + 5, j < k + 7), i < k + 11, True),
+        (tvm.tir.all(i < j + 5, j < k + 7), i < k + 10, False),
+    )
+
+    @tvm.testing.fixture
+    def before(self, test_case):
+        priors, postulate, _ = test_case
+
+        @T.prim_func
+        def func(A: T.Buffer[1, "bool"]):
+            if priors:
+                A[0] = postulate
+
+        return func
+
+    @tvm.testing.fixture
+    def expected(self, test_case):
+        priors, postulate, provable = test_case
+
+        analyzer = tvm.arith.Analyzer()
+        priors = analyzer.canonical_simplify(priors)
+
+        if provable:
+
+            @T.prim_func
+            def func(A: T.Buffer[1, "bool"]):
+                if priors:
+                    A[0] = True
+
+            return func
+
+        else:
+            postulate = analyzer.canonical_simplify(postulate)
+
+            @T.prim_func
+            def func(A: T.Buffer[1, "bool"]):
+                if priors:
+                    A[0] = postulate
+
+            return func
+
+
+class TestSuppressTransitivelyProvableCondition(BaseBeforeAfter):
+    transitively_prove_inequalities = False
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        if i < j and j < k:
+            A[0] = i < k
+
+    expected = before
+
+
+class TestRewriteAsAndOfOrs(BaseBeforeAfter):
+    """If enabled, rewrite boolean expressions into AND of OR"""
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[3, "bool"]):
+        T.evaluate(A[0] or (A[1] and A[2]))
+
+    def expected(A: T.Buffer[3, "bool"]):
+        T.evaluate((A[0] or A[1]) and (A[0] or A[2]))
+
+
+class TestSuppressRewriteAsAndOfOrs(BaseBeforeAfter):
+    """Only rewrite into AND of OR when allowed"""
+
+    convert_boolean_to_and_of_ors = False
+
+    def before(A: T.Buffer[3, "bool"]):
+        T.evaluate(A[0] or (A[1] and A[2]))
+
+    expected = before
+
+
+class TestRewriteAsAndOfOrsWithTopLevelAnd(BaseBeforeAfter):
+    """The expression being rewritten may start with an AND
+
+    Like TestRewriteAsAndOfOrs, but with an AndNode as the outermost
+    booelan operator.  Even though it is primarily OR nodes that are
+    being rewritten, the call to SimplifyAsAndOfOrs should apply to
+    the outermost AndNode or OrNode in order to enable better
+    simplification.
+    """
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[4, "bool"]):
+        T.evaluate((A[0] or A[1]) and (A[1] or (A[0] and A[2] and A[3])))
+
+    def expected(A: T.Buffer[4, "bool"]):
+        # If the simplification is applied to the OrNode, then a
+        # redundant `(A[1] or A[0])` would't be canceled out.  When
+        # applying SimplifyAsAndOfOrs to the top-level AndNode, the
+        # internal representation is `[[0,1], [1,0], [1,2], [1,3]]`, and
+        # the redundant `[1,0]` can be removed.
+        #
+        # If the simplification were only applied when encountering an
+        # OrNode, the internal representation would be `[[0,1]]` during
+        # the first call and `[[1,0], [1,2], [1,3]]` during the second
+        # call.  As a result, the `[0,1]` and `[1,0]` representations
+        # wouldn't occur within the same call, and the redundant `[1,0]`
+        # wouldn't be removed.
+        T.evaluate((A[0] or A[1]) and (A[1] or A[2]) and (A[1] or A[3]))
+
+
+class TestRewriteAsAndOfOrsWithSimplificationBetweenGroups(BaseBeforeAfter):
+    """Apply rewrite rules between OR groups that differ by a single element
+
+    The expression `(k==20 and k!=30)` could be rewritten into `(k==20)`.
+    However, by default these two terms must appear as part of an explict part
+    of the simplified expression.  The AndOfOr simplification checks for
+    rewrite patterns of the form `(A or B) and (A or C)`, where `(B and C)` can
+    simplify to a single expression `D`.  These can be rewritten to `(A or D)`.
+    """
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (i == 0 or j == 10 or k == 20) and (i == 0 or j == 10 or k != 30)
+
+    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = i == 0 or j == 10 or k == 20
+
+
+class TestRewriteAsAndOfOrsWithSimplificationBetweenReorderedGroups(BaseBeforeAfter):
+    """Rewrite rules between OR groups do not depend on order
+
+    Like TestRewriteAsAndOfOrsWithSimplificationBetweenGroups, but the groups
+    are ordered differently.  If this removes a group entirely, the result is
+    ordered according to the first group in the expression.
+    """
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (i == 0 or j == 10 or k == 20) and (j == 10 or k != 30 or i == 0)
+
+    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = i == 0 or j == 10 or k == 20
+
+
+class TestRewriteAsAndOfOrUsingSimplificationAcrossAnd(BaseBeforeAfter):
+    """Apply AndNode rewrites to non-adjacent expressions
+
+    The RewriteSimplifier rules only check for simplifications between
+    left/right branches of an And/Or node.  Simplifications that would require
+    rearranging components in a chain of And/Or nodes are not performed.
+    """
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (k == 20) and ((i == 0 or j == 10) and (k != 30))
+
+    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (k == 20) and (i == 0 or j == 10)
+
+
+class TestRewriteAsAndOfOrUsingSimplificationWithinOr(BaseBeforeAfter):
+    """Rewrite rules between OR groups do not depend on order
+
+    The RewriteSimplifier rules only check for simplifications between
+    left/right branches of an And/Or node.  Simplifications that would require
+    rearranging components in a chain of And/Or nodes are not performed.
+
+    This test validates that `(i == 20) or (i != 30)` can be rewritten to
+    `(i != 30)`, even when there's an intervening clause between the
+    clauses being simplified.
+    """
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (i == 20) or (j == 0) or (i != 30)
+
+    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (i != 30) or (j == 0)
+
+
 if __name__ == "__main__":
-    test_stmt_simplify()
-    test_thread_extent_simplify()
-    test_if_likely()
-    test_basic_likely_elimination()
-    test_complex_likely_elimination()
+    tvm.testing.main()

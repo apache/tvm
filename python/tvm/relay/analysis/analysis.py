@@ -352,6 +352,22 @@ def list_op_freqs(mod):
     return _ffi_api.ExtractOperators(mod)
 
 
+def list_fake_quantized_op_freqs(mod):
+    """Pass to extract fake quantized op names and the frequency that they appear
+    in fake quantized regions of an IRModule.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+
+    Returns
+    -------
+    ret : Dict[str, int]
+        Dict of fake quantized operator names to frequency
+    """
+    return _ffi_api.ExtractFakeQuantizedOps(mod)
+
+
 def search_fc_transpose(expr):
     """Search fc weight name in the patten: y = nn.dense(x, transpose(w, [1, 0]))
 
@@ -415,3 +431,41 @@ def get_calibration_data(mod, data):
         calib_data[gvar] = value
 
     return calib_data
+
+
+def extract_intermdeiate_expr(mod, expr_id):
+    """Extract Relay Expr by its expression ID
+
+    This function is used for extracting Relay Expr
+    by its expression ID of the main function
+    that we can see in `print(mod["main"])`.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+
+    expr_id : the Expr ID that we want to extract
+
+    Returns
+    -------
+    ret : Extracted IRModule
+
+    Examples
+    --------
+    .. code-block:: python
+
+        # Suppose our module is printed like this:
+        # def @main(%x: Tensor[(1, 1, 5, 1), float32], %w1, %w2) {
+        #   %0 = nn.conv2d(%x, %w1, padding=[1, 1, 1, 1], channels=1, kernel_size=[3, 3]);
+        #   %1 = nn.conv2d(%0, %w2, padding=[1, 1, 1, 1], channels=1, kernel_size=[3, 3]);
+        #   %2 = add(%0, %1);
+        #   %3 = split(%2, indices_or_sections=1);
+        #   %4 = %3.0;
+        #   add(%4, 1f)
+        # }
+        # if we want to extract `%1 = nn.conv2d`
+        from tvm import relay
+
+        relay.analysis.extract_intermdeiate_expr(mod, 1)
+    """
+    return _ffi_api.ExtractIntermediateExpr(mod, expr_id)

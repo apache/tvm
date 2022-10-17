@@ -18,17 +18,21 @@
 """Arm(R) Ethos(TM)-N test functions"""
 
 from __future__ import absolute_import, print_function
+from hashlib import md5
+from itertools import zip_longest, combinations
+import os
+from typing import Tuple
+import math
+
+import numpy as np
+from PIL import Image
+
 import tvm
 from tvm import relay
 from tvm.contrib import utils, graph_executor, download
-from hashlib import md5
-from itertools import zip_longest, combinations
-import numpy as np
-from PIL import Image
-import os
+from tvm.relay.op.contrib import partition_for_ethosn
 
 from . import _infrastructure
-from tvm.relay.op.contrib import get_pattern_table
 
 
 def get_real_image(im_height, im_width):
@@ -67,7 +71,8 @@ def assert_lib_hash(lib, golden):
     for mod in lib.imported_modules:
         if mod.type_key == "ethos-n":
             mod.save(path)
-            lib_hash = md5(open(path, "rb").read()).hexdigest()
+            with open(path, "rb") as compiled_model:
+                lib_hash = md5(compiled_model.read()).hexdigest()
             hash_set.add(lib_hash)
 
     assert hash_set == golden, "Expected hash: {} Got hash: {}".format(golden, hash_set)
@@ -82,22 +87,25 @@ def make_module(func, params):
 
 
 def make_ethosn_composite(ethosn_expr, name):
-    vars = relay.analysis.free_vars(ethosn_expr)
-    func = relay.Function([relay.Var("a")], ethosn_expr)
+    variables = relay.analysis.free_vars(ethosn_expr)
+    inner_vars = [relay.Var(v.name_hint, v.type_annotation) for v in variables]
+    func = relay.Function(inner_vars, ethosn_expr)
     func = func.with_attr("Composite", name)
-    call = relay.Call(func, vars)
+    call = relay.Call(func, variables)
     return call
 
 
 def make_ethosn_partition(ethosn_expr):
+    """Make an Ethos(TM)-N partition."""
+
     # Create an Ethos-N global function
     mod = tvm.IRModule({})
-    vars = relay.analysis.free_vars(ethosn_expr)
+    variables = relay.analysis.free_vars(ethosn_expr)
     # NB: it is illegal to reuse variables inside and outside a scope in Relay
     # if you want to duplicate types and names you must re-allocate them.
-    fresh_vars = [relay.Var(v.name_hint, v.type_annotation) for v in vars]
+    fresh_vars = [relay.Var(v.name_hint, v.type_annotation) for v in variables]
     binds = {}
-    for var, fresh_var in zip(vars, fresh_vars):
+    for var, fresh_var in zip(variables, fresh_vars):
         binds[var] = fresh_var
     ethosn_expr_fresh = relay.bind(ethosn_expr, binds)
     func = relay.Function(fresh_vars, ethosn_expr_fresh)
@@ -105,19 +113,21 @@ def make_ethosn_partition(ethosn_expr):
     func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
     func = func.with_attr("Compiler", "ethos-n")
     func = func.with_attr("global_symbol", "ethos-n_0")
-    g1 = relay.GlobalVar("ethos-n_0")
-    mod[g1] = func
+    global_var = relay.GlobalVar("ethos-n_0")
+    mod[global_var] = func
     mod = relay.transform.InferType()(mod)
 
     # These are the vars to call the Ethos-N partition with
     more_vars = relay.analysis.free_vars(ethosn_expr)
     # Call the Ethos-N partition in main
-    call_fn1 = g1(*more_vars)
+    call_fn1 = global_var(*more_vars)
     mod["main"] = relay.Function(more_vars, call_fn1)
     return relay.transform.InferType()(mod)
 
 
 def get_host_op_count(mod):
+    """Return the number of host operators."""
+
     class Counter(tvm.relay.ExprVisitor):
         def __init__(self):
             super().__init__()
@@ -155,17 +165,7 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
     ):
         with tvm.target.Target("llvm"):
             if npu:
-                f = relay.build_module.bind_params_by_name(mod["main"], params)
-                mod = tvm.IRModule()
-                mod["main"] = f
-                pattern = get_pattern_table("ethos-n")
-                mod = relay.transform.InferType()(mod)
-                mod = relay.transform.MergeComposite(pattern)(mod)
-                mod = relay.transform.AnnotateTarget("ethos-n")(mod)
-                mod = relay.transform.InferType()(mod)
-                mod = relay.transform.MergeCompilerRegions()(mod)
-                mod = relay.transform.InferType()(mod)
-                mod = relay.transform.PartitionGraph()(mod)
+                mod = partition_for_ethosn(mod, params, variant="n78")
                 host_op_count = get_host_op_count(mod)
                 assert (
                     host_op_count == expected_host_ops
@@ -228,14 +228,12 @@ def run(lib, inputs, outputs, npu=True):
     return out
 
 
-def build_and_run(
-    mod, inputs, outputs, params, device=tvm.cpu(), npu=True, expected_host_ops=0, npu_partitions=1
-):
+def build_and_run(mod, inputs, outputs, params, npu=True, expected_host_ops=0, npu_partitions=1):
     lib = build(mod, params, npu, expected_host_ops, npu_partitions)
     return run(lib, inputs, outputs, npu)
 
 
-def verify(answers, atol, rtol=1e-07, verify_saturation=True):
+def verify(answers, dtype, atol, rtol=1e-07, verify_saturation=True):
     """Compare the array of answers. Each entry is a list of outputs"""
     if len(answers) < 2:
         print("No results to compare: expected at least two, found ", len(answers))
@@ -243,10 +241,12 @@ def verify(answers, atol, rtol=1e-07, verify_saturation=True):
         for outs in combinations(answer, 2):
             if verify_saturation:
                 assert (
-                    np.count_nonzero(outs[0].numpy() == 255) < 0.25 * outs[0].numpy().size
+                    np.count_nonzero(outs[0].numpy() == np.iinfo(dtype).max)
+                    < 0.25 * outs[0].numpy().size
                 ), "Output is saturated: {}".format(outs[0])
                 assert (
-                    np.count_nonzero(outs[0].numpy() == 0) < 0.25 * outs[0].numpy().size
+                    np.count_nonzero(outs[0].numpy() == np.iinfo(dtype).min)
+                    < 0.25 * outs[0].numpy().size
                 ), "Output is saturated: {}".format(outs[0])
             tvm.testing.assert_allclose(outs[0].numpy(), outs[1].numpy(), rtol=rtol, atol=atol)
 
@@ -261,6 +261,8 @@ def inference_result(outputs):
 
 
 def test_error(mod, params, err_msg):
+    """Test an operator error message."""
+
     caught = None
     with tvm.transform.PassContext(
         opt_level=3, config={"relay.ext.ethos-n.options": {"variant": get_ethosn_variant()}}
@@ -268,9 +270,9 @@ def test_error(mod, params, err_msg):
         with tvm.target.Target("llvm"):
             try:
                 mod = relay.transform.InferType()(mod)
-                relay.build(mod, params)
-            except tvm.error.TVMError as e:
-                caught = e.args[0]
+                relay.build(mod, params=params)
+            except tvm.error.TVMError as error:
+                caught = error.args[0]
             finally:
                 relay.backend.te_compiler.get().clear()
 
@@ -278,12 +280,12 @@ def test_error(mod, params, err_msg):
     assert err_msg in caught, caught
 
 
-def get_conv2d(var, shape):
+def get_conv2d(var, shape, dtype):
     """Standard convolution to test activation functions"""
 
     weight_shape = (1, 1, shape[3], 1)
-    w = tvm.nd.array(np.ones(weight_shape, "uint8"))
-    weights = relay.const(w, "uint8")
+    weights_array = tvm.nd.array(np.ones(weight_shape, dtype))
+    weights = relay.const(weights_array, dtype)
     conv = relay.qnn.op.conv2d(
         var,
         weights,
@@ -305,17 +307,29 @@ def get_conv2d(var, shape):
         relay.const(0, "int32"),  # input zero point
         relay.const(1.1, "float32"),  # output zero scale
         relay.const(0, "int32"),  # output zero point
-        out_dtype="uint8",
+        out_dtype=dtype,
     )
-    params = {"w": w, "b": b}
+    params = {"w": weights_array, "b": b}
     return req, params
 
 
-def get_conv2d_qnn_params(input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, channels):
-    input_max = input_sc * (255 - input_zp)
-    input_min = -input_sc * input_zp
-    kernel_max = kernel_sc * (255 - kernel_zp)
-    kernel_min = -kernel_sc * kernel_zp
+def get_conv2d_qnn_params(
+    dtype, input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, channels
+):
+    """Return Conv2D QNN params."""
+
+    kernel_sc = (
+        kernel_sc.numpy() if isinstance(kernel_sc, tvm.runtime.ndarray.NDArray) else [kernel_sc]
+    )
+    dtype_min = np.iinfo(dtype).min
+    dtype_max = np.iinfo(dtype).max
+
+    input_max = input_sc * (dtype_max - input_zp)
+    input_min = input_sc * (dtype_min - input_zp)
+
+    kernel_max = max(kernel_sc) * (dtype_max - kernel_zp)
+    kernel_min = min(kernel_sc) * (dtype_min - kernel_zp)
+
     output_limits = [
         kernel_max * kernel_h * kernel_w * channels * input_max,
         kernel_min * kernel_h * kernel_w * channels * input_max,
@@ -324,13 +338,49 @@ def get_conv2d_qnn_params(input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, ke
     ]
     output_max = max(output_limits)
     output_min = min(output_limits)
-    output_sc = (output_max - output_min) / 255
-    output_zp = -int(output_min / output_sc)
+
+    output_sc = (output_max - output_min) / (dtype_max - dtype_min)
+    output_zp = int(dtype_min - (output_min / output_sc))
     return output_zp, output_sc
 
 
-def get_ethosn_api_version():
-    return tvm.get_global_func("relay.ethos-n.api.version")()
+def get_same_padding(
+    data: Tuple[int, int],
+    kernel: Tuple[int, int],
+    dilation: Tuple[int, int],
+    stride: Tuple[int, int],
+) -> Tuple[int, int, int, int]:
+    """
+    Get the padding values required for 'SAME' padding.
+
+    Parameters
+    ----------
+    data : Tuple[int, int]
+        The height and width of the data respectively.
+    kernel : Tuple[int, int]
+        The height and width of the kernel respectively.
+    dilation : Tuple[int, int]
+        The dilation of the kernel.
+    stride : Tuple[int, int]
+        The stride of the kernel.
+
+    Returns
+    -------
+    Tuple[int, int, int, int]
+        The padding values for top, left, bottom and right respectively.
+    """
+    dilated_kernel_h = dilation[0] * (kernel[0] - 1) + 1
+    dilated_kernel_w = dilation[1] * (kernel[1] - 1) + 1
+    out = int(math.ceil(float(data[0]) / float(stride[0])))
+    pad = max(0, (out - 1) * stride[0] + dilated_kernel_h - data[0])
+    pad_top = pad // 2
+    pad_bottom = pad - pad_top
+
+    out = int(math.ceil(float(data[1]) / float(stride[1])))
+    pad = max(0, (out - 1) * stride[1] + dilated_kernel_w - data[1])
+    pad_left = pad // 2
+    pad_right = pad - pad_left
+    return (pad_top, pad_left, pad_bottom, pad_right)
 
 
 def get_ethosn_variant():

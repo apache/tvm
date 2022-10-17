@@ -125,6 +125,8 @@ Instruction::Instruction(const Instruction& instr) {
     case Opcode::DeviceCopy:
       this->device_copy = instr.device_copy;
       return;
+    case Opcode::KillRegister:
+      return;
     default:
       std::ostringstream out;
       out << "Invalid instruction " << static_cast<int>(instr.op);
@@ -228,6 +230,8 @@ Instruction& Instruction::operator=(const Instruction& instr) {
     case Opcode::DeviceCopy:
       this->device_copy = instr.device_copy;
       return *this;
+    case Opcode::KillRegister:
+      return *this;
     default:
       std::ostringstream out;
       out << "Invalid instruction " << static_cast<int>(instr.op);
@@ -251,6 +255,7 @@ Instruction::~Instruction() {
     case Opcode::ReshapeTensor:
     case Opcode::DeviceCopy:
     case Opcode::Fatal:
+    case Opcode::KillRegister:
       return;
     case Opcode::AllocTensor:
       delete[] this->alloc_tensor.shape;
@@ -369,6 +374,13 @@ Instruction Instruction::DeviceCopy(RegName src, Index src_device_index, Index d
   instr.device_copy.src = src;
   instr.device_copy.src_device_index = src_device_index;
   instr.device_copy.dst_device_index = dst_device_index;
+  return instr;
+}
+
+Instruction Instruction::KillRegister(RegName dst) {
+  Instruction instr;
+  instr.op = Opcode::KillRegister;
+  instr.dst = dst;
   return instr;
 }
 
@@ -497,6 +509,9 @@ void DLDatatypePrint(std::ostream& os, const DLDataType& dtype) {
     case kDLFloat:
       os << "float";
       break;
+    case kDLBfloat:
+      os << "bfloat";
+      break;
   }
 
   os << int(dtype.bits);
@@ -619,6 +634,10 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     case Opcode::DeviceCopy: {
       os << "device_copy $" << instr.dst << " $" << instr.device_copy.src << " "
          << instr.device_copy.dst_device_index << " " << instr.device_copy.src_device_index;
+      break;
+    }
+    case Opcode::KillRegister: {
+      os << "kill_register $" << instr.dst;
       break;
     }
     default:

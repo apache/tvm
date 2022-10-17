@@ -259,6 +259,62 @@ class IterSumExpr : public IterMapExpr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterSumExprNode);
 };
 
+/*! \brief Mapping level for iterators. */
+enum IterMapLevel {
+  // Require the mapping to be bijective.
+  Bijective = 0,
+  // Require the mapping to be surjective.
+  Surjective = 1,
+  // No mapping safety check.
+  NoCheck = 3
+};
+
+/*!
+ * \brief Result of DetectIterMap.
+ */
+class IterMapResultNode : public Object {
+ public:
+  // The detected pattern if a match exists.
+  Array<IterSumExpr> indices;
+
+  // Any errors that occurred while converting the input indices.  If
+  // the array is empty, the conversion was successful.
+  Array<String> errors;
+
+  /*! \brief Boolean expression indicating if a specific value w
+   *
+   * `padding_predicate` evaluates to true for a set of indices that
+   * are outside the bounds of the provided index iterators, but
+   * inside the bounds of the returned index iterators.  This
+   * expression is in terms of the variables provided in
+   * `input_iters`.
+   */
+  PrimExpr padding_predicate;
+
+  // overrides
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("errors", &errors);
+    v->Visit("indices", &indices);
+    v->Visit("padding_predicate", &padding_predicate);
+  }
+
+  static constexpr const char* _type_key = "arith.IterMapResult";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IterMapResultNode, Object);
+};
+
+/*!
+ * \brief Managed reference to IterMapResultNode.
+ * \sa IterMapResultNode
+ */
+class IterMapResult : public ObjectRef {
+ public:
+  // constructor
+  IterMapResult() { data_ = make_object<IterMapResultNode>(); }
+
+  /*! \return mutable pointers to the node. */
+  IterMapResultNode* operator->() const { return static_cast<IterMapResultNode*>(get_mutable()); }
+};
+
 /*!
  * \brief Detect if indices can be written as
  *  [y_0 + c_0, y_1 + c_1, ..., y_n + c_n]
@@ -274,28 +330,31 @@ class IterSumExpr : public IterMapExpr {
  * \param indices The indices to detect pattern for.
  * \param input_iters Map from variable to iterator's range.
  * \param predicate The predicate constraints on the input iterators
- * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
+ * \param check_level The iter mapping checking level.
  * \param analyzer Analyzer used to get context information.
- * \param diag_ctx Diagnostic context.
+ * \param simplify_trivial_iterators If true, iterators with extent of
+ *           1 will be replaced with a constant value.
  *
- * \return The detected pattern if a match exists,
- *         otherwise return an empty array.
+ * \return The detected iteration result.
+ * The return object's .indices is empty on failure.
  */
-Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
-                                 const PrimExpr& predicate, bool require_bijective,
-                                 arith::Analyzer* analyzer, DiagnosticContext diag_ctx);
+IterMapResult DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
+                            const PrimExpr& predicate, IterMapLevel check_level,
+                            arith::Analyzer* analyzer, bool simplify_trivial_iterators = true);
+
 /*!
  * \brief Use IterVarMap detector to rewrite and simplify the indices
  *
  * \param indices The indices to detect pattern for.
  * \param input_iters Map from variable to iterator's range.
  * \param input_pred The predicate constraints on the input iterators
- * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
- *
+ * \param check_level The iter mapping checking level.
+ * \param simplify_trivial_iterators If true, iterators with unit extents are simplified
  * \return The indices after rewrite
  */
 Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
-                                const PrimExpr& input_pred, bool require_bijective);
+                                const PrimExpr& input_pred, IterMapLevel check_level,
+                                bool simplify_trivial_iterators = true);
 
 /*!
  * \brief Apply the inverse of the affine transformation to the outputs.
@@ -307,6 +366,8 @@ Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, R
  * For example, iter_map = [l0 // 16, l0 % 16], outputs = [output_0, output_1],
  * the affine transformation specified by `iter_map` will be applied to `outputs` and the result
  * will be {l0: ((output_0*16) + output_1)}.
+ *
+ * The range of `outputs` should be the same as the output range of the affine transmation.
  *
  * \sa DetectIterMap
  *
@@ -333,9 +394,8 @@ Map<Var, PrimExpr> InverseAffineIterMap(const Array<IterSumExpr>& iter_map,
  * \param input_iters Map from variable to iterator's range.
  * \param sub_iters Iterators of subspace.
  * \param predicate The predicate constraints on the input iterators
- * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
+ * \param check_level The iter mapping checking level.
  * \param analyzer Analyzer used to get context information.
- * \param diag_ctx Diagnostic context.
  *
  * \return The result list has length len(bindings) + 1
         [0, len(bindings)): The iter map matching result. The inner list is of length 2.
@@ -347,8 +407,14 @@ Map<Var, PrimExpr> InverseAffineIterMap(const Array<IterSumExpr>& iter_map,
 Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
                                       const Map<Var, Range>& input_iters,
                                       const Array<Var>& sub_iters, const PrimExpr& predicate,
-                                      bool require_bijective, arith::Analyzer* analyzer,
-                                      DiagnosticContext diag_ctx);
+                                      IterMapLevel check_level, arith::Analyzer* analyzer);
+
+/*!
+ * \brief Given an expression that may contain IterMapExpr, transform it to normal PrimExpr.
+ * \param expr The input expression, which may contain IterMapExpr.
+ * \return The corresponding normal PrimExpr.
+ */
+PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr);
 
 }  // namespace arith
 }  // namespace tvm

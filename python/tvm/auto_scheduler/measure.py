@@ -31,22 +31,21 @@ get the measurement results. The flow of data structures is
 We implement these in python to utilize python's multiprocessing and error handling.
 """
 
+import logging
+import multiprocessing
 import os
-import time
 import shutil
 import tempfile
-import multiprocessing
-import logging
+import time
 
 import tvm._ffi
-from tvm.runtime import Object, module, ndarray
+from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
+from tvm.contrib import ndk, tar
+from tvm.contrib.popen_pool import PopenPoolExecutor, PopenWorker, StatusKind
 from tvm.driver import build_module
 from tvm.ir import transform
-from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
-from tvm.contrib import tar, ndk
-from tvm.contrib.popen_pool import PopenWorker, PopenPoolExecutor, StatusKind
+from tvm.runtime import Object, module, ndarray
 from tvm.target import Target
-
 
 from . import _ffi_api
 from .loop_state import StateObject
@@ -59,8 +58,8 @@ from .utils import (
     request_remote,
 )
 from .workload_registry import (
-    serialize_workload_registry_entry,
     deserialize_workload_registry_entry,
+    serialize_workload_registry_entry,
 )
 
 # pylint: disable=invalid-name
@@ -224,9 +223,7 @@ def recover_measure_input(inp, rebuild_state=False):
     from .search_task import SearchTask  # lazily import to avoid recursive dependency
 
     task = inp.task
-    task.target, task.target_host = Target.check_and_update_host_consist(
-        task.target, task.target_host
-    )
+    task.target, task.target_host = Target.canon_target_and_host(task.target, task.target_host)
     new_task = SearchTask(
         workload_key=task.workload_key,
         target=task.target,
@@ -382,6 +379,8 @@ class LocalRunner(ProgramRunner):
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    device: int = 0
+        Which device to run on if multiple are available.
     """
 
     def __init__(
@@ -392,6 +391,7 @@ class LocalRunner(ProgramRunner):
         min_repeat_ms=100,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
+        device=0,
     ):
         if enable_cpu_cache_flush:
             number = 1
@@ -405,6 +405,7 @@ class LocalRunner(ProgramRunner):
             min_repeat_ms,
             cooldown_interval,
             enable_cpu_cache_flush,
+            device,
         )
 
 
@@ -453,6 +454,8 @@ class RPCRunner(ProgramRunner):
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    device: int = 0
+        Which device to run on if multiple are available.
     """
 
     def __init__(
@@ -468,6 +471,7 @@ class RPCRunner(ProgramRunner):
         min_repeat_ms=100,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
+        device=0,
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.RPCRunner,
@@ -482,6 +486,7 @@ class RPCRunner(ProgramRunner):
             min_repeat_ms,
             cooldown_interval,
             enable_cpu_cache_flush,
+            device,
         )
 
         if check_remote(key, host, port, priority, timeout):
@@ -532,6 +537,8 @@ class LocalRPCMeasureContext:
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    device: int = 0
+        Which device to run on if multiple are available.
     """
 
     def __init__(
@@ -544,10 +551,11 @@ class LocalRPCMeasureContext:
         min_repeat_ms=0,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
+        device=0,
     ):
         # pylint: disable=import-outside-toplevel
-        from tvm.rpc.tracker import Tracker
         from tvm.rpc.server import Server
+        from tvm.rpc.tracker import Tracker
 
         self.tracker = Tracker(port=9000, port_end=10000, silent=True)
         device_key = "$local$device$%d" % self.tracker.port
@@ -570,6 +578,7 @@ class LocalRPCMeasureContext:
             min_repeat_ms,
             cooldown_interval,
             enable_cpu_cache_flush,
+            device,
         )
         # Wait for the processes to start
         time.sleep(0.5)
@@ -600,9 +609,7 @@ def _local_build_worker(inp_serialized, build_func, verbose):
     tic = time.time()
     inp = MeasureInput.deserialize(inp_serialized)
     task = inp.task
-    task.target, task.target_host = Target.check_and_update_host_consist(
-        task.target, task.target_host
-    )
+    task.target, task.target_host = Target.canon_target_and_host(task.target, task.target_host)
 
     error_no = MeasureErrorNo.NO_ERROR
     error_msg = None
@@ -622,7 +629,7 @@ def _local_build_worker(inp_serialized, build_func, verbose):
         filename = os.path.join(dirname, "tmp_func." + build_func.output_format)
 
         try:
-            with transform.PassContext():
+            with transform.PassContext().current():
                 func = build_module.build(sch, args, target=task.target)
             func.export_library(filename, build_func)
         # pylint: disable=broad-except
@@ -773,7 +780,7 @@ def register_task_input_check_func(func_name, f=None, override=False):
     return register
 
 
-def prepare_input_map(args):
+def prepare_input_map(args, workload_key=None):
     """This function deals with special task inputs. Map the input Tensor of a TVM subgraph
     to a specific buffer name in the global buffer map.
 
@@ -781,6 +788,11 @@ def prepare_input_map(args):
     ----------
     args : List[Tensor]
         Input/output Tensor of a TVM subgraph.
+
+    workload_key: Optional[str]
+        The workload for which these inputs are being prepared.  This
+        is used to identify if an input is being provided by (see
+        `register_task_input_buffer`).
 
     Returns
     -------
@@ -796,13 +808,19 @@ def prepare_input_map(args):
 
     global TASK_INPUT_CHECK_FUNC_REGISTRY
 
+    from .search_task import TASK_INPUT_BUFFER_TABLE
+
     # A dict that maps the input tensor arg to a buffer name
     tensor_input_map = {}
 
     # Case 0: Check placeholder name
     for arg in args:
         if isinstance(arg.op, tvm.te.PlaceholderOp):
-            if arg.op.name != "placeholder":
+            if (
+                workload_key
+                and workload_key in TASK_INPUT_BUFFER_TABLE
+                and arg.op.name in TASK_INPUT_BUFFER_TABLE[workload_key]
+            ):
                 tensor_input_map[arg] = arg.op.name
 
     # Case 1: Check specific tensor inputs
@@ -836,7 +854,7 @@ def prepare_runner_args(inp, build_res):
     from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
 
     task_input_names = inp.task.task_input_names
-    tensor_input_map = prepare_input_map(build_res.args)
+    tensor_input_map = prepare_input_map(build_res.args, inp.task.workload_key)
     if not task_input_names:
         tensor_input_map = {}
     args = []
@@ -871,6 +889,7 @@ def _timed_eval_func(
     cooldown_interval,
     enable_cpu_cache_flush,
     verbose,
+    device,
 ):
     inp = MeasureInput.deserialize(inp_serialized)
     tic = time.time()
@@ -878,7 +897,7 @@ def _timed_eval_func(
     error_msg = None
     try:
         func = module.load_module(build_res.filename)
-        dev = ndarray.device(str(inp.task.target), 0)
+        dev = ndarray.device(str(inp.task.target), device)
         # Limitation:
         # We can not get PackFunction directly in the remote mode as it is wrapped
         # under the std::function. We could lift the restriction later once we fold
@@ -947,6 +966,7 @@ def local_run(
     cooldown_interval=0,
     enable_cpu_cache_flush=False,
     verbose=1,
+    device=0,
 ):
     """
     Run function of LocalRunner to test the performance of the input BuildResults.
@@ -986,6 +1006,8 @@ def local_run(
         This is only has effect on CPU task.
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during program measuring.
+    device: int = 0
+        Which device to run on if multiple are available.
 
     Returns
     -------
@@ -1021,6 +1043,7 @@ def local_run(
                     cooldown_interval,
                     enable_cpu_cache_flush,
                     verbose,
+                    device,
                 ),
             )
             if isinstance(res, TimeoutError):
@@ -1067,6 +1090,7 @@ def _rpc_run(
     cooldown_interval,
     enable_cpu_cache_flush,
     verbose,
+    device,
 ):
     inp = MeasureInput.deserialize(inp_serialized)
     tic = time.time()
@@ -1077,7 +1101,7 @@ def _rpc_run(
         remote = request_remote(key, host, port, priority, timeout)
         remote.upload(build_res.filename)
         func = remote.load_module(os.path.split(build_res.filename)[1])
-        dev = remote.device(str(inp.task.target), 0)
+        dev = remote.device(str(inp.task.target), device)
         # Limitation:
         # We can not get PackFunction directly in the remote mode as it is wrapped
         # under the std::function. We could lift the restriction later once we fold
@@ -1166,7 +1190,7 @@ def _rpc_run_worker(args):
     res : MeasureResult
         The measure result of this Runner thread.
     """
-    _, build_res, _, _, _, _, _, timeout, _, _, _, _, _, verbose = args
+    _, build_res, _, _, _, _, _, timeout, _, _, _, _, _, verbose, _ = args
     if build_res.error_no != MeasureErrorNo.NO_ERROR:
         return (
             (MAX_FLOAT,),
@@ -1209,6 +1233,7 @@ def rpc_runner_run(
     cooldown_interval=0.0,
     enable_cpu_cache_flush=False,
     verbose=1,
+    device=0,
 ):
     """Run function of RPCRunner to test the performance of the input BuildResults.
 
@@ -1257,6 +1282,8 @@ def rpc_runner_run(
         This is only has effect on CPU task.
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during program measuring.
+    device: int = 0
+        Which device to run on if multiple are available.
 
     Returns
     -------
@@ -1284,6 +1311,7 @@ def rpc_runner_run(
                 cooldown_interval,
                 enable_cpu_cache_flush,
                 verbose,
+                device,
             )
             for inp, build_res in zip(inputs, build_results)
         ],

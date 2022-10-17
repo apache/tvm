@@ -36,12 +36,9 @@ namespace cmsisnn {
 class CodeGenCMSISNN : public codegen::CodeGenCHost {
  public:
   void Init(bool output_ssa, bool emit_asserts, std::string target_str) {
-    decl_stream << "#include <stdio.h>\n";
-    decl_stream << "#include <stdlib.h>\n";
-    decl_stream << "#include <dlpack/dlpack.h>\n";
-    decl_stream << "#include <arm_nnfunctions.h>\n";
-    decl_stream << "#include <arm_nn_types.h>\n";
-    CodeGenCHost::Init(output_ssa, emit_asserts, target_str);
+    std::unordered_set<std::string> devices;
+    devices.insert("cmsis-nn");
+    CodeGenCHost::Init(output_ssa, emit_asserts, target_str, devices);
   }
 
   /*!
@@ -114,7 +111,9 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
         cmsis_func_name == "arm_elementwise_add_s8") {
       CodeGenC::VisitExpr_(op, os);
     } else if (cmsis_func_name == "arm_convolve_wrapper_s8" ||
-               cmsis_func_name == "arm_depthwise_conv_wrapper_s8") {
+               cmsis_func_name == "arm_convolve_wrapper_s16" ||
+               cmsis_func_name == "arm_depthwise_conv_wrapper_s8" ||
+               cmsis_func_name == "arm_depthwise_conv_wrapper_s16") {
       EmitConv2D(op);
     } else if (cmsis_func_name == "arm_fully_connected_s8") {
       EmitFullyConnected(op);
@@ -228,7 +227,14 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
   /*!  * \brief extracts CMSIS-NN context buffer information */
   CMSISNNContextBuffer extract_context_buffer_info(const CallNode* op, int base_pos) {
     CMSISNNContextBuffer context_buffer;
-    context_buffer.name = op->args[base_pos].as<StringImmNode>()->value;
+
+    // The argument could be a Var if it is allocated to hold the
+    // context buffer OR it will be a StringImm with "NULL"
+    if (op->args[base_pos]->IsInstance<VarNode>()) {
+      context_buffer.name = op->args[base_pos].as<VarNode>()->name_hint;
+    } else {
+      context_buffer.name = op->args[base_pos].as<StringImmNode>()->value;
+    }
     context_buffer.size = ValueFromArg(op, base_pos + 1);
     return context_buffer;
   }
@@ -338,7 +344,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
 
     // Emit CMSIS-NN API
     PrintIndent();
-    stream << "arm_status status = ";
+    stream << "arm_cmsis_nn_status status = ";
     stream << cmsis_func_name << "(";
     stream << "&" << context << ", ";
     stream << "&" << conv_params << ", ";
@@ -348,7 +354,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     stream << "&" << bias_dim << ", " << bias_data << ", ";
     stream << "&" << output_dim << ", " << output_data << ");\n";
     PrintIndent();
-    stream << "if (status != ARM_MATH_SUCCESS) {\n";
+    stream << "if (status != ARM_CMSIS_NN_SUCCESS) {\n";
     PrintIndent();
     PrintIndent();
     stream << "return -1;\n";
@@ -407,7 +413,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     std::string output_dim = EmitCMSISNNDims(stream, "output", output_dims);
 
     PrintIndent();
-    stream << "arm_status status = ";
+    stream << "arm_cmsis_nn_status status = ";
     stream << cmsis_func_name << "(";
     stream << "&" << context << ", ";
     stream << "&" << cmsisnn_fc_params << ", ";
@@ -417,7 +423,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     stream << "&" << bias_dim << ", " << bias_data << ", ";
     stream << "&" << output_dim << ", " << output_data << ");\n";
     PrintIndent();
-    stream << "if (status != ARM_MATH_SUCCESS) {\n";
+    stream << "if (status != ARM_CMSIS_NN_SUCCESS) {\n";
     PrintIndent();
     PrintIndent();
     stream << "return -1;\n";
@@ -463,7 +469,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     std::string output_dim = EmitCMSISNNDims(stream, "output", output_dims);
 
     PrintIndent();
-    stream << "arm_status status = ";
+    stream << "arm_cmsis_nn_status status = ";
     stream << cmsis_func_name << "(";
     stream << "&" << context << ", ";
     stream << "&" << cmsisnn_pool_params << ", ";
@@ -471,7 +477,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     stream << "&" << filter_dim << ", ";
     stream << "&" << output_dim << ", " << output_data << ");\n";
     PrintIndent();
-    stream << "if (status != ARM_MATH_SUCCESS) {\n";
+    stream << "if (status != ARM_CMSIS_NN_SUCCESS) {\n";
     PrintIndent();
     PrintIndent();
     stream << "return -1;\n";
@@ -486,7 +492,25 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
   CodeGenCMSISNN codegen;
   Array<String> function_names;
   codegen.Init(output_ssa, emit_asserts, target->str());
+
+  std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> funcs;
   for (auto kv : mod->functions) {
+    funcs.push_back(kv);
+  }
+
+  std::sort(funcs.begin(), funcs.end(),
+            [](std::pair<tvm::GlobalVar, tvm::BaseFunc> kv_a,
+               std::pair<tvm::GlobalVar, tvm::BaseFunc> kv_b) {
+              std::string name_hint_a = kv_a.first->name_hint;
+              std::string name_hint_b = kv_b.first->name_hint;
+              size_t name_a_length = name_hint_a.length();
+              size_t name_b_length = name_hint_b.length();
+              if (name_a_length < name_b_length) return true;
+              if (name_a_length > name_b_length) return false;
+              return name_hint_a < name_hint_b;
+            });
+
+  for (auto kv : funcs) {
     auto prim_func = Downcast<PrimFunc>(kv.second);
     auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
     function_names.push_back(global_symbol.value());

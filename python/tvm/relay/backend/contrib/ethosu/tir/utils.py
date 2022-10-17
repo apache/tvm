@@ -20,24 +20,6 @@ import tvm
 from tvm import arith
 
 
-# TODO(@mbaret): Formalise this with a specification
-def get_weights_pointer(tir_extern_call):
-    """Get the weights pointer from a NPU extern call if it exists"""
-    supported_ops = ["ethosu_conv2d", "ethosu_depthwise_conv2d"]
-    if tir_extern_call.args[0] in supported_ops:
-        return tir_extern_call.args[41].buffer_var
-    return None
-
-
-# TODO(@mbaret): Formalise this with a specification
-def get_scale_bias_pointer(tir_extern_call):
-    """Get the scale_bias pointer from a NPU extern call if it exists"""
-    supported_ops = ["ethosu_conv2d", "ethosu_depthwise_conv2d"]
-    if tir_extern_call.args[0] in supported_ops:
-        return tir_extern_call.args[44].buffer_var
-    return None
-
-
 def get_op_attrs(stmt):
     """Iterate through nested attribute statements accumulating their values
     in an attribute dictionary.
@@ -176,24 +158,54 @@ def get_outer_loops(stmt, layout):
     return None
 
 
-def get_loads(stmt):
-    """Get the Load statements.
+def collect_buffer_map(stmt):
+    """Collect a map of Var -> Buffer
+
+    Generate a map from a buffer's backing `tir.Var` to the
+    `tir.Buffer` object that uses it.  If multiple such buffers exist,
+    return the first occurrence.
 
     Parameters
     ----------
     stmt : tvm.tir.Stmt
-        The statement to get the Loads from.
+        The statement to get the BufferLoads from.
 
     Returns
     -------
-    loads : list of tvm.tir.Load
-        The Loads found.
+    buffer_map : Dict[Var, Buffer]
+        The map from buffer var to the buffers that use it.
+    """
+    buffer_map = {}
+
+    def _visit(node):
+        if isinstance(node, (tvm.tir.BufferLoad, tvm.tir.BufferStore)):
+            buf = node.buffer
+            if buf.data not in buffer_map:
+                buffer_map[buf.data] = buf
+
+    tvm.tir.stmt_functor.post_order_visit(stmt, _visit)
+
+    return buffer_map
+
+
+def get_loads(stmt):
+    """Get the BufferLoad statements.
+
+    Parameters
+    ----------
+    stmt : tvm.tir.Stmt
+        The statement to get the BufferLoads from.
+
+    Returns
+    -------
+    loads : list of tvm.tir.BufferLoad
+        The BufferLoads found.
 
     """
     loads = []
 
     def _visit(s):
-        if isinstance(s, tvm.tir.Load):
+        if isinstance(s, tvm.tir.BufferLoad):
             loads.append(s)
 
     tvm.tir.stmt_functor.post_order_visit(stmt, _visit)
@@ -201,23 +213,23 @@ def get_loads(stmt):
 
 
 def get_stores(stmt):
-    """Get the Store statements.
+    """Get the BufferStore statements.
 
     Parameters
     ----------
     stmt : tvm.tir.Stmt
-        The statement to get the Stores from.
+        The statement to get the BufferStores from.
 
     Returns
     -------
-    stores : list of tvm.tir.Store
-        The Stores found.
+    stores : list of tvm.tir.BufferStore
+        The BufferStores found.
 
     """
     stores = []
 
     def _visit(s):
-        if isinstance(s, tvm.tir.Store):
+        if isinstance(s, tvm.tir.BufferStore):
             stores.append(s)
 
     tvm.tir.stmt_functor.post_order_visit(stmt, _visit)

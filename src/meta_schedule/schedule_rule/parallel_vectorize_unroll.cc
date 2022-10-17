@@ -26,6 +26,11 @@ bool IsRootBlock(const Schedule& sch, const BlockRV& block_rv) {
   return block_sref->parent == nullptr;
 }
 
+bool CheckSpatialPrimFunc(const Schedule& sch, const BlockRV& root_block_rv) {
+  return IsSpatialPrimFunc(
+      GetRef<PrimFunc>(GetRootPrimFunc(sch->mod(), sch->Get(root_block_rv).get(), nullptr)));
+}
+
 }  // namespace tir
 }  // namespace tvm
 
@@ -60,7 +65,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
       sch->Annotate(root_rv, tir::attr::meta_schedule_vectorize, Integer(max_vectorize_extent));
     }
     // Unroll
-    if (!unroll_max_steps.empty()) {
+    if (!unroll_max_steps.empty() && !tir::CheckSpatialPrimFunc(sch, root_rv)) {
       int n = unroll_max_steps.size();
       double prob = 1.0 / n;
       Array<FloatImm> probs(n, FloatImm(DataType::Float(64), prob));
@@ -72,6 +77,13 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
       }
     }
     return {sch};
+  }
+
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<ParallelizeVectorizeUnrollNode> n =
+        make_object<ParallelizeVectorizeUnrollNode>(*this);
+    return ScheduleRule(n);
   }
 
  public:

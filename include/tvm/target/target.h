@@ -49,12 +49,15 @@ class TargetNode : public Object {
   TargetKind kind;
   /*! \brief Target host information, must be Target type */
   Optional<ObjectRef> host;
-  /*! \brief Tag of the the target, can be empty */
+  /*! \brief Tag of the target, can be empty */
   String tag;
   /*! \brief Keys for this target */
   Array<String> keys;
   /*! \brief Collection of attributes */
   Map<String, ObjectRef> attrs;
+  /*! \brief Target features */
+  Map<String, ObjectRef> features;
+
   /*!
    * \brief The raw string representation of the target
    * \return the full device string to pass to codegen::Build
@@ -65,6 +68,8 @@ class TargetNode : public Object {
   TVM_DLL Map<String, ObjectRef> Export() const;
   /*! \return The Optional<Target> typed target host of the TargetNode */
   TVM_DLL Optional<Target> GetHost() const;
+  /*! \return The device type for this target */
+  TVM_DLL int GetTargetDeviceType() const;
 
   /*!
    * \brief Returns a human readable representation of \p Target which includes all fields,
@@ -80,6 +85,7 @@ class TargetNode : public Object {
     v->Visit("tag", &tag);
     v->Visit("keys", &keys);
     v->Visit("attrs", &attrs);
+    v->Visit("features", &features);
     v->Visit("host", &host);
   }
 
@@ -114,6 +120,42 @@ class TargetNode : public Object {
   Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
     return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
   }
+
+  /*!
+   * \brief Get a Target feature
+   *
+   * \param feature_key The feature key.
+   * \param default_value The default value if the key does not exist, defaults to nullptr.
+   *
+   * \return The result
+   *
+   * \tparam TOBjectRef the expected object type.
+   * \throw Error if the key exists but the value does not match TObjectRef
+   *
+   * \code
+   *
+   *  void GetTargetFeature(const Target& target) {
+   *    Bool has_feature = target->GetFeature<Bool>("has_feature", false).value();
+   *  }
+   *
+   * \endcode
+   */
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetFeature(
+      const std::string& feature_key,
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
+    Optional<TObjectRef> feature = Downcast<Optional<TObjectRef>>(features.Get(feature_key));
+    if (!feature) {
+      return default_value;
+    }
+    return feature;
+  }
+  // variant that uses TObjectRef to enable implicit conversion to default value.
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetFeature(const std::string& attr_key, TObjectRef default_value) const {
+    return GetFeature<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
+  }
+
   /*! \brief Get the keys for this target as a vector of string */
   TVM_DLL std::vector<std::string> GetKeys() const;
   /*! \brief Get the keys for this target as an unordered_set of string */
@@ -177,7 +219,34 @@ class Target : public ObjectRef {
    */
   static Target WithHost(const Target& target, const Target& host);
 
+  /*!
+   * \brief Returns true if \p this target represents an external codegen. If so,
+   * \p this->kind->name can be used as the "Compiler" attribute on partitioned functions,
+   * and can be used to retrieve a partitioning pattern table using
+   * \p get_pattern_table.
+   */
+  bool IsExternalCodegen() const;
+
+  /*!
+   * \brief Returns true if \p this target represents an external codegen which is compatible
+   * with \p that target. In particular:
+   *  - \p this has a true ::tvm::attr::kIsExternalCodegen attribute
+   *  - \p that does not have a true ::tvm::attr::kIsExternalCodegen attribute
+   *  - \p this and \p that have the same GetTargetDeviceType()
+   *
+   * After partitioning, the external codegen compilation path may use \p that to guide it's
+   * compilation to a \p runtime::Module. Given \p this, an appropriate \p that can be
+   * found using \p CompilationConfig::FindPrimitiveTargetOrFail(this->GetTargetDeviceType()).
+   *
+   * The \p CollagePartition pass uses this method to guide it's search over candidate partitions
+   * using external codegen.
+   */
+  bool IsExternalCodegenFor(const Target& that) const;
+
  private:
+  Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<String> keys,
+         Map<String, ObjectRef> attrs);
+
   // enable with syntax.
   friend class TargetInternal;
   friend class With<Target>;
@@ -194,8 +263,6 @@ class Target : public ObjectRef {
   TVM_DLL void ExitWithScope();
 };
 
-using TargetMap = Map<Integer, Target>;
-
 /*!
  * \brief Check and update host field of the given legacy target and target host pair.
  *  Note that this function is for legacy target api compatibility issue only, not
@@ -204,15 +271,6 @@ using TargetMap = Map<Integer, Target>;
  * \param host The pointer to a Target typed object for target host to be updated
  */
 void CheckAndUpdateHostConsistency(Target* target, Target* host);
-
-/*!
- * \brief Check and update host field of the given legacy heterogeneous targets and
- *  target host.Note that this function is for legacy target api compatibility issue only,
- *  not recommended for other use.
- * \param target_map The pointer to a Map objects with values being Target objects
- * \param host The Target typed object for target host to be updated
- */
-void CheckAndUpdateHostConsistency(TargetMap* target_map, Target* host);
 
 /*!
  * \brief Check and update host field of the given legacy heterogeneous targets and

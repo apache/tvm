@@ -30,6 +30,8 @@ from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
 from tvm.topi.cuda.conv3d_winograd import _infer_tile_size
 
+executor_kind = tvm.testing.parameter("graph", "vm")
+
 
 @tvm.testing.uses_gpu
 def test_conv1d_infer_type():
@@ -520,6 +522,13 @@ def test_conv3d_infer_type():
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, d, h, w, 16), "int32")
 
+    # Infer with groups
+    x = relay.var("x", relay.TensorType((1, 16, 224, 224, 224), "float32"))
+    w = relay.var("w", relay.TensorType((4, 4, 1, 1, 1), "float32"))
+    y = relay.nn.conv3d(x, w, groups=4, kernel_size=(1, 1, 1), channels=4)
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((1, 4, 224, 224, 224), "float32")
+
 
 @tvm.testing.uses_gpu
 def test_conv3d_run():
@@ -886,7 +895,6 @@ def test_conv2d_transpose_nchw_run():
 def test_conv2d_transpose_nhwc_run():
     dshape_nhwc = (1, 18, 18, 3)
     kshape_hwoi = (3, 3, 10, 3)
-    oshape_nhwc = (1, 36, 36, 10)
     x = relay.var("x", shape=dshape_nhwc)
     w = relay.var("w")
 
@@ -915,6 +923,43 @@ def test_conv2d_transpose_nhwc_run():
             data, kernel
         )
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+
+@tvm.testing.uses_gpu
+def test_conv2d_transpose_nhwc_cudnn():
+    if not cudnn.exists():
+        return
+
+    dshape_nhwc = (1, 18, 18, 3)
+    kshape_ihwo = (3, 3, 3, 10)
+    x = relay.var("x", shape=dshape_nhwc)
+    w = relay.var("w", shape=kshape_ihwo)
+
+    y = relay.nn.conv2d_transpose(
+        x,
+        w,
+        channels=10,
+        kernel_size=(3, 3),
+        strides=(2, 2),
+        padding=(1, 1),
+        output_padding=(1, 1),
+        data_layout="NHWC",
+        kernel_layout="IHWO",
+    )
+    func = relay.Function([x, w], y)
+    dtype = "float32"
+    data = np.random.uniform(size=dshape_nhwc).astype(dtype)
+    kernel = np.random.uniform(size=kshape_ihwo).astype(dtype)
+
+    ref_res = tvm.topi.testing.conv2d_transpose_nhwc_python(
+        data, np.transpose(kernel, [1, 2, 3, 0]), "HWOI", 2, 1, output_padding=(1, 1)
+    )
+
+    target = "cuda -libs=cudnn"
+    dev = tvm.cuda(0)
+
+    op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data, kernel)
+    tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -1265,7 +1310,7 @@ def test_avg_pool2d_no_count_pad():
 
 
 @tvm.testing.uses_gpu
-def test_flatten_infer_type():
+def test_flatten_infer_type(executor_kind):
     d1, d2, d3, d4 = te.size_var("d1"), te.size_var("d2"), te.size_var("d3"), te.size_var("d4")
     x = relay.var("x", relay.TensorType((d1, d2, d3, d4), "float32"))
     y = relay.nn.batch_flatten(x)
@@ -1294,10 +1339,10 @@ def test_flatten_infer_type():
     ref_res = x_data.flatten().reshape(o_shape)
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -1401,16 +1446,16 @@ def test_pad_run_dynamic_pad_value():
 
 
 @tvm.testing.uses_gpu
-def test_lrn():
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+def test_lrn(executor_kind, dtype):
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
-    x = relay.var("x", shape=(n, c, h, w))
+    x = relay.var("x", shape=(n, c, h, w), dtype=dtype)
     y = relay.nn.lrn(x, size=10, axis=2, bias=0.5, alpha=0.00001, beta=0.75)
     "alpha=" in y.astext()
     yy = run_infer_type(y)
-    assert yy.checked_type == relay.TensorType((n, c, h, w))
+    assert yy.checked_type == relay.TensorType((n, c, h, w), dtype)
 
     shape = (1, 5, 10, 10)
-    dtype = "float32"
     x = relay.var("x", relay.TensorType(shape, dtype))
     size = 5
     axis = 1
@@ -1425,14 +1470,14 @@ def test_lrn():
     ref_res = tvm.topi.testing.lrn_python(x_data, size, axis, bias, alpha, beta)
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
-def test_l2_normalize():
+def test_l2_normalize(executor_kind):
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     x = relay.var("x", shape=(n, c, h, w))
     y = relay.nn.l2_normalize(x, eps=0.001, axis=[1])
@@ -1453,10 +1498,10 @@ def test_l2_normalize():
     ref_res = tvm.topi.testing.l2_normalize_python(x_data, eps, axis)
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 def batch_flatten(data):
@@ -1608,6 +1653,7 @@ def test_upsampling3d():
     _test_upsampling3d("NDHWC", "trilinear", "align_corners")
 
 
+@tvm.testing.requires_x86
 @pytest.mark.skipif(tvm.target.codegen.llvm_version_major() < 8, reason="Requires LLVM 8")
 class TestConv2DInt8Intrinsics:
     supported_targets = [
@@ -1907,5 +1953,269 @@ def test_correlation():
     )
 
 
+@pytest.mark.skip("Requires GFX10 AMDGPU")
+def test_conv2d_rocm_sdot4():
+    d_shape = (1, 64, 56, 56)
+    w_shape = (64, 64, 3, 3)
+    padding = (1, 1)
+    strides = (1, 1)
+    data_dtype = "int8"
+    weight_dtype = "int8"
+    out_dtype = "int32"
+
+    data = relay.var("data", shape=d_shape, dtype=data_dtype)
+    weight = relay.var("weight", shape=w_shape, dtype=weight_dtype)
+    out_channel = w_shape[0]
+    conv2d = relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=w_shape[2:],
+        channels=out_channel,
+        padding=padding,
+        strides=strides,
+        out_dtype=out_dtype,
+    )
+
+    mod = tvm.IRModule.from_expr(conv2d)
+
+    data_np = np.random.uniform(1, 10, d_shape).astype("int8")
+    weight_np = np.random.uniform(1, 10, size=w_shape).astype("int8")
+
+    target = "rocm -mattr=+dotprod"
+    with tvm.transform.PassContext(opt_level=3):
+        lib = relay.build(mod, target=target, params={"weight": weight_np})
+
+    asm = lib.lib.imported_modules[0].get_source("asm")
+    assert "v_dot4_i32_i8" in asm
+
+    dev = tvm.device(target, 0)
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    runtime.set_input("data", data_np)
+    runtime.run()
+
+    out = runtime.get_output(0).numpy()
+
+    ref = tvm.topi.testing.conv2d_nchw_python(
+        data_np.astype("int32"), weight_np.astype("int32"), strides, padding
+    )
+
+    np.testing.assert_equal(out, ref)
+
+
+def np_float2tvm_bf16(arr):
+    """Convert a numpy array of float to a TVM array
+    of bf16"""
+    orig = arr.view("<u4")
+    bias = np.bitwise_and(np.right_shift(orig, 16), 1) + 0x7FFF
+    nparr = np.right_shift(orig + bias, 16).astype("uint16")
+    return tvm.nd.empty(nparr.shape, "bfloat16").copyfrom(nparr)
+
+
+def np_bf162np_float(arr):
+    """Convert a numpy array of bf16 (uint16) to a numpy array
+    of float"""
+    u32 = np.left_shift(arr.astype("uint32"), 16)
+    return u32.view("<f4")
+
+
+@tvm.testing.requires_x86
+def test_conv2d_nchw_dnnl():
+    if not tvm.get_global_func("tvm.contrib.dnnl.conv2d", allow_missing=True):
+        print(
+            "skip because extern dnnl function is not available, \
+                built with dnnl=ON"
+        )
+        return
+    d_shape = (1, 64, 56, 56)
+    w_shape = (64, 64, 3, 3)
+    padding = (1, 1)
+    strides = (1, 1)
+
+    def get_subgraph(dtype):
+        data = relay.var("data", shape=d_shape, dtype=dtype)
+        weight = relay.var("weight", shape=w_shape, dtype=dtype)
+        out_channel = w_shape[0]
+        conv2d = relay.nn.conv2d(
+            data=data,
+            weight=weight,
+            kernel_size=w_shape[2:],
+            channels=out_channel,
+            padding=padding,
+            strides=strides,
+            out_dtype=dtype,
+        )
+        return conv2d
+
+    for t in ["float32", "bfloat16"]:
+        mod = tvm.IRModule.from_expr(get_subgraph(t))
+
+        data_np = np.random.uniform(1, 10, d_shape).astype("float32")
+        weight_np = np.random.uniform(1, 10, size=w_shape).astype("float32")
+        ref = tvm.topi.testing.conv2d_nchw_python(data_np, weight_np, strides, padding)
+
+        if t == "bfloat16":
+            data_np = np_float2tvm_bf16(data_np)
+            weight_np = np_float2tvm_bf16(weight_np)
+
+        target = "llvm -mcpu=skylake-avx512 -libs=dnnl"
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(mod, target=target, params={"weight": weight_np})
+
+        dev = tvm.device(target, 0)
+        runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+        runtime.set_input("data", data_np)
+        runtime.run()
+
+        out = runtime.get_output(0).numpy()
+
+        if t == "bfloat16":
+            out = np_bf162np_float(out)
+            np.testing.assert_allclose(out, ref, rtol=1e-2)
+        else:
+            np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+
+
+@tvm.testing.requires_x86
+def test_conv2d_nhwc_dnnl():
+    if not tvm.get_global_func("tvm.contrib.dnnl.conv2d", allow_missing=True):
+        print(
+            "skip because extern dnnl function is not available, \
+                built with dnnl=ON"
+        )
+        return
+    d_shape = (1, 56, 56, 64)
+    w_shape = (3, 3, 64, 64)
+    padding = (1, 1)
+    strides = (1, 1)
+
+    def get_subgraph(dtype):
+        data = relay.var("data", shape=d_shape, dtype=dtype)
+        weight = relay.var("weight", shape=w_shape, dtype=dtype)
+        out_channel = w_shape[3]
+        conv2d = relay.nn.conv2d(
+            data=data,
+            weight=weight,
+            kernel_size=w_shape[:2],
+            channels=out_channel,
+            padding=padding,
+            strides=strides,
+            out_dtype=dtype,
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        return conv2d
+
+    for t in ["float32", "bfloat16"]:
+        mod = tvm.IRModule.from_expr(get_subgraph(t))
+
+        data_np = np.random.uniform(1, 10, d_shape).astype("float32")
+        weight_np = np.random.uniform(1, 10, size=w_shape).astype("float32")
+        ref = tvm.topi.testing.conv2d_nhwc_python(data_np, weight_np, strides, padding)
+
+        if t == "bfloat16":
+            data_np = np_float2tvm_bf16(data_np)
+            weight_np = np_float2tvm_bf16(weight_np)
+
+        target = "llvm -mcpu=skylake-avx512 -libs=dnnl"
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(mod, target=target, params={"weight": weight_np})
+
+        dev = tvm.device(target, 0)
+        runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+        runtime.set_input("data", data_np)
+        runtime.run()
+
+        out = runtime.get_output(0).numpy()
+
+        if t == "bfloat16":
+            out = np_bf162np_float(out)
+            np.testing.assert_allclose(out, ref, rtol=1e-2)
+        else:
+            np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+
+
+def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instr):
+    def get_conv2d_nchw(
+        d_shape,
+        w_shape,
+        data_dtype,
+    ):
+        out_dtype = "int32"
+        strides = (1, 1)
+        padding = (1, 1)
+        data = relay.var("data", shape=d_shape, dtype=data_dtype)
+        weight = relay.var("weight", shape=w_shape, dtype="int8")
+        out_channel = w_shape[0]
+        return relay.nn.conv2d(
+            data=data,
+            weight=weight,
+            kernel_size=w_shape[2:],
+            channels=out_channel,
+            padding=padding,
+            strides=strides,
+            out_dtype=out_dtype,
+        )
+
+    I, O, H, W = 64, 64, 56, 56
+    kH = kW = 3
+
+    data_shape = (1, I, H, W)
+    weight_shape = (O, I, kH, kW)
+    bias_shape = (1, weight_shape[0], 1, 1)
+
+    bias = relay.var("bias", shape=bias_shape, dtype="int32")
+    bias_np = np.random.randint(low=-127, high=128, size=bias_shape).astype("int32")
+    weight_np = np.random.uniform(-128, 127, size=weight_shape).astype("int8")
+
+    conv2d = get_conv2d_nchw(data_shape, weight_shape, data_dtype)
+    bias_add = relay.add(conv2d, bias)
+    mod = tvm.IRModule.from_expr(bias_add)
+
+    if data_dtype == "uint8":
+        data_np = np.random.uniform(0, 255, size=data_shape).astype("uint8")
+    else:
+        data_np = np.random.uniform(-128, 127, size=data_shape).astype("int8")
+
+    params = {"weight": weight_np, "bias": bias_np}
+
+    ref = (
+        relay.create_executor("graph", mod=mod, device=tvm.cpu(0), target="llvm")
+        .evaluate()(*[data_np, weight_np, bias_np])
+        .numpy()
+    )
+
+    dev = tvm.cpu(0)
+
+    with tvm.transform.PassContext(
+        opt_level=3,
+    ):
+        lib = relay.build(mod, target=target, params=params)
+
+    assert dot_product_instr in lib.lib.get_source("asm")
+
+    rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    rt_mod.set_input("data", data_np)
+
+    rt_mod.run()
+
+    out = rt_mod.get_output(0).numpy()
+
+    np.testing.assert_equal(out, ref)
+
+
+@tvm.testing.requires_arm_dot
+def test_conv2d_int8_alter_dtype_arm():
+    _test_conv2d_int8_alter_dtype("uint8", "llvm --device arm_cpu -mattr=+v8.2a,+dotprod", "sdot")
+
+
+@tvm.testing.requires_cascadelake
+def test_conv2d_int8_alter_dtype_vnni():
+    _test_conv2d_int8_alter_dtype("int8", "llvm -mcpu=cascadelake", "vpdpbusd")
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

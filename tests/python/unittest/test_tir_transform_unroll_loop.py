@@ -16,6 +16,7 @@
 # under the License.
 import tvm
 from tvm import te
+from tvm.script import tir as T
 import os
 
 
@@ -90,7 +91,7 @@ def test_unroll_fake_loop():
         }
     ):
         ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
-        assert isinstance(ret[0], tvm.tir.Store)
+        assert isinstance(ret[0], tvm.tir.BufferStore)
 
 
 def test_unroll_single_count_loops():
@@ -110,7 +111,31 @@ def test_unroll_single_count_loops():
         assert ret == stmt
 
 
+def test_unroll_allocations():
+    @tvm.script.ir_module
+    class before:
+        @T.prim_func
+        def main():
+            for i in T.unroll(2):
+                with T.decl_buffer([16], "float32") as buf:
+                    buf[0] = 0.0
+
+    @tvm.script.ir_module
+    class expected:
+        @T.prim_func
+        def main():
+            with T.decl_buffer([16], "float32") as buf1:
+                buf1[0] = 0.0
+            with T.decl_buffer([16], "float32") as buf2:
+                buf2[0] = 0.0
+
+    after = tvm.tir.transform.UnrollLoop()(before)
+
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 if __name__ == "__main__":
     test_unroll_loop()
     test_unroll_fake_loop()
     test_unroll_single_count_loops()
+    test_unroll_allocations()

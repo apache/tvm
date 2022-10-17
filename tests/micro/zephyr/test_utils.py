@@ -32,7 +32,7 @@ import requests
 import tvm.micro
 from tvm.micro import export_model_library_format
 from tvm.micro.model_library_format import generate_c_interface_header
-from tvm.micro.testing import (
+from tvm.micro.testing.utils import (
     mlf_extract_workspace_size_bytes,
     aot_transport_init_wait,
     aot_transport_find_message,
@@ -87,10 +87,10 @@ def build_project(
         workspace_size = mlf_extract_workspace_size_bytes(model_tar_path)
         project_options = {
             "extra_files_tar": extra_files_tar,
-            "project_type": "aot_demo",
+            "project_type": "aot_standalone_demo",
             "west_cmd": west_cmd,
             "verbose": bool(build_config.get("debug")),
-            "zephyr_board": zephyr_board,
+            "board": zephyr_board,
             "compile_definitions": [
                 # TODO(mehrdadh): It fails without offset.
                 f"-DWORKSPACE_SIZE={workspace_size + 128}",
@@ -210,7 +210,7 @@ def generate_project(
                         model_files_path, arcname=os.path.relpath(model_files_path, tar_temp_dir)
                     )
                 header_path = generate_c_interface_header(
-                    lowered.libmod_name, ["input_1"], ["output"], [], 0, model_files_path
+                    lowered.libmod_name, ["input_1"], ["Identity"], [], {}, [], 0, model_files_path
                 )
                 tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
 

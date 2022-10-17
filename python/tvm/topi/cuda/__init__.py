@@ -27,7 +27,7 @@ from .conv2d_nhwc_winograd import *
 from .depthwise_conv2d import *
 from .group_conv2d_nchw import *
 from . import conv2d_alter_op
-from .conv2d_transpose_nchw import *
+from .conv2d_transpose import *
 from .conv3d_transpose_ncdhw import *
 from .deformable_conv2d import *
 from .conv3d import *
@@ -60,3 +60,4 @@ from .sparse_reshape import *
 from .transform import *
 from .unique import *
 from .searchsorted import *
+from .stft import *

@@ -38,6 +38,13 @@
 namespace tvm {
 namespace runtime {
 
+#if TVM_LOG_DEBUG
+#define TVM_MAP_FAIL_IF_CHANGED() \
+  ICHECK(state_marker == self->state_marker) << "Concurrent modification of the Map";
+#else
+#define TVM_MAP_FAIL_IF_CHANGED()
+#endif  // TVM_LOG_DEBUG
+
 #if (USE_FALLBACK_STL_MAP != 0)
 
 /*! \brief Shared content of all specializations of hash map */
@@ -233,10 +240,15 @@ class MapNode : public Object {
     using value_type = KVType;
     using pointer = KVType*;
     using reference = KVType&;
-    /*! \brief Default constructor */
+/*! \brief Default constructor */
+#if TVM_LOG_DEBUG
+    iterator() : state_marker(0), index(0), self(nullptr) {}
+#else
     iterator() : index(0), self(nullptr) {}
+#endif  // TVM_LOG_DEBUG
     /*! \brief Compare iterators */
     bool operator==(const iterator& other) const {
+      TVM_MAP_FAIL_IF_CHANGED()
       return index == other.index && self == other.self;
     }
     /*! \brief Compare iterators */
@@ -244,27 +256,39 @@ class MapNode : public Object {
     /*! \brief De-reference iterators */
     pointer operator->() const;
     /*! \brief De-reference iterators */
-    reference operator*() const { return *((*this).operator->()); }
+    reference operator*() const {
+      TVM_MAP_FAIL_IF_CHANGED()
+      return *((*this).operator->());
+    }
     /*! \brief Prefix self increment, e.g. ++iter */
     iterator& operator++();
     /*! \brief Prefix self decrement, e.g. --iter */
     iterator& operator--();
     /*! \brief Suffix self increment */
     iterator operator++(int) {
+      TVM_MAP_FAIL_IF_CHANGED()
       iterator copy = *this;
       ++(*this);
       return copy;
     }
     /*! \brief Suffix self decrement */
     iterator operator--(int) {
+      TVM_MAP_FAIL_IF_CHANGED()
       iterator copy = *this;
       --(*this);
       return copy;
     }
 
    protected:
+#if TVM_LOG_DEBUG
+    uint64_t state_marker;
     /*! \brief Construct by value */
+    iterator(uint64_t index, const MapNode* self)
+        : state_marker(self->state_marker), index(index), self(self) {}
+
+#else
     iterator(uint64_t index, const MapNode* self) : index(index), self(self) {}
+#endif  // TVM_LOG_DEBUG
     /*! \brief The position on the array */
     uint64_t index;
     /*! \brief The container it points to */
@@ -280,6 +304,9 @@ class MapNode : public Object {
   static inline ObjectPtr<MapNode> Empty();
 
  protected:
+#if TVM_LOG_DEBUG
+  uint64_t state_marker;
+#endif  // TVM_LOG_DEBUG
   /*!
    * \brief Create the map using contents from the given iterators.
    * \param first Begin of iterator
@@ -1011,10 +1038,10 @@ class DenseMapNode : public MapNode {
       new (&Data()) KVType(std::move(v));
     }
     /*! \brief If the entry has next entry on the linked list */
-    bool HasNext() const { return kNextProbeLocation[Meta() & 0b01111111] != 0; }
+    bool HasNext() const { return NextProbeLocation(Meta() & 0b01111111) != 0; }
     /*! \brief Move the entry to the next entry on the linked list */
     bool MoveToNext(const DenseMapNode* self, uint8_t meta) {
-      uint64_t offset = kNextProbeLocation[meta & 0b01111111];
+      uint64_t offset = NextProbeLocation(meta & 0b01111111);
       if (offset == 0) {
         index = 0;
         block = nullptr;
@@ -1039,7 +1066,7 @@ class DenseMapNode : public MapNode {
     /*! \brief Get the next empty jump */
     bool GetNextEmpty(const DenseMapNode* self, uint8_t* jump, ListNode* result) const {
       for (uint8_t idx = 1; idx < kNumJumpDists; ++idx) {
-        ListNode candidate((index + kNextProbeLocation[idx]) & (self->slots_), self);
+        ListNode candidate((index + NextProbeLocation(idx)) & (self->slots_), self);
         if (candidate.IsEmpty()) {
           *jump = idx;
           *result = candidate;
@@ -1059,33 +1086,36 @@ class DenseMapNode : public MapNode {
   uint32_t fib_shift_;
   /*! \brief array of data blocks */
   Block* data_;
-  /* clang-format off */
-  /*! \brief Candidates of probing distance */
-  TVM_DLL static constexpr uint64_t kNextProbeLocation[kNumJumpDists] {
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-    // Quadratic probing with triangle numbers. See also:
-    // 1) https://en.wikipedia.org/wiki/Quadratic_probing
-    // 2) https://fgiesen.wordpress.com/2015/02/22/triangular-numbers-mod-2n/
-    // 3) https://github.com/skarupke/flat_hash_map
-    21, 28, 36, 45, 55, 66, 78, 91, 105, 120,
-    136, 153, 171, 190, 210, 231, 253, 276, 300, 325,
-    351, 378, 406, 435, 465, 496, 528, 561, 595, 630,
-    666, 703, 741, 780, 820, 861, 903, 946, 990, 1035,
-    1081, 1128, 1176, 1225, 1275, 1326, 1378, 1431, 1485, 1540,
-    1596, 1653, 1711, 1770, 1830, 1891, 1953, 2016, 2080, 2145,
-    2211, 2278, 2346, 2415, 2485, 2556, 2628,
-    // larger triangle numbers
-    8515, 19110, 42778, 96141, 216153,
-    486591, 1092981, 2458653, 5532801, 12442566,
-    27993903, 62983476, 141717030, 318844378, 717352503,
-    1614057336, 3631522476, 8170957530, 18384510628, 41364789378,
-    93070452520, 209408356380, 471168559170, 1060128894105, 2385289465695,
-    5366898840628, 12075518705635, 27169915244790, 61132312065111, 137547689707000,
-    309482283181501, 696335127828753, 1566753995631385, 3525196511162271, 7931691992677701,
-    17846306936293605, 40154190677507445, 90346928918121501, 203280589587557251, 457381325854679626,
-    1029107982097042876, 2315492959180353330, 5209859154120846435,
-  };
-  /* clang-format on */
+  static uint64_t NextProbeLocation(size_t index) {
+    /* clang-format off */
+    /*! \brief Candidates of probing distance */
+    static const uint64_t kNextProbeLocation[kNumJumpDists] {
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+      // Quadratic probing with triangle numbers. See also:
+      // 1) https://en.wikipedia.org/wiki/Quadratic_probing
+      // 2) https://fgiesen.wordpress.com/2015/02/22/triangular-numbers-mod-2n/
+      // 3) https://github.com/skarupke/flat_hash_map
+      21, 28, 36, 45, 55, 66, 78, 91, 105, 120,
+      136, 153, 171, 190, 210, 231, 253, 276, 300, 325,
+      351, 378, 406, 435, 465, 496, 528, 561, 595, 630,
+      666, 703, 741, 780, 820, 861, 903, 946, 990, 1035,
+      1081, 1128, 1176, 1225, 1275, 1326, 1378, 1431, 1485, 1540,
+      1596, 1653, 1711, 1770, 1830, 1891, 1953, 2016, 2080, 2145,
+      2211, 2278, 2346, 2415, 2485, 2556, 2628,
+      // larger triangle numbers
+      8515, 19110, 42778, 96141, 216153,
+      486591, 1092981, 2458653, 5532801, 12442566,
+      27993903, 62983476, 141717030, 318844378, 717352503,
+      1614057336, 3631522476, 8170957530, 18384510628, 41364789378,
+      93070452520, 209408356380, 471168559170, 1060128894105, 2385289465695,
+      5366898840628, 12075518705635, 27169915244790, 61132312065111, 137547689707000,
+      309482283181501, 696335127828753, 1566753995631385, 3525196511162271, 7931691992677701,
+      17846306936293605, 40154190677507445, 90346928918121501, 203280589587557251,
+      457381325854679626, 1029107982097042876, 2315492959180353330, 5209859154120846435,
+    };
+    /* clang-format on */
+    return kNextProbeLocation[index];
+  }
   friend class MapNode;
 };
 
@@ -1118,10 +1148,12 @@ class DenseMapNode : public MapNode {
   }
 
 inline MapNode::iterator::pointer MapNode::iterator::operator->() const {
+  TVM_MAP_FAIL_IF_CHANGED()
   TVM_DISPATCH_MAP_CONST(self, p, { return p->DeRefItr(index); });
 }
 
 inline MapNode::iterator& MapNode::iterator::operator++() {
+  TVM_MAP_FAIL_IF_CHANGED()
   TVM_DISPATCH_MAP_CONST(self, p, {
     index = p->IncItr(index);
     return *this;
@@ -1129,6 +1161,7 @@ inline MapNode::iterator& MapNode::iterator::operator++() {
 }
 
 inline MapNode::iterator& MapNode::iterator::operator--() {
+  TVM_MAP_FAIL_IF_CHANGED()
   TVM_DISPATCH_MAP_CONST(self, p, {
     index = p->DecItr(index);
     return *this;
@@ -1200,6 +1233,9 @@ inline ObjectPtr<Object> MapNode::CreateFromRange(IterType first, IterType last)
 inline void MapNode::InsertMaybeReHash(const KVType& kv, ObjectPtr<Object>* map) {
   constexpr uint64_t kSmallMapMaxSize = SmallMapNode::kMaxSize;
   MapNode* base = static_cast<MapNode*>(map->get());
+#if TVM_LOG_DEBUG
+  base->state_marker++;
+#endif  // TVM_LOG_DEBUG
   if (base->slots_ < kSmallMapMaxSize) {
     SmallMapNode::InsertMaybeReHash(kv, map);
   } else if (base->slots_ == kSmallMapMaxSize) {

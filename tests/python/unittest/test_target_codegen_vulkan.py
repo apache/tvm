@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import os
+from posixpath import split
 import random
 import re
 import threading
@@ -28,14 +30,8 @@ from tvm import relay, te
 from tvm.topi.math import cast
 
 
-def randint_loguniform(low=1, high=32768, size=None):
-    logN = np.random.uniform(low=np.log(low), high=np.log(high), size=size)
-    N = np.exp(logN).astype(int)
-    return np.unique(N)
-
-
 dtype = tvm.testing.parameter("float32", "int32", "float16", "int8")
-fuzz_arr_size = tvm.testing.parameter(*randint_loguniform(size=25))
+fuzz_seed = tvm.testing.parameter(range(25))
 
 
 # Explicitly specify a target, as this test is looking at the
@@ -80,9 +76,13 @@ def test_vector_comparison(target, dtype):
     assert len(matches) == 1
 
 
-def test_array_copy(dev, dtype, fuzz_arr_size):
-    a_np = np.random.uniform(size=(fuzz_arr_size,)).astype(dtype)
-    a = tvm.nd.empty((fuzz_arr_size,), dtype, dev).copyfrom(a_np)
+def test_array_copy(dev, dtype, fuzz_seed):
+    np.random.seed(fuzz_seed)
+
+    log_arr_size = np.random.uniform(low=np.log(1), high=np.log(32768))
+    arr_size = np.exp(log_arr_size).astype(int)
+    a_np = np.random.uniform(size=(arr_size,)).astype(dtype)
+    a = tvm.nd.empty((arr_size,), dtype, dev).copyfrom(a_np)
     b_np = a.numpy()
     tvm.testing.assert_allclose(a_np, b_np)
     tvm.testing.assert_allclose(a_np, a.numpy())
@@ -92,6 +92,8 @@ def test_array_copy(dev, dtype, fuzz_arr_size):
 def test_array_vectorize_add(target, dev, dtype):
     arr_size = 64
     lanes = 2
+    if "opencl" in target and dtype == "float16":
+        pytest.xfail("Opencl target does not support float16")
 
     num_thread = 8
 
@@ -109,6 +111,7 @@ def test_array_vectorize_add(target, dev, dtype):
 
 
 @tvm.testing.parametrize_targets("vulkan")
+@pytest.mark.skip("Flaky, https://github.com/apache/tvm/issues/10779")
 def test_vulkan_stress(target, dev):
     """
     Launch a randomized test with multiple kernels per stream, multiple uses of
@@ -259,6 +262,7 @@ def test_cumsum(target, dev):
     check_mod(target, dev, mod, x_np, res_np)
 
 
+@tvm.testing.skip_if_wheel_test
 def test_unique(target, dev):
     dtype = "int32"
     x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
@@ -502,10 +506,9 @@ class TestVectorizedIndices:
             store_index = index_map[store_type]
 
             if indirect_indices:
-                load_index = tvm.tir.expr.Load("int32x4", R, load_index)
+                load_index = R[load_index]
 
-            transfer = tvm.tir.expr.Load("int32x4", A, load_index)
-            ib.emit(tvm.tir.stmt.Store(B, transfer, store_index))
+            B[store_index] = A[load_index]
 
             return ib.get()
 
@@ -556,6 +559,4 @@ def test_shared_mem_alloc(target, dev):
 
 
 if __name__ == "__main__":
-    import sys
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

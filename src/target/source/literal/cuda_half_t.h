@@ -294,20 +294,34 @@ __pack_half2(const half x, const half y) {
   return (v1 << 16) | v0;
 }
 
-// fix undefined fp16 match function
+// Some fp16 math functions are not supported in cuda_fp16.h,
+// so we define them here to make sure the generated CUDA code
+// is valid.
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)
-static inline __device__ __host__ half hpow(half x, half y) {
-  float tmp_x = __half2float(x);
-  float tmp_y = __half2float(y);
-  float result = powf(tmp_x, tmp_y);
-  return __float2half(result);
+#define CUDA_UNSUPPORTED_HALF_MATH_BINARY(HALF_MATH_NAME, FP32_MATH_NAME) \
+static inline __device__ __host__ half HALF_MATH_NAME(half x, half y) {   \
+  float tmp_x = __half2float(x);                                          \
+  float tmp_y = __half2float(y);                                          \
+  float result = FP32_MATH_NAME(tmp_x, tmp_y);                            \
+  return __float2half(result);                                            \
 }
 
-static inline __device__ __host__ half htanh(half x) {
-  float tmp_x = __half2float(x);
-  float result = tanhf(tmp_x);
-  return __float2half(result);
+#define CUDA_UNSUPPORTED_HALF_MATH_UNARY(HALF_MATH_NAME, FP32_MATH_NAME) \
+static inline __device__ __host__ half HALF_MATH_NAME(half x) {          \
+  float tmp_x = __half2float(x);                                         \
+  float result = FP32_MATH_NAME(tmp_x);                                  \
+  return __float2half(result);                                           \
 }
+
+CUDA_UNSUPPORTED_HALF_MATH_BINARY(hpow, powf)
+CUDA_UNSUPPORTED_HALF_MATH_UNARY(htanh, tanhf)
+CUDA_UNSUPPORTED_HALF_MATH_UNARY(htan, tanf)
+CUDA_UNSUPPORTED_HALF_MATH_UNARY(hatan, atanf)
+CUDA_UNSUPPORTED_HALF_MATH_UNARY(herf, erf)
+
+#undef CUDA_UNSUPPORTED_HALF_MATH_BINARY
+#undef CUDA_UNSUPPORTED_HALF_MATH_UNARY
+
 #endif
 )";
 
@@ -320,19 +334,32 @@ __pack_nv_bfloat162(const nv_bfloat16 x, const nv_bfloat16 y) {
   return (v1 << 16) | v0;
 }
 
-// fix undefined fp16 match function
-static inline __device__ __host__ nv_bfloat16 hpow(nv_bfloat16 x, nv_bfloat16 y) {
-  float tmp_x = __bfloat162float(x);
-  float tmp_y = __bfloat162float(y);
-  float result = powf(tmp_x, tmp_y);
-  return __float2bfloat16(result);
+// Some bfp16 math functions are not supported in cuda_bfp16.h,
+// so we define them here to make sure the generated CUDA code
+// is valid.
+#define CUDA_UNSUPPORTED_HALF_MATH_BINARY(HALF_MATH_NAME, FP32_MATH_NAME) \
+static inline __device__ __host__ nv_bfloat16 HALF_MATH_NAME(nv_bfloat16 x, nv_bfloat16 y) {   \
+  float tmp_x = __bfloat162float(x);                                      \
+  float tmp_y = __bfloat162float(y);                                      \
+  float result = FP32_MATH_NAME(tmp_x, tmp_y);                            \
+  return __float2bfloat16(result);                                        \
 }
 
-static inline __device__ __host__ nv_bfloat16 htanh(nv_bfloat16 x) {
-  float tmp_x = __bfloat162float(x);
-  float result = tanhf(tmp_x);
-  return __float2bfloat16(result);
+#define CUDA_UNSUPPORTED_HALF_MATH_UNARY(HALF_MATH_NAME, FP32_MATH_NAME) \
+static inline __device__ __host__ nv_bfloat16 HALF_MATH_NAME(nv_bfloat16 x) {          \
+  float tmp_x = __bfloat162float(x);                                     \
+  float result = FP32_MATH_NAME(tmp_x);                                  \
+  return __float2bfloat16(result);                                       \
 }
+
+CUDA_UNSUPPORTED_HALF_MATH_BINARY(hpow, powf)
+CUDA_UNSUPPORTED_HALF_MATH_UNARY(htanh, tanhf)
+CUDA_UNSUPPORTED_HALF_MATH_UNARY(htan, tanf)
+CUDA_UNSUPPORTED_HALF_MATH_UNARY(hatan, atanf)
+CUDA_UNSUPPORTED_HALF_MATH_UNARY(herf, erf)
+
+#undef CUDA_UNSUPPORTED_HALF_MATH_BINARY
+#undef CUDA_UNSUPPORTED_HALF_MATH_UNARY
 )";
 
 static constexpr const char* _cuda_warp_intrinsic_util = R"(

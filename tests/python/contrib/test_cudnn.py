@@ -20,12 +20,16 @@ import sys
 import pytest
 
 import tvm
+import tvm.testing
 from tvm import te
+from tvm import relay
 from tvm.contrib import cudnn
 from tvm.contrib.nvcc import have_fp16
+from tvm.contrib import graph_executor
 import numpy as np
 import tvm.topi.testing
 import tvm.testing
+from tvm.relay.op.contrib.cudnn import partition_for_cudnn
 
 
 requires_cudnn = pytest.mark.skipif(
@@ -370,8 +374,8 @@ def verify_conv2d_backward_filter(data_dtype, conv_dtype, tensor_format=0, tol=1
 @tvm.testing.requires_gpu
 @requires_cudnn
 def test_conv2d_backward_filter():
-    verify_conv2d_backward_filter("float32", "float32", tensor_format=0, tol=1e-4)
-    verify_conv2d_backward_filter("float32", "float32", tensor_format=1, tol=1e-4)
+    verify_conv2d_backward_filter("float32", "float32", tensor_format=0, tol=1e-2)
+    verify_conv2d_backward_filter("float32", "float32", tensor_format=1, tol=1e-2)
 
 
 test_kwargs_default_2d = {
@@ -445,5 +449,179 @@ def conv_output_shape_kwargs(request):
     return request.param
 
 
+def _verify_cudnn_relay(expr):
+    np.random.seed(42)
+
+    mod = tvm.IRModule.from_expr(expr)
+    mod = relay.transform.InferType()(mod)
+    func = mod["main"]
+    cudnn_mod = partition_for_cudnn(mod)
+    assert len(cudnn_mod.get_global_vars()) == 2
+
+    input_data = []
+    for param in func.params:
+        shape = [int(x) for x in param.checked_type.shape]
+        input_data.append(
+            (
+                param.name_hint,
+                np.random.uniform(-32, 32, size=shape).astype(param.checked_type.dtype),
+            )
+        )
+
+    cuda_config = (tvm.target.cuda(), tvm.cuda(), cudnn_mod)
+    cpu_config = (tvm.target.Target("llvm"), tvm.cpu(), mod)
+    outputs = []
+    for target, dev, test_mod in [cuda_config, cpu_config]:
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(test_mod, target=target, target_host=cpu_config[0])
+            module = graph_executor.GraphModule(lib["default"](dev))
+            for name, data in input_data:
+                module.set_input(name, tvm.nd.array(data, dev))
+
+            module.run()
+            out_type = func.body.checked_type
+            outputs.append(
+                module.get_output(0, tvm.nd.empty(out_type.shape, dtype=out_type.dtype)).numpy()
+            )
+
+    tvm.testing.assert_allclose(
+        outputs[0],
+        outputs[1],
+        rtol=1e-3,
+        atol=30,
+    )
+
+
+@tvm.testing.requires_cuda
+@pytest.mark.parametrize(
+    "shape,axis",
+    [
+        ((200,), 0),
+        ((13, 27), 0),
+        ((44, 12, 67), 1),
+        ((1, 16, 16, 8), 2),
+        ((2, 4, 6, 8, 10), 3),
+    ],
+)
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        "float32",
+        "float16",
+        "float64",
+    ],
+)
+def test_relay_cudnn_softmax(shape, axis, dtype):
+    x = tvm.relay.var("x", tvm.relay.TensorType(shape, dtype))
+    softmax = relay.op.nn.softmax(x, axis=axis)
+    _verify_cudnn_relay(softmax)
+
+
+@tvm.testing.requires_cuda
+@pytest.mark.parametrize(
+    "shape,axis",
+    [
+        ((32, 16), -1),
+        ((13, 27), 1),
+    ],
+)
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        "float32",
+        "float16",
+        "float64",
+    ],
+)
+def test_relay_cudnn_log_softmax(shape, axis, dtype):
+    x = tvm.relay.var("x", tvm.relay.TensorType(shape, dtype))
+    log_softmax = relay.op.nn.log_softmax(x, axis=axis)
+    _verify_cudnn_relay(log_softmax)
+
+
+@tvm.testing.requires_cuda
+@pytest.mark.parametrize(
+    "n,h,w,ci,co,groups",
+    [
+        (1, 16, 20, 8, 16, 1),
+        (10, 17, 19, 16, 8, 4),
+    ],
+)
+@pytest.mark.parametrize(
+    "kh,kw,padding",
+    [
+        (1, 1, (3, 1, 3, 1)),
+        (3, 3, (1, 2)),
+        (7, 2, (0, 0)),
+    ],
+)
+@pytest.mark.parametrize(
+    "strides,dilation,dtype",
+    [
+        ((1, 1), (1, 1), "float32"),
+        ((2, 1), (2, 2), "float16"),
+        ((3, 3), (1, 2), "float64"),
+    ],
+)
+def test_relay_cudnn_conv2d(n, h, w, ci, co, kh, kw, strides, dilation, padding, groups, dtype):
+    data = tvm.relay.var("data", tvm.relay.TensorType((n, ci, h, w), dtype))
+    weight = tvm.relay.var("weight", tvm.relay.TensorType((co, ci // groups, kh, kw), dtype))
+    conv2d = relay.op.nn.conv2d(
+        data,
+        weight,
+        groups=groups,
+        channels=co,
+        kernel_size=(kh, kw),
+        strides=strides,
+        dilation=dilation,
+        padding=padding,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+    )
+    _verify_cudnn_relay(conv2d)
+
+
+@tvm.testing.requires_cuda
+@pytest.mark.parametrize(
+    "n,h,w,ci,co,groups",
+    [
+        (1, 16, 20, 8, 16, 1),
+        (10, 17, 19, 16, 8, 4),
+    ],
+)
+@pytest.mark.parametrize(
+    "kh,kw,padding,strides,dilation,dtype",
+    [
+        (1, 1, (3, 1, 3, 1), (1, 1), (1, 1), "float32"),
+        (3, 3, (1, 2), (2, 1), (2, 2), "float16"),
+        (7, 2, (0, 0), (3, 3), (1, 2), "float64"),
+    ],
+)
+@pytest.mark.parametrize("activation", [True, False])
+def test_relay_cudnn_conv2d_bias_act(
+    n, h, w, ci, co, kh, kw, strides, dilation, padding, groups, dtype, activation
+):
+    data = tvm.relay.var("data", tvm.relay.TensorType((n, ci, h, w), dtype))
+    weight = tvm.relay.var("weight", tvm.relay.TensorType((co, ci // groups, kh, kw), dtype))
+    bias = relay.var("bias", relay.TensorType((co,), dtype))
+    conv2d = relay.op.nn.conv2d(
+        data,
+        weight,
+        groups=groups,
+        channels=co,
+        kernel_size=(kh, kw),
+        strides=strides,
+        dilation=dilation,
+        padding=padding,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+    )
+    out = relay.op.nn.bias_add(conv2d, bias)
+    if activation:
+        out = relay.op.nn.relu(out)
+
+    _verify_cudnn_relay(out)
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

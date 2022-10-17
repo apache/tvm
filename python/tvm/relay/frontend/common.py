@@ -25,7 +25,6 @@ from tvm.ir import IRModule
 from tvm.topi.utils import get_const_tuple
 
 from .. import expr as _expr
-from ..expr_functor import ExprMutator
 from .. import function as _function
 from .. import transform as _transform
 from .. import op as _op
@@ -610,13 +609,16 @@ def try_infer_value(val, on_success=None, on_failure=None, parameters=None):
         return val, False
 
 
-def shape_of(x, dtype="int64"):
+def shape_of(x, dtype="int64", start=None, end=None):
     """Get shape of a tensor."""
 
     ttype = infer_type(x).checked_type
     if not _ty.is_dynamic(ttype):
         shape = list(ttype.shape)
-        return _expr.const(shape, dtype)
+        start = start or 0  # default to first
+        end = end or len(shape)  # default to last
+        shape_sliced = shape[start:end]
+        return _expr.const(shape_sliced, dtype)
     return _op.shape_of(x, dtype)
 
 
@@ -682,6 +684,46 @@ def unbind(data, axis=0):
     for i in range(selections):
         ret.append(_op.squeeze(res_split[i], axis=[axis]))
     return _expr.TupleWrapper(_expr.Tuple(ret), selections)
+
+
+def rnn_cell(
+    input_seqs, hidden_state, w_inp, w_hid, b_inp=None, b_hid=None, backwards=False, act=_op.tanh
+):
+    """
+    Common implementation of RNN cell for all frontends of TVM
+
+    Parameters
+    ----------
+    input_seqs : List[relay.Expr]
+        The sequence of input tensors
+        Input tensor should be 2d while issue #8412 is not resolved
+        Shape = (batch, feature_size)
+    hidden_state : relay.Expr
+        Hidden state. shape = (batch_size, hidden_size)
+    w_inp, w_hid: relay.Expr
+        weight matrices. shape = (hidden_size, feature_size), (hidden_size, feature_size)
+    b_inp, b_hid : relay.Expr
+        bias matrices. The same order of internal parts as for weights. shape = (1 * hidden_size)
+    backwards : bool
+        Flag for reverse pass of RNN
+    act : relay.op
+        activation function. It is tanh by default.
+
+    Returns
+    -------
+    result : List[relay.Expr], relay.Expr, relay.Expr
+        The sequence of computed result, final hidden and cell state
+    """
+    outputs_list = []
+    for x_t in input_seqs if not backwards else reversed(input_seqs):
+        xwt = _op.nn.dense(x_t, w_inp)
+        hwt = _op.nn.dense(hidden_state, w_hid)
+        if b_inp is not None and b_hid is not None:
+            xwt += b_inp
+            hwt += b_hid
+        hidden_state = act(xwt + hwt)
+        outputs_list.append(hidden_state)  # [seq_num, (batch, hidden_size)]
+    return outputs_list, hidden_state
 
 
 def gru_cell(
@@ -955,55 +997,3 @@ def try_resolve_var_to_const(x, graph_params):
         return _op.const(value, dtype)
 
     return x
-
-
-def set_span(sym, node_name):
-    """Set up the span of relay expression(s) while converting OP"""
-
-    class SpanFiller(ExprMutator):
-        """SpanFiller"""
-
-        def __init__(self, node_name, suffix_str="_PART_"):
-            ExprMutator.__init__(self)
-            self.node_name = node_name
-            self.suffix_str = suffix_str
-            self.counter = 0
-            self.distance_from_leaf = -1
-
-        def _create_span(self):
-            if self.distance_from_leaf == 0:
-                return tvm.relay.Span(tvm.relay.SourceName(self.node_name), 0, 0, 0, 0)
-            self.distance_from_leaf -= 1
-            span_str = "{}{}{}".format(self.node_name, self.suffix_str, str(self.counter))
-            self.counter += 1
-            return tvm.relay.Span(tvm.relay.SourceName(span_str), 0, 0, 0, 0)
-
-        def visit_call(self, call):
-            if call.span is None:
-                self.distance_from_leaf += 1
-                new_args = [self.visit(arg) for arg in call.args]
-                return _expr.Call(
-                    call.op, new_args, call.attrs, call.type_args, self._create_span()
-                )
-            return call
-
-        def visit_tuple(self, tup):
-            if tup.span is None:
-                self.distance_from_leaf += 1
-                return _expr.Tuple([self.visit(field) for field in tup.fields], self._create_span())
-            return tup
-
-        def visit_tuple_getitem(self, op):
-            if op.span is None:
-                self.distance_from_leaf += 1
-                return _expr.TupleGetItem(self.visit(op.tuple_value), op.index, self._create_span())
-            return op
-
-        def fill(self, sym):
-            if isinstance(sym, _expr.TupleWrapper):
-                return _expr.TupleWrapper(self.visit(sym.tuple_value), sym.size)
-            if isinstance(sym, _expr.RelayExpr):
-                return self.visit(sym)
-            return sym
-
-    return SpanFiller(node_name).fill(sym)

@@ -42,6 +42,12 @@ The goal of this section is to give you an overview of TVM's capabilites and
 how to use them through the Python API.
 """
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 ################################################################################
 # TVM is a deep learning compiler framework, with a number of different modules
 # available for working with deep learning models and operators. In this
@@ -85,16 +91,17 @@ from tvm.contrib import graph_executor
 #   :ref:`Compile Deep Learning Models <tutorial-frontend>` section of the TVM
 #   Documentation.
 
-model_url = "".join(
-    [
-        "https://github.com/onnx/models/raw/",
-        "master/vision/classification/resnet/model/",
-        "resnet50-v2-7.onnx",
-    ]
+model_url = (
+    "https://github.com/onnx/models/raw/main/"
+    "vision/classification/resnet/model/"
+    "resnet50-v2-7.onnx"
 )
 
 model_path = download_testdata(model_url, "resnet50-v2-7.onnx", module="onnx")
 onnx_model = onnx.load(model_path)
+
+# Seed numpy's RNG to get consistent results
+np.random.seed(0)
 
 ################################################################################
 # Downloading, Preprocessing, and Loading the Test Image
@@ -307,7 +314,7 @@ runner = autotvm.LocalRunner(
 ################################################################################
 # Create a simple structure for holding tuning options. We use an XGBoost
 # algorithim for guiding the search. For a production job, you will want to set
-# the number of trials to be larger than the value of 10 used here. For CPU we
+# the number of trials to be larger than the value of 20 used here. For CPU we
 # recommend 1500, for GPU 3000-4000. The number of trials required can depend
 # on the particular model and processor, so it's worth spending some time
 # evaluating performance across a range of values to find the best balance
@@ -322,7 +329,7 @@ runner = autotvm.LocalRunner(
 
 tuning_option = {
     "tuner": "xgb",
-    "trials": 10,
+    "trials": 20,
     "early_stopping": 100,
     "measure_option": autotvm.measure_option(
         builder=autotvm.LocalBuilder(build_func="default"), runner=runner

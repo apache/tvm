@@ -42,6 +42,7 @@
 #include "../src/runtime/graph_executor/graph_executor_factory.cc"
 #include "../src/runtime/library_module.cc"
 #include "../src/runtime/logging.cc"
+#include "../src/runtime/minrpc/minrpc_logger.cc"
 #include "../src/runtime/module.cc"
 #include "../src/runtime/ndarray.cc"
 #include "../src/runtime/object.cc"
@@ -92,7 +93,7 @@ namespace tvm {
 namespace runtime {
 namespace detail {
 // Override logging mechanism
-void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
+[[noreturn]] void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
   std::string m = file + ":" + std::to_string(lineno) + ": " + message;
   __android_log_write(ANDROID_LOG_DEBUG, "TVM_RUNTIME", m.c_str());
   throw InternalError(file, lineno, message);

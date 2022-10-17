@@ -17,7 +17,13 @@
 # under the License.
 
 export LD_LIBRARY_PATH=.
-./tvm_rpc_android server --port=<RPC_SERVER_PORT> --tracker=<RPC_TRACKER_HOST>:<RPC_TRACKER_PORT> --key=<HEXAGON_REMOTE_DEVICE_KEY>&
+
+# Enable FARF-based logging for Hexagon code invoked by 'tvm_rpc_android_server'.
+export ADSP_LIBRARY_PATH=`pwd`
+echo 0x1f > tvm_rpc_android.farf
+
+./tvm_rpc_android server --port=<RPC_SERVER_PORT> --tracker=<RPC_TRACKER_HOST>:<RPC_TRACKER_PORT> --key=<HEXAGON_REMOTE_DEVICE_KEY> >${PWD}/tvm_rpc_android.log 2>&1 &
+
 rpc_pid=$!
 
 rm -f rpc_pid.txt

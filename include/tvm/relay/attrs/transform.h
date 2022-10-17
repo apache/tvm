@@ -27,6 +27,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/base.h>
 #include <tvm/relay/expr.h>
+#include <tvm/tir/index_map.h>
 
 #include <string>
 
@@ -118,9 +119,12 @@ struct TransposeAttrs : public tvm::AttrsNode<TransposeAttrs> {
 /*! \brief Attributes used in reshape operators */
 struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
   Array<Integer> newshape;
+  bool allowzero;
   TVM_DECLARE_ATTRS(ReshapeAttrs, "relay.attrs.ReshapeAttrs") {
     TVM_ATTR_FIELD(newshape).describe(
         "The new shape. Should be compatible with the original shape.");
+    TVM_ATTR_FIELD(allowzero).set_default(0).describe(
+        "Whether to honor the value of zero in newshape.");
   }
 };  // struct ReshapeAttrs
 
@@ -426,6 +430,22 @@ struct AutoSchedulerLayoutTransformAttrs
   }
 };
 
+/*! \brief Attributes for MetaScheduleLayoutTransform operator */
+struct MetaScheduleLayoutTransformAttrs : public tvm::AttrsNode<MetaScheduleLayoutTransformAttrs> {
+  tir::IndexMap index_map;
+
+  TVM_DECLARE_ATTRS(MetaScheduleLayoutTransformAttrs,
+                    "relay.attrs.MetaScheduleLayoutTransformAttrs") {
+    TVM_ATTR_FIELD(index_map).describe(
+        "The order of the extents, for example, "
+        "let extents = [2, 3, 4], reorder = [0, 2, 1], and the shape of buffer A is (4, 6)"
+        "then A[i, j] will be first rewritten to "
+        "A[(6 * i + j) / 12, (6 * i + j) / 4 % 3 , (6 * i + j) % 4] according to the `extents`,"
+        "and then reordered to A[(6 * i + j) / 12, (6 * i + j) % 4 , (6 * i + j) / 4 % 3]"
+        "according to `reorder`");
+  }
+};
+
 /*! \brief Attributes for ShapeOf operator */
 struct ShapeOfAttrs : public tvm::AttrsNode<ShapeOfAttrs> {
   DataType dtype;
@@ -532,6 +552,37 @@ struct EinsumAttrs : public tvm::AttrsNode<EinsumAttrs> {
     TVM_ATTR_FIELD(equation).describe("The einsum expression string");
   }
 };  // struct EinsumAttrs
+
+/*! \brief Attributes used in stft operator */
+struct StftAttrs : public tvm::AttrsNode<StftAttrs> {
+  int n_fft;
+  int hop_length;
+  int win_length;
+  bool normalized;
+  bool onesided;
+
+  TVM_DECLARE_ATTRS(StftAttrs, "relay.attrs.StftAttrs") {
+    TVM_ATTR_FIELD(n_fft).set_default(-1).describe("The size of Fourier transform");
+    TVM_ATTR_FIELD(hop_length)
+        .set_default(-1)
+        .describe("The distance between neighboring sliding window frames");
+    TVM_ATTR_FIELD(win_length).set_default(-1).describe("The size of window frame and STFT filter");
+    TVM_ATTR_FIELD(normalized)
+        .set_default(false)
+        .describe("Whether to return the normalized STFT results");
+    TVM_ATTR_FIELD(onesided).set_default(true).describe(
+        "Whether to return onesided result or fill with conjugate symmetry");
+  }
+};  // struct StftAttrs
+
+struct TriluAttrs : public tvm::AttrsNode<TriluAttrs> {
+  bool upper;
+
+  TVM_DECLARE_ATTRS(TriluAttrs, "relay.attrs.TriluAttrs") {
+    TVM_ATTR_FIELD(upper).set_default(true).describe(
+        "Whether to keep the upper or lower half of the diagonal.");
+  }
+};  // struct TriluAttrs
 
 }  // namespace relay
 }  // namespace tvm

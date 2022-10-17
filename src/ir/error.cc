@@ -64,13 +64,13 @@ void ErrorReporter::RenderErrors(const IRModule& module, bool use_color) {
 
     ICHECK(has_errs != this->node_to_error_.end());
 
-    const auto& error_indicies = has_errs->second;
+    const auto& error_indices = has_errs->second;
 
     std::stringstream err_msg;
 
     err_msg << rang::fg::red;
     err_msg << " ";
-    for (auto index : error_indicies) {
+    for (auto index : error_indices) {
       err_msg << this->errors_[index].what() << "; ";
     }
     err_msg << rang::fg::reset;

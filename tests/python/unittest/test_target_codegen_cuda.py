@@ -1,4 +1,5 @@
 # Licensed to the Apache Software Foundation (ASF) under one
+
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -14,6 +15,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import re
+
 import tvm
 from tvm import te
 import numpy as np
@@ -192,13 +195,13 @@ def test_cuda_make_int8():
         fun(a)
         np.testing.assert_equal(a.numpy(), np_a)
 
-    check_cuda(64, 0xAB, 4)
+    check_cuda(64, np.int8(0xAB), 4)
     check_cuda(64, 0, 4)
     check_cuda(64, -3, 4)
-    check_cuda(64, 0xAB, 3)
+    check_cuda(64, np.int8(0xAB), 3)
     check_cuda(64, 0, 3)
     check_cuda(64, -3, 3)
-    check_cuda(64, 0xAB, 2)
+    check_cuda(64, np.int8(0xAB), 2)
     check_cuda(64, 0, 2)
     check_cuda(64, -3, 2)
 
@@ -275,22 +278,16 @@ def test_cuda_shuffle():
     def MyVectorize():
         def vectorizer(op):
             if op.kind == tvm.tir.ForKind.VECTORIZED:
-                four = tvm.tir.const(4, "int32")
-                idx = tvm.tir.Ramp(thrx.var * four, tvm.tir.const(1, "int32"), 4)
-                all_ones = tvm.tir.const(1, "int32x4")
+                idx = tvm.tir.Ramp(4 * thrx.var, 1, 4)
                 store = op.body
                 value = store.value
-                new_a = tvm.tir.Load("int32x4", value.a.buffer_var, idx, all_ones)
+                new_a = tvm.tir.BufferLoad(value.a.buffer, [idx])
                 bs, ids = [], []
                 for i in range(4):
-                    bs.append(
-                        tvm.tir.Load(
-                            "int32", value.b.buffer_var, thrx.var * four + tvm.tir.const(i, "int32")
-                        )
-                    )
-                    ids.append(tvm.tir.const(3 - i, "int32"))
+                    bs.append(tvm.tir.BufferLoad(value.b.buffer, [4 * thrx.var + i]))
+                    ids.append(3 - i)
                 new_b = tvm.tir.Shuffle(bs, ids)
-                return tvm.tir.Store(store.buffer_var, new_a + new_b, idx, all_ones)
+                return tvm.tir.BufferStore(store.buffer, new_a + new_b, [idx])
             return None
 
         def _transform(f, *_):
@@ -808,23 +805,27 @@ def vcf_check_common(s, args):
     inside_broadcast = [False]
 
     # Possible patterns:
-    # Reduce init:          Store[Ramp] = Broadcast(0)
-    # Shared memory copy:   Store[Ramp] = Load[Ramp]
-    # Compute:              Store[Ramp] = Load[Ramp] ... Broadcast[Load]
+    # Reduce init:          BufferStore[Ramp] = Broadcast(0)
+    # Shared memory copy:   BufferStore[Ramp] = BufferLoad[Ramp]
+    # Compute:              BufferStore[Ramp] = BufferLoad[Ramp] ... Broadcast[Load]
 
     def pre_visit(stmt):
         if isinstance(stmt, tvm.tir.Broadcast):
             inside_broadcast[0] = True
             # Check Broadcast[Imm numbers] or Broadcast[Load] patterns
-            assert isinstance(stmt.value, (tvm.tir.IntImm, tvm.tir.FloatImm, tvm.tir.Load))
-        if isinstance(stmt, tvm.tir.Store):
-            # Check Store[Ramp] pattern
-            assert isinstance(stmt.index, tvm.tir.Ramp)
-        if isinstance(stmt, tvm.tir.Load):
-            # Check Broadcast[Load] or Load[Ramp] patterns
-            assert inside_broadcast[0] or isinstance(stmt.index, tvm.tir.Ramp)
-            # Skip the rest
-            return stmt
+            assert isinstance(stmt.value, (tvm.tir.IntImm, tvm.tir.FloatImm, tvm.tir.BufferLoad))
+
+        if isinstance(stmt, (tvm.tir.BufferStore, tvm.tir.BufferLoad)):
+            is_ramp_index = isinstance(stmt.indices[-1], tvm.tir.Ramp)
+            is_vectorized_buffer = re.match(r"^.*x\d+$", stmt.buffer.dtype)
+            if isinstance(stmt, tvm.tir.BufferLoad):
+                # Check Broadcast[BufferLoad] or BufferLoad[Ramp] patterns
+                assert inside_broadcast[0] or is_ramp_index or is_vectorized_buffer
+                # Skip the rest of the BufferLoad
+                return stmt
+            else:
+                assert is_ramp_index or is_vectorized_buffer
+
         return None
 
     def post_visit(stmt):
@@ -1037,7 +1038,7 @@ def test_try_unaligned_vector_load():
     N, C_N, A, C = get_compute_aligned()
     a_data, c, kernel_source = build(A, C, N, C_N)
     # (uint1*)(A + (2)) is a valid vector load
-    assert "A + (2)" in kernel_source
+    assert "A + 2" in kernel_source
 
     expected = a_data[2 : C_N + 2]
     assert np.allclose(c, expected), f"expected={expected}\nactual={c}"

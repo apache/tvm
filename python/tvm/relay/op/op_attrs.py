@@ -494,6 +494,11 @@ class OneHotAttrs(Attrs):
     """Attributes used in one_hot operators"""
 
 
+@tvm._ffi.register_object("relay.attrs.BroadcastAttrs")
+class BroadcastAttrs(Attrs):
+    """Attributes used in broadcast operators"""
+
+
 @tvm._ffi.register_object("relay.attrs.QuantizeAttrs")
 class QuantizeAttrs(Attrs):
     """Attributes used in quantize operators"""
@@ -612,3 +617,68 @@ class NLLLossAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.FixedPointMultiplyAttrs")
 class FixedPointMultiplyAttrs(Attrs):
     """Attributes used in fixed_point_multiply operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.TriluAttrs")
+class TriluAttrs(Attrs):
+    """Attributes used in trilu operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.SlidingWindowAttrs")
+class SlidingWindowAttrs(Attrs):
+    """Attributes used in sliding_window operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.DynExpandDimsAttrs")
+class DynExpandDimsAttrs(Attrs):
+    """Attributes used in dynamic expand_dims operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.ScatterAddAttrs")
+class ScatterAddAttrs(Attrs):
+    """Attributes used in scatter_add operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.ScatterNDAttrs")
+class ScatterNDAttrs(Attrs):
+    """Attributes used in scatter_nd operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.GatherNDAttrs")
+class GatherNDAttrs(Attrs):
+    """Attributes used in gather_nd operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.AutoSchedulerLayoutTransformAttrs")
+class AutoSchedulerLayoutTransformAttrs(Attrs):
+    """Attributes used in AutoSchedulerLayoutTransform operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.MetaScheduleLayoutTransformAttrs")
+class MetaScheduleLayoutTransformAttrs(Attrs):
+    """Attributes used in MetaScheduleLayoutTransform operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.MatrixSetDiagAttrs")
+class MatrixSetDiagAttrs(Attrs):
+    """Attributes used in matrix_set_diag operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.ScanopAttrs")
+class ScanopAttrs(Attrs):
+    """Attributes used in cumsum and cumprod operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.UniqueAttrs")
+class UniqueAttrs(Attrs):
+    """Attributes used in unique operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.EinsumAttrs")
+class EinsumAttrs(Attrs):
+    """Attributes used in einsum operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.StftAttrs")
+class StftAttrs(Attrs):
+    """Attributes used in stft operators"""

@@ -126,15 +126,16 @@ class RollingBufferInjector : public StmtExprMutator {
         // We use the bound information of the BufferRealize to calculate
         // how we can legally roll
         auto stride{0};
+        auto divisor{1};
         Optional<Var> iter_var{};
         for (auto bound : buffer_realize->bounds) {
+          divisor = 1;
           if (auto floor_div = bound->min.as<FloorDivNode>()) {
             // Handle the case of fractional strides
             // They take this form: floordiv(hh.outer, 2)
             // Strip the floordiv and keep track of the divisor
-            auto divisor{Downcast<IntImm>(floor_div->b)->value};
+            divisor = Downcast<IntImm>(floor_div->b)->value;
             bound = Range::FromMinExtent(floor_div->a, bound->extent, bound->span);
-            stride = std::ceil(stride / divisor);
           }
           if (bound->min.as<IntImmNode>()) {
             // If the bound is an int, we can't roll over it
@@ -155,6 +156,7 @@ class RollingBufferInjector : public StmtExprMutator {
             iter_var = GetRef<Var>(a);
             stride = b->value;
           }
+          stride = std::ceil(static_cast<float>(stride) / divisor);
           bound_iter_vars.push_back(iter_var);
           if (iter_var) {
             bound_overlaps.push_back(Downcast<IntImm>(bound->extent)->value - stride);
@@ -172,7 +174,7 @@ class RollingBufferInjector : public StmtExprMutator {
 
           auto it{std::find_if(
               bound_iter_vars.begin(), bound_iter_vars.end(),
-              [&](Optional<Var> var) { return var && (var.value().get() == loop_var.get()); })};
+              [&](Optional<Var> var) { return var && (var.get() == loop_var.get()); })};
 
           if (it != bound_iter_vars.end()) {
             auto i{std::distance(bound_iter_vars.begin(), it)};
@@ -263,8 +265,8 @@ class RollingBufferInjector : public StmtExprMutator {
           Var var{iter_var.value()};
           const Map<Var, IntSet> dmap{std::make_pair(var, IntSet::Interval(0, 0))};
           auto term_2{arith::Analyzer{}.int_set(op->indices[i], dmap).min()};
-          buffer_store = IfThenElse(
-              Or(LT(var, 1), GE(term_2, rolling_buffer_info.axis_overlaps[i])), buffer_store);
+          auto condition = Or(LT(var, 1), GE(term_2, rolling_buffer_info.axis_overlaps[i]));
+          buffer_store = IfThenElse(likely(condition), buffer_store);
         }
       }
       return buffer_store;

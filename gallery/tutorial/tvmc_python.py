@@ -29,12 +29,18 @@ Follow the steps to download a resnet model via the terminal:
 
      mkdir myscripts
      cd myscripts
-     wget https://github.com/onnx/models/raw/master/vision/classification/resnet/model/resnet50-v2-7.onnx
+     wget https://github.com/onnx/models/raw/b9a54e89508f101a1611cd64f4ef56b9cb62c7cf/vision/classification/resnet/model/resnet50-v2-7.onnx
      mv resnet50-v2-7.onnx my_model.onnx
      touch tvmcpythonintro.py
 
 Let's start editing the python file in your favorite text editor.
 """
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 
 ################################################################################
 # Step 0: Imports
@@ -68,7 +74,7 @@ Let's start editing the python file in your favorite text editor.
 #
 # .. code-block:: python
 #
-#   #model = tvmc.load(my_model, shape_dict={'input1' : [1, 2, 3, 4], 'input2' : [1, 2, 3, 4]}) #Step 1: Load + shape_dict
+#   #model = tvmc.load('my_model.onnx', shape_dict={'input1' : [1, 2, 3, 4], 'input2' : [1, 2, 3, 4]}) #Step 1: Load + shape_dict
 #
 # A suggested way to see the model's input/shape_dict is via `netron <https://netron.app/>`_. After opening the model,
 # click the first node to see the name(s) and shape(s) in the inputs section.
@@ -111,7 +117,7 @@ Let's start editing the python file in your favorite text editor.
 #   result = tvmc.run(package, device="cpu") #Step 3: Run
 #
 # And you can print the results:
-# ``print(results)``
+# ``print(result)``
 #
 
 ################################################################################
@@ -202,10 +208,10 @@ Let's start editing the python file in your favorite text editor.
 #
 # .. code-block:: python
 #
-#   tvmc.compile(model, target="llvm", package_path="whatever")
+#   tvmc.compile(model, target="llvm", package_path="whatever") #Step 2: Compile
 #
 #   new_package = tvmc.TVMCPackage(package_path="whatever")
-#   result = tvmc.run(new_package) #Step 3: Run
+#   result = tvmc.run(new_package, device="cpu") #Step 3: Run
 #
 #
 
@@ -237,7 +243,7 @@ Let's start editing the python file in your favorite text editor.
 #      log_file = "hello.json"
 #
 #      # Run tuning
-#      tvmc.tune(model, target="llvm",tuning_records=log_file)
+#      tvmc.tune(model, target="llvm", tuning_records=log_file)
 #
 #      ...
 #
@@ -285,7 +291,7 @@ Let's start editing the python file in your favorite text editor.
 #           model,
 #           target=target, # Compilation target as string // Device to compile for
 #           target_host=target_host, # Host processor
-#           hostname=host_ip_address, #The IP address of an RPC tracker, used when benchmarking remotely.
+#           hostname=host_ip_address, # The IP address of an RPC tracker, used when benchmarking remotely.
 #           port=port_number, # The port of the RPC tracker to connect to. Defaults to 9090.
 #           rpc_key=your_key, # The RPC tracker key of the target device. Required when rpc_tracker is provided
 #      )

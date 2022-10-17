@@ -26,6 +26,7 @@
 #define TVM_TIR_USMP_UTILS_H_
 
 #include <tvm/ir/expr.h>
+#include <tvm/ir/memory_pools.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/stmt.h>
@@ -40,76 +41,23 @@ constexpr const char* kUSMPEnableOption = "tir.usmp.enable";
  * \brief PassContext option to select the memory planning algorithm in USMP
  */
 constexpr const char* kUSMPAlgorithmOption = "tir.usmp.algorithm";
+/*!
+ * \brief PassContext option to enable placing I/O tensors in the workspace
+ */
+constexpr const char* kUSMPUseWorkspaceIO = "tir.usmp.use_workspace_io";
+/*!
+ * \brief PassContext option to specify a custom memory planning algorithm in USMP.
+ * The algorithm should be provided as registered PackedFunc with the name tir.usmp.algorithm.NAME
+ */
+constexpr const char* kUSMPCustomAlgorithmOption = "tir.usmp.custom_algorithm";
 
 namespace tir {
 namespace usmp {
-
 /*!
- * \brief The string parameter to indicate read and write access to a pool
- * This needs to be kept in sync with PoolInfo.READ_WRITE_ACCESS in
- * python/tvm/tir/usmp/utils.py
+ * \brief A special kind to distinguish between I/O tensors to the model
+ * and intermediate tensors of the model
  */
-static constexpr const char* kTargetPoolReadWriteAccess = "rw";
-/*!
- * \brief The string parameter to indicate read only access to a pool
- * This needs to be kept in sync with PoolInfo.READ_ONLY_ACCESS in
- * python/tvm/tir/usmp/utils.py
- */
-static constexpr const char* kTargetPoolReadOnlyAccess = "ro";
-
-/*!
- * \brief Describes a pool of memory accessible by one or more targets.
- */
-struct PoolInfoNode : public Object {
-  /*! \brief The name of the memory pool */
-  String pool_name;
-  /*! \brief The expected size hint to be used by the allocator.
-   * The size_hint_bytes is defaulted to kUnrestrictedPoolSizeHint
-   * to indicate the pool is not size restricted.
-   */
-  Integer size_hint_bytes;
-  /*! \brief The accessibility from each Target*/
-  Map<Target, String> target_access;  // 'rw' or 'ro'
-  /*! \brief Whether pool is internally generated.
-   * The internal pools will be generated as part of
-   * the entry point code generation of the executor*/
-  bool is_internal = false;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("pool_name", &pool_name);
-    v->Visit("size_hint_bytes", &size_hint_bytes);
-    v->Visit("target_access", &target_access);
-    v->Visit("is_internal", &is_internal);
-  }
-
-  bool SEqualReduce(const PoolInfoNode* other, SEqualReducer equal) const {
-    return equal(pool_name, other->pool_name) && equal(size_hint_bytes, other->size_hint_bytes) &&
-           equal(target_access, other->target_access) && equal(is_internal, other->is_internal);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(pool_name);
-    hash_reduce(size_hint_bytes);
-    hash_reduce(target_access);
-    hash_reduce(is_internal);
-  }
-
-  static constexpr const char* _type_key = "tir.usmp.PoolInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PoolInfoNode, Object);
-};
-
-/*!
- * \brief The PoolSize is unrestricted for the memory planner
- */
-static const int kUnrestrictedPoolSizeHint = -1;
-
-class PoolInfo : public ObjectRef {
- public:
-  TVM_DLL PoolInfo(String pool_name, Map<Target, String> target_access,
-                   Integer size_hint_bytes = kUnrestrictedPoolSizeHint,
-                   Bool is_internal = Bool(false));
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PoolInfo, ObjectRef, PoolInfoNode);
-};
+enum class BufferInfoKind { kIntermediate = 0, kInput = 1, kOutput = 2 };
 
 /*!
  * \brief Describes an abstract memory buffer that will get allocated inside a pool.
@@ -131,6 +79,8 @@ struct BufferInfoNode : public Object {
   Integer alignment;
   /*! \brief The liveness conflicting other buffer info objects */
   Array<ObjectRef> conflicts;
+  /*! \brief Whether BufferInfo object retains info about IO tensors or intermediaries */
+  BufferInfoKind kind;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
@@ -138,12 +88,13 @@ struct BufferInfoNode : public Object {
     v->Visit("pool_candidates", &pool_candidates);
     v->Visit("alignment", &alignment);
     v->Visit("conflicts", &conflicts);
+    v->Visit("kind", &kind);
   }
 
   bool SEqualReduce(const BufferInfoNode* other, SEqualReducer equal) const {
     return equal(name_hint, other->name_hint) && equal(size_bytes, other->size_bytes) &&
            equal(pool_candidates, other->pool_candidates) && equal(alignment, other->alignment) &&
-           equal(conflicts, other->conflicts);
+           equal(conflicts, other->conflicts) && equal(kind, other->kind);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -152,6 +103,7 @@ struct BufferInfoNode : public Object {
     hash_reduce(alignment);
     hash_reduce(conflicts);
     hash_reduce(pool_candidates);
+    hash_reduce(kind);
   }
   /*!
    * \brief Set the liveness conflicts of this BufferInfo
@@ -167,7 +119,8 @@ struct BufferInfoNode : public Object {
 class BufferInfo : public ObjectRef {
  public:
   TVM_DLL BufferInfo(String name_hint, Integer size_bytes, Array<PoolInfo> pool_candidates,
-                     Integer alignment = runtime::kDefaultWorkspaceAlignment);
+                     Integer alignment = runtime::kDefaultWorkspaceAlignment,
+                     BufferInfoKind kind = BufferInfoKind::kIntermediate);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BufferInfo, ObjectRef, BufferInfoNode);
 };
 
@@ -214,9 +167,9 @@ class BufferInfoAnalysis : public ObjectRef {
  * \brief The pool allocation produced after the USMP algorithm
  */
 struct PoolAllocationNode : public Object {
-  /*! \brief The assigned PoolInfo object */
+  /*! \brief The assigned WorkspacePoolInfo or ConstantPoolInfo object */
   PoolInfo pool_info;
-  /*! \brief The byte offset where the tensor is supposed to be placed within the pool*/
+  /*! \brief The byte offset within the pool*/
   Integer byte_offset;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -251,24 +204,24 @@ struct AllocatedPoolInfoNode : public Object {
   PoolInfo pool_info;
   /*! \brief The allocated size into this pool */
   Integer allocated_size;
-  /*! \brief An optional associated pool Var*/
-  Optional<Var> pool_var;
+  /*! \brief An optional associated pool Var index of PrimFunc params*/
+  Optional<Integer> pool_var_idx;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pool_info", &pool_info);
     v->Visit("allocated_size", &allocated_size);
-    v->Visit("pool_var", &pool_var);
+    v->Visit("pool_var_idx", &pool_var_idx);
   }
 
   bool SEqualReduce(const AllocatedPoolInfoNode* other, SEqualReducer equal) const {
     return equal(pool_info, other->pool_info) && equal(allocated_size, other->allocated_size) &&
-           equal(pool_var, other->pool_var);
+           equal(pool_var_idx, other->pool_var_idx);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(pool_info);
     hash_reduce(allocated_size);
-    hash_reduce(pool_var);
+    hash_reduce(pool_var_idx);
   }
 
   static constexpr const char* _type_key = "tir.usmp.AllocatedPoolInfo";
@@ -277,7 +230,8 @@ struct AllocatedPoolInfoNode : public Object {
 
 class AllocatedPoolInfo : public ObjectRef {
  public:
-  TVM_DLL AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size, Var pool_var = Var());
+  TVM_DLL AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size,
+                            Integer pool_var_idx = Integer());
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AllocatedPoolInfo, ObjectRef, AllocatedPoolInfoNode);
 };
 
@@ -286,7 +240,7 @@ class AllocatedPoolInfo : public ObjectRef {
  *
  * \param buffer_info_map IR-bound BufferInfo map
  */
-Array<BufferInfo> CreateArrayBufferInfo(const Map<BufferInfo, Stmt>& buffer_info_map);
+Array<BufferInfo> ConvertToArrayOfBufferInfo(const Map<BufferInfo, Stmt>& buffer_info_map);
 
 /*!
  * \brief Calculate workspace required to execute a IRModule with main expressed in TIR
@@ -303,11 +257,30 @@ Integer CalculateModuleWorkspaceSize(const IRModule& mod);
 static constexpr const char* kPoolCandidatesAllocateAttr = "candidate_memory_pools";
 
 /*!
+ * \brief The allocate node attribute to indicate it is being used to hold
+ * an input tensor, that needs to be initialized with.
+ */
+static constexpr const char* kInputTensorAllocate = "input_tensor";
+
+/*!
+ * \brief The allocate node attribute to indicate it is being used to hold
+ * an output tensor.
+ */
+static constexpr const char* kOutputTensorAllocate = "output_tensor";
+
+/*!
  * \brief Calculate the size of the extents in bytes
  *
  * \param op the allocate node
  */
 Integer CalculateExtentsSize(const AllocateNode* op);
+
+/*!
+ * \brief Calculate the size of the extents in bytes
+ *
+ * \param op the allocate const node
+ */
+Integer CalculateExtentsSize(const AllocateConstNode* op);
 
 /*!
  * \brief Joins the Stmt nodes with PoolAllocation objects
@@ -317,6 +290,16 @@ Integer CalculateExtentsSize(const AllocateNode* op);
  */
 Map<Stmt, PoolAllocation> AssignStmtPoolAllocations(
     const Map<BufferInfo, Stmt>& buffer_info_to_stmt,
+    const Map<BufferInfo, PoolAllocation>& buffer_info_to_pool_allocation);
+
+/*!
+ * \brief Obtains I/O tensor names to their PoolAllocation objects
+ *
+ * \param buffer_info_to_pool_allocation the map of BufferInfo objects to PoolAllocation objects
+ *
+ * This function will obtain pool allocations for I/O tensors if that had been planned
+ */
+Map<String, PoolAllocation> GetIOPoolAllocations(
     const Map<BufferInfo, PoolAllocation>& buffer_info_to_pool_allocation);
 
 }  // namespace usmp
@@ -330,10 +313,10 @@ namespace attr {
 static constexpr const char* kPoolArgs = "pool_args";
 
 /*!
- * \brief This is a IRModule attribute that contains all the PoolInfo objects
- * as an Array.
+ * \brief This is a IRModule attribute that contains I/O Tensor names to pool
+ * allocations.
  */
-static constexpr const char* kPoolInfoIRModuleAttr = "pool_infos";
+static constexpr const char* kIOTensorPoolAllocations = "io_tensor_pool_allocations";
 
 }  // namespace attr
 

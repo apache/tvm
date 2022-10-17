@@ -21,7 +21,7 @@ from tvm.te.hybrid import script
 from tvm import topi
 from tvm.runtime import convert
 
-from .op import register_compute, register_shape_func
+from .op import register_compute, register_shape_func, register_legalize
 from .op import register_broadcast_schedule, register_injective_schedule
 from .op import register_pattern, OpPattern
 
@@ -57,6 +57,7 @@ register_broadcast_schedule("subtract")
 register_broadcast_schedule("multiply")
 register_broadcast_schedule("divide")
 register_broadcast_schedule("floor_divide")
+register_broadcast_schedule("trunc_divide")
 register_broadcast_schedule("power")
 register_broadcast_schedule("copy")
 register_broadcast_schedule("logical_not")
@@ -70,6 +71,7 @@ register_broadcast_schedule("bitwise_xor")
 register_broadcast_schedule("negative")
 register_broadcast_schedule("mod")
 register_broadcast_schedule("floor_mod")
+register_broadcast_schedule("trunc_mod")
 register_broadcast_schedule("equal")
 register_broadcast_schedule("not_equal")
 register_broadcast_schedule("less")
@@ -89,6 +91,27 @@ register_injective_schedule("device_copy")
 register_broadcast_schedule("fast_exp")
 register_broadcast_schedule("fast_tanh")
 register_broadcast_schedule("fast_erf")
+
+
+@register_legalize("erf")
+def legalize_erf(attrs, inputs, types):
+    """Legalize ERF op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.math.erf_legalize(attrs, inputs, types)
 
 
 # zeros
@@ -245,9 +268,11 @@ register_shape_func("subtract", False, broadcast_shape_func)
 register_shape_func("multiply", False, broadcast_shape_func)
 register_shape_func("divide", False, broadcast_shape_func)
 register_shape_func("floor_divide", False, broadcast_shape_func)
+register_shape_func("trunc_divide", False, broadcast_shape_func)
 register_shape_func("power", False, broadcast_shape_func)
 register_shape_func("mod", False, broadcast_shape_func)
 register_shape_func("floor_mod", False, broadcast_shape_func)
+register_shape_func("trunc_mod", False, broadcast_shape_func)
 register_shape_func("logical_and", False, broadcast_shape_func)
 register_shape_func("logical_or", False, broadcast_shape_func)
 register_shape_func("logical_xor", False, broadcast_shape_func)
@@ -263,8 +288,11 @@ register_shape_func("greater", False, broadcast_shape_func)
 register_shape_func("greater_equal", False, broadcast_shape_func)
 register_shape_func("maximum", False, broadcast_shape_func)
 register_shape_func("minimum", False, broadcast_shape_func)
+register_shape_func("left_shift", False, broadcast_shape_func)
+register_shape_func("right_shift", False, broadcast_shape_func)
 
 register_shape_func("sqrt", False, elemwise_shape_func)
+register_shape_func("rsqrt", False, elemwise_shape_func)
 register_shape_func("negative", False, elemwise_shape_func)
 register_shape_func("exp", False, elemwise_shape_func)
 register_shape_func("tan", False, elemwise_shape_func)
@@ -279,3 +307,4 @@ register_shape_func("log2", False, elemwise_shape_func)
 register_shape_func("sigmoid", False, elemwise_shape_func)
 register_shape_func("tanh", False, elemwise_shape_func)
 register_shape_func("logical_not", False, elemwise_shape_func)
+register_shape_func("ceil", False, elemwise_shape_func)

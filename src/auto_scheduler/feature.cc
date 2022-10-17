@@ -27,6 +27,7 @@
 #include <tvm/auto_scheduler/measure.h>
 #include <tvm/auto_scheduler/measure_record.h>
 #include <tvm/driver/driver_api.h>
+#include <tvm/ir/global_var_supply.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/support/parallel_for.h>
 #include <tvm/te/operation.h>
@@ -37,6 +38,7 @@
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <numeric>
 #include <unordered_map>
@@ -53,7 +55,7 @@ using arith::Analyzer;
 using arith::ConstIntBound;
 
 template <class T>
-using BufferMap = std::unordered_map<Buffer, T, ObjectHash, ObjectEqual>;
+using BufferMap = std::unordered_map<Var, T, ObjectHash, ObjectEqual>;
 
 // The number of samples to extract for arithmetic intensity curves
 static const int ARITH_INTENSITY_CURVE_SAMPLE_N = 10;
@@ -233,27 +235,27 @@ AnnotationPosType GetAnnotationPosEncoding(const Var& var, const Array<PrimExpr>
   }
 }
 
-// Return the extent of a for loop
-int64_t GetLoopExtent(const ForNode* node) {
-  auto pint = node->extent.as<IntImmNode>();
-  if (pint != nullptr) {
-    return pint->value;
+// Return the maximum extent of a for loop
+int64_t GetLoopExtent(const ForNode* node, const Analyzer& ana) {
+  int64_t bound = ana.const_int_bound(node->extent)->max_value;
+  if (bound == ConstIntBound::kPosInf) {
+    return 1;  // Analyzer could not determine a valid bound, use 1 instead.
   } else {
-    return 1;
+    return bound;
   }
 }
 
 // Count math ops in an expr
 class MathOpCounter : public StmtExprVisitor {
  public:
-#define VisitBinary(Type, float_ct, int_ct) \
-  void VisitExpr_(const Type* op) final {   \
-    if (op->a.dtype().is_float()) {         \
-      float_ct++;                           \
-    } else {                                \
-      int_ct++;                             \
-    }                                       \
-    StmtExprVisitor::VisitExpr_(op);        \
+#define VisitBinary(Type, float_ct, int_ct)                        \
+  void VisitExpr_(const Type* op) final {                          \
+    if (op->a.dtype().is_float() || op->a.dtype().is_bfloat16()) { \
+      float_ct += op->a.dtype().lanes();                           \
+    } else {                                                       \
+      int_ct += op->a.dtype().lanes();                             \
+    }                                                              \
+    StmtExprVisitor::VisitExpr_(op);                               \
   }
 
   VisitBinary(AddNode, float_addsub, int_addsub);
@@ -299,13 +301,13 @@ class MathOpCounter : public StmtExprVisitor {
         effect_kind == CallEffectKind::kPure || effect_kind == CallEffectKind::kExprAnnotation;
 
     if (is_pure) {
-      if (op->dtype.is_float()) {
+      if (op->dtype.is_float() || op->dtype.is_bfloat16()) {
         float_math_func++;
       } else {
         int_math_func++;
       }
     } else {
-      if (op->dtype.is_float()) {
+      if (op->dtype.is_float() || op->dtype.is_bfloat16()) {
         float_other_func++;
       } else {
         int_other_func++;
@@ -340,14 +342,19 @@ class BufferAccessExtractor : public StmtExprVisitor {
  public:
   void ExtractReads(const PrimExpr& expr) { this->VisitExpr(expr); }
 
-  void InsertAccess(const Buffer& buf, BufferAccessType acc_type, const Array<PrimExpr>& indices) {
+  void InsertAccess(const Var& buf, BufferAccessType acc_type, const Array<PrimExpr>& indices) {
     BufferAccess& acc = buf_accesses[buf];
     acc.acc_type = acc_type;
     acc.indices.push_back(std::vector<PrimExpr>(indices.begin(), indices.end()));
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    BufferAccess& acc = buf_accesses[op->buffer];
+    AddAccess(op->buffer->data, op->indices);
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void AddAccess(const Var& buffer, const Array<PrimExpr>& indices) {
+    BufferAccess& acc = buf_accesses[buffer];
     switch (acc.acc_type) {
       case BufferAccessType::kRead:
         break;
@@ -366,10 +373,8 @@ class BufferAccessExtractor : public StmtExprVisitor {
       // If a buffer is both read and written, in the tvm DSL, it must be a update,
       // so the indices should be the same. Then we can skip appending indices for it.
       // Otherwise we do the following.
-      buf_accesses[op->buffer].indices.push_back(
-          std::vector<PrimExpr>(op->indices.begin(), op->indices.end()));
+      buf_accesses[buffer].indices.push_back(std::vector<PrimExpr>(indices.begin(), indices.end()));
     }
-    StmtExprVisitor::VisitExpr_(op);
   }
 
   BufferMap<BufferAccess> buf_accesses;
@@ -492,11 +497,12 @@ void ComputeRegion(const std::vector<std::vector<PrimExpr>>& indices, arith::Ana
 // Compute reuse distance and reuse ratio for accesses to a buffer
 // return values: reuse_type, reuse_dis_iter, reuse_dis_bytes, reuse_ct
 std::tuple<ReuseType, float, float, float> ComputeReuse(
-    const Buffer& buf, const std::vector<std::vector<PrimExpr>>& indices,
+    const Var& buf, const std::vector<std::vector<PrimExpr>>& indices,
     const std::vector<const ForNode*>& for_loop_stack,
     const std::unordered_map<const ForNode*,
                              BufferMap<std::vector<std::tuple<BufferAccessType, int64_t, int>>>>&
-        for_touch_regions) {
+        for_touch_regions,
+    const Analyzer& ana) {
   float reuse_dis_iter = 1.0f;
   float reuse_dis_bytes = -1.0f;
 
@@ -516,7 +522,7 @@ std::tuple<ReuseType, float, float, float> ComputeReuse(
       }
     }
 
-    int64_t extent = GetLoopExtent(for_loop_stack[i]);
+    int64_t extent = GetLoopExtent(for_loop_stack[i], ana);
     if (find) {
       // accumulate/update reuse distance
       reuse_dis_iter *= extent;
@@ -546,7 +552,7 @@ std::tuple<ReuseType, float, float, float> ComputeReuse(
 
     int serial_reuse = static_cast<int>(buffer_map.at(buf).size()) - 1;
     if (serial_reuse > 0) {
-      int64_t extent = GetLoopExtent(cur_for);
+      int64_t extent = GetLoopExtent(cur_for, ana);
 
       // Have SerialMultipleReadWrite reuse
       reuse_dis_iter = std::numeric_limits<float>::max();
@@ -570,9 +576,25 @@ std::tuple<ReuseType, float, float, float> ComputeReuse(
 }
 
 // Extract features for every BufferStore statement
+//
+// This visitor assumes that loop bounds do no depend on data or on parent loop
+// bounds. For example, `for i in .. { for j in range(i, ..) }` would result in
+// inaccurate features. This visitor also does not take conditionals into
+// consideration when creating features. Each branch of the conditional is
+// taken at the same time.
 class PerStoreFeatureExtractor : public StmtExprVisitor {
  public:
-  explicit PerStoreFeatureExtractor(int cache_line_size) : cache_line_size_(cache_line_size) {}
+  explicit PerStoreFeatureExtractor(int cache_line_size, const Map<Var, Buffer>& existing_buffers)
+      : cache_line_size_(cache_line_size) {
+    for (const auto& buffer : existing_buffers) {
+      buffer_shapes[buffer.first] = buffer.second->shape;
+      buffer_dtypes[buffer.first] = buffer.second->dtype;
+      // Also need to add a reference from the buffers internal variable. This
+      // is usually how buffers are referenced within the body of a PrimFunc
+      buffer_shapes[buffer.second->data] = buffer.second->shape;
+      buffer_dtypes[buffer.second->data] = buffer.second->dtype;
+    }
+  }
 
   void VisitStmt_(const AttrStmtNode* node) final {
     if (node->attr_key == tir::attr::thread_extent || node->attr_key == tir::attr::virtual_thread) {
@@ -616,7 +638,9 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
       outer_loop_prod_ *= extent;
       for_loop_stack_.push_back(fake_for_node.as<ForNode>());
+      variable_definition_stack_.push_back({});
       StmtExprVisitor::VisitStmt_(node);
+      variable_definition_stack_.pop_back();
       for_loop_stack_.pop_back();
       outer_loop_prod_ /= extent;
 
@@ -634,7 +658,8 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   }
 
   void VisitStmt_(const ForNode* node) final {
-    int64_t loop_extent = GetLoopExtent(node);
+    ana_.Bind(node->loop_var, Range::FromMinExtent(node->min, node->extent));
+    int64_t loop_extent = GetLoopExtent(node, ana_);
 
     if (node->kind == ForKind::kVectorized) {
       vec_for_stack_.push_back(node);
@@ -646,7 +671,9 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
     outer_loop_prod_ *= loop_extent;
     for_loop_stack_.push_back(node);
+    variable_definition_stack_.push_back({});
     StmtExprVisitor::VisitStmt_(node);
+    variable_definition_stack_.pop_back();
     for_loop_stack_.pop_back();
     outer_loop_prod_ /= loop_extent;
 
@@ -659,7 +686,18 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     }
   }
 
+  void VisitExpr_(const BufferLoadNode* node) final {
+    // Store buffer shape/dtype. It may already be stored.
+    buffer_shapes[node->buffer->data] = node->buffer->shape;
+    buffer_dtypes[node->buffer->data] = node->buffer->dtype;
+    StmtExprVisitor::VisitExpr_(node);
+  }
+
   void VisitStmt_(const BufferStoreNode* node) final {
+    // Store buffer shape/dtype. It may already be stored.
+    buffer_shapes[node->buffer->data] = node->buffer->shape;
+    buffer_dtypes[node->buffer->data] = node->buffer->dtype;
+
     MathOpCounter math_op_counter;
     math_op_counter(node->value);
     std::vector<float> mem_bytes_list;
@@ -667,58 +705,80 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     double cur_compute_ops;
 
     // Group 1: Computation related features
-    ExtractComputationFeature(node, math_op_counter);
+    ExtractComputationFeature(node->buffer->data, node->indices, math_op_counter);
 
     // Group 2: Buffer access related features (per buffer)
-    ExtractBufferAccessFeature(node, math_op_counter, &cur_compute_ops, &compute_ops_list,
-                               &mem_bytes_list);
+    ExtractBufferAccessFeature(node->buffer->data, node->indices, node->value, math_op_counter,
+                               &cur_compute_ops, &compute_ops_list, &mem_bytes_list);
 
     // Group 3: Arithmetic intensity related features
-    ExtractArithmeticIntensityFeature(node, cur_compute_ops, compute_ops_list, mem_bytes_list);
+    ExtractArithmeticIntensityFeature(node->buffer->data, cur_compute_ops, compute_ops_list,
+                                      mem_bytes_list);
 
     // Group 4: Allocation related features
-    ExtractOuterScopeFeature(node);
+    ExtractOuterScopeFeature(node->buffer->data);
   }
 
   void VisitStmt_(const BufferRealizeNode* node) final {
+    // Store buffer shape/dtype. It may already be stored.
+    buffer_shapes[node->buffer->data] = node->buffer->shape;
+    buffer_dtypes[node->buffer->data] = node->buffer->dtype;
     StmtExprVisitor::VisitStmt_(node);
 
     // Group 5: Outer scope related features
     ExtractAllocationFeature(node);
   }
 
+  void VisitStmt_(const AllocateNode* node) final {
+    buffer_dtypes[node->buffer_var] = node->dtype;
+    buffer_shapes[node->buffer_var] = node->extents;
+    StmtExprVisitor::VisitStmt_(node);
+
+    // Group 5: Outer scope related features
+    ExtractAllocationFeature(node);
+  }
+
+  void VisitStmt_(const LetStmtNode* node) final {
+    // TODO(tkonolige): add arithmetic counts from this statement to counts of inner stores.
+    ana_.Bind(node->var, node->value);
+    ICHECK(variable_definition_stack_.size() > 0)
+        << "Variable definition outside of a for loop is not handled by feature extraction";
+    variable_definition_stack_.back().push_back(std::make_tuple(node->var, node->value));
+    StmtExprVisitor::VisitStmt_(node);
+  }
+
   // Extract computation related features (group 1)
-  void ExtractComputationFeature(const BufferStoreNode* node,
+  void ExtractComputationFeature(const Var& buffer, const Array<PrimExpr>& indices,
                                  const MathOpCounter& math_op_counter) {
-    FeatureSet& fea = buffer_features[node->buffer];
+    FeatureSet& fea = buffer_features[buffer];
 
     // Computation related features
-    fea.float_mad = outer_loop_prod_ * math_op_counter.float_mad;
-    fea.float_addsub = outer_loop_prod_ * math_op_counter.float_addsub;
-    fea.float_mul = outer_loop_prod_ * math_op_counter.float_mul;
-    fea.float_divmod = outer_loop_prod_ * math_op_counter.float_divmod;
-    fea.float_cmp = outer_loop_prod_ * math_op_counter.float_cmp;
-    fea.float_math_func = outer_loop_prod_ * math_op_counter.float_math_func;
-    fea.float_other_func = outer_loop_prod_ * math_op_counter.float_other_func;
-    fea.int_mad = outer_loop_prod_ * math_op_counter.int_mad;
-    fea.int_addsub = outer_loop_prod_ * math_op_counter.int_addsub;
-    fea.int_mul = outer_loop_prod_ * math_op_counter.int_mul;
-    fea.int_divmod = outer_loop_prod_ * math_op_counter.int_divmod;
-    fea.int_math_func = outer_loop_prod_ * math_op_counter.int_math_func;
-    fea.int_cmp = outer_loop_prod_ * math_op_counter.int_cmp;
-    fea.int_other_func = outer_loop_prod_ * math_op_counter.int_other_func;
-    fea.bool_op = outer_loop_prod_ * math_op_counter.bool_op;
-    fea.select_op = outer_loop_prod_ * math_op_counter.select_op;
+    fea.float_mad += outer_loop_prod_ * math_op_counter.float_mad;
+    fea.float_addsub += outer_loop_prod_ * math_op_counter.float_addsub;
+    fea.float_mul += outer_loop_prod_ * math_op_counter.float_mul;
+    fea.float_divmod += outer_loop_prod_ * math_op_counter.float_divmod;
+    fea.float_cmp += outer_loop_prod_ * math_op_counter.float_cmp;
+    fea.float_math_func += outer_loop_prod_ * math_op_counter.float_math_func;
+    fea.float_other_func += outer_loop_prod_ * math_op_counter.float_other_func;
+    fea.int_mad += outer_loop_prod_ * math_op_counter.int_mad;
+    fea.int_addsub += outer_loop_prod_ * math_op_counter.int_addsub;
+    fea.int_mul += outer_loop_prod_ * math_op_counter.int_mul;
+    fea.int_divmod += outer_loop_prod_ * math_op_counter.int_divmod;
+    fea.int_math_func += outer_loop_prod_ * math_op_counter.int_math_func;
+    fea.int_cmp += outer_loop_prod_ * math_op_counter.int_cmp;
+    fea.int_other_func += outer_loop_prod_ * math_op_counter.int_other_func;
+    fea.bool_op += outer_loop_prod_ * math_op_counter.bool_op;
+    fea.select_op += outer_loop_prod_ * math_op_counter.select_op;
 
     fea.vec_len = fea.unroll_len = fea.parallel_len = 0.0f;
     fea.vec_type = fea.unroll_type = fea.parallel_type = AnnotationPosType::kPosNone;
 
     fea.vec_num = vec_for_stack_.size();
     if (!vec_for_stack_.empty()) {
-      fea.vec_len = GetLoopExtent(vec_for_stack_.back());
+      fea.vec_len = GetLoopExtent(vec_for_stack_.back(), ana_);
       fea.vec_prod = 1.0;
       for (const ForNode* pfor : vec_for_stack_) {
-        fea.vec_prod *= GetLoopExtent(pfor);
+        fea.vec_prod *= GetLoopExtent(pfor, ana_);
       }
       fea.vec_type = AnnotationPosType::kPosMixed;
       // todo(merrymercy): this feature requires operation (tvm.compute) information
@@ -728,10 +788,10 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
     fea.unroll_num = unroll_for_stack_.size();
     if (!unroll_for_stack_.empty()) {
-      fea.unroll_len = GetLoopExtent(unroll_for_stack_.back());
+      fea.unroll_len = GetLoopExtent(unroll_for_stack_.back(), ana_);
       fea.unroll_prod = 1.0;
       for (const ForNode* pfor : unroll_for_stack_) {
-        fea.unroll_prod *= GetLoopExtent(pfor);
+        fea.unroll_prod *= GetLoopExtent(pfor, ana_);
       }
       fea.unroll_type = AnnotationPosType::kPosMixed;
       // GetAnnotationPosEncoding(unroll_for_stack_.back()->loop_var,
@@ -740,10 +800,10 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
     fea.parallel_num = parallel_for_stack_.size();
     if (!parallel_for_stack_.empty()) {
-      fea.parallel_len = GetLoopExtent(parallel_for_stack_.back());
+      fea.parallel_len = GetLoopExtent(parallel_for_stack_.back(), ana_);
       fea.parallel_prod = 1.0;
       for (const ForNode* pfor : parallel_for_stack_) {
-        fea.parallel_prod *= GetLoopExtent(pfor);
+        fea.parallel_prod *= GetLoopExtent(pfor, ana_);
       }
       fea.parallel_type = AnnotationPosType::kPosMixed;
       // GetAnnotationPosEncoding(parallel_for_stack_.back()->loop_var,
@@ -762,21 +822,17 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   }
 
   // Extract buffer access related features (group 2)
-  void ExtractBufferAccessFeature(const BufferStoreNode* node, const MathOpCounter& math_op_counter,
+  void ExtractBufferAccessFeature(const Var& buffer, const Array<PrimExpr>& indices,
+                                  const PrimExpr& value, const MathOpCounter& math_op_counter,
                                   double* cur_compute_ops, std::vector<float>* compute_ops_list,
                                   std::vector<float>* mem_bytes_list) {
-    FeatureSet& fea = buffer_features[node->buffer];
+    FeatureSet& fea = buffer_features[buffer];
 
     // Extract all buffer accesses
     std::vector<BufferAccessFeature> acc_feas;
     BufferAccessExtractor buf_extractor;
-    buf_extractor.InsertAccess(node->buffer, BufferAccessType::kWrite, node->indices);
-    buf_extractor.ExtractReads(node->value);
-
-    // Compute touched region for all outer loops
-    for (auto x : for_loop_stack_) {
-      ana_.Bind(x->loop_var, Range::FromMinExtent(x->min, 1), true);
-    }
+    buf_extractor.InsertAccess(buffer, BufferAccessType::kWrite, indices);
+    buf_extractor.ExtractReads(value);
 
     mem_bytes_list->reserve(for_loop_stack_.size());
     compute_ops_list->reserve(for_loop_stack_.size());
@@ -786,12 +842,31 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
                        math_op_counter.float_cmp + math_op_counter.float_math_func +
                        math_op_counter.float_other_func;
 
+    ICHECK_EQ(for_loop_stack_.size(), variable_definition_stack_.size())
+        << "variable_definition_stack_ should mirror for_loop_stack_ in size";
     std::vector<int> tmp_region;
     for (int i = static_cast<int>(for_loop_stack_.size()) - 1; i >= 0; i--) {
       const ForNode* p_for = for_loop_stack_[i];
 
-      ana_.Bind(p_for->loop_var,
-                Range::FromMinExtent(for_loop_stack_[i]->min, for_loop_stack_[i]->extent), true);
+      // Construct a local analyzer context which contains definitions (for and
+      // let) from innermost loops up to and including `i`. For loop variable
+      // definitions in loops more outer than `i` are set to 1 so that we can
+      // get per-loop-iteration features. Note that we add these definitions
+      // from outermost to innermost because inner definitions may depend on
+      // outer ones.
+      Analyzer local_analyzer;
+      for (int j = 0; j < i; j++) {
+        local_analyzer.Bind(for_loop_stack_.at(j)->loop_var,
+                            Range::FromMinExtent(for_loop_stack_.at(j)->min, 1));
+      }
+      for (int j = i; j < static_cast<int>(for_loop_stack_.size()); j++) {
+        local_analyzer.Bind(
+            for_loop_stack_.at(j)->loop_var,
+            Range::FromMinExtent(for_loop_stack_.at(j)->min, for_loop_stack_.at(j)->extent));
+        for (auto definition : variable_definition_stack_.at(j)) {
+          local_analyzer.Bind(std::get<0>(definition), std::get<1>(definition));
+        }
+      }
 
       // Note, here we do overwrite.
       // So if there are multiple BufferStoreNode, the last one will overwrite the first few.
@@ -801,32 +876,33 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
       int64_t mem_bytes = 0;
       for (const auto& x : buf_extractor.buf_accesses) {
-        const Buffer& t = x.first;
+        const Var& t = x.first;
         const BufferAccess& acc = x.second;
 
-        ComputeRegion(acc.indices, &ana_, &tmp_region);
+        ComputeRegion(acc.indices, &local_analyzer, &tmp_region);
         int64_t touched_size = ElementProduct(tmp_region);
+        touched_size = std::max<int64_t>(0, touched_size);
         buffer_regions_map[t].push_back(
-            std::make_tuple(acc.acc_type, touched_size, t->dtype.bytes()));
-        mem_bytes += touched_size * t->dtype.bytes();
+            std::make_tuple(acc.acc_type, touched_size, buffer_dtypes.at(t).bytes()));
+        mem_bytes += touched_size * buffer_dtypes.at(t).bytes();
       }
 
-      mem_bytes_list->push_back(std::log2(mem_bytes));
-      *cur_compute_ops *= GetLoopExtent(for_loop_stack_[i]);
-      compute_ops_list->push_back(std::log2(*cur_compute_ops));
+      mem_bytes_list->push_back(mem_bytes);
+      *cur_compute_ops *= GetLoopExtent(for_loop_stack_[i], local_analyzer);
+      compute_ops_list->push_back(*cur_compute_ops);
     }
 
     //  Buffer access related features (per buffer)
     for (const auto& x : buf_extractor.buf_accesses) {
-      const Buffer& t = x.first;
+      const Var& t = x.first;
       const BufferAccess& acc = x.second;
 
       std::vector<int> int_shape;
-      for (const auto& dim : t->shape) {
+      for (const auto& dim : buffer_shapes.at(t)) {
         int_shape.push_back(GetIntImm(dim));
       }
 
-      size_t ele_bytes = t->dtype.bytes();
+      size_t ele_bytes = buffer_dtypes.at(t).bytes();
 
       // calculate bytes
       float bytes = outer_loop_prod_ * ele_bytes;
@@ -843,8 +919,9 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
         lines = 1.0f;
         unique_lines = 1.0f;
       } else {
-        unique_bytes =
-            std::get<1>(for_touch_regions_[for_loop_stack_.front()][t].front()) * ele_bytes;
+        unique_bytes = static_cast<float>(
+                           std::get<1>(for_touch_regions_[for_loop_stack_.front()][t].front())) *
+                       ele_bytes;
 
         stride = 0;
         int64_t reduce_ratio = 1;
@@ -855,7 +932,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
           if (stride != 0) {
             break;
           }
-          reduce_ratio *= GetLoopExtent(for_loop_stack_.back());
+          reduce_ratio *= GetLoopExtent(for_loop_stack_.back(), ana_);
         }
 
         lines = outer_loop_prod_ / reduce_ratio *
@@ -878,15 +955,14 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
         unique_lines = std::max(unique_lines, 1.0f);
       }
 
-      ReuseType reuse_type;
-      float reuse_dis_iter, reuse_dis_bytes, reuse_ct;
-      std::tie(reuse_type, reuse_dis_iter, reuse_dis_bytes, reuse_ct) =
-          ComputeReuse(t, acc.indices, for_loop_stack_, for_touch_regions_);
+      auto [reuse_type, reuse_dis_iter, reuse_dis_bytes, reuse_ct] =
+          ComputeReuse(t, acc.indices, for_loop_stack_, for_touch_regions_, ana_);
 
       acc_feas.emplace_back();
       BufferAccessFeature& acc_fea = acc_feas.back();
 
-      acc_fea.buffer_name = t->name;
+      // TODO(tkonolige): save buffer names and use those instead?
+      acc_fea.buffer_name = t->name_hint;
       acc_fea.acc_type = acc.acc_type;
       acc_fea.stride = stride;
       acc_fea.bytes = bytes;
@@ -915,10 +991,10 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   }
 
   // Extract arithmetic intensity related feature (group 3)
-  void ExtractArithmeticIntensityFeature(const BufferStoreNode* node, double cur_compute_ops,
+  void ExtractArithmeticIntensityFeature(const Var& buffer, double cur_compute_ops,
                                          const std::vector<float>& compute_ops_list,
                                          const std::vector<float>& mem_bytes_list) {
-    FeatureSet& fea = buffer_features[node->buffer];
+    FeatureSet& fea = buffer_features[buffer];
 
     // Compute arithmetic intensity curve (y axis : arithmetic intensity, x axis : flops).
     // We use piecewise linear interpolation to fit this curve.
@@ -951,7 +1027,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
   // Extract allocation related features (group 4)
   void ExtractAllocationFeature(const BufferRealizeNode* node) {
-    FeatureSet& fea = buffer_features[node->buffer];
+    FeatureSet& fea = buffer_features[node->buffer->data];
 
     float allocation_size = 1.0f;
     for (const auto& x : node->bounds) {
@@ -964,9 +1040,24 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     fea.alloc_inner_prod = fea.outer_prod / outer_loop_prod_;
   }
 
+  void ExtractAllocationFeature(const AllocateNode* node) {
+    FeatureSet& fea = buffer_features[node->buffer_var];
+
+    float allocation_size = 1.0f;
+    for (const auto& x : node->extents) {
+      // TODO(tkonolige): will not handle dynamic shape
+      allocation_size *= GetIntImm(x);
+    }
+    // allocation feature
+    fea.alloc_size = allocation_size * node->dtype.bytes();
+    fea.alloc_prod = allocation_size * outer_loop_prod_;
+    fea.alloc_outer_prod = outer_loop_prod_;
+    fea.alloc_inner_prod = fea.outer_prod / outer_loop_prod_;
+  }
+
   // Extract outer scope related features (group 5)
-  void ExtractOuterScopeFeature(const BufferStoreNode* node) {
-    FeatureSet& fea = buffer_features[node->buffer];
+  void ExtractOuterScopeFeature(const Var& buffer) {
+    FeatureSet& fea = buffer_features[buffer];
 
     fea.outer_prod = outer_loop_prod_;
     fea.num_loops = for_loop_stack_.size();
@@ -988,6 +1079,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   std::vector<const ForNode*> parallel_for_stack_;
   std::vector<const ForNode*> vec_for_stack_;
   std::vector<const ForNode*> unroll_for_stack_;
+  std::vector<std::vector<std::tuple<Var, PrimExpr>>> variable_definition_stack_;
 
   // GPU-related features
   bool is_gpu_{false};
@@ -1009,15 +1101,22 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
   // The default cache line size in bytes
   const int cache_line_size_ = 64;
+
+  // Storage of buffer shape and dtype information. Needed because Load/Store
+  // nodes only do not contain this information.
+  BufferMap<Array<PrimExpr>> buffer_shapes;
+  BufferMap<DataType> buffer_dtypes;
 };
 
-// shifted log to incorporate the property that slog(0) = 0
-inline float slog(float x) { return x < 0 ? -std::log2(-x + 1) : std::log2(x + 1); }
+// shifted log to incorporate the property that log2p(0) = 0
+inline float log2p(float x) { return x < 0 ? -std::log2(-x + 1) : std::log2(x + 1); }
 
-void GetPerStoreFeature(const Stmt& stmt, int cache_line_size, int max_n_bufs,
-                        std::vector<float>* ret) {
-  PerStoreFeatureExtractor extractor(cache_line_size);
-  extractor(stmt);
+void GetPerStoreFeature(const PrimFunc& func, int cache_line_size, int max_n_bufs,
+                        std::vector<float>* ret, bool log_scale) {
+  PerStoreFeatureExtractor extractor(cache_line_size, func->buffer_map);
+  extractor(func->body);
+
+  auto slog = log_scale ? log2p : [](float x) { return x; };
 
   ret->push_back(extractor.buffer_features.size());
 
@@ -1135,7 +1234,7 @@ void GetPerStoreFeature(const Stmt& stmt, int cache_line_size, int max_n_bufs,
 
     /***** Group 3: Arithmetic intensity related features *****/
     for (size_t i = 0; i < ARITH_INTENSITY_CURVE_SAMPLE_N; ++i) {
-      ret->push_back(fea_set.arith_intensity_curve[i]);
+      ret->push_back(slog(fea_set.arith_intensity_curve[i]));
     }
 
     /***** Group 4: Allocation related features *****/
@@ -1258,10 +1357,7 @@ void GetPerStoreFeatureName(int max_n_bufs, std::vector<std::string>* ret) {
 
 void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, int max_n_bufs,
                                    std::vector<float>* feature, std::atomic<int>* error_ct) {
-  te::Schedule sch;
-  Array<te::Tensor> tensors;
-
-  std::tie(sch, tensors) = task->compute_dag.ApplySteps(state->transform_steps);
+  auto [sch, tensors] = task->compute_dag.ApplySteps(state->transform_steps);
 
   // When inlining, replace const matrices with const values.
   // Produces wrong IR, but good enough for feature extraction, and
@@ -1274,7 +1370,8 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
     auto pass_ctx = tvm::transform::PassContext::Current();
 
     auto mod = ScheduleToModule(sch, Array<ObjectRef>{tensors.begin(), tensors.end()}, name,
-                                std::unordered_map<te::Tensor, te::Buffer>());
+                                std::unordered_map<te::Tensor, te::Buffer>(),
+                                GlobalVarSupply(NameSupply("")));
 
     bool disable_vectorize =
         pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();
@@ -1308,8 +1405,7 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
         tir::transform::Sequential(Array<tvm::transform::Pass>{tir::transform::Simplify()});
     mod = optimize(std::move(mod));
     PrimFunc prim_func = Downcast<PrimFunc>(mod->Lookup(name));
-    GetPerStoreFeature(prim_func->body, task->hardware_params->cache_line_bytes, max_n_bufs,
-                       feature);
+    GetPerStoreFeature(prim_func, task->hardware_params->cache_line_bytes, max_n_bufs, feature);
   } catch (Error& e) {
     (*error_ct)++;
   }
@@ -1634,6 +1730,19 @@ TVM_REGISTER_GLOBAL("auto_scheduler.GetPerStoreFeatureNames")
         arr.push_back(x);
       }
       *ret = arr;
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.FeaturesFromPrimFunc")
+    .set_body_typed([](const PrimFunc& func, int cache_line_size, int max_n_bufs, bool log_scale) {
+      std::vector<float> vec;
+      GetPerStoreFeature(func, cache_line_size, max_n_bufs, &vec, log_scale);
+      int64_t num_feature_rows = vec[0];  // first element is number of rows
+      int64_t row_length = (vec.size() - 1) / num_feature_rows;
+      auto ary =
+          runtime::NDArray::Empty({num_feature_rows, row_length}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+      // NDArray is row major by default
+      ary.CopyFromBytes(vec.data() + 1, sizeof(float) * num_feature_rows * row_length);
+      return ary;
     });
 
 }  // namespace auto_scheduler

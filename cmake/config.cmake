@@ -81,6 +81,17 @@ set(USE_METAL OFF)
 # - /path/to/vulkan-sdk: use specific path to vulkan-sdk
 set(USE_VULKAN OFF)
 
+# Whether to use spirv-tools.and SPIRV-Headers from Khronos github or gitlab.
+#
+# Possible values:
+# - OFF: not to use
+# - /path/to/install: path to your khronis spirv-tools and SPIRV-Headers installation directory
+#
+set(USE_KHRONOS_SPIRV OFF)
+
+# whether enable SPIRV_KHR_DOT_PRODUCT
+set(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT OFF)
+
 # Whether enable OpenGL runtime
 set(USE_OPENGL OFF)
 
@@ -149,8 +160,18 @@ set(USE_BLAS none)
 # set(USE_MKL <path to venv or site-packages directory>) if using `pip install mkl`
 set(USE_MKL OFF)
 
-# Whether use MKLDNN library, choices: ON, OFF, path to mkldnn library
-set(USE_MKLDNN OFF)
+# Whether use DNNL library, aka Intel OneDNN: https://oneapi-src.github.io/oneDNN
+#
+# Now matmul/dense/conv2d supported by -libs=dnnl,
+# and more OP patterns supported in DNNL codegen(json runtime)
+#
+# choices:
+# - ON: Enable DNNL in BYOC and -libs=dnnl, by default using json runtime in DNNL codegen
+# - JSON: same as above.
+# - C_SRC: use c source runtime in DNNL codegen
+# - path/to/oneDNN：oneDNN root path
+# - OFF: Disable DNNL
+set(USE_DNNL OFF)
 
 # Whether use OpenMP thread pool, choices: gnu, intel
 # Note: "gnu" uses gomp library, "intel" uses iomp5 library
@@ -201,9 +222,6 @@ set(USE_ROCBLAS OFF)
 # Whether use contrib sort
 set(USE_SORT ON)
 
-# Whether use MKL-DNN (DNNL) codegen
-set(USE_DNNL_CODEGEN OFF)
-
 # Whether to use Arm Compute Library (ACL) codegen
 # We provide 2 separate flags since we cannot build the ACL runtime on x86.
 # This is useful for cases where you want to cross-compile a relay graph
@@ -251,6 +269,11 @@ set(USE_VITIS_AI OFF)
 # Build Verilator codegen and runtime
 set(USE_VERILATOR OFF)
 
+#Whether to use CLML codegen
+set(USE_CLML OFF)
+# USE_CLML_GRAPH_EXECUTOR - CLML SDK PATH or ON or OFF
+set(USE_CLML_GRAPH_EXECUTOR OFF)
+
 # Build ANTLR parser for Relay text format
 # Possible values:
 # - ON: enable ANTLR by searching default locations (cmake find_program for antlr4 and /usr/local for jar)
@@ -273,6 +296,9 @@ set(USE_VTA_FPGA OFF)
 # Whether use Thrust
 set(USE_THRUST OFF)
 
+# Whether use cuRAND
+set(USE_CURAND OFF)
+
 # Whether to build the TensorFlow TVMDSOOp module
 set(USE_TF_TVMDSOOP OFF)
 
@@ -282,22 +308,22 @@ set(USE_PT_TVMDSOOP OFF)
 # Whether to use STL's std::unordered_map or TVM's POD compatible Map
 set(USE_FALLBACK_STL_MAP OFF)
 
-# Whether to use hexagon device
-set(USE_HEXAGON_DEVICE OFF)
+# Whether to enable Hexagon support
+set(USE_HEXAGON OFF)
 set(USE_HEXAGON_SDK /path/to/sdk)
 
-# Whether to build the hexagon launcher
-set(USE_HEXAGON_LAUNCHER OFF)
-
-# Whether to build the minimal support android rpc server for hexagon
-set(USE_HEXAGON_PROXY_RPC OFF)
+# Whether to build the minimal support android rpc server for Hexagon
+set(USE_HEXAGON_RPC OFF)
 
 # Hexagon architecture to target when compiling TVM itself (not the target for
 # compiling _by_ TVM). This applies to components like the TVM runtime, but is
 # also used to select correct include/library paths from the Hexagon SDK when
-# building offloading runtime for Android.
-# Valid values are v60, v62, v65, v66, v68.
+# building runtime for Android.
+# Valid values are v65, v66, v68, v69.
 set(USE_HEXAGON_ARCH "v66")
+
+# Whether to use QHL library
+set(USE_HEXAGON_QHL OFF)
 
 # Whether to use ONNX codegen
 set(USE_TARGET_ONNX OFF)
@@ -314,6 +340,10 @@ set(USE_BNNS OFF)
 # - OFF: disable libbacktrace
 set(USE_LIBBACKTRACE AUTO)
 
+# Whether to install a signal handler to print a backtrace on segfault. This
+# may replace existing signal handlers specified by other libraries.
+set(BACKTRACE_ON_SEGFAULT OFF)
+
 # Whether to build static libtvm_runtime.a, the default is to build the dynamic
 # version: libtvm_runtime.so.
 #
@@ -325,7 +355,6 @@ set(USE_LIBBACKTRACE AUTO)
 # not be included in the final executable. This would make the corresponding
 # runtime functions to be unavailable to the program.
 set(BUILD_STATIC_RUNTIME OFF)
-
 
 # Caches the build so that building is faster when switching between branches.
 # If you switch branches, build and then encounter a linking error, you may
@@ -364,3 +393,11 @@ set(USE_CUTLASS OFF)
 
 # Enable to show a summary of TVM options
 set(SUMMARIZE OFF)
+
+# Whether to use LibTorch as backend
+# To enable pass the path to the root libtorch (or PyTorch) directory
+# OFF or /path/to/torch/
+set(USE_LIBTORCH OFF)
+
+# Whether to use the Universal Modular Accelerator Interface
+set(USE_UMA OFF)

@@ -26,6 +26,7 @@
 
 #include <dmlc/json.h>
 #include <tvm/driver/driver_api.h>
+#include <tvm/relay/executor.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
@@ -35,6 +36,8 @@
 #include <tvm/te/operation.h>
 #include <tvm/tir/usmp/utils.h>
 
+#include <iostream>
+#include <sstream>
 #include <string>
 #include <typeinfo>
 #include <unordered_map>
@@ -43,6 +46,8 @@
 #include <vector>
 
 #include "../../runtime/meta_data.h"
+#include "../../target/metadata.h"
+#include "tvm/runtime/ndarray.h"
 
 namespace tvm {
 namespace relay {
@@ -54,6 +59,73 @@ class TECompiler;
 namespace backend {
 using Pass = tvm::transform::Pass;
 
+/*! \brief Describes the type of kernel call emitted. */
+enum CallType {
+  /*!
+   * \brief Emit PackedFunc calls bound just-in-time using TVMBackend* functions.
+   *
+   * When this type is selected, assumes all operators must be called via TVMFuncCall. Given the
+   * implementation of TVMFuncCall in the C++ runtime, this in practice implies that those
+   * functions are of type TVMBackendPackedCFunc.
+   *
+   * The following code is emitted at call sites to call a function named `func`:
+   * void* func_ptr = TVMBackendGetFuncFromEnv("func");
+   * TVMFuncCall(func_ptr, values, tcodes, num_args, ret_values, ret_tcodes)
+   *
+   * The arguments given to the tir::Call node are encoded into `values`, `tcodes`, and `num_args`
+   * by LowerTVMBuiltin TIR transform.
+   *
+   * If `resource_handle` is passed to `func`, it is determined by TVMFuncCall (often,
+   * `resource_handle` is registered with the C++ runtime to provide a `this` equivalent when
+   * `func` is implemented in C).
+   *
+   * Compatible with both C++ and C runtimes, implemented with the C runtime only.
+   */
+  kPacked,  // Emit tir.call_packed and wrap all arguments in DLTensor.
+
+  /*!
+   * \brief Directly call a TVMBackendPackedCFunc named according to the tir::Call.
+   *
+   * When this type is selected, assumes all operators are implemented in functions of type
+   * `TVMBackendPackedCFunc` and should be called directly. That is, presumes at the time of
+   * downstream compilation that there is a symbol named after the 0th arg to tir::Call of
+   * type `TVMBackendPackedCFunc`. This situation should occur when target_host == target.
+   *
+   * The following code is emitted at call sites to call a function named `func`:
+   * func(values, tcodes, num_args, ret_values, ret_tcodes, resource_handle)
+   *
+   * The arguments given to the tir::Call node are encoded into `values`, `tcodes`, and `num_args`
+   * by LowerTVMBuiltin TIR transform.
+   *
+   * `resource_handle` is encoded as the final argument to the tir::Call node. In practice, it is
+   * always the device context parameter when not null. At present, the implementation does not
+   * support forwarding device context parameters to CPacked.
+   *
+   * Compatible with the C runtime and C++ runtime (so long as target_host == target). Implemented
+   * in the same scenarios.
+   */
+  kCPacked,  // Emit tir.call_cpacked and wrap all arguments in DLTensor.
+
+  /*! \brief Directly call a function accepting the `data` arrays as args.
+   *
+   * When this type is selected, assumes all operaotrs are implemented in C functions whose
+   * arguments are 1-to-1 with those in the tir::Call. DLTensor arguments are encoded as just the
+   * `data` parameters (i.e. no DLTensor object is passed along).
+   *
+   * The following code is emitted at call sites to a function named `func`:
+   * func(void* arg0, void* arg1, ..., void* argN) // no resource_handle
+   * -or-
+   * func(void* arg0, void* arg1, ..., void* argN, void* resource_handle) // with resource_handle
+   *
+   * `resource_handle` is encoded as the final argument to the tir::Call node. In practice, it is
+   * always the device context parameter when not null.
+   *
+   * Compatible with the C runtime and C++ runtime (so long as target_host == target). Implemented
+   * with the C runtime only.
+   */
+  kUnpacked,  // Emit tir.call_extern passing only the `data` part of DLTensors.
+};
+
 /*!
  * \brief Structure that can be optionally used by the executor codegen
  */
@@ -61,10 +133,14 @@ class ExecutorCodegenMetadataNode : public Object {
  public:
   /*! \brief input information for the main function */
   Array<tir::Var> inputs;
+  /*! \brief input tensor type information */
+  Array<TensorType> input_tensor_types;
+  /*! \brief output information for the main function */
+  Array<String> outputs;
+  /*! \brief output tensor type information */
+  Array<TensorType> output_tensor_types;
   /*! \brief pool information for the main function */
   Array<tir::Var> pools;
-  /*! \brief number of outputs of the main function */
-  unsigned int num_outputs = 1;
   /*! \brief device contexts information for the main function */
   Array<String> devices;
   /*! \brief the executor to be used to run the model */
@@ -73,12 +149,32 @@ class ExecutorCodegenMetadataNode : public Object {
   String interface_api;
   /*! \brief The internal API (packed or unpacked) in use */
   bool unpacked_api;
+  /*! \brief Alginment of the workspace in bytes */
+  Integer workspace_alignment;
+  /*! \brief Alginment of the constants in bytes */
+  Integer constant_alignment;
   /*! \brief the input var names that correspond to pool_inputs */
   Optional<Map<tir::Var, tir::usmp::AllocatedPoolInfo>> pool_inputs;
+  /*! \brief the I/O tensor to PoolAllocations if any*/
+  Map<String, tir::usmp::PoolAllocation> io_pool_allocations;
 
   String mod_name = "";
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("inputs", &inputs);
+    v->Visit("input_tensor_types", &input_tensor_types);
+    v->Visit("outputs", &outputs);
+    v->Visit("output_tensor_types", &output_tensor_types);
+    v->Visit("pools", &pools);
+    v->Visit("devices", &devices);
+    v->Visit("executor", &executor);
+    v->Visit("unpacked_api", &unpacked_api);
+    v->Visit("workspace_alignment", &workspace_alignment);
+    v->Visit("constant_alignment", &constant_alignment);
+    v->Visit("pool_inputs", &pool_inputs);
+    v->Visit("io_pool_allocations", &io_pool_allocations);
+  }
+
   static constexpr const char* _type_key = "MetadataObj";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecutorCodegenMetadataNode, Object);
 };
@@ -88,27 +184,17 @@ class ExecutorCodegenMetadataNode : public Object {
  */
 class ExecutorCodegenMetadata : public ObjectRef {
  public:
-  TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<tir::Var> pools,
-                                  Array<String> devices, int num_outputs, String executor,
+  TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<TensorType> input_tensor_types,
+                                  Array<String> outputs, Array<TensorType> output_tensor_types,
+                                  Array<tir::Var> pools, Array<String> devices, String executor,
                                   String mod_name, String interface_api = "packed",
-                                  bool unpacked_api = false,
+                                  bool unpacked_api = false, Integer workspace_alignment = 16,
+                                  Integer constant_alignment = 16,
                                   Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
-                                      Map<tir::Var, tir::usmp::AllocatedPoolInfo>()) {
-    auto n = make_object<ExecutorCodegenMetadataNode>();
-    n->inputs = inputs;
-    n->pools = pools;
-    n->devices = devices;
-    n->num_outputs = num_outputs;
-    n->executor = executor;
-    n->interface_api = interface_api;
-    n->unpacked_api = unpacked_api;
-    n->mod_name = mod_name;
-    n->pool_inputs = pool_inputs;
-    data_ = std::move(n);
-  }
-
-  TVM_DEFINE_OBJECT_REF_METHODS(ExecutorCodegenMetadata, ObjectRef, ExecutorCodegenMetadataNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ExecutorCodegenMetadataNode);
+                                      Map<tir::Var, tir::usmp::AllocatedPoolInfo>(),
+                                  Map<String, tir::usmp::PoolAllocation> io_pool_allocations = {});
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ExecutorCodegenMetadata, ObjectRef,
+                                        ExecutorCodegenMetadataNode);
 };
 
 /*!
@@ -189,6 +275,13 @@ class FunctionInfo : public ObjectRef {
 };
 
 /*!
+ * \brief Calculate the bytes of memory needed to hold a tensor of a given shape and data type.
+ * \param shape The shape of the tensor
+ * \param dtype The data type of the tensor
+ */
+size_t GetMemorySizeBytes(const Array<PrimExpr>& shape, const DataType& dtype);
+
+/*!
  * \brief Calculate the storage required to store the type of relay.Expr
  *
  * \param func The relay expr for which the storage is calculated
@@ -204,7 +297,11 @@ struct LoweredOutput {
   Map<Target, IRModule> lowered_funcs;
   Array<tvm::runtime::Module> external_mods;
   Map<String, FunctionInfo> function_metadata;
-  std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
+  /*!
+   * \brief Map from constant names (allocated by the codegen as constants are encountered)
+   * to the constant's value.
+   */
+  std::unordered_map<std::string, tvm::runtime::NDArray> params;
   ExecutorCodegenMetadata metadata;
 };
 
@@ -230,6 +327,7 @@ struct ConstantUpdater : public ExprVisitor {
 
   void VisitExpr_(const ConstantNode* cn) final {
     std::string name = symbol_ + "_const_" + std::to_string(const_idx_++);
+    VLOG(1) << "binding '" << name << "' to constant of type " << PrettyPrint(cn->checked_type());
     (*params_)[name] = cn->data;
   }
 
@@ -360,6 +458,8 @@ inline std::string DType2String(const tvm::DataType dtype) {
     os << "int";
   } else if (dtype.is_uint()) {
     os << "uint";
+  } else if (dtype.is_bfloat16()) {
+    os << "bfloat";
   } else if ((*GetPackedFunc("runtime._datatype_get_type_registered"))(dtype.code())) {
     os << "custom["
        << (*GetPackedFunc("runtime._datatype_get_type_name"))(dtype.code()).operator std::string()
@@ -377,36 +477,18 @@ inline std::string DType2String(const tvm::DataType dtype) {
  * \param params params dict
  * \return relay::Function
  */
-inline relay::Function BindParamsByName(
-    relay::Function func, const std::unordered_map<std::string, runtime::NDArray>& params) {
-  std::unordered_map<std::string, relay::Var> name_dict;
-  std::unordered_set<relay::Var, ObjectPtrHash, ObjectPtrEqual> repeat_var;
-  for (auto arg : func->params) {
-    const auto& name = arg->name_hint();
-    if (name_dict.count(name)) {
-      repeat_var.insert(name_dict[name]);
-    } else {
-      name_dict[name] = arg;
-    }
-  }
+relay::Function BindParamsByName(relay::Function func,
+                                 const std::unordered_map<std::string, runtime::NDArray>& params);
 
-  std::unordered_map<relay::Var, Expr, ObjectPtrHash, ObjectPtrEqual> bind_dict;
-  for (auto& kv : params) {
-    if (name_dict.count(kv.first) == 0) {
-      continue;
-    }
-    auto arg = name_dict.at(kv.first);
-    if (repeat_var.count(arg)) {
-      LOG(FATAL) << "Multiple args in the function have name " << kv.first;
-    }
-    bind_dict[arg] = Constant(kv.second);
-  }
-  Expr bound_expr = relay::Bind(func, bind_dict);
-  Function ret = Downcast<Function>(bound_expr);
-  ICHECK(ret.defined()) << "The returning type is expected to be a Relay Function."
-                        << "\n";
-  return ret;
-}
+/*!
+ * \brief Bind params to the main function in Relay module, using BindParamsByName
+ * \param mod Relay module
+ * \param params params dict
+ */
+void BindParamsInModule(IRModule mod,
+                        const std::unordered_map<std::string, runtime::NDArray>& params);
+
+void BindParamsInModule(IRModule mod, Map<String, runtime::NDArray> params);
 
 /*!
  * \brief Extract the shape from a Relay tensor type.
@@ -457,8 +539,16 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
   }
 
   ICHECK_GT(current_call->args.size(), 0);
-
-  const auto* next_call = current_call->args[0].as<CallNode>();
+  size_t valid_node_idx = 0;
+  while (valid_node_idx < current_call->args.size() &&
+         current_call->args[valid_node_idx].as<VarNode>()) {
+    valid_node_idx++;
+  }
+  while (valid_node_idx < current_call->args.size() &&
+         !(IsOp(current_call->args[valid_node_idx].as<CallNode>(), expected_op_names[depth - 1]))) {
+    valid_node_idx++;
+  }
+  const auto* next_call = current_call->args[valid_node_idx].as<CallNode>();
   return GetRootCall(next_call, depth - 1, expected_op_names);
 }
 
@@ -478,6 +568,38 @@ inline const CallNode* GetRootCall(const CallNode* current_call, const std::stri
 
   const auto* next_call = current_call->args[0].as<CallNode>();
   return GetRootCall(next_call, op_name);
+}
+
+/*!
+ * \brief Retrieve the expected "root" op nested inside a fused call, such as conv2d in
+ *        relu(add(conv2d))
+ * \param call A Relay call node. Typically nn.relu when called the first time.
+ * \param max_depth The maximum number of calls before the root op, counting from current_call.
+ * \param op_name The name of expected "root" op in this fused call.
+ * \return A CallNode corresponding to the root op
+ */
+inline const CallNode* GetRootCall(const CallNode* current_call, int max_depth,
+                                   const std::string& op_name) {
+  ICHECK(current_call && max_depth >= 0);
+
+  if (max_depth == 0) {
+    ICHECK(current_call && IsOp(current_call, op_name));
+    return current_call;
+  }
+  if (IsOp(current_call, op_name)) {
+    return current_call;
+  }
+
+  ICHECK_GT(current_call->args.size(), 0);
+
+  size_t valid_node_idx = 0;
+  while (valid_node_idx < current_call->args.size() &&
+         current_call->args[valid_node_idx].as<VarNode>()) {
+    valid_node_idx++;
+  }
+
+  const auto* next_call = current_call->args[valid_node_idx].as<CallNode>();
+  return GetRootCall(next_call, max_depth - 1, op_name);
 }
 
 /*!
@@ -510,22 +632,60 @@ inline bool IsMetaScheduleEnabled() {
       .value();
 }
 
+/*! \brief Consider MetaSchedule's dispatch option. */
+inline int UseMetaScheduleDispatch() {
+  return transform::PassContext::Current()
+      ->GetConfig<Integer>("relay.backend.use_meta_schedule_dispatch", Integer(0))
+      .value()
+      ->value;
+}
+/*!
+ * \brief Method in TECompiler to convert TE compute to scheduleable TIR
+ * \param args The arguments of the TE compute
+ * \param constants The constants used in AllocateConst
+ * \return NullOpt if conversion fails; Otherwise the converted TIR
+ * \note This method could be further used as a task filtering mechanism in task extraction
+ */
+using FTECompilerTIRConverter = runtime::TypedPackedFunc<  //
+    Optional<tir::PrimFunc>(                               //
+        const Array<te::Tensor>& args,                     //
+        const Array<runtime::NDArray>& constants)>;
+
+/*! \brief Return a task filter for AutoTIR according to `relay.backend.tir_converter` */
+inline FTECompilerTIRConverter GetTIRConverter() {
+  String name = transform::PassContext::Current()
+                    ->GetConfig<String>("relay.backend.tir_converter", "default")
+                    .value();
+  const PackedFunc* f = runtime::Registry::Get("relay.backend.tir_converter." + name);
+  ICHECK(f != nullptr) << "IndexError: Cannot find TIR converter: " << name;
+  return FTECompilerTIRConverter(*f);
+}
+
+/*! \brief Converts a PrimFunc to IRModule. */
+inline IRModule PrimFuncToIRModule(tir::PrimFunc f) {
+  f = WithAttrs(f, Map<String, ObjectRef>{
+                       {tvm::attr::kGlobalSymbol, String("main")},
+                       {tvm::tir::attr::kNoAlias, Bool(1)},
+                   });
+  return IRModule({{GlobalVar("main"), f}});
+}
+
 /*!
  * \brief Get the sequence of Relay optimization passes based on backend type.
  * The prefix of the Relay passes almost overlaps between the vm and graph backend, with some slight
  * difference. This function unifies the shared optimization pass prefix between vm and graph
  * runtime, and returns the pass prefix given the backend type.
  *
- * \param is_homogenous True if all primitives are to be executed on the same device and target.
+ * \param is_homogeneous True if all primitives are to be executed on the same device and target.
  * \param is_vm True if passes are to be used for the vm executor.
  * \return An array of passes.
  */
-Array<Pass> GetPassPrefix(bool is_homogenous, bool is_vm);
+Array<Pass> GetPassPrefix(bool is_homogeneous, bool is_vm);
 
 /*! \brief Target hash function */
 struct TargetStrHash {
   /*!
-   * \brief Calculate the hash code of a Target based on the string value of the Target.
+   * \brief Calculate the hash code of a Target based on the string value of the Target KIND.
    Note that this hash should NOT be used in new usecases, equality of targets based on their
    value is not well-defined.
    This will be removed when maps from Targets to IRModules are removed from the codebase.
@@ -533,7 +693,8 @@ struct TargetStrHash {
    * \return String hash of the target
    */
   size_t operator()(const Target& target) const {
-    return String::HashBytes(target->str().c_str(), target->str().size());
+    std::string s(target->kind->name);
+    return String::HashBytes(s.c_str(), s.size());
   }
 };
 
@@ -584,6 +745,14 @@ Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
  * \param IRModule after lowering by LowerTEPass.
  */
 void UpdateAutoSchedulerOpWeights(const IRModule& module);
+
+/*!
+ * \brief Extract shape from expr to vector<int64_t>
+ *
+ * \param shape
+ * \return std::vector<int64_t>
+ */
+std::vector<int64_t> ShapeToJSON(tvm::Array<IndexExpr> shape);
 
 }  // namespace backend
 }  // namespace relay

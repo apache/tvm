@@ -658,7 +658,7 @@ def convert_gelu(g, op, block):
     x = g.get_node(op.input("X")[0])
     out = x * (
         _expr.const(0.5, dtype="float32")
-        + _op.erf(x * _expr.const(0.5 ** 0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
+        + _op.erf(x * _expr.const(0.5**0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
     )
     g.add_node(op.output("Out")[0], out)
 
@@ -1193,6 +1193,7 @@ def convert_pool2d(g, op, block):
     paddings = op.attr("paddings")
     padding_algorithm = op.attr("padding_algorithm")
     pooling_type = op.attr("pooling_type")
+    data_format = op.attr("data_format")
 
     if global_pooling:
         adaptive = True
@@ -1231,9 +1232,17 @@ def convert_pool2d(g, op, block):
     # handle with special case
     # while kernel size less than input size
     # shrink kernel size to input size
-    if not isinstance(in_h, _op.Expr) and in_h < ksize[0]:
+    if (
+        not isinstance(in_h, _op.Expr)
+        and padding_algorithm == "EXPLICIT"
+        and in_h + paddings[0] + paddings[2] < ksize[0]
+    ):
         ksize[0] = in_h
-    if not isinstance(in_w, _op.Expr) and in_w < ksize[1]:
+    if (
+        not isinstance(in_w, _op.Expr)
+        and padding_algorithm == "EXPLICIT"
+        and in_w + paddings[1] + paddings[3] < ksize[1]
+    ):
         ksize[1] = in_w
 
     if not adaptive:
@@ -1252,7 +1261,9 @@ def convert_pool2d(g, op, block):
                 input_x, pool_size=ksize, strides=strides, padding=paddings, ceil_mode=ceil_mode
             )
     else:
-        out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(input_x, output_size=ksize)
+        out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(
+            input_x, output_size=ksize, layout=data_format
+        )
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1281,7 +1292,7 @@ def convert_prelu(g, op, block):
             shape = _op.strided_slice(shape_of(x), [0], [1])
         else:
             shape = _op.strided_slice(shape_of(x), [1], [2])
-        alpha = _op.broadcast_to(alpha, shape)
+        alpha = _op.broadcast_to(alpha, fold_constant(shape))
     out = _op.nn.prelu(x, alpha, axis)
     g.add_node(op.output("Out")[0], out)
 
@@ -1672,7 +1683,7 @@ def convert_scale(g, op, block):
     bias_after_scale = op.attr("bias_after_scale")
     x = g.get_node(op.input("X")[0])
     if np.isclose(scale, 1.0) and np.isclose(bias, 0.0):
-        out = _op.copy(x)
+        out = x
     else:
         if np.isclose(bias, 0.0):
             out = x * _expr.const(np.array(scale).astype("float32"))
@@ -1912,6 +1923,50 @@ def convert_softsign(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_split(g, op, block):
+    """Operator converter for split."""
+
+    x = g.get_node(op.input("X")[0])
+    axis = op.input("AxisTensor")
+    if axis:
+        axis = g.get_node(axis[0])
+        axis, infered = try_infer_value(axis, g.get_params())
+        if infered:
+            axis = axis.tolist()[0]
+    else:
+        axis = op.attr("axis")
+
+    sections = op.input("SectionsTensorList")
+    if sections:
+        tmp_section = []
+        for i in sections:
+            i = g.get_node(i)
+            i, infered = try_infer_value(i, g.get_params())
+            if infered:
+                i = i.tolist()
+            else:
+                raise ValueError("Dynamic Split not yet supported.")
+            tmp_section.extend(i)
+        sections = tmp_section
+    else:
+        sections = op.attr("sections")
+    if sections:
+        indices = []
+        split_index = 0
+        for i in sections[:-1]:
+            if i == -1:
+                input_shape = infer_shape(x)[axis]
+                i = input_shape - np.sum(sections) - 1
+            split_index += i
+            indices.append(split_index)
+    else:
+        indices = op.attr("num")
+
+    out = _op.split(x, indices, axis)
+    for i, out_i in enumerate(out):
+        g.add_node(op.output("Out")[i], out_i)
+
+
 def convert_square(g, op, block):
     """Operator converter for square."""
 
@@ -1937,8 +1992,9 @@ def convert_swish(g, op, block):
     """Operator converter for swish."""
 
     x = g.get_node(op.input("X")[0])
-    dtype = infer_type(x).checked_type.dtype
-    out = x / (_op.const(1.0, dtype) + _op.exp(_op.const(-1.0, dtype) * x))
+    beta = op.attr("beta")
+    assert beta == 1.0, "Only support beta==1.0 for PaddlePaddle's swish"
+    out = x * _op.tensor.sigmoid(x)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2083,6 +2139,7 @@ _convert_map = {
     "softmax": convert_softmax,
     "softplus": convert_softplus,
     "softsign": convert_softsign,
+    "split": convert_split,
     "strided_slice": convert_slice,
     "sqrt": convert_unary_op,
     "square": convert_square,
@@ -2214,7 +2271,7 @@ class GraphProto:
         self.shape_dict = shape_dict
         program = layer.program()
         parameters = dict()
-        for param in layer.parameters():
+        for param in layer.parameters() + layer.buffers():
             parameters[param.name] = np.array(param.value().get_tensor())
         self.check_unsupported_ops(program)
         self.extract_parameters(program, parameters)

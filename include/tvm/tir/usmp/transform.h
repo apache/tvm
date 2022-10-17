@@ -56,6 +56,17 @@ TVM_DLL Pass ConvertPoolAllocationsToOffsets(const Map<tir::Stmt, PoolAllocation
  */
 TVM_DLL Pass AssignPoolInfo();
 
+/*!
+ * \brief This pass creates Allocate nodes for I/O tensors
+ *
+ * If the user wants to place the I/O tensors in the workspace, this pass is required to be
+ * run. In doing so, it will create Allocate nodes for I/O tensors to be planned, and be removed
+ * from function arguments.
+ *
+ * \return the pass
+ */
+TVM_DLL Pass CreateAllocatesForIO();
+
 }  // namespace transform
 }  // namespace usmp
 }  // namespace tir

@@ -34,7 +34,7 @@ target = "llvm -mtriple=%s-linux-android" % arch
 
 
 def ngflops(N):
-    return 2.0 * float(N * N * N) / (10 ** 9)
+    return 2.0 * float(N * N * N) / (10**9)
 
 
 dtype = "float32"

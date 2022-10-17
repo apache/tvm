@@ -28,65 +28,69 @@ class ReplayFuncNode : public SearchStrategyNode {
   struct State {
     /*! \brief The search strategy itself */
     ReplayFuncNode* self;
+    /*! \brief The number of total trials. */
+    int max_trials;
+    /*! \brief The number of trials per iteration. */
+    int num_trials_per_iter;
     /*! \brief `[st, ed)` are the indices of the next batch of candidates. */
     int st;
     /*! \brief `[st, ed)` are the indices of the next batch of candidates. */
     int ed;
 
-    explicit State(ReplayFuncNode* self) : self(self), st(0), ed(self->num_trials_per_iter) {}
+    explicit State(ReplayFuncNode* self, int max_trials, int num_trials_per_iter)
+        : self(self),
+          max_trials(max_trials),
+          num_trials_per_iter(num_trials_per_iter),
+          st(0),
+          ed(num_trials_per_iter) {
+      CHECK(self->mod_.defined() && self->space_generator_.defined())
+          << "ValueError: The search strategy has not been initialized.";
+    }
 
     inline Optional<Array<MeasureCandidate>> GenerateMeasureCandidates();
     inline void NotifyRunnerResults(const Array<RunnerResult>& results);
   };
 
-  /*! \brief The number of trials per iteration. */
-  int num_trials_per_iter;
-  /*! \brief The number of total trials. */
-  int num_trials_total;
-
-  /*! \brief The module to be tuned. */
-  IRModule mod_{nullptr};
-  /*! \brief The metadata of the function arguments. */
-  Array<ArgInfo> args_info_{nullptr};
-  /*! \brief The post processors */
-  Array<Postproc> postprocs_{nullptr};
-  /*! \brief The space generator for measure candidates generation. */
-  SpaceGenerator space_generator_{nullptr};
   /*! \brief The random state. -1 means using random number. */
   TRandState rand_state_ = -1;
+  /*! \brief The IRModule to be scheduled from TuneContext. */
+  Optional<IRModule> mod_ = NullOpt;
+  /*! \brief The space generator from TuneContext. */
+  Optional<SpaceGenerator> space_generator_ = NullOpt;
   /*! \brief The state of the search strategy. */
   std::unique_ptr<State> state_ = nullptr;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("num_trials_per_iter", &num_trials_per_iter);
-    v->Visit("num_trials_total", &num_trials_total);
-    // `space_generator_` is not visited
-    // `mod_` is not visited
-    // `args_info_` is not visited
-    // `num_threads_` is not visited
-    // `rand_state_` is not visited
-    // `state_` is not visited
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "meta_schedule.ReplayFunc";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReplayFuncNode, SearchStrategyNode);
 
-  void InitializeWithTuneContext(const TuneContext& context) final {
-    this->space_generator_ = context->space_generator.value();
-    this->mod_ = context->mod.value();
-    this->args_info_ = ArgInfo::FromPrimFunc(FindEntryFunc(context->mod.value()));
-    this->postprocs_ = context->postprocs;
-    this->rand_state_ = ForkSeed(&context->rand_state);
+  void InitializeWithTuneContext(const TuneContext& ctx) final {
+    CHECK(ctx->mod.defined()) << "ValueError: TuneContext.mod is not defined";
+    CHECK(ctx->space_generator.defined())
+        << "ValueError: TuneContext.space_generator is not defined";
+    if (!ctx->space_generator.value()->postprocs.defined()) {
+      TVM_PY_LOG(WARNING, ctx->logger)
+          << "`postprocs` is not defined in " << ctx->space_generator.value()
+          << ". Please explicitly set `postprocs` to an empty list if you don't want to "
+             "apply any post-processing.";
+    }
+    this->rand_state_ = ForkSeed(&ctx->rand_state);
+    this->mod_ = ctx->mod;
+    this->space_generator_ = ctx->space_generator;
     this->state_.reset();
   }
 
-  void PreTuning(const Array<tir::Schedule>& design_spaces) final {
-    ICHECK(this->state_ == nullptr);
-    this->state_ = std::make_unique<State>(this);
+  void PreTuning(int max_trials, int num_trials_per_iter, const Array<tir::Schedule>& design_spaces,
+                 const Optional<Database>& database, const Optional<CostModel>& cost_model) final {
+    CHECK(this->state_ == nullptr)
+        << "ValueError: `PreTuning` is already invoked without corresponding `PostTuning`.";
+    this->state_ = std::make_unique<State>(this, max_trials, num_trials_per_iter);
   }
 
   void PostTuning() final {
-    ICHECK(this->state_ != nullptr);
+    CHECK(this->state_ != nullptr) << "ValueError: `PostTuning` is invoked without corresponding "
+                                      "`PreTuning`, or `PostTuning` is already invoked.";
     this->state_.reset();
   }
 
@@ -95,35 +99,46 @@ class ReplayFuncNode : public SearchStrategyNode {
     return this->state_->GenerateMeasureCandidates();
   }
 
-  void NotifyRunnerResults(const TuneContext& context,
-                           const Array<MeasureCandidate>& measure_candidates,
+  void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                            const Array<RunnerResult>& results) final {
     ICHECK(this->state_ != nullptr);
     this->state_->NotifyRunnerResults(results);
   }
+
+  SearchStrategy Clone() const final {
+    ObjectPtr<ReplayFuncNode> n = make_object<ReplayFuncNode>();
+    n->rand_state_ = -1;
+    n->mod_ = NullOpt;
+    n->space_generator_ = NullOpt;
+    n->state_ = nullptr;
+    return SearchStrategy(n);
+  }
 };
 
 inline Optional<Array<MeasureCandidate>> ReplayFuncNode::State::GenerateMeasureCandidates() {
-  if (st >= self->num_trials_total) {
+  if (st >= max_trials) {
     return NullOpt;
   }
-  ed = std::min(ed, self->num_trials_total);
+  ed = std::min(ed, max_trials);
   Array<MeasureCandidate> result;
+  IRModule mod = self->mod_.value();
+  Array<Postproc> postprocs = self->space_generator_.value()->postprocs.value_or({});
   for (int i = st; i < ed; i++) {
     for (;;) {
-      Array<tir::Schedule> schs = self->space_generator_->GenerateDesignSpace(self->mod_);
+      Array<tir::Schedule> schs = self->space_generator_.value()->GenerateDesignSpace(mod);
       int design_space_index = tir::SampleInt(&self->rand_state_, 0, schs.size());
       tir::Schedule sch = schs[design_space_index];
       sch->EnterPostproc();
       bool failed = false;
-      for (const Postproc& proc : self->postprocs_) {
+      for (const Postproc& proc : postprocs) {
         if (!proc->Apply(sch)) {
           failed = true;
           break;
         }
       }
       if (!failed) {
-        result.push_back(MeasureCandidate(sch, self->args_info_));
+        Array<ArgInfo> args_info = ArgInfo::FromEntryFunc(sch->mod(), /*remove_preproc=*/true);
+        result.push_back(MeasureCandidate(sch, args_info));
         break;
       }
     }
@@ -132,14 +147,12 @@ inline Optional<Array<MeasureCandidate>> ReplayFuncNode::State::GenerateMeasureC
 }
 
 inline void ReplayFuncNode::State::NotifyRunnerResults(const Array<RunnerResult>& results) {
-  st += self->num_trials_per_iter;
-  ed += self->num_trials_per_iter;
+  st += num_trials_per_iter;
+  ed += num_trials_per_iter;
 }
 
-SearchStrategy SearchStrategy::ReplayFunc(int num_trials_per_iter, int num_trials_total) {
+SearchStrategy SearchStrategy::ReplayFunc() {
   ObjectPtr<ReplayFuncNode> n = make_object<ReplayFuncNode>();
-  n->num_trials_per_iter = num_trials_per_iter;
-  n->num_trials_total = num_trials_total;
   return SearchStrategy(n);
 }
 

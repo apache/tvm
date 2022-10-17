@@ -112,10 +112,11 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
         msg += py_str(out)
         raise RuntimeError(msg)
 
-    data = bytearray(open(file_target, "rb").read())
-    if not data:
-        raise RuntimeError("Compilation error: empty result is generated")
-    return data
+    with open(file_target, "rb") as f:
+        data = bytearray(f.read())
+        if not data:
+            raise RuntimeError("Compilation error: empty result is generated")
+        return data
 
 
 def find_cuda_path():
@@ -140,27 +141,33 @@ def find_cuda_path():
     raise RuntimeError("Cannot find cuda path")
 
 
-def get_cuda_version(cuda_path):
+def get_cuda_version(cuda_path=None):
     """Utility function to get cuda version
 
     Parameters
     ----------
-    cuda_path : str
-        Path to cuda root.
+    cuda_path : Optional[str]
+
+        Path to cuda root.  If None is passed, will use
+        `find_cuda_path()` as default.
 
     Returns
     -------
     version : float
         The cuda version
+
     """
+    if cuda_path is None:
+        cuda_path = find_cuda_path()
+
     version_file_path = os.path.join(cuda_path, "version.txt")
     if not os.path.exists(version_file_path):
         # Debian/Ubuntu repackaged CUDA path
         version_file_path = os.path.join(cuda_path, "lib", "cuda", "version.txt")
     try:
         with open(version_file_path) as f:
-            version_str = f.readline().replace("\n", "").replace("\r", "")
-            return float(version_str.split(" ")[2][:2])
+            version_str = f.read().strip().split()[-1]
+            return tuple(int(field) for field in version_str.split("."))
     except FileNotFoundError:
         pass
 
@@ -171,9 +178,8 @@ def get_cuda_version(cuda_path):
     if proc.returncode == 0:
         release_line = [l for l in out.split("\n") if "release" in l][0]
         release_fields = [s.strip() for s in release_line.split(",")]
-        release_version = [f[1:] for f in release_fields if f.startswith("V")][0]
-        major_minor = ".".join(release_version.split(".")[:2])
-        return float(major_minor)
+        version_str = [f[1:] for f in release_fields if f.startswith("V")][0]
+        return tuple(int(field) for field in version_str.split("."))
     raise RuntimeError("Cannot read cuda version file")
 
 
@@ -206,16 +212,35 @@ def find_libdevice_path(arch):
     selected_ver = 0
     selected_path = None
     cuda_ver = get_cuda_version(cuda_path)
-    if cuda_ver in (9.0, 9.1, 10.0, 10.1, 10.2, 11.0, 11.1, 11.2, 11.3):
+    major_minor = (cuda_ver[0], cuda_ver[1])
+    if major_minor in (
+        (9, 0),
+        (9, 1),
+        (10, 0),
+        (10, 1),
+        (10, 2),
+        (11, 0),
+        (11, 1),
+        (11, 2),
+        (11, 3),
+    ):
         path = os.path.join(lib_path, "libdevice.10.bc")
     else:
         for fn in os.listdir(lib_path):
             if not fn.startswith("libdevice"):
                 continue
-            ver = int(fn.split(".")[-3].split("_")[-1])
-            if selected_ver < ver <= arch:
-                selected_ver = ver
+
+            try:
+                # expected pattern: libdevice.${ARCH}.10.bc
+                #             e.g., libdevice.compute_20.10.bc
+                ver = int(fn.split(".")[-3].split("_")[-1])
+                if selected_ver < ver <= arch:
+                    selected_ver = ver
+                    selected_path = fn
+            except ValueError:
+                # it can just be `libdevice.10.bc` in CUDA 10
                 selected_path = fn
+
         if selected_path is None:
             raise RuntimeError("Cannot find libdevice for arch {}".format(arch))
         path = os.path.join(lib_path, selected_path)
@@ -358,9 +383,8 @@ def have_tensorcore(compute_version=None, target=None):
 def have_cudagraph():
     """Either CUDA Graph support is provided"""
     try:
-        cuda_path = find_cuda_path()
-        cuda_ver = get_cuda_version(cuda_path)
-        if cuda_ver < 10.0:
+        cuda_ver = get_cuda_version()
+        if cuda_ver < (10, 0):
             return False
         return True
     except RuntimeError:

@@ -78,7 +78,7 @@ FORCE:
 # Since the pattern stem is already being used for the directory name,
 # cannot also have it refer to the command passed to cmake.
 # Therefore, explicitly listing out the delegated.
-CMAKE_TARGETS = all runtime vta cpptest crttest
+CMAKE_TARGETS = all runtime vta cpptest crttest clean
 
 define GEN_CMAKE_RULE
 %/$(CMAKE_TARGET): %/CMakeCache.txt FORCE
@@ -92,7 +92,7 @@ $(foreach CMAKE_TARGET,$(CMAKE_TARGETS),$(eval $(GEN_CMAKE_RULE)))
 # scripts that are executed in the CI should be in tests/lint. This
 # allows docker/lint.sh to behave similarly to the CI.
 format:
-	./tests/lint/git-clang-format.sh -i origin/main
+	./tests/lint/git-clang-format.sh -i --rev origin/main
 	black .
 	cd rust && which cargo && cargo fmt --all
 
@@ -174,7 +174,7 @@ jvminstall:
 			-Dcurrent_libdir="$(TVM_BUILD_PATH)" $(JVM_TEST_ARGS))
 
 # Final cleanup rules, delegate to more specific rules.
-clean: cmake_clean cyclean webclean
+clean: $(addsuffix /clean,$(TVM_BUILD_PATH)) cyclean webclean
 
 docs:
 	python3 tests/scripts/ci.py docs

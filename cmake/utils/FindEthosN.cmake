@@ -58,7 +58,16 @@ macro(find_ethosn use_ethosn)
       PATHS ${__ethosn_stack}/lib)
     find_library(ETHOSN_COMPILER_LIBRARY NAMES EthosNSupport)
 
-    set(ETHOSN_PACKAGE_VERSION "0.1.1")
+    list(GET ETHOSN_INCLUDE_DIRS 0 filename)
+    set(filename "${filename}/ethosn_support_library/Support.hpp")
+    file(READ ${filename} ETHOSN_SUPPORT_H)
+    string(REGEX MATCH "VERSION_MAJOR ([0-9]*)" _ ${ETHOSN_SUPPORT_H})
+    set(ver_major ${CMAKE_MATCH_1})
+    string(REGEX MATCH "VERSION_MINOR ([0-9]*)" _ ${ETHOSN_SUPPORT_H})
+    set(ver_minor ${CMAKE_MATCH_1})
+    string(REGEX MATCH "VERSION_PATCH ([0-9]*)" _ ${ETHOSN_SUPPORT_H})
+    set(ver_patch ${CMAKE_MATCH_1})
+    set(ETHOSN_PACKAGE_VERSION "${ver_major}.${ver_minor}.${ver_patch}")
     set(ETHOSN_DEFINITIONS -DETHOSN_API_VERSION=${USE_ETHOSN_API_VERSION})
 
     # Runtime hardware support. Driver library also needed for

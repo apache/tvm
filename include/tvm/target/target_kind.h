@@ -38,6 +38,21 @@ namespace tvm {
 class Target;
 
 /*!
+ * \brief Map containing parsed features of a specific Target
+ */
+using TargetFeatures = Map<String, ObjectRef>;
+
+/*!
+ * \brief TargetParser to apply on instantiation of a given TargetKind
+ *
+ * \param target_json Target in JSON format to be transformed during parsing.
+ *
+ * \return The transformed Target JSON object.
+ */
+using TargetJSON = Map<String, ObjectRef>;
+using FTVMTargetParser = TypedPackedFunc<TargetJSON(TargetJSON)>;
+
+/*!
  * \brief RelayToTIR tvm::transform::Pass specific to a TargetKind
  *
  * Called before the default lowering passes.
@@ -77,15 +92,17 @@ class TargetKindNode : public Object {
   /*! \brief Name of the target kind */
   String name;
   /*! \brief Device type of target kind */
-  int device_type;
+  int default_device_type;
   /*! \brief Default keys of the target */
   Array<String> default_keys;
   /*! \brief Function used to preprocess on target creation */
   PackedFunc preprocessor;
+  /*! \brief Function used to parse a JSON target during creation */
+  FTVMTargetParser target_parser;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
-    v->Visit("device_type", &device_type);
+    v->Visit("default_device_type", &default_device_type);
     v->Visit("default_keys", &default_keys);
   }
 
@@ -194,7 +211,7 @@ class TargetKindRegEntry {
    * \brief Set DLPack's device_type the target
    * \param device_type Device type
    */
-  inline TargetKindRegEntry& set_device_type(int device_type);
+  inline TargetKindRegEntry& set_default_device_type(int device_type);
   /*!
    * \brief Set DLPack's device_type the target
    * \param keys The default keys
@@ -207,6 +224,11 @@ class TargetKindRegEntry {
    */
   template <typename FLambda>
   inline TargetKindRegEntry& set_attrs_preprocessor(FLambda f);
+  /*!
+   * \brief Set the parsing function applied upon target creation
+   * \param parser The Target parsing function
+   */
+  inline TargetKindRegEntry& set_target_parser(FTVMTargetParser parser);
   /*!
    * \brief Register a valid configuration option and its ValueType for validation
    * \param key The configuration key
@@ -302,7 +324,7 @@ struct ValueTypeInfoMaker<ValueType, std::true_type, std::false_type> {
     ValueTypeInfo info;
     info.type_index = tindex;
     info.type_key = runtime::Object::TypeIndex2Key(tindex);
-    info.key = std::unique_ptr<ValueTypeInfo>(new ValueTypeInfo(key_type()()));
+    info.key = std::make_unique<ValueTypeInfo>(key_type()());
     info.val = nullptr;
     return info;
   }
@@ -318,8 +340,8 @@ struct ValueTypeInfoMaker<ValueType, std::false_type, std::true_type> {
     ValueTypeInfo info;
     info.type_index = tindex;
     info.type_key = runtime::Object::TypeIndex2Key(tindex);
-    info.key = std::unique_ptr<ValueTypeInfo>(new ValueTypeInfo(key_type()()));
-    info.val = std::unique_ptr<ValueTypeInfo>(new ValueTypeInfo(val_type()()));
+    info.key = std::make_unique<ValueTypeInfo>(key_type()());
+    info.val = std::make_unique<ValueTypeInfo>(val_type()());
     return info;
   }
 };
@@ -341,8 +363,8 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_attr(const String& attr_name,
   return *this;
 }
 
-inline TargetKindRegEntry& TargetKindRegEntry::set_device_type(int device_type) {
-  kind_->device_type = device_type;
+inline TargetKindRegEntry& TargetKindRegEntry::set_default_device_type(int device_type) {
+  kind_->default_device_type = device_type;
   return *this;
 }
 
@@ -353,8 +375,14 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_default_keys(std::vector<Stri
 
 template <typename FLambda>
 inline TargetKindRegEntry& TargetKindRegEntry::set_attrs_preprocessor(FLambda f) {
+  LOG(WARNING) << "set_attrs_preprocessor is deprecated please use set_target_parser instead";
   using FType = typename tvm::runtime::detail::function_signature<FLambda>::FType;
   kind_->preprocessor = tvm::runtime::TypedPackedFunc<FType>(std::move(f)).packed();
+  return *this;
+}
+
+inline TargetKindRegEntry& TargetKindRegEntry::set_target_parser(FTVMTargetParser parser) {
+  kind_->target_parser = parser;
   return *this;
 }
 
@@ -384,6 +412,36 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
 #define TVM_TARGET_KIND_REGISTER_VAR_DEF \
   static DMLC_ATTRIBUTE_UNUSED ::tvm::TargetKindRegEntry& __make_##TargetKind
 
+namespace attr {
+//
+// Distinguished TargetKind attribute names.
+//
+
+/*!
+ * \brief A \p TargetKind attribute of type \p Bool. If true, then the target kind name also
+ * corresponds to an external codegen 'compiler' name. That name may be used:
+ *  - To retrieve partitioning rules using \p get_partition_table.
+ *  - To attach to Relay Functions under the \p attr::kCompiler attribute to indicate
+ *    the function is to be compiled by the external codegen path.
+ *
+ * The \p CollagePartition pass uses this attribute to guide it's search over candidate partitions
+ * using external codegen.
+ *
+ * See also \p Target::IsExternalCodegenFor
+ */
+constexpr const char* kIsExternalCodegen = "is_external_codegen";
+
+/*!
+ * \brief A \p TargetKind attribute of type \p FTVMRelayToTIR. If set, then the target kind name
+ * also corresponds to an external codegen 'compiler' name, and the bound value is a \p Pass
+ * to apply before the TVM lowering.
+ *
+ * See also \p Target::IsExternalCodegenFor
+ */
+constexpr const char* kRelayToTIR = "RelayToTIR";
+
+}  // namespace attr
+
 /*!
  * \def TVM_REGISTER_TARGET_KIND
  * \brief Register a new target kind, or set attribute of the corresponding target kind.
@@ -405,14 +463,15 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
   TVM_STR_CONCAT(TVM_TARGET_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
       ::tvm::TargetKindRegEntry::RegisterOrGet(TargetKindName)    \
           .set_name()                                             \
-          .set_device_type(DeviceType)                            \
+          .set_default_device_type(DeviceType)                    \
           .add_attr_option<Array<String>>("keys")                 \
           .add_attr_option<String>("tag")                         \
           .add_attr_option<String>("device")                      \
           .add_attr_option<String>("model")                       \
           .add_attr_option<Array<String>>("libs")                 \
           .add_attr_option<Target>("host")                        \
-          .add_attr_option<Integer>("from_device")
+          .add_attr_option<Integer>("from_device")                \
+          .add_attr_option<Integer>("target_device_type")
 
 }  // namespace tvm
 

@@ -21,12 +21,11 @@ import logging
 import time
 
 import numpy as np
-
 from tvm.contrib.popen_pool import PopenPoolExecutor, StatusKind
 
 from .. import feature
 from ..utils import get_rank
-from .metric import max_curve, recall_curve, cover_curve
+from .metric import cover_curve, max_curve, recall_curve
 from .model_based_tuner import CostModel, FeatureCache
 
 xgb = None
@@ -243,18 +242,27 @@ class XGBoostCostModel(CostModel):
         else:
             raise RuntimeError("Invalid feature type: " + self.fea_type)
         result = pool.map_with_error_catching(feature_extract_func, data)
+        result = list(result)  # store results so we can iterate through them twice
 
-        # filter out feature with different shapes
-        fea_len = len(self._get_feature([0])[0])
+        # get maximum feature length
+        fea_len = -1
+        for res in result:
+            if res.status != StatusKind.COMPLETE:
+                continue
+            x, _ = res.value
+            fea_len = max(fea_len, x.shape[0])
 
         xs, ys = [], []
         for res in result:
             if res.status != StatusKind.COMPLETE:
                 continue
             x, y = res.value
-            if len(x) == fea_len:
+            # Features may not be the same size, pad them until they are
+            if fea_len > len(x):
+                xs.append(np.pad(x, (0, fea_len - len(x))))
+            else:
                 xs.append(x)
-                ys.append(y)
+            ys.append(y)
 
         if len(xs) < min_seed_records:  # no enough samples
             return False
@@ -329,15 +337,16 @@ class XGBoostCostModel(CostModel):
             for i, fea in zip(need_extract, feas):
                 fea_cache[i] = fea.value if fea.status == StatusKind.COMPLETE else None
 
-        feature_len = None
+        feature_len = -1
         for idx in indexes:
             if fea_cache[idx] is not None:
-                feature_len = fea_cache[idx].shape[-1]
-                break
+                feature_len = max(fea_cache[idx].shape[-1], feature_len)
 
         ret = np.empty((len(indexes), feature_len), dtype=np.float32)
         for i, ii in enumerate(indexes):
             t = fea_cache[ii]
+            if t is not None and t.shape[0] < feature_len:
+                t = np.pad(t, (0, feature_len - t.shape[0]))
             ret[i, :] = t if t is not None else 0
         return ret
 
@@ -360,98 +369,78 @@ def _extract_popen_initializer(space, target, task):
 
 def _extract_itervar_feature_index(args):
     """extract iteration var feature for an index in extract_space"""
-    try:
-        config = _extract_space.get(args)
-        with _extract_target:
-            sch, fargs = _extract_task.instantiate(config)
+    config = _extract_space.get(args)
+    with _extract_target:
+        sch, fargs = _extract_task.instantiate(config)
 
-        fea = feature.get_itervar_feature_flatten(sch, fargs, take_log=True)
-        fea = np.concatenate((fea, list(config.get_other_option().values())))
-        return fea
-    except Exception:  # pylint: disable=broad-except
-        return None
+    fea = feature.get_itervar_feature_flatten(sch, fargs, take_log=True)
+    fea = np.concatenate((fea, list(config.get_other_option().values())))
+    return fea
 
 
 def _extract_itervar_feature_log(arg):
     """extract iteration var feature for log items"""
-    try:
-        inp, res = arg
-        config = inp.config
-        with inp.target:
-            sch, args = inp.task.instantiate(config)
-        fea = feature.get_itervar_feature_flatten(sch, args, take_log=True)
-        x = np.concatenate((fea, list(config.get_other_option().values())))
+    inp, res = arg
+    config = inp.config
+    with inp.target:
+        sch, args = inp.task.instantiate(config)
+    fea = feature.get_itervar_feature_flatten(sch, args, take_log=True)
+    x = np.concatenate((fea, list(config.get_other_option().values())))
 
-        if res.error_no == 0:
-            y = inp.task.flop / np.mean(res.costs)
-        else:
-            y = 0.0
-        return x, y
-    except Exception:  # pylint: disable=broad-except
-        return None
+    if res.error_no == 0:
+        y = inp.task.flop / np.mean(res.costs)
+    else:
+        y = 0.0
+    return x, y
 
 
 def _extract_knob_feature_index(args):
     """extract knob feature for an index in extract_space"""
-    try:
+    config = _extract_space.get(args)
 
-        config = _extract_space.get(args)
-
-        return config.get_flatten_feature()
-    except Exception:  # pylint: disable=broad-except
-        return None
+    return config.get_flatten_feature()
 
 
 def _extract_knob_feature_log(arg):
     """extract knob feature for log items"""
-    try:
-        inp, res = arg
-        config = inp.config
-        x = config.get_flatten_feature()
+    inp, res = arg
+    config = inp.config
+    x = config.get_flatten_feature()
 
-        if res.error_no == 0:
-            with inp.target:  # necessary, for calculating flops of this task
-                inp.task.instantiate(config)
-            y = inp.task.flop / np.mean(res.costs)
-        else:
-            y = 0.0
-        return x, y
-    except Exception:  # pylint: disable=broad-except
-        return None
+    if res.error_no == 0:
+        with inp.target:  # necessary, for calculating flops of this task
+            inp.task.instantiate(config)
+        y = inp.task.flop / np.mean(res.costs)
+    else:
+        y = 0.0
+    return x, y
 
 
 def _extract_curve_feature_index(args):
     """extract sampled curve feature for an index in extract_space"""
-    try:
+    config = _extract_space.get(args)
+    with _extract_target:
+        sch, fargs = _extract_task.instantiate(config)
 
-        config = _extract_space.get(args)
-        with _extract_target:
-            sch, fargs = _extract_task.instantiate(config)
-
-        fea = feature.get_buffer_curve_sample_flatten(sch, fargs, sample_n=20)
-        fea = np.concatenate((fea, list(config.get_other_option().values())))
-        return np.array(fea)
-    except Exception:  # pylint: disable=broad-except
-        return None
+    fea = feature.get_buffer_curve_sample_flatten(sch, fargs, sample_n=20)
+    fea = np.concatenate((fea, list(config.get_other_option().values())))
+    return np.array(fea)
 
 
 def _extract_curve_feature_log(arg):
     """extract sampled curve feature for log items"""
-    try:
-        inp, res = arg
-        config = inp.config
-        with inp.target:
-            sch, args = inp.task.instantiate(config)
-        fea = feature.get_buffer_curve_sample_flatten(sch, args, sample_n=20)
-        x = np.concatenate((fea, list(config.get_other_option().values())))
+    inp, res = arg
+    config = inp.config
+    with inp.target:
+        sch, args = inp.task.instantiate(config)
+    fea = feature.get_buffer_curve_sample_flatten(sch, args, sample_n=20)
+    x = np.concatenate((fea, list(config.get_other_option().values())))
 
-        if res.error_no == 0:
-            y = inp.task.flop / np.mean(res.costs)
-        else:
-            y = 0.0
-        return x, y
-    except Exception:  # pylint: disable=broad-except
-        return None
+    if res.error_no == 0:
+        y = inp.task.flop / np.mean(res.costs)
+    else:
+        y = 0.0
+    return x, y
 
 
 def custom_callback(
@@ -459,8 +448,8 @@ def custom_callback(
 ):
     """callback function for xgboost to support multiple custom evaluation functions"""
     # pylint: disable=import-outside-toplevel
-    from xgboost.core import EarlyStopException
     from xgboost.callback import _fmt_metric
+    from xgboost.core import EarlyStopException
 
     try:
         from xgboost.training import aggcv

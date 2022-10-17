@@ -15,15 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule builders that translate IRModule to runtime.Module, and then export"""
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Union
 
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
 from tvm._ffi import register_object
 from tvm.ir import IRModule
 from tvm.runtime import NDArray, Object
 from tvm.target import Target
 
 from .. import _ffi_api
-from ..utils import check_override
 
 
 @register_object("meta_schedule.BuilderInput")
@@ -42,6 +45,7 @@ class BuilderInput(Object):
 
     mod: IRModule
     target: Target
+    params: Optional[Dict[str, NDArray]]
 
     def __init__(
         self,
@@ -108,6 +112,8 @@ class BuilderResult(Object):
 class Builder(Object):
     """The abstract builder interface."""
 
+    BuilderType = Union["Builder", Literal["local"]]
+
     def build(self, build_inputs: List[BuilderInput]) -> List[BuilderResult]:
         """Build the given inputs.
 
@@ -122,19 +128,72 @@ class Builder(Object):
         """
         return _ffi_api.BuilderBuild(self, build_inputs)  # type: ignore # pylint: disable=no-member
 
+    @staticmethod
+    def create(  # pylint: disable=keyword-arg-before-vararg
+        kind: Literal["local"] = "local",
+        *args,
+        **kwargs,
+    ) -> "Builder":
+        """Create a Builder.
+
+        Parameters
+        ----------
+        kind : Literal["local"]
+            The kind of the builder. For now, only "local" is supported.
+
+        Returns
+        -------
+        builder : Builder
+            The builder created.
+        """
+        from . import LocalBuilder  # pylint: disable=import-outside-toplevel
+
+        if kind == "local":
+            return LocalBuilder(*args, **kwargs)  # type: ignore
+        raise ValueError(f"Unknown Builder: {kind}")
+
+
+create = Builder.create  # pylint: disable=invalid-name
+
 
 @register_object("meta_schedule.PyBuilder")
-class PyBuilder(Builder):
-    """An abstract builder with customized build method on the python-side."""
+class _PyBuilder(Builder):
+    """
+    A TVM object builder to support customization on the python side.
+    This is NOT the user facing class for function overloading inheritance.
 
-    def __init__(self):
+    See also: PyBuilder
+    """
+
+    def __init__(self, f_build: Callable = None):
         """Constructor."""
-
-        @check_override(self.__class__, Builder)
-        def f_build(build_inputs: List[BuilderInput]) -> List[BuilderResult]:
-            return self.build(build_inputs)
 
         self.__init_handle_by_constructor__(
             _ffi_api.BuilderPyBuilder,  # type: ignore # pylint: disable=no-member
             f_build,
         )
+
+
+class PyBuilder:
+    """
+    An abstract builder with customized build method on the python-side.
+    This is the user facing class for function overloading inheritance.
+
+    Note: @derived_object is required for proper usage of any inherited class.
+    """
+
+    _tvm_metadata = {"cls": _PyBuilder, "methods": ["build"]}
+
+    def build(self, build_inputs: List[BuilderInput]) -> List[BuilderResult]:
+        """Build the given inputs.
+
+        Parameters
+        ----------
+        build_inputs : List[BuilderInput]
+            The inputs to be built.
+        Returns
+        -------
+        build_results : List[BuilderResult]
+            The results of building the given inputs.
+        """
+        raise NotImplementedError

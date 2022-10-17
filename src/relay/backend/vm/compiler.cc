@@ -46,6 +46,7 @@
 #include <tuple>
 #include <vector>
 
+#include "../../../driver/internal_driver_api.h"
 #include "../../../target/metadata_module.h"
 #include "../../../target/source/codegen_source_base.h"
 #include "../../op/annotation/annotation.h"
@@ -243,6 +244,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
         host_virtual_device_(std::move(host_virtual_device)) {}
 
   VMFunction Compile(const GlobalVar& var, const Function& func) {
+    VLOG(1) << "Compiling:" << std::endl << PrettyPrint(func);
     std::vector<Index> param_device_indexes;
     if (IsClosure(func)) {
       // After lifting we'll have functions of the form:
@@ -252,21 +254,16 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       // Do that flattening on-the-fly here.
       Function inner_func = Downcast<Function>(func->body);
       std::vector<Var> params;
-      std::vector<VirtualDevice> param_virtual_devices;
       params.reserve(func->params.size() + inner_func->params.size());
-      param_virtual_devices.reserve(func->params.size() + inner_func->params.size());
       param_device_indexes.reserve(func->params.size() + inner_func->params.size());
       for (size_t i = 0; i < func->params.size(); ++i) {
         params.emplace_back(func->params[i]);
-        VirtualDevice param_virtual_device = GetFunctionParamVirtualDevice(func.get(), i);
-        param_virtual_devices.push_back(param_virtual_device);
-        param_device_indexes.push_back(GetDeviceIndex(param_virtual_device));
+        param_device_indexes.push_back(GetDeviceIndex(func->params[i]->virtual_device()));
       }
       for (size_t i = 0; i < inner_func->params.size(); ++i) {
         params.emplace_back(inner_func->params[i]);
-        VirtualDevice param_virtual_device = GetFunctionParamVirtualDevice(inner_func.get(), i);
-        param_virtual_devices.push_back(param_virtual_device);
-        param_device_indexes.push_back(GetDeviceIndex(param_virtual_device));
+
+        param_device_indexes.push_back(GetDeviceIndex(inner_func->params[i]->virtual_device()));
       }
       std::vector<TypeVar> type_params;
       type_params.reserve(func->type_params.size() + inner_func->type_params.size());
@@ -278,13 +275,12 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       }
       Function flattened_func = Function(params, inner_func->body, inner_func->ret_type,
                                          type_params, func->attrs, func->span);
-      VisitExpr(MaybeFunctionOnDevice(flattened_func, param_virtual_devices,
-                                      GetFunctionResultVirtualDevice(inner_func.get())));
+      flattened_func->virtual_device_ = inner_func->virtual_device();
+      VisitExpr(flattened_func);
     } else {
       param_device_indexes.reserve(func->params.size());
       for (size_t i = 0; i < func->params.size(); ++i) {
-        param_device_indexes.push_back(
-            GetDeviceIndex(GetFunctionParamVirtualDevice(func.get(), i)));
+        param_device_indexes.push_back(GetDeviceIndex(func->params[i]->virtual_device()));
       }
       VisitExpr(func);
     }
@@ -328,6 +324,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       case Opcode::Ret:
       case Opcode::Goto:
       case Opcode::Fatal:
+      case Opcode::KillRegister:
         break;
     }
     instructions_.push_back(instr);
@@ -527,11 +524,13 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       op_index = itr->second;
     }
 
-    // Capture the dictionary of attributes from the original primitive function so that they
-    // can contribute to the hash of the compiled primitive. This way we can distinguish primitives
-    // with the same body expression but different attributes which may arbitrarily influence code
-    // generation.
-    op_attrs[op_index] = attrs->dict;
+    if (attrs.defined() && attrs->dict.defined()) {
+      // Capture the dictionary of attributes from the original primitive function so that they
+      // can contribute to the hash of the compiled primitive. This way we can distinguish
+      // primitives with the same body expression but different attributes which may arbitrarily
+      // influence code generation.
+      op_attrs[op_index] = attrs->dict;
+    }
 
     Emit(Instruction::InvokePacked(op_index, argument_registers.size(), output_tuple->fields.size(),
                                    argument_registers));
@@ -647,8 +646,10 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
                    Emit(Instruction::ReshapeTensor(tensor_reg, shape_reg, NewRegister()));
                  })
           .Match("memory.kill",
-                 [](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
-                   LOG(FATAL) << "memory.kill is not yet supported";
+                 [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+                   ICHECK_EQ(args.size(), 1u);
+                   this->VisitExpr(args[0]);
+                   Emit(Instruction::KillRegister(this->last_register_));
                  });
       matcher(GetRef<Call>(call_node));
       return;
@@ -829,8 +830,8 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
 PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "lower") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      ICHECK_EQ(args.num_args, 3);
-      this->Lower(args[0], args[1], args[2]);
+      ICHECK_EQ(args.num_args, 2);
+      this->Lower(args[0], args[1]);
     });
   } else if (name == "codegen") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -838,8 +839,10 @@ PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Obje
       this->Codegen();
     });
   } else if (name == "get_executable") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = runtime::Module(exec_); });
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      ICHECK_EQ(args.num_args, 0);
+      *rv = this->GetExecutable();
+    });
   } else if (name == "set_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       Map<String, Constant> params = args[0];
@@ -857,8 +860,8 @@ PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Obje
     });
   } else if (name == "optimize") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      ICHECK_EQ(args.num_args, 3);
-      *rv = this->OptimizeModule(args[0], args[1], args[2]);
+      ICHECK_EQ(args.num_args, 2);
+      *rv = this->OptimizeModule(args[0], args[1]);
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
@@ -870,16 +873,42 @@ void VMCompiler::SetParam(const std::string& name, runtime::NDArray data_in) {
   params_[name] = data_in;
 }
 
-void VMCompiler::Lower(IRModule mod, TargetMap targets, tvm::Target target_host) {
+void VMCompiler::Lower(IRModule mod, const Array<Target>& raw_targets) {
   VLOG_CONTEXT << "VM Lower";
+  Setup(raw_targets);
+  LowerImpl(std::move(mod));
+}
+
+IRModule VMCompiler::OptimizeModule(IRModule mod, const Array<Target>& raw_targets) {
+  VLOG_CONTEXT << "VM Optimize";
+  Setup(raw_targets);
+  return OptimizeModuleImpl(std::move(mod));
+}
+
+runtime::Module VMCompiler::GetExecutable() const {
+  if (exec_ == nullptr) {
+    LOG(WARNING) << "No executable to return. Did you forget to call VMCompiler::Lower?";
+  }
+  if (exec_->imports().empty()) {
+    LOG(WARNING) << "Executable is empty. Did you forget to call VMCompiler::Codegen?";
+  }
+  return runtime::Module(exec_);
+}
+
+void VMCompiler::Setup(const Array<Target>& raw_targets) {
+  ICHECK(exec_ == nullptr) << "Can't reuse VMComplier object for multiple modules";
   exec_ = make_object<Executable>();
-  config_ = CompilationConfig(PassContext::Current(), std::move(targets), std::move(target_host));
+  ICHECK(!config_.defined());
+  config_ = CompilationConfig(PassContext::Current(), raw_targets);
+  VLOG(1) << "Using compilation config:" << std::endl << config_;
 
   // The first device is always for the host.
   CHECK(context_.virtual_devices_.empty());
-  VLOG(2) << "virtual_device[0] = " << config_->host_virtual_device << " (host)";
+  VLOG(1) << "virtual_device[0] = " << config_->host_virtual_device << " (host)";
   context_.virtual_devices_.push_back(config_->host_virtual_device);
+}
 
+void VMCompiler::LowerImpl(IRModule mod) {
   // Run the optimizations necessary to target the VM.
   context_.module = OptimizeModuleImpl(std::move(mod));
 
@@ -894,7 +923,7 @@ void VMCompiler::Lower(IRModule mod, TargetMap targets, tvm::Target target_host)
   for (const auto& pair : context_.module->functions) {
     auto gvar = pair.first;
     if (auto* n = pair.second.as<FunctionNode>()) {
-      if (n->GetAttr<String>(attr::kExternalSymbol).defined()) {
+      if (n->HasNonzeroAttr(attr::kExtern)) {
         // Already compiled during lowering.
         continue;
       }
@@ -955,25 +984,25 @@ void VMCompiler::Lower(IRModule mod, TargetMap targets, tvm::Target target_host)
   }
 }
 
-transform::Sequential VMCompiler::MemoryOpt(const VirtualDevice& host_virtual_device) {
+transform::Sequential VMCompiler::MemoryOpt(const CompilationConfig& config) {
   Array<Pass> pass_seqs;
   // Remove unused functions
   Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Manifest the allocations.
-  pass_seqs.push_back(transform::ManifestAlloc(host_virtual_device));
+  pass_seqs.push_back(transform::ManifestAlloc(config->host_virtual_device));
 
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
 
   // Fuse & lower any new shape functions and device_copies.
-  pass_seqs.push_back(FuseAndLowerOperators(host_virtual_device));
+  pass_seqs.push_back(FuseAndLowerOperators(config));
 
   // Manifest the allocations needed for the shape functions.
-  pass_seqs.push_back(transform::ManifestAlloc(host_virtual_device));
+  pass_seqs.push_back(transform::ManifestAlloc(config->host_virtual_device));
 
   // Fuse & lower any new allocations.
-  pass_seqs.push_back(FuseAndLowerOperators(host_virtual_device));
+  pass_seqs.push_back(FuseAndLowerOperators(config));
 
   // TODO(mbrookhart, jroesch, masahi): this pass is very slow, and is
   // incomplete to provide memory resuse optimizations. Disable it until we can
@@ -985,13 +1014,16 @@ transform::Sequential VMCompiler::MemoryOpt(const VirtualDevice& host_virtual_de
   pass_seqs.push_back(transform::FoldConstant());
 
   // Fuse & lower yet again
-  pass_seqs.push_back(FuseAndLowerOperators(host_virtual_device));
+  pass_seqs.push_back(FuseAndLowerOperators(config));
 
   // Create allocations for math introduced by dynamic region math.
-  pass_seqs.push_back(transform::ManifestAlloc(host_virtual_device));
+  pass_seqs.push_back(transform::ManifestAlloc(config->host_virtual_device));
 
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
+
+  // Insert kills to free memory.
+  pass_seqs.push_back(transform::ManifestLifetimes());
 
   // Lift constants to the top-level of the block to simplify VM code generation.
   // TODO(@icemelon9, @jroesch): Remove this pass for now because some
@@ -1001,53 +1033,31 @@ transform::Sequential VMCompiler::MemoryOpt(const VirtualDevice& host_virtual_de
   return transform::Sequential(std::move(pass_seqs));
 }
 
-transform::Sequential VMCompiler::FuseAndLowerOperators(const VirtualDevice& host_virtual_device) {
+transform::Sequential VMCompiler::FuseAndLowerOperators(const CompilationConfig& config) {
   Array<Pass> pass_seqs;
   // Hoist operators to "primitive" Functions.
   pass_seqs.push_back(FuseOps());
   // Give each "primitive" Function a hash.
   pass_seqs.push_back(LabelOps());
   // Lower "primitive" Functions to PrimFuncs and rewrite calls.
-  pass_seqs.push_back(tec::LowerTEPass(/*module_name=*/"vm_mod",
-                                       [this](const BaseFunc& func) {
-                                         if (func->GetAttr<String>(attr::kCompiler).defined()) {
-                                           backend::UpdateConstants(func, &params_);
-                                         }
-                                       },
-                                       host_virtual_device));
+  pass_seqs.push_back(tec::LowerTE(/*module_name=*/"vm_mod", config, [this](const BaseFunc& func) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
+      backend::UpdateConstants(func, &params_);
+    }
+  }));
   // Since lowered functions are bound in the IRModule, we can now eliminate any unused
   // let-bound functions.
   pass_seqs.push_back(DeadCodeElimination(/*inline_once=*/false));
   return transform::Sequential(std::move(pass_seqs));
 }
 
-IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetMap& targets,
-                                    const Target& target_host) {
-  config_ = CompilationConfig(PassContext::Current(), targets, target_host);
-  // The first device always corresponds to the host.
-  CHECK(context_.virtual_devices_.empty());
-  context_.virtual_devices_.push_back(config_->host_virtual_device);
-  // TODO(mbs): exec_ is not allocated. What is the API here?
-  CHECK(exec_ == nullptr);
-  return OptimizeModuleImpl(std::move(mod));
-}
-
 IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
-  VLOG_CONTEXT << "VM Optimize";
-  if (params_.size()) {
-    BaseFunc base_func = mod->Lookup("main");
-    ICHECK(base_func->IsInstance<FunctionNode>())
-        << "VM compiler expects to compile relay::Function";
-    auto f = relay::backend::BindParamsByName(Downcast<Function>(base_func), params_);
-    auto gvar = mod->GetGlobalVar("main");
-    mod->Add(gvar, f);
-  }
-
+  backend::BindParamsInModule(mod, params_);
   Array<Pass> pass_seqs = relay::backend::GetPassPrefix(
-      /*is_homogenous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/true);
+      /*is_homogeneous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/true);
 
   // Always plan devices so the remaining passes don't need to distinguish homogeneous vs
-  // hetrogeneous execution.
+  // heterogeneous execution.
   pass_seqs.push_back(transform::PlanDevices(config_));
 
   pass_seqs.push_back(transform::FuseOps());
@@ -1057,7 +1067,21 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   if (backend::IsAutoSchedulerEnabled() && config_->optional_homogeneous_target.defined()) {
     Pass major_pass = transform::AutoSchedulerLayoutRewrite();
     bool enable_layout_rewrite_targets =
-        config_->optional_homogeneous_target->kind->device_type == kDLCPU ||
+        config_->optional_homogeneous_target->GetTargetDeviceType() == kDLCPU ||
+        config_->optional_homogeneous_target->GetAttr<String>("device", "") == "mali";
+    if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
+      With<Target> tctx(config_->optional_homogeneous_target);
+      pass_seqs.push_back(major_pass);
+      // Defuse ops to fold constants, then fuse them again
+      pass_seqs.push_back(transform::DefuseOps());
+      pass_seqs.push_back(transform::FoldConstant());
+      pass_seqs.push_back(transform::FuseOps());
+    }
+  }
+  if (backend::IsMetaScheduleEnabled() && config_->optional_homogeneous_target.defined()) {
+    Pass major_pass = transform::MetaScheduleLayoutRewrite();
+    bool enable_layout_rewrite_targets =
+        config_->optional_homogeneous_target->GetTargetDeviceType() == kDLCPU ||
         config_->optional_homogeneous_target->GetAttr<String>("device", "") == "mali";
     if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
       With<Target> tctx(config_->optional_homogeneous_target);
@@ -1079,21 +1103,18 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   pass_seqs.push_back(transform::LabelOps());
 
   // Lower all functions annotated as "primitive" by FuseOps.
-  pass_seqs.push_back(tec::LowerTEPass(/*module_name=*/"vm_mod",
-                                       [this](const BaseFunc& func) {
-                                         if (func->GetAttr<String>(attr::kCompiler).defined()) {
-                                           backend::UpdateConstants(func, &params_);
-                                         }
-                                       },
-                                       config_->host_virtual_device));
+  pass_seqs.push_back(tec::LowerTE(/*module_name=*/"vm_mod", config_, [this](const BaseFunc& func) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
+      backend::UpdateConstants(func, &params_);
+    }
+  }));
 
   // Since lowered functions are bound in the IRModule, we can now eliminate any unused
   // let-bound functions.
   pass_seqs.push_back(DeadCodeElimination(/*inline_once=*/false));
 
-  // Now that we have PrimFuncs, flow and solve VirtualDevice constraints again to account for
-  // any memory scopes which lowering has settled on.
-  pass_seqs.push_back(transform::PlanDevices(config_));
+  // At this point it's possible to run PlanDevices again to pick up any additional constraints
+  // introduced during lowering. However we'll not do this until more testing has been done.
 
   // Inline the functions that are lifted to the module scope. We perform this
   // pass after all other optimization passes but before the memory allocation
@@ -1102,7 +1123,7 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   // external codegen.
   pass_seqs.push_back(transform::Inline());
 
-  pass_seqs.push_back(MemoryOpt(config_->host_virtual_device));
+  pass_seqs.push_back(MemoryOpt(config_));
   pass_seqs.push_back(transform::InferType());
 
   transform::Sequential seq(pass_seqs);
@@ -1120,7 +1141,7 @@ size_t VMCompiler::PopulateGlobalMap() {
   // Excludes PrimFuncs and externs, which are managed by the primitive_map_.
   for (const auto& kv : context_.module->functions) {
     if (const auto* function_node = kv.second.as<FunctionNode>()) {
-      if (!function_node->GetAttr<String>(attr::kExternalSymbol)) {
+      if (!function_node->HasNonzeroAttr(attr::kExtern)) {
         context_.global_map.emplace(kv.first, context_.global_map.size());
       }
     }
@@ -1143,13 +1164,29 @@ void VMCompiler::Codegen() {
   // Only the PrimFuncs will appear in per_target_modules, and there may legitimately be none.
   Map<Target, IRModule> per_tvm_target_modules = tec::GetPerTargetModules(context_.module);
   for (const auto& kv : per_tvm_target_modules) {
-    ICHECK(kv.first->kind->device_type != kDLExtDev);
+    ICHECK(kv.first->GetTargetDeviceType() != kDLExtDev);
   }
-  Array<runtime::Module> ext_mods =
-      context_.module->GetAttr<Array<runtime::Module>>("external_mods", Array<runtime::Module>())
-          .value();
-  VLOG(0) << "have " << per_tvm_target_modules.size() << " targets to build and " << ext_mods.size()
-          << " external runtime modules";
+
+  // Retrieve all external runtime modules accumulated by external codegen (both function-at-a-time
+  // and IRModule-at-a-time).
+  Array<runtime::Module> external_mods =
+      context_.module->GetAttr<Array<runtime::Module>>(tvm::attr::kExternalMods).value_or({});
+
+  // Retrieve any constant bindings accumulated by external codegen (by IRModule-at-a-time passes).
+  Map<String, runtime::NDArray> const_name_to_constant =
+      context_.module->GetAttr<Map<String, runtime::NDArray>>(tvm::attr::kConstNameToConstant)
+          .value_or({});
+
+  VLOG(0) << "have " << per_tvm_target_modules.size() << " targets to build, "
+          << external_mods.size() << " external runtime modules, " << const_name_to_constant.size()
+          << " external constants, and " << params_.size() << " local constants";
+
+  // Any constant bindings must be merged into the overall 'params' map we've directly accumulated
+  // via the TECompiler callback.
+  for (const auto& kv : const_name_to_constant) {
+    ICHECK_EQ(params_.count(kv.first), 0);
+    params_.emplace(kv.first, kv.second);
+  }
 
   runtime::Module lib;
   if (per_tvm_target_modules.empty()) {
@@ -1158,23 +1195,22 @@ void VMCompiler::Codegen() {
     LOG(INFO) << "All lowered functions have been build by BYOC -- generating an empty TVM module";
     lib = codegen::CSourceModuleCreate(";", "", Array<String>{});
   } else {
-    lib = tvm::build(per_tvm_target_modules, config_->host_target);
+    lib = tvm::TIRToRuntime(per_tvm_target_modules, config_->host_target);
   }
 
-  lib = codegen::CreateMetadataModule(params_, lib, ext_mods, config_->host_target,
-                                      Runtime::Create("cpp"),
-                                      relay::backend::ExecutorCodegenMetadata());
+  lib =
+      codegen::CreateMetadataModule(params_, lib, external_mods, config_->host_target,
+                                    Runtime::Create("cpp"), Executor::Create("graph"),  // DNS HACK
+                                    relay::backend::ExecutorCodegenMetadata());
   exec_->SetLib(lib);
 }
 
 runtime::Module CreateVMCompiler() {
   auto exec = make_object<VMCompiler>();
-  return runtime::Module(exec);
+  return runtime::Module(std::move(exec));
 }
 
-TVM_REGISTER_GLOBAL("relay._vm._VMCompiler").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = CreateVMCompiler();
-});
+TVM_REGISTER_GLOBAL("relay._vm._VMCompiler").set_body_typed(CreateVMCompiler);
 
 }  // namespace vm
 }  // namespace relay

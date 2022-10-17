@@ -39,9 +39,8 @@ def test_makeapi():
         )
     )(mod)
 
-    num_unpacked_args = 2
-    f = tvm.tir.transform.MakePackedAPI(num_unpacked_args)(mod)["main"]
-    assert len(f.params) == 8
+    f = tvm.tir.transform.MakePackedAPI()(mod)["main"]
+    assert len(f.params) == 6
 
 
 def _find_assignment(stmt, var_name):
@@ -83,18 +82,20 @@ def test_variable_passed_from_args():
     assert func.body.condition.b == 2
 
     # Arguments unpacking
-    assignment = _find_assignment(func.body, "arg0")
+    assignment = _find_assignment(func.body, "arg.input_buffer")
     assert str(assignment.value) == "@tir.tvm_struct_get(args: handle, 0, 12, dtype=handle)"
 
-    assignment = _find_assignment(func.body, "arg1")
+    assignment = _find_assignment(func.body, "arg.not_device_context")
     assert str(assignment.value) == "@tir.tvm_struct_get(args: handle, 1, 12, dtype=handle)"
 
     assignment = _find_assignment(func.body, "input_buffer")
-    assert str(assignment.value) == "@tir.tvm_struct_get(arg0: handle, 0, 1, dtype=handle)"
+    assert (
+        str(assignment.value) == "@tir.tvm_struct_get(arg.input_buffer: handle, 0, 1, dtype=handle)"
+    )
     unpacked_input_buffer = assignment.var
 
     assignment = _find_assignment(func.body, "not_device_context")
-    assert str(assignment.value) == "arg1: handle"
+    assert str(assignment.value) == "arg.not_device_context: handle"
     unpacked_not_device_context = assignment.var
 
     seq_stmt = _find_next(assignment, tvm.tir.SeqStmt)
@@ -129,11 +130,13 @@ def test_device_api_context_implicit_resource_handle():
     assert func.body.condition.b == 1
 
     # Arguments unpacking
-    assignment = _find_assignment(func.body, "arg0")
+    assignment = _find_assignment(func.body, "arg.input_buffer")
     assert str(assignment.value) == "@tir.tvm_struct_get(args: handle, 0, 12, dtype=handle)"
 
     assignment = _find_assignment(func.body, "input_buffer")
-    assert str(assignment.value) == "@tir.tvm_struct_get(arg0: handle, 0, 1, dtype=handle)"
+    assert (
+        str(assignment.value) == "@tir.tvm_struct_get(arg.input_buffer: handle, 0, 1, dtype=handle)"
+    )
     unpacked_input_buffer = assignment.var
 
     seq_stmt = _find_next(assignment, tvm.tir.SeqStmt)

@@ -20,6 +20,7 @@ import sys
 
 import pytest
 import tvm
+import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
 from tvm.tir.schedule import BlockRV, Instruction, InstructionKind, LoopRV, Trace
@@ -82,11 +83,29 @@ def _make_compute_inline(input):  # pylint: disable=redefined-builtin
     )
 
 
+def _make_split(inputs, outputs):  # pylint: disable=redefined-builtin
+    return Instruction(
+        kind=InstructionKind.get("Split"),
+        inputs=inputs,
+        attrs=[True],
+        outputs=outputs,
+    )
+
+
 def _make_enter_postproc():
     return Instruction(
         kind=InstructionKind.get("EnterPostproc"),
         inputs=[],
         attrs=[],
+        outputs=[],
+    )
+
+
+def _make_annotate(block: BlockRV, annotation: str):
+    return Instruction(
+        kind=InstructionKind.get("Annotate"),
+        inputs=[block, annotation],
+        attrs=["meta_schedule.auto_tensorize"],
         outputs=[],
     )
 
@@ -129,12 +148,25 @@ def _make_trace_3(b0, b1, add_postproc):  # pylint: disable=invalid-name
     return Trace(insts=insts, decisions={})
 
 
+def _make_trace_4(b0, l1, l2, l3):  # pylint: disable=invalid-name
+    return Trace(
+        insts=[
+            _make_get_block(name="B", output=b0),
+            _make_get_loops(input=b0, outputs=[l1]),
+            _make_split([l1, None, 32], [l2, l3]),
+        ],
+        decisions={},
+    )
+
+
 def test_trace_construct_1():
     trace = _make_trace_1(BlockRV(), LoopRV(), LoopRV())
     assert str(trace) == "\n".join(
         (
-            'b0 = sch.get_block(name="block", func_name="main")',
-            "l1, l2 = sch.get_loops(block=b0)",
+            "# from tvm import tir",
+            "def apply_trace(sch: tir.Schedule) -> None:",
+            '  b0 = sch.get_block(name="block", func_name="main")',
+            "  l1, l2 = sch.get_loops(block=b0)",
         )
     )
     assert len(trace.insts) == 2
@@ -152,9 +184,11 @@ def test_trace_construct_append_1():
     trace.append(inst=_make_get_block("block2", BlockRV()))
     assert str(trace) == "\n".join(
         (
-            'b0 = sch.get_block(name="block", func_name="main")',
-            "l1, l2 = sch.get_loops(block=b0)",
-            'b3 = sch.get_block(name="block2", func_name="main")',
+            "# from tvm import tir",
+            "def apply_trace(sch: tir.Schedule) -> None:",
+            '  b0 = sch.get_block(name="block", func_name="main")',
+            "  l1, l2 = sch.get_loops(block=b0)",
+            '  b3 = sch.get_block(name="block2", func_name="main")',
         )
     )
 
@@ -163,14 +197,32 @@ def test_trace_construct_pop_1():
     trace = _make_trace_1(BlockRV(), LoopRV(), LoopRV())
     last_inst = trace.insts[-1]
     assert trace.pop().same_as(last_inst)
-    assert str(trace) == 'b0 = sch.get_block(name="block", func_name="main")'
+    assert str(trace) == "\n".join(
+        (
+            "# from tvm import tir",
+            "def apply_trace(sch: tir.Schedule) -> None:",
+            '  b0 = sch.get_block(name="block", func_name="main")',
+        )
+    )
 
 
 def test_trace_construct_pop_2():
     trace = Trace([], {})
-    assert str(trace) == ""
+    assert str(trace) == "\n".join(
+        (
+            "# from tvm import tir",
+            "def apply_trace(sch: tir.Schedule) -> None:",
+            "  pass",
+        )
+    )
     assert trace.pop() is None
-    assert str(trace) == ""
+    assert str(trace) == "\n".join(
+        (
+            "# from tvm import tir",
+            "def apply_trace(sch: tir.Schedule) -> None:",
+            "  pass",
+        )
+    )
 
 
 def test_trace_apply_to_schedule():
@@ -196,18 +248,22 @@ def test_trace_simplified_1():
     trace = _make_trace_3(BlockRV(), BlockRV(), add_postproc=True)
     assert str(trace) == "\n".join(
         (
-            'b0 = sch.get_block(name="B", func_name="main")',
-            "sch.compute_inline(block=b0)",
-            'b1 = sch.get_block(name="C", func_name="main")',
-            "sch.enter_postproc()",
-            "sch.compute_inline(block=b1)",
+            "# from tvm import tir",
+            "def apply_trace(sch: tir.Schedule) -> None:",
+            '  b0 = sch.get_block(name="B", func_name="main")',
+            "  sch.compute_inline(block=b0)",
+            '  b1 = sch.get_block(name="C", func_name="main")',
+            "  sch.enter_postproc()",
+            "  sch.compute_inline(block=b1)",
         )
     )
     trace = trace.simplified(remove_postproc=True)
     assert str(trace) == "\n".join(
         (
-            'b0 = sch.get_block(name="B", func_name="main")',
-            "sch.compute_inline(block=b0)",
+            "# from tvm import tir",
+            "def apply_trace(sch: tir.Schedule) -> None:",
+            '  b0 = sch.get_block(name="B", func_name="main")',
+            "  sch.compute_inline(block=b0)",
         )
     )
 
@@ -216,21 +272,38 @@ def test_trace_simplified_2():
     trace = _make_trace_3(BlockRV(), BlockRV(), add_postproc=True)
     assert str(trace) == "\n".join(
         (
-            'b0 = sch.get_block(name="B", func_name="main")',
-            "sch.compute_inline(block=b0)",
-            'b1 = sch.get_block(name="C", func_name="main")',
-            "sch.enter_postproc()",
-            "sch.compute_inline(block=b1)",
+            "# from tvm import tir",
+            "def apply_trace(sch: tir.Schedule) -> None:",
+            '  b0 = sch.get_block(name="B", func_name="main")',
+            "  sch.compute_inline(block=b0)",
+            '  b1 = sch.get_block(name="C", func_name="main")',
+            "  sch.enter_postproc()",
+            "  sch.compute_inline(block=b1)",
         )
     )
     trace = trace.simplified(remove_postproc=False)
     assert str(trace) == "\n".join(
         (
-            'b0 = sch.get_block(name="B", func_name="main")',
-            "sch.compute_inline(block=b0)",
-            'b1 = sch.get_block(name="C", func_name="main")',
-            "sch.enter_postproc()",
-            "sch.compute_inline(block=b1)",
+            "# from tvm import tir",
+            "def apply_trace(sch: tir.Schedule) -> None:",
+            '  b0 = sch.get_block(name="B", func_name="main")',
+            "  sch.compute_inline(block=b0)",
+            '  b1 = sch.get_block(name="C", func_name="main")',
+            "  sch.enter_postproc()",
+            "  sch.compute_inline(block=b1)",
+        )
+    )
+
+
+def test_trace_simplified_3():
+    trace = _make_trace_4(BlockRV(), LoopRV(), LoopRV(), LoopRV()).simplified(remove_postproc=False)
+    assert str(trace) == "\n".join(
+        (
+            "# from tvm import tir",
+            "def apply_trace(sch: tir.Schedule) -> None:",
+            '  b0 = sch.get_block(name="B", func_name="main")',
+            "  l1, = sch.get_loops(block=b0)",
+            "  l2, l3 = sch.split(loop=l1, factors=[None, 32], preserve_unit_iters=True)",
         )
     )
 
@@ -243,5 +316,56 @@ def test_apply_json_to_schedule_1():
     tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
 
 
+def _test_apply_annotation_trace_from_json(annotation: str):
+    """Test applying an annotation works without crashing.
+
+    Designed to handle some previously failing edge cases like the
+    empty string.
+    """
+    b0 = BlockRV()
+    trace = Trace(
+        insts=[
+            _make_get_block(name="B", output=b0),
+            _make_annotate(block=b0, annotation=annotation),
+        ],
+        decisions={},
+    )
+    json_obj = trace.as_json()
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    Trace.apply_json_to_schedule(json_obj, sch)
+
+    @T.prim_func
+    def elementwise_expected(a: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (128, 128))
+        B = T.alloc_buffer((128, 128))
+        C = T.match_buffer(c, (128, 128))
+        for i, j in T.grid(128, 128):
+            with T.block("B"):
+                T.block_attr({"meta_schedule.auto_tensorize": annotation})
+                vi, vj = T.axis.remap("SS", [i, j])
+                B[vi, vj] = A[vi, vj] * 2.0
+        for i, j in T.grid(128, 128):
+            with T.block("C"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = B[vi, vj] + 1.0
+
+    tvm.ir.assert_structural_equal(elementwise_expected, sch.mod["main"])
+
+
+def test_apply_annotation_from_json():
+    # Something reasonable
+    _test_apply_annotation_trace_from_json("SSRSSR")
+
+    # The empty string
+    _test_apply_annotation_trace_from_json("")
+
+    # A string of two quotation marks
+    _test_apply_annotation_trace_from_json('""')
+
+    # A string of one quotation mark
+    _test_apply_annotation_trace_from_json('"')
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    test_trace_simplified_2()
+    # tvm.testing.main()

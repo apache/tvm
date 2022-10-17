@@ -283,7 +283,7 @@ Expr Conv2dToSparse2(const Expr& e, const String& layout, int kernel_size, int b
 
 namespace transform {
 
-// Convert a model with seperate weight info (already sparsified).
+// Convert a model with separate weight info (already sparsified).
 Pass Conv2dToSparse(const Array<ObjectRef>& weight_name, const Array<Array<PrimExpr>>& weight_shape,
                     const String& layout, int kernel_size) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
@@ -292,12 +292,12 @@ Pass Conv2dToSparse(const Array<ObjectRef>& weight_name, const Array<Array<PrimE
         auto f0 =
             Downcast<Function>(Conv2dToSparse(f, weight_name, weight_shape, layout, kernel_size));
         Array<Var> sparse_params = FreeVars(f0);
-        auto f1 = Function(sparse_params, f0->body, f0->ret_type, f0->type_params, f0->attrs);
+        auto f1 = WithFields(f0, sparse_params);
         Array<Var> params = FreeVars(f1);
         for (const auto& var : sparse_params) {
           params.push_back(var);
         }
-        return Function(params, f1->body, f1->ret_type, f1->type_params, f1->attrs);
+        return WithFields(f1, params);
       };
   return CreateFunctionPass(pass_func, 4, "Conv2dToSparse", {"DeadCodeElimination"});
 }

@@ -24,12 +24,38 @@ namespace tir {
 static const char kErrBodyInline[] = R"(The body of the inlined block should be in form of
     'A[i, j, k, ...] = f(i, j, k, ...)',
 where the indices on the left are distinct atomic variables,
-and there should not no variables other than the index variables)";
+and there should be no variables other than the index variables)";
 
 static const char kErrBodyReverseInline[] = R"(The body of the inlined block should be in form of
-    `B[...] = g(i, j, k, A[i, j, k, ...] ...)`,
+    `B[...] = g(i, j, k, A[f(i, j, k, ...)] ...)`,
 where A is the only buffer the block consumes, whose indices are distinct atomic variables,
-and there should not no variables other than the index variables)";
+and there should be no variables other than the index variables), and f is a bijective affine
+mapping and there should not be predicates in the inlined block. The iter domains of the inlined
+block should be covered by the producer block.)";
+
+class HasInitBlock : public ScheduleError {
+ public:
+  explicit HasInitBlock(IRModule mod, Block block) : mod_(mod), block_(block) {}
+
+  String FastErrorString() const final { return "ScheduleError: The block has init statement"; }
+
+  String DetailRenderTemplate() const final {
+    return "ScheduleError: The block has init statement: {0}";
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+
+  static void Check(const IRModule& mod, const Block& block) {
+    if (block->init.defined()) {
+      throw HasInitBlock(mod, block);
+    }
+  }
+
+ private:
+  IRModule mod_;
+  Block block_;
+};
 
 class NotSingleReadWriteBuffer : public ScheduleError {
  public:
@@ -136,20 +162,29 @@ class NonSingleProducerError : public ScheduleError {
   IRModule mod_;
   Block block_;
 
-  static void Check(const ScheduleState& self, const StmtSRef& consumer_block_sref,
-                    const StmtSRef& scope_root_sref) {
+  /*!
+   * \brief Check if the block has a single producer.
+   * \param self The schedule state
+   * \param block_sref The sref of the block to be checked
+   * \param scope_root_sref The sref of the scope root
+   * \return The sref of the producer block if the block has a single producer
+   * \throw ScheduleError if the block does not have a single producer
+   */
+  static StmtSRef Check(const ScheduleState& self, const StmtSRef& consumer_block_sref,
+                        const StmtSRef& scope_root_sref) {
     BlockScope scope = self->GetBlockScope(scope_root_sref);
     Array<Dependency> producers = scope->GetDepsByDst(consumer_block_sref);
+    StmtSRef producer_block_sref{nullptr};
     if (producers.size() == 1 && producers[0]->kind == DepKind::kRAW) {
-      const StmtSRef& producer_block_sref = producers[0]->src;
+      producer_block_sref = producers[0]->src;
       if (IsCompleteBlock(self, producer_block_sref, scope_root_sref)) {
         Array<Dependency> consumers = scope->GetDepsBySrc(producer_block_sref);
         if (consumers.size() == 1) {
-          return;
+          return producer_block_sref;
         }
       }
     }
-    const BlockNode* block = TVM_SREF_TO_BLOCK(block, consumer_block_sref);
+    const BlockNode* block = TVM_SREF_TO_BLOCK(consumer_block_sref);
     throw NonSingleProducerError(self->mod, GetRef<Block>(block));
   }
 };
@@ -158,7 +193,7 @@ class OpaqueAccessError : public ScheduleError {
  public:
   explicit OpaqueAccessError(IRModule mod, StmtSRef scope_root_sref)
       : mod_(mod), scope_root_(nullptr) {
-    const BlockNode* scope_root = TVM_SREF_TO_BLOCK(scope_root, scope_root_sref);
+    const BlockNode* scope_root = TVM_SREF_TO_BLOCK(scope_root_sref);
     this->scope_root_ = GetRef<Block>(scope_root);
   }
 
@@ -200,14 +235,14 @@ class BaseInliner : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(var);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* load) final {
-    CheckOpaqueAccess(load->buffer_var.get());
-    return StmtExprMutator::VisitExpr_(load);
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
-  Stmt VisitStmt_(const StoreNode* store) final {
-    CheckOpaqueAccess(store->buffer_var.get());
-    return StmtExprMutator::VisitStmt_(store);
+  Stmt VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
   }
 
   Stmt VisitStmt_(const ForNode* loop) final {
@@ -234,54 +269,28 @@ class BaseInliner : public StmtExprMutator {
   }
 
   /*!
-   * \brief Check if the indices are atomic distinct variables and the access is n-dimensional.
-   * If so, set `self->idx_vars_` properly.
-   * \param indices The indices to be extracted
-   * \param expected_ndim The expected ndim of the access
-   * \return A boolean flag indicating if the check is successful
+   * \brief Count the number of undefined variables that are not used
+   * as buffer objects.
+   *
+   * This is used to determine whether inlining or reverse inlining is
+   * possible.  The only undefined variables present should be the
+   * load/store indices, or buffer access based on those indices.
+   *
+   * \param stmt The statement in which to count undefined variables
    */
-  bool UpdateAndCheckIndexVars(const Array<PrimExpr>& indices, int expected_ndim) {
-    int n = indices.size();
-    if (n != expected_ndim) {
-      // Failure: dimension mismatch
-      return false;
-    }
-    std::vector<const VarNode*> result;
-    result.reserve(n);
-    for (const PrimExpr& i : indices) {
-      if (const auto* var = i.as<VarNode>()) {
-        result.push_back(var);
-      } else {
-        // Failure: indexing expression is not a variable
-        return false;
+  static int GetNumUndefinedNonpointerVars(const Stmt& stmt) {
+    auto undefined_vars = UndefinedVars(stmt, {});
+    // Buffer pointers and the inlined indices are allowed, but no
+    // other variables may appear in the inlined block.
+    int num_nonpointer_vars = 0;
+    for (const auto& var : undefined_vars) {
+      bool is_pointer = var->dtype.is_handle() && var->type_annotation.defined() &&
+                        var->type_annotation.as<PointerTypeNode>();
+      if (!is_pointer) {
+        num_nonpointer_vars++;
       }
     }
-    using DistinctSet = std::unordered_set<const VarNode*>;
-    int n_distinct = DistinctSet(result.begin(), result.end()).size();
-    if (n != n_distinct) {
-      // Failure: indexing variables are not distinct
-      return false;
-    }
-    if (idx_vars_.empty()) {
-      idx_vars_ = std::move(result);
-    } else if (!support::ArrayWithSameContent(idx_vars_, result)) {
-      // Failure: indexing variables are not consitent in different BufferLoads
-      return false;
-    }
-    return true;
-  }
-
-  /*!
-   * \brief Set the mapping of index substitution `self->idx_sub_`
-   * \param indices The expressions that the corresponding index variables are replaced to
-   */
-  void SetIndexSubstitution(const Array<PrimExpr>& indices) {
-    ICHECK_EQ(indices.size(), idx_vars_.size());
-    int n = idx_vars_.size();
-    idx_sub_.reserve(n);
-    for (int i = 0; i < n; ++i) {
-      idx_sub_[idx_vars_[i]] = indices[i];
-    }
+    return num_nonpointer_vars;
   }
 
  private:
@@ -417,7 +426,8 @@ class ComputeInliner : public BaseInliner {
     if (inlined_store_ == nullptr) {
       return false;
     }
-    int n_vars = UndefinedVars(GetRef<Stmt>(inlined_store_), {}).size();
+
+    int n_vars = GetNumUndefinedNonpointerVars(GetRef<Stmt>(inlined_store_));
     if (!UpdateAndCheckIndexVars(inlined_store_->indices, n_vars)) {
       return false;
     }
@@ -439,6 +449,57 @@ class ComputeInliner : public BaseInliner {
   PrimExpr ReplaceInlinedBuffer(BufferLoad load) {
     SetIndexSubstitution(load->indices);
     return Substitute(inlined_store_->value, idx_sub_);
+  }
+
+  /*!
+   * \brief Check if the indices are atomic distinct variables and the access is n-dimensional.
+   * If so, set `self->idx_vars_` properly.
+   * \param indices The indices to be extracted
+   * \param expected_ndim The expected ndim of the access
+   * \return A boolean flag indicating if the check is successful
+   */
+  bool UpdateAndCheckIndexVars(const Array<PrimExpr>& indices, int expected_ndim) {
+    int n = indices.size();
+    if (n != expected_ndim) {
+      // Failure: dimension mismatch
+      return false;
+    }
+    std::vector<const VarNode*> result;
+    result.reserve(n);
+    for (const PrimExpr& i : indices) {
+      if (const auto* var = i.as<VarNode>()) {
+        result.push_back(var);
+      } else {
+        // Failure: indexing expression is not a variable
+        return false;
+      }
+    }
+    using DistinctSet = std::unordered_set<const VarNode*>;
+    int n_distinct = DistinctSet(result.begin(), result.end()).size();
+    if (n != n_distinct) {
+      // Failure: indexing variables are not distinct
+      return false;
+    }
+    if (idx_vars_.empty()) {
+      idx_vars_ = std::move(result);
+    } else if (!support::ArrayWithSameContent(idx_vars_, result)) {
+      // Failure: indexing variables are not consitent in different BufferLoads
+      return false;
+    }
+    return true;
+  }
+
+  /*!
+   * \brief Set the mapping of index substitution `self->idx_sub_`
+   * \param indices The expressions that the corresponding index variables are replaced to
+   */
+  void SetIndexSubstitution(const Array<PrimExpr>& indices) {
+    ICHECK_EQ(indices.size(), idx_vars_.size());
+    int n = idx_vars_.size();
+    idx_sub_.reserve(n);
+    for (int i = 0; i < n; ++i) {
+      idx_sub_[idx_vars_[i]] = indices[i];
+    }
   }
 };
 
@@ -470,11 +531,28 @@ class ReverseComputeInliner : public BaseInliner {
   };
 
  public:
-  explicit ReverseComputeInliner(const Buffer& inlined_buffer, const Block& consumer_block,
+  explicit ReverseComputeInliner(const Buffer& inlined_buffer, const BlockNode* producer_block,
+                                 const BlockRealize& consumer_block_realize,
                                  const StmtSRef& scope_root_sref)
-      : BaseInliner(inlined_buffer, consumer_block, scope_root_sref) {}
+      : BaseInliner(inlined_buffer, consumer_block_realize->block, scope_root_sref),
+        producer_block_(producer_block),
+        consumer_block_(consumer_block_realize->block.get()) {
+    // Initialize the predicates to ensure consumer block iters are in-bound
+    consumer_iter_in_bound_ = Bool(true);
+    for (const IterVar& iter : consumer_block_realize->block->iter_vars) {
+      consumer_iter_in_bound_ =
+          consumer_iter_in_bound_ &&
+          (iter->var >= iter->dom->min && iter->var < iter->dom->min + iter->dom->extent);
+    }
+  }
 
-  bool BodyPatternAllowInline(const Block& consumer_block) {
+  bool BodyPatternAllowInline(const BlockRealize& consumer_block_realize) {
+    const Block& consumer_block = consumer_block_realize->block;
+
+    if (!is_one(consumer_block_realize->predicate)) {
+      // Failure: Predicate is the consumer block is not supported
+      return false;
+    }
     if (inlined_store_ == nullptr) {
       // Failure: block body is not BufferStore
       return false;
@@ -484,19 +562,81 @@ class ReverseComputeInliner : public BaseInliner {
       // Failure: no BufferLoad from the `inlined_buffer_`
       return false;
     }
-    int n_vars = UndefinedVars(GetRef<BufferStore>(inlined_store_), {}).size();
+
+    // Collect block iter domains and update the substition map
+    Map<Var, Range> consumer_iter_doms;
+    for (const auto& iter_var : consumer_block->iter_vars) {
+      consumer_iter_doms.Set(iter_var->var, iter_var->dom);
+      // Set default mapping for unit iters
+      if (is_const_int(iter_var->dom->extent, 1) && is_const_int(iter_var->dom->min)) {
+        idx_sub_[iter_var->var.get()] = iter_var->dom->min;
+      }
+    }
+
     for (const BufferLoadNode* load : loads) {
-      if (!UpdateAndCheckIndexVars(load->indices, n_vars)) {
-        // Failure: incorrect of inconsistent index vars
+      if (!UpdateAndCheckIndexExprs(load->indices)) {
         return false;
       }
     }
+
+    auto res = arith::DetectIterMap(
+        /*indices=*/buffer_load_indices_,
+        /*input_iters=*/consumer_iter_doms,
+        /*predicate=*/true,
+        /*check_level=*/arith::IterMapLevel::Bijective,
+        /*analyzer=*/&analyzer_,
+        /*simplify_trivial_iterators=*/false);
+    buffer_load_iter_map_ = res->indices;
+    if (buffer_load_iter_map_.empty()) {
+      // Failure: indices of BufferLoad are not bijective affine
+      return false;
+    }
+
+    const BufferStoreNode* producer_store = producer_block_->body.as<BufferStoreNode>();
+    if (producer_store == nullptr) {
+      // Failure: producer block body is not BufferStore
+      return false;
+    }
+    CreateInverseMapping(producer_store->indices);
+    if (!CheckConsumerCovered()) {
+      // Failure: consumer block iter domains are not covered by the producer block
+      return false;
+    }
+
     return true;
   }
 
  private:
   using BaseInliner::VisitExpr_;
   using BaseInliner::VisitStmt_;
+
+  /*! \brief Generate the predicate after inlining based on the consumer predicate */
+  PrimExpr BuildInlinedConsumerPredicate(const BlockRealizeNode* producer_block_realize) {
+    // Bind the producer block iter domains for simplification
+    Map<Var, PrimExpr> subst_map;
+    for (int i = 0, n = producer_block_realize->iter_values.size(); i < n; ++i) {
+      const IterVar& iter = producer_block_realize->block->iter_vars[i];
+      analyzer_.Bind(iter->var, Range::FromMinExtent(iter->dom->min, iter->dom->extent));
+      subst_map.Set(iter->var, producer_block_realize->iter_values[i]);
+    }
+    // Substitute the consumer block iters with the corresponding iters in the producer blocks
+    PrimExpr predicate = Substituter(this)(consumer_iter_in_bound_);
+    // Simplify the predicate using the producer block iter domains
+    predicate = analyzer_.Simplify(predicate);
+    // Substitute the producer block iters with the its bindings since the predicate in BlockRealize
+    // should not contain the block iters
+    predicate = Substitute(predicate, subst_map);
+    return predicate;
+  }
+
+  Stmt VisitStmt_(const BlockRealizeNode* op) final {
+    BlockRealize new_block_realize = Downcast<BlockRealize>(StmtMutator::VisitStmt_(op));
+    if (op->block.get() == producer_block_) {
+      new_block_realize.CopyOnWrite()->predicate =
+          BuildInlinedConsumerPredicate(new_block_realize.get());
+    }
+    return std::move(new_block_realize);
+  }
 
   Stmt VisitStmt_(const BufferStoreNode* _store) final {
     BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_store));
@@ -506,8 +646,45 @@ class ReverseComputeInliner : public BaseInliner {
     return ReplaceInlinedBuffer(std::move(store));
   }
 
+  /*!
+   * \brief Check the consumer block iter domains are covered by the producer block iter domains
+   * \return Whether the consumer block iter domains are covered
+   */
+  bool CheckConsumerCovered() {
+    Map<IterVar, arith::IntSet> producer_iter_doms;
+    for (const IterVar& iter_var : producer_block_->iter_vars) {
+      producer_iter_doms.Set(iter_var, arith::IntSet::FromRange(iter_var->dom));
+    }
+    // For each block iter in the consumer block, find the corresponding expression in the producer
+    for (const IterVar& iter : consumer_block_->iter_vars) {
+      if (auto it = idx_sub_.find(iter->var.get()); it != idx_sub_.end()) {
+        const PrimExpr& producer_iter = it->second;
+        arith::IntSet producer_iter_range = arith::EvalSet(producer_iter, producer_iter_doms);
+        if (analyzer_.CanProve(producer_iter_range.min() > iter->dom->min) ||
+            analyzer_.CanProve(producer_iter_range.max() <
+                               iter->dom->min + iter->dom->extent - 1)) {
+          return false;
+        }
+      } else {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /*!
+   * \brief Apply the inverse of `buffer_load_iter_map_` to producer indices. Update `idx_sub_` with
+   *        the result. It will be later used to transform the BufferStore indices of the producer.
+   * \param producer_indices The BufferStore indices of the producer.
+   */
+  void CreateInverseMapping(const Array<PrimExpr> producer_indices) {
+    auto inverse_iter_map = arith::InverseAffineIterMap(buffer_load_iter_map_, producer_indices);
+    for (const auto& pair : inverse_iter_map) {
+      idx_sub_[pair.first.get()] = pair.second;
+    }
+  }
+
   Stmt ReplaceInlinedBuffer(BufferStore producer) {
-    SetIndexSubstitution(producer->indices);
     producer_rhs_ = producer->value;
     return Substituter(this)(GetRef<BufferStore>(inlined_store_));
   }
@@ -538,19 +715,51 @@ class ReverseComputeInliner : public BaseInliner {
     return std::move(extractor.result);
   }
 
+  /*!
+   * \brief Update `buffer_load_indices_` with the given indices. If `buffer_load_indices_` is
+   *        already non-empty, check it is consistent with the given indices.
+   * \param indices The indices
+   * \param expected_ndim The expected ndim of the access
+   * \return A boolean flag indicating if the check is successful
+   */
+  bool UpdateAndCheckIndexExprs(const Array<PrimExpr>& indices) {
+    if (buffer_load_indices_.empty()) {
+      buffer_load_indices_ = indices;
+    } else if (!std::equal(buffer_load_indices_.begin(), buffer_load_indices_.end(),
+                           indices.begin(), indices.end(), ExprDeepEqual())) {
+      // Failure: indices are not consistent in different BufferLoads
+      return false;
+    }
+    return true;
+  }
+
   /*! \brief The RHS value of the producer's BufferStore statement */
   PrimExpr producer_rhs_{nullptr};
+  /*! \brief The indices of the consumer's BufferLoad */
+  Array<PrimExpr> buffer_load_indices_;
+  /*! \brief The IterMap representing the indices of the consumer's BufferLoad */
+  Array<arith::IterSumExpr> buffer_load_iter_map_{nullptr};
+  /*! \brief The producer block */
+  const BlockNode* producer_block_{nullptr};
+  /* \brief The consumer block */
+  const BlockNode* consumer_block_{nullptr};
+  /*! \brief The predicate to ensure the consumer block iters are in-bound. It will be inserted
+   * as the predicate of the producer block after inlining.
+   */
+  PrimExpr consumer_iter_in_bound_{nullptr};
+  /*! \brief The arithmetic analyzer */
+  arith::Analyzer analyzer_;
 };
 
 void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
                        bool check_only = false) {
-  const BlockNode* _producer_block = TVM_SREF_TO_BLOCK(_producer_block, producer_block_sref);
+  const BlockNode* _producer_block = TVM_SREF_TO_BLOCK(producer_block_sref);
   Block producer_block = GetRef<Block>(_producer_block);
+  HasInitBlock::Check(self->mod, producer_block);
   Buffer inlined_buffer = NotSingleReadWriteBuffer::GetSingleWrite(self, producer_block);
   // Step 1. Get the scope block
-  StmtSRef scope_root_sref = GetScopeRoot(self, producer_block_sref,  //
-                                          /*require_stage_pipeline=*/true,
-                                          /*require_subtree_compact_dataflow=*/false);
+  StmtSRef scope_root_sref = GetScopeRoot(self, producer_block_sref,
+                                          /*require_stage_pipeline=*/true);
   // Step 2. Check completeness
   CheckNotOutputBlock(self, producer_block_sref, scope_root_sref);
   CheckCompleteBlock(self, producer_block_sref, scope_root_sref);
@@ -589,21 +798,24 @@ bool CanComputeInline(const ScheduleState& self, const StmtSRef& producer_block_
 
 void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block_sref,
                               bool check_only = false) {
-  const BlockNode* _consumer_block = TVM_SREF_TO_BLOCK(_consumer_block, consumer_block_sref);
+  const BlockNode* _consumer_block = TVM_SREF_TO_BLOCK(consumer_block_sref);
   Block consumer_block = GetRef<Block>(_consumer_block);
+  BlockRealize consumer_block_realize = GetBlockRealize(self, consumer_block_sref);
+  HasInitBlock::Check(self->mod, consumer_block);
   // Step 1. Get the scope block
   StmtSRef scope_root_sref = GetScopeRoot(self, consumer_block_sref,  //
-                                          /*require_stage_pipeline=*/true,
-                                          /*require_subtree_compact_dataflow=*/false);
+                                          /*require_stage_pipeline=*/true);
   Buffer inlined_buffer =
       NotSingleReadWriteBuffer::GetSingleRead(self, consumer_block, scope_root_sref);
   // Step 2. Check completeness
   CheckCompleteBlock(self, consumer_block_sref, scope_root_sref);
   // Step 3. Check if the consumer has a single complete producer
-  NonSingleProducerError::Check(self, consumer_block_sref, scope_root_sref);
+  StmtSRef producer_block_sref =
+      NonSingleProducerError::Check(self, consumer_block_sref, scope_root_sref);
   // Step 4. Analyze the block body
-  ReverseComputeInliner inliner(inlined_buffer, consumer_block, scope_root_sref);
-  if (!inliner.BodyPatternAllowInline(consumer_block)) {
+  ReverseComputeInliner inliner(inlined_buffer, producer_block_sref->StmtAs<BlockNode>(),
+                                consumer_block_realize, scope_root_sref);
+  if (!inliner.BodyPatternAllowInline(consumer_block_realize)) {
     throw BodyAnalysisError(true, self->mod, consumer_block);
   }
   // Step 5. Create a plan that removes the leaf block to be inlined

@@ -277,23 +277,23 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) 
   ICHECK_EQ(C->ndim, 3);
 
   int batch_size = BatchCount3D(C);
-  ICHECK_EQ(ElementStride(A), 1);
-  ICHECK_EQ(ElementStride(B), 1);
-  ICHECK_EQ(ElementStride(C), 1);
+  ICHECK_EQ(ElementStride3D(A), 1);
+  ICHECK_EQ(ElementStride3D(B), 1);
+  ICHECK_EQ(ElementStride3D(C), 1);
 
   ICHECK(TypeEqual(A->dtype, B->dtype));
 
   // C can never be transposed.
-  ICHECK(!IsInPlaceTransposed(C));
+  ICHECK(!IsInPlaceTransposed3D(C));
 
   // Reversed strides indicates an in-place transpose operation.
-  transa = IsInPlaceTransposed(A) ? !transa : transa;
-  transb = IsInPlaceTransposed(B) ? !transb : transb;
+  transa = IsInPlaceTransposed3D(A) ? !transa : transa;
+  transb = IsInPlaceTransposed3D(B) ? !transb : transb;
 
-  ICHECK(CheckMixPrecisionType(A->dtype, C->dtype, false)) << "Unsupported data type";
-  ICHECK(!TypeMatch(A->dtype, kDLInt, 8) || ColumnStride(A) % 4 == 0)
+  ICHECK(CheckMixPrecisionType(A->dtype, C->dtype, true)) << "Unsupported data type";
+  ICHECK(!TypeMatch(A->dtype, kDLInt, 8) || ColumnStride3D(A) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
-  ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride(B) % 4 == 0)
+  ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride3D(B) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
   double alpha = args.size() > 5 ? args[5] : 1.0;
   double beta = args.size() > 6 ? args[6] : 0.0;

@@ -25,8 +25,10 @@
 #include <tvm/meta_schedule/builder.h>
 #include <tvm/meta_schedule/cost_model.h>
 #include <tvm/meta_schedule/database.h>
+#include <tvm/meta_schedule/extracted_task.h>
 #include <tvm/meta_schedule/feature_extractor.h>
 #include <tvm/meta_schedule/measure_callback.h>
+#include <tvm/meta_schedule/profiler.h>
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/meta_schedule/search_strategy.h>
@@ -35,57 +37,125 @@
 #include <tvm/meta_schedule/tune_context.h>
 #include <tvm/node/node.h>
 #include <tvm/node/serialization.h>
+#include <tvm/runtime/container/optional.h>
 #include <tvm/support/parallel_for.h>
 #include <tvm/tir/schedule/schedule.h>
+#include <tvm/tir/transform.h>
 
+#include <algorithm>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../printer/text_printer.h"
 #include "../support/array.h"
 #include "../support/base64.h"
 #include "../support/nd_int_set.h"
+#include "../support/table_printer.h"
 #include "../support/utils.h"
 #include "../tir/schedule/primitive.h"
 #include "../tir/schedule/utils.h"
 
+#define TVM_PY_LOG(logging_level, logger)                                \
+  ::tvm::meta_schedule::PyLogMessage(__FILE__, __LINE__, logger,         \
+                                     PyLogMessage::Level::logging_level) \
+      .stream()
+#define TVM_PY_LOG_CLEAR_SCREEN(logging_func) clear_logging(__FILE__, __LINE__, logging_func)
+
 namespace tvm {
 namespace meta_schedule {
 
+/*!
+ * \brief Class to accumulate an log message on the python side. Do not use directly, instead use
+ * TVM_PY_LOG(DEBUG), TVM_PY_LOG(INFO), TVM_PY_LOG(WARNING), TVM_PY_ERROR(ERROR).
+ * \sa TVM_PY_LOG
+ * \sa TVM_PY_LOG_CLEAR_SCREEN
+ */
+class PyLogMessage {
+ public:
+  enum class Level : int32_t {
+    CLEAR = -10,
+    DEBUG = 10,
+    INFO = 20,
+    WARNING = 30,
+    ERROR = 40,
+    // FATAL not included
+  };
+
+  explicit PyLogMessage(const char* filename, int lineno, PackedFunc logger, Level logging_level)
+      : filename_(filename), lineno_(lineno), logger_(logger), logging_level_(logging_level) {}
+
+  TVM_NO_INLINE ~PyLogMessage() {
+    ICHECK(logging_level_ != Level::CLEAR)
+        << "Cannot use CLEAR as logging level in TVM_PY_LOG, please use TVM_PY_LOG_CLEAR_SCREEN.";
+    if (this->logger_ != nullptr) {
+      logger_(static_cast<int>(logging_level_), std::string(filename_), lineno_, stream_.str());
+    } else {
+      if (logging_level_ == Level::INFO) {
+        runtime::detail::LogMessage(filename_, lineno_).stream() << stream_.str();
+      } else if (logging_level_ == Level::WARNING) {
+        runtime::detail::LogMessage(filename_, lineno_).stream() << "Warning: " << stream_.str();
+      } else if (logging_level_ == Level::ERROR) {
+        runtime::detail::LogMessage(filename_, lineno_).stream() << "Error: " << stream_.str();
+      } else if (logging_level_ == Level::DEBUG) {
+        runtime::detail::LogMessage(filename_, lineno_).stream() << "Debug: " << stream_.str();
+      } else {
+        runtime::detail::LogFatal(filename_, lineno_).stream() << stream_.str();
+      }
+    }
+  }
+  std::ostringstream& stream() { return stream_; }
+
+ private:
+  const char* filename_;
+  int lineno_;
+  std::ostringstream stream_;
+  PackedFunc logger_;
+  Level logging_level_;
+};
+
+/*!
+ * \brief Whether the tuning is running on ipython kernel.
+ * \return A boolean indicating whether ipython kernel is used.
+ */
+inline bool using_ipython() {
+  bool flag = false;
+  const auto* f_using_ipython = runtime::Registry::Get("meta_schedule.using_ipython");
+  if (f_using_ipython) {
+    flag = (*f_using_ipython)();
+  }
+  return flag;
+}
+
+/*!
+ * \brief Print out the performance table interactively in jupyter notebook.
+ * \param str The serialized performance table.
+ */
+inline void print_interactive_table(const String& data) {
+  const auto* f_print_interactive_table =
+      runtime::Registry::Get("meta_schedule.print_interactive_table");
+  ICHECK(f_print_interactive_table->defined())
+      << "Cannot find print_interactive_table function in registry.";
+  (*f_print_interactive_table)(data);
+}
+
+/*!
+ * \brief A helper function to clear logging output for ipython kernel and console.
+ * \param file The file name.
+ * \param lineno The line number.
+ * \param logging_func The logging function.
+ */
+inline void clear_logging(const char* file, int lineno, PackedFunc logging_func) {
+  if (logging_func.defined() && using_ipython()) {
+    logging_func(static_cast<int>(PyLogMessage::Level::CLEAR), file, lineno, "");
+  } else {
+    // this would clear all logging output in the console
+    runtime::detail::LogMessage(file, lineno).stream() << "\033c\033[3J\033[2J\033[0m\033[H";
+  }
+}
+
 /*! \brief The type of the random state */
 using TRandState = support::LinearCongruentialEngine::TRandState;
-
-/*!
- * \brief Read lines from a json file.
- * \param path The path to the json file.
- * \param allow_missing Whether to create new file when the given path is not found.
- * \return An array containing lines read from the json file.
- */
-inline Array<String> JSONFileReadLines(const String& path, bool allow_missing) {
-  std::ifstream is(path);
-  if (is.good()) {
-    Array<String> results;
-    for (std::string str; std::getline(is, str);) {
-      results.push_back(str);
-    }
-    return results;
-  }
-  CHECK(allow_missing) << "ValueError: File doesn't exist: " << path;
-  std::ofstream os(path);
-  CHECK(os.good()) << "ValueError: Cannot create new file: " << path;
-  return {};
-}
-
-/*!
- * \brief Append a line to a json file.
- * \param path The path to the json file.
- * \param line The line to append.
- */
-inline void JSONFileAppendLine(const String& path, const std::string& line) {
-  std::ofstream os(path, std::ofstream::app);
-  CHECK(os.good()) << "ValueError: Cannot open the file to write: " << path;
-  os << line << std::endl;
-}
 
 /*!
  * \brief Get the base64 encoded result of a string.
@@ -116,31 +186,18 @@ inline std::string Base64Decode(std::string str) {
 }
 
 /*!
- * \brief Parse lines of json string into a json object.
- * \param lines The lines of json string.
- * \return Array of json objects parsed.
- * \note The function calls the python-side json parser in runtime registry.
+ * \brief Parses a json string into a json object.
+ * \param json_str The json string.
+ * \return The json object
  */
-inline Array<ObjectRef> JSONStr2Obj(const Array<String>& lines) {
-  static const runtime::PackedFunc* f_to_obj =
-      runtime::Registry::Get("meta_schedule.batch_json_str2obj");
-  ICHECK(f_to_obj) << "IndexError: Cannot find the packed function "
-                      "`meta_schedule.batch_json_str2obj` in the global registry";
-  return (*f_to_obj)(lines);
-}
+ObjectRef JSONLoads(std::string json_str);
 
 /*!
- * \brief Serialize a json object into a json string.
- * \param json_obj The json object to serialize.
- * \return A string containing the serialized json object.
- * \note The function calls the python-side json obj serializer in runtime registry.
+ * \brief Dumps a json object into a json string.
+ * \param json_obj The json object.
+ * \return The json string
  */
-inline String JSONObj2Str(const ObjectRef& json_obj) {
-  static const runtime::PackedFunc* f_to_str = runtime::Registry::Get("meta_schedule.json_obj2str");
-  ICHECK(f_to_str) << "IndexError: Cannot find the packed function "
-                      "`meta_schedule.json_obj2str` in the global registry";
-  return (*f_to_str)(json_obj);
-}
+std::string JSONDumps(ObjectRef json_obj);
 
 /*!
  * \brief Converts a structural hash code to string
@@ -150,45 +207,18 @@ inline String JSONObj2Str(const ObjectRef& json_obj) {
 inline String SHash2Str(Workload::THashCode hash_code) { return std::to_string(hash_code); }
 
 /*!
- * \brief Find the entry function of the given IRModule, i.e, functions marked by
- * `tir::attr::kIsEntryFunc`, whose name is `main` or being the only PrimeFunc.
- * \param mod The IRModule to find the entry function.
- * \return The entry function.
+ * \brief Converts an TVM object to the hex string representation of its structural hash.
+ * \param obj The TVM object.
+ * \return The hex string representation of the hash code.
  */
-inline tir::PrimFunc FindEntryFunc(const IRModule& mod) {
-  // Priority 1: PrimFunc marked as `tir::attr::kIsEntryFunc`
-  int num_prim_func = 0;
-  const tir::PrimFuncNode* main_func = nullptr;
-  const tir::PrimFuncNode* last_func = nullptr;
-  for (const auto& kv : mod->functions) {
-    GlobalVar gv = kv.first;
-    BaseFunc base_func = kv.second;
-    if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
-      last_func = func;
-      if (func->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
-        return GetRef<tir::PrimFunc>(func);
-      }
-      if (gv->name_hint == "main") {
-        main_func = func;
-      }
-      ++num_prim_func;
-    }
+inline String SHash2Hex(const ObjectRef& obj) {
+  std::ostringstream os;
+  size_t hash_code = 0;
+  if (obj.defined()) {
+    hash_code = StructuralHash()(obj);
   }
-  // Priority 2: PrimFunc whose name is `main`
-  if (main_func != nullptr) {
-    return GetRef<tir::PrimFunc>(main_func);
-  }
-  // Priority 3: The only PrimFunc in the IRModule
-  if (num_prim_func == 0) {
-    LOG(FATAL) << "ValueError: Cannot find any PrimFunc in the given IRModule: "
-               << tir::AsTVMScript(mod);
-  }
-  if (num_prim_func > 1) {
-    LOG(FATAL) << "ValueError: Multiple PrimFuncs exist in the IRModule, but none of them are "
-                  "annotated with `kIsEntryFunc`, i.e. `tir.is_entry_func`"
-               << tir::AsTVMScript(mod);
-  }
-  return GetRef<tir::PrimFunc>(last_func);
+  os << "0x" << std::setw(16) << std::setfill('0') << std::hex << hash_code;
+  return os.str();
 }
 
 /*!
@@ -255,7 +285,7 @@ inline std::string Concat(const Array<String>& strs, const std::string& delim) {
  */
 inline tir::BlockRV GetRVFromSRef(const tir::Schedule& sch, const tir::StmtSRef& block_sref,
                                   const String& global_var_name) {
-  const tir::BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const tir::BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   return sch->GetBlock(block->name_hint, global_var_name);
 }
 
@@ -290,12 +320,20 @@ struct ThreadedTraceApply {
                               /*rand_state=*/ForkSeed(rand_state),
                               /*debug_mode=*/0,
                               /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
+
     trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
     sch->EnterPostproc();
+
     for (int i = 0; i < n_; ++i) {
       Item& item = items_[i];
-      if (!item.postproc->Apply(sch)) {
-        ++item.fail_counter;
+      try {
+        if (!item.postproc->Apply(sch)) {
+          ++item.fail_counter;
+          return NullOpt;
+        }
+      } catch (const std::exception& e) {
+        // Used in multi-thread, only output to screen but failure summary sent to logging
+        LOG(WARNING) << "ThreadedTraceApply::Apply failed with error " << e.what();
         return NullOpt;
       }
     }
@@ -337,7 +375,7 @@ struct ThreadedTraceApply {
  * \return The number of cores.
  */
 inline int GetTargetNumCores(const Target& target) {
-  int num_cores = target->GetAttr<Integer>("num-cores").value_or(-1);
+  int num_cores = target->GetAttr<Integer>("num-cores").value_or(-1).IntValue();
   if (num_cores == -1) {
     static const auto* f_cpu_count = runtime::Registry::Get("meta_schedule.cpu_count");
     ICHECK(f_cpu_count)
@@ -349,6 +387,125 @@ inline int GetTargetNumCores(const Target& target) {
         << num_cores << "\"";
   }
   return num_cores;
+}
+
+/*!
+ * \brief Get the median of the running time from RunnerResult in millisecond
+ * \param results The results from RunnerResult
+ * \return The median of the running time in millisecond
+ */
+inline double GetRunMsMedian(const RunnerResult& runner_result) {
+  Array<FloatImm> run_secs = runner_result->run_secs.value();
+  ICHECK(!run_secs.empty());
+  std::vector<double> v;
+  v.reserve(run_secs.size());
+  std::transform(run_secs.begin(), run_secs.end(), std::back_inserter(v),
+                 [](const FloatImm& f) -> double { return f->value; });
+  std::sort(v.begin(), v.end());
+  int n = v.size();
+  if (n % 2 == 0) {
+    return (v[n / 2 - 1] + v[n / 2]) * 0.5 * 1000.0;
+  } else {
+    return v[n / 2] * 1000.0;
+  }
+}
+
+/*!
+ * \brief Convert the given object to an array of floating point numbers
+ * \param obj The object to be converted
+ * \return The array of floating point numbers
+ */
+inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
+  const ArrayNode* arr = obj.as<ArrayNode>();
+  ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
+  Array<FloatImm> results;
+  results.reserve(arr->size());
+  for (const ObjectRef& elem : *arr) {
+    if (const auto* int_imm = elem.as<IntImmNode>()) {
+      results.push_back(FloatImm(DataType::Float(32), int_imm->value));
+    } else if (const auto* float_imm = elem.as<FloatImmNode>()) {
+      results.push_back(FloatImm(DataType::Float(32), float_imm->value));
+    } else {
+      LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: " << elem->GetTypeKey();
+    }
+  }
+  return results;
+}
+
+/*!
+ * \brief Convert the given object to an array of integers
+ * \param obj The object to be converted
+ * \return The array of integers
+ */
+inline Array<Integer> AsIntArray(const ObjectRef& obj) {
+  const ArrayNode* arr = obj.as<ArrayNode>();
+  ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
+  Array<Integer> results;
+  results.reserve(arr->size());
+  for (const ObjectRef& elem : *arr) {
+    if (const auto* int_imm = elem.as<IntImmNode>()) {
+      results.push_back(Integer(int_imm->value));
+    } else {
+      LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << elem->GetTypeKey();
+    }
+  }
+  return results;
+}
+
+/*! \brief The struct defining comparison function of sorting by mean run seconds. */
+struct SortTuningRecordByMeanRunSecs {
+  static const constexpr double kMaxMeanTime = 1e10;
+
+  static double Mean(const Array<FloatImm>& a) {
+    if (a.empty()) {
+      return kMaxMeanTime;
+    }
+    double sum = 0.0;
+    for (const FloatImm& i : a) {
+      sum += i->value;
+    }
+    return sum / a.size();
+  }
+
+  bool operator()(const TuningRecord& a, const TuningRecord& b) const {
+    double a_time = Mean(a->run_secs.value_or({}));
+    double b_time = Mean(b->run_secs.value_or({}));
+    return a_time < b_time;
+  }
+};
+
+/*!
+ * \brief The helper function to clone schedule rules, postprocessors, and mutators.
+ * \param src The source space generator.
+ * \param dst The destination space generator.
+ */
+inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
+  if (src->sch_rules.defined()) {
+    Array<ScheduleRule> original = src->sch_rules.value();
+    Array<ScheduleRule> sch_rules;
+    sch_rules.reserve(original.size());
+    for (const ScheduleRule& sch_rule : original) {
+      sch_rules.push_back(sch_rule->Clone());
+    }
+    dst->sch_rules = std::move(sch_rules);
+  }
+  if (src->postprocs.defined()) {
+    Array<Postproc> original = src->postprocs.value();
+    Array<Postproc> postprocs;
+    postprocs.reserve(original.size());
+    for (const Postproc& postproc : original) {
+      postprocs.push_back(postproc->Clone());
+    }
+    dst->postprocs = std::move(postprocs);
+  }
+  if (src->mutator_probs.defined()) {
+    Map<Mutator, FloatImm> original = src->mutator_probs.value();
+    Map<Mutator, FloatImm> mutator_probs;
+    for (const auto& kv : original) {
+      mutator_probs.Set(kv.first->Clone(), kv.second);
+    }
+    dst->mutator_probs = std::move(mutator_probs);
+  }
 }
 
 }  // namespace meta_schedule

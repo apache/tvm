@@ -443,7 +443,7 @@ class BaseGraphTuner(object):
             Accept a user-supplied runner
         """
         self._logger.info("Start to benchmark layout transformation...")
-        self._target, target_host = Target.check_and_update_host_consist(self._target, target_host)
+        self._target, target_host = Target.canon_target_and_host(self._target, target_host)
 
         if layout_records is None and infer_layout:
             raise RuntimeError("Requires some records to infer layout transformation time.")

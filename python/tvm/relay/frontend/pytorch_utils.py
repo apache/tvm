@@ -31,12 +31,26 @@ from ..dataflow_pattern import (
 
 
 def is_version_greater_than(ver):
+    """
+    Returns True if the local PyTorch version is greater
+    than the one given as an argument.
+    """
     import torch
-    import re
+    from distutils.version import LooseVersion
 
-    return int("".join(re.findall(r"(\d+)\.(\d+)\.(\d)", torch.__version__)[0])) > int(
-        "".join(re.findall(r"(\d+)\.(\d+)\.(\d)", ver)[0])
-    )
+    torch_ver = torch.__version__
+    # PT version numbers can include +cu[cuda version code]
+    # and we don't want to include that in the comparison
+    if "+cu" in torch_ver:
+        torch_ver = torch_ver.split("+cu")[0]
+
+    return LooseVersion(torch_ver) > ver
+
+
+def getattr_attr_name(node):
+    attribute_names = node.attributeNames()
+    assert len(attribute_names) == 1
+    return node.s(attribute_names[0])
 
 
 def dyn_strided_slice_pattern(inp, end):

@@ -16,6 +16,8 @@
 # under the License.
 import tvm
 from tvm import te
+from tvm.script import tir as T
+import tvm.testing
 
 
 def nop():
@@ -54,7 +56,7 @@ def test_remove_no_op():
     ret = tvm.tir.transform.RemoveNoOp()(mod)["main"].body
 
     assert isinstance(ret, tvm.tir.Evaluate)
-    store = tvm.tir.Store(Ab.data, tvm.tir.Load(dtype, Ab.data, i) + 1, i + 1)
+    store = tvm.tir.BufferStore(Ab, tvm.tir.BufferLoad(Ab, [i]) + 1, [i + 1])
     stmt2 = tvm.tir.SeqStmt([nop(), tvm.tir.SeqStmt([store, nop()])])
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt2))
@@ -68,5 +70,17 @@ def test_remove_no_op():
     assert isinstance(ret, tvm.tir.Evaluate)
 
 
+def test_remove_no_op_with_invalid_extent():
+    @T.prim_func
+    def main(A: T.Buffer[(16), "int32"], B: T.Buffer[(16), "int32"]) -> None:
+        for i in T.serial(16):
+            for j in T.serial(i - 20):
+                B[i] = A[i] + j
+
+    mod = tvm.ir.module.IRModule.from_expr(main)
+    ret = tvm.tir.transform.RemoveNoOp()(mod)["main"].body
+    assert isinstance(ret, tvm.tir.Evaluate)
+
+
 if __name__ == "__main__":
-    test_remove_no_op()
+    tvm.testing.main()

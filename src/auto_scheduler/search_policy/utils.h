@@ -48,27 +48,24 @@ namespace auto_scheduler {
 
 /*! \brief Return whether the search task is targeting a CPU. */
 inline bool IsCPUTask(const SearchTask& task) {
-  return (task)->target->kind->device_type == kDLCPU;
+  return (task)->target->GetTargetDeviceType() == kDLCPU;
 }
 
 /*! \brief Return whether the search task is targeting a GPU. */
 inline bool IsGPUTask(const SearchTask& task) {
-  return (task)->target->kind->device_type == kDLCUDA ||
-         (task)->target->kind->device_type == kDLOpenCL ||
-         (task)->target->kind->device_type == kDLVulkan ||
-         (task)->target->kind->device_type == kDLMetal ||
-         (task)->target->kind->device_type == kDLROCM ||
-         (task)->target->kind->device_type == kOpenGL;
+  int device_type = (task)->target->GetTargetDeviceType();
+  return device_type == kDLCUDA || device_type == kDLOpenCL || device_type == kDLVulkan ||
+         device_type == kDLMetal || device_type == kDLROCM || device_type == kOpenGL;
 }
 
 /*! \brief Return whether the search task is targeting a CUDA GPU. */
 inline bool IsCUDATask(const SearchTask& task) {
-  return (task)->target->kind->device_type == kDLCUDA;
+  return (task)->target->GetTargetDeviceType() == kDLCUDA;
 }
 
 /*! \brief Return whether the search task is targeting a OpenCL GPU. */
 inline bool IsOpenCLTask(const SearchTask& task) {
-  return (task)->target->kind->device_type == kDLOpenCL;
+  return (task)->target->GetTargetDeviceType() == kDLOpenCL;
 }
 
 /*! \brief Argsort. Order: largest to smallest */

@@ -91,7 +91,7 @@ class VMCompiler : public runtime::ModuleNode {
 
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
-  const char* type_key() const { return "VMCompiler"; }
+  const char* type_key() const final { return "VMCompiler"; }
 
   /*!
    * \brief Set the parameters
@@ -106,38 +106,50 @@ class VMCompiler : public runtime::ModuleNode {
    *
    * ----------------------------------------------------------------------------------
    * | This is the main entry point for the VM compilation flow.                      |
-   * |  - Preceded by \p SetParam for the global params.                             |
+   * |  - Preceded by \p SetParam for the global params.                              |
    * |  - Followed by \p Codegen() to finalize the executable.                        |
-   * |  - Then the result runtime::Module can be constructed from the internal exec_. |
+   * |  - Then the result runtime::Module can be constructed by GetExecutable.        |
    * ----------------------------------------------------------------------------------
    *
    * \param mod Relay Module
-   * \param targets For heterogeneous compilation, it is a dictionary indicating device type
-   *                to target mapping. For homogeneous compilation, it is a singleton build target.
-   * \param target_host Host compilation target, if target is device.
+   * \param raw_targets List of available targets for running kernels. Any host target should
+   * be conveyed by the 'host' target field.
    */
-  void Lower(IRModule mod, TargetMap targets, Target target_host);
+  void Lower(IRModule mod, const Array<Target>& raw_targets);
+
+  /*
+   * \brief Perform a series of optimizations on the input IR module. Can be used instead
+   * of Lower if wish to stop and observe optimized IRModule. Otherwise not needed on
+   * regular compilation flow.
+   *
+   * \param mod The input IRModule.
+   * \param raw_targets List of available target for running kernels.
+   *
+   * \return The optimized IRModule.
+   */
+  IRModule OptimizeModule(IRModule mod, const Array<Target>& raw_targets);
 
   /*! \brief Generate the machine code for lowered functions. */
   void Codegen();
 
- protected:
-  /*
-   * \brief Perform a series of optimizations on the input IR module.
-   *
-   * \param mod The input IRModule.
-   * \param targets For heterogeneous compilation, it is a dictionary indicating device type
-   *                to target mapping. For homogeneous compilation, it is a singleton build target.
-   * \param target_host Host compilation target.
-   *
-   * \return The optimized IRModule.
-   */
-  IRModule OptimizeModule(IRModule mod, const TargetMap& targets, const Target& target_host);
+  /*! \brief Returns the runtime::Module containing the compiled VM code. */
+  runtime::Module GetExecutable() const;
 
+ protected:
+  /*! \brief Builds the executor and compilation config to match \p raw_targets. */
+  void Setup(const Array<Target>& raw_targets);
+
+  /*! \brief Internal implementation of \p Lower. */
+  void LowerImpl(IRModule mod);
+
+  /*! \brief Internal implementation of \p OptimizeModule. */
   IRModule OptimizeModuleImpl(IRModule mod);
 
-  transform::Sequential MemoryOpt(const VirtualDevice& host_virtual_device);
-  transform::Sequential FuseAndLowerOperators(const VirtualDevice& host_virtual_device);
+  /*! \brief Returns the passes which layout memory. */
+  transform::Sequential MemoryOpt(const CompilationConfig& config);
+
+  /*! \brief Returns the passes which fuse then lower Relay primitive operators. */
+  transform::Sequential FuseAndLowerOperators(const CompilationConfig& config);
 
   /*!
    * \brief Populate the global function names in a map where the value is used

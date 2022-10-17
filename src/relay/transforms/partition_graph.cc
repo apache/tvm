@@ -213,9 +213,8 @@ class Partitioner : public MixedModeMutator {
     auto glob_funcs = module_->functions;
     for (const auto& pair : glob_funcs) {
       if (auto* fn = pair.second.as<FunctionNode>()) {
-        auto func = GetRef<Function>(fn);
-        func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
-                        func->attrs);
+        Function func = GetRef<Function>(fn);
+        func = WithFields(func, func->params, VisitExpr(func->body));
         module_->Update(pair.first, func);
         module_ = transform::InferType()(module_);
       }
@@ -334,14 +333,15 @@ class Partitioner : public MixedModeMutator {
         WithAttr(std::move(global_region_func), attr::kCompiler, tvm::runtime::String(target));
     global_region_func = WithAttr(std::move(global_region_func), attr::kInline, tvm::Integer(1));
 
-    std::string fname = name;
-    ICHECK(!module_->ContainGlobalVar(fname)) << "Global function " << fname << " already exists";
+    GlobalVarSupply global_var_supply = GlobalVarSupply(module_);
+    GlobalVar glob_func = global_var_supply->FreshGlobal(name, false);
+    ICHECK(!module_->ContainGlobalVar(glob_func->name_hint))
+        << "Global function " << glob_func->name_hint << " already exists";
     // Create a global function and add it to the IRModule for the region.
     // This way we lift the functions that should be handled by external
     // codegen to the module scope and rely on the pass manager to prevent
     // relay function level passes (i.e. simplify inference and fusion)
     // optimizing it.
-    GlobalVar glob_func(fname);
     module_->Add(glob_func, global_region_func);
     module_ = relay::transform::InferType()(module_);
 
@@ -429,7 +429,7 @@ IRModule RemoveDefaultAnnotations(IRModule module) {
       auto func = GetRef<Function>(fn);
       DefaultRemover remover;
       auto removed = PostOrderRewrite(func->body, &remover);
-      func = Function(func->params, removed, func->ret_type, func->type_params, func->attrs);
+      func = WithFields(func, func->params, removed);
       module->Update(pair.first, func);
       module = relay::transform::InferType()(module);
     }
@@ -482,10 +482,10 @@ IRModule FlattenTupleOutputs(IRModule module) {
   module.CopyOnWrite();
   for (const auto& pair : glob_funcs) {
     if (auto* fn = pair.second.as<FunctionNode>()) {
-      auto func = GetRef<Function>(fn);
+      Function func = GetRef<Function>(fn);
       TupleOutFlattener to_flattener;
       auto removed = PostOrderRewrite(func->body, &to_flattener);
-      func = Function(func->params, removed, func->ret_type, func->type_params, func->attrs);
+      func = WithFields(func, func->params, removed);
       module->Update(pair.first, func);
       module = relay::transform::InferType()(module);
     }
@@ -527,12 +527,12 @@ class NameMangleExtFuncs : public MixedModeMutator {
           auto new_dict = func->attrs->dict;
           new_dict.Set(tvm::attr::kGlobalSymbol,
                        String(relay::backend::SanitizeName(mangle_fn_(pair.first->name_hint))));
-          func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
-                          DictAttrs(new_dict));
+          func = WithFields(func, func->params, VisitExpr(func->body), func->ret_type,
+                            func->type_params, DictAttrs(new_dict));
+
           new_module->Add(mangled_gvars_[pair.first->name_hint], func);
         } else {
-          func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
-                          func->attrs);
+          func = WithFields(func, func->params, VisitExpr(func->body));
           new_module->Add(pair.first, func);
         }
       }

@@ -42,7 +42,9 @@ def test_lower_warp_memory_local_scope():
 
     cuda_target = tvm.target.Target("cuda")
     assert cuda_target.thread_warp_size == 32
-    mod = tvm.lower(s, [A, B], name="f")
+    # lowering with the CSE pass disabled as otherwise it would do some commoning
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        mod = tvm.lower(s, [A, B], name="f")
 
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", cuda_target))(mod)
     fdevice = tvm.tir.transform.SplitHostDevice()(mod)["f_kernel0"]
@@ -117,7 +119,9 @@ def test_lower_warp_memory_cuda_end_to_end():
             s[AA].bind(xi, tx)
 
             dev = tvm.cuda(0)
-            func = tvm.build(s, [A, B], "cuda")
+            # building with the CSE pass disabled as otherwise it would do some commoning
+            with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+                func = tvm.build(s, [A, B], "cuda")
             A_np = np.array(list(range(m)), dtype=dtype)
             B_np = np.array(
                 list(range(1, 32))
@@ -184,7 +188,9 @@ def test_lower_warp_memory_cuda_half_a_warp():
             s[AA].bind(x, tx)
 
             dev = tvm.cuda(0)
-            func = tvm.build(s, [A, B], "cuda")
+            # building with the CSE pass disabled as otherwise it would do some commoning
+            with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+                func = tvm.build(s, [A, B], "cuda")
             A_np = np.array([list(range(i, m + i)) for i in range(n)], dtype=dtype)
             B_np = np.array([list(range(1 + i, m + i)) + [i] for i in range(n)], dtype=dtype)
             A_nd = tvm.nd.array(A_np, dev)
@@ -231,7 +237,9 @@ def test_lower_warp_memory_cuda_2_buffers():
             s[BB].bind(xi, tx)
 
             dev = tvm.cuda(0)
-            func = tvm.build(s, [A, B, C], "cuda")
+            # building with the CSE pass disabled as otherwise it would do some commoning
+            with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+                func = tvm.build(s, [A, B, C], "cuda")
             AB_np = np.array(list(range(m)), dtype=dtype)
             C_np = np.array(list(range(1, m)) + [0], dtype=dtype) * 2
             A_nd = tvm.nd.array(AB_np, dev)
@@ -263,7 +271,9 @@ def test_lower_warp_memory_roundup():
             s[AA].compute_at(s[B], xo)
 
             dev = tvm.device(device, 0)
-            func = tvm.build(s, [A, B], device)
+            # building with the CSE pass disabled as otherwise it would do some commoning
+            with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+                func = tvm.build(s, [A, B], device)
             A_np = np.random.uniform(size=(m,)).astype(A.dtype)
             B_np = np.zeros(shape=(m,)).astype(B.dtype)
             A_nd = tvm.nd.array(A_np, dev)
@@ -303,7 +313,9 @@ def test_lower_warp_memory_same_thread():
 
     cuda_target = tvm.target.Target("cuda")
     assert cuda_target.thread_warp_size == 32
-    mod = tvm.lower(s, [A, B], name="f")
+    # lowering with the CSE pass disabled as otherwise it would do some commoning
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        mod = tvm.lower(s, [A, B], name="f")
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", cuda_target))(mod)
     fdevice = tvm.tir.transform.SplitHostDevice()(mod)["f_kernel0"]
     mod = tvm.IRModule.from_expr(fdevice)
@@ -328,7 +340,9 @@ def test_lower_warp_memory_divide_by_factor():
     func = tvm.tir.PrimFunc([], stmt)
     func = func.with_attr("from_legacy_te_schedule", True)
     cuda_target = tvm.target.Target("cuda")
-    mod = tvm.lower(func, name="f")
+    # lowering with the CSE pass disabled as otherwise it would do some commoning
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        mod = tvm.lower(func, name="f")
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", cuda_target))(mod)
     with pytest.raises(tvm.error.TVMError, match="Divide by zero") as cm:
         tvm.tir.transform.LowerWarpMemory()(mod)["f_kernel0"]

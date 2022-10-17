@@ -20,8 +20,10 @@ from io import StringIO
 import csv
 import os
 import json
+import platform
 
 import tvm.testing
+import tvm.utils
 from tvm.runtime import profiler_vm
 from tvm import relay
 from tvm.relay.testing import mlp
@@ -51,6 +53,7 @@ def read_csv(report):
 
 
 @pytest.mark.skipif(not profiler_vm.enabled(), reason="VM Profiler not enabled")
+@tvm.testing.skip_if_wheel_test
 @tvm.testing.parametrize_targets
 def test_vm(target, dev):
     dtype = "float32"
@@ -67,6 +70,7 @@ def test_vm(target, dev):
     assert "Total" in str(report)
     assert "AllocTensorReg" in str(report)
     assert "AllocStorage" in str(report)
+    assert report.configuration["Executor"] == "VM"
 
     csv = read_csv(report)
     assert "Hash" in csv.keys()
@@ -100,6 +104,7 @@ def test_graph_executor(target, dev):
     assert "fused_nn_softmax" in str(report)
     assert "Total" in str(report)
     assert "Hash" in str(report)
+    assert "Graph" in str(report)
 
 
 @tvm.testing.parametrize_targets("cuda", "llvm")
@@ -122,7 +127,7 @@ def test_papi(target, dev):
 
     data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=dev)
     report = vm.profile(
-        [data],
+        data,
         func_name="main",
         collectors=[tvm.runtime.profiling.PAPIMetricCollector({dev: [metric]})],
     )
@@ -145,6 +150,7 @@ def test_json():
     parsed = json.loads(report.json())
     assert "device_metrics" in parsed
     assert "calls" in parsed
+    assert "configuration" in parsed
     assert "Duration (us)" in parsed["calls"][0]
     assert "microseconds" in parsed["calls"][0]["Duration (us)"]
     assert len(parsed["calls"]) > 0
@@ -258,7 +264,4 @@ def test_profile_function(target, dev):
 
 
 if __name__ == "__main__":
-    import sys
-    import pytest
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()
