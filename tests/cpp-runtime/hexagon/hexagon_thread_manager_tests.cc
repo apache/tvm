@@ -163,12 +163,15 @@ TEST_F(HexagonThreadManagerTest, pipe_fill) {
 }
 
 TEST_F(HexagonThreadManagerTest, pipe_overflow) {
+  bool space;
   // fill the pipe
-  for (int i = 0; i < pipe_size; ++i) {
-    htm->Dispatch(streams[0], get_the_answer, &answer);
+  for (int i = 0; i < (pipe_size * 3); ++i) {
+    space = htm->Dispatch(streams[0], get_the_answer, &answer);
+    if (!space) {
+      break;
+    }
   }
   // overflow the pipe
-  bool space = htm->Dispatch(streams[0], get_the_answer, &answer);
   CHECK_EQ(space, false);
 }
 
