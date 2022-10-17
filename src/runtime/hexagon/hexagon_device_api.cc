@@ -90,23 +90,19 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
 
   const size_t typesize = (dtype.bits / 8) * dtype.lanes;
 
-  CHECK(runtime_hexbuffs) << "Attempted to allocate Hexagon data with "
-                          << "HexagonDeviceAPI::AllocDataSpace before initializing resources.  "
-                          << "Please call HexagonDeviceAPI::AcquireResources";
-
   if (ndim == 0) {
     // Allocate storage for a single scalar value.
-    return runtime_hexbuffs->AllocateHexagonBuffer(typesize, kHexagonAllocAlignment, mem_scope);
+    return runtime_hexbuffs.AllocateHexagonBuffer(typesize, kHexagonAllocAlignment, mem_scope);
   } else if (ndim == 1) {
     // Allocate a single, contiguous memory region.
     size_t nbytes = shape[0] * typesize;
-    return runtime_hexbuffs->AllocateHexagonBuffer(nbytes, kHexagonAllocAlignment, mem_scope);
+    return runtime_hexbuffs.AllocateHexagonBuffer(nbytes, kHexagonAllocAlignment, mem_scope);
   } else if (ndim == 2) {
     // Allocate the region(s) needed for Hexagon's indirect-tensor format.
     size_t nallocs = shape[0];
     size_t nbytes = shape[1] * typesize;
-    return runtime_hexbuffs->AllocateHexagonBuffer(nallocs, nbytes, kHexagonAllocAlignment,
-                                                   mem_scope);
+    return runtime_hexbuffs.AllocateHexagonBuffer(nallocs, nbytes, kHexagonAllocAlignment,
+                                                  mem_scope);
   } else {
     return nullptr;  // unreachable
   }
@@ -120,27 +116,13 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignme
   if (alignment < kHexagonAllocAlignment) {
     alignment = kHexagonAllocAlignment;
   }
-  CHECK(runtime_hexbuffs) << "Attempted to allocate Hexagon data with "
-                          << "HexagonDeviceAPI::AllocDataSpace before initializing resources.  "
-                          << "Please call HexagonDeviceAPI::AcquireResources";
-  return runtime_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, String("global"));
+  return runtime_hexbuffs.AllocateHexagonBuffer(nbytes, alignment, String("global"));
 }
 
 void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
   CHECK(ptr) << "buffer pointer is null";
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  if (runtime_hexbuffs) {
-    runtime_hexbuffs->FreeHexagonBuffer(ptr);
-  } else {
-    // Either AcquireResources was never called, or ReleaseResources was called.  Check the
-    // list of buffers that were still allocated at the time of release.  If this buffer is
-    // in that list, this is a no-op as it is being freed as part of another object teardown.
-    // If the pointer isn't in that list, we raise an exception as this is an unexpected Free.
-    auto it = std::find(released_runtime_buffers.begin(), released_runtime_buffers.end(), ptr);
-    CHECK(it != released_runtime_buffers.end()) << "Attempted to free Hexagon data with "
-                                                << "HexagonDeviceAPI::FreeDataSpace that was not "
-                                                << "allocated during the session.";
-  }
+  runtime_hexbuffs.FreeHexagonBuffer(ptr);
 }
 
 void* HexagonDeviceAPI::AllocRpcBuffer(size_t nbytes, size_t alignment) {
@@ -167,10 +149,7 @@ void* HexagonDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_
 
 void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  CHECK(runtime_hexbuffs) << "Attempted to free Hexagon workspace with "
-                          << "HexagonDeviceAPI::FreeWorkspace outside of a session.  "
-                          << "Please call HexagonDeviceAPI::AcquireResources";
-  CHECK(runtime_hexbuffs->count(data) != 0)
+  CHECK(runtime_hexbuffs.count(data) != 0)
       << "Attempt made to free unknown or already freed workspace allocation";
   dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
@@ -193,12 +172,9 @@ void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHan
   CHECK_EQ(from->byte_offset, 0);
   CHECK_EQ(to->byte_offset, 0);
   CHECK_EQ(GetDataSize(*from), GetDataSize(*to));
-  CHECK(runtime_hexbuffs) << "Attempted to copy Hexagon data with "
-                          << "HexagonDeviceAPI::CopyDataFromTo before initializing resources.  "
-                          << "Please call HexagonDeviceAPI::AcquireResources";
 
   auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* {
-    return runtime_hexbuffs->find(ptr);
+    return runtime_hexbuffs.find(ptr);
   };
 
   HexagonBuffer* hex_from_buf = lookup_hexagon_buffer(from->data);
