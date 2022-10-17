@@ -26,7 +26,7 @@ from .database import Database
 
 @register_object("meta_schedule.JSONDatabase")
 class JSONDatabase(Database):
-    """The class of tuning records.
+    """Database class backed by JSON.
 
     Parameters
     ----------
@@ -34,6 +34,10 @@ class JSONDatabase(Database):
         The path to the workload table.
     path_tuning_record : str
         The path to the tuning record table.
+    module_equality : Optional[str]
+        A string to specify the module equality testing and hashing method.
+        It must be one of the followings:
+          - "structural": Use StructuralEqual/Hash
     """
 
     path_workload: str
@@ -46,6 +50,7 @@ class JSONDatabase(Database):
         *,
         work_dir: Optional[str] = None,
         allow_missing: bool = True,
+        module_equality: str = "structural",
     ) -> None:
         """Constructor.
 
@@ -77,4 +82,5 @@ class JSONDatabase(Database):
             path_workload,
             path_tuning_record,
             allow_missing,
+            module_equality,
         )

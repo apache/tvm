@@ -23,9 +23,21 @@ from .database import Database
 
 @register_object("meta_schedule.MemoryDatabase")
 class MemoryDatabase(Database):
-    """An in-memory database"""
+    """An in-memory database
 
-    def __init__(self) -> None:
+    Parameters
+    ----------
+    module_equality : Optional[str]
+        A string to specify the module equality testing and hashing method.
+        It must be one of the followings:
+          - "structural": Use StructuralEqual/Hash
+    """
+
+    def __init__(
+        self,
+        module_equality: str = "structural",
+    ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.DatabaseMemoryDatabase,  # type: ignore # pylint: disable=no-member
+            _ffi_api.DatabaseMemoryDatabase,  # type: ignore # pylint: disable=no-member,
+            module_equality,
         )
