@@ -154,15 +154,13 @@ class IndexMapEvaluator : public DataTypeLegalizer {
  public:
   explicit IndexMapEvaluator(const IndexMap& index_map) : index_map_(index_map) {}
 
-  Array<PrimExpr> Eval(const Array<PrimExpr>& arguments, arith::Analyzer* analyzer) {
+  Array<PrimExpr> Eval(const Array<PrimExpr>& arguments) {
     var_map_.clear();
     ICHECK_EQ(arguments.size(), index_map_->initial_indices.size());
     for (int i = 0; i < static_cast<int>(arguments.size()); ++i) {
       var_map_.Set(index_map_->initial_indices[i], arguments[i]);
     }
-    Array<PrimExpr> result = index_map_->final_indices;
-    result.MutateByApply([&](PrimExpr expr) { return analyzer->Simplify(this->VisitExpr(expr)); });
-    return result;
+    return index_map_->final_indices.Map([&](const PrimExpr& e) { return this->VisitExpr(e); });
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
@@ -193,18 +191,16 @@ Array<PrimExpr> IndexMapNode::MapIndices(const Array<PrimExpr>& indices,
     analyzer = &local_analyzer;
   }
 
-  Array<PrimExpr> output = IndexMapEvaluator(GetRef<IndexMap>(this)).Eval(indices, analyzer);
-  return output;
+  Array<PrimExpr> output = IndexMapEvaluator(GetRef<IndexMap>(this)).Eval(indices);
+  return output.Map([&](const PrimExpr& e) { return analyzer->Simplify(e); });
 }
 
 Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer* analyzer) const {
   ICHECK_EQ(ranges.size(), initial_indices.size());
 
   Map<Var, Range> input_iters;
-  int max_bits = 0;
   for (size_t i = 0; i < initial_indices.size(); i++) {
     input_iters.Set(initial_indices[i], ranges[i]);
-    max_bits = std::max(max_bits, ranges[i]->extent.dtype().bits());
   }
 
   arith::Analyzer local_analyzer;
@@ -249,7 +245,13 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer
                                             analyzer->Simplify(int_set.max() - int_set.min() + 1)));
     }
   }
-  auto output_dtype = DataType::Int(max_bits);
+  auto output_dtype = [&]() {
+    int max_bits = 0;
+    for (const auto& range : ranges) {
+      max_bits = std::max(max_bits, range->extent.dtype().bits());
+    }
+    return DataType::Int(max_bits);
+  }();
   output.MutateByApply([&](const Range& range) {
     if (range->min.dtype() != output_dtype || range->extent.dtype() != output_dtype) {
       return Range::FromMinExtent(cast(output_dtype, range->min),
