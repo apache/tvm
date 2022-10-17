@@ -98,11 +98,11 @@ class PopenWorker:
         i.e. killed and restarted. If `None`, the process will be reused until
         an operation times out.
 
-    stdout: subprocess.PIPE or None
-        The standard output streams handler for the popen process.
+    stdout: Union[None, int, IO[Any]]
+        The standard output streams handler specified for the popen process.
 
-    stderr: subprocess.PIPE or None
-        The standard error streams handler for the popen process.
+    stderr: Union[None, int, IO[Any]]
+        The standard error streams handler specified for the popen process.
     """
 
     def __init__(self, initializer=None, initargs=(), maximum_uses=None, stdout=None, stderr=None):
@@ -331,11 +331,11 @@ class PopenPoolExecutor:
         i.e. killed and restarted. If `None`, processes will be reused until an
         operation times out.
 
-    stdout: subprocess.PIPE or None
-        The standard output streams handler for workers in the pool.
+    stdout: Union[None, int, IO[Any]]
+        The standard output streams handler specified for the workers in the pool.
 
-    stderr: subprocess.PIPE or None
-        The standard error streams handler for workers in the pool.
+    stderr: Union[None, int, IO[Any]]
+        The standard error streams handler specified for the workers in the pool.
 
     Note
     ----
