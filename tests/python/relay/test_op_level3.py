@@ -2263,6 +2263,7 @@ def test_trilu(target="llvm", dev=tvm.cpu()):
     # Test batch size
     verify_trilu((8, 6, 6), False, -2)
 
+
 def test_trilu_shape_i64():
     data_x = np.ones((2, 1), dtype="int32")
 
@@ -2279,14 +2280,8 @@ def test_trilu_shape_i64():
         np.array([[1.0], [0.0]], dtype=np.float32),
     )
 
-    tvm.testing.assert_allclose(
-        tvm_res[0].numpy(),
-        np_res[0]
-    )
-    tvm.testing.assert_allclose(
-        tvm_res[1].numpy(),
-        np_res[1]
-    )
+    tvm.testing.assert_allclose(tvm_res[0].numpy(), np_res[0])
+    tvm.testing.assert_allclose(tvm_res[1].numpy(), np_res[1])
 
 
 if __name__ == "__main__":
