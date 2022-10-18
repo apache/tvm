@@ -149,8 +149,6 @@ void* HexagonDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_
 
 void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  CHECK(runtime_hexbuffs.count(data) != 0)
-      << "Attempt made to free unknown or already freed workspace allocation";
   dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
 

@@ -41,13 +41,6 @@ class HexagonBufferManager {
    */
   void FreeHexagonBuffer(void* ptr) {
     std::lock_guard<std::mutex> lock(mutex_);
-    // Check the list of buffers that were still allocated at the time of release.  If this buffer
-    // is in that list, this is a no-op as it is being freed as part of another object teardown.
-    auto it_released = std::find(released_buffers_.begin(), released_buffers_.end(), ptr);
-    if (it_released != released_buffers_.end()) {
-      released_buffers_.erase(it_released);
-      return;
-    }
     auto it = hexagon_buffer_map_.find(ptr);
     CHECK(it != hexagon_buffer_map_.end())
         << "Attempt made to free unknown or already freed dataspace allocation";
@@ -60,6 +53,7 @@ class HexagonBufferManager {
    */
   template <typename... Args>
   void* AllocateHexagonBuffer(Args&&... args) {
+    CHECK(acquired_);
     auto buf = std::make_unique<HexagonBuffer>(std::forward<Args>(args)...);
     void* ptr = buf->GetPointer();
     {
@@ -69,14 +63,9 @@ class HexagonBufferManager {
     return ptr;
   }
 
-  //! \brief Returns whether the HexagonBuffer is in the map.
-  size_t count(void* ptr) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return hexagon_buffer_map_.count(ptr);
-  }
-
   //! \brief Returns an iterator to the HexagonBuffer within the map.
   HexagonBuffer* find(void* ptr) {
+    CHECK(acquired_);
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = hexagon_buffer_map_.find(ptr);
     if (it != hexagon_buffer_map_.end()) {
@@ -85,37 +74,22 @@ class HexagonBufferManager {
     return nullptr;
   }
 
-  //! \brief Returns whether the HexagonBufferManager has any allocations.
-  bool empty() {
+  void Acquire() {
     std::lock_guard<std::mutex> lock(mutex_);
-    return hexagon_buffer_map_.empty();
+    CHECK(hexagon_buffer_map_.empty());
+    acquired_ = true;
   }
 
-  void Reset() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    hexagon_buffer_map_.clear();
-    released_buffers_.clear();
-  }
-
-  void Release() {
-    for (const auto& [data_ptr, buffer] : hexagon_buffer_map_) {
-      FreeHexagonBuffer(data_ptr);
-      {
-        std::lock_guard<std::mutex> lock(mutex_);
-        released_buffers_.push_back(data_ptr);
-      }
-    }
-  }
+  void Release() { acquired_ = false; }
 
  private:
   //! \brief Contains the HexagonBuffer objects managed by this class.
   std::unordered_map<void*, std::unique_ptr<HexagonBuffer>> hexagon_buffer_map_;
 
-  //! \brief Contains pointers to HexagonBuffer objects that had not been freed at time of release
-  std::vector<void*> released_buffers_;
-
   //! \brief Protects updates to the map.
   std::mutex mutex_;
+
+  bool acquired_ = true;
 };
 
 }  // namespace hexagon

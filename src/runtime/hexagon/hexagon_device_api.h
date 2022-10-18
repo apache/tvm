@@ -55,13 +55,13 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Ensures resource managers are in a good state for the runtime
   void AcquireResources() {
+    runtime_hexbuffs.Acquire();
+
     CHECK_EQ(runtime_vtcm, nullptr);
     runtime_vtcm = std::make_unique<HexagonVtcmPool>();
 
     CHECK_EQ(runtime_threads, nullptr);
     runtime_threads = std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size);
-
-    runtime_hexbuffs.Reset();
 
     CHECK_EQ(runtime_dma, nullptr);
     runtime_dma = std::make_unique<HexagonUserDMA>();
@@ -75,10 +75,10 @@ class HexagonDeviceAPI final : public DeviceAPI {
     CHECK(runtime_threads) << "runtime_threads was not created in AcquireResources";
     runtime_threads.reset();
 
-    runtime_hexbuffs.Release();
-
     CHECK(runtime_vtcm) << "runtime_vtcm was not created in AcquireResources";
     runtime_vtcm.reset();
+
+    runtime_hexbuffs.Release();
   }
 
   /*! \brief Currently unimplemented interface to specify the active
