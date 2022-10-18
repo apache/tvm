@@ -5638,13 +5638,14 @@ def test_reverse_sequence(target, dev):
     verify_reverse_sequence(x, sequence_lens, 1, 0)
 
 
+@pytest.mark.parametrize("op_name", ["Gelu", "FastGelu"], scope="session")
 @tvm.testing.parametrize_targets
-def test_gelu(target, dev):
+def test_gelu(target, dev, op_name):
     """test_gelu"""
 
     def verify_gelu(x):
         node = onnx.helper.make_node(
-            "Gelu",
+            op_name,
             inputs=["x"],
             outputs=["y"],
             domain="com.microsoft",
@@ -5666,13 +5667,14 @@ def test_gelu(target, dev):
     verify_gelu(x)
 
 
+@pytest.mark.parametrize("op_name", ["BiasGelu", "FastGelu"], scope="session")
 @tvm.testing.parametrize_targets
-def test_biasgelu(target, dev):
+def test_biasgelu(target, dev, op_name):
     """test_biasgelu"""
 
     def verify_biasgelu(x, bias):
         node = onnx.helper.make_node(
-            "BiasGelu",
+            op_name,
             inputs=["x", "bias"],
             outputs=["y"],
             domain="com.microsoft",
