@@ -147,35 +147,6 @@ IndexMap IndexMap::Inverse(Array<Range> initial_ranges) const {
   return inverse;
 }
 
-/*!
- * \brief Evaluator to compute the mapped indices of a given index map.
- */
-class IndexMapEvaluator : public DataTypeLegalizer {
- public:
-  explicit IndexMapEvaluator(const IndexMap& index_map) : index_map_(index_map) {}
-
-  Array<PrimExpr> Eval(const Array<PrimExpr>& arguments) {
-    var_map_.clear();
-    ICHECK_EQ(arguments.size(), index_map_->initial_indices.size());
-    for (int i = 0; i < static_cast<int>(arguments.size()); ++i) {
-      var_map_.Set(index_map_->initial_indices[i], arguments[i]);
-    }
-    return index_map_->final_indices.Map([&](const PrimExpr& e) { return this->VisitExpr(e); });
-  }
-
-  PrimExpr VisitExpr_(const VarNode* op) final {
-    if (auto it = var_map_.find(GetRef<Var>(op)); it != var_map_.end()) {
-      return (*it).second;
-    } else {
-      return GetRef<PrimExpr>(op);
-    }
-  }
-
- private:
-  IndexMap index_map_;
-  Map<Var, PrimExpr> var_map_;
-};
-
 Array<PrimExpr> IndexMapNode::MapIndices(const Array<PrimExpr>& indices,
                                          arith::Analyzer* analyzer) const {
   ICHECK_EQ(indices.size(), initial_indices.size());
@@ -191,8 +162,12 @@ Array<PrimExpr> IndexMapNode::MapIndices(const Array<PrimExpr>& indices,
     analyzer = &local_analyzer;
   }
 
-  Array<PrimExpr> output = IndexMapEvaluator(GetRef<IndexMap>(this)).Eval(indices);
-  return output.Map([&](const PrimExpr& e) { return analyzer->Simplify(e); });
+  Array<PrimExpr> output = final_indices.Map([&](PrimExpr index) {
+    PrimExpr result = SubstituteWithDataTypeLegalization(
+        std::move(index), [&](const Var& var) { return vmap.Get(var); });
+    return analyzer->Simplify(result);
+  });
+  return output;
 }
 
 Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer* analyzer) const {
