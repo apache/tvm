@@ -78,60 +78,62 @@ std::set<std::string> GetBlockNames(const IRModule& mod) {
 }
 
 std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_trace) {
+  using namespace tir;
   std::unordered_map<const Object*, const Object*> rv_map;
-  static auto kind_get_child_blocks = tir::InstructionKind::Get("GetChildBlocks");
-  static auto kind_get_block = tir::InstructionKind::Get("GetBlock");
+  static auto kind_get_child_blocks = InstructionKind::Get("GetChildBlocks");
+  static auto kind_get_block = InstructionKind::Get("GetBlock");
   const auto block_names_orig = GetBlockNames(sch->mod());
-  std::unordered_set<tir::BlockRV, ObjectHash, ObjectEqual> unknown_blocks;
-  std::unordered_set<tir::LoopRV, ObjectHash, ObjectEqual> unknown_loops;
+  std::unordered_set<BlockRV, ObjectHash, ObjectEqual> foreign_blocks;
+  std::unordered_set<LoopRV, ObjectHash, ObjectEqual> foreign_loops;
   std::set<std::string> scheduled_blocks;
 
   const auto sch_orig = sch->Copy();
 
-  for (const auto& inst : anchor_trace->insts) {
-    bool ok = true;
+  auto is_inst_applicable = [&foreign_blocks, &foreign_loops](Instruction inst) {
     for (auto input : inst->inputs) {
-      if (input->IsInstance<tir::BlockRVNode>() &&
-          unknown_blocks.count(Downcast<tir::BlockRV>(input))) {
-        ok = false;
-      } else if (input->IsInstance<tir::LoopRVNode>() &&
-                 unknown_loops.count(Downcast<tir::LoopRV>(input))) {
-        ok = false;
+      if ((input->IsInstance<BlockRVNode>() && foreign_blocks.count(Downcast<BlockRV>(input))) ||
+          (input->IsInstance<LoopRVNode>() && foreign_loops.count(Downcast<LoopRV>(input)))) {
+        return false;
       }
     }
+    return true;
+  };
 
-    if (!ok) {
+  for (const auto& inst : anchor_trace->insts) {
+    if (!is_inst_applicable(inst)) {
       for (auto output : inst->outputs) {
-        if (output->IsInstance<tir::BlockRVNode>()) {
-          unknown_blocks.insert(Downcast<tir::BlockRV>(output));
-        } else if (output->IsInstance<tir::LoopRVNode>()) {
-          unknown_loops.insert(Downcast<tir::LoopRV>(output));
+        if (output->IsInstance<BlockRVNode>()) {
+          foreign_blocks.insert(Downcast<BlockRV>(output));
+        } else if (output->IsInstance<LoopRVNode>()) {
+          foreign_loops.insert(Downcast<LoopRV>(output));
         }
       }
       continue;
     }
 
     if (inst->kind.same_as(kind_get_block)) {
-      std::string block_name = Downcast<String>(inst->attrs[0]);
-
-      bool found_match = false;
-      for (auto name : block_names_orig) {
-        if (block_name.find(name) == 0) {
-          found_match = true;
+      auto find_prefix_any = [&block_names_orig](const std::string& block_name) {
+        for (auto name : block_names_orig) {
+          if (block_name.find(name) == 0) {
+            return true;
+          }
         }
-      }
+        return false;
+      };
 
-      if (!found_match) {
-        auto block = Downcast<tir::BlockRV>(inst->outputs[0]);
-        unknown_blocks.insert(block);
-        LOG(INFO) << "adding unknown block " << block_name << ", " << block;
+      auto block_name = Downcast<String>(inst->attrs[0]);
+      ICHECK(block_name.defined());
+
+      if (!find_prefix_any(block_name)) {
+        auto block = Downcast<BlockRV>(inst->outputs[0]);
+        foreign_blocks.insert(block);
         continue;
       } else {
         scheduled_blocks.insert(block_name);
       }
     }
 
-    Array<ObjectRef> inputs = tir::TranslateInputRVs(inst->inputs, rv_map);
+    Array<ObjectRef> inputs = TranslateInputRVs(inst->inputs, rv_map);
     Optional<ObjectRef> decision = anchor_trace->GetDecision(inst);
     Array<ObjectRef> outputs = inst->kind->f_apply_to_schedule(sch, inputs, inst->attrs, decision);
 
@@ -143,11 +145,11 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
       // new_outputs.size(). We workaround this problem by assuming that the prefix of the "new"
       // outputs matches with the "old" outputs, and truncating the new outputs accordingly.
       ICHECK(inst->outputs.size() <= outputs.size());
-      tir::TranslateAddOutputRVs(
+      TranslateAddOutputRVs(
           inst->outputs, Array<ObjectRef>(outputs.begin(), outputs.begin() + inst->outputs.size()),
           &rv_map);
     } else {
-      tir::TranslateAddOutputRVs(inst->outputs, outputs, &rv_map);
+      TranslateAddOutputRVs(inst->outputs, outputs, &rv_map);
     }
   }
 
@@ -170,7 +172,7 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
     return false;
   };
 
-  std::vector<tir::BlockRV> unscheduled_blocks;
+  std::vector<BlockRV> unscheduled_blocks;
 
   for (auto name : block_names_orig) {
     if (!is_scheduled(name)) {
