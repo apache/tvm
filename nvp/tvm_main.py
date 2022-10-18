@@ -20,10 +20,14 @@ def Run(args):
     #4. Empty Graph -> Colored Graph
     V = VectorProcessor(model=args.model, graph=G, debug=args.debug)
     V.color_graph()
+    V.loop_hoisting()
+    V.remove_nodes(attr='type', str='Seq')
+    V.remove_nodes(attr='slot', str='Scalar')
     save_graph_viz(V.graph, args.viz)
 
     #5. Colored Graph -> Cycle
-    V.run_model()
+    V.run_single_iteration()
+    V.get_estimated_cycles()
  
 def main():
     parser = argparse.ArgumentParser(description='Running TVM to predict NVP latency')

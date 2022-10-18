@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 #           }
 
 def save_graph_viz(g, viz, dir='graph.png'):
-    print('########## PLOTTING (%s) ##########'%(dir))
+    print('########## Plotting (%s) ##########'%(dir))
     empty_idxes = [idx for idx in g.nodes if not g.nodes[idx]] # remove empty node
     g.remove_nodes_from(empty_idxes)
     # print('Nodes List: %s'%(g.nodes))
