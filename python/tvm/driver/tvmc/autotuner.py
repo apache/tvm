@@ -353,16 +353,17 @@ def filter_tasks(
 
 def print_task_list(tasks, enable_autoscheduler):
     print("Available Tasks for tuning:")
+
+    def _trunc_helper(text, length):
+        return text if len(text) < length else text[: length - 3] + "..."
+
     print(
         "\n".join(
             [
-                "  {}. {}".format(
-                    i,
-                    task.desc
-                    if enable_autoscheduler
-                    else task
-                    if len(str(task.desc if enable_autoscheduler else task)) < 100
-                    else str(task.desc if enable_autoscheduler else task)[:97] + "...",
+                "  {}. {}".format(i, _trunc_helper(task.desc, 100))
+                if enable_autoscheduler
+                else "  {}. {} (len={})".format(
+                    i, _trunc_helper(str(task), 100), len(task.config_space)
                 )
                 for i, task in enumerate(tasks)
             ]
