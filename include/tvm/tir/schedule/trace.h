@@ -158,6 +158,9 @@ class Trace : public runtime::ObjectRef {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Trace, runtime::ObjectRef, TraceNode);
 };
 
+class BlockRV;
+std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_trace);
+
 }  // namespace tir
 }  // namespace tvm
 

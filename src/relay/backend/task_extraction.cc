@@ -119,7 +119,6 @@ Array<meta_schedule::ExtractedTask> ExtractTask(IRModule mod, Target target,
 
   // Tasks are extracted via post order visit, return the reversed list.
   std::reverse(tasks.begin(), tasks.end());
-
   NameSupply name_supply = NameSupply("");
   for (ExtractedTask task : tasks) {
     task->task_name = name_supply->FreshName(task->task_name);

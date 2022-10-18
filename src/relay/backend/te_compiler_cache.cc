@@ -44,6 +44,7 @@
 
 #include <functional>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <utility>
@@ -463,7 +464,9 @@ class AllocateConstReplaceConstant : public StmtExprMutator {
 // Construct a schedule for a given Relay primitive function and target.
 class ScheduleBuilder : public ExprVisitor {
  public:
-  explicit ScheduleBuilder(Target target) : target_(target) {
+  explicit ScheduleBuilder(Target target)
+      : target_(target),
+        mod_eq_structural_(meta_schedule::ModuleEquality::Create("ignore-ndarray")) {
     // Whether to use auto_scheduler schedule.
     use_auto_scheduler_ = backend::IsAutoSchedulerEnabled();
     if (backend::IsMetaScheduleEnabled()) {
@@ -620,8 +623,7 @@ class ScheduleBuilder : public ExprVisitor {
             Schedule sch = Schedule::Traced(query_mod, /*seed=*/-1, /*debug_mask=*/0,
                                             tir::ScheduleErrorRenderLevel::kDetail);
 
-            if (!meta_schedule::ModuleEquality::Create("ignore-ndarray")
-                     ->Equal(query_mod, opt_record.value()->workload->mod)) {
+            if (!mod_eq_structural_->Equal(query_mod, opt_record.value()->workload->mod)) {
               meta_schedule::ScheduleFusedBlocks(sch, record->trace, target_);
             } else {
               record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
@@ -708,6 +710,7 @@ class ScheduleBuilder : public ExprVisitor {
   int anchor_op_pattern_{0};
   bool use_auto_scheduler_;
   Optional<meta_schedule::Database> database_;
+  std::unique_ptr<meta_schedule::ModuleEquality> mod_eq_structural_;
 };
 
 /*!

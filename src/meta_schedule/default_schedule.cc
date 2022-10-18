@@ -31,6 +31,7 @@
 
 #include "../printer/text_printer.h"
 #include "../tir/schedule/analysis.h"
+#include "../tir/schedule/utils.h"
 
 namespace tvm {
 namespace meta_schedule {
@@ -61,66 +62,8 @@ ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
   return ScheduleRule(nullptr);
 }
 
-std::set<std::string> GetBlockNames(const IRModule& mod) {
-  struct BlockNameCollector : public tir::StmtVisitor {
-    void VisitStmt_(const tir::BlockNode* block) override {
-      if (block->name_hint == "root") {
-        StmtVisitor::VisitStmt(block->body);
-      } else {
-        block_names.insert(block->name_hint);
-      }
-    }
-    std::set<std::string> block_names;
-  };
-
-  auto prim_func = tir::FindEntryFunc(mod, nullptr);
-  BlockNameCollector collector;
-  collector(prim_func->body);
-  return collector.block_names;
-}
-
-std::vector<tir::BlockRV> GetUnscheduledBlocks(const tir::Schedule& sch_orig,
-                                               const tir::Schedule& sch) {
-  auto block_names_orig = GetBlockNames(sch_orig->mod());
-  auto block_names = GetBlockNames(sch->mod());
-
-  std::vector<std::string> common_blocks;
-
-  std::set_intersection(block_names_orig.begin(), block_names_orig.end(), block_names.begin(),
-                        block_names.end(), std::back_inserter(common_blocks));
-
-  auto is_scheduled = [=](const std::string& block_name) {
-    auto loops = sch->GetLoops(sch->GetBlock(block_name));
-    auto loops_orig = sch_orig->GetLoops(sch_orig->GetBlock(block_name));
-    if (loops.size() != loops.size()) {
-      return true;
-    }
-    for (size_t i = 0; i < loops.size(); ++i) {
-      auto loop = sch->Get(loops[i]);
-      auto loop_orig = sch_orig->Get(loops_orig[i]);
-      if (loop->kind != loop_orig->kind) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  std::vector<tir::BlockRV> unscheduled_blocks;
-
-  for (auto name : common_blocks) {
-    if (!is_scheduled(name)) {
-      unscheduled_blocks.push_back(sch->GetBlock(name));
-    }
-  }
-
-  return unscheduled_blocks;
-}
-
 void ScheduleFusedBlocks(tir::Schedule sch, tir::Trace anchor_trace, tvm::Target target) {
-  auto sch_orig = sch->Copy();
-  anchor_trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
-
-  auto unscheduled_blocks = GetUnscheduledBlocks(sch_orig, sch);
+  auto unscheduled_blocks = tir::ApplyAnchorTrace(sch, anchor_trace);
 
   if (unscheduled_blocks.empty()) {
     // All blocks have already been scheduled.
