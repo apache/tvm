@@ -676,11 +676,11 @@ inline IRModule PrimFuncToIRModule(tir::PrimFunc f) {
  * difference. This function unifies the shared optimization pass prefix between vm and graph
  * runtime, and returns the pass prefix given the backend type.
  *
- * \param homogeneous_target Execution target (can be undefined in case of heterogeneous execution).
+ * \param is_homogeneous True if all primitives are to be executed on the same device and target.
  * \param is_vm True if passes are to be used for the vm executor.
  * \return An array of passes.
  */
-Array<Pass> GetPassPrefix(Target homogeneous_target, bool is_vm);
+Array<Pass> GetPassPrefix(bool is_homogeneous, bool is_vm);
 
 /*! \brief Target hash function */
 struct TargetStrHash {

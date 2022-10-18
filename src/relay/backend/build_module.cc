@@ -328,7 +328,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     backend::BindParamsInModule(relay_module, params_);
 
     Array<Pass> pass_seqs =
-        GetPassPrefix(/*homogeneous target=*/config_->optional_homogeneous_target, /*is_vm=*/false);
+        GetPassPrefix(/*is_homogenous=*/config_->primitive_targets.size() == 1, /*is_vm=*/false);
     transform::PassContext pass_ctx = PassContext::Current();
 
     if (config_->optional_homogeneous_target.defined()) {

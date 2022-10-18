@@ -1054,7 +1054,7 @@ transform::Sequential VMCompiler::FuseAndLowerOperators(const CompilationConfig&
 IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   backend::BindParamsInModule(mod, params_);
   Array<Pass> pass_seqs = relay::backend::GetPassPrefix(
-      /*homogeneous target=*/config_->optional_homogeneous_target, /*is_vm=*/true);
+      /*is_homogeneous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/true);
 
   // Always plan devices so the remaining passes don't need to distinguish homogeneous vs
   // heterogeneous execution.
