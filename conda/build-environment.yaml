@@ -36,3 +36,5 @@ dependencies:
   - make
   - scipy
   - pillow
+  - synr
+  
