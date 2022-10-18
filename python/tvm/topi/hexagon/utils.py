@@ -242,8 +242,8 @@ def get_fixed_point_value(flp: float, dtype: str = "int16") -> Tuple[int, int]:
     fixed-point with the least amount of precision loss.
 
 
-    Here is a more rigorous explanation of the above, for non-negative scale values, which are of interest.
-    M < 2, so M * 2^(E-Bias+x) < 2 ^ (E-Bias+x+1)   [Note: LHS is a fraction, RHS int]
+    Here is a more rigorous explanation of the above, for non-negative scale values, which are of
+    interest. M < 2, so M * 2^(E-Bias+x) < 2 ^ (E-Bias+x+1)   [Note: LHS is a fraction, RHS int]
     => round(M * 2^(E-Bias+x)) <= 2 ^ (E-Bias+x+1)  [Note the "<=", not "<"]
     We want x s.t. round(M * 2^(E-Bias+x)) <= 2^15 - 1
     We know round(M * 2^(E-Bias+x)) <= 2^(E-Bias+x+1)
