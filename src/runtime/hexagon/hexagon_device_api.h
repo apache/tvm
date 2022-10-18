@@ -55,7 +55,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Ensures resource managers are in a good state for the runtime
   void AcquireResources() {
-    runtime_hexbuffs.Acquire();
+    runtime_hexbuffs.Enable();
 
     CHECK_EQ(runtime_vtcm, nullptr);
     runtime_vtcm = std::make_unique<HexagonVtcmPool>();
@@ -78,7 +78,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
     CHECK(runtime_vtcm) << "runtime_vtcm was not created in AcquireResources";
     runtime_vtcm.reset();
 
-    runtime_hexbuffs.Release();
+    runtime_hexbuffs.Disable();
   }
 
   /*! \brief Currently unimplemented interface to specify the active

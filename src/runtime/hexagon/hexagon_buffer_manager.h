@@ -40,7 +40,7 @@ class HexagonBufferManager {
    * \param ptr Address of the HexagonBuffer as returned by `AllocateHexagonBuffer`.
    */
   void FreeHexagonBuffer(void* ptr) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(map_mutex_);
     auto it = hexagon_buffer_map_.find(ptr);
     CHECK(it != hexagon_buffer_map_.end())
         << "Attempt made to free unknown or already freed dataspace allocation";
@@ -53,20 +53,20 @@ class HexagonBufferManager {
    */
   template <typename... Args>
   void* AllocateHexagonBuffer(Args&&... args) {
-    CHECK(acquired_);
+    CHECK(enabled_);
     auto buf = std::make_unique<HexagonBuffer>(std::forward<Args>(args)...);
     void* ptr = buf->GetPointer();
     {
-      std::lock_guard<std::mutex> lock(mutex_);
+      std::lock_guard<std::mutex> lock(map_mutex_);
       hexagon_buffer_map_.insert({ptr, std::move(buf)});
     }
     return ptr;
   }
 
   //! \brief Returns an iterator to the HexagonBuffer within the map.
-  HexagonBuffer* find(void* ptr) {
-    CHECK(acquired_);
-    std::lock_guard<std::mutex> lock(mutex_);
+  HexagonBuffer* FindHexagonBuffer(void* ptr) {
+    CHECK(enabled_);
+    std::lock_guard<std::mutex> lock(map_mutex_);
     auto it = hexagon_buffer_map_.find(ptr);
     if (it != hexagon_buffer_map_.end()) {
       return it->second.get();
@@ -74,22 +74,23 @@ class HexagonBufferManager {
     return nullptr;
   }
 
-  void Acquire() {
-    std::lock_guard<std::mutex> lock(mutex_);
+  void Enable() {
+    std::lock_guard<std::mutex> lock(map_mutex_);
     CHECK(hexagon_buffer_map_.empty());
-    acquired_ = true;
+    enabled_ = true;
   }
 
-  void Release() { acquired_ = false; }
+  void Disable() { enabled_ = false; }
 
  private:
   //! \brief Contains the HexagonBuffer objects managed by this class.
   std::unordered_map<void*, std::unique_ptr<HexagonBuffer>> hexagon_buffer_map_;
 
   //! \brief Protects updates to the map.
-  std::mutex mutex_;
+  std::mutex map_mutex_;
 
-  bool acquired_ = true;
+  //! \brief Tracks whether this HexagonBufferManager is enabled
+  bool enabled_ = true;
 };
 
 }  // namespace hexagon
