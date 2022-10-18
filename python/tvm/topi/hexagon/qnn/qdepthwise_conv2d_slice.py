@@ -32,10 +32,10 @@ Qw = Quantized Weights.
      a) Qc(n, oh, ow, oc) = (Sigma(r, s) (Qw(r, s, oc%cm, oc/cm) - zp_w)
                                       * (Qa(n, oh + r, ow + s, oc/cm) - zp_a))
                                       * scale_value
-        where scale_value = (activation_scale * weight_scale) / output_scale 
+        where scale_value = (activation_scale * weight_scale) / output_scale
 
         This can be written as
-       
+
      b) Qc(n, oh, ow, oc) = (t1 - t2 - t3 + t4) * scale_value
 
         where t1 = Sigma(r, s) Qw(r, s, oc%cm, oc/cm) * Qa(n, oh + r, ow + s, oc/cm)
