@@ -158,7 +158,13 @@ def adb_server_socket() -> str:
 
 @pytest.fixture(scope="session")
 def hexagon_server_process(
-    request, rpc_server_port_for_session, adb_server_socket, skip_rpc, hexagon_debug
+    request,
+    rpc_server_port_for_session,
+    adb_server_socket,
+    skip_rpc,
+    hexagon_debug,
+    sysmon_profile,
+    clear_logcat,
 ) -> HexagonLauncherRPC:
     """Initials and returns hexagon launcher if ANDROID_SERIAL_NUMBER is defined.
     This launcher is started only once per test session.
@@ -187,14 +193,20 @@ def hexagon_server_process(
             device_adr = read_device_list()[0]
         else:  # running in a subprocess here
             device_adr = workerinput["device_adr"]
-        launcher = HexagonLauncher(serial_number=device_adr, rpc_info=rpc_info)
+        launcher = HexagonLauncher(
+            serial_number=device_adr,
+            rpc_info=rpc_info,
+            hexagon_debug=hexagon_debug,
+            sysmon_profile=sysmon_profile,
+            clear_logcat=clear_logcat,
+        )
         try:
             if not skip_rpc:
                 launcher.start_server()
             yield {"launcher": launcher, "device_adr": device_adr}
         finally:
             if not skip_rpc:
-                launcher.stop_server(cleanup=(not hexagon_debug))
+                launcher.stop_server()
 
 
 def read_device_list():
@@ -222,6 +234,8 @@ def hexagon_launcher(
     tvm_tracker_port,
     adb_server_socket,
     hexagon_debug,
+    sysmon_profile,
+    clear_logcat,
 ) -> HexagonLauncherRPC:
     """Initials and returns hexagon launcher which reuses RPC info and Android serial number."""
     android_serial_num = android_serial_number()
@@ -235,19 +249,22 @@ def hexagon_launcher(
             "rpc_server_port": rpc_server_port,
             "adb_server_socket": adb_server_socket,
         }
-
     try:
         if android_serial_num == ["simulator"]:
             launcher = HexagonLauncher(serial_number=android_serial_num[0], rpc_info=rpc_info)
             launcher.start_server()
         else:
             launcher = HexagonLauncher(
-                serial_number=hexagon_server_process["device_adr"], rpc_info=rpc_info
+                serial_number=hexagon_server_process["device_adr"],
+                rpc_info=rpc_info,
+                hexagon_debug=hexagon_debug,
+                sysmon_profile=sysmon_profile,
+                clear_logcat=clear_logcat,
             )
         yield launcher
     finally:
         if android_serial_num == ["simulator"]:
-            launcher.stop_server(cleanup=(not hexagon_debug))
+            launcher.stop_server()
         elif not hexagon_debug:
             launcher.cleanup_directory()
 
@@ -304,7 +321,19 @@ def hexagon_debug(request) -> bool:
     return request.config.getoption("--hexagon-debug")
 
 
+@pytest.fixture(scope="session")
+def sysmon_profile(request) -> bool:
+    return request.config.getoption("--sysmon-profile")
+
+
+@pytest.fixture(scope="session")
+def clear_logcat(request) -> bool:
+    return request.config.getoption("--clear-logcat")
+
+
 def pytest_addoption(parser):
+    """Add pytest options."""
+
     parser.addoption("--gtest_args", action="store", default="")
 
     parser.addoption(
@@ -317,7 +346,20 @@ def pytest_addoption(parser):
         "--hexagon-debug",
         action="store_true",
         default=False,
-        help="If set true, it will keep the hexagon test directories on the target.",
+        help="If set true, it will keep the hexagon test directories on the target. "
+        + "Additionally logcat logs will be copied from device and cdsp errors printed out.",
+    )
+    parser.addoption(
+        "--sysmon-profile",
+        action="store_true",
+        default=False,
+        help="If set true, it will run sysmon profiler during the tests.",
+    )
+    parser.addoption(
+        "--clear-logcat",
+        action="store_true",
+        default=False,
+        help="If set true, it will clear logcat before execution.",
     )
 
 

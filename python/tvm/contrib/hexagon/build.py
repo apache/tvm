@@ -145,7 +145,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         ...
 
     @abc.abstractmethod
-    def stop_server(self, cleanup=True):
+    def stop_server(self):
         """Stop the RPC server"""
         ...
 
@@ -348,7 +348,13 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
     ]
 
     def __init__(
-        self, serial_number: str, rpc_info: dict, workspace: Union[str, pathlib.Path] = None
+        self,
+        serial_number: str,
+        rpc_info: dict,
+        workspace: Union[str, pathlib.Path] = None,
+        hexagon_debug: bool = False,
+        clear_logcat: bool = False,
+        sysmon_profile: bool = False,
     ):
         """Configure a new HexagonLauncherAndroid
 
@@ -362,6 +368,12 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
             is used as the base directory.
         workspace : str or pathlib.Path, optional
             Test workspace path on android.
+        hexagon_debug: bool, optional
+            Should the server run debug options.
+        clear_logcat: bool, optional
+            Should the server clear logcat before running.
+        sysmon_profile: bool, optional
+            Should the server run sysmon profiler in the background.
         """
         if not rpc_info.get("workspace_base"):
             rpc_info["workspace_base"] = self.ANDROID_HEXAGON_TEST_BASE_DIR
@@ -369,6 +381,10 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         adb_socket = rpc_info["adb_server_socket"] if rpc_info["adb_server_socket"] else "tcp:5037"
         self._adb_device_sub_cmd = ["adb", "-L", adb_socket, "-s", self._serial_number]
         self.forwarded_ports_ = []
+        self._hexagon_debug = hexagon_debug
+        self._clear_logcat = clear_logcat
+        self._sysmon_profile = sysmon_profile
+        self._sysmon_process = None
 
         super(HexagonLauncherAndroid, self).__init__(rpc_info, workspace)
 
@@ -504,16 +520,113 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         subprocess.Popen(self._adb_device_sub_cmd + ["shell", f"rm -rf {self._workspace}"])
 
+    def _start_sysmon(self):
+        hexagon_sdk_root = os.environ.get("HEXAGON_SDK_ROOT", default="")
+        subprocess.call(
+            self._adb_device_sub_cmd
+            + ["push", f"{hexagon_sdk_root}/tools/utils/sysmon/sysMonApp", "/data/local/tmp/"]
+        )
+        sysmon_process = subprocess.Popen(
+            self._adb_device_sub_cmd
+            + [
+                "shell",
+                "/data/local/tmp/sysMonApp profiler --debugLevel 0 --samplePeriod 1 --q6 cdsp",
+            ],
+            stdin=subprocess.PIPE,
+        )
+        return sysmon_process
+
+    def _stop_sysmon(self):
+        if self._sysmon_process is not None:
+            self._sysmon_process.communicate(input=b"\n")
+            self._sysmon_process = None
+
+    def _retrieve_sysmon(self):
+        pathlib.Path("./sysmon_output/").mkdir(exist_ok=True)
+        subprocess.call(
+            self._adb_device_sub_cmd + ["pull", "/sdcard/sysmon_cdsp.bin", "./sysmon_output/"]
+        )
+        subprocess.call(self._adb_device_sub_cmd + ["root"])
+        hexagon_sdk_root = os.environ.get("HEXAGON_SDK_ROOT", default="")
+        subprocess.call(
+            f"{hexagon_sdk_root}/tools/utils/sysmon/parser_linux_v2/HTML_Parser/sysmon_parser "
+            + "./sysmon_output/sysmon_cdsp.bin --outdir ./sysmon_output/",
+            shell=True,
+        )
+
+    def _clear_debug_logs(self):
+        subprocess.call(self._adb_device_sub_cmd + ["shell", "logcat", "-c"])
+
+    def _retrieve_debug_logs(self):
+        run_start_time = subprocess.check_output(
+            self._adb_device_sub_cmd
+            + [
+                "shell",
+                "stat",
+                f"{self._workspace}/android_bash.sh | grep 'Change' | grep -oe '[0-9].*'",
+            ]
+        )
+        run_start_time = run_start_time[:-1].decode("UTF-8")
+        subprocess.call(
+            self._adb_device_sub_cmd
+            + [
+                "shell",
+                "logcat",
+                "-t",
+                f'"{run_start_time}"',
+                "-f",
+                f"{self._workspace}/logcat.txt",
+            ]
+        )
+        subprocess.call(self._adb_device_sub_cmd + ["pull", f"{self._workspace}/logcat.txt", "."])
+
+    def _print_cdsp_logs(self):
+        crash_count = 0
+        context_lines = 0
+        print_buffer = ""
+        try:
+            with open("./logcat.txt", "r") as f:
+                for line in f:
+                    if "Process on cDSP CRASHED" in line:
+                        if crash_count <= 5:
+                            print(print_buffer, "\n")
+                        context_lines = 40
+                        print_buffer = ""
+                        crash_count += 1
+                    if context_lines > 0 and "platform_qdi_driver" in line:
+                        context_lines -= 1
+                        print_buffer += line[80:]
+
+            if crash_count <= 5:
+                print(print_buffer, "\n")
+
+            print(
+                f"There were {crash_count} crashes on the cDSP during execution... "
+                + "Crash printing is limited to the first 5."
+            )
+        except FileNotFoundError:
+            print("Unable to parse logcat file.")
+
     def start_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._copy_binaries()
+        if self._sysmon_profile:
+            self._sysmon_process = self._start_sysmon()
         self._run_server_script()
+        if self._clear_logcat:
+            self._clear_debug_logs()
 
-    def stop_server(self, cleanup=True):
+    def stop_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
+        if self._sysmon_profile and self._sysmon_process is not None:
+            self._stop_sysmon()
+            self._retrieve_sysmon()
+        if self._hexagon_debug:
+            self._retrieve_debug_logs()
+            self._print_cdsp_logs()
         self._cleanup_port_forwarding()
         self._terminate_remote()
-        if cleanup:
+        if not self._hexagon_debug:
             self.cleanup_directory()
 
 
@@ -618,7 +731,7 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
     def cleanup_directory(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
 
-    def stop_server(self, cleanup=True):
+    def stop_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._server_process.terminate()
 
@@ -630,7 +743,17 @@ def _is_port_in_use(port: int) -> bool:
 
 
 # pylint: disable=invalid-name
-def HexagonLauncher(serial_number: str, rpc_info: dict, workspace: Union[str, pathlib.Path] = None):
+def HexagonLauncher(
+    serial_number: str,
+    rpc_info: dict,
+    workspace: Union[str, pathlib.Path] = None,
+    hexagon_debug: bool = False,
+    clear_logcat: bool = False,
+    sysmon_profile: bool = False,
+):
+    """Creates a HexagonLauncher"""
     if serial_number == "simulator":
         return HexagonLauncherSimulator(rpc_info, workspace)
-    return HexagonLauncherAndroid(serial_number, rpc_info, workspace)
+    return HexagonLauncherAndroid(
+        serial_number, rpc_info, workspace, hexagon_debug, clear_logcat, sysmon_profile
+    )
