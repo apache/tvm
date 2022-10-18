@@ -65,11 +65,8 @@ ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
 std::set<std::string> GetBlockNames(const IRModule& mod) {
   struct BlockNameCollector : public tir::StmtVisitor {
     void VisitStmt_(const tir::BlockNode* block) override {
-      if (block->name_hint == "root") {
-        StmtVisitor::VisitStmt(block->body);
-      } else {
-        block_names.insert(block->name_hint);
-      }
+      block_names.insert(block->name_hint);
+      StmtVisitor::VisitStmt(block->body);
     }
     std::set<std::string> block_names;
   };
@@ -80,52 +77,16 @@ std::set<std::string> GetBlockNames(const IRModule& mod) {
   return collector.block_names;
 }
 
-std::vector<tir::BlockRV> GetUnscheduledBlocks(const tir::Schedule& sch_orig,
-                                               const tir::Schedule& sch) {
-  auto block_names_orig = GetBlockNames(sch_orig->mod());
-  auto block_names = GetBlockNames(sch->mod());
-
-  std::vector<std::string> common_blocks;
-
-  std::set_intersection(block_names_orig.begin(), block_names_orig.end(), block_names.begin(),
-                        block_names.end(), std::back_inserter(common_blocks));
-
-  auto is_scheduled = [=](const std::string& block_name) {
-    auto loops = sch->GetLoops(sch->GetBlock(block_name));
-    auto loops_orig = sch_orig->GetLoops(sch_orig->GetBlock(block_name));
-    if (loops.size() != loops_orig.size()) {
-      return true;
-    }
-    for (size_t i = 0; i < loops.size(); ++i) {
-      auto loop = sch->Get(loops[i]);
-      auto loop_orig = sch_orig->Get(loops_orig[i]);
-      if (loop->kind != loop_orig->kind) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  std::vector<tir::BlockRV> unscheduled_blocks;
-
-  for (auto name : common_blocks) {
-    if (!is_scheduled(name)) {
-      unscheduled_blocks.push_back(sch->GetBlock(name));
-    }
-  }
-
-  return unscheduled_blocks;
-}
-
 std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_trace) {
   std::unordered_map<const Object*, const Object*> rv_map;
   static auto kind_get_child_blocks = tir::InstructionKind::Get("GetChildBlocks");
   static auto kind_get_block = tir::InstructionKind::Get("GetBlock");
-  auto block_names_orig = GetBlockNames(sch->mod());
-  block_names_orig.insert("root");  // todo
+  const auto block_names_orig = GetBlockNames(sch->mod());
   std::unordered_set<tir::BlockRV, ObjectHash, ObjectEqual> unknown_blocks;
   std::unordered_set<tir::LoopRV, ObjectHash, ObjectEqual> unknown_loops;
   std::set<std::string> scheduled_blocks;
+
+  const auto sch_orig = sch->Copy();
 
   for (const auto& inst : anchor_trace->insts) {
     bool ok = true;
@@ -166,7 +127,7 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
         LOG(INFO) << "adding unknown block " << block_name << ", " << block;
         continue;
       } else {
-	scheduled_blocks.insert(block_name);
+        scheduled_blocks.insert(block_name);
       }
     }
 
@@ -190,14 +151,30 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
     }
   }
 
+  auto is_scheduled = [=, &scheduled_blocks](const std::string& block_name) {
+    if (scheduled_blocks.count(block_name)) {
+      return true;
+    }
+    auto loops = sch->GetLoops(sch->GetBlock(block_name));
+    auto loops_orig = sch_orig->GetLoops(sch_orig->GetBlock(block_name));
+    if (loops.size() != loops_orig.size()) {
+      return true;
+    }
+    for (size_t i = 0; i < loops.size(); ++i) {
+      auto loop = sch->Get(loops[i]);
+      auto loop_orig = sch_orig->Get(loops_orig[i]);
+      if (loop->kind != loop_orig->kind) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   std::vector<tir::BlockRV> unscheduled_blocks;
 
   for (auto name : block_names_orig) {
-    if (!scheduled_blocks.count(name)) {
-      LOG(INFO) << "Unscheduled " << name;
+    if (!is_scheduled(name)) {
       unscheduled_blocks.push_back(sch->GetBlock(name));
-    } else {
-      LOG(INFO) << "Scheduled " << name;
     }
   }
 
@@ -205,10 +182,6 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
 }
 
 void ScheduleFusedBlocks(tir::Schedule sch, tir::Trace anchor_trace, tvm::Target target) {
-  auto sch_orig = sch->Copy();
-  // LOG(INFO) << tir::AsTVMScript(sch_orig->mod());
-  // LOG(INFO) << anchor_trace;
-
   auto unscheduled_blocks = ApplyAnchorTrace(sch, anchor_trace);
 
   if (unscheduled_blocks.empty()) {
@@ -232,8 +205,6 @@ void ScheduleFusedBlocks(tir::Schedule sch, tir::Trace anchor_trace, tvm::Target
   if (last_block.defined()) {
     sch->ReverseComputeInline(last_block.value());
   }
-
-  // LOG(INFO) << tir::AsTVMScript(sch->mod());
 }
 
 }  // namespace meta_schedule
