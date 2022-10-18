@@ -23,10 +23,10 @@ extern "C" {
 #include <HAP_farf.h>
 #include <HAP_perf.h>
 #include <qurt_error.h>
-#include <qurt_hvx.h>
 }
 
 #include <dlfcn.h>
+#include <stdlib.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -158,7 +158,7 @@ class HexagonPageAllocator {
     size_t npages = ((min_size + kPageSize - 1) / kPageSize);
     void* data;
 
-    data = HexagonDeviceAPI::Global()->AllocRpcBuffer(npages * kPageSize, kPageAlign);
+    data = malloc(npages * kPageSize);
 
     ArenaPageHeader* header = static_cast<ArenaPageHeader*>(data);
     header->size = npages * kPageSize;
@@ -166,7 +166,7 @@ class HexagonPageAllocator {
     return header;
   }
 
-  void deallocate(ArenaPageHeader* page) { HexagonDeviceAPI::Global()->FreeRpcBuffer(page); }
+  void deallocate(ArenaPageHeader* page) { free(page); }
 
   static const constexpr int kPageSize = 2 << 10;
   static const constexpr int kPageAlign = 8;
