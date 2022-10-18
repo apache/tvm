@@ -15,14 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Computes and schedules for Hexagon quantized ops """
+# pylint: disable=wildcard-import
+"""QNN op strategies."""
+from __future__ import absolute_import as _abs
 
-from .avg_pool2d import qnn_avg_pool2d_compute, qnn_avg_pool2d_schedule
-from .qadd_qsub_qmul import *
-from .dequantize import (
-    dequantize_compute,
-    dequantize_schedule,
-)
-
-from .quantize import quantize_compute, tir_quantize_schedule
-from .nn import *
+from .generic import *
+from . import hexagon
