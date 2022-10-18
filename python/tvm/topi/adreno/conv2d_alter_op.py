@@ -143,8 +143,11 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         CO, _, KH, KW = get_const_tuple(kernel_tensor.shape)
 
         # pre-compute weight transformation in winograd
+        # alpha, alpha, CO, CI
         weight = relay.nn.contrib_conv2d_winograd_weight_transform(inputs[1], tile_size=tile_size)
         weight = relay.transpose(weight, axes=[2, 3, 0, 1])  # HWOI -> OIHW
+        # (oc, ic, h, w) -> (h, w, ic, oc)
+        new_attrs["kernel_layout"] = "HWIO"
         new_attrs["tile_size"] = tile_size
         new_attrs["channels"] = CO
 
