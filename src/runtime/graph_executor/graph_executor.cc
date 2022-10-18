@@ -26,12 +26,12 @@
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/name_transforms.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/serializer.h>
-#include <tvm/runtime/name_transforms.h>
 
 #include <algorithm>
 #include <functional>
