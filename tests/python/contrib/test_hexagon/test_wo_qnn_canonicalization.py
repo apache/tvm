@@ -38,11 +38,16 @@ def test_no_qnn_pass():
         opt_mod_1, _ = relay.optimize(mod, tvm.target.Target(target_hexagon, host=target_hexagon))
 
     # Disable QNN legalization and canonicalization passes
-    with tvm.transform.PassContext(opt_level=3, disabled_pass=["Legalize"]):
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["qnn.Legalize"]):
         opt_mod_2, _ = relay.optimize(mod, tvm.target.Target(target_hexagon, host=target_hexagon))
 
-    # Check that during Default compilation flow we do not call qnn::canonicalization pass.
-    tvm.ir.assert_structural_equal(opt_mod_1, opt_mod_2)
+    # Check that QNN ops are absent with default compilation flow.
+    assert "qnn.quantize" not in opt_mod_1.astext(show_meta_data=False)
+    assert "qnn.dequantize" not in opt_mod_1.astext(show_meta_data=False)
+
+    # Check that QNN ops are present without "qnn.Legalize" passes.
+    assert "qnn.quantize" in opt_mod_2.astext(show_meta_data=False)
+    assert "qnn.dequantize" in opt_mod_2.astext(show_meta_data=False)
 
 
 def execute(executor, data_np, weight_np, bias_np=None):
@@ -56,8 +61,8 @@ def execute(executor, data_np, weight_np, bias_np=None):
 
 @tvm.testing.requires_hexagon
 def test_qnn_conv2d_rq(hexagon_session: Session):
-    data_shape = [1, 64, 64, 64]
-    weight_shape = [64, 64, 3, 3]
+    data_shape = [1, 8, 32, 32]
+    weight_shape = [16, 8, 3, 3]
     data = relay.var("data", shape=data_shape, dtype="float32")
     weight = relay.var("weight", shape=weight_shape, dtype="float32")
     op0 = relay.qnn.op.quantize(data, relay.const(0.078), relay.const(0), out_dtype="int8")
@@ -70,7 +75,7 @@ def test_qnn_conv2d_rq(hexagon_session: Session):
         input_scale=relay.const(0.078),
         kernel_scale=relay.const(0.07),
         padding=[0, 0, 0, 0],
-        channels=64,
+        channels=16,
         kernel_size=[3, 3],
     )
     op5 = relay.qnn.op.requantize(
@@ -86,13 +91,14 @@ def test_qnn_conv2d_rq(hexagon_session: Session):
     target_hexagon = tvm.target.hexagon("v68")
     target_llvm = tvm.target.Target("llvm")
     executor = Executor("graph", {"link-params": True})
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["qnn.Legalize"]):
         hexagon_lowered = tvm.relay.build(
             relay_mod,
             tvm.target.Target(target_hexagon, host=target_hexagon),
             executor=executor,
         )
 
+    with tvm.transform.PassContext(opt_level=3):
         llvm_lowered = tvm.relay.build(
             relay_mod,
             tvm.target.Target(target_llvm, host=target_llvm),
@@ -147,13 +153,14 @@ def test_qnn_dense_bias_rq(hexagon_session: Session):
     target_hexagon = tvm.target.hexagon("v68")
     target_llvm = tvm.target.Target("llvm")
     executor = Executor("graph", {"link-params": True})
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["qnn.Legalize"]):
         hexagon_lowered = tvm.relay.build(
             relay_mod,
             tvm.target.Target(target_hexagon, host=target_hexagon),
             executor=executor,
         )
 
+    with tvm.transform.PassContext(opt_level=3):
         llvm_lowered = tvm.relay.build(
             relay_mod,
             tvm.target.Target(target_llvm, host=target_llvm),
