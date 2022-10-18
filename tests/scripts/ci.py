@@ -147,7 +147,14 @@ def gen_name(s: str) -> str:
     return f"{s}-{suffix}"
 
 
-def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], interactive: bool):
+def docker(
+    name: str,
+    image: str,
+    scripts: List[str],
+    env: Dict[str, str],
+    interactive: bool,
+    additional_flags: Dict[str, str],
+):
     """
     Invoke a set of bash scripts through docker/bash.sh
 
@@ -169,6 +176,7 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
         "ci_arm",
         "ci_hexagon",
         "ci_riscv",
+        "ci_adreno",
     }
 
     if image in sccache_images and os.getenv("USE_SCCACHE", "1") == "1":
@@ -195,6 +203,10 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
     for key, value in env.items():
         command.append("--env")
         command.append(f"{key}={value}")
+
+    for key, value in additional_flags.items():
+        command.append(key)
+        command.append(value)
 
     SCRIPT_DIR.mkdir(exist_ok=True)
 
@@ -345,6 +357,7 @@ def generate_command(
     help: str,
     precheck: Optional[Callable[[], None]] = None,
     post_build: Optional[List[str]] = None,
+    additional_flags: Dict[str, str] = {},
 ):
     """
     Helper to generate CLIs that:
@@ -411,6 +424,7 @@ def generate_command(
                 "VERBOSE": "true" if verbose else "false",
             },
             interactive=interactive,
+            additional_flags=additional_flags,
         )
 
     fn.__name__ = name
@@ -683,6 +697,24 @@ generated = [
                 "run full Python tests",
                 [
                     "./tests/scripts/task_riscv_microtvm.sh",
+                ],
+            ),
+        },
+    ),
+    generate_command(
+        name="adreno",
+        help="Run Adreno build and test(s)",
+        post_build=["./tests/scripts/task_build_adreno_bins.sh"],
+        additional_flags={
+            "--volume": os.environ.get("ADRENO_OPENCL", "") + ":/adreno-opencl",
+            "--env": "ADRENO_OPENCL=/adreno-opencl",
+            "--net": "host",
+        },
+        options={
+            "test": (
+                "run Adreno API/Python tests",
+                [
+                    "./tests/scripts/task_python_adreno.sh " + os.environ.get("ANDROID_SERIAL", ""),
                 ],
             ),
         },
