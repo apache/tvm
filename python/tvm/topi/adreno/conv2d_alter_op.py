@@ -94,7 +94,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
                 weight = relay.nn.contrib_conv2d_winograd_weight_transform(
                     weight, tile_size=tile_size
                 )
-                weight = relay.transpose(weight, axes=[0, 1, 3, 2])  # HWOI -> HWIO
                 new_attrs["tile_size"] = tile_size
                 new_attrs["channels"] = CO
                 return relay.nn.contrib_conv2d_winograd_without_weight_transform(
