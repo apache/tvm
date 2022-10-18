@@ -1058,4 +1058,4 @@ def trilu(data, k, upper):
         value = data(*other_indices, row_index, col_index)
         return tvm.tir.Select(check_position, value, tvm.tir.const(0, data.dtype))
 
-    return te.compute(data.shape, _apply_trilu, name="trilu")
+    return te.compute(data.shape, _apply_trilu, name="trilu", tag=topi.tag.ELEMWISE)
