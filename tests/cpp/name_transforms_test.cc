@@ -87,7 +87,7 @@ TEST(NameTransforms, SanitizeName) {
   ASSERT_EQ(SanitizeName("input-"), "input_");
   ASSERT_EQ(SanitizeName("input++"), "input__");
   ASSERT_EQ(SanitizeName("woof:1"), "woof_1");
-  EXPECT_THROW(SanitizeName(""), InternalError);
+  ASSERT_EQ(SanitizeName(""), "");
 }
 
 TEST(NameTransforms, CombinedLogic) {
