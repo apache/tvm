@@ -35,7 +35,6 @@ def test_mean(target, dtype):
     A = relay.var("data", shape=input_shape, dtype=dtype)
     mean = relay.mean(A, axis=1, keepdims=True)
     mod = relay.Function([A], mean)
-    print(mod)
 
     build_run_compare(mod, {}, {"data": input_shape}, dtype, target)
 
@@ -48,6 +47,5 @@ def test_argmax(target, dtype):
     A = relay.var("data", shape=input_shape, dtype=dtype)
     argmax = relay.op.argmax(A, axis=[1])
     mod = relay.Function([A], argmax)
-    print(mod)
 
     build_run_compare(mod, {}, {"data": input_shape}, dtype, target)

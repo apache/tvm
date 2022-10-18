@@ -210,7 +210,7 @@ def schedule_injective_adreno(attrs, outs, target):
 
 @schedule_reduce.register(["adreno"])
 def schedule_reduce_adreno(attrs, outs, target):
-    """schedule reduction ops for cuda"""
+    """schedule reduction ops for adreno GPU"""
     with target:
         return topi.adreno.schedule_reduce(outs)
 
