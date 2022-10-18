@@ -575,7 +575,7 @@ def test_lwp(
     hexagon_server_process,
     hexagon_launcher: HexagonLauncherRPC,
     hexagon_session: Session,
-    hexagon_debug
+    hexagon_debug,
 ):
     dtype = "float32"
     data = relay.var("data", relay.TensorType((1, 64, 64, 3), dtype))
@@ -642,7 +642,7 @@ def test_lwp_multiple_conv2d(
     hexagon_server_process,
     hexagon_launcher: HexagonLauncherRPC,
     hexagon_session: Session,
-    hexagon_debug
+    hexagon_debug,
 ):
     dtype = "float32"
     input_shape = (1, 8, 8, 3)

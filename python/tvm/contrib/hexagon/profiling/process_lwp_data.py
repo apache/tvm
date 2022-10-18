@@ -83,9 +83,9 @@ def find_func(func_info, offset):
         ms = func_info[midx]["start"]
         me = func_info[midx]["end"]
         if fidx == lidx:
-            assert offset >= ms and offset <= me, (
-                f"Couldn't find a function for this offset: {offset}"
-            )
+            assert (
+                offset >= ms and offset <= me
+            ), f"Couldn't find a function for this offset: {offset}"
             return fidx
         else:
             if offset > me:
@@ -102,9 +102,9 @@ def accumulate_cycles(overall_cycles, func_cycles, func_name):
     acc_cycles = overall_cycles[func_name]
     for id in func_cycles:
         assert id in acc_cycles, f"id [{id}] missing in the existing function record"
-        assert acc_cycles[id]["start"] == func_cycles[id]["start"], (
-            "Offset value doesn't match with the existing function record."
-        )
+        assert (
+            acc_cycles[id]["start"] == func_cycles[id]["start"]
+        ), "Offset value doesn't match with the existing function record."
         acc_cycles[id]["cycles"] += func_cycles[id]["cycles"]
         acc_cycles[id]["count"] += func_cycles[id]["count"]
     overall_cycles.update({func_name: acc_cycles})
@@ -248,9 +248,9 @@ def process_data(data, func_info, so_ld_addr):
             )
             ordered_visited_list.pop()
             entry_node = visited_set.pop(id)
-            assert entry_node["func_idx"] == func_idx, (
-                f'Error - Found under a different function name : {entry_node["func_idx"]}'
-            )
+            assert (
+                entry_node["func_idx"] == func_idx
+            ), f'Error - Found under a different function name : {entry_node["func_idx"]}'
             cycles = entry["cyc"] - entry_node["cyc"]
             parent = -1
             if ordered_visited_list:
@@ -283,8 +283,7 @@ def process_data(data, func_info, so_ld_addr):
         f"\nDone processing function [{prev_func_name}] but ordered_visited_list not empty.\n"
         f"\t Possible reasons -- \n"
         f"\t\t1) Mismatch between model .so and json file.\n"
-        f"\t\t2) LWP buffer may have overflowed resulting into missing entries!"
-        % prev_func_name
+        f"\t\t2) LWP buffer may have overflowed resulting into missing entries!" % prev_func_name
     )
 
     overall_cycles = adjust_per_loop_counts(overall_cycles, data)
@@ -301,9 +300,9 @@ def get_load_addr(binary_path: str, serial_number: str, lwp_json: str, run_log: 
             # If the directory name is specified for the run_log of the
             # simulator (stdout.txt) then it must be same as lwp_json.
             run_log_dir = os.path.dirname(run_log)
-            assert run_log_dir == "" or run_log_dir == basedir, (
-                f"stdout.txt and {os.path.basename(lwp_json)} must be in the same directory"
-            )
+            assert (
+                run_log_dir == "" or run_log_dir == basedir
+            ), f"stdout.txt and {os.path.basename(lwp_json)} must be in the same directory"
             run_log = os.path.join(basedir, os.path.basename(run_log))
         # To extract load address for the simulator run
         pattern = compile(r"Model.*: (\w+):")
@@ -317,7 +316,7 @@ def get_load_addr(binary_path: str, serial_number: str, lwp_json: str, run_log: 
         a = pattern.search(lines)
         load_addr = int(a.group(1), 16)
     if ENABLE_DEBUG:
-      print('load_addr : ', load_addr)
+        print("load_addr : ", load_addr)
     return load_addr
 
 
@@ -338,8 +337,8 @@ def process_lwp_output(
     load_addr = get_load_addr(binary_path, serial_number, lwp_json, run_log)
     # Opening JSON file
     with open(lwp_json, "r") as f:
-      # Returns JSON object as a dictionary
-      data = json.load(f)
+        # Returns JSON object as a dictionary
+        data = json.load(f)
 
     # Get function names, and their start and end offsets from the model .so
     func_info = get_func_info(binary_path)

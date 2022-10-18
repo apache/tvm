@@ -23,6 +23,7 @@ from tvm.contrib.hexagon.profiling.process_lwp_data import process_lwp_output
 from tvm.relay.backend.executor_factory import ExecutorFactoryModule
 from tvm.contrib import utils
 
+
 class HexagonProfiler:
     """Hexagon Profiler"""
 
@@ -49,14 +50,14 @@ class HexagonProfiler:
 
             launcher = hexagon_server_process["launcher"]
             if self._android_serial_number != "simulator":
-              # Clear the logcat buffer and create a child process to redirect logcat output into a file.
-              subprocess.check_call(launcher._adb_device_sub_cmd + ["logcat", "-c"])
-              self._logcat_path = self._temp_dir.relpath('logcat.log')
-              f=open(self._logcat_path, 'w')
-              self._proc = subprocess.Popen(launcher._adb_device_sub_cmd + ["logcat"], stdout = f)
+                # Clear the logcat buffer and create a child process to redirect logcat output into a file.
+                subprocess.check_call(launcher._adb_device_sub_cmd + ["logcat", "-c"])
+                self._logcat_path = self._temp_dir.relpath("logcat.log")
+                f = open(self._logcat_path, "w")
+                self._proc = subprocess.Popen(launcher._adb_device_sub_cmd + ["logcat"], stdout=f)
 
-              # Get the remote workspace on the device from where the lwp data needs to be copied.
-              self._remote_path = launcher._workspace
+                # Get the remote workspace on the device from where the lwp data needs to be copied.
+                self._remote_path = launcher._workspace
 
         if self._profiling_mode is None:
             raise "Profiling mode was not set or was not a valid one."
@@ -94,13 +95,19 @@ class HexagonProfiler:
         #
         lwp_csv = self._temp_dir.relpath("lwp.csv")
         if self._android_serial_number == "simulator":
-            process_lwp_output(self._dso_binary_path, self._android_serial_number, prof_out, "stdout.txt", lwp_csv)
+            process_lwp_output(
+                self._dso_binary_path, self._android_serial_number, prof_out, "stdout.txt", lwp_csv
+            )
         else:
             # For on-device run
-            self._proc.kill() # End the child process for logcat
+            self._proc.kill()  # End the child process for logcat
             if os.path.exists(self._logcat_path):
                 process_lwp_output(
-                    self._dso_binary_path, self._android_serial_number, prof_out, self._logcat_path, lwp_csv
+                    self._dso_binary_path,
+                    self._android_serial_number,
+                    prof_out,
+                    self._logcat_path,
+                    lwp_csv,
                 )
             else:
                 raise RuntimeError("Error processing lwp output - missing logcat file")
