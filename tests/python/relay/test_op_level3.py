@@ -2284,5 +2284,24 @@ def test_trilu_shape_i64():
     tvm.testing.assert_allclose(tvm_res[1].numpy(), np_res[1])
 
 
+def test_trilu_reduce():
+    data_i0 = np.ones((2, 2), dtype="int32")
+    k = 0
+
+    i0 = relay.var("i0", shape=[2, 2], dtype="int32")
+    i1 = relay.var("i1", shape=(), dtype="int64")
+    v0 = relay.trilu(i0, i1)
+    v1 = relay.argmin(v0, axis=[0])
+    f = relay.Function([i0, i1], v1)
+    tvm_res = (
+        relay.create_executor("graph", device=tvm.cpu(), target="llvm")
+        .evaluate(f)(data_i0, k)
+        .numpy()
+    )
+
+    np_res = np.triu(data_i0, k).argmin(axis=0)
+    tvm.testing.assert_allclose(tvm_res, np_res)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

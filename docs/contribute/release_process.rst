@@ -233,9 +233,11 @@ The website repository is located at `https://github.com/apache/tvm-site <https:
 
 	# add the docs and push
 	git add .
-	git commit -m"Add v0.9.0 docs"
+	git commit -m "Add v0.9.0 docs"
 	git push
 
+
+Afterwards, modify the `downloads page <https://tvm.apache.org/download>`_ to support the latest release. An example of how to do this is `here <https://github.com/apache/tvm-site/pull/38>`_.
 
 Post the Announcement
 ---------------------

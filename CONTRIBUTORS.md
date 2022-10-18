@@ -92,6 +92,7 @@ We do encourage everyone to work anything they are interested in.
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri
 - [Matthew Barrett](https://github.com/mbaret): @mbaret
 - [Arnaud Bergeron](https://github.com/abergeron): @abergeron
+- [Florin Blanaru](https://github.com/gigiblender): @gigiblender
 - [Matthew Brookhart](https://github.com/mbrookhart): @mbrookhart
 - [Yaxing Cai](https://github.com/cyx-6): @cyx-6
 - [Liangfu Chen](https://github.com/liangfu): @liangfu
