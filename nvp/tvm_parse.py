@@ -17,38 +17,39 @@ def Dprint(message, DEBUG=False):
 
 def visit_stmts(primfn, DEBUG):
     g = nx.DiGraph()
-    g = generate_nodes(primfn.body, g, depth=0, ws="", DEBUG=DEBUG)
+    g = generate_nodes(primfn.body, g, DEPTH=0, WS="", DEBUG=DEBUG)
     return g
 
-def generate_nodes(stmt, G, depth, ws="", DEBUG=False): # tir.stmt.___
+def generate_nodes(stmt, G, DEPTH, WS="", DEBUG=False): # tir.stmt.___
     if isinstance(stmt, (_stmt.For)):
-        depth = depth+1
+        DEPTH = DEPTH+1
         g = nx.DiGraph()
-        Dprint(ws+' '+str(type(stmt))+' Start(%d)'%(depth), DEBUG)
-        g = generate_nodes(stmt.body, g, depth, ws+'|', DEBUG)
-        Dprint(ws+' '+str(type(stmt))+' End(%d)'%(depth), DEBUG)
+        Dprint(WS+' '+str(type(stmt))+' Start(%d)'%(DEPTH), DEBUG)
+        g = generate_nodes(stmt.body, g, DEPTH, WS+'|', DEBUG)
+        Dprint(WS+' '+str(type(stmt))+' End(%d)'%(DEPTH), DEBUG)
 
-        if all([g.nodes[node]['type'] != 'Seq' for node in g.nodes]): # if there is no 'Seq' node in the subgraph
-            g, bool = merge_redundant_nodes(g)
-            if bool: save_graph_viz(g, 'typeNum', 'graph_reduced%d.png'%(depth))
+        # if all([g.nodes[node]['type'] != 'Seq' for node in g.nodes]): # if there is no 'Seq' node in the subgraph
+        #     g, bool = merge_redundant_nodes(g)
+        #     if bool: save_graph_viz(g, 'typeNum', 'graph_reduced%d.png'%(DEPTH))
 
         start = max(list(g.nodes))+1
         end = start+1
-        g.add_node(start, name='For Start[%d]'%(depth), type='For Start')
+        VAR = stmt.loop_var.name
+        g.add_node(start, name='For %s[%d]'%(VAR, DEPTH), type='For Start', depth=DEPTH, var=VAR, extent=stmt.extent, min_time=0)
         [g.add_edge(start, node) for node in g.nodes if g.in_degree(node)==0 and not node==start] # Connect 'For Start' with 'Src'
         
-        g.add_node(end, name='For End[%d]'%(depth), type='For End')
+        g.add_node(end, name='For %s[%d]'%(VAR, DEPTH), type='For End', depth=DEPTH, var=VAR)
         [g.add_edge(node, end) for node in g.nodes if g.out_degree(node)==0 and not node==end] # Connect 'For End' with 'Sink'
-        depth = depth-1
+        DEPTH = DEPTH-1
         return g
 
     elif isinstance(stmt, _stmt.SeqStmt):
-        Dprint(ws+" "+str(type(stmt)), DEBUG)
+        Dprint(WS+" "+str(type(stmt)), DEBUG)
         glist = []
         acc_node_cnt = [0] # accumulated node counts of graph in glist
         for idx, st in enumerate(stmt.seq):
             g = nx.DiGraph()
-            g = generate_nodes(st, g, depth, ws+str(idx), DEBUG)
+            g = generate_nodes(st, g, DEPTH, WS+str(idx), DEBUG)
 
             if DEBUG:
                 ## SEQ_DEBUG
@@ -57,9 +58,9 @@ def generate_nodes(stmt, G, depth, ws="", DEBUG=False): # tir.stmt.___
                 SEQ_DEBUG=SEQ_DEBUG+1
                 ## SEQ_DEBUG
 
-            if all([g.nodes[node]['type'] != 'Seq' for node in g.nodes]): # if there is no 'Seq' node in the subgraph
-                g, bool = merge_redundant_nodes(g)
-                if bool: save_graph_viz(g, 'typeNum', 'graph%d_reduced.png'%(SEQ_DEBUG-1))
+            # if all([g.nodes[node]['type'] != 'Seq' for node in g.nodes]): # if there is no 'Seq' node in the subgraph
+            #     g, bool = merge_redundant_nodes(g)
+            #     if bool: save_graph_viz(g, 'typeNum', 'graph%d_reduced.png'%(SEQ_DEBUG-1))
 
             glist.append(g)
             acc_node_cnt.append(len(glist[-1].nodes)+acc_node_cnt[idx])
@@ -77,50 +78,53 @@ def generate_nodes(stmt, G, depth, ws="", DEBUG=False): # tir.stmt.___
         return g_union
 
     elif isinstance(stmt, _stmt.Allocate):
-        Dprint(ws+" "+str(type(stmt)), DEBUG)
-        G = generate_nodes(stmt.body, G, depth, ws, DEBUG)
+        Dprint(WS+" "+str(type(stmt)), DEBUG)
+        G = generate_nodes(stmt.body, G, DEPTH, WS, DEBUG)
         return G
 
     else: # Generate Data Nodes
         g = nx.DiGraph()
         g.add_node(0, name="DUMMY")
-        g = generate_data_nodes(stmt, g, 0, ws, DEBUG)
+        g = generate_data_nodes(stmt, g, 0, WS, DEBUG)
         g.remove_node(0)
         return g
 
-def generate_data_nodes(stmt, g, parent, ws, DEBUG):
+def generate_data_nodes(stmt, g, parent, WS, DEBUG):
     if isinstance(stmt, _stmt.BufferStore):
-        g = visit_STORE(stmt, g, parent, ws, DEBUG)
+        g = visit_STORE(stmt, g, parent, WS, DEBUG)
     elif isinstance(stmt, _stmt.LetStmt):
-        g = visit_LET(stmt, g, parent, ws, DEBUG)
+        g = visit_LET(stmt, g, parent, WS, DEBUG)
     elif isinstance(stmt, tvm.ir.PrimExpr):
-        g = visit_EXPR(stmt, g, parent, ws, DEBUG)
+        g = visit_EXPR(stmt, g, parent, WS, DEBUG)
     else:
         raise NotImplementedError("Not Implemented Error: %s"%(str(type(stmt))))
     return g
 
-def visit_STORE(stmt, g, parent, ws, DEBUG):
-    node_num = len(g.nodes)
-    Dprint(ws+" "+str(type(stmt))+"\t[Memory](%d)"%(node_num), DEBUG)
-    Dprint(ws+" ##################### "+"@Location to be stored"+" #####################", DEBUG)
-    g.add_node(node_num, name=str(stmt), type='Store')
-    g.add_edge(node_num, parent)
+def visit_STORE(stmt, g, parent, WS, DEBUG):
+    if stmt.buffer.name == 'Acc':
+        node_num = len(g.nodes)-1
+    else:
+        node_num = len(g.nodes)
+        Dprint(WS+" "+str(type(stmt))+"\t[Memory](%d)"%(node_num), DEBUG)
+        Dprint(WS+" ##################### "+"@Location to be stored"+" #####################", DEBUG)
+        g.add_node(node_num, name=str(stmt), type='Store')
+        g.add_edge(node_num, parent)
     for idx in range(0, len(stmt.indices)):
-        g = generate_data_nodes(stmt.indices[idx], g, node_num, ws+str(idx), DEBUG)
-    Dprint(ws+" ##################### "+"@Value to be stored"+" #####################", DEBUG)
-    g = generate_data_nodes(stmt.value, g, node_num, ws+'|', DEBUG)
+        g = generate_data_nodes(stmt.indices[idx], g, node_num, WS+str(idx), DEBUG)
+    Dprint(WS+" ##################### "+"@Value to be stored"+" #####################", DEBUG)
+    g = generate_data_nodes(stmt.value, g, node_num, WS+'|', DEBUG)
     return g
 
-def visit_LET(stmt, g, parent, ws, DEBUG):
-    g = generate_data_nodes(stmt.var, g, parent, ws, DEBUG) # cse_var_1: int32
+def visit_LET(stmt, g, parent, WS, DEBUG):
+    g = generate_data_nodes(stmt.var, g, parent, WS, DEBUG) # cse_var_1: int32
     var_num = len(g.nodes)-1
-    g = generate_data_nodes(stmt.value, g, len(g.nodes)-1, ws, DEBUG) # (((i1: int32*25) + (i2: int32*5)) + i3: int32)
+    g = generate_data_nodes(stmt.value, g, len(g.nodes)-1, WS, DEBUG) # (((i1: int32*25) + (i2: int32*5)) + i3: int32)
     # Remove edge connection with parent node before graph merge
     [g.remove_edge(node_num, parent) for node_num in g.nodes if g.has_edge(node_num, parent)]
 
     ## Make temporary DiGraph to merge w/ the original one
     g_ = nx.DiGraph()
-    g_ = generate_nodes(stmt.body, g_, 0, ws, DEBUG) # pad_temp[cse_var_1] = placeholder[cse_var_1]
+    g_ = generate_nodes(stmt.body, g_, 0, WS, DEBUG) # pad_temp[cse_var_1] = placeholder[cse_var_1]
 
     ## Merge two graphs with new node_num
     u = nx.disjoint_union(g, g_)
@@ -132,17 +136,20 @@ def visit_LET(stmt, g, parent, ws, DEBUG):
     [u.add_edge(sink, parent) for sink in u.nodes if u.out_degree(sink)==0 and not sink==0] # sink==0: KERNEL_END node
     return u
 
-def visit_EXPR(expr, g, parent, ws, DEBUG): # tir.expr.__
+def visit_EXPR(expr, g, parent, WS, DEBUG): # tir.expr.__
     if hasattr(expr, "indices"): # BufferLoad
-        node_num = len(g.nodes)
-        Dprint(ws+" "+str(type(expr))+" --> "+str(expr), DEBUG)
-        g.add_node(node_num, name=str(expr), type='Load')
-        g.add_edge(node_num, parent)
-        for idx in range(0, len(expr.indices)):
-            g = visit_EXPR(expr.indices[idx], g, node_num, ws+str(idx), DEBUG)
+        if expr.buffer.name == 'Acc':
+            node_num = len(g.nodes)-1
+        else:
+            node_num = len(g.nodes)
+            Dprint(WS+" "+str(type(expr))+" --> "+str(expr), DEBUG)
+            g.add_node(node_num, name=str(expr), type='Load')
+            g.add_edge(node_num, parent)
+            for idx in range(0, len(expr.indices)):
+                g = visit_EXPR(expr.indices[idx], g, node_num, WS+str(idx), DEBUG)
     elif all(hasattr(expr, attr) for attr in ["a", "b"]): # Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod, Min, Max, EA, NE, LT, LE, GT, GE, And, Or
         node_num = len(g.nodes)
-        Dprint(ws+" "+str(type(expr))+" --> "+str(expr), DEBUG)
+        Dprint(WS+" "+str(type(expr))+" --> "+str(expr), DEBUG)
         try:
             found = re.search('<class \'tvm.tir.expr.(.+?)\'>', str(type(expr))).group(1)
         except AttributeError:
@@ -150,37 +157,37 @@ def visit_EXPR(expr, g, parent, ws, DEBUG): # tir.expr.__
             assert 0
         g.add_node(node_num, name=str(expr), type=found)
         g.add_edge(node_num, parent)
-        g = visit_EXPR(expr.a, g, node_num, ws+"L", DEBUG)
-        g = visit_EXPR(expr.b, g, node_num, ws+"R", DEBUG)
+        g = visit_EXPR(expr.a, g, node_num, WS+"L", DEBUG)
+        g = visit_EXPR(expr.b, g, node_num, WS+"R", DEBUG)
     elif isinstance(expr, _expr.Cast): # Cast
         node_num = len(g.nodes)
-        Dprint(ws+" "+str(type(expr))+" --> "+str(expr), DEBUG)
-        g = visit_EXPR(expr.value, g, parent, ws+"*", DEBUG)
+        Dprint(WS+" "+str(type(expr))+" --> "+str(expr), DEBUG)
+        g = visit_EXPR(expr.value, g, parent, WS+"*", DEBUG)
     elif isinstance(expr, _expr.Call): # Call
-        Dprint(ws+" "+str(type(expr.op))+" --> "+str(expr.op), DEBUG)
+        Dprint(WS+" "+str(type(expr.op))+" --> "+str(expr.op), DEBUG)
         for idx in range(0, len(expr.args)):
-            g = visit_EXPR(expr.args[idx], g, parent, ws+str(idx), DEBUG)
+            g = visit_EXPR(expr.args[idx], g, parent, WS+str(idx), DEBUG)
     elif isinstance(expr, (_expr.Var)): # Var
         node_num = len(g.nodes)
         if node_num == parent: assert 0, str(expr)
         if expr.dtype == 'int32':
-            Dprint(ws+" "+str(type(expr))+" --> "+str(expr), DEBUG)
-            g.add_node(node_num, name=str(expr), type='Int Var')
+            Dprint(WS+" "+str(type(expr))+" --> "+str(expr), DEBUG)
+            g.add_node(node_num, name=str(expr), type='Int Var', var=expr.name)
             g.add_edge(node_num, parent)
         elif expr.dtype == 'float32':
-            Dprint(ws+" "+str(type(expr))+" --> "+str(expr), DEBUG)
-            g.add_node(node_num, name=str(expr), type='Float Var')
+            Dprint(WS+" "+str(type(expr))+" --> "+str(expr), DEBUG)
+            g.add_node(node_num, name=str(expr), type='Float Var', var=expr.name)
             g.add_edge(node_num, parent)
         else:
             raise NotImplementedError("Currently NOT supported variable type: %s"%(expr.dtype))
     elif isinstance(expr, (_expr.IntImm)): # IntImm
         node_num = len(g.nodes)
-        Dprint(ws+" "+str(type(expr))+" --> "+str(expr), DEBUG)
+        Dprint(WS+" "+str(type(expr))+" --> "+str(expr), DEBUG)
         g.add_node(node_num, name=str(expr), type='Int Imm')
         g.add_edge(node_num, parent)
     elif isinstance(expr, (_expr.FloatImm)): # FloatImm
         node_num = len(g.nodes)
-        Dprint(ws+" "+str(type(expr))+" --> "+str(expr), DEBUG)
+        Dprint(WS+" "+str(type(expr))+" --> "+str(expr), DEBUG)
         g.add_node(node_num, name=str(expr), type='Float Imm')
         g.add_edge(node_num, parent)
     else:

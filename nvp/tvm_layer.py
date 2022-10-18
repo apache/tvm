@@ -4,7 +4,8 @@ from tvm.relay.testing import init
 
 def gen_module(layer):
     if layer == 'relu':
-        data = relay.var("data", shape=[1, 100], dtype="float32")
+        (cw, oh, ow) = (32, 10, 12)
+        data = relay.var("data", shape=[1, cw*oh*ow], dtype="float32")
         Trelay = tvm.relay.nn.relu(data)
     elif layer == 'leaky_relu':
         data = relay.var("data", shape=[1, 100], dtype="float32")
@@ -15,10 +16,11 @@ def gen_module(layer):
     elif layer == 'maxpool':
         data = relay.var("data", shape=[1, 10, 5, 5], dtype="float32") #NCHW
         Trelay = tvm.relay.nn.max_pool2d(data, pool_size=(3,3))
-    elif layer == 'dwconv': # weight(I) == data(C)/groups
-        data = relay.var("data", shape=[1, 12, 7, 7], dtype="float32") #NCHW
-        weight = relay.var("weight", shape=[12, 1, 3, 3], dtype="float32") #OIHW
-        Trelay = tvm.relay.nn.conv2d(data, weight, strides=(1,1), padding=(0,0), groups=12) 
+    elif layer == 'dwconv_3x3': # weight(I) == data(C)/groups
+        (cw, oh, ow) = (32, 10, 12)
+        data = relay.var("data", shape=[1, cw, oh+2, ow+2], dtype="float32") #NCHW
+        weight = relay.var("weight", shape=[cw, 1, 3, 3], dtype="float32") #OIHW
+        Trelay = tvm.relay.nn.conv2d(data, weight, strides=(1,1), padding=(0,0), groups=cw)
     elif layer == 'dense':
         data = relay.var("data", shape=[5, 10], dtype="float32") #(d_1, d_2, ..., units_in)
         weight = relay.var("weight", shape=[7,10], dtype="float32") #(units, units_in)
@@ -32,7 +34,7 @@ def gen_module(layer):
         raise NotImplementedError("Currently NOT implemented: %s" %(layer))
 
     args = relay.analysis.free_vars(Trelay)   # tvm.relay.Var
-    mod = tvm.IRModule.from_expr(Trelay)
+    # mod = tvm.IRModule.from_expr(Trelay)
     func = relay.Function(args, Trelay)
     # mod = tvm.IRModule.from_expr(func)
     mod, params = init.create_workload(func)

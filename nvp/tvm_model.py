@@ -7,13 +7,13 @@ class VectorProcessor():
             raise NotImplementedError("Currently Not Supported Model: %s"%(model))
         if not isinstance(graph, nx.digraph.DiGraph):
             raise TypeError("Currently Not Supported Graph: %s"%(type(graph)))
-
         self.model = model
         self.graph = graph
         self.slot = dict.fromkeys(self.import_slot(model))
         self.latency = self.import_latency(model)
         self.type = self.import_type(model)
         self.debug = debug
+        self.time_stamp = {}
 
     def import_slot(self, model):
         return tvm_config.Config[model]['Slot']
@@ -55,9 +55,37 @@ class VectorProcessor():
                     break
         return
 
-    def run_model(self):
+    def loop_hoisting(self):
+        loop_var_nodes = self.get_nodes(attr='type', str='For Start')
+        loop_var_names = [self.graph.nodes[node]['var'] for node in loop_var_nodes]
+
+        int_var_nodes = self.get_nodes(attr='type', str='Int Var')
+        int_var_names = [self.graph.nodes[node]['var'] for node in int_var_nodes]
+
+        for int_var_name in int_var_names:
+            loop_var_node = loop_var_nodes[loop_var_names.index(int_var_name)]
+            self.graph.nodes[loop_var_node]['min_time'] += 1
+        return
+
+    def get_nodes(self, attr, str):
+        return [node for node in self.graph.nodes if self.graph.nodes[node][attr]==str]
+
+    def remove_nodes(self, attr, str):
+        while True:
+            nodes = [node for node in self.graph.nodes if self.graph.nodes[node][attr]==str]
+            if len(nodes)==0: break
+
+            node = nodes[0]
+            parents = list(self.graph.predecessors(node))
+            children = list(self.graph.successors(node))
+            for pair in [(p,c) for p in parents for c in children]:
+                self.graph.add_edge(pair[0], pair[1])
+            self.graph.remove_node(node)
+        return
+
+    def run_single_iteration(self):
         '''    
-        [Steps in 'run_model()']
+        [Steps in 'run_single_iteration()']
         1. Update each slot's state for current CLK
         2. For available slot, occupy it with node in candid_nodes with appropriate type
         3. Update node states (in_nodes, candid_nodes, out_nodes)
@@ -70,24 +98,63 @@ class VectorProcessor():
         rdy_nodes:  Ready: O, Processed: X
         out_nodes:  Ready: O, Processed: O
         '''
+
+        print('########## Run Single Iteration ##########')
         in_nodes, rdy_nodes, out_nodes = [], [], []
 
         # Initialize: clk=0
         clk = 0
         rdy_nodes = [node for node in self.graph.nodes if self.graph.in_degree(node)==0]
         in_nodes = list(set(self.graph.nodes)-set(rdy_nodes)) # Update in_nodes
+        loop_stack = ['NO LOOP']
 
         while True:
             free_nodes = self.slot_update(clk)
             in_nodes, rdy_nodes, out_nodes = self.node_update(free_nodes, in_nodes, rdy_nodes, out_nodes)
-            if len(in_nodes)==0 and len(rdy_nodes)==1:
+            if len(in_nodes)==0 and len(rdy_nodes)==0:
                 break
-            self.slot_occupy(in_nodes, rdy_nodes, clk)
-            self.print_status(clk, in_nodes, rdy_nodes, out_nodes)
+            self.slot_occupy(rdy_nodes, clk)
+            self.time_stamp_update(clk, loop_stack)
+            self.print_node_status(clk, in_nodes, rdy_nodes, out_nodes)
             clk = clk+1
 
-        self.print_status(clk, in_nodes, rdy_nodes, out_nodes)
-        print("Total Run Time: %d"%(clk))
+        self.print_node_status(clk, in_nodes, rdy_nodes, out_nodes)
+        print("Single Iteration Run Time: %d"%(clk))
+        self.print_time_stamp_status()
+
+    def get_estimated_cycles(self):
+        print('########## Get Estimated Cycles ##########')
+        # time_stamp: {time: node_num}
+        max_depth = max([self.graph.nodes[node_num]['depth'] for node_num in self.time_stamp.values()])
+        name = ['NO LOOP']
+        extent = [1]
+        min_time = [0]
+        duration = [0]*(max_depth+1) # 0-th depth: NO loop area
+        for time in self.time_stamp.keys():
+            node_num = self.time_stamp[time]
+            node = self.graph.nodes[node_num]
+            if (node['type']=='For Start'):
+                duration[node['depth']] += 1
+                if (name[-1]!=node['name']) and (node['name'] not in name):
+                    name.append(node['name'])
+                    extent.append(extent[-1]*node['extent'])
+                    min_time.append(node['min_time'])
+            else:
+                raise RuntimeError("Currently Not Supported control node type: %s"%(node['type']))
+
+        print("name:     %s"%(name))
+        print("extent:   %s"%(extent))
+        print("min_time: %s"%(min_time))
+        print("duration: %s"%(duration))
+        if not all(len(name) == len(l) for l in [name, extent, min_time, duration]):
+            raise RuntimeError("Error!!: 'name', 'extent', 'min_time', 'duration' must have same length!!")
+
+        cycles = []
+        estimated_cycles = 0
+        for i in range(0, len(name)):
+            cycles.append("%s*max(%s, %s)"%(extent[i], min_time[i], duration[i]))
+            estimated_cycles += extent[i]*max(min_time[i], duration[i])
+        print(">> Total Cycles: %s <- %s"%(estimated_cycles, cycles))
 
     def slot_update(self, clk):
         free_nodes = []
@@ -99,10 +166,9 @@ class VectorProcessor():
 
         #2. Remove duplicates in list (; All three slots are occupied by 'Control')
         free_nodes = list(dict.fromkeys(free_nodes))
-
         return free_nodes
 
-    def slot_occupy(self, in_nodes, rdy_nodes, clk):
+    def slot_occupy(self, rdy_nodes, clk):
         for rn in rdy_nodes:
             slot = self.graph.nodes[rn]['slot']
             type = self.graph.nodes[rn]['type']
@@ -122,7 +188,6 @@ class VectorProcessor():
                 else:
                     continue
 
-
     def node_update(self, free_nodes, in_nodes, rdy_nodes, out_nodes):
         #1. free_nodes: Remove from rdy_nodes & Add to out_nodes
         for fn in free_nodes:
@@ -140,10 +205,26 @@ class VectorProcessor():
         tmp = list(dict.fromkeys(tmp)) # remove duplicates
         in_nodes = [n for n in in_nodes if n not in tmp] # remove newly_ready_nodes from in_nodes
         rdy_nodes.extend(tmp) # add newly_ready_nodes to rdy_nodes
-
         return in_nodes, rdy_nodes, out_nodes
 
-    def print_status(self, clk, in_nodes, rdy_nodes, out_nodes):
+    def time_stamp_update(self, clk, loop_stack):
+        occupied_nodes = self.get_occupied_nodes()
+        if len(occupied_nodes)==1 and self.graph.nodes[occupied_nodes[0]]['slot']=='Control':
+            if self.graph.nodes[occupied_nodes[0]]['type']=='For Start':
+                loop_stack.append(occupied_nodes[0])
+                self.time_stamp[clk] = loop_stack[-1]
+            elif self.graph.nodes[occupied_nodes[0]]['type']=='For End':
+                self.time_stamp[clk] = loop_stack[-1]
+                loop_stack.pop()
+        else:
+            # self.time_stamp[clk] = self.time_stamp[clk-1]
+            self.time_stamp[clk] = loop_stack[-1]
+
+    def get_occupied_nodes(self):
+        occupied_nodes = [self.slot[s]['node'] for s in self.slot.keys() if self.slot[s] is not None]
+        return list(dict.fromkeys(occupied_nodes)) # remove duplicates in list
+
+    def print_node_status(self, clk, in_nodes, rdy_nodes, out_nodes):
         if self.debug:
             print("CLK: %s"%(clk))
             print(">> in_nodes: %s\n   rdy_nodes: %s\n   out_nodes: %s"
@@ -151,3 +232,9 @@ class VectorProcessor():
             for key in self.slot.keys():
                 print("%s: %s"%(key, self.slot[key]))
             print("#"*20)
+
+    def print_time_stamp_status(self):
+        if self.debug:
+            for time in self.time_stamp.keys():
+                node_num, info = self.time_stamp[time], self.graph.nodes[self.time_stamp[time]]
+                print("#(%d): %d, %s"%(time, node_num, info))
