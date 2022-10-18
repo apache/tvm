@@ -532,3 +532,7 @@ def test_rolling_buffer_injection_invalid():
     _, _ = _tile_nd(sch, [1, 4, 8, 16], "B")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.rolling_buffer(sch.get_block("B"), 0)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

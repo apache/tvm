@@ -640,9 +640,9 @@ void ConcreteScheduleNode::ReverseComputeInline(const BlockRV& block_rv) {
 
 /******** Schedule: Buffer Transformation ********/
 
-void ConcreteScheduleNode::RollingBuffer(const BlockRV& block_rv, int buffer_index) {
+void ConcreteScheduleNode::RollingBuffer(const BlockRV& block_rv, int write_buffer_index) {
   TVM_TIR_SCHEDULE_BEGIN();
-  tir::RollingBuffer(state_, this->GetSRef(block_rv), buffer_index);
+  tir::RollingBuffer(state_, this->GetSRef(block_rv), write_buffer_index);
   TVM_TIR_SCHEDULE_END("rolling-buffer", this->error_render_level_);
   this->state_->DebugVerify();
 }

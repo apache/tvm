@@ -114,7 +114,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) final;
   void PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) final;
   /******** Schedule: Buffer transformation ********/
-  void RollingBuffer(const BlockRV& block_rv, int buffer_index) final;
+  void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) final;
   /******** Schedule: Misc ********/
   void EnterPostproc() final;
 };

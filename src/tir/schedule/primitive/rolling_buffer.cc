@@ -30,7 +30,7 @@ struct RollingBufferInfo {
   Buffer old_buffer;
   Buffer new_buffer;
   int rolling_axis;
-  int rolling_extent;
+  PrimExpr rolling_extent;
   std::vector<int> axis_overlaps;
   std::vector<Optional<Var>> axis_iter_vars;
   /*! \brief The map used for ScheduleStateNode::Replace. */
@@ -121,45 +121,40 @@ class RollingBufferInfoCollector {
 
     std::vector<Optional<Var>> bound_iter_vars;
     std::vector<int> bound_overlaps;
-    auto stride = 0;
-    auto divisor = 1;
-    Optional<Var> iter_var;
+
+    arith::PVar<Var> p_var;
+    arith::PVar<IntImm> p_stride, p_divisor;
     for (auto bound : region) {
-      divisor = 1;
-      if (auto floor_div = bound->min.as<FloorDivNode>()) {
+      auto stride = 0;
+      auto divisor = 1;
+
+      Optional<Var> iter_var;
+      if (floordiv((p_var * p_stride), p_divisor).Match(bound->min)) {
         // Handle the case of fractional strides
         // They take this form: floordiv(hh.outer, 2)
         // Strip the floordiv and keep track of the divisor
-        divisor = Downcast<IntImm>(floor_div->b)->value;
-        bound = Range::FromMinExtent(floor_div->a, bound->extent, bound->span);
-      }
-      if (bound->min.as<IntImmNode>()) {
+        iter_var = p_var.Eval();
+        divisor = p_divisor.Eval()->value;
+        stride = std::ceil(static_cast<float>(p_stride.Eval()->value) / divisor);
+      } else if ((p_var * p_stride).Match(bound->min)) {
+        // The bound is the iter var multiplied by the stride
+        iter_var = p_var.Eval();
+        stride = p_stride.Eval()->value;
+      } else if (p_var.Match(bound->min)) {
+        // If the bound is just a Var, that implies the stride is 1
+        iter_var = p_var.Eval();
+        stride = 1;
+      } else if (is_const_int(bound->min)) {
         // If the bound is an int, we can't roll over it
         iter_var = NullOpt;
-      } else if (auto var = bound->min.as<VarNode>()) {
-        // If the bound is just a Var, that implies the stride is 1
-        iter_var = GetRef<Var>(var);
-        stride = 1;
       } else {
-        // Otherwise, it's the iter var multiplied by the stride
-        // If not we're in unknown behaviour
-        if (auto mul = bound->min.as<MulNode>()) {
-          if (mul->a->IsInstance<VarNode>() && mul->b->IsInstance<IntImmNode>()) {
-            iter_var = Downcast<Var>(mul->a);
-            stride = Downcast<IntImm>(mul->b)->value;
-          } else {
-            return false;
-          }
-        } else {
-          return false;
-        }
+        // If all of the above matches fail, we're in unknown behaviour
+        return false;
       }
-      stride = std::ceil(static_cast<float>(stride) / divisor);
       auto bound_overlap = 0;
       if (iter_var.defined()) {
-        auto extent = bound->extent.as<IntImmNode>();
-        ICHECK(extent);
-        bound_overlap = extent->value - stride;
+        auto extent = Downcast<IntImm>(bound->extent)->value;
+        bound_overlap = extent - stride;
         // Since Pass CompactBufferAllocation will be responsible for compacting the buffer
         // allocation region, there is no need to roll over the axis where the overlap is not
         // positive, so reset iter_var to NullOpt.
@@ -170,6 +165,7 @@ class RollingBufferInfoCollector {
       bound_iter_vars.push_back(iter_var);
       bound_overlaps.push_back(bound_overlap);
     }
+
     Array<StmtSRef> loop_srefs = GetLoops(block_sref);
     // Pick the outermost iter_var that's mentioned in the bounds
     // to be the rolling axis
@@ -200,7 +196,7 @@ class RollingBufferInfoCollector {
     info_.old_buffer = buffer;
     info_.new_buffer = new_buffer;
     info_.rolling_axis = roll_axis;
-    info_.rolling_extent = static_cast<int>(Downcast<IntImm>(region[roll_axis]->extent)->value);
+    info_.rolling_extent = region[roll_axis]->extent;
     info_.axis_overlaps = bound_overlaps;
     info_.axis_iter_vars = bound_iter_vars;
 
@@ -233,12 +229,28 @@ class RollingBufferRewriter : public StmtExprMutator {
     (*old_access_regions).MutateByApply(fmutate);
   }
 
+  void RewriteBufferAccess(Buffer* buffer, Array<PrimExpr>* indices) const {
+    Array<PrimExpr> new_indices;
+    new_indices.reserve(indices->size());
+    // First modify the access indices to use modulo arithmetic
+    // for the rolling axis
+    for (size_t i = 0; i < indices->size(); ++i) {
+      if (static_cast<int>(i) == info_->rolling_axis) {
+        new_indices.push_back(FloorMod((*indices)[i], info_->rolling_extent));
+      } else {
+        new_indices.push_back((*indices)[i]);
+      }
+    }
+    // Replace the accessed buffer with the new buffer.
+    *buffer = info_->new_buffer;
+    *indices = std::move(new_indices);
+  }
+
   Stmt VisitStmt_(const BlockNode* block) final {
     Block old_stmt = GetRef<Block>(block);
     Block stmt = Downcast<Block>(StmtExprMutator::VisitStmt_(block));
+    BlockNode* n = stmt.CopyOnWrite();
     if (block == scope_sref_->stmt) {
-      ObjectPtr<BlockNode> n = make_object<BlockNode>(*stmt.as<BlockNode>());
-
       Array<Buffer> new_alloc_buffers;
       for (const Buffer& buffer : stmt->alloc_buffers) {
         if (buffer != info_->old_buffer) {
@@ -248,9 +260,8 @@ class RollingBufferRewriter : public StmtExprMutator {
         }
       }
       n->alloc_buffers = std::move(new_alloc_buffers);
-      stmt = Block(n);
     } else {
-      Array<IterVar> new_iter_bindings;
+      Array<IterVar> new_iter_vars;
       for (size_t i = 0; i < stmt->iter_vars.size(); ++i) {
         auto old_iter_var = stmt->iter_vars[i];
         if (static_cast<int>(i) == info_->rolling_axis) {
@@ -262,16 +273,15 @@ class RollingBufferRewriter : public StmtExprMutator {
           // during lowering phase.
           IterVar new_iter_var =
               IterVar(old_iter_var->dom, old_iter_var->var, IterVarType::kOpaque);
-          new_iter_bindings.push_back(new_iter_var);
+          new_iter_vars.push_back(new_iter_var);
         } else {
-          new_iter_bindings.push_back(old_iter_var);
+          new_iter_vars.push_back(old_iter_var);
         }
       }
       Map<Var, Buffer> buffer_data_to_buffer = {{info_->new_buffer->data, info_->new_buffer}};
       auto infered_access_regions = GetBlockReadWriteRegion(stmt, buffer_data_to_buffer);
 
-      BlockNode* n = stmt.CopyOnWrite();
-      n->iter_vars = std::move(new_iter_bindings);
+      n->iter_vars = std::move(new_iter_vars);
       RewriteAccessRegion(&n->reads, infered_access_regions[0]);
       RewriteAccessRegion(&n->writes, infered_access_regions[1]);
     }
@@ -306,22 +316,8 @@ class RollingBufferRewriter : public StmtExprMutator {
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore stmt = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
     if (stmt->buffer.same_as(info_->old_buffer)) {
-      Array<PrimExpr> new_indices;
-      new_indices.reserve(stmt->indices.size());
-      // First modify the access indices to use modulo arithmetic
-      // for the rolling axis
-      for (size_t i = 0; i < stmt->indices.size(); ++i) {
-        auto index = stmt->indices[i];
-        if (static_cast<int>(i) == info_->rolling_axis) {
-          new_indices.push_back(FloorMod(index, info_->rolling_extent));
-        } else {
-          new_indices.push_back(index);
-        }
-      }
       BufferStoreNode* n = stmt.CopyOnWrite();
-      // Replace the stored buffer with the new buffer.
-      n->buffer = info_->new_buffer;
-      n->indices = std::move(new_indices);
+      RewriteBufferAccess(&n->buffer, &n->indices);
       // Need to add predicate to the current block to avoid recomputing elements.
       rewrite_block_predicate_ = true;
     }
@@ -331,20 +327,8 @@ class RollingBufferRewriter : public StmtExprMutator {
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     BufferLoad stmt = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
     if (stmt->buffer.same_as(info_->old_buffer)) {
-      Array<PrimExpr> new_indices;
-      new_indices.reserve(stmt->indices.size());
-      for (size_t i{0}; i < stmt->indices.size(); ++i) {
-        auto index = stmt->indices[i];
-        if (static_cast<int>(i) == info_->rolling_axis) {
-          new_indices.push_back(FloorMod(index, info_->rolling_extent));
-        } else {
-          new_indices.push_back(index);
-        }
-      }
       BufferLoadNode* n = stmt.CopyOnWrite();
-      // Replace the loaded buffer with the new buffer.
-      n->buffer = info_->new_buffer;
-      n->indices = std::move(new_indices);
+      RewriteBufferAccess(&n->buffer, &n->indices);
     }
     return std::move(stmt);
   }
@@ -401,7 +385,7 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buf
   }
   BufferRegion relaxed_region = GetRelaxedBufferRegion(realize, buffer_region, dom_map);
 
-  // Step 4. Find an valid rolling axis and collect bound overlaps on the target buffer.
+  // Step 4. Find a valid rolling axis and collect bound overlaps on the target buffer.
   RollingBufferInfo info = RollingBufferInfoCollector::CheckAndGetRollingBufferInfo(
       self->mod, block_sref, relaxed_region);
   // Step 5. Mutate IR to apply rolling access pattern.
@@ -423,14 +407,14 @@ struct RollingBufferTraits : public UnpackedInstTraits<RollingBufferTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block, Integer buffer_index) {
-    return sch->RollingBuffer(block, buffer_index.IntValue());
+  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block, Integer write_buffer_index) {
+    return sch->RollingBuffer(block, write_buffer_index.IntValue());
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block, Integer buffer_index) {
+  static String UnpackedAsPython(Array<String> outputs, String block, Integer write_buffer_index) {
     PythonAPICall py("rolling_buffer");
     py.Input("block", block);
-    py.Input("buffer_index", buffer_index);
+    py.Input("write_buffer_index", write_buffer_index);
     return py.Str();
   }
 

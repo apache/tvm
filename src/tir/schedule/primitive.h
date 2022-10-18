@@ -396,7 +396,7 @@ TVM_DLL StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sr
  */
 TVM_DLL StmtSRef RFactor(ScheduleState self, const StmtSRef& loop_sref, int factor_axis);
 /******** Schedule: Buffer transformation ********/
-TVM_DLL void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int buffer_index);
+TVM_DLL void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buffer_index);
 /******** Schedule: Block annotation ********/
 /*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
 using StorageAlignTuple = Array<Integer>;

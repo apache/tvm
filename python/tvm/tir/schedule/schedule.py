@@ -3048,7 +3048,7 @@ class Schedule(Object):
     def rolling_buffer(
         self,
         block: Union[BlockRV, str],
-        buffer_index: int,
+        write_buffer_index: int,
     ) -> None:
         """Compute the target buffer via rolling buffering, select the outermost rollable
         axis with a positive bound overlap that appears in the block's ancestor loops
@@ -3066,7 +3066,7 @@ class Schedule(Object):
         ----------
         block : Union[BlockRV, str]
             The producer block of the buffer.
-        buffer_index : int
+        write_buffer_index : int
             The index of the buffer in block's write region.
 
         Examples
@@ -3106,7 +3106,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_rolling_buffer)
-            sch.rolling_buffer(sch.get_block("B"), buffer_index=0)
+            sch.rolling_buffer(sch.get_block("B"), write_buffer_index=0)
             print(sch.mod["main"].script())
 
         After applying rolling_buffer, the IR becomes:
@@ -3145,7 +3145,7 @@ class Schedule(Object):
         The region_cover property of the consumer block of the target buffer will become false.
         """
         block = self._normalize_block_arg(block)
-        return _ffi_api.ScheduleRollingBuffer(self, block, buffer_index)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleRollingBuffer(self, block, write_buffer_index)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: Misc ##########
 
