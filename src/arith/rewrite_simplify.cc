@@ -72,6 +72,40 @@ using namespace tir;
 // handled by CanonicalSimplifier.
 //
 
+/* Utility for rewriting only boolean portions of an expression
+ *
+ * Performs a subset of simplifications done by RewriteSimplifier,
+ * sufficient to negate a simplified expression.  Intended for
+ * application on an expression that has previously been simplified.
+ *
+ * \param expr The boolean expression to be normalized
+ *
+ * \returns The normalized boolean expression
+ */
+PrimExpr NormalizeBooleanOperators(PrimExpr expr) {
+  PVar<PrimExpr> x, y;
+
+  while (true) {
+    if ((!!x).Match(expr)) {
+      expr = x.Eval();
+    } else if ((!(x || y)).Match(expr)) {
+      return NormalizeBooleanOperators(!x.Eval()) && NormalizeBooleanOperators(!y.Eval());
+    } else if ((!(x && y)).Match(expr)) {
+      return NormalizeBooleanOperators(!x.Eval()) || NormalizeBooleanOperators(!y.Eval());
+    } else if ((x >= y).Match(expr) || (!(x < y)).Match(expr) || (!(y > x)).Match(expr)) {
+      return y.Eval() <= x.Eval();
+    } else if ((x > y).Match(expr) || (!(x <= y)).Match(expr) || (!(y >= x)).Match(expr)) {
+      return y.Eval() < x.Eval();
+    } else if ((!(x == y)).Match(expr)) {
+      return x.Eval() != y.Eval();
+    } else if ((!(x != y)).Match(expr)) {
+      return x.Eval() == y.Eval();
+    } else {
+      return expr;
+    }
+  }
+}
+
 CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, const PrimExpr& y) {
   CompareResult output = CompareResult::kUnknown;
 
@@ -261,17 +295,17 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
   for (const PrimExpr& subconstraint : ExtractConstraints(new_constraint)) {
     if (SideEffect(subconstraint) <= CallEffectKind::kPure) {
       literal_constraints_.push_back(subconstraint);
-      // We could apply this during TryMatchLiteralConstraint, but
-      // that would require performing a rewrite of each expression
-      // being checked.  This way, we only apply a rewrite for each
-      // constraint being applied.
       PrimExpr negation;
       if (subconstraint.dtype().is_bool()) {
-        negation = Not(subconstraint);
+        // We could apply NormalizeBooleanOperators during
+        // TryMatchLiteralConstraint, but that would require
+        // performing a rewrite of each expression being checked.
+        // This way, we only apply a rewrite for each constraint being
+        // applied.
+        negation = NormalizeBooleanOperators(Not(subconstraint));
       } else {
         negation = subconstraint == make_zero(subconstraint.dtype());
       }
-      negation = operator()(negation);
       literal_constraints_.push_back(Not(negation));
     }
   }
@@ -1557,7 +1591,50 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NotNode* op) {
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
-  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
+  PrimExpr ret = [&]() -> PrimExpr {
+    // If this extension isn't enabled, just delegate out.
+    if (!(enabled_extensions_ & kApplyConstraintsToBooleanBranches)) {
+      return IRMutatorWithAnalyzer::VisitExpr_(op);
+    }
+
+    PrimExpr a = op->a;
+    PrimExpr b = op->b;
+
+    // Alternate which branch is used as the constraint, and which is
+    // being simplified.  Because some sub-analyzers expect their
+    // constraints to already be simplified, each branch may require
+    // more than one update.  The loop condition allows each branch to
+    // be visited up to twice, but only performs the second visit if
+    // necessary.
+    size_t iterations_since_update = 0;
+    for (size_t i = 0; i < 4; i++) {
+      PrimExpr& to_update = (i % 2 == 0) ? a : b;
+      const PrimExpr& constraint = (i % 2 == 0) ? b : a;
+
+      With<ConstraintContext> context(analyzer_, constraint);
+      PrimExpr updated = VisitExpr(to_update);
+
+      if (!to_update.same_as(updated)) {
+        to_update = updated;
+        iterations_since_update = 0;
+      } else {
+        iterations_since_update++;
+        if (iterations_since_update >= 2) {
+          break;
+        }
+      }
+    }
+
+    // Only construct a new object if a change has been made.
+    // Otherwise, follow ExprMutator's convention of returning the
+    // original object.
+    if (a.same_as(op->a) && b.same_as(op->b)) {
+      return GetRef<PrimExpr>(op);
+    } else {
+      return And(a, b);
+    }
+  }();
+
   op = ret.as<AndNode>();
 
   if (auto const_res = TryConstFold<And>(op->a, op->b)) return const_res.value();
@@ -1601,7 +1678,51 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
-  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
+  PrimExpr orig = GetRef<PrimExpr>(op);
+
+  PrimExpr ret = [&]() -> PrimExpr {
+    // If this extension isn't enabled, just delegate out.
+    if (!(enabled_extensions_ & kApplyConstraintsToBooleanBranches)) {
+      return IRMutatorWithAnalyzer::VisitExpr_(op);
+    }
+
+    PrimExpr a = op->a;
+    PrimExpr b = op->b;
+
+    // Alternate which branch is used as the constraint, and which
+    // is being simplified.  Because some sub-analyzers expect their
+    // constraints to already be simplified, each branch may require
+    // more than update.  The loop condition allows each branch to be
+    // visited up to twice, but only if performs the second visit if
+    // necessary.
+    size_t iterations_since_update = 0;
+    for (size_t i = 0; i < 4; i++) {
+      PrimExpr& to_update = (i % 2 == 0) ? a : b;
+      const PrimExpr& constraint = (i % 2 == 0) ? b : a;
+
+      With<ConstraintContext> context(analyzer_, NormalizeBooleanOperators(Not(constraint)));
+      PrimExpr updated = VisitExpr(to_update);
+
+      if (!to_update.same_as(updated)) {
+        to_update = updated;
+        iterations_since_update = 0;
+      } else {
+        iterations_since_update++;
+        if (iterations_since_update >= 2) {
+          break;
+        }
+      }
+    }
+
+    // Only construct a new object if a change has been made.
+    // Otherwise, follow ExprMutator's convention of returning the
+    // original object.
+    if (a.same_as(op->a) && b.same_as(op->b)) {
+      return GetRef<PrimExpr>(op);
+    } else {
+      return Or(a, b);
+    }
+  }();
 
   op = ret.as<OrNode>();
   if (auto const_res = TryConstFold<Or>(op->a, op->b)) return const_res.value();
