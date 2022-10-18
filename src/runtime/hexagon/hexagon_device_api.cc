@@ -143,17 +143,6 @@ void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
   }
 }
 
-void* HexagonDeviceAPI::AllocRpcBuffer(size_t nbytes, size_t alignment) {
-  CHECK(nbytes) << "number of bytes is zero";
-  CHECK(alignment) << "alignment is zero";
-  return rpc_hexbuffs.AllocateHexagonBuffer(nbytes, alignment, String("global"));
-}
-
-void HexagonDeviceAPI::FreeRpcBuffer(void* ptr) {
-  CHECK(ptr) << "buffer pointer is null";
-  rpc_hexbuffs.FreeHexagonBuffer(ptr);
-}
-
 // WorkSpace: runtime allocations for Hexagon
 struct HexagonWorkspacePool : public WorkspacePool {
   HexagonWorkspacePool()
