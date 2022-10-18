@@ -868,10 +868,10 @@ class IterMapRewriter : public ExprMutator {
     IterSumExpr structured_form = expr, flattened_form = expr;
     flattened_form.CopyOnWrite()->args =
         Array<IterSplitExpr>(flattened_iters.rbegin(), flattened_iters.rend());
-    flattened_form.CopyOnWrite()->base = 0;
+    flattened_form.CopyOnWrite()->base = make_const(expr.dtype(), 0);
     structured_form.CopyOnWrite()->args =
         Array<IterSplitExpr>(grouped_iters.rbegin(), grouped_iters.rend());
-    structured_form.CopyOnWrite()->base = 0;
+    structured_form.CopyOnWrite()->base = make_const(expr.dtype(), 0);
     auto it = sum_fuse_map_.find(flattened_form);
     if (it != sum_fuse_map_.end()) {
       // old iter
@@ -1739,7 +1739,9 @@ class IterMapToExprNormalizer : public ExprMutator {
 bool IterMapRewriter::CanProveDivisible(const PrimExpr& lhs, const PrimExpr& rhs) {
   const auto* clhs = lhs.as<IntImmNode>();
   const auto* crhs = rhs.as<IntImmNode>();
-  if (clhs && crhs) {
+  if (crhs && crhs->value == 0) {
+    return false;
+  } else if (clhs && crhs) {
     return clhs->value % crhs->value == 0;
   }
 
@@ -1829,11 +1831,20 @@ class SubspaceDivider {
     IterSplitExpr GetInnerAsSplit() const { return GetAsSplit(inner, inner_extent); }
 
     static DivisionResult Inner(const IterMapExpr& iter, const PrimExpr& extent) {
-      return DivisionResult(IterSumExpr({}, 0), 1, iter, extent);
+      auto dtype = iter.dtype();
+      return DivisionResult(IterSumExpr({}, make_const(dtype, 0)), make_const(dtype, 1), iter,
+                            extent);
     }
 
     static DivisionResult Outer(const IterMapExpr& iter, const PrimExpr& extent) {
-      return DivisionResult(iter, extent, IterSumExpr({}, 0), 1);
+      auto dtype = iter.dtype();
+      return DivisionResult(iter, extent, IterSumExpr({}, make_const(dtype, 0)),
+                            make_const(dtype, 1));
+    }
+
+    // Special value to indicate the division is not possible
+    static DivisionResult Failure() {
+      return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
     }
 
    private:
@@ -1851,14 +1862,16 @@ class SubspaceDivider {
 
   // Divide an IterSumExpr
   DivisionResult DivideIterSumExpr(const IterSumExpr& expr, const PrimExpr& mark_extent) {
+    auto dtype = expr.dtype();
     if (expr->args.empty()) {
       // base
-      return DivisionResult(IterSumExpr({}, 0), 1, IterSumExpr({}, expr->base), 1);
+      return DivisionResult(IterSumExpr({}, make_const(dtype, 0)), make_const(dtype, 1),
+                            IterSumExpr({}, expr->base), make_const(dtype, 1));
     } else if (expr->args.size() == 1) {
       // arg + base, if arg=Y*E(X)+X, then arg+base = Y*E(X)+(X+base)
       if (!is_one(expr->args[0]->scale)) {
         unresolved_count_++;
-        return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
+        return DivisionResult::Failure();
       }
       DivisionResult res = DivideIterSplitExpr(expr->args[0]);
       if (!is_zero(expr->base)) res = AddBase(res, expr->base);
@@ -1867,7 +1880,7 @@ class SubspaceDivider {
     // arg1 + arg2 + ... + argn + base
     // then we can write it as Y*E(X)+X
     // if it starts with contiguous outer splits, followed by contiguous inner splits
-    PrimExpr extent = 1;
+    PrimExpr extent = make_const(dtype, 1);
     std::vector<IterSplitExpr> outer_args, inner_args;
     bool inner = true, scale_is_one = false;
     // we check in inverse order so we can visit from inner to outer
@@ -1879,7 +1892,7 @@ class SubspaceDivider {
       if (arg_division.IsInner()) {
         if (!inner) {
           unresolved_count_++;
-          return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
+          return DivisionResult::Failure();
         }
         new_arg = arg_division.GetInnerAsSplit();
         inner_args.push_back(new_arg);
@@ -1890,13 +1903,13 @@ class SubspaceDivider {
         inner = false;
       } else {
         unresolved_count_++;
-        return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
+        return DivisionResult::Failure();
       }
       extent *= new_arg->extent;
     }
     if (!scale_is_one) {
       unresolved_count_++;
-      return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
+      return DivisionResult::Failure();
     }
     bool need_predicate = !analyzer_->CanProveEqual(extent, mark_extent);
     const IterMark& outer_mark = MarkFromArgsAndBase(outer_args, 0);
@@ -1917,7 +1930,7 @@ class SubspaceDivider {
         return DivisionResult::Inner(inner_source, mark_extent);
       } else {
         unresolved_count_++;
-        return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
+        return DivisionResult::Failure();
       }
     }
     return DivisionResult(outer_source, outer_mark->extent, inner_source, inner_mark->extent);
@@ -1941,7 +1954,7 @@ class SubspaceDivider {
   // args are sorted from inner to outer
   static IterMark MarkFromArgsAndBase(const std::vector<IterSplitExpr>& args, PrimExpr base) {
     std::vector<IterSplitExpr> res;
-    PrimExpr extent = 1;
+    PrimExpr extent = make_const(base.dtype(), 1);
     for (const IterSplitExpr& it : args) {
       IterSplitExpr arg = it;
       arg.CopyOnWrite()->scale = extent;
@@ -2004,7 +2017,7 @@ class SubspaceDivider {
         }
         if (j == splits.size()) {
           unresolved_count_++;
-          return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
+          return DivisionResult::Failure();
         }
         used[j] = true;
         if (!encountered_boundary) {
@@ -2018,7 +2031,7 @@ class SubspaceDivider {
       }
       if (!encountered_boundary) {
         unresolved_count_++;
-        return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
+        return DivisionResult::Failure();
       }
       for (const IterSplitExpr& inner_iter : inner_iters) {
         IterSplitExpr new_iter = inner_iter;
@@ -2034,7 +2047,7 @@ class SubspaceDivider {
       }
     } else {
       unresolved_count_++;
-      return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
+      return DivisionResult::Failure();
     }
     return split_map_.at(expr);
   }

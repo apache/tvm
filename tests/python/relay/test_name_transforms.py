@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 
 from tvm import TVMError
 from tvm.relay.backend.name_transforms import (
@@ -22,9 +23,8 @@ from tvm.relay.backend.name_transforms import (
     to_c_constant_style,
     prefix_name,
     prefix_generated_name,
-    sanitize_name,
 )
-import pytest
+from tvm.runtime.name_transforms import sanitize_name
 
 
 def test_to_c_function_style():

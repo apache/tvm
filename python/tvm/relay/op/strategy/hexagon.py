@@ -83,14 +83,14 @@ def conv2d_strategy_hexagon(attrs, inputs, out_type, target):
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nchw),
                 wrap_topi_schedule(topi.hexagon.schedule_depthwise_conv2d_nchw),
-                name="depthwise_conv2d_nchw.generic",
+                name="depthwise_conv2d_nchw.hexagon",
             )
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
                 wrap_topi_schedule(topi.hexagon.schedule_depthwise_conv2d_nhwc),
-                name="depthwise_conv2d_nhwc.generic",
+                name="depthwise_conv2d_nhwc.hexagon",
             )
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
@@ -221,4 +221,16 @@ def dense_pack_strategy_hexagon(attrs, inputs, out_type, target):
             plevel=12,
         )
 
+    return strategy
+
+
+@fast_softmax_strategy.register("hexagon")
+def fast_softmax_strategy_cpu(attrs, inputs, out_type, target):
+    """fast_softmax hexagon strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.fast_softmax),
+        wrap_topi_schedule(topi.hexagon.schedule_softmax),
+        name="fast_softmax.hexagon",
+    )
     return strategy

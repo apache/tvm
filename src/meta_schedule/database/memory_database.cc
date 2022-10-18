@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "../module_equality.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -23,6 +24,8 @@ namespace meta_schedule {
 
 class MemoryDatabaseNode : public DatabaseNode {
  public:
+  explicit MemoryDatabaseNode(String mod_eq_name = "structural") : DatabaseNode(mod_eq_name) {}
+
   Array<TuningRecord> records;
   Array<Workload> workloads;
 
@@ -37,7 +40,7 @@ class MemoryDatabaseNode : public DatabaseNode {
  public:
   bool HasWorkload(const IRModule& mod) final {
     for (const auto& workload : workloads) {
-      if (StructuralEqual()(workload->mod, mod)) {
+      if (GetModuleEquality().Equal(workload->mod, mod)) {
         return true;
       }
     }
@@ -46,11 +49,11 @@ class MemoryDatabaseNode : public DatabaseNode {
 
   Workload CommitWorkload(const IRModule& mod) final {
     for (const auto& workload : workloads) {
-      if (StructuralEqual()(workload->mod, mod)) {
+      if (GetModuleEquality().Equal(workload->mod, mod)) {
         return workload;
       }
     }
-    Workload workload(mod, StructuralHash()(mod));
+    Workload workload(mod, GetModuleEquality().Hash(mod));
     workloads.push_back(workload);
     return workload;
   }
@@ -96,8 +99,8 @@ class MemoryDatabaseNode : public DatabaseNode {
   int64_t Size() final { return records.size(); }
 };
 
-Database Database::MemoryDatabase() {
-  ObjectPtr<MemoryDatabaseNode> n = make_object<MemoryDatabaseNode>();
+Database Database::MemoryDatabase(String mod_eq_name) {
+  ObjectPtr<MemoryDatabaseNode> n = make_object<MemoryDatabaseNode>(mod_eq_name);
   n->records.clear();
   n->workloads.clear();
   return Database(n);

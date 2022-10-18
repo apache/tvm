@@ -366,9 +366,11 @@ def matmul_out_dtype(inputs, out_dtype):
 
 
 def layer_norm(x, eps, gamma, beta):
-    """Common function to handle layer norm"""
-    eps_dtype = infer_type(x).checked_type.dtype
+    """A common function to handle layer norm.
 
+    Use LayerNormalization for the actual onnx op.
+    """
+    eps_dtype = infer_type(x).checked_type.dtype
     u, s = _op.mean_variance(x, axis=-1, keepdims=True)
     output = _op.divide(
         _op.subtract(x, u),
@@ -942,6 +944,36 @@ class BiasGelu(OnnxOpConverter):
 
         inp = _op.add(x, b)
         return Gelu._impl_v1([inp], attr, params)
+
+
+class LayerNormalization(OnnxOpConverter):
+    """Operator converter for LayerNormalization from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v17(cls, inputs, attr, params):
+        x = inputs[0]
+        gamma = inputs[1]
+        beta = inputs[2]
+        axis = attr.get("axis", -1)
+        eps = attr.get("epsilon", 1e-5)
+        # according to the onnx doc, given the int axis (default -1)
+        # to compute the mean and inv_stdev which are of dim [d[0], ..., d[axis-1], 1, ..., 1]
+        # the actual computation is over (axis, ..., rank(x) - 1) axes
+        # see https://github.com/onnx/onnx/blob/main/docs/Changelog.md#layernormalization-17
+        rank = len(infer_shape(x))
+        axis = tuple(range(axis, rank)) if axis >= 0 else tuple(range(rank + axis, rank))
+        dtype = infer_type(x).checked_type.dtype
+        mean = _op.mean(x, axis, keepdims=True)
+        var = _op.variance(x, axis, keepdims=True, with_mean=mean)
+        inv_stdev = _op.divide(
+            _op.const(1, dtype=dtype), _op.sqrt(_op.add(var, _op.const(eps, dtype=dtype)))
+        )
+        x_norm = _op.multiply(_op.subtract(x, mean), inv_stdev)
+        ln = _op.multiply(x_norm, gamma)
+        if beta is not None:
+            ln = _op.add(ln, beta)
+
+        return _expr.TupleWrapper(_expr.Tuple([ln, mean, inv_stdev]), 3)
 
 
 class EmbedLayerNormalization(OnnxOpConverter):
@@ -5336,6 +5368,7 @@ def _get_convert_map(opset):
         "Elu": Elu.get_converter(opset),
         "Gelu": Gelu.get_converter(opset),
         "BiasGelu": BiasGelu.get_converter(opset),
+        "LayerNormalization": LayerNormalization.get_converter(opset),
         # TODO: We need a better way to handle different domains, in case
         # of name collisions. EmbedLayerNormalization, SkipLayerNormalization, and Attention
         # are in the `com.microsoft` domain.
@@ -5906,7 +5939,16 @@ def from_onnx(
     graph = model.graph
 
     try:
-        opset_in_model = model.opset_import[0].version if model.opset_import else 1
+        opset_in_model = 1
+        if model.opset_import:
+            # TODO: for now we only really support ai.onnx op set
+            # TODO: handle other namespaces well see https://github.com/apache/tvm/issues/10950
+            for opset_identifier in model.opset_import:
+                # As per https://github.com/onnx/onnx/blob/main/docs/IR.md
+                # All operator sets except the default one must specify the operator version
+                if str(opset_identifier.domain) in ["ai.onnx", ""]:
+                    opset_in_model = opset_identifier.version
+                    break
     except AttributeError:
         opset_in_model = 1
 

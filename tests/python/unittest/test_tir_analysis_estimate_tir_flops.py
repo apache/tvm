@@ -62,5 +62,20 @@ def test_flops_with_let():
     assert flops == 8
 
 
+@T.prim_func
+def flops_with_if(a: T.Buffer[16, "float32"], b: T.Buffer[16, "float32"]):
+    for i in range(16):
+        if i % 2 == 0:
+            a[i] = b[i]
+        else:
+            if i % 3 == 0:
+                a[i] = b[i - 1] + b[i - 2]
+
+
+def test_flops_with_if():
+    flops = estimate_tir_flops(IRModule({"main": flops_with_if}))
+    assert flops == 16
+
+
 if __name__ == "__main__":
     tvm.testing.main()

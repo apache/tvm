@@ -31,6 +31,7 @@
 #include <algorithm>
 
 #include "../target/datatype/registry.h"
+#include "conjunctive_normal_form.h"
 #include "const_fold.h"
 #include "constraint_extract.h"
 #include "pattern_match.h"
@@ -1558,8 +1559,13 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NotNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<AndNode>();
+
   if (auto const_res = TryConstFold<And>(op->a, op->b)) return const_res.value();
   if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+  if ((enabled_extensions_ & RewriteSimplifier::kConvertBooleanToAndOfOrs) &&
+      !recursively_visiting_boolean_) {
+    return SimplifyAsAndOfOrs(ret, analyzer_);
+  }
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
@@ -1596,9 +1602,14 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
+
   op = ret.as<OrNode>();
   if (auto const_res = TryConstFold<Or>(op->a, op->b)) return const_res.value();
   if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+  if ((enabled_extensions_ & RewriteSimplifier::kConvertBooleanToAndOfOrs) &&
+      !recursively_visiting_boolean_) {
+    return SimplifyAsAndOfOrs(ret, analyzer_);
+  }
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;

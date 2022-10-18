@@ -479,7 +479,6 @@ def test_conv2d_winograd_conv(target, dtype):
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-@pytest.mark.skipif(tvm.testing.utils.IS_IN_CI, reason="failed due to nvidia libOpencl in the CI")
 def test_residual_block(target, dtype):
     """
     - some kind of residual block followed by convolution to have texture after residual block
@@ -569,20 +568,33 @@ def test_residual_block(target, dtype):
         "weight2": tvm.nd.array(filter_data2),
         "weight3": tvm.nd.array(filter_data3),
     }
-
-    static_memory_scope = [
-        "global",
-        "global.texture",
-        "global.texture-weight",
-        "global.texture-weight",
-        "global.texture",
-        "global.texture-weight",
-        "global",
-        "global.texture",
-        "global.texture-weight",
-        "",
-        "",
-    ]
+    if dtype == "float16":
+        static_memory_scope = [
+            "global",
+            "global.texture",
+            "global.texture-weight",
+            "global.texture-weight",
+            "global.texture",
+            "global.texture-weight",
+            "global",
+            "global.texture",
+            "global.texture-weight",
+            "",
+            "",
+        ]
+    else:
+        static_memory_scope = [
+            "global",
+            "global.texture",
+            "global.texture-weight",
+            "global.texture-weight",
+            "global.texture",
+            "global.texture-weight",
+            "global.texture",
+            "global.texture-weight",
+            "",
+            "",
+        ]
 
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
 

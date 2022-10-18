@@ -247,5 +247,40 @@ def test_blockize_init_loops():
     verify_trace_roundtrip(sch=s, mod=rowsum)
 
 
+def test_blockize_outer_int64_shape():
+    @T.prim_func
+    def single_elementwise_int64(
+        A: T.Buffer[(T.int64(16), T.int64(128)), "float32"],
+        B: T.Buffer[(T.int64(16), T.int64(128)), "float32"],
+    ) -> None:
+        for i0, j0, i1, j1 in T.grid(T.int64(1), T.int64(8), T.int64(16), T.int64(16)):
+            with T.block("B"):
+                vi = T.axis.S(T.int64(16), i0 * T.int64(16) + i1)
+                vj = T.axis.S(T.int64(128), j0 * T.int64(16) + j1)
+                B[vi, vj] = A[vi, vj] + 1.0
+
+    @T.prim_func
+    def after_single_elementwise_int64_blockize(
+        A: T.Buffer[(T.int64(16), T.int64(128)), "float32"],
+        B: T.Buffer[(T.int64(16), T.int64(128)), "float32"],
+    ) -> None:
+        for i0, j0 in T.grid(T.int64(1), T.int64(8)):
+            with T.block("B_o"):
+                vi_o = T.axis.spatial(T.int64(1), T.int64(0))
+                vj_o = T.axis.spatial(T.int64(8), j0)
+                for i1, j1 in T.grid(T.int64(16), T.int64(16)):
+                    with T.block("B"):
+                        vi_i, vj_i = T.axis.remap("SS", [i1, j1])
+                        B[vi_i, vj_o * T.int64(16) + vj_i] = A[
+                            vi_i, vj_o * T.int64(16) + vj_i
+                        ] + T.float32(1)
+
+    s = tir.Schedule(single_elementwise_int64, debug_mask="all")
+    _, _, i1, _ = s.get_loops(s.get_block("B"))
+    s.blockize(i1)
+    tvm.ir.assert_structural_equal(s.mod["main"], after_single_elementwise_int64_blockize)
+    verify_trace_roundtrip(sch=s, mod=single_elementwise_int64)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
