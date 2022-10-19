@@ -34,7 +34,7 @@ namespace target {
 namespace parsers {
 namespace aprofile {
 
-static double GetArchVersion(Array<String> mattr) {
+double GetArchVersion(Array<String> mattr) {
   std::regex version_regex("\\+v(\\d+\\.\\d+)a");
   std::smatch version;
 
@@ -49,7 +49,7 @@ static double GetArchVersion(Array<String> mattr) {
   return 0.0;
 }
 
-static double GetArchVersion(Optional<Array<String>> attr) {
+double GetArchVersion(Optional<Array<String>> attr) {
   if (!attr) {
     return false;
   }
