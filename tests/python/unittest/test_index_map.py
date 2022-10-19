@@ -21,6 +21,7 @@ import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.tir import IndexMap, IntImm, floordiv, floormod
+from tvm.runtime import const
 
 
 def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
@@ -41,6 +42,9 @@ def test_index_mapping():
     assert_structural_equal(index_map.map_indices([3]), [0, 3])
     assert_structural_equal(index_map.map_indices([4]), [1, 0])
     assert_structural_equal(index_map.map_indices([42]), [10, 2])
+    assert_structural_equal(
+        index_map.map_indices([const(42, "int64")]), [const(10, "int64"), const(2, "int64")]
+    )
 
 
 def test_shape_mapping():
@@ -50,6 +54,12 @@ def test_shape_mapping():
     assert_structural_equal(index_map.map_shape([16]), [4, 4])
 
     assert_structural_equal(index_map.map_shape([14]), [4, 4])
+    assert_structural_equal(
+        index_map.map_shape([const(16, "int64")]), [const(4, "int64"), const(4, "int64")]
+    )
+    assert_structural_equal(
+        index_map.map_shape([const(14, "int64")]), [const(4, "int64"), const(4, "int64")]
+    )
 
 
 def test_inverse():

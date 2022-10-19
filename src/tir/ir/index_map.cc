@@ -162,9 +162,11 @@ Array<PrimExpr> IndexMapNode::MapIndices(const Array<PrimExpr>& indices,
     analyzer = &local_analyzer;
   }
 
-  Array<PrimExpr> output = final_indices.Map(
-      [&](PrimExpr index) { return analyzer->Simplify(Substitute(std::move(index), vmap)); });
-
+  Array<PrimExpr> output = final_indices.Map([&](PrimExpr index) {
+    PrimExpr result = SubstituteWithDataTypeLegalization(
+        std::move(index), [&](const Var& var) { return vmap.Get(var); });
+    return analyzer->Simplify(result);
+  });
   return output;
 }
 
@@ -218,6 +220,21 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer
                                             analyzer->Simplify(int_set.max() - int_set.min() + 1)));
     }
   }
+  auto output_dtype = [&]() {
+    int max_bits = 0;
+    for (const auto& range : ranges) {
+      max_bits = std::max(max_bits, range->extent.dtype().bits());
+    }
+    return DataType::Int(max_bits);
+  }();
+  output.MutateByApply([&](const Range& range) {
+    if (range->min.dtype() != output_dtype || range->extent.dtype() != output_dtype) {
+      return Range::FromMinExtent(cast(output_dtype, range->min),
+                                  cast(output_dtype, range->extent));
+    } else {
+      return range;
+    }
+  });
   return output;
 }
 
@@ -227,7 +244,7 @@ Array<PrimExpr> IndexMapNode::MapShape(const Array<PrimExpr>& shape,
 
   Array<Range> ranges;
   for (auto& dim : shape) {
-    ranges.push_back(Range(0, dim));
+    ranges.push_back(Range(make_zero(dim.dtype()), dim));
   }
   Array<Range> mapped = MapRanges(std::move(ranges), analyzer);
 
