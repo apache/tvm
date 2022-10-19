@@ -60,7 +60,6 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
     CHECK_EQ(runtime_hexbuffs, nullptr);
     runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
-    released_runtime_buffers.clear();
 
     CHECK_EQ(runtime_threads, nullptr);
     runtime_threads = std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size);
@@ -79,8 +78,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
     CHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
     if (!runtime_hexbuffs->empty()) {
-      DLOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
-      released_runtime_buffers = runtime_hexbuffs->current_allocations();
+      LOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
     }
     runtime_hexbuffs.reset();
 
@@ -195,11 +193,6 @@ class HexagonDeviceAPI final : public DeviceAPI {
   // AcquireResources, and destroyed on ReleaseResources.  The buffers in this manager are scoped
   // to the lifetime of a user application session.
   std::unique_ptr<HexagonBufferManager> runtime_hexbuffs;
-
-  //! \brief Keeps a list of released runtime HexagonBuffer allocations
-  // ReleaseResources can be called when there are still buffers in runtime_hexbuffs.  This list
-  // stores the buffers that were released.
-  std::vector<void*> released_runtime_buffers;
 
   //! \brief Thread manager
   std::unique_ptr<HexagonThreadManager> runtime_threads;
