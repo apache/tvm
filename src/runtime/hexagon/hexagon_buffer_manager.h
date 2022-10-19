@@ -35,6 +35,12 @@ namespace hexagon {
 
 class HexagonBufferManager {
  public:
+  ~HexagonBufferManager() {
+    if (!hexagon_buffer_map_.empty()) {
+      DLOG(INFO) << "HexagonBufferManager is not empty upon destruction";
+    }
+  }
+
   /*!
    * \brief Free a HexagonBuffer.
    * \param ptr Address of the HexagonBuffer as returned by `AllocateHexagonBuffer`.
@@ -78,24 +84,6 @@ class HexagonBufferManager {
       return it->second.get();
     }
     return nullptr;
-  }
-
-  //! \brief Returns whether the HexagonBufferManager has any allocations.
-  bool empty() {
-    std::lock_guard<std::mutex> lock(map_mutex_);
-    return hexagon_buffer_map_.empty();
-  }
-
-  //! \brief Returns a vector of currently allocated pointers, owned by the manager.
-  // Note - this should only be used by the device API to keep track of what
-  // was in the manager when HexagonDeviceAPI::ReleaseResources is called.
-  std::vector<void*> current_allocations() {
-    std::vector<void*> allocated;
-    std::lock_guard<std::mutex> lock(map_mutex_);
-    for (const auto& [data_ptr, buffer] : hexagon_buffer_map_) {
-      allocated.push_back(data_ptr);
-    }
-    return allocated;
   }
 
  private:
