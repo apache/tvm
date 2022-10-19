@@ -266,9 +266,9 @@ def get_fake_conv_vtcm_schedule(size_a, size_w, blocks=2):
     sch.compute_at(cache_read_block_a, no)
     sch.fuse(*sch.get_loops(cache_read_block_a)[1:])
 
-    cache_read_block_c = sch.cache_write(compute_block, 0, "global.vtcm")
-    sch.reverse_compute_at(cache_read_block_c, no)
-    sch.fuse(*sch.get_loops(cache_read_block_c)[1:])
+    cache_write_block_c = sch.cache_write(compute_block, 0, "global.vtcm")
+    sch.reverse_compute_at(cache_write_block_c, no)
+    sch.fuse(*sch.get_loops(cache_write_block_c)[1:])
 
     return sch
 
@@ -289,9 +289,9 @@ def get_multi_input_fake_conv_vtcm_schedule(size_a, size_w, blocks=2):
     sch.compute_at(cache_read_block_b, no)
     sch.fuse(*sch.get_loops(cache_read_block_b)[1:])
 
-    cache_read_block_c = sch.cache_write(compute_block, 0, "global.vtcm")
-    sch.reverse_compute_at(cache_read_block_c, no)
-    sch.fuse(*sch.get_loops(cache_read_block_c)[1:])
+    cache_write_block_c = sch.cache_write(compute_block, 0, "global.vtcm")
+    sch.reverse_compute_at(cache_write_block_c, no)
+    sch.fuse(*sch.get_loops(cache_write_block_c)[1:])
 
     return sch
 
@@ -308,7 +308,7 @@ class TestAsyncDMAPipeline:
     size_a = tvm.testing.parameter(
         1024,
         64 * 64,
-        128 * 128,
+        64 * 128,
     )
 
     size_w = tvm.testing.parameter(
