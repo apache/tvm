@@ -209,10 +209,15 @@ if(BUILD_FOR_HEXAGON)
       "${USE_HEXAGON_EXTERNAL_LIBS}/src/runtime/hexagon/*.cc"
     )
     list(APPEND RUNTIME_HEXAGON_SRCS "${HEXAGON_EXTERNAL_RUNTIME_SRCS}")
-    set_source_files_properties(
-      "${HEXAGON_EXTERNAL_RUNTIME_SRCS}"
-      PROPERTIES COMPILE_FLAGS "-mhvx -mhmx"
-    )
+    if (EXISTS "${USE_HEXAGON_EXTERNAL_LIBS}/HexagonExternalCompileFlags.cmake")
+      # External libraries will define HEXAGON_EXTERNAL_LIBS_COMPILE_FLAGS,
+      # changing this variable name will break downstream external libraries.
+      include("${USE_HEXAGON_EXTERNAL_LIBS}/HexagonExternalCompileFlags.cmake")
+      set_source_files_properties(
+        "${HEXAGON_EXTERNAL_RUNTIME_SRCS}"
+        PROPERTIES COMPILE_FLAGS "${HEXAGON_EXTERNAL_LIBS_COMPILE_FLAGS}"
+        )
+    endif()
   endif()
 endif()
 
