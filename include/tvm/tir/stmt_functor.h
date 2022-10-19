@@ -410,6 +410,32 @@ inline T Substitute(T input, const std::unordered_map<const VarNode*, PrimExpr>&
 }
 
 /*!
+ * \brief Substitute the var specified by vmap and legalize data types after substitution.
+ * \param stmt The source statement to be substituted
+ * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
+ *
+ * Unlike `Substitute`, this allows the substitution to change the data type of the expression.
+ *
+ * \sa Substitute
+ * \return The result.
+ */
+TVM_DLL Stmt SubstituteWithDataTypeLegalization(Stmt stmt,
+                                                std::function<Optional<PrimExpr>(const Var&)> vmap);
+
+/*!
+ * \brief Substitute the var specified by vmap and legalize data types after substitution.
+ * \param expr The source statement to be substituted
+ * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
+ *
+ * Unlike `Substitute`, this allows the substitution to change the data type of the expression.
+ *
+ * \sa Substitute
+ * \return The result.
+ */
+TVM_DLL PrimExpr SubstituteWithDataTypeLegalization(
+    PrimExpr expr, std::function<Optional<PrimExpr>(const Var&)> vmap);
+
+/*!
  * \brief Recursively visit the IR in pre DFS order node, apply fvisit.
  * If fvisit returns false, it won't visit the children of the node.
  * \param stmt_or_expr The ir to be visited.
