@@ -41,6 +41,11 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   DLOG(INFO) << "Spawning threads";
   SpawnThreads(thread_stack_size_bytes, thread_pipe_size_words);
 
+  DLOG(INFO) << "Acquiring hardware resources";
+  // TODO(HWE): Move these bindings to specific threads
+  hmx_ = std::make_unique<HexagonHmx>();
+  hvx_ = std::make_unique<HexagonHvx>();
+
   // Initially, block all threads until we get the Start() call
   qurt_sem_init_val(&start_semaphore_, 0);
   for (unsigned i = 0; i < nthreads_; i++) {
@@ -97,6 +102,12 @@ HexagonThreadManager::~HexagonThreadManager() {
   hexbuffs_.FreeHexagonBuffer(pipe_buffer_);
 
   DLOG(INFO) << "Buffers freed";
+
+  // Release hardware
+  hmx_.reset();
+  hvx_.reset();
+
+  DLOG(INFO) << "Hardware resources released";
 }
 
 void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes,
