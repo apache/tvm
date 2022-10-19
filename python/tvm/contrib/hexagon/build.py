@@ -32,10 +32,9 @@ import tempfile
 from typing import Union
 
 import tvm
+from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
 from ..._ffi import libinfo
 from .session import Session
-from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
-from tvm.contrib.utils import TempDirectory
 
 
 HEXAGON_RPC_LIB_DIR = os.environ.get("HEXAGON_RPC_LIB_DIR")
@@ -670,8 +669,8 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
             fname = "lwp.json"
             out_path = os.path.join(remote_path, fname)
             profile_data = temp_dir.relpath(fname)
-            rv = session.get_profile_output(hex_profiler.get_mode(), fname)
-            if rv:
+            ret = session.get_profile_output(hex_profiler.get_mode(), fname)
+            if ret:
                 subprocess.check_call(self._adb_device_sub_cmd + ["pull", out_path, profile_data])
             else:
                 raise RuntimeError("Error generating profile output")
@@ -797,8 +796,8 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
         if hex_profiler.is_lwp_enabled():
             fname = "lwp.json"
             profile_data = f"{self._workspace}/{fname}"
-            rv = session.get_profile_output(hex_profiler.get_mode(), fname)
-            if not rv:
+            ret = session.get_profile_output(hex_profiler.get_mode(), fname)
+            if not ret:
                 raise RuntimeError("Error generating profile output")
         elif hex_profiler.profiling_mode == "etm":
             raise RuntimeError("ETM Profiling not supported on the simulator")

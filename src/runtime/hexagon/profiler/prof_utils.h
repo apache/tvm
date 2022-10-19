@@ -17,4 +17,14 @@
  * under the License.
  */
 
+/*!
+ * \file prof_utils.h
+ */
+#ifndef TVM_RUNTIME_HEXAGON_PROFILER_PROF_UTILS_H_
+#define TVM_RUNTIME_HEXAGON_PROFILER_PROF_UTILS_H_
+
+#include <string>
+
 bool WriteLWPOutput(const std::string&);
+
+#endif  // TVM_RUNTIME_HEXAGON_PROFILER_PROF_UTILS_H_
