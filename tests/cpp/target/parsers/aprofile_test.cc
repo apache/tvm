@@ -281,6 +281,14 @@ TEST_P(AProfileOptionalDotProd, OptionalDotProdSupport) {
   ASSERT_EQ(Downcast<Bool>(features.at("has_dotprod")), true);
 }
 
+TEST(AProfileParser, ArchVersionInvalidLetter) {
+  std::string arch_attr = "+v" + std::to_string(defaultDotProd) + "b";
+  TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr});
+  TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
+  ASSERT_EQ(IsArch(target), true);
+  ASSERT_EQ(Downcast<Bool>(features.at("has_dotprod")), false);
+}
+
 INSTANTIATE_TEST_CASE_P(AProfileParser, AProfileOptionalI8MM, ::testing::ValuesIn(optionalI8MM));
 INSTANTIATE_TEST_CASE_P(AProfileParser, AProfileOptionalDotProd,
                         ::testing::ValuesIn(optionalDotProd));

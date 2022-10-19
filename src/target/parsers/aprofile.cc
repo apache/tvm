@@ -24,7 +24,6 @@
 
 #include "aprofile.h"
 
-#include <regex>
 #include <string>
 
 #include "../../support/utils.h"
@@ -35,15 +34,12 @@ namespace parsers {
 namespace aprofile {
 
 double GetArchVersion(Array<String> mattr) {
-  std::regex version_regex("\\+v(\\d+\\.\\d+)a");
-  std::smatch version;
-
   for (const String& attr : mattr) {
     std::string attr_string = attr;
-    if (std::regex_match(attr_string, version, version_regex)) {
-      if (version.size() == 2) {
-        return atof(version[1].str().data());
-      }
+    size_t attr_len = attr_string.size();
+    if (attr_len >= 4 && attr_string.substr(0, 2) == "+v" && attr_string.back() == 'a') {
+      std::string version_string = attr_string.substr(2, attr_string.size() - 2);
+      return atof(version_string.data());
     }
   }
   return 0.0;
