@@ -17,9 +17,7 @@
 # pylint: disable=invalid-name,unused-variable,too-many-locals,len-as-condition
 """Schedule for reduce operators"""
 import numpy
-import tvm
 from tvm import te
-from .. import tag
 from ..utils import get_const_tuple
 from .injective import schedule_injective_from_existing
 from .utils import get_div
