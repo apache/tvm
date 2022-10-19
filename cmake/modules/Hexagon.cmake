@@ -203,8 +203,13 @@ if(BUILD_FOR_HEXAGON)
         "supports absolute paths and paths and git repository urls")
     endif()
 
-    file_glob_append(RUNTIME_HEXAGON_SRCS
+    file_glob_append(HEXAGON_EXTERNAL_RUNTIME_SRCS
       "${USE_HEXAGON_EXTERNAL_LIBS}/src/runtime/hexagon/*.cc"
+    )
+    list(APPEND RUNTIME_HEXAGON_SRCS "${HEXAGON_EXTERNAL_RUNTIME_SRCS}")
+    set_source_files_properties(
+      "${HEXAGON_EXTERNAL_RUNTIME_SRCS}"
+      PROPERTIES COMPILE_FLAGS "-mhvx -mhmx"
     )
   endif()
 endif()
