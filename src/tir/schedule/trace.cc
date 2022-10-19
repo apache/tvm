@@ -51,6 +51,46 @@ int GetNumValidInstructions(const Array<Instruction>& insts, bool remove_postpro
 
 /**************** TranslateInputRVs  ****************/
 
+Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
+                                   const std::unordered_map<const Object*, const Object*>& rv_map) {
+  Array<ObjectRef> result;
+  result.reserve(inputs.size());
+  for (const ObjectRef& input : inputs) {
+    if (!input.defined() ||                   // constant: nullptr
+        input->IsInstance<StringObj>() ||     // constant: string
+        input->IsInstance<IntImmNode>() ||    // constant: integer
+        input->IsInstance<FloatImmNode>()) {  // constant: float
+      result.push_back(input);
+    } else if (input->IsInstance<BlockRVNode>() ||  // RV: block
+               input->IsInstance<LoopRVNode>() ||   // RV: loop
+               input->IsInstance<VarNode>()) {      // RV: var
+      auto it = rv_map.find(input.get());
+      ICHECK(it != rv_map.end()) << "IndexError: Random variable doesn't exist: " << input;
+      result.push_back(GetRef<ObjectRef>(it->second));
+    } else if (const auto* expr = input.as<PrimExprNode>()) {  // RV: Expr
+      result.push_back(
+          Substitute(GetRef<PrimExpr>(expr), [&rv_map](const Var& var) -> Optional<PrimExpr> {
+            auto it = rv_map.find(var.get());
+            if (it == rv_map.end()) {
+              return NullOpt;
+            }
+            const Object* dst = it->second;
+            ICHECK(dst->IsInstance<VarNode>())
+                << "TypeError: Expect 'tir.Var', but gets: " << dst->GetTypeKey();
+            return GetRef<Var>(static_cast<const VarNode*>(dst));
+          }));
+    } else if (input->IsInstance<ArrayNode>()) {
+      // Recursively convert elements of the array into a new list of ObjectRefs.
+      result.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), rv_map));
+    } else {
+      ICHECK(false) << "TypeError: Cannot recognize the type of an input random variable: "
+                    << input->GetTypeKey();
+      throw;
+    }
+  }
+  return result;
+}
+
 Array<ObjectRef> TranslateInputRVs(
     const Array<ObjectRef>& inputs,
     const std::unordered_map<ObjectRef, String, ObjectPtrHash, ObjectPtrEqual>& rv_names) {
@@ -130,6 +170,17 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
 
 /**************** TranslateAddOutputRVs  ****************/
 
+void TranslateAddOutputRVs(const Array<ObjectRef>& old_outputs, const Array<ObjectRef>& new_outputs,
+                           std::unordered_map<const Object*, const Object*>* rv_map) {
+  ICHECK_EQ(old_outputs.size(), new_outputs.size());
+  int n = old_outputs.size();
+  const ObjectRef* p_old = old_outputs.GetArrayNode()->begin();
+  const ObjectRef* p_new = new_outputs.GetArrayNode()->begin();
+  for (int i = 0; i < n; ++i) {
+    (*rv_map)[p_old[i].get()] = p_new[i].get();
+  }
+}
+
 Array<String> TranslateAddOutputRVs(
     const Array<ObjectRef>& outputs,
     std::unordered_map<ObjectRef, String, ObjectPtrHash, ObjectPtrEqual>* rv_names) {
@@ -204,7 +255,6 @@ void TraceNode::ApplyToSchedule(
                                        const Optional<ObjectRef>& decision)>
         decision_provider) const {
   std::unordered_map<const Object*, const Object*> rv_map;
-  static auto kind_get_child_blocks = tir::InstructionKind::Get("GetChildBlocks");
   for (const Instruction& inst : this->insts) {
     if (remove_postproc && inst->kind->IsPostproc()) {
       break;
@@ -216,20 +266,7 @@ void TraceNode::ApplyToSchedule(
       decision = decision_provider(inst, inputs, attrs, decision);
     }
     Array<ObjectRef> outputs = inst->kind->f_apply_to_schedule(sch, inputs, attrs, decision);
-    if (inst->kind.same_as(kind_get_child_blocks)) {
-      // We want to allow a trace generated for a single conv2d block to be applied to
-      // conv2d -> elemwise blocks, where two conv2d are the same workload.
-      // GetChildBlocks returns a different number of blocks for the two cases above, which violates
-      // the assumption made by TranslateAddOutputRVs: old_outputs.size() == new_outputs.size().
-      // We workaround this problem by assuming that the prefix of the "new" outputs matches with
-      // the "old" outputs, and truncating the new outputs accordingly.
-      ICHECK(inst->outputs.size() <= outputs.size());
-      TranslateAddOutputRVs(
-          inst->outputs, Array<ObjectRef>(outputs.begin(), outputs.begin() + inst->outputs.size()),
-          &rv_map);
-    } else {
-      TranslateAddOutputRVs(inst->outputs, outputs, &rv_map);
-    }
+    TranslateAddOutputRVs(inst->outputs, outputs, &rv_map);
   }
 }
 
@@ -483,6 +520,129 @@ struct EnterPostprocTraits : public UnpackedInstTraits<EnterPostprocTraits> {
 };
 
 TVM_REGISTER_INST_KIND_TRAITS(EnterPostprocTraits);
+
+std::set<std::string> GetBlockNames(const IRModule& mod) {
+  struct BlockNameCollector : public tir::StmtVisitor {
+    void VisitStmt_(const tir::BlockNode* block) override {
+      block_names.insert(block->name_hint);
+      StmtVisitor::VisitStmt(block->body);
+    }
+    std::set<std::string> block_names;
+  };
+
+  auto prim_func = tir::FindEntryFunc(mod, nullptr);
+  BlockNameCollector collector;
+  collector(prim_func->body);
+  return collector.block_names;
+}
+
+std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_trace) {
+  std::unordered_map<const Object*, const Object*> rv_map;
+  static auto kind_get_child_blocks = InstructionKind::Get("GetChildBlocks");
+  static auto kind_get_block = InstructionKind::Get("GetBlock");
+  const auto block_names_orig = GetBlockNames(sch->mod());
+  std::unordered_set<BlockRV, ObjectHash, ObjectEqual> foreign_blocks;
+  std::unordered_set<LoopRV, ObjectHash, ObjectEqual> foreign_loops;
+  std::set<std::string> scheduled_blocks;
+
+  const auto sch_orig = sch->Copy();
+
+  auto is_inst_applicable = [&foreign_blocks, &foreign_loops](Instruction inst) {
+    for (auto input : inst->inputs) {
+      if (!input.defined()) continue;
+      if ((input->IsInstance<BlockRVNode>() && foreign_blocks.count(Downcast<BlockRV>(input))) ||
+          (input->IsInstance<LoopRVNode>() && foreign_loops.count(Downcast<LoopRV>(input)))) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  for (const auto& inst : anchor_trace->insts) {
+    if (!is_inst_applicable(inst)) {
+      for (auto output : inst->outputs) {
+        if (output->IsInstance<BlockRVNode>()) {
+          foreign_blocks.insert(Downcast<BlockRV>(output));
+        } else if (output->IsInstance<LoopRVNode>()) {
+          foreign_loops.insert(Downcast<LoopRV>(output));
+        }
+      }
+      continue;
+    }
+
+    if (inst->kind.same_as(kind_get_block)) {
+      auto find_prefix_any = [&block_names_orig](const std::string& block_name) {
+        for (auto name : block_names_orig) {
+          if (block_name.find(name) == 0) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      auto block_name = Downcast<String>(inst->attrs[0]);
+      ICHECK(block_name.defined());
+
+      if (!find_prefix_any(block_name)) {
+        auto block = Downcast<BlockRV>(inst->outputs[0]);
+        foreign_blocks.insert(block);
+        continue;
+      } else {
+        scheduled_blocks.insert(block_name);
+      }
+    }
+
+    Array<ObjectRef> inputs = TranslateInputRVs(inst->inputs, rv_map);
+    Optional<ObjectRef> decision = anchor_trace->GetDecision(inst);
+    Array<ObjectRef> outputs = inst->kind->f_apply_to_schedule(sch, inputs, inst->attrs, decision);
+
+    if (inst->kind.same_as(kind_get_child_blocks)) {
+      // We want to allow a trace generated for a single conv2d block to be applied to
+      // conv2d -> elemwise blocks, where two conv2d are the same workload.
+      // GetChildBlocks returns a different number of blocks for the two cases above, which
+      // violates the assumption made by TranslateAddOutputRVs: old_outputs.size() ==
+      // new_outputs.size(). We workaround this problem by assuming that the prefix of the "new"
+      // outputs matches with the "old" outputs, and truncating the new outputs accordingly.
+      ICHECK(inst->outputs.size() <= outputs.size());
+      TranslateAddOutputRVs(
+          inst->outputs, Array<ObjectRef>(outputs.begin(), outputs.begin() + inst->outputs.size()),
+          &rv_map);
+    } else {
+      TranslateAddOutputRVs(inst->outputs, outputs, &rv_map);
+    }
+  }
+
+  const auto block_names_now = GetBlockNames(sch->mod());
+
+  auto is_scheduled = [=, &scheduled_blocks](const std::string& block_name) {
+    if (!block_names_now.count(block_name) || scheduled_blocks.count(block_name)) {
+      return true;
+    }
+    auto loops = sch->GetLoops(sch->GetBlock(block_name));
+    auto loops_orig = sch_orig->GetLoops(sch_orig->GetBlock(block_name));
+    if (loops.size() != loops_orig.size()) {
+      return true;
+    }
+    for (size_t i = 0; i < loops.size(); ++i) {
+      auto loop = sch->Get(loops[i]);
+      auto loop_orig = sch_orig->Get(loops_orig[i]);
+      if (loop->kind != loop_orig->kind) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  std::vector<BlockRV> unscheduled_blocks;
+
+  for (auto name : block_names_orig) {
+    if (!is_scheduled(name)) {
+      unscheduled_blocks.push_back(sch->GetBlock(name));
+    }
+  }
+
+  return unscheduled_blocks;
+}
 
 /**************** FFI ****************/
 
