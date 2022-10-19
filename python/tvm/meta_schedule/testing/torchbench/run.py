@@ -197,7 +197,7 @@ def parse_args():
         type=str,
         required=True,
         help="""
-        The name of model to run. It should a directory name under 
+        The name of model to run. It should a directory name under
         https://github.com/pytorch/benchmark/tree/main/torchbenchmark/models.
         """,
     )
@@ -228,7 +228,7 @@ def parse_args():
         type=int,
         default=None,
         help="""
-        The max number of trials to run per task extracted in MetaSchedule. 
+        The max number of trials to run per task extracted in MetaSchedule.
         By default it's the same as --num-trials.
         """,
     )

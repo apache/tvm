@@ -67,7 +67,7 @@ def test_cpu_matmul():
 
     """
     lowered IR:
-    
+
     Placeholder: A, B
     parallel i.0 (0,32)
       parallel j.0 (0,64)

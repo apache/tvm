@@ -56,6 +56,10 @@ from typing import List
 from .infrastructure import allocate_hexagon_array, get_hexagon_target
 from . import benchmark_util as bu
 
+# Pytest seems to require that fixture names exist in the current module.
+# E.g., it doesn't allow: @pytest.mark.usefixtures("bu.benchmark_group")
+benchmark_group = bu.benchmark_group
+
 _SHOULD_SKIP_BENCHMARKS, _SKIP_BENCHMARKS_REASON = bu.skip_bencharks_flag_and_reason()
 
 

@@ -74,6 +74,7 @@ from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod,
 from .op import comm_reducer, min, max, sum
 from .op import q_multiply_shift, shift_left, shift_right
 from .op import TVMBackendAllocWorkspace, TVMBackendFreeWorkspace
+from .generic import add, subtract, multiply
 
 from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError
 

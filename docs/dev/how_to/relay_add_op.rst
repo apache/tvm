@@ -15,13 +15,13 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _relay-add-op: 
+.. _relay-add-op:
 
 Adding an Operator to Relay
 ===========================
 
-In this document we will go over the steps needed to register a new TVM operator 
-in Relay. We will be following this PR which adds a `cumulative product`_ operation as an example.  
+In this document we will go over the steps needed to register a new TVM operator
+in Relay. We will be following this PR which adds a `cumulative product`_ operation as an example.
 The PR itself builds upon another PR which adds a `cumulative sum`_ operation.
 
 .. _cumulative product: https://github.com/apache/tvm/pull/7722
@@ -30,20 +30,20 @@ The PR itself builds upon another PR which adds a `cumulative sum`_ operation.
 Registering a new operator requires a few steps:
 
 1. Add an attribute node declaring fixed arguments which are known at compile time
-2. Write a type relation for your operation to integrate into Relay's type system. 
-3. Use the ``RELAY_REGISTER_OP`` macro in C++ to register the operator's arity, type, and other hints for the compiler 
-4. Write how the operator is computed 
+2. Write a type relation for your operation to integrate into Relay's type system.
+3. Use the ``RELAY_REGISTER_OP`` macro in C++ to register the operator's arity, type, and other hints for the compiler
+4. Write how the operator is computed
 5. Register the compute, schedule with the relay operator
 6. Define a C++ function to produce a call node for the operator and registering a Python API hook for the function
 7. Wrapping the above Python API hook in a neater interface
-8. Writing tests for the new relay operator 
+8. Writing tests for the new relay operator
 
 1. Defining an Attribute Node
 -----------------------------
-Attributes are fixed arguments which are supposed to be known at compile time. The stride and dilation of a convolution  
+Attributes are fixed arguments which are supposed to be known at compile time. The stride and dilation of a convolution
 operator would be an appropriate example of fields which might belong in an attribute node for a convolution operator.
 
-Attributes should be defined in a file within the folder `include/tvm/relay/attrs/`_. 
+Attributes should be defined in a file within the folder `include/tvm/relay/attrs/`_.
 
 .. _include/tvm/relay/attrs/: https://github.com/apache/tvm/tree/main/include/tvm/relay/attrs
 
@@ -78,7 +78,7 @@ Ultimately we want to create an operator whose interface can be seen clearly in 
 
 A similiar interface exists for ``cumsum()``.
 
-Therefore, when defining our attributes in ``include/tvm/relay/attrs/transform.h`` we choose the axis, 
+Therefore, when defining our attributes in ``include/tvm/relay/attrs/transform.h`` we choose the axis,
 accumulation dtype, and exclusivity of the operation as appropriate fields for the struct.
 
 .. code:: c++
@@ -104,13 +104,13 @@ expressivity and granularity in expressing types in Relay, operators
 are typed using relations between input and output types. These relations
 are represented as functions that take in a list of input types and
 output types (any of these types may be incomplete) and return a list
-of input and output types that satisfies the relation. This includes shape 
+of input and output types that satisfies the relation. This includes shape
 information which can be determined statically at compile time. Essentially, a
 relation for an operator can enforce all the necessary typing rules
 (namely by inspecting the input types) in addition to computing the
 output type.
 
-Type relation for the cumulative product and sum operators can be found in 
+Type relation for the cumulative product and sum operators can be found in
 ``src/relay/op/tensor/transform.cc``:
 
 .. code:: c++
@@ -182,13 +182,13 @@ Once again we add this to ``src/relay/op/tensor/transform.cc``:
         .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 In this case the ``TOpPattern`` is a hint to the compiler on the pattern of computation the operator does, which might be
-useful for fusing operators. ``kOpaque`` tells TVM to not bother trying to fuse this operator. 
+useful for fusing operators. ``kOpaque`` tells TVM to not bother trying to fuse this operator.
 
 4. Defining the Compute of the Operation
 ----------------------------------------
 
-While we've now defined the interface for our operations we still need to define 
-how to perform the actual calculations for cumulative sum and product. 
+While we've now defined the interface for our operations we still need to define
+how to perform the actual calculations for cumulative sum and product.
 
 Writing this code is outside the scope of the tutorial. For now, we assume we
 have a well tested implementation for the operation's compute. For more details
@@ -206,13 +206,13 @@ representation where tensor expressions and topi will lower into.
 5. Hooking up Compute and Strategy with Relay
 ---------------------------------------------
 
-After you have implemented your compute function we now need to glue it to our 
-relay operation. Within TVM this means not only defining the computation, but also the schedule 
+After you have implemented your compute function we now need to glue it to our
+relay operation. Within TVM this means not only defining the computation, but also the schedule
 for an operation. A strategy is a method which picks which computation and which schedule
 to use. For example, for 2D convolutions we might recognize we are doing a depthwise convolution
-and dispatch to a more efficient computation and schedule as a result. In our case however we have 
-no such need except for dispatching between our CPU and GPU implementations. In 
-``python/tvm/relay/op/strategy/generic.py`` and ``python/tvm/relay/op/strategy/cuda.py`` we 
+and dispatch to a more efficient computation and schedule as a result. In our case however we have
+no such need except for dispatching between our CPU and GPU implementations. In
+``python/tvm/relay/op/strategy/generic.py`` and ``python/tvm/relay/op/strategy/cuda.py`` we
 add the following strategies:
 
 .. code:: python
@@ -259,8 +259,8 @@ add the following strategies:
             name="cumsum.cuda",
         )
         return strategy
-    
-    
+
+
     @cumprod_strategy.register(["cuda", "gpu"])
     def cumprod_strategy_cuda(attrs, inputs, out_type, target):
         """cumprod cuda strategy"""
@@ -271,7 +271,7 @@ add the following strategies:
             name="cumprod.cuda",
         )
         return strategy
-        
+
 Where in each strategy we define the compute we wrote and the schedule to use within ``add_implementation()``.
 We finally link the strategy and compute with the defined relay operator in ``python/tvm/relay/op/_transform.py``:
 
@@ -297,12 +297,12 @@ We finally link the strategy and compute with the defined relay operator in ``py
     _reg.register_strategy("cumprod", strategy.cumprod_strategy)
     _reg.register_shape_func("cumprod", False, elemwise_shape_func)
 
-The shape functions are used for determining output shape given a dynamically shaped tensor. In this 
+The shape functions are used for determining output shape given a dynamically shaped tensor. In this
 case we tell TVM the output shape will be the same as the input shape.
 
 6. Creating a Relay Call Node and Exposing a Python Hook
 --------------------------------------------------------
-We now have a working operation and now just need to properly call it 
+We now have a working operation and now just need to properly call it
 via a Relay Call Node. This step requires simply writing a function that takes
 the arguments to the operator (as Relay expressions) and
 returning a call node to the operator (i.e., the node that
@@ -314,7 +314,7 @@ are not supported, so it suffices to use ``Op::Get`` to fetch
 the operator's information from the operator registry and pass in
 the arguments to the call node, as below. In ``src/relay/op/tensor/transform.cc``:
 
-.. code:: c++ 
+.. code:: c++
 
     Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Bool exclusive) {
         auto attrs = make_object<ScanopAttrs>();
@@ -346,7 +346,7 @@ in Python via ``relay.op._make.cumsum(...)`` and ``relay.op._make.cumsum(...)``.
 
 It is generally the convention in Relay, that functions exported
 through ``TVM_REGISTER_GLOBAL`` should be wrapped in a separate
-Python function rather than called directly in Python. For our 
+Python function rather than called directly in Python. For our
 operators we expose this cleaner interface in ``python/tvm/relay/op/transform.py``
 
 .. code:: python
@@ -383,7 +383,7 @@ before producing the call node:
 8. Writing Unit Tests!
 ----------------------
 This is self explanatory! Some example unit tests can be found in
-`tests/python/relay/test_op_level3.py`_ for our cumulative sum 
+`tests/python/relay/test_op_level3.py`_ for our cumulative sum
 and product operators.
 
 .. _tests/python/relay/test_op_level3.py: https://github.com/apache/tvm/blob/main/tests/python/relay/test_op_level3.py

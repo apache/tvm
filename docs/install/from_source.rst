@@ -90,7 +90,7 @@ Homebrew to ensure the dependencies are correctly installed and configured:
     brew install llvm
     brew install python@3.8
 
-If you are on macOS with an M1 Processor you may need to use conda to manage dependencies while building. Specifically you may need, `Miniforge <https://github.com/conda-forge/miniforge>`_ to ensure that the dependencies obtained using pip are compatible with M1. 
+If you are on macOS with an M1 Processor you may need to use conda to manage dependencies while building. Specifically you may need, `Miniforge <https://github.com/conda-forge/miniforge>`_ to ensure that the dependencies obtained using pip are compatible with M1.
 
 .. code:: bash
 
