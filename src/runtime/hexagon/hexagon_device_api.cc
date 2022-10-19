@@ -134,7 +134,7 @@ void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
   } else {
     // Either AcquireResources was never called, or ReleaseResources was called.  Since this can
     // occur in the normal course of shutdown, log a message and continue.
-    LOG(INFO) << "FreeDataSpace called outside a session for " << ptr;
+    DLOG(INFO) << "FreeDataSpace called outside a session for " << ptr;
   }
 }
 

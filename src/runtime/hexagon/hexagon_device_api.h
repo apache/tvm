@@ -77,9 +77,6 @@ class HexagonDeviceAPI final : public DeviceAPI {
     runtime_threads.reset();
 
     CHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
-    if (!runtime_hexbuffs->empty()) {
-      LOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
-    }
     runtime_hexbuffs.reset();
 
     CHECK(runtime_vtcm) << "runtime_vtcm was not created in AcquireResources";
