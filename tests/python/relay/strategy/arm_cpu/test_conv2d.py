@@ -21,8 +21,8 @@ from tvm.testing import fixture, main, parameter, parameters
 
 
 class Conv2dTests(GeneralizedConv2dTests):
-    """Helper for constructing regular Conv2ds. Always sets groups to 1. We set the kernel layout
-    here as we must pick something, but the x86 implementation here supports several."""
+    """Helper for constructing regular Conv2ds. Always sets groups to 1. We set the reference
+    kernel layout here as we must pick something, but the x86 implementation supports several."""
 
     @fixture
     def groups(self):

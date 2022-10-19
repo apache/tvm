@@ -21,7 +21,8 @@ from tvm.testing import fixture, main, parameter, parameters
 
 
 class DepthwiseConv2dTests(GeneralizedConv2dTests):
-    """Helper for constructing depthwise Conv2ds. Sets kernel layout to what x86 code supports."""
+    """Helper for constructing depthwise Conv2ds. Sets the reference kernel layout to what x86 code
+    supports."""
 
     @fixture
     def groups(self, data_shape):

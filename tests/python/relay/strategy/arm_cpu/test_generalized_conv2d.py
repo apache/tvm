@@ -23,7 +23,32 @@ import tvm.testing
 from tvm import relay
 from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
 from tvm.micro.testing.aot_test_utils import AOT_CORSTONE300_RUNNER
-from tvm.topi.utils import change_ndarray_layout
+
+
+def _change_ndarray_layout(arr, src_layout, dst_layout):
+    """Makes a copy of an ndarray, reshaping it to a new data layout.
+
+    Parameter
+    ---------
+    arr : numpy.ndarray
+        The ndarray to be reformatted.
+
+    src_layout : str
+        The current layout of the Relay constant. Must be alphabetic (e.g. NHWC
+        or OIHW, but not NCHW2c).
+
+    dst_layout : str
+        The desired layout of new the Relay constant. Must be alphabetic (e.g. NHWC
+        or OIHW, but not NCHW2c).
+
+    Returns
+    -------
+    dst_shape : numpy.ndarray
+        A copy of the ndarray with the new layout.
+    """
+    assert src_layout.isalpha() and dst_layout.isalpha()
+    axis_order = [src_layout.index(c) for c in dst_layout]
+    return np.transpose(arr, axis_order)
 
 
 class GeneralizedConv2dTests:
@@ -34,7 +59,10 @@ class GeneralizedConv2dTests:
 
     Note that data_shape should always be a tuple of length four indicating the data shape in NHWC
     format (it will later be reshaped according to the given data_layout), and kernel_size should be
-    a length two tuple giving the height and width of the kernel."""
+    a length two tuple giving the height and width of the kernel.
+
+    This test (and other base Conv2dTests classes) are not run by Pytest, as their names do not
+    start with `Test`."""
 
     @tvm.testing.requires_corstone300
     def test_conv2d(
@@ -59,14 +87,15 @@ class GeneralizedConv2dTests:
         kernel_shape = (*kernel_size, data_shape[-1] // groups, num_filter)  # HWIO layout
         ref_kernel_data = randint(low=-10, high=10, size=kernel_shape, dtype=in_dtype)
 
-        # Our x86 depthwise implementation only supports HWOI with NHWC, so we need to change our
-        # kernel layout to work around this. We can't just change the whole thing to HWIO or
-        # something else, as then group conv2d would not work. Eventually, we should switch to using
-        # TensorFlow to create the reference output so we can ensure our implementation is right.
+        """Our x86 depthwise implementation only supports HWOI with NHWC, so we need to change our
+        kernel layout to work around this. We can't just change the whole thing to HWIO or
+        something else, as then group conv2d would not work. Eventually, we should switch to using
+        TensorFlow to create the reference output so we can ensure our implementation is right.
+        See https://github.com/apache/tvm/issues/13137 for details."""
 
         ref_relay_op = relay.op.nn.conv2d(
             ref_input_var,
-            relay.const(change_ndarray_layout(ref_kernel_data, "HWIO", self.ref_kernel_layout)),
+            relay.const(_change_ndarray_layout(ref_kernel_data, "HWIO", self.ref_kernel_layout)),
             kernel_size=kernel_size,
             strides=strides,
             padding=padding,
@@ -83,11 +112,11 @@ class GeneralizedConv2dTests:
         # Reshape output dictionary to match out_layout
         assert len(ref_outputs) == 1
         output_tensor_name, output_tensor = next(iter(ref_outputs.items()))
-        ref_outputs[output_tensor_name] = change_ndarray_layout(output_tensor, "NHWC", out_layout)
+        ref_outputs[output_tensor_name] = _change_ndarray_layout(output_tensor, "NHWC", out_layout)
 
-        test_input_data = change_ndarray_layout(ref_input_data, "NHWC", data_layout)
+        test_input_data = _change_ndarray_layout(ref_input_data, "NHWC", data_layout)
         test_input_var = relay.var("input", relay.TensorType(test_input_data.shape, in_dtype))
-        test_kernel_data = change_ndarray_layout(ref_kernel_data, "HWIO", kernel_layout)
+        test_kernel_data = _change_ndarray_layout(ref_kernel_data, "HWIO", kernel_layout)
 
         test_relay_op = relay.op.nn.conv2d(
             test_input_var,

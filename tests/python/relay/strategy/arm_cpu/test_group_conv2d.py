@@ -21,7 +21,8 @@ from tvm.testing import main, parameter, parameters
 
 
 class GroupConv2dTests(GeneralizedConv2dTests):
-    """Helper for constructing group Conv2ds. Sets the kernel layout to what x86 code supports."""
+    """Helper for constructing group Conv2ds. Sets the reference kernel layout to what x86 code
+    supports."""
 
     def setup_method(self):
         self.ref_kernel_layout = "HWIO"

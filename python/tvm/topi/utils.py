@@ -431,32 +431,6 @@ def get_shape(src_shape, src_layout, dst_layout):
     return get_const_tuple(tuple([src_shape[i.value] for i in dst_indices]))
 
 
-def change_ndarray_layout(arr, src_layout, dst_layout):
-    """Makes a copy of an ndarray, reshaping it to a new data layout.
-
-    Parameter
-    ---------
-    arr : numpy.ndarray
-        The ndarray to be reformatted.
-
-    src_layout : str
-        The current layout of the Relay constant. Must be alphabetic (e.g. NHWC
-        or OIHW, but not NCHW2c).
-
-    dst_layout : str
-        The desired layout of new the Relay constant. Must be alphabetic (e.g. NHWC
-        or OIHW, but not NCHW2c).
-
-    Returns
-    -------
-    dst_shape : numpy.ndarray
-        A copy of the ndarray with the new layout.
-    """
-    assert src_layout.isalpha() and dst_layout.isalpha()
-    axis_order = [src_layout.index(c) for c in dst_layout]
-    return np.transpose(arr, axis_order)
-
-
 def within_index(b, e, s, i):
     """Return a boolean value that indicates if i is within the given index.
 
