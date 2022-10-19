@@ -26,6 +26,7 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include <memory>
+#include <optional>
 
 #include "../node/ndarray_hash_equal.h"
 #include "../tir/schedule/analysis.h"
@@ -69,7 +70,7 @@ class SHashHandlerIgnoreNDArray : public SHashHandlerDefault {
   }
 };
 
-const tir::BlockNode* GetAnchorBlock(IRModule mod) {
+std::optional<const tir::BlockNode*> GetAnchorBlock(IRModule mod) {
   using namespace tir;
 
   struct BlockCollector : public StmtVisitor {
@@ -87,14 +88,12 @@ const tir::BlockNode* GetAnchorBlock(IRModule mod) {
   ICHECK(collector.blocks.size() > 0);
 
   for (auto block : collector.blocks) {
-    if (!block->reads.empty() && !block->writes.empty()) {
+    if (block->init && !block->reads.empty() && !block->writes.empty()) {
       return block;
     }
   }
 
-  LOG(FATAL) << "Cannot find a suitable anchor block";
-
-  return collector.blocks[0];
+  return std::nullopt;
 }
 
 class ModuleEqualityIgnoreNDArray : public ModuleEquality {
@@ -108,13 +107,19 @@ class ModuleEqualityIgnoreNDArray : public ModuleEquality {
 class ModuleEqualityAnchorBlock : public ModuleEquality {
   size_t Hash(IRModule mod) const {
     auto anchor_block = GetAnchorBlock(mod);
-    return SHashHandlerIgnoreNDArray().Hash(GetRef<tir::Block>(anchor_block), false);
+    if (anchor_block) {
+      return SHashHandlerIgnoreNDArray().Hash(GetRef<tir::Block>(*anchor_block), false);
+    }
+    return ModuleEqualityIgnoreNDArray().Hash(mod);
   }
   bool Equal(IRModule lhs, IRModule rhs) const {
     auto anchor_block_lhs = GetAnchorBlock(lhs);
     auto anchor_block_rhs = GetAnchorBlock(rhs);
-    return SEqualHandlerIgnoreNDArray().Equal(GetRef<tir::Block>(anchor_block_lhs),
-                                              GetRef<tir::Block>(anchor_block_rhs), false);
+    if (anchor_block_lhs && anchor_block_rhs) {
+      return SEqualHandlerIgnoreNDArray().Equal(GetRef<tir::Block>(*anchor_block_lhs),
+                                                GetRef<tir::Block>(*anchor_block_rhs), false);
+    }
+    return ModuleEqualityIgnoreNDArray().Equal(lhs, rhs);
   }
 };
 
