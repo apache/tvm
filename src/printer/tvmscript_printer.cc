@@ -457,9 +457,10 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
  */
 template <typename T>
 void NDArrayToTIR(::tvm::runtime::NDArray arr, std::ostream& os) {
-  if (arr.DataType().code() == runtime::DataType::kInt ||
-      arr.DataType().code() == runtime::DataType::kUInt) {
-    // Printing integer NDArrays causes "UnicodeDecodeError: 'utf-8' codec can't decode byte"
+  if ((arr.DataType().code() == runtime::DataType::kInt ||
+       arr.DataType().code() == runtime::DataType::kUInt) &&
+      arr.DataType().bits() == 8) {
+    // Printing int8 NDArrays causes "UnicodeDecodeError: 'utf-8' codec can't decode byte"
     // error during MetaSchedule tuning on int8 models.
     return;
   }
