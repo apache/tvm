@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""Define HexagonProfiler class to enable profiling for Hexagon"""
+
 import os
 import subprocess
 from tvm.ir.transform import PassContext
-from tvm.contrib.hexagon.session import Session
 from tvm.contrib.hexagon.profiling.process_lwp_data import process_lwp_output
 from tvm.relay.backend.executor_factory import ExecutorFactoryModule
 from tvm.contrib import utils
@@ -50,17 +51,20 @@ class HexagonProfiler:
 
             launcher = hexagon_server_process["launcher"]
             if self._android_serial_number != "simulator":
-                # Clear the logcat buffer and create a child process to redirect logcat output into a file.
+                # Clear the logcat buffer and create a child process to redirect logcat output
+                # into a file.
                 subprocess.check_call(launcher._adb_device_sub_cmd + ["logcat", "-c"])
                 self._logcat_path = self._temp_dir.relpath("logcat.log")
-                f = open(self._logcat_path, "w")
-                self._proc = subprocess.Popen(launcher._adb_device_sub_cmd + ["logcat"], stdout=f)
+                self._fo = open(self._logcat_path, "w")
+                self._proc = subprocess.Popen(
+                    launcher._adb_device_sub_cmd + ["logcat"], stdout=self._fo
+                )
 
                 # Get the remote workspace on the device from where the lwp data needs to be copied.
                 self._remote_path = launcher._workspace
 
         if self._profiling_mode is None:
-            raise "Profiling mode was not set or was not a valid one."
+            raise RuntimeError("Profiling mode was not set or was not a valid one.")
 
     def get_mode(self):
         return self._profiling_mode
@@ -74,8 +78,8 @@ class HexagonProfiler:
     def get_remote_path(self):
         return self._remote_path
 
-    def get_profile_output(self, hexagon_launcher, hexagon_session, hexagon_server_process):
-        # Get runtime profiling data
+    def get_profile_output(self, hexagon_launcher, hexagon_session):
+        """Get runtime profiling data"""
         prof_out = hexagon_launcher.get_profile_output(self, hexagon_session)
 
         print("lwp json can be found at -- ", prof_out)
@@ -101,6 +105,7 @@ class HexagonProfiler:
         else:
             # For on-device run
             self._proc.kill()  # End the child process for logcat
+            self._fo.close()
             if os.path.exists(self._logcat_path):
                 process_lwp_output(
                     self._dso_binary_path,

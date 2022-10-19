@@ -619,7 +619,7 @@ def test_lwp(
     hexagon_output = graph_mod.get_output(0).numpy()
 
     # Get lightweight profiling output as a CSV file
-    profiler.get_profile_output(hexagon_launcher, hexagon_session, hexagon_server_process)
+    profiler.get_profile_output(hexagon_launcher, hexagon_session)
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):
@@ -706,7 +706,7 @@ def test_lwp_multiple_conv2d(
     hexagon_output = graph_mod.get_output(0).numpy()
 
     # Get lightweight profiling output as a CSV file
-    profiler.get_profile_output(hexagon_launcher, hexagon_session, hexagon_server_process)
+    profiler.get_profile_output(hexagon_launcher, hexagon_session)
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):
