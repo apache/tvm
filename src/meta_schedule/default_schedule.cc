@@ -91,6 +91,7 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
 
   auto is_inst_applicable = [&foreign_blocks, &foreign_loops](Instruction inst) {
     for (auto input : inst->inputs) {
+      if (!input.defined()) continue;
       if ((input->IsInstance<BlockRVNode>() && foreign_blocks.count(Downcast<BlockRV>(input))) ||
           (input->IsInstance<LoopRVNode>() && foreign_loops.count(Downcast<LoopRV>(input)))) {
         return false;
@@ -153,8 +154,10 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
     }
   }
 
+  const auto block_names_now = GetBlockNames(sch->mod());
+
   auto is_scheduled = [=, &scheduled_blocks](const std::string& block_name) {
-    if (scheduled_blocks.count(block_name)) {
+    if (!block_names_now.count(block_name) || scheduled_blocks.count(block_name)) {
       return true;
     }
     auto loops = sch->GetLoops(sch->GetBlock(block_name));
