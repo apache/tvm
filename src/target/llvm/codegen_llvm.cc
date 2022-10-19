@@ -1319,7 +1319,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     LOG(FATAL) << "CPU backend does not support atomic add yet.";
     return nullptr;
   } else if (op->op.same_as(builtin::start_profile_intrinsic()) ||
-    op->op.same_as(builtin::end_profile_intrinsic())) {
+             op->op.same_as(builtin::end_profile_intrinsic())) {
     LOG(INFO) << "Ignoring profile_intrinsic ... " << op->op;
     return nullptr;
   } else {
