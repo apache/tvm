@@ -106,7 +106,7 @@ def test_meta_schedule_integration_extract_from_resnet():
 
     extracted_tasks = ms.relay_integration.extract_tasks(mod, target="llvm", params=params,
                                                          module_equality="anchor-block")
-    assert len(extracted_tasks) == 15
+    assert len(extracted_tasks) == 16
 
 
 @requires_torch
