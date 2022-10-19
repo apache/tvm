@@ -47,7 +47,8 @@ github:
   collaborators:
     - hpanda-naut
     - denise-k
-    - driazati
+    - janetsc
+    - naut-thomas
     - tvm-bot  # For automated feedback in PR review.
 
   # See https://cwiki.apache.org/confluence/display/INFRA/Git+-+.asf.yaml+features#Git.asf.yamlfeatures-Branchprotection
