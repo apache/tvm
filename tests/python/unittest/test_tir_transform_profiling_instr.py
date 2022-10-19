@@ -109,18 +109,18 @@ def test1_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (8, 8, 128), dtype="int32")
     C = T.match_buffer(c, (8, 8, 128), dtype="int32")
     for i, j in T.grid(8, 8):
-        T.evaluate(T.profile_intrinsic(3, dtype="handle"))
+        T.evaluate(T.start_profile_intrinsic(3, dtype="handle"))
         for k, l in T.grid(8, 16):
             with T.block("B"):
                 vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                 B[vi, vj, vk * 16 + vl] = A[vi, vj, vk * 16 + vl] * 2
-        T.evaluate(T.profile_intrinsic(3, dtype="handle"))
-        T.evaluate(T.profile_intrinsic(5, dtype="handle"))
+        T.evaluate(T.end_profile_intrinsic(3, dtype="handle"))
+        T.evaluate(T.start_profile_intrinsic(5, dtype="handle"))
         for k, l in T.grid(8, 16):
             with T.block("C"):
                 vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                 C[vi, vj, vk * 16 + vl] = B[vi, vj, vk * 16 + vl] * 2
-        T.evaluate(T.profile_intrinsic(5, dtype="handle"))
+        T.evaluate(T.end_profile_intrinsic(5, dtype="handle"))
 
 
 @T.prim_func
@@ -128,9 +128,9 @@ def test2_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (8, 8, 128), dtype="int32")
     B = T.match_buffer(b, (8, 8, 128), dtype="int32")
     C = T.match_buffer(c, (8, 8, 128), dtype="int32")
-    T.evaluate(T.profile_intrinsic(1, dtype="handle"))
+    T.evaluate(T.start_profile_intrinsic(1, dtype="handle"))
     for i in T.serial(0, 8):
-        T.evaluate(T.profile_intrinsic(2, dtype="handle"))
+        T.evaluate(T.start_profile_intrinsic(2, dtype="handle"))
         for j in T.serial(0, 8):
             for k in T.serial(0, 8):
                 for l in T.serial(0, 16):
@@ -142,8 +142,8 @@ def test2_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
                     with T.block("C"):
                         vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                         C[vi, vj, vk * 16 + vl] = B[vi, vj, vk * 16 + vl] * 2
-        T.evaluate(T.profile_intrinsic(2, dtype="handle"))
-    T.evaluate(T.profile_intrinsic(1, dtype="handle"))
+        T.evaluate(T.end_profile_intrinsic(2, dtype="handle"))
+    T.evaluate(T.end_profile_intrinsic(1, dtype="handle"))
 
 
 @T.prim_func
@@ -151,26 +151,26 @@ def test3_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (8, 8, 128), dtype="int32")
     B = T.match_buffer(b, (8, 8, 128), dtype="int32")
     C = T.match_buffer(c, (8, 8, 128), dtype="int32")
-    T.evaluate(T.profile_intrinsic(1, dtype="handle"))
+    T.evaluate(T.start_profile_intrinsic(1, dtype="handle"))
     for i in T.serial(0, 8):
-        T.evaluate(T.profile_intrinsic(2, dtype="handle"))
+        T.evaluate(T.start_profile_intrinsic(2, dtype="handle"))
         for j in T.serial(0, 8):
-            T.evaluate(T.profile_intrinsic(3, dtype="handle"))
+            T.evaluate(T.start_profile_intrinsic(3, dtype="handle"))
             for k in T.serial(0, 8):
                 for l in T.serial(0, 16):
                     with T.block("B"):
                         vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                         B[vi, vj, vk * 16 + vl] = A[vi, vj, vk * 16 + vl] * 2
-            T.evaluate(T.profile_intrinsic(3, dtype="handle"))
-            T.evaluate(T.profile_intrinsic(5, dtype="handle"))
+            T.evaluate(T.end_profile_intrinsic(3, dtype="handle"))
+            T.evaluate(T.start_profile_intrinsic(5, dtype="handle"))
             for k in T.serial(0, 8):
                 for l in T.serial(0, 16):
                     with T.block("C"):
                         vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                         C[vi, vj, vk * 16 + vl] = B[vi, vj, vk * 16 + vl] * 2
-            T.evaluate(T.profile_intrinsic(5, dtype="handle"))
-        T.evaluate(T.profile_intrinsic(2, dtype="handle"))
-    T.evaluate(T.profile_intrinsic(1, dtype="handle"))
+            T.evaluate(T.end_profile_intrinsic(5, dtype="handle"))
+        T.evaluate(T.end_profile_intrinsic(2, dtype="handle"))
+    T.evaluate(T.end_profile_intrinsic(1, dtype="handle"))
 
 
 @T.prim_func
@@ -180,36 +180,36 @@ def test4_expected_output(a: T.handle, b: T.handle, c: T.handle, d: T.handle) ->
     C = T.match_buffer(c, (8, 8, 128), dtype="int32")
     D = T.match_buffer(d, (8, 8, 128), dtype="int32")
     for i in T.serial(0, 8):
-        T.evaluate(T.profile_intrinsic(2, dtype="handle"))
+        T.evaluate(T.start_profile_intrinsic(2, dtype="handle"))
         for j in T.serial(0, 8):
-            T.evaluate(T.profile_intrinsic(3, dtype="handle"))
+            T.evaluate(T.start_profile_intrinsic(3, dtype="handle"))
             for k, l in T.grid(8, 16):
                 with T.block("B"):
                     vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                     B[vi, vj, vk * 16 + vl] = A[vi, vj, vk * 16 + vl] * 2
-            T.evaluate(T.profile_intrinsic(3, dtype="handle"))
-            T.evaluate(T.profile_intrinsic(5, dtype="handle"))
+            T.evaluate(T.end_profile_intrinsic(3, dtype="handle"))
+            T.evaluate(T.start_profile_intrinsic(5, dtype="handle"))
             for k, l in T.grid(8, 16):
                 with T.block("B"):
                     vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                     B[vi, vj, vk * 16 + vl] = B[vi, vj, vk * 16 + vl] * D[vi, vj, vk * 16 + vl]
-            T.evaluate(T.profile_intrinsic(5, dtype="handle"))
-        T.evaluate(T.profile_intrinsic(2, dtype="handle"))
-        T.evaluate(T.profile_intrinsic(7, dtype="handle"))
+            T.evaluate(T.end_profile_intrinsic(5, dtype="handle"))
+        T.evaluate(T.end_profile_intrinsic(2, dtype="handle"))
+        T.evaluate(T.start_profile_intrinsic(7, dtype="handle"))
         for j in T.serial(0, 8):
-            T.evaluate(T.profile_intrinsic(8, dtype="handle"))
+            T.evaluate(T.start_profile_intrinsic(8, dtype="handle"))
             for k, l in T.grid(8, 16):
                 with T.block("C"):
                     vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                     C[vi, vj, vk * 16 + vl] = B[vi, vj, vk * 16 + vl] + 2
-            T.evaluate(T.profile_intrinsic(8, dtype="handle"))
-            T.evaluate(T.profile_intrinsic(10, dtype="handle"))
+            T.evaluate(T.end_profile_intrinsic(8, dtype="handle"))
+            T.evaluate(T.start_profile_intrinsic(10, dtype="handle"))
             for k, l in T.grid(8, 16):
                 with T.block("B"):
                     vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                     C[vi, vj, vk * 16 + vl] = C[vi, vj, vk * 16 + vl] * D[vi, vj, vk * 16 + vl]
-            T.evaluate(T.profile_intrinsic(10, dtype="handle"))
-        T.evaluate(T.profile_intrinsic(7, dtype="handle"))
+            T.evaluate(T.end_profile_intrinsic(10, dtype="handle"))
+        T.evaluate(T.end_profile_intrinsic(7, dtype="handle"))
 
 
 @T.prim_func
@@ -217,9 +217,9 @@ def test5_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (8, 8, 128), dtype="int32")
     B = T.match_buffer(b, (8, 8, 128), dtype="int32")
     C = T.match_buffer(c, (8, 8, 128), dtype="int32")
-    T.evaluate(T.profile_intrinsic(1, dtype="handle"))
+    T.evaluate(T.start_profile_intrinsic(1, dtype="handle"))
     for i in T.serial(0, 8):
-        T.evaluate(T.profile_intrinsic(2, dtype="handle"))
+        T.evaluate(T.start_profile_intrinsic(2, dtype="handle"))
         for j in T.serial(0, 8):
             for k in T.serial(0, 8):
                 for l in T.serial(0, 16):
@@ -231,8 +231,8 @@ def test5_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
                     with T.block("C"):
                         vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                         C[vi, vj, vk * 16 + vl] = B[vi, vj, vk * 16 + vl] * 2
-        T.evaluate(T.profile_intrinsic(2, dtype="handle"))
-    T.evaluate(T.profile_intrinsic(1, dtype="handle"))
+        T.evaluate(T.end_profile_intrinsic(2, dtype="handle"))
+    T.evaluate(T.end_profile_intrinsic(1, dtype="handle"))
 
 
 @T.prim_func
@@ -242,7 +242,7 @@ def test6_expected_output(a: T.handle, b: T.handle, c: T.handle, d: T.handle) ->
     C = T.match_buffer(c, (8, 8, 128), dtype="int32")
     D = T.match_buffer(d, (8, 8, 128), dtype="int32")
     for i in T.serial(0, 8):
-        T.evaluate(T.profile_intrinsic(2, dtype="handle"))
+        T.evaluate(T.start_profile_intrinsic(2, dtype="handle"))
         for j in T.parallel(0, 8):
             for k in T.serial(0, 8):
                 for l in T.serial(0, 16):
@@ -254,24 +254,24 @@ def test6_expected_output(a: T.handle, b: T.handle, c: T.handle, d: T.handle) ->
                     with T.block("B"):
                         vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                         B[vi, vj, vk * 16 + vl] = B[vi, vj, vk * 16 + vl] * D[vi, vj, vk * 16 + vl]
-        T.evaluate(T.profile_intrinsic(2, dtype="handle"))
-        T.evaluate(T.profile_intrinsic(7, dtype="handle"))
+        T.evaluate(T.end_profile_intrinsic(2, dtype="handle"))
+        T.evaluate(T.start_profile_intrinsic(7, dtype="handle"))
         for j in T.serial(0, 8):
-            T.evaluate(T.profile_intrinsic(8, dtype="handle"))
+            T.evaluate(T.start_profile_intrinsic(8, dtype="handle"))
             for k in T.parallel(0, 8):
                 for l in T.serial(0, 16):
                     with T.block("C"):
                         vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                         C[vi, vj, vk * 16 + vl] = B[vi, vj, vk * 16 + vl] + 2
-            T.evaluate(T.profile_intrinsic(8, dtype="handle"))
-            T.evaluate(T.profile_intrinsic(10, dtype="handle"))
+            T.evaluate(T.end_profile_intrinsic(8, dtype="handle"))
+            T.evaluate(T.start_profile_intrinsic(10, dtype="handle"))
             for k in T.parallel(0, 8):
                 for l in T.serial(0, 16):
                     with T.block("B"):
                         vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                         C[vi, vj, vk * 16 + vl] = C[vi, vj, vk * 16 + vl] * D[vi, vj, vk * 16 + vl]
-            T.evaluate(T.profile_intrinsic(10, dtype="handle"))
-        T.evaluate(T.profile_intrinsic(7, dtype="handle"))
+            T.evaluate(T.end_profile_intrinsic(10, dtype="handle"))
+        T.evaluate(T.end_profile_intrinsic(7, dtype="handle"))
 
 
 # By default, only loops with siblings are instrumented.
