@@ -53,8 +53,12 @@ def {{ method_name }}() {
             })
           }
         } finally {
-          {{ junit_to_s3(test_dir_name) }}
-          junit 'build/pytest-results/*.xml'
+          try {
+            {{ junit_to_s3(test_dir_name) }}
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -120,8 +124,12 @@ def {{ method_name }}() {
               {{ caller() | indent(width=8) | trim }}
             })
           } finally {
-            {{ junit_to_s3(test_dir_name) | indent(width=0) }}
-            junit 'build/pytest-results/*.xml'
+            try {
+              {{ junit_to_s3(test_dir_name) | indent(width=0) }}
+              junit 'build/pytest-results/*.xml'
+            } catch (Exception e) {
+              echo 'Exception during JUnit upload: ' + e.toString()
+            }
           }
         }
       }
@@ -147,8 +155,12 @@ def {{ method_name }}() {
                 {{ caller() | indent(width=12) | trim }}
               })
             } finally {
+            try {
               {{ junit_to_s3(test_dir_name) | indent(width=4) }}
               junit 'build/pytest-results/*.xml'
+            } catch (Exception e) {
+              echo 'Exception during JUnit upload: ' + e.toString()
+            }
             }
           }
         }
