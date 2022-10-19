@@ -28,7 +28,16 @@ echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_MICRO ON\) >> config.cmake
 echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
 echo set\(USE_LLVM "${CLANG_LLVM_HOME}/bin/llvm-config"\) >> config.cmake
-echo set\(CMAKE_CXX_COMPILER "/opt/sccache/clang++"\) >> config.cmake
+
+if [[ ${CI:-false} == "true" ]]; then
+    # sccache needs to be used in CI to speed up builds
+    echo set\(CMAKE_CXX_COMPILER "/opt/sccache/clang++"\) >> config.cmake
+else
+    echo 'Skipping sccache setup for local build'
+    echo set\(CMAKE_CXX_COMPILER \"/usr/bin/c++\"\) >> config.cmake
+    echo set\(CMAKE_C_COMPILER \"/usr/bin/cc\"\) >> config.cmake
+fi
+
 echo set\(USE_HEXAGON "ON"\) >> config.cmake
 echo set\(USE_HEXAGON_SDK "${HEXAGON_SDK_ROOT}"\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
