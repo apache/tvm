@@ -185,7 +185,9 @@ if(BUILD_FOR_HEXAGON)
 
   # Include hexagon external library runtime sources
   if(DEFINED USE_HEXAGON_EXTERNAL_LIBS)
+    # Check if the libs are provided as an absolute path
     if (EXISTS ${USE_HEXAGON_EXTERNAL_LIBS})
+    # Check if the libs are provided as a git url
     elseif(USE_HEXAGON_EXTERNAL_LIBS MATCHES "\.git$")
       if (NOT DEFINED HEXAGON_EXTERNAL_LIBS_SHA)
         message(FATAL_ERROR "HEXAGON_EXTERNA_LIBS_SHA must be set when "
@@ -200,7 +202,7 @@ if(BUILD_FOR_HEXAGON)
     else()
       message(FATAL_ERROR "Invalid use of USE_HEXAGON_EXTERNAL_LIBS="
         "${USE_HEXAGON_EXTERNAL_LIBS}; USE_HEXAGON_EXTERNAL_LIBS only "
-        "supports absolute paths and paths and git repository urls")
+        "supports absolute paths and git repository urls")
     endif()
 
     file_glob_append(HEXAGON_EXTERNAL_RUNTIME_SRCS
