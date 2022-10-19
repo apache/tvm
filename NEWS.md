@@ -2770,5 +2770,3 @@ We also make major improvements in supporting new backends: ROCm for AMDGPUs and
 - DLPack integration support
 - AOT and module system
 - Basic code structure ready.
-
-

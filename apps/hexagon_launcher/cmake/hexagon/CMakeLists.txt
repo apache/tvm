@@ -100,4 +100,3 @@ add_library(h_tvm_runtime STATIC IMPORTED)
 set_target_properties(h_tvm_runtime PROPERTIES IMPORTED_LOCATION "${BINARY_DIR}/libtvm_runtime.a")
 
 target_link_libraries(launcher_rpc_skel -Wl,--whole-archive h_tvm_runtime -Wl,--no-whole-archive)
-

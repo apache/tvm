@@ -68,4 +68,3 @@ USE_HEXAGON_SDK=/path/to/sdk
 ```
 
 As mentioned before, only build the `runtime` component (e.g. `make runtime`).
-

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,10 +16,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+set -euo pipefail
 
-#install the necessary dependancies for golang build
-apt-get update
-apt-install-and-clear -y golang-1.10-go golang-1.10-doc golint
+status=0
+
+if git --no-pager grep -Il '' -- . | ./tests/lint/trailing_newlines.py; then
+    echo "The above files are missing a trailing newline or have too many trailing newlines"
+    status=1
+fi
+
+if git --no-pager grep -In '[[:blank:]]$' -- .; then
+    echo "The above files have trailing spaces"
+    status=1
+fi
+
+if [ $status == "1" ]; then
+    echo "Found whitespace lint failures, 'pre-commit run --all-files' can auto-correct them"
+    exit 1
+else
+    echo "Found no whitespace lint failures"
+    exit 0
+fi

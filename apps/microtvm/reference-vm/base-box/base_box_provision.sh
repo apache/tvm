@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-#   Using this script we can reuse docker/install scripts to configure the reference 
+#   Using this script we can reuse docker/install scripts to configure the reference
 #   virtual machine similar to CI Cortex-M setup.
 #
 
@@ -42,7 +42,7 @@ cd ~
 sudo apt-get install -y ca-certificates
 
 # Install Arduino-CLI (specific version)
-# To keep in sync with the version 
+# To keep in sync with the version
 # defined in apps/microtvm/arduino/template_project/microtvm_api_server.py
 ARDUINO_CLI_VERSION="0.21.1"
 

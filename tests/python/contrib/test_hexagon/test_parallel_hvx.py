@@ -16,7 +16,7 @@
 # under the License.
 
 """
-Test parallelizing HVX workloads and compare them to single thread examples. 
+Test parallelizing HVX workloads and compare them to single thread examples.
 """
 import numpy as np
 from numpy.random import default_rng

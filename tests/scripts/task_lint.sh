@@ -60,6 +60,9 @@ function shard1 {
 }
 
 function shard2 {
+  echo "check whitespace..."
+  tests/lint/whitespace.sh
+
   echo "Linting the Python code with pylint..."
   tests/lint/pylint.sh
 

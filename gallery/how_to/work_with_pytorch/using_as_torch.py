@@ -17,7 +17,7 @@
 """
 Wrap Your TVMScript as PyTorch Module
 ======================
-**Author**: 
+**Author**:
 `Yaoda Zhou <https://github.com/juda>`_
 
 This article is a tutorial on wrapping the TVMScript code as the PyTorch module.

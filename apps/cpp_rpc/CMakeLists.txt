@@ -70,5 +70,5 @@ if(BUILD_STATIC_RUNTIME)
 else()
   list(APPEND TVM_RPC_LINKER_LIBS tvm_runtime)
 endif()
- 
+
 target_link_libraries(tvm_rpc ${TVM_RPC_LINKER_LIBS})

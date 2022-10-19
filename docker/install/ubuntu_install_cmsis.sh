@@ -49,4 +49,3 @@ echo "$CMSIS_SHASUM" ${DOWNLOAD_PATH} | sha512sum -c
 tar -xf "${DOWNLOAD_PATH}" -C "${INSTALLATION_PATH}" --strip-components=1
 touch "${INSTALLATION_PATH}"/"${CMSIS_SHA}".sha
 echo "SUCCESS"
-
