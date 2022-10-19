@@ -26,7 +26,7 @@ extern "C" {
 }
 
 #include "hexagon_common.h"
-#include "hexagon_hmx.h"
+#include "hexagon_htp.h"
 
 // Minimum timeout per SDK docs, excluding 0
 #define COMPUTE_RES_ACQ_TIMEOUT 200
@@ -35,17 +35,17 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-HexagonHmx::HexagonHmx() {
+HexagonHtp::HexagonHtp() {
   PowerOn();
   Acquire();
 }
 
-HexagonHmx::~HexagonHmx() {
+HexagonHtp::~HexagonHtp() {
   Release();
   PowerOff();
 }
 
-void HexagonHmx::PowerOn() {
+void HexagonHtp::PowerOn() {
   HAP_power_request_t pwr_req;
   int nErr;
 
@@ -57,7 +57,7 @@ void HexagonHmx::PowerOn() {
   }
 }
 
-void HexagonHmx::PowerOff() {
+void HexagonHtp::PowerOff() {
   HAP_power_request_t pwr_req;
   int nErr;
 
@@ -69,7 +69,7 @@ void HexagonHmx::PowerOff() {
   HAP_utils_destroy_context(hap_pwr_ctx_);
 }
 
-void HexagonHmx::Acquire() {
+void HexagonHtp::Acquire() {
   compute_res_attr_t compute_res_attr;
   int nErr;
 
@@ -85,11 +85,11 @@ void HexagonHmx::Acquire() {
     LOG(FATAL) << "InternalError: HAP_compute_res_acquire failed\n";
   }
   if ((nErr = HAP_compute_res_hmx_lock(context_id_))) {
-    LOG(FATAL) << "InternalError: Unable to lock HMX!";
+    LOG(FATAL) << "InternalError: Unable to lock HTP!";
   }
 }
 
-void HexagonHmx::Release() {
+void HexagonHtp::Release() {
   HAP_compute_res_hmx_unlock((unsigned int)context_id_);
   HAP_compute_res_release((unsigned int)context_id_);
 }

@@ -17,32 +17,32 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_HMX_H_
-#define TVM_RUNTIME_HEXAGON_HEXAGON_HMX_H_
+#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_HTP_H_
+#define TVM_RUNTIME_HEXAGON_HEXAGON_HTP_H_
 
 namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-class HexagonHmx {
+class HexagonHtp {
  public:
   //! \brief Constructor.
-  HexagonHmx();
+  HexagonHtp();
 
   //! \brief Destructor.
-  ~HexagonHmx();
+  ~HexagonHtp();
 
-  //! \brief Prevent copy construction of HexagonHmx.
-  HexagonHmx(const HexagonHmx&) = delete;
+  //! \brief Prevent copy construction of HexagonHtp.
+  HexagonHtp(const HexagonHtp&) = delete;
 
-  //! \brief Prevent copy assignment with HexagonHmx.
-  HexagonHmx& operator=(const HexagonHmx&) = delete;
+  //! \brief Prevent copy assignment with HexagonHtp.
+  HexagonHtp& operator=(const HexagonHtp&) = delete;
 
   //! \brief Prevent move construction.
-  HexagonHmx(HexagonHmx&&) = delete;
+  HexagonHtp(HexagonHtp&&) = delete;
 
   //! \brief Prevent move assignment.
-  HexagonHmx& operator=(HexagonHmx&&) = delete;
+  HexagonHtp& operator=(HexagonHtp&&) = delete;
 
  private:
   //! \brief Power context
@@ -61,4 +61,4 @@ class HexagonHmx {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_HMX_H_
+#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_HTP_H_
