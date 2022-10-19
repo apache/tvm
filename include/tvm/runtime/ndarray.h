@@ -365,6 +365,15 @@ static inline bool IsContiguous(const DLTensor& arr) {
   int64_t expected_stride = 1;
   for (int32_t i = arr.ndim; i != 0; --i) {
     int32_t k = i - 1;
+    if (arr.shape[k] == 1) {
+      // Skip stride check if shape[k] is 1, where the dimension is contiguous
+      // regardless of the value of stride.
+      //
+      // For example, PyTorch will normalize stride to 1 if shape is 1 when exporting
+      // to DLPack.
+      // More context: https://github.com/pytorch/pytorch/pull/83158
+      continue;
+    }
     if (arr.strides[k] != expected_stride) return false;
     expected_stride *= arr.shape[k];
   }
