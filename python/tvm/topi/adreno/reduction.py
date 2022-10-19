@@ -23,6 +23,7 @@ from .. import tag
 from ..utils import get_const_tuple
 from .injective import schedule_injective_from_existing
 from .utils import get_div
+from ..cuda.reduction import schedule_reduce_impl
 
 
 def _schedule_reduce_adreno(op, sch, is_idx_reduce=False):
@@ -66,89 +67,5 @@ def _schedule_reduce_adreno(op, sch, is_idx_reduce=False):
         sch[temp_val_input].compute_at(sch[real_output], outer_in)
 
 
-def _enable_auto_inline(sch):
-    def is_scheduled(stage):
-        # auto inline requires the attach type is AttachType.kGroupRoot
-        conds = [
-            len(stage.relations) == 0,
-            stage.attach_type == 1,
-            stage.all_iter_vars == stage.leaf_iter_vars,
-        ]
-        if not all(conds):
-            return True
-        return False
-
-    for s in sch.stages:
-        if not s.is_output and isinstance(s.op, tvm.te.ComputeOp):
-            if is_scheduled(s) or len(s.op.reduce_axis) != 0:
-                return False
-    return True
-
-
 def schedule_reduce(outs):
-    """Schedule for inject->reduce->bcast ops.
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-          The computation graph description of reduce in the format
-          of an array of tensors.
-
-    Returns
-    -------
-    sch: Schedule
-        The computation schedule for the op.
-    """
-    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
-    sch = te.create_schedule([x.op for x in outs])
-    scheduled_ops = []
-    enable_auto_inline = _enable_auto_inline(sch)
-
-    def traverse_before_reduce(operator):
-        """Internal traverse function"""
-        if isinstance(operator, tvm.te.PlaceholderOp):
-            return
-        if tag.is_injective(operator.tag):
-            sch[operator].compute_inline()
-            for tensor in operator.input_tensors:
-                if tensor.op not in scheduled_ops:
-                    traverse_before_reduce(tensor.op)
-        else:
-            raise RuntimeError("Unsupported operator: %s" % operator.tag)
-
-        scheduled_ops.append(operator)
-
-    def traverse_after_reduce(operator):
-        """Internal traverse function"""
-        if tag.is_broadcast(operator.tag):
-            if operator not in scheduled_ops:
-                schedule_injective_from_existing(sch, operator.output(0))
-            for tensor in operator.input_tensors:
-                if tensor.op not in scheduled_ops:
-                    if enable_auto_inline:
-                        traverse_before_reduce(tensor.op)
-                    else:
-                        traverse_after_reduce(tensor.op)
-        elif operator.tag == "comm_reduce":
-            if operator not in scheduled_ops:
-                _schedule_reduce_adreno(operator, sch)
-            for tensor in operator.input_tensors:
-                if tensor.op not in scheduled_ops:
-                    traverse_before_reduce(tensor.op)
-        elif operator.tag == "comm_reduce_idx":
-            if operator not in scheduled_ops:
-                _schedule_reduce_adreno(operator, sch, is_idx_reduce=True)
-            input_tensors = operator.input_tensors[0].op.input_tensors
-            for tensor in input_tensors:
-                if tensor.op not in scheduled_ops:
-                    traverse_before_reduce(tensor.op)
-        elif isinstance(operator, tvm.te.PlaceholderOp):
-            pass
-        else:
-            raise RuntimeError("Unsupported operator: %s" % operator.tag)
-
-        scheduled_ops.append(operator)
-
-    for out in outs:
-        traverse_after_reduce(out.op)
-    return sch
+    return schedule_reduce_impl(outs, _schedule_reduce_adreno, schedule_injective_from_existing)
