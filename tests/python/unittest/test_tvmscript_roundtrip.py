@@ -2808,17 +2808,17 @@ def module_const():
 
         @T.prim_func
         def B(a: T.handle, c: T.handle) -> None:
-            A = T.match_buffer(a, (10), "int32")
-            C = T.match_buffer(c, (10), "int32")
-            B = T.alloc_buffer((10), "int32")
+            A = T.match_buffer(a, (10), "float32")
+            C = T.match_buffer(c, (10), "float32")
+            B = T.alloc_buffer((10), "float32")
 
-            K1_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
-            K1 = T.buffer_decl(shape=[10], dtype="int32", data=K1_data)
+            K1_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "float32", [10])
+            K1 = T.buffer_decl(shape=[10], dtype="float32", data=K1_data)
             for x in T.serial(0, 10):
                 B[x] = A[x] + K1[x]
 
-            K2_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
-            K2 = T.buffer_decl(shape=[10], dtype="int32", data=K2_data)
+            K2_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "float32", [10])
+            K2 = T.buffer_decl(shape=[10], dtype="float32", data=K2_data)
             for x in T.serial(0, 10):
                 B[x] = B[x] + K2[x]
 
@@ -2831,11 +2831,11 @@ def module_const():
 def constant():
     @T.prim_func
     def constant(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (10), "int32")
-        C = T.match_buffer(c, (10), "int32")
-        B = T.alloc_buffer((10), "int32")
-        K_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
-        K = T.buffer_decl(shape=[10], dtype="int32", data=K_data)
+        A = T.match_buffer(a, (10), "float32")
+        C = T.match_buffer(c, (10), "float32")
+        B = T.alloc_buffer((10), "float32")
+        K_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "float32", [10])
+        K = T.buffer_decl(shape=[10], dtype="float32", data=K_data)
         for x in T.serial(0, 10):
             B[x] = A[x] + K[x]
 
