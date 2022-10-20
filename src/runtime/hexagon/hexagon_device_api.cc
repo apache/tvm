@@ -132,14 +132,9 @@ void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
   if (runtime_hexbuffs) {
     runtime_hexbuffs->FreeHexagonBuffer(ptr);
   } else {
-    // Either AcquireResources was never called, or ReleaseResources was called.  Check the
-    // list of buffers that were still allocated at the time of release.  If this buffer is
-    // in that list, this is a no-op as it is being freed as part of another object teardown.
-    // If the pointer isn't in that list, we raise an exception as this is an unexpected Free.
-    auto it = std::find(released_runtime_buffers.begin(), released_runtime_buffers.end(), ptr);
-    CHECK(it != released_runtime_buffers.end()) << "Attempted to free Hexagon data with "
-                                                << "HexagonDeviceAPI::FreeDataSpace that was not "
-                                                << "allocated during the session.";
+    // Either AcquireResources was never called, or ReleaseResources was called.  Since this can
+    // occur in the normal course of shutdown, log a message and continue.
+    DLOG(INFO) << "FreeDataSpace called outside a session for " << ptr;
   }
 }
 

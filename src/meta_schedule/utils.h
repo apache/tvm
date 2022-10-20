@@ -326,14 +326,8 @@ struct ThreadedTraceApply {
 
     for (int i = 0; i < n_; ++i) {
       Item& item = items_[i];
-      try {
-        if (!item.postproc->Apply(sch)) {
-          ++item.fail_counter;
-          return NullOpt;
-        }
-      } catch (const std::exception& e) {
-        // Used in multi-thread, only output to screen but failure summary sent to logging
-        LOG(WARNING) << "ThreadedTraceApply::Apply failed with error " << e.what();
+      if (!item.postproc->Apply(sch)) {
+        item.fail_counter++;
         return NullOpt;
       }
     }
