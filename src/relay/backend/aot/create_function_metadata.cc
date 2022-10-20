@@ -55,20 +55,23 @@ Map<String, backend::FunctionInfo> CalculateFunctionInfos(const IRModule& mod,
     BaseFunc base_func = kv.second;
     if (base_func->IsInstance<tir::PrimFuncNode>()) {
       tir::PrimFunc pfunc = Downcast<tir::PrimFunc>(base_func);
-      Target tgt = pfunc->GetAttr<Target>(tvm::attr::kTarget).value();
+      Optional<Target> tgt_opt = pfunc->GetAttr<Target>(tvm::attr::kTarget);
+      ICHECK(tgt_opt) << "Target must be defined for all primfuncs.";
+      Target tgt = tgt_opt.value();
       // Determine the size of input/output buffers
       auto params = pfunc->params;
-      int64_t ios = 0;
+      int64_t total_io_bytes = 0;
       for (const auto& param : params) {
         // Inputs/outputs will be handles, workspaces are pointers
         if (param->dtype.is_handle()) {
           auto buffer = pfunc->buffer_map[param];
-          ios += GetMemorySizeBytes(buffer->shape, buffer->dtype);
+          total_io_bytes += GetMemorySizeBytes(buffer->shape, buffer->dtype);
         }
       }
       const auto& ws = CalculateWorkspaceBytes(pfunc, workspace_byte_alignment);
       const auto& cs = CalculateConstantBytes(pfunc, constant_byte_alignment);
-      backend::FunctionInfo finfo{{{tgt, ws}}, {{tgt, ios}}, {{tgt, cs}}, {{tgt, pfunc}}, {}};
+      backend::FunctionInfo finfo{
+          {{tgt, ws}}, {{tgt, total_io_bytes}}, {{tgt, cs}}, {{tgt, pfunc}}, {}};
       function_metadata.Set(global_var->name_hint, finfo);
     }
   }
