@@ -5485,7 +5485,6 @@ def test_aten(target, dev):
             operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN,
         )
         onnx_model = onnx.load(file_name)
-        assert 's: "embedding_bag"' in str(onnx_model)
         return onnx_model
 
     def verify_embedding_bag(num_embedding, embedding_dim, data_shape, num_bags=None):
