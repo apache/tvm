@@ -280,6 +280,15 @@ TVM_DLL StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int 
 TVM_DLL Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref,
                                      int read_buffer_index, const String& storage_scope);
 /*!
+ * \brief Create a block to cache precomputed index for later use.
+ * if there is no index computation, keep unchanged.
+ * \param block_sref The target block
+ * \param buffer_index The index of the target buffer in block's read region,
+ * \return The cache stage block.
+ */
+TVM_DLL Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
+                                   int buffer_index);
+/*!
  *!
  * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
  * The layout of the cache will be the same as by the iterators of the block that reads/writes the

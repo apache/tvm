@@ -323,6 +323,20 @@ Array<BlockRV> TracedScheduleNode::CacheInplace(const BlockRV& block_rv, int rea
   return result;
 }
 
+Array<BlockRV> TracedScheduleNode::CacheIndex(const BlockRV& block_rv, int buffer_index) {
+  Array<BlockRV> result = ConcreteScheduleNode::CacheIndex(block_rv, buffer_index);
+  Array<ObjectRef> outputs;
+  for (const BlockRV& r : result) {
+    outputs.push_back(r);
+  }
+  static const InstructionKind& kind = InstructionKind::Get("CacheIndex");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{block_rv},
+                                      /*attrs=*/{Integer(buffer_index)},
+                                      /*outputs=*/outputs));
+  return result;
+}
+
 BlockRV TracedScheduleNode::ReIndex(const BlockRV& block_rv, int buffer_index,
                                     BufferIndexType buffer_index_type) {
   BlockRV result = ConcreteScheduleNode::ReIndex(block_rv, buffer_index, buffer_index_type);
