@@ -208,7 +208,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 )
             elif kernel_layout == "HWIO":
                 has_asimd = target.features.has_asimd
-                has_dot_prod = target.features.had_dotprod
+                has_dot_prod = target.features.has_dotprod
                 if has_dot_prod and data.dtype in ["int8", "uint8"]:
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized_native),

@@ -93,8 +93,8 @@ def compile_conv2d_NHWC_gemm_int8_arm(
             print("Skip because %s is not enabled" % target)
             return
         print("Compiling on arm AArch64 target: %s" % target)
-        with tvm.target.Target(target):
-            assert target.features.is_aarch64, "AArch64 target not recognized"
+        with tvm.target.Target(target) as tvm_target:
+            assert tvm_target.features.is_aarch64, "AArch64 target not recognized"
 
             C = compute(A, W, (stride, stride), padding, (dilation, dilation), dtype)
             if add_bias:
