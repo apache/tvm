@@ -24,7 +24,8 @@ namespace runtime {
 namespace hexagon {
 
 HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread_stack_size_bytes,
-                                           unsigned thread_pipe_size_words) {
+                                           unsigned thread_pipe_size_words,
+                                           const std::vector<HardwareResourceType> hw_resources) {
   // Note: could technically manage more software threads than allowable hardware threads, but there
   // is no system constant defined
   //  in the qurt libs for that maximum.
@@ -38,13 +39,18 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   CHECK_GE(thread_pipe_size_words, MIN_PIPE_SIZE_WORDS);
   CHECK_LE(thread_pipe_size_words, MAX_PIPE_SIZE_WORDS);
 
+  CHECK(hw_resources.empty() || hw_resources.size() == nthreads_);
+  hw_resources_ = hw_resources;
+
   DLOG(INFO) << "Spawning threads";
   SpawnThreads(thread_stack_size_bytes, thread_pipe_size_words);
 
-  DLOG(INFO) << "Acquiring hardware resources";
-  // TODO(HWE): Move these bindings to specific threads
-  htp_ = std::make_unique<HexagonHtp>();
-  hvx_ = std::make_unique<HexagonHvx>();
+  if (!hw_resources_.empty()) {
+    DLOG(INFO) << "Acquiring hardware resources";
+    // TODO(HWE): Move these bindings to specific threads
+    htp_ = std::make_unique<HexagonHtp>();
+    hvx_ = std::make_unique<HexagonHvx>();
+  }
 
   // Initially, block all threads until we get the Start() call
   qurt_sem_init_val(&start_semaphore_, 0);
