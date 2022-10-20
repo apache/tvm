@@ -74,6 +74,9 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Ensures all runtime resources are freed
   void ReleaseResources() {
+    CHECK(runtime_power_manager) << "runtime_power_manager was not created in AcquireResources";
+    runtime_power_manager.reset();
+
     CHECK(runtime_dma) << "runtime_dma was not created in AcquireResources";
     runtime_dma.reset();
 
