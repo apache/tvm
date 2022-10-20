@@ -27,6 +27,7 @@
 #if defined(__linux__) || defined(__ANDROID__)
 #include <fstream>
 #include <sstream>
+#include <pthread.h>
 #else
 #endif
 #if defined(__linux__)
@@ -167,7 +168,9 @@ class ThreadGroup::Impl {
       CPU_SET(id, &cpuset);
     }
 #if defined(__ANDROID__)
-    sched_setaffinity(thread, sizeof(cpu_set_t), &cpuset);
+    if (sched_setaffinity(pthread_gettid_np(thread), sizeof(cpu_set_t), &cpuset) != 0) {
+      LOG(WARNING) << "sched_setaffinity failed";
+    }
 #else
     pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
 #endif
