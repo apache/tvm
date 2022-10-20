@@ -17,6 +17,7 @@
  * under the License.
  */
 #include "./utils.h"
+#include "analysis.h"
 
 namespace tvm {
 namespace tir {
@@ -536,10 +537,18 @@ std::set<std::string> GetBlockNames(const IRModule& mod) {
   return collector.block_names;
 }
 
+void InlineAllProducers(Schedule sch, BlockRV block) {
+  for (auto prod : sch->GetProducers(block)) {
+    InlineAllProducers(sch, prod);
+  }
+  sch->ComputeInline(block);
+}
+
 std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_trace) {
   std::unordered_map<const Object*, const Object*> rv_map;
   static auto kind_get_child_blocks = InstructionKind::Get("GetChildBlocks");
   static auto kind_get_block = InstructionKind::Get("GetBlock");
+  static auto kind_reverse_compute_at = InstructionKind::Get("ReverseComputeAt");
   const auto block_names_orig = GetBlockNames(sch->mod());
   std::unordered_set<BlockRV, ObjectHash, ObjectEqual> foreign_blocks;
   std::unordered_set<LoopRV, ObjectHash, ObjectEqual> foreign_loops;
@@ -558,7 +567,13 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
     return true;
   };
 
+  int count = 0;
   for (const auto& inst : anchor_trace->insts) {
+    if (count == 85) {
+      LOG(INFO) << AsTVMScript(sch->mod());
+    }
+    LOG(INFO) << count++;
+
     if (!is_inst_applicable(inst)) {
       for (auto output : inst->outputs) {
         if (output->IsInstance<BlockRVNode>()) {
@@ -592,7 +607,24 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
       }
     }
 
+
     Array<ObjectRef> inputs = TranslateInputRVs(inst->inputs, rv_map);
+
+    if (inst->kind.same_as(kind_reverse_compute_at)) {
+      auto block_rv = Downcast<BlockRV>(inputs[0]);
+      auto loop_rv = Downcast<LoopRV>(inputs[1]);
+      auto loop = sch->Get(loop_rv);
+      auto producers = sch->GetProducers(block_rv);
+
+      for (auto prod: producers) {
+	auto split = ProducerConsumerSplit::Find(sch->state(), AsArray(loop->body),
+						 {sch->GetSRef(prod)}, {}, nullptr);
+	if (split.n_producers_visited != 1) {
+	  InlineAllProducers(sch, prod);
+	}
+      }
+    }
+
     Optional<ObjectRef> decision = anchor_trace->GetDecision(inst);
     Array<ObjectRef> outputs = inst->kind->f_apply_to_schedule(sch, inputs, inst->attrs, decision);
 
