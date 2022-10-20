@@ -28,6 +28,7 @@
 #include <pthread.h>
 #include <fstream>
 #include <sstream>
+#include <pthread.h>
 #else
 #endif
 #if defined(__linux__)
