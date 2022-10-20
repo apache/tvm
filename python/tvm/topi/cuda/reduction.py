@@ -118,12 +118,20 @@ def _enable_auto_inline(sch):
 
 def schedule_reduce_impl(outs, schedule_reduce_stage, schedule_injective_stage):
     """Schedule for inject->reduce->bcast ops.
+    Traverse over the stages in the schedule and schedule separate stages depending
+    on the position of the stage. Injecteve post-ops of reduction will be scheduled using
+    injection schedule, injective pre-ops of reduction will be inlined, reduction stage
+    will be scheduled using reduction schedule
 
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of reduce in the format
           of an array of tensors.
+    schedule_reduce_stage: Function responsible for scheduling the reduction
+          stage
+    schedule_injective_stage: Function responsible for scheduling the
+          standalone injection stage
 
     Returns
     -------
