@@ -26,6 +26,7 @@
 
 #if defined(__linux__) || defined(__ANDROID__)
 #include <pthread.h>
+
 #include <fstream>
 #include <sstream>
 #else
