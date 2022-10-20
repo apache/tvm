@@ -34,7 +34,6 @@ HexagonPowerManager::HexagonPowerManager() {
   PowerOnHTP();
   SetAppType();
   SetDCVS();
-  LogPowerConfig();
 }
 
 HexagonPowerManager::~HexagonPowerManager() {
@@ -101,26 +100,6 @@ void HexagonPowerManager::SetDCVS() {
   pwr_req.dcvs_v3.set_sleep_disable = TRUE;
   pwr_req.dcvs_v3.sleep_disable = TRUE;
   HEXAGON_SAFE_CALL(HAP_power_set(hap_pwr_ctx_, &pwr_req));
-}
-
-void HexagonPowerManager::LogPowerConfig() {
-  HAP_power_response_t pwr_resp;
-
-  pwr_resp.type = HAP_power_get_dcvsEnabled;
-  HAP_power_get(hap_pwr_ctx_, &pwr_resp);
-  LOG(INFO) << "HexagonPowerManager: DCVS Enabled: " << pwr_resp.dcvsEnabled;
-
-  pwr_resp.type = HAP_power_get_clk_Freq;
-  HAP_power_get(hap_pwr_ctx_, &pwr_resp);
-  LOG(INFO) << "HexagonPowerManager: Core running at " << pwr_resp.clkFreqHz << " Hz";
-
-  pwr_resp.type = HAP_power_get_dma_core_clk_Freq;
-  HAP_power_get(hap_pwr_ctx_, &pwr_resp);
-  LOG(INFO) << "HexagonPowerManager: DMA core running at " << pwr_resp.clkFreqHz << " Hz";
-
-  pwr_resp.type = HAP_power_get_max_bus_bw;
-  HAP_power_get(hap_pwr_ctx_, &pwr_resp);
-  LOG(INFO) << "HexagonPowerManager: Max bus bandwidth: " << pwr_resp.max_bus_bw;
 }
 
 }  // namespace hexagon

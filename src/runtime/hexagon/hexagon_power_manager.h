@@ -57,7 +57,6 @@ class HexagonPowerManager {
   void PowerOffHTP();
   void SetAppType();
   void SetDCVS();
-  void LogPowerConfig();
 };
 
 }  // namespace hexagon
