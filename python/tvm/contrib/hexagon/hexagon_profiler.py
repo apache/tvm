@@ -49,10 +49,10 @@ class HexagonProfiler:
             # Set profiling mode
             self._profiling_mode = "lwp"
 
-            launcher = hexagon_server_process["launcher"]
             if self._android_serial_number != "simulator":
                 # Clear the logcat buffer and create a child process to redirect logcat output
                 # into a file.
+                launcher = hexagon_server_process["launcher"]
                 subprocess.check_call(launcher._adb_device_sub_cmd + ["logcat", "-c"])
                 self._logcat_path = self._temp_dir.relpath("logcat.log")
                 self._fo = open(self._logcat_path, "w")

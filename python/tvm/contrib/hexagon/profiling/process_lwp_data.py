@@ -350,6 +350,7 @@ def process_lwp_output(
     overall_cycles = process_data(data, func_info, so_ld_addr)
     create_csv_report(overall_cycles, lwp_out)
     print("lwp processed output written to -- ", lwp_out)
+    print("[NOTE: Use '--hexagon-debug' to keep the temp directory]")
 
 
 def get_args():
