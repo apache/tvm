@@ -60,7 +60,7 @@ from . import benchmark_util as bu
 # E.g., it doesn't allow: @pytest.mark.usefixtures("bu.benchmark_group")
 benchmark_group = bu.benchmark_group
 
-_SHOULD_SKIP_BENCHMARKS, _SKIP_BENCHMARKS_REASON = bu.skip_bencharks_flag_and_reason()
+_SHOULD_SKIP_BENCHMARKS, _SKIP_BENCHMARKS_REASON = bu.skip_benchmarks_flag_and_reason()
 
 
 def _ceil_div(numerator, denominator):

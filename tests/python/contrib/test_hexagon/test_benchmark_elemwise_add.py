@@ -26,7 +26,7 @@ import pytest
 
 import tvm.script
 import tvm.testing
-from python.tvm.contrib.hexagon.session import Session
+from tvm.contrib.hexagon.session import Session
 from tvm.script import tir as T
 
 from . import benchmark_util as bu
