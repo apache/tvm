@@ -5274,14 +5274,6 @@ unsupported_onnx_tests = [
     "test_dropout_default_mask",
     "test_dropout_default_mask_ratio",
     "test_dropout_default_ratio",
-    "test_gridsample",
-    "test_gridsample_aligncorners_true",
-    "test_gridsample_bicubic",
-    "test_gridsample_bilinear",
-    "test_gridsample_border_padding",
-    "test_gridsample_nearest",
-    "test_gridsample_reflection_padding",
-    "test_gridsample_zeros_padding",
     "test_gru_batchwise",
     "test_hammingwindow",
     "test_hammingwindow_expanded",
@@ -5417,6 +5409,10 @@ def test_onnx_nodes(target, dev, onnx_test):
     if "_sce_" in test_dir:
         # complicated loss functions like SoftmaxCrossEntropy can have minor variations
         # in accuracy depending on implementation
+        atol = 1e-4
+
+    if "bicubic" in test_dir:
+        # satisfies onnx precision for bicubic interpolation
         atol = 1e-4
 
     onnx_model = onnx.load(test_dir + "/model.onnx")

@@ -4815,6 +4815,23 @@ class Trilu(OnnxOpConverter):
         return _op.trilu(data, k, upper)
 
 
+class GridSample(OnnxOpConverter):
+    """Operator converter for GridSample"""
+
+    @classmethod
+    def _impl_v16(cls, inputs, attr, params):
+        grid = inputs[1]
+        # onnx grid is of shape (N, H, W, 2) which should be transposed to (N, 2, H, W) for relay
+        grid = _op.transform.transpose(grid, axes=(0, 3, 1, 2))
+        method: str = attr.get("mode", b"bilinear").decode("utf-8")
+        padding_mode: str = attr.get("padding_mode", b"zeros").decode("utf-8")
+        # onnx default is 0 which should be changed to False in relay
+        align_corners = attr.get("align_corners", 0) != 0
+        return _op.image.grid_sample(
+            inputs[0], grid, method, padding_mode=padding_mode, align_corners=align_corners
+        )
+
+
 class RandomNormal(OnnxOpConverter):
     """Operator converter for random_normal"""
 
@@ -5494,6 +5511,7 @@ def _get_convert_map(opset):
         "Unique": Unique.get_converter(opset),
         "Einsum": Einsum.get_converter(opset),
         "Trilu": Trilu.get_converter(opset),
+        "GridSample": GridSample.get_converter(opset),
         # defs/control_flow
         "Loop": Loop.get_converter(opset),
         "If": If.get_converter(opset),
