@@ -442,6 +442,12 @@ inline String BufferIndexType2Str(BufferIndexType buffer_index_type) {
   }
 }
 
+Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
+                                   const std::unordered_map<const Object*, const Object*>& rv_map);
+
+void TranslateAddOutputRVs(const Array<ObjectRef>& old_outputs, const Array<ObjectRef>& new_outputs,
+                           std::unordered_map<const Object*, const Object*>* rv_map);
+
 }  // namespace tir
 }  // namespace tvm
 
