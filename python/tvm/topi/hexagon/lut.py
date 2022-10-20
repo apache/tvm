@@ -37,7 +37,7 @@ def lutize(out, x):
     lut:
      computes func via LUT
     """
-    assert out.dtype in ("uint8")
+    assert out.dtype in "uint8"
     assert out.dtype == x.dtype
 
     func = eval(out.op.tag)

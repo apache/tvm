@@ -24,7 +24,6 @@ Please note the following assumptions made by the implementation:
 
 from tvm import te
 from tvm import tir
-from ..utils import get_layout_transform_fn
 
 
 def qsqrt(x, in_scale, in_zero, out_scale, out_zero, dtype):
@@ -35,7 +34,7 @@ def qsqrt(x, in_scale, in_zero, out_scale, out_zero, dtype):
     return: tensor
     """
 
-    if dtype in ("uint8"):
+    if dtype in "uint8":
         func_str = f"lambda x: math.sqrt({in_scale}*x-{in_zero})/{out_scale}+{out_zero}"
         return te.compute(
             (x.shape),
@@ -55,7 +54,7 @@ def qrsqrt(x, in_scale, in_zero, out_scale, out_zero, dtype):
     return: tensor
     """
 
-    if dtype in ("uint8"):
+    if dtype in "uint8":
         func_str = f"lambda x: (1/math.sqrt({in_scale}*x-{in_zero}))/{out_scale}+{out_zero}"
         return te.compute(
             (x.shape),
@@ -77,7 +76,7 @@ def qexp(x, in_scale, in_zero, out_scale, out_zero, dtype):
     return: tensor
     """
 
-    if dtype in ("uint8"):
+    if dtype in "uint8":
         func_str = f"lambda x: math.exp({in_scale}*x-{in_zero})/{out_scale}+{out_zero}"
         return te.compute(
             (x.shape),
@@ -97,7 +96,7 @@ def qerf(x, in_scale, in_zero, out_scale, out_zero, dtype):
     return: tensor
     """
 
-    if dtype in ("uint8"):
+    if dtype in "uint8":
         func_str = f"lambda x: math.erf({in_scale}*x-{in_zero})/{out_scale}+{out_zero}"
         return te.compute(
             (x.shape),
@@ -117,7 +116,7 @@ def qsigmoid(x, in_scale, in_zero, out_scale, out_zero, dtype):
     return: tensor
     """
 
-    if dtype in ("uint8"):
+    if dtype in "uint8":
         sigmoid_str = lambda x: f"(1 / (1 + math.exp(-{x})))"
         deq_str = f"({in_scale}*x-{in_zero})"
         func_str = f"lambda x: {sigmoid_str(deq_str)}/{out_scale}+{out_zero}"
@@ -141,7 +140,7 @@ def qtanh(x, in_scale, in_zero, out_scale, out_zero, dtype):
     return: tensor
     """
 
-    if dtype in ("uint8"):
+    if dtype in "uint8":
         func_str = f"lambda x: np.tanh({in_scale}*x-{in_zero})/{out_scale}+{out_zero}"
         return te.compute(
             (x.shape),
@@ -161,7 +160,7 @@ def qlog(x, in_scale, in_zero, out_scale, out_zero, dtype):
     return: tensor
     """
 
-    if dtype in ("uint8"):
+    if dtype in "uint8":
         func_str = f"lambda x: np.log({in_scale}*x-{in_zero})/{out_scale}+{out_zero}"
         return te.compute(
             (x.shape),
@@ -181,7 +180,7 @@ def qabs(x, in_scale, in_zero, out_scale, out_zero, dtype):
     return: tensor
     """
 
-    if dtype in ("uint8"):
+    if dtype in "uint8":
         func_str = f"lambda x: np.abs({in_scale}*x-{in_zero})/{out_scale}+{out_zero}"
         return te.compute(
             (x.shape),
