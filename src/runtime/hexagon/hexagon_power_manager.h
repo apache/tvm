@@ -48,9 +48,6 @@ class HexagonPowerManager {
   //! \brief Power context
   void* hap_pwr_ctx_;
 
-  //! \brief Acquisition context ID
-  unsigned int context_id_;
-
   void PowerOnHVX();
   void PowerOffHVX();
   void PowerOnHTP();
@@ -63,4 +60,4 @@ class HexagonPowerManager {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_HTP_H_
+#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_POWER_MANAGER_H_

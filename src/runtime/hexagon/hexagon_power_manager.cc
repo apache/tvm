@@ -17,12 +17,13 @@
  * under the License.
  */
 
+#include "hexagon_power_manager.h"
+
 #include <AEEStdDef.h>
 #include <AEEStdErr.h>
-#include "HAP_power.h"
 
+#include "HAP_power.h"
 #include "hexagon_common.h"
-#include "hexagon_power_manager.h"
 
 namespace tvm {
 namespace runtime {
