@@ -31,6 +31,7 @@
 
 #include "hexagon_buffer.h"
 #include "hexagon_buffer_manager.h"
+#include "hexagon_power_manager.h"
 #include "hexagon_thread_manager.h"
 #include "hexagon_user_dma.h"
 #include "hexagon_vtcm_pool.h"
@@ -55,6 +56,9 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Ensures resource managers are in a good state for the runtime
   void AcquireResources() {
+    CHECK_EQ(runtime_power_manager, nullptr);
+    runtime_power_manager = std::make_unique<HexagonPowerManager>();
+
     CHECK_EQ(runtime_vtcm, nullptr);
     runtime_vtcm = std::make_unique<HexagonVtcmPool>();
 
@@ -202,6 +206,9 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief VTCM memory manager
   std::unique_ptr<HexagonVtcmPool> runtime_vtcm;
+
+  //! \brief Hexagon power manager
+  std::unique_ptr<HexagonPowerManager> runtime_power_manager;
 };
 }  // namespace hexagon
 }  // namespace runtime

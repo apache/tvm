@@ -17,39 +17,47 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_HTP_H_
-#define TVM_RUNTIME_HEXAGON_HEXAGON_HTP_H_
+#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_POWER_MANAGER_H_
+#define TVM_RUNTIME_HEXAGON_HEXAGON_POWER_MANAGER_H_
 
 namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-class HexagonHtp {
+class HexagonPowerManager {
  public:
   //! \brief Constructor.
-  HexagonHtp();
+  HexagonPowerManager();
 
   //! \brief Destructor.
-  ~HexagonHtp();
+  ~HexagonPowerManager();
 
-  //! \brief Prevent copy construction of HexagonHtp.
-  HexagonHtp(const HexagonHtp&) = delete;
+  //! \brief Prevent copy construction of HexagonPowerManager.
+  HexagonPowerManager(const HexagonPowerManager&) = delete;
 
-  //! \brief Prevent copy assignment with HexagonHtp.
-  HexagonHtp& operator=(const HexagonHtp&) = delete;
+  //! \brief Prevent copy assignment with HexagonPowerManager.
+  HexagonPowerManager& operator=(const HexagonPowerManager&) = delete;
 
   //! \brief Prevent move construction.
-  HexagonHtp(HexagonHtp&&) = delete;
+  HexagonPowerManager(HexagonPowerManager&&) = delete;
 
   //! \brief Prevent move assignment.
-  HexagonHtp& operator=(HexagonHtp&&) = delete;
+  HexagonPowerManager& operator=(HexagonPowerManager&&) = delete;
 
  private:
+  //! \brief Power context
+  void* hap_pwr_ctx_;
+
   //! \brief Acquisition context ID
   unsigned int context_id_;
 
-  void Acquire();
-  void Release();
+  void PowerOnHVX();
+  void PowerOffHVX();
+  void PowerOnHTP();
+  void PowerOffHTP();
+  void SetAppType();
+  void SetDCVS();
+  void LogPowerConfig();
 };
 
 }  // namespace hexagon

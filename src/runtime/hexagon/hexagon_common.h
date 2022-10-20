@@ -41,6 +41,7 @@
     int result = api_call;                                                        \
     if (result != 0) {                                                            \
       HEXAGON_PRINT(ERROR, "ERROR: " #api_call " failed with error %d.", result); \
+      abort();                                                                    \
     }                                                                             \
   } while (0)
 
