@@ -106,9 +106,6 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         with session.create_session() as session:
             # Do something with the session
         launcher.stop_server()
-    """
-
-    """Configure HexagonLauncherRPC.
 
     Parameters
     ----------

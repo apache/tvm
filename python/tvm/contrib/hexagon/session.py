@@ -31,7 +31,6 @@ from tvm.relay.backend.executor_factory import (
     GraphExecutorFactoryModule,
 )
 from .tools import export_module
-from .build import HEXAGON_REMOTE_DEVICE_KEY
 
 
 class Session:
