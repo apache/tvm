@@ -27,13 +27,12 @@ arm_target, input_dtype, kernel_dtype, is_supported = tvm.testing.parameters(
     ("c -mcpu=cortex-m33 -keys=arm_cpu", "int8", "int8", False),
     ("c -mcpu=cortex-m55 -keys=arm_cpu", "int8", "int8", False),
     ("c -mcpu=cortex-m3 -keys=arm_cpu", "int8", "int8", False),
-    ("llvm -keys=arm_cpu -mattr=+neon", "int8", "int8", True),
-    # This fails because of a bug in topi.arm_cpu.arm_utils.get_arch_version
-    # ("llvm -keys=arm_cpu -mattr=v8.4a,+dotprod", "int8", "int8", True),
+    ("llvm -mtriple=aarch64-linux-gnu -mattr=+neon", "int8", "int8", True),
+    ("llvm -mtriple=aarch64-linux-gnu -mattr=+v8.4a,+dotprod", "int8", "int8", True),
     # Testing dtype
-    ("llvm -keys=arm_cpu -mattr=+neon", "int16", "int8", False),
-    ("llvm -keys=arm_cpu -mattr=+neon", "int8", "int16", False),
-    ("llvm -keys=arm_cpu -mattr=+neon", "int16", "int16", False),
+    ("llvm -mtriple=aarch64-linux-gnu -mattr=+neon", "int16", "int8", False),
+    ("llvm -mtriple=aarch64-linux-gnu -mattr=+neon", "int8", "int16", False),
+    ("llvm -mtriple=aarch64-linux-gnu -mattr=+neon", "int16", "int16", False),
 )
 
 

@@ -430,10 +430,10 @@ def _qnn_conv2d_legalize_arm_cpu(attrs, inputs, types):
 
 @qnn_dense_legalize.register("arm_cpu")
 def _qnn_dense_legalize_arm_cpu(attrs, inputs, types):
-    # ARM prefers the dtypes to be same.
     target = tvm.target.Target.current(allow_none=False)
     if target.features.has_asimd and not target.features.has_dotprod:
         return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.dense)
+    # ARM prefers the dtypes to be same.
     return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.dense)
 
 

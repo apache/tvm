@@ -339,7 +339,7 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
             and (split_val == 8)
             and (IC % split_val == 0)
             and (channel_multiplier == 1)
-            and target.features.is_aarch64
+            and target.features.has_asimd
         )
 
         data_pad_value = -1

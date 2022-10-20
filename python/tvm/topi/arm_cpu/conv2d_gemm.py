@@ -357,7 +357,7 @@ def schedule_conv2d_gemm_interleaved(cfg, s, out, final_out):
             s[C_interleaved].tensorize(xi_inner_inner, gemm_acc)
             s[C_interleaved].unroll(xi_inner_outer)
 
-        elif target.features.is_aarch64:
+        elif target.features.has_asimd:
             s[C_interleaved].reorder(yi, xi)
             K = A_interleaved_input.shape[2]
             assert in_type in ["int8", "uint8"], "Only int8 and uint8 gemm are supported"

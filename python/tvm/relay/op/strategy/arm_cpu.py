@@ -207,7 +207,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="conv2d_nhwc_dsp.arm_cpu",
                 )
             elif kernel_layout == "HWIO":
-                is_aarch64 = target.features.is_aarch64
+                has_asimd = target.features.has_asimd
                 has_dot_prod = target.features.had_dotprod
                 if has_dot_prod and data.dtype in ["int8", "uint8"]:
                     strategy.add_implementation(
@@ -215,13 +215,13 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_native),
                         name="conv2d_NHWC_quantized_native.arm_cpu",
                     )
-                if is_aarch64 and data.dtype in ["int8", "uint8"]:
+                if has_asimd and data.dtype in ["int8", "uint8"]:
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved),
                         name="conv2d_NHWC_quantized_interleaved.arm_cpu",
                     )
-                if (not is_aarch64) or (data.dtype not in ["int8", "uint8"]):
+                if (not has_asimd) or (data.dtype not in ["int8", "uint8"]):
                     # TODO(@giuseros)
                     # This strategy errors out for quantized data types when tuning.
                     # Let's use this only for non-aarch64 or non-quantized cases

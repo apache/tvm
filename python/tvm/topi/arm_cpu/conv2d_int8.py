@@ -125,7 +125,7 @@ def is_int8_hw_support(data_dtype, kernel_dtype):
 
     # 3) Check target
     current_target = target.Target.current(allow_none=False)
-    is_target_support = current_target.features.has_asimd or current_target.features.has_dotprod
+    is_target_support = bool(current_target.features.has_asimd or current_target.features.has_dotprod)
 
     return is_dtype_support and is_llvm_support and is_target_support
 
