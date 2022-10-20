@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name, unused-argument
 """Arm(R) Ethos(TM)-N NPU supported operators."""
 from enum import Enum
-import warnings
 from distutils.version import LooseVersion
 
 import tvm.ir
@@ -97,6 +96,8 @@ def is_inline_non_compute_intensive_partitions_enabled() -> bool:
     True if inlining should happen, False if not.
     """
     compiler_attrs = tvm.get_global_func("relay.ext.ethos-n.get_compiler_attrs")()
+    if not compiler_attrs:
+        return False
     return compiler_attrs.inline_non_compute_intensive_partitions
 
 
@@ -115,20 +116,6 @@ def partition_for_ethosn(mod, params=None, **opts):
     -------
     ret : annotated and partitioned module.
     """
-    opts = opts or {}
-    if "variant" not in opts:
-        raise ValueError("Please specify a variant in the target string, e.g. -variant=n78.")
-
-    # -variant=ethos-n78 deprecated in favour of -variant=n78
-    if opts["variant"].lower() == "ethos-n78":
-        warnings.warn(
-            "Please use '-variant=n78' instead of the deprecated "
-            "'-variant=ethos-n78', which will be removed in TVM v0.9.",
-            DeprecationWarning,
-        )
-    elif opts["variant"] != "n78":
-        raise ValueError("When targeting Ethos(TM)-N78, -variant=n78 should be set.")
-
     api_version = ethosn_api_version()
     supported_api_versions = ["3.1.0"]
     if all(api_version != LooseVersion(exp_ver) for exp_ver in supported_api_versions):

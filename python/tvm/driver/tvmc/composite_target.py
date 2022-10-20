@@ -18,7 +18,6 @@
 Provides support to composite target on TVMC.
 """
 import logging
-import warnings
 
 # Make sure Vitis AI codegen is registered
 import tvm.contrib.target.vitis_ai  # pylint: disable=unused-import
@@ -72,11 +71,6 @@ REGISTERED_CODEGEN = {
         "config_key": "relay.ext.vitis_ai.options",
         "pass_pipeline": partition_for_vitis_ai,
     },
-    # Deprecated in favour of "ethos-n".
-    "ethos-n78": {
-        "config_key": "relay.ext.ethos-n.options",
-        "pass_pipeline": partition_for_ethosn,
-    },
 }
 
 
@@ -105,12 +99,6 @@ def get_codegen_by_target(name):
         requested target codegen information
     """
     try:
-        if name == "ethos-n78":
-            warnings.warn(
-                "Please use 'ethos-n' instead of the deprecated 'ethos-n78' target, "
-                "which will be removed in a later release of TVM.",
-                DeprecationWarning,
-            )
         return REGISTERED_CODEGEN[name]
     except KeyError:
         raise TVMCException("Composite target %s is not defined in TVMC." % name)
