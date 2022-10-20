@@ -99,8 +99,9 @@ Array<meta_schedule::ExtractedTask> ExtractTask(IRModule mod, Target target,
     for (size_t i = 0; i < op_counts.size(); ++i) {
       op_counts[i] = OpCounter::GetOpCount(std::get<1>(lower_results[i]));
     }
+
     std::sort(indices.begin(), indices.end(),
-              [&op_counts](int i1, int i2) { return op_counts[i1] <= op_counts[i2]; });
+              [&op_counts](int i1, int i2) { return op_counts[i1] < op_counts[i2]; });
   }
 
   for (auto i : indices) {
