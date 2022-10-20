@@ -516,6 +516,7 @@ def test_compile_check_configs_composite_target(mock_pkg, mock_pc, mock_fe, mock
         config={"relay.ext.mock.options": {"testopt": "value"}},
         opt_level=3,
         disabled_pass=None,
+        instruments=None,
     )
     mock_pc.assert_has_calls(
         [
@@ -695,6 +696,28 @@ def test_compile_check_workspace_pools(mock_pkg, mock_fe, mock_relay):
 
     assert mock_relay.call_count == 1
     assert mock_relay.call_args_list[0][1]["workspace_memory_pools"] == memory_pools
+
+
+def test_compile_check_pass_instrument(keras_resnet50):
+    pytest.importorskip("tensorflow")
+
+    @tvm.instrument.pass_instrument
+    class PassesCounter:
+        def __init__(self):
+            self.run_before_count = 0
+            self.run_after_count = 0
+
+        def run_before_pass(self, mod, info):
+            self.run_before_count = self.run_before_count + 1
+
+        def run_after_pass(self, mod, info):
+            self.run_after_count = self.run_after_count + 1
+
+    passes_counter = PassesCounter()
+    tvmc_model = tvmc.load(keras_resnet50)
+    tvmc.compile(tvmc_model, target="llvm", instruments=[passes_counter])
+    assert passes_counter.run_after_count > 0
+    assert passes_counter.run_after_count == passes_counter.run_before_count
 
 
 if __name__ == "__main__":
