@@ -81,23 +81,18 @@ def test_split_add_concat(dtype):
         expected_host_ops = 0
         npu_partitions = 1
 
-        # Mock inference is only supported when the whole graph is offloaded to the NPU
-        if ethosn_available() == Available.SW_ONLY:
-            tei.build(
-                mod, {}, npu=npu, expected_host_ops=expected_host_ops, npu_partitions=npu_partitions
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                1,
+                {},
+                npu=npu,
+                expected_host_ops=expected_host_ops,
+                npu_partitions=npu_partitions,
+                optimize_partitions=False,
             )
-        else:
-            outputs.append(
-                tei.build_and_run(
-                    mod,
-                    inputs,
-                    1,
-                    {},
-                    npu=npu,
-                    expected_host_ops=expected_host_ops,
-                    npu_partitions=npu_partitions,
-                )
-            )
+        )
 
     if outputs:
         tei.verify(outputs, dtype, 2)
