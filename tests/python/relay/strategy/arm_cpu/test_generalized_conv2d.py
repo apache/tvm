@@ -17,7 +17,8 @@
 """Helper class for testing variations of 2D convolution. Should be used by subclassing
 `GeneralizedConv2dTests`, and then setting the arguments using tvm.testing.parameter(s)."""
 
-from numpy.random import randint
+import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import relay
@@ -82,10 +83,10 @@ class GeneralizedConv2dTests:
     ):
         """Test a subgraph with a single conv2d operator."""
 
-        ref_input_data = randint(low=-128, high=127, size=data_shape, dtype=in_dtype)
+        ref_input_data = np.random.randint(low=-128, high=127, size=data_shape, dtype=in_dtype)
         ref_input_var = relay.var("input", relay.TensorType(data_shape, in_dtype))  # NHWC layout
         kernel_shape = (*kernel_size, data_shape[-1] // groups, num_filter)  # HWIO layout
-        ref_kernel_data = randint(low=-10, high=10, size=kernel_shape, dtype=in_dtype)
+        ref_kernel_data = np.random.randint(low=-10, high=10, size=kernel_shape, dtype=in_dtype)
 
         """Our x86 depthwise implementation only supports HWOI with NHWC, so we need to change our
         kernel layout to work around this. We can't just change the whole thing to HWIO or
