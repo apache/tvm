@@ -106,7 +106,7 @@ class CostModel(Object):
 
     @staticmethod
     def create(
-        kind: Literal["xgb", "mlp", "random"],
+        kind: Literal["xgb", "mlp", "random", "none"],
         *args,
         **kwargs,
     ) -> "CostModel":
@@ -114,8 +114,8 @@ class CostModel(Object):
 
         Parameters
         ----------
-        kind : Literal["xgb", "mlp", "random"]
-            The kind of the cost model. Can be "xgb", "mlp", or "random".
+        kind : Literal["xgb", "mlp", "random", "none"]
+            The kind of the cost model. Can be "xgb", "mlp", "random" or "none".
 
         Returns
         -------
@@ -134,6 +134,8 @@ class CostModel(Object):
             )
 
             return MLPModel(*args, **kwargs)  # type: ignore
+        if kind == "none":
+            return None  # no cost model required
         raise ValueError(f"Unknown CostModel: {kind}")
 
 
