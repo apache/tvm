@@ -611,7 +611,8 @@ def test_lwp(
             executor=executor,
         )
         # Create HexagonProfiler object
-        profiler = HexagonProfiler(lowered, hexagon_server_process, hexagon_debug)
+        dso_binary = "test_binary.so"
+        profiler = HexagonProfiler(dso_binary, lowered, hexagon_server_process, hexagon_debug)
 
     graph_mod = hexagon_session.get_executor_from_factory(lowered)
     graph_mod.set_input(**params)
@@ -698,7 +699,8 @@ def test_lwp_multiple_conv2d(
             executor=executor,
         )
         # Create HexagonProfiler object
-        profiler = HexagonProfiler(lowered, hexagon_server_process, hexagon_debug)
+        dso_binary = "test_binary.so"
+        profiler = HexagonProfiler(dso_binary, lowered, hexagon_server_process, hexagon_debug)
 
     graph_mod = hexagon_session.get_executor_from_factory(lowered)
     graph_mod.set_input(**params)

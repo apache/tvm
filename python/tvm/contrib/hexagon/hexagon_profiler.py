@@ -28,10 +28,11 @@ from tvm.contrib import utils
 class HexagonProfiler:
     """Hexagon Profiler"""
 
-    def __init__(self, module: ExecutorFactoryModule, hexagon_server_process, enable_debug):
+    def __init__(
+        self, dso_binary: str, module: ExecutorFactoryModule, hexagon_server_process, enable_debug
+    ):
         """Configure HexagonProfiler"""
         # Save test .so to process profiling data
-        dso_binary = "test_binary.so"
         self._temp_dir = utils.tempdir(keep_for_debug=enable_debug)
         self._dso_binary_path = self._temp_dir.relpath(dso_binary)
         module.get_lib().save(self._dso_binary_path)
