@@ -110,11 +110,13 @@ def test_resnet50(hexagon_launcher):
         graph_mod.run()
         hexagon_output = graph_mod.get_output(0).numpy()
 
+        # Example output: max and mean abs difference with the reference: 0.1406 0.0126
         print(
             "max and mean abs difference with the reference:",
             np.max(np.abs(ref_result - hexagon_output)),
             np.mean(np.abs(ref_result - hexagon_output)),
         )
+        tvm.testing.assert_allclose(ref_result, hexagon_output, atol=2e-1)
 
         time_ms = graph_mod.benchmark(session.device, number=1, repeat=20).mean * 1e3
 
