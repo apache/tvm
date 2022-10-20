@@ -516,6 +516,7 @@ def test_compile_check_configs_composite_target(mock_pkg, mock_pc, mock_fe, mock
         config={"relay.ext.mock.options": {"testopt": "value"}},
         opt_level=3,
         disabled_pass=None,
+        instruments=None,
     )
     mock_pc.assert_has_calls(
         [
