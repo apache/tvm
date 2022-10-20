@@ -154,6 +154,8 @@ void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
   CHECK(runtime_hexbuffs) << "Attempted to free Hexagon workspace with "
                           << "HexagonDeviceAPI::FreeWorkspace outside of a session.  "
                           << "Please call HexagonDeviceAPI::AcquireResources";
+  CHECK(runtime_hexbuffs->FindHexagonBuffer(data) != nullptr)
+      << "Attempt made to free unknown or already freed workspace allocation";
   dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
 
