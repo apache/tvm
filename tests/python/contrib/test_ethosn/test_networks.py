@@ -146,7 +146,6 @@ def test_resnet_50_int8():
     # on hardware that isn't available in CI.
     _compile_hash = {
         "f16dc9caa8e696bc5da8a5c6a644eb72",
-        "6e5fcbab831607b9da1039aff4e56871",
         "41acecca37b2735bd580f6ec38d8c2e0",
     }
     _test_image_network(
@@ -156,8 +155,8 @@ def test_resnet_50_int8():
         input_dict={"input": (1, 224, 224, 3)},
         compile_hash=_compile_hash,
         output_count=1,
-        host_ops=9,
-        npu_partitions=3,
+        host_ops=10,
+        npu_partitions=2,
     )
 
 

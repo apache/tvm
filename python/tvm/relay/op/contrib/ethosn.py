@@ -88,7 +88,7 @@ def InlineNonComputeIntensivePartitions() -> tvm.ir.IRModule:  # pylint: disable
     return _ethosn.InlineNonComputeIntensivePartitions()
 
 
-def inline_non_compute_intensive_partitions() -> bool:
+def is_inline_non_compute_intensive_partitions_enabled() -> bool:
     """
     Determine whether to inline none-compute-intensive partitions.
 
@@ -148,7 +148,7 @@ def partition_for_ethosn(mod, params=None, **opts):
         transform.PartitionGraph(),
         ConvertEquivalents(),
     ]
-    if inline_non_compute_intensive_partitions():
+    if is_inline_non_compute_intensive_partitions_enabled():
         passes.append(InlineNonComputeIntensivePartitions())
 
     return tvm.transform.Sequential(passes)(mod)

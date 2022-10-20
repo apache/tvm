@@ -76,10 +76,11 @@ class IsComputeIntensivePartition : MixedModeVisitor {
   bool is_compute_intensive;
   /*! \brief A set of operators considered compute intensive. */
   const std::unordered_set<std::string> compute_intensive_operators{
-      "ethos-n.qnn_add",        "ethos-n.qnn_conv2d",  "ethos-n.qnn_conv2d_transpose",
-      "ethos-n.qnn_avg_pool2d", "ethos-n.qnn_sigmoid", "ethos-n.qnn_fc",
-      "ethos-n.qnn_mean",       "ethos-n.qnn_resize",  "nn.max_pool2d",
-      "nn.depth_to_space"};
+      "ethos-n.qnn_conv2d",     "ethos-n.qnn_conv2d_transpose",
+      "ethos-n.qnn_avg_pool2d", "ethos-n.qnn_sigmoid",
+      "ethos-n.qnn_fc",         "ethos-n.qnn_mean",
+      "ethos-n.qnn_resize",     "nn.max_pool2d",
+  };
 };
 
 /*!
@@ -88,8 +89,7 @@ class IsComputeIntensivePartition : MixedModeVisitor {
  * other backends to consider.
  *
  * A partitioned function is currently considered non-compute intensive if it contains
- * no multiply accumulate operations. Note that this is not an optimal heuristic,
- * however, it will not degrade performance.
+ * no multiply accumulate operations. Note that this is not an optimal heuristic.
  */
 tvm::transform::Pass InlineNonComputeIntensivePartitions() {
   runtime::TypedPackedFunc<IRModule(IRModule, tvm::transform::PassContext)> pass_func =
