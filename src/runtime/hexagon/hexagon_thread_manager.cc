@@ -310,7 +310,7 @@ void HexagonThreadManager::thread_exit(void* context) {
       (resource_type == HVX_3)) {
     HexagonHvx* hvx = tc->hvx;
     CHECK(hvx) << "Malformed thread context, missing hvx pointer for HVX_x resource";
-    //hvx->Unlock();  // jlsfix - might fail other things now
+    hvx->Unlock();
     DLOG(INFO) << "Resource " << resource_type << " unlocked an HVX instance";
   } else if (resource_type == HTP_0) {
     HexagonHtp* htp = tc->htp;
@@ -353,7 +353,7 @@ void HexagonThreadManager::thread_main(void* context) {
     case HVX_2:
     case HVX_3:
       CHECK(hvx) << "Malformed thread context, missing hvx pointer for HVX_x resource";
-      //hvx->Lock();  // jlsfix - might fail other things now
+      hvx->Lock();
       DLOG(INFO) << "Resource " << resource_type << " locked an HVX instance";
       break;
 
