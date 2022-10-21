@@ -30,6 +30,7 @@
 
 #include "../node/ndarray_hash_equal.h"
 #include "../tir/schedule/analysis.h"
+#include "tvm/tir/analysis.h"
 
 namespace tvm {
 namespace meta_schedule {
@@ -70,6 +71,47 @@ class SHashHandlerIgnoreNDArray : public SHashHandlerDefault {
   }
 };
 
+tir::Stmt GetEncolsingLoop(const tir::BlockNode* block, tir::Stmt func_body) {
+  using namespace tir;
+  struct GetRootSeqStmt : public StmtVisitor {
+    void VisitStmt_(const SeqStmtNode* seq) override {
+      result = seq;
+    }
+    const SeqStmtNode* result;
+  };
+
+  struct BlockFinder : public StmtVisitor {
+    BlockFinder(const BlockNode* tgt) : target(tgt) {}
+
+    void VisitStmt_(const BlockNode* block) override {
+      if (block == target) {
+	found = true;
+      }
+    }
+
+    const BlockNode* target;
+    bool found = false;
+  };
+
+  GetRootSeqStmt seq_finder;
+  seq_finder(func_body);
+
+  const SeqStmtNode* seq = seq_finder.result;
+
+  for (auto stmt: seq->seq) {
+    if (stmt->IsInstance<ForNode>()) {
+      BlockFinder finder(block);;
+      finder(stmt);
+      if (finder.found) {
+	return stmt;
+      }
+    }
+  }
+
+  LOG(FATAL) << "Enclosing loop not found for a block " << GetRef<Block>(block);
+  return Stmt();
+}
+
 std::optional<const tir::BlockNode*> GetAnchorBlock(IRModule mod) {
   using namespace tir;
 
@@ -87,13 +129,30 @@ std::optional<const tir::BlockNode*> GetAnchorBlock(IRModule mod) {
 
   ICHECK(collector.blocks.size() > 0);
 
+  std::vector<const tir::BlockNode*> candidates;
   for (auto block : collector.blocks) {
-    if (block->init && !block->reads.empty() && !block->writes.empty()) {
-      return block;
+    if (block->init) {
+      candidates.push_back(block);
     }
   }
 
-  return std::nullopt;
+  if (candidates.empty()) {
+    return std::nullopt;
+  } else if (candidates.size() == 1) {
+    return candidates[0];
+  }
+
+  double best_flops = -1;
+  int best_idx = 0;
+  for (size_t i = 0; i < candidates.size(); ++i) {
+    auto loop = GetEncolsingLoop(candidates[i], prim_func->body);
+    auto flops = tir::EstimateTIRFlops(loop);
+    if (flops > best_flops) {
+      best_flops = flops;
+      best_idx = i;
+    }
+  }
+  return candidates[best_idx];
 }
 
 class ModuleEqualityIgnoreNDArray : public ModuleEquality {
