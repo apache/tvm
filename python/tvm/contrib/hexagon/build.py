@@ -264,7 +264,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         if not rpc_info.get("workspace_base"):
             rpc_info["workspace_base"] = self.ANDROID_HEXAGON_TEST_BASE_DIR
         self._serial_number = serial_number
-        assert self._serial_number != ""
+        assert self._serial_number != "", "Android serial number is not set."
 
         adb_socket = rpc_info["adb_server_socket"] if rpc_info["adb_server_socket"] else "tcp:5037"
         self._adb_device_sub_cmd = ["adb", "-L", adb_socket, "-s", self._serial_number]
