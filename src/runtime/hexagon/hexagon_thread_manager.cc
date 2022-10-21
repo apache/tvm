@@ -40,14 +40,10 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
 
   // Support either no resources or a specific set of hardware resources for now.
   if (!hw_resources.empty()) {
-    CHECK(hw_resources.size() == nthreads_ && nthreads_ == 6)
+    CHECK((hw_resources.size() == nthreads_) && (nthreads_ == 6) && (hw_resources[0] == DMA_0) &&
+          (hw_resources[1] == HTP_0) && (hw_resources[2] == HVX_0) && (hw_resources[3] == HVX_1) &&
+          (hw_resources[4] == HVX_2) && (hw_resources[5] == HVX_3))
         << "Unsupported hardware resource set";
-    CHECK(hw_resources[0] == DMA_0) << "Unsupported hardware resource set";
-    CHECK(hw_resources[1] == HTP_0) << "Unsupported hardware resource set";
-    CHECK(hw_resources[2] == HVX_0) << "Unsupported hardware resource set";
-    CHECK(hw_resources[3] == HVX_1) << "Unsupported hardware resource set";
-    CHECK(hw_resources[4] == HVX_2) << "Unsupported hardware resource set";
-    CHECK(hw_resources[5] == HVX_3) << "Unsupported hardware resource set";
   }
   hw_resources_ = hw_resources;
 

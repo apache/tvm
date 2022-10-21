@@ -57,6 +57,13 @@ TEST_F(HexagonThreadManagerTest, ctor_errors) {
   ASSERT_THROW(HexagonThreadManager(6, stack_size, 0x10000000), InternalError);
   // hw resources count doesn't match thread count
   ASSERT_THROW(HexagonThreadManager(6, stack_size, pipe_size, {DMA_0}), InternalError);
+  // hw resources doesn't match specific supported configuration
+  ASSERT_THROW(
+      HexagonThreadManager(6, stack_size, pipe_size, {DMA_0, HTP_0, HVX_0, HVX_1, HVX_2, DMA_0}),
+      InternalError);
+  // hw resources doesn't match specific supported configuration
+  ASSERT_THROW(HexagonThreadManager(5, stack_size, pipe_size, {DMA_0, HTP_0, HVX_0, HVX_1, HVX_2}),
+               InternalError);
 }
 
 TEST_F(HexagonThreadManagerTest, init) {
