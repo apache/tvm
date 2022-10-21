@@ -77,7 +77,8 @@ std::set<std::string> GetBlockNames(const IRModule& mod) {
   return collector.block_names;
 }
 
-std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_trace, Target target) {
+std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_trace,
+                                           Target target) {
   using namespace tir;
   std::unordered_map<const Object*, const Object*> rv_map;
   static auto kind_get_child_blocks = InstructionKind::Get("GetChildBlocks");
@@ -99,7 +100,7 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
 
   auto inline_rule = GetDefaultAutoInline(target->kind->name);
 
-  for (auto name: block_names_orig) {
+  for (auto name : block_names_orig) {
     auto block = sch->GetBlock(name);
     if (IsSpatial(sch->GetSRef(block)) && !get_block_names.count(name)) {
       LOG(INFO) << "Inlining " << name;
@@ -231,9 +232,15 @@ void ScheduleFusedBlocks(tir::Schedule sch, tir::Trace anchor_trace, tvm::Target
   } else if (target->kind->name == "llvm" || target->kind->name == "hexagon") {
     sch->Parallel(sch->Fuse(sch->GetLoops(unscheduled_blocks[0])));
   } else if (gpu_targets.count(target->kind->name)) {
+    LOG(INFO) << "Auto binding";
+    Optional<Integer> max_threads_per_block = target->GetAttr<Integer>("max_threads_per_block");
+    CHECK(max_threads_per_block.defined())
+        << "ValueError: missing attribute `max_threads_per_block` in the target";
+
     auto auto_bind_rule =
         ScheduleRule::AutoBind(/*max_threadblocks=*/256,
-                               /*thread_extents*/ Array<Integer>{32, 64, 128, 256, 512, 1024});
+                               /*thread_extents*/ Array<Integer>{32, 64, 128, 256, 512, 1024},
+                               max_threads_per_block.value()->value);
     auto_bind_rule->Apply(sch, unscheduled_blocks[0]);
   }
 

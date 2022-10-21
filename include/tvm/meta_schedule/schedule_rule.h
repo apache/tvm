@@ -247,7 +247,8 @@ class ScheduleRule : public runtime::ObjectRef {
    * \param thread_extents Candidates of thread axis extent.
    * \return The schedule rule created
    */
-  TVM_DLL static ScheduleRule AutoBind(int max_threadblocks, Array<Integer> thread_extents);
+  TVM_DLL static ScheduleRule AutoBind(int max_threadblocks, Array<Integer> thread_extents,
+                                       int max_threads_per_block = -1);
   /*!
    * \brief Create a schedule rule with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
