@@ -154,7 +154,7 @@ void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
   CHECK(runtime_hexbuffs) << "Attempted to free Hexagon workspace with "
                           << "HexagonDeviceAPI::FreeWorkspace outside of a session.  "
                           << "Please call HexagonDeviceAPI::AcquireResources";
-  CHECK(runtime_hexbuffs->count(data) != 0)
+  CHECK(runtime_hexbuffs->FindHexagonBuffer(data) != nullptr)
       << "Attempt made to free unknown or already freed workspace allocation";
   dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
@@ -182,7 +182,7 @@ void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHan
                           << "Please call HexagonDeviceAPI::AcquireResources";
 
   auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* {
-    return runtime_hexbuffs->find(ptr);
+    return runtime_hexbuffs->FindHexagonBuffer(ptr);
   };
 
   HexagonBuffer* hex_from_buf = lookup_hexagon_buffer(from->data);
