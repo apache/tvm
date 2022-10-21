@@ -91,7 +91,7 @@ def test_mobilenet(hexagon_session: Session):
 @tvm.testing.requires_hexagon
 def test_mobilenet_aot(hexagon_session: Session, aot_host_target, aot_target, enable_usmp):
     """Test mobilenet with aot executor"""
-    if android_serial_number() == "simulator":
+    if android_serial_number()[0] == "simulator":
         pytest.skip(msg="Skip on simulator due to long runtime.")
 
     dtype = "float32"

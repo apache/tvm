@@ -76,7 +76,7 @@ class TestCastF16F32Slice2d:
         """
         Top level testing function for cast fp16 to fp32
         """
-        if android_serial_number() != "simulator":
+        if android_serial_number()[0] != "simulator":
             pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
 
         cast_input = te.placeholder(input_shape, name="A", dtype=dtype)
@@ -162,7 +162,7 @@ class TestCastF32F16Slice2d:
         """
         Top level testing function for cast fp32 to fp16
         """
-        if android_serial_number() != "simulator":
+        if android_serial_number()[0] != "simulator":
             pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
 
         cast_input = te.placeholder(input_shape, name="A", dtype=dtype)
