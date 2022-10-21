@@ -244,7 +244,7 @@ def _benchmark_hexagon_elementwise_add_kernel(
             # On the target device / simulator, make our Hexagon-native shared object
             # available for use...
             loaded_hexagon_module: tvm.runtime.module.Module = hexagon_session.load_module(
-                target_dso_binary_pathname, hexagon_session
+                target_dso_binary_pathname
             )
 
             # Create the target-side tensors to hold the primfunc's inputs and outputs...
