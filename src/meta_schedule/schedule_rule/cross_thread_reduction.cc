@@ -32,12 +32,12 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     Optional<Integer> opt_warp_size = target->GetAttr<Integer>("thread_warp_size");
 
     if (!opt_max_threads_per_block.defined()) {
-      TVM_PY_LOG(WARNING, context->logging_func)
+      TVM_PY_LOG(WARNING, context->logger)
           << "Target does not have attribute \"max_threads_per_block\", therefore the "
              "rule CrossThreadReduction will not be applied";
     }
     if (!opt_warp_size.defined()) {
-      TVM_PY_LOG(WARNING, context->logging_func)
+      TVM_PY_LOG(WARNING, context->logger)
           << "Target does not have attribute \"thread_warp_size\", therefore the rule "
              "CrossThreadReduction will not be applied";
     }
@@ -111,6 +111,12 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     tmp_sch->Bind(split_res[1], "threadIdx.x");
 
     return {tmp_sch, sch};
+  }
+
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<CrossThreadReductionNode> n = make_object<CrossThreadReductionNode>(*this);
+    return ScheduleRule(n);
   }
 
  private:

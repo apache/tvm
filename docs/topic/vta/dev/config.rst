@@ -71,4 +71,3 @@ We provide additional detail below regarding each parameter:
  - ``HW_VER``: Hardware version which increments every time the VTA hardware design changes. This parameter is used to uniquely identity hardware bitstreams.
  - ``LOG_BATCH``: Equivalent to A in multiplication of shape (A, B) x (B, C), or typically, the batch dimension of inner tensor computation.
  - ``LOG_BLOCK``: Equivalent to B and C in multiplication of shape (A, B) x (B, C), or typically, the input/output channel dimensions of the inner tensor computation.
-

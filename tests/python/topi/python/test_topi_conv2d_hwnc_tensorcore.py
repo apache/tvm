@@ -175,8 +175,8 @@ def verify_feature_length():
 
     space = task.config_space
 
-    idx1 = np.random.randint(len(space))
-    idx2 = np.random.randint(len(space))
+    idx1 = space.get_rand_index()
+    idx2 = space.get_rand_index()
 
     cfg = space.get(idx1)
     sch, arg_bufs = task.instantiate(cfg)

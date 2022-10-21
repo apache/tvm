@@ -15,15 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-
-import sys
-
 import pytest
 import tvm
 import tvm.testing
+from tvm import meta_schedule as ms
 from tvm import tir
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.postproc import VerifyGPUCode
 from tvm.script import tir as T
 from tvm.target import Target
 
@@ -32,16 +28,17 @@ def _target() -> Target:
     return Target("nvidia/geforce-rtx-3080")
 
 
-def _create_context(mod, target) -> TuneContext:
-    ctx = TuneContext(
+def _create_context(mod, target) -> ms.TuneContext:
+    return ms.TuneContext(
         mod=mod,
         target=target,
-        postprocs=[
-            VerifyGPUCode(),
-        ],
+        space_generator=ms.space_generator.PostOrderApply(
+            sch_rules=[],
+            postprocs=[ms.postproc.VerifyGPUCode()],
+            mutator_probs={},
+        ),
         task_name="test",
     )
-    return ctx
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,not-callable,misplaced-comparison-constant
@@ -786,7 +783,7 @@ def GMMCUDATensorCore(
 def test_postproc_check_pass(mod):
     ctx = _create_context(mod, target=_target())
     sch = tir.Schedule(mod, debug_mask="all")
-    assert ctx.postprocs[0].apply(sch)
+    assert ctx.space_generator.postprocs[0].apply(sch)
 
 
 @pytest.mark.parametrize(
@@ -801,7 +798,7 @@ def test_postproc_check_pass(mod):
 def test_postproc_check_fail(mod):
     ctx = _create_context(mod, target=_target())
     sch = tir.Schedule(mod, debug_mask="all")
-    assert not ctx.postprocs[0].apply(sch)
+    assert not ctx.space_generator.postprocs[0].apply(sch)
 
 
 if __name__ == "__main__":

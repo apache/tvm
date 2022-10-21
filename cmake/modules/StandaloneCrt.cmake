@@ -15,9 +15,32 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
 if(USE_MICRO)
+
+if(MSVC)
+
+  # When building for Windows, use standard CMake for compatibility with
+  # Visual Studio build tools and not require Make to be on the system.
+
+  set(CRT_CONFIG, "src/runtime/micro/crt_config.h")
+
+  add_library(host_standalone_crt
+              STATIC
+              3rdparty/libcrc/src/crcccitt.c
+              src/runtime/crt/microtvm_rpc_common/frame_buffer.cc
+              src/runtime/crt/microtvm_rpc_common/framing.cc
+              src/runtime/crt/microtvm_rpc_common/session.cc
+              src/runtime/crt/microtvm_rpc_common/write_stream.cc)
+
+  target_include_directories(host_standalone_crt
+                             PRIVATE
+                             3rdparty/libcrc/include
+                             src/runtime/micro)
+
+else()
+
   message(STATUS "Build standalone CRT for microTVM")
-  tvm_file_glob(GLOB crt_srcs src/runtime/crt/**)
 
   function(tvm_crt_define_targets)
     # Build an isolated build directory, separate from the TVM tree.
@@ -45,6 +68,7 @@ if(USE_MICRO)
          "src/runtime/crt/microtvm_rpc_server *.cc -> src/runtime/crt/microtvm_rpc_server"
          "src/runtime/minrpc *.h -> src/runtime/minrpc"
          "src/support generic_arena.h -> src/support"
+         "src/support ssize.h -> src/support"
          "src/runtime/crt crt_config-template.h -> template"
          )
 
@@ -149,4 +173,6 @@ if(USE_MICRO)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${TVM_CRT_LINKER_LIB})
   endif()
 
-endif(USE_MICRO)
+endif()
+
+endif()

@@ -148,7 +148,7 @@ def create_test_runner(
     __attribute__((section(".bss.noinit.tvm"), aligned(16)))
     static uint8_t {pool.pool_name}[{_get_workspace_size_define_macro(pool.pool_name)}];
     #endif
-    
+
             """
             )
 

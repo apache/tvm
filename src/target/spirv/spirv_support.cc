@@ -32,7 +32,7 @@ namespace tvm {
 namespace codegen {
 
 SPIRVSupport::SPIRVSupport(tvm::Target target) {
-  ICHECK_EQ(target->kind->device_type, kDLVulkan)
+  ICHECK_EQ(target->GetTargetDeviceType(), kDLVulkan)
       << "SPIRVSupport can only be checked for vulkan device type";
 
   if (target->GetAttr<Integer>("vulkan_api_version")) {

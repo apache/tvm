@@ -37,6 +37,7 @@ def _get_model(
     dtype,
     lhs_is_constant=False,
     rhs_is_constant=False,
+    constant_data=None,
 ):
     """Return a model and any parameters it may have"""
 
@@ -45,13 +46,14 @@ def _get_model(
     data_max = iinfo.max
 
     if lhs_is_constant:
-        a_data = np.random.randint(data_min, data_max + 1, size=lhs_shape, dtype=dtype)
+        a_data = np.array(constant_data, dtype=dtype).reshape(lhs_shape)
         a = relay.const(a_data, dtype=dtype)
     else:
         a = relay.var("a", shape=lhs_shape, dtype=dtype)
 
     if rhs_is_constant:
-        b_data = np.random.randint(data_min, data_max + 1, size=rhs_shape, dtype=dtype)
+        b_data = np.array(constant_data, dtype=dtype).reshape(rhs_shape)
+        np.random.randint(data_min, data_max + 1, size=rhs_shape, dtype=dtype)
         b = relay.const(b_data, dtype=dtype)
     else:
         b = relay.var("b", shape=rhs_shape, dtype=dtype)
@@ -117,13 +119,15 @@ def test_addition(dtype, shape):
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 @pytest.mark.parametrize(
-    "lhs_shape,rhs_shape",
+    "lhs_shape,lhs_is_constant,rhs_shape,rhs_is_constant",
     [
-        ((1, 4, 4, 8), (1, 1, 1, 8)),
-        ((1, 16, 12, 4), (4,)),
+        ((1, 4, 4, 8), False, (1, 1, 1, 8), True),
+        ((4,), True, (1, 16, 12, 4), False),
+        ((1, 1, 1, 8), True, (1, 4, 4, 8), False),
+        ((1, 16, 12, 4), False, (4,), True),
     ],
 )
-def test_addition_to_depthwise_rhs_constant(dtype, lhs_shape, rhs_shape):
+def test_addition_to_depthwise(dtype, lhs_shape, lhs_is_constant, rhs_shape, rhs_is_constant):
     """Compare addition to depthwise with TVM."""
     np.random.seed(0)
 
@@ -131,6 +135,9 @@ def test_addition_to_depthwise_rhs_constant(dtype, lhs_shape, rhs_shape):
     data_min = iinfo.min
     data_max = iinfo.max
     lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc = _get_addition_qnn_params(dtype)
+
+    constant_shape = lhs_shape if lhs_is_constant else rhs_shape
+    constant_data = np.random.randint(data_min, data_max + 1, size=constant_shape, dtype=dtype)
 
     model = _get_model(
         lhs_shape,
@@ -142,11 +149,16 @@ def test_addition_to_depthwise_rhs_constant(dtype, lhs_shape, rhs_shape):
         out_zp,
         out_sc,
         dtype,
-        lhs_is_constant=False,
-        rhs_is_constant=True,
+        lhs_is_constant=lhs_is_constant,
+        rhs_is_constant=rhs_is_constant,
+        constant_data=constant_data,
     )
+    input_shape = rhs_shape if lhs_is_constant else lhs_shape
+    input_name = "b" if lhs_is_constant else "a"
     inputs = {
-        "a": tvm.nd.array(np.random.randint(data_min, data_max + 1, size=lhs_shape, dtype=dtype))
+        input_name: tvm.nd.array(
+            np.random.randint(data_min, data_max + 1, size=input_shape, dtype=dtype)
+        )
     }
     outputs = []
     for npu in [False, True]:
@@ -156,21 +168,40 @@ def test_addition_to_depthwise_rhs_constant(dtype, lhs_shape, rhs_shape):
 
 
 @requires_ethosn
-@pytest.mark.parametrize("dtype", ["uint8", "int8"])
 @pytest.mark.parametrize(
-    "lhs_shape,rhs_shape",
+    "lhs_shape,lhs_is_constant,rhs_shape,rhs_is_constant",
     [
-        ((1, 8), (1, 20, 15, 8)),
+        ((1, 2, 8, 4), False, None, True),
+        ((1, 5, 6, 7), False, (1, 1, 1, 1), True),
+        (None, True, (1, 2, 8, 4), False),
+        ((1, 1, 1, 1), True, (1, 5, 6, 7), False),
     ],
 )
-def test_addition_to_depthwise_lhs_constant(dtype, lhs_shape, rhs_shape):
+def test_addition_to_reinterpret_quantize(lhs_shape, lhs_is_constant, rhs_shape, rhs_is_constant):
     """Compare addition to depthwise with TVM."""
     np.random.seed(0)
 
+    dtype = "uint8"
     iinfo = np.iinfo(dtype)
     data_min = iinfo.min
     data_max = iinfo.max
-    lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc = _get_addition_qnn_params(dtype)
+
+    # Add can only be offloaded as a reinterpret quantize operation if
+    # it is an identity operation. We must choose the quantization and
+    # constant data carefully to maske sure that this is the case.
+    if lhs_is_constant:
+        rhs_zp = 128
+        rhs_sc = 0.0078125
+        lhs_zp = 0
+        lhs_sc = 0.003921568859368563
+    else:
+        lhs_zp = 128
+        lhs_sc = 0.0078125
+        rhs_zp = 0
+        rhs_sc = 0.003921568859368563
+    out_zp = 0
+    out_sc = 0.007814894430339336
+    constant_data = 255
 
     model = _get_model(
         lhs_shape,
@@ -182,11 +213,16 @@ def test_addition_to_depthwise_lhs_constant(dtype, lhs_shape, rhs_shape):
         out_zp,
         out_sc,
         dtype,
-        lhs_is_constant=True,
-        rhs_is_constant=False,
+        lhs_is_constant=lhs_is_constant,
+        rhs_is_constant=rhs_is_constant,
+        constant_data=constant_data,
     )
+    input_shape = rhs_shape if lhs_is_constant else lhs_shape
+    input_name = "b" if lhs_is_constant else "a"
     inputs = {
-        "b": tvm.nd.array(np.random.randint(data_min, data_max + 1, size=rhs_shape, dtype=dtype))
+        input_name: tvm.nd.array(
+            np.random.randint(data_min, data_max + 1, size=input_shape, dtype=dtype)
+        )
     }
     outputs = []
     for npu in [False, True]:

@@ -321,7 +321,7 @@ def test_refs():
         let %v = ref_read(%r);
         let %u = ref_write(%r, %v + 1);
         %v
-    }    
+    }
     def @main() -> int {
         let %r = ref(0);
         let %y = @f(%r);

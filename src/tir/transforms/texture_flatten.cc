@@ -107,7 +107,8 @@ class TextureFlattener : public TextureLoweringBase {
       ICHECK(op->bounds.size() >= 3) << "Only 2d RGBA texture is currently supported";
       int vec_length = static_cast<int>(op->bounds.back()->extent.as<IntImmNode>()->value);
       ICHECK(vec_length == 4 || vec_length == 1)
-          << "Inner dimension of texture must be vector of length 1 or 4 (RGBA)";
+          << "Inner dimension of texture must be vector of length 1 or 4 (RGBA), was: "
+          << vec_length;
 
       struct ShapeFromRange {
         const Array<Range>& bounds;

@@ -148,7 +148,11 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
 
   TResult VisitStmt_(const IfThenElseNode* branch) override {
     TResult cond = VisitExpr(branch->condition);
-    cond += VisitStmt(branch->then_case).MaxWith(VisitStmt(branch->else_case));
+    if (branch->else_case.defined()) {
+      cond += VisitStmt(branch->then_case).MaxWith(VisitStmt(branch->else_case));
+    } else {
+      cond += VisitStmt(branch->then_case);
+    }
     return cond;
   }
 

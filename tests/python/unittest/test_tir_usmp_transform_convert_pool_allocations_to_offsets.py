@@ -600,5 +600,98 @@ def test_resnet_subgraph():
         tvm.ir.assert_structural_equal(actual_func, ref_func)
 
 
+@tvm.script.ir_module
+class TensorIntrinStructure:
+    @T.prim_func
+    def tensor_intrin_primfunc() -> None:
+        dense_data = T.allocate([10], "int32", "global")
+        T.evaluate(
+            T.call_extern(
+                "intrin_function",
+                T.tvm_access_ptr(
+                    T.type_annotation(dtype="int32"), dense_data, 0, 1, 2, dtype="handle"
+                ),
+                dtype="int32",
+            )
+        )
+
+        dense = T.buffer_decl([10], "int32", data=dense_data)
+        dense[0] = T.q_multiply_shift(dense[0], 1608879842, 31, -7, dtype="int32")
+
+    @T.prim_func
+    def __tvm_main__(input: T.handle, output: T.handle) -> None:
+        T.evaluate(T.call_extern("tensor_intrin_primfunc", dtype="int32"))
+
+
+@tvm.script.ir_module
+class TensorIntrinStructurePlanned:
+    @T.prim_func
+    def tensor_intrin_primfunc(global_workspace_1_var: T.Ptr[T.uint8]) -> None:
+        global_workspace_1_buffer_var = T.match_buffer(
+            global_workspace_1_var, [40], dtype="uint8", strides=[1], elem_offset=0, align=16
+        )
+        T.preflattened_buffer(
+            global_workspace_1_buffer_var, [40], dtype="uint8", strides=[1], elem_offset=0, align=16
+        )
+        dense_let = T.buffer_decl([10], "int32")
+        with T.let(dense_let.data, T.address_of(global_workspace_1_buffer_var[0], dtype="handle")):
+            T.evaluate(
+                T.call_extern(
+                    "intrin_function",
+                    T.tvm_access_ptr(
+                        T.type_annotation(dtype="int32"), dense_let.data, 0, 1, 2, dtype="handle"
+                    ),
+                    dtype="int32",
+                )
+            )
+            dense_let[0] = T.q_multiply_shift(dense_let[0], 1608879842, 31, -7, dtype="int32")
+
+    @T.prim_func
+    def __tvm_main__(
+        input: T.handle, global_workspace_1_var: T.Ptr[T.uint8], output: T.handle
+    ) -> None:
+        global_workspace_1_buffer_var = T.match_buffer(
+            global_workspace_1_var, [40], dtype="uint8", strides=[1], elem_offset=0, align=16
+        )
+        T.evaluate(
+            T.call_extern(
+                "tensor_intrin_primfunc", global_workspace_1_buffer_var.data, dtype="int32"
+            )
+        )
+
+
+def test_tensor_intrin():
+    target = Target("c")
+    global_workspace_pool = WorkspacePoolInfo(
+        "global_workspace",
+        [target],
+    )
+
+    tir_mod = TensorIntrinStructure
+    tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
+    tir_mod = assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_workspace_pool])
+    main_func = tir_mod["__tvm_main__"]
+    buffer_analysis = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
+    buffer_info_map = buffer_analysis.buffer_info_stmts
+
+    fcreate_array_bi = tvm.get_global_func("tir.usmp.CreateArrayBufferInfo")
+    buffer_info_arr = fcreate_array_bi(buffer_info_map)
+    fusmp_algo_greedy_by_size = tvm.get_global_func("tir.usmp.algo.greedy_by_size")
+    buffer_pool_allocations = fusmp_algo_greedy_by_size(
+        buffer_info_arr, buffer_analysis.memory_pressure
+    )
+    fassign_stmt_pool_allocations = tvm.get_global_func("tir.usmp.AssignStmtPoolAllocations")
+    pool_allocations = fassign_stmt_pool_allocations(buffer_info_map, buffer_pool_allocations)
+    tir_mod_with_offsets = tvm.tir.usmp.transform.convert_pool_allocations_to_offsets(
+        pool_allocations, emit_tvmscript_printable=True
+    )(tir_mod)
+
+    expected = TensorIntrinStructurePlanned
+
+    for gv, ref_func in expected.functions.items():
+        actual_func = tir_mod_with_offsets[gv.name_hint]
+        tvm.ir.assert_structural_equal(actual_func, ref_func)
+
+
 if __name__ == "__main__":
     pytest.main([__file__] + sys.argv[1:])

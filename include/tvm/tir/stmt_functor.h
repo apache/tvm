@@ -410,6 +410,32 @@ inline T Substitute(T input, const std::unordered_map<const VarNode*, PrimExpr>&
 }
 
 /*!
+ * \brief Substitute the var specified by vmap and legalize data types after substitution.
+ * \param stmt The source statement to be substituted
+ * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
+ *
+ * Unlike `Substitute`, this allows the substitution to change the data type of the expression.
+ *
+ * \sa Substitute
+ * \return The result.
+ */
+TVM_DLL Stmt SubstituteWithDataTypeLegalization(Stmt stmt,
+                                                std::function<Optional<PrimExpr>(const Var&)> vmap);
+
+/*!
+ * \brief Substitute the var specified by vmap and legalize data types after substitution.
+ * \param expr The source statement to be substituted
+ * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
+ *
+ * Unlike `Substitute`, this allows the substitution to change the data type of the expression.
+ *
+ * \sa Substitute
+ * \return The result.
+ */
+TVM_DLL PrimExpr SubstituteWithDataTypeLegalization(
+    PrimExpr expr, std::function<Optional<PrimExpr>(const Var&)> vmap);
+
+/*!
  * \brief Recursively visit the IR in pre DFS order node, apply fvisit.
  * If fvisit returns false, it won't visit the children of the node.
  * \param stmt_or_expr The ir to be visited.
@@ -427,6 +453,89 @@ TVM_DLL void PreOrderVisit(const ObjectRef& stmt_or_expr,
  * \return The renewed func.
  */
 TVM_DLL PrimFunc RenewDefs(const PrimFunc& func);
+
+/*!
+ * \brief Check if the statement contains the specified node type.
+ *
+ * This utility potentially walks the entire statement, and should
+ * therefore not be used if it could otherwise be merged with another
+ * pass.
+ *
+ * \param stmt The statement to be searched
+ * \return Whether stmt contains Node
+ */
+template <typename Node, typename = std::enable_if_t<std::is_base_of_v<StmtNode, Node>>>
+bool ContainsNode(const Stmt& stmt) {
+  struct Visitor : StmtVisitor {
+    // Early bail-out, if we already found the node.
+    void VisitStmt(const Stmt& stmt) final {
+      if (contains_node) {
+        return;
+      }
+      StmtVisitor::VisitStmt(stmt);
+    }
+
+    void VisitStmt_(const Node* block) override { contains_node = true; }
+
+    bool contains_node{false};
+  };
+
+  Visitor visitor;
+  visitor(stmt);
+  return visitor.contains_node;
+}
+
+/*!
+ * \brief Legalize the data types of expressions to make sure they are consistent with other
+ * parts of the program.
+ *
+ * It enforces the following rules:
+ * - The data type of the index variable in a loop must be consistent with the data type of the loop
+ *  bounds.
+ * - The data type of the binary and ternary expressions must be consistent with the data types of
+ * each of their operands.
+ * - The data type of the bounds and binding values of block iter vars must be consistent with the
+ * data type of the block iter vars.
+ *
+ * Usually we enforce the consistency of data types when constructing the IR nodes. However, such
+ * inconsistency may happen as a result of IR mutation in some passes. This class can be used as
+ * base class of such passes to ensure the consistency of data types.
+ */
+class DataTypeLegalizer : public StmtExprMutator {
+ public:
+  Stmt VisitStmt_(const ForNode* op) override;
+
+  Stmt VisitStmt_(const AttrStmtNode* op) override;
+  Stmt VisitStmt_(const BlockRealizeNode* op) override;
+  Stmt VisitStmt_(const BlockNode* op) override;
+  PrimExpr VisitExpr_(const SelectNode* op) override;
+  PrimExpr VisitExpr_(const RampNode* op) override;
+  PrimExpr VisitExpr_(const AddNode* op) override;
+  PrimExpr VisitExpr_(const SubNode* op) override;
+  PrimExpr VisitExpr_(const MulNode* op) override;
+  PrimExpr VisitExpr_(const DivNode* op) override;
+  PrimExpr VisitExpr_(const ModNode* op) override;
+  PrimExpr VisitExpr_(const FloorDivNode* op) override;
+  PrimExpr VisitExpr_(const FloorModNode* op) override;
+  PrimExpr VisitExpr_(const MinNode* op) override;
+  PrimExpr VisitExpr_(const MaxNode* op) override;
+  PrimExpr VisitExpr_(const EQNode* op) override;
+  PrimExpr VisitExpr_(const NENode* op) override;
+  PrimExpr VisitExpr_(const LTNode* op) override;
+  PrimExpr VisitExpr_(const LENode* op) override;
+  PrimExpr VisitExpr_(const GTNode* op) override;
+  PrimExpr VisitExpr_(const GENode* op) override;
+  PrimExpr VisitExpr_(const CallNode* op) override;
+
+  using StmtExprMutator::VisitExpr_;
+  using StmtExprMutator::VisitStmt_;
+
+ protected:
+  // a map from IterVar before rewrite to that after rewrite,
+  // ensures one old IterVar maps to exactly one new IterVar
+  std::unordered_map<const IterVarNode*, IterVar> ivmap_;
+};
+
 }  // namespace tir
 }  // namespace tvm
 

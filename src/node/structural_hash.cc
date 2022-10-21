@@ -35,6 +35,7 @@
 #include "../support/base64.h"
 #include "../support/str_escape.h"
 #include "../support/utils.h"
+#include "ndarray_hash_equal.h"
 
 namespace tvm {
 
@@ -55,8 +56,10 @@ void ReflectionVTable::SHashReduce(const Object* self, SHashReducer reducer) con
 // In particular, when we traverse unordered_map, we should first sort
 // the entries by keys(or hash of keys) before traversing.
 
-class VarCountingSHashHandler : public SHashReducer::Handler {
+class SHashHandlerDefault::Impl {
  public:
+  explicit Impl(SHashHandlerDefault* parent) : parent_(parent) {}
+
   /*! \brief Pending reduce tasks. */
   struct Task {
     /*!
@@ -81,15 +84,13 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
         : object(object), reduced_hash(reduced_hash), map_free_vars(map_free_vars) {}
   };
 
-  VarCountingSHashHandler() {}
-
-  void MarkGraphNode() final {
+  void MarkGraphNode() {
     // need to push to pending tasks in this case
     ICHECK(!allow_push_to_stack_ && !task_stack_.empty());
     task_stack_.back().graph_node_hash = true;
   }
 
-  bool LookupHashedValue(const ObjectRef& key, size_t* hash_value) final {
+  bool LookupHashedValue(const ObjectRef& key, size_t* hash_value) {
     auto it = hash_memo_.find(key);
     if (it != hash_memo_.end()) {
       hash_value[0] = it->second;
@@ -98,11 +99,11 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     return false;
   }
 
-  void SHashReduceHashedValue(size_t hashed_value) final {
+  void SHashReduceHashedValue(size_t hashed_value) {
     pending_tasks_.emplace_back(Task(ObjectRef(nullptr), hashed_value, false));
   }
 
-  void SHashReduceFreeVar(const runtime::Object* var, bool map_free_vars) final {
+  void SHashReduceFreeVar(const runtime::Object* var, bool map_free_vars) {
     ICHECK(!hash_memo_.count(GetRef<ObjectRef>(var)));
     if (map_free_vars) {
       // use counter value.
@@ -115,7 +116,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     }
   }
 
-  void SHashReduce(const ObjectRef& object, bool map_free_vars) final {
+  void SHashReduce(const ObjectRef& object, bool map_free_vars) {
     // Directly push the result
     // Note: it is still important to push the result to pendng tasks
     // so that the reduction order of hash values stays the same.
@@ -149,6 +150,11 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     size_t ret = result_stack_.back();
     result_stack_.pop_back();
     return ret;
+  }
+
+  void DispatchSHash(const ObjectRef& object, bool map_free_vars) {
+    ICHECK(object.defined());
+    vtable_->SHashReduce(object.get(), SHashReducer(parent_, map_free_vars));
   }
 
  protected:
@@ -219,7 +225,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
           ICHECK_EQ(pending_tasks_.size(), 0U);
           allow_push_to_stack_ = false;
           // dispatch hash, reduce to the current slot.
-          this->DispatchSHash(entry.object, entry.map_free_vars);
+          parent_->DispatchSHash(entry.object, entry.map_free_vars);
           allow_push_to_stack_ = true;
           // Move pending tasks to the stack until the marked point.
           while (pending_tasks_.size() != 0) {
@@ -231,13 +237,9 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     }
   }
 
-  // The default equal as registered in the structural equal vtable.
-  void DispatchSHash(const ObjectRef& object, bool map_free_vars) {
-    ICHECK(object.defined());
-    vtable_->SHashReduce(object.get(), SHashReducer(this, map_free_vars));
-  }
-
  private:
+  // The owner of this impl
+  SHashHandlerDefault* parent_;
   // free var counter.
   size_t free_var_counter_{0};
   // graph node counter.
@@ -256,14 +258,43 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
   std::unordered_map<ObjectRef, size_t, ObjectPtrHash, ObjectPtrEqual> hash_memo_;
 };
 
+SHashHandlerDefault::SHashHandlerDefault() { impl = new Impl(this); }
+SHashHandlerDefault::~SHashHandlerDefault() { delete impl; }
+
+void SHashHandlerDefault::SHashReduceHashedValue(size_t hashed_value) {
+  return impl->SHashReduceHashedValue(hashed_value);
+}
+
+void SHashHandlerDefault::SHashReduce(const ObjectRef& key, bool map_free_vars) {
+  impl->SHashReduce(key, map_free_vars);
+}
+
+void SHashHandlerDefault::SHashReduceFreeVar(const runtime::Object* var, bool map_free_vars) {
+  impl->SHashReduceFreeVar(var, map_free_vars);
+}
+
+bool SHashHandlerDefault::LookupHashedValue(const ObjectRef& key, size_t* hashed_value) {
+  return impl->LookupHashedValue(key, hashed_value);
+}
+
+void SHashHandlerDefault::MarkGraphNode() { impl->MarkGraphNode(); }
+
+size_t SHashHandlerDefault::Hash(const ObjectRef& object, bool map_free_vars) {
+  return impl->Hash(object, map_free_vars);
+}
+
+void SHashHandlerDefault::DispatchSHash(const ObjectRef& key, bool map_free_vars) {
+  impl->DispatchSHash(key, map_free_vars);
+}
+
 TVM_REGISTER_GLOBAL("node.StructuralHash")
     .set_body_typed([](const ObjectRef& object, bool map_free_vars) -> int64_t {
-      size_t hashed_value = VarCountingSHashHandler().Hash(object, map_free_vars);
+      size_t hashed_value = SHashHandlerDefault().Hash(object, map_free_vars);
       return static_cast<int64_t>(hashed_value);
     });
 
 size_t StructuralHash::operator()(const ObjectRef& object) const {
-  return VarCountingSHashHandler().Hash(object, false);
+  return SHashHandlerDefault().Hash(object, false);
 }
 
 // SEQualReduce traits for runtime containers.
@@ -329,41 +360,25 @@ struct ADTObjTrait {
 
 TVM_REGISTER_REFLECTION_VTABLE(runtime::ADTObj, ADTObjTrait);
 
-void NDArrayContainerTrait::SHashReduce(const runtime::NDArray::Container* key,
-                                        SHashReducer hash_reduce) {
-  ICHECK_EQ(key->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
-  ICHECK(runtime::IsContiguous(key->dl_tensor)) << "Can only hash contiguous tensor";
-  hash_reduce(runtime::DataType(key->dl_tensor.dtype));
-  hash_reduce(key->dl_tensor.ndim);
-  for (int i = 0; i < key->dl_tensor.ndim; ++i) {
-    hash_reduce(key->dl_tensor.shape[i]);
+void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer* hash_reduce,
+                 bool hash_data) {
+  ICHECK_EQ(arr->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
+  ICHECK(runtime::IsContiguous(arr->dl_tensor)) << "Can only hash contiguous tensor";
+  (*hash_reduce)(runtime::DataType(arr->dl_tensor.dtype));
+  (*hash_reduce)(arr->dl_tensor.ndim);
+  for (int i = 0; i < arr->dl_tensor.ndim; ++i) {
+    (*hash_reduce)(arr->dl_tensor.shape[i]);
   }
-  hash_reduce->SHashReduceHashedValue(runtime::String::HashBytes(
-      static_cast<const char*>(key->dl_tensor.data), runtime::GetDataSize(key->dl_tensor)));
+  if (hash_data) {
+    (*hash_reduce)
+        ->SHashReduceHashedValue(runtime::String::HashBytes(
+            static_cast<const char*>(arr->dl_tensor.data), runtime::GetDataSize(arr->dl_tensor)));
+  }
 }
 
-bool NDArrayContainerTrait::SEqualReduce(const runtime::NDArray::Container* lhs,
-                                         const runtime::NDArray::Container* rhs,
-                                         SEqualReducer equal) {
-  if (lhs == rhs) return true;
-
-  auto ldt = lhs->dl_tensor.dtype;
-  auto rdt = rhs->dl_tensor.dtype;
-  ICHECK_EQ(lhs->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
-  ICHECK_EQ(rhs->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
-  ICHECK(runtime::IsContiguous(lhs->dl_tensor)) << "Can only compare contiguous tensor";
-  ICHECK(runtime::IsContiguous(rhs->dl_tensor)) << "Can only compare contiguous tensor";
-
-  if (lhs->dl_tensor.ndim != rhs->dl_tensor.ndim) return false;
-  for (int i = 0; i < lhs->dl_tensor.ndim; ++i) {
-    if (!equal(lhs->dl_tensor.shape[i], rhs->dl_tensor.shape[i])) return false;
-  }
-  if (ldt.code == rdt.code && ldt.lanes == rdt.lanes && ldt.bits == rdt.bits) {
-    size_t data_size = runtime::GetDataSize(lhs->dl_tensor);
-    return std::memcmp(lhs->dl_tensor.data, rhs->dl_tensor.data, data_size) == 0;
-  } else {
-    return false;
-  }
+void NDArrayContainerTrait::SHashReduce(const runtime::NDArray::Container* key,
+                                        SHashReducer hash_reduce) {
+  NDArrayHash(key, &hash_reduce, /*bool hash_data*/ true);
 }
 
 TVM_REGISTER_REFLECTION_VTABLE(runtime::NDArray::Container, NDArrayContainerTrait)

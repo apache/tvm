@@ -17,8 +17,7 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 from typing import List
 
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.mutator import MutateParallel, Mutator
+from tvm import meta_schedule as ms
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir import Schedule
@@ -79,15 +78,17 @@ def _sch(decisions: List[List[int]], ann_val: int) -> Schedule:
     return sch
 
 
-def _make_mutator(target: Target, max_jobs_per_core: int) -> Mutator:
-    ctx = TuneContext(
+def _make_mutator(target: Target, max_jobs_per_core: int) -> ms.Mutator:
+    ctx = ms.TuneContext(
         mod=matmul,
         target=target,
-        mutator_probs={
-            MutateParallel(max_jobs_per_core): 1.0,
-        },
+        space_generator=ms.space_generator.PostOrderApply(
+            sch_rules=[],
+            postprocs=[],
+            mutator_probs={ms.mutator.MutateParallel(max_jobs_per_core): 1.0},
+        ),
     )
-    return list(ctx.mutator_probs.keys())[0]
+    return list(ctx.space_generator.mutator_probs.keys())[0]
 
 
 def test_mutate_parallel_matmul():

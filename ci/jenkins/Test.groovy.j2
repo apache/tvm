@@ -294,8 +294,8 @@ stage('Test') {
     if (!skip_ci) {
       node('GPU') {
         ws({{ m.per_exec_ws('tvm/docs-python-gpu') }}) {
-          docker_init(ci_gpu)
           init_git()
+          docker_init(ci_gpu)
           {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib, folders=microtvm_template_projects) }}
           add_microtvm_permissions()
           timeout(time: 180, unit: 'MINUTES') {

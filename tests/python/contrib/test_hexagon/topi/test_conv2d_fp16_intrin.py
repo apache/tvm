@@ -23,6 +23,8 @@ import tvm
 import tvm.contrib.hexagon
 from tvm.topi.testing import conv2d_nhwc_python
 
+from ..infrastructure import get_hexagon_target
+
 
 def build_conv2d(target):
     """Build and the return the conv2d module that calls the intrinsic implementation"""
@@ -195,12 +197,9 @@ class TestConv2dIntrin:
     inp_offset = tvm.testing.parameter((0, 0), ids=["offset0x0"])
 
     @tvm.testing.requires_hexagon
-    def test_conv2d(self, act_shape, wgt_shape, inp_stride, inp_offset, hexagon_session):
+    def DISABLED_test_conv2d(self, act_shape, wgt_shape, inp_stride, inp_offset, hexagon_session):
         """Test conv2d intrinsic implementation"""
         assert act_shape[3] == wgt_shape[2]
-
-        target_hexagon = tvm.target.hexagon("v69")
-        target = tvm.target.Target(target_hexagon, host=target_hexagon)
 
         # Currently, input offset does not affect the output shape
         def get_out_shape(ash, wsh, inp_stride):
@@ -217,7 +216,7 @@ class TestConv2dIntrin:
         act = np.random.rand(*act_shape).astype("float16")
         wgt = np.random.rand(*wgt_shape).astype("float16")
 
-        module = build_conv2d(target)
+        module = build_conv2d(get_hexagon_target("v68"))
 
         mod = hexagon_session.load_module(module)
         output = tvm.nd.array(

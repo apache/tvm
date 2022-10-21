@@ -457,6 +457,13 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
  */
 template <typename T>
 void NDArrayToTIR(::tvm::runtime::NDArray arr, std::ostream& os) {
+  if ((arr.DataType().code() == runtime::DataType::kInt ||
+       arr.DataType().code() == runtime::DataType::kUInt) &&
+      arr.DataType().bits() == 8) {
+    // Printing int8 NDArrays causes "UnicodeDecodeError: 'utf-8' codec can't decode byte"
+    // error during MetaSchedule tuning on int8 models.
+    return;
+  }
   int ndim = arr->ndim;
   int tot_dim = 1;
   for (int i = 0; i < ndim; i++) {
@@ -1166,7 +1173,7 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
     }
   } else if (alloc->dtype.is_uint()) {
     if (alloc->dtype.bits() == 8) {
-      // NDArrayToTIR<uint8_t>(data, ss);
+      NDArrayToTIR<uint8_t>(data, ss);
     } else if (alloc->dtype.bits() == 16) {
       NDArrayToTIR<uint16_t>(data, ss);
     } else if (alloc->dtype.bits() == 32) {
@@ -1664,19 +1671,53 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   }
   // print body
   body << "# body" << Doc::NewLine();
-  if (op->body->IsInstance<BlockRealizeNode>() &&
-      op->body.as<BlockRealizeNode>()->iter_values.empty()) {
-    const BlockNode* block = op->body.as<BlockRealizeNode>()->block.get();
-    if (block->annotations.empty() && !ContainsOptionalInfo(GetRef<Stmt>(block))) {
-      // Skip print root block
-      body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
-      body << PrintBlockBody(block);
-    } else {
-      body << PrintBody(op->body);
+
+  Optional<Block> elided_root_block_body = [&]() -> Optional<Block> {
+    auto block_realize = op->body.as<BlockRealizeNode>();
+    if (!block_realize || block_realize->iter_values.size()) {
+      return NullOpt;
     }
+
+    const auto& block = block_realize->block;
+    if (block->annotations.size() || ContainsOptionalInfo(block)) {
+      return NullOpt;
+    }
+
+    // The autocomplete might recognize the body itself as being a
+    // root block, and fail to insert it.
+    bool autocomplete_would_insert_root_block = [&]() -> bool {
+      if (block->alloc_buffers.size()) {
+        return true;
+      }
+
+      auto* block_realize = block->body.as<BlockRealizeNode>();
+      if (block_realize && block_realize->block->iter_vars.size()) {
+        return true;
+      }
+      if (!block_realize && ContainsNode<BlockRealizeNode>(block->body)) {
+        return true;
+      }
+      return false;
+    }();
+
+    if (autocomplete_would_insert_root_block) {
+      return block;
+    } else {
+      return NullOpt;
+    }
+  }();
+
+  if (elided_root_block_body) {
+    // Skip printing of root block in cases where tvm::tir::ScriptComplete
+    // would re-insert it.
+    body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
+    body << PrintBlockBody(elided_root_block_body.value().get());
   } else {
+    // If this is a non-root block, or is an unskippable root block,
+    // just print it without skipping.
     body << PrintBody(op->body);
   }
+
   // print func attrs
   Doc header_attr;
   if (primFunc->attrs.defined()) {

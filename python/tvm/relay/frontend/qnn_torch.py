@@ -567,14 +567,14 @@ def inline_input_quant_params_for_fx(graph, params):
     for node in graph.findAllNodes("prim::GetAttr", recurse=True):
         out_name = node.output().debugName()
 
-        if "_input_scale" in out_name or "_input_zero_point" in out_name:
+        if "_scale" in out_name or "_zero_point" in out_name:
             full_attr = get_full_attr_name(node)
             assert full_attr in params, "%s not found in param dict." % full_attr
             param_np = params[full_attr].numpy()
             new_const_node = graph.create("prim::Constant")
             new_const_node.insertBefore(node)
 
-            if "_input_scale" in out_name:
+            if "_scale" in out_name:
                 new_const_node.f_("value", param_np)
                 new_const_node.output().setType(torch._C.FloatType.get())
             else:

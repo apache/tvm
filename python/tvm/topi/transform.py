@@ -1053,9 +1053,16 @@ def trilu(data, k, upper):
     def _apply_trilu(*indices):
         row_index = indices[-2]
         col_index = indices[-1]
+        # promote row & col indices
+        if row_index.dtype != col_index.dtype:
+            target_type = (col_index + row_index).dtype
+            if row_index.dtype != target_type:
+                row_index = tvm.tir.Cast(target_type, row_index)
+            else:
+                col_index = tvm.tir.Cast(target_type, col_index)
         other_indices = indices[:-2]
         check_position = check_op(row_index, col_index - k)
         value = data(*other_indices, row_index, col_index)
         return tvm.tir.Select(check_position, value, tvm.tir.const(0, data.dtype))
 
-    return te.compute(data.shape, _apply_trilu, name="trilu")
+    return te.compute(data.shape, _apply_trilu, name="trilu", tag=topi.tag.ELEMWISE)

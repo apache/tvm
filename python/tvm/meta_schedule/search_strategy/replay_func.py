@@ -35,17 +35,8 @@ class ReplayFunc(SearchStrategy):
         Total number of trials for one task
     """
 
-    num_trials_per_iter: int
-    max_trials_per_task: int
-
-    def __init__(
-        self,
-        num_trials_per_iter: int,
-        max_trials_per_task: int,
-    ):
+    def __init__(self):
         """Constructor"""
         self.__init_handle_by_constructor__(
             _ffi_api.SearchStrategyReplayFunc,  # type: ignore # pylint: disable=no-member
-            num_trials_per_iter,
-            max_trials_per_task,
         )

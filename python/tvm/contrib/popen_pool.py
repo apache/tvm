@@ -97,14 +97,22 @@ class PopenWorker:
         The maximum number of times a process can be used before being recycled,
         i.e. killed and restarted. If `None`, the process will be reused until
         an operation times out.
+
+    stdout: Union[None, int, IO[Any]]
+        The standard output streams handler specified for the popen process.
+
+    stderr: Union[None, int, IO[Any]]
+        The standard error streams handler specified for the popen process.
     """
 
-    def __init__(self, initializer=None, initargs=(), maximum_uses=None):
+    def __init__(self, initializer=None, initargs=(), maximum_uses=None, stdout=None, stderr=None):
         self._proc = None
         self._initializer = initializer
         self._initargs = initargs
         self._maximum_uses = maximum_uses
         self._remaining_uses = None
+        self._stdout = stdout
+        self._stderr = stderr
 
         if self._initializer is not None and not callable(self._initializer):
             raise TypeError("initializer must be callable for PopenWorker")
@@ -166,10 +174,14 @@ class PopenWorker:
             os.set_handle_inheritable(worker_read_handle, True)
             os.set_handle_inheritable(worker_write_handle, True)
             cmd += [str(worker_read_handle), str(worker_write_handle)]
-            self._proc = subprocess.Popen(cmd, close_fds=False)
+            self._proc = subprocess.Popen(
+                cmd, close_fds=False, stdout=self._stdout, stderr=self._stderr
+            )
         else:
             cmd += [str(worker_read), str(worker_write)]
-            self._proc = subprocess.Popen(cmd, pass_fds=(worker_read, worker_write))
+            self._proc = subprocess.Popen(
+                cmd, pass_fds=(worker_read, worker_write), stdout=self._stdout, stderr=self._stderr
+            )
 
         # close worker side of the pipe
         os.close(worker_read)
@@ -319,6 +331,12 @@ class PopenPoolExecutor:
         i.e. killed and restarted. If `None`, processes will be reused until an
         operation times out.
 
+    stdout: Union[None, int, IO[Any]]
+        The standard output streams handler specified for the workers in the pool.
+
+    stderr: Union[None, int, IO[Any]]
+        The standard error streams handler specified for the workers in the pool.
+
     Note
     ----
     If max_workers is NONE then the number returned by
@@ -333,6 +351,8 @@ class PopenPoolExecutor:
         initializer=None,
         initargs=(),
         maximum_process_uses=None,
+        stdout=None,
+        stderr=None,
     ):
         if max_workers is None:
             max_workers = os.cpu_count()
@@ -344,6 +364,8 @@ class PopenPoolExecutor:
         self._initializer = initializer
         self._initargs = initargs
         self._maximum_process_uses = maximum_process_uses
+        self._stdout = stdout
+        self._stderr = stderr
 
         if self._initializer is not None and not callable(self._initializer):
             raise TypeError("initializer must be callable for PopenPoolExecutor")
@@ -363,7 +385,13 @@ class PopenPoolExecutor:
         self._lock.acquire()
         tid = threading.get_ident()
         if tid not in self._worker_map:
-            proc = PopenWorker(self._initializer, self._initargs, self._maximum_process_uses)
+            proc = PopenWorker(
+                self._initializer,
+                self._initargs,
+                self._maximum_process_uses,
+                self._stdout,
+                self._stderr,
+            )
             self._worker_map[tid] = proc
         else:
             proc = self._worker_map[tid]

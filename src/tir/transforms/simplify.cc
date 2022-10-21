@@ -36,6 +36,42 @@ namespace arith {
 
 using namespace tir;
 
+struct SimplifyConfigNode : public tvm::AttrsNode<SimplifyConfigNode> {
+  bool transitively_prove_inequalities;
+  bool convert_boolean_to_and_of_ors;
+
+  TVM_DECLARE_ATTRS(SimplifyConfigNode, "tir.transform.SimplifyConfig") {
+    TVM_ATTR_FIELD(transitively_prove_inequalities)
+        .describe(
+            "If true, simplify conditionals with transitive combinations of scoped constraints")
+        .set_default(false);
+
+    TVM_ATTR_FIELD(convert_boolean_to_and_of_ors)
+        .describe("If true, simplify conditionals into an AND of ORs")
+        .set_default(false);
+  }
+
+  RewriteSimplifier::Extension GetEnabledExtensions() const {
+    RewriteSimplifier::Extension flags = RewriteSimplifier::kNone;
+    if (transitively_prove_inequalities) {
+      flags =
+          RewriteSimplifier::Extension(flags | RewriteSimplifier::kTransitivelyProveInequalities);
+    }
+    if (convert_boolean_to_and_of_ors) {
+      flags = RewriteSimplifier::Extension(flags | RewriteSimplifier::kConvertBooleanToAndOfOrs);
+    }
+    return flags;
+  }
+};
+
+class SimplifyConfig : public Attrs {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SimplifyConfig, Attrs, SimplifyConfigNode);
+};
+
+TVM_REGISTER_NODE_TYPE(SimplifyConfigNode);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.Simplify", SimplifyConfig);
+
 class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
   explicit StmtSimplifier(Analyzer* analyzer) : IRMutatorWithAnalyzer(analyzer) {}
@@ -159,8 +195,12 @@ namespace transform {
 
 Pass Simplify() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    auto* n = f.CopyOnWrite();
     arith::Analyzer analyzer;
+    auto cfg = ctx->GetConfig<arith::SimplifyConfig>("tir.Simplify")
+                   .value_or(AttrsWithDefaultValues<arith::SimplifyConfig>());
+    analyzer.rewrite_simplify.SetEnabledExtensions(cfg->GetEnabledExtensions());
+
+    auto* n = f.CopyOnWrite();
     n->body = arith::StmtSimplifier(&analyzer).Simplify(std::move(n->body));
     return f;
   };
@@ -170,6 +210,5 @@ Pass Simplify() {
 TVM_REGISTER_GLOBAL("tir.transform.Simplify").set_body_typed(Simplify);
 
 }  // namespace transform
-
 }  // namespace tir
 }  // namespace tvm

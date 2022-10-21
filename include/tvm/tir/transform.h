@@ -192,16 +192,13 @@ TVM_DLL Pass InstrumentBoundCheckers();
  *   - Map the values in the api_args to Var that is required by body.
  *   - Insert assertions to check type/value of the passed arguments.
  *
- * \param num_unpacked_args Number of arguments that
- *         are processed in plain form instead of packed form.
- *
  * \note
  *  The function signature have two cases
  *
- *  let num_packed_args = len(api_args) - num_unpacked_args;
+ *  let num_packed_args = len(api_args);
  *
  *  if num_packed_args is zero:
- *     f(api_arg_0, api_arg_1, .., api_arg_n) where n == len(api_args)
+ *     f()
  *
  *  if num_packed_args is not zero:
  *       f(TVMArg* packed_args, int* packed_arg_type_ids, int num_packed_args,
@@ -212,7 +209,7 @@ TVM_DLL Pass InstrumentBoundCheckers();
  *
  * \return The pass.
  */
-TVM_DLL Pass MakePackedAPI(int num_unpacked_args);
+TVM_DLL Pass MakePackedAPI();
 
 /*!
  * \brief Transform the high-level PrimFunc to a C signature that can be used
@@ -486,6 +483,11 @@ TVM_DLL Pass TextureFlatten();
 TVM_DLL Pass LowerVtcmAlloc();
 
 /*!
+ * \brief Lower Async TIR primitives to DMA copy and wait builtins
+ */
+TVM_DLL Pass LowerAsyncDMA();
+
+/*!
  * \brief Implements a Common Subexpression Elimination (CSE) for TIR
  *        which introduces let-in bindings for duplicated sub-expressions.
  * \param enable_cse_tir Whether common subexpression elimination is enabled.
@@ -670,9 +672,17 @@ TVM_DLL Pass InjectPTXAsyncCopy();
 
 /*!
  * \brief Remove the weight layout rewrite block
+ * \param skip_ndarray_rewrite If True, exact rewrite of NDArray, according to the given index map,
+ *  will be skipped. Only the shape of the NDArray is transformed correctly, and the content of
+ *  the destination array will be filled with random values.
+ *
+ *  When this pass is called many times during MetaSchedule tuning, the raw data of NDArray,
+ *  before and after rewrite, does not matter. Since NDArray layout rewrite, using IndexMap's
+ *  MapNDArray, is currently slow, skipping the exact rewrite is sometimes necessary.
+ *
  * \return The pass.
  */
-TVM_DLL Pass RemoveWeightLayoutRewriteBlock();
+TVM_DLL Pass RemoveWeightLayoutRewriteBlock(bool skip_ndarray_rewrite = false);
 
 /*!
  * \brief Add the explicit local stage for the shared memory access on GPU.

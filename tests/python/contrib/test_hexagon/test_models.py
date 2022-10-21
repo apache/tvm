@@ -25,6 +25,8 @@ from tvm import relay
 from tvm.contrib.hexagon.session import Session
 from tvm.relay.backend import Executor, Runtime
 
+from .infrastructure import get_hexagon_target
+
 
 def get_mobilenet():
     """Download and import mobilenet model with ONNX"""
@@ -43,14 +45,13 @@ def test_mobilenet(hexagon_session: Session):
     dtype = "float32"
     onnx_model = get_mobilenet()
 
-    target_hexagon = tvm.target.hexagon("v68")
     target_llvm = tvm.target.Target("llvm")
     runtime = Runtime("cpp")
     executor = Executor("graph", {"link-params": True})
 
     data_in = np.random.rand(1, 3, 224, 224).astype(dtype=dtype)
 
-    input_name = "input"
+    input_name = "data"
     shape_dict = {input_name: data_in.shape}
     relay_mod, params = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
     inputs = {input_name: data_in}
@@ -58,7 +59,7 @@ def test_mobilenet(hexagon_session: Session):
     with tvm.transform.PassContext(opt_level=3):
         hexagon_lowered = tvm.relay.build(
             relay_mod,
-            tvm.target.Target(target_hexagon, host=target_hexagon),
+            get_hexagon_target("v68"),
             runtime=runtime,
             executor=executor,
             params=params,
@@ -97,7 +98,7 @@ def test_mobilenet_aot(hexagon_session: Session, aot_host_target, aot_target, en
 
     data_in = np.random.rand(1, 3, 224, 224).astype(dtype=dtype)
 
-    input_name = "input"
+    input_name = "data"
     shape_dict = {input_name: data_in.shape}
     relay_mod, params = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
     inputs = {input_name: data_in}

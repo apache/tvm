@@ -23,6 +23,7 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.ir import IRModule
+from tvm.runtime.name_transforms import sanitize_name
 
 from ... import nd as _nd
 from .. import analysis
@@ -30,7 +31,6 @@ from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
 from .. import qnn as _qnn
-from ..backend.name_transforms import sanitize_name
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
 from .common import lstm_cell, to_int_list, shape_of, try_infer_value
@@ -3355,7 +3355,7 @@ class OperatorConverter(object):
         non_max_suppression_attrs = {}
         non_max_suppression_attrs["return_indices"] = False
         non_max_suppression_attrs["iou_threshold"] = custom_options["nms_iou_threshold"]
-        non_max_suppression_attrs["force_suppress"] = False
+        non_max_suppression_attrs["force_suppress"] = True
         non_max_suppression_attrs["top_k"] = anchor_boxes
         non_max_suppression_attrs["max_output_size"] = custom_options["max_detections"]
         non_max_suppression_attrs["invalid_to_bottom"] = False

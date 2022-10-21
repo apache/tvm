@@ -29,7 +29,7 @@ CXX ?= ${PREFIX}g++
 RANLIB ?= ${PREFIX}ranlib
 
 ifeq (${VERBOSE}, 1)
-QUIET ?= 
+QUIET ?=
 else
 QUIET ?= @
 endif

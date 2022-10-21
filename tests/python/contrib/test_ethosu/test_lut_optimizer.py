@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Test the pass that removes unnecssary identity operation if the identity 
+"""Test the pass that removes unnecssary identity operation if the identity
 uses LUT and the preceding operator is LUT capable and doesn't already have a LUT.
 """
 import pytest

@@ -21,12 +21,15 @@ from typing import *
 
 from tvm import te
 import tvm.testing
-from tvm.topi import testing
-from tvm.contrib.hexagon.build import HexagonLauncher
 from tvm.contrib.hexagon.session import Session
 import tvm.topi.hexagon.slice_ops as sl
 import tvm.topi.hexagon.qnn as qn
-from ..infrastructure import allocate_hexagon_array, transform_numpy, quantize_np
+from ..infrastructure import (
+    allocate_hexagon_array,
+    transform_numpy,
+    quantize_np,
+    get_hexagon_target,
+)
 from ..pytest_util import (
     get_multitest_ids,
     create_populated_numpy_ndarray,
@@ -401,13 +404,12 @@ class TestAvgPool2dSlice:
         schedule_args,
         hexagon_session: Session,
     ):
-        target_hexagon = tvm.target.hexagon("v69")
         in_data = transformed_input_np_padded
 
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(
                 *schedule_args,
-                tvm.target.Target(target_hexagon, host=target_hexagon),
+                get_hexagon_target("v69"),
                 name="avg_pool2d",
             )
 

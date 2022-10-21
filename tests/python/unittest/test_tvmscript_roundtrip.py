@@ -3142,6 +3142,25 @@ def func_root_attr():
     return func_root_attr
 
 
+def func_trivial_root_block():
+    @T.prim_func
+    def func(A: T.Buffer[1, "int32"]):
+        with T.block("root"):
+            A[0] = 0
+
+    return func
+
+
+def func_nested_root_block():
+    @T.prim_func
+    def func(A: T.Buffer[1, "int32"]):
+        with T.block("root"):
+            with T.block("block"):
+                A[0] = 0
+
+    return func
+
+
 def func_T_ptr_let_statement():
     @T.prim_func
     def func_T_ptr_let_statement(
@@ -3381,6 +3400,56 @@ def float_infinity():
     return func
 
 
+def minimal_i32_literal():
+    @T.prim_func
+    def func() -> None:
+        T.evaluate(T.int32(-2147483648))
+        T.evaluate(-T.int64(2147483648))
+
+    return func
+
+
+def boolean_argument():
+    @T.prim_func
+    def func(a: T.boolean) -> None:
+        T.evaluate(a)
+
+    return func
+
+
+def bool_argument():
+    @T.prim_func
+    def func(a: T.bool) -> None:
+        T.evaluate(a)
+
+    return func
+
+
+def bool_variable_annotation():
+    @T.prim_func
+    def func() -> None:
+        a: T.bool = T.call_extern("dummy", dtype="bool")
+        T.evaluate(0)
+
+    return func
+
+
+def bool_primitive():
+    @T.prim_func
+    def func() -> None:
+        T.evaluate(T.bool(True))
+
+    return func
+
+
+def bool_cast():
+    @T.prim_func
+    def func() -> None:
+        T.evaluate(T.bool(T.int32(0)))
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3409,6 +3478,8 @@ ir_generator = tvm.testing.parameter(
     func_with_target_spec_by_config,
     func_with_target_spec_by_str,
     func_root_attr,
+    func_trivial_root_block,
+    func_nested_root_block,
     func_T_ptr_let_statement,
     func_T_ptr_allocate,
     llvm_intrin_call,
@@ -3423,6 +3494,12 @@ ir_generator = tvm.testing.parameter(
     decl_buffer,
     allocate_and_decl_buffer,
     float_infinity,
+    minimal_i32_literal,
+    boolean_argument,
+    bool_argument,
+    bool_variable_annotation,
+    bool_primitive,
+    bool_cast,
 )
 
 

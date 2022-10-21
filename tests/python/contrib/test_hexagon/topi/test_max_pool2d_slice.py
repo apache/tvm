@@ -21,14 +21,10 @@ from typing import *
 
 from tvm import te
 import tvm.testing
-from tvm.topi import testing
-from tvm.contrib.hexagon.build import HexagonLauncher
 from tvm.contrib.hexagon.session import Session
 import tvm.topi.hexagon.slice_ops as sl
-from ..infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 from ..pytest_util import (
-    get_numpy_dtype_info,
-    get_test_id,
     get_multitest_ids,
     create_populated_numpy_ndarray,
     TensorContentRandom,
@@ -50,6 +46,31 @@ def transformed_input_np_padded(input_np_padded, input_layout):
     return transform_numpy(input_np_padded, "nhwc", input_layout)
 
 
+(input_layout, dtype) = tvm.testing.parameters(
+    ("nhwc-8h2w32c2w-2d", "float16"),
+    ("nhwc-8h8w32c-2d", "uint8"),
+)
+
+
+@tvm.testing.fixture
+def output_layout(output_shape, dtype):
+    o_b, o_h, o_w, o_c = output_shape
+    if dtype == "float16":
+        if o_h == 1 and o_w == 1:
+            return "n11c-1024c-2d"
+        else:
+            assert o_h % 8 == 0 and o_w % 4 == 0, "Invalid output shape"
+            return "nhwc-8h2w32c2w-2d"
+    elif dtype == "int8" or "uint8":
+        if o_h == 1 and o_w == 1:
+            return "n11c-2048c-2d"
+        else:
+            assert o_h % 8 == 0 and o_w % 8 == 0, "Invalid output shape"
+            return "nhwc-8h8w32c-2d"
+    else:
+        raise RuntimeError(f"Unsupported data type '{dtype}'")
+
+
 class TestmaxPool2dSlice:
     _param_descs = [
         "out_shape",  # output_shape
@@ -59,8 +80,6 @@ class TestmaxPool2dSlice:
         "pad",  # padding
         "ceil",  # ceil_mode
         "cnt_padded",  # count_include_pad
-        "out_layout",  # output_layout
-        None,  # dtype
         None,  # input_tensor_populator
     ]
 
@@ -73,8 +92,6 @@ class TestmaxPool2dSlice:
             [0, 0, 0, 0],
             False,
             True,
-            "nhwc-8h2w32c2w-2d",
-            "float16",
             TensorContentRandom(),
         ),
         (
@@ -85,8 +102,6 @@ class TestmaxPool2dSlice:
             [0, 0, 0, 0],
             False,
             True,
-            "nhwc-8h2w32c2w-2d",
-            "float16",
             TensorContentRandom(),
         ),
         (
@@ -97,8 +112,6 @@ class TestmaxPool2dSlice:
             [0, 0, 0, 0],
             False,
             True,
-            "nhwc-8h2w32c2w-2d",
-            "float16",
             TensorContentRandom(),
         ),
         # Test non-one stride and dilation
@@ -110,8 +123,6 @@ class TestmaxPool2dSlice:
             [0, 0, 0, 0],
             False,
             True,
-            "nhwc-8h2w32c2w-2d",
-            "float16",
             TensorContentRandom(),
         ),
         (
@@ -122,8 +133,6 @@ class TestmaxPool2dSlice:
             [0, 0, 0, 0],
             False,
             True,
-            "nhwc-8h2w32c2w-2d",
-            "float16",
             TensorContentRandom(),
         ),
         (
@@ -134,8 +143,6 @@ class TestmaxPool2dSlice:
             [0, 0, 0, 0],
             False,
             True,
-            "nhwc-8h2w32c2w-2d",
-            "float16",
             TensorContentRandom(),
         ),
         # Test non-zero padding
@@ -147,8 +154,6 @@ class TestmaxPool2dSlice:
             [1, 1, 1, 1],
             False,
             True,
-            "nhwc-8h2w32c2w-2d",
-            "float16",
             TensorContentRandom(),
         ),
         (
@@ -159,8 +164,6 @@ class TestmaxPool2dSlice:
             [1, 2, 3, 4],
             False,
             True,
-            "nhwc-8h2w32c2w-2d",
-            "float16",
             TensorContentRandom(),
         ),
         # Test n11c-1024c-2d layout which will require input and output to have different layout
@@ -172,8 +175,6 @@ class TestmaxPool2dSlice:
             [0, 0, 0, 0],
             False,
             True,
-            "n11c-1024c-2d",
-            "float16",
             TensorContentRandom(),
         ),
         (
@@ -184,8 +185,6 @@ class TestmaxPool2dSlice:
             [0, 0, 0, 0],
             False,
             True,
-            "n11c-1024c-2d",
-            "float16",
             TensorContentRandom(),
         ),
         (
@@ -196,8 +195,6 @@ class TestmaxPool2dSlice:
             [0, 0, 0, 0],
             False,
             True,
-            "n11c-1024c-2d",
-            "float16",
             TensorContentRandom(),
         ),
         (
@@ -208,19 +205,14 @@ class TestmaxPool2dSlice:
             [0, 0, 0, 0],
             False,
             True,
-            "n11c-1024c-2d",
-            "float16",
             TensorContentRandom(),
         ),
     ]
 
     _param_ids = get_multitest_ids(_multitest_params, _param_descs)
 
-    input_layout = tvm.testing.parameter(
-        "nhwc-8h2w32c2w-2d",
-    )
-
-    # NOTE: input_layout is always assumed to be "nhwc-8h2w32c2w-2d"
+    # NOTE: input_layout is always assumed to be "nhwc-8h2w32c2w-2d" for float16
+    # and "nhwc-8h8w32c-2d" for uint8
     (
         output_shape,
         kernel,
@@ -229,8 +221,6 @@ class TestmaxPool2dSlice:
         padding,
         ceil_mode,
         count_include_pad,
-        output_layout,
-        dtype,
         input_tensor_populator,
     ) = tvm.testing.parameters(*_multitest_params, ids=_param_ids)
 
@@ -283,15 +273,32 @@ class TestmaxPool2dSlice:
         return [o_b, in_h, in_w, o_c]
 
     @tvm.testing.fixture
-    def input_shape_padded(self, input_shape, padding, output_layout):
+    def input_shape_padded(self, dtype, input_shape, padding, output_layout):
         # Input shape is adjusted to account for 'padding'. Also, due to the physical
         # layout of the buffer, height and width are adjusted so that they are a
         # multiple of 8 and 4 respectively.
-        # NOTE: Input layout is always assumed to be nhwc-8h2w32c2w-2d.
+        # NOTE: For float16, the input layout is always assumed to be nhwc-8h2w32c2w-2d and
+        # for int8/uint8, it's nhwc-8h8w32c-2d.
+        # For both nhwc-8h2w32c2w-2d and nhwc-8h8w32c-2d, the height should be a multiple
+        # of 8. However, the width should be a multiple of 4 for the first case and 8 for
+        # the second case.
+
+        height_mult = 8
+        if dtype == "float16":
+            width_mult = 4  # input layout : nhwc-8h2w32c2w-2d
+        elif dtype in ("uint8", "int8"):
+            width_mult = 8  # input layout : nhwc-8h8w32c-2d
+        else:
+            raise RuntimeError(f"Unsupport dtype '{dtype}'")
+
         pad_before_h, pad_before_w = padding[:2]
         pad_after_h, pad_after_w = padding[2:]
-        padded_input_height = ((input_shape[1] + pad_before_h + pad_after_h + 7) // 8) * 8
-        padded_input_width = ((input_shape[2] + pad_before_w + pad_after_w + 3) // 4) * 4
+        padded_input_height = (
+            (input_shape[1] + pad_before_h + pad_after_h + height_mult - 1) // height_mult
+        ) * height_mult
+        padded_input_width = (
+            (input_shape[2] + pad_before_w + pad_after_w + width_mult - 1) // width_mult
+        ) * width_mult
         return [input_shape[0], padded_input_height, padded_input_width, input_shape[3]]
 
     @tvm.testing.fixture
@@ -330,7 +337,6 @@ class TestmaxPool2dSlice:
         expected_output_np,
         hexagon_session: Session,
     ):
-        target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape_padded, name="A", dtype=dtype)
 
         M = sl.max_pool2d_compute(A, output_shape, kernel, stride, dilation)
@@ -340,9 +346,12 @@ class TestmaxPool2dSlice:
         sch = tir_schedule.mod
 
         input_axis_separator = [4]
-        if output_layout == "nhwc-8h2w32c2w-2d":
-            output_axis_separator = [4]
-        elif output_layout == "n11c-1024c-2d":
+        if output_layout in (
+            "nhwc-8h2w32c2w-2d",
+            "nhwc-8h8w32c-2d",
+            "n11c-1024c-2d",
+            "n11c-2048c-2d",
+        ):
             output_axis_separator = [4]
         else:
             raise RuntimeError(f"Unexpected layout '{output_layout}'")
@@ -351,7 +360,7 @@ class TestmaxPool2dSlice:
             func = tvm.build(
                 sch,
                 [A, M],
-                tvm.target.Target(target_hexagon, host=target_hexagon),
+                get_hexagon_target("v69"),
                 name="max_pool2d",
             )
 
@@ -374,12 +383,21 @@ class TestmaxPool2dSlice:
         b, h, w, c = output_shape
         if output_layout == "nhwc-8h2w32c2w-2d":
             output_np = output_arr.numpy().reshape([b, h // 8, w // 4, c // 32, 8, 2, 32, 2])
+        elif output_layout == "nhwc-8h8w32c-2d":
+            output_np = output_arr.numpy().reshape([b, h // 8, w // 8, c // 32, 8, 8, 32])
+        elif output_layout == "n11c-2048c-2d":
+            output_np = output_arr.numpy().reshape([b, 1, 1, c // 2048, 2048])
         elif output_layout == "n11c-1024c-2d":
             output_np = output_arr.numpy().reshape([b, 1, 1, c // 1024, 1024])
         else:
             raise RuntimeError(f"Unexpected layout '{output_layout}'")
 
-        np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=1e-3, atol=1e-3)
+        if dtype == "float16":
+            np.testing.assert_allclose(
+                output_np, transformed_expected_output_np, rtol=1e-3, atol=1e-3
+            )
+        elif dtype == "uint8":
+            np.testing.assert_allclose(output_np, transformed_expected_output_np, atol=1)
 
 
 if __name__ == "__main__":

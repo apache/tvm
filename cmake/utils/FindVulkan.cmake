@@ -43,7 +43,7 @@ macro(find_vulkan use_vulkan use_khronos_spirv)
      set(__vulkan_sdk "")
    endif()
 
-   
+
    if(IS_DIRECTORY ${use_khronos_spirv})
      set(__use_khronos_spirv ${use_khronos_spirv})
      message(STATUS "Custom khronos spirv PATH=" ${__use_khronos_spirv})

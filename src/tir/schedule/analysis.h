@@ -298,6 +298,15 @@ bool GetVarsTouchedByBlockIters(const BlockRealize& block_realize,
 void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
                              arith::Analyzer* analyzer);
 
+/*!
+ * \brief Check whether a block has a trivial binding, i.e. each block var is bound to a outer loop,
+ * from outer to inner.
+ * \param self The schedule state
+ * \param block_sref The block to be checked
+ * \throw ScheduleError If the block does not have trivial bindings
+ */
+void CheckBlockHasTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref);
+
 /******** Block-loop relation ********/
 
 /*!
@@ -697,6 +706,36 @@ Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region, const P
                                              const StmtSRef& dom_high_exclusive,
                                              arith::Analyzer* analyzer);
 
+/*!
+ * \brief Check if buffer indices are all Vars and extr
+ * \param buffer_access The BufferLoad or BufferStore
+ * \return The indices if the indices are all Vars, otherwise NullOpt
+ */
+template <typename T>
+Optional<Array<Var>> CheckTrivialBufferIndices(const T& buffer_access) {
+  Array<Var> indices;
+  for (const PrimExpr& index : buffer_access->indices) {
+    const VarNode* var = index.as<VarNode>();
+    if (var == nullptr) {
+      return NullOpt;
+    }
+    indices.push_back(GetRef<Var>(var));
+  }
+  return indices;
+}
+
+/*!
+ * \brief Simplify non-trivial expressions
+ * \param expr The expression to be simplified
+ * \param analyzer The analyzer
+ * \return The simplified expression
+ *
+ * During scheduling, we often need preserve block iters in trivial expressions that can be
+ * simplified to constant values for further scheduling and analysis because simplifing away the
+ * block iters may result in loss of information for further analysis.
+ */
+PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, arith::Analyzer* analyzer);
+
 /*! \brief Necessary information used for tensorization */
 class TensorizeInfoNode : public Object {
  public:
@@ -704,10 +743,15 @@ class TensorizeInfoNode : public Object {
   Map<tir::StmtSRef, tir::For> loop_map;
   /*! \brief Maps loops in an intrinsic description to its index, outer to inner */
   Map<tir::For, Integer> desc_loop_indexer;
+  /*! \brief Optional padded extents of the block iters when padding is needed to match the
+   * intrinsic description
+   */
+  Optional<Array<Integer>> block_iter_paddings;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("loop_map", &loop_map);
     v->Visit("desc_loop_indexer", &desc_loop_indexer);
+    v->Visit("block_iter_paddings", &block_iter_paddings);
   }
 
   static constexpr const char* _type_key = "tir.schedule.TensorizeInfo";
@@ -724,11 +768,12 @@ class TensorizeInfo : public ObjectRef {
  * \param self The schedule state to be tensorized
  * \param block_sref The target block to match against
  * \param desc_func The prim func describing the computation to be tensorized
+ * \param allow_padding Whether to allow padding the block iters to match the intrinsic description
  * \return TensorizeInfo structure if a valid mapping is found, NullOpt otherwise
  */
 Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
                                                 const tir::StmtSRef& block_sref,
-                                                const tir::PrimFunc& desc_func);
+                                                const tir::PrimFunc& desc_func, bool allow_padding);
 
 /*！\brief Necessary information used to perform transformations for tensorization */
 class AutoTensorizeMappingInfoNode : public Object {

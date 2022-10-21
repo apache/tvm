@@ -60,4 +60,3 @@ elseif(USE_DNNL STREQUAL "OFF")
 else()
   message(FATAL_ERROR "Invalid option: USE_DNNL=" ${USE_DNNL})
 endif()
-

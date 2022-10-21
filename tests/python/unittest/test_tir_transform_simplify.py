@@ -137,7 +137,22 @@ def test_complex_likely_elimination():
 
 
 class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
-    transform = tvm.tir.transform.Simplify()
+    transitively_prove_inequalities = False
+    convert_boolean_to_and_of_ors = False
+
+    def transform(self):
+        def inner(mod):
+            config = {
+                "tir.Simplify": {
+                    "transitively_prove_inequalities": self.transitively_prove_inequalities,
+                    "convert_boolean_to_and_of_ors": self.convert_boolean_to_and_of_ors,
+                }
+            }
+            with tvm.transform.PassContext(config=config):
+                mod = tvm.tir.transform.Simplify()(mod)
+            return mod
+
+        return inner
 
 
 class TestLoadStoreNoop(BaseBeforeAfter):
@@ -545,6 +560,260 @@ class TestLeftShiftByNegativeValue(BaseBeforeAfter):
                 A[i] = 0.0
 
     expected = before
+
+
+class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
+    """Remove comparisons that may be proven using multiple others
+
+    For example, the `0 < i` and `i <= j` conditions can be used to prove
+    that `0 < j`.
+    """
+
+    transitively_prove_inequalities = True
+
+    i, j, k = [tvm.tir.Var(name, "int32") for name in "ijk"]
+    zero = tvm.tir.IntImm("int32", 0)
+
+    test_case = tvm.testing.parameter(
+        (tvm.tir.all(zero < i, i <= j), zero < j, True),
+        # Transitive comparisons from LT
+        (tvm.tir.all(i < j, j < k), i < k, True),
+        (tvm.tir.all(i < j, j == k), i < k, True),
+        (tvm.tir.all(i < j, j <= k), i < k, True),
+        (tvm.tir.all(i < j, j > k), i < k, False),
+        (tvm.tir.all(i < j, j >= k), i < k, False),
+        (tvm.tir.all(i < j, j != k), i < k, False),
+        # Transitive comparisons from LE
+        (tvm.tir.all(i <= j, j < k), i < k, True),
+        (tvm.tir.all(i <= j, j == k), i == k, False),
+        (tvm.tir.all(i <= j, j == k), i <= k, True),
+        (tvm.tir.all(i <= j, j <= k), i <= k, True),
+        (tvm.tir.all(i <= j, j <= k), i < k, False),
+        (tvm.tir.all(i <= j, j > k), i < k, False),
+        (tvm.tir.all(i <= j, j >= k), i < k, False),
+        (tvm.tir.all(i <= j, j != k), i < k, False),
+        # Transitive comparisons from GT
+        (tvm.tir.all(i > j, j > k), i > k, True),
+        (tvm.tir.all(i > j, j == k), i > k, True),
+        (tvm.tir.all(i > j, j >= k), i > k, True),
+        (tvm.tir.all(i > j, j < k), i > k, False),
+        (tvm.tir.all(i > j, j <= k), i > k, False),
+        (tvm.tir.all(i > j, j != k), i > k, False),
+        # Transitive comparisons from GE
+        (tvm.tir.all(i >= j, j > k), i > k, True),
+        (tvm.tir.all(i >= j, j == k), i == k, False),
+        (tvm.tir.all(i >= j, j == k), i >= k, True),
+        (tvm.tir.all(i >= j, j >= k), i >= k, True),
+        (tvm.tir.all(i >= j, j >= k), i > k, False),
+        (tvm.tir.all(i >= j, j < k), i > k, False),
+        (tvm.tir.all(i >= j, j <= k), i > k, False),
+        (tvm.tir.all(i >= j, j != k), i > k, False),
+        # GT or LT may be used to prove NE
+        (tvm.tir.all(i == j, j != k), i != k, True),
+        (tvm.tir.all(i == j, j < k), i != k, True),
+        (tvm.tir.all(i == j, j > k), i != k, True),
+        (tvm.tir.all(i == j, j != k), i < k, False),
+        (tvm.tir.all(i == j, j != k), i > k, False),
+        # Because these are integers, x<y is equivalent to x <= y-1,
+        # and may be used in equivalent simplifications.
+        (tvm.tir.all(i <= j - 1, j < k), i < k, True),
+        (tvm.tir.all(i <= j - 1, j == k), i < k, True),
+        (tvm.tir.all(i <= j - 1, j <= k), i < k, True),
+        (tvm.tir.all(i <= j - 1, j > k), i < k, False),
+        (tvm.tir.all(i <= j - 1, j >= k), i < k, False),
+        (tvm.tir.all(i <= j - 1, j != k), i < k, False),
+        # Either or both inequalities may have an additive offset.
+        (tvm.tir.all(i <= j + 5, j <= k + 7), i <= k + 12, True),
+        (tvm.tir.all(i <= j + 5, j <= k + 7), i <= k + 11, False),
+        # For floats, x < y + c1 and y < z + c2 implies that x < z + (c1 + c2).
+        # Because this simplification applies to integers, transitive
+        # application of LT or GT can give a tighter constraint.
+        #
+        # i < j + c1, j < k + c2
+        # i <= j + c1 - 1, j <= k + c2 - 1
+        # i + 1 - c1 <= j, j <= k + c2 - 1
+        # i + 1 - c1 <= k + c2 - 1
+        # i <= k + c1 + c2 - 2
+        # i < k + (c1 + c2 - 1)
+        #
+        (tvm.tir.all(i < j + 5, j < k + 7), i < k + 11, True),
+        (tvm.tir.all(i < j + 5, j < k + 7), i < k + 10, False),
+    )
+
+    @tvm.testing.fixture
+    def before(self, test_case):
+        priors, postulate, _ = test_case
+
+        @T.prim_func
+        def func(A: T.Buffer[1, "bool"]):
+            if priors:
+                A[0] = postulate
+
+        return func
+
+    @tvm.testing.fixture
+    def expected(self, test_case):
+        priors, postulate, provable = test_case
+
+        analyzer = tvm.arith.Analyzer()
+        priors = analyzer.canonical_simplify(priors)
+
+        if provable:
+
+            @T.prim_func
+            def func(A: T.Buffer[1, "bool"]):
+                if priors:
+                    A[0] = True
+
+            return func
+
+        else:
+            postulate = analyzer.canonical_simplify(postulate)
+
+            @T.prim_func
+            def func(A: T.Buffer[1, "bool"]):
+                if priors:
+                    A[0] = postulate
+
+            return func
+
+
+class TestSuppressTransitivelyProvableCondition(BaseBeforeAfter):
+    transitively_prove_inequalities = False
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        if i < j and j < k:
+            A[0] = i < k
+
+    expected = before
+
+
+class TestRewriteAsAndOfOrs(BaseBeforeAfter):
+    """If enabled, rewrite boolean expressions into AND of OR"""
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[3, "bool"]):
+        T.evaluate(A[0] or (A[1] and A[2]))
+
+    def expected(A: T.Buffer[3, "bool"]):
+        T.evaluate((A[0] or A[1]) and (A[0] or A[2]))
+
+
+class TestSuppressRewriteAsAndOfOrs(BaseBeforeAfter):
+    """Only rewrite into AND of OR when allowed"""
+
+    convert_boolean_to_and_of_ors = False
+
+    def before(A: T.Buffer[3, "bool"]):
+        T.evaluate(A[0] or (A[1] and A[2]))
+
+    expected = before
+
+
+class TestRewriteAsAndOfOrsWithTopLevelAnd(BaseBeforeAfter):
+    """The expression being rewritten may start with an AND
+
+    Like TestRewriteAsAndOfOrs, but with an AndNode as the outermost
+    booelan operator.  Even though it is primarily OR nodes that are
+    being rewritten, the call to SimplifyAsAndOfOrs should apply to
+    the outermost AndNode or OrNode in order to enable better
+    simplification.
+    """
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[4, "bool"]):
+        T.evaluate((A[0] or A[1]) and (A[1] or (A[0] and A[2] and A[3])))
+
+    def expected(A: T.Buffer[4, "bool"]):
+        # If the simplification is applied to the OrNode, then a
+        # redundant `(A[1] or A[0])` would't be canceled out.  When
+        # applying SimplifyAsAndOfOrs to the top-level AndNode, the
+        # internal representation is `[[0,1], [1,0], [1,2], [1,3]]`, and
+        # the redundant `[1,0]` can be removed.
+        #
+        # If the simplification were only applied when encountering an
+        # OrNode, the internal representation would be `[[0,1]]` during
+        # the first call and `[[1,0], [1,2], [1,3]]` during the second
+        # call.  As a result, the `[0,1]` and `[1,0]` representations
+        # wouldn't occur within the same call, and the redundant `[1,0]`
+        # wouldn't be removed.
+        T.evaluate((A[0] or A[1]) and (A[1] or A[2]) and (A[1] or A[3]))
+
+
+class TestRewriteAsAndOfOrsWithSimplificationBetweenGroups(BaseBeforeAfter):
+    """Apply rewrite rules between OR groups that differ by a single element
+
+    The expression `(k==20 and k!=30)` could be rewritten into `(k==20)`.
+    However, by default these two terms must appear as part of an explict part
+    of the simplified expression.  The AndOfOr simplification checks for
+    rewrite patterns of the form `(A or B) and (A or C)`, where `(B and C)` can
+    simplify to a single expression `D`.  These can be rewritten to `(A or D)`.
+    """
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (i == 0 or j == 10 or k == 20) and (i == 0 or j == 10 or k != 30)
+
+    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = i == 0 or j == 10 or k == 20
+
+
+class TestRewriteAsAndOfOrsWithSimplificationBetweenReorderedGroups(BaseBeforeAfter):
+    """Rewrite rules between OR groups do not depend on order
+
+    Like TestRewriteAsAndOfOrsWithSimplificationBetweenGroups, but the groups
+    are ordered differently.  If this removes a group entirely, the result is
+    ordered according to the first group in the expression.
+    """
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (i == 0 or j == 10 or k == 20) and (j == 10 or k != 30 or i == 0)
+
+    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = i == 0 or j == 10 or k == 20
+
+
+class TestRewriteAsAndOfOrUsingSimplificationAcrossAnd(BaseBeforeAfter):
+    """Apply AndNode rewrites to non-adjacent expressions
+
+    The RewriteSimplifier rules only check for simplifications between
+    left/right branches of an And/Or node.  Simplifications that would require
+    rearranging components in a chain of And/Or nodes are not performed.
+    """
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (k == 20) and ((i == 0 or j == 10) and (k != 30))
+
+    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (k == 20) and (i == 0 or j == 10)
+
+
+class TestRewriteAsAndOfOrUsingSimplificationWithinOr(BaseBeforeAfter):
+    """Rewrite rules between OR groups do not depend on order
+
+    The RewriteSimplifier rules only check for simplifications between
+    left/right branches of an And/Or node.  Simplifications that would require
+    rearranging components in a chain of And/Or nodes are not performed.
+
+    This test validates that `(i == 20) or (i != 30)` can be rewritten to
+    `(i != 30)`, even when there's an intervening clause between the
+    clauses being simplified.
+    """
+
+    convert_boolean_to_and_of_ors = True
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (i == 20) or (j == 0) or (i != 30)
+
+    def expected(A: T.Buffer[1, "bool"], i: T.int32, j: T.int32, k: T.int32):
+        A[0] = (i != 30) or (j == 0)
 
 
 if __name__ == "__main__":

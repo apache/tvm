@@ -50,7 +50,8 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_storage_rewrite", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.is_entry_func", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.add_lower_pass", Array<Array<ObjectRef>>);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.debug_keep_trivial_loop", Bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.use_ptx_async_copy", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.use_async_copy", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.merge_async_commit_queue_scope", Bool);
 
 using runtime::PackedFunc;
 using runtime::TVMArgs;
@@ -72,7 +73,7 @@ bool ShouldAnnotateEntryFunc(const IRModule mod) {
 
 /*! \return The default host target for a given device target */
 Target DefaultTargetHost(Target target) {
-  if (target.defined() && target->kind->device_type == kDLCPU) {
+  if (target.defined() && target->GetTargetDeviceType() == kDLCPU) {
     return target;
   } else {
     if (LLVMEnabled()) {
@@ -225,6 +226,11 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   }
   // LowerVtcmAlloc must occur after any transformations that modify memory allocation locations
   pass_list.push_back(tir::transform::LowerVtcmAlloc());
+  bool use_async_copy = pass_ctx->GetConfig<Bool>("tir.use_async_copy", Bool(false)).value();
+
+  if (use_async_copy) {
+    pass_list.push_back(tir::transform::LowerAsyncDMA());
+  }
   pass_list.push_back(tir::transform::UnrollLoop());
 
   // Add user-defined phase-2 passes
@@ -418,7 +424,8 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
 
   if (!target_host.defined()) {
     for (const auto& it : inputs) {
-      if (it.first->kind->device_type == kDLCPU || it.first->kind->device_type == kDLMicroDev) {
+      if (it.first->GetTargetDeviceType() == kDLCPU ||
+          it.first->GetTargetDeviceType() == kDLMicroDev) {
         target_host = it.first;
         break;
       }
@@ -455,7 +462,8 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
       // unless they're supposed to. Here if we overrode the target host
       // to allow lowering previously we check that it's meant to be placed
       // back into the host Module.
-      bool overrides_host_target = target->kind->device_type == target_host->kind->device_type;
+      bool overrides_host_target =
+          target->GetTargetDeviceType() == target_host->GetTargetDeviceType();
       bool non_host_target_kind = target->kind != target_host->kind;
       if (overrides_host_target && non_host_target_kind) {
         device_modules.push_back(codegen::Build(host_mod, it.first));
@@ -543,10 +551,9 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   mixed_pass_list.push_back(tir::transform::InferFragment());
   mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
 
-  bool use_ptx_async_copy =
-      pass_ctx->GetConfig<Bool>("tir.use_ptx_async_copy", Bool(false)).value();
+  bool use_async_copy = pass_ctx->GetConfig<Bool>("tir.use_async_copy", Bool(false)).value();
 
-  if (use_ptx_async_copy) {
+  if (use_async_copy) {
     mixed_pass_list.push_back(tir::transform::InjectPTXAsyncCopy());
   }
 
@@ -557,7 +564,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   if (unpacked_api) {
     mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
   } else {
-    mixed_pass_list.push_back(tir::transform::MakePackedAPI(-1));
+    mixed_pass_list.push_back(tir::transform::MakePackedAPI());
   }
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());
 

@@ -15,16 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """Random Feature Extractor."""
-from typing import List, Union, Tuple
+from typing import List, Tuple, Union
 
 import numpy as np  # type: ignore
 from tvm.runtime.ndarray import NDArray, array
 
-from ..tune_context import TuneContext
-from ..search_strategy import MeasureCandidate
 from ..feature_extractor import PyFeatureExtractor
+from ..search_strategy import MeasureCandidate
+from ..tune_context import TuneContext
+from ..utils import derived_object
 
 
+@derived_object
 class RandomFeatureExtractor(PyFeatureExtractor):
     """Random Feature Extractor
 

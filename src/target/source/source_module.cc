@@ -26,6 +26,7 @@
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/metadata.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/name_transforms.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -507,7 +508,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
           } else {
             codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
           }
-          call_args_ss << " " << relay::backend::SanitizeName(input_var->name_hint) << ",";
+          call_args_ss << " " << tvm::runtime::SanitizeName(input_var->name_hint) << ",";
         }
         for (unsigned int i = 0; i < metadata_->outputs.size(); ++i) {
           call_args_ss << "void* output" << i << ",";
@@ -565,10 +566,10 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       std::stringstream call_args_ss;
       if (metadata_->io_pool_allocations.empty()) {
         for (const auto& input : metadata_->inputs) {
-          call_args_ss << "inputs->" << relay::backend::SanitizeName(input->name_hint) << ",";
+          call_args_ss << "inputs->" << tvm::runtime::SanitizeName(input->name_hint) << ",";
         }
         for (const auto& output : metadata_->outputs) {
-          call_args_ss << "outputs->" << relay::backend::SanitizeName(output);
+          call_args_ss << "outputs->" << tvm::runtime::SanitizeName(output);
           call_args_ss << ",";
         }
       }
@@ -578,7 +579,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         if (IsInternalWorkspaceBuffer(pool_var)) {
           call_args_ss << "&" << pool_name << ",";
         } else {
-          call_args_ss << "workspace_pools->" << relay::backend::SanitizeName(pool_name) << ",";
+          call_args_ss << "workspace_pools->" << tvm::runtime::SanitizeName(pool_name) << ",";
         }
       }
       for (const String& device : metadata_->devices) {

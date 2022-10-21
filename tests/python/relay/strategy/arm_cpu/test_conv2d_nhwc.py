@@ -22,6 +22,7 @@ import tvm.testing
 from tvm import relay
 from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
 from tvm.micro.testing.aot_test_utils import AOT_CORSTONE300_RUNNER
+from tvm.topi.utils import change_constant_shape
 
 
 class BasicConv2dTests:
@@ -61,11 +62,7 @@ class BasicConv2dTests:
         ref_mod = tvm.IRModule.from_expr(relay.Function([input0], out0))
 
         input1 = relay.var("input", relay.TensorType(ishape, dtype))
-
-        if kernel_layout == "HWOI":
-            weight1 = relay.const(np.moveaxis(weight_data, 2, -1))
-        elif kernel_layout == "HWIO":
-            weight1 = relay.const(weight_data)
+        weight1 = change_constant_shape(weight0, "HWIO", kernel_layout)
 
         out1 = relay.op.nn.conv2d(
             input1,
@@ -148,6 +145,35 @@ class TestConv2d_HWIO(BasicConv2dTests):
     dtype = tvm.testing.parameter("int8", "int16")
     kernel_layout = tvm.testing.parameter("HWIO")
     schedule_name = tvm.testing.parameter("conv2d_nhwc_spatial_pack.arm_cpu")
+
+
+class TestConv2d_Tensordot(BasicConv2dTests):
+    data_shape, kernel_size, num_filter, strides, padding = tvm.testing.parameters(
+        # Disabled because these kernels are not an integral number of words
+        # ((1, 32, 32, 1), (3, 3), 12, 1, 0),
+        # ((1, 32, 10, 3), (3, 3), 16, 1, 0),
+        # ((1, 96, 96, 3), (3, 3), 8, (2, 2), (0, 0, 1, 1)),
+        ((4, 16, 16, 8), (5, 5), 8, 2, (0, 3, 3, 0)),
+        ((4, 16, 16, 8), (5, 5), 16, 2, (0, 3, 3, 0)),
+        ((4, 16, 16, 8), (5, 5), 8, 2, 0),
+        ((4, 16, 16, 8), (5, 5), 16, 2, 0),
+        ((1, 16, 16, 32), (1, 1), 64, (2, 2), 0),
+        ((1, 16, 16, 32), (1, 1), 64, (2, 2), 0),
+        ((1, 49, 10, 1), (10, 4), 64, (2, 1), (4, 1, 5, 1)),
+        ((1, 32, 32, 16), (3, 3), 16, 1, (0, 2, 2, 0)),
+        ((1, 32, 32, 16), (3, 3), 16, 1, 0),
+        ((1, 32, 32, 16), (3, 3), 16, 1, 0),
+        ((1, 49, 10, 1), (10, 4), 64, (2, 2), (4, 1, 5, 1)),
+        ((1, 16, 16, 8), (3, 3), 16, 2, (0, 0, 1, 1)),
+        ((1, 16, 16, 8), (3, 3), 16, 2, (1, 1, 2, 2)),
+        ((1, 16, 16, 8), (5, 5), 16, 2, (3, 3, 2, 2)),
+        ((1, 32, 32, 16), (3, 3), 16, 1, 0),
+        ((1, 16, 16, 32), (1, 1), 64, 1, 0),
+    )
+    dilation = tvm.testing.parameter(1)
+    dtype = tvm.testing.parameter("int8", "int16", "int32")
+    kernel_layout = tvm.testing.parameter("OHWI")
+    schedule_name = tvm.testing.parameter("conv2d_nhwc_ohwi_dsp.arm_cpu")
 
 
 if __name__ == "__main__":

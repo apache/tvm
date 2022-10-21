@@ -646,6 +646,11 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
     auto make_input = [&](const Expr& input) {
       if (fuzzy_matches.count(input) == 0 && input.as<OpNode>() == nullptr &&
           input.as<FunctionNode>() == nullptr && !EmbedConst(input, node->ref())) {
+        // Avoid adding parameters repeatedly because multiple operatorss in the partition
+        // may use the same input.
+        if (inputs.find(input) != inputs.end()) {
+          return;
+        }
         inputs[input] =
             Var("FunctionVar_" + std::to_string(graph_number_) + "_" + std::to_string(var_number),
                 NullValue<Type>());

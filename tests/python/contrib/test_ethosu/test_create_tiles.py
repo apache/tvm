@@ -53,8 +53,8 @@ def test_create_tiles_h():
             for i0 in T.serial(0, 1):
                 for i1 in T.serial(0, 6):
                     for i2 in T.serial(0, 1):
-                        for i3 in T.serial(0, 1):   
-                            for i4 in T.serial(0, 16):   
+                        for i3 in T.serial(0, 1):
+                            for i4 in T.serial(0, 16):
                                 placeholder1[((i1*16) + i4)] = placeholder2[((T.floormod((i1 + 4), 6)*16) + i4)]
 
         __tvm_meta__ = None
@@ -84,8 +84,8 @@ def test_create_tiles_w():
             for i0 in T.serial(0, 1):
                 for i1 in T.serial(0, 1):
                     for i2 in T.serial(0, 1):
-                        for i3 in T.serial(0, 6):   
-                            for i4 in T.serial(0, 16):   
+                        for i3 in T.serial(0, 6):
+                            for i4 in T.serial(0, 16):
                                 placeholder1[((i3*16) + i4)] = placeholder2[((T.floormod((i3 + 4), 6)*16) + i4)]
 
         __tvm_meta__ = None
@@ -115,8 +115,8 @@ def test_create_tiles_wrong_var_stride():
             for i0 in T.serial(0, 1):
                 for i1 in T.serial(0, 6):
                     for i2 in T.serial(0, 1):
-                        for i3 in T.serial(0, 1):   
-                            for i4 in T.serial(0, 16):   
+                        for i3 in T.serial(0, 1):
+                            for i4 in T.serial(0, 16):
                                 placeholder1[((i1*16) + i4)] = placeholder2[((T.floormod((i1 + 4), 6)*8) + i4)]
 
         __tvm_meta__ = None
@@ -146,7 +146,7 @@ def test_create_tiles_multiple_var_occurrences():
             for i0 in T.serial(0, 1):
                 for i1 in T.serial(0, 5):
                     for i2 in T.serial(0, 6):
-                        for i3 in T.serial(0, 4):   
+                        for i3 in T.serial(0, 4):
                             placeholder1[(((i1*24) + (i2*4)) + i3)] = placeholder2[(((((T.floordiv((i1 - 1), 2)*48) + (T.floormod((i1 + 1), 2)*24)) + (i2*4)) + i3) + 96)]
 
         __tvm_meta__ = None

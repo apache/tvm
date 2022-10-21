@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 import tvm
 import tvm.testing
 from tvm import te
@@ -59,20 +60,27 @@ def verify_einsum(subscripts, shapes):
     tvm.testing.assert_allclose(c1, c2, rtol=1e-5, atol=1e-5)
 
 
-def test_einsum():
-    verify_einsum("ii", [(5, 5)])
-    verify_einsum("ii->i", [(5, 5)])
-    verify_einsum("ij->i", [(5, 5)])
-    verify_einsum("...j->...", [(5, 5)])
-    verify_einsum("...j, j", [(5, 5), (5,)])
-    verify_einsum("..., ...", [(), (2, 3)])
-    verify_einsum("ijk, jil->kl", [(3, 4, 5), (4, 3, 2)])
-    verify_einsum("ij, ij -> i", [(1, 4), (2, 4)])
-    verify_einsum("...ij, ...jk -> ...ik", [(1, 4), (4, 2)])
-    verify_einsum("...ij, ...ik -> ...jk", [(1, 1, 1, 4), (1, 1, 1, 3)])
-    verify_einsum("ij,jk->ik", [(2, 3), (3, 4)])
-    verify_einsum("ij,jk,km->im", [(2, 3), (3, 4), (4, 5)])
+@pytest.mark.parametrize(
+    "equation,inputs",
+    [
+        ("ii", [(5, 5)]),
+        ("ii->i", [(5, 5)]),
+        ("ij->i", [(5, 5)]),
+        ("...j->...", [(5, 5)]),
+        ("...j, j", [(5, 5), (5,)]),
+        ("..., ...", [(), (2, 3)]),
+        ("ijk, jil->kl", [(3, 4, 5), (4, 3, 2)]),
+        ("ij, ij -> i", [(1, 4), (2, 4)]),
+        ("...ij, ...jk -> ...ik", [(1, 4), (4, 2)]),
+        ("...ij, ...ik -> ...jk", [(1, 1, 1, 4), (1, 1, 1, 3)]),
+        ("...ik, ...jk, ...hk -> i...jh", [(3, 4, 4), (1, 5, 3, 8, 4), (2, 5, 3, 6, 4)]),
+        ("ij,jk->ik", [(2, 3), (3, 4)]),
+        ("ij,jk,km->im", [(2, 3), (3, 4), (4, 5)]),
+    ],
+)
+def test_einsum(equation, inputs):
+    verify_einsum(equation, inputs)
 
 
 if __name__ == "__main__":
-    test_einsum()
+    tvm.testing.main()

@@ -117,7 +117,8 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
   // operand tensor in a binary op (add or multiply supported via CMSIS-NN path). This applies only
   // to 1st and 2nd arguments of the ops.
   Call ReplaceScalarWithTensorVariable(Call call) {
-    if (!WorthyOfScalarToTensorReplacement(call)) {
+    // Returns if the operands of the binary operator come from the same input.
+    if (!WorthyOfScalarToTensorReplacement(call) || call->args.size() < 2) {
       return call;
     }
     Array<Expr> new_args(call->args);
@@ -146,7 +147,8 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
   // operand tensor in a binary op (add or multiply supported via CMSIS-NN path). This applies only
   // to 1st and 2nd arguments of the ops.
   Call ReplaceScalarWithTensorConstant(Call call, Function func) {
-    if (!WorthyOfScalarToTensorReplacement(func)) {
+    // Returns if the operands of the binary operator come from the same input.
+    if (!WorthyOfScalarToTensorReplacement(func) || call->args.size() < 2) {
       return call;
     }
     Array<Expr> new_args(call->args);

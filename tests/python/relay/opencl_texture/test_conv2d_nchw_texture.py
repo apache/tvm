@@ -479,7 +479,6 @@ def test_conv2d_winograd_conv(target, dtype):
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-@pytest.mark.skipif(tvm.testing.utils.IS_IN_CI, reason="failed due to nvidia libOpencl in the CI")
 def test_residual_block(target, dtype):
     """
     - some kind of residual block followed by convolution to have texture after residual block
@@ -569,20 +568,33 @@ def test_residual_block(target, dtype):
         "weight2": tvm.nd.array(filter_data2),
         "weight3": tvm.nd.array(filter_data3),
     }
-
-    static_memory_scope = [
-        "global",
-        "global.texture",
-        "global.texture-weight",
-        "global.texture-weight",
-        "global.texture",
-        "global.texture-weight",
-        "global",
-        "global.texture",
-        "global.texture-weight",
-        "",
-        "",
-    ]
+    if dtype == "float16":
+        static_memory_scope = [
+            "global",
+            "global.texture",
+            "global.texture-weight",
+            "global.texture-weight",
+            "global.texture",
+            "global.texture-weight",
+            "global",
+            "global.texture",
+            "global.texture-weight",
+            "",
+            "",
+        ]
+    else:
+        static_memory_scope = [
+            "global",
+            "global.texture",
+            "global.texture-weight",
+            "global.texture-weight",
+            "global.texture",
+            "global.texture-weight",
+            "global.texture",
+            "global.texture-weight",
+            "",
+            "",
+        ]
 
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
 
@@ -1029,3 +1041,36 @@ def test_conv2d_different_lowering_same_op(target, dtype):
     ]
 
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
+
+
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_winograd_non_rect(target, dtype):
+    input_shape = (1, 771, 36, 64)
+    A = relay.var("data", shape=input_shape, dtype=dtype)
+    filter_shape = (128, 771, 3, 3)
+    B = relay.var("weight", shape=filter_shape, dtype=dtype)
+    D = relay.nn.conv2d(
+        A, B, padding=[1, 1, 1, 1], channels=128, kernel_size=[3, 3], out_dtype=dtype
+    )
+
+    mod = relay.Function([A, B], D)
+    np.random.seed(1)
+    initializer = relay.testing.init.Xavier()
+    filter_data = np.zeros(filter_shape).astype(dtype)
+    initializer("weight", filter_data)
+    params1 = {
+        "weight": tvm.nd.array(filter_data),
+    }
+
+    temp = utils.tempdir()
+    stat_file = temp.relpath("stat.log")
+    with open(stat_file, "w") as f:
+        f.write(
+            f'{{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256 -texture_spatial_limit=16384 -thread_warp_size=1", "conv2d_nchw_winograd.image2d", [["TENSOR", [1, 771, 36, 64], "{dtype}"], ["TENSOR", [128, 771, 3, 3], "{dtype}"], [1, 1], [1, 1, 1, 1], [1, 1], "{dtype}"], {{}}], "config": {{"index": 5399, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 16], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 8]], ["tile_rc", "sp", [-1, 193]]]}}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}}\n'
+        )
+    graph = build_run_compare(
+        mod, params1, {"data": input_shape}, dtype, target, stat_file=stat_file
+    )
+    matches = re.findall("winograd", graph)
+    assert len(matches) > 0

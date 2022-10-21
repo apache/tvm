@@ -84,7 +84,7 @@ def make_kws_project(board, arduino_cli_cmd, microtvm_debug, workspace_dir):
         mod,
         workspace_dir / "project",
         {
-            "arduino_board": board,
+            "board": board,
             "arduino_cli_cmd": arduino_cli_cmd,
             "project_type": "example_project",
             "verbose": bool(build_config.get("debug")),

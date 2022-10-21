@@ -17,15 +17,12 @@
 
 """Split tests for Arm(R) Ethos(TM)-N"""
 
-from distutils.version import LooseVersion
-
 import numpy as np
 import pytest
 
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
-from tvm.relay.op.contrib.ethosn import ethosn_api_version
 
 from . import infrastructure as tei
 
@@ -47,11 +44,6 @@ def _get_model(shape, dtype, splits, axis):
 )
 def test_split(dtype, shape, splits, axis):
     """Compare Split output with TVM."""
-    if ethosn_api_version() == LooseVersion("3.0.1"):
-        pytest.skip(
-            "Split is not supported by the 3.0.1 version of the driver stack.",
-        )
-
     np.random.seed(0)
 
     outputs = []
@@ -89,11 +81,6 @@ def test_split(dtype, shape, splits, axis):
 )
 def test_split_failure(shape, dtype, splits, axis, err_msg):
     """Check Split error messages."""
-    if ethosn_api_version() == LooseVersion("3.0.1"):
-        pytest.skip(
-            "Split is not supported by the 3.0.1 version of the driver stack.",
-        )
-
     model = _get_model(shape, dtype, splits, axis)
     mod = tei.make_ethosn_partition(model)
     tei.test_error(mod, {}, err_msg)

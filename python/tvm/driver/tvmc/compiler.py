@@ -19,13 +19,14 @@ Provides support to compile networks both AOT and JIT.
 """
 import logging
 import os.path
-from typing import Any, Optional, Dict, List, Union, Callable
+from typing import Any, Optional, Dict, List, Union, Callable, Sequence
 from pathlib import Path
 
 import tvm
 from tvm import autotvm, auto_scheduler
 from tvm import relay
 from tvm.driver.tvmc.registry import generate_registry_args, reconstruct_registry_entity
+from tvm.ir.instrument import PassInstrument
 from tvm.ir.memory_pools import WorkspaceMemoryPools
 from tvm.target import Target
 from tvm.relay.backend import Executor, Runtime
@@ -223,6 +224,7 @@ def compile_model(
     use_vm: bool = False,
     mod_name: Optional[str] = "default",
     workspace_pools: Optional[WorkspaceMemoryPools] = None,
+    instruments: Optional[Sequence[PassInstrument]] = None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -277,6 +279,8 @@ def compile_model(
     workspace_pools: WorkspaceMemoryPools, optional
         Specification of WorkspacePoolInfo objects to be used as workspace memory in the
         compilation.
+    instruments: Optional[Sequence[PassInstrument]]
+        The list of pass instrument implementations.
 
     Returns
     -------
@@ -316,7 +320,10 @@ def compile_model(
             with auto_scheduler.ApplyHistoryBest(tuning_records):
                 config["relay.backend.use_auto_scheduler"] = True
                 with tvm.transform.PassContext(
-                    opt_level=opt_level, config=config, disabled_pass=disabled_pass
+                    opt_level=opt_level,
+                    config=config,
+                    disabled_pass=disabled_pass,
+                    instruments=instruments,
                 ):
                     logger.debug("building relay graph with autoscheduler")
                     graph_module = build(
@@ -332,7 +339,10 @@ def compile_model(
         else:
             with autotvm.apply_history_best(tuning_records):
                 with tvm.transform.PassContext(
-                    opt_level=opt_level, config=config, disabled_pass=disabled_pass
+                    opt_level=opt_level,
+                    config=config,
+                    disabled_pass=disabled_pass,
+                    instruments=instruments,
                 ):
                     logger.debug("building relay graph with tuning records")
                     graph_module = build(
@@ -347,7 +357,7 @@ def compile_model(
                     )
     else:
         with tvm.transform.PassContext(
-            opt_level=opt_level, config=config, disabled_pass=disabled_pass
+            opt_level=opt_level, config=config, disabled_pass=disabled_pass, instruments=instruments
         ):
             logger.debug("building relay graph (no tuning records provided)")
             graph_module = build(

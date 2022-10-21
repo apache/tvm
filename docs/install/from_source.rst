@@ -64,7 +64,7 @@ The minimal building requirements for the ``TVM`` libraries are:
       - Clang 5.0
       - Apple Clang 9.3
       - Visual Studio 2019 (v16.7)
-   - CMake 3.10 or higher
+   - CMake 3.18 or higher
    - We highly recommend to build with LLVM to enable all the features.
    - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
    - On macOS, you may want to install `Homebrew <https://brew.sh>`_ to easily install and manage dependencies.
@@ -78,6 +78,9 @@ linux operating systems, execute (in a terminal):
     sudo apt-get update
     sudo apt-get install -y python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
 
+
+Note that the version of CMake on apt may not be sufficiently up to date; it may be necessary to install it directly from `Kitware's third-party APT repository <https://apt.kitware.com/>`_.
+
 Use Homebrew to install the required dependencies for macOS running either the Intel or M1 processors. You must follow the post-installation steps specified by
 Homebrew to ensure the dependencies are correctly installed and configured:
 
@@ -87,7 +90,7 @@ Homebrew to ensure the dependencies are correctly installed and configured:
     brew install llvm
     brew install python@3.8
 
-If you are on macOS with an M1 Processor you may need to use conda to manage dependencies while building. Specifically you may need, `Miniforge <https://github.com/conda-forge/miniforge>`_ to ensure that the dependencies obtained using pip are compatible with M1. 
+If you are on macOS with an M1 Processor you may need to use conda to manage dependencies while building. Specifically you may need, `Miniforge <https://github.com/conda-forge/miniforge>`_ to ensure that the dependencies obtained using pip are compatible with M1.
 
 .. code:: bash
 
@@ -140,6 +143,8 @@ The configuration of TVM can be modified by editing `config.cmake` and/or by pas
 
   - On supported platforms, the `Ccache compiler wrapper <https://ccache.dev/>`_ may be helpful for
     reducing TVM's build time.  There are several ways to enable CCache in TVM builds:
+
+    - Leave `USE_CCACHE=AUTO` in `build/config.cmake`. CCache will be used if it is found.
 
     - Ccache's Masquerade mode. This is typically enabled during the Ccache installation process.
       To have TVM use Ccache in masquerade, simply specify the appropriate C/C++ compiler
@@ -235,7 +240,7 @@ If you are already using conda as your package manager and wish to directly buil
 
 Building on Windows
 ~~~~~~~~~~~~~~~~~~~
-TVM support build via MSVC using cmake. You will need to ontain a visual studio compiler.
+TVM support build via MSVC using cmake. You will need to obtain a visual studio compiler.
 The minimum required VS version is **Visual Studio Enterprise 2019** (NOTE: we test
 against GitHub Actions' `Windows 2019 Runner <https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md>`_, so see that page for full details.
 We recommend following :ref:`build-with-conda` to obtain necessary dependencies and

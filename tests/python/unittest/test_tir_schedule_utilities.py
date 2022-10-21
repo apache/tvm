@@ -124,6 +124,38 @@ class ModuleWithMultipleFuncs:
                 B[vi] = A[vi]
 
 
+@T.prim_func
+def tuple_reduction(data: T.Buffer[(4, 32), "float32"], T_add: T.Buffer[(4,), "float32"]) -> None:
+    # function attr dict
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    # body
+    with T.block("root"):
+        T.reads()
+        T.writes()
+        data_red_temp_v0 = T.alloc_buffer([4], dtype="float32")
+        data_red_temp_v1 = T.alloc_buffer([4], dtype="float32")
+        for i0, i1 in T.grid(4, 32):
+            with T.block("data_red_temp"):
+                ax0, k1 = T.axis.remap("SR", [i0, i1])
+                T.reads(data[ax0, k1])
+                T.writes(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
+                with T.init():
+                    data_red_temp_v0[ax0] = T.float32(0)
+                    data_red_temp_v1[ax0] = T.float32(0)
+                v_data_red_temp_v0: T.float32 = data_red_temp_v0[ax0] + data[ax0, k1]
+                v_data_red_temp_v1: T.float32 = (
+                    data_red_temp_v1[ax0] + data[ax0, k1] * data[ax0, k1]
+                )
+                data_red_temp_v0[ax0] = v_data_red_temp_v0
+                data_red_temp_v1[ax0] = v_data_red_temp_v1
+        for i0 in range(4):
+            with T.block("T_add"):
+                (ax0,) = T.axis.remap("S", [i0])
+                T.reads(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
+                T.writes(T_add[ax0])
+                T_add[ax0] = data_red_temp_v0[ax0] + data_red_temp_v1[ax0]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable
 
 use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
@@ -261,6 +293,16 @@ def test_get_producers(use_block_name):
     verify_trace_roundtrip(sch, mod=matmul_relu)
 
 
+def test_get_producers_multiple_buffer_depdencies(use_block_name):
+    sch = tir.Schedule(mod=tuple_reduction, debug_mask="all")
+    block = "T_add" if use_block_name else sch.get_block("T_add")
+    (producer,) = sch.get_producers(block)
+    assert tvm.ir.structural_equal(
+        sch.get_sref(producer).stmt,
+        sch.get_sref(sch.get_block("data_red_temp")).stmt,
+    )
+
+
 def test_get_consumers(use_block_name):
     sch = tir.Schedule(mod=matmul_relu, debug_mask="all")
     block = "matmul" if use_block_name else sch.get_block("matmul")
@@ -270,6 +312,16 @@ def test_get_consumers(use_block_name):
         sch.get_sref(sch.get_block("relu")).stmt,
     )
     verify_trace_roundtrip(sch, mod=matmul_relu)
+
+
+def test_get_consumers_multiple_buffer_depdencies(use_block_name):
+    sch = tir.Schedule(mod=tuple_reduction, debug_mask="all")
+    block = "data_red_temp" if use_block_name else sch.get_block("data_red_temp")
+    (consumer,) = sch.get_consumers(block)
+    assert tvm.ir.structural_equal(
+        sch.get_sref(consumer).stmt,
+        sch.get_sref(sch.get_block("T_add")).stmt,
+    )
 
 
 def test_annotate_unannotate_loop():

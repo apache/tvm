@@ -33,4 +33,3 @@ runs:
     run: |
       conda info
       conda list
-

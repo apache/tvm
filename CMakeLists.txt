@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.18)
 project(tvm C CXX)
 
 # Utility functions
@@ -45,6 +45,7 @@ tvm_option(USE_HEXAGON "Build with Hexagon support" OFF)
 tvm_option(USE_HEXAGON_SDK "Path to the Hexagon SDK root (required for Hexagon support)" /path/to/sdk)
 tvm_option(USE_HEXAGON_RPC "Enable Hexagon RPC using minRPC implementation over Android." OFF)
 tvm_option(USE_HEXAGON_GTEST "Path to Hexagon specific gtest version for runtime cpp tests." /path/to/hexagon/gtest)
+tvm_option(USE_HEXAGON_EXTERNAL_LIBS "Path to git repo containing external Hexagon runtime sources or libraries" OFF)
 tvm_option(USE_RPC "Build with RPC" ON)
 tvm_option(USE_THREADS "Build with thread support" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
@@ -67,11 +68,13 @@ tvm_option(USE_ETHOSN "Build with Arm(R) Ethos(TM)-N" OFF)
 tvm_option(USE_CMSISNN "Build with Arm CMSIS-NN" OFF)
 tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
 tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack traces" AUTO)
+tvm_option(BACKTRACE_ON_SEGFAULT "Install a signal handler to print a backtrace on segfault" OFF)
 tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
 tvm_option(USE_PAPI "Use Performance Application Programming Interface (PAPI) to read performance counters" OFF)
 tvm_option(USE_GTEST "Use GoogleTest for C++ sanity tests" AUTO)
 tvm_option(USE_CUSTOM_LOGGING "Use user-defined custom logging, tvm::runtime::detail::LogFatalImpl and tvm::runtime::detail::LogMessageImpl must be implemented" OFF)
 tvm_option(USE_ALTERNATIVE_LINKER "Use 'mold' or 'lld' if found when invoking compiler to link artifact" AUTO)
+tvm_option(USE_CCACHE "Use ccache if found when invoking compiler" AUTO)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -460,6 +463,11 @@ if(USE_PIPELINE_EXECUTOR)
   list(APPEND RUNTIME_SRCS ${RUNTIME_PIPELINE_SRCS})
 endif(USE_PIPELINE_EXECUTOR)
 
+# Caches the build.
+# Note that ccache-3.x doesn't support nvcc well, so CUDA kernels may never hit the cache and still
+# need to be re-compiled every time. Using ccache 4.0+ can resolve this issue.
+include(cmake/utils/CCache.cmake)
+
 # Module rules
 include(cmake/modules/VTA.cmake)
 include(cmake/modules/StandaloneCrt.cmake)
@@ -557,10 +565,15 @@ include(cmake/modules/contrib/PAPI.cmake)
 if(USE_MICRO)
   # NOTE: cmake doesn't track dependencies at the file level across subdirectories. For the
   # Unix Makefiles generator, need to add these explicit target-level dependency)
-  add_dependencies(tvm host_standalone_crt)
-  add_dependencies(tvm_runtime host_standalone_crt)
   add_dependencies(tvm_runtime zephyr)
   add_dependencies(tvm_runtime arduino)
+  if(MSVC)
+    target_link_libraries(tvm PRIVATE host_standalone_crt )
+    target_link_libraries(tvm_runtime PRIVATE host_standalone_crt)
+  else()
+    add_dependencies(tvm host_standalone_crt)
+    add_dependencies(tvm_runtime host_standalone_crt)
+  endif()
 endif()
 
 if(USE_CPP_RPC)
