@@ -931,6 +931,10 @@ class FastGelu(OnnxOpConverter):
 
     fast_gelu(x) = 0.5x(1 + tanh(sqrt(2/pi)(x + 0.044715x^3)))
                  = 0.5x(1 + tanh((sqrt(2/pi)x + 0.044715(sqrt(2/pi)x^3)))
+                 = 0.5x(1 + tanh(c1 * x + c2 * x^3)))
+    , where
+        c1 = sqrt(2/pi)
+        c2 = 0.044715 * sqrt(2/pi)
     """
 
     @classmethod
@@ -938,14 +942,16 @@ class FastGelu(OnnxOpConverter):
         x = inputs[0]
         if inputs[1]:
             bias = inputs[1]
+            bias_shape = infer_shape(bias)
+            assert len(bias_shape) == 1, "bias term must be a 1D tensor"
             x += bias
 
         # Declare consts
         const_dtype = infer_type(x).checked_type.dtype
         half = _expr.const(0.5, dtype=const_dtype)
         one = _expr.const(1.0, dtype=const_dtype)
-        const1 = _expr.const(math.sqrt(2 / math.pi), dtype=const_dtype)
-        const2 = _expr.const(0.044715 * math.sqrt(2 / math.pi), dtype=const_dtype)
+        const1 = _expr.const(0.7978845608028654, dtype=const_dtype)  # sqrt(2.0 / PI)
+        const2 = _expr.const(0.0356774081363001, dtype=const_dtype)  # 0.044715 * sqrt(2.0 / PI)
 
         # Compute FastGelu
         term1 = _op.multiply(half, x)
