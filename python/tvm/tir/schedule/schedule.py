@@ -3052,14 +3052,17 @@ class Schedule(Object):
     ) -> None:
         """Compute the target buffer via rolling buffering, select the outermost rollable
         axis with a positive bound overlap that appears in the block's ancestor loops
-        as `rolling axis`. It requires:
+        as `rolling axis`, fold and circularize the buffer along the rolling dimension,
+        append block predicate to avoid recomputing overlapping elements. It requires:
 
-        1) The buffer to be an intermediate buffer defined via `alloc_buffer`.
+        1) The block is not an output block and has only RAW dependencies.
 
-        2) The LCA of the producer and consumer of the buffer is a for loop, typically,
+        2) The buffer to be an intermediate buffer defined via `alloc_buffer`.
+
+        3) The LCA of the producer and consumer of the buffer is a for loop, typically,
         the producer and consumer of the buffer are cascaded through compute_at.
 
-        3) The access region of the buffer has at least one dimension that contains
+        4) The access region of the buffer has at least one dimension that contains
         a positive bound overlap.
 
         Parameters

@@ -119,16 +119,12 @@ def cascade_2_max_pool2d(A: T.Buffer[(1, 12, 12, 16), "int8"], C: T.Buffer[(1, 8
     for i0, i1, i2, i3, i4, i5 in T.grid(1, 10, 10, 16, 3, 3):
         with T.block("B"):
             ax0, ax1, ax2, ax3, rv0, rv1 = T.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
-            T.reads(A[ax0, ax1 + rv0, ax2 + rv1, ax3])
-            T.writes(B[ax0, ax1, ax2, ax3])
             with T.init():
                 B[ax0, ax1, ax2, ax3] = T.int8(-128)
             B[ax0, ax1, ax2, ax3] = T.max(B[ax0, ax1, ax2, ax3], A[ax0, ax1 + rv0, ax2 + rv1, ax3])
     for i0, i1, i2, i3, i4, i5 in T.grid(1, 8, 8, 16, 3, 3):
         with T.block("C"):
             ax0, ax1, ax2, ax3, rv0, rv1 = T.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
-            T.reads(B[ax0, ax1 + rv0, ax2 + rv1, ax3])
-            T.writes(C[ax0, ax1, ax2, ax3])
             with T.init():
                 C[ax0, ax1, ax2, ax3] = T.int8(-128)
             C[ax0, ax1, ax2, ax3] = T.max(C[ax0, ax1, ax2, ax3], B[ax0, ax1 + rv0, ax2 + rv1, ax3])
@@ -143,8 +139,6 @@ def cascade_3_max_pool2d_with_stride(
     for i0, i1, i2, i3, i4, i5 in T.grid(1, 22, 22, 16, 3, 3):
         with T.block("B_0"):
             ax0, ax1, ax2, ax3, rv0, rv1 = T.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
-            T.reads(A[ax0, ax1 + rv0, ax2 + rv1, ax3])
-            T.writes(B_0[ax0, ax1, ax2, ax3])
             with T.init():
                 B_0[ax0, ax1, ax2, ax3] = T.int8(-128)
             B_0[ax0, ax1, ax2, ax3] = T.max(
@@ -153,8 +147,6 @@ def cascade_3_max_pool2d_with_stride(
     for i0, i1, i2, i3, i4, i5 in T.grid(1, 10, 10, 16, 3, 3):
         with T.block("B_1"):
             ax0, ax1, ax2, ax3, rv0, rv1 = T.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
-            T.reads(B_0[ax0, ax1 * 2 + rv0, ax2 * 2 + rv1, ax3])
-            T.writes(B_1[ax0, ax1, ax2, ax3])
             with T.init():
                 B_1[ax0, ax1, ax2, ax3] = T.int8(-128)
             B_1[ax0, ax1, ax2, ax3] = T.max(
@@ -163,8 +155,6 @@ def cascade_3_max_pool2d_with_stride(
     for i0, i1, i2, i3, i4, i5 in T.grid(1, 8, 8, 16, 3, 3):
         with T.block("C"):
             ax0, ax1, ax2, ax3, rv0, rv1 = T.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
-            T.reads(B_1[ax0, ax1 + rv0, ax2 + rv1, ax3])
-            T.writes(C[ax0, ax1, ax2, ax3])
             with T.init():
                 C[ax0, ax1, ax2, ax3] = T.int8(-128)
             C[ax0, ax1, ax2, ax3] = T.max(
@@ -487,7 +477,52 @@ def test_upscale():
     check_rolling_buffer(sch, before, expected, check_run=True)
 
 
-def test_rolling_buffer_match_fail():
+def test_fail_rolling_buffer_multi_writers():
+    @T.prim_func
+    def func_multi_writers(
+        A: T.Buffer[(1, 12, 12, 16), "int8"], C: T.Buffer[(1, 12, 12, 16), "int8"]
+    ):
+        B = T.alloc_buffer([1, 12, 12, 16], dtype="int8")
+        for i0, i1, i2, i3 in T.grid(1, 3, 3, 1):
+            for ax0, ax1, ax2 in T.grid(6, 6, 16):
+                with T.block("B_writer_0"):
+                    ax0_1 = T.axis.spatial(1, i0)
+                    ax1_1 = T.axis.spatial(12, i1 * 4 + ax0)
+                    ax2_1 = T.axis.spatial(12, i2 * 4 + ax1)
+                    ax3_1 = T.axis.spatial(16, ax2)
+                    with T.init():
+                        B[ax0_1, ax1_1, ax2_1, ax3_1] = T.int8(-128)
+                    B[ax0_1, ax1_1, ax2_1, ax3_1] = A[ax0_1, ax1_1, ax2_1, ax3_1] + T.int8(1)
+            for ax0, ax1, ax2 in T.grid(6, 6, 16):
+                with T.block("B_writer_1"):
+                    ax0_2 = T.axis.spatial(1, i0)
+                    ax1_2 = T.axis.spatial(12, i1 * 4 + ax0)
+                    ax2_2 = T.axis.spatial(12, i2 * 4 + ax1)
+                    ax3_2 = T.axis.spatial(16, ax2)
+                    with T.init():
+                        B[ax0_2, ax1_2, ax2_2, ax3_2] = T.int8(-128)
+                    B[ax0_2, ax1_2, ax2_2, ax3_2] = B[ax0_2, ax1_2, ax2_2, ax3_2] + A[
+                        ax0_2, ax1_2, ax2_2, ax3_2
+                    ] * T.int8(2)
+            for ax0, ax1, ax2, ax3, ax4, ax5 in T.grid(1, 4, 4, 16, 3, 3):
+                with T.block("C"):
+                    ax0_3 = T.axis.spatial(1, i0 + ax0)
+                    ax1_3 = T.axis.spatial(12, i1 * 4 + ax1)
+                    ax2_3 = T.axis.spatial(12, i2 * 4 + ax2)
+                    ax3_3 = T.axis.spatial(16, i3 * 16 + ax3)
+                    rv0, rv1 = T.axis.remap("RR", [ax4, ax5])
+                    with T.init():
+                        C[ax0_3, ax1_3, ax2_3, ax3_3] = T.int8(-128)
+                    C[ax0_3, ax1_3, ax2_3, ax3_3] = T.max(
+                        C[ax0_3, ax1_3, ax2_3, ax3_3], B[ax0_3, ax1_3 + rv0, ax2_3 + rv1, ax3_3]
+                    )
+
+    sch = tir.Schedule(func_multi_writers, debug_mask="all")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.rolling_buffer(sch.get_block("B_writer_0"), 0)
+
+
+def test_fail_rolling_buffer_not_match():
     @T.prim_func
     def func_non_overlap(
         A: T.Buffer[(1, 12, 12, 16), "int8"], C: T.Buffer[(1, 12, 12, 16), "int8"]
@@ -525,7 +560,7 @@ def test_rolling_buffer_match_fail():
         sch.rolling_buffer(sch.get_block("B"), 0)
 
 
-def test_rolling_buffer_injection_invalid():
+def test_fail_rolling_buffer_injection_invalid():
     sch = tir.Schedule(cascade_2_max_pool2d, debug_mask="all")
     # Block B is not compute_at to Block C, so rolling_buffer injection is invalid.
     _, _ = _tile_nd(sch, [1, 4, 8, 16], "C")

@@ -50,6 +50,51 @@ BufferRegion GetRelaxedBufferRegion(const BlockRealize& realize, const BufferReg
   return BufferRegion(buffer_region->buffer, relaxed_region);
 }
 
+class RollingBufferDependencyError : public ScheduleError {
+ public:
+  explicit RollingBufferDependencyError(IRModule mod, Block block)
+      : mod_(mod), block_(std::move(block)) {}
+
+  String FastErrorString() const final {
+    return "ScheduleError: The target block is required to have only RAW dependencies";
+  }
+
+  String DetailRenderTemplate() const final {
+    return "The target block {0} is required to have only RAW dependencies";
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+
+  /*!
+   * \brief Check if the block has only RAW dependencies.
+   * \param self The schedule state
+   * \param block_sref The sref of the block to be checked
+   * \param scope_root_sref The sref of the scope root
+   * \throw ScheduleError if the block has WAW or WAR dependency.
+   */
+  static void Check(const ScheduleState& self, const StmtSRef& block_sref,
+                    const StmtSRef& scope_root_sref) {
+    BlockScope scope = self->GetBlockScope(scope_root_sref);
+    for (const Dependency& producers : scope->GetDepsByDst(block_sref)) {
+      if (!(producers->kind == DepKind::kRAW)) {
+        const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
+        throw RollingBufferDependencyError(self->mod, GetRef<Block>(block));
+      }
+    }
+    for (const Dependency& consumers : scope->GetDepsBySrc(block_sref)) {
+      if (!(consumers->kind == DepKind::kRAW)) {
+        const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
+        throw RollingBufferDependencyError(self->mod, GetRef<Block>(block));
+      }
+    }
+  }
+
+ private:
+  IRModule mod_;
+  Block block_;
+};
+
 class RollingBufferMatchError : public ScheduleError {
  public:
   RollingBufferMatchError(IRModule mod, Block block, BufferRegion buffer_region)
@@ -345,6 +390,7 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buf
   /*!
    *  Check
    *    - The block is not an output block.
+   *    - The block has only RAW dependencies.
    *    - The block is tiled and there is access overlap between adjacent tiles.
    *  Mutate
    *    - Select the outermost rollable axis appeared in the block's loop nest
@@ -361,8 +407,9 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buf
   const BufferRegion& buffer_region =
       GetNthAccessBufferRegion(self, block, write_buffer_index, BufferIndexType::kWrite);
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
-  // Step 2. Check the target block is not an output block.
+  // Step 2. Check if the target block is not an output block and has only RAW dependencies.
   CheckNotOutputBlock(self, block_sref, scope_root_sref);
+  RollingBufferDependencyError::Check(self, block_sref, scope_root_sref);
 
   // Step 3. Find the lca of the access location of the target buffer and relax the buffer
   Array<StmtSRef> loop_srefs = GetLoops(block_sref);
