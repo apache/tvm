@@ -209,11 +209,11 @@ def test_export_model_library_format_c(
                     "constants_size_bytes": json_constants_size_bytes,
                     "device": 1,
                     "inputs": {
-                        "a": {"dtype": 'uint8',"size": 2},
-                        "b": {"dtype": 'float32',"size": 8},
+                        "a": {"dtype": "uint8", "size": 2},
+                        "b": {"dtype": "float32", "size": 8},
                     },
                     "io_size_bytes": 18,
-                    "outputs": {"output": {"dtype": 'float32',"size": 8}},
+                    "outputs": {"output": {"dtype": "float32", "size": 8}},
                     "workspace_size_bytes": 0,
                 }
             ]
@@ -301,11 +301,11 @@ def test_export_model_library_format_llvm():
                     "constants_size_bytes": 8,
                     "device": 1,
                     "inputs": {
-                        "a": {"dtype": 'uint8',"size": 2},
-                        "b": {"dtype": 'float32',"size": 8},
+                        "a": {"dtype": "uint8", "size": 2},
+                        "b": {"dtype": "float32", "size": 8},
                     },
                     "io_size_bytes": 18,
-                    "outputs": {"output": {"dtype": 'float32',"size": 8}},
+                    "outputs": {"output": {"dtype": "float32", "size": 8}},
                     "workspace_size_bytes": 0,
                 }
             ]
@@ -383,9 +383,13 @@ def test_export_model_library_format_workspace(executor, runtime):
             {
                 "constants_size_bytes": 0,
                 "device": 1,
-                "inputs": {"p0": {"dtype": 'int16',"size": 802816}, "p1": {"dtype": 'int16',"size": 2304}, "p2": {"dtype": 'int32',"size": 512}},
+                "inputs": {
+                    "p0": {"dtype": "int16", "size": 802816},
+                    "p1": {"dtype": "int16", "size": 2304},
+                    "p2": {"dtype": "int32", "size": 512},
+                },
                 "io_size_bytes": 1207040,
-                "outputs": {"output": {"dtype": 'uint8',"size": 401408}},
+                "outputs": {"output": {"dtype": "uint8", "size": 401408}},
                 "workspace_size_bytes": 2466816,
             }
         ]
@@ -472,18 +476,18 @@ def test_export_byoc_c_module():
                     "constants_size_bytes": 0,
                     "device": 1,
                     "inputs": {
-                        "w0": {"dtype": 'float32',"size": 400},
-                        "w1": {"dtype": 'float32',"size": 400},
-                        "w2": {"dtype": 'float32',"size": 400},
-                        "w3": {"dtype": 'float32',"size": 400},
-                        "w4": {"dtype": 'float32',"size": 400},
-                        "w5": {"dtype": 'float32',"size": 400},
-                        "w6": {"dtype": 'float32',"size": 400},
-                        "w7": {"dtype": 'float32',"size": 400},
-                        "x": {"dtype": 'float32',"size": 400},
+                        "w0": {"dtype": "float32", "size": 400},
+                        "w1": {"dtype": "float32", "size": 400},
+                        "w2": {"dtype": "float32", "size": 400},
+                        "w3": {"dtype": "float32", "size": 400},
+                        "w4": {"dtype": "float32", "size": 400},
+                        "w5": {"dtype": "float32", "size": 400},
+                        "w6": {"dtype": "float32", "size": 400},
+                        "w7": {"dtype": "float32", "size": 400},
+                        "x": {"dtype": "float32", "size": 400},
                     },
                     "io_size_bytes": 4800,
-                    "outputs": {"output": {"dtype": 'float32',"size": 1200}},
+                    "outputs": {"output": {"dtype": "float32", "size": 1200}},
                     "workspace_size_bytes": 1200,
                 }
             ]
@@ -547,9 +551,12 @@ def test_multiple_relay_modules_graph():
             {
                 "constants_size_bytes": 0,
                 "device": 1,
-                "inputs": {"data": {"dtype": 'int8',"size": 12288}, "weight": {"dtype": 'int8',"size": 600}},
+                "inputs": {
+                    "data": {"dtype": "int8", "size": 12288},
+                    "weight": {"dtype": "int8", "size": 600},
+                },
                 "io_size_bytes": 143960,
-                "outputs": {"output": {"dtype": 'int32',"size": 131072}},
+                "outputs": {"output": {"dtype": "int32", "size": 131072}},
                 "workspace_size_bytes": 158088,
             }
         ]
