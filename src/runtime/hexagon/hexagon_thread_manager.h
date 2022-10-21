@@ -32,7 +32,7 @@
 #include "hexagon_buffer.h"
 #include "hexagon_buffer_manager.h"
 #include "hexagon_common.h"
-#include "hexagon_hmx.h"
+#include "hexagon_htp.h"
 #include "hexagon_hvx.h"
 #include "qurt.h"
 
@@ -188,9 +188,9 @@ class HexagonThreadManager {
     Command(voidfunc f, void* args) : f(f), args(args) {}
   };
 
-  //! \brief HMX hardware resource.
-  // TODO(HWE): Move binding of HMX to a specific thread
-  std::unique_ptr<HexagonHmx> hmx_;
+  //! \brief HTP hardware resource.
+  // TODO(HWE): Move binding of HTP to a specific thread
+  std::unique_ptr<HexagonHtp> htp_;
 
   //! \brief HVX hardware resource.
   // TODO(HWE): Move binding of individual HVX instances to a specific thread

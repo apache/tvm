@@ -43,7 +43,7 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
 
   DLOG(INFO) << "Acquiring hardware resources";
   // TODO(HWE): Move these bindings to specific threads
-  hmx_ = std::make_unique<HexagonHmx>();
+  htp_ = std::make_unique<HexagonHtp>();
   hvx_ = std::make_unique<HexagonHvx>();
 
   // Initially, block all threads until we get the Start() call
@@ -104,7 +104,7 @@ HexagonThreadManager::~HexagonThreadManager() {
   DLOG(INFO) << "Buffers freed";
 
   // Release hardware
-  hmx_.reset();
+  htp_.reset();
   hvx_.reset();
 
   DLOG(INFO) << "Hardware resources released";
