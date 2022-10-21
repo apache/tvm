@@ -35,24 +35,14 @@
 namespace tvm {
 namespace tir {
 
-Stmt DebugInfoInstaller::InstallInfo(const Stmt& stmt) {
-  DebugInfoInstaller installer(stmt, "main.tir");
-  auto result = installer.VisitStmt(stmt);
-
-  // TODO(driazati): remove debugging code
-  tvm::tir::TIRTextPrinterDebug printer;
-  // Fill in the stmts and exprs' line info
-  auto printed_with_spans = printer.Print(result).str();
-  std::ofstream out("filled-main.tir");
-  out << printed_with_spans;
-  out.close();
-
-  return result;
+Stmt DebugInfoInstaller::InstallInfo(const std::string& name, const Stmt& stmt) {
+  DebugInfoInstaller installer(stmt, name + ".tir");
+  return installer.VisitStmt(stmt);
 }
 
 DebugInfoInstaller::DebugInfoInstaller(const Stmt& stmt, const std::string& filename) {
   // Determine the line that each stmt/expr will be printed on
-  tvm::tir::TIRTextPrinterDebug printer;
+  tvm::tir::TIRTextPrinterDebug printer(false);
 
   // Fill in the stmts and exprs' line info
   auto result = printer.Print(stmt).str();
@@ -72,6 +62,7 @@ DebugInfoInstaller::DebugInfoInstaller(const Stmt& stmt, const std::string& file
   }
 
   // Output the printed TIR to the specified file
+  VLOG(0) << "Outputting TIR to " << filename;
   filename_ = std::move(filename);
   std::ofstream out(filename_);
   out << result;
@@ -138,8 +129,14 @@ namespace transform {
 
 Pass InstallDebugSpans() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    ICHECK(m->functions.size() == 1)
+        << "Debug info can only be added to IRModules with a single function";
+    // There is known to be only 1 function in the module at this point
+    auto entry = m->functions.begin();
+    auto name = std::get<0>(*entry)->name_hint;
     auto* n = f.CopyOnWrite();
-    n->body = DebugInfoInstaller::InstallInfo(std::move(f->body));
+
+    n->body = DebugInfoInstaller::InstallInfo(std::move(name), std::move(f->body));
 
     return f;
   };

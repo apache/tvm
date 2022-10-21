@@ -25,6 +25,7 @@
 
 #include "tir_text_printer_debug.h"
 
+#include <optional>
 #include <string>
 
 #include "text_printer.h"
@@ -32,18 +33,56 @@
 namespace tvm {
 namespace tir {
 
-std::string span_text(const Span& span) {
+std::optional<std::string> span_text(const Span& span) {
   if (!span.defined()) {
-    return "missing";
+    return std::nullopt;
   }
-  std::string source("file");
+
+  std::string source("main.tir");
+  if (span->source_name.defined() && span->source_name->name.get()) {
+    source = span->source_name->name;
+  }
   return source + ":" + std::to_string(span->line) + ":" + std::to_string(span->column);
+}
+
+template <typename ObjectPtr>
+void add_all_relevant_lines(const std::vector<std::tuple<const ObjectPtr*, size_t>>& data,
+                            size_t current_line, Doc* output) {
+  ICHECK(output) << "output must be a valid Doc";
+  for (const auto& item : data) {
+    if (std::get<1>(item) != current_line - 1) {
+      // Item is not relevant for this line, skip it
+      continue;
+    }
+
+    // Print out the item's span info if present
+    auto text = span_text(std::get<0>(item)->span);
+    if (text.has_value()) {
+      *output << *text;
+    } else {
+      *output << "missing";
+    }
+    *output << ", ";
+  }
 }
 
 Doc TIRTextPrinterDebug::NewLine() {
   current_line_ += 1;
 
-  return TIRTextPrinter::NewLine();
+  if (!show_spans_) {
+    return TIRTextPrinter::NewLine();
+  }
+
+  Doc output;
+
+  output << " [";
+
+  add_all_relevant_lines(exprs_by_line_, current_line_, &output);
+  add_all_relevant_lines(stmts_by_line_, current_line_, &output);
+
+  output << "]" << TIRTextPrinter::NewLine();
+
+  return output;
 }
 
 #define X(TypeName)                                               \

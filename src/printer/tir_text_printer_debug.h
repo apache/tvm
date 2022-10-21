@@ -37,7 +37,8 @@ namespace tir {
 
 class TIRTextPrinterDebug : public TIRTextPrinter {
  public:
-  TIRTextPrinterDebug() : TIRTextPrinter(false, &meta_), current_line_(1) {}
+  explicit TIRTextPrinterDebug(bool show_spans)
+      : TIRTextPrinter(false, &meta_), current_line_(1), show_spans_(show_spans) {}
 
   std::vector<std::tuple<const PrimExprNode*, size_t>> GetExprsByLine() const {
     return exprs_by_line_;
@@ -60,6 +61,9 @@ class TIRTextPrinterDebug : public TIRTextPrinter {
 
   // Line that the printer is currently printing
   size_t current_line_;
+
+  // Whether to include spans relevant to each line before a newline or not
+  bool show_spans_;
 
   // Record of all stmts and exprs and their corresponding line
   std::vector<std::tuple<const StmtNode*, size_t>> stmts_by_line_;

@@ -186,11 +186,16 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, b
 llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const PrimFunc& f) {
 #if TVM_LLVM_VERSION >= 50
   llvm::SmallVector<llvm::Metadata*, 4> paramTys;
+
+  paramTys.push_back(GetDebugType(f->ret_type));
+  for (const auto& param : f->params) {
+    paramTys.push_back(GetDebugType(GetType(param)));
+  }
+
   auto* DIFunctionTy = dbg_info_->di_builder_->createSubroutineType(
       dbg_info_->di_builder_->getOrCreateTypeArray(paramTys));
 
-  // TODO(driazati): add the right argument info to the function
-  bool local_to_unit = false;
+  bool local_to_unit = llvm::GlobalVariable::isLocalLinkage(llvm::GlobalValue::InternalLinkage);
 
 #if TVM_LLVM_VERSION >= 80
   auto SPFlags = llvm::DISubprogram::toSPFlags(local_to_unit, /*IsDefinition=*/true,
@@ -207,6 +212,8 @@ llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const PrimFunc& f) {
       /*Flags=*/llvm::DINode::FlagPrototyped, /*isOptimized=*/true);
 #endif
   return DIFunction;
+#else
+  return nullptr;
 #endif
 }
 
@@ -214,7 +221,6 @@ void CodeGenCPU::AddFunction(const PrimFunc& f) {
 #if TVM_LLVM_VERSION >= 50
   di_subprogram_ = CreateDebugFunction(f);
 #endif
-
   EmitDebugLocation(f->span);
   CodeGenLLVM::AddFunction(f);
   if (f_tvm_register_system_symbol_ != nullptr) {
@@ -272,6 +278,9 @@ void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
 #endif
 }
 
+llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir) {
+  return GetDebugType(ty_tir, GetLLVMType(ty_tir));
+}
 llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm) {
   if (ty_llvm == t_void_) {
     return nullptr;
@@ -951,7 +960,6 @@ llvm::Value* CodeGenCPU::CreateCallPacked(const CallNode* op, bool use_string_lo
 }
 
 llvm::Value* CodeGenCPU::CreateCallTracePacked(const CallNode* op) {
-  EmitDebugLocation(op);
   ICHECK_EQ(op->args.size(), 6U);
   PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[3].as<IntImmNode>()->value,
                                         op->args[4].as<IntImmNode>()->value, true);
@@ -1387,7 +1395,6 @@ void CodeGenCPU::AddStartupFunction() {
 }
 
 llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
-  EmitDebugLocation(op);
   if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
     return CreateCallPacked(op, true /* use_string_lookup */);
   } else if (op->op.same_as(builtin::tvm_call_trace_packed_lowered())) {

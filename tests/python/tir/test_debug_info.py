@@ -64,7 +64,7 @@ def test_llvm_ir_debug_info():
     source = runtime_module.get_source()
 
     locations = find_di_locations(source)
-    assert len(locations) == 33
+    assert len(locations) == 34
 
 
 if __name__ == "__main__":

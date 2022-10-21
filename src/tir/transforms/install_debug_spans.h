@@ -40,7 +40,7 @@ namespace tir {
 
 class DebugInfoInstaller : public StmtExprMutator {
  public:
-  static Stmt InstallInfo(const Stmt& stmt);
+  static Stmt InstallInfo(const std::string& name, const Stmt& stmt);
 
   PrimExpr VisitExpr(const PrimExpr& expr) override;
   Stmt VisitStmt(const Stmt& stmt) override;

@@ -195,6 +195,7 @@ class CodeGenCPU : public CodeGenLLVM {
 
   // Get the DWARF type corresponding to the LLVM type |ty|. The current API in practice only
   // generates |int32|, and |int8*|.
+  llvm::DIType* GetDebugType(const Type& ty_tir);
   llvm::DIType* GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm);
   // Adds the DWARF debug information for |function| to |dbg_info_|.
   void AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm);

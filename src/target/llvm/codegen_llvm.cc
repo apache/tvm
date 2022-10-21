@@ -725,7 +725,6 @@ llvm::Value* CodeGenLLVM::CreateVecFlip(llvm::Value* vec) {
 }
 
 llvm::Value* CodeGenLLVM::CreateVecPad(llvm::Value* vec, int target_lanes) {
-  ICHECK(builder_->getCurrentDebugLocation() != llvm::DebugLoc()) << "Debug information missing";
   llvm::Value* mask = llvm::UndefValue::get(DTypeToLLVMType(DataType::Int(32, target_lanes)));
   int num_elems = GetVectorNumElements(vec);
   if (num_elems == target_lanes) return vec;
@@ -737,7 +736,6 @@ llvm::Value* CodeGenLLVM::CreateVecPad(llvm::Value* vec, int target_lanes) {
 }
 
 llvm::Value* CodeGenLLVM::CreateVecConcat(std::vector<llvm::Value*> vecs) {
-  ICHECK(builder_->getCurrentDebugLocation() != llvm::DebugLoc()) << "Debug information missing";
   // To allow creating vectors from scalars, convert any scalars in "vecs" to single-lane
   // LLVM vector types.
   for (size_t i = 0, e = vecs.size(); i != e; ++i) {
@@ -821,7 +819,6 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
 
 // cast operatpr
 llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* value) {
-  ICHECK(builder_->getCurrentDebugLocation() != llvm::DebugLoc()) << "Debug information missing";
   llvm::Type* target = DTypeToLLVMType(to);
   if (value->getType() == target) return value;
   if (to.is_handle()) {
@@ -857,7 +854,6 @@ llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* va
 
 llvm::Constant* CodeGenLLVM::GetGlobalConstant(llvm::Constant* const_data, const std::string& name,
                                                llvm::GlobalValue::LinkageTypes linkage_type) {
-  ICHECK(builder_->getCurrentDebugLocation() != llvm::DebugLoc()) << "Debug information missing";
   llvm::Type* ty = const_data->getType();
   llvm::GlobalVariable* global =
       new llvm::GlobalVariable(*module_, ty, true, linkage_type, const_data, name);
@@ -873,7 +869,6 @@ llvm::Constant* CodeGenLLVM::GetGlobalConstant(llvm::Constant* const_data, const
 }
 
 llvm::Constant* CodeGenLLVM::GetConstString(const std::string& str) {
-  ICHECK(builder_->getCurrentDebugLocation() != llvm::DebugLoc()) << "Debug information missing";
   auto it = str_map_.find(str);
   if (it != str_map_.end()) return it->second;
   auto llvm_str = llvm::ConstantDataArray::getString(*llvm_target_->GetContext(), str);
@@ -886,7 +881,6 @@ CodeGenLLVM::TypedPointer CodeGenLLVM::CreateBufferPtr(llvm::Value* buffer_ptr,
                                                        DataType buffer_element_dtype,
                                                        llvm::ArrayRef<llvm::Value*> indices,
                                                        DataType value_dtype) {
-  ICHECK(builder_->getCurrentDebugLocation() != llvm::DebugLoc()) << "Debug information missing";
   ICHECK_EQ(indices.size(), 1) << "CodeGenLLVM requires all buffers to be flat 1-d buffers.";
   llvm::Value* index = indices[0];
 
@@ -1246,7 +1240,6 @@ void CodeGenLLVM::EmitFloat16ConversionBuiltins(bool use_float16_abi) {
 }
 
 llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
-  EmitDebugLocation(op);
   if (op->op.same_as(builtin_call_llvm_intrin_) || op->op.same_as(builtin_call_llvm_pure_intrin_)) {
     ICHECK_GE(op->args.size(), 2U);
     llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(Downcast<IntImm>(op->args[0])->value);
@@ -1283,7 +1276,6 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(builtin::bitwise_not())) {
     return builder_->CreateNot(MakeValue(op->args[0]));
   } else if (op->op.same_as(builtin::bitwise_xor())) {
-    EmitDebugLocation(op);
     return builder_->CreateXor(MakeValue(op->args[0]), MakeValue(op->args[1]));
   } else if (op->op.same_as(builtin::shift_left())) {
     return builder_->CreateShl(MakeValue(op->args[0]), MakeValue(op->args[1]));
@@ -1412,29 +1404,20 @@ void CodeGenLLVM::Scalarize(const PrimExpr& e, std::function<void(int i, llvm::V
 }
 
 // Visitors
-llvm::Value* CodeGenLLVM::VisitExpr_(const VarNode* op) {
-  EmitDebugLocation(op);
-  return GetVarValue(op);
-}
+llvm::Value* CodeGenLLVM::VisitExpr_(const VarNode* op) { return GetVarValue(op); }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const CastNode* op) {
-  EmitDebugLocation(op);
   return CreateCast(op->value.dtype(), op->dtype, MakeValue(op->value));
 }
 llvm::Value* CodeGenLLVM::VisitExpr_(const IntImmNode* op) {
-  EmitDebugLocation(op);
   return llvm::ConstantInt::getSigned(DTypeToLLVMType(op->dtype), op->value);
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const FloatImmNode* op) {
-  EmitDebugLocation(op);
   return llvm::ConstantFP::get(DTypeToLLVMType(op->dtype), op->value);
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const StringImmNode* op) {
-  EmitDebugLocation(op);
-  return GetConstString(op->value);
-}
+llvm::Value* CodeGenLLVM::VisitExpr_(const StringImmNode* op) { return GetConstString(op->value); }
 
 #define DEFINE_CODEGEN_BINARY_OP(Op)                                                 \
   llvm::Value* CodeGenLLVM::Create##Op(DataType t, llvm::Value* a, llvm::Value* b) { \
@@ -1456,7 +1439,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const StringImmNode* op) {
     }                                                                                \
   }                                                                                  \
   llvm::Value* CodeGenLLVM::VisitExpr_(const Op##Node* op) {                         \
-    EmitDebugLocation(op);                                                           \
     return Create##Op(op->dtype, MakeValue(op->a), MakeValue(op->b));                \
   }
 
@@ -1476,7 +1458,6 @@ DEFINE_CODEGEN_BINARY_OP(Mul);
     }                                                                                \
   }                                                                                  \
   llvm::Value* CodeGenLLVM::VisitExpr_(const Op##Node* op) {                         \
-    EmitDebugLocation(op);                                                           \
     return Create##Op(op->a.dtype(), MakeValue(op->a), MakeValue(op->b));            \
   }
 
@@ -1486,7 +1467,6 @@ DEFINE_CODEGEN_CMP_OP(GT);
 DEFINE_CODEGEN_CMP_OP(GE);
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const DivNode* op) {
-  EmitDebugLocation(op);
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   if (op->dtype.is_int()) {
@@ -1500,7 +1480,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const DivNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const ModNode* op) {
-  EmitDebugLocation(op);
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   if (op->dtype.is_int()) {
@@ -1514,21 +1493,18 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const ModNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const MinNode* op) {
-  EmitDebugLocation(op);
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   return builder_->CreateSelect(CreateLT(op->a.dtype(), a, b), a, b);
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const MaxNode* op) {
-  EmitDebugLocation(op);
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   return builder_->CreateSelect(CreateGT(op->a.dtype(), a, b), a, b);
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const EQNode* op) {
-  EmitDebugLocation(op);
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   if (op->a.dtype().is_int() || op->a.dtype().is_uint()) {
@@ -1539,7 +1515,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const EQNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const NENode* op) {
-  EmitDebugLocation(op);
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   if (op->a.dtype().is_int() || op->a.dtype().is_uint()) {
@@ -1550,28 +1525,23 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const NENode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const AndNode* op) {
-  EmitDebugLocation(op);
   return builder_->CreateAnd(MakeValue(op->a), MakeValue(op->b));
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const OrNode* op) {
-  EmitDebugLocation(op);
   return builder_->CreateOr(MakeValue(op->a), MakeValue(op->b));
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const NotNode* op) {
-  EmitDebugLocation(op);
   return builder_->CreateNot(MakeValue(op->a));
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const SelectNode* op) {
-  EmitDebugLocation(op);
   return builder_->CreateSelect(MakeValue(op->condition), MakeValue(op->true_value),
                                 MakeValue(op->false_value));
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const LetNode* op) {
-  EmitDebugLocation(op);
   auto it = let_binding_.find(op->var);
   if (it != let_binding_.end()) {
     ICHECK(deep_equal_(it->second->value, op->value))
@@ -1688,7 +1658,6 @@ void CodeGenLLVM::BufferAccessHelper(
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
-  EmitDebugLocation(op);
   DataType value_dtype = op->dtype;
 
   std::vector<llvm::Value*> loads;
@@ -1726,7 +1695,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
-  EmitDebugLocation(op);
   if (auto* ptr_op = op->op.as<OpNode>()) {
     auto call_op = GetRef<Op>(ptr_op);
     if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
@@ -1752,7 +1720,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const RampNode* op) {
-  EmitDebugLocation(op);
   llvm::Value* vec = llvm::UndefValue::get(DTypeToLLVMType(op->dtype));
   for (int i = 0; i < op->lanes; ++i) {
     vec = builder_->CreateInsertElement(
@@ -1762,7 +1729,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const RampNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const ShuffleNode* op) {
-  EmitDebugLocation(op);
   std::vector<llvm::Value*> vecs(op->vectors.size());
   int total_lanes = 0;
   for (int i = 0, e = op->vectors.size(); i < e; ++i) {
@@ -1787,7 +1753,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const ShuffleNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const BroadcastNode* op) {
-  EmitDebugLocation(op);
   return CreateBroadcast(MakeValue(op->value), op->lanes);
 }
 
@@ -2002,6 +1967,25 @@ void CodeGenLLVM::VisitStmt_(const EvaluateNode* op) {
   EmitDebugLocation(op);
   MakeValue(op->value);
 }
+
+void CodeGenLLVM::EmitDebugLocation(const Span& span) {
+#if TVM_LLVM_VERSION >= 50
+  if (di_subprogram_ == nullptr) {
+    // debug info is not always generated outside of CPU codegen
+    return;
+  }
+  if (!span.defined()) {
+    VLOG(0) << "Cannot emit debug location for undefined span";
+    return;
+  }
+  llvm::LLVMContext* ctx = llvm_target_->GetContext();
+  auto loc = llvm::DebugLoc(llvm::DILocation::get(*ctx, span->line, span->column, di_subprogram_));
+  builder_->SetCurrentDebugLocation(loc);
+#endif
+}
+
+void CodeGenLLVM::EmitDebugLocation() { builder_->SetCurrentDebugLocation(nullptr); }
+void CodeGenLLVM::EmitDebugLocation(const StmtNode* op) { EmitDebugLocation(op->span); }
 
 }  // namespace codegen
 }  // namespace tvm

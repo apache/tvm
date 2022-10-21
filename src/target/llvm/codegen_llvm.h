@@ -37,12 +37,12 @@
 #else
 #include <llvm/IR/Operator.h>
 #endif
+#include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/GlobalValue.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/Support/Casting.h>
-#include <llvm/IR/DebugInfoMetadata.h>
 #if TVM_LLVM_VERSION >= 140
 #include <llvm/MC/TargetRegistry.h>
 #else
@@ -535,23 +535,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   const Op& builtin_lookup_param_ = builtin::lookup_param();
   const Op& builtin_tvm_call_cpacked_lowered_ = builtin::tvm_call_cpacked_lowered();
 
-  void EmitDebugLocation(const Span& span) {
-    ICHECK(di_subprogram_ != nullptr) << "DISubprogram not initialized";
-    llvm::LLVMContext* ctx = llvm_target_->GetContext();
-    if (!span.defined()) {
-      auto loc = llvm::DebugLoc(llvm::DILocation::get(*ctx, 212, 212, di_subprogram_));
-      builder_->SetCurrentDebugLocation(loc);
-    } else {
-      auto loc =
-          llvm::DebugLoc(llvm::DILocation::get(*ctx, span->line, span->column, di_subprogram_));
-      builder_->SetCurrentDebugLocation(loc);
-    }
-  }
-
-  void EmitDebugLocation() { builder_->SetCurrentDebugLocation(nullptr); }
-
-  void EmitDebugLocation(const StmtNode* op) { EmitDebugLocation(op->span); }
-  void EmitDebugLocation(const PrimExprNode* op) { EmitDebugLocation(op->span); }
+  void EmitDebugLocation();
+  void EmitDebugLocation(const Span& span);
+  void EmitDebugLocation(const StmtNode* op);
 
   /*! \brief Helper struct for debug infos. */
   struct DebugInfo {
