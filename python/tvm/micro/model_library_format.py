@@ -210,6 +210,15 @@ def _build_sid_map(graph_json):
     return memory_map
 
 
+def _create_type_metadata(input_type):
+    return {
+        "size": int(
+            _shape_to_size(input_type.shape, input_type.dtype)
+        ),
+        "dtype": str(input_type.dtype)
+    }
+
+
 def _build_function_memory_map(function_metadata):
     """Build a simple map that shows how much workspace is required to execute
     each primitive function. The main_func describes how much memory is required
@@ -299,31 +308,28 @@ def _build_function_memory_map(function_metadata):
         input_dict = {}
         for input_param in main_func_metadata.relay_primfuncs[target].params:
             if hasattr(input_param, "checked_type"):
-                input_dict[input_param.name_hint] = int(
-                    _shape_to_size(input_param.checked_type.shape, input_param.checked_type.dtype)
-                )
+                input_dict[input_param.name_hint] = _create_type_metadata(input_param.checked_type)
             else:
                 # TODO: maybe fill checked_type here?
-                input_dict[input_param.name_hint] = 0
-        target_main_entries[int(target.kind.device_type)]["inputs"] = input_dict
+                input_dict[input_param.name_hint] = {"size": 0, "dtype": ""}
+        target_main_entries[int(target.get_target_device_type())]["inputs"] = input_dict
 
         output_dict = {}
         # For output, we dont have the name of the output, so we enumerate them
         if isinstance(main_func_metadata.relay_primfuncs[target].ret_type, tvm.ir.type.TupleType):
-            for i, output_type in enumerate(
-                main_func_metadata.relay_primfuncs[target].ret_type.fields
-            ):
+            output_list = _convert_tuple_to_outputs(main_func_metadata.relay_primfuncs[target].ret_type)
+            for i, output_type in enumerate(output_list):
                 if hasattr(output_type, "shape"):
-                    output_dict[i] = int(_shape_to_size(output_type.shape, output_type.dtype))
+                    output_dict[f"output{i}"] = _create_type_metadata(output_type)
                 else:
-                    output_dict[i] = 0
+                    output_dict[f"output{i}"] = {"size": 0, "dtype": ""}
         else:
             output_type = main_func_metadata.relay_primfuncs[target].ret_type
             if hasattr(output_type, "shape"):
-                output_dict[0] = int(_shape_to_size(output_type.shape, output_type.dtype))
+                output_dict["output"] = _create_type_metadata(output_type)
             else:
-                output_dict[0] = 0
-        target_main_entries[int(target.kind.device_type)]["outputs"] = output_dict
+                output_dict["output"] = {"size": 0, "dtype": ""}
+        target_main_entries[int(target.get_target_device_type())]["outputs"] = output_dict
 
     ret = {
         "operator_functions": func_entries,
@@ -346,7 +352,7 @@ def _convert_tuple_to_outputs(ret_type, offset=0):
         if isinstance(ret_type.fields[output_index], TupleType):
             outputs.extend(_convert_tuple_to_outputs(ret_type.fields[output_index], next_output))
         else:
-            outputs.append(f"output{next_output}")
+            outputs.append(ret_type.fields[output_index])
     return outputs
 
 
@@ -480,10 +486,10 @@ def _export_graph_model_library_format(
             ]
             # Here, we merge the output sizes with the actual output names
             output_sizes = {}
-            for key in metadata["modules"][mod.libmod_name]["memory"]["functions"]["main"][0][
+            for i, key in enumerate(metadata["modules"][mod.libmod_name]["memory"]["functions"]["main"][0][
                 "outputs"
-            ].keys():
-                output_sizes[outputs[key]] = metadata["modules"][mod.libmod_name]["memory"][
+            ].keys()):
+                output_sizes[outputs[i]] = metadata["modules"][mod.libmod_name]["memory"][
                     "functions"
                 ]["main"][0]["outputs"][key]
 
