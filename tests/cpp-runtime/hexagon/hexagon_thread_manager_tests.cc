@@ -29,15 +29,16 @@ using namespace tvm::runtime::hexagon;
 class HexagonThreadManagerTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    htm = HexagonDeviceAPI::Global()->ThreadManager();
+    // Create with no hardware resources so we don't conflict with session HexagonThreadManager
+    htm = new HexagonThreadManager(threads, stack_size, pipe_size);
     streams = htm->GetStreamHandles();
   }
-  void TearDown() override {}
+  void TearDown() override { delete htm; }
   HexagonThreadManager* htm{nullptr};
   std::vector<TVMStreamHandle> streams;
   int answer{0};
   const unsigned threads{6};
-  const unsigned pipe_size{1000};
+  const unsigned pipe_size{100};
   const unsigned stack_size{0x4000};  // 16KB
 };
 
@@ -163,7 +164,7 @@ TEST_F(HexagonThreadManagerTest, pipe_fill) {
 }
 
 // TODO(HWE): Create a temporary thread manager with a smaller pipe for this test
-TEST_F(HexagonThreadManagerTest, DISABLED_pipe_overflow) {
+TEST_F(HexagonThreadManagerTest, pipe_overflow) {
   // fill the pipe
   for (int i = 0; i < pipe_size; ++i) {
     htm->Dispatch(streams[0], get_the_answer, &answer);
