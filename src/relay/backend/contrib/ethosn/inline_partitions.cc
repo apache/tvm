@@ -90,6 +90,12 @@ class IsComputeIntensivePartition : MixedModeVisitor {
  *
  * A partitioned function is currently considered non-compute intensive if it contains
  * no multiply accumulate operations. Note that this is not an optimal heuristic.
+ *
+ * Some suggestions for future exploration:
+ * - Making a better choice about large non-compute-intensive subgraphs
+ *   as currently these are inlined.
+ * - Allowing the user to input ops that are considered compute-intensive.
+ * - Inline "small" compute intensive operations.
  */
 tvm::transform::Pass InlineNonComputeIntensivePartitions() {
   runtime::TypedPackedFunc<IRModule(IRModule, tvm::transform::PassContext)> pass_func =
