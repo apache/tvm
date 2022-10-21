@@ -4,8 +4,9 @@ def per_exec_ws(folder) {
 
 // initialize source codes
 def init_git() {
-  checkout scm
-
+  retry(5) {
+    checkout scm
+  }
 
   // Add more info about job node
   sh (
