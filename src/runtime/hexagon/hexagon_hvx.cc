@@ -34,7 +34,8 @@ namespace hexagon {
 HexagonHvx::HexagonHvx() {
   // Reserve HVX.
   reserved_count_ = qurt_hvx_reserve(QURT_HVX_RESERVE_ALL);
-  CHECK((reserved_count_ == QURT_HVX_RESERVE_ALL) || (reserved_count_ == QURT_HVX_RESERVE_ALREADY_MADE))
+  CHECK((reserved_count_ == QURT_HVX_RESERVE_ALL) ||
+        (reserved_count_ == QURT_HVX_RESERVE_ALREADY_MADE))
       << "error reserving HVX: " << reserved_count_;
 }
 

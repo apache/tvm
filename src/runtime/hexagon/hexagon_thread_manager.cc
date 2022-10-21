@@ -26,9 +26,8 @@ namespace hexagon {
 HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread_stack_size_bytes,
                                            unsigned thread_pipe_size_words,
                                            const std::vector<HardwareResourceType> hw_resources) {
-  // Note: could technically manage more software threads than allowable hardware threads, but there
-  // is no system constant defined
-  //  in the qurt libs for that maximum.
+  // Note: could technically manage more software threads than allowable hardware threads, but
+  // there is no system constant defined in the qurt libs for that maximum.
   CHECK(num_threads);
   CHECK_LE(num_threads, QURT_MAX_HTHREAD_LIMIT);
   nthreads_ = num_threads;
@@ -41,7 +40,8 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
 
   // Support either no resources or a specific set of hardware resources for now.
   if (!hw_resources.empty()) {
-    CHECK(hw_resources.size() == nthreads_ && nthreads_ == 6) << "Unsupported hardware resource set";;
+    CHECK(hw_resources.size() == nthreads_ && nthreads_ == 6)
+        << "Unsupported hardware resource set";
     CHECK(hw_resources[0] == DMA_0) << "Unsupported hardware resource set";
     CHECK(hw_resources[1] == HTP_0) << "Unsupported hardware resource set";
     CHECK(hw_resources[2] == HVX_0) << "Unsupported hardware resource set";
