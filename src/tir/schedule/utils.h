@@ -442,6 +442,84 @@ inline String BufferIndexType2Str(BufferIndexType buffer_index_type) {
   }
 }
 
+inline Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
+                                   const std::unordered_map<const Object*, const Object*>& rv_map) {
+  Array<ObjectRef> result;
+  result.reserve(inputs.size());
+  for (const ObjectRef& input : inputs) {
+    if (!input.defined() ||                   // constant: nullptr
+        input->IsInstance<StringObj>() ||     // constant: string
+        input->IsInstance<IntImmNode>() ||    // constant: integer
+        input->IsInstance<FloatImmNode>()) {  // constant: float
+      result.push_back(input);
+    } else if (input->IsInstance<BlockRVNode>() ||  // RV: block
+               input->IsInstance<LoopRVNode>() ||   // RV: loop
+               input->IsInstance<VarNode>()) {      // RV: var
+      auto it = rv_map.find(input.get());
+      ICHECK(it != rv_map.end()) << "IndexError: Random variable doesn't exist: " << input;
+      result.push_back(GetRef<ObjectRef>(it->second));
+    } else if (const auto* expr = input.as<PrimExprNode>()) {  // RV: Expr
+      result.push_back(
+          Substitute(GetRef<PrimExpr>(expr), [&rv_map](const Var& var) -> Optional<PrimExpr> {
+            auto it = rv_map.find(var.get());
+            if (it == rv_map.end()) {
+              return NullOpt;
+            }
+            const Object* dst = it->second;
+            ICHECK(dst->IsInstance<VarNode>())
+                << "TypeError: Expect 'tir.Var', but gets: " << dst->GetTypeKey();
+            return GetRef<Var>(static_cast<const VarNode*>(dst));
+          }));
+    } else if (input->IsInstance<ArrayNode>()) {
+      // Recursively convert elements of the array into a new list of ObjectRefs.
+      result.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), rv_map));
+    } else {
+      ICHECK(false) << "TypeError: Cannot recognize the type of an input random variable: "
+                    << input->GetTypeKey();
+      throw;
+    }
+  }
+  return result;
+}
+
+inline void TranslateAddOutputRVs(const Array<ObjectRef>& old_outputs, const Array<ObjectRef>& new_outputs,
+                           std::unordered_map<const Object*, const Object*>* rv_map) {
+  ICHECK_EQ(old_outputs.size(), new_outputs.size());
+  int n = old_outputs.size();
+  const ObjectRef* p_old = old_outputs.GetArrayNode()->begin();
+  const ObjectRef* p_new = new_outputs.GetArrayNode()->begin();
+  for (int i = 0; i < n; ++i) {
+    (*rv_map)[p_old[i].get()] = p_new[i].get();
+  }
+}
+
+inline Array<String> TranslateAddOutputRVs(
+    const Array<ObjectRef>& outputs,
+    std::unordered_map<ObjectRef, String, ObjectPtrHash, ObjectPtrEqual>* rv_names) {
+  Array<String> results;
+  results.reserve(outputs.size());
+  for (const ObjectRef& output : outputs) {
+    int i = rv_names->size();
+    ICHECK(!rv_names->count(output))
+        << "ValueError: The random variable has been produced once: " << rv_names->at(output);
+    String result{ObjectPtr<StringObj>{nullptr}};
+    if (output->IsInstance<BlockRVNode>()) {
+      result = "b" + std::to_string(i);
+    } else if (output->IsInstance<LoopRVNode>()) {
+      result = "l" + std::to_string(i);
+    } else if (output->IsInstance<VarNode>()) {
+      result = "v" + std::to_string(i);
+    } else {
+      LOG(FATAL) << "TypeError: Cannot recognize the type of the random variable: "
+                 << output->GetTypeKey();
+      throw;
+    }
+    results.push_back(result);
+    rv_names->emplace(output, std::move(result));
+  }
+  return results;
+}
+
 }  // namespace tir
 }  // namespace tvm
 
