@@ -213,10 +213,10 @@ namespace runtime {
 namespace detail {
 
 const char* ::tvm::runtime::detail::LogMessage::level_strings_[] = {
-    "Debug: ",    // TVM_LOG_LEVEL_DEBUG
-    "",           // TVM_LOG_LEVEL_INFO
-    "Warning: ",  // TVM_LOG_LEVEL_WARNING
-    "Error: ",    // TVM_LOG_LEVEL_ERROR
+    ": Debug: ",    // TVM_LOG_LEVEL_DEBUG
+    ": ",           // TVM_LOG_LEVEL_INFO
+    ": Warning: ",  // TVM_LOG_LEVEL_WARNING
+    ": Error: ",    // TVM_LOG_LEVEL_ERROR
 };
 
 namespace {

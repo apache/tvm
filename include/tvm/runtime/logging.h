@@ -384,7 +384,7 @@ class LogMessage {
   LogMessage(const std::string& file, int lineno, int level) {
     std::time_t t = std::time(nullptr);
     stream_ << "[" << std::put_time(std::localtime(&t), "%H:%M:%S") << "] " << file << ":" << lineno
-            << ": " << level_strings_[level];
+            << level_strings_[level];
   }
   TVM_NO_INLINE ~LogMessage() { std::cerr << stream_.str() << std::endl; }
   std::ostringstream& stream() { return stream_; }
