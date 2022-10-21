@@ -66,7 +66,8 @@ class HexagonDeviceAPI final : public DeviceAPI {
     runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
 
     CHECK_EQ(runtime_threads, nullptr);
-    runtime_threads = std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size);
+    runtime_threads =
+        std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size, hw_resources);
 
     CHECK_EQ(runtime_dma, nullptr);
     runtime_dma = std::make_unique<HexagonUserDMA>();
@@ -203,6 +204,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
   const unsigned threads{6};
   const unsigned pipe_size{1000};
   const unsigned stack_size{0x4000};  // 16KB
+  const std::vector<HardwareResourceType> hw_resources{DMA_0, HTP_0, HVX_0, HVX_1, HVX_2, HVX_3};
 
   //! \brief User DMA manager
   std::unique_ptr<HexagonUserDMA> runtime_dma;

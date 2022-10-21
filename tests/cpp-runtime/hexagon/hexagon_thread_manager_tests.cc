@@ -29,15 +29,16 @@ using namespace tvm::runtime::hexagon;
 class HexagonThreadManagerTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    htm = HexagonDeviceAPI::Global()->ThreadManager();
+    // Create with no hardware resources so we don't conflict with session HexagonThreadManager
+    htm = new HexagonThreadManager(threads, stack_size, pipe_size);
     streams = htm->GetStreamHandles();
   }
-  void TearDown() override {}
+  void TearDown() override { delete htm; }
   HexagonThreadManager* htm{nullptr};
   std::vector<TVMStreamHandle> streams;
   int answer{0};
   const unsigned threads{6};
-  const unsigned pipe_size{1000};
+  const unsigned pipe_size{100};
   const unsigned stack_size{0x4000};  // 16KB
 };
 
@@ -54,6 +55,15 @@ TEST_F(HexagonThreadManagerTest, ctor_errors) {
   ASSERT_THROW(HexagonThreadManager(6, stack_size, 9), InternalError);
   // pipe too big
   ASSERT_THROW(HexagonThreadManager(6, stack_size, 0x10000000), InternalError);
+  // hw resources count doesn't match thread count
+  ASSERT_THROW(HexagonThreadManager(6, stack_size, pipe_size, {DMA_0}), InternalError);
+  // hw resources doesn't match specific supported configuration
+  ASSERT_THROW(
+      HexagonThreadManager(6, stack_size, pipe_size, {DMA_0, HTP_0, HVX_0, HVX_1, HVX_2, DMA_0}),
+      InternalError);
+  // hw resources doesn't match specific supported configuration
+  ASSERT_THROW(HexagonThreadManager(5, stack_size, pipe_size, {DMA_0, HTP_0, HVX_0, HVX_1, HVX_2}),
+               InternalError);
 }
 
 TEST_F(HexagonThreadManagerTest, init) {
@@ -163,7 +173,7 @@ TEST_F(HexagonThreadManagerTest, pipe_fill) {
 }
 
 // TODO(HWE): Create a temporary thread manager with a smaller pipe for this test
-TEST_F(HexagonThreadManagerTest, DISABLED_pipe_overflow) {
+TEST_F(HexagonThreadManagerTest, pipe_overflow) {
   // fill the pipe
   for (int i = 0; i < pipe_size; ++i) {
     htm->Dispatch(streams[0], get_the_answer, &answer);
@@ -259,7 +269,6 @@ TEST_F(HexagonThreadManagerTest, thread_order) {
 }
 
 TEST_F(HexagonThreadManagerTest, thread_order_signal_wait) {
-  GTEST_SKIP() << "Skipping due to: https://github.com/apache/tvm/issues/13169";
   std::vector<int> arr;
 
   htm->Wait(streams[1], 1);
