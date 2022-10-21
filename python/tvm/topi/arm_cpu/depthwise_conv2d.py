@@ -161,7 +161,7 @@ def schedule_depthwise_conv2d_nchw(cfg, outs):
 # This schedule has incorrect result on some hardware platforms (like NV Jetson TX2)
 # Let us comment it out but not remove.
 # see discussion:
-# https://discuss.tvm.apache.org/t/autotuner-incorrect-result-after-tuning-mobilenetv2-on-arm-cpu/6088
+# https://discuss.tvm.apache.org/t/autotuner-incorrect-result-after-tuning-mobilenetv2-on-arm-cpu
 @autotvm.register_topi_compute("depthwise_conv2d_nchw_spatial_pack.arm_cpu")
 def depthwise_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """TOPI compute callback for depthwise_conv2d nchw
@@ -724,10 +724,12 @@ def schedule_depthwise_conv2d_nhwc_dsp(cfg, outs):
 
 
 @autotvm.register_topi_compute("depthwise_conv2d_nchw_oihw_dsp.arm_cpu")
-def depthwise_conv2d_nchw_oihw_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
+def depthwise_conv2d_nchw_oihw_dsp(
+    cfg, data, kernel, strides, padding, dilation, out_layout, out_dtype
+):
     """Compute depthwise_conv2d_nchw_oihw with v7e-m DSP instructions and the tensordot kernel."""
     return depthwise_conv2d_nchw_oihw_dsp_compute(
-        cfg, data, kernel, strides, padding, dilation, out_dtype
+        cfg, data, kernel, strides, padding, dilation, out_layout, out_dtype
     )
 
 
