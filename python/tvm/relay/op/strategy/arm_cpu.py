@@ -196,7 +196,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 and _is_simd_aligned(kernel.dtype, kernel.shape[2:])
             ):
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_ohwi_dsp),
+                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_ohwi_dsp, need_out_layout=True),
                     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_ohwi_dsp),
                     name="conv2d_nhwc_ohwi_dsp.arm_cpu",
                 )
@@ -249,7 +249,9 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     and _is_simd_aligned(kernel.dtype, kernel.shape[3:])
                 ):
                     strategy.add_implementation(
-                        wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nchw_oihw_dsp),
+                        wrap_compute_conv2d(
+                            topi.arm_cpu.depthwise_conv2d_nchw_oihw_dsp, need_out_layout=True
+                        ),
                         wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nchw_oihw_dsp),
                         name="depthwise_conv2d_nchw_oihw_dsp.arm_cpu",
                     )
