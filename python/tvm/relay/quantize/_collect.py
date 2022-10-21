@@ -307,7 +307,7 @@ def collect(mod,mod_quantize, dataset=None):
         np.save(QSimualtedquantize_dir + "/" + "QSimulateQuantize_{}".format(j), simulatedquantize_int_tmp)
     """
     print("starting conv ")
-    conv_runtime = _get_qcheckpoint_runtime(mod)
+    conv_runtime = _get_qconv_runtime(mod)
     num_add_outputs = conv_runtime.get_num_outputs()
     batch = dataset[7]
     conv_runtime.set_input(**batch)
@@ -332,7 +332,7 @@ def collect(mod,mod_quantize, dataset=None):
     dir = cfg.get_rootdir_name() + '/dbug_qfm/'
     for i in range(num_checkpoint_outputs):
         m1 = np.load(dir+'QCheckpoint/'+'QCheckpoint_'+str(i)+'.npy')
-        m2 = np.load(dir+'QSimualtedquantize/'+'QCheckpoint_'+str(i)+'.npy')
+        m2 = np.load(dir+'QSimualtedquantize/'+'QSimulateQuantize_'+str(i)+'.npy')
         a= relay.quantize.get_consine_similar(m1,m2)
         cosine_result_list.append(a)
 
