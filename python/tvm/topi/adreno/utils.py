@@ -539,7 +539,7 @@ def bind_data_copy(stage, axis_to_vectorize=None):
             vthread = get_div(ftc, 8)
             fused = stage.fuse(*stage.op.axis)
             ftc = ftc / vthread
-            # Max work group size on the most Adreno GPU
+            # 1024 is a maximum work group size on the most Adreno GPU
             num_thread = get_div(ftc, 1024 // vthread)
             a, b = stage.split(fused, factor=num_thread)
             a, c = stage.split(a, factor=vthread)
