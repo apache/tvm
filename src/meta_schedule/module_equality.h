@@ -20,9 +20,11 @@
 #define TVM_META_SCHEDULE_MODULE_EQUALITY_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/tir/stmt.h>
 
 #include <memory>
 #include <string>
+#include <optional>
 
 namespace tvm {
 namespace meta_schedule {
@@ -68,6 +70,8 @@ class ModuleEqual {
  private:
   const ModuleEquality& mod_eq_;
 };
+
+std::optional<const tir::BlockNode*> GetAnchorBlock(IRModule mod);
 
 }  // namespace meta_schedule
 }  // namespace tvm

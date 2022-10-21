@@ -32,6 +32,7 @@
 #include "../printer/text_printer.h"
 #include "../tir/schedule/analysis.h"
 #include "../tir/schedule/utils.h"
+#include "module_equality.h"
 
 namespace tvm {
 namespace meta_schedule {
@@ -77,6 +78,16 @@ std::set<std::string> GetBlockNames(const IRModule& mod) {
   return collector.block_names;
 }
 
+bool IsAncestor(tir::BlockRV b1, tir::BlockRV b2, tir::Schedule sch) {
+  if (sch->Get(b1)->name_hint == sch->Get(b2)->name_hint) {
+    return true;
+  }
+  for (auto prod : sch->GetProducers(b2)) {
+    if (IsAncestor(b1, prod, sch)) return true;
+  }
+  return false;
+}
+
 std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_trace,
                                            Target target) {
   using namespace tir;
@@ -94,11 +105,17 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
   }
 
   auto inline_rule = GetDefaultAutoInline(target->kind->name);
+  auto anchor_block = GetAnchorBlock(sch->mod());
+  std::optional<BlockRV> anchor_block_rv = std::nullopt;
+  if (anchor_block) {
+    anchor_block_rv = sch->GetBlock((*anchor_block)->name_hint);
+  }
 
   for (auto name : block_names_orig) {
     auto block = sch->GetBlock(name);
+    if (anchor_block_rv && IsAncestor(block, *anchor_block_rv, sch)) continue;
     if (IsSpatial(sch->GetSRef(block)) && !get_block_names.count(name)) {
-      // LOG(INFO) << "Inlining " << name;
+      LOG(INFO) << "Inlining " << name;
       inline_rule->Apply(sch, block);
     }
   }
@@ -210,6 +227,7 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
 }
 
 void ScheduleFusedBlocks(tir::Schedule sch, tir::Trace anchor_trace, tvm::Target target) {
+  // LOG(INFO) << tir::AsTVMScript(sch->mod());
   // LOG(INFO) << anchor_trace;
 
   auto unscheduled_blocks = ApplyAnchorTrace(sch, anchor_trace, target);
