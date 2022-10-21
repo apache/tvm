@@ -33,9 +33,9 @@ namespace hexagon {
 
 HexagonHvx::HexagonHvx() {
   // Reserve HVX.
-  int res = qurt_hvx_reserve(QURT_HVX_RESERVE_ALL);
-  CHECK((res == QURT_HVX_RESERVE_ALL) || (res != QURT_HVX_RESERVE_ALREADY_MADE))
-      << "error reserving HVX: " << res;
+  reserved_count_ = qurt_hvx_reserve(QURT_HVX_RESERVE_ALL);
+  CHECK((reserved_count_ == QURT_HVX_RESERVE_ALL) || (reserved_count_ == QURT_HVX_RESERVE_ALREADY_MADE))
+      << "error reserving HVX: " << reserved_count_;
 }
 
 HexagonHvx::~HexagonHvx() {
@@ -55,6 +55,8 @@ void HexagonHvx::Unlock() {
   int unl = qurt_hvx_unlock();
   CHECK(unl == 0) << "error unlocking HVX: " << unl;
 }
+
+int HexagonHvx::ReservedCount() { return reserved_count_; }
 
 }  // namespace hexagon
 }  // namespace runtime

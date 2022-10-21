@@ -50,6 +50,12 @@ class HexagonHvx {
 
   //! \brief Unlock the HVX for the calling thread.
   void Unlock();
+
+  //! \brief Number of HVX units reservered.
+  int ReservedCount();
+
+ private:
+  int reserved_count_;
 };
 
 }  // namespace hexagon

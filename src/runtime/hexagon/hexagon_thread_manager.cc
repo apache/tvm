@@ -39,12 +39,17 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   CHECK_GE(thread_pipe_size_words, MIN_PIPE_SIZE_WORDS);
   CHECK_LE(thread_pipe_size_words, MAX_PIPE_SIZE_WORDS);
 
-  CHECK(hw_resources.empty() || hw_resources.size() == nthreads_);
+  // Support either no resources or a specific set of hardware resources for now.
+  if (!hw_resources.empty()) {
+    CHECK(hw_resources.size() == nthreads_ && nthreads_ == 6) << "Unsupported hardware resource set";;
+    CHECK(hw_resources[0] == DMA_0) << "Unsupported hardware resource set";
+    CHECK(hw_resources[1] == HTP_0) << "Unsupported hardware resource set";
+    CHECK(hw_resources[2] == HVX_0) << "Unsupported hardware resource set";
+    CHECK(hw_resources[3] == HVX_1) << "Unsupported hardware resource set";
+    CHECK(hw_resources[4] == HVX_2) << "Unsupported hardware resource set";
+    CHECK(hw_resources[5] == HVX_3) << "Unsupported hardware resource set";
+  }
   hw_resources_ = hw_resources;
-  // jlsfix - check for duplicates - or support a specific set.
-
-  DLOG(INFO) << "Spawning threads";
-  SpawnThreads(thread_stack_size_bytes, thread_pipe_size_words);
 
   if (!hw_resources_.empty()) {
     DLOG(INFO) << "Initialize hardware resource managers";
@@ -52,6 +57,9 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
     htp_ = std::make_unique<HexagonHtp>();
     hvx_ = std::make_unique<HexagonHvx>();
   }
+
+  DLOG(INFO) << "Spawning threads";
+  SpawnThreads(thread_stack_size_bytes, thread_pipe_size_words);
 
   // Initially, block all threads until we get the Start() call
   qurt_sem_init_val(&start_semaphore_, 0);
@@ -169,10 +177,12 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes,
     if (!hw_resources_.empty() && ((hw_resources_[i] == HVX_0) || (hw_resources_[i] == HVX_1) ||
                                    (hw_resources_[i] == HVX_2) || (hw_resources_[i] == HVX_3))) {
       hvx = hvx_.get();
+      CHECK(hvx) << "HVX must be initialize before creating HVX threads";
     }
     HexagonHtp* htp = nullptr;
     if (!hw_resources_.empty() && (hw_resources_[i] == HTP_0)) {
       htp = htp_.get();
+      CHECK(htp) << "HTP must be initialize before creating the HTP thread";
     }
     contexts_[i] =
         new ThreadContext(&pipes_[i], i, hw_resources_.empty() ? NONE : hw_resources_[i], hvx, htp);
@@ -300,7 +310,7 @@ void HexagonThreadManager::thread_exit(void* context) {
       (resource_type == HVX_3)) {
     HexagonHvx* hvx = tc->hvx;
     CHECK(hvx) << "Malformed thread context, missing hvx pointer for HVX_x resource";
-    hvx->Unlock();
+    //hvx->Unlock();  // jlsfix - might fail other things now
     DLOG(INFO) << "Resource " << resource_type << " unlocked an HVX instance";
   } else if (resource_type == HTP_0) {
     HexagonHtp* htp = tc->htp;
@@ -334,7 +344,7 @@ void HexagonThreadManager::thread_main(void* context) {
 
     case HTP_0:
       CHECK(htp) << "Malformed thread context, missing htp pointer for HTP_0 resource";
-      htp->Acquire();  // jlsfix - might fail other things now
+      htp->Acquire();
       DLOG(INFO) << "Resource " << resource_type << " acquired the HTP";
       break;
 
@@ -343,7 +353,7 @@ void HexagonThreadManager::thread_main(void* context) {
     case HVX_2:
     case HVX_3:
       CHECK(hvx) << "Malformed thread context, missing hvx pointer for HVX_x resource";
-      hvx->Lock();  // jlsfix - might fail other things now
+      //hvx->Lock();  // jlsfix - might fail other things now
       DLOG(INFO) << "Resource " << resource_type << " locked an HVX instance";
       break;
 
