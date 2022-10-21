@@ -88,6 +88,7 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
   std::unordered_set<BlockRV, ObjectHash, ObjectEqual> foreign_blocks;
   std::unordered_set<LoopRV, ObjectHash, ObjectEqual> foreign_loops;
   std::set<std::string> scheduled_blocks;
+  const auto sch_orig = sch->Copy();
 
   std::set<std::string> get_block_names;
   for (const auto& inst : anchor_trace->insts) {
@@ -103,15 +104,12 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
   for (auto name : block_names_orig) {
     auto block = sch->GetBlock(name);
     if (IsSpatial(sch->GetSRef(block)) && !get_block_names.count(name)) {
-      LOG(INFO) << "Inlining " << name;
+      // LOG(INFO) << "Inlining " << name;
       inline_rule->Apply(sch, block);
     }
   }
 
-  LOG(INFO) << "After inlining ¥n" << tir::AsTVMScript(sch->mod());
-
-  block_names_orig = GetBlockNames(sch->mod());
-  const auto sch_orig = sch->Copy();
+  //  LOG(INFO) << "After inlining ¥n" << tir::AsTVMScript(sch->mod());
 
   auto is_inst_applicable = [&foreign_blocks, &foreign_loops](Instruction inst) {
     for (auto input : inst->inputs) {
@@ -211,12 +209,12 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
 }
 
 void ScheduleFusedBlocks(tir::Schedule sch, tir::Trace anchor_trace, tvm::Target target) {
-  LOG(INFO) << anchor_trace;
+  // LOG(INFO) << anchor_trace;
 
   auto unscheduled_blocks = ApplyAnchorTrace(sch, anchor_trace, target);
 
-  LOG(INFO) << tir::AsTVMScript(sch->mod());
-  LOG(INFO) << unscheduled_blocks.size();
+  // LOG(INFO) << tir::AsTVMScript(sch->mod());
+  // LOG(INFO) << unscheduled_blocks.size();
   ICHECK(unscheduled_blocks.size() <= 1);
 
   if (unscheduled_blocks.empty()) {
@@ -232,9 +230,8 @@ void ScheduleFusedBlocks(tir::Schedule sch, tir::Trace anchor_trace, tvm::Target
   } else if (target->kind->name == "llvm" || target->kind->name == "hexagon") {
     sch->Parallel(sch->Fuse(sch->GetLoops(unscheduled_blocks[0])));
   } else if (gpu_targets.count(target->kind->name)) {
-    LOG(INFO) << "Auto binding";
     Optional<Integer> max_threads_per_block = target->GetAttr<Integer>("max_threads_per_block");
-    CHECK(max_threads_per_block.defined())
+    ICHECK(max_threads_per_block.defined())
         << "ValueError: missing attribute `max_threads_per_block` in the target";
 
     auto auto_bind_rule =
@@ -244,7 +241,7 @@ void ScheduleFusedBlocks(tir::Schedule sch, tir::Trace anchor_trace, tvm::Target
     auto_bind_rule->Apply(sch, unscheduled_blocks[0]);
   }
 
-  LOG(INFO) << tir::AsTVMScript(sch->mod());
+  //  LOG(INFO) << tir::AsTVMScript(sch->mod());
 }
 
 }  // namespace meta_schedule
