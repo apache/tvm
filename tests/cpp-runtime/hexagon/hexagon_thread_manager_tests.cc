@@ -259,6 +259,7 @@ TEST_F(HexagonThreadManagerTest, thread_order) {
 }
 
 TEST_F(HexagonThreadManagerTest, thread_order_signal_wait) {
+  GTEST_SKIP() << "Skipping due to: https://github.com/apache/tvm/issues/13169";
   std::vector<int> arr;
 
   htm->Wait(streams[1], 1);
