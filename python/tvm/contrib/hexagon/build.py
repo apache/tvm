@@ -264,6 +264,8 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         if not rpc_info.get("workspace_base"):
             rpc_info["workspace_base"] = self.ANDROID_HEXAGON_TEST_BASE_DIR
         self._serial_number = serial_number
+        assert self._serial_number != ""
+
         adb_socket = rpc_info["adb_server_socket"] if rpc_info["adb_server_socket"] else "tcp:5037"
         self._adb_device_sub_cmd = ["adb", "-L", adb_socket, "-s", self._serial_number]
         self.forwarded_ports_ = []
@@ -271,7 +273,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self._clear_logcat = clear_logcat
         self._sysmon_profile = sysmon_profile
         self._sysmon_process = None
-        rpc_info["device_key"] = HEXAGON_REMOTE_DEVICE_KEY
+        rpc_info["device_key"] = HEXAGON_REMOTE_DEVICE_KEY + "." + self._serial_number
 
         super(HexagonLauncherAndroid, self).__init__(rpc_info, workspace)
 
@@ -556,12 +558,13 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
 
         Parameters are same as for HexagonLauncherRPC.
         """
-        super(HexagonLauncherSimulator, self).__init__(rpc_info, workspace)
 
         self._toolchain = os.environ.get("HEXAGON_TOOLCHAIN")
         if not self._toolchain:
             raise RuntimeError("Please set HEXAGON_TOOLCHAIN env variable")
         self._serial_number = "simulator"
+
+        super(HexagonLauncherSimulator, self).__init__(rpc_info, workspace)
 
     def _copy_to_remote(
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
