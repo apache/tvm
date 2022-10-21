@@ -245,6 +245,8 @@ class ScheduleRule : public runtime::ObjectRef {
    * \brief Auto bind loops around the block to BlockIdx and ThreadIdx
    * \param max_threadblocks The maximum number of threadblock on GPU
    * \param thread_extents Candidates of thread axis extent.
+   * \param max_threads_per_block The maximum number of threads per block, if it is known
+   * when this schedule rule is created.
    * \return The schedule rule created
    */
   TVM_DLL static ScheduleRule AutoBind(int max_threadblocks, Array<Integer> thread_extents,

@@ -21,16 +21,11 @@
 #include <tvm/ir/module.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/stmt.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/analysis.h>
 
 #include <memory>
-#include <optional>
 
 #include "../node/ndarray_hash_equal.h"
-#include "../tir/schedule/analysis.h"
-#include "tvm/tir/analysis.h"
 
 namespace tvm {
 namespace meta_schedule {
@@ -71,90 +66,6 @@ class SHashHandlerIgnoreNDArray : public SHashHandlerDefault {
   }
 };
 
-tir::Stmt GetEncolsingLoop(const tir::BlockNode* block, tir::Stmt func_body) {
-  using namespace tir;
-  struct GetRootSeqStmt : public StmtVisitor {
-    void VisitStmt_(const SeqStmtNode* seq) override {
-      result = seq;
-    }
-    const SeqStmtNode* result;
-  };
-
-  struct BlockFinder : public StmtVisitor {
-    BlockFinder(const BlockNode* tgt) : target(tgt) {}
-
-    void VisitStmt_(const BlockNode* block) override {
-      if (block == target) {
-	found = true;
-      }
-    }
-
-    const BlockNode* target;
-    bool found = false;
-  };
-
-  GetRootSeqStmt seq_finder;
-  seq_finder(func_body);
-
-  const SeqStmtNode* seq = seq_finder.result;
-
-  for (auto stmt: seq->seq) {
-    if (stmt->IsInstance<ForNode>()) {
-      BlockFinder finder(block);;
-      finder(stmt);
-      if (finder.found) {
-	return stmt;
-      }
-    }
-  }
-
-  LOG(FATAL) << "Enclosing loop not found for a block " << GetRef<Block>(block);
-  return Stmt();
-}
-
-std::optional<const tir::BlockNode*> GetAnchorBlock(IRModule mod) {
-  using namespace tir;
-
-  struct BlockCollector : public StmtVisitor {
-    void VisitStmt_(const BlockNode* block) override {
-      blocks.push_back(block);
-      StmtVisitor::VisitStmt(block->body);
-    }
-    std::vector<const BlockNode*> blocks;
-  };
-
-  auto prim_func = FindEntryFunc(mod, nullptr);
-  BlockCollector collector;
-  collector(prim_func->body);
-
-  ICHECK(collector.blocks.size() > 0);
-
-  std::vector<const tir::BlockNode*> candidates;
-  for (auto block : collector.blocks) {
-    if (block->init) {
-      candidates.push_back(block);
-    }
-  }
-
-  if (candidates.empty()) {
-    return std::nullopt;
-  } else if (candidates.size() == 1) {
-    return candidates[0];
-  }
-
-  double best_flops = -1;
-  int best_idx = 0;
-  for (size_t i = 0; i < candidates.size(); ++i) {
-    auto loop = GetEncolsingLoop(candidates[i], prim_func->body);
-    auto flops = tir::EstimateTIRFlops(loop);
-    if (flops > best_flops) {
-      best_flops = flops;
-      best_idx = i;
-    }
-  }
-  return candidates[best_idx];
-}
-
 class ModuleEqualityIgnoreNDArray : public ModuleEquality {
  public:
   size_t Hash(IRModule mod) const { return SHashHandlerIgnoreNDArray().Hash(mod, false); }
@@ -165,18 +76,18 @@ class ModuleEqualityIgnoreNDArray : public ModuleEquality {
 
 class ModuleEqualityAnchorBlock : public ModuleEquality {
   size_t Hash(IRModule mod) const {
-    auto anchor_block = GetAnchorBlock(mod);
+    auto anchor_block = tir::FindAnchorBlock(mod);
     if (anchor_block) {
-      return SHashHandlerIgnoreNDArray().Hash(GetRef<tir::Block>(*anchor_block), false);
+      return SHashHandlerIgnoreNDArray().Hash(GetRef<tir::Block>(anchor_block), false);
     }
     return ModuleEqualityIgnoreNDArray().Hash(mod);
   }
   bool Equal(IRModule lhs, IRModule rhs) const {
-    auto anchor_block_lhs = GetAnchorBlock(lhs);
-    auto anchor_block_rhs = GetAnchorBlock(rhs);
+    auto anchor_block_lhs = tir::FindAnchorBlock(lhs);
+    auto anchor_block_rhs = tir::FindAnchorBlock(rhs);
     if (anchor_block_lhs && anchor_block_rhs) {
-      return SEqualHandlerIgnoreNDArray().Equal(GetRef<tir::Block>(*anchor_block_lhs),
-                                                GetRef<tir::Block>(*anchor_block_rhs), false);
+      return SEqualHandlerIgnoreNDArray().Equal(GetRef<tir::Block>(anchor_block_lhs),
+                                                GetRef<tir::Block>(anchor_block_rhs), false);
     }
     return ModuleEqualityIgnoreNDArray().Equal(lhs, rhs);
   }

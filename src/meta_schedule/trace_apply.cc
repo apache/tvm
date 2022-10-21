@@ -16,60 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "default_schedule.h"
+#include "trace_apply.h"
 
-#include <tvm/meta_schedule/postproc.h>
-#include <tvm/meta_schedule/schedule_rule.h>
-#include <tvm/node/structural_equal.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include <algorithm>
-#include <set>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
-#include "../printer/text_printer.h"
-#include "../tir/schedule/analysis.h"
-#include "../tir/schedule/utils.h"
-#include "module_equality.h"
+#include "utils.h"
 
 namespace tvm {
 namespace meta_schedule {
 
-static const std::unordered_set<std::string> gpu_targets{"cuda", "rocm", "vulkan", "metal"};
-
-ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
-  if (target_name == "llvm" || target_name == "hexagon") {
-    return ScheduleRule::AutoInline(
-        /*into_producer=*/false,
-        /*into_consumer=*/true,
-        /*inline_const_tensor=*/true,
-        /*disallow_if_then_else=*/true,
-        /*require_injective=*/true,
-        /*require_ordered=*/true,
-        /*disallow_op=*/Array<String>{"tir.exp"});
-  } else if (gpu_targets.count(target_name)) {
-    return ScheduleRule::AutoInline(
-        /*into_producer=*/true,
-        /*into_consumer=*/true,
-        /*inline_const_tensor=*/true,
-        /*disallow_if_then_else=*/false,
-        /*require_injective=*/false,
-        /*require_ordered=*/false,
-        /*disallow_op=*/Array<String>{});
-  }
-  LOG(FATAL) << "Unsupported target " << target_name;
-  return ScheduleRule(nullptr);
-}
-
-std::set<std::string> GetBlockNames(const IRModule& mod) {
+std::unordered_set<std::string> GetBlockNames(const IRModule& mod) {
   struct BlockNameCollector : public tir::StmtVisitor {
     void VisitStmt_(const tir::BlockNode* block) override {
       block_names.insert(block->name_hint);
       StmtVisitor::VisitStmt(block->body);
     }
-    std::set<std::string> block_names;
+    std::unordered_set<std::string> block_names;
   };
 
   auto prim_func = tir::FindEntryFunc(mod, nullptr);
@@ -78,7 +46,9 @@ std::set<std::string> GetBlockNames(const IRModule& mod) {
   return collector.block_names;
 }
 
-bool IsAncestor(tir::BlockRV b1, tir::BlockRV b2, tir::Schedule sch) {
+using namespace tir;
+
+bool IsAncestor(BlockRV b1, BlockRV b2, Schedule sch) {
   if (sch->Get(b1)->name_hint == sch->Get(b2)->name_hint) {
     return true;
   }
@@ -88,14 +58,9 @@ bool IsAncestor(tir::BlockRV b1, tir::BlockRV b2, tir::Schedule sch) {
   return false;
 }
 
-std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_trace,
-                                           Target target) {
-  using namespace tir;
-  auto block_names_orig = GetBlockNames(sch->mod());
-  const auto sch_orig = sch->Copy();
+void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
   static auto kind_get_block = InstructionKind::Get("GetBlock");
-
-  std::set<std::string> get_block_names;
+  std::unordered_set<std::string> get_block_names;
   for (const auto& inst : anchor_trace->insts) {
     if (inst->kind.same_as(kind_get_block)) {
       auto block_name = Downcast<String>(inst->attrs[0]);
@@ -104,30 +69,33 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
     }
   }
 
-  auto inline_rule = GetDefaultAutoInline(target->kind->name);
-  auto anchor_block = GetAnchorBlock(sch->mod());
+  auto anchor_block = FindAnchorBlock(sch->mod());
   std::optional<BlockRV> anchor_block_rv = std::nullopt;
   if (anchor_block) {
-    anchor_block_rv = sch->GetBlock((*anchor_block)->name_hint);
+    anchor_block_rv = sch->GetBlock(anchor_block->name_hint);
   }
 
-  for (auto name : block_names_orig) {
+  auto inline_rule = GetDefaultAutoInline(target->kind->name);
+
+  for (auto name : GetBlockNames(sch->mod())) {
     auto block = sch->GetBlock(name);
     if (anchor_block_rv && IsAncestor(block, *anchor_block_rv, sch)) continue;
     if (IsSpatial(sch->GetSRef(block)) && !get_block_names.count(name)) {
-      LOG(INFO) << "Inlining " << name;
       inline_rule->Apply(sch, block);
     }
   }
+}
 
-  //  LOG(INFO) << "After inlining ¥n" << tir::AsTVMScript(sch->mod());
+std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
+  static auto kind_get_child_blocks = InstructionKind::Get("GetChildBlocks");
+  static auto kind_get_block = InstructionKind::Get("GetBlock");
+
+  const auto block_names_orig = GetBlockNames(sch->mod());
+  const auto sch_orig = sch->Copy();
 
   std::unordered_map<const Object*, const Object*> rv_map;
-  static auto kind_get_child_blocks = InstructionKind::Get("GetChildBlocks");
-
   std::unordered_set<BlockRV, ObjectHash, ObjectEqual> foreign_blocks;
   std::unordered_set<LoopRV, ObjectHash, ObjectEqual> foreign_loops;
-  std::set<std::string> scheduled_blocks;
 
   auto is_inst_applicable = [&foreign_blocks, &foreign_loops](Instruction inst) {
     for (auto input : inst->inputs) {
@@ -169,8 +137,6 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
         auto block = Downcast<BlockRV>(inst->outputs[0]);
         foreign_blocks.insert(block);
         continue;
-      } else {
-        scheduled_blocks.insert(block_name);
       }
     }
 
@@ -194,12 +160,7 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
     }
   }
 
-  const auto block_names_now = GetBlockNames(sch->mod());
-
-  auto is_scheduled = [=, &scheduled_blocks](const std::string& block_name) {
-    if (!block_names_now.count(block_name) || scheduled_blocks.count(block_name)) {
-      return true;
-    }
+  auto is_scheduled = [=](const std::string& block_name) {
     auto loops = sch->GetLoops(sch->GetBlock(block_name));
     auto loops_orig = sch_orig->GetLoops(sch_orig->GetBlock(block_name));
     if (loops.size() != loops_orig.size()) {
@@ -215,10 +176,11 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
     return false;
   };
 
+  const auto block_names_now = GetBlockNames(sch->mod());
   std::vector<BlockRV> unscheduled_blocks;
 
   for (auto name : block_names_orig) {
-    if (!is_scheduled(name)) {
+    if (block_names_now.count(name) && name != "root" && !is_scheduled(name)) {
       unscheduled_blocks.push_back(sch->GetBlock(name));
     }
   }
@@ -226,30 +188,30 @@ std::vector<tir::BlockRV> ApplyAnchorTrace(tir::Schedule sch, tir::Trace anchor_
   return unscheduled_blocks;
 }
 
-void ScheduleFusedBlocks(tir::Schedule sch, tir::Trace anchor_trace, tvm::Target target) {
-  // LOG(INFO) << tir::AsTVMScript(sch->mod());
-  // LOG(INFO) << anchor_trace;
+void ScheduleUsingAnchorTrace(Schedule sch, const Trace& anchor_trace, const tvm::Target& target) {
+  InlinePostBlocks(sch, anchor_trace, target);
 
-  auto unscheduled_blocks = ApplyAnchorTrace(sch, anchor_trace, target);
-
-  // LOG(INFO) << tir::AsTVMScript(sch->mod());
-  // LOG(INFO) << unscheduled_blocks.size();
+  auto unscheduled_blocks = ApplyAnchorTrace(sch, anchor_trace);
   ICHECK(unscheduled_blocks.size() <= 1);
 
   if (unscheduled_blocks.empty()) {
     // All blocks have already been scheduled.
-    // e.g. Applying a trace from conv2d -> add to conv2d -> subtract
+    // e.g. Applying a trace from conv2d -> add to
+    //       - conv2d -> add -> add
+    //       - conv2d -> subtract
     return;
   }
 
-  auto last_block_producers = sch->GetProducers(unscheduled_blocks[0]);
-  if (last_block_producers.size() == 1 && tir::IsSpatial(sch->GetSRef(last_block_producers[0]))) {
+  auto last_block = unscheduled_blocks[0];
+  auto last_block_producers = sch->GetProducers(last_block);
+
+  if (last_block_producers.size() == 1 && IsSpatial(sch->GetSRef(last_block_producers[0]))) {
     // Inline into the cache write stage
-    sch->ReverseComputeInline(unscheduled_blocks[0]);
+    sch->ReverseComputeInline(last_block);
   } else if (target->kind->name == "llvm" || target->kind->name == "hexagon") {
-    sch->Parallel(sch->Fuse(sch->GetLoops(unscheduled_blocks[0])));
-  } else if (gpu_targets.count(target->kind->name)) {
-    Optional<Integer> max_threads_per_block = target->GetAttr<Integer>("max_threads_per_block");
+    sch->Parallel(sch->Fuse(sch->GetLoops(last_block)));
+  } else if (IsGPUTarget(target->kind->name)) {
+    auto max_threads_per_block = target->GetAttr<Integer>("max_threads_per_block");
     ICHECK(max_threads_per_block.defined())
         << "ValueError: missing attribute `max_threads_per_block` in the target";
 
@@ -257,10 +219,8 @@ void ScheduleFusedBlocks(tir::Schedule sch, tir::Trace anchor_trace, tvm::Target
         ScheduleRule::AutoBind(/*max_threadblocks=*/256,
                                /*thread_extents*/ Array<Integer>{32, 64, 128, 256, 512, 1024},
                                max_threads_per_block.value()->value);
-    auto_bind_rule->Apply(sch, unscheduled_blocks[0]);
+    auto_bind_rule->Apply(sch, last_block);
   }
-
-  //  LOG(INFO) << tir::AsTVMScript(sch->mod());
 }
 
 }  // namespace meta_schedule

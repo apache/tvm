@@ -53,8 +53,8 @@
 #include "../../printer/text_printer.h"
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
-#include "../src/meta_schedule/default_schedule.h"
 #include "../src/meta_schedule/module_equality.h"
+#include "../src/meta_schedule/trace_apply.h"
 #include "../transforms/meta_schedule_layout_rewrite.h"
 #include "utils.h"
 
@@ -624,7 +624,10 @@ class ScheduleBuilder : public ExprVisitor {
                                             tir::ScheduleErrorRenderLevel::kDetail);
 
             if (!mod_eq_structural_->Equal(query_mod, opt_record.value()->workload->mod)) {
-              meta_schedule::ScheduleFusedBlocks(sch, record->trace, target_);
+              // When the database lookup succeeds while structural equality check fails,
+              // it implies that the anchor block based equality has been used during tuning.
+              // The trace in the record cannot directly be applied to this query module.
+              meta_schedule::ScheduleUsingAnchorTrace(sch, record->trace, target_);
             } else {
               record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
             }

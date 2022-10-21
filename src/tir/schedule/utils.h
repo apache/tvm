@@ -442,9 +442,23 @@ inline String BufferIndexType2Str(BufferIndexType buffer_index_type) {
   }
 }
 
+/******** Utilites for trace application ********/
+
+/*!
+ * \brief Translate the input objects using the provided substitution map.
+ * \param inputs The input objects.
+ * \param rv_map The substitution map for variables.
+ * \return The transformed objects.
+ */
 Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
                                    const std::unordered_map<const Object*, const Object*>& rv_map);
 
+/*!
+ * \brief Update the variable substitution map according to the new outputs.
+ * \param old_outputs The previous outputs of a schedule instruction.
+ * \param new_outputs The new outputs of the same schedule instruction.
+ * \param rv_map The substitution map for variables.
+ */
 void TranslateAddOutputRVs(const Array<ObjectRef>& old_outputs, const Array<ObjectRef>& new_outputs,
                            std::unordered_map<const Object*, const Object*>* rv_map);
 

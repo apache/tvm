@@ -46,8 +46,7 @@ String GetRuleKindFromTarget(const Target& target) {
     return "cuda";
   }
 
-  const std::unordered_set<std::string> other_gpu_targets{"rocm", "vulkan", "metal"};
-  if (other_gpu_targets.count(target->kind->name)) {
+  if (IsGPUTarget(target->kind->name)) {
     return "cuda";
   }
 
