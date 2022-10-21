@@ -212,10 +212,8 @@ def _build_sid_map(graph_json):
 
 def _create_type_metadata(input_type):
     return {
-        "size": int(
-            _shape_to_size(input_type.shape, input_type.dtype)
-        ),
-        "dtype": str(input_type.dtype)
+        "size": int(_shape_to_size(input_type.shape, input_type.dtype)),
+        "dtype": str(input_type.dtype),
     }
 
 
@@ -317,7 +315,9 @@ def _build_function_memory_map(function_metadata):
         output_dict = {}
         # For output, we dont have the name of the output, so we enumerate them
         if isinstance(main_func_metadata.relay_primfuncs[target].ret_type, tvm.ir.type.TupleType):
-            output_list = _convert_tuple_to_outputs(main_func_metadata.relay_primfuncs[target].ret_type)
+            output_list = _convert_tuple_to_outputs(
+                main_func_metadata.relay_primfuncs[target].ret_type
+            )
             for i, output_type in enumerate(output_list):
                 if hasattr(output_type, "shape"):
                     output_dict[f"output{i}"] = _create_type_metadata(output_type)
@@ -486,9 +486,11 @@ def _export_graph_model_library_format(
             ]
             # Here, we merge the output sizes with the actual output names
             output_sizes = {}
-            for i, key in enumerate(metadata["modules"][mod.libmod_name]["memory"]["functions"]["main"][0][
-                "outputs"
-            ].keys()):
+            for i, key in enumerate(
+                metadata["modules"][mod.libmod_name]["memory"]["functions"]["main"][0][
+                    "outputs"
+                ].keys()
+            ):
                 output_sizes[outputs[i]] = metadata["modules"][mod.libmod_name]["memory"][
                     "functions"
                 ]["main"][0]["outputs"][key]
