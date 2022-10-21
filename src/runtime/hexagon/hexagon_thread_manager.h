@@ -41,6 +41,7 @@ namespace runtime {
 namespace hexagon {
 
 typedef enum {
+  NONE = -1,
   DMA_0 = 0,
   HTP_0,
   HVX_0,
@@ -136,7 +137,13 @@ class HexagonThreadManager {
   struct ThreadContext {
     qurt_pipe_t* pipe;
     unsigned index;
-    ThreadContext(qurt_pipe_t* pipe, unsigned index) : pipe(pipe), index(index) {}
+    HardwareResourceType resource_type;
+    HexagonHvx* hvx;
+    HexagonHtp* htp;
+    uint64_t status;
+    ThreadContext(qurt_pipe_t* pipe, unsigned index, HardwareResourceType resource_type,
+                  HexagonHvx* hvx, HexagonHtp* htp)
+        : pipe(pipe), index(index), resource_type(resource_type), hvx(hvx), htp(htp), status(0) {}
   };
 
   //! \brief Helper function for the constructor to spawn threads.
@@ -156,7 +163,7 @@ class HexagonThreadManager {
   static void thread_wait_free(void* semaphore);
 
   //! \brief Void function executed by a thread to exit at time of destruction.
-  static void thread_exit(void* status);
+  static void thread_exit(void* context);
 
   //! \brief Void function executed by each thread as `main`.
   static void thread_main(void* context);

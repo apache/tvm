@@ -44,6 +44,12 @@ class HexagonHtp {
   //! \brief Prevent move assignment.
   HexagonHtp& operator=(HexagonHtp&&) = delete;
 
+  //! \brief Acquire the HTP on the calling thread.
+  void Acquire();
+
+  //! \brief Release the HTP for the calling thread.
+  void Release();
+
  private:
   //! \brief Power context
   void* hap_pwr_ctx_;
@@ -53,8 +59,6 @@ class HexagonHtp {
 
   void PowerOn();
   void PowerOff();
-  void Acquire();
-  void Release();
 };
 
 }  // namespace hexagon

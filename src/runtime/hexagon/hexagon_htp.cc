@@ -35,15 +35,9 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-HexagonHtp::HexagonHtp() {
-  PowerOn();
-  Acquire();
-}
+HexagonHtp::HexagonHtp() { PowerOn(); }
 
-HexagonHtp::~HexagonHtp() {
-  Release();
-  PowerOff();
-}
+HexagonHtp::~HexagonHtp() { PowerOff(); }
 
 void HexagonHtp::PowerOn() {
   HAP_power_request_t pwr_req;

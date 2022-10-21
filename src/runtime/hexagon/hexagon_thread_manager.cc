@@ -41,13 +41,14 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
 
   CHECK(hw_resources.empty() || hw_resources.size() == nthreads_);
   hw_resources_ = hw_resources;
+  // jlsfix - check for duplicates - or support a specific set.
 
   DLOG(INFO) << "Spawning threads";
   SpawnThreads(thread_stack_size_bytes, thread_pipe_size_words);
 
   if (!hw_resources_.empty()) {
-    DLOG(INFO) << "Acquiring hardware resources";
-    // TODO(HWE): Move these bindings to specific threads
+    DLOG(INFO) << "Initialize hardware resource managers";
+    // Acquisition/locks will be performed on specific threads
     htp_ = std::make_unique<HexagonHtp>();
     hvx_ = std::make_unique<HexagonHvx>();
   }
@@ -69,9 +70,10 @@ HexagonThreadManager::~HexagonThreadManager() {
 
   // dispatch a command to each thread to exit with status 0
   for (unsigned i = 0; i < nthreads_; i++) {
-    bool success = Dispatch(reinterpret_cast<TVMStreamHandle>(i), thread_exit, nullptr);
+    CHECK(contexts_[i]->status == 0) << "Malformed thread context, status " << contexts_[i]->status;
+    bool success = Dispatch(reinterpret_cast<TVMStreamHandle>(i), thread_exit, contexts_[i]);
     while (!success) {
-      success = Dispatch(reinterpret_cast<TVMStreamHandle>(i), thread_exit, nullptr);
+      success = Dispatch(reinterpret_cast<TVMStreamHandle>(i), thread_exit, contexts_[i]);
     }
   }
 
@@ -163,7 +165,17 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes,
     next_stack_start += thread_stack_size_bytes;
 
     // create the thread
-    contexts_[i] = new ThreadContext(&pipes_[i], i);
+    HexagonHvx* hvx = nullptr;
+    if (!hw_resources_.empty() && ((hw_resources_[i] == HVX_0) || (hw_resources_[i] == HVX_1) ||
+                                   (hw_resources_[i] == HVX_2) || (hw_resources_[i] == HVX_3))) {
+      hvx = hvx_.get();
+    }
+    HexagonHtp* htp = nullptr;
+    if (!hw_resources_.empty() && (hw_resources_[i] == HTP_0)) {
+      htp = htp_.get();
+    }
+    contexts_[i] =
+        new ThreadContext(&pipes_[i], i, hw_resources_.empty() ? NONE : hw_resources_[i], hvx, htp);
     int rc = qurt_thread_create(&threads_[i], &thread_attr, thread_main, contexts_[i]);
     CHECK_EQ(rc, QURT_EOK);
   }
@@ -279,17 +291,65 @@ void HexagonThreadManager::thread_wait_free(void* semaphore) {
   free(semaphore);
 }
 
-void HexagonThreadManager::thread_exit(void* status) {
-  DLOG(INFO) << "thread exiting";
-  qurt_thread_exit((uint64_t)status);
+void HexagonThreadManager::thread_exit(void* context) {
+  ThreadContext* tc = static_cast<ThreadContext*>(context);
+  unsigned index = tc->index;
+  HardwareResourceType resource_type = tc->resource_type;
+
+  if ((resource_type == HVX_0) || (resource_type == HVX_1) || (resource_type == HVX_2) ||
+      (resource_type == HVX_3)) {
+    HexagonHvx* hvx = tc->hvx;
+    CHECK(hvx) << "Malformed thread context, missing hvx pointer for HVX_x resource";
+    hvx->Unlock();
+    DLOG(INFO) << "Resource " << resource_type << " unlocked an HVX instance";
+  } else if (resource_type == HTP_0) {
+    HexagonHtp* htp = tc->htp;
+    CHECK(htp) << "Malformed thread context, missing htp pointer for HTP_0 resource";
+    htp->Release();
+    DLOG(INFO) << "Resource " << resource_type << " released the HTP";
+  }
+
+  DLOG(INFO) << "Thread " << index << " exiting";
+  qurt_thread_exit((uint64_t)tc->status);
 }
 
 void HexagonThreadManager::thread_main(void* context) {
   ThreadContext* tc = static_cast<ThreadContext*>(context);
   unsigned index = tc->index;
   qurt_pipe_t* mypipe = tc->pipe;
+  HardwareResourceType resource_type = tc->resource_type;
+  HexagonHvx* hvx = tc->hvx;
+  HexagonHtp* htp = tc->htp;
 
   DLOG(INFO) << "Thread " << index << " spawned";
+
+  switch (resource_type) {
+    case NONE:
+      DLOG(INFO) << "No hardware resource";
+      break;
+
+    case DMA_0:
+      DLOG(INFO) << "Resource " << resource_type << " assigned to DMA";
+      break;
+
+    case HTP_0:
+      CHECK(htp) << "Malformed thread context, missing htp pointer for HTP_0 resource";
+      htp->Acquire();  // jlsfix - might fail other things now
+      DLOG(INFO) << "Resource " << resource_type << " acquired the HTP";
+      break;
+
+    case HVX_0:
+    case HVX_1:
+    case HVX_2:
+    case HVX_3:
+      CHECK(hvx) << "Malformed thread context, missing hvx pointer for HVX_x resource";
+      hvx->Lock();  // jlsfix - might fail other things now
+      DLOG(INFO) << "Resource " << resource_type << " locked an HVX instance";
+      break;
+
+    default:
+      CHECK(false) << "Invalid HardwareResourceType: " << resource_type;
+  }
 
   while (true) {  // loop, executing commands from pipe
     DLOG(INFO) << "Thread " << index << " receiving command";

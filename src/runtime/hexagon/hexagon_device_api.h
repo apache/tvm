@@ -62,8 +62,8 @@ class HexagonDeviceAPI final : public DeviceAPI {
     runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
 
     CHECK_EQ(runtime_threads, nullptr);
-    runtime_threads = std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size,
-                                                             hw_resources);
+    runtime_threads =
+        std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size, hw_resources);
 
     CHECK_EQ(runtime_dma, nullptr);
     runtime_dma = std::make_unique<HexagonUserDMA>();

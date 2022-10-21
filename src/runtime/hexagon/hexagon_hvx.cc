@@ -33,23 +33,27 @@ namespace hexagon {
 
 HexagonHvx::HexagonHvx() {
   // Reserve HVX.
-  int res = qurt_hvx_reserve(QURT_HVX_RESERVE_ALL_AVAILABLE);
-  CHECK((res != QURT_HVX_RESERVE_NOT_SUPPORTED) && (res != QURT_HVX_RESERVE_NOT_SUCCESSFUL))
+  int res = qurt_hvx_reserve(QURT_HVX_RESERVE_ALL);
+  CHECK((res == QURT_HVX_RESERVE_ALL) || (res != QURT_HVX_RESERVE_ALREADY_MADE))
       << "error reserving HVX: " << res;
+}
 
-  // Lock HVX.
+HexagonHvx::~HexagonHvx() {
+  // Release HVX.
+  int rel = qurt_hvx_cancel_reserve();
+  CHECK(rel == 0) << "error releasing HVX: " << rel;
+}
+
+void HexagonHvx::Lock() {
+  // Lock one HVX for the calling thread.
   int lck = qurt_hvx_lock(QURT_HVX_MODE_128B);
   CHECK(lck == 0) << "error locking HVX: " << lck;
 }
 
-HexagonHvx::~HexagonHvx() {
-  // Unlock HVX.
+void HexagonHvx::Unlock() {
+  // Unlock the HVX for the calling thread.
   int unl = qurt_hvx_unlock();
   CHECK(unl == 0) << "error unlocking HVX: " << unl;
-
-  // Release HVX.
-  int rel = qurt_hvx_cancel_reserve();
-  CHECK(rel == 0) << "error releasing HVX: " << rel;
 }
 
 }  // namespace hexagon
