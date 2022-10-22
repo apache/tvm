@@ -155,7 +155,11 @@ class HexagonThreadManager {
     uint64_t status;
     ThreadContext(qurt_pipe_t* pipe, unsigned index, HardwareResourceType resource_type,
                   HexagonHvx* hvx, HexagonHtp* htp)
-        : pipe(pipe), index(index), resource_type(resource_type), hvx(hvx), htp(htp), status(0) {}
+        : pipe(pipe), index(index), resource_type(resource_type), hvx(hvx), htp(htp), status(0) {
+      CHECK(resource_type == NONE || (hvx && htp))
+          << "Missing resource manager pointer, type: " << resource_type << " hvx: " << hvx
+          << " htp: " << htp;
+    }
   };
 
   //! \brief Helper function to ensure the set of requested resources is valid.
