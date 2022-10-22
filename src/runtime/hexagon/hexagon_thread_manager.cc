@@ -208,6 +208,8 @@ TVMStreamHandle HexagonThreadManager::GetStreamHandleByResourceType(HardwareReso
 }
 
 HardwareResourceType HexagonThreadManager::GetResourceTypeForStreamHandle(TVMStreamHandle thread) {
+  CHECK(hw_resources_.size() > reinterpret_cast<int>(thread))
+      << "No thread for handle id exists " << thread;
   return hw_resources_[reinterpret_cast<int>(thread)];
 }
 
