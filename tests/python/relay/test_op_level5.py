@@ -1419,8 +1419,9 @@ def test_grid_sample(executor_kind):
 
     data_2D_shape = (4, 4, 8, 8)
     grid_2D_shape = (4, 2, 16, 16)
-    data_3D_shape = (4, 4, 8, 8, 8)
-    grid_3D_shape = (4, 3, 16, 16, 16)
+    # choosing smaller sizes to be testable on weaker GPUs
+    data_3D_shape = (4, 4, 4, 4, 4)
+    grid_3D_shape = (4, 3, 8, 8, 8)
 
     for _method in methods:
         for _padding in padding_modes:

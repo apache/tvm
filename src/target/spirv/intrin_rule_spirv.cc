@@ -68,6 +68,9 @@ TVM_REGISTER_OP("tir.ceil")
 TVM_REGISTER_OP("tir.round")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Round>);
 
+TVM_REGISTER_OP("tir.nearbyint")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Round>);
+
 TVM_REGISTER_OP("tir.trunc")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Trunc>);
 
@@ -106,6 +109,9 @@ TVM_REGISTER_OP("tir.ceil")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Ceil>);
 
 TVM_REGISTER_OP("tir.round")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Round>);
+
+TVM_REGISTER_OP("tir.nearbyint")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Round>);
 
 TVM_REGISTER_OP("tir.trunc")
