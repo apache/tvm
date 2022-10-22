@@ -35,9 +35,9 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-HexagonHtp::HexagonHtp() { Acquire(); }
+HexagonHtp::HexagonHtp() {}
 
-HexagonHtp::~HexagonHtp() { Release(); }
+HexagonHtp::~HexagonHtp() {}
 
 void HexagonHtp::Acquire() {
   compute_res_attr_t compute_res_attr;

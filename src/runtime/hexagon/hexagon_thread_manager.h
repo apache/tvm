@@ -137,8 +137,17 @@ class HexagonThreadManager {
   struct ThreadContext {
     qurt_pipe_t* pipe;
     unsigned index;
-    ThreadContext(qurt_pipe_t* pipe, unsigned index) : pipe(pipe), index(index) {}
+    HardwareResourceType resource_type;
+    HexagonHvx* hvx;
+    HexagonHtp* htp;
+    uint64_t status;
+    ThreadContext(qurt_pipe_t* pipe, unsigned index, HardwareResourceType resource_type,
+                  HexagonHvx* hvx, HexagonHtp* htp)
+        : pipe(pipe), index(index), resource_type(resource_type), hvx(hvx), htp(htp), status(0) {}
   };
+
+  //! \brief Helper function to ensure the set of requested resources is valid.
+  void CheckResources();
 
   //! \brief Helper function for the constructor to spawn threads.
   void SpawnThreads(unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words);
@@ -157,7 +166,7 @@ class HexagonThreadManager {
   static void thread_wait_free(void* semaphore);
 
   //! \brief Void function executed by a thread to exit at time of destruction.
-  static void thread_exit(void* status);
+  static void thread_exit(void* context);
 
   //! \brief Void function executed by each thread as `main`.
   static void thread_main(void* context);

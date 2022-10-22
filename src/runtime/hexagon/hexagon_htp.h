@@ -44,12 +44,12 @@ class HexagonHtp {
   //! \brief Prevent move assignment.
   HexagonHtp& operator=(HexagonHtp&&) = delete;
 
+  void Acquire();
+  void Release();
+
  private:
   //! \brief Acquisition context ID
   unsigned int context_id_;
-
-  void Acquire();
-  void Release();
 };
 
 }  // namespace hexagon
