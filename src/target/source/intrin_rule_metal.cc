@@ -46,6 +46,9 @@ TVM_REGISTER_OP("tir.fabs")
 TVM_REGISTER_OP("tir.round")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
+TVM_REGISTER_OP("tir.nearbyint")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic",
                                                      DispatchPureExtern<Direct>);
 
