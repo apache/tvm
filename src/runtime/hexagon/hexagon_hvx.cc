@@ -39,7 +39,6 @@ HexagonHvx::HexagonHvx() {
 }
 
 HexagonHvx::~HexagonHvx() {
-  // Release HVX.
   int rel = qurt_hvx_cancel_reserve();
   CHECK(rel == 0) << "error releasing HVX: " << rel;
 }
@@ -50,7 +49,6 @@ void HexagonHvx::Lock() {
 }
 
 void HexagonHvx::Unlock() {
-  // Unlock HVX.
   int unl = qurt_hvx_unlock();
   CHECK(unl == 0) << "error unlocking HVX: " << unl;
 }

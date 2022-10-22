@@ -337,3 +337,40 @@ TEST_F(HexagonThreadManagerTest, dispatch_writes) {
     CHECK_EQ(array[i], truth[i]);
   }
 }
+
+// Validate threads created for hw resources on global manager
+TEST_F(HexagonThreadManagerTest, threads_for_resource_types) {
+  HexagonThreadManager* thread_manager = HexagonDeviceAPI::Global()->ThreadManager();
+  TVMStreamHandle thread;
+
+  thread = thread_manager->GetStreamHandleByResourceType(DMA_0);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == DMA_0);
+  thread = thread_manager->GetStreamHandleByResourceType(HTP_0);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HTP_0);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_0);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_0);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_1);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_1);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_2);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_2);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_3);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_3);
+}
+
+// Ensure proper behavior of hardware resources managed by global thread manager
+TEST_F(HexagonThreadManagerTest, hardware_resources_locked) {
+  CHECK(htm != nullptr);
+  CHECK_EQ(streams.size(), threads);
+  HexagonHvx* hvx = new HexagonHvx();
+  HexagonHtp* htp = new HexagonHtp();
+
+  // These should succeed
+  hvx->Lock();
+  hvx->Unlock();
+
+  // This should throw
+  EXPECT_THROW(htp->Acquire(), InternalError);
+
+  delete hvx;
+  delete htp;
+}
