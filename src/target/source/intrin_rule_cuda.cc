@@ -148,6 +148,9 @@ TVM_REGISTER_OP("tir.fabs")
 TVM_REGISTER_OP("tir.round")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
+TVM_REGISTER_OP("tir.nearbyint")
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
+
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic",
                                                      DispatchPureExtern<CUDAFastMath>);
 

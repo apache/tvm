@@ -68,6 +68,9 @@ TVM_REGISTER_OP("tir.ceil")
 TVM_REGISTER_OP("tir.round")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
+TVM_REGISTER_OP("tir.nearbyint")
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
+
 TVM_REGISTER_OP("tir.trunc")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
