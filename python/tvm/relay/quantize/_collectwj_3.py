@@ -160,8 +160,9 @@ def collect_wj_3(mod_quantize, dataset=None):
     QConWeight_dir = root_dir_name + "QConWeight"
     QConInput_dir = root_dir_name + "QConInput"
     QAddOutput_dir = root_dir_name + "QAddOutput"
-    QSi_dir = root_dir_name + "QSi"
-    QSw_dir = root_dir_name + "QSw"
+    #QSi_dir = root_dir_name + "QSi"
+    #QSw_dir = root_dir_name + "QSw"
+    QSiSw_dir = root_dir_name + "QSiSw"
 
 
     if not os.path.exists(root_dir_name):
@@ -177,13 +178,11 @@ def collect_wj_3(mod_quantize, dataset=None):
     if not os.path.exists(QCheckpoint_zpw_dir):
         os.mkdir(QCheckpoint_zpw_dir)    
     if not os.path.exists(QAddOutput_dir):
-        os.mkdir(QAddOutput_dir)    
-    if not os.path.exists(QSi_dir):
-        os.mkdir(QSi_dir)    
-    if not os.path.exists(QSw_dir):
-        os.mkdir(QSw_dir)          
+        os.mkdir(QAddOutput_dir)       
+    if not os.path.exists(QSiSw_dir):
+        os.mkdir(QSiSw_dir)          
         
-    print("starting conv_psum")
+    print("starting sisw")
     conv_runtime = _get_qcheckpointsi_runtime(mod_quantize)
     num_psum_outputs = conv_runtime.get_num_outputs()
     for i in range(1):
@@ -192,22 +191,12 @@ def collect_wj_3(mod_quantize, dataset=None):
         conv_runtime.run()
         for j in range(2):
             psum_tmp = conv_runtime.get_output(j).numpy()
-            np.save(QSi_dir + "/" + "Si_{}".format(i*(num_psum_outputs) + j), psum_tmp)
-    print("conv_psum collect done")  
+            np.save(QSiSw_dir + "/" + "SiSw_{}".format(i*(num_psum_outputs) + j), psum_tmp)
+    print("sisw collect done")  
     
-    print("starting conv_psum")
-    conv_runtime = _get_qcheckpointsw_runtime(mod_quantize)
-    num_psum_outputs = conv_runtime.get_num_outputs()
-    for i in range(1):
-        batch = dataset[i]
-        conv_runtime.set_input(**batch)
-        conv_runtime.run()
-        for j in range(2):
-            psum_tmp = conv_runtime.get_output(j).numpy()
-            np.save(QSw_dir + "/" + "Sw_{}".format(i*(num_psum_outputs) + j), psum_tmp)
-    print("conv_psum collect done")  
+
           
-    print("starting conv_psum")
+    print("starting bias")
     conv_runtime = _get_qcheckpointbias_runtime(mod_quantize)
     num_psum_outputs = conv_runtime.get_num_outputs()
     for i in range(1):
@@ -217,10 +206,10 @@ def collect_wj_3(mod_quantize, dataset=None):
         for j in range(2):
             psum_tmp = conv_runtime.get_output(j).numpy()
             np.save(QCheckpoint_bias_dir + "/" + "Bias_{}".format(i*(num_psum_outputs) + j), psum_tmp)
-    print("conv_psum collect done")    
+    print("bias collect done")    
     
     
-    print("starting conv_input")
+    print("starting zpi")
     conv_runtime = _get_qcheckpointzpi_runtime(mod_quantize)
     num_psum_outputs = conv_runtime.get_num_outputs()
     for i in range(1):
@@ -230,10 +219,10 @@ def collect_wj_3(mod_quantize, dataset=None):
         for j in range(2):
             psum_tmp = conv_runtime.get_output(j).numpy()
             np.save(QCheckpoint_zpi_dir + "/" + "Zpi_{}".format(i*(num_psum_outputs) + j), psum_tmp)
-    print("conv_input collect done")    
+    print("zpi collect done")    
     
     
-    print("starting conv_output")
+    print("starting zpw")
     conv_runtime = _get_qcheckpointzpw_runtime(mod_quantize)
     num_psum_outputs = conv_runtime.get_num_outputs()
     for i in range(1):
@@ -243,9 +232,9 @@ def collect_wj_3(mod_quantize, dataset=None):
         for j in range(2):
             psum_tmp = conv_runtime.get_output(j).numpy()
             np.save(QCheckpoint_zpw_dir + "/" + "Zpw_{}".format(i*(num_psum_outputs) + j), psum_tmp)
-    print("conv_output collect done")    
+    print("zpw collect done")    
     
-    print("starting conv_output")
+    print("starting weight")
     conv_runtime = _get_qcheckpointweight_runtime(mod_quantize)
     num_psum_outputs = conv_runtime.get_num_outputs()
     for i in range(1):
@@ -255,9 +244,9 @@ def collect_wj_3(mod_quantize, dataset=None):
         for j in range(2):
             psum_tmp = conv_runtime.get_output(j).numpy()
             np.save(QConWeight_dir + "/" + "ConvWeight_{}".format(i*(num_psum_outputs) + j), psum_tmp)
-    print("conv_output collect done")    
+    print("weight collect done")    
     
-    print("starting conv_output")
+    print("starting input")
     conv_runtime = _get_qcheckpointinput_runtime(mod_quantize)
     num_psum_outputs = conv_runtime.get_num_outputs()
     for i in range(1):
@@ -267,10 +256,10 @@ def collect_wj_3(mod_quantize, dataset=None):
         for j in range(2):
             psum_tmp = conv_runtime.get_output(j).numpy()
             np.save(QConInput_dir + "/" + "ConvInput_{}".format(i*(num_psum_outputs) + j), psum_tmp)
-    print("conv_output collect done")    
+    print("input collect done")    
     
     
-    print("starting conv_output")
+    print("starting addout")
     conv_runtime = _get_qcheckpointaddoutput_runtime(mod_quantize)
     num_psum_outputs = conv_runtime.get_num_outputs()
     for i in range(1):
@@ -280,4 +269,4 @@ def collect_wj_3(mod_quantize, dataset=None):
         for j in range(2):
             psum_tmp = conv_runtime.get_output(j).numpy()
             np.save(QAddOutput_dir + "/" + "AddOutput_{}".format(i*(num_psum_outputs) + j), psum_tmp)
-    print("conv_output collect done")   
+    print("addout collect done")   

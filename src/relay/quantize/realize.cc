@@ -311,9 +311,9 @@ Expr Conv2dRealize(const Call& ref_call, const Array<Expr>& new_args, const Obje
     }
     Expr rdata = Cast(rhs->data, cfg->dtype_weight);
 
-    ldata = Subtract(ldata, MakeConstantScalar(cfg->dtype_input, zps_data_imm));
+    ldata = Subtract(CheckPointInput(ldata), CheckPointZpi(MakeConstantScalar(cfg->dtype_input, zps_data_imm)));
     if(cfg->per_channel){
-      rdata = Subtract(rdata, MakeConstantTensor(cfg->dtype_weight, {(int64_t)zps_weight.size(),1,1,1}, zps_weight));
+      rdata = Subtract(CheckPointWeight(rdata), CheckPointZpw(MakeConstantTensor(cfg->dtype_weight, {(int64_t)zps_weight.size(),1,1,1}, zps_weight)));
       //rdata = Subtract(rdata, Cast(rhs->zero_point, cfg->dtype_weight));  //(192,64,5,5) -(192,1,1,1) 
     }
     else{
@@ -331,7 +331,7 @@ Expr Conv2dRealize(const Call& ref_call, const Array<Expr>& new_args, const Obje
     //当per_channel的时候，rhs的scale就是[, , , , .....]
     Expr mul;
     if(cfg->per_channel){
-      mul = Multiply(MakeConstantScalar(DataType::Float(32), lhs_dom_scale_imm), MakeConstantTensor(DataType::Float(32), {(int64_t)rhs_dom_scales.size(),1,1}, rhs_dom_scales));
+      mul = Multiply((MakeConstantScalar(DataType::Float(32), lhs_dom_scale_imm)), (MakeConstantTensor(DataType::Float(32), {(int64_t)rhs_dom_scales.size(),1,1}, rhs_dom_scales)));
       //mul = Multiply(MakeConstantScalar(DataType::Float(32), lhs_dom_scale_imm), rhs->dom_scale);
     }
     else{
@@ -631,9 +631,9 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
       Expr output_multiplier = MakeConstantTensor(DataType::Float(32), GetConcrete(ref_args[1]->type_as<TensorTypeNode>()->shape), output_multipliers);
       dom_scale = nptrs[0]->dom_scale;
       ret.Set(0,Subtract(ret[0], zp[0]));
-      ret.Set(1,(Subtract(ret[1], zp[1])));
+      ret.Set(1,CheckPointBias(Subtract(ret[1], zp[1])));
       //ret.Set(1,Divide(Cast(ret[1],DataType::Float(32)), Cast(dom_scale, DataType::Float(32))));
-      ret.Set(1,CheckPointBiasS(Multiply(Cast(ret[1],DataType::Float(32)), output_multiplier)));// add[1] = bias/dom_scale = (192,1,1)*(192,1,1)
+      ret.Set(1,CheckPointBiasS(Multiply(Cast(ret[1],DataType::Float(32)), CheckPointSi(output_multiplier))));// add[1] = bias/dom_scale = (192,1,1)*(192,1,1)
       ret.Set(1, Cast(Round(ret[1]), dtype));
       //printf("add in bias with per_channels done\n");
     }
@@ -716,7 +716,7 @@ Expr AddRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectR
     }
     Expr zero_point = MakeConstantScalar(DataType::Float(32), 0);//其实没必要存在，为了保证输入参数的统一。
     Expr ret;
-    ret = ForwardOp(ref_call, ret_args);
+    ret = CheckPointAddoutput(ForwardOp(ref_call, ret_args));
     
     //printf("AddRealize done\n");
     return QRealizeIntExpr(ret, dom_scale, zero_point, dtype);
