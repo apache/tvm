@@ -562,6 +562,303 @@ class QConvCollector : private ExprMutator {
     }
   }
 };
+class QCheckPointBiasCollector : private ExprMutator {
+ public:
+  QCheckPointBiasCollector() : conv_op_(Op::Get("annotation.checkpointbias")) {}
+
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& conv_op_;
+
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op == conv_op_ ) {       
+      profile_data_.push_back(new_e);
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
+
+
+
+class QCheckPointAddOutputCollector : private ExprMutator {
+ public:
+  QCheckPointAddOutputCollector() : conv_op_(Op::Get("annotation.checkpointaddoutput")) {}
+
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& conv_op_;
+
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op == conv_op_ ) {       
+      profile_data_.push_back(new_e);
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
+
+
+class QCheckPointWeightCollector : private ExprMutator {
+ public:
+  QCheckPointWeightCollector() : conv_op_(Op::Get("annotation.checkpointweight")) {}
+
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& conv_op_;
+
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op == conv_op_ ) {       
+      profile_data_.push_back(new_e);
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
+
+
+class QCheckPointInputCollector : private ExprMutator {
+ public:
+  QCheckPointInputCollector() : conv_op_(Op::Get("annotation.checkpointinput")) {}
+
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& conv_op_;
+
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op == conv_op_ ) {       
+      profile_data_.push_back(new_e);
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
+
+
+
+class QCheckPointZpiCollector : private ExprMutator {
+ public:
+  QCheckPointZpiCollector() : conv_op_(Op::Get("annotation.checkpointzpi")) {}
+
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& conv_op_;
+
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op == conv_op_ ) {       
+      profile_data_.push_back(new_e);
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
+
+
+class QCheckPointZpwCollector : private ExprMutator {
+ public:
+  QCheckPointZpwCollector() : conv_op_(Op::Get("annotation.checkpointzpw")) {}
+
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& conv_op_;
+
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op == conv_op_ ) {       
+      profile_data_.push_back(new_e);
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
+
+
+class QCheckPointSiCollector : private ExprMutator {
+ public:
+  QCheckPointSiCollector() : conv_op_(Op::Get("annotation.checkpointsi")) {}
+
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& conv_op_;
+
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op == conv_op_ ) {       
+      profile_data_.push_back(new_e);
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
+
+class QCheckPointSwCollector : private ExprMutator {
+ public:
+  QCheckPointSwCollector() : conv_op_(Op::Get("annotation.checkpointsw")) {}
+
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& conv_op_;
+
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op == conv_op_ ) {       
+      profile_data_.push_back(new_e);
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
+
+
 
 /*
  * \brief Given an annotated graph, create a profile graph to collect profile data from the
@@ -585,6 +882,14 @@ Expr CreateReluCollector(const Expr& expr) { return ReluCollector().Collect(expr
 
 Expr CreateQCheckPointSiSoCollector(const Expr& expr) { return QCheckPointSiSoCollector().Collect(expr);}
 Expr CreateQCheckPointBiasSCollector(const Expr& expr) { return QCheckPointBiasSCollector().Collect(expr);}
+Expr CreateQCheckPointBiasCollector(const Expr& expr) { return QCheckPointBiasCollector().Collect(expr);}
+Expr CreateQCheckPointAddOutputCollector(const Expr& expr) { return QCheckPointAddOutputCollector().Collect(expr);}
+Expr CreateQCheckPointWeightCollector(const Expr& expr) { return QCheckPointWeightCollector().Collect(expr);}
+Expr CreateQCheckPointInputCollector(const Expr& expr) { return QCheckPointInputCollector().Collect(expr);}
+Expr CreateQCheckPointZpiCollector(const Expr& expr) { return QCheckPointZpiCollector().Collect(expr);}
+Expr CreateQCheckPointZpwCollector(const Expr& expr) { return QCheckPointZpwCollector().Collect(expr);}
+Expr CreateQCheckPointSiCollector(const Expr& expr) { return QCheckPointSiCollector().Collect(expr);}
+Expr CreateQCheckPointSwCollector(const Expr& expr) { return QCheckPointSwCollector().Collect(expr);}
 
 TVM_REGISTER_GLOBAL("relay._quantize.CreateStatsCollector").set_body_typed(CreateStatsCollector);
 TVM_REGISTER_GLOBAL("relay._quantize.CreateQWeightCollector").set_body_typed(CreateQWeightCollector);
@@ -598,6 +903,18 @@ TVM_REGISTER_GLOBAL("relay._quantize.CreateReluCollector").set_body_typed(Create
 
 TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointSiSoCollector").set_body_typed(CreateQCheckPointSiSoCollector);
 TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointBiasSCollector").set_body_typed(CreateQCheckPointBiasSCollector);
+TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointBiasCollector").set_body_typed(CreateQCheckPointBiasCollector);
+TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointAddOutputCollector").set_body_typed(CreateQCheckPointAddOutputCollector);
+TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointWeightCollector").set_body_typed(CreateQCheckPointWeightCollector);
+TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointInputCollector").set_body_typed(CreateQCheckPointInputCollector);
+TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointZpiCollector").set_body_typed(CreateQCheckPointZpiCollector);
+TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointZpwCollector").set_body_typed(CreateQCheckPointZpwCollector);
+TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointSiCollector").set_body_typed(CreateQCheckPointSiCollector);
+TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointSwCollector").set_body_typed(CreateQCheckPointSwCollector);
+
+
+
+
 
 
 TVM_REGISTER_GLOBAL("relay._quantize.FindScaleByKLMinimization")

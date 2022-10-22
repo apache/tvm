@@ -145,6 +145,154 @@ def checkpointbiass(data):
 reg.register_injective_schedule("annotation.checkpointbiass")
 
 
+def checkpointbias(data):
+    """Annotate an expression to be a checkpoint for the checkpointing memory optimization.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.checkpointbias(data)
+
+
+reg.register_injective_schedule("annotation.checkpointbias")
+
+
+def checkpointsi(data):
+    """Annotate an expression to be a checkpoint for the checkpointing memory optimization.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.checkpointsi(data)
+
+
+reg.register_injective_schedule("annotation.checkpointsi")
+
+
+def checkpointsw(data):
+    """Annotate an expression to be a checkpoint for the checkpointing memory optimization.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.checkpointsw(data)
+
+
+reg.register_injective_schedule("annotation.checkpointsw")
+
+def checkpointaddoutput(data):
+    """Annotate an expression to be a checkpoint for the checkpointing memory optimization.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.checkpointaddoutput(data)
+
+
+reg.register_injective_schedule("annotation.checkpointaddoutput")
+
+def checkpointinput(data):
+    """Annotate an expression to be a checkpoint for the checkpointing memory optimization.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.checkpointinput(data)
+
+
+reg.register_injective_schedule("annotation.checkpointinput")
+
+
+def checkpointweight(data):
+    """Annotate an expression to be a checkpoint for the checkpointing memory optimization.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.checkpointweight(data)
+
+
+reg.register_injective_schedule("annotation.checkpointweight")
+
+
+def checkpointzpi(data):
+    """Annotate an expression to be a checkpoint for the checkpointing memory optimization.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.checkpointzpi(data)
+
+
+reg.register_injective_schedule("annotation.checkpointzpi")
+
+def checkpointzpw(data):
+    """Annotate an expression to be a checkpoint for the checkpointing memory optimization.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.checkpointzpw(data)
+
+
+reg.register_injective_schedule("annotation.checkpointzpw")
+
 def checkpointsiso(data):
     """Annotate an expression to be a checkpoint for the checkpointing memory optimization.
 

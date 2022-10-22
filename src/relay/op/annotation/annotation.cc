@@ -123,6 +123,258 @@ Mark the end of bitpacking.
                              return {topi::identity(inputs[0])};
                            });
 
+Expr CheckPointSw(Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointsw");
+  return Call(op, {data}, Attrs{}, {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.checkpointsw").set_body_typed([](Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointsw");
+  return Call(op, {data}, Attrs{}, {});
+});
+
+RELAY_REGISTER_OP("annotation.checkpointsw")
+    .describe(R"code(
+Mark a checkpointsw for checkpointing memory optimization.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_support_level(10)
+    .add_argument("data", "Tensor", "The input data.")
+    .add_type_rel("Identity", IdentityRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute",
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype) -> Array<te::Tensor> {
+                             Array<te::Tensor> outputs;
+                             for (size_t i = 0; i < inputs.size(); ++i) {
+                               outputs.push_back(topi::identity(inputs[i]));
+                             }
+                             return outputs;
+                           });
+
+Expr CheckPointSi(Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointsi");
+  return Call(op, {data}, Attrs{}, {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.checkpointsi").set_body_typed([](Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointsi");
+  return Call(op, {data}, Attrs{}, {});
+});
+
+RELAY_REGISTER_OP("annotation.checkpointsi")
+    .describe(R"code(
+Mark a checkpointsi for checkpointing memory optimization.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_support_level(10)
+    .add_argument("data", "Tensor", "The input data.")
+    .add_type_rel("Identity", IdentityRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute",
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype) -> Array<te::Tensor> {
+                             Array<te::Tensor> outputs;
+                             for (size_t i = 0; i < inputs.size(); ++i) {
+                               outputs.push_back(topi::identity(inputs[i]));
+                             }
+                             return outputs;
+                           });
+
+
+Expr CheckPointBias(Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointbias");
+  return Call(op, {data}, Attrs{}, {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.checkpointbias").set_body_typed([](Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointbias");
+  return Call(op, {data}, Attrs{}, {});
+});
+
+RELAY_REGISTER_OP("annotation.checkpointbias")
+    .describe(R"code(
+Mark a checkpointbias for checkpointing memory optimization.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_support_level(10)
+    .add_argument("data", "Tensor", "The input data.")
+    .add_type_rel("Identity", IdentityRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute",
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype) -> Array<te::Tensor> {
+                             Array<te::Tensor> outputs;
+                             for (size_t i = 0; i < inputs.size(); ++i) {
+                               outputs.push_back(topi::identity(inputs[i]));
+                             }
+                             return outputs;
+                           });
+
+
+Expr CheckPointAddoutput(Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointaddoutput");
+  return Call(op, {data}, Attrs{}, {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.checkpointaddoutput").set_body_typed([](Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointaddoutput");
+  return Call(op, {data}, Attrs{}, {});
+});
+
+RELAY_REGISTER_OP("annotation.checkpointaddoutput")
+    .describe(R"code(
+Mark a checkpointaddoutput for checkpointing memory optimization.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_support_level(10)
+    .add_argument("data", "Tensor", "The input data.")
+    .add_type_rel("Identity", IdentityRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute",
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype) -> Array<te::Tensor> {
+                             Array<te::Tensor> outputs;
+                             for (size_t i = 0; i < inputs.size(); ++i) {
+                               outputs.push_back(topi::identity(inputs[i]));
+                             }
+                             return outputs;
+                           });
+
+Expr CheckPointInput(Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointinput");
+  return Call(op, {data}, Attrs{}, {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.checkpointinput").set_body_typed([](Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointinput");
+  return Call(op, {data}, Attrs{}, {});
+});
+
+RELAY_REGISTER_OP("annotation.checkpointinput")
+    .describe(R"code(
+Mark a checkpointinput for checkpointing memory optimization.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_support_level(10)
+    .add_argument("data", "Tensor", "The input data.")
+    .add_type_rel("Identity", IdentityRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute",
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype) -> Array<te::Tensor> {
+                             Array<te::Tensor> outputs;
+                             for (size_t i = 0; i < inputs.size(); ++i) {
+                               outputs.push_back(topi::identity(inputs[i]));
+                             }
+                             return outputs;
+                           });
+
+
+Expr CheckPointWeight(Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointweight");
+  return Call(op, {data}, Attrs{}, {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.checkpointweight").set_body_typed([](Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointweight");
+  return Call(op, {data}, Attrs{}, {});
+});
+
+RELAY_REGISTER_OP("annotation.checkpointweight")
+    .describe(R"code(
+Mark a checkpointweight for checkpointing memory optimization.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_support_level(10)
+    .add_argument("data", "Tensor", "The input data.")
+    .add_type_rel("Identity", IdentityRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute",
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype) -> Array<te::Tensor> {
+                             Array<te::Tensor> outputs;
+                             for (size_t i = 0; i < inputs.size(); ++i) {
+                               outputs.push_back(topi::identity(inputs[i]));
+                             }
+                             return outputs;
+                           });
+                          
+
+Expr CheckPointZpi(Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointzpi");
+  return Call(op, {data}, Attrs{}, {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.checkpointzpi").set_body_typed([](Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointzpi");
+  return Call(op, {data}, Attrs{}, {});
+});
+
+RELAY_REGISTER_OP("annotation.checkpointzpi")
+    .describe(R"code(
+Mark a checkpointzpi for checkpointing memory optimization.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_support_level(10)
+    .add_argument("data", "Tensor", "The input data.")
+    .add_type_rel("Identity", IdentityRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute",
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype) -> Array<te::Tensor> {
+                             Array<te::Tensor> outputs;
+                             for (size_t i = 0; i < inputs.size(); ++i) {
+                               outputs.push_back(topi::identity(inputs[i]));
+                             }
+                             return outputs;
+                           });
+            
+Expr CheckPointZpw(Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointzpw");
+  return Call(op, {data}, Attrs{}, {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.checkpointzpw").set_body_typed([](Expr data) {
+  static const Op& op = Op::Get("annotation.checkpointzpw");
+  return Call(op, {data}, Attrs{}, {});
+});
+
+RELAY_REGISTER_OP("annotation.checkpointzpw")
+    .describe(R"code(
+Mark a checkpointzpw for checkpointing memory optimization.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_support_level(10)
+    .add_argument("data", "Tensor", "The input data.")
+    .add_type_rel("Identity", IdentityRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute",
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype) -> Array<te::Tensor> {
+                             Array<te::Tensor> outputs;
+                             for (size_t i = 0; i < inputs.size(); ++i) {
+                               outputs.push_back(topi::identity(inputs[i]));
+                             }
+                             return outputs;
+                           });
+            
 
 Expr CheckPointBiasS(Expr data) {
   static const Op& op = Op::Get("annotation.checkpointbiass");

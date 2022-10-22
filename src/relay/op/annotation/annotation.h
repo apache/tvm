@@ -42,9 +42,14 @@ Expr CheckPoint(Expr data);
 //Expr CheckPointPsum(Expr data);
 Expr CheckPointSiso(Expr data);
 Expr CheckPointBiasS(Expr data);
-//Expr CheckPointBias(Expr data);
-//Expr CheckPointZpi(Expr data);
-//Expr CheckPointZpw(Expr data);
+Expr CheckPointSi(Expr data);
+Expr CheckPointSw(Expr data);
+Expr CheckPointBias(Expr data);
+Expr CheckPointAddoutput(Expr data);
+Expr CheckPointInput(Expr data);
+Expr CheckPointWeight(Expr data);
+Expr CheckPointZpi(Expr data);
+Expr CheckPointZpw(Expr data);
 
 /*! \brief Wraps \p data in a "cast_hint" annotation for \p dtype. */
 Expr CastHint(Expr data, DataType dtype);

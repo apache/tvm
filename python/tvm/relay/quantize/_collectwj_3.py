@@ -17,9 +17,9 @@ from . import _quantize
 from tvm import relay
 
 
-def _get_qcheckpoint_runtime(mod):
+def _get_qcheckpointbias_runtime(mod):
     func = mod["main"]
-    func = _quantize.CreateQCheckPointCollector(func)
+    func = _quantize.CreateQCheckPointBiasCollector(func)
 
     if tvm.target.Target.current():
         target = tvm.target.Target.current()
@@ -32,27 +32,10 @@ def _get_qcheckpoint_runtime(mod):
         lib = _build_module.build(func, target=target)
     runtime = graph_executor.GraphModule(lib["default"](dev))
     return runtime
-    
-def _get_qconv_runtime(mod):
+
+def _get_qcheckpointzpi_runtime(mod):
     func = mod["main"]
-    func = _quantize.CreateQConvCollector(func)
-
-    if tvm.target.Target.current():
-        target = tvm.target.Target.current()
-        dev = tvm.device(target.kind.name)
-    else:
-        target = "llvm"
-        dev = tvm.device(target)
-
-    with tvm.transform.PassContext(opt_level=3):
-        lib = _build_module.build(func, target=target)
-    runtime = graph_executor.GraphModule(lib["default"](dev))
-
-    return runtime
-
-def _get_qcheckpointsiso_runtime(mod):
-    func = mod["main"]
-    func = _quantize.CreateQCheckPointSiSoCollector(func)
+    func = _quantize.CreateQCheckPointZpiCollector(func)
 
     if tvm.target.Target.current():
         target = tvm.target.Target.current()
@@ -65,6 +48,104 @@ def _get_qcheckpointsiso_runtime(mod):
         lib = _build_module.build(func, target=target)
     runtime = graph_executor.GraphModule(lib["default"](dev))
     return runtime
+
+def _get_qcheckpointzpw_runtime(mod):
+    func = mod["main"]
+    func = _quantize.CreateQCheckPointZpwCollector(func)
+
+    if tvm.target.Target.current():
+        target = tvm.target.Target.current()
+        dev = tvm.device(target.kind.name)
+    else:
+        target = "llvm"
+        dev = tvm.device(target)
+
+    with tvm.transform.PassContext(opt_level=3):
+        lib = _build_module.build(func, target=target)
+    runtime = graph_executor.GraphModule(lib["default"](dev))
+    return runtime
+
+def _get_qcheckpointweight_runtime(mod):
+    func = mod["main"]
+    func = _quantize.CreateQCheckPointWeightCollector(func)
+
+    if tvm.target.Target.current():
+        target = tvm.target.Target.current()
+        dev = tvm.device(target.kind.name)
+    else:
+        target = "llvm"
+        dev = tvm.device(target)
+
+    with tvm.transform.PassContext(opt_level=3):
+        lib = _build_module.build(func, target=target)
+    runtime = graph_executor.GraphModule(lib["default"](dev))
+    return runtime
+
+
+def _get_qcheckpointsi_runtime(mod):
+    func = mod["main"]
+    func = _quantize.CreateQCheckPointSiCollector(func)
+
+    if tvm.target.Target.current():
+        target = tvm.target.Target.current()
+        dev = tvm.device(target.kind.name)
+    else:
+        target = "llvm"
+        dev = tvm.device(target)
+
+    with tvm.transform.PassContext(opt_level=3):
+        lib = _build_module.build(func, target=target)
+    runtime = graph_executor.GraphModule(lib["default"](dev))
+    return runtime
+
+def _get_qcheckpointsw_runtime(mod):
+    func = mod["main"]
+    func = _quantize.CreateQCheckPointSwCollector(func)
+
+    if tvm.target.Target.current():
+        target = tvm.target.Target.current()
+        dev = tvm.device(target.kind.name)
+    else:
+        target = "llvm"
+        dev = tvm.device(target)
+
+    with tvm.transform.PassContext(opt_level=3):
+        lib = _build_module.build(func, target=target)
+    runtime = graph_executor.GraphModule(lib["default"](dev))
+    return runtime
+
+def _get_qcheckpointinput_runtime(mod):
+    func = mod["main"]
+    func = _quantize.CreateQCheckPointInputCollector(func)
+
+    if tvm.target.Target.current():
+        target = tvm.target.Target.current()
+        dev = tvm.device(target.kind.name)
+    else:
+        target = "llvm"
+        dev = tvm.device(target)
+
+    with tvm.transform.PassContext(opt_level=3):
+        lib = _build_module.build(func, target=target)
+    runtime = graph_executor.GraphModule(lib["default"](dev))
+    return runtime
+
+def _get_qcheckpointaddoutput_runtime(mod):
+    func = mod["main"]
+    func = _quantize.CreateQCheckPointAddOutputCollector(func)
+
+    if tvm.target.Target.current():
+        target = tvm.target.Target.current()
+        dev = tvm.device(target.kind.name)
+    else:
+        target = "llvm"
+        dev = tvm.device(target)
+
+    with tvm.transform.PassContext(opt_level=3):
+        lib = _build_module.build(func, target=target)
+    runtime = graph_executor.GraphModule(lib["default"](dev))
+    return runtime
+
 
 def collect_wj_3(mod_quantize, dataset=None):
     assert dataset
@@ -73,45 +154,37 @@ def collect_wj_3(mod_quantize, dataset=None):
     cfg = current_qconfig()
     root_dir_name = cfg.get_rootdir_name() + "/dbug_qfm/"
 
-    QCheckpoint_dir = root_dir_name + "QCheckpoint"
-    QCheckpoint_siso_dir = root_dir_name + "QSiSo"
-    QCheckpoint_biass_dir = root_dir_name + "BiasS"
+    QCheckpoint_bias_dir = root_dir_name + "Bias"
     QCheckpoint_zpi_dir = root_dir_name + "Zpi"
-    QPsum_dir = root_dir_name + "QPsum"
+    QCheckpoint_zpw_dir = root_dir_name + "Zpw"
     QConWeight_dir = root_dir_name + "QConWeight"
     QConInput_dir = root_dir_name + "QConInput"
-    QConOutput_dir = root_dir_name + "QConOutput"
+    QAddOutput_dir = root_dir_name + "QAddOutput"
+    QSi_dir = root_dir_name + "QSi"
+    QSw_dir = root_dir_name + "QSw"
 
 
     if not os.path.exists(root_dir_name):
         os.mkdir(root_dir_name)
-
-    if not os.path.exists(QCheckpoint_dir):
-        os.mkdir(QCheckpoint_dir)
-        
-    if not os.path.exists(QCheckpoint_siso_dir):
-        os.mkdir(QCheckpoint_siso_dir)
-        
-    if not os.path.exists(QCheckpoint_biass_dir):
-        os.mkdir(QCheckpoint_biass_dir)
-    
     if not os.path.exists(QCheckpoint_zpi_dir):
         os.mkdir(QCheckpoint_zpi_dir)
-    
-    if not os.path.exists(QPsum_dir):
-        os.mkdir(QPsum_dir)
-    
     if not os.path.exists(QConWeight_dir):
         os.mkdir(QConWeight_dir)
-        
     if not os.path.exists(QConInput_dir):
         os.mkdir(QConInput_dir)
-    
-    if not os.path.exists(QConOutput_dir):
-        os.mkdir(QConOutput_dir)
+    if not os.path.exists(QCheckpoint_bias_dir):
+        os.mkdir(QCheckpoint_bias_dir)
+    if not os.path.exists(QCheckpoint_zpw_dir):
+        os.mkdir(QCheckpoint_zpw_dir)    
+    if not os.path.exists(QAddOutput_dir):
+        os.mkdir(QAddOutput_dir)    
+    if not os.path.exists(QSi_dir):
+        os.mkdir(QSi_dir)    
+    if not os.path.exists(QSw_dir):
+        os.mkdir(QSw_dir)          
         
     print("starting conv_psum")
-    conv_runtime = _get_qconv_runtime(mod_quantize)
+    conv_runtime = _get_qcheckpointsi_runtime(mod_quantize)
     num_psum_outputs = conv_runtime.get_num_outputs()
     for i in range(1):
         batch = dataset[i]
@@ -119,12 +192,36 @@ def collect_wj_3(mod_quantize, dataset=None):
         conv_runtime.run()
         for j in range(2):
             psum_tmp = conv_runtime.get_output(j).numpy()
-            np.save(QConOutput_dir + "/" + "Psum_{}".format(i*(num_psum_outputs) + j), psum_tmp)
+            np.save(QSi_dir + "/" + "Si_{}".format(i*(num_psum_outputs) + j), psum_tmp)
+    print("conv_psum collect done")  
+    
+    print("starting conv_psum")
+    conv_runtime = _get_qcheckpointsw_runtime(mod_quantize)
+    num_psum_outputs = conv_runtime.get_num_outputs()
+    for i in range(1):
+        batch = dataset[i]
+        conv_runtime.set_input(**batch)
+        conv_runtime.run()
+        for j in range(2):
+            psum_tmp = conv_runtime.get_output(j).numpy()
+            np.save(QSw_dir + "/" + "Sw_{}".format(i*(num_psum_outputs) + j), psum_tmp)
+    print("conv_psum collect done")  
+          
+    print("starting conv_psum")
+    conv_runtime = _get_qcheckpointbias_runtime(mod_quantize)
+    num_psum_outputs = conv_runtime.get_num_outputs()
+    for i in range(1):
+        batch = dataset[i]
+        conv_runtime.set_input(**batch)
+        conv_runtime.run()
+        for j in range(2):
+            psum_tmp = conv_runtime.get_output(j).numpy()
+            np.save(QCheckpoint_bias_dir + "/" + "Bias_{}".format(i*(num_psum_outputs) + j), psum_tmp)
     print("conv_psum collect done")    
     
     
     print("starting conv_input")
-    conv_runtime = _get_qcheckpoint_runtime(mod_quantize)
+    conv_runtime = _get_qcheckpointzpi_runtime(mod_quantize)
     num_psum_outputs = conv_runtime.get_num_outputs()
     for i in range(1):
         batch = dataset[i]
@@ -132,12 +229,12 @@ def collect_wj_3(mod_quantize, dataset=None):
         conv_runtime.run()
         for j in range(2):
             psum_tmp = conv_runtime.get_output(j).numpy()
-            np.save(QConInput_dir + "/" + "Input_{}".format(i*(num_psum_outputs) + j), psum_tmp)
+            np.save(QCheckpoint_zpi_dir + "/" + "Zpi_{}".format(i*(num_psum_outputs) + j), psum_tmp)
     print("conv_input collect done")    
     
     
     print("starting conv_output")
-    conv_runtime = _get_qcheckpointsiso_runtime(mod_quantize)
+    conv_runtime = _get_qcheckpointzpw_runtime(mod_quantize)
     num_psum_outputs = conv_runtime.get_num_outputs()
     for i in range(1):
         batch = dataset[i]
@@ -145,10 +242,42 @@ def collect_wj_3(mod_quantize, dataset=None):
         conv_runtime.run()
         for j in range(2):
             psum_tmp = conv_runtime.get_output(j).numpy()
-            np.save(QConWeight_dir + "/" + "Weight_{}".format(i*(num_psum_outputs) + j), psum_tmp)
+            np.save(QCheckpoint_zpw_dir + "/" + "Zpw_{}".format(i*(num_psum_outputs) + j), psum_tmp)
     print("conv_output collect done")    
-        
     
-
+    print("starting conv_output")
+    conv_runtime = _get_qcheckpointweight_runtime(mod_quantize)
+    num_psum_outputs = conv_runtime.get_num_outputs()
+    for i in range(1):
+        batch = dataset[i]
+        conv_runtime.set_input(**batch)
+        conv_runtime.run()
+        for j in range(2):
+            psum_tmp = conv_runtime.get_output(j).numpy()
+            np.save(QConWeight_dir + "/" + "ConvWeight_{}".format(i*(num_psum_outputs) + j), psum_tmp)
+    print("conv_output collect done")    
+    
+    print("starting conv_output")
+    conv_runtime = _get_qcheckpointinput_runtime(mod_quantize)
+    num_psum_outputs = conv_runtime.get_num_outputs()
+    for i in range(1):
+        batch = dataset[i]
+        conv_runtime.set_input(**batch)
+        conv_runtime.run()
+        for j in range(2):
+            psum_tmp = conv_runtime.get_output(j).numpy()
+            np.save(QConInput_dir + "/" + "ConvInput_{}".format(i*(num_psum_outputs) + j), psum_tmp)
+    print("conv_output collect done")    
     
     
+    print("starting conv_output")
+    conv_runtime = _get_qcheckpointaddoutput_runtime(mod_quantize)
+    num_psum_outputs = conv_runtime.get_num_outputs()
+    for i in range(1):
+        batch = dataset[i]
+        conv_runtime.set_input(**batch)
+        conv_runtime.run()
+        for j in range(2):
+            psum_tmp = conv_runtime.get_output(j).numpy()
+            np.save(QAddOutput_dir + "/" + "AddOutput_{}".format(i*(num_psum_outputs) + j), psum_tmp)
+    print("conv_output collect done")   
