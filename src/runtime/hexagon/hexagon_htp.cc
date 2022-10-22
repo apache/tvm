@@ -35,9 +35,9 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-HexagonHtp::HexagonHtp() {}
+HexagonHtp::HexagonHtp() { Acquire(); }
 
-HexagonHtp::~HexagonHtp() {}
+HexagonHtp::~HexagonHtp() { Release(); }
 
 void HexagonHtp::Acquire() {
   compute_res_attr_t compute_res_attr;
@@ -54,15 +54,19 @@ void HexagonHtp::Acquire() {
   if (!context_id_) {
     LOG(FATAL) << "InternalError: HAP_compute_res_acquire failed\n";
   }
+}
+
+void HexagonHtp::Release() { HAP_compute_res_release((unsigned int)context_id_); }
+
+void HexagonHtp::Lock() {
+  int nErr;
+
   if ((nErr = HAP_compute_res_hmx_lock(context_id_))) {
     LOG(FATAL) << "InternalError: Unable to lock HTP!";
   }
 }
 
-void HexagonHtp::Release() {
-  HAP_compute_res_hmx_unlock((unsigned int)context_id_);
-  HAP_compute_res_release((unsigned int)context_id_);
-}
+void HexagonHtp::Unlock() { HAP_compute_res_hmx_unlock((unsigned int)context_id_); }
 
 }  // namespace hexagon
 }  // namespace runtime
