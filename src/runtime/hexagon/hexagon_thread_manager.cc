@@ -315,13 +315,11 @@ void HexagonThreadManager::thread_exit(void* context) {
 
   if ((resource_type == HVX_0) || (resource_type == HVX_1) || (resource_type == HVX_2) ||
       (resource_type == HVX_3)) {
-    CHECK(tc->hvx) << "Malformed thread context, missing hvx pointer for HVX_x resource";
     tc->hvx->Unlock();
-    DLOG(INFO) << "Resource " << resource_type << " unlocked an HVX instance";
+    DLOG(INFO) << "Thread " << index << " unlocked an HVX instance";
   } else if (resource_type == HTP_0) {
-    CHECK(tc->htp) << "Malformed thread context, missing htp pointer for HTP_0 resource";
     tc->htp->Release();
-    DLOG(INFO) << "Resource " << resource_type << " released the HTP";
+    DLOG(INFO) << "Thread " << index << " released the HTP";
   }
 
   DLOG(INFO) << "Thread " << index << " exiting";
@@ -336,32 +334,13 @@ void HexagonThreadManager::thread_main(void* context) {
 
   DLOG(INFO) << "Thread " << index << " spawned";
 
-  switch (resource_type) {
-    case NONE:
-      DLOG(INFO) << "No hardware resource";
-      break;
-
-    case DMA_0:
-      DLOG(INFO) << "Resource " << resource_type << " assigned to DMA";
-      break;
-
-    case HTP_0:
-      CHECK(tc->htp) << "Malformed thread context, missing htp pointer for HTP_0 resource";
-      tc->htp->Acquire();
-      DLOG(INFO) << "Resource " << resource_type << " acquired the HTP";
-      break;
-
-    case HVX_0:
-    case HVX_1:
-    case HVX_2:
-    case HVX_3:
-      CHECK(tc->hvx) << "Malformed thread context, missing hvx pointer for HVX_x resource";
-      tc->hvx->Lock();
-      DLOG(INFO) << "Resource " << resource_type << " locked an HVX instance";
-      break;
-
-    default:
-      CHECK(false) << "Invalid HardwareResourceType: " << resource_type;
+  if ((resource_type == HVX_0) || (resource_type == HVX_1) || (resource_type == HVX_2) ||
+      (resource_type == HVX_3)) {
+    tc->hvx->Lock();
+    DLOG(INFO) << "Thread " << index << " locked an HVX instance";
+  } else if (resource_type == HTP_0) {
+    tc->htp->Acquire();
+    DLOG(INFO) << "Thread " << index << " acquired the HTP";
   }
 
   while (true) {  // loop, executing commands from pipe
