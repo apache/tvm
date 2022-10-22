@@ -190,3 +190,22 @@ TEST_F(HexagonDeviceAPITest, vtcm_pool) {
   EXPECT_THROW(hexapi->VtcmPool(), InternalError);
   hexapi->AcquireResources();
 }
+
+// Validate threads created for hw resources
+TEST_F(HexagonDeviceAPITest, threads_for_resource_types) {
+  HexagonThreadManager* thread_manager = hexapi->ThreadManager();
+  TVMStreamHandle thread;
+
+  thread = thread_manager->GetStreamHandleByResourceType(DMA_0);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == DMA_0);
+  thread = thread_manager->GetStreamHandleByResourceType(HTP_0);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HTP_0);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_0);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_0);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_1);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_1);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_2);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_2);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_3);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_3);
+}

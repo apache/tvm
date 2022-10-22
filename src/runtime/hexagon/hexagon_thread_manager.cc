@@ -196,6 +196,19 @@ const std::vector<TVMStreamHandle> HexagonThreadManager::GetStreamHandles() {
   return out;
 }
 
+TVMStreamHandle HexagonThreadManager::GetStreamHandleByResourceType(HardwareResourceType type) {
+  for (unsigned i = 0; i < hw_resources_.size(); i++) {
+    if (hw_resources_[i] == type) {
+      return reinterpret_cast<TVMStreamHandle>(i);
+    }
+  }
+  CHECK(false) << "Thread for resource type " << type << " not found";
+}
+
+HardwareResourceType HexagonThreadManager::GetResourceTypeForStreamHandle(TVMStreamHandle thread) {
+  return hw_resources_[reinterpret_cast<int>(thread)];
+}
+
 bool HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* args) {
   unsigned thread = reinterpret_cast<unsigned>(stream);
   DLOG(INFO) << "Dispatching to stream " << thread;

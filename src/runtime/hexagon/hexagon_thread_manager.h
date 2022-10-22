@@ -88,6 +88,18 @@ class HexagonThreadManager {
   const std::vector<TVMStreamHandle> GetStreamHandles();
 
   /*!
+   * \brief Get the spawned threads as stream handles for a resource type.
+   * \returns stream handle.
+   */
+  TVMStreamHandle GetStreamHandleByResourceType(HardwareResourceType type);
+
+  /*!
+   * \brief Get the resource type for a stream handle
+   * \returns stream handle.
+   */
+  HardwareResourceType GetResourceTypeForStreamHandle(TVMStreamHandle thread);
+
+  /*!
    * \brief Non-blocking dispatch of a void function and args on a given thread.
    * \param thread Stream handle of the thread on which to dispatch the void function.
    * \param f Void function to be dispatched.
