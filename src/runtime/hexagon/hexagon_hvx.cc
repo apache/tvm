@@ -31,14 +31,18 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-HexagonHvx::HexagonHvx() {
+HexagonHvx::HexagonHvx() { Acquire(); }
+
+HexagonHvx::~HexagonHvx() { Release(); }
+
+void HexagonHvx::Acquire() {
   reserved_count_ = qurt_hvx_reserve(QURT_HVX_RESERVE_ALL);
   CHECK((reserved_count_ == QURT_HVX_RESERVE_ALL) ||
         (reserved_count_ == QURT_HVX_RESERVE_ALREADY_MADE))
       << "error reserving HVX: " << reserved_count_;
 }
 
-HexagonHvx::~HexagonHvx() {
+void HexagonHvx::Release() {
   int rel = qurt_hvx_cancel_reserve();
   CHECK(rel == 0) << "error releasing HVX: " << rel;
 }

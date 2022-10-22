@@ -56,6 +56,9 @@ class HexagonHvx {
 
  private:
   int reserved_count_;
+
+  void Acquire();
+  void Release();
 };
 
 }  // namespace hexagon

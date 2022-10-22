@@ -41,7 +41,7 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   hw_resources_ = hw_resources;
   CheckResources();
 
-  if (!hw_resources_.empty()) {
+  if (create_resource_managers_) {
     DLOG(INFO) << "Initialize hardware resource managers";
     // Acquisition/locks will be performed on specific threads
     htp_ = std::make_unique<HexagonHtp>();
@@ -116,12 +116,14 @@ HexagonThreadManager::~HexagonThreadManager() {
 }
 
 void HexagonThreadManager::CheckResources() {
+  create_resource_managers_ = false;
   CHECK(hw_resources_.empty() || hw_resources_.size() == nthreads_)
       << "Thread count must match resource count";
   if (!hw_resources_.empty()) {
     // Ensure that no more than one of each hardware resource is specified
     for (int i = 0; i < hw_resources_.size(); i++) {
       if (hw_resources_[i] != NONE) {
+        create_resource_managers_ = true;
         for (int j = i + 1; j < hw_resources_.size(); j++) {
           CHECK(hw_resources_[i] != hw_resources_[j])
               << "No more than one of each resource type may be specified " << hw_resources_[i];
@@ -318,8 +320,8 @@ void HexagonThreadManager::thread_exit(void* context) {
     tc->hvx->Unlock();
     DLOG(INFO) << "Thread " << index << " unlocked an HVX instance";
   } else if (resource_type == HTP_0) {
-    tc->htp->Release();
-    DLOG(INFO) << "Thread " << index << " released the HTP";
+    tc->htp->Unlock();
+    DLOG(INFO) << "Thread " << index << " unlocked the HTP";
   }
 
   DLOG(INFO) << "Thread " << index << " exiting";
@@ -339,8 +341,8 @@ void HexagonThreadManager::thread_main(void* context) {
     tc->hvx->Lock();
     DLOG(INFO) << "Thread " << index << " locked an HVX instance";
   } else if (resource_type == HTP_0) {
-    tc->htp->Acquire();
-    DLOG(INFO) << "Thread " << index << " acquired the HTP";
+    tc->htp->Lock();
+    DLOG(INFO) << "Thread " << index << " locked the HTP";
   }
 
   while (true) {  // loop, executing commands from pipe

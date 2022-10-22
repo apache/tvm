@@ -228,6 +228,9 @@ class HexagonThreadManager {
   //! \brief List of hardware resources
   std::vector<HardwareResourceType> hw_resources_;
 
+  //! \brief Whether or not resource managers should be created
+  bool create_resource_managers_{false};
+
   //! \brief HTP hardware resource.
   // TODO(HWE): Move binding of HTP to a specific thread
   std::unique_ptr<HexagonHtp> htp_;

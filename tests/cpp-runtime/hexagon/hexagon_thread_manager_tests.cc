@@ -359,18 +359,12 @@ TEST_F(HexagonThreadManagerTest, threads_for_resource_types) {
 
 // Ensure proper behavior of hardware resources managed by global thread manager
 TEST_F(HexagonThreadManagerTest, hardware_resources_locked) {
-  CHECK(htm != nullptr);
-  CHECK_EQ(streams.size(), threads);
+  // HVX can share
   HexagonHvx* hvx = new HexagonHvx();
-  HexagonHtp* htp = new HexagonHtp();
-
-  // These should succeed
   hvx->Lock();
   hvx->Unlock();
-
-  // This should throw
-  EXPECT_THROW(htp->Acquire(), InternalError);
-
   delete hvx;
-  delete htp;
+
+  // HTP cannot
+  EXPECT_THROW(HexagonHtp* htp = new HexagonHtp(), InternalError);
 }
