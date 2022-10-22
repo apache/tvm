@@ -330,7 +330,7 @@ def quantize_activation_intrin(data_tmp):
     return [act_min, act_max]
         
 
-def quantize_activation(mod, quantizer_node, estimator_node, dataset):
+def quantize_activation(mod, quantizer_node, estimator_node, dataset, min_max):
     """
     Quantize Activation
 
@@ -342,17 +342,22 @@ def quantize_activation(mod, quantizer_node, estimator_node, dataset):
     
     qact_runtime = _get_profile_runtime(mod)
     num_workers = chunk_by if chunk_by != -1 else 32
-    for batch in tqdm.tqdm(dataset, desc="Calibrating Activation"):
-        quantization_infos = []
-        for samples in collect_stats(qact_runtime, batch, estimator_node, chunk_by):
-            with mp.Pool(num_workers) as pool:
-                quantization_infos += list(pool.map(quantize_activation_intrin, samples))
+    quantization_infos = []
 
-    
-    assert(len(quantization_infos) == len(quantizer_node))
-    assert(len(quantization_infos) == len(estimator_node))
-    for i in range(len(quantization_infos)):
-        quantizer_node[i].set_quant_range(quantization_infos[i][0], quantization_infos[i][1])
+    # skip allminmax since the information has been collected
+    if cfg.get_estimator_by_kind(quantize.QAnnotateKind.INPUT) == "min_max":
+        assert(len(min_max) == len(quantizer_node))
+        for i, element in enumerate(min_max):
+           quantizer_node[i].set_quant_range(element[0], element[1])
+    else:
+        for batch in tqdm.tqdm(dataset, desc="Calibrating Activation"):
+            for samples in collect_stats(qact_runtime, batch, estimator_node, chunk_by):
+                with mp.Pool(num_workers) as pool:
+                    quantization_infos += list(pool.map(quantize_activation_intrin, samples))
+        assert(len(quantization_infos) == len(quantizer_node))
+        assert(len(quantization_infos) == len(estimator_node))
+        for i in range(len(quantization_infos)):
+            quantizer_node[i].set_quant_range(quantization_infos[i][0], quantization_infos[i][1])
 
     return quantization_infos
 
@@ -613,7 +618,7 @@ def calibrate(dataset=None):
 
         """Step 4. Start Quantizing Activation"""
         # q_act_list format is [min_act, max_act]
-        activation_info = quantize_activation(mod, quantizer_act_node, estimator_act_node, dataset)
+        activation_info = quantize_activation(mod, quantizer_act_node, estimator_act_node, dataset, min_max)
 
         """Step 5. Calculating every layers' cosine similarity if needed """
         if debug_mode:
