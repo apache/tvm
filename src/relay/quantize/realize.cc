@@ -215,7 +215,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
         // for(int i=0; i<idom_scale_imms.size(); i++){
         //   //printf("%lf",idom_scale_imms[i]);
         // }
-        data = Multiply(data, (Divide(Cast(n->dom_scale, DataType::Float(32)), dom_scale)));
+        data = Multiply(data, CheckPointSiso(Divide(Cast(n->dom_scale, DataType::Float(32)), dom_scale)));
         //data = Multiply(data, (Divide(CheckPoint(Cast(n->dom_scale, DataType::Float(32))), dom_scale)));
         data = Cast(Round(data), DataType::Int(64));
       }
@@ -311,23 +311,23 @@ Expr Conv2dRealize(const Call& ref_call, const Array<Expr>& new_args, const Obje
     }
     Expr rdata = Cast(rhs->data, cfg->dtype_weight);
 
-    ldata = Subtract(CheckPoint(ldata), MakeConstantScalar(cfg->dtype_input, zps_data_imm));
+    ldata = Subtract(ldata, MakeConstantScalar(cfg->dtype_input, zps_data_imm));
     if(cfg->per_channel){
-      rdata = (Subtract(CheckPointSiso(rdata), MakeConstantTensor(cfg->dtype_weight, {(int64_t)zps_weight.size(),1,1,1}, zps_weight)));
+      rdata = Subtract(rdata, MakeConstantTensor(cfg->dtype_weight, {(int64_t)zps_weight.size(),1,1,1}, zps_weight));
       //rdata = Subtract(rdata, Cast(rhs->zero_point, cfg->dtype_weight));  //(192,64,5,5) -(192,1,1,1) 
     }
     else{
       rdata = Subtract(rdata, MakeConstantScalar(cfg->dtype_weight, zps_weight_imm)); ////
     }
     
-    
+
     const auto ref_attrs = ref_call->attrs.as<Conv2DAttrs>();
     auto attrs = make_object<Conv2DAttrs>();
     *attrs = *ref_attrs;
     DataType out_dtype = cfg->dtype_activation;
     attrs->out_dtype = out_dtype;
 
-    Expr ret = (Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args));
+    Expr ret = Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args);
     //当per_channel的时候，rhs的scale就是[, , , , .....]
     Expr mul;
     if(cfg->per_channel){
@@ -634,8 +634,6 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
       ret.Set(1,(Subtract(ret[1], zp[1])));
       //ret.Set(1,Divide(Cast(ret[1],DataType::Float(32)), Cast(dom_scale, DataType::Float(32))));
       ret.Set(1,CheckPointBiasS(Multiply(Cast(ret[1],DataType::Float(32)), output_multiplier)));// add[1] = bias/dom_scale = (192,1,1)*(192,1,1)
-      //ret.Set(1, Add(Cast(ret[1], dtype), MakeConstantScalar(dtype, static_cast<float>(1)))) ;
-      //ret.Set(1, Cast((ret[1]), dtype));
       ret.Set(1, Cast(Round(ret[1]), dtype));
       //printf("add in bias with per_channels done\n");
     }
