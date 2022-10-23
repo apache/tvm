@@ -571,6 +571,21 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "Assign")(self, node)
 
+    def visit_AnnAssign(self, node: doc.AnnAssign) -> Any:  # pylint: disable=invalid-name
+        """The general annotated assign visiting method.
+
+        Parameters
+        ----------
+        node : doc.Assign
+            The doc AST annotated assign node.
+
+        Returns
+        -------
+        res : Any
+            The visiting result.
+        """
+        return _dispatch(self, "AnnAssign")(self, node)
+
     def visit_Expr(self, node: doc.Expr) -> Any:  # pylint: disable=invalid-name
         """The general expression visiting method.
 
