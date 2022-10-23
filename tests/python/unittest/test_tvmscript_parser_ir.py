@@ -13,10 +13,23 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the Licens.
-"""The core parser infra"""
-# pylint: disable=unused-import
-from .core import dispatch, doc, utils
-from .core.dispatch import OpMethod, register_op
-from .core.entry import parse
-from .core.parser import Parser
+# under the License.
+"""Unittests for tvm.script.parser.ir"""
+
+import pytest
+import inspect
+import tvm.testing
+from tvm.script._parser import ir_module
+from tvm.ir import IRModule
+
+
+def test_ir_base():
+    @ir_module
+    class BlankIRModule:
+        pass
+
+    assert isinstance(BlankIRModule, IRModule) and len(BlankIRModule.functions.items()) == 0
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
