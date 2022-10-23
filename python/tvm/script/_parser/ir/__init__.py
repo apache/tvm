@@ -13,10 +13,10 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the Licens.
-"""The core parser infra"""
-# pylint: disable=unused-import
-from .core import dispatch, doc, utils
-from .core.dispatch import OpMethod, register_op
-from .core.entry import parse
-from .core.parser import Parser
+# under the License.
+"""The ir module parser"""
+
+from . import parser as _parser
+from .entry import ir_module, is_defined_in_class
+
+__all__ = ["ir_module", "is_defined_in_class"]
