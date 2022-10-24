@@ -225,21 +225,24 @@ def _schedule_packed_8x8x32_conv2d(do_tune: bool):
         # Move the conv2d mma into the injective post mma compute block
         if outer_block != conv2d_block:
             loops = sch.get_loops(outer_block)
-            # TODO(csullivan): May want to move this to an interior loop
-            # of the outer block doing injective/ewise ops
-            sch.compute_at(conv2d_block, loops[0])
+            # TODO(csullivan): Currently does all post conv2d mma steps
+            # directly after accumulation for one spatial pixel. May
+            # be desirable to do this with coarser spatial granularity
+            sch.compute_at(conv2d_block, loops[4])
 
         def index_map_nchw32c_nchw8h8w32c(n, c, h, w, c32):
             return [n, c, h // 8, w // 8, h % 8, w % 8, c32]
 
-        # sch.cache_read()
-        # sch.transform_layout
-        if do_tune:
-            pass
-        else:
-            pass
-
-        return True
+        # Add cache for input and output activation layout transform,
+        # note that weight is already in correct layout
+        input_cache = sch.cache_read(conv2d_block, 0, "global")
+        output_cache = sch.cache_write(outer_block, 0, "global")
+        sch.transform_layout(
+            conv2d_block, ("read", 0), index_map=index_map_nchw32c_nchw8h8w32c, pad_value=0
+        )
+        sch.transform_layout(
+            outer_block, ("write", 0), index_map=index_map_nchw32c_nchw8h8w32c, pad_value=0
+        )
 
     return schedule_fn
 
