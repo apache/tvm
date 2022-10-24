@@ -23,6 +23,8 @@ import tempfile
 
 import pytest
 
+from tvm.contrib.hexagon.tools import HEXAGON_SIMULATOR_NAME
+
 
 def skip_benchmarks_flag_and_reason():
     """
@@ -37,7 +39,7 @@ def skip_benchmarks_flag_and_reason():
     """
     asn = os.environ.get("ANDROID_SERIAL_NUMBER")
 
-    if asn == "simulator":
+    if asn == HEXAGON_SIMULATOR_NAME:
         return (True, "Skipping benchmarks when  ANDROID_SERIAL_NUMBER='simluator'")
 
     return (False, "")

@@ -63,7 +63,7 @@ class MatmulModule:
 
 @tvm.testing.requires_hexagon
 def test_builder_runner(hexagon_launcher):
-    if android_serial_number()[0] == "simulator":
+    if hexagon_launcher.is_simulator():
         pytest.skip(msg="Tuning on simulator not supported.")
 
     mod = MatmulModule
@@ -176,7 +176,7 @@ def verify_dense(sch, target, M, N, K, hexagon_session):
 
 @tvm.testing.requires_hexagon
 def test_vrmpy_dense(hexagon_launcher):
-    if android_serial_number()[0] == "simulator":
+    if hexagon_launcher.is_simulator():
         pytest.skip(msg="Tuning on simulator not supported.")
 
     do_tune = True
@@ -274,7 +274,7 @@ class Module_vrmpy_auto_tensorize:
 
 @tvm.testing.requires_hexagon
 def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
-    if android_serial_number()[0] == "simulator":
+    if hexagon_launcher.is_simulator():
         pytest.skip(msg="Tuning on simulator not supported.")
 
     M, N, K = 128, 768, 768
@@ -337,7 +337,7 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
 
 @tvm.testing.requires_hexagon
 def test_conv2d_relay_auto_schedule(hexagon_launcher):
-    if android_serial_number()[0] == "simulator":
+    if hexagon_launcher.is_simulator():
         pytest.skip(msg="Tuning on simulator not supported.")
 
     I, O, H, W = 64, 64, 56, 56
@@ -417,7 +417,7 @@ def test_dense_relay_auto_schedule(hexagon_launcher):
     This is for testing RewriteLayout postproc. Without this postproc,
     dense on Hexagon is extremely slow.
     """
-    if android_serial_number()[0] == "simulator":
+    if hexagon_launcher.is_simulator():
         pytest.skip(msg="Tuning on simulator not supported.")
 
     target_hexagon = tvm.target.hexagon("v69")

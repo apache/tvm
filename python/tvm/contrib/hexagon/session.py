@@ -30,7 +30,7 @@ from tvm.relay.backend.executor_factory import (
     AOTExecutorFactoryModule,
     GraphExecutorFactoryModule,
 )
-from .tools import export_module
+from .tools import export_module, HEXAGON_SIMULATOR_NAME
 
 
 class Session:
@@ -120,6 +120,9 @@ class Session:
             self._device = self._rpc.hexagon(0)
 
         return self._device
+
+    def is_simulator(self):
+        return self._remote_kw["serial_number"] == HEXAGON_SIMULATOR_NAME
 
     def get_function(self, name):
         return self._rpc.get_function(name)

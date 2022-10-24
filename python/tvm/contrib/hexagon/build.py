@@ -35,6 +35,7 @@ import tvm
 from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
 from ..._ffi import libinfo
 from .session import Session
+from .tools import HEXAGON_SIMULATOR_NAME
 
 HEXAGON_RPC_LIB_DIR = os.environ.get("HEXAGON_RPC_LIB_DIR")
 ANDROID_BASH_FILE_NAME = "android_bash.sh"
@@ -133,6 +134,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         }
         self._rpc_info.update(rpc_info)
         self._workspace = self._create_workspace(workspace)
+        self._serial_number
 
     @abc.abstractmethod
     def start_server(self):
@@ -241,8 +243,12 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
             "priority": 0,
             "timeout": 0,
             "key": self._rpc_info["device_key"],
+            "serial_number": self._serial_number,
         }
         return Session(self._workspace, hexagon_remote_kw, session_name=session_name)
+
+    def is_simulator(self):
+        return self._serial_number == HEXAGON_SIMULATOR_NAME
 
 
 class HexagonLauncherAndroid(HexagonLauncherRPC):
@@ -584,7 +590,7 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
         self._toolchain = os.environ.get("HEXAGON_TOOLCHAIN")
         if not self._toolchain:
             raise RuntimeError("Please set HEXAGON_TOOLCHAIN env variable")
-        self._serial_number = "simulator"
+        self._serial_number = HEXAGON_SIMULATOR_NAME
 
         super(HexagonLauncherSimulator, self).__init__(rpc_info, workspace)
 
@@ -714,7 +720,7 @@ def HexagonLauncher(
     sysmon_profile: bool = False,
 ):
     """Creates a HexagonLauncher"""
-    if serial_number == "simulator":
+    if serial_number == HEXAGON_SIMULATOR_NAME:
         return HexagonLauncherSimulator(rpc_info, workspace)
     return HexagonLauncherAndroid(
         serial_number, rpc_info, workspace, hexagon_debug, clear_logcat, sysmon_profile
