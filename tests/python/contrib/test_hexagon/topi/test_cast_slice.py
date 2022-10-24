@@ -22,7 +22,6 @@ import tvm
 import tvm.testing
 from tvm import te
 import tvm.topi.hexagon.slice_ops as sl
-from tvm.contrib.hexagon.pytest_plugin import android_serial_number
 
 from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 

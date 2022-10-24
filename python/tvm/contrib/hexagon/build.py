@@ -125,7 +125,9 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         used.
     """
 
-    def __init__(self, rpc_info: dict, workspace: Union[str, pathlib.Path] = None):
+    def __init__(
+        self, rpc_info: dict, workspace: Union[str, pathlib.Path] = None, serial_number: str = None
+    ):
         self._rpc_info = {
             "rpc_tracker_host": "0.0.0.0",
             "rpc_tracker_port": 9190,
@@ -134,7 +136,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         }
         self._rpc_info.update(rpc_info)
         self._workspace = self._create_workspace(workspace)
-        self._serial_number
+        self._serial_number = serial_number
 
     @abc.abstractmethod
     def start_server(self):
@@ -303,7 +305,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self._sysmon_process = None
         rpc_info["device_key"] = HEXAGON_REMOTE_DEVICE_KEY + "." + self._serial_number
 
-        super(HexagonLauncherAndroid, self).__init__(rpc_info, workspace)
+        super(HexagonLauncherAndroid, self).__init__(rpc_info, workspace, self._serial_number)
 
     def _copy_to_remote(
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
@@ -592,7 +594,7 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
             raise RuntimeError("Please set HEXAGON_TOOLCHAIN env variable")
         self._serial_number = HEXAGON_SIMULATOR_NAME
 
-        super(HexagonLauncherSimulator, self).__init__(rpc_info, workspace)
+        super(HexagonLauncherSimulator, self).__init__(rpc_info, workspace, self._serial_number)
 
     def _copy_to_remote(
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]

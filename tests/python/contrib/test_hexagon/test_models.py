@@ -24,7 +24,6 @@ import tvm.testing
 from tvm import relay
 from tvm.contrib.hexagon.session import Session
 from tvm.relay.backend import Executor, Runtime
-from tvm.contrib.hexagon.pytest_plugin import android_serial_number
 
 from .infrastructure import get_hexagon_target
 

@@ -35,7 +35,6 @@ from tvm.meta_schedule.runner import RunnerInput
 from tvm.script import tir as T
 from tvm.tir import FloatImm
 from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
-from tvm.contrib.hexagon.pytest_plugin import android_serial_number
 
 from .infrastructure import get_hexagon_target
 
