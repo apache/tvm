@@ -212,7 +212,7 @@ class TestDenseSlice:
     def expected_output_np(self, input_np, weight_np, bias_np, bias):
         ref_np = tvm.topi.testing.dense(
             np.reshape(input_np, (input_np.shape[0], input_np.shape[-1])),
-            weight_np.T, # Function expects [in_dim, out_dim]
+            weight_np.T,  # Function expects [in_dim, out_dim]
             bias_np,
             use_bias=bias,
             out_dtype="float32" if "int" in str(input_np.dtype) else input_np.dtype,
