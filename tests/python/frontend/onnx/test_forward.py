@@ -5238,24 +5238,17 @@ unsupported_onnx_tests = [
     "test_blackmanwindow_expanded",
     "test_blackmanwindow_symmetric",
     "test_blackmanwindow_symmetric_expanded",
-    "test_cast_DOUBLE_to_FLOAT16",
+    # the follow cast and castlike cases have lowering issues
     "test_cast_FLOAT_to_STRING",
     "test_cast_STRING_to_FLOAT",
-    "test_castlike_BFLOAT16_to_FLOAT",
-    "test_castlike_BFLOAT16_to_FLOAT_expanded",
-    "test_castlike_DOUBLE_to_FLOAT",
-    "test_castlike_DOUBLE_to_FLOAT16",
-    "test_castlike_DOUBLE_to_FLOAT16_expanded",
-    "test_castlike_FLOAT16_to_DOUBLE",
-    "test_castlike_FLOAT16_to_FLOAT",
-    "test_castlike_FLOAT_to_BFLOAT16",
-    "test_castlike_FLOAT_to_BFLOAT16_expanded",
-    "test_castlike_FLOAT_to_DOUBLE",
-    "test_castlike_FLOAT_to_FLOAT16",
     "test_castlike_FLOAT_to_STRING",
     "test_castlike_FLOAT_to_STRING_expanded",
     "test_castlike_STRING_to_FLOAT",
     "test_castlike_STRING_to_FLOAT_expanded",
+    # the following cast and castlike cases segfault
+    "test_cast_DOUBLE_to_FLOAT16",
+    "test_castlike_DOUBLE_to_FLOAT16",
+    "test_castlike_DOUBLE_to_FLOAT16_expanded",
     "test_convtranspose_autopad_same",
     "test_convtranspose_dilations",
     "test_cumsum_1d",
@@ -5287,7 +5280,6 @@ unsupported_onnx_tests = [
     "test_identity_sequence",
     "test_if_opt",
     "test_if_seq",
-    "test_loop11",
     "test_loop13_seq",
     "test_loop16_seq_none",
     "test_lstm_batchwise",
@@ -5376,6 +5368,27 @@ target_skips = {
 }
 
 
+def _load_proto(proto_filename, target_list, model_type_proto):
+    with open(proto_filename, "rb") as fin:
+        protobuf_content = fin.read()
+        if model_type_proto.HasField("sequence_type"):
+            sequence = onnx.SequenceProto()
+            sequence.ParseFromString(protobuf_content)
+            target_list.append(numpy_helper.to_list(sequence))
+        elif model_type_proto.HasField("tensor_type"):
+            tensor = onnx.TensorProto()
+            tensor.ParseFromString(protobuf_content)
+            target_list.append(numpy_helper.to_array(tensor))
+        elif model_type_proto.HasField("optional_type"):
+            optional = onnx.OptionalProto()
+            optional.ParseFromString(protobuf_content)
+            target_list.append(numpy_helper.to_optional(optional))
+        else:
+            raise ValueError(
+                "Loading proto of that specific type (Map/Sparse Tensor) is currently not supported"
+            )
+
+
 @pytest.mark.parametrize("onnx_test", onnx_test_folders)
 @tvm.testing.parametrize_targets
 def test_onnx_nodes(target, dev, onnx_test):
@@ -5415,22 +5428,21 @@ def test_onnx_nodes(target, dev, onnx_test):
         # satisfies onnx precision for bicubic interpolation
         atol = 1e-4
 
-    onnx_model = onnx.load(test_dir + "/model.onnx")
-    inputs = []
-    outputs = []
-    for dataset in glob.glob(test_dir + "/*/"):
-        tensors = sorted(glob.glob(dataset + "/*.pb"))
-        for tensor in tensors:
-            new_tensor = onnx.TensorProto()
-            with open(tensor, "rb") as f:
-                new_tensor.ParseFromString(f.read())
-            if "input" in tensor.split("/")[-1]:
-                inputs.append(numpy_helper.to_array(new_tensor))
-            elif "output" in tensor.split("/")[-1]:
-                outputs.append(numpy_helper.to_array(new_tensor))
-            else:
-                raise ImportError(str(tensor) + " not labeled as an import or an output")
-    tvm_val = get_tvm_output_with_vm(onnx_model, inputs, target, dev)
+    model = onnx.load(os.path.join(test_dir, "model.onnx"))
+    for test_data_dir in glob.glob(os.path.join(test_dir, "test_data_set*")):
+        inputs = []
+        n_inputs = len(glob.glob(os.path.join(test_data_dir, "input_*.pb")))
+        for i in range(n_inputs):
+            input_file = os.path.join(test_data_dir, f"input_{i}.pb")
+            _load_proto(input_file, inputs, model.graph.input[i].type)
+
+        outputs = []
+        n_outputs = len(glob.glob(os.path.join(test_data_dir, "output_*.pb")))
+        for i in range(n_outputs):
+            output_file = os.path.join(test_data_dir, f"output_{i}.pb")
+            _load_proto(output_file, outputs, model.graph.output[i].type)
+
+    tvm_val = get_tvm_output_with_vm(model, inputs, target, dev)
     if len(outputs) == 1:
         tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=rtol, atol=atol)
     else:
