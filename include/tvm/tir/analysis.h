@@ -202,6 +202,13 @@ TVM_DLL Array<Array<BufferRegion>> GetBlockReadWriteRegion(const Block& block,
 TVM_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
 
 /*!
+ * \brief Calculate the constants size in bytes needed by the TIR allocates inside the TIR PrimFunc
+ * \param func The TIR PrimFunc for which the constants size to be calculated
+ * \param constant_byte_alignment The byte alignment required for each constant allocated
+ */
+TVM_DLL size_t CalculateConstantBytes(const PrimFunc& func, const Integer& constant_byte_alignment);
+
+/*!
  * \brief Calculate the workspace size in bytes needed by the TIR allocates inside the TIR PrimFunc
  * \param func The TIR PrimFunc for which the workspace size to be calculated
  * \param workspace_byte_alignment The byte alignment required for each tensor allocated in this
