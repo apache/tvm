@@ -5375,12 +5375,6 @@ target_skips = {
     ]
 }
 
-flaky_target_skips = {
-    "cuda": [
-        "test_gridsample_nearest",
-    ]
-}
-
 
 @pytest.mark.parametrize("onnx_test", onnx_test_folders)
 @tvm.testing.parametrize_targets
@@ -5397,10 +5391,6 @@ def test_onnx_nodes(target, dev, onnx_test):
     target_specific_skips = target_skips.get(target_kind, [])
     if onnx_test in target_specific_skips:
         pytest.skip(f"Onnx test '{onnx_test}' not yet supported by TVM on {target_kind} targets")
-
-    flaky_target_specific_skips = flaky_target_skips.get(target_kind, [])
-    if onnx_test in flaky_target_specific_skips:
-        pytest.skip(f"Skipping the flaky test '{onnx_test}' on {target_kind} targets")
 
     test_dir = os.path.join(onnx_test_node_dir, onnx_test)
 
