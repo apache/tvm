@@ -19,6 +19,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/builtin_fp16.h>
 
 #include "pattern_utils.h"
 
@@ -48,6 +49,14 @@ class DivToMulRewrite : public MixedModeMutator {
               return post;
             }
             static_cast<double*>(inv->data)[0] = 1. / rhs_val;
+          } else if (dtype == "float16") {
+            // Do f16 math in f32
+            float rhs_val = __gnu_h2f_ieee(static_cast<uint16_t*>(rhs->data->data)[0]);
+            // Check for division by zero
+            if (rhs_val == 0.) {
+              return post;
+            }
+            static_cast<uint16_t*>(inv->data)[0] = __gnu_f2h_ieee(1. / rhs_val);
           } else {
             // Cannot do 1/int because it will truncate
             return post;

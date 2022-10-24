@@ -20,12 +20,12 @@ import pytest
 import numpy as np
 
 
-@pytest.mark.parametrize("dtype", ["float32", "float64"])
-def test_div_to_mul(dtype):
+@pytest.mark.parametrize("dtype, rtol", [("float16", 1e-3), ("float32", 1e-7), ("float64", 1e-12)])
+def test_div_to_mul(dtype, rtol):
     x = relay.var("x", relay.TensorType((), dtype))
     y = relay.Constant(tvm.nd.array(np.array([1.5]).astype(dtype)))
     z = x / y
     mod = tvm.IRModule.from_expr(z)
     transformed = relay.transform.DivToMul()(mod)
     assert transformed["main"].body.op.name == "multiply"
-    np.testing.assert_allclose(transformed["main"].body.args[1].data.numpy()[0], 1 / 1.5)
+    np.testing.assert_allclose(transformed["main"].body.args[1].data.numpy()[0], 1 / 1.5, rtol=rtol)
