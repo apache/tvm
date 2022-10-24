@@ -36,7 +36,6 @@ from tvm.script import tir as T
 from tvm.tir import FloatImm
 from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 from tvm.contrib.hexagon.pytest_plugin import android_serial_number
-from tvm.contrib.hexagon.session import create_session
 
 from .infrastructure import get_hexagon_target
 
@@ -215,7 +214,7 @@ def test_vrmpy_dense(hexagon_launcher):
             )
             sch = ms.tir_integration.compile_tir(database, workload, target)
 
-    with create_session(hexagon_launcher._workspace, hexagon_launcher._rpc_info) as session:
+    with hexagon_launcher.create_session() as session:
         verify_dense(sch, get_hexagon_target("v68"), M, N, K, session)
 
 
@@ -332,7 +331,7 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
     else:
         sch = tvm.tir.Schedule(Module_vrmpy_auto_tensorize, debug_mask="all")
 
-    with create_session(hexagon_launcher._workspace, hexagon_launcher._rpc_info) as session:
+    with hexagon_launcher.create_session() as session:
         verify_dense(sch, get_hexagon_target("v68"), M, N, K, session)
 
 
@@ -399,7 +398,7 @@ def test_conv2d_relay_auto_schedule(hexagon_launcher):
             target=target,
         )
 
-    with create_session(hexagon_launcher._workspace, hexagon_launcher._rpc_info) as session:
+    with hexagon_launcher.create_session() as session:
         rt_mod = session.get_executor_from_factory(lib)
 
         rt_mod.set_input("data", data_np)
@@ -458,7 +457,7 @@ def test_dense_relay_auto_schedule(hexagon_launcher):
             target=target,
         )
 
-    with create_session(hexagon_launcher._workspace, hexagon_launcher._rpc_info) as session:
+    with hexagon_launcher.create_session() as session:
         rt_mod = session.get_executor_from_factory(lib)
 
         rt_mod.set_input("data", data_np)

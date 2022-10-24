@@ -34,7 +34,7 @@ from typing import Union
 import tvm
 from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
 from ..._ffi import libinfo
-
+from .session import Session
 
 HEXAGON_RPC_LIB_DIR = os.environ.get("HEXAGON_RPC_LIB_DIR")
 ANDROID_BASH_FILE_NAME = "android_bash.sh"
@@ -103,7 +103,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
     The basic flow of interaction with the launcher is
         launcher = HexagonLauncher(...)
         launcher.start_server()
-        with session.create_session() as session:
+        with launcher.create_session() as session:
             # Do something with the session
         launcher.stop_server()
 
@@ -221,6 +221,28 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
             Path of the profiling data file
         """
         ...
+    def create_session(self, session_name: str = "hexagon-rpc") -> Session:
+        """Create an RPC session.
+
+        Parameters
+        ----------
+        session_name : str
+            RPC session name.
+
+        Returns
+        -------
+        Session :
+            The session object.
+        """
+
+        hexagon_remote_kw = {
+            "host": self._rpc_info["rpc_tracker_host"],
+            "port": self._rpc_info["rpc_tracker_port"],
+            "priority": 0,
+            "timeout": 0,
+            "key": self._rpc_info["device_key"],
+        }
+        return Session(self._workspace, hexagon_remote_kw, session_name=session_name)
 
 
 class HexagonLauncherAndroid(HexagonLauncherRPC):
