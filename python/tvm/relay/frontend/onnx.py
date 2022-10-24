@@ -928,10 +928,45 @@ class Gelu(OnnxOpConverter):
         return _op.multiply(term1, term2)
 
 
+class FastGelu(OnnxOpConverter):
+    """Operator converter for FastGelu from Microsoft onnxruntime contrib opset.
+
+    fast_gelu(x) = 0.5x(1 + tanh(sqrt(2/pi)(x + 0.044715x^3)))
+                 = 0.5x(1 + tanh((sqrt(2/pi)x + 0.044715(sqrt(2/pi)x^3)))
+                 = 0.5x(1 + tanh(c1 * x + c2 * x^3)))
+    , where
+        c1 = sqrt(2/pi)
+        c2 = 0.044715 * sqrt(2/pi)
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        x = inputs[0]
+        if inputs[1]:
+            bias = inputs[1]
+            bias_shape = infer_shape(bias)
+            assert len(bias_shape) == 1, "bias term must be a 1D tensor"
+            x += bias
+
+        # Declare consts
+        const_dtype = infer_type(x).checked_type.dtype
+        half = _expr.const(0.5, dtype=const_dtype)
+        one = _expr.const(1.0, dtype=const_dtype)
+        const1 = _expr.const(math.sqrt(2 / math.pi), dtype=const_dtype)
+        const2 = _expr.const(0.044715 * math.sqrt(2 / math.pi), dtype=const_dtype)
+
+        # Compute FastGelu
+        term1 = _op.multiply(half, x)
+        term2 = _op.multiply(const1, x)
+        term3 = _op.multiply(const2, _op.power(x, _expr.const(3, const_dtype)))
+        tanh = _op.tanh(_op.add(term2, term3))
+        return _op.multiply(term1, _op.add(one, tanh))
+
+
 class BiasGelu(OnnxOpConverter):
     """Operator converter for BiasGelu from Microsoft onnxruntime contrib opset.
 
-    bias_gelu(x, b) = 0.5(x, b)(1 + erf((x + b)/sqrt(2)))
+    bias_gelu(x, b) = 0.5(x + b)(1 + erf((x + b)/sqrt(2)))
     """
 
     @classmethod
@@ -5384,6 +5419,7 @@ def _get_convert_map(opset):
         "Selu": Selu.get_converter(opset),
         "Elu": Elu.get_converter(opset),
         "Gelu": Gelu.get_converter(opset),
+        "FastGelu": FastGelu.get_converter(opset),
         "BiasGelu": BiasGelu.get_converter(opset),
         "LayerNormalization": LayerNormalization.get_converter(opset),
         # TODO: We need a better way to handle different domains, in case

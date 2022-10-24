@@ -5614,13 +5614,18 @@ def test_reverse_sequence(target, dev):
     verify_reverse_sequence(x, sequence_lens, 1, 0)
 
 
+@pytest.mark.parametrize("op_name", ["Gelu", "FastGelu"], scope="session")
+@pytest.mark.parametrize("data_type", ["float16", "float32"], scope="session")
 @tvm.testing.parametrize_targets
-def test_gelu(target, dev):
+def test_gelu(target, dev, data_type, op_name):
     """test_gelu"""
+    dtype = np.dtype(data_type)
+    tensor_type = mapping.NP_TYPE_TO_TENSOR_TYPE[dtype]
+    absolute_tolerance = 1e-3 if data_type == "float16" else 1e-5
 
     def verify_gelu(x):
         node = onnx.helper.make_node(
-            "Gelu",
+            op_name,
             inputs=["x"],
             outputs=["y"],
             domain="com.microsoft",
@@ -5628,27 +5633,34 @@ def test_gelu(target, dev):
 
         graph = helper.make_graph(
             [node],
-            "gelu_test",
-            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape))],
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(x.shape))],
+            f"{op_name}_test",
+            inputs=[helper.make_tensor_value_info("x", tensor_type, list(x.shape))],
+            outputs=[helper.make_tensor_value_info("y", tensor_type, list(x.shape))],
         )
 
-        model = helper.make_model(graph, producer_name="gelu_test")
-        verify_with_ort_with_inputs(model, [x], [x.shape], target=target, dev=dev)
+        model = helper.make_model(graph, producer_name=f"{op_name}_test")
+        verify_with_ort_with_inputs(
+            model, [x], [x.shape], atol=absolute_tolerance, dtype=data_type, target=target, dev=dev
+        )
 
-    x = np.array([-1.0, 0, 1.0, 100.0, -100.0, 1000.0, -1000.0], dtype=np.float32)
+    x = np.array([-1.0, 0, 1.0, 100.0, -100.0, 1000.0, -1000.0], dtype=dtype)
     verify_gelu(x)
-    x = np.array([[1, 2], [3, 4]], dtype=np.float32)
+    x = np.array([[1, 2], [3, 4]], dtype=dtype)
     verify_gelu(x)
 
 
+@pytest.mark.parametrize("op_name", ["BiasGelu", "FastGelu"], scope="session")
+@pytest.mark.parametrize("data_type", ["float16", "float32"], scope="session")
 @tvm.testing.parametrize_targets
-def test_biasgelu(target, dev):
+def test_biasgelu(target, dev, data_type, op_name):
     """test_biasgelu"""
+    dtype = np.dtype(data_type)
+    tensor_type = mapping.NP_TYPE_TO_TENSOR_TYPE[dtype]
+    absolute_tolerance = 1e-3 if data_type == "float16" else 1e-5
 
     def verify_biasgelu(x, bias):
         node = onnx.helper.make_node(
-            "BiasGelu",
+            op_name,
             inputs=["x", "bias"],
             outputs=["y"],
             domain="com.microsoft",
@@ -5656,23 +5668,31 @@ def test_biasgelu(target, dev):
 
         graph = helper.make_graph(
             [node],
-            "biasgelu_test",
+            f"{op_name}_test",
             inputs=[
-                helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape)),
-                helper.make_tensor_value_info("bias", TensorProto.FLOAT, list(bias.shape)),
+                helper.make_tensor_value_info("x", tensor_type, list(x.shape)),
+                helper.make_tensor_value_info("bias", tensor_type, list(bias.shape)),
             ],
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(x.shape))],
+            outputs=[helper.make_tensor_value_info("y", tensor_type, list(x.shape))],
         )
 
-        model = helper.make_model(graph, producer_name="biasgelu_test")
-        verify_with_ort_with_inputs(model, [x, bias], [x.shape], target=target, dev=dev)
+        model = helper.make_model(graph, producer_name=f"{op_name}_test")
+        verify_with_ort_with_inputs(
+            model,
+            [x, bias],
+            [x.shape],
+            atol=absolute_tolerance,
+            dtype=data_type,
+            target=target,
+            dev=dev,
+        )
 
-    x = np.array([-1.0, 0, 1.0, 100.0, -100.0, 1000.0, -1000.0], dtype=np.float32)
-    bias = np.repeat(2.0, 7).astype("float32")
+    x = np.array([-1.0, 0, 1.0, 100.0, -100.0, 1000.0, -1000.0], dtype=dtype)
+    bias = np.repeat(2.0, 7).astype(dtype)
     verify_biasgelu(x, bias)
 
-    x = np.array([[1, 2], [3, 4]], dtype=np.float32)
-    bias = np.array([0.3, 4.0], dtype=np.float32)
+    x = np.array([[1, 2], [3, 4]], dtype=dtype)
+    bias = np.array([0.3, 4.0], dtype=dtype)
     verify_biasgelu(x, bias)
 
 
