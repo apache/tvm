@@ -125,19 +125,10 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
     Array<ObjectRef> inputs = TranslateInputRVs(inst->inputs, rv_map);
 
     if (inst->kind.same_as(kind_get_block)) {
-      auto find_prefix_any = [&block_names_orig](const std::string& block_name) {
-        for (auto name : block_names_orig) {
-          if (block_name.find(name) == 0) {
-            return true;
-          }
-        }
-        return false;
-      };
-
       auto block_name = Downcast<String>(inst->attrs[0]);
-      ICHECK(block_name.defined());
+      auto block_names_current = GetBlockNames(sch->mod());
 
-      if (!find_prefix_any(block_name)) {
+      if (!block_names_current.count(block_name)) {
         auto block = Downcast<BlockRV>(inst->outputs[0]);
         foreign_blocks.insert(block);
         continue;
@@ -208,6 +199,8 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
 }
 
 void ScheduleUsingAnchorTrace(Schedule sch, const Trace& anchor_trace, const tvm::Target& target) {
+  // LOG(INFO) << AsTVMScript(sch->mod());
+  // LOG(INFO) << anchor_trace;
   InlinePostBlocks(sch, anchor_trace, target);
 
   auto unscheduled_blocks = ApplyAnchorTrace(sch, anchor_trace);
@@ -218,6 +211,7 @@ void ScheduleUsingAnchorTrace(Schedule sch, const Trace& anchor_trace, const tvm
     // e.g. Applying a trace from conv2d -> add to
     //       - conv2d -> add -> add
     //       - conv2d -> subtract
+    // LOG(INFO) << "All scheduled " << AsTVMScript(sch->mod());
     return;
   }
 
@@ -240,6 +234,8 @@ void ScheduleUsingAnchorTrace(Schedule sch, const Trace& anchor_trace, const tvm
                                max_threads_per_block.value()->value);
     auto_bind_rule->Apply(sch, last_block);
   }
+
+  //  LOG(INFO) << AsTVMScript(sch->mod());
 }
 
 }  // namespace meta_schedule
