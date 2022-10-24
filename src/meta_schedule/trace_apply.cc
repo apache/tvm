@@ -89,6 +89,8 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
 std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
   static auto kind_get_child_blocks = InstructionKind::Get("GetChildBlocks");
   static auto kind_get_block = InstructionKind::Get("GetBlock");
+  static auto kind_compute_inline = InstructionKind::Get("ComputeInline");
+  static auto kind_reverse_compute_inline = InstructionKind::Get("ReverseComputeInline");
 
   const auto block_names_orig = GetBlockNames(sch->mod());
   const auto sch_orig = sch->Copy();
@@ -120,6 +122,8 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       continue;
     }
 
+    Array<ObjectRef> inputs = TranslateInputRVs(inst->inputs, rv_map);
+
     if (inst->kind.same_as(kind_get_block)) {
       auto find_prefix_any = [&block_names_orig](const std::string& block_name) {
         for (auto name : block_names_orig) {
@@ -138,9 +142,24 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
         foreign_blocks.insert(block);
         continue;
       }
+    } else if (inst->kind.same_as(kind_reverse_compute_inline)) {
+      auto block = Downcast<BlockRV>(inputs[0]);
+      auto block_sref = sch->GetSRef(block);
+      if (!CanReverseComputeInline(sch->state(), block_sref)) {
+        ICHECK(CanComputeInline(sch->state(), block_sref));
+        sch->ComputeInline(block);
+        continue;
+      }
+    } else if (inst->kind.same_as(kind_compute_inline)) {
+      auto block = Downcast<BlockRV>(inputs[0]);
+      auto block_sref = sch->GetSRef(block);
+      if (!CanComputeInline(sch->state(), block_sref)) {
+        ICHECK(CanReverseComputeInline(sch->state(), block_sref));
+        sch->ReverseComputeInline(block);
+        continue;
+      }
     }
 
-    Array<ObjectRef> inputs = TranslateInputRVs(inst->inputs, rv_map);
     Optional<ObjectRef> decision = anchor_trace->GetDecision(inst);
     Array<ObjectRef> outputs = inst->kind->f_apply_to_schedule(sch, inputs, inst->attrs, decision);
 
