@@ -28,4 +28,4 @@ def test_div_to_mul(dtype):
     mod = tvm.IRModule.from_expr(z)
     transformed = relay.transform.DivToMul()(mod)
     assert transformed["main"].body.op.name == "multiply"
-    np.testing.assert_allclose(transformed["main"].body.args[1].data.numpy()[0], 1/1.5)
+    np.testing.assert_allclose(transformed["main"].body.args[1].data.numpy()[0], 1 / 1.5)
