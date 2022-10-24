@@ -361,12 +361,3 @@ def test_packed_8x8x32_resnet50(hexagon_launcher):
         ref_result = llvm_graph_mod.get_output(0).numpy()
 
         np.testing.assert_allclose(ref_result, hexagon_output, atol=1e-4, rtol=1e-5)
-
-        time_ms = graph_mod.benchmark(session.device, number=1, repeat=20).mean * 1e3
-
-        print("time elapsed: ", time_ms)
-
-        debug_ex = session.get_graph_debug_executor(
-            hexagon_lowered.get_graph_json(), hexagon_lowered.lib
-        )
-        print(debug_ex.profile(input_name=inp.copy()))
