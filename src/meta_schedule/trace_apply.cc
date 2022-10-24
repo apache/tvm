@@ -199,8 +199,6 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
 }
 
 void ScheduleUsingAnchorTrace(Schedule sch, const Trace& anchor_trace, const tvm::Target& target) {
-  // LOG(INFO) << AsTVMScript(sch->mod());
-  // LOG(INFO) << anchor_trace;
   InlinePostBlocks(sch, anchor_trace, target);
 
   auto unscheduled_blocks = ApplyAnchorTrace(sch, anchor_trace);
@@ -208,10 +206,6 @@ void ScheduleUsingAnchorTrace(Schedule sch, const Trace& anchor_trace, const tvm
 
   if (unscheduled_blocks.empty()) {
     // All blocks have already been scheduled.
-    // e.g. Applying a trace from conv2d -> add to
-    //       - conv2d -> add -> add
-    //       - conv2d -> subtract
-    // LOG(INFO) << "All scheduled " << AsTVMScript(sch->mod());
     return;
   }
 
@@ -234,8 +228,6 @@ void ScheduleUsingAnchorTrace(Schedule sch, const Trace& anchor_trace, const tvm
                                max_threads_per_block.value()->value);
     auto_bind_rule->Apply(sch, last_block);
   }
-
-  //  LOG(INFO) << AsTVMScript(sch->mod());
 }
 
 }  // namespace meta_schedule
