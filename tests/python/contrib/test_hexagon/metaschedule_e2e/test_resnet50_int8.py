@@ -195,11 +195,13 @@ def _schedule_packed_8x8x32_conv2d(do_tune: bool):
     """
 
     def schedule_fn(sch, conv2d_block: Optional[BlockRV] = None) -> bool:
-        if sch.mod.attrs is not None and "conv2d" not in sch.mod.attrs["task_name"]:
-            return False
         if conv2d_block == None:
-            conv2d_block = sch.get_block("compute")
-            assert "conv2d_NCHWc_int8" in sch.get(conv2d_block).annotations["schedule_rule"]
+            try:
+                conv2d_block = sch.get_block("conv2d_NCHWc_int8")
+            except:
+                return False
+
+        assert "conv2d_NCHWc_int8" in sch.get(conv2d_block).annotations["schedule_rule"]
 
         # Apply scheduling
 
@@ -237,12 +239,19 @@ def _schedule_packed_8x8x32_conv2d(do_tune: bool):
         # note that weight is already in correct layout
         input_cache = sch.cache_read(conv2d_block, 0, "global")
         output_cache = sch.cache_write(outer_block, 0, "global")
+        # Transform the layout of the input
         sch.transform_layout(
             conv2d_block, ("read", 0), index_map=index_map_nchw32c_nchw8h8w32c, pad_value=0
         )
+        # Transform the layout of the int32 accumulator
+        sch.transform_layout(
+            conv2d_block, ("write", 0), index_map=index_map_nchw32c_nchw8h8w32c, pad_value=0
+        )
+        # Transform the layout of the output
         sch.transform_layout(
             outer_block, ("write", 0), index_map=index_map_nchw32c_nchw8h8w32c, pad_value=0
         )
+        return True
 
     return schedule_fn
 
@@ -252,7 +261,10 @@ def tune_packed_8x8x32_template(mod, params, hexagon_launcher):
         _schedule_packed_8x8x32_conv2d(do_tune=True)(sch, conv2d_block)
         return [sch]
 
-    register_func("meta_schedule.conv2d_NCHWc_int8", schedule_rule_conv2d_packed_8x8x32)
+    # register_func("meta_schedule.conv2d_NCHWc_int8", schedule_rule_conv2d_packed_8x8x32)
+
+    def schedule_conv2d_for_tune(sch: Schedule):
+        _schedule_packed_8x8x32_conv2d(do_tune=True)(sch)
 
     # This line is necessary for link-params to take effect during
     # task extraction and relay.build(...).
@@ -275,12 +287,25 @@ def tune_packed_8x8x32_template(mod, params, hexagon_launcher):
             # strategy="evolutionary",
             builder=get_hexagon_local_builder(),
             runner=get_hexagon_rpc_runner(hexagon_launcher, number=20),
-            # TODO(csullivan): How can I pass in the template here instead
-            space=ms.space_generator.PostOrderApply(
-                f_block_filter=None,
-                sch_rules="from-target",
+            # TODO(csullivan): Configrm the below is accurate
+            # Enable MS auto scheduling for all ops, but utilize
+            # the custom scheduling strategy registered above for
+            # convolution
+            # space=ms.space_generator.PostOrderApply(
+            #     f_block_filter=None,
+            #     sch_rules="from-target",
+            #     postprocs=[],
+            #     mutator_probs="from-target",
+            # ),
+            #
+            # Constrain search space to only be the single
+            # schedule provided for convolution. No auto
+            # scheduling will be possible.
+            space=ms.space_generator.ScheduleFn(
+                schedule_conv2d_for_tune,
+                sch_rules=[],
                 postprocs=[],
-                mutator_probs="from-target",
+                mutator_probs={},
             ),
             # Without this, the same workloads with different constant weights
             # are treated as distinct tuning tasks.
