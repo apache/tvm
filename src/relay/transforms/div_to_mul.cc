@@ -35,9 +35,19 @@ class DivToMulRewrite : public MixedModeMutator {
               runtime::NDArray::Empty(rhs->data.Shape(), rhs->data.DataType(), rhs->data->device);
           std::string dtype = DLDataType2String(rhs->data.DataType());
           if (dtype == "float32") {
-            static_cast<float*>(inv->data)[0] = 1. / static_cast<float*>(rhs->data->data)[0];
+            float rhs_val = static_cast<float*>(rhs->data->data)[0];
+            // Check for division by zero
+            if (rhs_val == 0.) {
+              return post;
+            }
+            static_cast<float*>(inv->data)[0] = 1. / rhs_val;
           } else if (dtype == "float64") {
-            static_cast<double*>(inv->data)[0] = 1. / static_cast<double*>(rhs->data->data)[0];
+            double rhs_val = static_cast<double*>(rhs->data->data)[0];
+            // Check for division by zero
+            if (rhs_val == 0.) {
+              return post;
+            }
+            static_cast<double*>(inv->data)[0] = 1. / rhs_val;
           } else {
             // Cannot do 1/int because it will truncate
             return post;
