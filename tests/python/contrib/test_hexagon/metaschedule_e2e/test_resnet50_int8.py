@@ -320,6 +320,7 @@ def tune_packed_8x8x32_template(mod, params, hexagon_launcher):
         )
 
 
+@pytest.mark.skip("End-to-end tuning is skipped on CI.")
 @tvm.testing.requires_hexagon
 def test_packed_8x8x32_resnet50(hexagon_launcher):
     if not os.path.exists(model_json):
