@@ -238,16 +238,14 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         Session :
             The session object.
         """
-
-        hexagon_remote_kw = {
-            "host": self._rpc_info["rpc_tracker_host"],
-            "port": self._rpc_info["rpc_tracker_port"],
-            "priority": 0,
-            "timeout": 0,
-            "key": self._rpc_info["device_key"],
+        hexagon_session_kw = {
+            "remote_workspace": self._workspace,
+            "rpc_tracker": (self._rpc_info["rpc_tracker_host"], self._rpc_info["rpc_tracker_port"]),
+            "rpc_server_key": self._rpc_info["device_key"],
             "serial_number": self._serial_number,
+            "session_name": session_name,
         }
-        return Session(self._workspace, hexagon_remote_kw, session_name=session_name)
+        return Session(**hexagon_session_kw)
 
     def is_simulator(self):
         return self._serial_number == HEXAGON_SIMULATOR_NAME

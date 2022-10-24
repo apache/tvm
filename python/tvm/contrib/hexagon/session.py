@@ -38,8 +38,17 @@ class Session:
 
     Parameters
     ----------
-    remote_kw : dict
-        Remote configs for RPC tracker.
+    remote_workspace : Union[str, pathlib.Path]
+        Remote workspace path
+
+    rpc_tracker : tuple(str, int)
+        RPC tracker host and port number.
+
+    rpc_server_key : str
+        RPC server key on remote device.
+
+    serial_number : str
+        Device serial number. `simulator` used for hexagon simulator.
 
     session_name : str
         Hexagon RPC session name.
@@ -47,21 +56,28 @@ class Session:
     remote_stack_size_bytes : int
         The stack size of the remote device, to be passed to
         tvm.contrib.hexagon.create_hexagon_session.
+
+    rpc_receive_buffer_size_bytes : int
+        RPC receive buffer size in bytes.
     """
 
     def __init__(
         self,
         remote_workspace: Union[str, pathlib.Path],
-        remote_kw: dict,
+        rpc_tracker: tuple,
+        rpc_server_key: str,
+        serial_number: str,
         session_name: str = "hexagon-rpc",
         remote_stack_size_bytes: int = 256 * 1024,  # Min size for main thread in QuRT/sim
         rpc_receive_buffer_size_bytes: int = 256 * 1024 * 1024,  # Size for passing hexagon tests
     ):
         self._workspace = str(remote_workspace)
+        self._rpc_tracker = rpc_tracker
+        self._rpc_server_key = rpc_server_key
+        self._serial_number = serial_number
         self._session_name: str = session_name
         self._remote_stack_size_bytes: int = remote_stack_size_bytes
         self._rpc_receive_buffer_size_bytes: int = rpc_receive_buffer_size_bytes
-        self._remote_kw: dict = remote_kw
         self._rpc = None
         self._requires_cpu_device = False
         self._device = None
@@ -71,12 +87,12 @@ class Session:
             # Already initialized
             return self
 
-        tracker = _rpc.connect_tracker(self._remote_kw["host"], self._remote_kw["port"])
+        tracker = _rpc.connect_tracker(self._rpc_tracker[0], self._rpc_tracker[1])
         try:
             self._rpc = tracker.request(
-                self._remote_kw["key"],
-                priority=self._remote_kw["priority"],
-                session_timeout=self._remote_kw["timeout"],
+                self._rpc_server_key,
+                priority=0,
+                session_timeout=0,
                 session_constructor_args=[
                     "tvm.contrib.hexagon.create_hexagon_session",
                     self._session_name,
@@ -122,7 +138,7 @@ class Session:
         return self._device
 
     def is_simulator(self):
-        return self._remote_kw["serial_number"] == HEXAGON_SIMULATOR_NAME
+        return self._serial_number == HEXAGON_SIMULATOR_NAME
 
     def get_function(self, name):
         return self._rpc.get_function(name)
