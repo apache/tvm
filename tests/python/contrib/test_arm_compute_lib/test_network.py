@@ -20,11 +20,9 @@ from distutils.version import LooseVersion
 
 import numpy as np
 import pytest
-from tvm import testing
 from tvm import relay
 
-from test_arm_compute_lib.infrastructure import skip_runtime_test, build_and_run, verify
-from test_arm_compute_lib.infrastructure import Device
+from test_arm_compute_lib.infrastructure import Device, skip_runtime_test, build_and_run, verify
 
 
 def _build_and_run_network(mod, params, inputs, device, tvm_ops, acl_partitions, atol, rtol):
@@ -108,7 +106,12 @@ def test_vgg16():
         return mod, params, inputs
 
     _build_and_run_network(
-        *get_model(), device=device, tvm_ops=4, acl_partitions=21, atol=0.002, rtol=0.01
+        *get_model(),
+        device=device,
+        tvm_ops=4,
+        acl_partitions=21,
+        atol=0.002,
+        rtol=0.01,
     )
 
 
@@ -180,7 +183,12 @@ def test_quantized_mobilenet():
         return mod, params, inputs
 
     _build_and_run_network(
-        *get_model(), device=device, tvm_ops=3, acl_partitions=30, atol=9, rtol=0
+        *get_model(),
+        device=device,
+        tvm_ops=3,
+        acl_partitions=30,
+        atol=10,
+        rtol=0,
     )
 
 
@@ -207,7 +215,12 @@ def test_squeezenet():
         return mod, params, inputs
 
     _build_and_run_network(
-        *get_model(), device=device, tvm_ops=9, acl_partitions=31, atol=8, rtol=0
+        *get_model(),
+        device=device,
+        tvm_ops=9,
+        acl_partitions=31,
+        atol=8,
+        rtol=0,
     )
 
 

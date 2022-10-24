@@ -26,7 +26,6 @@ import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.nn.utils import get_pad_tuple
 from tvm.topi.utils import get_const_tuple
-from tvm.topi.arm_cpu.conv2d_gemm import is_aarch64_arm
 from tvm.topi.nn.conv2d import _get_workload
 from tvm.topi.generic.conv2d import fallback_schedule_cpu_common_int8
 
@@ -94,8 +93,8 @@ def compile_conv2d_NHWC_gemm_int8_arm(
             print("Skip because %s is not enabled" % target)
             return
         print("Compiling on arm AArch64 target: %s" % target)
-        with tvm.target.Target(target):
-            assert is_aarch64_arm(), "AArch64 target not recognized"
+        with tvm.target.Target(target) as tvm_target:
+            assert tvm_target.features.is_aarch64, "AArch64 target not recognized"
 
             C = compute(A, W, (stride, stride), padding, (dilation, dilation), dtype)
             if add_bias:
