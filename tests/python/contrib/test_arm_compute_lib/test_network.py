@@ -187,8 +187,8 @@ def test_quantized_mobilenet():
         device=device,
         tvm_ops=3,
         acl_partitions=30,
-        atol=9,
-        rtol=0.01,
+        atol=10,
+        rtol=0,
     )
 
 
