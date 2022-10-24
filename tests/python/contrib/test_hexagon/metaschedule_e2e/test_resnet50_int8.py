@@ -276,15 +276,10 @@ def tune_packed_8x8x32_template(mod, params, hexagon_launcher):
             target=target,
             params=params,
             work_dir=work_dir,
-            # for faster tuning
             max_trials_global=20000,
-            max_trials_per_task=8,
-            num_trials_per_iter=8,
+            max_trials_per_task=1,
+            num_trials_per_iter=1,
             strategy="replay-trace",
-            # max_trials_global=20000,
-            # num_trials_per_iter=32,
-            # max_trials_per_task=128,
-            # strategy="evolutionary",
             builder=get_hexagon_local_builder(),
             runner=get_hexagon_rpc_runner(hexagon_launcher, number=20),
             # TODO(csullivan): Configrm the below is accurate
