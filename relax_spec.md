@@ -200,6 +200,27 @@ There are four relevant scopes in Relax, which determine where variables are vis
 3. `SeqExpr`: `Var` nodes defined in a `BindingBlock` in a `SeqExpr` node can be referenced in any later binding within the same `BindingBlock`, in any binding within any later `BindingBlock` in that `SeqExpr` node, or in the `SeqExpr`'s body expression. The variables defined in the `BindingBlock`s leave scope once the `SeqExpr` returns.
 4. `DataflowBlock`: `DataflowVar`s introduced in a `DataflowBlock` can be referenced in any later binding within that `DataflowBlock`, but leave scope *once that `DataflowBlock` finishes executing*. Definitions in a `DataflowBlock` that are intended to leave the `DataflowBlock` should be bound to an ordinary `Var`.
 
+Note that Relax variables must be bound _exactly_ once. A global variable is bound if it is mapped to a function in the `IRModule` and a local variable is bound if it appears as a function parameter or if it appears on the left-hand side (LHS) of a binding (`VarBinding` or `MatchShape`).
+
+«If there is another binding to a local variable with the same name as an already-bound variable, that is binding is considered to _shadow_ the previous binding, i.e., it is a binding to a new, distinct variable that happens to have the same name as the existing variable. The new, shadowing variable will exist only in the current scope; if the older variable was defined in an outer scope, then future uses of that name will refer to the older variable. [See the Wikipedia page for more information on variable shadowing.](https://en.wikipedia.org/wiki/Variable_shadowing)»
+
+Below is an example of shadowing, in pseudocode:
+
+```python
+@R.function
+def func(x: Tensor) -> Tensor:
+    if True:
+        # the true branch will be a nested SeqExpr and hence a new scope
+        # this x will shadow the function parameter x
+        x = R.const(1)
+	R.print(x) # prints 1
+	# the inner x goes out of scope
+    else:
+        R.print("not executed")
+    R.print(x) # this x is the function parameter
+    return x
+```
+
 # Well-Formedness Criteria
 
 Prior to type-checking and shape inference, Relax programs must conform to certain syntactic criteria to be valid.
