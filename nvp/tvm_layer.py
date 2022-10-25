@@ -4,8 +4,8 @@ from tvm.relay.testing import init
 
 def gen_module(layer):
     if layer == 'relu':
-        (cw, oh, ow) = (32, 10, 12)
-        data = relay.var("data", shape=[1, cw*oh*ow], dtype="float32")
+        (cw, oh, ow) = (8, 5, 15)
+        data = relay.var("data", shape=[cw, oh, ow], dtype="float32")
         Trelay = tvm.relay.nn.relu(data)
     elif layer == 'leaky_relu':
         data = relay.var("data", shape=[1, 100], dtype="float32")
@@ -16,7 +16,7 @@ def gen_module(layer):
     elif layer == 'maxpool':
         data = relay.var("data", shape=[1, 10, 5, 5], dtype="float32") #NCHW
         Trelay = tvm.relay.nn.max_pool2d(data, pool_size=(3,3))
-    elif layer == 'dwconv_3x3': # weight(I) == data(C)/groups
+    elif layer == 'dwconv': # weight(I) == data(C)/groups
         (cw, oh, ow) = (32, 10, 12)
         data = relay.var("data", shape=[1, cw, oh+2, ow+2], dtype="float32") #NCHW
         weight = relay.var("weight", shape=[cw, 1, 3, 3], dtype="float32") #OIHW

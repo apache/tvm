@@ -20,4 +20,5 @@
 from __future__ import absolute_import as _abs
 
 from .depthwise_conv2d import *
-from .nn import *
+from .injective import *
+from .schedule import *

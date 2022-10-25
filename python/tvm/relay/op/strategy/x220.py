@@ -14,6 +14,11 @@ def schedule_pool_x220(attrs, outs, target):
     with target:
         return topi.x220.schedule_pool(outs, attrs.layout)
 
+@schedule_injective.register("x220")
+def schedule_injective_x220(attrs, outs, target):
+    with target:
+        return topi.x220.schedule_injective(outs)
+
 @conv2d_strategy.register("x220")
 def conv2d_strategy_x220(attrs, inputs, out_type, target):
     """conv2d x220 strategy"""
