@@ -442,6 +442,26 @@ inline String BufferIndexType2Str(BufferIndexType buffer_index_type) {
   }
 }
 
+inline std::unordered_set<std::string> GetBlockNames(const IRModule& mod) {
+  struct BlockNameCollector : public tir::StmtVisitor {
+    void VisitStmt_(const tir::BlockNode* block) override {
+      block_names.insert(block->name_hint);
+      StmtVisitor::VisitStmt(block->body);
+    }
+    std::unordered_set<std::string> block_names;
+  };
+
+  auto prim_func = tir::FindEntryFunc(mod, nullptr);
+  BlockNameCollector collector;
+  collector(prim_func->body);
+  return collector.block_names;
+}
+
+inline bool HasBlock(const Schedule& sch, const std::string& block_name) {
+  auto block_names = GetBlockNames(sch->mod());
+  return block_names.count(block_name);
+}
+
 /******** Utilites for trace application ********/
 
 /*!

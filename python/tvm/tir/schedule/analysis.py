@@ -122,3 +122,7 @@ def get_auto_tensorize_mapping_info(
     intrinsics.
     """
     return _ffi_api.GetAutoTensorizeMappingInfo(sch, block, desc_func)  # type: ignore
+
+
+def has_block(sch, block_name):
+    return _ffi_api.HasBlock(sch, block_name);

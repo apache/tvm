@@ -31,21 +31,6 @@
 namespace tvm {
 namespace meta_schedule {
 
-std::unordered_set<std::string> GetBlockNames(const IRModule& mod) {
-  struct BlockNameCollector : public tir::StmtVisitor {
-    void VisitStmt_(const tir::BlockNode* block) override {
-      block_names.insert(block->name_hint);
-      StmtVisitor::VisitStmt(block->body);
-    }
-    std::unordered_set<std::string> block_names;
-  };
-
-  auto prim_func = tir::FindEntryFunc(mod, nullptr);
-  BlockNameCollector collector;
-  collector(prim_func->body);
-  return collector.block_names;
-}
-
 using namespace tir;
 
 bool IsAncestor(BlockRV b1, BlockRV b2, Schedule sch) {
@@ -124,15 +109,10 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
 
     Array<ObjectRef> inputs = TranslateInputRVs(inst->inputs, rv_map);
 
-    if (inst->kind.same_as(kind_get_block)) {
-      auto block_name = Downcast<String>(inst->attrs[0]);
-      auto block_names_current = GetBlockNames(sch->mod());
-
-      if (!block_names_current.count(block_name)) {
-        auto block = Downcast<BlockRV>(inst->outputs[0]);
-        foreign_blocks.insert(block);
-        continue;
-      }
+    if (inst->kind.same_as(kind_get_block) && !HasBlock(sch, Downcast<String>(inst->attrs[0]))) {
+      auto block = Downcast<BlockRV>(inst->outputs[0]);
+      foreign_blocks.insert(block);
+      continue;
     } else if (inst->kind.same_as(kind_reverse_compute_inline)) {
       auto block = Downcast<BlockRV>(inputs[0]);
       auto block_sref = sch->GetSRef(block);
