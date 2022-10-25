@@ -75,8 +75,8 @@ def evaluate(
     sch,
     a,
     b,
-    size_a,
-    expected_output,
+    c,
+    expected_output=None,
     use_async_copy=0,
     merge_async_commit_queue_scope=False,
 ):
@@ -94,9 +94,7 @@ def evaluate(
 
     a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device)
     b_hexagon = tvm.runtime.ndarray.array(b, device=hexagon_session.device)
-    c_hexagon = tvm.runtime.ndarray.array(
-        np.zeros((size_a, VRMPY_SIZE_INT32), dtype="int32"), device=hexagon_session.device
-    )
+    c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device)
 
     if tvm.testing.utils.IS_IN_CI:
         # Run with reduced number and repeat for CI
@@ -105,9 +103,9 @@ def evaluate(
         timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=10, repeat=10)
 
     time = timer(a_hexagon, b_hexagon, c_hexagon)
-    tvm.testing.assert_allclose(c_hexagon.asnumpy(), expected_output)
+    if expected_output is not None:
+        tvm.testing.assert_allclose(c_hexagon.asnumpy(), expected_output)
     return round(time.mean * 1000, 4)
-
 
 @tvm.testing.fixture
 def input_a(size_a):
@@ -306,13 +304,10 @@ class TestAsyncDMAPipeline:
     size_a = tvm.testing.parameter(
         1024,
         64 * 64,
-        64 * 128,
     )
 
     size_w = tvm.testing.parameter(
-        1 * 1,
         3 * 3,
-        7 * 7,
         9 * 9,
     )
 
@@ -331,11 +326,11 @@ class TestAsyncDMAPipeline:
             pytest.skip("Skipping test since it takes too long in CI.")
 
         sch = conv_approximation(size_a, size_w)
-        base_runtime = evaluate(hexagon_session, sch, input_a, input_w, size_a, expected_output)
+        base_runtime = evaluate(hexagon_session, sch, input_a, input_w, np.zeros(expected_output.shape, "int32"), expected_output)
 
         sch = get_fake_conv_vtcm_schedule(size_a, size_w)
         base_vtcm_runtime = evaluate(
-            hexagon_session, sch, input_a, input_w, size_a, expected_output, use_async_copy=1
+            hexagon_session, sch, input_a, input_w, np.zeros(expected_output.shape, "int32"), expected_output, use_async_copy=1
         )
 
         sch = get_fake_conv_vtcm_schedule(size_a, size_w)
@@ -344,7 +339,7 @@ class TestAsyncDMAPipeline:
         sch.annotate(n, "software_pipeline_order", [0, 1, 2])
         sch.annotate(n, "software_pipeline_async_stages", [0])
         async_input_runtime = evaluate(
-            hexagon_session, sch, input_a, input_w, size_a, expected_output, use_async_copy=1
+            hexagon_session, sch, input_a, input_w, np.zeros(expected_output.shape, "int32"), expected_output, use_async_copy=1
         )
 
         sch = get_fake_conv_vtcm_schedule(size_a, size_w)
@@ -353,7 +348,7 @@ class TestAsyncDMAPipeline:
         sch.annotate(n, "software_pipeline_order", [0, 1, 2])
         sch.annotate(n, "software_pipeline_async_stages", [0, 2])
         async_input_output_runtime = evaluate(
-            hexagon_session, sch, input_a, input_w, size_a, expected_output, use_async_copy=1
+            hexagon_session, sch, input_a, input_w, np.zeros(expected_output.shape, "int32"), expected_output, use_async_copy=1
         )
 
         sch = get_multi_input_fake_conv_vtcm_schedule(size_a, size_w)
@@ -366,7 +361,7 @@ class TestAsyncDMAPipeline:
             sch,
             input_a,
             input_w,
-            size_a,
+            np.zeros(expected_output.shape, "int32"),
             expected_output,
             use_async_copy=1,
             merge_async_commit_queue_scope=False,
@@ -378,12 +373,12 @@ class TestAsyncDMAPipeline:
         sch.annotate(n, "software_pipeline_order", [0, 1, 2])
         sch.annotate(n, "software_pipeline_async_stages", [2])
         async_output_runtime = evaluate(
-            hexagon_session, sch, input_a, input_w, size_a, expected_output, use_async_copy=1
+            hexagon_session, sch, input_a, input_w, np.zeros(expected_output.shape, "int32"), expected_output, use_async_copy=1
         )
 
         sch = get_single_dma_schedule(size_a, size_w)
         single_dma_runtime = evaluate(
-            hexagon_session, sch, input_a, input_w, size_a, expected_output
+            hexagon_session, sch, input_a, input_w, np.zeros(expected_output.shape, "int32"), expected_output
         )
 
         # Total transfer size is equal to the size of A + W + C which is equal to 2 * size_a * 128 + size_w * 128
@@ -547,69 +542,35 @@ class ModuleBase:
 
 @tvm.testing.requires_hexagon
 def test_meta(hexagon_session):
-    sch = tvm.tir.Schedule(ModulePipelined)
     a = default_rng().integers(1, 8, (1, 1, 230, 230, 4), dtype="uint8")
     w = default_rng().integers(1, 8, (2, 1, 7, 7, 1, 32, 4), dtype="int8")
     c = np.zeros((1, 2, 112, 112, 32), dtype="int32")
 
-    outer_block = sch.get_block("conv2d_NCHWc_int8_o_update")
-    o = sch.get_loops(outer_block)[0]
+    sch = tvm.tir.Schedule(ModuleBase)
+    base_runtime = evaluate(hexagon_session, sch, a, w, c)
+
+    sch = tvm.tir.Schedule(ModulePipelined)
+    compute_block = sch.get_block("conv2d_NCHWc_int8_o_update")
+    o = sch.get_loops(compute_block)[0]
     
+    vtcm_runtime = evaluate(hexagon_session, sch, a, w, c, use_async_copy=1)
+
+    sch = tvm.tir.Schedule(ModulePipelined)
+    compute_block = sch.get_block("conv2d_NCHWc_int8_o_update")
+    o = sch.get_loops(compute_block)[0]
+
     sch.annotate(o, "software_pipeline_stage", [0, 1, 2])
     sch.annotate(o, "software_pipeline_order", [0, 1, 2])
     sch.annotate(o, "software_pipeline_async_stages", [0, 2])
     
-    target_hexagon = tvm.target.hexagon("v68", link_params=True)
-    with tvm.transform.PassContext(
-        config={
-            "tir.use_async_copy": True
-        }
-    ):
-        # print(tvm.lower(sch.mod).script())
-        func_tir = tvm.build(
-            sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
-        )
-    module = hexagon_session.load_module(func_tir)
+    pipeline_runtime = evaluate(hexagon_session, sch, a, w, c, use_async_copy=1)
 
-    a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device)
-    b_hexagon = tvm.runtime.ndarray.array(w, device=hexagon_session.device)
-    c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device)
-
-    if tvm.testing.utils.IS_IN_CI:
-        # Run with reduced number and repeat for CI
-        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=1, repeat=1)
-    else:
-        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=100, repeat=10)
-    time = timer(a_hexagon, b_hexagon, c_hexagon)
-    print(time)
-
-
-@tvm.testing.requires_hexagon
-def test_meta_base(hexagon_session):
-    sch = tvm.tir.Schedule(ModuleBase)
-    a = default_rng().integers(1, 8, (1, 1, 230, 230, 4), dtype="uint8")
-    w = default_rng().integers(1, 8, (2, 1, 7, 7, 1, 32, 4), dtype="int8")
-    c = np.zeros((1, 2, 112, 112, 32), dtype="int32")
-    
-    target_hexagon = tvm.target.hexagon("v68", link_params=True)
-    with tvm.transform.PassContext(
-        config={
-            "tir.use_async_copy": True
-        }
-    ):
-        # print(tvm.lower(sch.mod).script())
-        func_tir = tvm.build(
-            sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
-        )
-    module = hexagon_session.load_module(func_tir)
-    a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device)
-    b_hexagon = tvm.runtime.ndarray.array(w, device=hexagon_session.device)
-    c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device)
-
-    if tvm.testing.utils.IS_IN_CI:
-        # Run with reduced number and repeat for CI
-        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=1, repeat=1)
-    else:
-        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=100, repeat=10)
-    time = timer(a_hexagon, b_hexagon, c_hexagon)
-    print(time)
+    transfer_mb = round((2 * a.size * VRMPY_SIZE_B + w.size * VRMPY_SIZE_B) / 1e6, 2)
+    print_results(
+        f"Test with A.size: {a.size}, W.size: {w.size}, and total memory transfer of {transfer_mb} MB...",
+        {
+            "without_vtcm": base_runtime,
+            "vtcm_runtime": vtcm_runtime,
+            "pipeline_runtime": pipeline_runtime,
+        },
+    )
