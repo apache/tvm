@@ -30,12 +30,10 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 import gc
-import importlib.util
 import inspect
 import os
 from pathlib import Path
-import shlex
-import subprocess
+import re
 import sys
 
 import sphinx_gallery
@@ -420,6 +418,24 @@ header_dropdown = {
     ],
 }
 
+
+def fixup_tutorials(original_url: str) -> str:
+    if "docs/tutorial" in original_url:
+        # tutorials true source is in Python or .txt files, but Sphinx only sees
+        # the generated .rst files so this maps them back to the source
+        if original_url.endswith("index.rst"):
+            # for index pages, go to the README files
+            return re.sub(
+                r"docs/tutorial/(.*)index\.rst", "gallery/tutorial/\\1README.txt", original_url
+            )
+        else:
+            # otherwise for tutorials, redirect to python files
+            return re.sub(r"docs/tutorial/(.*)\.rst", "gallery/tutorial/\\1.py", original_url)
+    else:
+        # do nothing for normal non-tutorial .rst files
+        return original_url
+
+
 html_context = {
     "footer_copyright": footer_copyright,
     "footer_note": footer_note,
@@ -428,6 +444,12 @@ html_context = {
     "header_logo": header_logo,
     "header_logo_link": header_logo_link,
     "version_prefixes": ["main", "v0.8.0/", "v0.9.0/", "v0.10.0/"],
+    "display_github": True,
+    "github_user": "apache",
+    "github_repo": "tvm",
+    "github_version": "main/docs/",
+    "theme_vcs_pageview_mode": "edit",
+    "edit_link_hook_fn": fixup_tutorials,
 }
 
 # add additional overrides
