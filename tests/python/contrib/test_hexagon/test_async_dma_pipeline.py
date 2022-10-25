@@ -553,7 +553,7 @@ def test_meta(hexagon_session):
     compute_block = sch.get_block("conv2d_NCHWc_int8_o_update")
     o = sch.get_loops(compute_block)[0]
     
-    vtcm_runtime = evaluate(hexagon_session, sch, a, w, c, use_async_copy=1)
+    unscheduled_vtcm_runtime = evaluate(hexagon_session, sch, a, w, c, use_async_copy=1)
 
     sch = tvm.tir.Schedule(ModulePipelined)
     compute_block = sch.get_block("conv2d_NCHWc_int8_o_update")
@@ -565,12 +565,12 @@ def test_meta(hexagon_session):
     
     pipeline_runtime = evaluate(hexagon_session, sch, a, w, c, use_async_copy=1)
 
-    transfer_mb = round((2 * a.size * VRMPY_SIZE_B + w.size * VRMPY_SIZE_B) / 1e6, 2)
+    transfer_mb = round((a.size + w.size + c.size) / 1e6, 2)
     print_results(
         f"Test with A.size: {a.size}, W.size: {w.size}, and total memory transfer of {transfer_mb} MB...",
         {
             "without_vtcm": base_runtime,
-            "vtcm_runtime": vtcm_runtime,
+            "unscheduled_vtcm_runtime": unscheduled_vtcm_runtime,
             "pipeline_runtime": pipeline_runtime,
         },
     )
