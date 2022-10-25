@@ -24,8 +24,6 @@ import pytest
 from tvm.script import tir as T
 from numpy.random import default_rng
 
-from tvm.tir.function import TensorIntrin
-
 VRMPY_SIZE_B = 128
 VRMPY_SIZE_INT32 = 32
 
@@ -405,3 +403,213 @@ class TestAsyncDMAPipeline:
                 "async_dma_multi_input_output": async_multi_input_output_runtime,
             },
         )
+
+# from tvm.script import tir as T
+@tvm.script.ir_module
+class ModulePipelined:
+    @T.prim_func
+    def main(p0: T.Buffer[(1, 1, 230, 230, 4), "uint8"], p1: T.Buffer[(2, 1, 7, 7, 1, 32, 4), "int8"], T_cast: T.Buffer[(1, 2, 112, 112, 32), "int32"]) -> None:
+        # function attr dict
+        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        # body
+        # with T.block("root")
+        conv2d_NCHWc_int8 = T.alloc_buffer([1, 2, 112, 112, 32], dtype="int32", scope="global.vtcm")
+        p0_global_vtcm = T.alloc_buffer([1, 1, 230, 230, 4], dtype="uint8", scope="global.vtcm")
+        p1_global_vtcm = T.alloc_buffer([2, 1, 7, 7, 1, 32, 4], dtype="int8", scope="global.vtcm")
+        for ax0, ax1, ax2, ax3, ax4, ax5, ax6 in T.grid(2, 1, 7, 7, 1, 32, 4):
+            with T.block("p1_global.vtcm"):
+                v0, v1, v2, v3, v4, v5, v6 = T.axis.remap("SSSSSSS", [ax0, ax1, ax2, ax3, ax4, ax5, ax6])
+                T.reads(p1[v0, v1, v2, v3, v4, v5, v6])
+                T.writes(p1_global_vtcm[v0, v1, v2, v3, v4, v5, v6])
+                p1_global_vtcm[v0, v1, v2, v3, v4, v5, v6] = p1[v0, v1, v2, v3, v4, v5, v6]
+        for po in T.serial(4):
+            for i in T.serial(55876):
+                with T.block("p0_global.vtcm"):
+                    v0 = T.axis.spatial(1, 0)
+                    v1 = T.axis.spatial(1, 0)
+                    v2 = T.axis.spatial(230, po * 56 + i // 916)
+                    v3 = T.axis.spatial(230, i % 916 // 4)
+                    v4 = T.axis.spatial(4, i % 4)
+                    T.reads(p0[v0, v1, v2, v3, v4])
+                    T.writes(p0_global_vtcm[v0, v1, v2, v3, v4])
+                    p0_global_vtcm[v0, v1, v2, v3, v4] = p0[v0, v1, v2, v3, v4]
+            for i in T.parallel(28):
+                for ii, iii, iiii in T.grid(2, 14, 8):
+                    with T.block("conv2d_NCHWc_int8_o_init"):
+                        n = T.axis.spatial(1, 0)
+                        oc_chunk = T.axis.spatial(2, ii)
+                        oh = T.axis.spatial(112, (po * 28 + i) // 14 * 14 + iii)
+                        ow = T.axis.spatial(112, (po * 28 + i) % 14 * 8 + iiii)
+                        oc_block_o = T.axis.spatial(1, 0)
+                        T.reads()
+                        T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 32])
+                        for i4_1 in T.vectorized(32):
+                            with T.block("conv2d_NCHWc_int8_init"):
+                                oc_block_i_init = T.axis.spatial(32, i4_1)
+                                T.reads()
+                                T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i_init])
+                                conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i_init] = 0
+                for i1_1, i5_1, i6_1, i2_2, i3_2 in T.grid(2, 7, 7, 14, 8):
+                    with T.block("conv2d_NCHWc_int8_o_update"):
+                        n = T.axis.spatial(1, 0)
+                        oc_chunk = T.axis.spatial(2, i1_1)
+                        oh = T.axis.spatial(112, (po * 28 + i) // 14 * 14 + i2_2)
+                        ow = T.axis.spatial(112, (po * 28 + i) % 14 * 8 + i3_2)
+                        oc_block_o = T.axis.spatial(1, 0)
+                        kh = T.axis.reduce(7, i5_1)
+                        kw = T.axis.reduce(7, i6_1)
+                        ic_outer = T.axis.reduce(1, 0)
+                        ic_f_inner = T.axis.reduce(1, 0)
+                        ic_s_inner_o = T.axis.reduce(1, 0)
+                        T.reads(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 32], p0_global_vtcm[n, ic_outer, oh * 2 + kh, ow * 2 + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], p1_global_vtcm[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 32, 0 : 4])
+                        T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 32])
+                        A = T.match_buffer(p0_global_vtcm[n, ic_outer, oh * 2 + kh, ow * 2 + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], [4], dtype="uint8", offset_factor=1, scope="global.vtcm")
+                        B = T.match_buffer(p1_global_vtcm[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 32, 0 : 4], [32, 4], dtype="int8", offset_factor=1, scope="global.vtcm")
+                        C = T.match_buffer(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 32], [32], dtype="int32", offset_factor=1, scope="global.vtcm")
+                        A_u8x4: T.uint8x4 = A[0:4]
+                        A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")
+                        B_i8x128 = B[0, 0:128]
+                        B_i32x32: T.int32x32 = T.reinterpret(B_i8x128, dtype="int32x32")
+                        C[0:32] = T.call_llvm_pure_intrin(4217, T.uint32(3), C[0:32], T.broadcast(A_i32, 32), B_i32x32, dtype="int32x32")
+            for i in T.serial(200704):
+                with T.block("conv2d_NCHWc_int8.vtcm"):
+                    ax0_1 = T.axis.spatial(1, 0)
+                    ax1_1 = T.axis.spatial(2, i % 7168 // 3584)
+                    ax2_1 = T.axis.spatial(112, (po * 28 + i // 7168) // 14 * 14 + i % 3584 // 256)
+                    ax3_1 = T.axis.spatial(112, (po * 28 + i // 7168) % 14 * 8 + i % 256 // 32)
+                    ax4 = T.axis.spatial(32, i % 32)
+                    T.reads(conv2d_NCHWc_int8[ax0_1, ax1_1, ax2_1, ax3_1, ax4])
+                    T.writes(T_cast[ax0_1, ax1_1, ax2_1, ax3_1, ax4])
+                    T_cast[ax0_1, ax1_1, ax2_1, ax3_1, ax4] = conv2d_NCHWc_int8[ax0_1, ax1_1, ax2_1, ax3_1, ax4]
+
+# from tvm.script import tir as T
+@tvm.script.ir_module
+class ModuleBase:
+    @T.prim_func
+    def main(p0: T.Buffer[(1, 1, 230, 230, 4), "uint8"], p1: T.Buffer[(2, 1, 7, 7, 1, 32, 4), "int8"], T_cast: T.Buffer[(1, 2, 112, 112, 32), "int32"]) -> None:
+        # function attr dict
+        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        # buffer definition
+        # body
+        # with T.block("root")
+        conv2d_NCHWc_int8 = T.alloc_buffer([1, 2, 112, 112, 32], dtype="int32")
+        for i0_0_i1_0_i2_0_i3_0_fused in T.parallel(112, annotations={"pragma_auto_unroll_max_step":64, "pragma_unroll_explicit":1}):
+            for i4_0_0 in T.serial(1):
+                for i1_1_init, i2_1_init, i3_1_init, i1_2_init, i2_2_init, i3_2_init in T.grid(2, 1, 1, 1, 14, 8):
+                    with T.block("conv2d_NCHWc_int8_o_init"):
+                        n = T.axis.spatial(1, 0)
+                        oc_chunk = T.axis.spatial(2, i1_1_init + i1_2_init)
+                        oh = T.axis.spatial(112, i0_0_i1_0_i2_0_i3_0_fused // 14 * 14 + i2_1_init * 14 + i2_2_init)
+                        ow = T.axis.spatial(112, i0_0_i1_0_i2_0_i3_0_fused % 14 * 8 + i3_1_init * 8 + i3_2_init)
+                        oc_block_o = T.axis.spatial(1, 0)
+                        T.reads()
+                        T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 32])
+                        for i4_1 in T.vectorized(32):
+                            with T.block("conv2d_NCHWc_int8_init"):
+                                oc_block_i_init = T.axis.spatial(32, i4_1)
+                                T.reads()
+                                T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i_init])
+                                conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i_init] = 0
+                for i5_0, i6_0, i7_0, i8_0, i9_0_0 in T.grid(1, 1, 1, 1, 1):
+                    for i0_1, i1_1, i2_1, i3_1, i4_0_1, i5_1, i6_1, i7_1, i8_1, i9_0_1, i0_2, i1_2, i2_2, i3_2, i4_0_2 in T.grid(1, 2, 1, 1, 1, 7, 7, 1, 1, 1, 1, 1, 14, 8, 1):
+                        with T.block("conv2d_NCHWc_int8_o_update"):
+                            n = T.axis.spatial(1, 0)
+                            oc_chunk = T.axis.spatial(2, i1_1 + i1_2)
+                            oh = T.axis.spatial(112, i0_0_i1_0_i2_0_i3_0_fused // 14 * 14 + i2_1 * 14 + i2_2)
+                            ow = T.axis.spatial(112, i0_0_i1_0_i2_0_i3_0_fused % 14 * 8 + i3_1 * 8 + i3_2)
+                            oc_block_o = T.axis.spatial(1, 0)
+                            kh = T.axis.reduce(7, i5_0 * 7 + i5_1)
+                            kw = T.axis.reduce(7, i6_0 * 7 + i6_1)
+                            ic_outer = T.axis.reduce(1, 0)
+                            ic_f_inner = T.axis.reduce(1, 0)
+                            ic_s_inner_o = T.axis.reduce(1, 0)
+                            T.reads(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 32], p0[n, ic_outer, oh * 2 + kh, ow * 2 + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 32, 0 : 4])
+                            T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 32])
+                            A = T.match_buffer(p0[n, ic_outer, oh * 2 + kh, ow * 2 + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], [4], dtype="uint8", offset_factor=1)
+                            B = T.match_buffer(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 32, 0 : 4], [32, 4], dtype="int8", offset_factor=1)
+                            C = T.match_buffer(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 32], [32], dtype="int32", offset_factor=1)
+                            A_u8x4: T.uint8x4 = A[0:4]
+                            A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")
+                            B_i8x128 = B[0, 0:128]
+                            B_i32x32: T.int32x32 = T.reinterpret(B_i8x128, dtype="int32x32")
+                            C[0:32] = T.call_llvm_pure_intrin(4217, T.uint32(3), C[0:32], T.broadcast(A_i32, 32), B_i32x32, dtype="int32x32")
+                    for ax0, ax1, ax2, ax3 in T.grid(1, 2, 14, 8):
+                        for ax4_fused in T.vectorized(32):
+                            with T.block("T_cast_2"):
+                                ax0_1, ax1_1 = T.axis.remap("SS", [ax0, ax1])
+                                ax2_1 = T.axis.spatial(112, i0_0_i1_0_i2_0_i3_0_fused // 14 * 14 + ax2)
+                                ax3_1 = T.axis.spatial(112, i0_0_i1_0_i2_0_i3_0_fused % 14 * 8 + ax3)
+                                ax4 = T.axis.spatial(32, ax4_fused)
+                                T.reads(conv2d_NCHWc_int8[ax0_1, ax1_1, ax2_1, ax3_1, ax4])
+                                T.writes(T_cast[ax0_1, ax1_1, ax2_1, ax3_1, ax4])
+                                T_cast[ax0_1, ax1_1, ax2_1, ax3_1, ax4] = conv2d_NCHWc_int8[ax0_1, ax1_1, ax2_1, ax3_1, ax4]
+    
+
+@tvm.testing.requires_hexagon
+def test_meta(hexagon_session):
+    sch = tvm.tir.Schedule(ModulePipelined)
+    a = default_rng().integers(1, 8, (1, 1, 230, 230, 4), dtype="uint8")
+    w = default_rng().integers(1, 8, (2, 1, 7, 7, 1, 32, 4), dtype="int8")
+    c = np.zeros((1, 2, 112, 112, 32), dtype="int32")
+
+    outer_block = sch.get_block("conv2d_NCHWc_int8_o_update")
+    o = sch.get_loops(outer_block)[0]
+    
+    sch.annotate(o, "software_pipeline_stage", [0, 1, 2])
+    sch.annotate(o, "software_pipeline_order", [0, 1, 2])
+    sch.annotate(o, "software_pipeline_async_stages", [0, 2])
+    
+    target_hexagon = tvm.target.hexagon("v68", link_params=True)
+    with tvm.transform.PassContext(
+        config={
+            "tir.use_async_copy": True
+        }
+    ):
+        # print(tvm.lower(sch.mod).script())
+        func_tir = tvm.build(
+            sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
+        )
+    module = hexagon_session.load_module(func_tir)
+
+    a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device)
+    b_hexagon = tvm.runtime.ndarray.array(w, device=hexagon_session.device)
+    c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device)
+
+    if tvm.testing.utils.IS_IN_CI:
+        # Run with reduced number and repeat for CI
+        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=1, repeat=1)
+    else:
+        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=100, repeat=10)
+    time = timer(a_hexagon, b_hexagon, c_hexagon)
+    print(time)
+
+
+@tvm.testing.requires_hexagon
+def test_meta_base(hexagon_session):
+    sch = tvm.tir.Schedule(ModuleBase)
+    a = default_rng().integers(1, 8, (1, 1, 230, 230, 4), dtype="uint8")
+    w = default_rng().integers(1, 8, (2, 1, 7, 7, 1, 32, 4), dtype="int8")
+    c = np.zeros((1, 2, 112, 112, 32), dtype="int32")
+    
+    target_hexagon = tvm.target.hexagon("v68", link_params=True)
+    with tvm.transform.PassContext(
+        config={
+            "tir.use_async_copy": True
+        }
+    ):
+        # print(tvm.lower(sch.mod).script())
+        func_tir = tvm.build(
+            sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
+        )
+    module = hexagon_session.load_module(func_tir)
+    a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device)
+    b_hexagon = tvm.runtime.ndarray.array(w, device=hexagon_session.device)
+    c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device)
+
+    if tvm.testing.utils.IS_IN_CI:
+        # Run with reduced number and repeat for CI
+        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=1, repeat=1)
+    else:
+        timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=100, repeat=10)
+    time = timer(a_hexagon, b_hexagon, c_hexagon)
+    print(time)
