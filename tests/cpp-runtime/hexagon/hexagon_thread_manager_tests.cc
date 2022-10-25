@@ -359,15 +359,3 @@ TEST_F(HexagonThreadManagerTest, threads_for_resource_types) {
   thread = reinterpret_cast<TVMStreamHandle>(6);
   EXPECT_THROW(thread_manager->GetResourceTypeForStreamHandle(thread), InternalError);
 }
-
-// Ensure proper behavior of hardware resources managed by global thread manager
-TEST_F(HexagonThreadManagerTest, hardware_resources_locked) {
-  // HVX can share
-  HexagonHvx* hvx = new HexagonHvx();
-  hvx->Lock();
-  hvx->Unlock();
-  delete hvx;
-
-  // HTP cannot
-  EXPECT_THROW(new HexagonHtp(), InternalError);
-}
