@@ -432,16 +432,16 @@ Shape computations can consist of the following expressions, which are a subset 
 ```
 ShapeCompExpr ::= ShapeExpr(dims: [PrimExpr])
                 | RuntimeDepShape()
-                | Tuple(fields: [ShapeCompExpr])
+                | «Tuple(fields: [ShapeCompExpr])»
                 | Call(op: Op|ExternFunc, args: [Var|Constant])
-                | TupleGetItem(tuple_value: ShapeCompExpr, index: int)
+                | «TupleGetItem(tuple_value: ShapeCompExpr, index: int)»
 ```
 
 The shape expressions can be interpreted as follows:
 
 - `ShapeExpr` describes the shape of a tensor as a list of dimensions
-- `Tuple` describes the shapes of each member of a tuple
-- `TupleGetItem` describes the shape of a member of a tuple
+- «`Tuple` describes the shapes of each member of a tuple»
+- «`TupleGetItem` describes the shape of a member of a tuple»
 - `Call` describes the shape of a function (or operator) call return value in terms of its arguments
 - `RuntimeDepShape` describes shapes that are unknown at compile time (like when a shape annotation is omitted) or the shapes of values that don't have shapes (like shapes themselves, paradoxically: they *are* shapes but do not *have* shapes).
 
@@ -453,9 +453,9 @@ Shape computations are allowed to include calls to operators and even `PackedFun
 
 **Shape Annotations**
 
-For shape annotations, we use `ShapeCompExpr` as the grammar, as with `shape_` expressions. `ShapeExpr` is used to annotate shapes of tensor values, `Tuple` is used to annotate the shapes of tuple values, and `RuntimeDepShape` is used to indicate annotations that have been omitted or shapes that cannot be known at compile time (like the shapes of tensors whose rank is unknown at compile time). `Call` is used to annotate the shapes of calls to operators and `TupleGetItem` annotates the shapes of tuple indices.
+For shape annotations, we use `ShapeCompExpr` as the grammar, as with `shape_` expressions. `ShapeExpr` is used to annotate shapes of tensor values, «`Tuple` is used to annotate the shapes of tuple values», and `RuntimeDepShape` is used to indicate annotations that have been omitted or shapes that cannot be known at compile time (like the shapes of tensors whose rank is unknown at compile time). `Call` is used to annotate the shapes of calls to operators and «`TupleGetItem` annotates the shapes of tuple indices.»
 
-For example, suppose we have a tuple where some fields are tensors like the following:
+«For example, suppose we have a tuple where some fields are tensors like the following:
 
 ```python
 x : Tuple(Tensor((m, n), "int32"), Tuple(), Tensor((), "int32"), Tensor(_, "int32")) = ...
@@ -466,12 +466,13 @@ It has the shape annotation
 ```python
 Tuple([ShapeExpr([m, n]), Tuple([]), ShapeExpr([]), RuntimeDepShape])
 ```
+»
 
 Note that it is [a well-formedness requirement](https://www.notion.so/Informal-Relax-Language-Specification-d1fdedb8fae84f0d82b9f880f25e7370) that if any field in a type has a `ShapeExpr` annotation, it must be a `DynTensorType` with an `ndim` matching the number of dimensions in the `ShapeExpr`. For example, in the above function signatures, the `ndim` in the type annotations must be 2.
 
-### Assigning Shape Variables at the Start and End of a Function
+### «Assigning Shape Variables at the Start and End of a Function»
 
-Shape variables are bound at the start and end of a function or in `MatchShape` bindings. We can describe the behavior at the start and end of a function in terms of the semantics of `MatchShape`, as the shape annotations in function arguments and return types are treated as "syntactic sugar" for `MatchShape` bindings. Suppose a function has the following signature, where the `Ti` are type annotation and the `Si` are shape annotations:
+«Shape variables are bound at the start and end of a function or in `MatchShape` bindings. We can describe the behavior at the start and end of a function in terms of the semantics of `MatchShape`, as the shape annotations in function arguments and return types are treated as "syntactic sugar" for `MatchShape` bindings. Suppose a function has the following signature, where the `Ti` are type annotation and the `Si` are shape annotations:
 
 ```python
 def f(arg1 : (T1, S1), arg2 : (T2, S2), ..., argn : (Tn, Sn)) -> (Tr, Sr): 
@@ -490,6 +491,7 @@ def f(arg1 : T1, arg2 : T2, ..., argn : Tn) -> Tr:
     check_annotation(ret_var, Tr, Sr)
     return ret_var
 ```
+»
 
 Because `MatchShape` is defined only for tensor and shape values, we must use a macro to handle other possible types that may be passed into a function, given here in pseudocode:
 
@@ -502,7 +504,7 @@ def check_annotation(e: Expr, s: ShapeCompExpr) -> Expr:
             [BindingBlock([MatchShape(tmp, e, s.dims)])],
             tmp
         )
-    else if s is a Tuple:
+    «else if s is a Tuple:
         # type checking should ensure that e is always a tuple and the lengths match
         shapes = s.fields
         tmp = fresh_var()
@@ -515,7 +517,7 @@ def check_annotation(e: Expr, s: ShapeCompExpr) -> Expr:
                 ...,
                 VarBinding(fresh_var(), check_annotation(TupleGetItem(tmp, n-1), shapes[n-1]))
              ])], tmp
-        )
+        )»
    else if s is a Call:
        tmp = fresh_var()
        return SeqExpr(
@@ -525,7 +527,7 @@ def check_annotation(e: Expr, s: ShapeCompExpr) -> Expr:
                VarBinding(fresh_var(), dynamically_check_shapes(shape_of(tmp), s))
            ])], tmp
        )
-   else if s is TupleGetItem:
+   «else if s is TupleGetItem:
        val = s.tuple_value
        if val is Tuple:
            return check_annotation(e, val.fields[s.index])
@@ -535,7 +537,7 @@ def check_annotation(e: Expr, s: ShapeCompExpr) -> Expr:
               VarBinding(tmp, e),
               VarBinding(fresh_var(), dynamically_check_shapes(shape_of(tmp), s))
           ])], tmp
-       )
+       )»
    else if s is RuntimeDepShape:
        # no need to check
        return e
@@ -552,7 +554,7 @@ Shape expressions follow the same evaluation rules as general program expression
 For each expression type, we can recursively build up an associated `shape_` expression according to the following rules:
 
 1. For `Constant(value)`, the `shape_` expression is a `ShapeExpr` corresponding to the concrete shape of `value`. For example, for `Constant(1)`, `shape_` is `ShapeExpr([])` and for `Constant([1, 2])`, `shape_` is `ShapeExpr([2])`.
-2. For `Tuple(fields)`, `shape_` can be defined as `Tuple([field.shape_ for field in fields])`.
+2. «For `Tuple(fields)`, `shape_` can be defined as `Tuple([field.shape_ for field in fields])`.»
 3. For `ShapeExpr`s, `shape_` is `RuntimeDepShape`.
 4. `RuntimeDepShape` expressions should appear only in shape expressions; their `shape_` is not defined.
 5. For `If(cond, true_branch, false_branch)`, we compare the `shape_` of `true_branch` and `false_branch`. If these can be proven equivalent (by a method that the compiler implementation is free to determine), then the `If` node's `shape_` is that shape. If they do not match, then we set it to `RuntimeDepShape`.
@@ -565,11 +567,11 @@ For each expression type, we can recursively build up an associated `shape_` exp
         
     3. For bindings where the RHS is a function literal or assigning the `shape_` of a `GlobalVar`, see the rule for `Function` nodes.
     4. For `MatchShape(var, value, shape)`, we set the `shape_` of `var` to `shape`, as it will be dynamically checked.
-8. For `TupleGetItem(tuple_value, i)`, we examine the `shape_` of `tuple_value`; suppose it is `s`. If `s` is a `Tuple`, then we use its `i`th field. If it is `RuntimeDepShape`, we use `RuntimeDepShape`. If it is a `Call` to a function that returns a tuple with at least `i + 1` members, set the `shape_` to `TupleGetItem(s, i)`. Otherwise, raise an error at compile time (though this should not happen if type checking has passed).
+8. «For `TupleGetItem(tuple_value, i)`, we examine the `shape_` of `tuple_value`; suppose it is `s`. If `s` is a `Tuple`, then we use its `i`th field. If it is `RuntimeDepShape`, we use `RuntimeDepShape`. If it is a `Call` to a function that returns a tuple with at least `i + 1` members, set the `shape_` to `TupleGetItem(s, i)`. Otherwise, raise an error at compile time (though this should not happen if type checking has passed).»
 9. For `Call` nodes:
     1. For a call to an `ExternFunc`, we use `RuntimeDepShape` because we cannot analyze the shapes of arbitrary `PackedFunc`s and must check dynamically.
     2. For a call to an `Op`, we use the manually defined `FInferShape` macro if it has been defined and `RuntimeDepShape` if it has not. `FInferShape` is a function that takes in the call node and produces a `ShapeCompExpr`.
-    3. For all other cases with `Call(op, args)`, we consider the following cases:
+    3. «For all other cases with `Call(op, args)`, we consider the following cases:
         1. If `op` is a `GlobalVar` or a `Var` that refers to a function defined in the current scope, look up the `Function` node it references; let us call it `f`. Similarly, if `op` is itself a `Function` node, let `f` be `op`.
             
             Attempt to perform [beta-reduction](https://en.wikipedia.org/wiki/Lambda_calculus#%CE%B2-reduction) on `f`'s return shape. A pseudocode procedure for this beta-reduction is given below, as a macro.
@@ -580,6 +582,7 @@ For each expression type, we can recursively build up an associated `shape_` exp
             If `f`'s return shape is `RuntimeDepShape`, then consider the call result to have `RuntimeDepShape`. If beta-reduction is considered to fail, then consider the call result to have `RuntimeDepShape`. If it succeeds, use the resulting shape as the `shape_` of the call result.
             
         2. Otherwise, consider the result of the call to have `RuntimeDepShape`.
+	»
 10. For a function node, set the `shape_` to `RuntimeDepShape`.
 
 ### Procedure for Substituting a Function Return Shape to Determine the Shape of a Call
