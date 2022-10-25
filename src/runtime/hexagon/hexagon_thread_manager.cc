@@ -43,7 +43,10 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
 
   if (create_resource_managers_) {
     DLOG(INFO) << "Initialize hardware resource managers";
-    // Acquisition/locks will be performed on specific threads
+    // This creates the manager objects, which reserves (acquires) the resources.
+    // Calls to lock/unlock will be performed on threads dedicated to instances.
+    // This must be done before spawing threads so we can pass pointers to the
+    // objects in the thread context.
     htp_ = std::make_unique<HexagonHtp>();
     hvx_ = std::make_unique<HexagonHvx>();
   }

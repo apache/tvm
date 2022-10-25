@@ -37,9 +37,7 @@ HexagonHvx::~HexagonHvx() { Release(); }
 
 void HexagonHvx::Acquire() {
   reserved_count_ = qurt_hvx_reserve(QURT_HVX_RESERVE_ALL);
-  CHECK((reserved_count_ == QURT_HVX_RESERVE_ALL) ||
-        (reserved_count_ == QURT_HVX_RESERVE_ALREADY_MADE))
-      << "error reserving HVX: " << reserved_count_;
+  CHECK(reserved_count_ == QURT_HVX_RESERVE_ALL) << "error reserving HVX: " << reserved_count_;
 }
 
 void HexagonHvx::Release() {

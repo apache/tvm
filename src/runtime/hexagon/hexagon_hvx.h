@@ -51,7 +51,7 @@ class HexagonHvx {
   //! \brief Unlock the HVX for the calling thread.
   void Unlock();
 
-  //! \brief Number of HVX units reservered.
+  //! \brief Number of HVX units reserved.
   int ReservedCount() { return reserved_count_; }
 
  private:
