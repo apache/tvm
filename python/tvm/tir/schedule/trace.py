@@ -231,17 +231,6 @@ class Trace(Object):
             remove_postproc,
         )
 
-    @staticmethod
-    def from_json(json_obj: JSON_TYPE) -> "Trace":
-        """Apply a JSON-serialized trace to a TensorIR schedule
-
-        Parameters
-        ----------
-        json_obj : JSON_TYPE
-            The JSON-serialized tracenn
-        """
-        return _ffi_api.TraceFromJSON(json_obj)  # type: ignore # pylint: disable=no-member
-
     def simplified(self, remove_postproc: bool) -> "Trace":
         """Simplify the trace with dead-code elimination
 

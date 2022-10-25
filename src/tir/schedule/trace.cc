@@ -135,35 +135,35 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
   Array<ObjectRef> results;
   results.reserve(inputs.size());
   for (const ObjectRef& input : inputs) {
+    // Case 3. integer or floating-point number
     if (input->IsInstance<IntImmNode>() || input->IsInstance<FloatImmNode>()) {
-      // Case 3. integer or floating-point number
       results.push_back(input);
-    } else if (input->IsInstance<ArrayNode>()) {
-      // Case 4. array
-      results.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), named_rvs));
-    } else if (input->IsInstance<MapNode>()) {
-      // Case 5. dict
-      results.push_back(input);
-    } else if (input->IsInstance<StringObj>()) {
-      const auto* str = input.as<StringObj>();
-      CHECK_GT(str->size, 0) << "ValueError: Empty string is not allowed in input names";
-      const char* name = str->data;
-      int64_t size = str->size;
-      if (auto it = named_rvs.find(name); it != named_rvs.end()) {
-        // Case 0 & 1. None, BlockRV, LoopRV, VarRV
-        results.push_back(it->second);
-      } else {
-        // Case 2. string
-        if (size >= 2 && name[0] == '"' && name[size - 1] == '"') {
-          results.push_back(String(std::string(name + 1, size - 2)));
-        } else {
-          // strings without quotation
-          results.push_back(input);
-        }
-      }
-    } else {
-      results.push_back(input);
+      continue;
     }
+    // Case 4. array
+    if (input->IsInstance<ArrayNode>()) {
+      results.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), named_rvs));
+      continue;
+    }
+    // Case 5. dict
+    if (input->IsInstance<MapNode>()) {
+      results.push_back(input);
+      continue;
+    }
+    const auto* str = input.as<StringObj>();
+    CHECK(str) << "TypeError: Expect String, but gets: " << input->GetTypeKey();
+    CHECK_GT(str->size, 0) << "ValueError: Empty string is not allowed in input names";
+    const char* name = str->data;
+    int64_t size = str->size;
+    // Case 2. string
+    if (size >= 2 && name[0] == '"' && name[size - 1] == '"') {
+      results.push_back(String(std::string(name + 1, size - 2)));
+      continue;
+    }
+    // Case 0 & 1. None, BlockRV, LoopRV, VarRV
+    auto it = named_rvs.find(name);
+    CHECK(it != named_rvs.end()) << "ValueError: The random variable is not defined: " << name;
+    results.push_back(it->second);
   }
   return results;
 }
@@ -255,40 +255,18 @@ void TraceNode::ApplyToSchedule(
                                        const Optional<ObjectRef>& decision)>
         decision_provider) const {
   std::unordered_map<const Object*, const Object*> rv_map;
-  std::unordered_map<std::string, ObjectRef> named_rvs{{"None", ObjectRef{nullptr}}};
-
-  auto all_string = [](const Array<ObjectRef>& objs) {
-    for (auto obj : objs) {
-      if (!obj->IsInstance<StringObj>()) {
-        return false;
-      }
-    }
-    return true;
-  };
-
   for (const Instruction& inst : this->insts) {
     if (remove_postproc && inst->kind->IsPostproc()) {
       break;
     }
-    Array<ObjectRef> inputs = TranslateInputRVs(TranslateInputRVs(inst->inputs, named_rvs), rv_map);
-
+    Array<ObjectRef> inputs = TranslateInputRVs(inst->inputs, rv_map);
     Array<ObjectRef> attrs = inst->attrs;
     Optional<ObjectRef> decision = this->GetDecision(inst);
     if (decision_provider != nullptr) {
       decision = decision_provider(inst, inputs, attrs, decision);
     }
     Array<ObjectRef> outputs = inst->kind->f_apply_to_schedule(sch, inputs, attrs, decision);
-
-    if (all_string(inst->outputs)) {
-      Array<String> outputs_str;
-      for (auto str : inst->outputs) {
-        outputs_str.push_back(Downcast<String>(str));
-      }
-      TranslateAddOutputRVs(outputs_str, outputs, &named_rvs);
-      TranslateAddOutputRVs(outputs, outputs, &rv_map);
-    } else {
-      TranslateAddOutputRVs(inst->outputs, outputs, &rv_map);
-    }
+    TranslateAddOutputRVs(inst->outputs, outputs, &rv_map);
   }
 }
 
@@ -352,7 +330,7 @@ Array<String> TraceNode::AsPython(bool remove_postproc) const {
   return py_trace;
 }
 
-Trace Trace::FromJSON(ObjectRef json) {
+void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
   Array<ObjectRef> json_insts{nullptr};
   Array<ObjectRef> json_decisions{nullptr};
   // Parse `json` into `json_insts` and `json_decisions`
@@ -391,15 +369,13 @@ Trace Trace::FromJSON(ObjectRef json) {
     decisions[index] = std::move(decision);
   }
   // Parse `json_insts`
+  std::unordered_map<std::string, ObjectRef> named_rvs{{"None", ObjectRef{nullptr}}};
   int i = 0;
-  Array<Instruction> instructions;
-  Map<Instruction, ObjectRef> decisions_map;
-
   for (const ObjectRef& inst_entry : json_insts) {
     InstructionKind kind{nullptr};
     Array<ObjectRef> inputs{nullptr};
     Array<ObjectRef> attrs{nullptr};
-    Array<String> outputs_str{ObjectPtr<Object>{nullptr}};
+    Array<String> outputs{ObjectPtr<Object>{nullptr}};
     // Parse the entry
     try {
       const auto* arr = inst_entry.as<ArrayNode>();
@@ -415,33 +391,25 @@ Trace Trace::FromJSON(ObjectRef json) {
       kind = InstructionKind::Get(arr0->data);
       inputs = GetRef<Array<ObjectRef>>(arr1);
       attrs = GetRef<Array<ObjectRef>>(arr2);
-      outputs_str = GetRef<Array<String>>(arr3);
+      outputs = GetRef<Array<String>>(arr3);
     } catch (const tvm::Error& e) {
       LOG(FATAL) << "ValueError: Each entry of a json instruction should be a tuple [inst_name, "
                     "inputs, attrs, outputs], but gets: "
                  << inst_entry;
       throw;
     }
+    // Parse inputs
+    inputs = TranslateInputRVs(inputs, named_rvs);
     // Parse attrs
     if (kind->f_attrs_from_json != nullptr) {
       attrs = kind->f_attrs_from_json(attrs);
     }
-
-    Array<ObjectRef> outputs;
-    for (auto str : outputs_str) {
-      outputs.push_back(str);
-    }
-    instructions.push_back(Instruction(kind, inputs, attrs, outputs));
-    if (decisions[i]) {
-      decisions_map.Set(instructions.back(), decisions[i].value());
-    }
+    // Apply to the schedule
+    Array<ObjectRef> new_outputs = kind->f_apply_to_schedule(sch, inputs, attrs, decisions[i]);
+    // Parse outputs
+    TranslateAddOutputRVs(outputs, new_outputs, &named_rvs);
     ++i;
   }
-  return Trace(instructions, decisions_map);
-}
-
-void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
-  FromJSON(json)->ApplyToSchedule(sch, false);
 }
 
 /**************** Creation ****************/
@@ -582,6 +550,6 @@ TVM_REGISTER_GLOBAL("tir.schedule.TraceWithDecision")
 TVM_REGISTER_GLOBAL("tir.schedule.TraceSimplified").set_body_method<Trace>(&TraceNode::Simplified);
 TVM_REGISTER_GLOBAL("tir.schedule.TraceApplyJSONToSchedule")
     .set_body_typed(Trace::ApplyJSONToSchedule);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceFromJSON").set_body_typed(Trace::FromJSON);
+
 }  // namespace tir
 }  // namespace tvm
