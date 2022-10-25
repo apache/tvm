@@ -281,6 +281,22 @@ def check_pr(pr_number) {
 
 }
 
+def trigger_hexagon_ci(pr_number) {
+  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
+    // never skip CI on build sourced from a branch
+    return false
+  }
+  withCredentials([string(
+    credentialsId: 'tvm-bot-jenkins-reader',
+    variable: 'GITHUB_TOKEN',
+    )]) {
+    sh (
+      script: "python3 ci/scripts/github_hexagon_ci.py --pr ${pr_number} --author ${env.CHANGE_AUTHOR}",
+      label: 'Trigger hexagon hardware CI if required.',
+    )
+  }
+}
+
 def prepare() {
   stage('Prepare') {
     node('CPU-SMALL') {
@@ -4735,6 +4751,19 @@ def deploy() {
   }
 }
 
+def test_extras() {
+  stage('Test: Extras') {
+    environment {
+      SKIP_SLOW_TESTS = "${skip_slow_tests}"
+    }
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon-extra") {
+        init_git()
+        trigger_hexagon_ci(env.CHANGE_ID)
+      }
+    }
+  }
+}
 
 cancel_previous_build()
 
@@ -4744,10 +4773,14 @@ if (rebuild_docker_images) {
   build_docker_images()
 }
 
+test_extras()
+
 lint()
 
 build()
 
 test()
+
+
 
 deploy()

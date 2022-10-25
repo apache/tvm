@@ -102,6 +102,21 @@ def run_checks(checks: List[Check], s: str, name: str) -> bool:
     return passed
 
 
+def get_pr_title_body(pr_number: int, git_remote: str = "origin", pr_data=None):
+    if pr_data:
+        pr = json.loads(pr_data)
+    else:
+        remote = git(["config", "--get", f"remote.{git_remote}.url"])
+        user, repo = parse_remote(remote)
+
+        github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
+        pr = github.get(f"pulls/{pr_number}")
+
+    body = "" if pr["body"] is None else pr["body"].strip()
+    title = "" if pr["title"] is None else pr["title"].strip()
+    return title, body
+
+
 if __name__ == "__main__":
     init_log()
     help = "Check a PR's title and body for conformance to guidelines"
@@ -109,27 +124,17 @@ if __name__ == "__main__":
     parser.add_argument("--pr", required=True)
     parser.add_argument("--remote", default="origin", help="ssh remote to parse")
     parser.add_argument(
-        "--pr-data", help="(testing) PR data to use instead of fetching from GitHub"
+        "--pr-data", default=None, help="(testing) PR data to use instead of fetching from GitHub"
     )
     args = parser.parse_args()
 
     try:
-        pr = int(args.pr)
+        pr_number = int(args.pr)
     except ValueError:
         print(f"PR was not a number: {args.pr}")
         exit(0)
 
-    if args.pr_data:
-        pr = json.loads(args.pr_data)
-    else:
-        remote = git(["config", "--get", f"remote.{args.remote}.url"])
-        user, repo = parse_remote(remote)
-
-        github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
-        pr = github.get(f"pulls/{args.pr}")
-
-    body = "" if pr["body"] is None else pr["body"].strip()
-    title = "" if pr["title"] is None else pr["title"].strip()
+    title, body = get_pr_title_body(pr_number, args.remote, args.pr_data)
 
     title_passed = run_checks(checks=title_checks, s=title, name="PR title")
     print("")
