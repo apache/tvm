@@ -171,8 +171,26 @@ TEST_F(HexagonVtcmPoolTest, find_allocation) {
   void* ptr2;
   void* ptr3;
   void* ptr4;
-  void* new_ptr;
   
+  ptr1 = vtcm_pool->Allocate(two_k_block);
+  ptr2 = vtcm_pool->Allocate(two_k_block);
+  // Free 2, realloc it, make sure it is the same as before
+  vtcm_pool->Free(ptr2, two_k_block);
+
+  ptr3 = vtcm_pool->Allocate(four_k_block);
+
+  // Make sure at the end we have the full amount available again
+  ptr4 = vtcm_pool->Allocate(max_bytes);
+  vtcm_pool->Free(ptr4, max_bytes);
+}
+
+TEST_F(HexagonVtcmPoolTest, find_smallest_allocation_combinations) {
+  void* ptr1;
+  void* ptr2;
+  void* ptr3;
+  void* ptr4;
+  void* new_ptr;
+
   ptr1 = vtcm_pool->Allocate(min_bytes);
   ptr2 = vtcm_pool->Allocate(one_k_block);
   ptr3 = vtcm_pool->Allocate(two_k_block);
