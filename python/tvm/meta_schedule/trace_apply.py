@@ -14,20 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVMScript for TIR"""
+"""TODO"""
+from . import _ffi_api
 
-# Type system
-from .ty import void, boolean, handle, Ptr, Tuple, Buffer
-from .ty import bool  # pylint: disable=redefined-builtin
 
-from .prim_func import prim_func
-
-# add all floating point and integer datatypes to the module
-for _dtype in ["float", "uint", "int"]:
-    for _size in ["8", "16", "32", "64"]:
-        for _lanes in ["", "x4", "x8", "x16", "x32", "x64"]:
-            from . import ty
-
-            _name = _dtype + _size + _lanes
-            if hasattr(ty, _name):
-                globals()[_name] = getattr(ty, _name)
+def schedule_using_anchor_trace(sch, anchor_trace, target):
+    return _ffi_api.ScheduleUsingAnchorTrace(sch, anchor_trace, target)  # type: ignore # pylint: disable=no-member

@@ -202,7 +202,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
 # add all floating point and integer datatypes to the module
 for _dtype in ["float", "uint", "int"]:
     for _size in ["8", "16", "32", "64"]:
-        for _lanes in ["", "x4", "x8", "x16", "x32"]:
+        for _lanes in ["", "x4", "x8", "x16", "x32", "x64"]:
             _name = _dtype + _size + _lanes
             globals()[_name] = ConcreteType(_name)
 
