@@ -72,15 +72,6 @@ const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_bl
  */
 StmtSRef GetSRefTreeRoot(const StmtSRef& sref);
 
-/*!
- * \brief Find the entry function of the given IRModule, i.e, functions marked by
- * `tir::attr::kIsEntryFunc`, whose name is `main` or being the only PrimeFunc.
- * \param mod The IRModule to find the entry function.
- * \param result_g_var The result GlobalVar of the entry function.
- * \return The entry function.
- */
-const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var);
-
 /******** Scope ********/
 /*!
  * \brief Checks if scope the specified sref is in is a stage-pipeline and return it
