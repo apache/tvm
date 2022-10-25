@@ -75,6 +75,7 @@ class CodeGenHexagon final : public CodeGenCPU {
 
   using CodeGenCPU::VisitStmt_;
   llvm::Value* VisitExpr_(const BufferLoadNode* op) override;
+  llvm::Value* CreateIntrinsic(const CallNode* op) override;
 
   llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
                                 bool skip_first_arg) override;
@@ -191,6 +192,28 @@ llvm::Value* CodeGenHexagon::VisitExpr_(const BufferLoadNode* op) {
     }
   }
   return CodeGenCPU::VisitExpr_(op);
+}
+
+llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
+#if TVM_LLVM_VERSION >= 150
+  if (op->op.same_as(builtin::start_profile_intrinsic()) ||
+      op->op.same_as(builtin::end_profile_intrinsic())) {
+    llvm::Value* id = MakeValue(op->args[0]);
+    auto instrprof_id = llvm::Intrinsic::hexagon_instrprof_custom;
+    llvm::Function* func = llvm::Intrinsic::getDeclaration(module_.get(), instrprof_id);
+    llvm::GlobalVariable* name_var = module_->getGlobalVariable("handler_name");
+    if (!name_var) {
+      llvm::StringRef init_str = "lwp_handler";
+      llvm::Constant* init = llvm::ConstantDataArray::getString(module_->getContext(), init_str);
+
+      name_var = new llvm::GlobalVariable(*module_, init->getType(), true,
+                                          llvm::GlobalValue::InternalLinkage, init, "handler_name");
+    }
+    llvm::Type* t_int8_p_ = t_int8_->getPointerTo();
+    return builder_->CreateCall(func, {llvm::ConstantExpr::getBitCast(name_var, t_int8_p_), id});
+  }
+#endif
+  return CodeGenCPU::CreateIntrinsic(op);
 }
 
 void CodeGenHexagon::CreatePrintf(const std::string& format,
