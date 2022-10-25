@@ -177,7 +177,7 @@ TEST_F(HexagonVtcmPoolTest, find_allocation) {
   vtcm_pool->Free(ptr1, two_k_block);
 
   // Allocate a new larger block to initiate search and ensure
-  // it succeeds despite there not being a matching block.
+  // it succeeds despite there not being a match in the first free block.
   ptr3 = vtcm_pool->Allocate(four_k_block);
 
   // Clean up the ptrs
