@@ -18,6 +18,7 @@ def Dprint(message, DEBUG=False):
 def visit_stmts(primfn, DEBUG):
     g = nx.DiGraph()
     g = generate_nodes(primfn.body, g, DEPTH=0, WS="", DEBUG=DEBUG)
+    assert nx.is_directed_acyclic_graph(g), "Currenlty Not Supported: Graph must be DAG!!"
     return g
 
 def generate_nodes(stmt, G, DEPTH, WS="", DEBUG=False): # tir.stmt.___
@@ -107,7 +108,7 @@ def visit_STORE(stmt, g, parent, WS, DEBUG):
         node_num = len(g.nodes)
         Dprint(WS+" "+str(type(stmt))+"\t[Memory](%d)"%(node_num), DEBUG)
         Dprint(WS+" ##################### "+"@Location to be stored"+" #####################", DEBUG)
-        g.add_node(node_num, name=str(stmt), type='Store')
+        g.add_node(node_num, name=str(stmt).split('=')[0].split('[')[0], type='Store')
         g.add_edge(node_num, parent)
     for idx in range(0, len(stmt.indices)):
         g = generate_data_nodes(stmt.indices[idx], g, node_num, WS+str(idx), DEBUG)
@@ -143,7 +144,7 @@ def visit_EXPR(expr, g, parent, WS, DEBUG): # tir.expr.__
         else:
             node_num = len(g.nodes)
             Dprint(WS+" "+str(type(expr))+" --> "+str(expr), DEBUG)
-            g.add_node(node_num, name=str(expr), type='Load')
+            g.add_node(node_num, name=str(expr).split(':')[0], type='Load')
             g.add_edge(node_num, parent)
             for idx in range(0, len(expr.indices)):
                 g = visit_EXPR(expr.indices[idx], g, node_num, WS+str(idx), DEBUG)

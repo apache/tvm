@@ -173,11 +173,16 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
     di = te.reduce_axis((0, filter_height), name="di")
     dj = te.reduce_axis((0, filter_width), name="dj")
 
-    # Filter = te.compute(
-    #     Filter.shape,
-    #     lambda o, i, h, w:
-    #     Filter[o, i, h, w], name="Filter", tag="Initialize"
+    # Input = te.compute(
+    #     Input.shape,
+    #     lambda b, ic, ih, iw:
+    #     Input[b, ic, ih, iw], name="Input", tag="Initialize"
     # )
+    Filter = te.compute(
+        Filter.shape,
+        lambda oc, cm, kh, kw:
+        Filter[oc, cm, kh, kw], name="Filter", tag="Initialize"
+    )
     Acc = te.compute(
         (batch, out_channel, out_height, out_width),
         lambda b, c, i, j:

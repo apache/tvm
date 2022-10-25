@@ -63,9 +63,109 @@ class VectorProcessor():
         int_var_names = [self.graph.nodes[node]['var'] for node in int_var_nodes]
 
         for int_var_name in int_var_names:
+            if int_var_name.rsplit('_', 1)[0] == 'cse_var': continue
             loop_var_node = loop_var_nodes[loop_var_names.index(int_var_name)]
             self.graph.nodes[loop_var_node]['min_time'] += 1
+
+        self.remove_nodes(attr='slot', str='Scalar')
         return
+
+    def remove_tensor_init_nodes(self, names):
+        sorted_nodes = list(nx.topological_sort(self.graph))
+        subgraph = self.get_subgraph(sorted_nodes)
+        store_nodes = [node for node in self.graph.nodes if self.graph.nodes[node]['type']=='Store']
+        # 'Input[cse_var_1] = p0[cse_var_1]\n' --> 'Input[cse_var_1]'
+        store_names = [self.graph.nodes[node]['name'].split('=')[0].split('[')[0].strip() for node in store_nodes]
+        for name in names:
+            try:
+                idx = store_names.index(name)
+            except:
+                continue
+            print('########## Removing Tensor Init Nodes (%s) ##########'%(name))
+            node_num = store_nodes[idx]
+            index = [idx for idx, sg in enumerate(subgraph) if node_num in sg]
+            for idx in index:
+                sg = subgraph[idx]
+                self.graph.remove_nodes_from(sg)
+        return
+
+    def get_subgraph(self, sorted_nodes):
+        loop_stack = []
+        tmp = []
+        depth = 0
+        for node in sorted_nodes:
+            if self.graph.nodes[node]['type'] == 'For Start':
+                depth += 1
+            tmp.append(node)
+            if self.graph.nodes[node]['type'] == 'For End':
+                depth -= 1
+                if depth == 0:
+                    loop_stack.append(tmp)
+                    tmp = []
+        return loop_stack
+
+    def optimize(self, option):
+        FLAG = False
+        if option == 'vstore':
+            FLAG = self.optimize_vstore()
+        elif option == 'filter load':
+            FLAG = self.optimize_filter_load()
+        else:
+            raise TypeError("Currently Not Supported Optimization Option: %s"%(option))
+        if FLAG == True: print('########## Optimize Graph (%s) ##########'%(option))
+
+    def optimize_vstore(self):
+        FLAG = False
+        store_nodes = self.get_nodes(attr='type', str='Store')
+        for node in store_nodes:
+            children = self.graph.successors(node)
+            if all(self.graph.nodes[child]['type']=='For End' for child in children):
+                FLAG = True
+                self.graph.nodes[node]['optimize'] = 1
+        return FLAG
+
+    def optimize_filter_load(self):
+        # (Parent)                     (Parent)
+        #    |                         /      \
+        # (Vector LD)          (Scalar LD)  (Scalar LD)
+        #    |  6 cycle                \      /  1 cycle
+        # (Child)               (Vector Ch-wise Concat)
+        #                                  |  1 cycle
+        #                               (Child)
+        load_nodes = [node for node in self.graph.nodes if self.graph.nodes[node]['type']=='Load' and \
+                                                            self.graph.nodes[node]['name']=='Filter']
+        if len(load_nodes)==0: return False
+        else:
+            for node in load_nodes:
+                parents = list(self.graph.predecessors(node))
+                children= list(self.graph.successors(node))
+                name = str(self.graph.nodes[node]['name'])
+                node_num = max(self.graph.nodes)+1
+
+                # Add two 'Scalar LD' nodes
+                for e in range(0,2):
+                    new_node = node_num + e
+                    self.graph.add_node(new_node)
+                    self.graph.nodes[new_node]['name'] = name+str(e)
+                    for key in self.graph.nodes[node].keys():
+                        if key is not 'name': self.graph.nodes[new_node][key] = self.graph.nodes[node][key]
+                    self.graph.nodes[new_node]['optimize'] = 1
+                    for parent in parents:
+                        self.graph.add_edge(parent, new_node)
+
+                # Add 'Vector Ch-wise Concat' node
+                new_node = node_num+2
+                self.graph.add_node(new_node)
+                self.graph.nodes[new_node]['name'] = name+'0'+'::'+name+'1'
+                self.graph.nodes[new_node]['type'] = 'Ch Concat'
+                self.graph.nodes[new_node]['slot'] = 'Vector'
+                self.graph.add_edge(node_num+0, new_node)
+                self.graph.add_edge(node_num+1, new_node)
+                for child in children:
+                    self.graph.add_edge(new_node, child)
+
+                self.graph.remove_node(node)
+            return True
 
     def get_nodes(self, attr, str):
         return [node for node in self.graph.nodes if self.graph.nodes[node][attr]==str]
@@ -146,6 +246,7 @@ class VectorProcessor():
         print("extent:   %s"%(extent))
         print("min_time: %s"%(min_time))
         print("duration: %s"%(duration))
+        print(name, extent, min_time, duration) # Suhong
         if not all(len(name) == len(l) for l in [name, extent, min_time, duration]):
             raise RuntimeError("Error!!: 'name', 'extent', 'min_time', 'duration' must have same length!!")
 
@@ -172,8 +273,9 @@ class VectorProcessor():
         for rn in rdy_nodes:
             slot = self.graph.nodes[rn]['slot']
             type = self.graph.nodes[rn]['type']
+            optimize = self.graph.nodes[rn]['optimize'] if 'optimize' in self.graph.nodes[rn].keys() else 0
             try:
-                dur = self.latency[slot][type]
+                dur = self.latency[slot][type][optimize]
             except:
                 raise TypeError("Currently Not Supported latency config; Slot: %s, Type: %s"%(slot, type))
             if slot == 'Control':

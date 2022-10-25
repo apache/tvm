@@ -20,12 +20,14 @@ def Run(args):
     #4. Empty Graph -> Colored Graph
     V = VectorProcessor(model=args.model, graph=G, debug=args.debug)
     V.color_graph()
-    V.loop_hoisting()
+    V.loop_hoisting() # Hoist loop variables & Remove scalar nodes
     V.remove_nodes(attr='type', str='Seq')
-    V.remove_nodes(attr='slot', str='Scalar')
+    V.remove_tensor_init_nodes(['Input', 'Filter'])
     save_graph_viz(V.graph, args.viz)
 
     #5. Colored Graph -> Cycle
+    V.optimize('vstore')
+    V.optimize('filter load')
     V.run_single_iteration()
     V.get_estimated_cycles()
  
