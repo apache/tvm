@@ -342,6 +342,8 @@ TVM_REGISTER_GLOBAL("tvm.hexagon.get_profile_output")
         HEXAGON_PRINT(ERROR, "ERROR: Unsupported profiling mode: %s", profiling_mode.c_str());
         *rv = false;
       }
+    });
+
 void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
   std::ofstream fs(file_name, std::ios::out | std::ios::binary);
   ICHECK(!fs.fail()) << "Cannot open " << file_name;

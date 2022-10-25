@@ -31,7 +31,6 @@ import subprocess
 import tempfile
 from typing import Union
 
-import tvm
 from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
 from ..._ffi import libinfo
 from .session import Session
@@ -225,6 +224,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
             Path of the profiling data file
         """
         ...
+
     def create_session(self, session_name: str = "hexagon-rpc") -> Session:
         """Create an RPC session.
 
