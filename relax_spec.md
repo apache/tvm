@@ -51,6 +51,12 @@ Type ::=   DynTensorType(ndim: int, dtype: DataType)
          | TupleType(fields: [Type])
          | FuncType(arg_types: [Type], ret_type: Type, «pure: bool»)
 
+DataType ::=
+           Int(bitwidth: int)
+	 | Float(bitwidth: int)
+	 | Bool()
+	 | Void()
+
 # expressions
 Expr ::=   Constant(data: NDArray)
            # scoped to functions or SeqExprs
