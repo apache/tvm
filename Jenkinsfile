@@ -281,6 +281,13 @@ def check_pr(pr_number) {
 
 }
 
+def trigger_hexagon_ci(pr_number) {
+  sh (
+      script: "python3 ci/scripts/github_hexagon_ci.py",
+      label: 'Trigger hexagon hardware CI if required.',
+  )
+}
+
 def prepare() {
   stage('Prepare') {
     node('CPU-SMALL') {
@@ -4735,6 +4742,19 @@ def deploy() {
   }
 }
 
+def test_extras() {
+  stage('Hexagon Hardware') {
+    environment {
+      SKIP_SLOW_TESTS = "${skip_slow_tests}"
+    }
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon-extra") {
+        init_git()
+        trigger_hexagon_ci()
+      }
+    }
+  }
+}
 
 cancel_previous_build()
 
@@ -4744,10 +4764,14 @@ if (rebuild_docker_images) {
   build_docker_images()
 }
 
+test_extras()
+
 lint()
 
 build()
 
 test()
+
+
 
 deploy()
