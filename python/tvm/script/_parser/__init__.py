@@ -15,5 +15,6 @@
 # specific language governing permissions and limitations
 # under the Licens.
 """The parser"""
-from . import _core, ir
+from . import _core, ir, tir
 from .ir import ir_module
+from .tir import prim_func
