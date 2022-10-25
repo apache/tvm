@@ -75,7 +75,7 @@ def android_serial_number() -> Optional[str]:
 # triggering TIME_WAIT state on the server socket. This prevents another
 # server to bind to the same port until the wait time elapses.
 
-LISTEN_PORT_MIN = 2000  # Well above the privileged ports (1024 or lower)
+LISTEN_PORT_MIN = 6000  # Avoid hitting well-known Android debug ports
 LISTEN_PORT_MAX = 9000  # Below the search range end (port_end=9199) of RPC server
 PREVIOUS_PORT = None
 

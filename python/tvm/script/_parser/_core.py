@@ -16,4 +16,7 @@
 # under the Licens.
 """The core parser infra"""
 # pylint: disable=unused-import
-from .core import doc, utils
+from .core import dispatch, doc, utils
+from .core.dispatch import OpMethod, register_op
+from .core.entry import parse
+from .core.parser import Parser

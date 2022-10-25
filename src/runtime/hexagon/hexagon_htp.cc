@@ -35,39 +35,9 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-HexagonHtp::HexagonHtp() {
-  PowerOn();
-  Acquire();
-}
+HexagonHtp::HexagonHtp() { Acquire(); }
 
-HexagonHtp::~HexagonHtp() {
-  Release();
-  PowerOff();
-}
-
-void HexagonHtp::PowerOn() {
-  HAP_power_request_t pwr_req;
-  int nErr;
-
-  hap_pwr_ctx_ = HAP_utils_create_context();
-  pwr_req.type = HAP_power_set_HMX;
-  pwr_req.hmx.power_up = true;
-  if ((nErr = HAP_power_set(hap_pwr_ctx_, &pwr_req))) {
-    LOG(FATAL) << "InternalError: HAP_power_set failed\n";
-  }
-}
-
-void HexagonHtp::PowerOff() {
-  HAP_power_request_t pwr_req;
-  int nErr;
-
-  pwr_req.type = HAP_power_set_HMX;
-  pwr_req.hmx.power_up = false;
-  if ((nErr = HAP_power_set(hap_pwr_ctx_, &pwr_req))) {
-    LOG(FATAL) << "InternalError: HAP_power_set failed\n";
-  }
-  HAP_utils_destroy_context(hap_pwr_ctx_);
-}
+HexagonHtp::~HexagonHtp() { Release(); }
 
 void HexagonHtp::Acquire() {
   compute_res_attr_t compute_res_attr;

@@ -132,9 +132,9 @@ AllocatedPoolInfo::AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size,
 }
 
 TVM_REGISTER_NODE_TYPE(AllocatedPoolInfoNode);
-TVM_REGISTER_GLOBAL("tir.usmp.AllocatedPoolInfo")
-    .set_body_typed([](PoolInfo pool_info, Integer allocated_size) {
-      return AllocatedPoolInfo(pool_info, allocated_size);
+TVM_REGISTER_GLOBAL("ir.AllocatedPoolInfo")
+    .set_body_typed([](PoolInfo pool_info, Integer allocated_size, Integer pool_var_idx) {
+      return AllocatedPoolInfo(pool_info, allocated_size, pool_var_idx);
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

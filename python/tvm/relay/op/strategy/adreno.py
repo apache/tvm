@@ -208,6 +208,13 @@ def schedule_injective_adreno(attrs, outs, target):
         return topi.adreno.schedule_injective(outs)
 
 
+@schedule_reduce.register(["adreno"])
+def schedule_reduce_adreno(attrs, outs, target):
+    """schedule reduction ops for adreno GPU"""
+    with target:
+        return topi.adreno.schedule_reduce(outs)
+
+
 @concatenate_strategy.register(["adreno"])
 def concatenate_strategy_adreno(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()

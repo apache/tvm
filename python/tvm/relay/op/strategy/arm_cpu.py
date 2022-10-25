@@ -196,7 +196,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 and _is_simd_aligned(kernel.dtype, kernel.shape[2:])
             ):
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_ohwi_dsp),
+                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_ohwi_dsp, need_out_layout=True),
                     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_ohwi_dsp),
                     name="conv2d_nhwc_ohwi_dsp.arm_cpu",
                 )
@@ -207,21 +207,21 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="conv2d_nhwc_dsp.arm_cpu",
                 )
             elif kernel_layout == "HWIO":
-                is_aarch64 = topi.arm_cpu.arm_utils.is_aarch64_arm()
-                has_dot_prod = topi.arm_cpu.arm_utils.is_dotprod_available()
+                has_asimd = target.features.has_asimd
+                has_dot_prod = target.features.has_dotprod
                 if has_dot_prod and data.dtype in ["int8", "uint8"]:
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized_native),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_native),
                         name="conv2d_NHWC_quantized_native.arm_cpu",
                     )
-                if is_aarch64 and data.dtype in ["int8", "uint8"]:
+                if has_asimd and data.dtype in ["int8", "uint8"]:
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved),
                         name="conv2d_NHWC_quantized_interleaved.arm_cpu",
                     )
-                if (not is_aarch64) or (data.dtype not in ["int8", "uint8"]):
+                if (not has_asimd) or (data.dtype not in ["int8", "uint8"]):
                     # TODO(@giuseros)
                     # This strategy errors out for quantized data types when tuning.
                     # Let's use this only for non-aarch64 or non-quantized cases
@@ -249,7 +249,9 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     and _is_simd_aligned(kernel.dtype, kernel.shape[3:])
                 ):
                     strategy.add_implementation(
-                        wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nchw_oihw_dsp),
+                        wrap_compute_conv2d(
+                            topi.arm_cpu.depthwise_conv2d_nchw_oihw_dsp, need_out_layout=True
+                        ),
                         wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nchw_oihw_dsp),
                         name="depthwise_conv2d_nchw_oihw_dsp.arm_cpu",
                     )
@@ -281,8 +283,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 )
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
-            is_aarch64 = topi.arm_cpu.arm_utils.is_aarch64_arm()
-            if is_aarch64 or "+neon" in target.mattr:
+            if target.features.has_asimd:
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.compute_depthwise_conv2d_nhwc),
                     wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nhwc),

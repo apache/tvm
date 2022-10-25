@@ -30,7 +30,7 @@ from .conv2d_gemm import (
     schedule_conv2d_gemm_interleaved,
     schedule_conv2d_gemm_native,
 )
-from .arm_utils import get_tiling_B_interleaved_t, is_dotprod_available, is_neon_available
+from .arm_utils import get_tiling_B_interleaved_t
 
 
 def _get_default_config(cfg, data, kernel, strides, padding, dilation, out_dtype):
@@ -124,7 +124,10 @@ def is_int8_hw_support(data_dtype, kernel_dtype):
     is_llvm_support = llvm_version >= 8
 
     # 3) Check target
-    is_target_support = is_neon_available() or is_dotprod_available()
+    current_target = target.Target.current(allow_none=False)
+    is_target_support = bool(
+        current_target.features.has_asimd or current_target.features.has_dotprod
+    )
 
     return is_dtype_support and is_llvm_support and is_target_support
 
@@ -154,9 +157,10 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
             _, _, kh, kw, _, _, n_elems = get_const_tuple(kernel_vec.shape)
             assert n_elems == 4
             dtype = "uint" if data.dtype == "uint8" else "int"
-            if is_dotprod_available():
+            current_target = target.Target.current(allow_none=False)
+            if current_target.features.has_dotprod:
                 intrin = dot_int8_int8_int32_neon_82(int32_lanes=4, dtype=dtype)
-            elif is_neon_available():
+            elif current_target.features.has_asimd:
                 assert dtype == "int", "uint8 not supported if dot product is not available"
                 intrin = dot_int8_int8_int32_neon()
             else:

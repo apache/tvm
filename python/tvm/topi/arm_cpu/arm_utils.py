@@ -17,57 +17,7 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Arm target utility functions"""
 
-import re
-import tvm
-
-
-def get_arch_version(target_mattr):
-    """Parse the LLVM target -mattr, and return
-    the architecture version in a decimal representation
-    (e.g., if -mattr=v8.4a, return 8.4)
-    """
-
-    arch_version = 8.0
-    m = re.compile(r"\+v(.*)\.(.*)a")
-    for attr in target_mattr:
-        match_obj = m.match(attr)
-        if match_obj:
-            major = int(match_obj.group(1))
-            minor = int(match_obj.group(2))
-            decimal = 10
-            if minor >= 10:
-                decimal = 100
-            arch_version = major + float(minor) / decimal
-
-    return arch_version
-
-
-def is_dotprod_available():
-    """Checks whether the hardware has support for udot/sdot instructions."""
-    target = tvm.target.Target.current(allow_none=False)
-    arch_version = get_arch_version(target.mattr)
-    return arch_version >= 8.4 or ((arch_version in (8.2, 8.3)) and "+dotprod" in target.mattr)
-
-
-def is_mmla_available():
-    """Checks whether the hardware has support for ummla/smmla instructions."""
-    target = tvm.target.Target.current(allow_none=False)
-    arch_version = get_arch_version(target.mattr)
-    return arch_version >= 8.6 or (
-        (arch_version in (8.2, 8.3, 8.4, 8.5)) and "+i8mm" in target.mattr
-    )
-
-
-def is_aarch64_arm():
-    """Checks whether we are compiling for an AArch64 target."""
-    target = tvm.target.Target.current(allow_none=False)
-    return "aarch64" in target.attrs.get("mtriple", "")
-
-
-def is_neon_available():
-    """Check if neon instructions are available"""
-    target = tvm.target.Target.current(allow_none=False)
-    return "+neon" in target.mattr
+from tvm.target import Target
 
 
 def get_tiling_B_interleaved_t(interleave_A):
@@ -94,13 +44,15 @@ def get_tiling_B_interleaved_t(interleave_A):
     tile_rows_B: the output tile rows of B'
     tile_cols_B: the output tile columns of B'
     """
-    if is_mmla_available():
+    target = Target.current(allow_none=False)
+
+    if target.features.has_matmul_i8:
         # If smmla/ummla is available,  A must be interleaved.
         # Each load from B' will contain 8 elements
         # and we are loading 12 rows of B' (i.e., 12 columns of B)
         tile_rows_B = 12
         tile_cols_B = 8
-    elif is_dotprod_available():
+    elif target.features.has_dotprod:
         # The number of tile rows of B' vary depending on the
         # strategy:
         # * If we are interleaving A, then we select 12 columns from B'(i.e.,

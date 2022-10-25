@@ -45,14 +45,9 @@ class HexagonHtp {
   HexagonHtp& operator=(HexagonHtp&&) = delete;
 
  private:
-  //! \brief Power context
-  void* hap_pwr_ctx_;
-
   //! \brief Acquisition context ID
   unsigned int context_id_;
 
-  void PowerOn();
-  void PowerOff();
   void Acquire();
   void Release();
 };
