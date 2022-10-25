@@ -13,8 +13,13 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the Licens.
-"""The parser"""
-from . import _core, ir, tir
-from .ir import ir_module
-from .tir import prim_func
+# under the License.
+"""The tir parser"""
+
+from ...ir_builder.tir import *  # pylint: disable=redefined-builtin
+from ...ir_builder.tir import ir as _tir
+from . import operation as _operation
+from . import parser as _parser
+from .entry import Buffer, Ptr, prim_func
+
+__all__ = _tir.__all__ + ["Buffer", "Ptr", "prim_func"]
