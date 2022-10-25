@@ -148,6 +148,14 @@ class Trace : public runtime::ObjectRef {
    * \param decisions The decisions made in sampling
    */
   explicit Trace(Array<Instruction> insts, Map<Instruction, ObjectRef> decisions);
+
+  /*!
+   * \brief Restore a trace from its serialized representation
+   * \param json The JSON-serialized trace
+   * \return The restored trace
+   */
+  static Trace FromJSON(ObjectRef json);
+
   /*!
    * \brief Apply a JSON-serialized trace to a TensorIR schedule
    * \param json The JSON-serialized trace
