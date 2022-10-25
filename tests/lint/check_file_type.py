@@ -157,6 +157,7 @@ ALLOW_SPECIFIC_FILE = {
     "apps/microtvm/reference-vm/base-box/Vagrantfile.packer-template",
     # Hexagon
     "src/runtime/hexagon/rpc/android_bash.sh.template",
+    "src/runtime/hexagon/profiler/lwp_handler.S",
 }
 
 

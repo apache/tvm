@@ -393,3 +393,8 @@ class Session:
             remote_file_path = self.upload(binary_path, binary_name)
 
         return self.get_aot_executor(remote_file_path)
+
+    def get_profile_output(self, mode: str, path: str):
+        assert isinstance(mode, str), f"Invalid mode type, {type(mode)} != str"
+        assert isinstance(path, str), f"Invalid path type, {type(path)} != str"
+        return self._rpc.get_function("tvm.hexagon.get_profile_output")(mode, path)

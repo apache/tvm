@@ -24,6 +24,8 @@ import tvm.testing
 from tvm import relay, te
 from tvm.contrib.hexagon.session import Session
 from tvm.relay.backend import Executor, Runtime
+from tvm.contrib.hexagon.build import HexagonLauncherRPC
+from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
 
 from .infrastructure import get_hexagon_target
 
@@ -566,6 +568,162 @@ def test_dense_relay_vrmpy(hexagon_session, data_dtype, weight_dtype):
     ref += bias_np
 
     np.testing.assert_equal(out, ref)
+
+
+@tvm.testing.requires_hexagon
+def test_lwp(
+    hexagon_server_process,
+    hexagon_launcher: HexagonLauncherRPC,
+    hexagon_session: Session,
+    hexagon_debug,
+):
+    dtype = "float32"
+    data = relay.var("data", relay.TensorType((1, 64, 64, 3), dtype))
+    weight = relay.var("weight", relay.TensorType((5, 5, 3, 8), dtype))
+    y = relay.nn.conv2d(
+        data,
+        weight,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="float32",
+    )
+
+    f = relay.Function([data, weight], y)
+    relay_mod = tvm.IRModule.from_expr(f)
+    relay_mod = relay.transform.InferType()(relay_mod)
+
+    target_hexagon = tvm.target.hexagon("v68")
+    runtime = Runtime("cpp")
+    executor = Executor("graph")
+
+    weight_in = np.random.rand(5, 5, 3, 8).astype(dtype=dtype)
+    data_in = np.random.rand(1, 64, 64, 3).astype(dtype=dtype)
+    params = {"weight": weight_in}
+    inputs = {"data": data_in}
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.instrument_lwp": True}):
+        lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_hexagon, host=target_hexagon),
+            runtime=runtime,
+            executor=executor,
+        )
+        # Create HexagonProfiler object
+        dso_binary = "test_binary.so"
+        profiler = HexagonProfiler(dso_binary, lowered, hexagon_server_process, hexagon_debug)
+
+    graph_mod = hexagon_session.get_executor_from_factory(lowered)
+    graph_mod.set_input(**params)
+    graph_mod.run(**inputs)
+    hexagon_output = graph_mod.get_output(0).numpy()
+
+    # Get lightweight profiling output as a CSV file
+    profiler.get_profile_output(hexagon_launcher, hexagon_session)
+
+    target_llvm = tvm.target.Target("llvm")
+    with tvm.transform.PassContext(opt_level=3):
+        llvm_lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_llvm, host=target_llvm),
+            runtime=runtime,
+            executor=executor,
+        )
+    llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
+    llvm_graph_mod.set_input(weight=weight_in)
+    llvm_graph_mod.run(data=data_in)
+    expected_output = llvm_graph_mod.get_output(0).numpy()
+
+    tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
+
+
+@tvm.testing.requires_hexagon
+def test_lwp_multiple_conv2d(
+    hexagon_server_process,
+    hexagon_launcher: HexagonLauncherRPC,
+    hexagon_session: Session,
+    hexagon_debug,
+):
+    dtype = "float32"
+    input_shape = (1, 8, 8, 3)
+    w1_shape = (5, 5, 3, 1)
+    w2_shape = (5, 5, 1, 3)
+    data = relay.var("data", relay.TensorType(input_shape, dtype))
+    weight1 = relay.var("weight1", relay.TensorType(w1_shape, dtype))
+    weight2 = relay.var("weight2", relay.TensorType(w2_shape, dtype))
+    y1 = relay.nn.conv2d(
+        data,
+        weight1,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="float32",
+    )
+    y2 = relay.nn.conv2d(
+        y1,
+        weight2,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="float32",
+    )
+    f = relay.Function([data, weight1, weight2], y2)
+    relay_mod = tvm.IRModule.from_expr(f)
+    relay_mod = relay.transform.InferType()(relay_mod)
+
+    target_hexagon = tvm.target.hexagon("v68")
+    runtime = Runtime("cpp")
+    executor = Executor("graph")
+
+    weight1_data = np.random.rand(w1_shape[0], w1_shape[1], w1_shape[2], w1_shape[3]).astype(
+        dtype=dtype
+    )
+    weight2_data = np.random.rand(w2_shape[0], w2_shape[1], w2_shape[2], w2_shape[3]).astype(
+        dtype=dtype
+    )
+    input_data = np.random.rand(
+        input_shape[0], input_shape[1], input_shape[2], input_shape[3]
+    ).astype(dtype=dtype)
+
+    params = {"weight1": weight1_data, "weight2": weight2_data}
+    inputs = {"data": input_data}
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.instrument_lwp": True}):
+        lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_hexagon, host=target_hexagon),
+            runtime=runtime,
+            executor=executor,
+        )
+        # Create HexagonProfiler object
+        dso_binary = "test_binary.so"
+        profiler = HexagonProfiler(dso_binary, lowered, hexagon_server_process, hexagon_debug)
+
+    graph_mod = hexagon_session.get_executor_from_factory(lowered)
+    graph_mod.set_input(**params)
+    graph_mod.run(**inputs)
+    hexagon_output = graph_mod.get_output(0).numpy()
+
+    # Get lightweight profiling output as a CSV file
+    profiler.get_profile_output(hexagon_launcher, hexagon_session)
+
+    target_llvm = tvm.target.Target("llvm")
+    with tvm.transform.PassContext(opt_level=3):
+        llvm_lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_llvm, host=target_llvm),
+            runtime=runtime,
+            executor=executor,
+        )
+    llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
+    llvm_graph_mod.set_input(**params)
+    llvm_graph_mod.run(**inputs)
+    expected_output = llvm_graph_mod.get_output(0).numpy()
+
+    tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 
 if __name__ == "__main__":

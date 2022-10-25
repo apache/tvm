@@ -281,10 +281,14 @@ if(USE_HEXAGON_RPC)
       # TODO(masahi): Remove rpc_local_session.cc after verifying that things work without it
       "${TVMRT_SOURCE_DIR}/rpc/rpc_local_session.cc"
     )
+    set(HEXAGON_PROFILER_DIR "${TVMRT_SOURCE_DIR}/hexagon/profiler")
     # Add the hardware-specific RPC code into the skel library.
+    set_property(SOURCE ${HEXAGON_PROFILER_DIR}/lwp_handler.S PROPERTY LANGUAGE C)
     add_library(hexagon_rpc_skel SHARED
       "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon/rpc_server.cc"
       "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_skel.c"
+      "${HEXAGON_PROFILER_DIR}/prof_utils.cc"
+      "${HEXAGON_PROFILER_DIR}/lwp_handler.S"
     )
     target_include_directories(hexagon_rpc_skel
       SYSTEM PRIVATE "${TVMRT_SOURCE_DIR}/hexagon/rpc"
@@ -293,6 +297,8 @@ if(USE_HEXAGON_RPC)
     # executed via run_main_on_sim.
     add_library(hexagon_rpc_sim SHARED
       "${TVMRT_SOURCE_DIR}/hexagon/rpc/simulator/rpc_server.cc"
+      "${HEXAGON_PROFILER_DIR}/prof_utils.cc"
+      "${HEXAGON_PROFILER_DIR}/lwp_handler.S"
     )
     target_link_libraries(hexagon_rpc_sim
       -Wl,--whole-archive tvm_runtime -Wl,--no-whole-archive

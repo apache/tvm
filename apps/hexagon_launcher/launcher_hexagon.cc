@@ -35,6 +35,7 @@ extern "C" {
 #include "launcher_rpc.h"
 
 static std::unique_ptr<Model> TheModel;
+bool WriteLWPOutput(const std::string&);
 
 static AEEResult error_too_small(const std::string& func_name, const std::string& value_name,
                                  int given, int needed) {
@@ -203,7 +204,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_get_output)(remote_handle64 handle, int out
 }
 
 AEEResult __QAIC_HEADER(launcher_rpc_run)(remote_handle64 handle, uint64_t* pcycles,
-                                          uint64_t* usecs) {
+                                          uint64_t* usecs, int gen_lwp_json) {
   if (!TheModel) {
     // No model created.
     LOG(ERROR) << __func__ << ": no model created";
@@ -219,6 +220,13 @@ AEEResult __QAIC_HEADER(launcher_rpc_run)(remote_handle64 handle, uint64_t* pcyc
   uint64_t us_end = HAP_perf_get_time_us();
   *pcycles = pc_end - pc_begin;
   *usecs = us_end - us_begin;
+
+  if (gen_lwp_json) {
+    if (!WriteLWPOutput("lwp.json")) {
+      LOG(ERROR) << "ERROR: failed to generate lwp json file";
+      return AEE_EFAILED;
+    }
+  }
 
   return AEE_SUCCESS;
 }

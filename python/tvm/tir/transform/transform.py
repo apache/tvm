@@ -995,3 +995,14 @@ def ManifestSharedMemoryLocalStage():
         The result pass
     """
     return _ffi_api.ManifestSharedMemoryLocalStage()  # type: ignore
+
+
+def InstrumentProfileIntrinsics():
+    """Insert intrinsic calls to instrument function and loop level profiling.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InstrumentProfileIntrinsics()  # type: ignore

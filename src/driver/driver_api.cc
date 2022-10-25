@@ -52,6 +52,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.add_lower_pass", Array<Array<ObjectRef>>);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.debug_keep_trivial_loop", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.use_async_copy", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.merge_async_commit_queue_scope", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_lwp", Bool);
 
 using runtime::PackedFunc;
 using runtime::TVMArgs;
@@ -157,6 +158,8 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
       pass_ctx->GetConfig<Array<Array<ObjectRef>>>("tir.add_lower_pass", Array<Array<ObjectRef>>())
           .value();
 
+  bool instrument_lwp = pass_ctx->GetConfig<Bool>("tir.instrument_lwp", Bool(false)).value();
+
   Array<transform::Pass> user_lower_phase0 = Array<transform::Pass>();
   Array<transform::Pass> user_lower_phase1 = Array<transform::Pass>();
   Array<transform::Pass> user_lower_phase2 = Array<transform::Pass>();
@@ -252,6 +255,14 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
 
   pass_list.push_back(
       tir::transform::CommonSubexprElimTIR(!disable_cse_tir, enable_equiv_terms_in_cse_tir));
+
+  // This pass instruments the loops with the profile builtin calls to capture the runtime
+  // performance data (only enabled for Hexagon at the moment). To ensure that no other
+  // optimizations are performed on the instrumented code, this pass must be added at the end
+  // of the list.
+  if (instrument_lwp) {
+    pass_list.push_back(tir::transform::InstrumentProfileIntrinsics());
+  }
 
   return pass_list;
 }

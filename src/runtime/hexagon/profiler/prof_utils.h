@@ -17,17 +17,14 @@
  * under the License.
  */
 
-#include "remote.idl"
-#include "AEEStdDef.idl"
+/*!
+ * \file prof_utils.h
+ */
+#ifndef TVM_RUNTIME_HEXAGON_PROFILER_PROF_UTILS_H_
+#define TVM_RUNTIME_HEXAGON_PROFILER_PROF_UTILS_H_
 
-typedef sequence<octet> buffer;
+#include <string>
 
-interface launcher_rpc : remote_handle64 {
-  AEEResult load(in string module_path, in string model_json);
-  AEEResult unload();
-  AEEResult get_num_inputs(rout long num_inputs);
-  AEEResult set_input(in long input_idx, in buffer input_meta, in buffer input_value);
-  AEEResult get_num_outputs(rout long num_outputs);
-  AEEResult get_output(in long output_idx, rout buffer output_meta, rout buffer output_value);
-  AEEResult run(rout uint64_t pcycles, rout uint64_t usecs, in long gen_lwp_json);
-};
+bool WriteLWPOutput(const std::string&);
+
+#endif  // TVM_RUNTIME_HEXAGON_PROFILER_PROF_UTILS_H_

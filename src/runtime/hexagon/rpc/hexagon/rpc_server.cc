@@ -39,6 +39,7 @@ extern "C" {
 #include "../../../minrpc/minrpc_server.h"
 #include "../../hexagon/hexagon_common.h"
 #include "../../hexagon/hexagon_device_api.h"
+#include "../../profiler/prof_utils.h"
 #include "hexagon_rpc.h"
 
 namespace tvm {
@@ -328,4 +329,16 @@ TVM_REGISTER_GLOBAL("tvm.hexagon.load_module")
       std::string soname = args[0];
       tvm::ObjectPtr<tvm::runtime::Library> n = tvm::runtime::CreateDSOLibraryObject(soname);
       *rv = CreateModuleFromLibrary(n);
+    });
+
+TVM_REGISTER_GLOBAL("tvm.hexagon.get_profile_output")
+    .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
+      std::string profiling_mode = args[0];
+      std::string out_file = args[1];
+      if (profiling_mode.compare("lwp") == 0) {
+        *rv = WriteLWPOutput(out_file);
+      } else {
+        HEXAGON_PRINT(ERROR, "ERROR: Unsupported profiling mode: %s", profiling_mode.c_str());
+        *rv = false;
+      }
     });

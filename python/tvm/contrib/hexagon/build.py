@@ -32,6 +32,7 @@ import tempfile
 from typing import Union
 
 import tvm
+from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
 from ..._ffi import libinfo
 from .session import Session
 
@@ -336,6 +337,29 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         """
         return session.get_graph_debug_executor(graph_json, module, dump_root=dump_root)
 
+    @abc.abstractmethod
+    def get_profile_output(
+        self,
+        hex_profiler: HexagonProfiler,
+        session: Session,
+    ) -> str:
+        """Extract profile output.
+
+        Parameters
+        ----------
+        hex_profiler : HexagonProfiler
+            HexagonProfiler object that contains the profiling related information.
+        session : Session
+            Remote session. The session must be established (via __enter__)
+            prior to calling this function.
+
+        Returns
+        -------
+        profile_data : str
+            Path of the profiling data file
+        """
+        ...
+
 
 class HexagonLauncherAndroid(HexagonLauncherRPC):
     """Hexagon Launcher for Android."""
@@ -392,6 +416,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
     ):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
+
         _check_call_verbose(self._adb_device_sub_cmd + ["push", str(local_path), str(remote_path)])
 
     def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]) -> pathlib.Path:
@@ -629,6 +654,32 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         if not self._hexagon_debug:
             self.cleanup_directory()
 
+    def get_profile_output(
+        self,
+        hex_profiler: HexagonProfiler,
+        session: Session,
+    ):
+        """Abstract method implementation. See description in HexagonLauncherRPC."""
+        profile_data = ""
+        if hex_profiler.is_lwp_enabled():
+            temp_dir = hex_profiler.get_temp_dir()
+            remote_path = hex_profiler.get_remote_path()
+            if not temp_dir:
+                raise RuntimeError("tempdir not passed")
+            fname = "lwp.json"
+            out_path = os.path.join(remote_path, fname)
+            profile_data = temp_dir.relpath(fname)
+            ret = session.get_profile_output(hex_profiler.get_mode(), fname)
+            if ret:
+                subprocess.check_call(self._adb_device_sub_cmd + ["pull", out_path, profile_data])
+            else:
+                raise RuntimeError("Error generating profile output")
+        elif hex_profiler.profiling_mode == "etm":
+            hex_profiler.pull_files_for_etm_processing(self._workspace)
+        else:
+            raise RuntimeError("Profiling not enabled")
+        return profile_data
+
 
 class HexagonLauncherSimulator(HexagonLauncherRPC):
     """Hexagon Launcher for Hexagon simulator."""
@@ -734,6 +785,26 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
     def stop_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._server_process.terminate()
+
+    def get_profile_output(
+        self,
+        hex_profiler: HexagonProfiler,
+        session: Session,
+    ):
+        """Abstract method implementation. See description in HexagonLauncherRPC."""
+        profile_data = ""
+        if hex_profiler.is_lwp_enabled():
+            fname = "lwp.json"
+            profile_data = f"{self._workspace}/{fname}"
+            ret = session.get_profile_output(hex_profiler.get_mode(), fname)
+            if not ret:
+                raise RuntimeError("Error generating profile output")
+        elif hex_profiler.profiling_mode == "etm":
+            raise RuntimeError("ETM Profiling not supported on the simulator")
+        else:
+            raise RuntimeError("Profiling not enabled")
+
+        return profile_data
 
 
 # https://stackoverflow.com/a/52872579/2689797
