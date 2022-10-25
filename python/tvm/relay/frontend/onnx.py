@@ -1682,6 +1682,32 @@ class Sum(OnnxOpConverter):
         return inputs[len(inputs) - 1]
 
 
+class Optional_(OnnxOpConverter):
+    """Operator converter for Optional based on sequence construction op."""
+
+    @classmethod
+    def _impl_v15(cls, inputs, attr, params):
+        return SequenceConstruct._impl_v11(inputs, attr, params)
+
+
+class OptionalHasElement(OnnxOpConverter):
+    """Operator converter for OptionalHasElement."""
+
+    @classmethod
+    def _impl_v15(cls, inputs, attr, params):
+        shape = infer_shape(inputs[0])
+        return _op.const(True) if shape else _op.const(False)
+
+
+class OptionalGetElement(OnnxOpConverter):
+    """Operator converter for OptionalGetElement based on sequence construction op."""
+
+    @classmethod
+    def _impl_v15(cls, inputs, attr, params):
+        opt_as_seq = Optional_._impl_v15(inputs, attr, params)
+        return _expr.TupleGetItem(opt_as_seq, 0)
+
+
 class Affine(OnnxOpConverter):
     """Operator converter for Affine transformation."""
 
@@ -5383,6 +5409,9 @@ def _get_convert_map(opset):
     return {
         # defs/experimental
         "Identity": Renamer("copy"),
+        "Optional": Optional_.get_converter(opset),
+        "OptionalHasElement": OptionalHasElement.get_converter(opset),
+        "OptionalGetElement": OptionalGetElement.get_converter(opset),
         "Affine": Affine.get_converter(opset),
         "BitShift": BitShift.get_converter(opset),
         "ThresholdedRelu": ThresholdedRelu.get_converter(opset),
@@ -5402,7 +5431,6 @@ def _get_convert_map(opset):
         "Upsample": Upsample.get_converter(opset),
         "SpatialBN": BatchNorm.get_converter(opset),
         # defs/generator
-        # 'Constant' # Implemented
         # 'RandomUniform'
         # 'RandomNormal'
         # 'RandomUniformLike'

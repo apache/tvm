@@ -53,11 +53,19 @@ def get_input_data_shape_dict(graph_def, input_data):
         shape_dict = {}
         for i, _ in enumerate(input_data):
             input_names[i] = graph_def.graph.input[i].name
-            if input_data[i] is None or input_data[i].shape == ():
+            input_ = input_data[i]
+
+            if input_ is None or not hasattr(input_, "shape") or input_.shape == ():
                 # Skip adding input shape data when the input data is None;
                 # This is to enable optional arguments for onnx operators.
                 continue
-            shape_dict[input_names[i]] = input_data[i].shape
+
+            elif isinstance(input_, list):
+                shape_dict[input_names[i]] = (len(input_),)
+
+            else:
+                shape_dict[input_names[i]] = input_.shape
+
     else:
         input_names = graph_def.graph.input[0].name
         shape_dict = {input_names: input_data.shape}
@@ -5289,10 +5297,6 @@ unsupported_onnx_tests = [
     "test_melweightmatrix",
     # This test fails llvm with a lowering error:
     "test_nllloss_NCd1d2d3_none_no_weight_negative_ii_expanded",
-    "test_optional_has_element",
-    "test_optional_get_element",
-    "test_optional_get_element_sequence",
-    "test_optional_has_element_empty",
     "test_qlinearmatmul_3D",
     "test_range_float_type_positive_delta_expanded",
     "test_range_int32_type_negative_delta_expanded",
