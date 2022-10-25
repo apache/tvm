@@ -743,7 +743,7 @@ The above evaluation rules are general, but leave much room for implementations 
     
     Based on `shape`, the resulting tensor or tuple `r` will be allocated according to the sizes given in `shape`. `f` will be called in destination-passing style, like so: `f(arg1, ..., argn, *r)`. The asterisk denotes that if `r` is a tuple, it will be "unrolled," so the call will be `f(arg1, ..., argn, r1, ..., rn)`, where the `ri` are the fields of `r`. `f` is expected to mutate *only* `r` to give the output of the function, hence `call_tir` is considered pure. If the shape or data type of the actual result do not correspond to `shape` or `aT`, an error is issued.» After the call, `r` is returned.
     
-- `call_dps_packed(global_symbol, arg1, arg2, ..., argn, shape, type_args=[aT])`: Proceeds similarly to `call_tir`, except it calls a `PackedFunc` registered under the name `global_symbol`. The `PackedFunc` may modify `arg1`, `arg2`, …, or `argn` in addition to the result tensor, so purity is not assumed. A type argument `aT` must be given to specify the return type.
+- «`call_dps_packed(global_symbol, arg1, arg2, ..., argn, shape, type_args=[aT])`: Proceeds similarly to `call_tir`, except it calls a `PackedFunc` registered under the name `global_symbol`. The `PackedFunc` may modify `arg1`, `arg2`, …, or `argn` in addition to the result tensor, so purity is not assumed. A type argument `aT` must be given to specify the return type.»
 - `shape_of(t)`: Given a tensor argument `t`, it returns its shape. The return value is a new shape object.
 - «`cast(v, type_args=[aT])`: Given an argument `v`, it dynamically checks if `v`'s run-time representation is a subtype of `aT`. If it is not, it exits the program with an error message. Otherwise, it returns `v`.»
 
