@@ -210,5 +210,8 @@ void ScheduleUsingAnchorTrace(Schedule sch, const Trace& anchor_trace, const tvm
   }
 }
 
+TVM_REGISTER_GLOBAL("meta_schedule.ScheduleUsingAnchorTrace")
+    .set_body_typed(ScheduleUsingAnchorTrace);
+
 }  // namespace meta_schedule
 }  // namespace tvm
