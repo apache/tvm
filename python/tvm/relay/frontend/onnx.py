@@ -1843,7 +1843,7 @@ class Cast(OnnxOpConverter):
         return AttrCvt(op_name="cast", transforms={"to": "dtype"})(inputs, attr)
 
     @classmethod
-    def _impl_v5(cls, inputs, attr, params):
+    def _impl_v6(cls, inputs, attr, params):
         try:
             from onnx import TensorProto
         except ImportError as e:
@@ -1860,7 +1860,16 @@ class Cast(OnnxOpConverter):
                 attr["to"] = str(TENSOR_TYPE_TO_NP_TYPE[attr["to"]])
             except ImportError as e:
                 raise ImportError("Unable to import onnx.mapping which is required {}".format(e))
+
         return AttrCvt(op_name="cast", transforms={"to": "dtype"})(inputs, attr)
+
+
+class CastLike(OnnxOpConverter):
+    """Operator converter for CastLike."""
+
+    @classmethod
+    def _impl_v15(cls, inputs, attr, params):
+        return AttrCvt(op_name="cast_like")(inputs, attr)
 
 
 class Unsqueeze(OnnxOpConverter):
@@ -5511,6 +5520,7 @@ def _get_convert_map(opset):
         "TopK": TopK.get_converter(opset),
         # defs/tensor
         "Cast": Cast.get_converter(opset),
+        "CastLike": CastLike.get_converter(opset),
         "Reshape": Reshape.get_converter(opset),
         "Expand": Expand.get_converter(opset),
         "Concat": Concat.get_converter(opset),
