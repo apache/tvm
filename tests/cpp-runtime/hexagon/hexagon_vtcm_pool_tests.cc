@@ -34,7 +34,6 @@ class HexagonVtcmPoolTest : public ::testing::Test {
  public:
   HexagonVtcmPool* vtcm_pool;
   size_t max_bytes;
-  size_t eight_k_block = 8192;
   size_t four_k_block = 4096;
   size_t two_k_block = 2048;
   size_t one_k_block = 1024;
