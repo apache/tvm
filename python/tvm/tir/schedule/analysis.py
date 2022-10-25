@@ -125,4 +125,4 @@ def get_auto_tensorize_mapping_info(
 
 
 def has_block(sch, block_name):
-    return _ffi_api.HasBlock(sch, block_name);
+    return _ffi_api.HasBlock(sch, block_name)
