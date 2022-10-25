@@ -261,7 +261,7 @@ def tune_packed_8x8x32_template(mod, params, hexagon_launcher):
         _schedule_packed_8x8x32_conv2d(do_tune=True)(sch, conv2d_block)
         return [sch]
 
-    # register_func("meta_schedule.conv2d_NCHWc_int8", schedule_rule_conv2d_packed_8x8x32)
+    register_func("meta_schedule.conv2d_NCHWc_int8", schedule_rule_conv2d_packed_8x8x32)
 
     def schedule_conv2d_for_tune(sch: Schedule):
         _schedule_packed_8x8x32_conv2d(do_tune=True)(sch)
@@ -282,26 +282,24 @@ def tune_packed_8x8x32_template(mod, params, hexagon_launcher):
             strategy="replay-trace",
             builder=get_hexagon_local_builder(),
             runner=get_hexagon_rpc_runner(hexagon_launcher, number=20),
-            # TODO(csullivan): Configrm the below is accurate
-            # Enable MS auto scheduling for all ops, but utilize
-            # the custom scheduling strategy registered above for
-            # convolution
-            # space=ms.space_generator.PostOrderApply(
-            #     f_block_filter=None,
-            #     sch_rules="from-target",
-            #     postprocs=[],
-            #     mutator_probs="from-target",
-            # ),
-            #
-            # Constrain search space to only be the single
-            # schedule provided for convolution. No auto
-            # scheduling will be possible.
-            space=ms.space_generator.ScheduleFn(
-                schedule_conv2d_for_tune,
-                sch_rules=[],
+            # Apply MS auto scheduling rules for all blocks, but utilize
+            # the custom block scheduling strategy registered above for
+            # blocks annotated as `schedule_rule:meta_schedule.conv2d_NCHWc_int8`
+            space=ms.space_generator.PostOrderApply(
+                f_block_filter=None,
+                sch_rules="from-target",
                 postprocs=[],
-                mutator_probs={},
+                mutator_probs="from-target",
             ),
+            # Constrain search space to only be the single
+            # schedule provided for all blocks. No auto
+            # scheduling will be possible.
+            # space=ms.space_generator.ScheduleFn(
+            #     schedule_conv2d_for_tune,
+            #     sch_rules=[],
+            #     postprocs=[],
+            #     mutator_probs={},
+            # ),
             # Without this, the same workloads with different constant weights
             # are treated as distinct tuning tasks.
             module_equality="ignore-ndarray",
