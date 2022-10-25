@@ -170,18 +170,24 @@ TEST_F(HexagonVtcmPoolTest, find_allocation) {
   void* ptr1;
   void* ptr2;
   void* ptr3;
-  void* ptr4;
-  
+
   ptr1 = vtcm_pool->Allocate(two_k_block);
   ptr2 = vtcm_pool->Allocate(two_k_block);
-  // Free 2, realloc it, make sure it is the same as before
-  vtcm_pool->Free(ptr2, two_k_block);
 
+  // Free the first allocation
+  vtcm_pool->Free(ptr1, two_k_block);
+
+  // Allocate a new larger block to initiate search and ensure
+  // it succeeds despite there not being a matching block.
   ptr3 = vtcm_pool->Allocate(four_k_block);
 
+  // Clean up the ptrs
+  vtcm_pool->Free(ptr2, two_k_block);
+  vtcm_pool->Free(ptr3, four_k_block);
+
   // Make sure at the end we have the full amount available again
-  ptr4 = vtcm_pool->Allocate(max_bytes);
-  vtcm_pool->Free(ptr4, max_bytes);
+  ptr1 = vtcm_pool->Allocate(max_bytes);
+  vtcm_pool->Free(ptr1, max_bytes);
 }
 
 TEST_F(HexagonVtcmPoolTest, find_smallest_allocation_combinations) {
@@ -191,32 +197,48 @@ TEST_F(HexagonVtcmPoolTest, find_smallest_allocation_combinations) {
   void* ptr4;
   void* new_ptr;
 
-  ptr1 = vtcm_pool->Allocate(min_bytes);
-  ptr2 = vtcm_pool->Allocate(one_k_block);
-  ptr3 = vtcm_pool->Allocate(two_k_block);
-  // Free 2, realloc it, make sure it is the same as before
-  vtcm_pool->Free(ptr2, two_k_block);
-
+  ptr1 = vtcm_pool->Allocate(two_k_block);
+  ptr2 = vtcm_pool->Allocate(two_k_block);
+  ptr3 = vtcm_pool->Allocate(four_k_block);
   ptr4 = vtcm_pool->Allocate(four_k_block);
+
+  // Fragment memory allocations.
+  vtcm_pool->Free(ptr2, two_k_block);
+  vtcm_pool->Free(ptr3, four_k_block);
+
+  // Reallocate memory allocations and ensure that the smallest free allocations are used.
+  new_ptr = vtcm_pool->Allocate(two_k_block);
+  CHECK(new_ptr == ptr2);
+
   new_ptr = vtcm_pool->Allocate(two_k_block);
   CHECK(new_ptr == ptr3);
 
-  vtcm_pool->Free(ptr1, min_bytes);
-  vtcm_pool->Free(ptr2, one_k_block);
+  vtcm_pool->Free(ptr1, two_k_block);
+  vtcm_pool->Free(ptr2, two_k_block);
   vtcm_pool->Free(ptr3, two_k_block);
   vtcm_pool->Free(ptr4, four_k_block);
 
+  // Rerun the same test for non 2k aligned allocations.
+  ptr1 = vtcm_pool->Allocate(min_bytes);
+  ptr2 = vtcm_pool->Allocate(min_bytes);
+  ptr3 = vtcm_pool->Allocate(one_k_block);
+  ptr4 = vtcm_pool->Allocate(one_k_block);
+
+  // Fragment memory allocations.
+  vtcm_pool->Free(ptr2, min_bytes);
+  vtcm_pool->Free(ptr3, one_k_block);
+
+  // Reallocate memory allocations and ensure that the smallest free allocations are used.
   new_ptr = vtcm_pool->Allocate(min_bytes);
-  CHECK(new_ptr == ptr1);
+  CHECK(new_ptr == ptr2);
 
   new_ptr = vtcm_pool->Allocate(one_k_block);
-  CHECK(new_ptr == ptr2);
-  
-  new_ptr = vtcm_pool->Allocate(two_k_block);
   CHECK(new_ptr == ptr3);
 
-  new_ptr = vtcm_pool->Allocate(four_k_block);
-  CHECK(new_ptr == ptr4);
+  vtcm_pool->Free(ptr1, min_bytes);
+  vtcm_pool->Free(ptr2, min_bytes);
+  vtcm_pool->Free(ptr3, one_k_block);
+  vtcm_pool->Free(ptr4, one_k_block);
 
   // Make sure at the end we have the full amount available again
   ptr4 = vtcm_pool->Allocate(max_bytes);
