@@ -331,3 +331,33 @@ def OOBChecker():
         The result pass
     """
     return _ffi_api.OOBChecker()  # type: ignore
+
+
+def commutative_deep_equal(lhs: PrimExpr, rhs: PrimExpr) -> bool:
+    """Deeply compare two nested expressions that have commutative equality.
+
+    Parameters
+    ----------
+    lhs : PrimExpr
+        The left operand.
+
+    rhs : PrimExpr
+        The right operand.
+
+    Returns
+    -------
+    result : bool
+        The comparison result
+
+    Note
+    ----
+
+    This function is an extension of py:func:`tvm.ir.expr_deep_equal`, it can
+    handle commutativity. This function will return true for (x + y) vs (y + x)
+    but the py:func:`tvm.ir.expr_deep_equal` will return false for (x + y) vs (y + x).
+
+    See Also
+    --------
+    tvm.ir.expr_deep_equal
+    """
+    return _ffi_api.commutative_deep_equal(lhs, rhs)  # type: ignore
