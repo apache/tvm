@@ -282,10 +282,15 @@ def check_pr(pr_number) {
 }
 
 def trigger_hexagon_ci() {
-  sh (
+  withCredentials([string(
+    credentialsId: 'tvm-bot-jenkins-reader',
+    variable: 'GITHUB_TOKEN',
+    )]) {
+    sh (
       script: "python3 ci/scripts/github_hexagon_ci.py",
       label: 'Trigger hexagon hardware CI if required.',
-  )
+    )
+  }
 }
 
 def prepare() {
