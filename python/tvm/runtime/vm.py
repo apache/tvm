@@ -42,6 +42,8 @@ def _convert(arg, cargs):
 
     if isinstance(arg, Object):
         cargs.append(arg)
+    elif arg is None:
+        cargs.append(tvm.nd.array([], device=tvm.cpu(0)))
     elif isinstance(arg, np.ndarray):
         nd_arr = tvm.nd.array(arg, device=tvm.cpu(0))
         cargs.append(nd_arr)
