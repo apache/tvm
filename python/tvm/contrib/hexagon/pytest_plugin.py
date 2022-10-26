@@ -84,10 +84,13 @@ PREVIOUS_PORT = None
 def get_free_port() -> int:
     """Return the next port that is available to listen on"""
     global PREVIOUS_PORT
+    random.seed(0)
     if PREVIOUS_PORT is None:
         port = random.randint(LISTEN_PORT_MIN, LISTEN_PORT_MAX)
     else:
         port = PREVIOUS_PORT + 1
+        if port > LISTEN_PORT_MAX:
+            port = LISTEN_PORT_MIN
 
     while tvm.contrib.hexagon.build._is_port_in_use(port):
         port = port + 1 if port < LISTEN_PORT_MAX else LISTEN_PORT_MIN
