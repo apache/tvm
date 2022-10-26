@@ -281,13 +281,13 @@ def check_pr(pr_number) {
 
 }
 
-def trigger_hexagon_ci() {
+def trigger_hexagon_ci(pr_number) {
   withCredentials([string(
     credentialsId: 'tvm-bot-jenkins-reader',
     variable: 'GITHUB_TOKEN',
     )]) {
     sh (
-      script: "python3 ci/scripts/github_hexagon_ci.py",
+      script: "python3 ci/scripts/github_hexagon_ci.py --pr ${pr_number}",
       label: 'Trigger hexagon hardware CI if required.',
     )
   }
@@ -4755,7 +4755,7 @@ def test_extras() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon-extra") {
         init_git()
-        trigger_hexagon_ci()
+        trigger_hexagon_ci(env.CHANGE_ID)
       }
     }
   }
