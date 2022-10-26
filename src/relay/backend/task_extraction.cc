@@ -100,6 +100,14 @@ Array<meta_schedule::ExtractedTask> ExtractTask(IRModule mod, Target target,
       op_counts[i] = OpCounter::GetOpCount(std::get<1>(lower_results[i]));
     }
 
+    // When anchor-block based equality is used, tuning tasks "nn_conv2d_add_nn_relu" and
+    // "nn_conv2d_add_add_nn_relu", for example, can be identified as equal. Thus, one of
+    // them will be filtered by the cache below.
+    //
+    // To make sure that we tune "nn_conv2d_add_nn_relu" and not "nn_conv2d_add_add_nn_relu",
+    // we sort the TE lowering results based on the number of relay ops. This way,
+    // "nn_conv2d_add_nn_relu" will be added to the cache first, and "nn_conv2d_add_add_nn_relu"
+    // will be filtered.
     std::sort(indices.begin(), indices.end(),
               [&op_counts](int i1, int i2) { return op_counts[i1] < op_counts[i2]; });
   }

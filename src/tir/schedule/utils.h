@@ -442,6 +442,9 @@ inline String BufferIndexType2Str(BufferIndexType buffer_index_type) {
   }
 }
 
+/******** Utilities for retrieving information about blocks ********/
+
+/*! \brief Returns the names of the blocks in the provided module. */
 inline std::unordered_set<std::string> GetBlockNames(const IRModule& mod) {
   struct BlockNameCollector : public tir::StmtVisitor {
     void VisitStmt_(const tir::BlockNode* block) override {
@@ -457,6 +460,7 @@ inline std::unordered_set<std::string> GetBlockNames(const IRModule& mod) {
   return collector.block_names;
 }
 
+/*! \brief Query if the given block name exists in the module associated with the schedule */
 inline bool HasBlock(const Schedule& sch, const std::string& block_name) {
   auto block_names = GetBlockNames(sch->mod());
   return block_names.count(block_name);

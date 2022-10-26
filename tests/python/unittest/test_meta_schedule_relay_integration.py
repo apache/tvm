@@ -106,10 +106,40 @@ def test_meta_schedule_integration_extract_from_resnet():
     for t in extracted_tasks:
         assert t.task_name in expected_task_names, t.task_name
 
+
+@requires_torch
+def test_task_extraction_anchor_block():
+    mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     extracted_tasks = ms.relay_integration.extract_tasks(
         mod, target="llvm", params=params, module_equality="anchor-block"
     )
-    assert len(extracted_tasks) == 16
+
+    # Note that there is no task from residual blocks
+    expected_task_names = [
+        "fused_" + s
+        for s in [
+            "nn_max_pool2d",
+            "nn_adaptive_avg_pool2d",
+            "nn_dense_add",
+            "nn_conv2d_add",
+            "nn_conv2d_add_1",
+            "nn_conv2d_add_2",
+            "nn_conv2d_add_nn_relu",
+            "nn_conv2d_add_nn_relu_1",
+            "nn_conv2d_add_nn_relu_2",
+            "nn_conv2d_add_nn_relu_3",
+            "nn_conv2d_add_nn_relu_4",
+            "nn_conv2d_add_nn_relu_5",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu_1",
+            "layout_transform",
+            "layout_transform_reshape_squeeze",
+        ]
+    ]
+
+    assert len(extracted_tasks) == len(expected_task_names)
+    for t in extracted_tasks:
+        assert t.task_name in expected_task_names, t.task_name
 
 
 @requires_torch
@@ -679,4 +709,5 @@ def test_module_equality_ignore_ndarray():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_task_extraction_anchor_block()

@@ -74,6 +74,8 @@ class ModuleEqualityIgnoreNDArray : public ModuleEquality {
   }
 };
 
+// The NDArray-ignoring variant of structural equal / hash is used for the module equality
+// on the extracted anchor blocks.
 class ModuleEqualityAnchorBlock : public ModuleEquality {
   size_t Hash(IRModule mod) const {
     auto anchor_block = tir::FindAnchorBlock(mod);
