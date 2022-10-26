@@ -31,7 +31,9 @@
 #include <tvm/tir/schedule/trace.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 #include "../../arith/pattern_match.h"

@@ -709,5 +709,4 @@ def test_module_equality_ignore_ndarray():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_task_extraction_anchor_block()
+    tvm.testing.main()
