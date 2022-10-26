@@ -16,10 +16,14 @@
 # specific language governing permissions and limitations
 # under the License.
 import argparse
+import os
 
 from check_pr import get_pr_title_body
 from cmd_utils import init_log
+from git_utils import post
 
+JENKINS_URL = "https://jenkins.hwe.octoml.ai/"
+TVM_BOT_JENKINS_TOKEN = os.environ["TVM_BOT_JENKINS_TOKEN"]
 HEXAGON_TEST_AUTHORIZED_USERS = ["mehrdadh"]
 
 
@@ -28,6 +32,12 @@ def check_pr_title(pr_number: int) -> bool:
     if "[hexagon]" in pr_title.lower():
         return True
     return False
+
+
+def trigger_hexgon_ci():
+    url = JENKINS_URL + f"job/hexagon/job/staging/main/buildWithParameters"
+    print(f"Rerunning ci with URL={url}")
+    post(url, auth=("tvm-bot", TVM_BOT_JENKINS_TOKEN))
 
 
 def trigger_hexagon_ci_if_required(pr_number: int, author: str):
@@ -40,7 +50,7 @@ def trigger_hexagon_ci_if_required(pr_number: int, author: str):
         print("Skip Hexagon CI: User is not authorized.")
         return
 
-    print("triggering...")
+    trigger_hexgon_ci()
 
 
 if __name__ == "__main__":
