@@ -42,7 +42,7 @@ class HexagonThreadManagerTest : public ::testing::Test {
   const unsigned stack_size{0x4000};  // 16KB
 };
 
-TEST_F(HexagonThreadManagerTest, ctor_errors) {
+TEST_F(HexagonThreadManagerTest, ctor_edge_cases) {
   // zero threads
   ASSERT_THROW(HexagonThreadManager(0, stack_size, pipe_size), InternalError);
   // too many threads
@@ -57,13 +57,16 @@ TEST_F(HexagonThreadManagerTest, ctor_errors) {
   ASSERT_THROW(HexagonThreadManager(6, stack_size, 0x10000000), InternalError);
   // hw resources count doesn't match thread count
   ASSERT_THROW(HexagonThreadManager(6, stack_size, pipe_size, {DMA_0}), InternalError);
-  // hw resources doesn't match specific supported configuration
+  // no more than one of each hw resource may be specified
+  ASSERT_THROW(HexagonThreadManager(4, stack_size, pipe_size, {DMA_0, HTP_0, HVX_0, HVX_0}),
+               InternalError);
+  // no more than one of each hw resource may be specified
   ASSERT_THROW(
       HexagonThreadManager(6, stack_size, pipe_size, {DMA_0, HTP_0, HVX_0, HVX_1, HVX_2, DMA_0}),
       InternalError);
-  // hw resources doesn't match specific supported configuration
-  ASSERT_THROW(HexagonThreadManager(5, stack_size, pipe_size, {DMA_0, HTP_0, HVX_0, HVX_1, HVX_2}),
-               InternalError);
+  // multiple entries for no resource is allowed.
+  HexagonThreadManager* htm_none = new HexagonThreadManager(2, stack_size, pipe_size, {NONE, NONE});
+  delete htm_none;
 }
 
 TEST_F(HexagonThreadManagerTest, init) {
@@ -333,4 +336,26 @@ TEST_F(HexagonThreadManagerTest, dispatch_writes) {
   for (int i = 0; i < streams.size(); i++) {
     CHECK_EQ(array[i], truth[i]);
   }
+}
+
+// Validate threads created for hw resources on global manager
+TEST_F(HexagonThreadManagerTest, threads_for_resource_types) {
+  HexagonThreadManager* thread_manager = HexagonDeviceAPI::Global()->ThreadManager();
+  TVMStreamHandle thread;
+
+  thread = thread_manager->GetStreamHandleByResourceType(DMA_0);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == DMA_0);
+  thread = thread_manager->GetStreamHandleByResourceType(HTP_0);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HTP_0);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_0);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_0);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_1);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_1);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_2);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_2);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_3);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_3);
+  EXPECT_THROW(thread_manager->GetStreamHandleByResourceType(NONE), InternalError);
+  thread = reinterpret_cast<TVMStreamHandle>(6);
+  EXPECT_THROW(thread_manager->GetResourceTypeForStreamHandle(thread), InternalError);
 }

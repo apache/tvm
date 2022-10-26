@@ -44,6 +44,9 @@ class HexagonHtp {
   //! \brief Prevent move assignment.
   HexagonHtp& operator=(HexagonHtp&&) = delete;
 
+  void Lock();
+  void Unlock();
+
  private:
   //! \brief Acquisition context ID
   unsigned int context_id_;

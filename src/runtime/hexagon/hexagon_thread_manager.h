@@ -88,6 +88,18 @@ class HexagonThreadManager {
   const std::vector<TVMStreamHandle> GetStreamHandles();
 
   /*!
+   * \brief Get the spawned threads as stream handles for a resource type.
+   * \returns stream handle.
+   */
+  TVMStreamHandle GetStreamHandleByResourceType(HardwareResourceType type);
+
+  /*!
+   * \brief Get the resource type for a stream handle
+   * \returns stream handle.
+   */
+  HardwareResourceType GetResourceTypeForStreamHandle(TVMStreamHandle thread);
+
+  /*!
    * \brief Non-blocking dispatch of a void function and args on a given thread.
    * \param thread Stream handle of the thread on which to dispatch the void function.
    * \param f Void function to be dispatched.
@@ -137,8 +149,21 @@ class HexagonThreadManager {
   struct ThreadContext {
     qurt_pipe_t* pipe;
     unsigned index;
-    ThreadContext(qurt_pipe_t* pipe, unsigned index) : pipe(pipe), index(index) {}
+    HardwareResourceType resource_type;
+    HexagonHvx* hvx;
+    HexagonHtp* htp;
+    uint64_t status;
+    ThreadContext(qurt_pipe_t* pipe, unsigned index, HardwareResourceType resource_type,
+                  HexagonHvx* hvx, HexagonHtp* htp)
+        : pipe(pipe), index(index), resource_type(resource_type), hvx(hvx), htp(htp), status(0) {
+      CHECK(resource_type == NONE || (hvx && htp))
+          << "Missing resource manager pointer, type: " << resource_type << " hvx: " << hvx
+          << " htp: " << htp;
+    }
   };
+
+  //! \brief Helper function to ensure the set of requested resources is valid.
+  void CheckResources();
 
   //! \brief Helper function for the constructor to spawn threads.
   void SpawnThreads(unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words);
@@ -157,7 +182,7 @@ class HexagonThreadManager {
   static void thread_wait_free(void* semaphore);
 
   //! \brief Void function executed by a thread to exit at time of destruction.
-  static void thread_exit(void* status);
+  static void thread_exit(void* context);
 
   //! \brief Void function executed by each thread as `main`.
   static void thread_main(void* context);
@@ -202,6 +227,9 @@ class HexagonThreadManager {
 
   //! \brief List of hardware resources
   std::vector<HardwareResourceType> hw_resources_;
+
+  //! \brief Whether or not resource managers should be created
+  bool create_resource_managers_{false};
 
   //! \brief HTP hardware resource.
   // TODO(HWE): Move binding of HTP to a specific thread
