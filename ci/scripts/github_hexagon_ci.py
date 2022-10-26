@@ -37,6 +37,7 @@ if __name__ == "__main__":
     help = "Check a PR's title and body for conformance to guidelines"
     parser = argparse.ArgumentParser(description=help)
     parser.add_argument("--pr", required=True)
+    args = parser.parse_args()
 
     try:
         pr_number = int(args.pr)
