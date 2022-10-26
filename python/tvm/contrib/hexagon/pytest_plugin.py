@@ -29,6 +29,7 @@ import tvm
 import tvm.rpc.tracker
 from tvm.contrib.hexagon.build import HexagonLauncher, HexagonLauncherRPC
 from tvm.contrib.hexagon.session import Session
+from tvm.contrib.hexagon.tools import HEXAGON_SIMULATOR_NAME
 
 HEXAGON_TOOLCHAIN = "HEXAGON_TOOLCHAIN"
 TVM_TRACKER_HOST = "TVM_TRACKER_HOST"
@@ -173,7 +174,7 @@ def hexagon_server_process(
 
     if android_serial_num is None:
         pytest.skip("ANDROID_SERIAL_NUMBER is not set.")
-    if android_serial_num == ["simulator"]:
+    if android_serial_num == [HEXAGON_SIMULATOR_NAME]:
         yield None
     else:
         # Requesting these fixtures sets up a local tracker, if one
@@ -220,7 +221,7 @@ def pytest_configure(config):
 
 
 def pytest_configure_node(node):
-    # the master for each node fills slaveinput dictionary
+    # the master for each node fills node input dictionary
     # which pytest-xdist will transfer to the subprocess
     if node.config.iplist is not None:
         node.workerinput["device_adr"] = node.config.iplist.pop()
@@ -240,7 +241,7 @@ def hexagon_launcher(
     """Initials and returns hexagon launcher which reuses RPC info and Android serial number."""
     android_serial_num = android_serial_number()
 
-    if android_serial_num != ["simulator"]:
+    if android_serial_num != [HEXAGON_SIMULATOR_NAME]:
         rpc_info = hexagon_server_process["launcher"]._rpc_info
     else:
         rpc_info = {
@@ -250,7 +251,7 @@ def hexagon_launcher(
             "adb_server_socket": adb_server_socket,
         }
     try:
-        if android_serial_num == ["simulator"]:
+        if android_serial_num == [HEXAGON_SIMULATOR_NAME]:
             launcher = HexagonLauncher(serial_number=android_serial_num[0], rpc_info=rpc_info)
             launcher.start_server()
         else:
@@ -263,7 +264,7 @@ def hexagon_launcher(
             )
         yield launcher
     finally:
-        if android_serial_num == ["simulator"]:
+        if android_serial_num == [HEXAGON_SIMULATOR_NAME]:
             launcher.stop_server()
         elif not hexagon_debug:
             launcher.cleanup_directory()
@@ -274,7 +275,7 @@ def hexagon_session(hexagon_launcher: HexagonLauncherRPC) -> Session:
     if hexagon_launcher is None:
         yield None
     else:
-        with hexagon_launcher.start_session() as session:
+        with hexagon_launcher.create_session() as session:
             yield session
 
 
@@ -289,7 +290,7 @@ def terminate_rpc_servers():
     # yield happens every time.
     serial = os.environ.get(ANDROID_SERIAL_NUMBER)
     yield []
-    if serial == ["simulator"]:
+    if serial == [HEXAGON_SIMULATOR_NAME]:
         os.system("ps ax | grep tvm_rpc_x86 | awk '{print $1}' | xargs kill")
 
 

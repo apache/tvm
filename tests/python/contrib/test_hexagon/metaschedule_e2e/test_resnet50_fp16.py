@@ -25,6 +25,7 @@ from tvm import relay
 from tvm import meta_schedule as ms
 from tvm.contrib.hexagon.meta_schedule import get_hexagon_local_builder, get_hexagon_rpc_runner
 from tvm.relay.backend import Executor
+
 from ..infrastructure import get_hexagon_target
 
 
@@ -103,7 +104,7 @@ def test_resnet50(hexagon_launcher):
         llvm_graph_mod.run()
         ref_result = llvm_graph_mod.get_output(0).numpy()
 
-    with hexagon_launcher.start_session() as session:
+    with hexagon_launcher.create_session() as session:
         graph_mod = session.get_executor_from_factory(hexagon_lowered)
         graph_mod.set_input(input_name, inp.copy())
 

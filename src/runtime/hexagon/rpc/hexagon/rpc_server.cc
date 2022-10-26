@@ -32,6 +32,7 @@ extern "C" {
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
+#include <fstream>
 #include <memory>
 #include <string>
 
@@ -341,4 +342,17 @@ TVM_REGISTER_GLOBAL("tvm.hexagon.get_profile_output")
         HEXAGON_PRINT(ERROR, "ERROR: Unsupported profiling mode: %s", profiling_mode.c_str());
         *rv = false;
       }
+    });
+
+void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
+  std::ofstream fs(file_name, std::ios::out | std::ios::binary);
+  ICHECK(!fs.fail()) << "Cannot open " << file_name;
+  fs.write(&data[0], data.length());
+}
+
+TVM_REGISTER_GLOBAL("tvm.rpc.server.upload")
+    .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
+      std::string file_name = args[0];
+      std::string data = args[1];
+      SaveBinaryToFile(file_name, data);
     });

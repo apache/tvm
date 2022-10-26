@@ -21,7 +21,6 @@ import numpy as np
 
 import tvm
 from tvm import tir
-from tvm.contrib.hexagon.session import Session
 from tvm.script import tir as T
 
 from .infrastructure import get_hexagon_target
@@ -181,7 +180,7 @@ def test_async_software_pipeline(hexagon_launcher, comp_type, data, reference, s
         # tvm.lower(schedule.mod["main"]).show()
         func = tvm.build(schedule.mod["main"], target=get_hexagon_target("v68"))
 
-    with hexagon_launcher.start_session() as hexagon_session:
+    with hexagon_launcher.create_session() as hexagon_session:
         dev = hexagon_session.device
         mod = hexagon_session.load_module(func)
         out = tvm.nd.array(out_np, device=dev)
