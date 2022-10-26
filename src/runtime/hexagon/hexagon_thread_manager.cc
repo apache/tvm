@@ -45,7 +45,7 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
     DLOG(INFO) << "Initialize hardware resource managers";
     // This creates the manager objects, which reserves (acquires) the resources.
     // Calls to lock/unlock will be performed on threads dedicated to instances.
-    // This must be done before spawing threads so we can pass pointers to the
+    // This must be done before spawning threads so we can pass pointers to the
     // objects in the thread context.
     htp_ = std::make_unique<HexagonHtp>();
     hvx_ = std::make_unique<HexagonHvx>();
@@ -322,10 +322,10 @@ void HexagonThreadManager::thread_exit(void* context) {
 
   if ((resource_type == HVX_0) || (resource_type == HVX_1) || (resource_type == HVX_2) ||
       (resource_type == HVX_3)) {
-    tc->hvx->Unlock();
+    //tc->hvx->Unlock();
     DLOG(INFO) << "Thread " << index << " unlocked an HVX instance";
   } else if (resource_type == HTP_0) {
-    tc->htp->Unlock();
+    //tc->htp->Unlock();
     DLOG(INFO) << "Thread " << index << " unlocked the HTP";
   }
 
