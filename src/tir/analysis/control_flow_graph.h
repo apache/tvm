@@ -29,6 +29,7 @@
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/var.h>
 
+#include <optional>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -474,13 +475,17 @@ class ControlFlowGraph {
 
   /*! \brief Propagate known values from known BufferStore/assume
    *  subsequent control flow blocks
+   *
+   * \param flow_from If specified, re-flow only from that block.
    */
-  void ForwardPropagateKnownValues(size_t max_revisits);
+  void ForwardPropagateKnownValues(std::optional<size_t> flow_from = std::nullopt);
 
   /*! \brief Propagate overwritten/unused indices to preceding control
    *  flow blocks
+   *
+   * \param flow_from If specified, re-flow only from that block.
    */
-  void BackwardPropagateUnusedValues(size_t max_revisits);
+  void BackwardPropagateUnusedValues(std::optional<size_t> flow_from = std::nullopt);
 
   struct ControlFlowEdge {
     /* \brief The source block of the control flow edge
@@ -646,6 +651,9 @@ class ControlFlowGraph {
   std::vector<PrimExpr> non_buffer_assumptions_;
 
   friend class ControlFlowGraphBuilder;
+
+  /*! \brief The maximum number of revisits while flowing constraints */
+  size_t max_revisits_;
 };
 
 }  // namespace tir
