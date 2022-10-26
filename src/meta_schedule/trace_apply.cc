@@ -58,16 +58,15 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
   }
 
   auto anchor_block = FindAnchorBlock(sch->mod());
-  std::optional<BlockRV> anchor_block_rv = std::nullopt;
-  if (anchor_block) {
-    anchor_block_rv = sch->GetBlock(anchor_block->name_hint);
-  }
 
   auto inline_rule = GetDefaultAutoInline(target->kind->name);
 
   for (auto name : GetBlockNames(sch->mod())) {
     auto block = sch->GetBlock(name);
-    if (anchor_block_rv && IsAncestor(block, *anchor_block_rv, sch)) continue;
+    if (anchor_block) {
+      auto anchor_block_rv = sch->GetBlock(anchor_block->name_hint);
+      if (IsAncestor(block, anchor_block_rv, sch)) continue;
+    }
     // Spatial blocks which are not referenced in the anchor trace will be inlined here.
     if (IsSpatial(sch->GetSRef(block)) && !get_block_names.count(name)) {
       inline_rule->Apply(sch, block);
