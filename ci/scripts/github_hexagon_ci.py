@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from .check_pr import get_pr_title_body
+from check_pr import get_pr_title_body
 
 def check_pr_title() -> bool:
     pr_title, _ = get_pr_title_body()
