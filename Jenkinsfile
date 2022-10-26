@@ -281,7 +281,7 @@ def check_pr(pr_number) {
 
 }
 
-def trigger_hexagon_ci(pr_number) {
+def trigger_hexagon_ci() {
   sh (
       script: "python3 ci/scripts/github_hexagon_ci.py",
       label: 'Trigger hexagon hardware CI if required.',
@@ -4743,7 +4743,7 @@ def deploy() {
 }
 
 def test_extras() {
-  stage('Hexagon Hardware') {
+  stage('Test: Extras') {
     environment {
       SKIP_SLOW_TESTS = "${skip_slow_tests}"
     }
