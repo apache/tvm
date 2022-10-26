@@ -116,9 +116,11 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
                 postprocs=postprocs,
                 mutator_probs={},
             ),
-            # Without this, the same workloads with different constant weights
-            # are treated as distinct tuning tasks.
-            module_equality="ignore-ndarray",
+            # This enables anchor-block tuning, where different subgraphs
+            # with the same anchor block workload will be identified as equal.
+            # It reduces the number of conv2d tuning tasks in the int8 resnet50 model
+            # from 36 to 23, with negligible performance difference.
+            module_equality="anchor-block",
         )
 
         return ms.relay_integration.compile_relay(
