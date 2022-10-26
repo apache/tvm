@@ -35,4 +35,4 @@ def schedule_using_anchor_trace(sch: Schedule, anchor_trace: Trace, target) -> N
     target : tvm.target.Target
         The compilation target
     """
-    _ffi_api.ScheduleUsingAnchorTrace(sch, anchor_trace, target)  # type: ignore # pylint: disable=no-member
+    _ffi_api.ScheduleUsingAnchorTrace(sch, anchor_trace, target)  # type: ignore

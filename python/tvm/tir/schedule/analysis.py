@@ -139,4 +139,4 @@ def has_block(sch: Schedule, block_name: str) -> bool:
     yes/no: bool
         True if the given block exists in the schedule.
     """
-    return _ffi_api.HasBlock(sch, block_name)
+    return _ffi_api.HasBlock(sch, block_name)  # type: ignore
