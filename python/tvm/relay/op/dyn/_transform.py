@@ -260,7 +260,7 @@ def _sparse_to_dense_shape_func(output_shape, ndim):
     return out
 
 
-@_reg.register_shape_func("dyn.sparse_to_dense", True)
+@_reg.register_shape_func("dyn.sparse_to_dense", [False, False, False, True])
 def sparse_to_dense_shape_func(attrs, inputs, out_ndims):
     return [_sparse_to_dense_shape_func(inputs[3], out_ndims[0])]
 
