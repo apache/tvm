@@ -438,6 +438,25 @@ def matmul_relu_padding(A: T.Buffer[(127, 127), "float16"], B: T.Buffer[(127, 12
             compute[i0_1, i1_1] = T.max(C[i0_1, i1_1], T.float32(0))
 
 
+@T.prim_func
+def splitted_square_sum_with_predicate(
+    A: T.Buffer[(1, 7, 7, 512), "float32"], B: T.Buffer[(1, 1, 1, 512), "float32"]
+) -> None:
+    for i0_i1_i2_i3_0_fused, ax0, ax1, ax2, ax3 in T.grid(2, 1, 1, 1, 256):
+        for ax4_ax5_fused_0, ax4_ax5_fused_1 in T.grid(1, 256):
+            with T.block("B"):
+                T.where(ax4_ax5_fused_0 * 256 + ax4_ax5_fused_1 < 49)
+                ax0_1, ax1_1, ax2_1 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                ax3_1 = T.axis.spatial(512, i0_i1_i2_i3_0_fused * 256 + ax3)
+                rv0 = T.axis.reduce(7, (ax4_ax5_fused_0 * 256 + ax4_ax5_fused_1) // 7)
+                rv1 = T.axis.reduce(7, (ax4_ax5_fused_0 * 256 + ax4_ax5_fused_1) % 7)
+                T.reads(A[ax0_1, ax1_1 * 7 + rv0, ax2_1 * 7 + rv1, ax3_1])
+                T.writes(B[ax0_1, ax1_1, ax2_1, ax3_1])
+                with T.init():
+                    B[ax0_1, ax1_1, ax2_1, ax3_1] = T.float32(0)
+                B[ax0_1, ax1_1, ax2_1, ax3_1] += A[ax0_1, ax1_1 * 7 + rv0, ax2_1 * 7 + rv1, ax3_1]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 # fmt: on
 
@@ -858,6 +877,17 @@ def test_matmul_relu_padding():
     s = tir.ScheduleState(matmul_relu_padding, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "C_reindex_shared")) == CachedFlags(
+        affine_binding=True,
+        region_cover=True,
+        stage_pipeline=True,
+    )
+    # pylint: enable=protected-access
+
+
+def test_splitted_square_sum_with_predicate():
+    s = tir.ScheduleState(splitted_square_sum_with_predicate, debug_mask="all")
+    # pylint: disable=protected-access
+    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
