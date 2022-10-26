@@ -502,9 +502,11 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
      */
     StorageToken* Request(StorageToken* prototype) {
       auto shape = GetSize2D(prototype);
-      int64_t requested_size = shape.height * shape.width;
-      int64_t min_added_size = std::numeric_limits<int64_t>::max();
-      int64_t min_wasted_size = std::numeric_limits<int64_t>::max();
+      const int64_t max_ratio = 5;
+      int64_t min_added_size_x = std::numeric_limits<int64_t>::max();
+      int64_t min_added_size_y = std::numeric_limits<int64_t>::max();
+      int64_t min_wasted_size_x = std::numeric_limits<int64_t>::max();
+      int64_t min_wasted_size_y = std::numeric_limits<int64_t>::max();
       int64_t best_storage_id = -1;
       MemBlock best_mem, new_mem;
       for (int64_t free_id : free_list_) {
@@ -513,30 +515,51 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
         if (cached.token_->ttype->dtype != prototype->ttype->dtype) {
           continue;
         }
-        int64_t cached_size = cached.x_ * cached.y_;
-        new_mem.x_ = std::max(cached.x_, shape.width);
-        new_mem.y_ = std::max(cached.y_, shape.height);
-        int64_t expanded_size = new_mem.x_ * new_mem.y_;
-        int64_t added_size = expanded_size - cached_size;
-        int64_t wasted_size = expanded_size - requested_size;
+        // Can only reuse texture 2d blocks of the same scope
+        if (cached.token_->virtual_device->memory_scope != prototype->virtual_device->memory_scope) {
+          continue;
+        }
+        // avoid reusing too small and too big textures
+        if (shape.width / cached.x_ > max_ratio || cached.x_ / shape.width > max_ratio ||
+            shape.height / cached.y_ > max_ratio || cached.y_ / shape.height > max_ratio) {
+          continue;
+        }
+        int64_t new_width = std::max(cached.x_, shape.width);
+        int64_t new_height = std::max(cached.y_, shape.height);
+        int64_t added_size_x = new_width - cached.x_;
+        int64_t added_size_y = new_height - cached.y_;
+        int64_t wasted_size_x = new_width - shape.width;
+        int64_t wasted_size_y = new_height - shape.height;
         // Prioritize minimization of added size first, then minimize
         // wasted size among blocks which would not require expansion
-        if ((min_added_size > 0 && added_size < min_added_size) ||
-            (min_added_size == 0 && wasted_size < min_wasted_size)) {
-          min_added_size = added_size;
-          min_wasted_size = wasted_size;
+        if ((min_added_size_x > 0 && added_size_x < min_added_size_x) ||
+            (min_added_size_y > 0 && added_size_y < min_added_size_y) ||
+            (min_added_size_x == added_size_x && wasted_size_x < min_wasted_size_x) ||
+            (min_added_size_y == added_size_y && wasted_size_y < min_wasted_size_y)) {
+          min_added_size_x = added_size_x;
+          min_added_size_y = added_size_y;
+          min_wasted_size_x = wasted_size_x;
+          min_wasted_size_y = wasted_size_y;
           best_storage_id = free_id;
-          best_mem = new_mem;
+          best_mem = cached;
+          new_mem.x_ = new_width;
+          new_mem.y_ = new_height;
         }
       }
 
-      if (min_added_size <= requested_size) {
-        best_mem.token_ = blocks_[best_storage_id].token_;
-        // Reset the reference counter of the now live token
-        best_mem.token_->ref_counter = prototype->ref_counter;
-        blocks_[best_storage_id] = best_mem;
+      if (min_added_size_x == 0 && min_added_size_y == 0) {
+        // use existing block
         free_list_.erase(best_storage_id);
+        best_mem.token_->ref_counter += prototype->ref_counter;
         return best_mem.token_;
+      } else if (min_added_size_x <= shape.width || min_added_size_y <= shape.height) {
+        // Reset the reference counter of the now live token
+        free_list_.erase(best_storage_id);
+        new_mem.token_ = prototype;
+        new_mem.token_->ref_counter += 1;
+        new_mem.token_->storage_id = best_storage_id;
+        blocks_[best_storage_id] = new_mem;
+        return new_mem.token_;
       }
       return nullptr;
     }
