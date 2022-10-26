@@ -726,7 +726,7 @@ class ModuleBase:
 def test_meta(hexagon_session):
     if tvm.testing.utils.IS_IN_CI:
         pytest.skip("Skipping test since it takes too long in CI.")
-    
+
     a = default_rng().integers(1, 8, (1, 1, 230, 230, 4), dtype="uint8")
     w = default_rng().integers(1, 8, (2, 1, 7, 7, 1, 32, 4), dtype="int8")
     c = np.zeros((1, 2, 112, 112, 32), dtype="int32")
