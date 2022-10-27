@@ -290,7 +290,7 @@ def process_data(data, func_info, so_ld_addr):
     return overall_cycles
 
 
-def get_load_addr(binary_path: str, serial_number: str, lwp_json: str, run_log: str):
+def get_load_addr(serial_number: str, lwp_json: str, run_log: str):
     """Get load address of the binary file"""
     if serial_number == "simulator":
         basedir = os.path.dirname(lwp_json)
@@ -308,8 +308,7 @@ def get_load_addr(binary_path: str, serial_number: str, lwp_json: str, run_log: 
         pattern = compile(r"Model.*: (\w+):")
     else:
         # To extract load address for on-device run
-        binary_name = os.path.basename(binary_path)
-        pattern = compile(r"{}, len \w+, laddr (\w+)".format(binary_name))
+        pattern = compile(r"Model.*: (\w+)")
 
     with open(run_log, "r") as f:
         lines = f.read()
@@ -334,7 +333,7 @@ def process_lwp_output(
     ENABLE_DEBUG = enable_debug
 
     # Get load address for the binary
-    load_addr = get_load_addr(binary_path, serial_number, lwp_json, run_log)
+    load_addr = get_load_addr(serial_number, lwp_json, run_log)
     # Opening JSON file
     with open(lwp_json, "r") as f:
         # Returns JSON object as a dictionary
