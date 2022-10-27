@@ -37,6 +37,7 @@ TVM_TRACKER_PORT = "TVM_TRACKER_PORT"
 ANDROID_REMOTE_DIR = "ANDROID_REMOTE_DIR"
 ANDROID_SERIAL_NUMBER = "ANDROID_SERIAL_NUMBER"
 ADB_SERVER_SOCKET = "ADB_SERVER_SOCKET"
+RNG_SEEDED = False
 
 
 @tvm.testing.fixture
@@ -84,10 +85,18 @@ PREVIOUS_PORT = None
 def get_free_port() -> int:
     """Return the next port that is available to listen on"""
     global PREVIOUS_PORT
+    global RNG_SEEDED
+
+    if not RNG_SEEDED:
+        random.seed(0)
+        RNG_SEEDED = True
+
     if PREVIOUS_PORT is None:
         port = random.randint(LISTEN_PORT_MIN, LISTEN_PORT_MAX)
     else:
         port = PREVIOUS_PORT + 1
+        if port > LISTEN_PORT_MAX:
+            port = LISTEN_PORT_MIN
 
     while tvm.contrib.hexagon.build._is_port_in_use(port):
         port = port + 1 if port < LISTEN_PORT_MAX else LISTEN_PORT_MIN
