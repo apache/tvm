@@ -25,8 +25,6 @@ from tvm import relay
 from tvm.contrib.hexagon.session import Session
 from tvm.relay.backend import Executor, Runtime
 
-from .infrastructure import get_hexagon_target
-
 
 def get_mobilenet():
     """Download and import mobilenet model with ONNX"""
