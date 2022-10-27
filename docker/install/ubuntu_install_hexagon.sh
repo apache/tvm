@@ -21,23 +21,25 @@ set -o pipefail
 
 # Install LLVM/clang
 CLANG_LLVM_HOME=/opt/clang-llvm
-HEXAGON_LLVM_SHA=361a27c155ec8b222e3318488a208c0eb39624c8
+LLVM_SHA=361a27c155ec8b222e3318488a208c0eb39624c8
 
 mkdir llvm-hexagon
 pushd llvm-hexagon
 git init
 git remote add origin https://github.com/llvm/llvm-project.git
-git fetch origin ${HEXAGON_LLVM_SHA}
+git fetch origin ${LLVM_SHA}
 git reset --hard FETCH_HEAD
 mkdir build
 pushd build
 cmake \
   -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_INSTALL_PREFIX=/usr \
+  -DCMAKE_INSTALL_PREFIX=${CLANG_LLVM_HOME} \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DLLVM_TARGETS_TO_BUILD:STRING="Hexagon;X86" \
   -DLLVM_ENABLE_PROJECTS:STRING="clang;llvm;lld" \
+  -DTARGET_TRIPLE=x86_64-unknown-linux-gnu \
+  -DLLVM_DEFAULT_TARGET_TRIPLE=x86_64-unknown-linux-gnu \
   ../llvm
 ninja install
 
