@@ -759,16 +759,11 @@ def _test_anchor_tuning(target):
         .numpy()
     )
 
-    np.testing.assert_allclose(ref, out, rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(ref, out, atol=1e-3)
 
 
 def test_anchor_tuning_cpu():
     _test_anchor_tuning("llvm --num-cores=4")
-
-
-@tvm.testing.requires_gpu
-def test_anchor_tuning_gpu():
-    _test_anchor_tuning("nvidia/geforce-rtx-3070")
 
 
 if __name__ == "__main__":
