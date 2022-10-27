@@ -46,7 +46,6 @@ namespace detail {
 }
 
 void LogMessageImpl(const std::string& file, int lineno, int level, const std::string& message) {
-  // TODO: Output logging level
   NSLog(@"%s:%d: %s", file.c_str(), lineno, message.c_str());
 }
 
