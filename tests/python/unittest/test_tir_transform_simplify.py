@@ -1689,5 +1689,26 @@ class TestSimplifyBufferStore(BaseBeforeAfter):
         A[0] = 12
 
 
+# class TestTemp(BaseBeforeAfter):
+#     """Simplification using prior known"""
+
+#     transitively_prove_inequalities = False
+#     convert_boolean_to_and_of_ors = False
+#     apply_constraints_to_boolean_branches = False
+#     propagate_knowns_to_prove_conditional = False
+#     propagate_knowns_to_simplify_expressions = False
+
+#     def before(A: T.Buffer[16, "int32"]):
+#         for i in T.serial(16):
+#             if i != 0:
+#                 if i * i == 0:
+#                     A[i] = 5
+
+#     def expected(A: T.Buffer[16, "int32"]):
+#         for i in T.serial(16):
+#             if i != 0:
+#                 T.evaluate(0)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
