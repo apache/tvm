@@ -45,6 +45,9 @@ rm -rf build || true
 mkdir -p build
 cd build
 
+export PREFIX="${PREFIX}/"
+cp -f ${PREFIX}/bin/ranlib $PREFIX
+
 cmake -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
       -DCMAKE_BUILD_TYPE=Release \
       -DUSE_RPC=ON \
