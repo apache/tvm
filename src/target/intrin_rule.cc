@@ -257,7 +257,7 @@ TVM_REGISTER_OP("tir.q_multiply_shift_per_axis")
       PrimExpr right_shift = call->args[3];
       PrimExpr q = call->args[4];
       PrimExpr is_lshift_required = call->args[5];
-      // Note, 7th argument is "is_rshift_required" flag, but we do need that here.
+      // Note, 7th argument is "is_rshift_required" flag, but we don't need that here.
       // PrimExpr is_rshift_required = call->args[6];
 
       return QMultiplyShift(x, y, q, left_shift, right_shift, is_lshift_required);
