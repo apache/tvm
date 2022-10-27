@@ -154,6 +154,46 @@ TVM_REGISTER_OP("tir.isinf")
       return isinf(call->args[0]);
     });
 
+/*!
+ * \brief Makes fixed point multiplication.
+ * \param x Input tensor.
+ * \param y Integer multiplier.
+ * \param left_shift Integer left shift.
+ * \param right_shift Integer right shift.
+ * \param is_left_shift_required Flag whether we need to do left shift or not.
+ * \return Calculated expression.
+ */
+static PrimExpr QMultiplyShift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr left_shift,
+                               PrimExpr right_shift, PrimExpr is_left_shift_required) {
+  // Only int32 types are supported (any number of lanes is allowed)
+  ICHECK(y.dtype().code() == DLDataTypeCode::kDLInt && y.dtype().bits() == 32);
+  ICHECK(left_shift.dtype().code() == DLDataTypeCode::kDLInt && left_shift.dtype().bits() == 32);
+  ICHECK(right_shift.dtype().code() == DLDataTypeCode::kDLInt && right_shift.dtype().bits() == 32);
+
+  DataType hp_dtype = DataType::Int(64, x.dtype().lanes());
+  DataType lp_dtype = DataType::Int(32, x.dtype().lanes());
+
+  // 1) Cast and Multiply the integer multiplier
+  PrimExpr one = make_const(hp_dtype, 1);
+  x = cast(hp_dtype, x);
+  y = cast(hp_dtype, y);
+  x = tir::Select(is_left_shift_required, x << left_shift, x);
+
+  // 2) Perform the multiplication in higher precision.
+  x = x * y;
+
+  // 3) Find the rounding scalar
+  PrimExpr total_right_shift = right_shift + q;
+  PrimExpr pos_rounding_value = (one << (total_right_shift - 1));
+  x = x + pos_rounding_value;
+
+  // 4) Simply right shift the result to get the final output.
+  x = x >> total_right_shift;
+
+  // 5) The fixed point multiplication keeps the value in int32 range. Casting back to int32.
+  return cast(lp_dtype, x);
+}
+
 TVM_REGISTER_OP("tir.q_multiply_shift")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using tir::make_const;
@@ -197,40 +237,34 @@ TVM_REGISTER_OP("tir.q_multiply_shift")
         }
       } else {
         // Only int32 types are supported (any number of lanes is allowed)
-        ICHECK(y.dtype().code() == DLDataTypeCode::kDLInt && y.dtype().bits() == 32);
         ICHECK(s.dtype().code() == DLDataTypeCode::kDLInt && s.dtype().bits() == 32);
 
-        DataType hp_dtype = DataType::Int(64, x.dtype().lanes());
-        DataType lp_dtype = DataType::Int(32, x.dtype().lanes());
-
-        // 1) Calculating the integer multiplier and integer shift
+        // Calculating integer shifts
         PrimExpr zero = make_const(s.dtype(), 0);
         PrimExpr left_shift = tir::Select(s > zero, s, zero);
         PrimExpr right_shift = tir::Select(s > zero, zero, -s);
+        PrimExpr is_left_shift_required = (left_shift != zero);
 
-        // 2) Cast and Multiply the integer multiplier
-        PrimExpr one = make_const(hp_dtype, 1);
-        x = cast(hp_dtype, x);
-        y = cast(hp_dtype, y);
-        x = tir::Select(left_shift != zero, x << left_shift, x);
-
-        // 3) Perform the multiplication in higher precision.
-        x = x * y;
-
-        // 4) Find the rounding scalar
-        PrimExpr total_right_shift = right_shift + q;
-        PrimExpr pos_rounding_value = (one << (total_right_shift - 1));
-        x = x + pos_rounding_value;
-
-        // 5) Simply right shift the result to get the final output.
-        x = x >> total_right_shift;
-
-        // 6) The fixed point multiplication keeps the value in int32 range. Casting back to
-        // int32.
-        return cast(lp_dtype, x);
+        return QMultiplyShift(x, y, q, left_shift, right_shift, is_left_shift_required);
       }
     });
 
+TVM_REGISTER_OP("tir.q_multiply_shift_per_axis")
+    .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr);
+
+      PrimExpr x = call->args[0];
+      PrimExpr y = call->args[1];
+      PrimExpr left_shift = call->args[2];
+      PrimExpr right_shift = call->args[3];
+      PrimExpr q = call->args[4];
+      PrimExpr is_lshift_required = call->args[5];
+      // Note, 7th argument is "is_rshift_required" flag, but we don't need that here.
+      // PrimExpr is_rshift_required = call->args[6];
+
+      return QMultiplyShift(x, y, q, left_shift, right_shift, is_lshift_required);
+    });
 }  // namespace legalize
 }  // namespace codegen
 }  // namespace tvm

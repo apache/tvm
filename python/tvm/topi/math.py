@@ -20,6 +20,7 @@ import tvm
 from tvm import te
 from . import tag
 from . import cpp
+from .utils import get_const_tuple
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
@@ -667,6 +668,63 @@ def fixed_point_multiply(x, multiplier, shift):
             tvm.tir.const(multiplier, "int32"),
             tvm.tir.const(31, "int32"),
             tvm.tir.const(shift, "int32"),
+        )
+
+    return te.compute(x.shape, _compute)
+
+
+@tvm.te.tag_scope(tag=tag.BROADCAST)
+def fixed_point_multiply_per_axis(
+    x: te.Tensor,
+    y: te.Tensor,
+    lshift: te.Tensor,
+    rshift: te.Tensor,
+    is_lshift_required: int,
+    is_rshift_required: int,
+    axes,
+):
+    """Fixed point multiplication between data and a fixed point constant expressed as
+    multiplier * 2^(-shift), where multiplier is a Q-number with 31 fractional bits
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+    y : tvm.te.Tensor
+        Multiplier of a fixed floating point number described as multiplier*2^(-shift).
+    lshift : tvm.te.Tensor
+        Left shifts of a fixed floating point number described as multiplier*2^(-shift).
+    rshift : tvm.te.Tensor
+        Right shifts of a fixed floating point number described as multiplier*2^(-shift).
+    is_lshift_required : int
+        Whether we need to do left shift or not.
+    is_rshift_required : int
+        Whether we need to do right shift or not.
+
+    Returns
+    -------
+    z : tvm.te.Tensor
+        The result.
+    """
+
+    def _compute(*indices):
+        elements = []
+        for element in get_const_tuple(axes):
+            elements += [indices[element]]
+        param_indices = tuple(elements)
+
+        value = x(*indices)
+        m = y(*param_indices)
+        l_shift = lshift(*param_indices)
+        r_shift = rshift(*param_indices)
+        return tvm.tir.q_multiply_shift_per_axis(
+            value,
+            m,
+            l_shift,
+            r_shift,
+            tvm.tir.const(31, "int32"),
+            tvm.tir.const(is_lshift_required, "bool"),
+            tvm.tir.const(is_rshift_required, "bool"),
         )
 
     return te.compute(x.shape, _compute)

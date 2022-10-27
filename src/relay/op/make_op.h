@@ -54,6 +54,10 @@ Expr MakeBatchMatmul(Expr lhs, Expr rhs, DataType out_dtype, bool transpose_a, b
 
 Expr MakeExpandDims(Expr data, int axis, int num_newaxis);
 
+Expr MakeFixedPointMultiplyPerAxis(Expr x, Expr m, Expr lshift, Expr rshift,
+                                   bool is_lshift_required, bool is_rshift_required,
+                                   Array<Integer> axis);
+
 Expr MakeFull(Expr fill_value, Array<Integer> shape, DataType dtype);
 
 Expr MakeLayoutTransform(Expr data, String src_layout, String dst_layout);

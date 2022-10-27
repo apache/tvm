@@ -661,6 +661,13 @@ inline Expr FixedPointMultiply(Expr x, int32_t multiplier, int32_t shift) {
   return Call(op, {x}, Attrs(attrs), {});
 }
 
+inline Expr FixedPointMultiplyPerAxis(Expr x, Expr m, Expr lshift, Expr rshift,
+                                      bool is_lshift_required, bool is_rshift_required,
+                                      Array<Integer> axes) {
+  return MakeFixedPointMultiplyPerAxis(x, m, lshift, rshift, is_lshift_required, is_rshift_required,
+                                       axes);
+}
+
 inline Expr Add(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("add");
   return Call(op, {lhs, rhs}, Attrs(), {});
