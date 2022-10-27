@@ -814,6 +814,9 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
   explicit IRSubstituteWithDataTypeLegalization(std::function<Optional<PrimExpr>(const Var&)> vmap)
       : vmap_(vmap) {}
 
+  using DataTypeLegalizer::VisitExpr_;
+  using DataTypeLegalizer::VisitStmt_;
+
   PrimExpr VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
     auto ret = vmap_(var);
