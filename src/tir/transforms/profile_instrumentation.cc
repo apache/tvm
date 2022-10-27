@@ -110,8 +110,8 @@ class LoopAnalyzer : public StmtExprVisitor {
     } else if (stmt->IsInstance<IfThenElseNode>()) {
       const IfThenElseNode* n = stmt.as<IfThenElseNode>();
       unsigned height = TraverseLoop(n->then_case, parent_depth, has_parallel);
-      if (n->else_case.defined()) {
-        height = std::max(height, TraverseLoop(n->else_case, parent_depth, has_parallel));
+      if (n->else_case) {
+        height = std::max(height, TraverseLoop(n->else_case.value(), parent_depth, has_parallel));
       }
       return height;
     } else if (stmt->IsInstance<ForNode>()) {
