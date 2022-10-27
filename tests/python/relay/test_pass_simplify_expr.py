@@ -560,46 +560,85 @@ def test_concretize_multiple():
     assert tvm.ir.structural_equal(actual, expected)
 
 
-def test_simplify_consecutive_add():
-    shape = (32, 1, 1)
-    c_data = np.empty(shape).astype("float32")
-    c1 = relay.const(c_data)
-    c2 = relay.const(c_data)
+def test_simplify_mul_add():
+    def check_simple_fold(origin_exprs, expect_expr, expect_fold):
+        for origin_expr in origin_exprs:
+            simple_expr = run_opt_pass(origin_expr, transform.SimplifyExpr())
+            assert tvm.ir.structural_equal(simple_expr, expect_expr)
 
-    def before_const_right():
-        x = relay.var("x", shape=(1, 16, 16, 16), dtype="float32")
-        w = relay.var("w", shape=(32, 16, 3, 3), dtype="float32")
-        y = relay.nn.conv2d(x, w, padding=(1, 1))
-        y = relay.add(y, c1)
-        y = relay.add(y, c2)
-        y = relay.nn.relu(y)
-        return relay.Function([x, w], y)
+            fold_expr = run_opt_pass(simple_expr, transform.FoldConstant())
+            assert tvm.ir.structural_equal(fold_expr, expect_fold)
 
-    def before_const_left():
-        x = relay.var("x", shape=(1, 16, 16, 16), dtype="float32")
-        w = relay.var("w", shape=(32, 16, 3, 3), dtype="float32")
-        y = relay.nn.conv2d(x, w, padding=(1, 1))
-        y = relay.add(c1, y)
-        y = relay.add(c2, y)
-        y = relay.nn.relu(y)
-        return relay.Function([x, w], y)
+    n = 32
+    c1_val = np.random.uniform(size=n).astype("float32")
+    c2_val = np.random.uniform(size=n).astype("float32")
+    c3_val = np.random.uniform(size=n).astype("float32")
 
-    def expected():
-        x = relay.var("x", shape=(1, 16, 16, 16), dtype="float32")
-        w = relay.var("w", shape=(32, 16, 3, 3), dtype="float32")
-        y = relay.nn.conv2d(x, w, padding=(1, 1))
-        c3 = relay.add(c1, c2)
-        y = relay.add(y, c3)
-        y = relay.nn.relu(y)
-        return relay.Function([x, w], y)
+    x = relay.var("x", shape=(n,), dtype="float32")
+    c1 = relay.const(c1_val)
+    c2 = relay.const(c2_val)
+    c3 = relay.const(c3_val)
 
-    zr = before_const_right()
-    zl = before_const_left()
-    zzr = run_opt_pass(zr, transform.SimplifyExpr())
-    zzl = run_opt_pass(zl, transform.SimplifyExpr())
-    after = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zzr, after)
-    assert tvm.ir.structural_equal(zzl, after)
+    # add-add -> add
+    origin_exprs = [
+        x + c1 + c2,
+        c1 + x + c2,
+        c1 + c2 + x,
+    ]
+    expect_expr = x + (c1 + c2)
+    expect_fold = x + relay.const(c1_val + c2_val)
+    check_simple_fold(origin_exprs, expect_expr, expect_fold)
+
+    # mul-mul -> mul
+    origin_exprs = [
+        x * c1 * c2,
+        c1 * x * c2,
+        c1 * c2 * x,
+    ]
+    expect_expr = x * (c1 * c2)
+    expect_fold = x * relay.const(c1_val * c2_val)
+    check_simple_fold(origin_exprs, expect_expr, expect_fold)
+
+    # add-mul -> mul-add
+    origin_exprs = [
+        (x + c1) * c2,
+        (c1 + x) * c2,
+        c2 * (x + c1),
+        c2 * (c1 + x),
+    ]
+    expect_expr = x * c2 + c1 * c2
+    expect_fold = x * c2 + relay.const(c1_val * c2_val)
+    check_simple_fold(origin_exprs, expect_expr, expect_fold)
+
+    # add-mul-add -> mul-add
+    origin_exprs = [
+        (x + c1) * c2 + c3,
+        (c1 + x) * c2 + c3,
+        c2 * (x + c1) + c3,
+        c2 * (c1 + x) + c3,
+        c3 + (x + c1) * c2,
+        c3 + (c1 + x) * c2,
+        c3 + c2 * (x + c1),
+        c3 + c2 * (c1 + x),
+    ]
+    expect_expr = x * c2 + (c1 * c2 + c3)
+    expect_fold = x * c2 + relay.const(c1_val * c2_val + c3_val)
+    check_simple_fold(origin_exprs, expect_expr, expect_fold)
+
+    # mul-add-mul -> mul-add
+    origin_exprs = [
+        (x * c1 + c2) * c3,
+        (c1 * x + c2) * c3,
+        (c2 + x * c1) * c3,
+        (c2 + c1 * x) * c3,
+        c3 * (x * c1 + c2),
+        c3 * (c1 * x + c2),
+        c3 * (c2 + x * c1),
+        c3 * (c2 + c1 * x),
+    ]
+    expect_expr = x * (c1 * c3) + c2 * c3
+    expect_fold = x * relay.const(c1_val * c3_val) + relay.const(c2_val * c3_val)
+    check_simple_fold(origin_exprs, expect_expr, expect_fold)
 
 
 def test_simplify_rsqrt():

@@ -672,47 +672,122 @@ class EliminateIdentityRewrite : public DFPatternRewrite {
   DFPattern const_;
 };
 
-/*! \brief Make two consecutive add able to be constant_folded.
- * This pattern matching supports commutative property for addition.
+/*!
+ * \brief Returns whether \p expr is a ConstantNode or is a Call with
+ * \p IsConstantExpr args.
  */
-class SimplifyConsecutiveAdd : public DFPatternRewrite {
+bool IsConstantExpr(const Expr& expr) {
+  if (expr.as<ConstantNode>()) {
+    return true;
+  } else if (const CallNode* call = expr.as<CallNode>()) {
+    return std::all_of(call->args.begin(), call->args.end(), IsConstantExpr);
+  } else {
+    return false;
+  }
+}
+
+/*! \brief Switch adjacent add-mul with constants to mul-add.
+ * As mul-add pattern is more friendly to FoldScaleAxis.
+ */
+class SwitchAddMultiply : public DFPatternRewrite {
  public:
-  SimplifyConsecutiveAdd() {
-    x_ = IsWildcard();
-    const1_ = IsConstant();
-    const2_ = IsConstant();
-    DFPattern add_op = IsOp("add");
-    pattern_ = add_op({add_op({x_, const1_}), const2_});
+  SwitchAddMultiply() {
+    a_ = IsWildcard();
+    b_ = IsWildcard();
+    c_ = IsWildcard();
+    pattern_ = (a_ + b_) * c_;
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto a = node_map[a_][0];
+    auto b = node_map[b_][0];
+    auto c = node_map[c_][0];
+
+    bool is_a_const = IsConstantExpr(a);
+    bool is_b_const = IsConstantExpr(b);
+    bool is_c_const = IsConstantExpr(c);
+
+    if (!is_c_const) {
+      return post;
+    }
+    if (is_a_const && is_b_const) {
+      return post;
+    }
+
+    Expr x, c_add, c_mul;
+    c_mul = c;
+    if (is_a_const) {
+      x = b;
+      c_add = a;
+    } else if (is_b_const) {
+      x = a;
+      c_add = b;
+    } else {
+      return post;
+    }
+
+    auto bias = Call(Op::Get("multiply"), {c_add, c_mul});
+    return Call(Op::Get("add"), {Call(Op::Get("multiply"), {x, c_mul}), bias});
+  }
+
+ private:
+  DFPattern a_;
+  DFPattern b_;
+  DFPattern c_;
+};
+
+/*! \brief Simplify two adjacent multiply or add with constants for further constant folding.
+ * The pattern matching supports commutative property.
+ */
+class SimplifyAdjacentMultiplyOrAdd : public DFPatternRewrite {
+ public:
+  SimplifyAdjacentMultiplyOrAdd() {
+    a_ = IsWildcard();
+    b_ = IsWildcard();
+    c_ = IsWildcard();
+    pattern_ = (a_ * b_ * c_) || (a_ + b_ + c_);
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
     const CallNode* call = pre.as<CallNode>();
-    auto x = node_map[x_][0];
-    auto c1 = node_map[const1_][0];
-    auto c2 = node_map[const2_][0];
+    auto a = node_map[a_][0];
+    auto b = node_map[b_][0];
+    auto c = node_map[c_][0];
 
-    auto pre_call = call;
-    // Find the next add call.
-    if (pre_call->args[1].as<ConstantNode>()) {
-      pre_call = pre_call->args[0].as<CallNode>();
-    } else {
-      pre_call = pre_call->args[1].as<CallNode>();
-    }
-    // Do nothing if both inputs are not constants as they will be constant folded already.
-    if (pre_call->args[0].as<ConstantNode>() && pre_call->args[1].as<ConstantNode>()) {
+    bool is_a_const = IsConstantExpr(a);
+    bool is_b_const = IsConstantExpr(b);
+    bool is_c_const = IsConstantExpr(c);
+
+    if (is_a_const && is_b_const && is_c_const) {
       return post;
-    } else {
-      auto add_res = Call(call->op, {c1, c2});
-      return Call(call->op, {x, add_res});
     }
-    return post;
+
+    Expr x, c1, c2;
+    if (is_a_const && is_b_const) {
+      x = c;
+      c1 = a;
+      c2 = b;
+    } else if (is_a_const && is_c_const) {
+      x = b;
+      c1 = a;
+      c2 = c;
+    } else if (is_b_const && is_c_const) {
+      x = a;
+      c1 = b;
+      c2 = c;
+    } else {
+      return post;
+    }
+    auto const_res = Call(call->op, {c1, c2});
+    return Call(call->op, {x, const_res});
   }
 
  private:
-  DFPattern x_;
-  DFPattern const1_;
-  DFPattern const2_;
+  DFPattern a_;
+  DFPattern b_;
+  DFPattern c_;
 };
 
 /*! \brief Simplifying x/sqrt to x*sqrt */
@@ -800,7 +875,8 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifySameCast>();
   composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<FullElementwise>();
-  composer.AddRewrite<SimplifyConsecutiveAdd>();
+  composer.AddRewrite<SwitchAddMultiply>();
+  composer.AddRewrite<SimplifyAdjacentMultiplyOrAdd>();
   composer.AddRewrite<SimplifyDQArgMax>();
   composer.AddRewrite<SimplifyDQArgMin>();
   composer.AddRewrite<SimplifyDQArgSort>();
