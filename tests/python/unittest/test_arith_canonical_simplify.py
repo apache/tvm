@@ -97,6 +97,8 @@ def test_split_index_simplify():
     # cannot simplify mixed case, unless we canonicalize into one mode.
     ck.verify(tdiv(x, 6) * 2 + tmod(fld(x, 3), 2), tdiv(x, 6) * 2 + tmod(fld(x, 3), 2))
 
+    ck.verify(tmod(-x, 2), tmod(x, -2) * -1)
+
 
 def test_div_simplify():
     ck = CanonicalChecker()
@@ -128,6 +130,8 @@ def test_floormod_simplify():
     x, y = te.var("x"), te.var("y")
     ck.verify(flm(flm((x * 4) + y - 466036, 24528) - 24512, 16), flm((x * 4) + y + 12, 16))
     ck.verify(flm(flm((x * 4), 16), 8), flm(x, 2) * 4)
+
+    ck.verify(flm(-x, 2), flm(x, -2) * -1)
 
 
 def test_canonical_mixed():
