@@ -39,6 +39,7 @@ using namespace tir;
 struct SimplifyConfigNode : public tvm::AttrsNode<SimplifyConfigNode> {
   bool transitively_prove_inequalities;
   bool convert_boolean_to_and_of_ors;
+  bool apply_constraints_to_boolean_branches;
 
   TVM_DECLARE_ATTRS(SimplifyConfigNode, "tir.transform.SimplifyConfig") {
     TVM_ATTR_FIELD(transitively_prove_inequalities)
@@ -48,6 +49,12 @@ struct SimplifyConfigNode : public tvm::AttrsNode<SimplifyConfigNode> {
 
     TVM_ATTR_FIELD(convert_boolean_to_and_of_ors)
         .describe("If true, simplify conditionals into an AND of ORs")
+        .set_default(false);
+
+    TVM_ATTR_FIELD(apply_constraints_to_boolean_branches)
+        .describe(
+            "If true, simplify each branch of AND/OR "
+            "under a constraints provided by the other branch")
         .set_default(false);
   }
 
@@ -59,6 +66,10 @@ struct SimplifyConfigNode : public tvm::AttrsNode<SimplifyConfigNode> {
     }
     if (convert_boolean_to_and_of_ors) {
       flags = RewriteSimplifier::Extension(flags | RewriteSimplifier::kConvertBooleanToAndOfOrs);
+    }
+    if (apply_constraints_to_boolean_branches) {
+      flags = RewriteSimplifier::Extension(flags |
+                                           RewriteSimplifier::kApplyConstraintsToBooleanBranches);
     }
     return flags;
   }
