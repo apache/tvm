@@ -33,7 +33,8 @@ def prepare_test_libs(base_path):
     fadd_dylib.export_library(dylib_path)
 
     # Compile library in system library mode
-    fadd_syslib = tvm.build(s, [A, B], "llvm", name="addonesys")
+    runtime = relay.backend.Runtime("cpp", {"system-lib": True})
+    fadd_syslib = tvm.build(s, [A, B], "llvm", runtime = runtime, name="addonesys")
     syslib_path = os.path.join(base_path, "test_addone_sys.o")
     fadd_syslib.save(syslib_path)
 
