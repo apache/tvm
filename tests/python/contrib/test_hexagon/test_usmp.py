@@ -94,13 +94,13 @@ def test_conv2d(hexagon_session: Session, aot_host_target, aot_target, usmp_enab
             relay_mod,
             tvm.target.Target(target_llvm, host=target_llvm),
             runtime=Runtime("cpp"),
-            executor=Executor("graph"),
+            executor=Executor("aot"),
         )
 
-    llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
-    llvm_graph_mod.set_input(**params)
-    llvm_graph_mod.run(**inputs)
-    expected_output = llvm_graph_mod.get_output(0).numpy()
+    llvm_mod = tvm.runtime.executor.AotModule(llvm_lowered["default"](tvm.cpu(0)))
+    llvm_mod.set_input(**params)
+    llvm_mod.run(**inputs)
+    expected_output = llvm_mod.get_output(0).numpy()
 
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 

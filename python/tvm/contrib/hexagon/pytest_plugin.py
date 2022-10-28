@@ -39,6 +39,12 @@ ANDROID_SERIAL_NUMBER = "ANDROID_SERIAL_NUMBER"
 ADB_SERVER_SOCKET = "ADB_SERVER_SOCKET"
 RNG_SEEDED = False
 
+HEXAGON_AOT_LLVM_TARGET = (
+    "llvm -keys=hexagon "
+    "-mattr=+hvxv68,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp "
+    "-mcpu=hexagonv68 -mtriple=hexagon"
+)
+
 
 @tvm.testing.fixture
 def shape_nhwc(batch, in_channel, in_size):
@@ -303,12 +309,7 @@ def terminate_rpc_servers():
         os.system("ps ax | grep tvm_rpc_x86 | awk '{print $1}' | xargs kill")
 
 
-aot_host_target = tvm.testing.parameter(
-    "c",
-    "llvm -keys=hexagon "
-    "-mattr=+hvxv68,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp "
-    "-mcpu=hexagonv68 -mtriple=hexagon",
-)
+aot_host_target = tvm.testing.parameter("c", HEXAGON_AOT_LLVM_TARGET)
 
 
 @tvm.testing.fixture
