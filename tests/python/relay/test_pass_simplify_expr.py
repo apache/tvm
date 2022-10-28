@@ -561,13 +561,10 @@ def test_concretize_multiple():
 
 
 def test_simplify_mul_add():
-    def check_simple_fold(origin_exprs, expect_expr, expect_fold):
+    def check_simple_fold(origin_exprs, expect_expr):
         for origin_expr in origin_exprs:
             simple_expr = run_opt_pass(origin_expr, transform.SimplifyExpr())
             assert tvm.ir.structural_equal(simple_expr, expect_expr)
-
-            fold_expr = run_opt_pass(simple_expr, transform.FoldConstant())
-            assert tvm.ir.structural_equal(fold_expr, expect_fold)
 
     n = 32
     c1_val = np.random.uniform(size=n).astype("float32")
@@ -583,21 +580,17 @@ def test_simplify_mul_add():
     origin_exprs = [
         x + c1 + c2,
         c1 + x + c2,
-        c1 + c2 + x,
     ]
-    expect_expr = x + (c1 + c2)
-    expect_fold = x + relay.const(c1_val + c2_val)
-    check_simple_fold(origin_exprs, expect_expr, expect_fold)
+    expect_expr = x + relay.const(c1_val + c2_val)
+    check_simple_fold(origin_exprs, expect_expr)
 
     # mul-mul -> mul
     origin_exprs = [
         x * c1 * c2,
         c1 * x * c2,
-        c1 * c2 * x,
     ]
-    expect_expr = x * (c1 * c2)
-    expect_fold = x * relay.const(c1_val * c2_val)
-    check_simple_fold(origin_exprs, expect_expr, expect_fold)
+    expect_expr = x * relay.const(c1_val * c2_val)
+    check_simple_fold(origin_exprs, expect_expr)
 
     # add-mul -> mul-add
     origin_exprs = [
@@ -606,9 +599,8 @@ def test_simplify_mul_add():
         c2 * (x + c1),
         c2 * (c1 + x),
     ]
-    expect_expr = x * c2 + c1 * c2
-    expect_fold = x * c2 + relay.const(c1_val * c2_val)
-    check_simple_fold(origin_exprs, expect_expr, expect_fold)
+    expect_expr = x * c2 + relay.const(c1_val * c2_val)
+    check_simple_fold(origin_exprs, expect_expr)
 
     # add-mul-add -> mul-add
     origin_exprs = [
@@ -621,9 +613,8 @@ def test_simplify_mul_add():
         c3 + c2 * (x + c1),
         c3 + c2 * (c1 + x),
     ]
-    expect_expr = x * c2 + (c1 * c2 + c3)
-    expect_fold = x * c2 + relay.const(c1_val * c2_val + c3_val)
-    check_simple_fold(origin_exprs, expect_expr, expect_fold)
+    expect_expr = x * c2 + relay.const(c1_val * c2_val + c3_val)
+    check_simple_fold(origin_exprs, expect_expr)
 
     # mul-add-mul -> mul-add
     origin_exprs = [
@@ -636,9 +627,8 @@ def test_simplify_mul_add():
         c3 * (c2 + x * c1),
         c3 * (c2 + c1 * x),
     ]
-    expect_expr = x * (c1 * c3) + c2 * c3
-    expect_fold = x * relay.const(c1_val * c3_val) + relay.const(c2_val * c3_val)
-    check_simple_fold(origin_exprs, expect_expr, expect_fold)
+    expect_expr = x * relay.const(c1_val * c3_val) + relay.const(c2_val * c3_val)
+    check_simple_fold(origin_exprs, expect_expr)
 
 
 def test_simplify_rsqrt():

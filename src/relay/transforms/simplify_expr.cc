@@ -672,69 +672,41 @@ class EliminateIdentityRewrite : public DFPatternRewrite {
   DFPattern const_;
 };
 
-/*!
- * \brief Returns whether \p expr is a ConstantNode or is a Call with
- * \p IsConstantExpr args.
- */
-bool IsConstantExpr(const Expr& expr) {
-  if (expr.as<ConstantNode>()) {
-    return true;
-  } else if (const CallNode* call = expr.as<CallNode>()) {
-    return std::all_of(call->args.begin(), call->args.end(), IsConstantExpr);
-  } else {
-    return false;
-  }
-}
-
 /*! \brief Switch adjacent add-mul with constants to mul-add.
  * As mul-add pattern is more friendly to FoldScaleAxis.
  */
 class SwitchAddMultiply : public DFPatternRewrite {
  public:
   SwitchAddMultiply() {
-    a_ = IsWildcard();
-    b_ = IsWildcard();
-    c_ = IsWildcard();
-    pattern_ = (a_ + b_) * c_;
+    x_ = IsWildcard();
+    c1_ = IsConstant();
+    c2_ = IsConstant();
+    pattern_ = (x_ + c1_) * c2_;
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
-    auto a = node_map[a_][0];
-    auto b = node_map[b_][0];
-    auto c = node_map[c_][0];
+    auto x = node_map[x_][0];
+    auto c1 = node_map[c1_][0];
+    auto c2 = node_map[c2_][0];
 
-    bool is_a_const = IsConstantExpr(a);
-    bool is_b_const = IsConstantExpr(b);
-    bool is_c_const = IsConstantExpr(c);
-
-    if (!is_c_const) {
-      return post;
-    }
-    if (is_a_const && is_b_const) {
+    if (x.as<ConstantNode>()) {
       return post;
     }
 
-    Expr x, c_add, c_mul;
-    c_mul = c;
-    if (is_a_const) {
-      x = b;
-      c_add = a;
-    } else if (is_b_const) {
-      x = a;
-      c_add = b;
-    } else {
-      return post;
-    }
+    Expr const_expr = Call(Op::Get("multiply"), {c1, c2});
+    IRModule const_mod = IRModule::FromExpr(const_expr);
+    const_mod = transform::FoldConstant()(const_mod);
+    GlobalVar const_main = const_mod->GetGlobalVar("main");
+    Expr const_val = Downcast<Function>(const_mod->functions[const_main])->body;
 
-    auto bias = Call(Op::Get("multiply"), {c_add, c_mul});
-    return Call(Op::Get("add"), {Call(Op::Get("multiply"), {x, c_mul}), bias});
+    return Call(Op::Get("add"), {Call(Op::Get("multiply"), {x, c2}), const_val});
   }
 
  private:
-  DFPattern a_;
-  DFPattern b_;
-  DFPattern c_;
+  DFPattern x_;
+  DFPattern c1_;
+  DFPattern c2_;
 };
 
 /*! \brief Simplify two adjacent multiply or add with constants for further constant folding.
@@ -743,51 +715,36 @@ class SwitchAddMultiply : public DFPatternRewrite {
 class SimplifyAdjacentMultiplyOrAdd : public DFPatternRewrite {
  public:
   SimplifyAdjacentMultiplyOrAdd() {
-    a_ = IsWildcard();
-    b_ = IsWildcard();
-    c_ = IsWildcard();
-    pattern_ = (a_ * b_ * c_) || (a_ + b_ + c_);
+    x_ = IsWildcard();
+    c1_ = IsConstant();
+    c2_ = IsConstant();
+    pattern_ = (x_ * c1_ * c2_) || (x_ + c1_ + c2_);
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
     const CallNode* call = pre.as<CallNode>();
-    auto a = node_map[a_][0];
-    auto b = node_map[b_][0];
-    auto c = node_map[c_][0];
+    auto x = node_map[x_][0];
+    auto c1 = node_map[c1_][0];
+    auto c2 = node_map[c2_][0];
 
-    bool is_a_const = IsConstantExpr(a);
-    bool is_b_const = IsConstantExpr(b);
-    bool is_c_const = IsConstantExpr(c);
-
-    if (is_a_const && is_b_const && is_c_const) {
+    if (x.as<ConstantNode>()) {
       return post;
     }
 
-    Expr x, c1, c2;
-    if (is_a_const && is_b_const) {
-      x = c;
-      c1 = a;
-      c2 = b;
-    } else if (is_a_const && is_c_const) {
-      x = b;
-      c1 = a;
-      c2 = c;
-    } else if (is_b_const && is_c_const) {
-      x = a;
-      c1 = b;
-      c2 = c;
-    } else {
-      return post;
-    }
-    auto const_res = Call(call->op, {c1, c2});
-    return Call(call->op, {x, const_res});
+    Expr const_expr = Call(call->op, {c1, c2});
+    IRModule const_mod = IRModule::FromExpr(const_expr);
+    const_mod = transform::FoldConstant()(const_mod);
+    GlobalVar const_main = const_mod->GetGlobalVar("main");
+    Expr const_val = Downcast<Function>(const_mod->functions[const_main])->body;
+
+    return Call(call->op, {x, const_val});
   }
 
  private:
-  DFPattern a_;
-  DFPattern b_;
-  DFPattern c_;
+  DFPattern x_;
+  DFPattern c1_;
+  DFPattern c2_;
 };
 
 /*! \brief Simplifying x/sqrt to x*sqrt */
