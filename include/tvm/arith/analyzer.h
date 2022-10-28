@@ -305,6 +305,19 @@ class RewriteSimplifier {
      *   (a && b) || c => (a || c) && (b || c)
      */
     kConvertBooleanToAndOfOrs = (1 << 1),
+
+    /* When simplifying a boolean AND or a boolean OR, simplify each
+     * branch under the assumption that the other branch does not
+     * already dominate the result.  That is, simplify each branch of
+     * (A && B) under the assumption that the other branch is true,
+     * and simplify each branch of (A || B) under the assumption that
+     * the other branch is false.
+     *
+     * Example:
+     *   (n < 10) && (n < 5) => (n < 10)
+     *   (n < 10) || (n < 5) => (n < 5)
+     */
+    kApplyConstraintsToBooleanBranches = (1 << 2),
   };
 
   /*! \brief Enable an optional extension or extensions
