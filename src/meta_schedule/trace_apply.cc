@@ -44,6 +44,7 @@ bool IsAncestor(BlockRV b1, BlockRV b2, Schedule sch) {
   return false;
 }
 
+// Inline or reverse inline spatial blocks after the anchor block
 void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
   static auto kind_get_block = InstructionKind::Get("GetBlock");
   // We let blocks whose names are referenced in the anchor trace be scheduled by the anchor trace.
