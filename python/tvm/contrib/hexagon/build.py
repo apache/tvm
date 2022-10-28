@@ -19,6 +19,7 @@
 
 import abc
 import datetime
+import logging
 import multiprocessing as mp
 import os
 import pathlib
@@ -269,6 +270,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         hexagon_debug: bool = False,
         clear_logcat: bool = False,
         sysmon_profile: bool = False,
+        farf_config: str = "0x1e",
     ):
         """Configure a new HexagonLauncherAndroid
 
@@ -288,6 +290,10 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
             Should the server clear logcat before running.
         sysmon_profile: bool, optional
             Should the server run sysmon profiler in the background.
+        farf_config: str, optional
+            Configuration string for runtime log level filtering.
+            Use farf_config_from_python_log_level to generate a bitmask
+            string from a Python logging level (e.g., logging.INFO)
         """
         if not rpc_info.get("workspace_base"):
             rpc_info["workspace_base"] = self.ANDROID_HEXAGON_TEST_BASE_DIR
@@ -301,6 +307,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self._clear_logcat = clear_logcat
         self._sysmon_profile = sysmon_profile
         self._sysmon_process = None
+        self._farf_config = farf_config
         rpc_info["device_key"] = HEXAGON_REMOTE_DEVICE_KEY + "." + self._serial_number
 
         super(HexagonLauncherAndroid, self).__init__(rpc_info, workspace, self._serial_number)
@@ -342,6 +349,8 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
                             line = line.replace(
                                 "<RPC_SERVER_PORT>", str(self._rpc_info["rpc_server_port"])
                             )
+                        if "<FARF_CONFIG>" in line:
+                            line = line.replace("<FARF_CONFIG>", str(self._farf_config))
                         dest_f.write(line)
 
                 # Make shell script executable
@@ -710,6 +719,44 @@ def _is_port_in_use(port: int) -> bool:
         return s.connect_ex(("localhost", port)) == 0
 
 
+def farf_config_from_python_log_level(level) -> str:
+    """Generates a FARF configuration string enabling logging at the specified level
+
+    Parameters
+    ----------
+    level : str or int
+        Minimum level to log at. Must be a known Python logging level or string
+        (e.g., logging.INFO or "INFO")
+    """
+
+    # Runtime log levels can be selectively enabled by computing a bitmask
+    # corresponding to the levels you want to enable. These get forwarded to
+    # logcat by the DSP RPC daemon. The bits for each level are:
+
+    # 0x01 - Hexagon LOW / TVM DEBUG / Python DEBUG
+    # 0x02 - Hexagon MEDIUM / TVM INFO / Python INFO
+    # 0x04 - Hexagon HIGH / TVM WARN / Python WARNING
+    # 0x08 - Hexagon ERROR / TVM ERROR / Python ERROR
+    # 0x10 - Hexagon FATAL / TVM FATAL / Python CRITICAL
+
+    # Runtime logging can also be filtered on filenames by appending a
+    # comma-separated list of filenames. For more information, see
+    # the Hexagon SDK documentation.
+
+    if level in (logging.DEBUG, "DEBUG"):
+        return "0x1F"
+    if level in (logging.INFO, "INFO"):
+        return "0x1E"
+    if level in (logging.WARNING, "WARNING"):
+        return "0x1C"
+    if level in (logging.ERROR, "ERROR"):
+        return "0x18"
+    if level in (logging.CRITICAL, "CRITICAL"):
+        return "0x10"
+
+    raise ValueError("Argument must be a known Python logging level or string")
+
+
 # pylint: disable=invalid-name
 def HexagonLauncher(
     serial_number: str,
@@ -718,10 +765,11 @@ def HexagonLauncher(
     hexagon_debug: bool = False,
     clear_logcat: bool = False,
     sysmon_profile: bool = False,
+    farf_config: str = farf_config_from_python_log_level(logging.INFO),
 ):
     """Creates a HexagonLauncher"""
     if serial_number == HEXAGON_SIMULATOR_NAME:
         return HexagonLauncherSimulator(rpc_info, workspace)
     return HexagonLauncherAndroid(
-        serial_number, rpc_info, workspace, hexagon_debug, clear_logcat, sysmon_profile
+        serial_number, rpc_info, workspace, hexagon_debug, clear_logcat, sysmon_profile, farf_config
     )
