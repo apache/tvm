@@ -21,17 +21,7 @@ export LD_LIBRARY_PATH=.
 # Enable FARF-based logging for Hexagon code invoked by 'tvm_rpc_android_server'.
 export ADSP_LIBRARY_PATH=`pwd`
 
-# Runtime log levels can be selectively enabled by computing a bitmask
-# corresponding to the levels you want to enable. These get forwarded to
-# logcat by the DSP RPC daemon. The bits for each level are:
-
-# 0x01 - Hexagon LOW / TVM DEBUG
-# 0x02 - Hexagon MEDIUM / TVM INFO
-# 0x04 - Hexagon HIGH / TVM WARN
-# 0x08 - Hexagon ERROR / TVM ERROR
-# 0x10 - Hexagon FATAL / TVM FATAL
-
-echo 0x1e > tvm_rpc_android.farf
+echo <FARF_CONFIG> > tvm_rpc_android.farf
 
 ./tvm_rpc_android server --port=<RPC_SERVER_PORT> --tracker=<RPC_TRACKER_HOST>:<RPC_TRACKER_PORT> --key=<HEXAGON_REMOTE_DEVICE_KEY> >${PWD}/tvm_rpc_android.log 2>&1 &
 
