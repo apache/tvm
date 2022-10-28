@@ -170,6 +170,15 @@ Map<Var, IntSet> ConvertDomMap(const std::unordered_map<const VarNode*, IntSet>&
  */
 IntSet EvalSet(PrimExpr e, const Map<IterVar, IntSet>& dom_map);
 /*!
+ * \brief Find an symbolic integer set that contains all possible values of
+ *  e given the domain of each variables.
+ *
+ * \param e The expression to be evaluated.
+ * \param dom_map The domain of each variable.
+ * \return An integer set that can cover all the possible values of e.
+ */
+IntSet EvalSet(PrimExpr e, const Map<Var, IntSet>& dom_map);
+/*!
  * \brief Same as EvalSet, but takes unordered_map
  *
  * \param e The expression to be evaluated.
