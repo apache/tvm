@@ -816,5 +816,34 @@ class TestRewriteAsAndOfOrUsingSimplificationWithinOr(BaseBeforeAfter):
         A[0] = (i != 30) or (j == 0)
 
 
+class TestConditionalFloorMod(BaseBeforeAfter):
+    """A regression test for negative floormod denominator
+
+    Previously, simplifying this function could throw an error.  First, the
+    `canonical_simplify` would rewrite `floormod(0-i,2)` to the equivalent
+    `floormod(i,-2)`.  Then, the rewrite_simplifier would enter a
+    constrained context in which `floormod(i,-2)==1`.  Passing this
+    expression to `ModularSet::EnterConstraint`, which previously did not
+    support a negative value for the second argument, threw an error.
+
+    The analogous failure mode never occurred for `truncmod`, because
+    `truncmod(0-i,2)` would be canonicalized to `truncmod(i, -2) * -1`, and
+    the pattern matching in `ModularSet` didn't recognize the constant
+    factor.
+
+    This failure mode was resolved by supporting negative arguments in
+    `ModularSet`, using the same sign convention as is used by
+    `canonical_simplify`.
+    """
+
+    def before(A: T.Buffer[1, "bool"], i: T.int32):
+        if T.floormod(0 - i, 2) == 0:
+            A[0] = T.floormod(i, 2) == 0
+
+    def expected(A: T.Buffer[1, "bool"], i: T.int32):
+        if T.floormod(i, -2) == 0:
+            A[0] = True
+
+
 if __name__ == "__main__":
     tvm.testing.main()

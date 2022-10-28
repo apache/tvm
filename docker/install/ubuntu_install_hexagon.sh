@@ -21,9 +21,28 @@ set -o pipefail
 
 # Install LLVM/clang
 CLANG_LLVM_HOME=/opt/clang-llvm
-CLANG_LLVM_VERSION=14.0.0
-CLANG_LLVM_FILENAME=clang_llvm.tar.xz
-wget -q https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_LLVM_VERSION}/clang+llvm-${CLANG_LLVM_VERSION}-x86_64-linux-gnu-ubuntu-18.04.tar.xz -O ${CLANG_LLVM_FILENAME}
-mkdir ${CLANG_LLVM_HOME}
-tar -xvf ${CLANG_LLVM_FILENAME} -C ${CLANG_LLVM_HOME} --strip-components=1
-rm ${CLANG_LLVM_FILENAME}
+LLVM_SHA=361a27c155ec8b222e3318488a208c0eb39624c8
+
+mkdir llvm-hexagon
+pushd llvm-hexagon
+git init
+git remote add origin https://github.com/llvm/llvm-project.git
+git fetch origin ${LLVM_SHA}
+git reset --hard FETCH_HEAD
+mkdir build
+pushd build
+cmake \
+  -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=${CLANG_LLVM_HOME} \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DLLVM_TARGETS_TO_BUILD:STRING="Hexagon;X86" \
+  -DLLVM_ENABLE_PROJECTS:STRING="clang;llvm" \
+  -DTARGET_TRIPLE=x86_64-unknown-linux-gnu \
+  -DLLVM_DEFAULT_TARGET_TRIPLE=x86_64-unknown-linux-gnu \
+  ../llvm
+ninja install
+
+popd
+popd
+rm -rf llvm-hexagon

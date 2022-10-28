@@ -574,6 +574,19 @@ Array<BlockRV> ConcreteScheduleNode::CacheInplace(const BlockRV& block_rv, int w
   return return_blocks;
 }
 
+Array<BlockRV> ConcreteScheduleNode::CacheIndex(const BlockRV& block_rv, int buffer_index) {
+  Array<StmtSRef> result;
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::CacheIndex(state_, this->GetSRef(block_rv), buffer_index);
+  TVM_TIR_SCHEDULE_END("cache-index", this->error_render_level_);
+  this->state_->DebugVerify();
+  Array<BlockRV> return_blocks;
+  for (const StmtSRef& blockrv : result) {
+    return_blocks.push_back(CreateRV<BlockRV>(blockrv));
+  }
+  return return_blocks;
+}
+
 BlockRV ConcreteScheduleNode::ReIndex(const BlockRV& block_rv, int buffer_index,
                                       BufferIndexType buffer_index_type) {
   StmtSRef result{nullptr};

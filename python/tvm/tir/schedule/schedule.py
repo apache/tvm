@@ -1279,6 +1279,92 @@ class Schedule(Object):
         )
 
     @type_checked
+    def cache_index(
+        self, block: Union[BlockRV, str], buffer_index: Union[int, str, Buffer]
+    ) -> List[BlockRV]:
+        """Create a block to cache precomputed index for later use.
+        if there is no index computation, keep unchanged.
+
+        Parameters
+        ----------
+        block : Union[BlockRV, str]
+            The target block operates on the target buffer.
+
+        buffer_index: int
+            The index of the target buffer in block's read region
+
+
+        Returns
+        -------
+        cached_blocks : List[BlockRV]
+            The blocks of the stage writing the cache buffers
+
+        Examples
+        --------
+        Before cache_inplace, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def resize(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (1, 3, 40, 40))
+                B = T.match_buffer(b, (1, 3, 80, 80))
+                for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
+                    with T.block("A"):
+                        n, c, vi, vj = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                        B[n, c, vi, vj] = A[n, c, vi//4 + vj//4, vj//2]
+
+        Create the schedule and cache_index:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(resize)
+            block_a = sch.get_block("A")
+            sch.cache_index(block_a, 0)
+            print(sch.mod["main"].script())
+
+        After applying cache_index, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def resize_cache_index(
+                A: T.Buffer[(1, 3, 40, 40), "float32"], B: T.Buffer[(1, 3, 80, 80), "float32"]
+            ) -> None:
+                index_var_0 = T.alloc_buffer([80, 80], dtype="int32", strides=[1])
+                index_var_1 = T.alloc_buffer([80], dtype="int32", strides=[1])
+                for ax0, ax1 in T.grid(80, 80):
+                    with T.block("index_0"):
+                        v0 = T.axis.spatial(80, ax0)
+                        v1 = T.axis.spatial(80, ax1)
+                        T.reads()
+                        T.writes(index_var_0[v0, v1])
+                        index_var_0[v0, v1] = v0 // 4 + v1 // 4
+                for ax0 in T.serial(80):
+                    with T.block("index_1"):
+                        v0 = T.axis.spatial(80, ax0)
+                        T.reads()
+                        T.writes(index_var_1[v0])
+                        index_var_1[v0] = v0 // 2
+                for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
+                    with T.block("A"):
+                        n, c, vi, vj = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                        T.reads(A[n, c, vi // 4 + vj // 4, vj // 2])
+                        T.writes(B[n, c, vi, vj])
+                        B[n, c, vi, vj] = A[n, c, index_var_0[vi, vj], index_var_1[vj]]
+
+        """
+        block = self._normalize_block_arg(block)
+
+        if not isinstance(buffer_index, int):
+            _, buffer_index, _ = self._normalize_buffer_arg(
+                block, buffer_index, required_buffer_type="read"
+            )
+        return _ffi_api.ScheduleCacheIndex(  # type: ignore # pylint: disable=no-member
+            self, block, buffer_index
+        )
+
+    @type_checked
     def reindex(
         self,
         block: Union[BlockRV, str],

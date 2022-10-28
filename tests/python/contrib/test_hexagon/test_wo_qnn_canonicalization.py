@@ -21,7 +21,7 @@ import numpy as np
 import tvm.testing
 from tvm import relay
 from tvm.contrib.hexagon.session import Session
-from tvm.contrib import graph_executor
+from tvm.contrib.hexagon.pytest_plugin import HEXAGON_AOT_LLVM_TARGET
 from tvm.relay.backend import Executor
 
 
@@ -88,13 +88,12 @@ def test_qnn_conv2d_rq(hexagon_session: Session):
     )
     relay_mod = tvm.IRModule.from_expr(op5)
 
-    target_hexagon = tvm.target.hexagon("v68")
     target_llvm = tvm.target.Target("llvm")
-    executor = Executor("graph", {"link-params": True})
+    executor = Executor("aot")
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["qnn.Legalize"]):
         hexagon_lowered = tvm.relay.build(
             relay_mod,
-            tvm.target.Target(target_hexagon, host=target_hexagon),
+            tvm.target.Target(HEXAGON_AOT_LLVM_TARGET, host=HEXAGON_AOT_LLVM_TARGET),
             executor=executor,
         )
 
@@ -112,7 +111,7 @@ def test_qnn_conv2d_rq(hexagon_session: Session):
     hexagon_output = execute(hx_m, data_np, weight_np)
 
     dev = tvm.cpu(0)
-    llvm_m = graph_executor.GraphModule(llvm_lowered["default"](dev))
+    llvm_m = tvm.runtime.executor.AotModule(llvm_lowered["default"](dev))
     llvm_out = execute(llvm_m, data_np, weight_np)
 
     np.testing.assert_equal(hexagon_output.numpy(), llvm_out.numpy())
@@ -150,13 +149,12 @@ def test_qnn_dense_bias_rq(hexagon_session: Session):
     )
     relay_mod = tvm.IRModule.from_expr(op5)
 
-    target_hexagon = tvm.target.hexagon("v68")
     target_llvm = tvm.target.Target("llvm")
-    executor = Executor("graph", {"link-params": True})
+    executor = Executor("aot")
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["qnn.Legalize"]):
         hexagon_lowered = tvm.relay.build(
             relay_mod,
-            tvm.target.Target(target_hexagon, host=target_hexagon),
+            tvm.target.Target(HEXAGON_AOT_LLVM_TARGET, host=HEXAGON_AOT_LLVM_TARGET),
             executor=executor,
         )
 
@@ -175,7 +173,7 @@ def test_qnn_dense_bias_rq(hexagon_session: Session):
     hexagon_output = execute(hx_m, data_np, weight_np, bias_np)
 
     dev = tvm.cpu(0)
-    llvm_m = graph_executor.GraphModule(llvm_lowered["default"](dev))
+    llvm_m = tvm.runtime.executor.AotModule(llvm_lowered["default"](dev))
     llvm_out = execute(llvm_m, data_np, weight_np, bias_np)
 
     np.testing.assert_equal(hexagon_output.numpy(), llvm_out.numpy())
