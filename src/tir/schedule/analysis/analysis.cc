@@ -2060,5 +2060,7 @@ TVM_REGISTER_GLOBAL("tir.schedule.GetAutoTensorizeMappingInfo")
       return GetAutoTensorizeMappingInfo(sch->state(), sch->GetSRef(block), desc_func);
     });
 
+TVM_REGISTER_GLOBAL("tir.schedule.HasBlock").set_body_typed(HasBlock);
+
 }  // namespace tir
 }  // namespace tvm

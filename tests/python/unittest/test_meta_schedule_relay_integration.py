@@ -108,6 +108,41 @@ def test_meta_schedule_integration_extract_from_resnet():
 
 
 @requires_torch
+def test_task_extraction_anchor_block():
+    mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
+    extracted_tasks = ms.relay_integration.extract_tasks(
+        mod, target="llvm", params=params, module_equality="anchor-block"
+    )
+
+    # Note that there is no task from residual blocks
+    expected_task_names = [
+        "fused_" + s
+        for s in [
+            "nn_max_pool2d",
+            "nn_adaptive_avg_pool2d",
+            "nn_dense_add",
+            "nn_conv2d_add",
+            "nn_conv2d_add_1",
+            "nn_conv2d_add_2",
+            "nn_conv2d_add_nn_relu",
+            "nn_conv2d_add_nn_relu_1",
+            "nn_conv2d_add_nn_relu_2",
+            "nn_conv2d_add_nn_relu_3",
+            "nn_conv2d_add_nn_relu_4",
+            "nn_conv2d_add_nn_relu_5",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu_1",
+            "layout_transform",
+            "layout_transform_reshape_squeeze",
+        ]
+    ]
+
+    assert len(extracted_tasks) == len(expected_task_names)
+    for t in extracted_tasks:
+        assert t.task_name in expected_task_names, t.task_name
+
+
+@requires_torch
 def test_meta_schedule_integration_extract_from_bert_base():
     pytest.importorskip(
         "transformers", reason="transformers package is required to import bert_base"
@@ -671,6 +706,116 @@ def test_module_equality_ignore_ndarray():
 
     ref = np.dot(np.dot(data_np, weight1_np.transpose()), weight2_np.transpose())
     np.testing.assert_allclose(ref, out, rtol=1e-4, atol=1e-4)
+
+
+def _test_anchor_tuning(target):
+    data_shape = (128, 128)
+    weight_shape1 = (128, 128)
+    weight_shape2 = (128, 128)
+
+    data = relay.var("data", shape=data_shape, dtype="float32")
+    weight1 = relay.var("weight1", shape=weight_shape1, dtype="float32")
+    weight2 = relay.var("weight2", shape=weight_shape2, dtype="float32")
+    dense1 = relay.nn.dense(data, weight1)
+    dense2 = relay.nn.dense(dense1 + relay.const(1.0, dtype="float32"), weight2)
+    mod = tvm.IRModule.from_expr(dense2 - data + relay.const(1.0, dtype="float32"))
+
+    weight1_np = np.random.randn(*weight_shape1).astype("float32")
+    weight2_np = np.random.randn(*weight_shape2).astype("float32")
+
+    data_np = np.random.randn(*data_shape).astype("float32")
+    params = {"weight1": weight1_np, "weight2": weight2_np}
+
+    module_equality = "anchor-block"
+
+    extracted_tasks = ms.relay_integration.extract_tasks(
+        mod, target, params, module_equality=module_equality
+    )
+
+    assert len(extracted_tasks) == 1
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        database = ms.relay_integration.tune_relay(
+            mod=mod,
+            target=target,
+            params=params,
+            work_dir=work_dir,
+            max_trials_global=4,
+            strategy="replay-trace",
+            module_equality=module_equality,
+        )
+        lib = ms.relay_integration.compile_relay(database, mod, target, params)
+
+    dev = tvm.device(target, 0)
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    runtime.set_input("data", data_np)
+    runtime.run()
+    out = runtime.get_output(0).numpy()
+
+    ref = (
+        relay.create_executor("graph", mod=mod, device=tvm.cpu(0), target="llvm")
+        .evaluate()(*[data_np, weight1_np, weight2_np])
+        .numpy()
+    )
+
+    np.testing.assert_allclose(ref, out, atol=1e-3)
+
+
+def test_anchor_tuning_cpu():
+    _test_anchor_tuning("llvm --num-cores=4")
+
+
+def test_anchor_tuning_cpu_link_params():
+    data_shape = (128, 128)
+    weight_shape1 = (128, 128)
+    weight_shape2 = (128, 128)
+
+    data = relay.var("data", shape=data_shape, dtype="float32")
+    weight1 = relay.var("weight1", shape=weight_shape1, dtype="float32")
+    weight2 = relay.var("weight2", shape=weight_shape2, dtype="float32")
+    dense1 = relay.nn.dense(data, weight1)
+    dense2 = relay.nn.dense(dense1, weight2)
+    mod = tvm.IRModule.from_expr(dense2 + relay.const(1.0, dtype="float32"))
+
+    weight1_np = np.random.randn(*weight_shape1).astype("float32")
+    weight2_np = np.random.randn(*weight_shape2).astype("float32")
+
+    data_np = np.random.randn(*data_shape).astype("float32")
+    params = {"weight1": weight1_np, "weight2": weight2_np}
+
+    module_equality = "anchor-block"
+    target = "llvm --num-cores=4"
+
+    executor = relay.backend.Executor("graph", {"link-params": True})
+    mod = mod.with_attr("executor", executor)
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        database = ms.relay_integration.tune_relay(
+            mod=mod,
+            target=target,
+            params=params,
+            work_dir=work_dir,
+            max_trials_global=4,
+            strategy="replay-trace",
+            module_equality=module_equality,
+        )
+        lib = ms.relay_integration.compile_relay(database, mod, target, params)
+
+    dev = tvm.device(target, 0)
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    runtime.set_input("data", data_np)
+    runtime.run()
+    out = runtime.get_output(0).numpy()
+
+    ref = (
+        relay.create_executor("graph", mod=mod, device=tvm.cpu(0), target="llvm")
+        .evaluate()(*[data_np, weight1_np, weight2_np])
+        .numpy()
+    )
+
+    np.testing.assert_allclose(ref, out, atol=1e-3)
 
 
 if __name__ == "__main__":

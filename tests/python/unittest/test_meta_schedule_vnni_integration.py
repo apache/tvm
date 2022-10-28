@@ -26,6 +26,7 @@ from tvm import meta_schedule as ms
 from tvm import relay
 from tvm._ffi import register_func
 from tvm.tir.schedule import BlockRV, Schedule
+from tvm.tir.schedule.analysis import has_block
 from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 logging.basicConfig(
@@ -44,6 +45,7 @@ def _schedule_dense(m: Optional[int], do_tune: bool):
         if sch.mod.attrs is not None and "dense" not in sch.mod.attrs["task_name"]:
             return False
         if dense_block is None:
+            assert has_block(sch, "compute")
             dense_block = sch.get_block("compute")
             assert "dense_vnni" in sch.get(dense_block).annotations["schedule_rule"]
 

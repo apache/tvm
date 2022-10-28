@@ -122,3 +122,21 @@ def get_auto_tensorize_mapping_info(
     intrinsics.
     """
     return _ffi_api.GetAutoTensorizeMappingInfo(sch, block, desc_func)  # type: ignore
+
+
+def has_block(sch: Schedule, block_name: str) -> bool:
+    """Query if the given block name exists in the module associated with the provided schedule.
+
+    Parameters
+    ----------
+    sch : Schedule
+        The schedule
+    block_name : str
+        The name of the block to query
+
+    Returns
+    -------
+    yes/no: bool
+        True if the given block exists in the schedule.
+    """
+    return _ffi_api.HasBlock(sch, block_name)  # type: ignore

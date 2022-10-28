@@ -44,6 +44,7 @@
 
 #include <functional>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <utility>
@@ -52,6 +53,8 @@
 #include "../../printer/text_printer.h"
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
+#include "../src/meta_schedule/module_equality.h"
+#include "../src/meta_schedule/trace_apply.h"
 #include "../transforms/meta_schedule_layout_rewrite.h"
 #include "utils.h"
 
@@ -461,7 +464,9 @@ class AllocateConstReplaceConstant : public StmtExprMutator {
 // Construct a schedule for a given Relay primitive function and target.
 class ScheduleBuilder : public ExprVisitor {
  public:
-  explicit ScheduleBuilder(Target target) : target_(target) {
+  explicit ScheduleBuilder(Target target)
+      : target_(target),
+        mod_eq_structural_(meta_schedule::ModuleEquality::Create("ignore-ndarray")) {
     // Whether to use auto_scheduler schedule.
     use_auto_scheduler_ = backend::IsAutoSchedulerEnabled();
     if (backend::IsMetaScheduleEnabled()) {
@@ -614,9 +619,19 @@ class ScheduleBuilder : public ExprVisitor {
                 MetaScheduleLayoutRewriter::LayoutQueuePush(index_map);
               }
             }
+
             Schedule sch = Schedule::Traced(query_mod, /*seed=*/-1, /*debug_mask=*/0,
                                             tir::ScheduleErrorRenderLevel::kDetail);
-            record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
+
+            if (!mod_eq_structural_->Equal(query_mod, opt_record.value()->workload->mod)) {
+              // When the database lookup succeeds while structural equality check fails,
+              // it implies that the anchor block based equality has been used during tuning.
+              // The trace in the record cannot directly be applied to this query module.
+              meta_schedule::ScheduleUsingAnchorTrace(sch, record->trace, target_);
+            } else {
+              record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
+            }
+
             IRModule mod = sch->mod();
             ICHECK_EQ(mod->functions.size(), 1);
             mod = tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_ndarray_rewrite*/ false)(
@@ -698,6 +713,7 @@ class ScheduleBuilder : public ExprVisitor {
   int anchor_op_pattern_{0};
   bool use_auto_scheduler_;
   Optional<meta_schedule::Database> database_;
+  std::unique_ptr<meta_schedule::ModuleEquality> mod_eq_structural_;
 };
 
 /*!

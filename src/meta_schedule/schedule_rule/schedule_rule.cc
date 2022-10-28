@@ -53,14 +53,7 @@ ScheduleRule ScheduleRule::PyScheduleRule(
 
 Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
   return {
-      ScheduleRule::AutoInline(
-          /*into_producer=*/false,
-          /*into_consumer=*/true,
-          /*inline_const_tensor=*/true,
-          /*disallow_if_then_else=*/true,
-          /*require_injective=*/true,
-          /*require_ordered=*/true,
-          /*disallow_op=*/Array<String>{"tir.exp"}),
+      GetDefaultAutoInline("llvm"),
       ScheduleRule::AddRFactor(
           /*max_jobs_per_core=*/16,
           /*max_innermost_factor=*/Integer(64)),
@@ -98,14 +91,7 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
           Map<String, ObjectRef>{{"req", String("must")},
                                  {"levels", Array<Integer>{3}},  //
                                  {"scope", String("local")}}),
-      ScheduleRule::AutoInline(
-          /*into_producer=*/true,
-          /*into_consumer=*/true,
-          /*inline_const_tensor=*/true,
-          /*disallow_if_then_else=*/false,
-          /*require_injective=*/false,
-          /*require_ordered=*/false,
-          /*disallow_op=*/Array<String>{}),
+      GetDefaultAutoInline("cuda"),
       ScheduleRule::CrossThreadReduction(
           /*thread_extents=*/Array<Integer>{4, 8, 16, 32, 64, 128, 256, 512}),
       ScheduleRule::ParallelizeVectorizeUnroll(

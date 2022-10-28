@@ -30,6 +30,7 @@ from . import (
     search_strategy,
     space_generator,
     tir_integration,
+    trace_apply,
 )
 from .builder import Builder
 from .cost_model import CostModel

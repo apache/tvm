@@ -45,12 +45,11 @@ String GetRuleKindFromTarget(const Target& target) {
     }
     return "cuda";
   }
-  if (target->kind->name == "rocm") {
+
+  if (IsGPUTarget(target->kind->name)) {
     return "cuda";
   }
-  if (target->kind->name == "vulkan") {
-    return "cuda";
-  }
+
   LOG(FATAL) << "Unsupported target: " << target;
   throw;
 }

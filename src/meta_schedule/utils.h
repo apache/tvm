@@ -44,6 +44,7 @@
 
 #include <algorithm>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -500,6 +501,41 @@ inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
     }
     dst->mutator_probs = std::move(mutator_probs);
   }
+}
+
+/*! \brief Returns true if the given target is one of the supported gpu targets. */
+inline bool IsGPUTarget(const std::string& target_name) {
+  static const std::unordered_set<std::string> gpu_targets{"cuda", "rocm", "vulkan", "metal"};
+  return gpu_targets.count(target_name);
+}
+
+/*!
+ * \brief Create an AutoInline schedule rule for the given target.
+ * \param target_name The name of the target ("llvm", "cuda", etc.)
+ * \return The AutoInline schedule rule for the given target.
+ */
+inline ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
+  if (target_name == "llvm" || target_name == "hexagon") {
+    return ScheduleRule::AutoInline(
+        /*into_producer=*/false,
+        /*into_consumer=*/true,
+        /*inline_const_tensor=*/true,
+        /*disallow_if_then_else=*/true,
+        /*require_injective=*/true,
+        /*require_ordered=*/true,
+        /*disallow_op=*/Array<String>{"tir.exp"});
+  } else if (IsGPUTarget(target_name)) {
+    return ScheduleRule::AutoInline(
+        /*into_producer=*/true,
+        /*into_consumer=*/true,
+        /*inline_const_tensor=*/true,
+        /*disallow_if_then_else=*/false,
+        /*require_injective=*/false,
+        /*require_ordered=*/false,
+        /*disallow_op=*/Array<String>{});
+  }
+  LOG(FATAL) << "Unsupported target " << target_name;
+  return ScheduleRule(nullptr);
 }
 
 }  // namespace meta_schedule
