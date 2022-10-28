@@ -540,7 +540,8 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
       /*input_iters=*/loop_var_ranges,
       /*predicate=*/realize->predicate,
       /*check_level=*/arith::IterMapLevel::Surjective,
-      /*analyzer=*/analyzer);
+      /*analyzer=*/analyzer,
+      /*simplify_trivial_iterators=*/false);
   if (res->indices.empty()) {
     return false;
   }
