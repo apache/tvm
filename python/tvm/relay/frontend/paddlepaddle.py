@@ -2042,6 +2042,7 @@ _convert_map = {
     "cosh": convert_unary_op,
     "cumsum": convert_cumsum,
     "depthwise_conv2d": convert_conv2d,
+    "depthwise_conv2d_transpose": convert_conv2d_transpose,
     "dot": convert_dot,
     "dropout": convert_dropout,
     "elementwise_add": convert_elementwise_op,
