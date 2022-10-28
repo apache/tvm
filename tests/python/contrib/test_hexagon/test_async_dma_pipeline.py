@@ -823,3 +823,7 @@ def test_meta(hexagon_session):
             "pipeline_runtime": pipeline_runtime,
         },
     )
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

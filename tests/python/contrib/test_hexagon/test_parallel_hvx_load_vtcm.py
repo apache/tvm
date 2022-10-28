@@ -576,3 +576,7 @@ class TestMatMulVec:
                 preloaded_runtime,
             )
         )
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

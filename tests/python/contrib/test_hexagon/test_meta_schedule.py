@@ -46,11 +46,10 @@ MATMUL_M = 32
 class MatmulModule:
     """Matmultest class"""
 
+    # pylint: disable=no-self-argument
     @T.prim_func
-    def main(  # type: ignore  # pylint: disable=no-self-argument
-        a: T.handle, b: T.handle, c: T.handle
-    ) -> None:
-        """main function"""
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # type: ignore
+        # pylint: disable=missing-function-docstring
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         a_buffer = T.match_buffer(a, (16, 16), "float32")
         b_buffer = T.match_buffer(b, (16, 16), "float32")
@@ -243,7 +242,7 @@ class ModuleVRMPYAutoTensorize:
         packed_width: T.Buffer[(24, 192, 32, 4), "uint8"],  # type: ignore
         compute: T.Buffer[(128, 768), "int32"],  # type: ignore
     ) -> None:
-        """Main function."""
+        # pylint: disable=missing-function-docstring
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i0_0_i1_0_0_fused in T.parallel(
             512, annotations={"pragma_auto_unroll_max_step": 64, "pragma_unroll_explicit": 1}
@@ -292,7 +291,7 @@ class ModuleVRMPYAutoTensorize:
                         b_buffer[0, 0:128], dtype="int32x32"
                     )  # type: ignore
                     c_buffer[0:32] = T.call_llvm_pure_intrin(  # type: ignore
-                        4390, T.uint32(3), C[0:32], b_i32x32, a_i32, dtype="int32x32"
+                        4390, T.uint32(3), c_buffer[0:32], b_i32x32, a_i32, dtype="int32x32"
                     )
 
 
@@ -495,3 +494,7 @@ def test_dense_relay_auto_schedule(hexagon_launcher):
         # Fairly loose check since fp16 results between x86 and Hexagon have
         # non-trivial difference.
         assert np.mean(np.abs(ref - out)) < 0.1
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
