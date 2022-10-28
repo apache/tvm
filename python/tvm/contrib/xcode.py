@@ -46,9 +46,9 @@ def xcrun(cmd):
 
 
 def __get_min_os_version(sdk):
-    if sdk in ("macosx", "iphonesimulator"):
+    if sdk == "macosx":
         return None
-    if sdk == "iphoneos":
+    if sdk in ("iphoneos", "iphonesimulator"):
         return "13.0"
     raise RuntimeError("Unsupported sdk: %s" % sdk)
 
