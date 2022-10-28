@@ -16,7 +16,7 @@
 # under the License.
 
 """Schedule for injective operators"""
- 
+
 # pylint: disable=unused-import
 import math
 from textwrap import dedent
