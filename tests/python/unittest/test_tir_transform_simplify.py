@@ -139,6 +139,7 @@ def test_complex_likely_elimination():
 class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
     transitively_prove_inequalities = False
     convert_boolean_to_and_of_ors = False
+    apply_constraints_to_boolean_branches = False
 
     def transform(self):
         def inner(mod):
@@ -146,6 +147,7 @@ class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
                 "tir.Simplify": {
                     "transitively_prove_inequalities": self.transitively_prove_inequalities,
                     "convert_boolean_to_and_of_ors": self.convert_boolean_to_and_of_ors,
+                    "apply_constraints_to_boolean_branches": self.apply_constraints_to_boolean_branches,
                 }
             }
             with tvm.transform.PassContext(config=config):
@@ -843,6 +845,148 @@ class TestConditionalFloorMod(BaseBeforeAfter):
     def expected(A: T.Buffer[1, "bool"], i: T.int32):
         if T.floormod(i, -2) == 0:
             A[0] = True
+
+
+class TestSimplifyRHSOfBooleanAndUsingLHS(BaseBeforeAfter):
+    """Boolean expressions can introduce contexts.
+
+    In `A and B`, the result of `B` only matters when `A` is
+    true, and can be simplified under that context.  This test
+    simplifies `n < 10` under the assumption that `n < 5`.
+    """
+
+    apply_constraints_to_boolean_branches = True
+
+    def before(A: T.Buffer[1, "bool"], n: T.int32):
+        A[0] = n < 5 and n < 10
+
+    def expected(A: T.Buffer[1, "bool"], n: T.int32):
+        A[0] = n < 5
+
+
+class TestSimplifyLHSOfBooleanAndUsingRHS(BaseBeforeAfter):
+    """Boolean expressions can introduce contexts for their arguments.
+
+    Like TestSimplifyRHSOfBooleanAndUsingLHS, but using the RHS to
+    simplify the LHS.
+    """
+
+    apply_constraints_to_boolean_branches = True
+
+    def before(A: T.Buffer[1, "bool"], n: T.int32):
+        A[0] = n < 10 and n < 5
+
+    def expected(A: T.Buffer[1, "bool"], n: T.int32):
+        A[0] = n < 5
+
+
+class TestSimplifyRHSOfBooleanOrUsingLHS(BaseBeforeAfter):
+    """Boolean expressions can introduce contexts.
+
+    In `A or B`, the result of `B` only matters when `A` is false, so
+    `B` can be simplified under the assumption that `A` is false.
+    This test simplifies `n < 5` under the assumption that `!(n < 10)`
+    """
+
+    apply_constraints_to_boolean_branches = True
+
+    def before(A: T.Buffer[1, "bool"], n: T.int32):
+        A[0] = n < 10 or n < 5
+
+    def expected(A: T.Buffer[1, "bool"], n: T.int32):
+        A[0] = n < 10
+
+
+class TestSimplifyLHSOfBooleanOrUsingRHS(BaseBeforeAfter):
+    """Boolean expressions can introduce contexts for their arguments.
+
+    Like TestSimplifyRHSOfBooleanOrUsingLHS, but using the RHS to
+    simplify the LHS.
+    """
+
+    apply_constraints_to_boolean_branches = True
+
+    def before(A: T.Buffer[1, "bool"], n: T.int32):
+        A[0] = n < 5 or n < 10
+
+    def expected(A: T.Buffer[1, "bool"], n: T.int32):
+        A[0] = n < 10
+
+
+class TestSimplifyRHSOfBooleanAndUsingLHSWithoutConst(BaseBeforeAfter):
+    """Boolean expressions can introduce contexts.
+
+    Like TestSimplifyRHSOfBooleanAndUsingLHS, but with variables in
+    the conditions, preventing ConstIntBoundAnalyzer from handling it.
+    This proof requires the extension to transitively prove
+    inequalities.
+    """
+
+    apply_constraints_to_boolean_branches = True
+    transitively_prove_inequalities = True
+
+    def before(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+        A[0] = n < m + 5 and n < m + 10
+
+    def expected(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+        A[0] = n < m + 5
+
+
+class TestSimplifyLHSOfBooleanAndUsingRHSWithoutConst(BaseBeforeAfter):
+    """Boolean expressions can introduce contexts for their arguments.
+
+    Like TestSimplifyLHSOfBooleanAndUsingRHS, but with variables in
+    the conditions, preventing ConstIntBoundAnalyzer from handling it.
+    This proof requires the extension to transitively prove
+    inequalities.
+    """
+
+    apply_constraints_to_boolean_branches = True
+    transitively_prove_inequalities = True
+
+    def before(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+        A[0] = n < m + 10 and n < m + 5
+
+    def expected(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+        A[0] = n < m + 5
+
+
+class TestSimplifyRHSOfBooleanOrUsingLHSWithoutConst(BaseBeforeAfter):
+    """Boolean expressions can introduce contexts.
+
+    Like TestSimplifyRHSOfBooleanOrUsingLHS, but with variables in the
+    conditions, preventing ConstIntBoundAnalyzer from handling it.
+    This proof requires the extension to transitively prove
+    inequalities.
+    """
+
+    apply_constraints_to_boolean_branches = True
+    transitively_prove_inequalities = True
+
+    def before(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+        A[0] = n < m + 10 or n < m + 5
+
+    def expected(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+        A[0] = n < m + 10
+
+
+class TestSimplifyLHSOfBooleanOrUsingRHSWithoutConst(BaseBeforeAfter):
+    """Boolean expressions can introduce contexts for their arguments.
+
+    Like TestSimplifyLHSOfBooleanOrUsingRHS, but with variables in the
+    conditions, preventing ConstIntBoundAnalyzer from handling it.
+    This proof requires the extension to transitively prove
+    inequalities.
+    """
+
+    apply_constraints_to_boolean_branches = True
+    transitively_prove_inequalities = True
+
+    def before(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+        A[0] = n < m + 5 or n < m + 10
+
+    def expected(A: T.Buffer[1, "bool"], n: T.int32, m: T.int32):
+        A[0] = n < m + 10
 
 
 if __name__ == "__main__":
