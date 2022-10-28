@@ -37,7 +37,7 @@ cmake \
   -DCMAKE_INSTALL_PREFIX=${CLANG_LLVM_HOME} \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DLLVM_TARGETS_TO_BUILD:STRING="Hexagon;X86" \
-  -DLLVM_ENABLE_PROJECTS:STRING="clang;llvm;lld" \
+  -DLLVM_ENABLE_PROJECTS:STRING="clang;llvm" \
   -DTARGET_TRIPLE=x86_64-unknown-linux-gnu \
   -DLLVM_DEFAULT_TARGET_TRIPLE=x86_64-unknown-linux-gnu \
   ../llvm
