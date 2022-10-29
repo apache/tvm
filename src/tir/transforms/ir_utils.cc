@@ -56,7 +56,7 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
     } else if (const auto* ite = s.as<IfThenElseNode>()) {
       auto n = make_object<IfThenElseNode>(*ite);
       ICHECK(is_no_op(n->then_case));
-      ICHECK(!n->else_case.defined());
+      ICHECK(!n->else_case);
       n->then_case = body;
       body = Stmt(n);
     } else if (const auto* seq = s.as<SeqStmtNode>()) {

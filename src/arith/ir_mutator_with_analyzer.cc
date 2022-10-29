@@ -71,21 +71,19 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
     }
   }
 
-  Stmt then_case, else_case;
+  Stmt then_case;
+  Optional<Stmt> else_case;
   {
     With<ConstraintContext> ctx(analyzer_, real_condition);
     then_case = this->VisitStmt(op->then_case);
   }
-  if (op->else_case.defined()) {
+  if (op->else_case) {
     With<ConstraintContext> ctx(analyzer_, analyzer_->rewrite_simplify(Not(real_condition)));
-    else_case = this->VisitStmt(op->else_case);
+    else_case = this->VisitStmt(op->else_case.value());
   }
   if (is_one(real_condition)) return then_case;
   if (is_zero(real_condition)) {
-    if (else_case.defined()) {
-      return else_case;
-    }
-    return Evaluate(0);
+    return else_case.value_or(Evaluate(0));
   }
 
   if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&

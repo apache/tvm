@@ -58,9 +58,9 @@ void IRVisitorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
     With<ConstraintContext> constraint(&analyzer_, real_condition);
     this->VisitStmt(op->then_case);
   }
-  if (op->else_case.defined()) {
+  if (op->else_case) {
     With<ConstraintContext> constraint(&analyzer_, analyzer_.rewrite_simplify(Not(real_condition)));
-    this->VisitStmt(op->else_case);
+    this->VisitStmt(op->else_case.value());
   }
 }
 
