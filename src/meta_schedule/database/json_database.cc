@@ -128,7 +128,8 @@ class JSONDatabaseNode : public DatabaseNode {
     results.reserve(top_k);
     int counter = 0;
     for (const TuningRecord& record : this->tuning_records_) {
-      if (WorkloadEqual(GetModuleEquality())(record->workload, workload)) {
+      if (record->workload.same_as(workload) ||
+          WorkloadEqual(GetModuleEquality())(record->workload, workload)) {
         results.push_back(record);
         if (++counter == top_k) {
           break;
