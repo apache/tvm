@@ -347,7 +347,7 @@ class TestDenseSlice:
         if "int" in dtype:
             np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=1e-2, atol=0)
         elif "float" in dtype:
-            np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=1e-2, atol=0)
+            np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=1e-1, atol=0)
 
 
 if __name__ == "__main__":
