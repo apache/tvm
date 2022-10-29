@@ -490,9 +490,9 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       return Scalarize(GetRef<Stmt>(op));
     }
     Stmt then_case = this->VisitStmt(op->then_case);
-    Stmt else_case;
-    if (op->else_case.defined()) {
-      else_case = this->VisitStmt(op->else_case);
+    Optional<Stmt> else_case = NullOpt;
+    if (op->else_case) {
+      else_case = this->VisitStmt(op->else_case.value());
     }
     if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
         else_case.same_as(op->else_case)) {
