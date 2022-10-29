@@ -672,47 +672,79 @@ class EliminateIdentityRewrite : public DFPatternRewrite {
   DFPattern const_;
 };
 
-/*! \brief Make two consecutive add able to be constant_folded.
- * This pattern matching supports commutative property for addition.
+/*! \brief Switch adjacent add-mul with constants to mul-add.
+ * As mul-add pattern is more friendly to FoldScaleAxis.
  */
-class SimplifyConsecutiveAdd : public DFPatternRewrite {
+class SwitchAddMultiply : public DFPatternRewrite {
  public:
-  SimplifyConsecutiveAdd() {
+  SwitchAddMultiply() {
     x_ = IsWildcard();
-    const1_ = IsConstant();
-    const2_ = IsConstant();
-    DFPattern add_op = IsOp("add");
-    pattern_ = add_op({add_op({x_, const1_}), const2_});
+    c1_ = IsConstant();
+    c2_ = IsConstant();
+    pattern_ = (x_ + c1_) * c2_;
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto x = node_map[x_][0];
+    auto c1 = node_map[c1_][0];
+    auto c2 = node_map[c2_][0];
+
+    if (x.as<ConstantNode>()) {
+      return post;
+    }
+
+    Expr const_expr = Call(Op::Get("multiply"), {c1, c2});
+    IRModule const_mod = IRModule::FromExpr(const_expr);
+    const_mod = transform::FoldConstant()(const_mod);
+    GlobalVar const_main = const_mod->GetGlobalVar("main");
+    Expr const_val = Downcast<Function>(const_mod->functions[const_main])->body;
+
+    return Call(Op::Get("add"), {Call(Op::Get("multiply"), {x, c2}), const_val});
+  }
+
+ private:
+  DFPattern x_;
+  DFPattern c1_;
+  DFPattern c2_;
+};
+
+/*! \brief Simplify two adjacent multiply or add with constants for further constant folding.
+ * The pattern matching supports commutative property.
+ */
+class SimplifyAdjacentMultiplyOrAdd : public DFPatternRewrite {
+ public:
+  SimplifyAdjacentMultiplyOrAdd() {
+    x_ = IsWildcard();
+    c1_ = IsConstant();
+    c2_ = IsConstant();
+    pattern_ = (x_ * c1_ * c2_) || (x_ + c1_ + c2_);
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
     const CallNode* call = pre.as<CallNode>();
     auto x = node_map[x_][0];
-    auto c1 = node_map[const1_][0];
-    auto c2 = node_map[const2_][0];
+    auto c1 = node_map[c1_][0];
+    auto c2 = node_map[c2_][0];
 
-    auto pre_call = call;
-    // Find the next add call.
-    if (pre_call->args[1].as<ConstantNode>()) {
-      pre_call = pre_call->args[0].as<CallNode>();
-    } else {
-      pre_call = pre_call->args[1].as<CallNode>();
-    }
-    // Do nothing if both inputs are not constants as they will be constant folded already.
-    if (pre_call->args[0].as<ConstantNode>() && pre_call->args[1].as<ConstantNode>()) {
+    if (x.as<ConstantNode>()) {
       return post;
-    } else {
-      auto add_res = Call(call->op, {c1, c2});
-      return Call(call->op, {x, add_res});
     }
-    return post;
+
+    Expr const_expr = Call(call->op, {c1, c2});
+    IRModule const_mod = IRModule::FromExpr(const_expr);
+    const_mod = transform::FoldConstant()(const_mod);
+    GlobalVar const_main = const_mod->GetGlobalVar("main");
+    Expr const_val = Downcast<Function>(const_mod->functions[const_main])->body;
+
+    return Call(call->op, {x, const_val});
   }
 
  private:
   DFPattern x_;
-  DFPattern const1_;
-  DFPattern const2_;
+  DFPattern c1_;
+  DFPattern c2_;
 };
 
 /*! \brief Simplifying x/sqrt to x*sqrt */
@@ -800,7 +832,8 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifySameCast>();
   composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<FullElementwise>();
-  composer.AddRewrite<SimplifyConsecutiveAdd>();
+  composer.AddRewrite<SwitchAddMultiply>();
+  composer.AddRewrite<SimplifyAdjacentMultiplyOrAdd>();
   composer.AddRewrite<SimplifyDQArgMax>();
   composer.AddRewrite<SimplifyDQArgMin>();
   composer.AddRewrite<SimplifyDQArgSort>();
