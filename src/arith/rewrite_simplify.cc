@@ -118,9 +118,7 @@ CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, const PrimE
 
   if (is_finished()) return output;
 
-  if (enabled_extensions_ & kTransitivelyProveInequalities) {
-    output = CompareResult(output & TryCompareUsingKnownInequalities(x, y));
-  }
+  output = CompareResult(output & TryCompareUsingKnownInequalities(x, y));
 
   return output;
 }
@@ -132,7 +130,8 @@ CompareResult RewriteSimplifier::Impl::TryCompareUsingConstIntBounds(const PrimE
 
 CompareResult RewriteSimplifier::Impl::TryCompareUsingKnownInequalities(const PrimExpr& x,
                                                                         const PrimExpr& y) {
-  return analyzer_->transitive_comparisons.TryCompare(x, y);
+  bool propagate_inequalities = enabled_extensions_ & kTransitivelyProveInequalities;
+  return analyzer_->transitive_comparisons.TryCompare(x, y, propagate_inequalities);
 }
 
 // try to prove x equals val
