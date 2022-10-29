@@ -360,11 +360,11 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     visit_touched_var_ = false;
     ICHECK_EQ(max_loop_depth_, 0);
     Stmt then_case = this->VisitStmt(op->then_case);
-    Stmt else_case;
-    if (op->else_case.defined()) {
+    Optional<Stmt> else_case = NullOpt;
+    if (op->else_case) {
       int temp = max_loop_depth_;
       max_loop_depth_ = 0;
-      else_case = this->VisitStmt(op->else_case);
+      else_case = this->VisitStmt(op->else_case.value());
       max_loop_depth_ = std::max(temp, max_loop_depth_);
     }
     if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&

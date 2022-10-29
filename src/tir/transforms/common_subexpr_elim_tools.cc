@@ -434,9 +434,9 @@ void ComputationsDoneBy::VisitStmt_(const IfThenElseNode* op) {
   table_of_computations_.clear();
 
   ComputationTable computations_done_by_else;
-  if (op->else_case.defined()) {
-    // And finally calls the VisitStmt() method on the `then_case` child
-    VisitStmt(op->else_case);
+  if (op->else_case) {
+    // And finally calls the VisitStmt() method on the `else_case` child
+    VisitStmt(op->else_case.value());
     computations_done_by_else = table_of_computations_;
     table_of_computations_.clear();
   }

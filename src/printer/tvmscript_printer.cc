@@ -1244,9 +1244,9 @@ Doc TVMScriptPrinter::VisitStmt_(const IfThenElseNode* op) {
   Doc doc;
   doc << "if " << Print(op->condition) << ":";
   doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->then_case));
-  if (!is_one(op->condition) && op->else_case.defined()) {
+  if (!is_one(op->condition) && op->else_case) {
     doc << Doc::NewLine();
-    doc << "else:" << Doc::Indent(4, Doc::NewLine() << PrintBody(op->else_case));
+    doc << "else:" << Doc::Indent(4, Doc::NewLine() << PrintBody(op->else_case.value()));
   }
   return doc;
 }

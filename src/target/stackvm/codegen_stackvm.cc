@@ -475,13 +475,13 @@ void CodeGenStackVM::VisitStmt_(const IfThenElseNode* op) {
   int64_t else_jump = this->PushOp(StackVM::RJUMP_IF_FALSE, 0);
   this->PushOp(StackVM::POP);
   this->Push(op->then_case);
-  if (op->else_case.defined()) {
+  if (op->else_case) {
     int64_t label_then_jump = this->GetPC();
     int64_t then_jump = this->PushOp(StackVM::RJUMP, 0);
     int64_t else_begin = this->GetPC();
     this->SetOperand(else_jump, else_begin - label_ejump);
     this->PushOp(StackVM::POP);
-    this->Push(op->else_case);
+    this->Push(op->else_case.value());
     int64_t if_end = this->GetPC();
     this->SetOperand(then_jump, if_end - label_then_jump);
   } else {

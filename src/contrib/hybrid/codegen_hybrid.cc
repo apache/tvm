@@ -381,11 +381,11 @@ void CodeGenHybrid::VisitStmt_(const IfThenElseNode* op) {
   PrintStmt(op->then_case);
   indent_ -= tab_;
 
-  if (!is_noop(op->else_case)) {
+  if (op->else_case && !is_noop(op->else_case.value())) {
     PrintIndent();
     stream << "else:\n";
     indent_ += tab_;
-    PrintStmt(op->else_case);
+    PrintStmt(op->else_case.value());
     indent_ -= tab_;
   }
 }

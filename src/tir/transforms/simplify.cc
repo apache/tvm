@@ -139,8 +139,8 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     if (const int64_t* as_int = as_const_int(cond)) {
       if (*as_int) {
         return this->VisitStmt(op->then_case);
-      } else if (op->else_case.defined()) {
-        return this->VisitStmt(op->else_case);
+      } else if (op->else_case) {
+        return this->VisitStmt(op->else_case.value());
       } else {
         return Evaluate(0);
       }

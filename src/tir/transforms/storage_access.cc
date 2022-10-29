@@ -187,9 +187,9 @@ void StorageAccessVisitor::VisitStmt_(const IfThenElseNode* op) {
   s.stmt = op;
   s.access = Summarize(std::move(scope_.back()), nullptr);
   scope_.pop_back();
-  if (op->else_case.defined()) {
+  if (op->else_case) {
     scope_.push_back(std::vector<StmtEntry>());
-    this->VisitStmt(op->else_case);
+    this->VisitStmt(op->else_case.value());
     auto v = Summarize(std::move(scope_.back()), nullptr);
     scope_.pop_back();
     s.access.insert(s.access.end(), v.begin(), v.end());
