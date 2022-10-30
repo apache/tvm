@@ -46,6 +46,7 @@
 
 #include "../backend/utils.h"
 #include "../op/make_op.h"
+#include <cassert>
 
 namespace tvm {
 namespace relay {
@@ -710,6 +711,21 @@ static inline Expr Where(const Expr& condition, const Expr& x, const Expr& y) {
   return Call(op, {condition, x, y});
 }
 
+static inline Expr Split(Expr data, ObjectRef indices_or_sections, int axis) {
+  auto attrs = make_object<SplitAttrs>();
+  attrs->axis = axis;
+  attrs->indices_or_sections = std::move(indices_or_sections);
+  static const Op& op = Op::Get("split");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+static inline Expr Concatenate(Expr data, int axis) {
+  auto attrs = make_object<ConcatenateAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("concatenate");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
 static inline Expr LogicalOr(const Expr& lhs, const Expr& rhs) {
   static const Op& op = Op::Get("logical_or");
   return Call(op, {lhs, rhs}, Attrs(), {});
@@ -795,6 +811,44 @@ inline Expr Hardswish(Expr x) {
   x2 = Multiply(x, x2);
   x2 = Divide(x2, six);
   return x2;
+}
+
+inline std::vector<int64_t> GetPatternConcrete(const Array<PrimExpr>& vals) {
+  std::vector<int64_t> concrete;
+  for (const auto& v : vals) {
+    auto* val = v.as<IntImmNode>();
+    ICHECK(val);
+    concrete.push_back(val->value);
+  }
+  return concrete;
+}
+
+inline Expr ClipPerChannel(Expr x, std::vector<float> dom_scales, double min_value, double max_value) {
+  //auto data_shape = GetPatternConcrete(x->type_as<TensorTypeNode>()->shape);
+  //assert(data_shape.size() == 4);
+  int channel_size = dom_scales.size();
+  Array<Expr> split_out_tmp2;
+  Array<IndexExpr> split_indices;
+  //printf("%ld",data_shape[1]);
+  printf("in clip per channel:channel size:%d\n",channel_size);
+  /*
+  for (int i = 0; i < (channel_size-1); ++i) {
+    split_indices.push_back(i+1);
+  }
+  auto spilt_out_tmp1 = Split(x, split_indices, 1);
+  */
+  auto spilt_out_tmp1 = Split(x, tvm::tir::make_const(DataType::Int(64), static_cast<int>(dom_scales.size())), 1);
+
+  //for (size_t i = 0; i < spilt_out_tmp1.as<ArrayNode>()->size(); ++i) {
+  for (int i = 0; i < channel_size; ++i) {
+    auto split_out = TupleGetItem(spilt_out_tmp1, i);
+
+    split_out_tmp2.push_back(Clip(split_out, min_value/dom_scales[i], max_value/dom_scales[i]));
+    //split_out_tmp2.push_back(Clip(*(spilt_out_tmp1.as<ArrayNode>()->at(i)).as<Expr>(), min_value/dom_scales[i], max_value/dom_scales[i]));
+  }
+
+  Expr ret_out = Concatenate(Tuple(split_out_tmp2), 1);
+  return ret_out;
 }
 
 }  // namespace relay

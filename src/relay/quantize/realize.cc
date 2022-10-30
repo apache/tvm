@@ -131,7 +131,26 @@ inline Expr MulAndDiv_nobias(Expr data, float s1, float s2, DataType dtype,
     return Cast(data, dtype);
   }
 }
+inline Expr MulAndDiv_perchannel_upward(Expr data, std::vector<float> s, DataType dtype) {
+  //实现浮点数乘转化为乘定点数加移位。
+  std::vector<float> fixed_point_multipliers;
+  std::vector<float> shifts;
+  // here we assume the dtype of data is dtype activation
 
+  for (size_t i = 0; i < s.size(); i++) {
+
+    float factor  = s[i];
+    int32_t fixed_point_multiplier, shift;
+    std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift(factor);
+    ICHECK_LE(shift, 0);
+    fixed_point_multipliers.push_back(fixed_point_multiplier);
+    shifts.push_back(-shift);
+  }
+
+  data = Multiply(data, MakeConstantTensor(DataType::Int(64), {(int64_t)fixed_point_multipliers.size(),1,1}, fixed_point_multipliers)); 
+  data = RightShift(data, MakeConstantTensor(DataType::Int(64), {(int64_t)shifts.size(),1,1}, shifts));
+  return Cast(data, dtype);
+}
 
 Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
   //printf("quantizerealize\n");
@@ -208,16 +227,22 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
       data = Cast(data, DataType::Int(64));
       if(cfg->per_channel){
         //printf("3\n");
-        //data = Cast(data, DataType::Float(64));
+        
         data = Cast(data, DataType::Float(32));
-        //if 这个simulated_quantize算子！是！跟在conv后面
-        // //printf("\nsi/so:\n");
-        // for(int i=0; i<idom_scale_imms.size(); i++){
-        //   //printf("%lf",idom_scale_imms[i]);
-        // }
         data = Multiply(data, CheckPointSiso(Divide(Cast(n->dom_scale, DataType::Float(32)), dom_scale)));
-        //data = Multiply(data, (Divide(CheckPoint(Cast(n->dom_scale, DataType::Float(32))), dom_scale)));
         data = Cast(Round(data), DataType::Int(64));
+        
+       /*
+        auto si_s = tvm::relay::qnn::GetFloatVectorFromConstant(n->dom_scale);
+        auto so_s = tvm::relay::qnn::GetFloatVectorFromConstant(dom_scale);
+        std::vector<float> s;
+        for (size_t i = 0; i < si_s.size(); i++) {
+          float si_so = static_cast<float>(si_s[i]) / static_cast<float>(so_s[0]);
+          s.push_back(si_so);
+        }
+        data = MulAndDiv_perchannel_upward(data, s, DataType::Int(64));
+        //printf("MulAndDiv_perchannel_upward done\n");
+        */
       }
       else{
         if (cfg->rounding == "UPWARD") {
@@ -231,7 +256,9 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
         }
       }
       data = Add(data, (MakeConstantScalar(DataType::Int(64), zero_point_imm)));
-      data = (Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype));
+      //printf("Add done\n");
+      data = CheckPoint(Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype));
+      //printf("Clip done\n");
       //data = Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype);
       //printf("int32->int8 done\n");
       return QRealizeIntExpr(data, dom_scale, zero_point, n->dtype);
@@ -261,7 +288,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
   
 
   if(ref_call->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput){
-    round_data = (Clip(Round(zp_added), clip_min_imm, clip_max_imm));
+    round_data = CheckPoint(Clip(Round(zp_added), clip_min_imm, clip_max_imm));
     //round_data = Clip(Round(zp_added), clip_min_imm, clip_max_imm);
     }
 
@@ -731,6 +758,8 @@ RELAY_REGISTER_OP("add").set_attr<FForwardRewrite>("FQRealizeRewrite", AddRealiz
 Expr ClipRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
   //printf("ClipRealize\n");
   ICHECK_EQ(new_args.size(), 1);
+  const QConfig& cfg = QConfig::Current();
+  //printf("ClipRealize 1 \n");
   if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
 
     auto zero_points = tvm::relay::qnn::GetFloatVectorFromConstant(n->zero_point);
@@ -741,10 +770,22 @@ Expr ClipRealize(const Call& ref_call, const Array<Expr>& new_args, const Object
     //double dom_scale = GetScalarFromConstant<float>(n->dom_scale);
     auto dom_scales = tvm::relay::qnn::GetFloatVectorFromConstant(n->dom_scale);
     double dom_scale = static_cast<float>(dom_scales[0]);
-    attrs->a_min = ref_attrs->a_min / dom_scale - zero_point_imm;
-    attrs->a_max = ref_attrs->a_max / dom_scale - zero_point_imm;
-
-    Expr ret = Call(ref_call->op, {n->data}, Attrs(attrs), ref_call->type_args);
+    attrs->a_min = ref_attrs->a_min / dom_scale; 
+    attrs->a_max = ref_attrs->a_max / dom_scale; 
+    Expr ret;
+    Expr data = Subtract(n->data, MakeConstantScalar(DataType::Int(64), zero_point_imm));
+    
+    printf("%ld\n",dom_scales.size());
+    if(cfg->per_channel && dom_scales.size() > 1){
+      //printf("ClipRealize 8 \n");
+      ret = ClipPerChannel(data, dom_scales, ref_attrs->a_min, ref_attrs->a_max);
+      //printf("ClipRealize 9 \n");
+      //ret = Call(ref_call->op, {data}, Attrs(attrs), ref_call->type_args);
+    }
+    else{
+      //printf("ClipRealize 10 \n");
+      ret = Call(ref_call->op, {data}, Attrs(attrs), ref_call->type_args);
+    }
     Expr zero_point = MakeConstantScalar(DataType::Float(32), 0);//其实没必要存在，为了保证输入参数的统一。
     //printf("ClipRealize done\n");
     return QRealizeIntExpr(ret, n->dom_scale, zero_point, n->dtype);

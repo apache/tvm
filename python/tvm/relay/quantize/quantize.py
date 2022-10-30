@@ -93,19 +93,21 @@ def calculate_consine_similar(original_mod, quantized_mod, target, params, datas
     assert dataset
 
     dev = tvm.device(str(target), 0)
-
+    print("1")
     with tvm.transform.PassContext(opt_level=3):
         original_lib = relay.build(original_mod, target=target, params=params)
-    
+    print("2")
     with tvm.transform.PassContext(opt_level=3):
         quantized_lib = relay.build(quantized_mod, target=target, params=params)
-
+    print("3")
     original_module = graph_executor.GraphModule(original_lib["default"](dev))
+    print("4")
     quantized_module = graph_executor.GraphModule(quantized_lib["default"](dev))
-    
+    print("5")
     batch_count = 0
     cos_similar_result = 0
     batch_cos_list = []
+    print("6")
     for batch in tqdm.tqdm(dataset):
         original_module.set_input(**batch)
         original_module.run()

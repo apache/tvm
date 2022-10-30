@@ -2993,6 +2993,17 @@ InferCorrectLayoutOutput SplitInferCorrectLayout(const Attrs& attrs,
   return InferCorrectLayoutOutput({ret}, {Array<Layout>(size, ret)}, Attrs(param));
 }
 
+template <typename ValueType = int64_t>
+std::vector<ValueType> GetConcreteCC(const Array<PrimExpr>& vals) {
+  std::vector<ValueType> concrete;
+  for (const auto& v : vals) {
+    auto* val = v.as<IntImmNode>();
+    ICHECK(val);
+    concrete.push_back(val->value);
+  }
+  return concrete;
+}
+
 bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
               const TypeReporter& reporter) {
   // `types` contains: [data, result]
@@ -3011,6 +3022,17 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
     if (!data->shape[axis].as<AnyNode>()) {
+      if (reporter->Assert(indexmod(data->shape[axis], sections->value) !=
+                              tir::make_zero(DataType::Int(64)))) {
+          auto n   = GetConcreteCC(data->shape);
+          printf("data->shape[axis]:%ld,sections->value:%ld\n",data->shape[axis],sections->value);
+          printf("data size is %ld.\n", data->shape.size());
+          printf("This wrong data shape is:[");
+          for (int i=0; i < data->shape.size(); ++i) {
+            printf("%ld ", data->shape[i]);
+          }
+          printf("]\n");
+      }
       ICHECK(reporter->Assert(indexmod(data->shape[axis], sections->value) ==
                               tir::make_zero(DataType::Int(64))))
           << "indices_or_sections need to be able to divide input.shape[axis]";

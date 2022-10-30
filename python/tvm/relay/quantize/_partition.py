@@ -58,8 +58,14 @@ def identity_partition_function(ref_call, new_args, ctx):
         return QPartitionExpr(_forward_op(ref_call, [expr]))
     return None
 
+def clip_partition_function(ref_call, new_args, ctx):
+    cond, expr = partition_expr_check(new_args[0])
+    if cond:
+        expr = new_args[0].realize()
+        return QPartitionExpr(_forward_op(ref_call, [expr]))
+    return None
 
-register_partition_function("clip", identity_partition_function)
+register_partition_function("clip", clip_partition_function)
 register_partition_function("nn.relu", identity_partition_function)
 register_partition_function("nn.max_pool2d", identity_partition_function)
 
