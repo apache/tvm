@@ -117,7 +117,7 @@ def transformed_input_quant(input_quant, layout):
 #     return weight_quant
 
 # Test combinations of the following:
-# dtype in (float16, uint8, int8)
+# dtype in (float16, uint8)
 # num_croutons in (1, 2)
 # bias_enabled in (true, false)
 class TestDenseSlice:
@@ -125,20 +125,6 @@ class TestDenseSlice:
         (  # Float 16
             [1, 1024],
             [1, 1024],
-            "nc-1024c-2d",
-            False,
-            "float16",
-        ),
-        (
-            [1, 1024],
-            [1, 1024],
-            "nc-1024c-2d",
-            True,
-            "float16",
-        ),
-        (
-            [1, 2048],
-            [1, 2048],
             "nc-1024c-2d",
             False,
             "float16",
@@ -158,53 +144,11 @@ class TestDenseSlice:
             "uint8",
         ),
         (
-            [1, 2048],
-            [1, 2048],
-            "nc-2048c-2d",
-            True,
-            "uint8",
-        ),
-        (
-            [1, 4096],
-            [1, 4096],
-            "nc-2048c-2d",
-            False,
-            "uint8",
-        ),
-        (
             [1, 4096],
             [1, 4096],
             "nc-2048c-2d",
             True,
             "uint8",
-        ),
-        (  # Int 8
-            [1, 2048],
-            [1, 2048],
-            "nc-2048c-2d",
-            False,
-            "int8",
-        ),
-        (
-            [1, 2048],
-            [1, 2048],
-            "nc-2048c-2d",
-            True,
-            "int8",
-        ),
-        (
-            [1, 4096],
-            [1, 4096],
-            "nc-2048c-2d",
-            False,
-            "int8",
-        ),
-        (
-            [1, 4096],
-            [1, 4096],
-            "nc-2048c-2d",
-            True,
-            "int8",
         ),
     )
 
@@ -248,8 +192,6 @@ class TestDenseSlice:
         quant_arr,
         hexagon_session: Session,
     ):
-        if hexagon_session._launcher._serial_number != "simulator":
-            pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11928")
 
         target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape, name="A", dtype=dtype)
