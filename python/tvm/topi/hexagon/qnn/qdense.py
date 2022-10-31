@@ -45,11 +45,29 @@ def qdense_compute(
     tensor_b : tvm.te.Tensor
         weight 2-D with shape [in_dim, out_dim]
 
+    zero_a : integer
+        quantization zero point for tensor a.
+
+    scale_a : float
+        quantization scale for tensor a.
+
+    zero_b : integer
+        quantization zero point for tensor b.
+
+    scale_b : float
+        quantization scale for tensor b.
+
+    zero_out : Optional[integer]
+        quantization zero point for output.
+
+    scale_out : Optional[float]
+        quantization scale for output.
+
     bias : Optional[tvm.te.Tensor]
         1-D with shape [out_dim]
 
-    out_dtype : Optional[str]
-        The output type. This is used for mixed precision.
+    q_dtype : Optional[str]
+        The output type.
 
     Returns
     -------
