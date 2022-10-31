@@ -139,7 +139,7 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
   Array<ScheduleRule> results{ScheduleRule::MultiLevelTilingTensorCore(
       /*intrin_groups=*/intrin_groups,
       /*structure=*/"SSSRRSRS",
-      /*tile_binds=*/Array<String>{"blockIdx.x", "vthread.x", "threadIdx.x"},
+      /*tile_binds=*/Array<String>{"blockIdx.y", "blockIdx.x", "threadIdx.y"},
       /*max_innermost_factor=*/Integer(4),
       /*vector_load_lens=*/Array<Integer>{1, 2, 3, 4, 8, 16},
       /*reuse_read=*/
