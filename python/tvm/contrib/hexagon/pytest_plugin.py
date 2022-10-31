@@ -93,7 +93,7 @@ def get_free_port() -> int:
     global PREVIOUS_PORT
     global RNG_SEEDED
 
-    if not RNG_SEEDED:
+    if tvm.testing.utils.IS_IN_CI and not RNG_SEEDED:
         random.seed(0)
         RNG_SEEDED = True
 
