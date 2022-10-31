@@ -45,12 +45,10 @@ python3 tests/scripts/task_build.py \
     --cmake-target cpptest \
     --build-dir "${BUILD_DIR}"
 
-# crttest requries USE_MICRO to be enabled.
-if grep -Fq "USE_MICRO ON" ${BUILD_DIR}/TVMBuildOptions.txt; then
-  pushd "${BUILD_DIR}"
-  ninja crttest
-  popd
-fi
+# Build crttest
+pushd "${BUILD_DIR}"
+ninja crttest
+popd
 
 pushd "${BUILD_DIR}"
 ctest --gtest_death_test_style=threadsafe
