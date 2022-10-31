@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-10-19T13:44:32.119961
+// Generated at 2022-10-31T16:12:47.703148
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -677,7 +677,7 @@ def fsim_test(image) {
 
 def cmake_build(image, path, make_flag) {
   sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod",
+    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --build-dir ${path}",
     label: 'Run cmake build',
   )
 }
@@ -761,8 +761,9 @@ stage('Build') {
 
 
           // compiler test
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
-          make("${ci_gpu} --no-gpu", 'build2', '-j2')
+          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_clean.sh build",
+          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
+          make("${ci_gpu} --no-gpu", 'build', '-j2')
           sh(
             script: """
               set -eux
