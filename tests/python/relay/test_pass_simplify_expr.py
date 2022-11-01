@@ -698,5 +698,36 @@ def test_simplify_dq_argsort():
     assert tvm.ir.structural_equal(opt, after)
 
 
+def test_simplify_clip_cast():
+    x = relay.var("x", shape=(4, 8), dtype="int32")
+
+    def before():
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        cast = relay.cast(clip, "uint8")
+        return relay.cast(cast, "int32")
+
+    def expected():
+        return relay.clip(x, a_min=0.0, a_max=255.0)
+
+    opt = run_opt_pass(before(), transform.SimplifyExpr())
+    ref = run_infer_type(expected())
+    assert tvm.ir.structural_equal(opt, ref)
+
+
+def test_simplify_cast_clip():
+    x = relay.var("x", shape=(4, 8), dtype="int32")
+
+    def before():
+        cast = relay.cast(x, "uint8")
+        return relay.clip(cast, a_min=0.0, a_max=255.0)
+
+    def expected():
+        return relay.cast(x, "uint8")
+
+    opt = run_opt_pass(before(), transform.SimplifyExpr())
+    ref = run_infer_type(expected())
+    assert tvm.ir.structural_equal(opt, ref)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
