@@ -272,6 +272,9 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleDecomposePadding")
     .set_body_method<Schedule>(&ScheduleNode::DecomposePadding);
 TVM_REGISTER_GLOBAL("tir.schedule.SchedulePadEinsum")
     .set_body_method<Schedule>(&ScheduleNode::PadEinsum);
+/******** (FFI) Buffer transformation ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRollingBuffer")
+    .set_body_method<Schedule>(&ScheduleNode::RollingBuffer);
 /******** (FFI) Misc ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleEnterPostproc")
     .set_body_method<Schedule>(&ScheduleNode::EnterPostproc);

@@ -533,6 +533,22 @@ TVM_DLL StmtSRef DecomposePadding(ScheduleState self, const StmtSRef& block_sref
 TVM_DLL void PadEinsum(ScheduleState self, const StmtSRef& block_sref,
                        const Array<Integer>& padding);
 
+/******** Schedule: Buffer transformation ********/
+/*!
+ * \brief Compute the target buffer via rolling buffering.
+ * \details This primitive selects the outermost rollable axis with a positive bound overlap that
+ * appears in the block's ancestor loops as `rolling axis`, fold and circularize the buffer along
+ * the rolling dimension, append block predicate to avoid recomputing overlapping elements.
+ * It requires:
+ * 1) The buffer to be an intermediate buffer defined via `alloc_buffer`.
+ * 2) The LCA of the producer and consumer of the buffer is a for loop, typically,
+ *    the producer and consumer of the buffer are cascaded through compute_at.
+ * 3) The access region of the buffer has at least one dimension that contains
+ *    a positive bound overlap.
+ * \param block_rv The producer block of the buffer.
+ * \param write_buffer_index The index of the buffer in block's write region.
+ */
+TVM_DLL void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buffer_index);
 /******** Schedule: Misc ********/
 
 }  // namespace tir
