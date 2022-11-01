@@ -25,6 +25,7 @@ Otherwise use the tf1.x converter:
 """
 
 import numpy as np
+import tensorflow as tf
 from tensorflow.python.framework import function_def_to_graph, tensor_util, dtypes
 
 import tvm
@@ -839,16 +840,21 @@ def from_tensorflow(graph_def, layout="NHWC", shape=None, outputs=None):
 
     """
 
-    # Subgraph graph_defs are cached here to avoid a TF error when parsing after prelude init
-    graph_def_library = {}
-    for func in graph_def.library.function:
-        inshape = func.attr["_input_shapes"].list.shape
-        graph_def_library[func.signature.name], _ = function_def_to_graph.function_def_to_graph_def(
-            func, inshape
+    with tf.Graph().as_default():
+        tf.import_graph_def(graph_def, name="")
+        # Subgraph graph_defs are cached here to avoid a TF error when parsing after prelude init
+        graph_def_library = {}
+        for func in graph_def.library.function:
+            inshape = func.attr["_input_shapes"].list.shape
+            (
+                graph_def_library[func.signature.name],
+                _,
+            ) = function_def_to_graph.function_def_to_graph_def(func, inshape)
+        module = RelayModule()
+        g = GraphProto(module)
+        func, params = g.from_tensorflow(
+            graph_def, layout, shape, outputs, gdef_lib=graph_def_library
         )
-    module = RelayModule()
-    g = GraphProto(module)
-    func, params = g.from_tensorflow(graph_def, layout, shape, outputs, gdef_lib=graph_def_library)
-    module.mod["main"] = func
-    module.params.update(params)
-    return module.mod, module.params
+        module.mod["main"] = func
+        module.params.update(params)
+        return module.mod, module.params
