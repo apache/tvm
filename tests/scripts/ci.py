@@ -153,7 +153,7 @@ def docker(
     scripts: List[str],
     env: Dict[str, str],
     interactive: bool,
-    additional_flags: Dict[str, str],
+    additional_flags: Optional[Dict[str, str]] = None,
 ):
     """
     Invoke a set of bash scripts through docker/bash.sh
@@ -204,9 +204,10 @@ def docker(
         command.append("--env")
         command.append(f"{key}={value}")
 
-    for key, value in additional_flags.items():
-        command.append(key)
-        command.append(value)
+    if additional_flags is not None:
+        for key, value in additional_flags.items():
+            command.append(key)
+            command.append(value)
 
     SCRIPT_DIR.mkdir(exist_ok=True)
 
@@ -357,7 +358,7 @@ def generate_command(
     help: str,
     precheck: Optional[Callable[[], None]] = None,
     post_build: Optional[List[str]] = None,
-    additional_flags: Dict[str, str] = {},
+    additional_flags: Optional[Dict[str, str]] = None,
 ):
     """
     Helper to generate CLIs that:
