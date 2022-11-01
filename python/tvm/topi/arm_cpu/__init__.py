@@ -29,3 +29,4 @@ from .injective import *
 from .group_conv2d import *
 from .pooling import *
 from .dense import *
+from .qnn import *

@@ -27,19 +27,13 @@ import tensorflow as tf
 import tvm
 import tvm.testing
 from tvm import relay
-from relay
 from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
 from tvm.micro.testing.aot_test_utils import AOT_CORSTONE300_RUNNER
 from tvm.contrib.download import download_testdata
+from test_generalized_conv2d import change_ndarray_layout
 
 MODEL_URL = "https://github.com/mlcommons/tiny/raw/master/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite"
 SAMPLE_URL = "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/elephant-299.jpg"
-
-def _tf_tensor_to_numpy(tensor, src_layout, dst_layout):
-    assert src_layout.isalpha() and dst_layout.isalpha()
-    axis_order = [src_layout.index(c) for c in dst_layout]
-    return np.transpose(tensor.numpy(), axis_order)
-
 
 @pytest.fixture(scope="module")
 def interpreter(request):
@@ -136,17 +130,26 @@ def _get_kernel_details(details, layer_num):
     return detail
 
 
-def _get_quant_scale_const(quantization_dict):
-    return relay.const(quantization_dict["zero_points"], "int32")
+def _get_quant_scale_const(quantization_dict, as_scalar=False):
+    scales = quantization_dict["scales"]
+    if as_scalar:
+        assert len(scales) == 1
+        scales = scales[0]
+    return relay.const(scales, "float32")
 
 
-def _get_quant_zp_const(quantization_dict):
-    return relay.const(quantization_dict["scale"], "float32")
+def _get_quant_zp_const(quantization_dict, as_scalar = False):
+    zero_points = quantization_dict["zero_points"]
+    if as_scalar:
+        assert len(zero_points) == 1
+        zero_points = zero_points[0]
+    return relay.const(zero_points, "int32")
 
 
 
 
-@pytest.mark.parametrize("layer", range(27))
+
+@pytest.mark.parametrize("layer", range(1))
 @tvm.testing.requires_corstone300
 def test_qnn_conv2d_mobilenetv1_layer(layer, interpreter):
     in_dtype = "int8"
@@ -170,11 +173,9 @@ def test_qnn_conv2d_mobilenetv1_layer(layer, interpreter):
         new_inputs_layout, new_kernel_layout, new_output_layout = "NHWC", "OHWI", "NCHW"
     else: # Depthwise conv2d
         new_inputs_layout, new_kernel_layout, new_output_layout = "NCHW", "OIHW", "NHWC"
-    inputs_ndarr = _tf_tensor_to_numpy(inputs_tensor, "NHWC", new_inputs_layout)
-    kernel_ndarr = _tf_tensor_to_numpy(kernel_tensor, "OHWI", new_kernel_layout)
-    biases_ndarr = biases_tensor.numpy()
-    output_ndarr = _tf_tensor_to_numpy(output_tensor, "NHWC", new_output_layout)
-    channel_axis_index = new_output_layout.index("C")
+    inputs_ndarr = change_ndarray_layout(inputs_tensor, "NHWC", new_inputs_layout)
+    kernel_ndarr = change_ndarray_layout(kernel_tensor, "OHWI", new_kernel_layout)
+    output_ndarr = change_ndarray_layout(output_tensor, "NHWC", new_output_layout)
 
     """Construct our Relay function out of a qnn.conv2d, bias_add, and qnn.requantize. These will be
     fused into a single schedule by te_compiler_cache.cc."""
@@ -182,44 +183,43 @@ def test_qnn_conv2d_mobilenetv1_layer(layer, interpreter):
     convolution = relay.qnn.op.conv2d(
         input_var,
         relay.const(kernel_ndarr, "int8"),
-        input_zero_point=_get_quant_zp_const(inputs_quant),
+        input_zero_point=_get_quant_zp_const(inputs_quant, as_scalar=True),
         kernel_zero_point=_get_quant_zp_const(kernel_quant),
-        input_scale=_get_quant_scale_const(inputs_quant),
+        input_scale=_get_quant_scale_const(inputs_quant, as_scalar=True),
         kernel_scale=_get_quant_scale_const(kernel_quant),
-        kernel_size=kernel_tensor.shape()[1:3],
+        kernel_size=(3, 3),
         data_layout=new_inputs_layout,
         kernel_layout=new_kernel_layout,
 
         dilation=(1, 1),
         strides=strides,
         padding=padding,
-        groups=(1 if layer % 2 == 0 else kernel_tensor.shape()[3]),
-        channels=kernel_tensor.shape()[3],
+        groups=(1 if layer % 2 == 0 else 3),
+        channels=8,
         out_dtype="int32",
     )
 
-    biased_convolution = relay.op.bias_add(
+    biased_convolution = relay.op.nn.bias_add(
         convolution,
-        relay.const(biases_ndarr, "int8"),
-        axis=channel_axis_index,
+        relay.const(biases_tensor, "int32"),
+        axis=3,
     )
 
     output = relay.qnn.op.requantize(
         biased_convolution,
         _get_quant_scale_const(biases_quant),
         _get_quant_zp_const(biases_quant),
-        _get_quant_scale_const(output_quant),
-        _get_quant_scale_const(output_quant),
-        axis=channel_axis_index,
-        rounding="int64",
-        out_dtype="int16",
+        _get_quant_scale_const(output_quant, as_scalar=True),
+        _get_quant_zp_const(output_quant, as_scalar=True),
+        axis=3,
+        out_dtype="int8",
     )
 
     test_function = relay.Function([input_var], output)
     test_model = AOTTestModel(
         module=tvm.IRModule.from_expr(test_function),
         inputs={"input": inputs_ndarr},
-        outputs=output_ndarr,
+        outputs={"Identity": output_ndarr},
     )
 
     compile_and_run(
@@ -232,4 +232,5 @@ def test_qnn_conv2d_mobilenetv1_layer(layer, interpreter):
             "-mcpu": "cortex-m4",
         },
         schedule_name=schedule_name,
+        verbose=True,
     )

@@ -23,8 +23,8 @@ from ... import op as _op
 from ...op.strategy.generic import is_depthwise_conv2d
 
 @qnn_conv2d_strategy.register("arm_cpu")
-def qnn_conv2d_strategy_hexagon(attrs, inputs, out_type, target):
-    """qnn.conv2d strategy for Hexagon"""
+def qnn_conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
+    """qnn.conv2d strategy for Arm CPU"""
     data = inputs[0]
     kernel = inputs[1]
     data_layout = attrs.data_layout
@@ -36,14 +36,14 @@ def qnn_conv2d_strategy_hexagon(attrs, inputs, out_type, target):
             strategy.add_implementation(
                 wrap_topi_qnn_conv2d(topi.arm_cpu.qnn_conv2d),
                 wrap_topi_schedule(topi.arm_cpu.schedule_qnn_conv2d),
-                name="qnn_conv2d.hexagon",
+                name="qnn_conv2d.arm_cpu",
             )
     elif is_depthwise_conv2d(data.shape, data_layout, kernel.shape, kernel_layout, groups):
         if data_layout == "NCHW" and kernel_layout == "OIHW":
             strategy.add_implementation(
                 wrap_topi_qnn_conv2d(topi.arm_cpu.qnn_depthwise_conv2d),
                 wrap_topi_schedule(topi.arm_cpu.schedule_qnn_depthwise_conv2d),
-                name="qnn_depthwise_conv2d.hexagon",
+                name="qnn_depthwise_conv2d.arm_cpu",
             )
     else:
         raise RuntimeError("Unsupported strategy for group qnn.conv2d")
