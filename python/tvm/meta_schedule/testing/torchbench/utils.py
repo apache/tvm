@@ -64,8 +64,7 @@ from torchbench import TorchBenchmarkRunner  # type: ignore
 
 
 def load_torchdynamo_benchmark_runner(
-    is_cuda: bool, cosine_similarity: bool = False,
-    float32: bool = False
+    is_cuda: bool, cosine_similarity: bool = False, float32: bool = False
 ) -> TorchBenchmarkRunner:
     """
     Load the benchmark runner from TorchDynamo.

@@ -98,7 +98,7 @@ import sys
 import warnings
 from collections import defaultdict
 from enum import Enum
-from typing import Callable, List, Tuple
+from typing import Callable, List, Tuple, Dict
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
@@ -377,7 +377,7 @@ def get_graph_executor_forward(
     # It has to lazily import this package, loading the C++ PyTorch integration
     # after the transformers package is imported when loading model. Otherwise
     # there will be segfault caused by the protobuf library.
-    import tvm.contrib.torch  # pylint: disable=import-outside-toplevel, unused-import
+    import tvm.contrib.torch  # pylint: disable=import-outside-toplevel, unused-import, redefined-outer-name
 
     save_runtime_mod = get_global_func("tvmtorch.save_runtime_mod", allow_missing=True)
     if save_runtime_mod is None:
@@ -442,7 +442,7 @@ def create_tvm_task_collection_backend() -> Tuple[Callable, List[ms.ExtractedTas
     os.makedirs(subgraphs_dir, exist_ok=True)
 
     collected_tasks = []
-    task_index = defaultdict(list)
+    task_index: Dict[int, List[ms.ExtractedTask]] = defaultdict(list)
 
     def collect_task(task):
         task_hash = tvm.ir.structural_hash(task.dispatched[0])
@@ -547,7 +547,8 @@ def inspect_output_error(output, expected):
     """
     if not isinstance(output, torch.Tensor):
         logger.info(
-            f"Unsupported type for error inspection: {type(output).__name__}. Please manually check output.pt"
+            f"Unsupported type for error inspection: {type(output).__name__}."
+            f"Please manually check output.pt"
         )
         return
     output = output.cpu().float()
@@ -596,7 +597,8 @@ def inspect_output_error(output, expected):
     logger.error(f"Absolute Error\n{format_error_table(abs_error, abs_error_bins)}")
     logger.error(f"Relative Error\n{format_error_table(rel_error, rel_error_bins)}")
     logger.error(
-        f"Max absolute error for position with large relative error (> 1): {abs_error_with_large_rel_error.max()}"
+        f"Max absolute error for position with large relative error (> 1):"
+        f"{abs_error_with_large_rel_error.max()}"
     )
 
 
