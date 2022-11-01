@@ -26,6 +26,9 @@
 
 #include <tvm/tir/op.h>
 
+#include <algorithm>
+#include <limits>
+
 namespace tvm {
 namespace relay {
 
@@ -147,7 +150,8 @@ StorageToken* TokenAllocator2D::Request(StorageToken* prototype) {
   if (min_added_size_x == 0 && min_added_size_y == 0) {
     // use existing block
     free_list_.erase(best_storage_id);
-    best_mem.token_->ref_counter += prototype->ref_counter;
+    best_mem.token_ = prototype;
+    best_mem.token_->ref_counter += 1;
     return best_mem.token_;
   } else if (min_added_size_x <= shape.width || min_added_size_y <= shape.height) {
     // Reset the reference counter of the now live token
@@ -194,4 +198,3 @@ runtime::Texture2DShape<int64_t> TokenAllocator2D::GetSize2D(StorageToken* proto
 
 }  // namespace relay
 }  // namespace tvm
-

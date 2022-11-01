@@ -27,6 +27,12 @@
 #include <tvm/relay/type.h>
 #include <tvm/target/virtual_device.h>
 
+#include <map>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
 #include "../../runtime/texture.h"
 
 namespace tvm {
@@ -138,7 +144,7 @@ class TokenAllocator2D {
    */
   runtime::Texture2DShape<int64_t> GetSize2D(StorageToken* prototype);
 
- private:
+ protected:
   struct MemBlock {
     StorageToken* token_;
     int64_t x_;
