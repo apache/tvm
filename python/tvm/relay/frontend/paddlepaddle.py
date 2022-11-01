@@ -778,7 +778,7 @@ def convert_interpolate(g, op, block):
         for name in input_size_tensor:
             size = g.get_node(name)
             if len(infer_shape(size)) == 0:
-                shape = _op.reshape(shape, [-1])
+                size = _op.reshape(size, [-1])
             out_size.append(size)
         out_size = _op.concatenate(out_size, axis=0)
         out_size, infered = try_infer_value(out_size, parameters=g.get_params())
