@@ -15,15 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# pylint: disable=invalid-name,redefined-outer-name
 """ OpenCL testing fixtures used to deduce testing argument
     values from testing parameters """
 
-
 import pytest
 
-import tvm
-import tvm.testing
 
-pytest_plugins = [
-    "tvm.contrib.opencl.pytest_plugin",
-]
+def pytest_addoption(parser):
+    """Add pytest options."""
+
+    parser.addoption("--gtest_args", action="store", default="")
+
+
+def pytest_generate_tests(metafunc):
+    option_value = metafunc.config.option.gtest_args
+    if "gtest_args" in metafunc.fixturenames and option_value is not None:
+        metafunc.parametrize("gtest_args", [option_value])
