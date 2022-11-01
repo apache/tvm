@@ -96,7 +96,6 @@ stage('Build') {
     sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_clean.sh build",
     sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
     make("${ci_gpu} --no-gpu", 'build', '-j2')
-    {{ m.upload_artifacts(tag='gpu2', filenames=tvm_multilib) }}
   {% endcall %}
 
   {% call m.build_step(
