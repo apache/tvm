@@ -88,13 +88,22 @@ stage('Build') {
       ws='tvm/build-gpu',
       docker_image='ci_gpu',
     ) %}
-    sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
+    sh(
+      script: "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build",
+      label: "Create GPU cmake config"
+    )
     make("${ci_gpu} --no-gpu", 'build', '-j2')
     {{ m.upload_artifacts(tag='gpu', filenames=tvm_multilib, folders=microtvm_template_projects) }}
 
     // compiler test
-    sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_clean.sh build",
-    sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
+    sh(
+      script: "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_clean.sh build",
+      label: "Clean build workspace"
+    )
+    sh(
+      script: "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build",
+      label: "Create GPU other cmake config"
+    )
     make("${ci_gpu} --no-gpu", 'build', '-j2')
   {% endcall %}
 

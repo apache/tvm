@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-11-01T15:54:54.217190
+// Generated at 2022-11-01T10:45:41.961024
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -740,7 +740,10 @@ stage('Build') {
           init_git()
           docker_init(ci_gpu)
           timeout(time: max_time, unit: 'MINUTES') {
-            sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
+            sh(
+            script: "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build",
+            label: "Create GPU cmake config"
+          )
           make("${ci_gpu} --no-gpu", 'build', '-j2')
           sh(
             script: """
@@ -761,8 +764,14 @@ stage('Build') {
 
 
           // compiler test
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_clean.sh build",
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
+          sh(
+            script: "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_clean.sh build",
+            label: "Clean build workspace"
+          )
+          sh(
+            script: "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build",
+            label: "Create GPU other cmake config"
+          )
           make("${ci_gpu} --no-gpu", 'build', '-j2')
           }
         }
