@@ -81,6 +81,15 @@ linux operating systems, execute (in a terminal):
 
 Note that the version of CMake on apt may not be sufficiently up to date; it may be necessary to install it directly from `Kitware's third-party APT repository <https://apt.kitware.com/>`_.
 
+
+On Fedora/CentOS and related operating systems use:
+
+.. code:: bash
+
+    sudo dnf update
+    sudo dnf groupinstall -y "Development Tools"
+    sudo dnf install -y python-devel ncurses-compat-libs zlib-devel cmake libedit-devel libxml2-devel
+
 Use Homebrew to install the required dependencies for macOS running either the Intel or M1 processors. You must follow the post-installation steps specified by
 Homebrew to ensure the dependencies are correctly installed and configured:
 
