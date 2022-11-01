@@ -17,32 +17,40 @@
 
 package org.apache.tvm;
 
-import org.apache.tvm.rpc.RPC;
-
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.tvm.rpc.RPC;
 
 public class Device {
+  /**
+   * Provides the same information as the C++ enums DLDeviceType and
+   * TVMDeviceExtType.
+   */
+  static final int kDLCPU = 1, kDLCUDA = 2, kDLCUDAHost = 3, kDLOpenCL = 4, kDLVulkan = 7,
+                   kDLMetal = 8, kDLVPI = 9, kDLROCM = 10, kDLROCMHost = 11, kDLExtDev = 12,
+                   kDLCUDAManaged = 13, kDLOneAPI = 14, kDLWebGPU = 15, kDLHexagon = 16,
+                   kDLAOCL = 32, kDLSDAccel = 33, kOpenGL = 34, kDLMicroDev = 35;
+
   private static final Map<Integer, String> MASK2STR = new HashMap<Integer, String>();
   private static final Map<String, Integer> STR2MASK = new HashMap<String, Integer>();
 
   static {
-    MASK2STR.put(1, "cpu");
-    MASK2STR.put(2, "cuda");
-    MASK2STR.put(4, "opencl");
-    MASK2STR.put(7, "vulkan");
-    MASK2STR.put(8, "metal");
-    MASK2STR.put(9, "vpi");
-    MASK2STR.put(14, "hexagon");
+    MASK2STR.put(kDLCPU, "cpu");
+    MASK2STR.put(kDLCUDA, "cuda");
+    MASK2STR.put(kDLOpenCL, "opencl");
+    MASK2STR.put(kDLVulkan, "vulkan");
+    MASK2STR.put(kDLMetal, "metal");
+    MASK2STR.put(kDLVPI, "vpi");
+    MASK2STR.put(kDLHexagon, "hexagon");
 
-    STR2MASK.put("cpu", 1);
-    STR2MASK.put("cuda", 2);
-    STR2MASK.put("cl", 4);
-    STR2MASK.put("opencl", 4);
-    STR2MASK.put("vulkan", 7);
-    STR2MASK.put("metal", 8);
-    STR2MASK.put("vpi", 9);
-    STR2MASK.put("hexagon", 14);
+    STR2MASK.put("cpu", kDLCPU);
+    STR2MASK.put("cuda", kDLCUDA);
+    STR2MASK.put("cl", kDLOpenCL);
+    STR2MASK.put("opencl", kDLOpenCL);
+    STR2MASK.put("vulkan", kDLVulkan);
+    STR2MASK.put("metal", kDLMetal);
+    STR2MASK.put("vpi", kDLVPI);
+    STR2MASK.put("hexagon", kDLHexagon);
   }
 
   /**
@@ -51,7 +59,7 @@ public class Device {
    * @return The created device
    */
   public static Device cpu(int devId) {
-    return new Device(1, devId);
+    return new Device(kDLCPU, devId);
   }
 
   public static Device cpu() {
@@ -64,7 +72,7 @@ public class Device {
    * @return The created device
    */
   public static Device cuda(int devId) {
-    return new Device(2, devId);
+    return new Device(kDLCUDA, devId);
   }
 
   public static Device cuda() {
@@ -77,7 +85,7 @@ public class Device {
    * @return The created device
    */
   public static Device opencl(int devId) {
-    return new Device(4, devId);
+    return new Device(kDLOpenCL, devId);
   }
 
   public static Device opencl() {
@@ -90,7 +98,7 @@ public class Device {
    * @return The created device
    */
   public static Device vulkan(int devId) {
-    return new Device(7, devId);
+    return new Device(kDLVulkan, devId);
   }
 
   public static Device vulkan() {
@@ -103,7 +111,7 @@ public class Device {
    * @return The created device
    */
   public static Device metal(int devId) {
-    return new Device(8, devId);
+    return new Device(kDLMetal, devId);
   }
 
   public static Device metal() {
@@ -116,7 +124,7 @@ public class Device {
    * @return The created device
    */
   public static Device vpi(int devId) {
-    return new Device(9, devId);
+    return new Device(kDLVPI, devId);
   }
 
   public static Device vpi() {
@@ -129,7 +137,7 @@ public class Device {
    * @return The created device
    */
   public static Device hexagon(int devId) {
-    return new Device(14, devId);
+    return new Device(kDLHexagon, devId);
   }
 
   public static Device hexagon() {
@@ -153,8 +161,8 @@ public class Device {
    * @return true if exists.
    */
   public boolean exist() {
-    TVMValue ret = APIInternal.get("_GetDeviceAttr")
-        .pushArg(deviceType).pushArg(deviceId).pushArg(0).invoke();
+    TVMValue ret =
+        APIInternal.get("_GetDeviceAttr").pushArg(deviceType).pushArg(deviceId).pushArg(0).invoke();
     return ((TVMValueLong) ret).value != 0;
   }
 
@@ -163,8 +171,8 @@ public class Device {
    * @return the maximum thread number.
    */
   public long maxThreadsPerBlock() {
-    TVMValue ret = APIInternal.get("_GetDeviceAttr")
-        .pushArg(deviceType).pushArg(deviceId).pushArg(1).invoke();
+    TVMValue ret =
+        APIInternal.get("_GetDeviceAttr").pushArg(deviceType).pushArg(deviceId).pushArg(1).invoke();
     return ((TVMValueLong) ret).value;
   }
 
@@ -173,8 +181,8 @@ public class Device {
    * @return the thread number.
    */
   public long warpSize() {
-    TVMValue ret = APIInternal.get("_GetDeviceAttr")
-        .pushArg(deviceType).pushArg(deviceId).pushArg(2).invoke();
+    TVMValue ret =
+        APIInternal.get("_GetDeviceAttr").pushArg(deviceType).pushArg(deviceId).pushArg(2).invoke();
     return ((TVMValueLong) ret).value;
   }
 
@@ -185,11 +193,13 @@ public class Device {
     Base.checkCall(Base._LIB.tvmSynchronize(deviceType, deviceId));
   }
 
-  @Override public int hashCode() {
+  @Override
+  public int hashCode() {
     return (deviceType << 16) | deviceId;
   }
 
-  @Override public boolean equals(Object other) {
+  @Override
+  public boolean equals(Object other) {
     if (other != null && other instanceof Device) {
       Device obj = (Device) other;
       return deviceId == obj.deviceId && deviceType == obj.deviceType;
@@ -197,7 +207,8 @@ public class Device {
     return false;
   }
 
-  @Override public String toString() {
+  @Override
+  public String toString() {
     if (deviceType >= RPC.RPC_SESS_MASK) {
       int tblId = deviceType / RPC.RPC_SESS_MASK - 1;
       int devType = deviceType % RPC.RPC_SESS_MASK;

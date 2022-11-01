@@ -195,44 +195,73 @@ class Device(ctypes.Structure):
     OpenCL.  Some properties may return None depending on whether an
     API exposes that particular property.
 
+    NOTE!  The integer values in MASK2STR and STR2MASK *must* correspond
+    to the values provided by the DLDeviceType and TVMDeviceExtType enums.
     """
+
+    kDLCPU = 1
+    kDLCUDA = 2
+    kDLCUDAHost = 3
+    kDLOpenCL = 4
+    kDLVulkan = 7
+    kDLMetal = 8
+    kDLVPI = 9
+    kDLROCM = 10
+    kDLROCMHost = 11
+    kDLExtDev = 12
+    kDLCUDAManaged = 13
+    kDLOneAPI = 14
+    kDLWebGPU = 15
+    kDLHexagon = 16
+    kDLAOCL = 32
+    kDLSDAccel = 33
+    kOpenGL = 34
+    kDLMicroDev = 35
 
     _fields_ = [("device_type", ctypes.c_int), ("device_id", ctypes.c_int)]
     MASK2STR = {
-        1: "cpu",
-        2: "cuda",
-        4: "opencl",
-        5: "aocl",
-        7: "vulkan",
-        8: "metal",
-        9: "vpi",
-        10: "rocm",
-        12: "ext_dev",
-        14: "hexagon",
-        15: "webgpu",
+        kDLCPU: "cpu",
+        kDLCUDA: "cuda",
+        kDLCUDAHost: "cuda_host",
+        kDLCUDAManaged: "cuda_managed",
+        kDLOpenCL: "opencl",
+        kDLVulkan: "vulkan",
+        kDLMetal: "metal",
+        kDLVPI: "vpi",
+        kDLROCM: "rocm",
+        kDLROCMHost: "rocm_host",
+        kDLExtDev: "ext_dev",
+        kDLOneAPI: "oneapi",
+        kDLWebGPU: "webgpu",
+        kDLHexagon: "hexagon",
+        kDLAOCL: "aocl",
+        kDLSDAccel: "sdaccel",
+        kOpenGL: "opengl",
+        kDLMicroDev: "microdev",
     }
+
     STR2MASK = {
-        "llvm": 1,
-        "stackvm": 1,
-        "cpu": 1,
-        "c": 1,
-        "test": 1,
-        "hybrid": 1,
-        "composite": 1,
-        "cuda": 2,
-        "nvptx": 2,
-        "cl": 4,
-        "opencl": 4,
-        "sdaccel": 4,
-        "aocl": 5,
-        "aocl_sw_emu": 5,
-        "vulkan": 7,
-        "metal": 8,
-        "vpi": 9,
-        "rocm": 10,
-        "ext_dev": 12,
-        "hexagon": 14,
-        "webgpu": 15,
+        "llvm": kDLCPU,
+        "stackvm": kDLCPU,
+        "cpu": kDLCPU,
+        "c": kDLCPU,
+        "test": kDLCPU,
+        "hybrid": kDLCPU,
+        "composite": kDLCPU,
+        "cuda": kDLCUDA,
+        "nvptx": kDLCUDA,
+        "cl": kDLOpenCL,
+        "opencl": kDLOpenCL,
+        "sdaccel": kDLOpenCL,
+        "aocl": kDLAOCL,
+        "aocl_sw_emu": kDLAOCL,
+        "vulkan": kDLVulkan,
+        "metal": kDLMetal,
+        "vpi": kDLVPI,
+        "rocm": kDLROCM,
+        "ext_dev": kDLExtDev,
+        "hexagon": kDLHexagon,
+        "webgpu": kDLWebGPU,
     }
 
     def __init__(self, device_type, device_id):

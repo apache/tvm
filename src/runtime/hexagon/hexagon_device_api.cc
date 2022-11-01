@@ -81,7 +81,7 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
 
   // NOTE: This check should be superfluous, but it's probably a good idea to leave it in
   // until the AoT executor's multi-device dispatch code is mature. --cconvey 2022-08-26
-  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon)
+  CHECK(dev.device_type == kDLHexagon)
       << "dev.device_type: " << dev.device_type << " DeviceName(" << dev.device_type
       << "): " << DeviceName(dev.device_type) << "";
 
@@ -162,14 +162,14 @@ void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
 void* HexagonDeviceAPI::AllocVtcmWorkspace(Device dev, int ndim, const int64_t* shape,
                                            DLDataType dtype, Optional<String> mem_scope) {
   // must be Hexagon device (not CPU)
-  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
+  CHECK(dev.device_type == kDLHexagon) << "dev.device_type: " << dev.device_type;
   CHECK((ndim == 1 || ndim == 2) && "Hexagon Device API supports only 1d and 2d allocations");
   return AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
 }
 
 void HexagonDeviceAPI::FreeVtcmWorkspace(Device dev, void* ptr) {
   // must be Hexagon device (not CPU)
-  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
+  CHECK(dev.device_type == kDLHexagon) << "dev.device_type: " << dev.device_type;
   FreeDataSpace(dev, ptr);
 }
 

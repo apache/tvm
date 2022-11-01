@@ -189,8 +189,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
    */
   bool IsValidDevice(DLDevice dev) {
     // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU
-    return (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
-           (DLDeviceType(dev.device_type) == kDLCPU);
+    return (dev.device_type == kDLHexagon) || (dev.device_type == kDLCPU);
   }
 
   //! \brief Manages runtime HexagonBuffer allocations
