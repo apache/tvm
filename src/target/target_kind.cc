@@ -309,6 +309,7 @@ TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<String>("march")
     .add_attr_option<Integer>("workspace-byte-alignment")
     .add_attr_option<Integer>("constants-byte-alignment")
+    .add_attr_option<Integer>("num-cores")
     .set_default_keys({"cpu"})
     .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
 
