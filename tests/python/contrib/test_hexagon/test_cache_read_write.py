@@ -220,3 +220,7 @@ def test_vtcm_lowering():
         "AllocateNode found in lowered IRModule, "
         "VTCM allocations should have been lowered to tir.nd_mem_alloc_with_scope"
     )
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
