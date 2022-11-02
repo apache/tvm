@@ -57,7 +57,7 @@ ci_wasm = 'tlcpack/ci-wasm:20221025-182121-e41d0ed6e'
 ci_i386 = 'tlcpack/ci-i386:20221025-182121-e41d0ed6e'
 ci_cortexm = 'tlcpack/ci-cortexm:20221025-182121-e41d0ed6e'
 ci_arm = 'tlcpack/ci-arm:20221025-182121-e41d0ed6e'
-ci_hexagon = 'tlcpack/ci-hexagon:20221025-182121-e41d0ed6e'
+ci_hexagon = 'tlcpack/ci-hexagon:20221102-060115-7536068e8'
 ci_riscv = 'tlcpack/ci-riscv:20221025-182121-e41d0ed6e'
 // <--- End of regex-scanned config.
 
