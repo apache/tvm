@@ -77,8 +77,10 @@ Array<Postproc> Postproc::DefaultCUDATensorCore() {
       Postproc::RewriteUnboundBlock(/*max_threadblocks=*/256),
       Postproc::RewriteParallelVectorizeUnroll(),
       Postproc::RewriteReductionBlock(),
-      Postproc::RewriteTensorize(/*vectorize_init_loop=*/false),
       Postproc::VerifyGPUCode(),
+      // RewriteTensorize is relatively expensive and it doesn't affect the validity of a sample, so
+      // run it only on samples that have passed VerifyGPUCode.
+      Postproc::RewriteTensorize(/*vectorize_init_loop=*/false),
   };
 }
 
