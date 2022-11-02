@@ -33,7 +33,7 @@ from . import _ffi_api, base, server
 class RPCSession(object):
     """RPC Client session module
 
-    Do not directly create the obhect, call connect
+    Do not directly create the object, call connect
     """
 
     # pylint: disable=invalid-name
