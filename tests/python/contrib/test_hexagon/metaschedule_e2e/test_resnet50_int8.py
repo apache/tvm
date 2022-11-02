@@ -14,11 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test Resnet50 int8 with MetaSchedule"""
+
 import os
-import numpy as np
-import pytest
 import tempfile
 from typing import Optional
+
+import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -32,14 +35,8 @@ from tvm.tir.schedule import BlockRV, Schedule
 from ..infrastructure import get_hexagon_target
 
 
-executor = relay.backend.Executor("graph", {"link-params": True})
-target = get_hexagon_target("v68")
-target_llvm = tvm.target.Target("llvm")
-model_json = "resnet50_int8.json"
-model_params = "resnet50_int8.params"
-
-
-def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
+def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher, target, executor):
+    """Tune VRMPY with auto tensorization."""
     sch_rules = [
         schedule_rule.AutoInline(
             into_producer=False,
@@ -137,26 +134,34 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
 @pytest.mark.skip("End-to-end tuning is skipped on CI.")
 @tvm.testing.requires_hexagon
 def test_resnet50(hexagon_launcher):
+    """Test Resnet50."""
+    model_json = "resnet50_int8.json"
+    executor = relay.backend.Executor("graph", {"link-params": True})
+    target_llvm = tvm.target.Target("llvm")
+    target_hexagon = get_hexagon_target("v68")
+
     if not os.path.exists(model_json):
         pytest.skip(msg="Run python export_models.py first.")
 
-    with open(model_json, "r") as fi:
-        mod = tvm.ir.load_json(fi.read())
+    with open(model_json, "r") as file:
+        mod = tvm.ir.load_json(file.read())
 
-    with open(model_params, "rb") as fi:
-        params = relay.load_param_dict(fi.read())
+    with open("resnet50_int8.params", "rb") as file:
+        params = relay.load_param_dict(file.read())
     inp = np.random.randn(1, 3, 224, 224).astype("float32")
     input_name = "image"
 
     do_tune = True
 
     if do_tune:
-        hexagon_lowered = tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher)
+        hexagon_lowered = tune_vrmpy_auto_tensorize(
+            mod, params, hexagon_launcher, target_hexagon, executor
+        )
     else:
         with tvm.transform.PassContext(opt_level=3):
             hexagon_lowered = relay.build(
                 mod,
-                tvm.target.Target(target, host=target),
+                tvm.target.Target(target_hexagon, host=target_hexagon),
                 params=params,
                 executor=executor,
             )
@@ -191,16 +196,16 @@ def test_resnet50(hexagon_launcher):
         print(debug_ex.profile(input_name=inp.copy()))
 
 
-def _schedule_packed_8x8x32_conv2d(do_tune: bool):
+def _schedule_packed_8x8x32_conv2d():
     """Manually schedule a conv2d block, created from TE compute op via CreatePrimFunc,
     using 8x8x32 packed layout.
     """
 
     def schedule_fn(sch, conv2d_block: Optional[BlockRV] = None) -> bool:
-        if conv2d_block == None:
+        if conv2d_block is None:
             try:
                 conv2d_block = sch.get_block("conv2d_NCHWc_int8")
-            except:
+            except ValueError:
                 return False
 
         assert "conv2d_NCHWc_int8" in sch.get(conv2d_block).annotations["schedule_rule"]
@@ -234,13 +239,13 @@ def _schedule_packed_8x8x32_conv2d(do_tune: bool):
             # be desirable to do this with coarser spatial granularity
             sch.compute_at(conv2d_block, loops[4])
 
-        def index_map_nchw32c_nchw8h8w32c(n, c, h, w, c32):
-            return [n, c, h // 8, w // 8, h % 8, w % 8, c32]
+        def index_map_nchw32c_nchw8h8w32c(n_batch, channel, height, width, channel_32):
+            return [n_batch, channel, height // 8, width // 8, height % 8, width % 8, channel_32]
 
         # Add cache for input and output activation layout transform,
         # note that weight is already in correct layout
-        input_cache = sch.cache_read(conv2d_block, 0, "global")
-        output_cache = sch.cache_write(outer_block, 0, "global")
+        input_cache = sch.cache_read(conv2d_block, 0, "global")  # pylint: disable=unused-variable
+        output_cache = sch.cache_write(outer_block, 0, "global")  # pylint: disable=unused-variable
         # Transform the layout of the input
         sch.transform_layout(
             conv2d_block, ("read", 0), index_map=index_map_nchw32c_nchw8h8w32c, pad_value=0
@@ -259,14 +264,16 @@ def _schedule_packed_8x8x32_conv2d(do_tune: bool):
 
 
 def tune_packed_8x8x32_template(mod, params, hexagon_launcher):
+    """Generate packed 8*8*32 template."""
+
     def schedule_rule_conv2d_packed_8x8x32(sch: Schedule, conv2d_block: BlockRV):
-        _schedule_packed_8x8x32_conv2d(do_tune=True)(sch, conv2d_block)
+        _schedule_packed_8x8x32_conv2d()(sch, conv2d_block)
         return [sch]
 
     register_func("meta_schedule.conv2d_NCHWc_int8", schedule_rule_conv2d_packed_8x8x32)
 
     def schedule_conv2d_for_tune(sch: Schedule):
-        _schedule_packed_8x8x32_conv2d(do_tune=True)(sch)
+        _schedule_packed_8x8x32_conv2d()(sch)
 
     # This line is necessary for link-params to take effect during
     # task extraction and relay.build(...).
@@ -314,17 +321,19 @@ def tune_packed_8x8x32_template(mod, params, hexagon_launcher):
         )
 
 
-@pytest.mark.skip("End-to-end tuning is skipped on CI.")
+# @pytest.mark.skip("End-to-end tuning is skipped on CI.")
 @tvm.testing.requires_hexagon
 def test_packed_8x8x32_resnet50(hexagon_launcher):
+    """Test packed 8*8*32 Resnet50"""
+    model_json = "resnet50_int8.json"
     if not os.path.exists(model_json):
         pytest.skip(msg="Run python export_models.py first.")
 
-    with open(model_json, "r") as fi:
-        mod = tvm.ir.load_json(fi.read())
+    with open(model_json, "r") as file:
+        mod = tvm.ir.load_json(file.read())
 
-    with open(model_params, "rb") as fi:
-        params = relay.load_param_dict(fi.read())
+    with open("resnet50_fp16.params", "rb") as file:
+        params = relay.load_param_dict(file.read())
     inp = np.random.randn(1, 3, 224, 224).astype("float32")
     input_name = "image"
 
@@ -360,3 +369,7 @@ def test_packed_8x8x32_resnet50(hexagon_launcher):
         ref_result = llvm_graph_mod.get_output(0).numpy()
 
         np.testing.assert_allclose(ref_result, hexagon_output, atol=1e-4, rtol=1e-5)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

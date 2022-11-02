@@ -29,6 +29,8 @@ from ..infrastructure import get_hexagon_target
 
 
 class TestAdaptivePool:
+    """Adaptive pool test class."""
+
     dshape, out_size, pool_type, layout = tvm.testing.parameters(
         ((1, 3, 112, 112), (1, 1), "max", "NCHW"),
         ((1, 3, 112, 112), (1, 1), "avg", "NCHW"),
@@ -58,6 +60,7 @@ class TestAdaptivePool:
 
     @tvm.testing.requires_hexagon
     def test_adaptive_pool(self, hexagon_session: Session, dshape, out_size, pool_type, layout):
+        """Test adaptive pool."""
         dtype = "float32"
         np_data = np.random.uniform(low=0, high=255, size=dshape).astype(dtype)
         np_out = tvm.topi.testing.adaptive_pool(np_data, out_size, pool_type, layout)
@@ -103,11 +106,12 @@ def verify_poolnd(
     count_include_pad=True,
     layout="NCW",
 ):
-    A = te.placeholder(input_shape, name="A")
+    """Pool test verification."""
+    a_tensor = te.placeholder(input_shape, name="a_tensor")
 
     if n == 1:
-        B = topi.nn.pool1d(
-            A,
+        b_tensor = topi.nn.pool1d(
+            a_tensor,
             kernel=kernel,
             stride=stride,
             dilation=dilation,
@@ -118,8 +122,8 @@ def verify_poolnd(
             count_include_pad=count_include_pad,
         )
     elif n == 2:
-        B = topi.nn.pool2d(
-            A,
+        b_tensor = topi.nn.pool2d(
+            a_tensor,
             kernel=kernel,
             stride=stride,
             dilation=dilation,
@@ -130,8 +134,8 @@ def verify_poolnd(
             count_include_pad=count_include_pad,
         )
     elif n == 3:
-        B = topi.nn.pool3d(
-            A,
+        b_tensor = topi.nn.pool3d(
+            a_tensor,
             kernel=kernel,
             stride=stride,
             dilation=dilation,
@@ -144,9 +148,9 @@ def verify_poolnd(
     else:
         raise ValueError(f"PoolND only supports n=1, 2, 3 got n={n}")
 
-    B = topi.nn.relu(B)
-    dtype = A.dtype
-    output_shape = [int(i) for i in B.shape]
+    b_tensor = topi.nn.relu(b_tensor)
+    dtype = a_tensor.dtype
+    output_shape = [int(i) for i in b_tensor.shape]
 
     input_np = np.random.uniform(low=0.001, size=input_shape).astype(dtype)
 
@@ -169,20 +173,22 @@ def verify_poolnd(
 
     with tvm.target.Target(get_hexagon_target("v68")):
         fschedule = topi.hexagon.schedule_pool
-        s = fschedule(B, layout)
+        s = fschedule(b_tensor, layout)
 
-    func = tvm.build(s, [A, B], get_hexagon_target("v68"), name="pool")
+    func = tvm.build(s, [a_tensor, b_tensor], get_hexagon_target("v68"), name="pool")
     mod = hexagon_session.load_module(func)
 
     dev = hexagon_session.device
     a = tvm.nd.array(input_np, dev)
-    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), dev)
+    b = tvm.nd.array(np.zeros(get_const_tuple(b_tensor.shape), dtype=dtype), dev)
     mod["pool"](a, b)
 
     tvm.testing.assert_allclose(b.numpy(), ref_np, rtol=1e-5)
 
 
 class TestPool1D:
+    """Pool1D test class."""
+
     (
         input_shape,
         kernel,
@@ -244,6 +250,7 @@ class TestPool1D:
         count_include_pad,
         layout,
     ):
+        """Test Pool1D."""
         verify_poolnd(
             hexagon_session,
             1,
@@ -260,6 +267,8 @@ class TestPool1D:
 
 
 class TestPool2D:
+    """Pool2D test class."""
+
     (
         input_shape,
         kernel,
@@ -321,6 +330,7 @@ class TestPool2D:
         count_include_pad,
         layout,
     ):
+        """Test Pool2D."""
         verify_poolnd(
             hexagon_session,
             2,
@@ -337,6 +347,8 @@ class TestPool2D:
 
 
 class TestPool3D:
+    """Pool3D test class."""
+
     (
         input_shape,
         kernel,
@@ -719,6 +731,7 @@ class TestPool3D:
         count_include_pad,
         layout,
     ):
+        """Test Pool3D."""
         verify_poolnd(
             hexagon_session,
             3,
