@@ -62,7 +62,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const BlockRealizeNode* op) {
 
 Stmt DataTypeLegalizer::VisitStmt_(const BlockNode* op) {
   Block new_block = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
-  Array<IterVar> new_iter_vars = MutateArray(new_block->iter_vars, [this](const IterVar& iter) {
+  Array<IterVar> new_iter_vars = MutateArray(new_block->iter_vars, [/*this*/](const IterVar& iter) {
     auto dtype = iter->var.dtype();
     if (iter->dom->min->dtype != dtype || iter->dom->extent->dtype != dtype) {
       IterVar new_iter = iter;
