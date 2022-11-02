@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,7 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euxo pipefail
-
-cd ${SRC_DIR}/python
-${PYTHON} setup.py install --single-version-externally-managed --record=/tmp/record.txt
+set(CMAKE_BUILD_TYPE Release)
+set(USE_RPC ON)
+set(USE_CPP_RPC OFF)
+set(USE_SORT ON)
+set(USE_RANDOM ON)
+set(USE_PROFILER ON)
+set(USE_LLVM ON)
+set(INSTALL_DEV ON)
+set(USE_LIBBACKTRACE AUTO)
+set(USE_METAL ON)
+set(CMAKE_OSX_DEPLOYMENT_TARGET 10.13)
+set(SUMMARIZE ON)

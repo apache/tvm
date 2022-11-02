@@ -20,7 +20,10 @@ import shutil
 import os
 import logging
 import sys
+import shlex
 import multiprocessing
+import os
+
 
 from pathlib import Path
 
@@ -29,31 +32,53 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts"))
 from cmd_utils import Sh, init_log, REPO_ROOT
 
+IS_WINDOWS = os.name == "nt"
+
 
 if __name__ == "__main__":
     init_log()
 
-    parser = argparse.ArgumentParser(description="List pytest nodeids for a folder")
+    parser = argparse.ArgumentParser(
+        description="Build TVM in CI (all unknown args are passed to CMake)"
+    )
     parser.add_argument("--sccache-bucket", required=False, help="sccache bucket name")
     parser.add_argument("--build-dir", default="build", help="build folder")
     parser.add_argument("--cmake-target", help="optional build target")
-    args = parser.parse_args()
+    parser.add_argument("--cc", help="c sccache wrapper", default="/opt/sccache/cc")
+    parser.add_argument("--c++", help="c++ sccache wrapper", default="/opt/sccache/c++")
+    parser.add_argument("--no-cc", help="dont set compiler wrappers", action="store_true")
+    args, other = parser.parse_known_args()
 
     env = {"VTA_HW_PATH": str(Path(os.getcwd()) / "3rdparty" / "vta-hw")}
     sccache_exe = shutil.which("sccache")
 
     use_sccache = sccache_exe is not None
     build_dir = Path(os.getcwd()) / args.build_dir
+    build_dir.mkdir(exist_ok=True, parents=True)
     build_dir = build_dir.relative_to(REPO_ROOT)
 
     if use_sccache:
         if args.sccache_bucket:
             env["SCCACHE_BUCKET"] = args.sccache_bucket
+            env["SCCACHE_REGION"] = "us-west-2"
+            if "AWS_ACCESS_KEY_ID" in os.environ and "AWS_SECRET_ACCESS_KEY" in os.environ:
+                logging.info("Found environment variable credentials, passing them through")
+                env["AWS_ACCESS_KEY_ID"] = os.environ["AWS_ACCESS_KEY_ID"]
+                env["AWS_SECRET_ACCESS_KEY"] = os.environ["AWS_SECRET_ACCESS_KEY"]
+            else:
+                logging.info("No AWS credentials found")
+                logging.info(f"env: {os.environ.keys()}")
+                logging.info(f"env: {os.environ}")
             logging.info(f"Using sccache bucket: {args.sccache_bucket}")
         else:
             logging.info(f"No sccache bucket set, using local cache")
-        env["CXX"] = "/opt/sccache/c++"
-        env["CC"] = "/opt/sccache/cc"
+        if IS_WINDOWS or args.no_cc:
+            logging.info(f"Detected Windows, not setting c compilers")
+        else:
+            logging.info(f"Using c compiler {args.cc}")
+            logging.info(f"Using c++ compiler {getattr(args, 'c++')}")
+            env["CXX"] = getattr(args, "c++")
+            env["CC"] = args.cc
 
     else:
         if sccache_exe is None:
@@ -76,7 +101,10 @@ if __name__ == "__main__":
     available_cpus = nproc // executors
     num_cpus = max(available_cpus, 1)
 
-    sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
+    command = ["cmake", "-GNinja", "-DCMAKE_BUILD_TYPE=RelWithDebInfo"]
+    command += other
+    command.append("..")
+    sh.run(" ".join([shlex.quote(arg) for arg in command]), cwd=build_dir)
 
     target = ""
     if args.cmake_target:

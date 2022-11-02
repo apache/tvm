@@ -42,40 +42,94 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: 'recursive'
-      - name: Set up environment
-        uses: ./.github/actions/setup
-      - name: Conda Build
-        shell: bash -l {0}
-        run: >-
-          conda build --output-folder=conda/pkg  conda/recipe &&
-          conda install tvm -c ./conda/pkg
-      - name: Build iOS RPC
+      - name: Set up
         run: |
+          set -x
+          brew update
+          brew install sccache
+          mkdir -p ~/.sccache
+          ln -s "$(which sccache)" ~/.sccache/cc
+          ln -s "$(which sccache)" ~/.sccache/c++
+          brew install --cask micromamba
+          eval "$(micromamba shell hook --shell=bash)"
+          micromamba create -f ci/micro.yaml
+          micromamba activate tvm-build
+          llvm-config --version
+          python3 --version
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+      - name: Build library
+        env:
+          target_platform: osx-64
+          PREFIX: /usr/local
+          SRC_DIR: '..'
+          CPU_COUNT: 2
+          AWS_ACCESS_KEY_ID: ${{ secrets.MACOS_SCCACHE_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MACOS_SCCACHE_AWS_SECRET_ACCESS_KEY }}
+        shell: bash
+        run: |
+          eval "$(micromamba shell hook --shell=bash)"
+          micromamba activate tvm-build
+          set -eux
+          mkdir -p build
+          cp ci/macos_config.cmake build/config.cmake
+          python3 tests/scripts/task_build.py \
+            --cc ~/.sccache/cc \
+            --c++ ~/.sccache/c++ \
+            --sccache-bucket tvm-sccache-macos
+      - name: Install library
+        shell: bash
+        env:
+          SRC_DIR: '.'
+          PYTHON: python3
+        run: |
+          eval "$(micromamba shell hook --shell=bash)"
+          micromamba activate tvm-build
+          set -eux
+          bash ./conda/recipe/install_libtvm.sh
+          bash ./conda/recipe/install_tvm_python.sh
+      - name: Build iOS RPC
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.MACOS_SCCACHE_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MACOS_SCCACHE_AWS_SECRET_ACCESS_KEY }}
+        run: |
+          eval "$(micromamba shell hook --shell=bash)"
+          micromamba activate tvm-build
+          set -eux
           IOS_VERSION="14.0"
-          CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release \
-                       -DCMAKE_SYSTEM_NAME=iOS \
-                       -DCMAKE_SYSTEM_VERSION=${IOS_VERSION} \
-                       -DCMAKE_OSX_SYSROOT=iphonesimulator \
-                       -DCMAKE_OSX_ARCHITECTURES=x86_64 \
-                       -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
-                       -DCMAKE_BUILD_WITH_INSTALL_NAME_DIR=ON \
-                       -DUSE_IOS_RPC=ON"
-
           mkdir build-ios-simulator
-          cd build-ios-simulator
-          cmake .. ${CMAKE_FLAGS}
-          cmake --build . --target ios_rpc
+          python3 tests/scripts/task_build.py \
+            --build-dir build-ios-simulator \
+            --cmake-target ios_rpc \
+            --cc ~/.sccache/cc \
+            --c++ ~/.sccache/c++ \
+            --sccache-bucket tvm-sccache-macos \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_SYSTEM_VERSION=${IOS_VERSION} \
+            -DCMAKE_OSX_SYSROOT=iphonesimulator \
+            -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
+            -DCMAKE_BUILD_WITH_INSTALL_NAME_DIR=ON \
+            -DUSE_IOS_RPC=ON
       - name: Test
-        shell: bash -l {0}
-        run: >-
+        shell: bash
+        run: |
+          eval "$(micromamba shell hook --shell=bash)"
+          micromamba activate tvm-build
+          set -eux
           python -m pytest -v tests/python/all-platform-minimal-test
       - name: Test iOS RPC
-        shell: bash -l {0}
-        run: >-
-          python -m pip install tornado psutil cloudpickle &&
-          export PYTHONPATH=tests/python/contrib:${PYTHONPATH} &&
-          export BUNDLE_ID=org.apache.tvmrpc &&
-          export BUNDLE_PATH=build-ios-simulator/apps/ios_rpc/ios_rpc/src/ios_rpc-build/Release-iphonesimulator/tvmrpc.app &&
+        shell: bash
+        run: |
+          eval "$(micromamba shell hook --shell=bash)"
+          micromamba activate tvm-build
+          set -eux
+          python -m pip install tornado psutil cloudpickle
+          export PYTHONPATH=tests/python/contrib
+          export BUNDLE_ID=org.apache.tvmrpc
+          export BUNDLE_PATH=build-ios-simulator/apps/ios_rpc/ios_rpc/src/ios_rpc-build/Release-iphonesimulator/tvmrpc.app
           python -m pytest -v tests/python/contrib/test_rpc_server_device.py
 
   Windows:
@@ -104,21 +158,47 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: 'recursive'
-      - name: Set up environment
-        uses: ./.github/actions/setup
+      - name: Setup dependencies
+        run: |
+          set -x
+          mkdir ~/.sccache
+          pushd ~/.sccache
+          curl -L -o sccache.tar.gz https://github.com/mozilla/sccache/releases/download/v0.2.15/sccache-v0.2.15-x86_64-unknown-linux-musl.tar.gz
+          tar -xzvf sccache.tar.gz
+          chmod +x sccache-v0.2.15-x86_64-unknown-linux-musl/sccache
+          ln -s "$(pwd)/sccache-v0.2.15-x86_64-unknown-linux-musl/sccache" /usr/local/bin/sccache
+          ln -s "$(pwd)/sccache-v0.2.15-x86_64-unknown-linux-musl/sccache" ~/.sccache/gcc
+          ln -s "$(pwd)/sccache-v0.2.15-x86_64-unknown-linux-musl/sccache" ~/.sccache/g++
+          popd
+          curl -L -o micromamba.tar.bz2 https://micro.mamba.pm/api/micromamba/linux-64/latest
+          tar -xvjf micromamba.tar.bz2
+          export PATH=$(pwd)/bin:$PATH
+          eval "$(micromamba shell hook --shell=bash)"
+          micromamba create -f ci/micro.yaml
+          micromamba activate tvm-build
+          llvm-config --version
+          python3 --version
       - name: Set up java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '11'
       - name: Build TVM
-        shell: bash -l {0}
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.MACOS_SCCACHE_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MACOS_SCCACHE_AWS_SECRET_ACCESS_KEY }}
         run: |
-          mkdir build
-          cd build
-          ../tests/scripts/task_config_build_jvm.sh .
-          cmake ..
-          make
+          export PATH=$(pwd)/bin:$PATH
+          eval "$(micromamba shell hook --shell=bash)"
+          micromamba activate tvm-build
+          set -eux
+          bash ./tests/scripts/task_config_build_jvm.sh build
+          python3 tests/scripts/task_build.py \
+            --sccache-bucket tvm-sccache-macos \
+            --no-cc \
+            -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
       - name: Build TVM4J
         run: |
           make jvmpkg

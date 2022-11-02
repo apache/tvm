@@ -1,0 +1,19 @@
+name: tvm-build
+channels:
+  - conda-forge
+dependencies:
+  - python = 3.7
+  - llvmdev >=11
+  - numpy
+  - pytest
+  - cython
+  - cmake
+  - bzip2
+  - ninja
+  - make
+  - scipy
+  - pillow
+  - python
+  - decorator
+  - psutil
+  - scipy
