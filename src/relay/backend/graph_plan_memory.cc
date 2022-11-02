@@ -631,7 +631,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
   // allocator
   support::Arena arena_;
   // scale used for rough match
-  size_t match_range_{16};
+  // size_t match_range_{16};
   // free list of storage entry
   std::multimap<size_t, StorageToken*> free_;
   // all the storage resources available
