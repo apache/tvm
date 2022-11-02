@@ -36,7 +36,7 @@ concurrency:
 
 jobs:
   MacOS:
-    if: ${{ github.repository == 'apache/tvm' }}
+    # if: ${{ github.repository == 'apache/tvm' }}
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v2
@@ -46,7 +46,11 @@ jobs:
         run: |
           set -x
           brew update
-          brew install sccache
+          curl -L -o /usr/local/bin/sccache https://tvm-ci-resources.s3.us-west-2.amazonaws.com/sccache/macos/sccache
+          chmod +x /usr/local/bin/sccache
+          sccache --help
+          exit 1
+
           mkdir -p ~/.sccache
           ln -s "$(which sccache)" ~/.sccache/cc
           ln -s "$(which sccache)" ~/.sccache/c++
