@@ -427,16 +427,6 @@ bool DFPatternMatcher::VisitDFPattern_(const LetPatternNode* op, const Expr& exp
   return false;
 }
 
-Expr InferType(const Expr& expr) {
-  auto mod = IRModule::FromExpr(expr);
-  mod = transform::InferType()(mod);
-  if (expr.as<FunctionNode>()) {
-    return mod->Lookup("main");
-  } else {
-    return mod->Lookup("main").as<FunctionNode>()->body;
-  }
-}
-
 Expr InferTypeWithModule(const Expr& expr, const IRModule& m) {
   IRModule mod(m->functions, m->type_definitions, m->Imports());
   GlobalVarSupply global_var_supply = GlobalVarSupply(mod);
