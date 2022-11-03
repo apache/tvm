@@ -65,7 +65,7 @@ def test_leaky_relu(dtype, shape, alpha):
     for npu in [False, True]:
         model = _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype, alpha)
         mod = tei.make_module(model, [])
-        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu, optimize_partitions=False))
 
     tei.verify(outputs, dtype, 1)
 
