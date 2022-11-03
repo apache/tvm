@@ -24,8 +24,10 @@ import pytest
 
 def pytest_addoption(parser):
     """Add pytest options."""
-
-    parser.addoption("--gtest_args", action="store", default="")
+    try:
+        parser.addoption("--gtest_args", action="store", default="")
+    except Exception:
+        pass
 
 
 def pytest_generate_tests(metafunc):
