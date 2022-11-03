@@ -847,6 +847,37 @@ class SimplifyAdjacentMultiplyOrAdd : public DFPatternRewrite {
   DFPattern c2_;
 };
 
+/*! \brief Simplifying x+x to x*2 */
+class SimplifyAdd : public DFPatternRewrite {
+ public:
+  SimplifyAdd() {
+    x_ = IsWildcard();
+    y_ = IsWildcard();
+    pattern_ = IsOp("add")({x_, y_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    Type pre_type = pre->checked_type_;
+    auto dtype = pre_type.as<TensorTypeNode>()->dtype;
+    auto x = node_map[x_][0];
+    auto y = node_map[y_][0];
+    auto data_type = Downcast<TensorType>(x->checked_type());
+
+    if (x == y) {
+      Expr value;
+      value = MakeConstantScalar(dtype, 2);
+      return InferType(Call(Op::Get("multiply"), {x, value}));
+    }
+    return post;
+  }
+
+ private:
+  /*! \brief Pattern input */
+  DFPattern x_;
+  DFPattern y_;
+};
+
 /*! \brief Simplifying x/sqrt to x*sqrt */
 class SimplifyRSqrt : public DFPatternRewrite {
  public:
@@ -925,6 +956,7 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<ConcretizeCollapseSumLikeRewrite>();
   composer.AddRewrite<ConcretizeBroadcastToLikeRewrite>();
   composer.AddRewrite<ConcretizeCastLikeRewrite>();
+  composer.AddRewrite<SimplifyAdd>();
   composer.AddRewrite<SimplifyRSqrt>();
   composer.AddRewrite<EliminateIdentityRewrite>();
   composer.AddRewrite<SimplifyReshape>();

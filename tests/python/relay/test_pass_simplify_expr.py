@@ -729,5 +729,20 @@ def test_simplify_cast_clip():
     assert tvm.ir.structural_equal(opt, ref)
 
 
+def test_simplify_add():
+    x = relay.var("x", shape=(1, 3, 100, 100), dtype="float32")
+
+    def before():
+        return relay.add(x, x)
+
+    def expected():
+        s = relay.const(2.0)
+        return relay.multiply(x, s)
+
+    opt = run_opt_pass(before(), transform.SimplifyExpr())
+    ref = run_infer_type(expected())
+    assert tvm.ir.structural_equal(opt, ref)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
