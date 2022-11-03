@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
 import numpy as np
 from typing import *
 
@@ -30,7 +29,7 @@ from ..infrastructure import (
     quantize_np,
     get_hexagon_target,
 )
-from ..pytest_util import (
+from ...pytest_util import (
     get_multitest_ids,
     create_populated_numpy_ndarray,
     TensorContentRandom,

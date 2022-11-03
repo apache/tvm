@@ -23,7 +23,7 @@ import tvm.testing
 from tvm import te
 import tvm.topi.hexagon.slice_ops as sl
 
-from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
+from ...infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 
 class TestCastF16F32Slice2d:

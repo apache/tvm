@@ -23,7 +23,7 @@ import tvm
 import tvm.testing
 from tvm import te
 from tvm.topi.hexagon import qnn
-from ..infrastructure import (
+from ...infrastructure import (
     allocate_hexagon_array,
     transform_numpy,
     quantize_np,
