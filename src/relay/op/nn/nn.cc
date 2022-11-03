@@ -923,6 +923,7 @@ bool InstanceNormRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   ICHECK_EQ(types.size(), 4);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
+  ICHECK_GT(data->shape.size(), 2);
   const InstanceNormAttrs* param = attrs.as<InstanceNormAttrs>();
   int axis = param->axis >= 0 ? param->axis : param->axis + data->shape.size();
   ICHECK(axis >= 0 && axis < (int)data->shape.size());
