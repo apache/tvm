@@ -243,7 +243,7 @@ PrimFunc AddProfileBuiltins(PrimFunc func, int32_t max_instr_depth, int32_t min_
   InstrumentIntrin p(max_instr_depth, min_instr_height, instr_siblings);
   p.GetLoopInfo(func_ptr);
   func_ptr->body = p(std::move(func_ptr->body));
-  return std::move(func);
+  return func;
 }
 
 }  // namespace lwp
