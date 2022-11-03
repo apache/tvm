@@ -24,6 +24,18 @@ from tvm import te
 
 from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
+BATCH_FLATTEN_FP16_TESTS = (
+    ([1, 1, 1, 2048], [1, 2048], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
+    ([1, 2, 4, 2048], [1, 2 * 4 * 2048], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
+    ([1, 8, 8, 1024], [1, 8 * 8 * 1024], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
+    ([2, 4, 8, 1024], [2, 4 * 8 * 1024], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
+)
+
+BATCH_FLATTEN_UINT8_TESTS = (
+    ([1, 1, 1, 2048], [1, 2048], "nhwc-2048c-2d", "nc-2048-2d", "uint8"),
+    ([1, 2, 4, 2048], [1, 2 * 4 * 2048], "nhwc-2048c-2d", "nc-2048-2d", "uint8"),
+)
+
 
 def reshape_helper(
     func,
@@ -90,21 +102,9 @@ def reshape_helper(
 class BaseTestBatchFlatten:
     """Test batch flatten class."""
 
-    batch_flatten_fp16_tests = (
-        ([1, 1, 1, 2048], [1, 2048], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
-        ([1, 2, 4, 2048], [1, 2 * 4 * 2048], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
-        ([1, 8, 8, 1024], [1, 8 * 8 * 1024], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
-        ([2, 4, 8, 1024], [2, 4 * 8 * 1024], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
-    )
-
-    batch_flatten_uint8_tests = (
-        ([1, 1, 1, 2048], [1, 2048], "nhwc-2048c-2d", "nc-2048-2d", "uint8"),
-        ([1, 2, 4, 2048], [1, 2 * 4 * 2048], "nhwc-2048c-2d", "nc-2048-2d", "uint8"),
-    )
-
     (input_shape, output_shape, input_layout, output_layout, data_type,) = tvm.testing.parameters(
-        *batch_flatten_fp16_tests,
-        *batch_flatten_uint8_tests,
+        *BATCH_FLATTEN_FP16_TESTS,
+        *BATCH_FLATTEN_UINT8_TESTS,
     )
 
 
@@ -149,8 +149,8 @@ class BaseTestReshape(BaseTestBatchFlatten):
     )
 
     (input_shape, output_shape, input_layout, output_layout, data_type,) = tvm.testing.parameters(
-        *batch_flatten_fp16_tests,
-        *batch_flatten_uint8_tests,
+        *BATCH_FLATTEN_FP16_TESTS,
+        *BATCH_FLATTEN_UINT8_TESTS,
         *reshape_fp16_tests,
         *reshape_uint8_tests,
     )
