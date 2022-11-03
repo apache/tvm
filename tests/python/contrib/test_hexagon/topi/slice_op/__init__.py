@@ -15,4 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Hexagon TOPI tests """
+""" Hexagon TOPI Slice OP tests """
