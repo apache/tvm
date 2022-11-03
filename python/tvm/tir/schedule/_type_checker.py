@@ -21,10 +21,15 @@ import functools
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 import typing
+import sys
 
 
 def _is_none_type(type_: Any) -> bool:
     return type_ is None or type_ is type(None)
+
+
+def get_python_version():
+    return sys.version_info[:3]
 
 
 if hasattr(typing, "_GenericAlias"):
@@ -33,43 +38,64 @@ if hasattr(typing, "_GenericAlias"):
     class _Subtype:
         @staticmethod
         def _origin(type_: Any) -> Any:
-            if isinstance(type_, typing._GenericAlias):  # type: ignore # pylint: disable=protected-access
-                return type_.__origin__
+            if get_python_version() >= (3, 9, 0):
+                if isinstance(type_, typing._SpecialGenericAlias):  # type: ignore # pylint: disable=protected-access
+                    return type_.__origin__
+            else:
+                if isinstance(type_, typing._GenericAlias):  # type: ignore # pylint: disable=protected-access
+                    return type_.__origin__
             return None
 
         @staticmethod
         def list_(type_: Any) -> Any:
             if _Subtype._origin(type_) is list:
-                (subtype,) = type_.__args__
+                if hasattr(typing, "get_args"):
+                    (subtype,) = typing.get_args(type_)  # type: ignore
+                else:
+                    (subtype,) = type_.__args__
                 return [subtype]
             return None
 
         @staticmethod
         def dict_(type_: Any) -> Any:
             if _Subtype._origin(type_) is dict:
-                (ktype, vtype) = type_.__args__
+                if hasattr(typing, "get_args"):
+                    (ktype, vtype) = typing.get_args(type_)  # type: ignore
+                else:
+                    (ktype, vtype) = type_.__args__
                 return [ktype, vtype]
             return None
 
         @staticmethod
         def tuple_(type_: Any) -> Optional[List[type]]:
             if _Subtype._origin(type_) is tuple:
-                subtypes = type_.__args__
+                if hasattr(typing, "get_args"):
+                    subtypes = typing.get_args(type_)  # type: ignore
+                else:
+                    subtypes = type_.__args__
                 return subtypes
             return None
 
         @staticmethod
-        def optional(type_: Any) -> Optional[List[type]]:
+        def optional(  # pylint: disable=missing-function-docstring
+            type_: Any,
+        ) -> Optional[List[type]]:
             if _Subtype._origin(type_) is Union:
-                subtypes = type_.__args__
+                if hasattr(typing, "get_args"):
+                    subtypes = typing.get_args(type_)  # type: ignore
+                else:
+                    subtypes = type_.__args__
                 if len(subtypes) == 2 and _is_none_type(subtypes[1]):
                     return [subtypes[0]]
             return None
 
         @staticmethod
-        def union(type_: Any) -> Optional[List[type]]:
+        def union(type_: Any) -> Optional[List[type]]:  # pylint: disable=missing-function-docstring
             if _Subtype._origin(type_) is Union:
-                subtypes = type_.__args__
+                if hasattr(typing, "get_args"):
+                    subtypes = typing.get_args(type_)  # type: ignore
+                else:
+                    subtypes = type_.__args__
                 if len(subtypes) != 2 or not _is_none_type(subtypes[1]):
                     return list(subtypes)
             return None
@@ -77,7 +103,10 @@ if hasattr(typing, "_GenericAlias"):
         @staticmethod
         def callable(type_: Any) -> Optional[List[type]]:
             if _Subtype._origin(type_) is collections.abc.Callable:
-                subtypes = type_.__args__
+                if hasattr(typing, "get_args"):
+                    subtypes = typing.get_args(type_)  # type: ignore
+                else:
+                    subtypes = type_.__args__
                 return subtypes
             return None
 
