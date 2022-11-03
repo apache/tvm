@@ -21,12 +21,12 @@
 Following are few notes and assumptions made by the implementation:
 
 Assumptions:
-1) The input is in NCW layout. Distilbert is the only model that calls 
+1) The input is in NCW layout. Distilbert is the only model that calls
    nn.adaptive_avg_pool1d and the only layout it uses is 'NCW'.
 2) The op takes output_size as an argument and
    only handles the specialized case where output_size is 1.
    The argument output_size is used as the value of output_width.
-3) Both input and output dtype is uint8/int8 and 
+3) Both input and output dtype is uint8/int8 and
    quantization parameter is provided to the op.
 4) Input is assumed to always be multiple of fixed chunk 32c64w.
 
@@ -45,7 +45,6 @@ Notes:
 from tvm import te
 from tvm import tir
 from ..utils import get_layout_transform_fn, get_fixed_point_value, saturate
-from tvm import topi
 
 
 def adaptive_avg_pool1d(
