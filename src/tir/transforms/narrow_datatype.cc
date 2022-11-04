@@ -206,6 +206,15 @@ class DataTypeRewriter : public DataTypeLegalizer {
     return VisitStmt(s);
   }
 
+ protected:
+  // This class adds some overrides of `VisitStmt_` and `VisitExpr_` that
+  // are *not* present in the parent class.
+  // These `using` statements ensure that all of the *other* overrides
+  // provided by the parent class are fully visible to users of this class.
+  // (Discussed further in https://github.com/apache/tvm/pull/13267)
+  using Parent::VisitExpr_;
+  using Parent::VisitStmt_;
+
   Stmt VisitStmt_(const StoreNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
     return Stmt();

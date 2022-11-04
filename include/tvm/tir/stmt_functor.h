@@ -502,7 +502,7 @@ bool ContainsNode(const Stmt& stmt) {
  * base class of such passes to ensure the consistency of data types.
  */
 class DataTypeLegalizer : public StmtExprMutator {
- public:
+ protected:
   Stmt VisitStmt_(const ForNode* op) override;
 
   Stmt VisitStmt_(const AttrStmtNode* op) override;
@@ -530,7 +530,6 @@ class DataTypeLegalizer : public StmtExprMutator {
   using StmtExprMutator::VisitExpr_;
   using StmtExprMutator::VisitStmt_;
 
- protected:
   // a map from IterVar before rewrite to that after rewrite,
   // ensures one old IterVar maps to exactly one new IterVar
   std::unordered_map<const IterVarNode*, IterVar> ivmap_;
