@@ -809,6 +809,61 @@ class SwitchAddMultiply : public DFPatternRewrite {
   DFPattern c2_;
 };
 
+/*! \brief Switch constant+x mode to x+constant.
+ * As add constant pattern is more friendly to conv fusion.
+ */
+class SwitchAdd0 : public DFPatternRewrite {
+ public:
+  SwitchAdd0() {
+    x_ = IsWildcard();
+    c_ = IsConstant();
+    pattern_ = c_ + x_;
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto x = node_map[x_][0];
+    auto c = node_map[c_][0];
+
+    return Call(Op::Get("add"), {x, c});
+  }
+
+ private:
+  DFPattern x_;
+  DFPattern c_;
+};
+
+/*! \brief Switch adjacent add-add and pick constant one.
+ * As add constant pattern is more friendly to conv fusion.
+ */
+class SwitchAdd1 : public DFPatternRewrite {
+ public:
+  SwitchAdd1() {
+    x_ = IsWildcard();
+    y_ = IsWildcard();
+    c_ = IsConstant();
+    pattern_ = x_ + y_ + c_;
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto x = node_map[x_][0];
+    auto y = node_map[y_][0];
+    auto c = node_map[c_][0];
+
+    if (y.as<ConstantNode>()) {
+      return post;
+    }
+
+    return Call(Op::Get("add"), {Call(Op::Get("add"), {x, c}), y});
+  }
+
+ private:
+  DFPattern x_;
+  DFPattern y_;
+  DFPattern c_;
+};
+
 /*! \brief Simplify two adjacent multiply or add with constants for further constant folding.
  * The pattern matching supports commutative property.
  */
@@ -862,12 +917,11 @@ class SimplifyAdd : public DFPatternRewrite {
     auto dtype = pre_type.as<TensorTypeNode>()->dtype;
     auto x = node_map[x_][0];
     auto y = node_map[y_][0];
-    auto data_type = Downcast<TensorType>(x->checked_type());
 
     if (x == y) {
       Expr value;
       value = MakeConstantScalar(dtype, 2);
-      return Call(Op::Get("multiply"), {x, value});
+      return InferType(Call(Op::Get("multiply"), {x, value}));
     }
     return post;
   }
@@ -876,6 +930,33 @@ class SimplifyAdd : public DFPatternRewrite {
   /*! \brief Pattern input */
   DFPattern x_;
   DFPattern y_;
+};
+
+/*! \brief Simplifying x/c to x*(1/c) */
+class SimplifyDivide : public DFPatternRewrite {
+ public:
+  SimplifyDivide() {
+    x_ = IsWildcard();
+    c_ = IsConstant();
+    pattern_ = IsOp("divide")({x_, c_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    Type pre_type = pre->checked_type_;
+    auto dtype = pre_type.as<TensorTypeNode>()->dtype;
+    auto x = node_map[x_][0];
+    auto c = node_map[c_][0];
+
+    Expr one;
+    one = MakeConstantScalar(dtype, 1);
+    return InferType(Call(Op::Get("multiply"), {x, Call(Op::Get("divide"), {one, c})}));
+  }
+
+ private:
+  /*! \brief Pattern input */
+  DFPattern x_;
+  DFPattern c_;
 };
 
 /*! \brief Simplifying x/sqrt to x*sqrt */
@@ -957,6 +1038,7 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<ConcretizeBroadcastToLikeRewrite>();
   composer.AddRewrite<ConcretizeCastLikeRewrite>();
   composer.AddRewrite<SimplifyAdd>();
+  composer.AddRewrite<SimplifyDivide>();
   composer.AddRewrite<SimplifyRSqrt>();
   composer.AddRewrite<EliminateIdentityRewrite>();
   composer.AddRewrite<SimplifyReshape>();
@@ -964,6 +1046,8 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifySameCast>();
   composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<FullElementwise>();
+  composer.AddRewrite<SwitchAdd0>();
+  composer.AddRewrite<SwitchAdd1>();
   composer.AddRewrite<SwitchAddMultiply>();
   composer.AddRewrite<SimplifyAdjacentMultiplyOrAdd>();
   composer.AddRewrite<SimplifyDQArgMax>();

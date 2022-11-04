@@ -642,11 +642,11 @@ def test_fold_bwd_dual_path():
 def test_fold_bwd_simple_constant():
     def before(data, weight, out_bias, channels):
         y = relay.nn.conv2d(
-                data=data, weight=weight, kernel_size=(3, 3), channels=channels, padding=(1, 1)
-                )
+            data=data, weight=weight, kernel_size=(3, 3), channels=16, padding=(1, 1)
+        )
 
         y = relay.add(y, out_bias)
-        c2 = relay.const(2.)
+        c2 = relay.const(2.0)
         y = relay.nn.relu(y)
         y = relay.multiply(y, c2)
         mod, params = create_workload(y, initializer)
@@ -655,8 +655,8 @@ def test_fold_bwd_simple_constant():
 
     def expected(data, weight, out_bias, channels):
         y0 = relay.nn.conv2d(
-                data=data, weight=weight, kernel_size=(3, 3), channels=16, padding=(1, 1)
-                )
+            data=data, weight=weight, kernel_size=(3, 3), channels=16, padding=(1, 1)
+        )
         y0 = relay.add(y0, out_bias)
         y0 = relay.nn.relu(y0)
         mod, params = create_workload(y0, initializer)
@@ -670,10 +670,10 @@ def test_fold_bwd_simple_constant():
 
         y0 = before(x, weight, out_bias, channels)
         remove_last_multiply = tvm.transform.Sequential(
-        [
-            relay.transform.InferType(),
-            relay.transform.FoldScaleAxis(),
-        ]
+            [
+                relay.transform.InferType(),
+                relay.transform.FoldScaleAxis(),
+            ]
         )
         with tvm.transform.PassContext(opt_level=3):
             y0 = remove_last_multiply(y0)

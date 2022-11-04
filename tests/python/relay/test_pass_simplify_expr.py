@@ -728,6 +728,7 @@ def test_simplify_cast_clip():
     ref = run_infer_type(expected())
     assert tvm.ir.structural_equal(opt, ref)
 
+
 def test_simplify_add():
     x = relay.var("x", shape=(1, 3, 100, 100), dtype="float32")
 
@@ -735,10 +736,61 @@ def test_simplify_add():
         return relay.add(x, x)
 
     def expected():
-        s = relay.const(2.)
+        s = relay.const(2.0)
         return relay.multiply(x, s)
 
     opt = run_opt_pass(before(), transform.SimplifyExpr())
+    ref = run_infer_type(expected())
+    assert tvm.ir.structural_equal(opt, ref)
+
+
+def test_switch_add0():
+    shape = (1, 3, 100, 100)
+    x = relay.var("x", shape=shape, dtype="float32")
+    c = relay.const(np.empty(shape).astype("float32"))
+
+    def before():
+        return relay.add(c, x)
+
+    def expected():
+        return relay.add(x, c)
+
+    opt = run_opt_pass(before(), transform.SimplifyExpr())
+    ref = run_infer_type(expected())
+    assert tvm.ir.structural_equal(opt, ref)
+
+
+def test_switch_add1():
+    shape = (1, 3, 100, 100)
+    x = relay.var("x", shape=shape, dtype="float32")
+    y = relay.var("y", shape=shape, dtype="float32")
+    c = relay.const(np.empty(shape).astype("float32"))
+
+    def before():
+        return relay.add(relay.add(x, y), c)
+
+    def expected():
+        return relay.add(relay.add(x, c), y)
+
+    opt = run_opt_pass(before(), transform.SimplifyExpr())
+    ref = run_infer_type(expected())
+    assert tvm.ir.structural_equal(opt, ref)
+
+
+def test_simplify_divide():
+    shape = (1, 3, 100, 100)
+    x = relay.var("x", shape=shape, dtype="float32")
+    c0 = relay.const(2.0)
+    c1 = relay.const(0.5)
+
+    def before():
+        return relay.divide(x, c0)
+
+    def expected():
+        return relay.multiply(x, c1)
+
+    opt = run_opt_pass(before(), transform.SimplifyExpr())
+    opt = run_opt_pass(opt, transform.FoldConstant())
     ref = run_infer_type(expected())
     assert tvm.ir.structural_equal(opt, ref)
 
