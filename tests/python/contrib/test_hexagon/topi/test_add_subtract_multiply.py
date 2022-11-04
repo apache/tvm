@@ -250,8 +250,7 @@ class TestAddSubtractMultiplyBroadcast2d:
             global ZERO_POINT_A_VAL, SCALE_A_VAL
             input_np_a_quantized, SCALE_A_VAL, ZERO_POINT_A_VAL = quantize_np(input_np_a, dtype)
             return input_np_a_quantized
-        else:
-            raise RuntimeError(f"Unsupported data type '{dtype}'")
+        return None
 
     @tvm.testing.fixture
     def quantize_input_np_b(self, input_np_b, dtype):
@@ -259,8 +258,7 @@ class TestAddSubtractMultiplyBroadcast2d:
             global ZERO_POINT_B_VAL, SCALE_B_VAL
             input_np_b_quantized, SCALE_B_VAL, ZERO_POINT_B_VAL = quantize_np(input_np_b, dtype)
             return input_np_b_quantized
-        else:
-            raise RuntimeError(f"Unsupported data type '{dtype}'")
+        return None
 
     @tvm.testing.fixture
     def transformed_input_np_a(self, input_np_a, quantize_input_np_a, input_a_layout, dtype):
