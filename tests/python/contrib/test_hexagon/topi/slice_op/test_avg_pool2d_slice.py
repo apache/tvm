@@ -23,7 +23,7 @@ import tvm.testing
 from tvm.contrib.hexagon.session import Session
 import tvm.topi.hexagon.slice_ops as sl
 import tvm.topi.hexagon.qnn as qn
-from ..infrastructure import (
+from ...infrastructure import (
     allocate_hexagon_array,
     transform_numpy,
     quantize_np,
