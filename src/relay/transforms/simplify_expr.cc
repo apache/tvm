@@ -847,6 +847,38 @@ class SimplifyAdjacentMultiplyOrAdd : public DFPatternRewrite {
   DFPattern c2_;
 };
 
+/*! \brief Switch constant+x mode to x+constant.
+ * As add constant pattern is more friendly to conv fusion.
+ */
+class SwitchAdd : public DFPatternRewrite {
+ public:
+  SwitchAdd() {
+    x_ = IsWildcard();
+    y_ = IsWildcard();
+    c_ = IsConstant();
+
+    pattern_ = IsOp("add")({c_, IsOp("nn.conv2d")({x_, y_})});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto x = node_map[x_][0];
+    auto y = node_map[y_][0];
+    auto c = node_map[c_][0];
+
+    Call add_call = Downcast<Call>(post);
+    if (add_call->args[1].as<CallNode>() == nullptr) return post;
+
+    Call conv_call = Downcast<Call>(add_call->args[1]);
+    return Call(Op::Get("add"), {conv_call, c});
+  }
+
+ private:
+  DFPattern x_;
+  DFPattern y_;
+  DFPattern c_;
+};
+
 /*! \brief Simplifying x+x to x*2 */
 class SimplifyAdd : public DFPatternRewrite {
  public:
@@ -964,6 +996,7 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifySameCast>();
   composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<FullElementwise>();
+  composer.AddRewrite<SwitchAdd>();
   composer.AddRewrite<SwitchAddMultiply>();
   composer.AddRewrite<SimplifyAdjacentMultiplyOrAdd>();
   composer.AddRewrite<SimplifyDQArgMax>();
