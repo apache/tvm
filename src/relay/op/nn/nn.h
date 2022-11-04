@@ -102,41 +102,35 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       oshape.Set(oshape.size() - 1, tensor_b_elements / dshape[dshape.size() - 1]);
       // Otherwise just pull it out of the tensor_b shape directly.
     } else {
-      ICHECK(static_cast<int>(tensor_b->shape.size()) == 2);
-      if (!tensor_a->shape.back().as<tir::AnyNode>()) {
-        ICHECK((transpose_b && reporter->AssertEQ(reduce, tensor_b->shape[1])) ||
-               (!transpose_b && reporter->AssertEQ(reduce, tensor_b->shape[0])))
-            << "MatmulRel: input dimension doesn't match,"
-            << " tensor_a shape=" << tensor_a->shape << ", tensor_b shape=" << tensor_b->shape;
+      // ensure inner dimension matches between data and weight. If one inner
+      // dimension is dynamic then it is inferred to match the other inner
+      // dimension.
+      std::vector<PrimExpr> A_shape(tensor_a->shape.begin(), tensor_a->shape.end());
+      std::vector<PrimExpr> B_shape(tensor_b->shape.begin(), tensor_b->shape.end());
+      auto sa = A_shape.size();
+      auto sb = B_shape.size();
+      if (transpose_a && transpose_b) {
+        auto tmp = A_shape[sa - 2];
+        A_shape[sa - 2] = B_shape[sb - 1];
+        B_shape[sb - 1] = tmp;
+      } else if (transpose_a) {
+        auto tmp = A_shape[sa - 2];
+        A_shape[sa - 2] = B_shape[sb - 2];
+        B_shape[sb - 2] = tmp;
+      } else if (transpose_b) {
+        auto tmp = A_shape[sa - 1];
+        A_shape[sa - 1] = B_shape[sb - 1];
+        B_shape[sb - 1] = tmp;
+      } else {
+        auto tmp = A_shape[sa - 1];
+        A_shape[sa - 1] = B_shape[sb - 2];
+        B_shape[sb - 2] = tmp;
       }
+      reporter->Assign(types[0], TensorType(A_shape, tensor_a->dtype));
+      reporter->Assign(types[1], TensorType(B_shape, tensor_b_dtype));
       oshape.Set(oshape.size() - 1, transpose_b ? wshape[0] : wshape[1]);
     }
   }
-
-  // ensure inner dimension matches
-  std::vector<PrimExpr> A_shape(tensor_a->shape.begin(), tensor_a->shape.end());
-  std::vector<PrimExpr> B_shape(tensor_b->shape.begin(), tensor_b->shape.end());
-  auto sa = A_shape.size();
-  auto sb = B_shape.size();
-  if (transpose_a && transpose_b) {
-    auto tmp = A_shape[sa - 2];
-    A_shape[sa - 2] = B_shape[sb - 1];
-    B_shape[sb - 1] = tmp;
-  } else if (transpose_a) {
-    auto tmp = A_shape[sa - 2];
-    A_shape[sa - 2] = B_shape[sb - 2];
-    B_shape[sb - 2] = tmp;
-  } else if (transpose_b) {
-    auto tmp = A_shape[sa - 1];
-    A_shape[sa - 1] = B_shape[sb - 1];
-    B_shape[sb - 1] = tmp;
-  } else {
-    auto tmp = A_shape[sa - 1];
-    A_shape[sa - 1] = B_shape[sb - 2];
-    B_shape[sb - 2] = tmp;
-  }
-  reporter->Assign(types[0], TensorType(A_shape, tensor_a->dtype));
-  reporter->Assign(types[1], TensorType(B_shape, tensor_b_dtype));
 
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
