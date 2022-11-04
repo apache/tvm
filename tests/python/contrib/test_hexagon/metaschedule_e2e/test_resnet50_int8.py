@@ -34,8 +34,14 @@ from tvm import meta_schedule as ms
 from tvm.tir.schedule import BlockRV, Schedule
 from ..infrastructure import get_hexagon_target
 
+MODEL_JSON = "resnet50_int8.json"
+EXECUTOR = relay.backend.Executor("graph", {"link-params": True})
+TARGET_LLVM = tvm.target.Target("llvm")
+TARGET_HEXAGON = get_hexagon_target("v68")
+MODEL_PARAMS = "resnet50_int8.params"
 
-def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher, target, executor):
+
+def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
     """Tune VRMPY with auto tensorization."""
     sch_rules = [
         schedule_rule.AutoInline(
@@ -92,12 +98,12 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher, target, executor):
 
     # This line is necessary for link-params to take effect during
     # task extraction and relay.build(...).
-    mod = mod.with_attr("executor", executor)
+    mod = mod.with_attr("executor", EXECUTOR)
 
     with tempfile.TemporaryDirectory() as work_dir:
         database = ms.relay_integration.tune_relay(
             mod=mod,
-            target=target,
+            target=TARGET_HEXAGON,
             params=params,
             work_dir=work_dir,
             # for faster tuning
@@ -126,7 +132,7 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher, target, executor):
         return ms.relay_integration.compile_relay(
             database=database,
             mod=mod,
-            target=target,
+            target=TARGET_HEXAGON,
             params=params,
         )
 
@@ -135,18 +141,13 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher, target, executor):
 @tvm.testing.requires_hexagon
 def test_resnet50(hexagon_launcher):
     """Test Resnet50."""
-    model_json = "resnet50_int8.json"
-    executor = relay.backend.Executor("graph", {"link-params": True})
-    target_llvm = tvm.target.Target("llvm")
-    target_hexagon = get_hexagon_target("v68")
-
-    if not os.path.exists(model_json):
+    if not os.path.exists(MODEL_JSON):
         pytest.skip(msg="Run python export_models.py first.")
 
-    with open(model_json, "r") as file:
+    with open(MODEL_JSON, "r") as file:
         mod = tvm.ir.load_json(file.read())
 
-    with open("resnet50_int8.params", "rb") as file:
+    with open(MODEL_PARAMS, "rb") as file:
         params = relay.load_param_dict(file.read())
     inp = np.random.randn(1, 3, 224, 224).astype("float32")
     input_name = "image"
@@ -154,22 +155,20 @@ def test_resnet50(hexagon_launcher):
     do_tune = True
 
     if do_tune:
-        hexagon_lowered = tune_vrmpy_auto_tensorize(
-            mod, params, hexagon_launcher, target_hexagon, executor
-        )
+        hexagon_lowered = tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher)
     else:
         with tvm.transform.PassContext(opt_level=3):
             hexagon_lowered = relay.build(
                 mod,
-                tvm.target.Target(target_hexagon, host=target_hexagon),
+                tvm.target.Target(TARGET_HEXAGON, host=TARGET_HEXAGON),
                 params=params,
-                executor=executor,
+                executor=EXECUTOR,
             )
 
     with tvm.transform.PassContext(opt_level=3):
         llvm_lowered = tvm.relay.build(
             mod,
-            tvm.target.Target(target_llvm, host=target_llvm),
+            tvm.target.Target(TARGET_LLVM, host=TARGET_LLVM),
             params=params,
         )
 
@@ -277,12 +276,12 @@ def tune_packed_8x8x32_template(mod, params, hexagon_launcher):
 
     # This line is necessary for link-params to take effect during
     # task extraction and relay.build(...).
-    mod = mod.with_attr("executor", executor)
+    mod = mod.with_attr("executor", EXECUTOR)
 
     with tempfile.TemporaryDirectory() as work_dir:
         database = ms.relay_integration.tune_relay(
             mod=mod,
-            target=target,
+            target=TARGET_HEXAGON,
             params=params,
             work_dir=work_dir,
             max_trials_global=20000,
@@ -316,23 +315,22 @@ def tune_packed_8x8x32_template(mod, params, hexagon_launcher):
         return ms.relay_integration.compile_relay(
             database=database,
             mod=mod,
-            target=target,
+            target=TARGET_HEXAGON,
             params=params,
         )
 
 
-# @pytest.mark.skip("End-to-end tuning is skipped on CI.")
+@pytest.mark.skip("End-to-end tuning is skipped on CI.")
 @tvm.testing.requires_hexagon
 def test_packed_8x8x32_resnet50(hexagon_launcher):
     """Test packed 8*8*32 Resnet50"""
-    model_json = "resnet50_int8.json"
-    if not os.path.exists(model_json):
+    if not os.path.exists(MODEL_JSON):
         pytest.skip(msg="Run python export_models.py first.")
 
-    with open(model_json, "r") as file:
+    with open(MODEL_JSON, "r") as file:
         mod = tvm.ir.load_json(file.read())
 
-    with open("resnet50_fp16.params", "rb") as file:
+    with open(MODEL_PARAMS, "rb") as file:
         params = relay.load_param_dict(file.read())
     inp = np.random.randn(1, 3, 224, 224).astype("float32")
     input_name = "image"
@@ -345,15 +343,15 @@ def test_packed_8x8x32_resnet50(hexagon_launcher):
         with tvm.transform.PassContext(opt_level=3):
             hexagon_lowered = relay.build(
                 mod,
-                tvm.target.Target(target, host=target),
+                tvm.target.Target(TARGET_HEXAGON, host=TARGET_HEXAGON),
                 params=params,
-                executor=executor,
+                executor=EXECUTOR,
             )
 
     with tvm.transform.PassContext(opt_level=3):
         llvm_lowered = tvm.relay.build(
             mod,
-            tvm.target.Target(target_llvm, host=target_llvm),
+            tvm.target.Target(TARGET_LLVM, host=TARGET_LLVM),
             params=params,
         )
 

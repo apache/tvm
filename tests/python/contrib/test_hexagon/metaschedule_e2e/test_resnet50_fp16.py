@@ -44,6 +44,7 @@ def test_resnet50(hexagon_launcher):
     model_json = "resnet50_fp16.json"
     target_llvm = tvm.target.Target("llvm")
     target_hexagon = get_hexagon_target("v69")
+    model_params = "resnet50_fp16.params"
 
     if not os.path.exists(model_json):
         pytest.skip(msg="Run python export_models.py first.")
@@ -51,7 +52,7 @@ def test_resnet50(hexagon_launcher):
     with open(model_json, "r") as file:
         mod = tvm.ir.load_json(file.read())
 
-    with open("resnet50_fp16.params", "rb") as file:
+    with open(model_params, "rb") as file:
         params = relay.load_param_dict(file.read())
 
     mod = convert_conv2d_layout(mod, {"nn.conv2d": ["NHWC", "HWIO"]})
