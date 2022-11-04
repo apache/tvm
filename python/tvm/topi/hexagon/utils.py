@@ -135,6 +135,10 @@ def ncw_32c64w_2d(n, c, w):
     """Return index map for ncw_32c64w 2d layout"""
     return [n, c // 32, w // 64, te.AXIS_SEPARATOR, c % 32, w % 64]
 
+def nc1_2048c_2d(n, c, w):
+    """Return index map for nc1_2048c_2d 2d layout"""
+    return [n, c // 2048, w, te.AXIS_SEPARATOR, c % 2048]
+
 
 def get_layout_transform_fn(layout):
     """Return index map function as per the layout string"""
@@ -180,6 +184,8 @@ def get_layout_transform_fn(layout):
         return ohwi32o_1d
     if layout == "ncw-32c64w-2d":
         return ncw_32c64w_2d
+    if layout == "nc1-2048c-2d":
+        return nc1_2048c_2d
     raise RuntimeError(f"Unexpected layout '{layout}'")
 
 

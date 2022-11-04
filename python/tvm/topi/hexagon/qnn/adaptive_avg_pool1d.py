@@ -99,24 +99,18 @@ def adaptive_avg_pool1d(
     return Avg
 
 
-def STIR_schedule_ncw_32c64w(outs, ins, output_layout: str, input_layout: str):
-    """Schedule for input layout ncw-32c64w and output layout ncw"""
+def STIR_schedule_ncw_32c64w_adaptive(outs, ins, output_layout: str, input_layout: str):
+    """Schedule for input layout ncw-32c64w and output layout nc1-2048c-2d"""
     func = te.create_prim_func([ins, outs])
     s = tir.Schedule(func)
 
     Sum = s.get_block("sum")
     Avg = s.get_block("adaptive_avg_1d")
 
-    # Input is multiple of fixed chunk but output is NxCx1
-    # Hence transform_layout is only applied on input
     input_transformed_layout = get_layout_transform_fn(input_layout)
     s.transform_layout(Sum, buffer=("read", 0), index_map=input_transformed_layout)
 
+    output_transformed_layout = get_layout_transform_fn(output_layout)
+    s.transform_layout(Avg, buffer=("write", 0), index_map=output_transformed_layout)
+
     return s
-
-
-def tir_adaptive_avg_pool1d_schedule(outs, ins, output_layout: str, input_layout: str):
-    """STIR based schedule"""
-    if output_layout == "ncw":
-        return STIR_schedule_ncw_32c64w(outs, ins, output_layout, input_layout)
-    raise RuntimeError(f"Unexpected layout '{output_layout}'")

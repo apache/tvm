@@ -71,17 +71,18 @@ def quantize_expected_output_np(expected_output_np, output_layout, layout, dtype
         global zero_point_M_val, scale_M_val
         out_ref_quantized, scale_M_val, zero_point_M_val = quantize_np(expected_output_np, dtype)
 
-        # Since output_layout is ncw, no transformation is needed.
-        return out_ref_quantized
+        return transform_numpy(out_ref_quantized, layout.lower(), output_layout)
 
     raise RuntimeError(f"Unsupported data type '{dtype}'")
 
 
-# Fixed chunk layout is set as ncw-32c64w-2d for now.
+# Fixed chunk layout for input is set as ncw-32c64w-2d
+# and for output is nc1-2048c-2d.
 # For optimization, it might get changed later.
-input_layout, pool_type, layout, output_size, dtype, = tvm.testing.parameters(
+input_layout, output_layout, pool_type, layout, output_size, dtype, = tvm.testing.parameters(
     (
         "ncw-32c64w-2d",
+        "nc1-2048c-2d",
         "avg",
         "NCW",
         [1],
@@ -90,22 +91,13 @@ input_layout, pool_type, layout, output_size, dtype, = tvm.testing.parameters(
 )
 
 
-@tvm.testing.fixture
-def output_layout(output_size):
-    # The adaptive_avg_pool1d implementation only handles specialized case
-    # where output_size is 1 as it appears on quantized distilbert model.
-    # Since output size won't be a multiple of fixed-chunk,
-    # output_layout is ncw.
-    return "ncw"
-
-
 class TestAdaptivePool1D:
     (input_shape,) = tvm.testing.parameters(
-        ([1, 128, 128],),
-        ([1, 64, 64],),
-        ([1, 64, 128],),
-        ([1, 32, 64],),
-        ([1, 128, 768],),
+        ([1, 2048, 128],),
+        ([1, 2048, 64],),
+        ([1, 2048, 128],),
+        ([1, 2048, 64],),
+        ([1, 2048, 768],),
     )
 
     @tvm.testing.requires_hexagon
@@ -140,7 +132,7 @@ class TestAdaptivePool1D:
             scale_M_val,
         )
 
-        tir_schedule = s1.tir_adaptive_avg_pool1d_schedule(M, A, output_layout, input_layout)
+        tir_schedule = s1.STIR_schedule_ncw_32c64w_adaptive(M, A, output_layout, input_layout)
 
         sch = tir_schedule.mod
 
@@ -153,6 +145,7 @@ class TestAdaptivePool1D:
             )
 
         input_axis_separator = [3]
+        output_axis_separator = [3]
 
         A_data_nd = allocate_hexagon_array(
             hexagon_session.device,
@@ -166,13 +159,17 @@ class TestAdaptivePool1D:
             hexagon_session.device,
             quantize_expected_output_np.shape,
             dtype=dtype,
+            axis_separators=output_axis_separator,
+            mem_scope="global.vtcm",
         )
 
         mod = hexagon_session.load_module(func)
         mod(A_data_nd, M_data_nd)
 
+        b, c, w = oshape
+
         # Convert nd to np
-        M_data_np = M_data_nd.numpy()
+        M_data_np = M_data_nd.numpy().reshape([b, c // 2048, w[0], 2048])
 
         np.testing.assert_allclose(quantize_expected_output_np, M_data_np, atol=2)
 
