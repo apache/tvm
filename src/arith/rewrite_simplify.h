@@ -137,6 +137,27 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
    */
   Optional<PrimExpr> TryMatchLiteralConstraint(const PrimExpr& expr) const;
 
+  /*! \brief Rewrite rules for Less Than comparisons
+   *
+   * These are separate from the VisitExpr_(const LTNode*) method, as
+   * they may required from rewrites of LT or LE.
+   */
+  PrimExpr ApplyRewriteRules(LT node);
+
+  /*! \brief Rewrite rules for Equal comparisons
+   *
+   * These are separate from the VisitExpr_(const EQNode*) method, as
+   * they may required from rewrites of LE or NE.
+   */
+  PrimExpr ApplyRewriteRules(EQ node);
+
+  /*! \brief Rewrite rules for Equal comparisons
+   *
+   * These are separate from the VisitExpr_(const EQNode*) method, as
+   * they may required from rewrites of LT, LE, or NE.
+   */
+  PrimExpr ApplyRewriteRules(Not node);
+
  private:
   CompareResult TryCompareUsingKnownInequalities(const PrimExpr& x, const PrimExpr& y);
   CompareResult TryCompareUsingConstIntBounds(const PrimExpr& x, const PrimExpr y);
