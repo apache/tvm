@@ -88,11 +88,12 @@ bool TensorizeComparator::VisitStmt_(const ForNode* op, const Stmt& other) {
   if (!DefEqual(op->loop_var, rhs->loop_var)) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "ForNode loop vars do not match: op->loop_var=" << op->loop_var << " vs rhs->loop_var=" << rhs->loop_var;
+      os << "ForNode loop vars do not match: op->loop_var=" << op->loop_var
+         << " vs rhs->loop_var=" << rhs->loop_var;
       EmitError(os.str());
     }
     return false;
-  } 
+  }
   if (!VisitExpr(op->min, rhs->min)) {
     if (assert_mode_) {
       std::ostringstream os;
@@ -104,15 +105,18 @@ bool TensorizeComparator::VisitStmt_(const ForNode* op, const Stmt& other) {
   if (!VisitExpr(op->extent, rhs->extent)) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "ForNode extent values do not match: op->extent=" << op->extent << " vs rhs->extent=" << rhs->extent;
+      os << "ForNode extent values do not match: op->extent=" << op->extent
+         << " vs rhs->extent=" << rhs->extent;
       EmitError(os.str());
     }
     return false;
   }
-  if (op->thread_binding.defined() != rhs->thread_binding.defined()) { 
+  if (op->thread_binding.defined() != rhs->thread_binding.defined()) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "ForNode thread_bindings do not match: op->thread_binding.defined()=" << op->thread_binding.defined() << " vs rhs->thread_binding.defined()=" << rhs->thread_binding.defined();
+      os << "ForNode thread_bindings do not match: op->thread_binding.defined()="
+         << op->thread_binding.defined()
+         << " vs rhs->thread_binding.defined()=" << rhs->thread_binding.defined();
       EmitError(os.str());
     }
     return false;
@@ -132,7 +136,8 @@ bool TensorizeComparator::VisitStmt_(const ForNode* op, const Stmt& other) {
   if (!CompareAnnotationMap(op->annotations, rhs->annotations)) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "ForNode annotation maps do not match: op->annotations=" << op->annotations << " vs rhs->annotations=" << rhs->annotations;
+      os << "ForNode annotation maps do not match: op->annotations=" << op->annotations
+         << " vs rhs->annotations=" << rhs->annotations;
       EmitError(os.str());
     }
     return false;
@@ -156,7 +161,8 @@ bool TensorizeComparator::VisitStmt_(const BlockRealizeNode* op, const Stmt& oth
     if (!CompareArray(op->iter_values, rhs->iter_values, &TensorizeComparator::VisitExpr)) {
       if (assert_mode_) {
         std::ostringstream os;
-        os << "BlockRealizeNode iter_values do not match: op->iter_values=" << op->iter_values << " vs rhs->iter_values=" << rhs->iter_values;
+        os << "BlockRealizeNode iter_values do not match: op->iter_values=" << op->iter_values
+           << " vs rhs->iter_values=" << rhs->iter_values;
         EmitError(os.str());
       }
       return false;
@@ -174,7 +180,8 @@ bool TensorizeComparator::VisitStmt_(const BlockNode* op, const Stmt& other) {
     if (!CompareArray(op->iter_vars, rhs->iter_vars, &TensorizeComparator::CompareIterVar)) {
       if (assert_mode_) {
         std::ostringstream os;
-        os << "BlockNode iter_vars do not match: op->alloc_buffers=" << op->iter_vars << " vs rhs->alloc_buffers=" << rhs->iter_vars;
+        os << "BlockNode iter_vars do not match: op->alloc_buffers=" << op->iter_vars
+           << " vs rhs->alloc_buffers=" << rhs->iter_vars;
         EmitError(os.str());
       }
       return false;
@@ -182,7 +189,8 @@ bool TensorizeComparator::VisitStmt_(const BlockNode* op, const Stmt& other) {
     if (!CompareArray(op->alloc_buffers, rhs->alloc_buffers, &TensorizeComparator::CompareBuffer)) {
       if (assert_mode_) {
         std::ostringstream os;
-        os << "BlockNode alloc_buffers do not match: op->alloc_buffers=" << op->alloc_buffers << " vs rhs->alloc_buffers=" << rhs->alloc_buffers;
+        os << "BlockNode alloc_buffers do not match: op->alloc_buffers=" << op->alloc_buffers
+           << " vs rhs->alloc_buffers=" << rhs->alloc_buffers;
         EmitError(os.str());
       }
       return false;
@@ -191,7 +199,8 @@ bool TensorizeComparator::VisitStmt_(const BlockNode* op, const Stmt& other) {
   if (!CompareArray(op->writes, rhs->writes, &TensorizeComparator::CompareBufferRegion)) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "BlockNode write buffers do not match: op->writes=" << op->writes << " vs rhs->writes=" << rhs->writes;
+      os << "BlockNode write buffers do not match: op->writes=" << op->writes
+         << " vs rhs->writes=" << rhs->writes;
       EmitError(os.str());
     }
     return false;
@@ -199,7 +208,8 @@ bool TensorizeComparator::VisitStmt_(const BlockNode* op, const Stmt& other) {
   if (!CompareArray(op->reads, rhs->reads, &TensorizeComparator::CompareBufferRegion)) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "BlockNode read buffers regions do not match: op->reads=" << op->reads << " vs rhs->reads=" << rhs->reads;
+      os << "BlockNode read buffers regions do not match: op->reads=" << op->reads
+         << " vs rhs->reads=" << rhs->reads;
       EmitError(os.str());
     }
     return false;
@@ -238,7 +248,8 @@ bool TensorizeComparator::VisitExpr_(const IntImmNode* op, const PrimExpr& other
   if (op->value != rhs->value) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "IntImmNode values do not match: op->value=" << op->value << " vs rhs->value=" << rhs->value;
+      os << "IntImmNode values do not match: op->value=" << op->value
+         << " vs rhs->value=" << rhs->value;
       EmitError(os.str());
     }
     return false;
@@ -251,7 +262,8 @@ bool TensorizeComparator::VisitExpr_(const FloatImmNode* op, const PrimExpr& oth
   if (op->value != rhs->value) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "FloatImmNode values do not match: op->value=" << op->value << " vs rhs->value=" << rhs->value;
+      os << "FloatImmNode values do not match: op->value=" << op->value
+         << " vs rhs->value=" << rhs->value;
       EmitError(os.str());
     }
     return false;
@@ -271,11 +283,12 @@ bool TensorizeComparator::VisitExpr_(const VarNode* op, const PrimExpr& other) {
   if (op->dtype.code() != rhs->dtype.code()) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "VarNode data type codes do not match: op->dtype.code()=" << op->dtype.code() << " vs rhs->dtype.code()=" << rhs->dtype.code();
+      os << "VarNode data type codes do not match: op->dtype.code()=" << op->dtype.code()
+         << " vs rhs->dtype.code()=" << rhs->dtype.code();
       EmitError(os.str());
     }
     return false;
-  }  
+  }
   auto it = equal_map_.find(lhs);
   return it != equal_map_.end() && it->second.same_as(other);
 }
@@ -309,7 +322,8 @@ bool TensorizeComparator::CompareAnnotation(const std::pair<String, ObjectRef>& 
   if (lhs.first != rhs.first) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "CompareAnnotation key mismatch: lhs.first=" << lhs.first << " vs rhs.first=" << rhs.first;
+      os << "CompareAnnotation key mismatch: lhs.first=" << lhs.first
+         << " vs rhs.first=" << rhs.first;
       EmitError(os.str());
     }
     return false;
@@ -323,7 +337,8 @@ bool TensorizeComparator::CompareAnnotationMap(const Map<String, ObjectRef>& lhs
   if (lhs.size() != rhs.size()) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "CompareAnnotationMap size mismatch: lhs.size()=" << lhs.size() << " vs rhs.size()=" << rhs.size();
+      os << "CompareAnnotationMap size mismatch: lhs.size()=" << lhs.size()
+         << " vs rhs.size()=" << rhs.size();
       EmitError(os.str());
     }
     return false;
@@ -367,7 +382,9 @@ bool TensorizeComparator::CompareBuffer(const Buffer& lhs, const Buffer& rhs) {
     } else {
       if (assert_mode_) {
         std::ostringstream os;
-        os << "CompareBuffer buffer mismatch. data: " << lhs->data << " vs " << rhs->data << ", dtypes: " << lhs->dtype << " vs " << rhs->dtype << ", scope(): " << lhs.scope() << " vs " << rhs.scope();
+        os << "CompareBuffer buffer mismatch. data: " << lhs->data << " vs " << rhs->data
+           << ", dtypes: " << lhs->dtype << " vs " << rhs->dtype << ", scope(): " << lhs.scope()
+           << " vs " << rhs.scope();
         EmitError(os.str());
       }
     }
@@ -379,7 +396,8 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
   if (!CompareBuffer(lhs->buffer, rhs->buffer)) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "CompareBufferRegion returning false due to buffer mismatch: lhs->buffer=" << lhs->buffer << " vs rhs->buffer=" << rhs->buffer;
+      os << "CompareBufferRegion returning false due to buffer mismatch: lhs->buffer="
+         << lhs->buffer << " vs rhs->buffer=" << rhs->buffer;
       EmitError(os.str());
     }
     return false;
@@ -389,7 +407,9 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
   if (offset < 0) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "CompareBufferRegion returning false because buffer region sizes do not match: lhs->region.size()=" << lhs->region.size() << " vs rhs->region.size()=" << rhs->region.size();
+      os << "CompareBufferRegion returning false because buffer region sizes do not match: "
+            "lhs->region.size()="
+         << lhs->region.size() << " vs rhs->region.size()=" << rhs->region.size();
       EmitError(os.str());
     }
     return false;
@@ -406,7 +426,9 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
       if (!is_one(lhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
-          os << "CompareBufferRegion returning false because buffer extent high-dim region must be element-wise. lhs->region[i]->extent=" << lhs->region[i]->extent;
+          os << "CompareBufferRegion returning false because buffer extent high-dim region must be "
+                "element-wise. lhs->region[i]->extent="
+             << lhs->region[i]->extent;
           EmitError(os.str());
         }
         return false;
@@ -420,7 +442,8 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
       if (!analyzer_.CanProveEqual(lhs->region[i + offset]->extent, rhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
-          os << "CompareBufferRegion buffer extent mismatch: lhs->region[i + offset]=" << lhs->region[i + offset] << " vs rhs->region[i]=" << rhs->region[i];
+          os << "CompareBufferRegion buffer extent mismatch: lhs->region[i + offset]="
+             << lhs->region[i + offset] << " vs rhs->region[i]=" << rhs->region[i];
           EmitError(os.str());
         }
         return false;
@@ -435,7 +458,9 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
       if (!is_one(lhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
-          os << "CompareBufferRegion returning false because buffer extent high-dim region must be element-wise. lhs->region[i]->extent=" << lhs->region[i]->extent;
+          os << "CompareBufferRegion returning false because buffer extent high-dim region must be "
+                "element-wise. lhs->region[i]->extent="
+             << lhs->region[i]->extent;
           EmitError(os.str());
         }
         return false;
@@ -443,18 +468,21 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
       if (!analyzer_.CanProveEqual(indices_base[i], lhs->region[i]->min)) {
         if (assert_mode_) {
           std::ostringstream os;
-          os << "Buffer base index consistency check failed due to unequal index base: indices_base[i]=" << indices_base[i] << " vs lhs->region[i]->min=" << lhs->region[i]->min;
+          os << "Buffer base index consistency check failed due to unequal index base: "
+                "indices_base[i]="
+             << indices_base[i] << " vs lhs->region[i]->min=" << lhs->region[i]->min;
           EmitError(os.str());
         }
         return false;
-      }  
+      }
     }
     for (size_t i = 0; i < rhs->region.size(); i++) {
       // check extent match
       if (!analyzer_.CanProveEqual(lhs->region[i + offset]->extent, rhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
-          os << "CompareBufferRegion buffer region extent mismatch. lhs->region[i + offset]=" << lhs->region[i + offset] << " vs rhs->region[i]=" << rhs->region[i];
+          os << "CompareBufferRegion buffer region extent mismatch. lhs->region[i + offset]="
+             << lhs->region[i + offset] << " vs rhs->region[i]=" << rhs->region[i];
           EmitError(os.str());
         }
         return false;
@@ -463,7 +491,8 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
       if (!analyzer_.CanProveEqual(normalized_lhs_min, rhs->region[i]->min)) {
         if (assert_mode_) {
           std::ostringstream os;
-          os << "CompareBufferRegion buffer region min mismatch. lhs->region[i + offset]=" << lhs->region[i + offset] << " vs rhs->region[i]=" << rhs->region[i];
+          os << "CompareBufferRegion buffer region min mismatch. lhs->region[i + offset]="
+             << lhs->region[i + offset] << " vs rhs->region[i]=" << rhs->region[i];
           EmitError(os.str());
         }
         return false;
@@ -481,7 +510,9 @@ bool TensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
   if (offset < 0) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "CompareBufferAccess returning false because buffer indices sizes do not match: lhs->indices.size()=" << lhs->indices.size() << " vs rhs->indices.size()=" << rhs->indices.size();
+      os << "CompareBufferAccess returning false because buffer indices sizes do not match: "
+            "lhs->indices.size()="
+         << lhs->indices.size() << " vs rhs->indices.size()=" << rhs->indices.size();
       EmitError(os.str());
     }
     return false;
@@ -495,7 +526,8 @@ bool TensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
     if (!analyzer_.CanProveEqual(normalized_lhs_index, rhs->indices[i])) {
       if (assert_mode_) {
         std::ostringstream os;
-        os << "CompareBufferAccess buffer indices mismatch. lhs->indices[i + offset]=" << lhs->indices[i + offset] << " vs rhs->indices[i]=" << rhs->indices[i];
+        os << "CompareBufferAccess buffer indices mismatch. lhs->indices[i + offset]="
+           << lhs->indices[i + offset] << " vs rhs->indices[i]=" << rhs->indices[i];
         EmitError(os.str());
       }
       return false;
@@ -510,7 +542,8 @@ bool TensorizeComparator::CompareArray(const Array<T>& lhs, const Array<T>& rhs,
   if (lhs.size() != rhs.size()) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "CompareArray array size mismatch. lhs.size()=" << lhs.size() << " vs rhs.size()=" << rhs.size();
+      os << "CompareArray array size mismatch. lhs.size()=" << lhs.size()
+         << " vs rhs.size()=" << rhs.size();
       EmitError(os.str());
     }
     return false;
