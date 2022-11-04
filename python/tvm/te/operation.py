@@ -326,7 +326,11 @@ def extern(
         if not isinstance(t, _tensor.Tensor):
             raise ValueError("expect inputs to be tensor")
         if in_buffers is None:
-            input_placeholders.append(tvm.tir.decl_buffer(t.shape, t.dtype, t.op.name))
+            input_placeholders.append(
+                tvm.tir.decl_buffer(
+                    t.shape, t.dtype, t.op.name, elem_offset=tvm.tir.Var("elem_offset", "int32")
+                )
+            )
         types.add(t.dtype)
 
     if dtype is None:
@@ -339,7 +343,9 @@ def extern(
 
     if out_buffers is None:
         for shp, dt in zip(shape, dtype):
-            output_placeholders.append(tvm.tir.decl_buffer(shp, dt, name))
+            output_placeholders.append(
+                tvm.tir.decl_buffer(shp, dt, name, elem_offset=tvm.tir.Var("elem_offset", "int32"))
+            )
     body = fcompute(input_placeholders, output_placeholders)
     if isinstance(body, tvm.tir.PrimExpr):
         body = tvm.tir.Evaluate(body)
