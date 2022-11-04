@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <utility>
+#include <vector>
 
 #include "../op_common.h"
 
