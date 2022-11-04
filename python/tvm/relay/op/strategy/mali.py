@@ -169,9 +169,9 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
     return strategy
 
 
-@conv2d_winograd_without_weight_transfrom_strategy.register("mali")
-def conv2d_winograd_without_weight_transfrom_strategy_mali(attrs, inputs, out_type, target):
-    """conv2d_winograd_without_weight_transfrom mali strategy"""
+@conv2d_winograd_without_weight_transform_strategy.register("mali")
+def conv2d_winograd_without_weight_transform_strategy_mali(attrs, inputs, out_type, target):
+    """conv2d_winograd_without_weight_transform mali strategy"""
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
     layout = attrs.data_layout
@@ -179,7 +179,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_mali(attrs, inputs, out_ty
     kernel = inputs[1]
     assert dilation == (1, 1), "Do not support dilate now"
     assert strides == (1, 1), "Do not support strides now"
-    assert groups == 1, "Do not supoort arbitrary group number"
+    assert groups == 1, "Do not support arbitrary group number"
     strategy = _op.OpStrategy()
     if layout == "NCHW":
         assert len(kernel.shape) == 5, "Kernel must be packed into 5-dim"
@@ -208,7 +208,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_mali(attrs, inputs, out_ty
             )
     else:
         raise RuntimeError(
-            "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)
+            "Unsupported conv2d_winograd_without_weight_transform layout {}".format(layout)
         )
     return strategy
 

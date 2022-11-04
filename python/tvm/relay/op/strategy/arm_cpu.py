@@ -395,9 +395,9 @@ def wrap_compute_conv2d_winograd_nnpack(topi_compute):
     return _compute_conv2d_nnpack
 
 
-@conv2d_winograd_without_weight_transfrom_strategy.register("arm_cpu")
-def conv2d_winograd_without_weight_transfrom_strategy_arm_cpu(attrs, inputs, out_type, target):
-    """conv2d_winograd_without_weight_transfrom arm cpu strategy"""
+@conv2d_winograd_without_weight_transform_strategy.register("arm_cpu")
+def conv2d_winograd_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_type, target):
+    """conv2d_winograd_without_weight_transform arm cpu strategy"""
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
     layout = attrs.data_layout
@@ -405,7 +405,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_arm_cpu(attrs, inputs, out
     kernel = inputs[1]
     assert dilation == (1, 1), "Do not support dilate now"
     assert strides == (1, 1), "Do not support strides now"
-    assert groups == 1, "Do not supoort arbitrary group number"
+    assert groups == 1, "Do not support arbitrary group number"
     strategy = _op.OpStrategy()
     if layout == "NCHW":
         if len(kernel.shape) == 5:
@@ -436,7 +436,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_arm_cpu(attrs, inputs, out
             raise RuntimeError("Unsupported kernel shape: {}".format(kernel.shape))
     else:
         raise RuntimeError(
-            "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)
+            "Unsupported conv2d_winograd_without_weight_transform layout {}".format(layout)
         )
     return strategy
 
@@ -463,7 +463,7 @@ def wrap_compute_conv2d_gemm(topi_compute):
 
 @conv2d_gemm_without_weight_transform_strategy.register("arm_cpu")
 def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_type, target):
-    """conv2d_winograd_without_weight_transfrom arm cpu strategy"""
+    """conv2d_winograd_without_weight_transform arm cpu strategy"""
     layout = attrs.data_layout
     data = inputs[0]
     strategy = _op.OpStrategy()

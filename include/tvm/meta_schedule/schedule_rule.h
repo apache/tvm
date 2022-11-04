@@ -100,6 +100,14 @@ class ScheduleRule : public runtime::ObjectRef {
    */
   using FClone = runtime::TypedPackedFunc<ScheduleRule()>;
   /*!
+   * \brief Create a rule that applies customized rules registered using block attribute
+   * `schedule_rule`. The rule will be dispatched according to target keys.
+   * \return The created schedule rule.
+   */
+  TVM_DLL static ScheduleRule ApplyCustomRule();
+  /*! \brief Check if the rule is `ApplyCustomRule` */
+  TVM_DLL static bool IsApplyCustomRule(const ScheduleRule& rule);
+  /*!
    * \brief Create an auto-inline rule that inlines spatial blocks if it satisfies some conditions
    * \param into_producer If allows to inline a block into its producer
    * \param into_consumer If allows to inline a block into its consumer

@@ -22,16 +22,19 @@ from typing import Optional
 
 import numpy as np
 import pytest
-
 import tvm
 import tvm.testing
+from tvm import meta_schedule as ms
 from tvm import relay
 from tvm._ffi import register_func
+from tvm.contrib.hexagon.meta_schedule import (
+    get_hexagon_local_builder,
+    get_hexagon_rpc_runner,
+)
 from tvm.meta_schedule import postproc, schedule_rule
-from tvm.tir.tensor_intrin.hexagon import VRMPY_u8i8i32_INTRIN, VRMPY_u8u8i32_INTRIN
-from tvm.contrib.hexagon.meta_schedule import get_hexagon_local_builder, get_hexagon_rpc_runner
-from tvm import meta_schedule as ms
 from tvm.tir.schedule import BlockRV, Schedule
+from tvm.tir.tensor_intrin.hexagon import VRMPY_u8i8i32_INTRIN, VRMPY_u8u8i32_INTRIN
+
 from ..infrastructure import get_hexagon_target
 
 MODEL_JSON = "resnet50_int8.json"
@@ -44,6 +47,7 @@ MODEL_PARAMS = "resnet50_int8.params"
 def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
     """Tune VRMPY with auto tensorization."""
     sch_rules = [
+        schedule_rule.ApplyCustomRule(),
         schedule_rule.AutoInline(
             into_producer=False,
             into_consumer=True,
@@ -269,7 +273,7 @@ def tune_packed_8x8x32_template(mod, params, hexagon_launcher):
         _schedule_packed_8x8x32_conv2d()(sch, conv2d_block)
         return [sch]
 
-    register_func("meta_schedule.conv2d_NCHWc_int8", schedule_rule_conv2d_packed_8x8x32)
+    register_func("meta_schedule.conv2d_NCHWc_int8.hexagon", schedule_rule_conv2d_packed_8x8x32)
 
     def schedule_conv2d_for_tune(sch: Schedule):
         _schedule_packed_8x8x32_conv2d()(sch)
