@@ -863,7 +863,7 @@ def test_cmp_simplify():
     ck.verify(fld(x, 2) <= -1, tvm.tir.LE(x, -1))
 
     ck.verify(fld(x, 4) * 4 < x, tvm.tir.LT(0, flm(x, 4)))
-    ck.verify(fld(x, 4) * 4 >= x, tvm.tir.LE(flm(x, 4), 0))
+    ck.verify(fld(x, 4) * 4 >= x, tvm.tir.EQ(flm(x, 4), 0))
 
     ck.verify(fld(x, 4) * 4 < x + y, tvm.tir.LT(0, flm(x, 4) + y))
     ck.verify(fld(x, 4) * 4 < x - y, tvm.tir.LT(y, flm(x, 4)))
