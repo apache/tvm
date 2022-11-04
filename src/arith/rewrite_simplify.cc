@@ -29,6 +29,7 @@
 #include <tvm/tir/op.h>
 
 #include <algorithm>
+#include <utility>
 
 #include "../target/datatype/registry.h"
 #include "conjunctive_normal_form.h"
@@ -1384,11 +1385,16 @@ Optional<PrimExpr> RewriteSimplifier::Impl::TryMatchLiteralConstraint(const Prim
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const EQNode* op) {
-  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<EQNode>();
+  EQ ret = Downcast<EQ>(IRMutatorWithAnalyzer::VisitExpr_(op));
+  op = ret.get();
+
   if (auto const_res = TryConstFold<EQ>(op->a, op->b)) return const_res.value();
   if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
 
+  return ApplyRewriteRules(ret);
+}
+
+PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
   // Pattern var match IntImm
@@ -1396,32 +1402,106 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const EQNode* op) {
   PVar<int> lanes;
 
   // vector rule
-  if (op->dtype.lanes() != 1) {
+  if (ret->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(broadcast(x, lanes) == broadcast(y, lanes), broadcast(x == y, lanes));
   }
 
-  if (IsIndexType(op->a.dtype())) {
-    CompareResult result = TryCompare(op->a, op->b);
+  if (IsIndexType(ret->a.dtype())) {
+    CompareResult result = TryCompare(ret->a, ret->b);
     if (result == CompareResult::kEQ) {
-      return make_const(op->dtype, true);
+      return make_const(ret->dtype, true);
     } else if (result == CompareResult::kNE || result == CompareResult::kGT ||
                result == CompareResult::kLT) {
-      return make_const(op->dtype, false);
+      return make_const(ret->dtype, false);
     }
+    TVM_TRY_REWRITE(c1 == x, x == c1);
+
     TVM_TRY_REWRITE(x - c1 == 0, x == c1);
     TVM_TRY_REWRITE(c1 - x == 0, x == c1);
     TVM_TRY_REWRITE(x + c1 == 0, x == 0 - c1);
     TVM_TRY_REWRITE(x * y == 0, x == 0 || y == 0);
   }
-  return ret;
+  return std::move(ret);
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NENode* op) {
-  return this->VisitExpr(Not(op->a == op->b));
+  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
+  op = ret.as<NENode>();
+
+  if (auto const_res = TryConstFold<NE>(op->a, op->b)) return const_res.value();
+  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+
+  if (IsIndexType(op->a.dtype())) {
+    CompareResult result = TryCompare(op->a, op->b);
+    if (result == CompareResult::kNE || result == CompareResult::kGT ||
+        result == CompareResult::kLT) {
+      return make_const(op->dtype, true);
+    } else if (result == CompareResult::kEQ) {
+      return make_const(op->dtype, false);
+    } else if (result == CompareResult::kGE) {
+      // Known: a >= b
+      //
+      // a != b
+      // (a < b) or (b < a)
+      // False or (b < a)
+      // b < a
+      return ApplyRewriteRules(LT(op->b, op->a));
+    } else if (result == CompareResult::kLE) {
+      // Known: a <= b
+      //
+      // a != b
+      // (a < b) or (b < a)
+      // (a < b) or False
+      // a < b
+      return ApplyRewriteRules(LT(op->a, op->b));
+    }
+  }
+
+  return ApplyRewriteRules(Not(ApplyRewriteRules(EQ(op->a, op->b))));
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LENode* op) {
-  return this->VisitExpr(Not(op->b < op->a));
+  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
+  op = ret.as<LENode>();
+  ICHECK(op);
+
+  if (auto const_res = TryConstFold<LE>(op->a, op->b)) return const_res.value();
+  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+
+  // Check for applicable rewrites before attempting to prove/disprove
+  // the inequality.  This preserves earlier behavior, where (A<=B*x)
+  // simplifies to (ceildiv(A,B)<=x) when (A%B!=0).  Performing the
+  // TryCompare first would simplify to the equivalent
+  // (floordiv(A,B)<x) in these cases instead.
+  ret = ApplyRewriteRules(Not(ApplyRewriteRules(LT(op->b, op->a))));
+
+  if (auto op = ret.as<LENode>(); op && IsIndexType(op->a.dtype())) {
+    CompareResult result = TryCompare(op->a, op->b);
+    if (result == CompareResult::kLE || result == CompareResult::kLT ||
+        result == CompareResult::kEQ) {
+      return make_const(op->dtype, true);
+    } else if (result == CompareResult::kGT) {
+      return make_const(op->dtype, false);
+    } else if (result == CompareResult::kNE) {
+      // Known: a != b
+      //
+      // a <= b
+      // (a < b) or (a == b)
+      // (a < b) or False
+      // a < b
+      return ApplyRewriteRules(LT(op->a, op->b));
+    } else if (result == CompareResult::kGE) {
+      // Known: a >= b
+      //
+      // a <= b
+      // (a < b) or (a == b)
+      // False or (a == b)
+      // a == b
+      return ApplyRewriteRules(EQ(op->a, op->b));
+    }
+  }
+
+  return ret;
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const GTNode* op) {
@@ -1429,15 +1509,20 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const GTNode* op) {
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const GENode* op) {
-  return this->VisitExpr(Not(op->a < op->b));
+  return this->VisitExpr(op->b <= op->a);
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LTNode* op) {
-  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<LTNode>();
-  if (auto const_res = TryConstFold<LT>(op->a, op->b)) return const_res.value();
-  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+  LT node = Downcast<LT>(IRMutatorWithAnalyzer::VisitExpr_(op));
+  op = node.get();
 
+  if (auto const_res = TryConstFold<LT>(op->a, op->b)) return const_res.value();
+  if (auto match = TryMatchLiteralConstraint(node)) return match.value();
+
+  return ApplyRewriteRules(node);
+}
+
+PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
@@ -1445,19 +1530,19 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LTNode* op) {
   PVar<int> lanes;
 
   // vector rule
-  if (op->dtype.lanes() != 1) {
+  if (ret->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(broadcast(x, lanes) < broadcast(y, lanes), broadcast(x < y, lanes));
     TVM_TRY_REWRITE(ramp(x, s1, lanes) < ramp(y, s1, lanes), broadcast(x < y, lanes));
   }
 
-  if (IsIndexType(op->a.dtype())) {
-    CompareResult result = TryCompare(op->a, op->b);
+  if (IsIndexType(ret->a.dtype())) {
+    CompareResult result = TryCompare(ret->a, ret->b);
     if (result == CompareResult::kLT) {
-      return make_const(op->dtype, true);
+      return make_const(ret->dtype, true);
     }
     if (result == CompareResult::kEQ || result == CompareResult::kGT ||
         result == CompareResult::kGE) {
-      return make_const(op->dtype, false);
+      return make_const(ret->dtype, false);
     }
 
     // clang-format off
@@ -1561,19 +1646,22 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LTNode* op) {
     TVM_TRY_REWRITE(x - c1 < 0, x < c1);
     // clang-format on
   }
-  return ret;
+  return std::move(ret);
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NotNode* op) {
-  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<NotNode>();
-  if (auto const_res = TryConstFold<Not>(op->a)) return const_res.value();
+  Not ret = Downcast<Not>(IRMutatorWithAnalyzer::VisitExpr_(op));
+  if (auto const_res = TryConstFold<Not>(ret->a)) return const_res.value();
   if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
 
+  return ApplyRewriteRules(ret);
+}
+
+PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(Not ret) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
   PVar<int> lanes;
-  if (op->dtype.lanes() != 1) {
+  if (ret->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(!broadcast(x, lanes), broadcast(!x, lanes));
   }
 
@@ -1586,7 +1674,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NotNode* op) {
   TVM_TRY_REWRITE(!(x != y), x == y);
   TVM_TRY_RECURSIVE_REWRITE(!(x || y), (!x) && (!y));
   TVM_TRY_RECURSIVE_REWRITE(!(x && y), (!x) || (!y));
-  return ret;
+  return std::move(ret);
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
@@ -1762,6 +1850,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
 
   TVM_TRY_REWRITE(x != c1 || x == c2, x != c1 || c1 == c2);
   TVM_TRY_REWRITE(x == c2 || x != c1, x != c1 || c1 == c2);
+
+  TVM_TRY_RECURSIVE_REWRITE(x < y || x == y, x <= y);
+  TVM_TRY_RECURSIVE_REWRITE(x < y || y == x, x <= y);
+  TVM_TRY_RECURSIVE_REWRITE(x == y || x < y, x <= y);
+  TVM_TRY_RECURSIVE_REWRITE(y == x || x < y, x <= y);
+
   return ret;
 }
 
