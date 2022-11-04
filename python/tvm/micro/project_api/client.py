@@ -85,7 +85,7 @@ class ProjectAPIClient:
 
     @property
     def is_shutdown(self):
-        return self.read_file is None
+        return self.read_file.closed
 
     def shutdown(self):
         if self.is_shutdown:
