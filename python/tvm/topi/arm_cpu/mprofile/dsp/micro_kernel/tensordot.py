@@ -19,137 +19,300 @@ including regular conv2d, depthwise conv2d, and grouped conv2d provided the data
 are the optimal ones. When groups=1, the optimal data layout is NHWC and kernel layout is OHWI. When
 this is a depthwise convolution, the optimal data layout is NCHW and kernel layout is OIHW."""
 
+from itertools import chain
 import textwrap
+from typing import Iterator, Tuple
+
+import numpy as np
 
 from tvm import te, tir
 
-from .common import num_simd_lanes_per_word
 
-
-def _get_func_name(in_dtype, tensor_h, jump, tensor_w, suffix):
+def get_c_function_name(split_size, dimensions, offsets, x_strides):
     """Gets the C function name of the tensordot function."""
-    return f"tensordot_{in_dtype}_h{tensor_h}_j{jump}_w{tensor_w}_{suffix}"
-
-
-def make_intrin_tensordot(slices, strides, tensordot_params):
-    """Helper function for constructing tensordot intrinsic. We can't construct the whole thing here
-    (as multiple schedules use tensordot and each must build the intrinstic differently) but we can
-    build part here to simplify the code."""
-
-    # in_dtype, tensor_h, jump, tensor_w, suffix = tensordot_params
-    data, kernel, output = slices
-    data_strides, kernel_strides = strides
-
-    data_buf = tir.decl_buffer(
-        data.shape, data.dtype, name="data", offset_factor=1, strides=data_strides
-    )
-    kernel_buf = tir.decl_buffer(
-        kernel.shape,
-        kernel.dtype,
-        name="kernel",
-        offset_factor=1,
-        strides=kernel_strides,
-    )
-    output_buf = tir.decl_buffer(
-        output.shape, output.dtype, name="output", offset_factor=1, strides=[1]
+    tensor_w, kernel_h, kernel_w = dimensions
+    return (
+        f"tensordot_opt_x{split_size}_int16_w{tensor_w}_"
+        + f"{kernel_h}x{kernel_w}_"
+        + "".join(map(str, offsets))
+        + (f"_{x_strides[0]}_{x_strides[1]}" if split_size > 1 else "")
     )
 
-    def intrin_func(ins, outs):
-        builder = tir.ir_builder.create()
-        builder.emit(
-            tir.call_extern(
-                "int32",
-                _get_func_name(*tensordot_params),
-                outs[0].access_ptr("w"),
-                ins[0].access_ptr("r"),
-                ins[1].access_ptr("r"),
-            )
-        )
-        return builder.get()
-
-    return te.decl_tensor_intrin(
-        output.op,
-        intrin_func,
-        binds={data: data_buf, kernel: kernel_buf, output: output_buf},
-    )
+def _is_pow_2(number):
+    """Checks if `number` is a power of `2`."""
+    return number & (number - 1) == 0 and number > 0
 
 
-def tensordot_impl(in_dtype: str, tensor_h: int, jump: int, tensor_w: int, suffix: str) -> str:
-    """Generates C code for taking the dot products of two `tensor_h` * `tensor_w` tensors. Also has
-    a `jump` argument that advances the pointer of one tensor by that many words after each row. The
-    `jump` and `tensor_w` values must be word-aligned for the input data type, as non-word-aligned
-    memory access is slow on the Cortex-M series. Depending on the input datatype, the code may
-    contain DSP instructions for Arm v7e-m. C code contains DSP instructions for Arm v7e-m. See
-    the below pseudocode for reference:
+def _count_factorization_2s(number):
+    """Returns the number of times `2` appears in the factorization of `number`."""
+    assert isinstance(number, int)
+    count = 0
+    while number % 2 == 0:
+        number // 2
+        count += 1
+    return count
 
-    tensordot(out_ptr, dat_ptr, ker_ptr) {
-        sum = 0;
-        for (i = 0; i < tensor_h; i++) {
-            for (j = 0; j < tensor_w; j++) {
-                sum += (*dat_ptr++) * (*ker_ptr++);
-            }
-            dat_ptr += jump;
-        }
-        *out_ptr = sum;
-    }
+
+def _init_biased_accumulators(split_size):
+    """Addition is commutative, so we could add the bias before, during, or after performing our
+    multiply-accumulate operations. It "costs" one cycle either way - if done at the beginning we
+    can't use our SMULXY trick to set sum_i to zero for "free", and if done at the end it doesn't
+    combine with anything. However, doing it at the beginning frees up a register/prevents needing
+    to do a stack push/pop, so we'll do it first."""
+    var_names = map(lambda x: f"sum_{x:x}", range(split_size))
+    joined_var_names = ", ".join(var_names)
+    return f"int {joined_var_names} = *bias;"
+
+
+def _get_tensor_halfwords(dimensions, offset, split_size, in_stride) -> Iterator:
+    tensor_w, kernel_h, kernel_w = dimensions
+
+    split_max = (split_size - 1) * in_stride
+    for y in range(kernel_h):
+        if y * tensor_w % 2 + offset == 1:
+            yield None
+        for x in range(kernel_w + split_max):
+            yield (y, x)
+        if (y * tensor_w + kernel_w + split_max + offset) % 2 == 1:
+            yield None
+
+
+def _get_kernel_halfwords(dimensions, offset) -> Iterator:
+    _tensor_w, kernel_h, kernel_w = dimensions
+    if offset == 1:
+        yield None
+    for y in range(kernel_h):
+        for x in range(kernel_w):
+            yield (y, x)
+    if (kernel_h * kernel_w + offset) % 2 == 1:
+        yield None
+
+
+def _get_int16_alias(position) -> str:
+    if not position:
+        return "unknown"
+    y, x = position
+    return f"y{y:0>2x}_x{x:0>2x}"
+
+
+def _load_tensor_vars(halfwords, tensor_w) -> Iterator[str]:
+    assert len(halfwords) % 2 == 0
+    for i in range(0, len(halfwords), 2):
+        var_name = "__".join(map(_get_int16_alias, halfwords[i : i + 2]))
+        y, x = halfwords[i + 1] or halfwords[i]
+        tensor_index = (y * tensor_w + x) // 2
+        yield f"int tensor__{var_name} = tensor[{tensor_index}];"
+
+
+def _load_kernel_vars(halfwords) -> Iterator[str]:
+    assert len(halfwords) % 2 == 0
+    for i in range(0, len(halfwords), 2):
+        var_name = "__".join(map(_get_int16_alias, halfwords[i : i + 2]))
+        yield f"int kernel__{var_name} = kernel[{i // 2}];"
+
+
+def _get_draft_macs(kernel_dims, tensor_halfwords, kernel_halfwords, offset) -> Iterator[Tuple]:
+    def get_var(y, x, halfwords):
+        i = halfwords.index((y, x))
+        if i % 2 == 0:
+            return f"{_get_int16_alias((y, x))}__{_get_int16_alias(halfwords[i + 1])}", "b"
+        else:
+            return f"{_get_int16_alias(halfwords[i - 1])}__{_get_int16_alias((y, x))}", "t"
+
+    kernel_h, kernel_w = kernel_dims
+    for y in range(kernel_h):
+        for x in range(kernel_w):
+            tensor_var, tensor_half = get_var(y, x + offset, tensor_halfwords)
+            kernel_var, kernel_half = get_var(y, x, kernel_halfwords)
+            yield f"smla{tensor_half}{kernel_half}", f"tensor__{tensor_var}", f"kernel__{kernel_var}"
+
+
+def _apply_simd_optimizations(instruction_tuples) -> Iterator[Tuple]:
+    curr_tuple = next(instruction_tuples, None)
+    while curr_tuple:
+        next_tuple = next(instruction_tuples, None)
+        if not next_tuple:
+            yield curr_tuple
+            break
+
+        if curr_tuple[1:] == next_tuple[1:]:
+            if set([curr_tuple[0], next_tuple[0]]) == set(["smlatt", "smlabb"]):
+                yield "smlad", *curr_tuple[1:]
+                next_tuple = next(instruction_tuples, None)
+            elif set([curr_tuple[0], next_tuple[0]]) == set(["smlatb", "smlabt"]):
+                yield "smladx", *curr_tuple[1:]
+                next_tuple = next(instruction_tuples, None)
+            else:
+                yield curr_tuple
+
+        else:
+            yield curr_tuple
+        curr_tuple = next_tuple
+
+
+NO_ACC_PREFIX_CONVERSIONS = {
+    "smlad": "smuad",
+    "smladx": "smuadx",
+    "smlatt": "smultt",
+    "smlatb": "smultb",
+    "smlabt": "smulbt",
+    "smlabb": "smulbb",
+}
+
+
+#def _no_first_accumulate(instruction_tuples) -> Iterator[Tuple]:
+#    ins, op1, op2 = next(instruction_tuples)
+#    yield NO_ACC_PREFIX_CONVERSIONS[ins], op1, op2
+#    for instruction_tuple in instruction_tuples:
+#        yield instruction_tuple
+
+
+def _expand_instruction_tuples(instruction_tuples, index) -> Iterator[str]:
+    """Converts a series of (instruction, var1, var2) tuples into lines of C code. Should be simple,
+    but we need to work around a series of cryptic bugs while ensuring the compiler makes certain
+    optimizations.
+
+    1. Ideally, we would call __builtin_arm functions instead of including inline assembly, as this
+       is easier to read and more future proof. However:
+        a. Arm GCC apparently *forgot* to include `__builtin_arm_smlabt`, even though
+           `__builtin_arm_smlatt`, `__builtin_arm_smlatb`, `__builtin_arm_smlad` and so on all
+           exist. These work as expected on Clang - the issue is GCC only.
+
+        b. Calling `__builtin_arm_smlatt` (and `smlatb` and `smlabb`) works fine on real devices.
+           However, calling these builtins causes the Corstone300 simulator to freeze and stall. I
+           have no clue on why this is - wouldn't these builtins be compiled to assembly? - yet it
+           occurs consistently.
+
+
+    2. Ideally, the compiler would know that the first multiply instruction should *not* accumulate,
+       and would automatically replace it with an otherwise identical but non-accumulating
+       instruction. Doing this saves us one cycle, as we don't need to load a zero into sum_i.
+       However, the compiler (understandably) does not like overwriting instructions we explicitly
+       as for, so we must do this ourselves.
+
+    3. Ideally, since we're going to emit several lines of assembly code, we would do it in a single
+       `asm` block. However, we *want* the compiler to reorder the instructions and interleave them
+       with memory loads, and it can only do this if we specify the instructions as individual non-
+       volatile memory loads.
     """
+    for instruction, op1, op2 in instruction_tuples:
+        if "smla" in instruction:
+            if instruction == "smlabt":
+                yield f"sum_{index} = __builtin_arm_smlatb({op2}, {op1}, sum_{index});"
+            else:
+                yield f"sum_{index} = __builtin_arm_{instruction}({op1}, {op2}, sum_{index});"
 
-    simd_lanes = num_simd_lanes_per_word(in_dtype)
-    assert tensor_w % simd_lanes == 0
-    assert jump % simd_lanes == 0
+        else:
+            yield f'asm ("{instruction} %0, %1, %2" : "=r" (sum_{index}) : "r" ({op1}), "r" ({op2}));'
 
-    if in_dtype == "int8":
-        inner_loop = """
-              uint32_t tensor_c20 = __SXTB16(tensor_batch);
-              uint32_t kernel_c20 = __SXTB16(kernel_batch);
-              sum = __SMLAD(tensor_c20, kernel_c20, sum);
+def _requantize_sums(num_sums) -> Iterator[str]:
+    """Simulates multiplying by the float32 requantization scale by doing a int64 multiply + shift,
+    which is much faster. The bias is added at the beginning, so we can skip doing it now. The shift
+    is hard-coded, as this saves a few cycles without hurting accuracy in "most" cases.
 
-              uint32_t tensor_c31 = __SXTB16(__ROR(tensor_batch, 8));
-              uint32_t kernel_c31 = __SXTB16(__ROR(kernel_batch, 8));
-              sum = __SMLAD(tensor_c31, kernel_c31, sum);"""
+    It's *possible* we could save one more cycle here by pre-multiplying the bias with the
+    requantize multiplier, and then doing the bias addition and shift in the same cycle (via <op2>).
+    However, it's complicated and only saves one cycle.
 
-    elif in_dtype == "int16":
-        inner_loop = """
-              sum = __SMLAD(tensor_batch, kernel_batch, sum);"""
+    It's also worth noting the SSAT16 operation doesn't help us here. The data isn't stored as two
+    halfwords in a word, and rearrainging it would take at least one cycle. Two SSAT operations is
+    just as good.
 
-    elif in_dtype == "int32":
-        inner_loop = """
-              // Compiles to a single MAC instruction
-              sum += tensor_batch * kernel_batch;"""
+    Lastly, calling __builtin_arm_ssat is a little bit gross, but GCC and Clang are unreliable about
+    compiling other ways of writing this. Both the multiply + shift and shift + saturation combine
+    to one instruction each."""
+
+    yield "int requantize_multiplier = *requant_scale;"
+    for i in range(num_sums):
+        yield f"int requant_{i} = (sum_{i} * (long long) requantize_multiplier) >> 32;"
+        yield f"requant_{i} = __builtin_arm_ssat(requant_{i} >> 8, 8);"
+
+
+def _write_sums_to_memory(num_sums, offset, stride) -> Iterator[str]:
+    """Writes the requantized sums to memory. Note - halfword packing here *does* help. It seems
+    like it wouldn't, as doing two pipelined int16 stores takes two cycles - the same as halfword
+    packing plus a pipelined int32 store. We still do the int16 stores when there is an output
+    stride, though.
+
+    However, this lets the compiler re-order instructions to better preserve memory, as it doesn't
+    like breaking apart the store instructions (as this messes up pipelining)."""
+
+    if stride > 1:
+        for i in range(num_sums):
+            yield f"((short*) output)[{i * stride + offset}] = (short) requant_{i};"
 
     else:
-        raise ValueError(f"No tensordot implementation exists for dtype '{in_dtype}'!")
+        num_halfwords = (num_sums - offset) // 2
+        for i in range(num_halfwords):
+            index = 2 * i + offset
+            yield f"int packed_res_{i} = requant_{index} + (requant_{index + 1} << 16);"
 
-    function_name = _get_func_name(in_dtype, tensor_h, jump, tensor_w, suffix)
-    return textwrap.dedent(
-        (
-            f"""
-        #include <stdint.h>
+        if offset == 1:
+            yield f"((short*) output)[1] = (short) requant_0;"
+
+        for i in range(num_halfwords):
+            yield f"output[{offset + i}] = packed_res_{i};"
+
+        if (offset + num_sums) % 2 == 1:
+            yield f"((short*) output)[{num_halfwords * 2}] = (short) requant_{num_halfwords * 2};"
+
+
+def tensordot_int16_impl(
+    split_size: int,
+    dimensions: Tuple[int, int, int],
+    offsets: Tuple[int, int, int],
+    x_strides: Tuple[int, int],
+) -> str:
+    """Code for a specialized version of tensordot, which computes `split_size` tensordot operations
+    at the same time. Only works with `int16`. The generated function takes as input pointers to the
+    output, tensor, and kernel, which must be word-aligned. However, the stride can be half a word.
+    """
+    function_name = get_c_function_name(split_size, dimensions, offsets, x_strides)
+    tensor_w, kernel_h, kernel_w = dimensions
+    tensor_offset, kernel_offset, output_offset = offsets
+    assert tensor_offset < 2 and kernel_offset < 2 and output_offset < 2
+    in_stride, out_stride = x_strides
+
+    tensor_halfwords = list(_get_tensor_halfwords(dimensions, tensor_offset, split_size, in_stride))
+    kernel_halfwords = list(_get_kernel_halfwords(dimensions, kernel_offset))
+    load_tensor_lines = _load_tensor_vars(tensor_halfwords, tensor_w)
+    load_kernel_lines = _load_kernel_vars(kernel_halfwords)
+
+    def gen_single_loop_macs(index):
+        draft_macs_iter = _get_draft_macs(
+            (kernel_h, kernel_w), tensor_halfwords, kernel_halfwords, index * in_stride
+        )
+        draft_macs_iter = _apply_simd_optimizations(draft_macs_iter)
+        return _expand_instruction_tuples(draft_macs_iter, index)
+
+    multiply_acc_lines = chain.from_iterable(gen_single_loop_macs(i) for i in range(split_size))
+    requantize_lines = _requantize_sums(split_size)
+    write_out_lines = _write_sums_to_memory(split_size, output_offset, out_stride)
+
+    def insert_lines(lines):
+        return ("\n" + " " * 10).join(lines)
+
+    # __WEAK allows multiple copies of the function to overwrite themselves, saving flash
+    code = textwrap.dedent(
+        f"""
         #include <arm_nnsupportfunctions.h>
+        __STATIC_FORCEINLINE __WEAK int {function_name}(
+            int *output, int *tensor, int *kernel, int *bias, int *requant_scale
+        ) {{
+          {_init_biased_accumulators(split_size)}
 
-        #ifdef __cplusplus
-        extern "C"
-        #endif
-        __STATIC_FORCEINLINE int32_t {function_name}(
-            uint32_t *out,
-            uint32_t *tensor,
-            uint32_t *kernel) {{
+          {insert_lines(load_tensor_lines)}
 
-          uint32_t sum = 0;
+          {insert_lines(load_kernel_lines)}
 
-          #pragma GCC unroll {tensor_h}
-          for (int i = 0; i < {tensor_h}; i++) {{
-            #pragma GCC unroll {tensor_w // simd_lanes}
-            for (int j = 0; j < {tensor_w // simd_lanes}; j++) {{
-              uint32_t tensor_batch = *tensor++;
-              uint32_t kernel_batch = *kernel++;
-              {inner_loop.strip()}
-            }}
-            tensor += {jump // simd_lanes};
-          }}
-          out[0] = sum;
+          {insert_lines(multiply_acc_lines)}
+
+          {insert_lines(requantize_lines)}
+
+          {insert_lines(write_out_lines)}
           return 0;
         }}
         """
-        )
     )
+    print(code)
+    return code
