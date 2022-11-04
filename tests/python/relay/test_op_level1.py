@@ -820,5 +820,31 @@ def test_dense_rocm_sdot4():
     np.testing.assert_equal(out, ref)
 
 
+def test_extern_concat_injective_fuse():
+    # This is a subgraph from MobileBERT, which crashes compilation if buffers created in te.extern(...)
+    # do not have their elem_offset explicitly set as a variable.
+
+    # fmt: off
+    mod = tvm.parser.fromtext(
+        """
+       #[version = "0.0.5"]
+       def @main(%p0844: Tensor[(1, 384), int64], %p1652: Tensor[(2016, 128), float16]) {
+        %1331 = cast(%p0844, dtype="int32");
+        %1332 = take(%p1652, %1331, axis=0);
+        %1333 = strided_slice(%1332, begin=[0, 1, 0], end=[1, 384, 128], strides=[1, 1, 1], axes=None);
+        %1334 = strided_slice(%1332, begin=[0, 0, 0], end=[1, -1, 128], strides=[1, 1, 1], axes=None);
+        %1335 = nn.pad(%1333, 0, pad_width=[[0, 0], [0, 1], [0, 0]]);
+        %1336 = nn.pad(%1334, 0, pad_width=[[0, 0], [1, 0], [0, 0]]);
+        %1337 = (%1335, %1332, %1336);
+        %1338 = concatenate(%1337, axis=2);
+        reshape(%1338, newshape=[-1, 384])
+      }
+    """
+    )
+    # fmt: on
+
+    relay.build(mod, params={}, target="llvm")
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
