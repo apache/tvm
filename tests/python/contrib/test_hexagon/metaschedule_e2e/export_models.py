@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Hexagon MetaSchedule test helper functions."""
+
 import torch
 from torchvision.models import resnet
 from torchvision.models.quantization import resnet as qresnet
@@ -23,6 +25,7 @@ from tvm import relay
 
 
 def export_resnet50_fp16():
+    """Export Resnet50 FP16."""
     model = resnet.resnet50(pretrained=True).eval()
 
     pt_inp = torch.randn(1, 3, 224, 224)
@@ -34,14 +37,16 @@ def export_resnet50_fp16():
     mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
     mod = relay.transform.ToMixedPrecision("float16")(mod)
 
-    with open("resnet50_fp16.json", "w") as fo:
-        fo.write(tvm.ir.save_json(mod))
+    with open("resnet50_fp16.json", "w") as file:
+        file.write(tvm.ir.save_json(mod))
 
-    with open("resnet50_fp16.params", "wb") as fo:
-        fo.write(relay.save_param_dict(params))
+    with open("resnet50_fp16.params", "wb") as file:
+        file.write(relay.save_param_dict(params))
 
 
 def export_resnet50_int8():
+    """Export Resnet50 INT8."""
+
     def quantize_model(model, inp):
         model.fuse_model()
         model.qconfig = torch.quantization.get_default_qconfig("fbgemm")
@@ -62,11 +67,11 @@ def export_resnet50_int8():
         script_module, input_shapes, keep_quantized_weight=True
     )
 
-    with open("resnet50_int8.json", "w") as fo:
-        fo.write(tvm.ir.save_json(mod))
+    with open("resnet50_int8.json", "w") as file:
+        file.write(tvm.ir.save_json(mod))
 
-    with open("resnet50_int8.params", "wb") as fo:
-        fo.write(relay.save_param_dict(params))
+    with open("resnet50_int8.params", "wb") as file:
+        file.write(relay.save_param_dict(params))
 
 
 if __name__ == "__main__":

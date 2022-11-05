@@ -27,25 +27,26 @@ from ..infrastructure import get_hexagon_target
 
 @tvm.testing.requires_hexagon
 def test_nn_pad(hexagon_session: Session):
+    """Test nn pad."""
     dtype = "uint8"
     in_shape = (1, 56, 56, 32)
 
     data_in = np.ones(in_shape).astype(dtype)
 
-    A = te.placeholder(shape=in_shape, name="A", dtype=dtype)
+    a_tensor = te.placeholder(shape=in_shape, name="a_tensor", dtype=dtype)
 
-    C = topi.nn.pad(A, [0, 1, 1, 0], [0, 1, 1, 0], pad_value=0)
+    c_tensor = topi.nn.pad(a_tensor, [0, 1, 1, 0], [0, 1, 1, 0], pad_value=0)
 
     with tvm.target.Target(get_hexagon_target("v68")):
         fschedule = topi.hexagon.schedule_pad
-        s = fschedule(C)
+        s = fschedule(c_tensor)
 
-    func = tvm.build(s, [A, C], get_hexagon_target("v68"), name="pad")
+    func = tvm.build(s, [a_tensor, c_tensor], get_hexagon_target("v68"), name="pad")
     mod = hexagon_session.load_module(func)
 
     dev = hexagon_session.device
     a = tvm.nd.array(data_in, dev)
-    b = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
+    b = tvm.nd.array(np.zeros(get_const_tuple(c_tensor.shape), dtype=c_tensor.dtype), dev)
     mod["pad"](a, b)
 
     # Reference numpy pad output

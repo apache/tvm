@@ -29,7 +29,8 @@ python3 -m pylint tests/python/integration/ --rcfile="$(dirname "$0")"/pylintrc
 # tests/python/contrib/test_hexagon tests
 python3 -m pylint tests/python/contrib/test_hexagon/*.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/contrib/test_hexagon/conv2d/*.py --rcfile="$(dirname "$0")"/pylintrc
-
+python3 -m pylint tests/python/contrib/test_hexagon/topi/*.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_hexagon/metaschedule_e2e/*.py --rcfile="$(dirname "$0")"/pylintrc
 
 # tests/python/frontend tests
 python3 -m pylint tests/python/frontend/caffe/test_forward.py --rcfile="$(dirname "$0")"/pylintrc

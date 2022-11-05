@@ -20,10 +20,10 @@
 import numpy as np
 
 from tvm import te
-
 import tvm.testing
 import tvm.topi.hexagon.slice_ops as sl
-from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
+
+from ...infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 input_layout = tvm.testing.parameter(
     "nhwc-8h2w32c2w-2d",
