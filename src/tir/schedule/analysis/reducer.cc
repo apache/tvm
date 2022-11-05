@@ -572,9 +572,25 @@ bool ReductionIterNotIndexOutputBuffer(const Block& block) {
     if (!store) {
       return true;
     }
-    ICHECK(buffer_written.count(store->buffer.get()))
-        << "ValueError: The buffer \"" << store->buffer
-        << "\" is written in the block but is not in the block's signature";
+    const auto* body_block = block->body.as<BlockRealizeNode>();
+    if (body_block) {
+      bool write_is_covered_by_match_buffer = false;
+      for (const MatchBufferRegion& match_region : body_block->block->match_buffers) {
+        if (store->buffer.get() == match_region->buffer.get() &&
+            buffer_written.count(match_region->source->buffer.get())) {
+          write_is_covered_by_match_buffer = true;
+          break;
+        }
+      }
+      ICHECK(buffer_written.count(store->buffer.get()) || write_is_covered_by_match_buffer)
+          << "ValueError: The buffer \"" << store->buffer
+          << "\" is written in the block but is not in the block's signature nor is it covered by "
+             "a match_buffer";
+    } else {
+      ICHECK(buffer_written.count(store->buffer.get()))
+          << "ValueError: The buffer \"" << store->buffer
+          << "\" is written in the block but is not in the block's signature";
+    }
     for (const PrimExpr& index : store->indices) {
       if (f_uses_reduction_block_var(index)) {
         affected = true;
