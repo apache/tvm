@@ -248,7 +248,7 @@ testing.utils.install_request_hook(depth=3)
 #      ...
 #
 #      # Later run tuning and reuse tuning results
-#      tvmc.tune(model, target="llvm",tuning_records=log_file)
+#      tvmc.tune(model, target="llvm", prior_records=log_file)
 #
 # Method 2:
 #    .. code-block:: python
@@ -259,7 +259,7 @@ testing.utils.install_request_hook(depth=3)
 #      ...
 #
 #      # Later run tuning and reuse tuning results
-#      tvmc.tune(model, target="llvm",tuning_records=tuning_records)
+#      tvmc.tune(model, target="llvm", prior_records=tuning_records)
 #
 
 ################################################################################
