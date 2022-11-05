@@ -683,6 +683,14 @@ def test_dense(executor_kind):
         yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType((n, c, h, ww), dtype)
 
+        # test dynamic shape in inner
+        m, k = 4, 2
+        x = relay.var("x", relay.TensorType((m, k), dtype))
+        k, nw = relay.Any(), 6
+        w = relay.var("w", relay.TensorType((k, n), dtype))
+        y = relay.nn.dense(x, w)
+        yy = run_infer_type(y)
+
         n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), 2
         x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
         w = relay.var("w", relay.IncompleteType())
