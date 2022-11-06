@@ -173,8 +173,7 @@ class ThreadGroup::Impl {
 #if __ANDROID_API__ >= 21
     pid_t tid = pthread_gettid_np(thread);
 #else
-    typedef struct
-    {
+    typedef struct {
       void* next;
       void* pred;
       pid_t tid;
