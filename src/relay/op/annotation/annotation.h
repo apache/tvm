@@ -40,6 +40,7 @@ Expr StopFusion(Expr data);
 Expr CheckPoint(Expr data);
 
 //Expr CheckPointPsum(Expr data);
+Expr CheckPointAddPsum(Expr data);
 Expr CheckPointSiso(Expr data);
 Expr CheckPointBiasS(Expr data);
 Expr CheckPointSi(Expr data);

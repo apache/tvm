@@ -40,6 +40,11 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
+#include <fstream>
+#include <iostream>
+
+using namespace std;
+#include<bitset>
 
 
 namespace tvm {
@@ -50,14 +55,15 @@ using namespace relay::transform;
 
 Expr QRealizeIntExprNode::Realize() const {
   //printf("QRealizeIntExprNode\n");
+  const QConfig& cfg = QConfig::Current();
   Expr data = this->data;
   // dequantize
   Expr zero_point = this->zero_point;
   Expr dom_scale = this->dom_scale;
   dom_scale = Cast(dom_scale, DataType::Float(32));
 
-  data = Cast(data, DataType::Int(64));
-  zero_point = Cast(zero_point, DataType::Int(64));
+  data = Cast(data, cfg->dtype_activation); //newchange
+  zero_point = Cast(zero_point, cfg->dtype_activation); //newchange
   data = Subtract(data, zero_point);
 
   data = Cast(data, DataType::Float(32));
@@ -96,7 +102,7 @@ inline Expr MulAndDiv(Expr data, float s1, float s2, DataType dtype,
   } else {
     if (cfg->rounding == "UPWARD") {
       int32_t fixed_point_multiplier, shift;
-      std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift(factor);
+      std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift_16(factor);
       data = (relay::FixedPointMultiply(data, fixed_point_multiplier, shift));
     } else {
       data = (qnn::FixedPointMultiplyToNearest(data, factor, data_shape));
@@ -121,8 +127,9 @@ inline Expr MulAndDiv_nobias(Expr data, float s1, float s2, DataType dtype,
     return Multiply(data, MakeConstantScalar(dtype, factor));
   } else {
     if (cfg->rounding == "UPWARD") {
-      int32_t fixed_point_multiplier, shift;
-      std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift(factor);
+      int32_t  shift;
+      int64_t fixed_point_multiplier;
+      std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift_16(factor);
       data = (relay::FixedPointMultiply(data, fixed_point_multiplier, shift));
     } else {
       data = (qnn::FixedPointMultiplyToNearest(data, factor, data_shape));
@@ -131,26 +138,125 @@ inline Expr MulAndDiv_nobias(Expr data, float s1, float s2, DataType dtype,
     return Cast(data, dtype);
   }
 }
-inline Expr MulAndDiv_perchannel_upward(Expr data, std::vector<float> s, DataType dtype) {
+//////////////////////////////////pertensor/////////////////////////////
+inline Expr MulAndDiv_pertensor_16(Expr data, float s1, float s2, DataType dtype) {
+  const QConfig& cfg = QConfig::Current();
+  // here we assume the dtype of data is dtype activation
+
+  float factor = s1 / s2;
+
+  int32_t shift;
+  int64_t fixed_point_multiplier;
+  std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift_16(factor);
+  //printf("16bit_fixed_pertensor:%.10f = %ld * 2^%d\n",factor, fixed_point_multiplier, shift-15);
+  data = Multiply(data, MakeConstantScalar(cfg->dtype_activation,  fixed_point_multiplier)); //newchange
+  data = Add(data, LeftShift(MakeConstantScalar(cfg->dtype_activation, 1), MakeConstantScalar(cfg->dtype_activation, -shift+14)));
+  data = RightShift(data, MakeConstantScalar(cfg->dtype_activation,  -shift+15)); //newchange
+  return Cast(data, dtype);
+}
+
+inline Expr MulAndDiv_pertensor_13(Expr data, float s1, float s2, DataType dtype) {
+  const QConfig& cfg = QConfig::Current();
+  // here we assume the dtype of data is dtype activation
+
+  float factor = s1 / s2;
+
+  int32_t shift;
+  int64_t fixed_point_multiplier;
+  std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift_13(factor);
+  //data = (relay::FixedPointMultiply(data, fixed_point_multiplier, shift));
+  //printf("13bit_fixed_pertensor:%.10f = %ld * 2^%d\n",factor, fixed_point_multiplier, shift-12);
+  data = Multiply(data, MakeConstantScalar(cfg->dtype_activation,  fixed_point_multiplier)); //newchange
+  data = RightShift(data, MakeConstantScalar(cfg->dtype_activation,  -shift+12)); //newchange
+
+  return Cast(data, dtype);
+}
+
+//////////////////////////////////perchannel/////////////////////////////
+inline Expr MulAndDiv_perchannel_upward_32(Expr data, std::vector<double> s, DataType dtype) {
   //实现浮点数乘转化为乘定点数加移位。
-  std::vector<float> fixed_point_multipliers;
-  std::vector<float> shifts;
+  const QConfig& cfg = QConfig::Current();
+  std::vector<int> fixed_point_multipliers;
+  std::vector<int> shifts;
   // here we assume the dtype of data is dtype activation
 
   for (size_t i = 0; i < s.size(); i++) {
-
-    float factor  = s[i];
-    int32_t fixed_point_multiplier, shift;
+    double factor  = s[i];
+    //int32_t fixed_point_multiplier, shift;
+    int64_t fixed_point_multiplier;
+    int32_t shift;
     std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift(factor);
-    ICHECK_LE(shift, 0);
+    //printf("%lf = %ld*%d\n",factor, fixed_point_multiplier, shift-15);
+    ICHECK_LE(shift-31, 0);
     fixed_point_multipliers.push_back(fixed_point_multiplier);
-    shifts.push_back(-shift);
+    shifts.push_back(-shift+31);
+  }
+  data = Multiply(data, MakeConstantTensor(cfg->dtype_activation, {(int64_t)fixed_point_multipliers.size(),1,1}, fixed_point_multipliers)); //newchange
+  data = RightShift(data, MakeConstantTensor(cfg->dtype_activation, {(int64_t)shifts.size(),1,1}, shifts)); //newchange
+  //data = qnn::FixedPointMultiplyPerChannel(data, s, data->type_as<TensorTypeNode>()->shape, 0, cfg->rounding);
+  return Cast(Round(data), dtype);
+}
+
+inline Expr MulAndDiv_perchannel_upward_16(Expr data, std::vector<double> s, DataType dtype) {
+  //实现浮点数乘转化为乘定点数加移位。
+  const QConfig& cfg = QConfig::Current();
+  std::vector<int> fixed_point_multipliers;
+  std::vector<int> shifts;
+  // here we assume the dtype of data is dtype activation
+  
+  for (size_t i = 0; i < s.size(); i++) {
+    double factor  = s[i];
+    //int32_t fixed_point_multiplier, shift;
+    int64_t fixed_point_multiplier;
+    int32_t shift;
+    std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift_16(factor);
+    /*
+    ofstream outfile;
+    QConfig::Current()::get_rootdir_name()/
+    outfile.open("fixed_shift_16bit.txt", ios::out | ios::app);
+    outfile << "fixed_shift";
+    outfile << fixed_point_multiplier << "* 2^" << shift << endl;
+    outfile.close();
+    */
+    //printf("16bit_fixed_perchannel:%.10f = %ld * 2^%d\n",factor, fixed_point_multiplier, shift-15);
+    ICHECK_LE(shift-15, 0);
+    fixed_point_multipliers.push_back(fixed_point_multiplier);
+    shifts.push_back(-shift+15);
   }
 
-  data = Multiply(data, MakeConstantTensor(DataType::Int(64), {(int64_t)fixed_point_multipliers.size(),1,1}, fixed_point_multipliers)); 
-  data = RightShift(data, MakeConstantTensor(DataType::Int(64), {(int64_t)shifts.size(),1,1}, shifts));
-  return Cast(data, dtype);
+  data = Multiply(data, MakeConstantTensor(cfg->dtype_activation, {(int64_t)fixed_point_multipliers.size(),1,1}, fixed_point_multipliers)); //newchange
+  data = Add(data, LeftShift(MakeConstantScalar(cfg->dtype_activation, 1), Subtract(MakeConstantTensor(cfg->dtype_activation, {(int64_t)shifts.size(),1,1}, shifts), MakeConstantScalar(cfg->dtype_activation, 1) )));
+  data = RightShift(data, MakeConstantTensor(cfg->dtype_activation, {(int64_t)shifts.size(),1,1}, shifts)); //newchange
+  //data = qnn::FixedPointMultiplyPerChannel(data, s, data->type_as<TensorTypeNode>()->shape, 0, cfg->rounding);
+  return Cast(Round(data), dtype);
 }
+
+inline Expr MulAndDiv_perchannel_upward_13(Expr data, std::vector<double> s, DataType dtype) {
+  //实现浮点数乘转化为乘定点数加移位。
+  const QConfig& cfg = QConfig::Current();
+  std::vector<int> fixed_point_multipliers;
+  std::vector<int> shifts;
+  // here we assume the dtype of data is dtype activation
+
+  for (size_t i = 0; i < s.size(); i++) {
+    double factor  = s[i];
+    //int32_t fixed_point_multiplier, shift;
+    int64_t fixed_point_multiplier;
+    int32_t shift;
+    std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift_13(factor);
+    //printf("%lf = %ld*%d\n",factor, fixed_point_multiplier, shift-12);
+    //printf("13bit_fixed_perchannel:%.10f = %ld * 2^%d\n",factor, fixed_point_multiplier, shift-12);
+    ICHECK_LE(shift-12, 0);
+    fixed_point_multipliers.push_back(fixed_point_multiplier);
+    shifts.push_back(-shift+12);
+  }
+
+  data = Multiply(data, MakeConstantTensor(cfg->dtype_activation, {(int64_t)fixed_point_multipliers.size(),1,1}, fixed_point_multipliers)); //newchange
+  data = RightShift(data, MakeConstantTensor(cfg->dtype_activation, {(int64_t)shifts.size(),1,1}, shifts)); //newchange
+  //data = qnn::FixedPointMultiplyPerChannel(data, s, data->type_as<TensorTypeNode>()->shape, 0, cfg->rounding);
+  return Cast(Round(data), dtype);
+}
+
 
 Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
   //printf("quantizerealize\n");
@@ -169,12 +275,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
   //float dom_scale_imm = GetScalarFromConstant<float>(dom_scale);
   auto dom_scales = tvm::relay::qnn::GetFloatVectorFromConstant(dom_scale);
   float dom_scale_imm = static_cast<float>(dom_scales[0]);
-  //if(cfg->per_channel && param->per_channel){
-  //  for (size_t i = 0; i < dom_scales.size(); i++) {
-  //    float inter_result = 1 / static_cast<float>(dom_scales[i]);
-  //    dom_scale_imm_vector.push_back(inter_result);
-  //  }
-  //}
+
   float clip_min_imm = GetScalarFromConstant<float>(clip_min);
   float clip_max_imm = GetScalarFromConstant<float>(clip_max);
 
@@ -224,25 +325,34 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
       //printf("int32->int8 done\n");
       return QRealizeIntExpr(data, dom_scale, zero_point, n->dtype);
     } else {
-      data = Cast(data, DataType::Int(64));
-      if(cfg->per_channel){
+      auto si_s = tvm::relay::qnn::GetFloatVectorFromConstant(n->dom_scale);
+      data = Cast(data, cfg->dtype_activation); //newchange
+      if(cfg->per_channel && si_s.size() > 1){
         //printf("3\n");
         
+         /*
+        //printf("si.size = %ld\n",si_s.size());
         data = Cast(data, DataType::Float(32));
         data = Multiply(data, CheckPointSiso(Divide(Cast(n->dom_scale, DataType::Float(32)), dom_scale)));
-        data = Cast(Round(data), DataType::Int(64));
-        
-       /*
+        data = Cast(Round(data), cfg->dtype_activation); //newchange
+        */
+      
         auto si_s = tvm::relay::qnn::GetFloatVectorFromConstant(n->dom_scale);
+        //printf("si.size = %ld\n",si_s.size());
         auto so_s = tvm::relay::qnn::GetFloatVectorFromConstant(dom_scale);
-        std::vector<float> s;
+        std::vector<double> s;
         for (size_t i = 0; i < si_s.size(); i++) {
-          float si_so = static_cast<float>(si_s[i]) / static_cast<float>(so_s[0]);
+          double si_so = static_cast<double>(si_s[i]) / static_cast<double>(so_s[0]);
           s.push_back(si_so);
         }
-        data = MulAndDiv_perchannel_upward(data, s, DataType::Int(64));
+        if(cfg->fixed_point_is16){
+          data = MulAndDiv_perchannel_upward_16(data, s, cfg->dtype_activation); //newchange
+        }
+        else{
+          data = MulAndDiv_perchannel_upward_13(data, s, cfg->dtype_activation); //newchange
+        }
         //printf("MulAndDiv_perchannel_upward done\n");
-        */
+        
       }
       else{
         if (cfg->rounding == "UPWARD") {
@@ -255,7 +365,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
                                                 ref_call->type_as<TensorTypeNode>()->shape);
         }
       }
-      data = Add(data, (MakeConstantScalar(DataType::Int(64), zero_point_imm)));
+      data = Add(data, (MakeConstantScalar(cfg->dtype_activation, zero_point_imm)));  //newchange
       //printf("Add done\n");
       data = CheckPoint(Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype));
       //printf("Clip done\n");
@@ -679,7 +789,7 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
       //printf("add in bias without per_channel done\n");
     }
     else{
-      //printf("add fixedpoint mul");
+      //printf("add fixedpoint mul\n");
       s = ChooseDomScale(ref_args,nptrs);
       dom_scale = MakeConstantScalar(DataType::Float(32), s);
       for (size_t i = 0; i < ret.size(); ++i) {
@@ -692,7 +802,7 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
     }
   }
   else{
-    //printf("last is not simulated_quantize");
+    //printf("last is not simulated_quantize\n");
     /*
     s = ChooseDomScale(ref_args,nptrs);
     dom_scale = MakeConstantScalar(DataType::Float(32), s);
@@ -713,9 +823,17 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
       dom_scale_1 = MakeConstantScalar(DataType::Float(32), s_1);
 
       ret.Set(0,Subtract(ret[0], zp[0]));
-      ret.Set(1,(Subtract(ret[1], zp[1])));   
-      //ret.Set(1,Divide(ret[1], dom_scale));
+      ret.Set(1,(Subtract(ret[1], zp[1])));  
+      /*
       ret.Set(1,(Multiply(Cast(ret[1], DataType::Float(32)), Divide(dom_scale_1, dom_scale) )));
+      */
+      if(cfg->fixed_point_is16){
+        ret.Set(1,MulAndDiv_pertensor_16(ret[1], s_1, s_0, dtype)); //newchange
+      }
+      else{
+        ret.Set(1,MulAndDiv_pertensor_13(ret[1], s_1, s_0, dtype)); //newchange
+      }
+      
       ret.Set(1, Cast(Round(ret[1]), dtype));
 
   }
@@ -743,7 +861,7 @@ Expr AddRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectR
     }
     Expr zero_point = MakeConstantScalar(DataType::Float(32), 0);//其实没必要存在，为了保证输入参数的统一。
     Expr ret;
-    ret = CheckPointAddoutput(ForwardOp(ref_call, ret_args));
+    ret = ForwardOp(ref_call, ret_args);
     
     //printf("AddRealize done\n");
     return QRealizeIntExpr(ret, dom_scale, zero_point, dtype);
@@ -773,9 +891,9 @@ Expr ClipRealize(const Call& ref_call, const Array<Expr>& new_args, const Object
     attrs->a_min = ref_attrs->a_min / dom_scale; 
     attrs->a_max = ref_attrs->a_max / dom_scale; 
     Expr ret;
-    Expr data = Subtract(n->data, MakeConstantScalar(DataType::Int(64), zero_point_imm));
+    Expr data = Subtract(n->data, MakeConstantScalar(cfg->dtype_activation, zero_point_imm)); //newchange
     
-    printf("%ld\n",dom_scales.size());
+    //printf("%ld\n",dom_scales.size());
     if(cfg->per_channel && dom_scales.size() > 1){
       //printf("ClipRealize 8 \n");
       ret = ClipPerChannel(data, dom_scales, ref_attrs->a_min, ref_attrs->a_max);

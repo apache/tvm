@@ -91,6 +91,7 @@ class QConfigNode : public Object {
   std::string quantizer_activation = "Asymmetric";
   std::string quantizer_bias = "Symmetric";
   bool per_channel = true;
+  bool fixed_point_is16 = true;
   std::string opt_method = "grid";
   bool debug_mode = false;
   double global_scale = 8.0;
@@ -122,6 +123,7 @@ class QConfigNode : public Object {
     v->Visit("quantizer_activation", &quantizer_activation);
     v->Visit("quantizer_bias", &quantizer_bias);
     v->Visit("per_channel", &per_channel);
+    v->Visit("fixed_point_is16", &fixed_point_is16);
     v->Visit("opt_method", &opt_method);
     v->Visit("debug_mode", &debug_mode);
     v->Visit("global_scale", &global_scale);

@@ -831,20 +831,11 @@ inline Expr ClipPerChannel(Expr x, std::vector<float> dom_scales, double min_val
   Array<IndexExpr> split_indices;
   //printf("%ld",data_shape[1]);
   printf("in clip per channel:channel size:%d\n",channel_size);
-  /*
-  for (int i = 0; i < (channel_size-1); ++i) {
-    split_indices.push_back(i+1);
-  }
-  auto spilt_out_tmp1 = Split(x, split_indices, 1);
-  */
   auto spilt_out_tmp1 = Split(x, tvm::tir::make_const(DataType::Int(64), static_cast<int>(dom_scales.size())), 1);
 
-  //for (size_t i = 0; i < spilt_out_tmp1.as<ArrayNode>()->size(); ++i) {
   for (int i = 0; i < channel_size; ++i) {
     auto split_out = TupleGetItem(spilt_out_tmp1, i);
-
     split_out_tmp2.push_back(Clip(split_out, min_value/dom_scales[i], max_value/dom_scales[i]));
-    //split_out_tmp2.push_back(Clip(*(spilt_out_tmp1.as<ArrayNode>()->at(i)).as<Expr>(), min_value/dom_scales[i], max_value/dom_scales[i]));
   }
 
   Expr ret_out = Concatenate(Tuple(split_out_tmp2), 1);

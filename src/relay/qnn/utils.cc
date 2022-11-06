@@ -56,6 +56,59 @@ std::pair<int32_t, int32_t> GetFixedPointMultiplierShift(double double_multiplie
   return std::make_pair(significand, exponent);
 }
 
+
+std::pair<int32_t, int32_t> GetFixedPointMultiplierShift_16(double double_multiplier) {
+  int32_t significand, exponent;
+  if (double_multiplier == 0.) {
+    significand = 0;
+    exponent = 0;
+    return std::make_pair(significand, exponent);
+  }
+
+  // Get the significand and exponent.
+  double significand_d = std::frexp(double_multiplier, &exponent);
+  // Convert the double significand to int significand, i.e., convert into a
+  // integer where the decimal point is between bit 31 and 30. This is done by
+  // multiplying the double value with 2^31 and then casting to int.
+  significand_d = std::round(significand_d * (1ll << 15));
+  auto significand_int64 = static_cast<int64_t>(significand_d);
+  ICHECK_LE(significand_int64, (1ll << 15));
+  if (significand_int64 == (1ll << 15)) {
+    significand_int64 /= 2;
+    ++exponent;
+  }
+  ICHECK_LE(significand_int64, std::numeric_limits<int32_t>::max());
+  significand = static_cast<int32_t>(significand_int64);
+  return std::make_pair(significand, exponent);
+}
+
+std::pair<int32_t, int32_t> GetFixedPointMultiplierShift_13(double double_multiplier) {
+  int32_t significand, exponent;
+  if (double_multiplier == 0.) {
+    significand = 0;
+    exponent = 0;
+    return std::make_pair(significand, exponent);
+  }
+
+  // Get the significand and exponent.
+  double significand_d = std::frexp(double_multiplier, &exponent);
+
+  // Convert the double significand to int significand, i.e., convert into a
+  // integer where the decimal point is between bit 31 and 30. This is done by
+  // multiplying the double value with 2^31 and then casting to int.
+  significand_d = std::round(significand_d * (1ll << 12));
+  auto significand_int64 = static_cast<int64_t>(significand_d);
+  ICHECK_LE(significand_int64, (1ll << 12));
+  if (significand_int64 == (1ll << 12)) {
+    significand_int64 /= 2;
+    ++exponent;
+  }
+  ICHECK_LE(significand_int64, std::numeric_limits<int32_t>::max());
+  significand = static_cast<int32_t>(significand_int64);
+  return std::make_pair(significand, exponent);
+}
+
+
 Expr FixedPointMultiplyToNearest(Expr tensor, double multiplier,
                                  const Array<IndexExpr>& input_shape) {
   // Choose high precision datatype to be int64. This is for avoiding overflow
@@ -129,7 +182,7 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
   bool is_lshift_required = false;
   for (auto multiplier : multipliers) {
     int32_t fixed_pt_multiplier, shift;
-    std::tie(fixed_pt_multiplier, shift) = GetFixedPointMultiplierShift(multiplier);
+    std::tie(fixed_pt_multiplier, shift) = GetFixedPointMultiplierShift_16(multiplier);
     int lshift = shift > 0 ? shift : 0;
     int rshift = shift > 0 ? 0 : -shift;
     fixed_pt_multipliers.push_back(fixed_pt_multiplier);

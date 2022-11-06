@@ -82,7 +82,51 @@ def profile_data_per_layer(quantized_mod, target, params, dataset, ifdev=True):
         for ele in per_layer_list:
             f.write("Layer{}".format(count) + ": {}".format(ele) + "\n")
             count = count + 1
+def calculate_consine_similar_wj(original_mod, quantized_mod, target, params, dataset=None, ifdev=True):
+    """
+    Calculate result's cosine_similarity and generate cosine_similarity.txt in dir.
+    Returns: mean cosine similarity, similarity per batch
+    """
+    #print("Calculate consine similarity...")
+    assert dataset
 
+    dev = tvm.device(str(target), 0)
+    with tvm.transform.PassContext(opt_level=3):
+        original_lib = relay.build(original_mod, target=target, params=params)
+    with tvm.transform.PassContext(opt_level=3):
+        quantized_lib = relay.build(quantized_mod, target=target, params=params)
+    original_module = graph_executor.GraphModule(original_lib["default"](dev))
+    quantized_module = graph_executor.GraphModule(quantized_lib["default"](dev))
+    batch_count = 0
+    cos_similar_result = 0
+    batch_cos_list = []
+    for batch in tqdm.tqdm(dataset):
+        original_module.set_input(**batch)
+        original_module.run()
+        quantized_module.set_input(**batch)
+        quantized_module.run()
+        num_original_outputs = original_module.get_num_outputs()
+        num_quantized_outputs = quantized_module.get_num_outputs()
+        cos_tmp = 0
+        assert num_original_outputs == num_quantized_outputs
+        for j in range(num_original_outputs):
+            original_module_output = original_module.get_output(j).numpy()
+            quantized_module_output = quantized_module.get_output(j).numpy()
+            assert original_module_output.shape == quantized_module_output.shape
+            consine_res_tmp = get_consine_similar(original_module_output, quantized_module_output)
+            cos_tmp += consine_res_tmp
+        cos_similar_result += (cos_tmp / num_original_outputs)
+        batch_cos_list.append(cos_tmp / num_original_outputs)
+        batch_count = batch_count + 1
+    
+    assert os.path.exists(current_qconfig().get_rootdir_name())
+    saved_file_name = "cosine_similarity_16bit_fixed" if ifdev else "cosine_similarity_calibration_13bit_fixed"
+    with open(current_qconfig().get_rootdir_name() + "/" + saved_file_name, "w") as f:
+        f.write("Mean similarity: " + str(cos_similar_result/batch_count) + "\n")
+        for i in range(batch_count):
+            f.write("Batch{}".format(i) + ": {}".format(batch_cos_list[i]) + "\n")
+
+    return cos_similar_result / batch_count, batch_cos_list
 
 def calculate_consine_similar(original_mod, quantized_mod, target, params, dataset=None, ifdev=True):
     """
@@ -218,6 +262,7 @@ class QConfig(Object):
         "quantizer_activation": "Asymmetric",
         "quantizer_bias": "Symmetric",
         "per_channel": True,
+        "fixed_point_is16": True,
         "opt_method": "grid",
         "debug_mode": False,
         "global_scale": 8.0,

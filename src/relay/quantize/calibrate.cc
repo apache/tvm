@@ -858,7 +858,41 @@ class QCheckPointSwCollector : private ExprMutator {
   }
 };
 
+class QCheckPointAddPsumCollector : private ExprMutator {
+ public:
+  QCheckPointAddPsumCollector() : conv_op_(Op::Get("annotation.checkpointaddpsum")) {}
 
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& conv_op_;
+
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op == conv_op_ ) {       
+      profile_data_.push_back(new_e);
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
 
 /*
  * \brief Given an annotated graph, create a profile graph to collect profile data from the
@@ -891,6 +925,8 @@ Expr CreateQCheckPointZpwCollector(const Expr& expr) { return QCheckPointZpwColl
 Expr CreateQCheckPointSiCollector(const Expr& expr) { return QCheckPointSiCollector().Collect(expr);}
 Expr CreateQCheckPointSwCollector(const Expr& expr) { return QCheckPointSwCollector().Collect(expr);}
 
+Expr CreateAddPsumCollector(const Expr& expr) { return QCheckPointAddPsumCollector().Collect(expr);}
+
 TVM_REGISTER_GLOBAL("relay._quantize.CreateStatsCollector").set_body_typed(CreateStatsCollector);
 TVM_REGISTER_GLOBAL("relay._quantize.CreateQWeightCollector").set_body_typed(CreateQWeightCollector);
 TVM_REGISTER_GLOBAL("relay._quantize.CreateQActCollector").set_body_typed(CreateQActCollector);
@@ -899,6 +935,7 @@ TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointCollector").set_body_typed
 TVM_REGISTER_GLOBAL("relay._quantize.CreateQAddCollector").set_body_typed(CreateQAddCollector);
 TVM_REGISTER_GLOBAL("relay._quantize.CreateQConvCollector").set_body_typed(CreateQConvCollector);
 TVM_REGISTER_GLOBAL("relay._quantize.CreateReluCollector").set_body_typed(CreateReluCollector);
+TVM_REGISTER_GLOBAL("relay._quantize.CreateAddPsumCollector").set_body_typed(CreateAddPsumCollector);
 
 
 TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointSiSoCollector").set_body_typed(CreateQCheckPointSiSoCollector);

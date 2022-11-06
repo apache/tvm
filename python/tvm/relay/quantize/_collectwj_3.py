@@ -17,6 +17,22 @@ from . import _quantize
 from tvm import relay
 
 
+def _get_qcheckpointaddpsum_runtime(mod):
+    func = mod["main"]
+    func = _quantize.CreateQCheckPointAddPsumCollector(func)
+
+    if tvm.target.Target.current():
+        target = tvm.target.Target.current()
+        dev = tvm.device(target.kind.name)
+    else:
+        target = "llvm"
+        dev = tvm.device(target)
+
+    with tvm.transform.PassContext(opt_level=3):
+        lib = _build_module.build(func, target=target)
+    runtime = graph_executor.GraphModule(lib["default"](dev))
+    return runtime
+
 def _get_qcheckpointbias_runtime(mod):
     func = mod["main"]
     func = _quantize.CreateQCheckPointBiasCollector(func)

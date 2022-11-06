@@ -91,8 +91,10 @@ static inline int32_t GetQmax(const DataType& dtype) {
  *           0.25 = (0.5) * 2^(-1)
  *           0.125 = (0.5) * 2^(-2)
  *
- *       Credit to TFLite reference implementation.
+ *       Credit to TFLite reference implsementation.
  */
+std::pair<int32_t, int32_t> GetFixedPointMultiplierShift_16(double double_multiplier);
+std::pair<int32_t, int32_t> GetFixedPointMultiplierShift_13(double double_multiplier);
 std::pair<int32_t, int32_t> GetFixedPointMultiplierShift(double double_multiplier);
 
 Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
