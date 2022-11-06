@@ -22,13 +22,16 @@
  * \brief Native threading backend
  */
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/threading_backend.h>
 
 #if defined(__linux__) || defined(__ANDROID__)
+#include <errno.h>
+#include <string.h>
+
 #include <fstream>
 #include <sstream>
 #else
 #endif
+#include <tvm/runtime/threading_backend.h>
 #if defined(__linux__)
 #include <sched.h>
 #endif
@@ -41,13 +44,25 @@ extern "C" {
 #include <stdlib.h>
 #define HEXAGON_STACK_SIZE 65536
 #define HEXAGON_STACK_ALIGNMENT 32
+#elif defined(_WIN32)
+#include <windows.h>
+#else
+#include <sys/syscall.h>
+#include <unistd.h>
 #endif
+
 #include <algorithm>
 #include <thread>
+
 #define CURRENT_THREAD_HANDLE (static_cast<std::thread::native_handle_type>(0))
 namespace tvm {
 namespace runtime {
 namespace threading {
+
+#if defined(_WIN32)
+using pid_t = DWORD;
+#endif
+
 #ifdef __hexagon__
 // pthreads are broken on older versions of qurt, so
 // we need to use native APIs instead of std::threads
@@ -104,13 +119,20 @@ class QuRTThread {
 };
 #endif  // __hexagon__
 thread_local int max_concurrency = 0;
+
 class ThreadGroup::Impl {
  public:
   Impl(int num_workers, std::function<void(int)> worker_callback, bool exclude_worker0)
       : num_workers_(num_workers) {
     ICHECK_GE(num_workers, 1) << "Requested a non-positive number of worker threads.";
+    threads_tid_.resize(num_workers_ - exclude_worker0);
     for (int i = exclude_worker0; i < num_workers_; ++i) {
-      threads_.emplace_back([worker_callback, i] { worker_callback(i); });
+      threads_.emplace_back([worker_callback, i, exclude_worker0, this] {
+#ifndef __hexagon__
+        SetTid(i - exclude_worker0);
+#endif
+        worker_callback(i);
+      });
     }
     InitSortedOrder();
   }
@@ -155,7 +177,7 @@ class ThreadGroup::Impl {
   }
 
  private:
-  void SetThreadAffinity(std::thread::native_handle_type thread,
+  void SetThreadAffinity(std::thread::native_handle_type thread, pid_t tid,
                          const std::vector<unsigned int>& ids) {
 #if defined(__linux__) || defined(__ANDROID__)
     if (pthread_equal(thread, CURRENT_THREAD_HANDLE)) {
@@ -167,9 +189,13 @@ class ThreadGroup::Impl {
       CPU_SET(id, &cpuset);
     }
 #if defined(__ANDROID__)
-    sched_setaffinity(thread, sizeof(cpu_set_t), &cpuset);
+    if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) == -1) {
+      LOG(WARNING) << "SetThreadAffinity fail!" << strerror(errno);
+    }
 #else
-    pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
+    if (pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset) == -1) {
+      LOG(WARNING) << "SetThreadAffinity fail!" << strerror(errno);
+    }
 #endif
 #endif
   }
@@ -191,7 +217,7 @@ class ThreadGroup::Impl {
         case kSpecifyOneCorePerThread:
         case kSpecifyThreadShareAllCore:
           for (unsigned i = 0; i < threads_.size(); ++i) {
-            SetThreadFullCpuAffinity(threads_[i].native_handle(), mode);
+            SetThreadFullCpuAffinity(threads_[i].native_handle(), GetTid(i), mode);
           }
           if (exclude_worker0) {  // main thread run task
             SetMainThreadFullCpuAffinity(mode);
@@ -209,7 +235,7 @@ class ThreadGroup::Impl {
       switch (mode) {
         case kSpecifyThreadShareAllCore:
           for (unsigned i = 0; i < threads_.size(); ++i) {
-            SetThreadFullCpuAffinity(threads_[i].native_handle(), mode);
+            SetThreadFullCpuAffinity(threads_[i].native_handle(), GetTid(i), mode);
           }
           break;
         case kLittle:
@@ -223,7 +249,7 @@ class ThreadGroup::Impl {
             } else {
               core_id = sorted_order_[i + exclude_worker0];
             }
-            SetThreadAffinity(threads_[i].native_handle(), {core_id});
+            SetThreadAffinity(threads_[i].native_handle(), GetTid(i), {core_id});
           }
           break;
       }
@@ -238,7 +264,8 @@ class ThreadGroup::Impl {
 #endif  // __hexagon__
   }
 
-  void SetThreadFullCpuAffinity(std::thread::native_handle_type thread, AffinityMode mode) {
+  void SetThreadFullCpuAffinity(std::thread::native_handle_type thread, pid_t tid,
+                                AffinityMode mode) {
     // For example, we have 2xA72 + 4xA53 (id is 0 - 5, 4, 5 is A72 big core)
     // And we use config_threadpool API to set we will only use 4xA53.
     // The sorted_order will be [4, 5, 0, 1, 2, 3].
@@ -270,13 +297,15 @@ class ThreadGroup::Impl {
         }
         break;
     }
-    SetThreadAffinity(thread, ids);
+    SetThreadAffinity(thread, tid, ids);
 #endif  // __hexagon__
   }
 
+#ifndef __hexagon__
   void SetMainThreadFullCpuAffinity(AffinityMode mode) {
-    SetThreadFullCpuAffinity(CURRENT_THREAD_HANDLE, mode);
+    SetThreadFullCpuAffinity(CURRENT_THREAD_HANDLE, Tid(), mode);
   }
+#endif
 
   void InitSortedOrder() {
     unsigned int threads = std::thread::hardware_concurrency();
@@ -324,12 +353,25 @@ class ThreadGroup::Impl {
     }
   }
 
+#ifndef __hexagon__
+  pid_t Tid() {
+#if defined(_WIN32)
+    return GetCurrentThreadId();
+#else
+    return syscall(SYS_gettid);
+#endif
+  }
+  void SetTid(size_t index) { threads_tid_[index] = Tid(); }
+  pid_t GetTid(size_t thread_index) { return threads_tid_[thread_index]; }
+#endif  // __hexagon__
+
   int num_workers_;
 #if defined(__hexagon__)
   std::vector<QuRTThread> threads_;
 #else
   std::vector<std::thread> threads_;
 #endif
+  std::vector<pid_t> threads_tid_;
   std::vector<unsigned int> sorted_order_;
   int big_count_ = 0;
   int little_count_ = 0;
