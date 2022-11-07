@@ -148,7 +148,7 @@ inline Expr MulAndDiv_pertensor_16(Expr data, float s1, float s2, DataType dtype
   int32_t shift;
   int64_t fixed_point_multiplier;
   std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift_16(factor);
-  //printf("16bit_fixed_pertensor:%.10f = %ld * 2^%d\n",factor, fixed_point_multiplier, shift-15);
+  printf("16bit_fixed_pertensor:%.10f = %ld * 2^%d\n",factor, fixed_point_multiplier, shift-15);
   data = Multiply(data, MakeConstantScalar(cfg->dtype_activation,  fixed_point_multiplier)); //newchange
   data = Add(data, LeftShift(MakeConstantScalar(cfg->dtype_activation, 1), MakeConstantScalar(cfg->dtype_activation, -shift+14)));
   data = RightShift(data, MakeConstantScalar(cfg->dtype_activation,  -shift+15)); //newchange
@@ -165,8 +165,9 @@ inline Expr MulAndDiv_pertensor_13(Expr data, float s1, float s2, DataType dtype
   int64_t fixed_point_multiplier;
   std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift_13(factor);
   //data = (relay::FixedPointMultiply(data, fixed_point_multiplier, shift));
-  //printf("13bit_fixed_pertensor:%.10f = %ld * 2^%d\n",factor, fixed_point_multiplier, shift-12);
+  printf("13bit_fixed_pertensor:%.10f = %ld * 2^%d\n",factor, fixed_point_multiplier, shift-12);
   data = Multiply(data, MakeConstantScalar(cfg->dtype_activation,  fixed_point_multiplier)); //newchange
+  data = Add(data, LeftShift(MakeConstantScalar(cfg->dtype_activation, 1), MakeConstantScalar(cfg->dtype_activation, -shift+12)));
   data = RightShift(data, MakeConstantScalar(cfg->dtype_activation,  -shift+12)); //newchange
 
   return Cast(data, dtype);
@@ -179,19 +180,20 @@ inline Expr MulAndDiv_perchannel_upward_32(Expr data, std::vector<double> s, Dat
   std::vector<int> fixed_point_multipliers;
   std::vector<int> shifts;
   // here we assume the dtype of data is dtype activation
-
+  printf("one point:\n");
   for (size_t i = 0; i < s.size(); i++) {
     double factor  = s[i];
     //int32_t fixed_point_multiplier, shift;
     int64_t fixed_point_multiplier;
     int32_t shift;
     std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift(factor);
-    //printf("%lf = %ld*%d\n",factor, fixed_point_multiplier, shift-15);
+    printf("32bit_fixed_perchannel%lf = %ld*%d\n",factor, fixed_point_multiplier, shift-31);
     ICHECK_LE(shift-31, 0);
     fixed_point_multipliers.push_back(fixed_point_multiplier);
     shifts.push_back(-shift+31);
   }
   data = Multiply(data, MakeConstantTensor(cfg->dtype_activation, {(int64_t)fixed_point_multipliers.size(),1,1}, fixed_point_multipliers)); //newchange
+  data = Add(data, LeftShift(MakeConstantScalar(cfg->dtype_activation, 1), Subtract(MakeConstantTensor(cfg->dtype_activation, {(int64_t)shifts.size(),1,1}, shifts), MakeConstantScalar(cfg->dtype_activation, 1) )));
   data = RightShift(data, MakeConstantTensor(cfg->dtype_activation, {(int64_t)shifts.size(),1,1}, shifts)); //newchange
   //data = qnn::FixedPointMultiplyPerChannel(data, s, data->type_as<TensorTypeNode>()->shape, 0, cfg->rounding);
   return Cast(Round(data), dtype);
@@ -203,7 +205,7 @@ inline Expr MulAndDiv_perchannel_upward_16(Expr data, std::vector<double> s, Dat
   std::vector<int> fixed_point_multipliers;
   std::vector<int> shifts;
   // here we assume the dtype of data is dtype activation
-  
+  printf("one point:\n");
   for (size_t i = 0; i < s.size(); i++) {
     double factor  = s[i];
     //int32_t fixed_point_multiplier, shift;
@@ -218,7 +220,7 @@ inline Expr MulAndDiv_perchannel_upward_16(Expr data, std::vector<double> s, Dat
     outfile << fixed_point_multiplier << "* 2^" << shift << endl;
     outfile.close();
     */
-    //printf("16bit_fixed_perchannel:%.10f = %ld * 2^%d\n",factor, fixed_point_multiplier, shift-15);
+    printf("16bit_fixed_perchannel:%.10f = %ld * 2^%d\n",factor, fixed_point_multiplier, shift-15);
     ICHECK_LE(shift-15, 0);
     fixed_point_multipliers.push_back(fixed_point_multiplier);
     shifts.push_back(-shift+15);
@@ -237,7 +239,7 @@ inline Expr MulAndDiv_perchannel_upward_13(Expr data, std::vector<double> s, Dat
   std::vector<int> fixed_point_multipliers;
   std::vector<int> shifts;
   // here we assume the dtype of data is dtype activation
-
+  printf("one point:\n");
   for (size_t i = 0; i < s.size(); i++) {
     double factor  = s[i];
     //int32_t fixed_point_multiplier, shift;
@@ -245,13 +247,14 @@ inline Expr MulAndDiv_perchannel_upward_13(Expr data, std::vector<double> s, Dat
     int32_t shift;
     std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift_13(factor);
     //printf("%lf = %ld*%d\n",factor, fixed_point_multiplier, shift-12);
-    //printf("13bit_fixed_perchannel:%.10f = %ld * 2^%d\n",factor, fixed_point_multiplier, shift-12);
+    printf("13bit_fixed_perchannel:%.10f = %ld * 2^%d\n",factor, fixed_point_multiplier, shift-12);
     ICHECK_LE(shift-12, 0);
     fixed_point_multipliers.push_back(fixed_point_multiplier);
     shifts.push_back(-shift+12);
   }
 
   data = Multiply(data, MakeConstantTensor(cfg->dtype_activation, {(int64_t)fixed_point_multipliers.size(),1,1}, fixed_point_multipliers)); //newchange
+  data = Add(data, LeftShift(MakeConstantScalar(cfg->dtype_activation, 1), Subtract(MakeConstantTensor(cfg->dtype_activation, {(int64_t)shifts.size(),1,1}, shifts), MakeConstantScalar(cfg->dtype_activation, 1) )));
   data = RightShift(data, MakeConstantTensor(cfg->dtype_activation, {(int64_t)shifts.size(),1,1}, shifts)); //newchange
   //data = qnn::FixedPointMultiplyPerChannel(data, s, data->type_as<TensorTypeNode>()->shape, 0, cfg->rounding);
   return Cast(Round(data), dtype);
