@@ -17,7 +17,6 @@
 
 """Test for LUT"""
 
-import pytest
 import math
 
 import tvm
@@ -26,60 +25,59 @@ import tvm.testing
 from tvm.contrib.hexagon.session import Session
 from tvm.contrib.hexagon.build import HexagonLauncherRPC
 import tvm.contrib.hexagon
-from tvm import relay
 import numpy as np
-from .infrastructure import allocate_hexagon_array, transform_numpy, quantize_np
+from .infrastructure import quantize_np
 
-hex_target = tvm.target.hexagon("v68", link_params=True)
+HEX_TARGET = tvm.target.hexagon("v68", link_params=True)
 
-shape, func, dtype = tvm.testing.parameters(
-    ([1, 8, 8, 32], {"py": np.sqrt, "tvm": tvm.topi.hexagon.qnn.injective.qsqrt}, "uint8"),
-    ([1024], {"py": np.sqrt, "tvm": tvm.topi.hexagon.qnn.injective.qsqrt}, "uint8"),
-    ([1, 8, 8, 32], {"py": math.exp, "tvm": tvm.topi.hexagon.qnn.injective.qexp}, "uint8"),
-    ([1024], {"py": math.exp, "tvm": tvm.topi.hexagon.qnn.injective.qexp}, "uint8"),
-    ([1, 8, 8, 32], {"py": math.erf, "tvm": tvm.topi.hexagon.qnn.injective.qerf}, "uint8"),
-    ([1024], {"py": math.erf, "tvm": tvm.topi.hexagon.qnn.injective.qerf}, "uint8"),
-    ([1, 8, 8, 32], {"py": np.tanh, "tvm": tvm.topi.hexagon.qnn.injective.qtanh}, "uint8"),
-    ([1024], {"py": np.tanh, "tvm": tvm.topi.hexagon.qnn.injective.qtanh}, "uint8"),
-)
+class TestLUT:
+    shape, func, dtype = tvm.testing.parameters(
+        ([1, 8, 8, 32], {"py": np.sqrt, "tvm": tvm.topi.hexagon.qnn.injective.qsqrt}, "uint8"),
+        ([1024], {"py": np.sqrt, "tvm": tvm.topi.hexagon.qnn.injective.qsqrt}, "uint8"),
+        ([1, 8, 8, 32], {"py": math.exp, "tvm": tvm.topi.hexagon.qnn.injective.qexp}, "uint8"),
+        ([1024], {"py": math.exp, "tvm": tvm.topi.hexagon.qnn.injective.qexp}, "uint8"),
+        ([1, 8, 8, 32], {"py": math.erf, "tvm": tvm.topi.hexagon.qnn.injective.qerf}, "uint8"),
+        ([1024], {"py": math.erf, "tvm": tvm.topi.hexagon.qnn.injective.qerf}, "uint8"),
+        ([1, 8, 8, 32], {"py": np.tanh, "tvm": tvm.topi.hexagon.qnn.injective.qtanh}, "uint8"),
+        ([1024], {"py": np.tanh, "tvm": tvm.topi.hexagon.qnn.injective.qtanh}, "uint8"),
+    )
 
 
-@tvm.testing.requires_hexagon
-def test_lut(
-    hexagon_server_process,
-    hexagon_launcher: HexagonLauncherRPC,
-    hexagon_session: Session,
-    shape,
-    func,
-    dtype,
-):
+    @tvm.testing.requires_hexagon
+    def test_lut(
+        self,
+        hexagon_session: Session,
+        shape,
+        func,
+        dtype,
+    ):
 
-    # Make input
-    a_np = np.random.random(shape)
-    a_np_quant, in_scale, in_zero = quantize_np(a_np, dtype)
+        # Make input
+        a_np = np.random.random(shape)
+        a_np_quant, in_scale, in_zero = quantize_np(a_np, dtype)
 
-    # Get golden
-    golden = np.vectorize(func["py"])(in_scale * (a_np_quant - in_zero))
-    golden_quant, out_scale, out_zero = quantize_np(golden, dtype)
+        # Get golden
+        golden = np.vectorize(func["py"])(in_scale * (a_np_quant - in_zero))
+        golden_quant, out_scale, out_zero = quantize_np(golden, dtype)
 
-    A = te.placeholder(shape, name="A", dtype=dtype)
-    O = func["tvm"](A, in_scale, in_zero, out_scale, out_zero, dtype=dtype)
-    s = tvm.topi.hexagon.lut.lutize(O, A)
+        A_tensor = te.placeholder(shape, name="A_tensor", dtype=dtype)
+        O_tensor = func["tvm"](A_tensor, in_scale, in_zero, out_scale, out_zero, dtype=dtype)
+        sch = tvm.topi.hexagon.lut.lutize(O_tensor, A_tensor)
 
-    # Lower hexagon code
-    with tvm.transform.PassContext(opt_level=3):
-        hex_lowered = tvm.build(
-            s, [A, O], tvm.target.Target(hex_target, host=hex_target), name="LUT"
-        )
+        # Lower hexagon code
+        with tvm.transform.PassContext(opt_level=3):
+            hex_lowered = tvm.build(
+                sch, [A_tensor, O_tensor], tvm.target.Target(HEX_TARGET, host=HEX_TARGET), name="LUT"
+            )
 
-    # Run hexagon code
-    mod = hexagon_session.load_module(hex_lowered)
-    dev = hexagon_session.device
-    a = tvm.nd.array(a_np_quant.astype(dtype), dev)
-    o = tvm.nd.array(np.zeros(shape, dtype=dtype), dev)
-    mod(a, o)
+        # Run hexagon code
+        mod = hexagon_session.load_module(hex_lowered)
+        dev = hexagon_session.device
+        a_buf = tvm.nd.array(a_np_quant.astype(dtype), dev)
+        o_buf = tvm.nd.array(np.zeros(shape, dtype=dtype), dev)
+        mod(a_buf, o_buf)
 
-    np.testing.assert_allclose(golden_quant, o.numpy(), rtol=0, atol=0)
+        np.testing.assert_allclose(golden_quant, o_buf.numpy(), rtol=0, atol=0)
 
 
 if __name__ == "__main__":
