@@ -240,6 +240,56 @@ TEST(Token2DAlloc, DifferentSizesTokenReuse) {
   EXPECT_EQ(sizeReq2.width, 900);
 }
 
+TEST(Token2DAlloc, DifferentSizesTokenReuse2) {
+  TokenAllocator2DWrapper alloc;
+  int storage_ids = 0;
+  EXPECT_EQ(alloc.BlockMapSize(), 0);
+  EXPECT_EQ(alloc.FreeListSize(), 0);
+
+  TensorType tt1({1, 22, 20, 20, 4}, DataType(kDLFloat, 32, 1));
+  VirtualDevice vd1(kDLOpenCL, 0, {}, MemoryScope("global.texture-nhwc"));
+  StorageToken tok1 = {
+      1,    // ref_counter
+      0,    // max bytes
+      tt1,  // tensor type
+      vd1,  // virtual device
+      -1    // storage_id
+  };
+  auto size2d = alloc.GetSize2D(&tok1);
+  EXPECT_EQ(size2d.channel, 4);
+  EXPECT_EQ(size2d.height, 22);
+  EXPECT_EQ(size2d.width, 400);
+  EXPECT_EQ(alloc.Request(&tok1), nullptr);
+
+  alloc.Alloc(&tok1, storage_ids++);
+  EXPECT_EQ(alloc.BlockMapSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 0);
+
+  tok1.ref_counter -= 1;
+  alloc.CheckForRelease(&tok1);
+  EXPECT_EQ(alloc.BlockMapSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 1);
+
+  TensorType tt2({1, 5, 30, 20, 4}, DataType(kDLFloat, 32, 1));
+  StorageToken tok2 = {
+      1,    // ref_counter
+      0,    // max bytes
+      tt2,  // tensor type
+      vd1,  // virtual device
+      -1    // storage_id
+  };
+  auto req = alloc.Request(&tok2);
+  EXPECT_NE(req, nullptr);
+  EXPECT_EQ(alloc.BlockMapSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 0);
+  EXPECT_EQ(req->storage_id, storage_ids - 1);
+  EXPECT_EQ(req->ref_counter, 2);
+  auto sizeReq = alloc.GetSize2D(req);
+  EXPECT_EQ(sizeReq.channel, 4);
+  EXPECT_EQ(sizeReq.height, 5);
+  EXPECT_EQ(sizeReq.width, 600);
+}
+
 TEST(Token2DAlloc, SameSizesButDiffMemoryScopes) {
   TokenAllocator2DWrapper alloc;
   int storage_ids = 0;

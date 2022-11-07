@@ -108,7 +108,7 @@ StorageToken* TokenAllocator2D::Request(StorageToken* prototype) {
   int64_t min_wasted_size_x = std::numeric_limits<int64_t>::max();
   int64_t min_wasted_size_y = std::numeric_limits<int64_t>::max();
   int64_t best_storage_id = -1;
-  MemBlock best_mem, new_mem;
+  MemBlock new_mem;
   for (int64_t free_id : free_list_) {
     MemBlock& cached = blocks_[free_id];
     // Can only reuse texture 2d blocks of the same type
@@ -116,6 +116,9 @@ StorageToken* TokenAllocator2D::Request(StorageToken* prototype) {
       continue;
     }
     // Can only reuse texture 2d blocks of the same scope
+    // Because reusing textures with different memory scope may lead to
+    // accuracy issues, because the data will be packed in a different way for
+    // different memory scopes.
     if (cached.token_->virtual_device->memory_scope != prototype->virtual_device->memory_scope) {
       continue;
     }
@@ -141,7 +144,6 @@ StorageToken* TokenAllocator2D::Request(StorageToken* prototype) {
       min_wasted_size_x = wasted_size_x;
       min_wasted_size_y = wasted_size_y;
       best_storage_id = free_id;
-      best_mem = cached;
       new_mem.x_ = new_width;
       new_mem.y_ = new_height;
     }
@@ -150,9 +152,8 @@ StorageToken* TokenAllocator2D::Request(StorageToken* prototype) {
   if (min_added_size_x == 0 && min_added_size_y == 0) {
     // use existing block
     free_list_.erase(best_storage_id);
-    best_mem.token_ = prototype;
-    best_mem.token_->ref_counter += 1;
-    return best_mem.token_;
+    blocks_[best_storage_id].token_->ref_counter += prototype->ref_counter;
+    return blocks_[best_storage_id].token_;
   } else if (min_added_size_x <= shape.width || min_added_size_y <= shape.height) {
     // Reset the reference counter of the now live token
     free_list_.erase(best_storage_id);
