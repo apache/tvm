@@ -4038,7 +4038,6 @@ def test_forward_index():
         return lambda data, mask: data[0, mask]
 
     data = torch.tensor([[1, 2, 3], [4, 5, 6]])
-
     mask = torch.tensor([True, True, False])
 
     verify_trace_model(test_fn_bool_mask(), [data, mask], ["llvm", "cuda"])
