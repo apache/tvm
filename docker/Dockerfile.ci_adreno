@@ -25,4 +25,5 @@ COPY install/ubuntu_install_androidsdk.sh /install/ubuntu_install_androidsdk.sh
 RUN bash /install/ubuntu_install_androidsdk.sh
 ENV ANDROID_HOME=/opt/android-sdk-linux
 ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147
+ENV ANDROID_NDK_MAJOR=21
 ENV PATH /opt/android-sdk-linux/platform-tools:$PATH
