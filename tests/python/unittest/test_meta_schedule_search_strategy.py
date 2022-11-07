@@ -84,14 +84,16 @@ def test_meta_schedule_replay_func(
 
     context = ms.TuneContext(
         mod=Matmul,
-        space_generator=ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul),
-        search_strategy=TestClass(
-            num_trials_per_iter=num_trials_per_iter, max_trials_per_task=max_trials_per_task
-        ),
+        space_generator=ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul, postprocs=[]),
+        search_strategy=TestClass(),
     )
     strategy = context.search_strategy
     spaces = context.space_generator.generate_design_space(context.mod)
-    strategy.pre_tuning(spaces)
+    strategy.pre_tuning(
+        max_trials=max_trials_per_task,
+        num_trials_per_iter=num_trials_per_iter,
+        design_spaces=spaces,
+    )
     (correct_sch,) = ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(
         Matmul
     )
@@ -135,10 +137,13 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name
         mod=Matmul,
         space_generator=ms.space_generator.ScheduleFn(
             sch_fn=_schedule_matmul_small,
+            sch_rules=[],
+            postprocs=[],
+            mutator_probs={
+                DummyMutator(): 1.0,
+            },
         ),
         search_strategy=ms.search_strategy.EvolutionarySearch(
-            num_trials_per_iter=num_trials_per_iter,
-            max_trials_per_task=max_trials_per_task,
             population_size=5,
             init_measured_ratio=0.1,
             init_min_unmeasured=50,
@@ -147,15 +152,14 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name
             genetic_max_fail_count=10,
             eps_greedy=0.9,
         ),
-        mutator_probs={
-            DummyMutator(): 1.0,
-        },
         target=tvm.target.Target("llvm"),
         num_threads=1,  # because we are using a mutator from the python side
     )
     strategy = context.search_strategy
     strategy.pre_tuning(
-        context.space_generator.generate_design_space(context.mod),
+        max_trials=max_trials_per_task,
+        num_trials_per_iter=num_trials_per_iter,
+        design_spaces=context.space_generator.generate_design_space(context.mod),
         database=ms.database.MemoryDatabase(),
         cost_model=ms.cost_model.RandomModel(),
     )
@@ -197,8 +201,6 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
     context = ms.TuneContext(
         mod=Matmul,
         search_strategy=ms.search_strategy.EvolutionarySearch(
-            num_trials_per_iter=num_trials_per_iter,
-            max_trials_per_task=max_trials_per_task,
             population_size=5,
             init_measured_ratio=0.1,
             init_min_unmeasured=50,
@@ -209,16 +211,20 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
         ),
         space_generator=ms.space_generator.ScheduleFn(
             sch_fn=_schedule_matmul_empty,
+            sch_rules=[],
+            postprocs=[],
+            mutator_probs={
+                DummyMutator(): 1.0,
+            },
         ),
-        mutator_probs={
-            DummyMutator(): 1.0,
-        },
         target=tvm.target.Target("llvm"),
         num_threads=1,
     )
     strategy = context.search_strategy
     strategy.pre_tuning(
-        context.space_generator.generate_design_space(context.mod),
+        max_trials=max_trials_per_task,
+        num_trials_per_iter=num_trials_per_iter,
+        design_spaces=context.space_generator.generate_design_space(context.mod),
         database=ms.database.MemoryDatabase(),
         cost_model=ms.cost_model.RandomModel(),
     )
@@ -246,4 +252,7 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    test_meta_schedule_replay_func(ms.search_strategy.ReplayFunc)
+    test_meta_schedule_replay_func(ms.search_strategy.ReplayTrace)
+    test_meta_schedule_evolutionary_search()
+    test_meta_schedule_evolutionary_search_early_stop()

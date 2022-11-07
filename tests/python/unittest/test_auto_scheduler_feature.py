@@ -67,7 +67,7 @@ def test_cpu_matmul():
 
     """
     lowered IR:
-    
+
     Placeholder: A, B
     parallel i.0 (0,32)
       parallel j.0 (0,64)
@@ -260,6 +260,17 @@ def test_dense_lowered():
     for i in range(0, 4):
         total_bytes_loaded += features[f"B{i}.unique_bytes"].sum()
     assert total_bytes_loaded > 2 * 128 * 128 * 4  # 4 bytes per float32
+
+
+@T.prim_func
+def negative_extent(A: T.Buffer[(1,), "float32"]):
+    for j in range(0, -1):
+        A[j] = A[j] + 1.0
+
+
+def test_negative_extent():
+    features = auto_scheduler.feature.named_features_from_primfunc(negative_extent)
+    assert features["B0.unique_bytes"] == 0
 
 
 if __name__ == "__main__":

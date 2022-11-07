@@ -15,20 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utilities for computing an approximate roofline model"""
-from typing import Dict, Union, Optional
+from typing import Dict, Optional, Union
+
 import numpy as np
 
-from ... import auto_scheduler, relay, tir, nd, IRModule, build, topi, transform, get_global_func
-from ...target import Target
-from ...runtime import profiler_vm, profiling, Device, num_threads
-from ...script import tir as T
-from ...ir.instrument import pass_instrument
+from ... import IRModule, auto_scheduler, build, get_global_func, nd, relay, tir, topi, transform
+from ...contrib import utils
 from ...ir.expr import GlobalVar
+from ...ir.instrument import pass_instrument
 from ...rpc.base import RPC_SESS_MASK
 from ...rpc.client import RPCSession
-from ...contrib import utils
-
-from . import registry, cuda, x86
+from ...runtime import Device, num_threads, profiler_vm, profiling
+from ...script import tir as T
+from ...target import Target
+from . import cuda, registry, x86
 
 
 def _create_args(mod: IRModule, dev: Device, func_name: str = "main", remote=None):
@@ -131,14 +131,9 @@ def roofline_from_existing(
         :py:func:`roofline_analysis` for more information on which metrics
         are included.
     """
-    with target:
-        peak_bandwidth = registry.estimate_peak_bandwidth(target, dev, remote)
-        peak_flops = registry.estimate_peak_flops(target, dev, remote)
-
-    ridge_point = peak_flops / peak_bandwidth
 
     all_features = {
-        prim.attrs["hash"]: (name, auto_scheduler.feature.named_features_from_primfunc(prim))
+        prim.attrs["hash"]: (name, prim, auto_scheduler.feature.named_features_from_primfunc(prim))
         for name, prim in tir_functions.items()
         if isinstance(prim, tir.PrimFunc) and "hash" in prim.attrs.keys()
     }
@@ -146,28 +141,17 @@ def roofline_from_existing(
     new_calls = []
     for call in report.calls:
         if "Hash" in call.keys() and call["Hash"] in all_features:
-            _, features = all_features[call["Hash"]]
+            _, prim, features = all_features[call["Hash"]]
 
-            flops = np.sum(features["float_addsub"] + features["float_mul"] + features["float_mad"])
-            loaded_bytes = 0.0
-            # assume no more than 100 buffers
-            for i in range(100):
-                if str(target.kind) == "cuda":
-                    # autoscheduler features do not take into account that 1.
-                    # global and shared memory have very different performance
-                    # characteristics -- both are included in the same bytes
-                    # touched count 2. multiple threads accessing the same byte
-                    # of memory does not use the same amount of bandwidth as
-                    # multiple threads accessing different bytes of memory. We
-                    # use unique bytes accessed here to avoid these two issues,
-                    # but this does bias results towards being more compute
-                    # bound.
-                    key = f"B{i}.unique_bytes"
-                else:
-                    key = f"B{i}.bytes"
-                if not key in features.keys():
-                    break
-                loaded_bytes += np.sum(features[key])
+            with target:
+                flops, peak_flops, flops_name = registry.estimate_peak_flops(
+                    prim, features, target, dev, remote
+                )
+                loaded_bytes, peak_bandwidth, bandwidth_name = registry.estimate_peak_bandwidth(
+                    prim, features, target, dev, remote
+                )
+            ridge_point = peak_flops / peak_bandwidth
+
             runtime = call["Duration (us)"].microseconds * 1e-6
             arith_inten = flops / loaded_bytes
             call = dict(call)
@@ -188,8 +172,10 @@ def roofline_from_existing(
         else:
             new_calls.append(call)
     new_configuration = dict(report.configuration.items())
-    new_configuration["Estimated Peak FLOP/s"] = profiling.Ratio(peak_flops)
-    new_configuration["Estimated Peak Bandwidth (byte/second)"] = profiling.Ratio(peak_bandwidth)
+    new_configuration[f"Estimated Peak FLOP/s ({flops_name})"] = profiling.Ratio(peak_flops)
+    new_configuration[
+        f"Estimated Peak Bandwidth ({bandwidth_name}, byte/second)"
+    ] = profiling.Ratio(peak_bandwidth)
     return profiling.Report(new_calls, report.device_metrics, new_configuration)
 
 

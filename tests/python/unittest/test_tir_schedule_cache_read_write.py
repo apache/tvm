@@ -241,6 +241,15 @@ def inplace_func(data_io: T.Buffer[(64), "int32"]):
             data_io[v0] = data_1d[v0]
 
 
+@T.prim_func
+def inplace_call(data_io: T.Buffer[(64), "int32"]):
+    for i0 in T.serial(1):
+        with T.block("ext_call"):
+            T.reads(data_io[:64])
+            T.writes(data_io[:64])
+            T.evaluate(T.call_extern("call_impl", data_io.data, dtype=""))
+
+
 ########## Expected function after cache_read ##########
 
 
@@ -546,6 +555,42 @@ def cache_read_inplace(data_io: T.Buffer[64, "int32"]) -> None:
             T.reads(data_1d[v0])
             T.writes(data_io[v0])
             data_io[v0] = data_1d[v0]
+
+
+@T.prim_func
+def cache_inplace_buffer(data_io: T.Buffer[64, "int32"]) -> None:
+    data_io_local = T.alloc_buffer([64], dtype="int32", scope="local")
+    data_io_global = T.alloc_buffer([64], dtype="int32")
+    data_io_global_1 = T.alloc_buffer([64], dtype="int32")
+    for ax0 in T.serial(64):
+        with T.block("data_io_global"):
+            v0 = T.axis.spatial(64, ax0)
+            T.reads(data_io[v0])
+            T.writes(data_io_global[v0])
+            data_io_global[v0] = data_io[v0]
+    for i0 in T.serial(1):
+        for ax0 in T.serial(64):
+            with T.block("data_io_local"):
+                v0 = T.axis.spatial(64, ax0)
+                T.reads(data_io_global[v0])
+                T.writes(data_io_local[v0])
+                data_io_local[v0] = data_io_global[v0]
+        with T.block("ext_call"):
+            T.reads(data_io_local[0:64])
+            T.writes(data_io_local[0:64])
+            T.evaluate(T.call_extern("call_impl", data_io_local.data, dtype=""))
+        for ax0 in T.serial(64):
+            with T.block("data_io_local"):
+                v0 = T.axis.spatial(64, ax0)
+                T.reads(data_io_local[v0])
+                T.writes(data_io_global_1[v0])
+                data_io_global_1[v0] = data_io_local[v0]
+    for ax0 in T.serial(64):
+        with T.block("data_io_global"):
+            v0 = T.axis.spatial(64, ax0)
+            T.reads(data_io_global_1[v0])
+            T.writes(data_io[v0])
+            data_io[v0] = data_io_global_1[v0]
 
 
 ########## Expected function after cache_write ##########
@@ -929,6 +974,19 @@ def test_inplace_cache_read():
     sch.cache_read(block, 0, "local", [block])
     tvm.ir.assert_structural_equal(cache_read_inplace, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=inplace_func)
+
+
+def test_cache_inplace():
+    # cache_inplace could introduce WAR, which is expected but stage pipeline property changes
+    debug_mask = tvm.tir.schedule.state.ScheduleDebugMask.VERIFY_SREF_TREE
+    sch = tvm.tir.Schedule(inplace_call, debug_mask=debug_mask)
+    block = sch.get_block("ext_call")
+    blocks = sch.cache_inplace(block, 0, "local")
+    block = sch.cache_read(blocks[0], 0, "global", [blocks[0]])
+    block = sch.cache_write(blocks[1], 0, "global")
+
+    tvm.ir.assert_structural_equal(cache_inplace_buffer, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=inplace_call, debug_mask=debug_mask)
 
 
 ########## Testcases for cache_write ##########

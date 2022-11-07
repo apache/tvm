@@ -15,27 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
-from typing import List
-
 import os
 import re
 import shutil
 import tempfile
-from functools import partial
 import unittest
-import numpy as np
+from functools import partial
+from typing import List
 
+import numpy as np
 import tvm
 import tvm.testing
-from tvm.script import tir as T
-from tvm.tir.schedule.schedule import Schedule
 from tvm.meta_schedule.cost_model import PyCostModel, RandomModel, XGBModel
-from tvm.meta_schedule.cost_model.xgb_model import _get_custom_call_back, PackSum
+from tvm.meta_schedule.cost_model.xgb_model import PackSum, _get_custom_call_back
 from tvm.meta_schedule.feature_extractor import RandomFeatureExtractor
 from tvm.meta_schedule.runner import RunnerResult
 from tvm.meta_schedule.search_strategy import MeasureCandidate
 from tvm.meta_schedule.tune_context import TuneContext
 from tvm.meta_schedule.utils import derived_object
+from tvm.script import tir as T
+from tvm.tir.schedule.schedule import Schedule
+
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 @tvm.script.ir_module
@@ -244,8 +244,9 @@ def xgb_version_check():
 @unittest.skipIf(xgb_version_check(), "test not supported for xgboost version after 1.6.0")
 def test_meta_schedule_xgb_model_callback_as_function():
     # pylint: disable=import-outside-toplevel
-    import xgboost as xgb
     from itertools import chain as itertools_chain
+
+    import xgboost as xgb
 
     # pylint: enable=import-outside-toplevel
 

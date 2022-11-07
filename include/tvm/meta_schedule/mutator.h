@@ -127,10 +127,17 @@ class Mutator : public runtime::ObjectRef {
    * \param f_as_string The packed function of `AsString`.
    * \return The mutator created.
    */
-  TVM_DLL static Mutator PyMutator(FInitializeWithTuneContext f_initialize_with_tune_context,  //
-                                   FApply f_apply,                                             //
-                                   FClone f_clone,                                             //
-                                   FAsString f_as_string);
+  TVM_DLL static Mutator PyMutator(FInitializeWithTuneContext f_initialize_with_tune_context,
+                                   FApply f_apply, FClone f_clone, FAsString f_as_string);
+  /*! \brief Create default mutators for LLVM */
+  TVM_DLL static Map<Mutator, FloatImm, void> DefaultLLVM();
+  /*! \brief Create default mutators for CUDA */
+  TVM_DLL static Map<Mutator, FloatImm, void> DefaultCUDA();
+  /*! \brief Create default mutators for CUDA with TensorCore */
+  TVM_DLL static Map<Mutator, FloatImm, void> DefaultCUDATensorCore();
+  /*! \brief Create default mutators for Hexagon */
+  TVM_DLL static Map<Mutator, FloatImm, void> DefaultHexagon();
+
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Mutator, ObjectRef, MutatorNode);
 };
 

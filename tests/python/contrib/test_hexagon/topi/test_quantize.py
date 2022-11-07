@@ -14,13 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
 import numpy as np
 
 import tvm
 from tvm import te
 import tvm.topi.hexagon.qnn as s1
-from ..infrastructure import allocate_hexagon_array, transform_numpy, quantize_np
+from ..infrastructure import (
+    allocate_hexagon_array,
+    transform_numpy,
+    quantize_np,
+    get_hexagon_target,
+)
 
 
 @tvm.testing.fixture
@@ -70,7 +74,6 @@ class TestQuantize:
         output_layout,
         hexagon_session,
     ):
-        target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape, name="A", dtype=input_dtype)
 
         M = s1.quantize_compute(A, scale, zero_point, output_dtype)
@@ -86,7 +89,7 @@ class TestQuantize:
             func = tvm.build(
                 sch,
                 [A, M],
-                tvm.target.Target(target_hexagon, host=target_hexagon),
+                get_hexagon_target("v69"),
                 name="quantize",
             )
 

@@ -128,7 +128,7 @@ def get_packed_filter_shape(logical_shape_oihw):
     return physical_shape_oihw8i32o4i
 
 
-def build_and_run(inputs, func, target, target_host, *args, **kwargs):
+def build_and_run(inputs, func, target: str, target_host: str, *args, **kwargs):
     """build and run the function func"""
     schedule, placeholders, binds = func(*args, **kwargs)
 
@@ -351,3 +351,9 @@ def quantize_np(arr_np: numpy.ndarray, dtype: str):
     zero_point = numpy.rint((fmax * qmin - fmin * qmax) / (fmax - fmin)).astype("int32")
     quant_np = (arr_np / scale + zero_point).astype(dtype)
     return quant_np, scale, zero_point
+
+
+def get_hexagon_target(cpu_ver: str) -> tvm.target.Target:
+    """Creates a Hexagon target"""
+    target = tvm.target.hexagon(cpu_ver)
+    return tvm.target.Target(target, host=target)

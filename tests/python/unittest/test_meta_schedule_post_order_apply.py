@@ -243,8 +243,11 @@ def test_meta_schedule_post_order_apply():
         mod=mod,
         target=Target("llvm"),
         task_name="Test Task",
-        space_generator=PostOrderApply(),
-        sch_rules=[WowSoFancyScheduleRule()],
+        space_generator=PostOrderApply(
+            sch_rules=[WowSoFancyScheduleRule()],
+            postprocs=[],
+            mutator_probs={},
+        ),
     )
     post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
@@ -259,8 +262,11 @@ def test_meta_schedule_post_order_apply_double():
         mod=mod,
         target=Target("llvm"),
         task_name="Double Rules Task",
-        space_generator=PostOrderApply(),
-        sch_rules=[DoubleScheduleRule()],
+        space_generator=PostOrderApply(
+            sch_rules=[DoubleScheduleRule()],
+            postprocs=[],
+            mutator_probs={},
+        ),
     )
     post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
@@ -276,8 +282,11 @@ def test_meta_schedule_post_order_apply_multiple():
         mod=mod,
         target=Target("llvm"),
         task_name="Double Rules Task",
-        space_generator=PostOrderApply(),
-        sch_rules=[DoubleScheduleRule(), ReorderScheduleRule()],
+        space_generator=PostOrderApply(
+            sch_rules=[DoubleScheduleRule(), ReorderScheduleRule()],
+            postprocs=[],
+            mutator_probs={},
+        ),
     )
     post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
@@ -293,8 +302,11 @@ def test_meta_schedule_post_order_apply_duplicate_matmul():
         mod=mod,
         target=Target("llvm"),
         task_name="Duplicate Matmul Task",
-        space_generator=PostOrderApply(),
-        sch_rules=[WowSoFancyScheduleRule()],
+        space_generator=PostOrderApply(
+            sch_rules=[WowSoFancyScheduleRule()],
+            postprocs=[],
+            mutator_probs={},
+        ),
     )
     post_order_apply = context.space_generator
     with pytest.raises(
@@ -346,8 +358,11 @@ def test_meta_schedule_post_order_apply_remove_block():
         mod=mod,
         target=Target("llvm"),
         task_name="Remove Block Task",
-        space_generator=PostOrderApply(),
-        sch_rules=[RemoveBlock(), TrinityDoubleRule()],
+        space_generator=PostOrderApply(
+            sch_rules=[RemoveBlock(), TrinityDoubleRule()],
+            postprocs=[],
+            mutator_probs={},
+        ),
     )
     post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
@@ -373,8 +388,11 @@ def test_meta_schedule_custom_search_space():
         mod=mod,
         target=Target("llvm"),
         task_name="Custom Search Space Task",
-        space_generator=PostOrderApply(),
-        sch_rules=[],
+        space_generator=PostOrderApply(
+            sch_rules=[],
+            postprocs=[],
+            mutator_probs={},
+        ),
     )
     post_order_apply = context.space_generator
     post_order_apply.generate_design_space(mod)
@@ -401,8 +419,12 @@ def test_target_blocks_search_space():
             mod=mod,
             target=Target("llvm"),
             task_name="Custom Search Space Task",
-            space_generator=PostOrderApply(f_block_filter=filter_fn),
-            sch_rules=[TrinityDoubleRule()],
+            space_generator=PostOrderApply(
+                f_block_filter=filter_fn,
+                sch_rules=[TrinityDoubleRule()],
+                postprocs=[],
+                mutator_probs={},
+            ),
         )
         post_order_apply = context.space_generator
         schs = post_order_apply.generate_design_space(mod)

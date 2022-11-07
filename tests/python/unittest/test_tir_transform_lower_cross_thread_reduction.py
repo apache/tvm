@@ -341,8 +341,8 @@ def single_reduction_loop_with_block_predicate(
         for ax0, ax1_0 in T.grid(1, 1):
             for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
                 with T.block("T_softmax_maxelem"):
-                    i0_1 = T.axis.spatial(256, i0)
-                    k = T.axis.reduce(256, ax1_1)
+                    i0_1 = T.axis.spatial(256, i0 + ax0)
+                    k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
                     T.where(ax1_0 * 512 + ax1_1 < 256)
                     T.reads(A[i0_1, k])
                     T.writes(T_softmax_maxelem_shared[i0_1])
@@ -354,8 +354,8 @@ def single_reduction_loop_with_block_predicate(
         for ax0, ax1_0 in T.grid(1, 1):
             for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
                 with T.block("T_softmax_expsum"):
-                    i0_2 = T.axis.spatial(256, i0)
-                    k = T.axis.reduce(256, ax1_1)
+                    i0_2 = T.axis.spatial(256, i0 + ax0)
+                    k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
                     T.where(ax1_0 * 512 + ax1_1 < 256)
                     T.reads(A[i0_2, k], T_softmax_maxelem_shared[i0_2])
                     T.writes(T_softmax_expsum_shared[i0_2])
@@ -368,7 +368,7 @@ def single_reduction_loop_with_block_predicate(
             for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
                 with T.block("T_softmax_norm"):
                     i0_3 = T.axis.spatial(256, i0)
-                    i1 = T.axis.spatial(256, i1_1)
+                    i1 = T.axis.spatial(256, i1_0 * 512 + i1_1)
                     T.where(i1_0 * 512 + i1_1 < 256)
                     T.reads(
                         A[i0_3, i1], T_softmax_maxelem_shared[i0_3], T_softmax_expsum_shared[i0_3]
@@ -392,19 +392,20 @@ def lowered_single_reduction_loop_with_block_predicate(
     cross_thread_1 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     in_thread_1 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i0 in T.serial(256):
-        for ax0, ax1_0 in T.grid(1, 1):
+        for ax0 in T.serial(1):
             for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
                 with T.block("T_softmax_maxelem_in_thread_init"):
                     T.reads()
                     T.writes(in_thread_0[0])
                     in_thread_0[0] = T.float32(-3.4028234663852886e38)
-                with T.block("T_softmax_maxelem_in_thread"):
-                    i0_1 = T.axis.spatial(256, i0)
-                    k = T.axis.reduce(256, ax1_1)
-                    T.where(ax1_0 * 512 + ax1_1 < 256)
-                    T.reads(A[i0_1, k])
-                    T.writes(in_thread_0[0])
-                    in_thread_0[0] = T.max(in_thread_0[0], A[i0_1, k])
+                for ax1_0 in T.serial(1):
+                    with T.block("T_softmax_maxelem_in_thread"):
+                        T.where(ax1_0 * 512 + ax1_1 < 256)
+                        i0_1 = T.axis.spatial(256, i0 + ax0)
+                        k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                        T.reads(A[i0_1, k])
+                        T.writes(in_thread_0[0])
+                        in_thread_0[0] = T.max(in_thread_0[0], A[i0_1, k])
                 with T.block("T_softmax_maxelem_cross_thread"):
                     T.reads(in_thread_0[0])
                     T.writes(cross_thread_0[0])
@@ -426,25 +427,26 @@ def lowered_single_reduction_loop_with_block_predicate(
                         )
                     )
                 with T.block("T_softmax_maxelem_write_back"):
-                    i0_2 = T.axis.spatial(256, i0)
+                    i0_2 = T.axis.spatial(256, i0 + ax0)
                     T.reads(cross_thread_0[0])
                     T.writes(T_softmax_maxelem_shared[i0_2])
                     T_softmax_maxelem_shared[i0_2] = cross_thread_0[0]
-        for ax0, ax1_0 in T.grid(1, 1):
+        for ax0 in T.serial(1):
             for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
                 with T.block("T_softmax_expsum_in_thread_init"):
                     T.reads()
                     T.writes(in_thread_1[0])
                     in_thread_1[0] = T.float32(0)
-                with T.block("T_softmax_expsum_in_thread"):
-                    i0_3 = T.axis.spatial(256, i0)
-                    k = T.axis.reduce(256, ax1_1)
-                    T.where(ax1_0 * 512 + ax1_1 < 256)
-                    T.reads(A[i0_3, k], T_softmax_maxelem_shared[i0_3])
-                    T.writes(in_thread_1[0])
-                    in_thread_1[0] = in_thread_1[0] + T.exp(
-                        A[i0_3, k] - T_softmax_maxelem_shared[i0_3], dtype="float32"
-                    )
+                for ax1_0 in T.serial(1):
+                    with T.block("T_softmax_expsum_in_thread"):
+                        T.where(ax1_0 * 512 + ax1_1 < 256)
+                        i0_3 = T.axis.spatial(256, i0 + ax0)
+                        k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                        T.reads(A[i0_3, k], T_softmax_maxelem_shared[i0_3])
+                        T.writes(in_thread_1[0])
+                        in_thread_1[0] = in_thread_1[0] + T.exp(
+                            A[i0_3, k] - T_softmax_maxelem_shared[i0_3], dtype="float32"
+                        )
                 with T.block("T_softmax_expsum_cross_thread"):
                     T.reads(in_thread_1[0])
                     T.writes(cross_thread_1[0])
@@ -464,7 +466,7 @@ def lowered_single_reduction_loop_with_block_predicate(
                         )
                     )
                 with T.block("T_softmax_expsum_write_back"):
-                    i0_4 = T.axis.spatial(256, i0)
+                    i0_4 = T.axis.spatial(256, i0 + ax0)
                     T.reads(cross_thread_1[0])
                     T.writes(T_softmax_expsum_shared[i0_4])
                     T_softmax_expsum_shared[i0_4] = cross_thread_1[0]
@@ -472,7 +474,7 @@ def lowered_single_reduction_loop_with_block_predicate(
             for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
                 with T.block("T_softmax_norm"):
                     i0_5 = T.axis.spatial(256, i0)
-                    i1 = T.axis.spatial(256, i1_1)
+                    i1 = T.axis.spatial(256, i1_0 * 512 + i1_1)
                     T.where(i1_0 * 512 + i1_1 < 256)
                     T.reads(
                         A[i0_5, i1], T_softmax_maxelem_shared[i0_5], T_softmax_expsum_shared[i0_5]

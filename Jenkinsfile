@@ -45,20 +45,20 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-09-26T10:48:49.577077
+// Generated at 2022-10-19T13:44:32.119961
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:20220925-060158-71f25b3d6'
-ci_gpu = 'tlcpack/ci-gpu:20220925-060158-71f25b3d6'
-ci_cpu = 'tlcpack/ci-cpu:20220925-060158-71f25b3d6'
-ci_minimal = 'tlcpack/ci-minimal:20220925-060158-71f25b3d6'
-ci_wasm = 'tlcpack/ci-wasm:20220925-060158-71f25b3d6'
-ci_i386 = 'tlcpack/ci-i386:20220925-060158-71f25b3d6'
-ci_cortexm = 'tlcpack/ci-cortexm:20220925-060158-71f25b3d6'
-ci_arm = 'tlcpack/ci-arm:20220925-060158-71f25b3d6'
-ci_hexagon = 'tlcpack/ci-hexagon:20220925-060158-71f25b3d6'
-ci_riscv = 'tlcpack/ci-riscv:20220925-060158-71f25b3d6'
+ci_lint = 'tlcpack/ci-lint:20221025-182121-e41d0ed6e'
+ci_gpu = 'tlcpack/ci-gpu:20221025-182121-e41d0ed6e'
+ci_cpu = 'tlcpack/ci-cpu:20221025-182121-e41d0ed6e'
+ci_minimal = 'tlcpack/ci-minimal:20221025-182121-e41d0ed6e'
+ci_wasm = 'tlcpack/ci-wasm:20221025-182121-e41d0ed6e'
+ci_i386 = 'tlcpack/ci-i386:20221025-182121-e41d0ed6e'
+ci_cortexm = 'tlcpack/ci-cortexm:20221025-182121-e41d0ed6e'
+ci_arm = 'tlcpack/ci-arm:20221025-182121-e41d0ed6e'
+ci_hexagon = 'tlcpack/ci-hexagon:20221025-182121-e41d0ed6e'
+ci_riscv = 'tlcpack/ci-riscv:20221025-182121-e41d0ed6e'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -116,8 +116,9 @@ def per_exec_ws(folder) {
 
 // initialize source codes
 def init_git() {
-  checkout scm
-
+  retry(5) {
+    checkout scm
+  }
 
   // Add more info about job node
   sh (
@@ -731,13 +732,15 @@ stage('Build') {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
   }
   parallel(
-    'BUILD: GPU': {
+
+  'BUILD: GPU': {
     if (!skip_ci) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-gpu") {
           init_git()
           docker_init(ci_gpu)
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
+          timeout(time: max_time, unit: 'MINUTES') {
+            sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
           make("${ci_gpu} --no-gpu", 'build', '-j2')
           sh(
             script: """
@@ -775,18 +778,22 @@ stage('Build') {
             """,
             label: 'Upload artifacts to S3',
           )
-
+          }
         }
       }
+    } else {
+      Utils.markStageSkippedForConditional('BUILD: GPU')
     }
   },
+
   'BUILD: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cpu") {
           init_git()
           docker_init(ci_cpu)
-          sh (
+          timeout(time: max_time, unit: 'MINUTES') {
+            sh (
             script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
             label: 'Create CPU cmake config',
           )
@@ -809,11 +816,10 @@ stage('Build') {
             label: 'Upload artifacts to S3',
           )
 
-          timeout(time: max_time, unit: 'MINUTES') {
-            ci_setup(ci_cpu)
-            // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
-            // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-            sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
+          ci_setup(ci_cpu)
+          // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
+          // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
+          sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
           }
         }
       }
@@ -821,13 +827,15 @@ stage('Build') {
       Utils.markStageSkippedForConditional('BUILD: CPU')
     }
   },
+
   'BUILD: CPU MINIMAL': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cpu-minimal") {
           init_git()
           docker_init(ci_minimal)
-          sh (
+          timeout(time: max_time, unit: 'MINUTES') {
+            sh (
             script: "${docker_run} ${ci_minimal} ./tests/scripts/task_config_build_minimal.sh build",
             label: 'Create CPU minimal cmake config',
           )
@@ -845,31 +853,32 @@ stage('Build') {
             """,
             label: 'Upload artifacts to S3',
           )
-
+          }
         }
       }
     } else {
       Utils.markStageSkippedForConditional('BUILD: CPU MINIMAL')
     }
   },
+
   'BUILD: WASM': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-wasm") {
           init_git()
           docker_init(ci_wasm)
-          sh (
+          timeout(time: max_time, unit: 'MINUTES') {
+            sh (
             script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
             label: 'Create WASM cmake config',
           )
           make(ci_wasm, 'build', '-j2')
           cpp_unittest(ci_wasm)
-          timeout(time: max_time, unit: 'MINUTES') {
-            ci_setup(ci_wasm)
-            sh (
-              script: "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh",
-              label: 'Run WASM lint and tests',
-            )
+          ci_setup(ci_wasm)
+          sh (
+            script: "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh",
+            label: 'Run WASM lint and tests',
+          )
           }
         }
       }
@@ -877,13 +886,15 @@ stage('Build') {
       Utils.markStageSkippedForConditional('BUILD: WASM')
     }
   },
+
   'BUILD: i386': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-i386") {
           init_git()
           docker_init(ci_i386)
-          sh (
+          timeout(time: max_time, unit: 'MINUTES') {
+            sh (
             script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build",
             label: 'Create i386 cmake config',
           )
@@ -905,20 +916,22 @@ stage('Build') {
             """,
             label: 'Upload artifacts to S3',
           )
-
+          }
         }
       }
     } else {
       Utils.markStageSkippedForConditional('BUILD: i386')
     }
   },
+
   'BUILD: arm': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('ARM-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-arm") {
           init_git()
           docker_init(ci_arm)
-          sh (
+          timeout(time: max_time, unit: 'MINUTES') {
+            sh (
             script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",
             label: 'Create ARM cmake config',
           )
@@ -938,20 +951,22 @@ stage('Build') {
             """,
             label: 'Upload artifacts to S3',
           )
-
+          }
         }
       }
-     } else {
+    } else {
       Utils.markStageSkippedForConditional('BUILD: arm')
     }
   },
+
   'BUILD: Cortex-M': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cortexm") {
           init_git()
           docker_init(ci_cortexm)
-          sh (
+          timeout(time: max_time, unit: 'MINUTES') {
+            sh (
             script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_config_build_cortexm.sh build",
             label: 'Create Cortex-M cmake config',
           )
@@ -970,20 +985,22 @@ stage('Build') {
             """,
             label: 'Upload artifacts to S3',
           )
-
+          }
         }
       }
-     } else {
+    } else {
       Utils.markStageSkippedForConditional('BUILD: Cortex-M')
     }
   },
+
   'BUILD: Hexagon': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-hexagon") {
           init_git()
           docker_init(ci_hexagon)
-          sh (
+          timeout(time: max_time, unit: 'MINUTES') {
+            sh (
             script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
             label: 'Create Hexagon cmake config',
           )
@@ -1006,20 +1023,22 @@ stage('Build') {
             """,
             label: 'Upload artifacts to S3',
           )
-
+          }
         }
       }
-     } else {
+    } else {
       Utils.markStageSkippedForConditional('BUILD: Hexagon')
     }
   },
+
   'BUILD: RISC-V': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-riscv") {
           init_git()
           docker_init(ci_riscv)
-          sh (
+          timeout(time: max_time, unit: 'MINUTES') {
+            sh (
             script: "${docker_run} ${ci_riscv} ./tests/scripts/task_config_build_riscv.sh build",
             label: 'Create RISC-V cmake config',
           )
@@ -1038,13 +1057,14 @@ stage('Build') {
             """,
             label: 'Upload artifacts to S3',
           )
-
+          }
         }
       }
-     } else {
+    } else {
       Utils.markStageSkippedForConditional('BUILD: RISC-V')
     }
   },
+
   )
 }
 }
@@ -1115,15 +1135,20 @@ def shard_run_unittest_GPU_1_of_3() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_GPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -1178,15 +1203,20 @@ def shard_run_unittest_GPU_2_of_3() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_GPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -1237,15 +1267,20 @@ def shard_run_unittest_GPU_3_of_3() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_GPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -1295,15 +1330,20 @@ def shard_run_integration_CPU_1_of_4() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -1352,15 +1392,20 @@ def shard_run_integration_CPU_2_of_4() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -1409,15 +1454,20 @@ def shard_run_integration_CPU_3_of_4() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -1466,15 +1516,20 @@ def shard_run_integration_CPU_4_of_4() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -1524,15 +1579,20 @@ def shard_run_python_i386_1_of_3() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/python_i386 --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/python_i386 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -1581,15 +1641,20 @@ def shard_run_python_i386_2_of_3() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/python_i386 --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/python_i386 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -1637,15 +1702,20 @@ def shard_run_python_i386_3_of_3() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/python_i386 --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/python_i386 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -1694,15 +1764,20 @@ def shard_run_test_Hexagon_1_of_8() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -1749,15 +1824,20 @@ def shard_run_test_Hexagon_2_of_8() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -1804,15 +1884,20 @@ def shard_run_test_Hexagon_3_of_8() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -1859,15 +1944,20 @@ def shard_run_test_Hexagon_4_of_8() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -1914,15 +2004,20 @@ def shard_run_test_Hexagon_5_of_8() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -1969,15 +2064,20 @@ def shard_run_test_Hexagon_6_of_8() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2024,15 +2124,20 @@ def shard_run_test_Hexagon_7_of_8() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2079,15 +2184,20 @@ def shard_run_test_Hexagon_8_of_8() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2136,15 +2246,20 @@ def shard_run_integration_aarch64_1_of_4() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2192,15 +2307,20 @@ def shard_run_integration_aarch64_2_of_4() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2248,15 +2368,20 @@ def shard_run_integration_aarch64_3_of_4() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2304,15 +2429,20 @@ def shard_run_integration_aarch64_4_of_4() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2360,15 +2490,20 @@ def shard_run_topi_GPU_1_of_3() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_GPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2415,15 +2550,20 @@ def shard_run_topi_GPU_2_of_3() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_GPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2470,15 +2610,20 @@ def shard_run_topi_GPU_3_of_3() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_GPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2526,15 +2671,20 @@ def shard_run_frontend_GPU_1_of_6() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2581,15 +2731,20 @@ def shard_run_frontend_GPU_2_of_6() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2636,15 +2791,20 @@ def shard_run_frontend_GPU_3_of_6() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2691,15 +2851,20 @@ def shard_run_frontend_GPU_4_of_6() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2746,15 +2911,20 @@ def shard_run_frontend_GPU_5_of_6() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2801,15 +2971,20 @@ def shard_run_frontend_GPU_6_of_6() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2862,15 +3037,20 @@ def shard_run_topi_aarch64_1_of_2() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_aarch64 --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2921,15 +3101,20 @@ def shard_run_topi_aarch64_2_of_2() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_aarch64 --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -2977,15 +3162,20 @@ def shard_run_frontend_aarch64_1_of_2() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_aarch64 --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -3032,15 +3222,20 @@ def shard_run_frontend_aarch64_2_of_2() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_aarch64 --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -3093,15 +3288,20 @@ def shard_run_test_Cortex_M_1_of_12() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -3148,15 +3348,20 @@ def shard_run_test_Cortex_M_2_of_12() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -3203,15 +3408,20 @@ def shard_run_test_Cortex_M_3_of_12() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -3258,15 +3468,20 @@ def shard_run_test_Cortex_M_4_of_12() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -3313,15 +3528,20 @@ def shard_run_test_Cortex_M_5_of_12() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -3368,15 +3588,20 @@ def shard_run_test_Cortex_M_6_of_12() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -3423,15 +3648,20 @@ def shard_run_test_Cortex_M_7_of_12() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -3478,15 +3708,20 @@ def shard_run_test_Cortex_M_8_of_12() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -3533,15 +3768,20 @@ def shard_run_test_Cortex_M_9_of_12() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -3588,15 +3828,20 @@ def shard_run_test_Cortex_M_10_of_12() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -3643,15 +3888,20 @@ def shard_run_test_Cortex_M_11_of_12() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -3698,15 +3948,20 @@ def shard_run_test_Cortex_M_12_of_12() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -3755,15 +4010,20 @@ def shard_run_test_RISC_V_1_of_1() {
             })
           }
         } finally {
-          sh(
+          try {
+            sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_RISC_V --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_RISC_V --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-          junit 'build/pytest-results/*.xml'
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -3800,15 +4060,20 @@ def run_unittest_minimal() {
               python_unittest(ci_minimal)
             })
           } finally {
-            sh(
+            try {
+              sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_CPU_MINIMAL --recursive
+              . ci/scripts/retry.sh
+              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_CPU_MINIMAL --recursive
             """,
             label: 'Upload JUnits to S3',
           )
 
-            junit 'build/pytest-results/*.xml'
+              junit 'build/pytest-results/*.xml'
+            } catch (Exception e) {
+              echo 'Exception during JUnit upload: ' + e.toString()
+            }
           }
         }
       }
@@ -4010,15 +4275,20 @@ stage('Test') {
                 )
               })
             } finally {
+            try {
               sh(
                 script: """
                   set -eux
-                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_CPU --recursive
+                  . ci/scripts/retry.sh
+                  retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_CPU --recursive
                 """,
                 label: 'Upload JUnits to S3',
               )
 
               junit 'build/pytest-results/*.xml'
+            } catch (Exception e) {
+              echo 'Exception during JUnit upload: ' + e.toString()
+            }
             }
           }
         }
@@ -4061,15 +4331,20 @@ stage('Test') {
                 )
               })
             } finally {
+            try {
               sh(
                 script: """
                   set -eux
-                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_CPU --recursive
+                  . ci/scripts/retry.sh
+                  retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_CPU --recursive
                 """,
                 label: 'Upload JUnits to S3',
               )
 
               junit 'build/pytest-results/*.xml'
+            } catch (Exception e) {
+              echo 'Exception during JUnit upload: ' + e.toString()
+            }
             }
           }
         }
@@ -4110,14 +4385,14 @@ stage('Test') {
             )
           }
           sh(
-            script: """
-              set -eux
-              . ci/scripts/retry.sh
-              md5sum docs.tgz
-              retry 3 aws s3 cp --no-progress docs.tgz s3://${s3_prefix}/docs/docs.tgz
-            """,
-            label: 'Upload artifacts to S3',
-          )
+      script: """
+        set -eux
+        . ci/scripts/retry.sh
+        md5sum docs.tgz
+        retry 3 aws s3 cp --no-progress docs.tgz s3://${s3_prefix}/docs/docs.tgz
+      """,
+      label: 'Upload artifacts to S3',
+    )
 
           sh(
             script: "aws s3 cp --no-progress _docs s3://${s3_prefix}/docs --recursive",

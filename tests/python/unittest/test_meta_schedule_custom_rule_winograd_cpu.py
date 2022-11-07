@@ -168,10 +168,6 @@ def test_conv2d_winograd_cpu():
         target=target,
         task_name="Custom Search Space Task",
         space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=ms.default_config.schedule_rules(
-            None,
-            target,
-        ),
     )
     post_order_apply = context.space_generator
     (sch,) = post_order_apply.generate_design_space(mod)

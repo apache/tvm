@@ -141,7 +141,7 @@ void deblockize_hwc_16b(void* out_flat, void* inp, int height, int width, int de
 void chunkify_hwio_16b(void** out_ptr, int out_ptr_size, void* out, void* inp, int height,
                        int width, int idepth, int odepth) {
   auto inp_data = static_cast<uint16_t*>(inp);
-  auto out_data = static_cast<uintptr_t*>(out);
+  auto out_data = static_cast<uint16_t*>(out);
   const int stride_i = odepth;
   const int stride_x = stride_i * idepth;
   const int stride_y = stride_x * width;
@@ -158,7 +158,7 @@ void chunkify_hwio_16b(void** out_ptr, int out_ptr_size, void* out, void* inp, i
           int max_i = std::min(32, idepth - ci);
           int max_o = std::min(32, odepth - co);
 
-          auto chunk = reinterpret_cast<uint16_t*>(out_data);
+          auto chunk = out_data;
           for (int y = 0; y < max_y; ++y) {
             for (int x = max_x - 1; x >= 0; --x) {
               for (int i = 0; i < max_i; ++i) {

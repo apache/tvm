@@ -24,9 +24,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import tvm
 import tvm.relay.testing
+from tvm import meta_schedule as ms
 from tvm import relay
 from tvm.ir import IRModule
-from tvm.meta_schedule import ExtractedTask, extract_task_from_relay
 from tvm.runtime import NDArray, load_param_dict, save_param_dict
 from tvm.target import Target
 
@@ -34,15 +34,17 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 def _get_network(
-    args: Tuple[str, List[int], str]
+    args: Tuple[str, List[int], Optional[str]]
 ) -> Tuple[IRModule, bytearray, Tuple[str, List[int], str]]:
     name: str
     input_shape: List[int]
-    layout: str
+    layout: Optional[str]
     name, input_shape, layout = args
 
-    mod: IRModule
+    if layout == "None":
+        layout = None
 
+    mod: IRModule
     if name in [
         "resnet_18",
         "resnet_50",
@@ -60,24 +62,30 @@ def _get_network(
 
         assert layout is None or layout in ["NCHW", "NHWC"]
 
+        params: Dict[str, Any] = {}
         if name in ["resnet_18", "resnet_50"]:
-            model = getattr(models, name.replace("_", ""))(weights=None)
+            model = getattr(models, name.replace("_", ""))
         elif name == "wide_resnet_50":
-            model = getattr(models, "wide_resnet50_2")(weights=None)
+            model = getattr(models, "wide_resnet50_2")
         elif name == "resnext_50":
-            model = getattr(models, "resnext50_32x4d")(weights=None)
+            model = getattr(models, "resnext50_32x4d")
         elif name == "mobilenet_v2":
-            model = getattr(models, name)(weights=None)
+            model = getattr(models, name)
         elif name == "mobilenet_v3":
-            model = getattr(models, name + "_large")(weights=None)
+            model = getattr(models, name + "_large")
         elif name == "inception_v3":
-            model = getattr(models, name)(weights=None, aux_logits=False)
+            model = getattr(models, name)
+            params["aux_logits"] = False
         elif name == "densenet_121":
-            model = getattr(models, name.replace("_", ""))(weights=None)
+            model = getattr(models, name.replace("_", ""))
         elif name == "resnet3d_18":
-            model = models.video.r3d_18(weights=None)
+            model = models.video.r3d_18
         elif name == "vgg_16":
-            model = getattr(models, name.replace("_", ""))(weights=None)
+            model = getattr(models, name.replace("_", ""))
+        try:
+            model = model(**params, weights=None)
+        except TypeError:
+            model = model(**params, pretrained=False)
 
         dtype = "float32"
         input_data = torch.randn(input_shape).type(  # pylint: disable=no-member
@@ -90,7 +98,7 @@ def _get_network(
         shape_list = [(input_name, input_shape)]
         mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
         passes = [relay.transform.RemoveUnusedFunctions()]
-        if layout == "NHWC":
+        if layout is None or layout == "NHWC":
             # PyTorch is imported as NCHW by default
             passes.append(
                 relay.transform.ConvertLayout(
@@ -251,10 +259,7 @@ def extract_from_relay(
     input_shape: List[int],
     *,
     cache_dir: Optional[str] = None,
-    opt_level: int = 3,
-    pass_config: Optional[Dict[str, Any]] = None,
-    disabled_pass: Optional[List[str]] = None,
-) -> List[ExtractedTask]:
+) -> List[ms.ExtractedTask]:
     """Extract the tasks from a network.
 
     Parameters
@@ -272,12 +277,6 @@ def extract_from_relay(
     cache_dir : Optional[str]
         The directory to cache the generated network.
         If not specified, the cache will be disabled.
-    opt_level : int
-        The optimization level of the compiler.
-    pass_config : Optional[Dict[str, Any]]
-        The pass config of the compiler.
-    disabled_pass : Optional[List[str]]
-        The disabled pass of the compiler.
 
     Returns
     -------
@@ -287,13 +286,10 @@ def extract_from_relay(
     filename = f'tasks-{target.kind.name}-{name}-{",".join(str(i) for i in input_shape)}.json'
     extracted_tasks = _load_cache(cache_dir, filename)
     if extracted_tasks is None:
-        extracted_tasks = extract_task_from_relay(
+        extracted_tasks = ms.relay_integration.extract_tasks(
             mod=mod,
             target=target,
             params=params,
-            opt_level=opt_level,
-            pass_config=pass_config,
-            disabled_pass=disabled_pass,
         )
         extracted_tasks = list(extracted_tasks)
         _save_cache(cache_dir, filename, extracted_tasks)

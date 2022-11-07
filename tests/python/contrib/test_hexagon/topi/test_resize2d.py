@@ -21,7 +21,7 @@ import tvm
 from tvm import te
 from tvm.topi.testing import resize2d_python
 import tvm.topi.hexagon as s1
-from ..infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 
 @tvm.testing.fixture
@@ -123,7 +123,6 @@ class TestResize2d:
         method,
         hexagon_session,
     ):
-        target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape, name="A", dtype=dtype)
 
         M = s1.resize2d_compute(
@@ -153,7 +152,7 @@ class TestResize2d:
             func = tvm.build(
                 sch,
                 [A, M],
-                tvm.target.Target(target_hexagon, host=target_hexagon),
+                get_hexagon_target("v69"),
                 name="resize2d",
             )
 

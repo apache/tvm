@@ -16,6 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name
 """AOT passes"""
+from typing import Dict
+
+from tvm import IRModule
 from tvm.ir.transform import Pass
 from .utils import CallType
 
@@ -41,3 +44,26 @@ def AOTLowerMain(mod_name: str, config: object, call_type: CallType) -> Pass:
 
     """
     return _aot.AOTLowerMain(mod_name, config, call_type.value)
+
+
+def CreateFunctionMetadata(
+    mod: IRModule, workspace_byte_alignment: int, constant_byte_alignment: int
+) -> Dict[str, object]:
+    """Create the function metadata (FunctionInfos) from an AOT module.
+
+    Parameters
+    ----------
+    mod : IRModule
+        The IRModule.
+    workspace_byte_alignment : int
+        The alignment of the workspace buffer in bytes.
+    constant_byte_alignment : int
+        The alignment of the constant buffer in bytes.
+
+    Returns
+    -------
+    Dict[str, FunctionInfo]
+        A map between function names and FunctionInfos.
+
+    """
+    return _aot.CreateFunctionMetadata(mod, workspace_byte_alignment, constant_byte_alignment)

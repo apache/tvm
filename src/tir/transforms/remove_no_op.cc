@@ -69,8 +69,8 @@ class NoOpRemover : public StmtMutator {
   Stmt VisitStmt_(const IfThenElseNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<IfThenElseNode>();
-    if (op->else_case.defined()) {
-      if (is_no_op(op->else_case)) {
+    if (op->else_case) {
+      if (is_no_op(op->else_case.value())) {
         if (is_no_op(op->then_case)) {
           return MakeEvaluate(op->condition);
         } else {

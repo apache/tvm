@@ -18,7 +18,10 @@
 from tvm import meta_schedule as ms
 from tvm import te
 from tvm.ir import assert_structural_equal
-from tvm.meta_schedule.testing.space_generation import check_sketches
+from tvm.meta_schedule.testing.space_generation import (
+    check_sketches,
+    generate_design_space,
+)
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir.tensor_intrin.arm_cpu import DP4A_INTRIN
@@ -226,10 +229,11 @@ def test_vnni_conv2d_nchwc():
 
     mod = conv2d_nchwc
     target = Target("llvm -mcpu=cascadelake -num-cores=4")
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="llvm",
         mod=mod,
         target=Target(target),
-        space_generator=ms.space_generator.PostOrderApply(),
+        types=None,
         sch_rules=[
             ms.schedule_rule.MultiLevelTilingWithIntrin(
                 VNNI_INTRIN,
@@ -241,7 +245,7 @@ def test_vnni_conv2d_nchwc():
                 reuse_write=ms.schedule_rule.ReuseType(req="may", levels=[1, 2], scope="global"),
             ),
         ],
-    ).generate_design_space()
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -266,10 +270,11 @@ def _check_dp4a_dense(m, n, k, in_dtype, out_dtype, expected_mods, expected_deci
         return te.create_prim_func([X, W, matmul])
 
     mod = _dense(m, n, k, in_dtype, out_dtype)
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("cuda"),
-        space_generator=ms.space_generator.PostOrderApply(),
+        types=None,
         sch_rules=[
             ms.schedule_rule.MultiLevelTilingWithIntrin(
                 DP4A_INTRIN,
@@ -281,7 +286,7 @@ def _check_dp4a_dense(m, n, k, in_dtype, out_dtype, expected_mods, expected_deci
                 reuse_write=ms.schedule_rule.ReuseType(req="must", levels=[3], scope="local"),
             )
         ],
-    ).generate_design_space()
+    )
     if expected_mods is None:
         assert expected_decisions is None
         assert len(actual) == 1

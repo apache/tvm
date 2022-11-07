@@ -137,7 +137,7 @@ CONTAINER_NAME=
 # "${REPO_DIR}".  The consistent directory for Jenkins is currently
 # necessary to allow cmake build commands to run in CI after the build
 # steps.
-# TODO(https://github.com/apache/tvm/issues/11952): 
+# TODO(https://github.com/apache/tvm/issues/11952):
 # Figure out a better way to keep the same path
 # between build and testing stages.
 if [[ -n "${JENKINS_HOME:-}" ]]; then
@@ -161,6 +161,7 @@ function parse_error() {
 break_joined_flag='if (( ${#1} == 2 )); then shift; else set -- -"${1#-i}" "${@:2}"; fi'
 
 DOCKER_ENV=( )
+DOCKER_FLAGS=( )
 
 while (( $# )); do
     case "$1" in
@@ -182,6 +183,11 @@ while (( $# )); do
         --net=host)
             USE_NET_HOST=true
             shift
+            ;;
+
+        --net)
+            DOCKER_FLAGS+=( --net "$2" )
+            shift 2
             ;;
 
         --mount)
@@ -209,6 +215,11 @@ while (( $# )); do
 
         --env)
             DOCKER_ENV+=( --env "$2" )
+            shift 2
+            ;;
+
+        --volume)
+            DOCKER_FLAGS+=( --volume "$2" )
             shift 2
             ;;
 
@@ -284,7 +295,6 @@ fi
 
 source "$(dirname $0)/dev_common.sh" || exit 2
 
-DOCKER_FLAGS=( )
 DOCKER_MOUNT=( )
 DOCKER_DEVICES=( )
 
@@ -319,16 +329,6 @@ DOCKER_ENV+=( --env CI_BUILD_HOME="${REPO_MOUNT_POINT}"
               --env CI_PYTEST_ADD_OPTIONS="${CI_PYTEST_ADD_OPTIONS:-}"
               --env CI_IMAGE_NAME="${DOCKER_IMAGE_NAME}"
             )
-
-
-# Pass tvm test data folder through to the docker container, to avoid
-# repeated downloads.  Check if we have permissions to write to the
-# directory first, since the CI may not.
-TEST_DATA_PATH="${TVM_DATA_ROOT_PATH:-${HOME}/.tvm_test_data}"
-if [[ -d "${TEST_DATA_PATH}" && -w "${TEST_DATA_PATH}" ]]; then
-    DOCKER_MOUNT+=( --volume "${TEST_DATA_PATH}":"${REPO_MOUNT_POINT}"/.tvm_test_data )
-fi
-
 
 # Remove the container once it finishes running (--rm) and share the
 # PID namespace (--pid=host).  The process inside does not have pid 1
@@ -459,7 +459,6 @@ echo "DOCKER CONTAINER NAME: ${DOCKER_IMAGE_NAME}"
 echo ""
 
 echo Running \'${COMMAND[@]+"${COMMAND[@]}"}\' inside ${DOCKER_IMAGE_NAME}...
-
 
 DOCKER_CMD=(${DOCKER_BINARY} run
             ${DOCKER_FLAGS[@]+"${DOCKER_FLAGS[@]}"}

@@ -35,6 +35,8 @@ globs = [
     # microTVM
     "apps/microtvm/poetry.lock",
     "apps/microtvm/pyproject.toml",
+    "tests/lint/*",
+    "tests/scripts/task_lint.sh",
 ]
 
 

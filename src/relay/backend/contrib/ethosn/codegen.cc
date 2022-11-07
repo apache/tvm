@@ -412,8 +412,8 @@ EthosnError ConstructNetworkVisitor::MakeFullyConnectedLayer(const Call& call,
     return err;
   }
 
-  auto weights = AddConstant(network_, params.weights_info, params.raw_weights).tensor;
-  auto bias = AddConstant(network_, params.bias_info, params.raw_bias).tensor;
+  auto weights = AddConstant(network_, params.weights_info, params.raw_weights->data).tensor;
+  auto bias = AddConstant(network_, params.bias_info, params.raw_bias->data).tensor;
   try {
     auto input =
         AddReshape(network_, *operand_table_[call->args[0]][0], params.input_info.m_Dimensions)

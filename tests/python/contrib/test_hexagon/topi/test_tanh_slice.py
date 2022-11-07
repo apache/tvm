@@ -23,7 +23,7 @@ import tvm.testing
 from tvm import te
 import tvm.topi.hexagon.slice_ops as sl
 import tvm.contrib.hexagon
-from ..infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 # pylint: disable=invalid-name
 
@@ -71,8 +71,6 @@ class TestTanhSlice:
     ):
         """Top Level testing function for tanh fp16 op"""
 
-        target_hexagon = tvm.target.hexagon("v69")
-        target = tvm.target.Target(target_hexagon, host=target_hexagon)
         A = te.placeholder(input_shape, name="A", dtype=dtype)
         M = sl.tanh_te_compute(A)
         tanhf16_func = te.create_prim_func([A, M])
@@ -92,7 +90,7 @@ class TestTanhSlice:
         )
         with tvm.transform.PassContext(opt_level=3):
             tir_irm = tvm.lower(tir_s.mod, [A, M], name="tanhf16")
-            runtime_module = tvm.build(tir_irm, target=target, name="tanhf16")
+            runtime_module = tvm.build(tir_irm, target=get_hexagon_target("v69"), name="tanhf16")
         mod = hexagon_session.load_module(runtime_module)
 
         mod(A_data, M_data)

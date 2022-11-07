@@ -572,8 +572,8 @@ Doc TIRTextPrinter::VisitStmt_(const DeclBufferNode* op) {
 Doc TIRTextPrinter::VisitStmt_(const IfThenElseNode* op) {
   Doc doc;
   doc << "if " << Print(op->condition) << PrintBody(op->then_case);
-  if (!is_one(op->condition) && op->else_case.defined()) {
-    doc << " else" << PrintBody(op->else_case);
+  if (!is_one(op->condition) && op->else_case) {
+    doc << " else" << PrintBody(op->else_case.value());
   }
   return doc;
 }

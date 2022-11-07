@@ -25,50 +25,94 @@ using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
 
 class HexagonVtcmPoolTest : public ::testing::Test {
-  void SetUp() override { vtcm_pool = HexagonDeviceAPI::Global()->VtcmPool(); }
+  void SetUp() override {
+    vtcm_pool = HexagonDeviceAPI::Global()->VtcmPool();
+    max_bytes = vtcm_pool->TotalBytes();
+  }
   void TearDown() override {}
 
  public:
   HexagonVtcmPool* vtcm_pool;
+  size_t max_bytes;
+  size_t four_k_block = 4096;
+  size_t two_k_block = 2048;
+  size_t one_k_block = 1024;
+  size_t min_bytes = 128;
 };
 
 TEST_F(HexagonVtcmPoolTest, basic) {
   void* ptr;
-  size_t max_bytes = vtcm_pool->TotalBytes();
-  size_t two_k_block = 2048;
-  size_t one_k_block = 1024;
-  size_t one_byte_block = 1;
+  void* ptr2;
+
   ptr = vtcm_pool->Allocate(max_bytes);
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
+      << "Must be multiple of 2k " << ptr << " " << max_bytes;
   vtcm_pool->Free(ptr, max_bytes);
+
   ptr = vtcm_pool->Allocate(two_k_block);
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
+      << "Must be multiple of 2k " << ptr << " " << two_k_block;
   vtcm_pool->Free(ptr, two_k_block);
+
   ptr = vtcm_pool->Allocate(one_k_block);
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
+      << "Must be multiple of 128 " << ptr << " " << one_k_block;
   vtcm_pool->Free(ptr, one_k_block);
-  ptr = vtcm_pool->Allocate(one_byte_block);
-  vtcm_pool->Free(ptr, one_byte_block);
+
+  ptr = vtcm_pool->Allocate(min_bytes);
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
+      << "Must be multiple of 128 " << ptr << " " << min_bytes;
+
+  ptr2 = vtcm_pool->Allocate(one_k_block);
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
+      << "Must be multiple of 128 " << ptr2 << " " << one_k_block;
+  vtcm_pool->Free(ptr, min_bytes);
+  vtcm_pool->Free(ptr2, one_k_block);
+
+  EXPECT_THROW(ptr = vtcm_pool->Allocate(1), InternalError);
+}
+
+TEST_F(HexagonVtcmPoolTest, small_allocations) {
+  void* ptr1;
+  void* ptr2;
+  void* ptr3;
+  void* ptr4;
+
+  // Allocate small chunk from the back
+  ptr1 = vtcm_pool->Allocate(min_bytes);
+
+  // Allocate from the front
+  ptr2 = vtcm_pool->Allocate(two_k_block);
+
+  // Allocate the rest
+  ptr3 = vtcm_pool->Allocate(max_bytes - min_bytes - two_k_block);
+
+  // Should be no more memory left
+  EXPECT_THROW(ptr4 = vtcm_pool->Allocate(min_bytes), InternalError);
+
+  vtcm_pool->Free(ptr1, min_bytes);
+  vtcm_pool->Free(ptr2, two_k_block);
+  vtcm_pool->Free(ptr3, max_bytes - min_bytes - two_k_block);
+
+  // Make sure at the end we have the full amount available again
+  ptr4 = vtcm_pool->Allocate(max_bytes);
+  vtcm_pool->Free(ptr4, max_bytes);
 }
 
 TEST_F(HexagonVtcmPoolTest, no_free_vtcm) {
-  void* ptr;
-  size_t max_bytes = vtcm_pool->TotalBytes();
-  ptr = vtcm_pool->Allocate(max_bytes);
-  EXPECT_THROW(vtcm_pool->Allocate(1), InternalError);
+  void* ptr = vtcm_pool->Allocate(max_bytes);
+  EXPECT_THROW(vtcm_pool->Allocate(min_bytes), InternalError);
   vtcm_pool->Free(ptr, max_bytes);
 }
 
 TEST_F(HexagonVtcmPoolTest, not_enough_free_vtcm) {
-  void* ptr;
-  size_t max_bytes = vtcm_pool->TotalBytes();
-  size_t two_k_block = 2048;
-  ptr = vtcm_pool->Allocate(max_bytes - two_k_block);
+  void* ptr = vtcm_pool->Allocate(max_bytes - two_k_block);
   EXPECT_THROW(vtcm_pool->Allocate(two_k_block * 2), InternalError);
   vtcm_pool->Free(ptr, max_bytes - two_k_block);
 }
 
 TEST_F(HexagonVtcmPoolTest, free_with_wrong_size) {
-  void* ptr;
-  size_t two_k_block = 2048;
-  ptr = vtcm_pool->Allocate(two_k_block * 2);
+  void* ptr = vtcm_pool->Allocate(two_k_block * 2);
   EXPECT_THROW(vtcm_pool->Free(ptr, two_k_block), InternalError);
   vtcm_pool->Free(ptr, two_k_block * 2);
 }
@@ -79,7 +123,6 @@ TEST_F(HexagonVtcmPoolTest, free_alloc_combinations) {
   void* ptr3;
   void* ptr4;
   void* new_ptr;
-  size_t two_k_block = 2048;
   size_t max_less_3_blocks = vtcm_pool->TotalBytes() - (3 * two_k_block);
   ptr1 = vtcm_pool->Allocate(two_k_block);
   ptr2 = vtcm_pool->Allocate(two_k_block);
@@ -117,8 +160,123 @@ TEST_F(HexagonVtcmPoolTest, free_alloc_combinations) {
   vtcm_pool->Free(ptr3, two_k_block);
   vtcm_pool->Free(ptr2, two_k_block);
 
-  // Make sure at the end we have the full amount
-  // available again
-  ptr4 = vtcm_pool->Allocate(max_less_3_blocks);
-  vtcm_pool->Free(ptr4, max_less_3_blocks);
+  // Make sure at the end we have the full amount available again
+  ptr4 = vtcm_pool->Allocate(max_bytes);
+  vtcm_pool->Free(ptr4, max_bytes);
+}
+
+TEST_F(HexagonVtcmPoolTest, find_allocation) {
+  void* ptr1;
+  void* ptr2;
+  void* ptr3;
+
+  ptr1 = vtcm_pool->Allocate(two_k_block);
+  ptr2 = vtcm_pool->Allocate(two_k_block);
+
+  // Free the first allocation
+  vtcm_pool->Free(ptr1, two_k_block);
+
+  // Allocate a new larger block to initiate search and ensure
+  // it succeeds despite there not being a match in the first free block.
+  ptr3 = vtcm_pool->Allocate(four_k_block);
+
+  // Clean up the ptrs
+  vtcm_pool->Free(ptr2, two_k_block);
+  vtcm_pool->Free(ptr3, four_k_block);
+
+  // Make sure at the end we have the full amount available again
+  ptr1 = vtcm_pool->Allocate(max_bytes);
+  vtcm_pool->Free(ptr1, max_bytes);
+}
+
+TEST_F(HexagonVtcmPoolTest, find_smallest_allocation_combinations) {
+  void* ptr1;
+  void* ptr2;
+  void* ptr3;
+  void* ptr4;
+  void* new_ptr;
+
+  ptr1 = vtcm_pool->Allocate(two_k_block);
+  ptr2 = vtcm_pool->Allocate(two_k_block);
+  ptr3 = vtcm_pool->Allocate(four_k_block);
+  ptr4 = vtcm_pool->Allocate(four_k_block);
+
+  // Fragment memory allocations.
+  vtcm_pool->Free(ptr2, two_k_block);
+  vtcm_pool->Free(ptr3, four_k_block);
+
+  // Reallocate memory allocations and ensure that the smallest free allocations are used.
+  new_ptr = vtcm_pool->Allocate(two_k_block);
+  CHECK(new_ptr == ptr2);
+
+  new_ptr = vtcm_pool->Allocate(two_k_block);
+  CHECK(new_ptr == ptr3);
+
+  vtcm_pool->Free(ptr1, two_k_block);
+  vtcm_pool->Free(ptr2, two_k_block);
+  vtcm_pool->Free(ptr3, two_k_block);
+  vtcm_pool->Free(ptr4, four_k_block);
+
+  // Rerun the same test for non 2k aligned allocations.
+  ptr1 = vtcm_pool->Allocate(min_bytes);
+  ptr2 = vtcm_pool->Allocate(min_bytes);
+  ptr3 = vtcm_pool->Allocate(one_k_block);
+  ptr4 = vtcm_pool->Allocate(one_k_block);
+
+  // Fragment memory allocations.
+  vtcm_pool->Free(ptr2, min_bytes);
+  vtcm_pool->Free(ptr3, one_k_block);
+
+  // Reallocate memory allocations and ensure that the smallest free allocations are used.
+  new_ptr = vtcm_pool->Allocate(min_bytes);
+  CHECK(new_ptr == ptr2);
+
+  new_ptr = vtcm_pool->Allocate(one_k_block);
+  CHECK(new_ptr == ptr3);
+
+  vtcm_pool->Free(ptr1, min_bytes);
+  vtcm_pool->Free(ptr2, min_bytes);
+  vtcm_pool->Free(ptr3, one_k_block);
+  vtcm_pool->Free(ptr4, one_k_block);
+
+  // Make sure at the end we have the full amount available again
+  ptr4 = vtcm_pool->Allocate(max_bytes);
+  vtcm_pool->Free(ptr4, max_bytes);
+}
+
+// Test alignment edge cases allocating through HexagonBuffer
+TEST_F(HexagonVtcmPoolTest, vtcm_alignment) {
+  std::unique_ptr<HexagonBufferManager> test_hexbuffs = std::make_unique<HexagonBufferManager>();
+  void* ptr;
+
+  // Invalid alignments
+  EXPECT_THROW(test_hexbuffs->AllocateHexagonBuffer(min_bytes, 128 + 1, String("global")),
+               InternalError);
+  EXPECT_THROW(test_hexbuffs->AllocateHexagonBuffer(min_bytes, 2048 + 1, String("global")),
+               InternalError);
+
+  // Valid alignments, sizes need to be adjusted
+  ptr = test_hexbuffs->AllocateHexagonBuffer(1, 128, String("global"));
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0) << "Must be multiple of 128 " << ptr;
+
+  ptr = test_hexbuffs->AllocateHexagonBuffer(127, 128, String("global"));
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0) << "Must be multiple of 128 " << ptr;
+
+  ptr = test_hexbuffs->AllocateHexagonBuffer(129, 128, String("global"));
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0) << "Must be multiple of 128 " << ptr;
+
+  ptr = test_hexbuffs->AllocateHexagonBuffer(1, 2048, String("global"));
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0) << "Must be multiple of 2k " << ptr;
+
+  ptr = test_hexbuffs->AllocateHexagonBuffer(2047, 2048, String("global"));
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0) << "Must be multiple of 2k " << ptr;
+
+  ptr = test_hexbuffs->AllocateHexagonBuffer(2049, 2048, String("global"));
+  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0) << "Must be multiple of 2k " << ptr;
+
+  test_hexbuffs.reset();
+
+  // Make sure at the end we have the full amount available again
+  ptr = vtcm_pool->Allocate(max_bytes);
+  vtcm_pool->Free(ptr, max_bytes);
 }

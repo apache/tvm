@@ -34,6 +34,12 @@
 #include <dlfcn.h>
 #endif
 
+#if defined(__hexagon__)
+extern "C" {
+#include <HAP_farf.h>
+}
+#endif
+
 namespace tvm {
 namespace runtime {
 
@@ -118,6 +124,14 @@ void DSOLibrary::Load(const std::string& name) {
   lib_handle_ = dlopen(name.c_str(), RTLD_LAZY | RTLD_LOCAL);
   ICHECK(lib_handle_ != nullptr) << "Failed to load dynamic shared library " << name << " "
                                  << dlerror();
+#if defined(__hexagon__)
+  int p;
+  int rc = dlinfo(lib_handle_, RTLD_DI_LOAD_ADDR, &p);
+  if (rc)
+    FARF(ERROR, "error getting model .so start address : %u", rc);
+  else
+    FARF(ALWAYS, "Model .so Start Address : %x", p);
+#endif
 }
 
 void* DSOLibrary::GetSymbol_(const char* name) { return dlsym(lib_handle_, name); }

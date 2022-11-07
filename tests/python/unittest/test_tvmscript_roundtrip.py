@@ -3409,6 +3409,47 @@ def minimal_i32_literal():
     return func
 
 
+def boolean_argument():
+    @T.prim_func
+    def func(a: T.boolean) -> None:
+        T.evaluate(a)
+
+    return func
+
+
+def bool_argument():
+    @T.prim_func
+    def func(a: T.bool) -> None:
+        T.evaluate(a)
+
+    return func
+
+
+def bool_variable_annotation():
+    @T.prim_func
+    def func() -> None:
+        a: T.bool = T.call_extern("dummy", dtype="bool")
+        T.evaluate(0)
+
+    return func
+
+
+def bool_primitive():
+    @T.prim_func
+    def func() -> None:
+        T.evaluate(T.bool(True))
+
+    return func
+
+
+def bool_cast():
+    @T.prim_func
+    def func() -> None:
+        T.evaluate(T.bool(T.int32(0)))
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3454,6 +3495,11 @@ ir_generator = tvm.testing.parameter(
     allocate_and_decl_buffer,
     float_infinity,
     minimal_i32_literal,
+    boolean_argument,
+    bool_argument,
+    bool_variable_annotation,
+    bool_primitive,
+    bool_cast,
 )
 
 

@@ -25,6 +25,7 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "hexagon_buffer.h"
 
@@ -34,19 +35,23 @@ namespace hexagon {
 
 class HexagonBufferManager {
  public:
+  ~HexagonBufferManager() {
+    if (!hexagon_buffer_map_.empty()) {
+      DLOG(INFO) << "HexagonBufferManager is not empty upon destruction";
+    }
+  }
+
   /*!
    * \brief Free a HexagonBuffer.
    * \param ptr Address of the HexagonBuffer as returned by `AllocateHexagonBuffer`.
    */
   void FreeHexagonBuffer(void* ptr) {
+    std::lock_guard<std::mutex> lock(map_mutex_);
     auto it = hexagon_buffer_map_.find(ptr);
     CHECK(it != hexagon_buffer_map_.end())
-        << "Attempt made to free unknown or already freed dataspace allocation";
+        << "Attempt made to free unknown or already freed allocation";
     CHECK(it->second != nullptr);
-    {
-      std::lock_guard<std::mutex> lock(map_mutex_);
-      hexagon_buffer_map_.erase(it);
-    }
+    hexagon_buffer_map_.erase(it);
   }
   /*!
    * \brief Allocate a HexagonBuffer.
@@ -63,26 +68,14 @@ class HexagonBufferManager {
     return ptr;
   }
 
-  //! \brief Returns whether the HexagonBuffer is in the map.
-  size_t count(void* ptr) {
-    std::lock_guard<std::mutex> lock(map_mutex_);
-    return hexagon_buffer_map_.count(ptr);
-  }
-
   //! \brief Returns an iterator to the HexagonBuffer within the map.
-  HexagonBuffer* find(void* ptr) {
+  HexagonBuffer* FindHexagonBuffer(void* ptr) {
     std::lock_guard<std::mutex> lock(map_mutex_);
     auto it = hexagon_buffer_map_.find(ptr);
     if (it != hexagon_buffer_map_.end()) {
       return it->second.get();
     }
     return nullptr;
-  }
-
-  //! \brief Returns whether the HexagonBufferManager has any allocations.
-  bool empty() {
-    std::lock_guard<std::mutex> lock(map_mutex_);
-    return hexagon_buffer_map_.empty();
   }
 
  private:

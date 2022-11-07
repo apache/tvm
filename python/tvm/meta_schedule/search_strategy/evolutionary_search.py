@@ -29,10 +29,6 @@ class EvolutionarySearch(SearchStrategy):
 
     Parameters
     ----------
-    num_trials_per_iter : int
-        Number of trials per iteration.
-    max_trials_per_task : int
-        Total number of trials.
     population_size : int
         The initial population of traces from measured samples and randomly generated samples.
     init_measured_ratio : int
@@ -49,8 +45,6 @@ class EvolutionarySearch(SearchStrategy):
         The ratio of greedy selected samples in the final picks.
     """
 
-    num_trials_per_iter: int
-    max_trials_per_task: int
     population_size: int
     init_measured_ratio: int
     init_min_unmeasured: int
@@ -62,8 +56,6 @@ class EvolutionarySearch(SearchStrategy):
     def __init__(
         self,
         *,
-        num_trials_per_iter: int,
-        max_trials_per_task: int,
         population_size: int = 2048,
         init_measured_ratio: float = 0.2,
         init_min_unmeasured: int = 50,
@@ -75,8 +67,6 @@ class EvolutionarySearch(SearchStrategy):
         """Constructor"""
         self.__init_handle_by_constructor__(
             _ffi_api.SearchStrategyEvolutionarySearch,  # type: ignore # pylint: disable=no-member
-            num_trials_per_iter,
-            max_trials_per_task,
             population_size,
             init_measured_ratio,
             init_min_unmeasured,

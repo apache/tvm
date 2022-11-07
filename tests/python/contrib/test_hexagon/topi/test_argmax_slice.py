@@ -22,7 +22,7 @@ import tvm.testing
 from tvm import te
 import tvm.topi.hexagon.slice_ops as sl
 import tvm.contrib.hexagon
-from ..infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 
 class TestArgMaxSlice:
@@ -79,8 +79,6 @@ class TestArgMaxSlice:
         working_scope,
     ):
         """Top level testing function for argmax"""
-        target_hexagon = tvm.target.hexagon("v69")
-        target = tvm.target.Target(target_hexagon, host=target_hexagon)
         argmax_input = te.placeholder(input_shape, name="A", dtype=dtype)
         output = sl.argmax.argmax_compute(argmax_input, in_axis)
         argmax_func = te.create_prim_func([argmax_input, output])
@@ -101,7 +99,7 @@ class TestArgMaxSlice:
         with tvm.transform.PassContext(opt_level=3):
             tir_irm = tvm.lower(tir_s.mod, [argmax_input, output], name="argmax")
             runtime_module = tvm.build(
-                tir_irm, [argmax_input, output], target=target, name="argmax"
+                tir_irm, [argmax_input, output], target=get_hexagon_target("v69"), name="argmax"
             )
         mod = hexagon_session.load_module(runtime_module)
 

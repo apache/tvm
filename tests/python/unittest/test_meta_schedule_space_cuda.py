@@ -15,9 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Tests for MetaSchedule search space on CUDA"""
-from tvm import te, topi, autotvm
+from tvm import autotvm
 from tvm import meta_schedule as ms
-from tvm.meta_schedule.testing.space_generation import check_sketches, print_sketches
+from tvm import te, topi
+from tvm.meta_schedule.testing.space_generation import (
+    check_sketches,
+    generate_design_space,
+    print_sketches,
+)
 from tvm.meta_schedule.testing.te_workload import create_te_workload
 from tvm.script import tir as T
 from tvm.target import Target
@@ -25,6 +30,15 @@ from tvm.target import Target
 
 def _target():
     return Target("nvidia/geforce-rtx-3070")
+
+
+def _design_space(mod):
+    return generate_design_space(
+        kind="cuda",
+        mod=mod,
+        target=_target(),
+        types=ms.ScheduleRule,
+    )
 
 
 def _conv2d_winograd_nchw():
@@ -119,12 +133,7 @@ def test_cuda_c1d():
     ]
 
     mod = create_te_workload("C1D", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -208,12 +217,7 @@ def test_cuda_c2d():
     ]
 
     mod = create_te_workload("C2D", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -303,12 +307,7 @@ def test_cuda_c3d():
         ("SampleCategorical", 1),
     ]
     mod = create_te_workload("C3D", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -404,12 +403,7 @@ def test_cuda_cap():
         ("SampleCategorical", 2),
     ]
     mod = create_te_workload("CAP", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -492,12 +486,7 @@ def test_cuda_dep():
         ("SampleCategorical", 1),
     ]
     mod = create_te_workload("DEP", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -580,12 +569,7 @@ def test_cuda_dil():
         ("SampleCategorical", 3),
     ]
     mod = create_te_workload("DIL", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -661,12 +645,7 @@ def test_cuda_gmm():
         ("SampleCategorical", 4),
     ]
     mod = create_te_workload("GMM", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -750,12 +729,7 @@ def test_cuda_grp():
         ("SampleCategorical", 1),
     ]
     mod = create_te_workload("GRP", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -840,12 +814,7 @@ def test_cuda_t2d():
         ("SampleCategorical", 2),
     ]
     mod = create_te_workload("T2D", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -923,12 +892,7 @@ def test_cuda_nrm():
         ("SampleCategorical", 4),
     ]
     mod = create_te_workload("NRM", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -1135,12 +1099,7 @@ def test_cuda_sfm():
         ("SampleCategorical", 0),
     ]
     mod = create_te_workload("SFM", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -1225,12 +1184,7 @@ def test_cuda_cbr():
         ("SampleCategorical", 3),
     ]
     mod = create_te_workload("CBR", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -1309,12 +1263,7 @@ def test_cuda_tbg():
         ("SampleCategorical", 4),
     ]
     mod = create_te_workload("TBG", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -1459,12 +1408,7 @@ def test_cuda_winograd_nchw_conv2d():
         ("SampleCategorical", 4),
     ]
     mod = _conv2d_winograd_nchw()
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,

@@ -260,7 +260,7 @@ def features_from_primfunc(
     cache_line_bytes: int = 64,
     max_n_bufs: Optional[int] = None,
     log_scale: bool = False,
-) -> np.ndarray:
+) -> Optional[np.ndarray]:
     """Extract performance features from a PrimFunc.
 
     Parameters
@@ -284,7 +284,7 @@ def features_from_primfunc(
 
     Returns
     -------
-    np.ndarray
+    Optional[np.ndarray]
         Output features, one row per store into a unique buffer statement in `func`.
     """
     return _ffi_api.FeaturesFromPrimFunc(
@@ -297,7 +297,7 @@ def named_features_from_primfunc(
     cache_line_bytes: int = 64,
     max_n_bufs: Optional[int] = None,
     log_scale: bool = False,
-) -> Dict[str, np.ndarray]:
+) -> Optional[Dict[str, np.ndarray]]:
     """Extract performance features and associated names from a PrimFunc.
 
     Parameters
@@ -321,7 +321,7 @@ def named_features_from_primfunc(
 
     Returns
     -------
-    Dict[str, np.ndarray]
+    Optional[Dict[str, np.ndarray]]
         Mapping from feature name to features. One element per store into a
         unique buffer statement in `func`.
     """

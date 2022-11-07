@@ -31,6 +31,7 @@
 
 #include "hexagon_buffer.h"
 #include "hexagon_buffer_manager.h"
+#include "hexagon_power_manager.h"
 #include "hexagon_thread_manager.h"
 #include "hexagon_user_dma.h"
 #include "hexagon_vtcm_pool.h"
@@ -48,22 +49,25 @@ class HexagonDeviceAPI final : public DeviceAPI {
   static HexagonDeviceAPI* Global();
 
   //! \brief Constructor
-  HexagonDeviceAPI() { mgr = &hexbuffs; }
+  HexagonDeviceAPI() {}
 
   //! \brief Destructor
   ~HexagonDeviceAPI() {}
 
   //! \brief Ensures resource managers are in a good state for the runtime
   void AcquireResources() {
+    CHECK_EQ(runtime_power_manager, nullptr);
+    runtime_power_manager = std::make_unique<HexagonPowerManager>();
+
     CHECK_EQ(runtime_vtcm, nullptr);
     runtime_vtcm = std::make_unique<HexagonVtcmPool>();
 
     CHECK_EQ(runtime_hexbuffs, nullptr);
     runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
-    mgr = runtime_hexbuffs.get();
 
     CHECK_EQ(runtime_threads, nullptr);
-    runtime_threads = std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size);
+    runtime_threads =
+        std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size, hw_resources);
 
     CHECK_EQ(runtime_dma, nullptr);
     runtime_dma = std::make_unique<HexagonUserDMA>();
@@ -78,14 +82,13 @@ class HexagonDeviceAPI final : public DeviceAPI {
     runtime_threads.reset();
 
     CHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
-    if (runtime_hexbuffs && !runtime_hexbuffs->empty()) {
-      LOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
-    }
-    mgr = &hexbuffs;
     runtime_hexbuffs.reset();
 
     CHECK(runtime_vtcm) << "runtime_vtcm was not created in AcquireResources";
     runtime_vtcm.reset();
+
+    CHECK(runtime_power_manager) << "runtime_power_manager was not created in AcquireResources";
+    runtime_power_manager.reset();
   }
 
   /*! \brief Currently unimplemented interface to specify the active
@@ -186,31 +189,30 @@ class HexagonDeviceAPI final : public DeviceAPI {
    */
   bool IsValidDevice(DLDevice dev) {
     // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU
-    return (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
-           (DLDeviceType(dev.device_type) == kDLCPU);
+    return (dev.device_type == kDLHexagon) || (dev.device_type == kDLCPU);
   }
 
-  //! \brief Manages underlying HexagonBuffer allocations
-  // runtime_hexbuffs is used for runtime allocations.  It is created
-  // with a call to AcquireResources, and destroyed on ReleaseResources.
-  // hexbuffs is used for all allocations outside of the session lifetime.
-  HexagonBufferManager hexbuffs;
+  //! \brief Manages runtime HexagonBuffer allocations
+  // runtime_hexbuffs is used for runtime allocations.  It is created with a call to
+  // AcquireResources, and destroyed on ReleaseResources.  The buffers in this manager are scoped
+  // to the lifetime of a user application session.
   std::unique_ptr<HexagonBufferManager> runtime_hexbuffs;
-
-  //! \brief Current buffer manager
-  HexagonBufferManager* mgr;
 
   //! \brief Thread manager
   std::unique_ptr<HexagonThreadManager> runtime_threads;
   const unsigned threads{6};
   const unsigned pipe_size{1000};
   const unsigned stack_size{0x4000};  // 16KB
+  const std::vector<HardwareResourceType> hw_resources{DMA_0, HTP_0, HVX_0, HVX_1, HVX_2, HVX_3};
 
   //! \brief User DMA manager
   std::unique_ptr<HexagonUserDMA> runtime_dma;
 
   //! \brief VTCM memory manager
   std::unique_ptr<HexagonVtcmPool> runtime_vtcm;
+
+  //! \brief Hexagon power manager
+  std::unique_ptr<HexagonPowerManager> runtime_power_manager;
 };
 }  // namespace hexagon
 }  // namespace runtime

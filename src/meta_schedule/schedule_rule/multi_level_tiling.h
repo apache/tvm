@@ -193,7 +193,7 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   /*! \brief The maximum number of threads to be used size of a thread warp */
   int max_threads_per_block_;
   /*! \brief The logging function */
-  PackedFunc logging_func;
+  PackedFunc logger;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("structure", &structure);

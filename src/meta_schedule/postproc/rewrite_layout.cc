@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <unordered_set>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -106,25 +108,53 @@ class BufferReadPosCollector : public StmtExprVisitor {
   BlockRealize cur_realize_;
 };
 
+class LayoutFreeBufferCollector : public StmtVisitor {
+ public:
+  void VisitStmt_(const BlockNode* block) final {
+    StmtVisitor::VisitStmt_(block);
+    if (Optional<ObjectRef> ann = block->annotations.Get("layout_free_placeholders")) {
+      for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
+        buffers.insert(buffer);
+      }
+    }
+  }
+
+  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> buffers;
+};
+
+Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
+  // Only rewrite PrimFuncs with attr "layout_free_buffers"
+  Array<Integer> layout_free_buffer_index =
+      func->GetAttr(attr::layout_free_buffers, Array<Integer>()).value();
+
+  Array<Buffer> layout_free_buffers;
+  for (const Integer& index : layout_free_buffer_index) {
+    ICHECK(static_cast<size_t>(index->value) < func->params.size());
+    const Var& param = func->params[index->value];
+    layout_free_buffers.push_back(func->buffer_map.at(param));
+  }
+
+  LayoutFreeBufferCollector collector;
+  collector(func->body);
+
+  for (auto buf : collector.buffers) {
+    layout_free_buffers.push_back(buf);
+  }
+  return layout_free_buffers;
+}
+
 bool RewriteLayout(const Schedule& sch) {
   std::vector<std::pair<StmtSRef, String>> results;
-  for (const auto& kv : sch->mod()->functions) {
-    const GlobalVar& g_var = kv.first;
+  for (const auto& [g_var, base_func] : sch->mod()->functions) {
     const String& func_name = g_var->name_hint;
-    const auto* prim_func = kv.second.as<PrimFuncNode>();
+    const auto* prim_func = base_func.as<PrimFuncNode>();
     // Only consider PrimFunc
     if (prim_func == nullptr) {
       continue;
     }
-    // Only rewrite PrimFuncs with attr "layout_free_buffers"
-    Array<Integer> layout_free_buffer_index =
-        prim_func->GetAttr(attr::layout_free_buffers, Array<Integer>()).value();
 
-    Array<Buffer> layout_free_buffers;
-    for (const Integer& index : layout_free_buffer_index) {
-      const Var& param = prim_func->params[index->value];
-      layout_free_buffers.push_back(prim_func->buffer_map.at(param));
-    }
+    Array<Buffer> layout_free_buffers = CollectLayoutFreeBuffers(prim_func);
+
     // Collect Buffer read positions
     BufferReadPosCollector collector(layout_free_buffers);
     collector(prim_func->body);
@@ -132,7 +162,7 @@ bool RewriteLayout(const Schedule& sch) {
     const auto& index_maps = collector.GetBufferIndexMap();
     // Check all buffers are collected
     if (locations.size() != layout_free_buffers.size() ||
-        index_maps.size() != layout_free_buffer_index.size()) {
+        index_maps.size() != layout_free_buffers.size()) {
       return false;
     }
 

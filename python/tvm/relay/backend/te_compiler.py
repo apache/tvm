@@ -281,25 +281,28 @@ def get_shape(shape):
 
 
 @tvm._ffi.register_func("relay.backend.lower_call")
-def lower_call(call, inputs, target):
+def lower_call(call, inputs, target, otype=None):
     """Lower the call expression to op implementation and tensor outputs."""
     assert isinstance(call.op, tvm.ir.Op)
     op = call.op
 
-    # Prepare the call_node->checked_type(). For the call node inputs, we ensure that
-    # the shape is Int32. Following code ensures the same for the output as well.
-    # TODO(@icemelon9): Support recursive tuple
-    ret_type = call.checked_type
-    if isinstance(ret_type, _ty.TensorType):
-        ret_type = _ty.TensorType(get_shape(ret_type.shape), ret_type.dtype)
-    elif isinstance(ret_type, _ty.TupleType):
-        new_fields = []
-        for field in ret_type.fields:
-            if isinstance(field, _ty.TensorType):
-                new_fields.append(_ty.TensorType(get_shape(field.shape), field.dtype))
-            else:
-                new_fields.append(field)
-        ret_type = _ty.TupleType(new_fields)
+    if otype is not None:
+        ret_type = otype
+    else:
+        # Prepare the call_node->checked_type(). For the call node inputs, we ensure that
+        # the shape is Int32. Following code ensures the same for the output as well.
+        # TODO(@icemelon9): Support recursive tuple
+        ret_type = call.checked_type
+        if isinstance(ret_type, _ty.TensorType):
+            ret_type = _ty.TensorType(get_shape(ret_type.shape), ret_type.dtype)
+        elif isinstance(ret_type, _ty.TupleType):
+            new_fields = []
+            for field in ret_type.fields:
+                if isinstance(field, _ty.TensorType):
+                    new_fields.append(_ty.TensorType(get_shape(field.shape), field.dtype))
+                else:
+                    new_fields.append(field)
+            ret_type = _ty.TupleType(new_fields)
 
     is_dyn = _ty.is_dynamic(call.checked_type)
     for arg in call.args:

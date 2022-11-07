@@ -25,6 +25,8 @@ from tvm.contrib.hexagon.session import Session
 import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
 
+from ..infrastructure import get_hexagon_target
+
 
 class TestAdaptivePool:
     dshape, out_size, pool_type, layout = tvm.testing.parameters(
@@ -68,15 +70,14 @@ class TestAdaptivePool:
             assert len(out_size) == 3
             out = topi.nn.adaptive_pool3d(data, out_size, pool_type, layout)
 
-        target_hexagon = tvm.target.hexagon("v68")
-        with tvm.target.Target(target_hexagon):
+        with tvm.target.Target(get_hexagon_target("v68")):
             fschedule = topi.hexagon.schedule_adaptive_pool
             s = fschedule(out)
 
         func = tvm.build(
             s,
             [data, out],
-            tvm.target.Target(target_hexagon, host=target_hexagon),
+            get_hexagon_target("v68"),
             name="adaptive-pool",
         )
         mod = hexagon_session.load_module(func)
@@ -166,12 +167,11 @@ def verify_poolnd(
 
     np.testing.assert_equal(tuple(output_shape), tuple(ref_np.shape))
 
-    target_hexagon = tvm.target.hexagon("v68")
-    with tvm.target.Target(target_hexagon):
+    with tvm.target.Target(get_hexagon_target("v68")):
         fschedule = topi.hexagon.schedule_pool
         s = fschedule(B, layout)
 
-    func = tvm.build(s, [A, B], tvm.target.Target(target_hexagon, host=target_hexagon), name="pool")
+    func = tvm.build(s, [A, B], get_hexagon_target("v68"), name="pool")
     mod = hexagon_session.load_module(func)
 
     dev = hexagon_session.device

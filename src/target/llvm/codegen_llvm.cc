@@ -1318,6 +1318,10 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     // TODO(masahi): Support atomic for CPU backend
     LOG(FATAL) << "CPU backend does not support atomic add yet.";
     return nullptr;
+  } else if (op->op.same_as(builtin::start_profile_intrinsic()) ||
+             op->op.same_as(builtin::end_profile_intrinsic())) {
+    LOG(INFO) << "Ignoring profile_intrinsic ... " << op->op;
+    return nullptr;
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->op;
     return nullptr;
@@ -1755,14 +1759,14 @@ void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   auto* then_block = llvm::BasicBlock::Create(*ctx, "if_then", function_);
   auto* end_block = llvm::BasicBlock::Create(*ctx, "if_end", function_);
-  if (op->else_case.defined()) {
+  if (op->else_case) {
     auto* else_block = llvm::BasicBlock::Create(*ctx, "if_else", function_);
     builder_->CreateCondBr(cond, then_block, else_block);
     builder_->SetInsertPoint(then_block);
     this->VisitStmt(op->then_case);
     builder_->CreateBr(end_block);
     builder_->SetInsertPoint(else_block);
-    this->VisitStmt(op->else_case);
+    this->VisitStmt(op->else_case.value());
     builder_->CreateBr(end_block);
   } else {
     builder_->CreateCondBr(cond, then_block, end_block, md_very_likely_branch_);

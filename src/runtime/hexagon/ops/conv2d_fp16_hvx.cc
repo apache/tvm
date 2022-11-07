@@ -268,7 +268,7 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
              << ", h: " << h << ", wo: " << wo << " out_element_ptr: " << out_element_ptr;
 
     HVX_Vector* out_vector = reinterpret_cast<HVX_Vector*>(out_element_ptr);
-    HVX_Vector existing_out_vec = *out_vector;
+    HVX_Vector existing_out_vec = Q6_V_vzero();
 
     for (int fh = 0; fh < filt_height; ++fh) {
       for (int fw = 0; fw < filt_width; ++fw) {

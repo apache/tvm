@@ -15,24 +15,51 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
+
+from tvm import meta_schedule as ms
 from tvm.ir import IRModule, structural_equal
+from tvm.target import Target
 from tvm.tir import Schedule
 from tvm.tir.schedule import Trace
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 
-def check_trace(spaces: List[Schedule], expected: List[List[str]]):
-    expected_traces = {"\n".join(t) for t in expected}
-    actual_traces = set()
-    for space in spaces:
-        trace = Trace(space.trace.insts, {})
-        trace = trace.simplified(remove_postproc=True)
-        str_trace = "\n".join(t[2:] for t in str(trace).strip().splitlines()[2:] if t != "  pass")
-        actual_traces.add(str_trace)
-        assert str_trace in expected_traces, "\n" + str_trace
-    assert len(expected_traces) == len(actual_traces)
+def get_rules(
+    kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"],
+    types: Union[type, Tuple[type, ...]],
+) -> List[ms.ScheduleRule]:
+    """Get default schedule rules"""
+    rules = ms.ScheduleRule.create(kind)
+    return [rule for rule in rules if isinstance(rule, types)]
+
+
+def generate_design_space(
+    kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"],
+    mod: IRModule,
+    target: Target,
+    types: Union[type, Tuple[type, ...]],
+    sch_rules: Optional[List[ms.ScheduleRule]] = None,
+) -> List[Schedule]:
+    if sch_rules is None:
+        sch_rules = get_rules(kind, types)
+    else:
+        assert types is None
+    return ms.TuneContext(
+        mod=mod,
+        target=target,
+        space_generator=ms.space_generator.PostOrderApply(
+            sch_rules=sch_rules,
+            postprocs=[],
+            mutator_probs={},
+        ),
+        task_name="test",
+    ).generate_design_space()
 
 
 def _find_match_sketch_id(

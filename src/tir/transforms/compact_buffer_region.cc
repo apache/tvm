@@ -184,10 +184,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, true);
       StmtExprVisitor::VisitStmt(op->then_case);
     }
-    if (op->else_case.defined()) {
+    if (op->else_case) {
       // Visit else branch
       With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, false);
-      StmtExprVisitor::VisitStmt(op->else_case);
+      StmtExprVisitor::VisitStmt(op->else_case.value());
     }
   }
 

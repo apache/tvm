@@ -27,12 +27,6 @@ convolution has a large batch. We strongly recommend covering the :ref:`opt-conv
 
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
-
 ################################################################
 # TensorCore Introduction
 # -----------------------
@@ -56,6 +50,12 @@ testing.utils.install_request_hook(depth=3)
 # The batch size is 256. Convolution filters contain 512 filters of size 3 x 3.
 # We use stride size 1 and padding size 1 for the convolution. In the example, we use
 # NHWCnc memory layout.The following code defines the convolution algorithm in TVM.
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 
 import tvm
 from tvm import te

@@ -161,7 +161,9 @@ class MixedPrecisionPass : public MixedModeMutator {
      */
     DataType cur_type = (attrs->out_dtype);
     ObjectPtr<T> new_attrs = make_object<T>(*attrs);
-    if (cur_type.is_float() || cur_type.is_void()) new_attrs->out_dtype = accumulation_dtype;
+    if (cur_type.is_float() || cur_type.is_bfloat16() || cur_type.is_void()) {
+      new_attrs->out_dtype = accumulation_dtype;
+    }
     return Attrs(new_attrs);
   }
 
@@ -175,7 +177,9 @@ class MixedPrecisionPass : public MixedModeMutator {
     */
     DataType cur_type = (attrs->dtype);
     ObjectPtr<T> new_attrs = make_object<T>(*attrs);
-    if (cur_type.is_float() || cur_type.is_void()) new_attrs->dtype = accumulation_dtype;
+    if (cur_type.is_float() || cur_type.is_bfloat16() || cur_type.is_void()) {
+      new_attrs->dtype = accumulation_dtype;
+    }
     return Attrs(new_attrs);
   }
 
@@ -217,7 +221,7 @@ class MixedPrecisionPass : public MixedModeMutator {
     /* Cast tensor to the wanted datatype, returning a cached version if it's already been done. */
 
     // If this is not a floating point type, do not cast. E.g. it might be an integer
-    if (!expr_dtype.is_float()) {
+    if (!(expr_dtype.is_float() || expr_dtype.is_bfloat16())) {
       return expr;
     }
 
@@ -299,7 +303,7 @@ class MixedPrecisionPass : public MixedModeMutator {
         original_dtype_.push_back((root_->checked_type_).as<TensorTypeNode>()->dtype);
       }
     }
-    if (!mixed_precision_type_.is_float() && !mixed_precision_type_.is_bfloat16()) {
+    if (!(mixed_precision_type_.is_float() || mixed_precision_type_.is_bfloat16())) {
       LOG(FATAL) << "Only support IEEE floating point mixed precision types and bfloat16, but got "
                  << mixed_precision_type_;
     }

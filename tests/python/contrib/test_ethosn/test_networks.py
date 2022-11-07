@@ -145,7 +145,7 @@ def test_resnet_50_int8():
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
     _compile_hash = {
-        "6b130a99397715156d5fb833809a92d2",
+        "f16dc9caa8e696bc5da8a5c6a644eb72",
         "6e5fcbab831607b9da1039aff4e56871",
         "41acecca37b2735bd580f6ec38d8c2e0",
     }
@@ -190,7 +190,7 @@ def test_inception_v4():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"2eeae331898f8e94c74868e190077837"}
+    _compile_hash = {"c00c119506b34c8e87f81aa009b42431"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/inception_v4_299_quant_20181026.tgz",

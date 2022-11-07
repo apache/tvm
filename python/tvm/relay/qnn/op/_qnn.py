@@ -19,9 +19,10 @@
 
 from tvm import topi
 
+from .. import strategy
 from ...op.op import register_compute
 from ...op.op import register_injective_schedule
-from ...op.op import register_pattern, OpPattern
+from ...op.op import register_strategy, register_pattern, OpPattern
 
 
 @register_compute("qnn.simulated_quantize")
@@ -50,3 +51,35 @@ def simulated_dequantize_compute(attrs, inputs, output_type):
 
 register_injective_schedule("qnn.simulated_dequantize")
 register_pattern("qnn.simulated_dequantize", OpPattern.ELEMWISE)
+
+# qnn.quantize
+register_strategy("qnn.quantize", strategy.qnn_quantize_strategy)
+register_pattern("qnn.quantize", OpPattern.ELEMWISE)
+
+# qnn.dequantize
+register_strategy("qnn.dequantize", strategy.qnn_dequantize_strategy)
+register_pattern("qnn.dequantize", OpPattern.ELEMWISE)
+
+# qnn.requantize
+register_strategy("qnn.requantize", strategy.qnn_requantize_strategy)
+register_pattern("qnn.requantize", OpPattern.ELEMWISE)
+
+# qnn.add
+register_strategy("qnn.add", strategy.qnn_add_strategy)
+register_pattern("qnn.add", OpPattern.BROADCAST)
+
+# qnn.concatenate
+register_strategy("qnn.concatenate", strategy.qnn_concatenate_strategy)
+register_pattern("qnn.concatenate", OpPattern.INJECTIVE)
+
+# qnn.conv2d
+register_strategy("qnn.conv2d", strategy.qnn_conv2d_strategy)
+register_pattern("qnn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+# qnn.dense
+register_strategy("qnn.dense", strategy.qnn_dense_strategy)
+register_pattern("qnn.dense", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+# qnn.batch_matmul
+register_strategy("qnn.batch_matmul", strategy.qnn_batch_matmul_strategy)
+register_pattern("qnn.batch_matmul", OpPattern.OUT_ELEMWISE_FUSABLE)

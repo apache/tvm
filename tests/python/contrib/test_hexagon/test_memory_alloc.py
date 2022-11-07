@@ -15,20 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
 import os.path
-import sys
-import tempfile
 
 import numpy as np
-import pytest
 
 import tvm
 from tvm.script import tir as T
 
-from .infrastructure import allocate_hexagon_array
-
-_HEXAGON_TARGET = tvm.target.hexagon("v69", link_params=True)
+from .infrastructure import allocate_hexagon_array, get_hexagon_target
 
 
 @tvm.testing.fixture
@@ -63,7 +57,8 @@ class TestMemoryAlloc:
         self, hexagon_session, generated_func, shape, dtype, scope, axis_separators
     ):
         mod1 = tvm.build(
-            generated_func, target=tvm.target.Target(_HEXAGON_TARGET, host=_HEXAGON_TARGET)
+            generated_func,
+            target=get_hexagon_target("v69"),
         )
         mod2 = hexagon_session.load_module(mod1)
 

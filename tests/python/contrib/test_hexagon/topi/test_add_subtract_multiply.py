@@ -23,7 +23,12 @@ import tvm
 from tvm import te
 import tvm.topi.hexagon.slice_ops as sl
 import tvm.topi.hexagon.qnn as qn
-from ..infrastructure import allocate_hexagon_array, transform_numpy, quantize_np
+from ..infrastructure import (
+    allocate_hexagon_array,
+    transform_numpy,
+    quantize_np,
+    get_hexagon_target,
+)
 
 
 @tvm.testing.fixture
@@ -285,7 +290,6 @@ class TestAddSubtractMultiplyBroadcast2d:
         op_name,
     ):
         output_shape = expected_output_np.shape
-        target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape_A, name="A", dtype=dtype)
         B = te.placeholder(input_shape_B, name="B", dtype=dtype)
         if dtype == "float16":
@@ -336,7 +340,7 @@ class TestAddSubtractMultiplyBroadcast2d:
             func = tvm.build(
                 sch,
                 [A, B, M],
-                tvm.target.Target(target_hexagon, host=target_hexagon),
+                get_hexagon_target("v69"),
                 name="slice_op_with_transform",
             )
 

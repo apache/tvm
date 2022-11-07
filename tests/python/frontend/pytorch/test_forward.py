@@ -4847,8 +4847,9 @@ def test_grid_sample():
 
     data_2D = torch.rand([4, 4, 8, 8]).float()
     grid_2D = torch.rand([4, 16, 16, 2]).float()
-    data_3D = torch.rand([4, 4, 8, 8, 8]).float()
-    grid_3D = torch.rand([4, 16, 16, 16, 3]).float()
+    # choosing smaller sizes to be testable on weaker GPUs
+    data_3D = torch.rand([4, 4, 4, 4, 4]).float()
+    grid_3D = torch.rand([4, 8, 8, 8, 3]).float()
 
     for _method in methods:
         for _padding in padding_modes:

@@ -32,7 +32,7 @@ from tvm import te
 from tvm.contrib.hexagon.pytest_plugin import requires_hexagon_toolchain
 from tvm.tir.stmt_functor import post_order_visit
 
-from .infrastructure import allocate_hexagon_array
+from .infrastructure import allocate_hexagon_array, get_hexagon_target
 
 # Disabling invalid name as pylint assumes global variables as constants and
 # expects them to be all upper-case. Since these are used as
@@ -79,19 +79,9 @@ working_layout, working_scope = tvm.testing.parameters(
 
 
 @tvm.testing.fixture
-def target_host(target):
+def target_host():
     """Return tvm target.Target with host attached"""
-    target = tvm.target.Target(target)
-
-    if target.kind.name == "hexagon":
-        # Shouldn't have to modify the target here, current
-        # workaround.  In the future, should move the parameter
-        # handling from tvm.target to target_kind.cc.
-        target = tvm.target.hexagon("v68", link_params=True)
-        host = target
-    else:
-        host = None
-    return tvm.target.Target(target, host=host)
+    return get_hexagon_target("v68")
 
 
 # Disabling redefined-outer-name for the whole file as there isn't any easy

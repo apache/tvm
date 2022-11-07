@@ -572,7 +572,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     }
     for (int i = 0; i < static_cast<int>(old_region.size()); i++) {
       PrimExpr min = indices_base[i + offset];
-      PrimExpr extent = old_region[i]->extent;
+      PrimExpr extent = cast(min.dtype(), old_region[i]->extent);
       new_region.push_back(Range::FromMinExtent(min, extent));
     }
     match_buffer_regions.push_back(MatchBufferRegion(impl, BufferRegion(cur, new_region)));

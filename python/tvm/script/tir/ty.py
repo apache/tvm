@@ -202,11 +202,21 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
 # add all floating point and integer datatypes to the module
 for _dtype in ["float", "uint", "int"]:
     for _size in ["8", "16", "32", "64"]:
-        for _lanes in ["", "x4", "x8", "x16", "x32"]:
+        for _lanes in ["", "x4", "x8", "x16", "x32", "x64"]:
             _name = _dtype + _size + _lanes
             globals()[_name] = ConcreteType(_name)
 
-boolean = ConcreteType("bool")
+
+# All other DataType annotations are represented with the same string
+# as is used by `tvm.runtime.DataType`.  This does redefine the Python
+# built-in bool, but only within the context of `tvm.script.tir.ty`
+# and `tvm.script.tir` modules.  The `T.boolean` alias is maintained
+# for backwards compatibility.
+
+bool = ConcreteType("bool")  # pylint: disable=redefined-builtin
+boolean = bool
+
+
 handle = ConcreteType("handle")
 void = VoidType()
 Ptr = GenericPtrType()

@@ -214,6 +214,7 @@ Expr RequantizeLowerInt(const Expr& input_tensor, const Expr& input_scale,
   // if the input scale is per-tensor or per-channel. If it is per-tensor, there is single scale for
   // the whole tensor. For per-channel (aka per-axis), there is a vector of scales for the input
   // tensor. Depending on the quantization type, the fixed point multiplication routing is called.
+  const bool is_upward_rounding = (param->rounding == "UPWARD");
   auto scaled_int32_t = tensor;
   float output_scale_float = GetScalarFromConstant<float>(output_scale);
   if (IsConstScalar(input_scale)) {
@@ -224,8 +225,6 @@ Expr RequantizeLowerInt(const Expr& input_tensor, const Expr& input_scale,
     // Skip if input and output scales are same.
     if (!IsEqualScalar(input_scale, output_scale)) {
       auto [fixed_point_multiplier, shift] = GetFixedPointMultiplierShift(double_multiplier);
-
-      const bool is_upward_rounding = (param->rounding == "UPWARD");
 
       // When using upward rounding (i.e., x.5 rounded to x+1), leverage
       // the FixedPointMultiply operator
@@ -246,8 +245,13 @@ Expr RequantizeLowerInt(const Expr& input_tensor, const Expr& input_scale,
     }
     int axis = param->axis;
     axis = (axis == -1) ? input_shape.size() - 1 : axis;
-    scaled_int32_t = FixedPointMultiplyPerChannel(scaled_int32_t, double_multipliers, input_shape,
-                                                  axis, param->rounding);
+
+    // When using "upward" rounding, leverage the FixedPointMultiplyPerAxis operator,
+    // for "tonearest" rounding - lower to multiply, add, shift operators sequence.
+    scaled_int32_t = is_upward_rounding
+                         ? FixedPointMultiplyPerChannel(scaled_int32_t, double_multipliers, axis)
+                         : FixedPointMultiplyPerChannelToNearest(scaled_int32_t, double_multipliers,
+                                                                 input_shape, axis);
   }
 
   // 3) Add the output zero point.

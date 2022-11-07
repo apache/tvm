@@ -25,7 +25,7 @@ from tvm import tir
 from tvm import topi
 from tvm.contrib.hexagon.build import HexagonLauncher
 
-from .infrastructure import allocate_hexagon_array, transform_numpy
+from .infrastructure import allocate_hexagon_array, get_hexagon_target
 
 
 def sigmoid_compute(Input):
@@ -71,15 +71,11 @@ class TestSigmoid(BaseSigmoid):
         dtype,
         input_np,
         ref_output_np,
-        target,
         hexagon_session,
     ):
         InputTensor = te.placeholder(in_shape, name="InputTensor", dtype=dtype)
 
         OutputTensor = sigmoid_compute(InputTensor)
-
-        target_hexagon = tvm.target.hexagon("v69")
-        target = tvm.target.Target(target_hexagon, host=target_hexagon)
 
         tir_s = sigmoid_stir_schedule(InputTensor, OutputTensor)
 
@@ -95,7 +91,7 @@ class TestSigmoid(BaseSigmoid):
 
         func_name = "sigmoid"
         with tvm.transform.PassContext(opt_level=3):
-            runtime_module = tvm.build(tir_s.mod, target=target, name=func_name)
+            runtime_module = tvm.build(tir_s.mod, target=get_hexagon_target("v69"), name=func_name)
 
         assert "hvx_sigmoid" in runtime_module.get_source("asm")
         assert "vmin" in runtime_module.get_source("asm")

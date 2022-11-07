@@ -478,38 +478,41 @@ def test_pipeline():
             assert customized_parameters_mod == mod1
             # The global parameters group named "param_0" will be connected to "mod1" as parameters.
             pipe_config["param_group"]["param_0"].connect(pipe_config[mod1]["param"])
-            # The pipeline input named "data_0" will be connected to a input named "data_0"
+            # The pipeline input named "data_a" will be connected to a input named "data_0"
             # of mod1.
             pipe_config["input"]["data_a"].connect(pipe_config[mod1]["input"]["data_0"])
 
-            # The pipeline Input named "data_1" will be connected to a input named "data_1"
+            # The pipeline Input named "data_b" will be connected to a input named "data_1"
             # of mod2.
             pipe_config["input"]["data_b"].connect(pipe_config[mod2]["input"]["data_1"])
 
-            # The mod1 output[0] will be connected to a input named "data_0" of mod2.
+            # The mod1 output[0] will be connected to a input named "data_n_0" of mod2.
             pipe_config[mod1]["output"][0].connect(pipe_config[mod2]["input"]["data_n_0"])
 
-            # The mod1 output[1] will be connected to a input named "data_0" of mod3.
+            # The mod1 output[1] will be connected to a input named "data_n_2" of mod3.
             pipe_config[mod1]["output"][1].connect(pipe_config[mod3]["input"]["data_n_2"])
 
-            # The mod2 output[2] will be connected to a input named "data_1" of mod3.
+            # The mod2 output[2] will be connected to a input named "data_n_1" of mod3.
             pipe_config[mod2]["output"][0].connect(pipe_config[mod3]["input"]["data_n_1"])
 
             # The mod3 output[0] will be connected to pipeline output[0].
             pipe_config[mod3]["output"][0].connect(pipe_config["output"]["0"])
             # Print configuration (print(pipe_config)), the result looks like following.
             #
+            # Params
+            #   |param_0: mod0:param
+            #
             # Inputs
-            #   |data_a: mod1:data_0
-            #   |data_b: mod2:data_1
+            #   |data_a: mod0:data_0
+            #   |data_b: mod1:data_1
             #
             # output
-            #   |output(1) : mod3.output(0)
+            #   |output(0) : mod2.output(0)
             #
             # connections
-            #   |mod1.output(0)-> mod2.data_n_0
-            #   |mod1.output(1)-> mod3.data_n_2
-            #   |mod2.output(0)-> mod3.data_n_1
+            #   |mod0.output(0)-> mod1.data_n_0
+            #   |mod0.output(1)-> mod2.data_n_2
+            #   |mod1.output(0)-> mod2.data_n_1
 
             # Set other parameters.
             pipe_config[mod1].target = target[0]

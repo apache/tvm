@@ -53,6 +53,8 @@ HEXAGON_SDK_INCLUDE_DIRS = [  # pylint: disable=invalid-name
     pathlib.Path(HEXAGON_SDK_ROOT) / "incs" / "stddef",
 ]
 
+HEXAGON_SIMULATOR_NAME = "simulator"
+
 
 def register_linker(f):
     """Register a function that will return the path to the Hexagon linker."""

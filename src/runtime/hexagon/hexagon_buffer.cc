@@ -57,14 +57,20 @@ struct DDRAllocation : public Allocation {
 
 struct VTCMAllocation : public Allocation {
   VTCMAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
-    // TODO(HWE): Handle alignments greater than 2k
-    CHECK(alignment <= 0x800) << "VTCMAllocation called for invalid alignment";
-    if ((nbytes & 0x7FF) && ((alignment & 0x7FF) == 0)) {
-      // Caller has requested 2k alignment, but the size is not a multiple of 2k
-      // Adjust size to be a multiple of 2k so that we will allocate from the front of the pool
-      nbytes = nbytes >> 11;
-      nbytes = nbytes << 11;
-      nbytes += 0x800;
+    // For simplicity, the current VTCM dynamic pool supports the following alignments: less than
+    // or equal to 128 (0x80), and 2k (0x800)
+    CHECK((alignment <= 0x80) || (alignment == 0x800))
+        << "VTCMAllocation called for invalid alignment " << alignment;
+
+    if (alignment == 0x800) {
+      // Adjust size to be a multiple of 2k so that we will allocate from the front of the pool.
+      nbytes = (nbytes + 0x7ff) & -0x800;
+    } else if (alignment <= 0x80) {
+      // Adjust size to be a multiple of 128 so that we will allocate from the back of the pool
+      // in 128 byte increments.
+      nbytes = (nbytes + 0x7f) & -0x80;
+    }
+    if (allocation_nbytes_ != nbytes) {
       DLOG(INFO) << "VTCMAllocation size adjusted for alignment " << allocation_nbytes_ << " to "
                  << nbytes;
       allocation_nbytes_ = nbytes;

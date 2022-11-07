@@ -17,7 +17,7 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm
 from tvm import meta_schedule as ms
-from tvm.meta_schedule.testing.schedule_rule import get_rules
+from tvm.meta_schedule.testing.space_generation import generate_design_space
 from tvm.script import tir as T
 from tvm.target import Target
 
@@ -338,74 +338,63 @@ class ConstConsumer:
 # fmt: on
 
 
-def _create_context(mod, target, rule):
-    ctx = ms.TuneContext(
-        mod=mod,
-        target=target,
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=[rule],
-        task_name="test",
-    )
-    return ctx
-
-
 def test_inline_consumer_chain():
     mod = Conv2DBiasBnReLU
     target = Target("llvm")
-    ctx = _create_context(
+    (space,) = generate_design_space(
+        kind="llvm",
         mod=mod,
         target=target,
-        rule=get_rules("llvm", ms.schedule_rule.AutoInline)[0],
+        types=ms.schedule_rule.AutoInline,
     )
-    (space,) = ctx.space_generator.generate_design_space(mod=mod)
     tvm.ir.assert_structural_equal(lhs=space.mod, rhs=Conv2DBiasBnReLUInlined)
 
 
 def test_inline_into_cache():
     mod = MultiLevelTiledConv2D
     target = Target("cuda", host="llvm")
-    ctx = _create_context(
+    (space,) = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=target,
-        rule=get_rules("cuda", ms.schedule_rule.AutoInline)[0],
+        types=ms.schedule_rule.AutoInline,
     )
-    (space,) = ctx.space_generator.generate_design_space(mod=mod)
     tvm.ir.assert_structural_equal(lhs=space.mod, rhs=MultiLevelTiledConv2DAfterInline)
 
 
 def test_inline_into_multiple_consumers():
     mod = SoftmaxBeforeInline
     target = Target("cuda", host="llvm")
-    ctx = _create_context(
+    (space,) = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=target,
-        rule=get_rules("cuda", ms.schedule_rule.AutoInline)[0],
+        types=ms.schedule_rule.AutoInline,
     )
-    (space,) = ctx.space_generator.generate_design_space(mod=mod)
     tvm.ir.assert_structural_equal(lhs=space.mod, rhs=SoftmaxAfterInline)
 
 
 def test_inline_pure_spatial():
     mod = BeforePureSpatial
     target = Target("llvm")
-    ctx = _create_context(
+    (space,) = generate_design_space(
+        kind="llvm",
         mod=mod,
         target=target,
-        rule=get_rules("llvm", ms.schedule_rule.AutoInline)[0],
+        types=ms.schedule_rule.AutoInline,
     )
-    (space,) = ctx.space_generator.generate_design_space(mod=mod)
     tvm.ir.assert_structural_equal(lhs=space.mod, rhs=AfterPureSpatial)
 
 
 def test_inline_constant_tensor():
     mod = ConstConsumer
     target = Target("cuda", host="llvm")
-    ctx = _create_context(
+    (space,) = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=target,
-        rule=get_rules("cuda", ms.schedule_rule.AutoInline)[0],
+        types=ms.schedule_rule.AutoInline,
     )
-    (space,) = ctx.space_generator.generate_design_space(mod=mod)
     tvm.ir.assert_structural_equal(lhs=space.mod, rhs=ConstConsumer)
 
 
