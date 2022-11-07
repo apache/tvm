@@ -79,7 +79,7 @@ OBJS = $(patsubst src/%.cc,build/%.o,$(SRCS))
 
 build/main: ${OBJS} ${MODEL_LIBS} ${CRT_LIBS}
 	${QUIET}mkdir -p $(dir $@)
-	${QUIET}$(CXX) $(LDFLAGS) -DMEMORY_SIZE_BYTES=$(MEMORY_SIZE_BYTES) -o "$@" $^
+	${QUIET}$(CXX) $(LDFLAGS) -o "$@" $^
 
 all: build/main
 .PHONY = all
