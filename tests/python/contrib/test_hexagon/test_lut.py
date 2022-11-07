@@ -23,12 +23,12 @@ import tvm
 from tvm import te
 import tvm.testing
 from tvm.contrib.hexagon.session import Session
-from tvm.contrib.hexagon.build import HexagonLauncherRPC
 import tvm.contrib.hexagon
 import numpy as np
 from .infrastructure import quantize_np
 
 HEX_TARGET = tvm.target.hexagon("v68", link_params=True)
+
 
 class TestLUT:
     shape, func, dtype = tvm.testing.parameters(
@@ -41,7 +41,6 @@ class TestLUT:
         ([1, 8, 8, 32], {"py": np.tanh, "tvm": tvm.topi.hexagon.qnn.injective.qtanh}, "uint8"),
         ([1024], {"py": np.tanh, "tvm": tvm.topi.hexagon.qnn.injective.qtanh}, "uint8"),
     )
-
 
     @tvm.testing.requires_hexagon
     def test_lut(
@@ -60,14 +59,17 @@ class TestLUT:
         golden = np.vectorize(func["py"])(in_scale * (a_np_quant - in_zero))
         golden_quant, out_scale, out_zero = quantize_np(golden, dtype)
 
-        A_tensor = te.placeholder(shape, name="A_tensor", dtype=dtype)
-        O_tensor = func["tvm"](A_tensor, in_scale, in_zero, out_scale, out_zero, dtype=dtype)
-        sch = tvm.topi.hexagon.lut.lutize(O_tensor, A_tensor)
+        a_tensor = te.placeholder(shape, name="a_tensor", dtype=dtype)
+        o_tensor = func["tvm"](a_tensor, in_scale, in_zero, out_scale, out_zero, dtype=dtype)
+        sch = tvm.topi.hexagon.lut.lutize(o_tensor, a_tensor)
 
         # Lower hexagon code
         with tvm.transform.PassContext(opt_level=3):
             hex_lowered = tvm.build(
-                sch, [A_tensor, O_tensor], tvm.target.Target(HEX_TARGET, host=HEX_TARGET), name="LUT"
+                sch,
+                [a_tensor, o_tensor],
+                tvm.target.Target(HEX_TARGET, host=HEX_TARGET),
+                name="LUT",
             )
 
         # Run hexagon code
