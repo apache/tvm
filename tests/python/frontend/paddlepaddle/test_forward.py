@@ -945,8 +945,8 @@ def test_forward_interpolate():
                 size = size.tolist()
                 scale = scale.tolist()
             else:
-                size = paddle.to_tensor(size)
-                h, w = size  # add decrease_axis
+                size = list(size)
+                h, w = paddle.rand(size).shape  # add decrease_axis
                 size = [h, w]
             if not self.use_scale:
                 return paddle.nn.functional.interpolate(
