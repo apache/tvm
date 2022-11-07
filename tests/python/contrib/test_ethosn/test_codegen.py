@@ -37,7 +37,10 @@ def test_compile_with_unsupported_variant():
     y = relay.reshape(x, newshape=(1, 1, 1, 8))
     mod = tei.make_ethosn_partition(y)
 
-    additional_config_args = {"variant": "foo"}
+    additional_config_args = {
+        "variant": "foo",
+        "inline_non_compute_intensive_partitions": False,
+    }
 
     inputs = {
         "x": np.random.randint(

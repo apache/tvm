@@ -90,7 +90,7 @@ def test_split_add_concat(dtype):
                 npu=npu,
                 expected_host_ops=expected_host_ops,
                 npu_partitions=npu_partitions,
-                optimize_partitions=False,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
             )
         )
 
@@ -178,7 +178,16 @@ def test_output_order(dtype):
     for npu in [False, True]:
         model = get_model(inputs["a"].shape, dtype, iter(inputs))
         mod = tei.make_module(model, [])
-        outputs.append(tei.build_and_run(mod, inputs, 8, {}, npu=npu, optimize_partitions=False))
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                8,
+                {},
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
+        )
 
     tei.verify(outputs, dtype, 1)
 
@@ -286,7 +295,7 @@ def test_split_with_asym_concats(dtype, shape, splits, axis):
                 npu=npu,
                 expected_host_ops=expected_host_ops,
                 npu_partitions=npu_partitions,
-                optimize_partitions=False,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
             )
         else:
             outputs.append(
@@ -298,7 +307,7 @@ def test_split_with_asym_concats(dtype, shape, splits, axis):
                     npu=npu,
                     expected_host_ops=expected_host_ops,
                     npu_partitions=npu_partitions,
-                    optimize_partitions=False,
+                    additional_config_args={"inline_non_compute_intensive_partitions": False},
                 )
             )
 
@@ -329,7 +338,16 @@ def test_output_tuple_propagation(dtype):
     for npu in [False, True]:
         model = get_model(dtype)
         mod = tei.make_module(model, {})
-        outputs.append(tei.build_and_run(mod, inputs, 4, {}, npu=npu, optimize_partitions=False))
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                4,
+                {},
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
+        )
 
     tei.verify(outputs, dtype, 0)
 
@@ -378,7 +396,12 @@ def test_input_tuples(dtype):
             mod = tei.make_module(model, {})
         else:
             mod = tei.make_ethosn_partition(model)
-        lib = tei.build(mod, {}, npu=False, optimize_partitions=False)
+        lib = tei.build(
+            mod,
+            {},
+            npu=False,
+            additional_config_args={"inline_non_compute_intensive_partitions": False},
+        )
         outputs.append(tei.run(lib, inputs, 1, npu=npu))
 
     tei.verify(outputs, dtype, 0)
