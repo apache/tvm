@@ -53,7 +53,8 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   ICHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8) ||
          data->dtype == DataType::Int(16))
       << "Expected qnn conv2d type(int8, uint8, int16) for input but was " << data->dtype;
-  ICHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8))
+  ICHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8) ||
+         weight->dtype == DataType::Int(16))
       << "Expected qnn conv2d type(int8, uint8) for weight but was " << weight->dtype;
   ICHECK(param->out_dtype == DataType::Int(16) || param->out_dtype == DataType::Int(32) ||
          param->out_dtype == DataType::Int(64))

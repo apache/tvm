@@ -23,11 +23,13 @@ import numpy as np
 from PIL import Image
 import pytest
 import tensorflow as tf
+import time
 
 import tvm
 import tvm.testing
-from tvm import relay
-from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
+from tvm import meta_schedule, relay
+from tvm.testing.aot import AOTTestModel, run_and_check, AOTCompiledTestModel
+from tvm.relay.backend import Executor, Runtime
 from tvm.micro.testing.aot_test_utils import AOT_CORSTONE300_RUNNER
 from tvm.contrib.download import download_testdata
 from test_generalized_conv2d import change_ndarray_layout
@@ -69,13 +71,13 @@ def _get_layer_attributes(layer_num):
     ourselves. This function is a bit of a hack, but lets us skip that."""
 
     if layer_num == 0: # Regular conv2d
-        return ("todo_schedule_name", "int8", (1, 1, 0, 0), (2, 2))
+        return (None, "int16", (1, 1, 0, 0), (2, 2))
     elif layer_num % 2 == 0: # 1x1 conv2d
-        return ("todo_schedule_name", "int8", (1, 1, 1, 1), (1, 1))
+        return (None, "int16", (1, 1, 1, 1), (1, 1))
     elif layer_num in [3, 7, 11, 23]: # Downsizing depthwise_conv2d layers
-        return ("todo_schedule_name", "int8", (1, 1, 0, 0), (2, 2))
+        return (None, "int16", (1, 1, 0, 0), (2, 2))
     else: # Depthwise conv2d
-        return ("todo_schedule_name", "int8", (1, 1, 1, 1), (1, 1))
+        return (None, "int16", (1, 1, 1, 1), (1, 1))
 
 
 def _get_relu_activation_prefix(layer_num):
@@ -149,12 +151,10 @@ def _get_quant_zp_const(quantization_dict, as_scalar = False):
 
 
 
-@pytest.mark.parametrize("layer", range(1))
+@pytest.mark.parametrize("layer", range(2, 3))
 @tvm.testing.requires_corstone300
 def test_qnn_conv2d_mobilenetv1_layer(layer, interpreter):
-    in_dtype = "int8"
     schedule_name, dtype, padding, strides = _get_layer_attributes(layer)
-
     """Load the input, kernel, bias, and generated output from each layer when it was run by the
     TensorFlow TFLite interpreter. The tensor values are quantized (though note that biases_tensor
     is an int32), while the quantization data is not. Note the zero points are zero everywhere
@@ -166,36 +166,36 @@ def test_qnn_conv2d_mobilenetv1_layer(layer, interpreter):
     kernel_tensor, kernel_quant = lookup(_get_kernel_details(tensor_details, layer))
     biases_tensor, biases_quant = lookup(_get_bias_details(tensor_details, layer))
     output_tensor, output_quant = lookup(_get_main_path_tensor_details(tensor_details, layer + 1))
-
+    out_channel_multiplier, kernel_h, kernel_w, in_channels = kernel_tensor.shape
 
     # Reshape tensors to match the layouts we will see after legalization
     if layer % 2 == 0: # Regular conv2d
-        new_inputs_layout, new_kernel_layout, new_output_layout = "NHWC", "OHWI", "NCHW"
+        new_inputs_layout, new_kernel_layout, new_output_layout = "NHWC", "OHWI", "NHWC"
     else: # Depthwise conv2d
-        new_inputs_layout, new_kernel_layout, new_output_layout = "NCHW", "OIHW", "NHWC"
-    inputs_ndarr = change_ndarray_layout(inputs_tensor, "NHWC", new_inputs_layout)
-    kernel_ndarr = change_ndarray_layout(kernel_tensor, "OHWI", new_kernel_layout)
-    output_ndarr = change_ndarray_layout(output_tensor, "NHWC", new_output_layout)
+        new_inputs_layout, new_kernel_layout, new_output_layout = "NCHW", "OIHW", "NCHW"
+    inputs_ndarr = change_ndarray_layout(inputs_tensor, "NHWC", new_inputs_layout).astype(dtype)
+    kernel_ndarr = change_ndarray_layout(kernel_tensor, "OHWI", new_kernel_layout).astype(dtype)
+    output_ndarr = change_ndarray_layout(output_tensor, "NHWC", new_output_layout).astype(dtype)
 
     """Construct our Relay function out of a qnn.conv2d, bias_add, and qnn.requantize. These will be
     fused into a single schedule by te_compiler_cache.cc."""
-    input_var = relay.var("input", relay.TensorType(inputs_ndarr.shape, in_dtype))
+    input_var = relay.var("input", relay.TensorType(inputs_ndarr.shape, dtype))
     convolution = relay.qnn.op.conv2d(
         input_var,
-        relay.const(kernel_ndarr, "int8"),
+        relay.const(kernel_ndarr, dtype),
         input_zero_point=_get_quant_zp_const(inputs_quant, as_scalar=True),
         kernel_zero_point=_get_quant_zp_const(kernel_quant),
         input_scale=_get_quant_scale_const(inputs_quant, as_scalar=True),
         kernel_scale=_get_quant_scale_const(kernel_quant),
-        kernel_size=(3, 3),
+        kernel_size=(kernel_h, kernel_w),
         data_layout=new_inputs_layout,
         kernel_layout=new_kernel_layout,
 
         dilation=(1, 1),
         strides=strides,
         padding=padding,
-        groups=(1 if layer % 2 == 0 else 3),
-        channels=8,
+        groups=(1 if layer % 2 == 0 else in_channels),
+        channels=(out_channel_multiplier if layer % 2 == 0 else in_channels),
         out_dtype="int32",
     )
 
@@ -212,25 +212,65 @@ def test_qnn_conv2d_mobilenetv1_layer(layer, interpreter):
         _get_quant_scale_const(output_quant, as_scalar=True),
         _get_quant_zp_const(output_quant, as_scalar=True),
         axis=3,
-        out_dtype="int8",
+        compute_dtype="int64",
+        out_dtype=dtype,
     )
 
     test_function = relay.Function([input_var], output)
     test_model = AOTTestModel(
         module=tvm.IRModule.from_expr(test_function),
         inputs={"input": inputs_ndarr},
-        outputs={"Identity": output_ndarr},
+        outputs={"output": output_ndarr},
+    )
+    print(test_model.params)
+
+    target = tvm.target.Target("c -keys=arm_cpu -mcpu=cortex-m7")
+    runtime = Runtime("crt")
+    executor = Executor(
+        "aot",
+        {
+            "workspace-byte-alignment": 8,
+            "constant-byte-alignment": 8,
+            "interface-api": "c",
+            "unpacked-api": True,
+        },
     )
 
-    compile_and_run(
-        test_model,
+
+    # There should only be one operator
+    def schedule_fn(sch):
+        print(sch.mod.attrs["task_name"])
+        assert "fused_qnn_conv2d_add_qnn_requantize" in sch.mod.attrs["task_name"]
+        tvm.topi.arm_cpu.schedule_qnn_conv2d(sch)
+        #import pdb
+        #pdb.set_trace()
+
+        return True
+
+
+    with tvm.transform.PassContext(
+        opt_level=3,
+        config={
+            "tir.disable_vectorize": True,
+            "relay.backend.use_meta_schedule": True,
+            "relay.backend.tir_converter": "allow_extern",
+        },
+        disabled_pass=["qnn.Legalize"]
+    ), meta_schedule.database.ScheduleFnDatabase(schedule_fn):
+        executor_factory = tvm.relay.build(
+            test_model.module,
+            target,
+            executor=executor,
+            runtime=runtime,
+            params=test_model.params,
+            mod_name=test_model.name,
+        )
+        compiled = AOTCompiledTestModel(model=test_model, executor_factory=executor_factory)
+
+    run_and_check(
+        models=[compiled],
         runner=AOT_CORSTONE300_RUNNER,
         interface_api="c",
-        use_unpacked_api=True,
-        target_opts={
-            "-keys": "arm_cpu",
-            "-mcpu": "cortex-m4",
-        },
-        schedule_name=schedule_name,
-        verbose=True,
+        workspace_byte_alignment=8,
+        constant_byte_alignment=8,
     )

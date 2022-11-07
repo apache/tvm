@@ -38,6 +38,7 @@ def get_c_function_name(split_size, dimensions, offsets, x_strides):
         + (f"_{x_strides[0]}_{x_strides[1]}" if split_size > 1 else "")
     )
 
+
 def _is_pow_2(number):
     """Checks if `number` is a power of `2`."""
     return number & (number - 1) == 0 and number > 0
@@ -160,11 +161,11 @@ NO_ACC_PREFIX_CONVERSIONS = {
 }
 
 
-#def _no_first_accumulate(instruction_tuples) -> Iterator[Tuple]:
-#    ins, op1, op2 = next(instruction_tuples)
-#    yield NO_ACC_PREFIX_CONVERSIONS[ins], op1, op2
-#    for instruction_tuple in instruction_tuples:
-#        yield instruction_tuple
+# def _no_first_accumulate(instruction_tuples) -> Iterator[Tuple]:
+#     ins, op1, op2 = next(instruction_tuples)
+#     yield NO_ACC_PREFIX_CONVERSIONS[ins], op1, op2
+#     for instruction_tuple in instruction_tuples:
+#         yield instruction_tuple
 
 
 def _expand_instruction_tuples(instruction_tuples, index) -> Iterator[str]:
@@ -204,6 +205,7 @@ def _expand_instruction_tuples(instruction_tuples, index) -> Iterator[str]:
 
         else:
             yield f'asm ("{instruction} %0, %1, %2" : "=r" (sum_{index}) : "r" ({op1}), "r" ({op2}));'
+
 
 def _requantize_sums(num_sums) -> Iterator[str]:
     """Simulates multiplying by the float32 requantization scale by doing a int64 multiply + shift,

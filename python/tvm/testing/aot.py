@@ -636,7 +636,7 @@ def compile_models(
                 model.module, target=target, params=model.params
             )
             with tvm.autotvm.apply_fixed_config(task_list, schedule_name):
-                with tvm.transform.PassContext(opt_level=3, config=config, disabled_pass=["qnn.Legalize"]):
+                with tvm.transform.PassContext(opt_level=3, config=config):
                     if use_runtime_executor:
                         executor_factory = tvm.relay.build(
                             model.module,

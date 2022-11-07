@@ -29,8 +29,13 @@ from tvm.topi.arm_cpu.mprofile.dsp.micro_kernel.tensordot import tensordot_int16
 
 
 def test_write_3x3_depthwise_code():
-    """
+    """This is the function that would be generated for a 1x4x48x48 NCHW input tensor with "SAME"
+    padding. We are only computing one sum at once, so we don't need stride or output. Note that
+    this is pretty inefficient - it would be much better to compute a few sums concurrently.
 
+    When inlined, this code compiles (with armv7-a clang 11) into:
+
+    tensordot_opt_x1_int16_w48_3x3_000(int*, int*, int*, int*, int*):
         ldr.w   lr, [r3]
         ldrd    r11, r4, [r1]
         ldrd    r5, r9, [r1, #96]
@@ -223,7 +228,6 @@ def test_1x1x8_convolution_code():
     }
     """
     )
-
 
 
 def test_3x3x3_offset_convolution_code():
