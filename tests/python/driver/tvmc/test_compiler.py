@@ -508,10 +508,7 @@ def test_compile_check_configs_composite_target(mock_pkg, mock_pc, mock_fe, mock
     tvmc_model = tvmc.load("no_file_needed")
     tvmc.compile(tvmc_model, target="mockcodegen -testopt=value, llvm")
 
-    assert mock_pc.call_count == 2
-    codegen_partition_context = mock.call(
-        config={"relay.ext.mock.options": {"testopt": "value"}},
-    )
+    assert mock_pc.call_count == 1
     codegen_compile_context = mock.call(
         config={"relay.ext.mock.options": {"testopt": "value"}},
         opt_level=3,
@@ -520,9 +517,6 @@ def test_compile_check_configs_composite_target(mock_pkg, mock_pc, mock_fe, mock
     )
     mock_pc.assert_has_calls(
         [
-            codegen_partition_context,
-            codegen_partition_context.__enter__(),
-            codegen_partition_context.__exit__(None, None, None),
             codegen_compile_context,
             codegen_compile_context.__enter__(),
             codegen_compile_context.__exit__(None, None, None),
