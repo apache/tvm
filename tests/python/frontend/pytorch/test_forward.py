@@ -4034,6 +4034,14 @@ def test_forward_index():
     input_data = torch.rand(input_shape).float()
     verify_model(Index1().eval(), input_data=input_data)
 
+    def test_fn_bool_mask():
+        return lambda data, mask: data[0, mask]
+
+    data = torch.tensor([[1, 2, 3], [4, 5, 6]])
+    mask = torch.tensor([True, True, False])
+
+    verify_trace_model(test_fn_bool_mask(), [data, mask], ["llvm", "cuda"])
+
 
 def test_logsumexp():
     """test_logsumexp"""
