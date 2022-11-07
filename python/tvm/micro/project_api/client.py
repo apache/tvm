@@ -88,14 +88,14 @@ class ProjectAPIClient:
         return self.read_file.closed
 
     def shutdown(self):
-        if self.is_shutdown:
+        if self.is_shutdown:  # pylint: disable=using-constant-test
             return
 
         self.read_file.close()
         self.write_file.close()
 
     def _request_reply(self, method, params):
-        if self.is_shutdown:
+        if self.is_shutdown:  # pylint: disable=using-constant-test
             raise ConnectionShutdownError("connection already closed")
 
         request = {
