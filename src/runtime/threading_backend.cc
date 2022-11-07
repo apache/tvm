@@ -25,6 +25,9 @@
 #include <tvm/runtime/threading_backend.h>
 
 #if defined(__linux__) || defined(__ANDROID__)
+#if __ANDROID_API__ >= 21
+#include <pthread.h>
+#endif
 #include <fstream>
 #include <sstream>
 #else
@@ -167,7 +170,19 @@ class ThreadGroup::Impl {
       CPU_SET(id, &cpuset);
     }
 #if defined(__ANDROID__)
-    sched_setaffinity(thread, sizeof(cpu_set_t), &cpuset);
+#if __ANDROID_API__ >= 21
+    pid_t tid = pthread_gettid_np(thread);
+#else
+    typedef struct {
+      void* next;
+      void* pred;
+      pid_t tid;
+    } pthread_internal;
+    pid_t tid = reinterpret_cast<pthread_internal*>(thread)->tid;
+#endif
+    if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
+      LOG(WARNING) << "sched_setaffinity failed";
+    }
 #else
     pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
 #endif
