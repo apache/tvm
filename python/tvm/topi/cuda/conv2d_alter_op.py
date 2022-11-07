@@ -18,15 +18,15 @@
 """Conv2D alter op and legalize functions for cuda backend"""
 
 import logging
+
 import tvm
-from tvm import te, relay, autotvm
+from tvm import autotvm, relay, te
 
 from .. import nn
+from ..nn import conv2d_legalize
 from ..utils import get_const_tuple, is_target
 from .conv2d_winograd import _infer_tile_size
 from .tensorcore_alter_op import pad_to_tensorcore
-from ..nn import conv2d_legalize
-
 
 logger = logging.getLogger("topi")
 
@@ -61,24 +61,38 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
                 logger.warning("Does not support weight pre-transform for dilated convolution.")
                 return None
 
-            assert data_layout == "NHWC" and kernel_layout == "HWIO"
-            N, H, W, CI = get_const_tuple(data.shape)
-            KH, KW, _, CO = get_const_tuple(kernel.shape)
-
-            # Pre-compute weight transformation in winograd
-            tile_size = _infer_tile_size(tinfos[0], tinfos[1], layout="NHWC")
-
-            # HWIO -> OIHW
-            kernel_transform = relay.transpose(inputs[1], axes=[3, 2, 0, 1])
-            # alpha, alpha, CO, CI
-            weight = relay.nn.contrib_conv2d_winograd_weight_transform(
-                kernel_transform, tile_size=tile_size
-            )
-            new_attrs["tile_size"] = tile_size
-            new_attrs["channels"] = CO
-            return relay.nn.contrib_conv2d_winograd_without_weight_transform(
-                inputs[0], weight, **new_attrs
-            )
+            if data_layout == "NHWC" and kernel_layout == "HWIO":
+                N, H, W, CI = get_const_tuple(data.shape)
+                KH, KW, _, CO = get_const_tuple(kernel.shape)
+                # Pre-compute weight transformation in winograd
+                tile_size = _infer_tile_size(tinfos[0], tinfos[1], layout="NHWC")
+                # HWIO -> OIHW
+                kernel_transform = relay.transpose(inputs[1], axes=[3, 2, 0, 1])
+                # alpha, alpha, CO, CI
+                weight = relay.nn.contrib_conv2d_winograd_weight_transform(
+                    kernel_transform, tile_size=tile_size
+                )
+                new_attrs["tile_size"] = tile_size
+                new_attrs["channels"] = CO
+                return relay.nn.contrib_conv2d_winograd_without_weight_transform(
+                    inputs[0], weight, **new_attrs
+                )
+            elif data_layout == "NCHW" and kernel_layout == "OIHW":
+                N, CI, H, W = get_const_tuple(data.shape)
+                CO, _, KH, KW = get_const_tuple(kernel.shape)
+                # Pre-compute weight transformation in winograd
+                tile_size = _infer_tile_size(tinfos[0], tinfos[1], layout="NCHW")
+                # alpha, alpha, CO, CI
+                weight = relay.nn.contrib_conv2d_winograd_weight_transform(
+                    inputs[1], tile_size=tile_size
+                )
+                # alpha, alpha, CI, CO
+                weight = relay.transpose(weight, axes=[0, 1, 3, 2])
+                new_attrs["tile_size"] = tile_size
+                new_attrs["channels"] = CO
+                return relay.nn.contrib_conv2d_winograd_without_weight_transform(
+                    inputs[0], weight, **new_attrs
+                )
 
         return None
 

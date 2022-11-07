@@ -17,13 +17,13 @@
 # pylint: disable=invalid-name,too-many-locals,unused-variable
 """x86 batch_matmul operators"""
 import tvm
-from tvm import te
-from tvm import autotvm
+from tvm import autotvm, te
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cblas, mkl
+
 from .. import generic, nn
 from ..transform import layout_transform
-from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor
+from ..utils import get_const_tuple, get_max_power2_factor, traverse_inline
 from .dense import dense_vnni_schedule
 from .injective import schedule_injective_from_existing
 
@@ -47,7 +47,7 @@ def batch_matmul_vnni_compute(cfg, x, y, *_):
             axis=ak,
         ),
         tag="batch_matmul_vnni",
-        attrs={"schedule_rule": "meta_schedule.batch_matmul_vnni"},
+        attrs={"schedule_rule": "batch_matmul_vnni"},
     )
 
     _, a_y, _ = z.op.axis

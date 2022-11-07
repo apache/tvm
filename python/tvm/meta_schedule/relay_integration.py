@@ -377,7 +377,7 @@ def compile_relay(
     mod, target, params, pass_config, executor = _normalize_params(
         mod, target, params, pass_config, executor
     )
-    pass_config.setdefault("relay.backend.use_meta_schedule_dispatch", target.kind.name != "cuda")
+    pass_config.setdefault("relay.backend.use_meta_schedule_dispatch", True)
     with Profiler.timeit("PostTuningCompilation"):
         with target, _autotvm_silencer(), database:
             with transform.PassContext(
@@ -402,19 +402,5 @@ def is_meta_schedule_enabled() -> bool:
     """
     return transform.PassContext.current().config.get(
         "relay.backend.use_meta_schedule",
-        False,
-    )
-
-
-def is_meta_schedule_dispatch_enabled() -> bool:
-    """Return whether the meta-schedule dispatch is enabled.
-
-    Returns
-    -------
-    enabled: bool
-        Whether the meta schedule is enabled
-    """
-    return transform.PassContext.current().config.get(
-        "relay.backend.use_meta_schedule_dispatch",
         False,
     )

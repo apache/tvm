@@ -18,18 +18,16 @@
 # pylint: disable=no-value-for-parameter
 """x86 dense operators"""
 from __future__ import absolute_import as _abs
-import tvm
-from tvm import te
-from tvm import autotvm
-from tvm.autotvm.task.space import SplitEntity
-from tvm.contrib import cblas
-from tvm.contrib import mkl
-from tvm.contrib import dnnl
 
-from .utils import get_simd_32bit_lanes
+import tvm
+from tvm import autotvm, te
+from tvm.autotvm.task.space import SplitEntity
+from tvm.contrib import cblas, dnnl, mkl
+
 from .. import generic, tag
-from ..utils import traverse_inline, get_const_tuple
+from ..utils import get_const_tuple, traverse_inline
 from .tensor_intrin import dot_16x1x16_uint8_int8_int32_cascadelake
+from .utils import get_simd_32bit_lanes
 
 
 def _schedule_dense_pack_template(cfg, s, C, O):
@@ -296,7 +294,7 @@ def dense_vnni_compute(cfg, X, packed_w, bias=None):
             axis=ak,
         ),
         tag="dense_vnni",
-        attrs={"schedule_rule": "meta_schedule.dense_vnni"},
+        attrs={"schedule_rule": "dense_vnni"},
     )
 
     if bias is not None:
