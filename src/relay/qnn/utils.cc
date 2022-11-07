@@ -82,7 +82,7 @@ std::pair<int32_t, int32_t> GetFixedPointMultiplierShift_16(double double_multip
   return std::make_pair(significand, exponent);
 }
 
-std::pair<int32_t, int32_t> GetFixedPointMultiplierShift_13(double double_multiplier) {
+std::pair<int32_t, int32_t> GetFixedPointMultiplierShift_12(double double_multiplier) {
   int32_t significand, exponent;
   if (double_multiplier == 0.) {
     significand = 0;
@@ -96,10 +96,10 @@ std::pair<int32_t, int32_t> GetFixedPointMultiplierShift_13(double double_multip
   // Convert the double significand to int significand, i.e., convert into a
   // integer where the decimal point is between bit 31 and 30. This is done by
   // multiplying the double value with 2^31 and then casting to int.
-  significand_d = std::round(significand_d * (1ll << 12));
+  significand_d = std::round(significand_d * (1ll << 11));
   auto significand_int64 = static_cast<int64_t>(significand_d);
-  ICHECK_LE(significand_int64, (1ll << 12));
-  if (significand_int64 == (1ll << 12)) {
+  ICHECK_LE(significand_int64, (1ll << 11));
+  if (significand_int64 == (1ll << 11)) {
     significand_int64 /= 2;
     ++exponent;
   }

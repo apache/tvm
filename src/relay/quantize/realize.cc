@@ -163,12 +163,12 @@ inline Expr MulAndDiv_pertensor_13(Expr data, float s1, float s2, DataType dtype
 
   int32_t shift;
   int64_t fixed_point_multiplier;
-  std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift_13(factor);
+  std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift_12(factor);
   //data = (relay::FixedPointMultiply(data, fixed_point_multiplier, shift));
-  printf("13bit_fixed_pertensor:%.10f = %ld * 2^%d\n",factor, fixed_point_multiplier, shift-12);
+  printf("13bit_fixed_pertensor:%.10f = %ld * 2^%d\n",factor, fixed_point_multiplier, shift-11);
   data = Multiply(data, MakeConstantScalar(cfg->dtype_activation,  fixed_point_multiplier)); //newchange
-  data = Add(data, LeftShift(MakeConstantScalar(cfg->dtype_activation, 1), MakeConstantScalar(cfg->dtype_activation, -shift+12)));
-  data = RightShift(data, MakeConstantScalar(cfg->dtype_activation,  -shift+12)); //newchange
+  data = Add(data, LeftShift(MakeConstantScalar(cfg->dtype_activation, 1), MakeConstantScalar(cfg->dtype_activation, -shift+11)));
+  data = RightShift(data, MakeConstantScalar(cfg->dtype_activation,  -shift+11)); //newchange
 
   return Cast(data, dtype);
 }
@@ -245,7 +245,7 @@ inline Expr MulAndDiv_perchannel_upward_13(Expr data, std::vector<double> s, Dat
     //int32_t fixed_point_multiplier, shift;
     int64_t fixed_point_multiplier;
     int32_t shift;
-    std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift_13(factor);
+    std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift_12(factor);
     //printf("%lf = %ld*%d\n",factor, fixed_point_multiplier, shift-12);
     printf("13bit_fixed_perchannel:%.10f = %ld * 2^%d\n",factor, fixed_point_multiplier, shift-12);
     ICHECK_LE(shift-12, 0);
