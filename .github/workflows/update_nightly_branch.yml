@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   update-nightly-branch:
-    if: github.repository == 'driazati/tvm'
+    if: github.repository == 'apache/tvm'
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
