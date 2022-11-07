@@ -25,18 +25,14 @@ from tvm import te
 from tvm.contrib.hexagon.session import Session
 import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
-from tvm.contrib.hexagon.session import Session
 
 from ..infrastructure import get_hexagon_target
 
-dtype = tvm.testing.parameter(
-    "float32",
-    "float16",
-)
-
 
 class TestMatMulFloat:
-    x_batch, y_batch, M, N, K = tvm.testing.parameters(
+    """Test MatMul Float class."""
+
+    x_batch, y_batch, m_size, n_size, k_size = tvm.testing.parameters(
         (1, 1, 16, 16, 32),
         (5, 5, 16, 16, 32),
         (5, 5, 16, 20, 32),
@@ -46,18 +42,26 @@ class TestMatMulFloat:
         (5, 1, 16, 16, 32),
     )
 
+    dtype = tvm.testing.parameter(
+        "float32",
+        "float16",
+    )
+
     # TODO(mehrdadh): add dynamic testing
     @tvm.testing.requires_hexagon
-    def test_batch_matmul(self, hexagon_session: Session, x_batch, y_batch, M, N, K, dtype):
+    def test_batch_matmul(
+        self, hexagon_session: Session, x_batch, y_batch, m_size, n_size, k_size, dtype
+    ):
+        """Test batch MatMul."""
         if dtype == "float16":
             pytest.xfail("float16 is not supported.")
 
-        x = te.placeholder((x_batch, M, K), name="x")
-        y = te.placeholder((y_batch, N, K), name="y")
+        x = te.placeholder((x_batch, m_size, k_size), name="x")
+        y = te.placeholder((y_batch, n_size, k_size), name="y")
 
         def get_ref_data():
-            a_np = np.random.uniform(size=(x_batch, M, K)).astype(dtype)
-            b_np = np.random.uniform(size=(y_batch, N, K)).astype(dtype)
+            a_np = np.random.uniform(size=(x_batch, m_size, k_size)).astype(dtype)
+            b_np = np.random.uniform(size=(y_batch, n_size, k_size)).astype(dtype)
             c_np = tvm.topi.testing.batch_matmul(a_np, b_np)
             return (a_np, b_np, c_np)
 
@@ -89,7 +93,9 @@ class TestMatMulFloat:
 
 
 class TestMatMulInt8:
-    x_batch, y_batch, M, N, K = tvm.testing.parameters(
+    """Test MatMul INT8 class."""
+
+    x_batch, y_batch, m_size, n_size, k_size = tvm.testing.parameters(
         (1, 1, 2, 3, 1),
         (1, 1, 16, 24, 32),
         (5, 5, 24, 16, 32),
@@ -98,17 +104,29 @@ class TestMatMulInt8:
         (5, 1, 16, 16, 32),
     )
 
+    dtype = tvm.testing.parameter(
+        "float32",
+        "float16",
+    )
+
     @tvm.testing.requires_hexagon
-    def test_batch_matmul_int8(self, hexagon_session: Session, x_batch, y_batch, M, N, K):
+    def test_batch_matmul_int8(
+        self, hexagon_session: Session, x_batch, y_batch, m_size, n_size, k_size
+    ):
+        """Test batch matmul INT8."""
         dtype = "int8"
         out_dtype = "int8"
         assert x_batch == y_batch or x_batch == 1 or y_batch == 1
-        x = te.placeholder((x_batch, M, K), name="x", dtype=dtype)
-        y = te.placeholder((y_batch, N, K), name="y", dtype=dtype)
+        x = te.placeholder((x_batch, m_size, k_size), name="x", dtype=dtype)
+        y = te.placeholder((y_batch, n_size, k_size), name="y", dtype=dtype)
 
         def get_ref_data():
-            a_np = np.random.randint(low=-128, high=127, size=(x_batch, M, K)).astype(dtype)
-            b_np = np.random.randint(low=-128, high=127, size=(y_batch, N, K)).astype(dtype)
+            a_np = np.random.randint(low=-128, high=127, size=(x_batch, m_size, k_size)).astype(
+                dtype
+            )
+            b_np = np.random.randint(low=-128, high=127, size=(y_batch, n_size, k_size)).astype(
+                dtype
+            )
             c_np = tvm.topi.testing.batch_matmul(a_np, b_np, out_dtype=out_dtype)
             return (a_np, b_np, c_np)
 

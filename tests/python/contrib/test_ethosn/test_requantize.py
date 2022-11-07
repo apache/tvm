@@ -64,7 +64,7 @@ def test_requantize(in_dtype, out_dtype, shape):
             out_dtype=out_dtype,
         )
         mod = tei.make_module(model, [])
-        x = tei.build_and_run(mod, inputs, 1, {}, npu=npu)
+        x = tei.build_and_run(mod, inputs, 1, {}, npu=npu, optimize_partitions=False)
         outputs.append(x)
 
     tei.verify(outputs, out_dtype, 1)
@@ -128,7 +128,7 @@ def test_requantize_mixed_precision_with_following_op():
     for npu in [False, True]:
         model = get_model()
         mod = tei.make_module(model, {})
-        x = tei.build_and_run(mod, inputs, 1, {}, npu=npu)
+        x = tei.build_and_run(mod, inputs, 1, {}, npu=npu, optimize_partitions=False)
         outputs.append(x)
 
     tei.verify(outputs, out_dtype, 1)

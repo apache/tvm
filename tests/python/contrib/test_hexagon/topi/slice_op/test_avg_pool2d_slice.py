@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
 import numpy as np
 from typing import *
 
@@ -24,13 +23,13 @@ import tvm.testing
 from tvm.contrib.hexagon.session import Session
 import tvm.topi.hexagon.slice_ops as sl
 import tvm.topi.hexagon.qnn as qn
-from ..infrastructure import (
+from ...infrastructure import (
     allocate_hexagon_array,
     transform_numpy,
     quantize_np,
     get_hexagon_target,
 )
-from ..pytest_util import (
+from ...pytest_util import (
     get_multitest_ids,
     create_populated_numpy_ndarray,
     TensorContentRandom,

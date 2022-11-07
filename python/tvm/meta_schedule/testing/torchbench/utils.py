@@ -51,7 +51,9 @@ def find_torchdynamo() -> str:
 
 
 DYNAMO_DIR = find_torchdynamo()
-sys.path.append(DYNAMO_DIR)
+sys.path.insert(
+    0, DYNAMO_DIR
+)  # opacus_cifar10 depends on opacus, which installs a package called 'benchmarks'
 sys.path.append(f"{DYNAMO_DIR}/benchmarks")
 
 # pylint: disable=wrong-import-position, unused-import
@@ -62,7 +64,7 @@ from torchbench import TorchBenchmarkRunner  # type: ignore
 
 
 def load_torchdynamo_benchmark_runner(
-    is_cuda: bool, cosine_similarity: bool = False
+    is_cuda: bool, cosine_similarity: bool = False, float32: bool = False
 ) -> TorchBenchmarkRunner:
     """
     Load the benchmark runner from TorchDynamo.
@@ -86,7 +88,7 @@ def load_torchdynamo_benchmark_runner(
 
         cosine: bool = False  # Whether to use consine similarity to check if output is correct.
 
-    args = RunnerArgs(cosine=cosine_similarity)
+    args = RunnerArgs(cosine=cosine_similarity, float32=float32)
 
     runner = TorchBenchmarkRunner()
     runner.args = args

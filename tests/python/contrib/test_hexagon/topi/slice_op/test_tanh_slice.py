@@ -16,14 +16,13 @@
 # under the License.
 """ Test for Hexagon slice tanh op """
 import numpy as np
-import pytest
 
 import tvm
 import tvm.testing
 from tvm import te
 import tvm.topi.hexagon.slice_ops as sl
 import tvm.contrib.hexagon
-from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
+from ...infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 # pylint: disable=invalid-name
 

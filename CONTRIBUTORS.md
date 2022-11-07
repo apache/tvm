@@ -62,6 +62,7 @@ We do encourage everyone to work anything they are interested in.
 - [Trevor Morris](https://github.com/trevor-m): @trevor-m - byoc, compiler
 - [Leandro Nunes](https://github.com/leandron) (PMC): @leandron - tvmc
 - [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies - relay
+- [Ashutosh Parkhi](https://github.com/ashutosh-arm): @ashutosh-arm - cmsis-nn
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic) (PMC): @kparzysz-quic - hexagon, llvm
 - [Andrew Reusch](https://github.com/areusch): (PMC) @areusch - runtime, microTVM
 - [David Riazati](https://github.com/driazati): @driazati - ci, community
@@ -151,8 +152,8 @@ We do encourage everyone to work anything they are interested in.
 - [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies
 - [Wei Pan](https://github.com/wpan11nv): @wpan11nv
 - [Michalis Papadimitriou](https://github.com/mikepapadim): @mikepapadim
-- [Ashutosh Parkhi](https://github.com/ashutosh-arm): @ashutosh-arm
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
+- [Ashutosh Parkhi](https://github.com/ashutosh-arm): @ashutosh-arm
 - [Alexander Peskov](https://github.com/apeskov): @apeskov
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll

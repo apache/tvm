@@ -680,8 +680,6 @@ Message SimulatorRPCChannel::SendMsg(Message msg) {
         << "Expecting HEX_CORE_BREAKPOINT, received: " << core_.str();
   };
 
-  Message_ msg_ = {msg};
-
   WriteToProcess(message_buffer_v_, &msg, sizeof msg);
   run();
 

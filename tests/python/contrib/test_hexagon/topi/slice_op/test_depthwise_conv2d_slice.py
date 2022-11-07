@@ -19,12 +19,14 @@
 """Test depthwise_conv2d slice op for hexagon."""
 
 import numpy as np
+
 import tvm
 import tvm.testing
 import tvm.topi.hexagon.qnn as qn
 from tvm.topi.testing import depthwise_conv2d_python_nhwc
 from tvm.topi.hexagon.slice_ops.dwconv2d import dwconv2d_compute, dwconv2d_schedule
-from ..infrastructure import allocate_hexagon_array, transform_numpy, quantize_np
+
+from ...infrastructure import allocate_hexagon_array, transform_numpy, quantize_np
 
 
 @tvm.testing.fixture

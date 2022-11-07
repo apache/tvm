@@ -56,7 +56,9 @@ def test_split(dtype, shape, splits, axis):
         model = _get_model(shape, dtype, splits, axis)
         mod = tei.make_module(model, {})
         output_count = splits if isinstance(splits, int) else len(splits) + 1
-        outputs.append(tei.build_and_run(mod, inputs, output_count, {}, npu=npu))
+        outputs.append(
+            tei.build_and_run(mod, inputs, output_count, {}, npu=npu, optimize_partitions=False)
+        )
 
         tei.verify(outputs, dtype, 0)
 

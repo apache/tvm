@@ -16,14 +16,13 @@
 # under the License.
 
 import numpy as np
-import pytest
 
 import tvm
 import tvm.testing
 from tvm.topi.hexagon.slice_ops.relu import relu_compute, relu_stir_schedule
 from tvm import te
 
-from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
+from ...infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
 
 
 @tvm.testing.fixture

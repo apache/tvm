@@ -151,7 +151,9 @@ def test_multiply_to_reinterpret_quantize(shape, constant_shape, reverse_inputs)
     outputs = []
     for npu in [False, True]:
         mod = tei.make_module(model, params)
-        outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
+        outputs.append(
+            tei.build_and_run(mod, inputs, 1, params, npu=npu, optimize_partitions=False)
+        )
 
     tei.verify(outputs, dtype, 1)
 
