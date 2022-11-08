@@ -68,7 +68,7 @@ class Handler(server.ProjectAPIHandler):
                     "memory_size_bytes",
                     optional=["generate_project"],
                     type="int",
-                    default=None,
+                    default=MEMORY_SIZE_BYTES,
                     help="Sets the value of MEMORY_SIZE_BYTES.",
                 ),
             ],
@@ -98,7 +98,7 @@ class Handler(server.ProjectAPIHandler):
                     m = regex.match(line)
                     if m:
                         var, token = m.groups()
-                        line = re.sub(token, flags[var], line)
+                        line = line.replace(token, flags[var])
                     makefile_f.write(line)
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
