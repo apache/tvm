@@ -16,8 +16,9 @@
 # under the License.
 
 INCLUDES ?= -isystem crt/include -Icrt_config
+MEMORY_SIZE_BYTES := <MEMORY_SIZE_BYTES>
 CFLAGS ?= -Werror -Wall
-CXXFLAGS ?= -Werror -Wall -std=c++11 -DTVM_HOST_USE_GRAPH_EXECUTOR_MODULE
+CXXFLAGS ?= -Werror -Wall -std=c++11 -DTVM_HOST_USE_GRAPH_EXECUTOR_MODULE -DMEMORY_SIZE_BYTES=$(MEMORY_SIZE_BYTES)
 LDFLAGS ?= -Werror -Wall
 
 # Codegen produces spurious lines like: int32_t arg2_code = ((int32_t*)arg_type_ids)[(2)];
