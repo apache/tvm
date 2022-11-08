@@ -241,6 +241,7 @@ def get_scalar_or_1d_tensor(x, params, dtype="float32"):
     assert rank <= 1, "scale and zero_point input must be scalars or 1D tensors"
     return _op.cast(x, dtype)
 
+
 def flatten_to_nd(x, x_shape, nd=3):
     ndims = infer_shape(x_shape)[0]
     if ndims == nd:
@@ -254,6 +255,7 @@ def flatten_to_nd(x, x_shape, nd=3):
     )
     out = _op.reshape(x, fold_constant(newshape))
     return out
+
 
 def matmul_out_dtype(inputs, out_dtype):
     """Common function to handle MatMul and MatMulInteger16"""
@@ -363,14 +365,16 @@ def matmul_out_dtype(inputs, out_dtype):
     return _op.nn.dense(inputs[0], input_1_t, out_dtype=out_dtype)
 
 
-def qmatmul(a,
-            b,
-            a_zp_scalar,
-            b_zp_scalar,
-            a_scale_scalar,
-            b_scale_scalar,
-            transform_num_hidden_units,
-            matmul_result_dtype):
+def qmatmul(
+    a,
+    b,
+    a_zp_scalar,
+    b_zp_scalar,
+    a_scale_scalar,
+    b_scale_scalar,
+    transform_num_hidden_units,
+    matmul_result_dtype,
+):
     """
     Helper function to handle QLinearMatMul
     It is very close to 'matmul_out_dtype' but separated due to
@@ -422,14 +426,16 @@ def qmatmul(a,
         if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
             a = flatten_to_nd(a, a_shape, 2)
             b = _op.transpose(b)
-            output = _qnn.op.dense(a,
-                                   b,
-                                   a_zp_scalar,
-                                   b_zp_scalar,
-                                   a_scale_scalar,
-                                   b_scale_scalar,
-                                   transform_num_hidden_units,
-                                   matmul_result_dtype,)
+            output = _qnn.op.dense(
+                a,
+                b,
+                a_zp_scalar,
+                b_zp_scalar,
+                a_scale_scalar,
+                b_scale_scalar,
+                transform_num_hidden_units,
+                matmul_result_dtype,
+            )
         else:
             # broadcast a and b
             a_broadcasted_shape = fold_constant(
@@ -460,23 +466,21 @@ def qmatmul(a,
             # Transpose matrix dimensions of b.
             bt = _op.transpose(b, [0, 2, 1])
             # Perform a NT batch matmul.
-            output = _qnn.op.batch_matmul(a,
-                                          bt,
-                                          a_zp_scalar,
-                                          b_zp_scalar,
-                                          a_scale_scalar,
-                                          b_scale_scalar,
-                                          matmul_result_dtype,)
+            output = _qnn.op.batch_matmul(
+                a,
+                bt,
+                a_zp_scalar,
+                b_zp_scalar,
+                a_scale_scalar,
+                b_scale_scalar,
+                matmul_result_dtype,
+            )
         # Reshape output to original dimensions.
         final_shape = _op.concatenate(
             [
                 out_batch,
-                _op.strided_slice(
-                    a_shape, [a_rank - 2], [a_rank - 1]
-                ),
-                _op.strided_slice(
-                    b_shape, [b_rank - 1], [b_rank]
-                ),
+                _op.strided_slice(a_shape, [a_rank - 2], [a_rank - 1]),
+                _op.strided_slice(b_shape, [b_rank - 1], [b_rank]),
             ],
             0,
         )
@@ -495,27 +499,31 @@ def qmatmul(a,
         #                                  ),
         #                    axis=[0]
         #                   )
-        return _op.squeeze(_qnn.op.dense(_op.expand_dims(a, axis=0),
-                                         _op.transpose(b),
-                                         a_zp_scalar,
-                                         b_zp_scalar,
-                                         a_scale_scalar,
-                                         b_scale_scalar,
-                                         transform_num_hidden_units,
-                                         matmul_result_dtype,
-                                        ),
-                           axis=[0]
-                          )
+        return _op.squeeze(
+            _qnn.op.dense(
+                _op.expand_dims(a, axis=0),
+                _op.transpose(b),
+                a_zp_scalar,
+                b_zp_scalar,
+                a_scale_scalar,
+                b_scale_scalar,
+                transform_num_hidden_units,
+                matmul_result_dtype,
+            ),
+            axis=[0],
+        )
 
     # Otherwise a simple dense op will get the job done.
-    return _qnn.op.dense(a,
-                         _op.transpose(b),
-                         a_zp_scalar,
-                         b_zp_scalar,
-                         a_scale_scalar,
-                         b_scale_scalar,
-                         transform_num_hidden_units,
-                         matmul_result_dtype,)
+    return _qnn.op.dense(
+        a,
+        _op.transpose(b),
+        a_zp_scalar,
+        b_zp_scalar,
+        a_scale_scalar,
+        b_scale_scalar,
+        transform_num_hidden_units,
+        matmul_result_dtype,
+    )
 
 
 def layer_norm(x, eps, gamma, beta):

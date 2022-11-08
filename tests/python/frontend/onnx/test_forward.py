@@ -6150,6 +6150,7 @@ def test_qlinearconv(target, dev):
         per_channel_quantization=True,
     )
 
+
 @tvm.testing.parametrize_targets
 def test_qlinearmatmul(target, dev):
     """test_qlinearmatmul"""
@@ -6158,8 +6159,8 @@ def test_qlinearmatmul(target, dev):
         x_shape,
         w_shape,
         y_shape,
-        x_dtype = "uint8",
-        w_dtype = "uint8",
+        x_dtype="uint8",
+        w_dtype="uint8",
     ):
         x_array = np.random.randint(low=0, high=255, size=x_shape).astype(x_dtype)
         w_array = np.random.uniform(low=0, high=255, size=w_shape).astype(w_dtype)
@@ -6210,59 +6211,26 @@ def test_qlinearmatmul(target, dev):
         verify_with_ort_with_inputs(model, input_values, opt_level=2, target=target, dev=dev)
 
     # Default matmul both ranks = 2 (x_dtype = "uint8", w_dtype = "uint8")
-    verify_qlinearmatmul(
-        (2, 3),
-        (3, 2),
-        (2, 2)
-    )
+    verify_qlinearmatmul((2, 3), (3, 2), (2, 2))
 
     # Default matmul both ranks = 2 (x_dtype = "int8", w_dtype = "int8")
-    verify_qlinearmatmul(
-        (2, 3),
-        (3, 2),
-        (2, 2),
-        "int8",
-        "int8"
-    )
+    verify_qlinearmatmul((2, 3), (3, 2), (2, 2), "int8", "int8")
 
     # Default matmul both ranks = 2 (x_dtype = "uint8", w_dtype = "int8")
-    verify_qlinearmatmul(
-        (2, 3),
-        (3, 2),
-        (2, 2),
-        "uint8",
-        "int8"
-    )
+    verify_qlinearmatmul((2, 3), (3, 2), (2, 2), "uint8", "int8")
 
     # Default matmul both ranks = 2 (x_dtype = "int8", w_dtype = "uint8")
-    verify_qlinearmatmul(
-        (2, 3),
-        (3, 2),
-        (2, 2),
-        "int8",
-        "uint8"
-    )
+    verify_qlinearmatmul((2, 3), (3, 2), (2, 2), "int8", "uint8")
 
     # GPT2-style matmul both ranks = 4 (x_dtype = "uint8", w_dtype = "uint8")
-    verify_qlinearmatmul(
-        (2, 4, 3, 3),
-        (2, 4, 3, 3),
-        (2, 4, 3, 3)
-    )
+    verify_qlinearmatmul((2, 4, 3, 3), (2, 4, 3, 3), (2, 4, 3, 3))
 
     # Assymetric matmul: x_ranks = 3, w_rank = 2 (x_dtype = "uint8", w_dtype = "uint8")
-    verify_qlinearmatmul(
-        (4, 3, 3),
-        (3, 3),
-        (4, 3, 3)
-    )
+    verify_qlinearmatmul((4, 3, 3), (3, 3), (4, 3, 3))
 
     # Assymetric matmul: x_ranks = 2, w_rank = 3 (x_dtype = "uint8", w_dtype = "uint8")
-    verify_qlinearmatmul(
-        (3, 3),
-        (4, 3, 3),
-        (4, 3, 3)
-    )
+    verify_qlinearmatmul((3, 3), (4, 3, 3), (4, 3, 3))
+
 
 @tvm.testing.parametrize_targets
 def test_qlinearconcat(target, dev):
