@@ -48,9 +48,9 @@ from tvm import relay
 from tvm.contrib.download import download_testdata
 from tvm.relay.backend import Executor
 
-#################################
+##################################
 # Load a pre-trained PyTorch model
-# -------------------------------
+# --------------------------------
 #
 # To begin with, load pre-trained MobileNetV2 from torchvision. Then,
 # download a cat image and preprocess it to use as the model input.
@@ -83,20 +83,21 @@ input_name = "input0"
 shape_list = [(input_name, input_shape)]
 relay_mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 
-#################################
+#####################################
 # Define Target, Runtime and Executor
-# -------------------------------
+# -----------------------------------
 #
-# In this tutorial we use AOT host driven executor. To compile the model
-# for an emulated embedded environment on an X86 machine we use C runtime (CRT)
+# In this tutorial we use AOT host-driven executor. To compile the model
+# for an emulated embedded environment on an x86 machine we use C runtime (CRT)
 # and we use `host` micro target. Using this setup, TVM compiles the model
-# for C runtime which can run on a X86 CPU machine with the same flow that
+# for C runtime which can run on a x86 CPU machine with the same flow that
 # would run on a physical microcontroller.
 #
 
 
 # Simulate a microcontroller on the host machine. Uses the main() from `src/runtime/crt/host/main.cc`
-# To use physical hardware, replace "host" with something matching your hardware.
+# To use physical hardware, replace "host" with another physical micro target, e.g. `nrf52840`
+# or `mps2_an521`. See more more target examples in micro_train.py and micro_tflite.py tutorials.
 target = tvm.target.target.micro("host")
 
 # Use the C runtime (crt) and enable static linking by setting system-lib to True
@@ -105,7 +106,7 @@ runtime = tvm.relay.backend.Runtime("crt", {"system-lib": True})
 # Use the AOT executor rather than graph or vm executors. Don't use unpacked API or C calling style.
 executor = Executor("aot")
 
-######################################################################
+###################
 # Compile the model
 # -----------------
 #
@@ -120,7 +121,7 @@ with tvm.transform.PassContext(
         relay_mod, target=target, runtime=runtime, executor=executor, params=params
     )
 
-######################################################################
+###########################
 # Create a microTVM project
 # -------------------------
 #
@@ -139,7 +140,7 @@ project = tvm.micro.generate_project(
     project_options,
 )
 
-######################################################################
+####################################
 # Build, flash and execute the model
 # ----------------------------------
 # Next, we build the microTVM project and flash it. Flash step is specific to
@@ -157,7 +158,7 @@ with tvm.micro.Session(project.transport()) as session:
     aot_executor.run()
     result = aot_executor.get_output(0).numpy()
 
-#####################################################################
+#####################
 # Look up synset name
 # -------------------
 # Look up prediction top 1 index in 1000 class synset.
