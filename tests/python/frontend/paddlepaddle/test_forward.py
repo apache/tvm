@@ -919,6 +919,7 @@ def test_forward_interpolate():
             use_scale=False,
             use_list=False,
             use_const=False,
+            use_scaler=False,
         ):
             super(Interpolate, self).__init__()
             self.mode = mode
@@ -928,6 +929,7 @@ def test_forward_interpolate():
             self.use_scale = use_scale
             self.use_list = use_list
             self.use_const = use_const
+            self.use_scaler = use_scaler
 
         @paddle.jit.to_static
         def forward(self, x):
@@ -939,9 +941,13 @@ def test_forward_interpolate():
             elif not self.use_const:
                 size0 = paddle.to_tensor(size[0:1])
                 size = [size0, int(size[1])]
-            else:
+            elif not self.use_scaler:
                 size = size.tolist()
                 scale = scale.tolist()
+            else:
+                size = list(size)
+                h, w = paddle.rand(size).shape  # add decrease_axis
+                size = [h, w]
             if not self.use_scale:
                 return paddle.nn.functional.interpolate(
                     x,
@@ -965,6 +971,7 @@ def test_forward_interpolate():
     verify_model(Interpolate(), input_data)
     verify_model(Interpolate(use_list=True), input_data)
     verify_model(Interpolate(use_scale=True, use_const=True), input_data)
+    verify_model(Interpolate(use_const=True, use_scaler=True), input_data)
     verify_model(Interpolate("bilinear", use_scale=True), input_data)
     verify_model(Interpolate("bilinear", use_scale=True, align_corners=True), input_data)
     verify_model(
