@@ -1349,6 +1349,13 @@ def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):
         1: Allow missing ops but emit warnings.
         2: Allow missing ops and silently ignore them.
 
+    relay.ToMixedPrecision.keep_orig_output_dtype: boolean
+      Defines if outputs should be retained in original data type or convert to
+      mixed_precision_type. By default this parameter is False and transformation
+      modifies the data types of outputs to mixed_precision_type.
+      This parameter is not part of explicit arguments of the transformation, but should
+      be passed through tvm.transform.PassContext.
+
     Returns
     -------
     ret : tvm.transform.Pass
