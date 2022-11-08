@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable, unused-argument, too-many-locals
 
 """ Compute and schedule for adaptive_avg_pool1d slice op
 
@@ -66,7 +65,7 @@ def adaptive_avg_pool1d(
 
     # Kernel is same as input_width since output_width is assumed to be 1
     if out_width == 1:
-        kw = inw
+        kw_r = inw
     else:
         raise RuntimeError(f"Unsupported output_size, {out_width}'")
 
@@ -77,40 +76,39 @@ def adaptive_avg_pool1d(
     else:
         raise RuntimeError(f"Unsupported output dtype, {odtype}'")
 
-    scale_with_area = input_scale / (output_scale * int(kw))
+    scale_with_area = input_scale / (output_scale * int(kw_r))
     scale_fixed_point, rsh = get_fixed_point_value(scale_with_area, "int16")
-    corr = (output_zero_point << rsh) - input_zero_point * kw * scale_fixed_point
+    corr = (output_zero_point << rsh) - input_zero_point * kw_r * scale_fixed_point
 
-    rw = te.reduce_axis((0, kw), name="rw")
+    rw_r = te.reduce_axis((0, kw_r), name="rw_r")
 
-    Sum = te.compute(
+    sum_compute = te.compute(
         oshape,
-        lambda n, c, w: te.sum(data[n, c, w + rw].astype(temp_dtype), axis=[rw]),
+        lambda n, c, w: te.sum(data[n, c, w + rw_r].astype(temp_dtype), axis=[rw_r]),
         name="sum",
     )
 
-    Avg = te.compute(
+    avg_compute = te.compute(
         oshape,
-        lambda n, c, w: saturate(((Sum[n, c, w] * scale_fixed_point) + corr) >> rsh, odtype).astype(
-            odtype
-        ),
+        lambda n, c, w: saturate(
+            ((sum_compute[n, c, w] * scale_fixed_point) + corr) >> rsh, odtype
+        ).astype(odtype),
         name="adaptive_avg_1d",
     )
-    return Avg
+    return avg_compute
 
 
-def STIR_schedule_ncw_32c64w(outs, ins, output_layout: str, input_layout: str):
+def stir_schedule_ncw_32c64w(outs, ins, input_layout: str):
     """Schedule for input layout ncw-32c64w and output layout ncw"""
     func = te.create_prim_func([ins, outs])
     s = tir.Schedule(func)
 
-    Sum = s.get_block("sum")
-    Avg = s.get_block("adaptive_avg_1d")
+    sum_block = s.get_block("sum")
 
     # Input is multiple of fixed chunk but output is NxCx1
     # Hence transform_layout is only applied on input
     input_transformed_layout = get_layout_transform_fn(input_layout)
-    s.transform_layout(Sum, buffer=("read", 0), index_map=input_transformed_layout)
+    s.transform_layout(sum_block, buffer=("read", 0), index_map=input_transformed_layout)
 
     return s
 
@@ -118,5 +116,5 @@ def STIR_schedule_ncw_32c64w(outs, ins, output_layout: str, input_layout: str):
 def tir_adaptive_avg_pool1d_schedule(outs, ins, output_layout: str, input_layout: str):
     """STIR based schedule"""
     if output_layout == "ncw":
-        return STIR_schedule_ncw_32c64w(outs, ins, output_layout, input_layout)
+        return stir_schedule_ncw_32c64w(outs, ins, input_layout)
     raise RuntimeError(f"Unexpected layout '{output_layout}'")
