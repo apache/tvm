@@ -35,9 +35,17 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-HexagonHtp::HexagonHtp() { Acquire(); }
+HexagonHtp::HexagonHtp() {
+  Acquire();
+  // TODO(HWE): Perform HTP lock/unlock in thread instead of HexagonHtp
+  Lock();
+}
 
-HexagonHtp::~HexagonHtp() { Release(); }
+HexagonHtp::~HexagonHtp() {
+  // TODO(HWE): Perform HTP lock/unlock in thread instead of HexagonHtp
+  Unlock();
+  Release();
+}
 
 void HexagonHtp::Acquire() {
   compute_res_attr_t compute_res_attr;
