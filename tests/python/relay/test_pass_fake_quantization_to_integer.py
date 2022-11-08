@@ -1050,5 +1050,37 @@ def test_fq_qat_intermediate_infertype():
     compare_expected_fq_qat_to_int(expr, expected_expr, [x_np])
 
 
+def test_fq_avg_pool_conv2d():
+    dtype = "uint8"
+    shape_x = [1, 16, 8, 8]
+    shape_w = [8, 16, 3, 3]
+    x = relay.var("x", shape=shape_x, dtype=dtype)
+    w = relay.var("w", shape=shape_w, dtype=dtype)
+    zero = relay.const(0)
+    one = relay.const(1.0)
+    dq_scale_1 = relay.const(2.0)
+    dq_zp_1 = relay.const(-12)
+    dq_scale_2 = relay.const(0.5)
+    dq_zp_2 = relay.const(7)
+
+    # Tested expression.
+    op0 = relay.qnn.op.dequantize(x, dq_scale_1, dq_zp_1)
+    op1 = relay.op.nn.avg_pool2d(op0, [2, 2])
+    op2 = relay.qnn.op.dequantize(w, dq_scale_2, dq_zp_2)
+    op3 = relay.op.nn.conv2d(op1, op2, kernel_size=[3, 3])
+    expr = relay.qnn.op.quantize(op3, one, zero, out_dtype="uint8")
+
+    # Expected expression.
+    op0 = relay.op.nn.avg_pool2d(x, [2, 2])
+    op1 = relay.qnn.op.conv2d(
+        op0, w, dq_zp_1, dq_zp_2, dq_scale_1, dq_scale_2, kernel_size=[3, 3], channels=None
+    )
+    expected_expr = relay.qnn.op.requantize(op1, one, zero, one, zero, axis=1, out_dtype="uint8")
+
+    x_np = np.random.randint(0, 255, size=shape_x, dtype=dtype)
+    w_np = np.random.randint(0, 255, size=shape_w, dtype=dtype)
+    compare_expected_fq_qat_to_int(expr, expected_expr, [x_np, w_np])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

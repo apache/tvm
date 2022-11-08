@@ -585,6 +585,9 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
     // Pad the inputs
     auto temp = do_pad ? pad(x, pad_before, pad_after, 0, "pad_temp") : x;
 
+    // Do recast to int32 if input dtype is int8/uint8/int16/uint16.
+    bool need_recast = (x->dtype.is_int() || x->dtype.is_uint()) && x->dtype.bits() < 32;
+
     // TVM compute for summing the pooling window.
     auto pool_sum = tvm::te::compute(
         out_shape,
@@ -596,7 +599,8 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
             int ii = axis[i];
             indices.Set(ii, output[ii] * stride[i] + daxis[i] * dilation[i]);
           }
-          return tvm::sum(temp(indices), daxis);
+          return need_recast ? tvm::sum(tvm::cast(DataType::Int(32), temp(indices)), daxis)
+                             : tvm::sum(temp(indices), daxis);
         },
         "tensor", "pool_sum");
 
@@ -621,7 +625,8 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
               end[i] = min(end[i], data_shape[ii] + pad_tail[i] - 1 - offset[i]);
               num_el *= (end[i] - start[i]) / dilation[i] + 1;
             }
-            return div(pool_sum(indices), num_el);
+            return need_recast ? tvm::cast(x->dtype, div(pool_sum(indices), num_el))
+                               : div(pool_sum(indices), num_el);
           } else {
             std::vector<PrimExpr> start(k_size);
             std::vector<PrimExpr> end(k_size);
@@ -647,7 +652,8 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
             }
 
             PrimExpr divide_factor = max(num_el, make_const(DataType::Int(32), 1));
-            return div(pool_sum(indices), divide_factor);
+            return need_recast ? tvm::cast(x->dtype, div(pool_sum(indices), divide_factor))
+                               : div(pool_sum(indices), divide_factor);
           }
         },
         "tensor", kElementWise);

@@ -100,6 +100,7 @@ register_unary_identity("squeeze")
 register_unary_identity("strided_slice")
 register_unary_identity("transpose")
 register_unary_identity("expand_dims")
+register_unary_identity("nn.avg_pool2d")
 register_unary_identity("nn.max_pool2d")
 register_unary_identity("nn.batch_flatten")
 register_unary_identity("nn.depth_to_space")
@@ -132,32 +133,6 @@ def adaptive_avgpool1d(expr, type_map):
         arg = relay.op.cast(arg, "int32")
     output_size = expr.attrs.output_size
     out = relay.op.nn.adaptive_avg_pool1d(arg, output_size)
-    return [out, TensorAffineType(out_t.scale, out_t.zero_point, "int32", out_t.axis)]
-
-
-@register_fake_quantization_to_integer("nn.avg_pool2d")
-def avgpool2d(expr, type_map):
-    """Rewrite a avgpool op"""
-    arg = expr.args[0]
-    t = type_map[arg]
-    out_t = type_map[expr]
-    if not (
-        approx_equal(t.scale, out_t.scale)
-        and approx_equal(t.zero_point, out_t.zero_point)
-        and tvm.ir.structural_equal(t.dtype, out_t.dtype)
-    ):
-        arg = relay.qnn.op.requantize(
-            arg,
-            t.scale,
-            t.zero_point,
-            out_t.scale,
-            out_t.zero_point,
-            out_dtype="int32",
-            axis=t.axis,
-        )
-    else:
-        arg = relay.op.cast(arg, "int32")
-    out = relay.op.nn.avg_pool2d(arg, **expr.attrs)
     return [out, TensorAffineType(out_t.scale, out_t.zero_point, "int32", out_t.axis)]
 
 
