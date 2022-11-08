@@ -1634,7 +1634,14 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     }
     params.push_back(Print(param) << ": " << Print(GetType(param)));
   }
-  doc << PrintSep(params, Doc::Text(", ")) << ") -> " << Print(primFunc->ret_type) << ":";
+  doc << PrintSep(params, Doc::Text(", ")) << ")";
+  if (primFunc->ret_type.defined()) {
+    auto as_tuple = primFunc->ret_type.as<TupleTypeNode>();
+    if (!as_tuple || as_tuple->fields.size()) {
+      doc << " -> " << Print(primFunc->ret_type);
+    }
+  }
+  doc << ":";
 
   Doc body = Doc::NewLine();
   // print buffer_bind
