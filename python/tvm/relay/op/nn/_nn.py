@@ -489,7 +489,8 @@ reg.register_schedule("nn.max_pool1d", strategy.schedule_pool)
 
 
 # max_pool2d
-reg.register_schedule("nn.max_pool2d", strategy.schedule_pool)
+#reg.register_schedule("nn.max_pool2d", strategy.schedule_pool)
+reg.register_strategy("nn.max_pool2d", strategy.max_pool2d_strategy)
 
 
 @reg.register_convert_op_layout("nn.max_pool2d")
@@ -525,7 +526,8 @@ reg.register_schedule("nn.avg_pool1d", strategy.schedule_pool)
 
 
 # avg_pool2d
-reg.register_schedule("nn.avg_pool2d", strategy.schedule_pool)
+#reg.register_schedule("nn.avg_pool2d", strategy.schedule_pool)
+reg.register_strategy("nn.avg_pool2d", strategy.avg_pool2d_strategy)
 
 
 @reg.register_convert_op_layout("nn.avg_pool2d")
