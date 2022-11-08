@@ -23,12 +23,12 @@ microTVM PyTorch Tutorial
 `Mehrdad Hessar <https://github.com/mehrdadh>`_
 
 This tutorial is showcasing microTVM host-driven AoT compilation with
-a PyTorch model. This tutorial can be executed on a x86 CPU using C runtime (CRT)
-or on Zephyr platform on a microcontroller/board supported by Zephyr.
+a PyTorch model. This tutorial can be executed on a x86 CPU using C runtime (CRT).
+
+**Note:** This tutorial only runs on x86 CPU using CRT and does not run on Zephyr
+since the model would not fit on our current supported Zephyr boards.
 """
 import pathlib
-import json
-import os
 
 import torch
 import torchvision
@@ -41,9 +41,14 @@ from tvm import relay
 from tvm.contrib.download import download_testdata
 from tvm.relay.backend import Executor
 
-# ######################################################################
-# Load a pretrained PyTorch model
+#################################
+# Load a pre-trained PyTorch model
 # -------------------------------
+#
+# To begin with, load pre-trained MobileNetV2 from torchvision. Then,
+# download a cat image and preprocess it to use as the model input.
+#
+
 model = torchvision.models.quantization.mobilenet_v2(pretrained=True, quantize=True)
 model = model.eval()
 
@@ -67,25 +72,57 @@ my_preprocess = transforms.Compose(
 img = my_preprocess(img)
 img = np.expand_dims(img, 0)
 
-INPUT_NAME = "input0"
-shape_list = [(INPUT_NAME, input_shape)]
+input_name = "input0"
+shape_list = [(input_name, input_shape)]
 relay_mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 
-RUNTIME = tvm.relay.backend.Runtime("crt", {"system-lib": True})
-TARGET = tvm.target.target.micro("host")
-EXECUTOR = Executor("aot")
+#################################
+# Define Target, Runtime and Executor
+# -------------------------------
+#
+# In this tutorial we use AOT host driven executor. To compile the model
+# for an emulated embedded environment on an X86 machine we use C runtime (CRT)
+# and we use `host` micro target. Using this setup, TVM compiles the model
+# for C runtime which can run on a X86 CPU machine with the same flow that
+# would run on a physical microcontroller.
+#
+
+
+# Simulate a microcontroller on the host machine. Uses the main() from `src/runtime/crt/host/main.cc`
+# To use physical hardware, replace "host" with something matching your hardware.
+target = tvm.target.target.micro("host")
+
+# Use the C runtime (crt) and enable static linking by setting system-lib to True
+runtime = tvm.relay.backend.Runtime("crt", {"system-lib": True})
+
+# Use the AOT executor rather than graph or vm executors. Don't use unpacked API or C calling style.
+executor = Executor("aot")
+
+######################################################################
+# Compile the model
+# -----------------
+#
+# Now, we compile the model for the target:
+#
 
 with tvm.transform.PassContext(
     opt_level=3,
     config={"tir.disable_vectorize": True},
 ):
     module = tvm.relay.build(
-        relay_mod, target=TARGET, runtime=RUNTIME, executor=EXECUTOR, params=params
+        relay_mod, target=target, runtime=runtime, executor=executor, params=params
     )
+
+######################################################################
+# Create a microTVM project
+# -------------------------
+#
+# Now that we have the compiled model as an IRModule, we need to create a firmware project
+# to use the compiled model with microTVM. To do this, we use Project API.
+#
 
 template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("crt"))
 project_options = {"verbose": True, "memory_size_bytes": 6 * 1024 * 1024}
-
 
 temp_dir = tvm.contrib.utils.tempdir() / "project"
 project = tvm.micro.generate_project(
@@ -95,10 +132,18 @@ project = tvm.micro.generate_project(
     project_options,
 )
 
+######################################################################
+# Build, flash and execute the model
+# ----------------------------------
+# Next, we build the microTVM project and flash it. Flash step is specific to
+# physical microcontroller and it is skipped if it is simulating a microcontroller
+# via the host `main.cc`` or if a Zephyr emulated board is selected as the target.
+#
+
 project.build()
 project.flash()
 
-input_data = {INPUT_NAME: tvm.nd.array(img.astype("float32"))}
+input_data = {input_name: tvm.nd.array(img.astype("float32"))}
 with tvm.micro.Session(project.transport()) as session:
     aot_executor = tvm.runtime.executor.aot_executor.AotModule(session.create_aot_executor())
     aot_executor.set_input(**input_data)
@@ -109,6 +154,8 @@ with tvm.micro.Session(project.transport()) as session:
 # Look up synset name
 # -------------------
 # Look up prediction top 1 index in 1000 class synset.
+#
+
 synset_url = (
     "https://raw.githubusercontent.com/Cadene/"
     "pretrained-models.pytorch/master/data/"
