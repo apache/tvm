@@ -42,14 +42,6 @@ MEMORY_SIZE_BYTES = 2 * 1024 * 1024
 MAKEFILE_FILENAME = "Makefile"
 
 
-def _get_memory_size(options) -> int:
-    """Returns memory size in bytes from project options.
-    If project option is not provided, it will return default
-    MEMORY_SIZE_BYTES value.
-    """
-    return options.get("memory_size_bytes", MEMORY_SIZE_BYTES)
-
-
 class Handler(server.ProjectAPIHandler):
 
     BUILD_TARGET = "build/main"
@@ -99,16 +91,14 @@ class Handler(server.ProjectAPIHandler):
             "MEMORY_SIZE_BYTES": str(memory_size),
         }
 
+        regex = re.compile(r"([A-Z_]+) := (<[A-Z_]+>)")
         with open(makefile_path, "w") as makefile_f:
             with open(makefile_template_path, "r") as makefile_template_f:
                 for line in makefile_template_f:
-                    SUBST_TOKEN_RE = re.compile(r"<([A-Z_]+)>")
-                    outs = []
-                    for i, m in enumerate(re.split(SUBST_TOKEN_RE, line)):
-                        if i % 2 == 1:
-                            m = flags[m]
-                        outs.append(m)
-                    line = "".join(outs)
+                    m = regex.match(line)
+                    if m:
+                        var, token = m.groups()
+                        line = re.sub(token, flags[var], line)
                     makefile_f.write(line)
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
@@ -145,7 +135,7 @@ class Handler(server.ProjectAPIHandler):
         self._populate_makefile(
             pathlib.Path(__file__).parent / f"{MAKEFILE_FILENAME}.template",
             project_dir / MAKEFILE_FILENAME,
-            _get_memory_size(options),
+            options.get("memory_size_bytes", MEMORY_SIZE_BYTES),
         )
 
         # Populate crt-config.h
