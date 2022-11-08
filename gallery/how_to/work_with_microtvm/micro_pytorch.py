@@ -28,6 +28,13 @@ a PyTorch model. This tutorial can be executed on a x86 CPU using C runtime (CRT
 **Note:** This tutorial only runs on x86 CPU using CRT and does not run on Zephyr
 since the model would not fit on our current supported Zephyr boards.
 """
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 import pathlib
 
 import torch
