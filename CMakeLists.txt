@@ -116,8 +116,8 @@ tvm_option(USE_CLML "Build with CLML Codegen support" OFF)
 tvm_option(USE_CLML_GRAPH_EXECUTOR "Build with CLML graph runtime" OFF)
 tvm_option(USE_UMA "Build with UMA support" OFF)
 
-# disable automatic inclusion of microTVM for iOS and Hexagon builds
-if(${CMAKE_SYSTEM_NAME} MATCHES "iOS" OR USE_HEXAGON)
+# disable automatic inclusion of microTVM for iOS
+if(${CMAKE_SYSTEM_NAME} MATCHES "iOS")
   set(USE_MICRO false)
 else()
   set(USE_MICRO true)
