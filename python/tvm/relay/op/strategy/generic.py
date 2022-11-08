@@ -58,6 +58,16 @@ def wrap_topi_schedule(topi_schedule):
     return wrapper
 
 
+def wrap_topi_schedule_layout(topi_schedule):
+    """Wrap TOPI schedule which doesn't use attrs"""
+
+    def wrapper(attrs, outs, target):
+        with target:
+            return topi_schedule(outs, attrs.layout)
+
+    return wrapper
+
+
 def wrap_topi_compute(topi_compute):
     """Wrap TOPI compute which doesn't use attrs"""
 
@@ -131,6 +141,68 @@ def schedule_pool(attrs, outs, target):
     """Schedule pooling ops"""
     with target:
         return topi.generic.schedule_pool(outs, attrs.layout)
+
+
+def wrap_compute_pool2d(
+    topi_compute,
+    pool_type,
+    *,
+    need_layout=False,
+    need_out_layout=False,
+    need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
+    need_out_dtype=False,
+):
+    """Wrap pool2d topi compute"""
+    def _compute_pool2d(attrs, inputs, out_type):
+        kernel = get_const_tuple(attrs.pool_size)
+        padding = get_const_tuple(attrs.padding)
+        strides = get_const_tuple(attrs.strides)
+        dilation = get_const_tuple(attrs.dilation)
+        layout = attrs.get_str("layout")
+        out_layout = attrs.get_str("out_layout")
+
+        args = [inputs[0], kernel, strides, dilation, padding, pool_type]
+        if need_layout:
+            args.append(layout)
+        if need_out_layout:
+            args.append(out_layout)
+        if need_auto_scheduler_layout:
+            args.append(get_auto_scheduler_rewritten_layout(attrs))
+        elif need_meta_schedule_layout:
+            args.append("")
+            args.append(get_meta_schedule_original_shape(attrs))
+        if need_out_dtype:
+            args.append(out_type.dtype)
+        return [topi_compute(*args)]
+
+    return _compute_pool2d
+
+
+@override_native_generic_func("max_pool2d_strategy")
+def max_pool2d_strategy(attrs, inputs, out_type, target):
+    """max_pool2d generic strategy"""
+    logger.warning("max_pool2d is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_pool2d(topi.nn.pool2d, 'max'),
+        wrap_topi_schedule_layout(topi.generic.schedule_pool),
+        name="pool2d.generic",
+    )
+    return strategy
+
+
+@override_native_generic_func("avg_pool2d_strategy")
+def avg_pool2d_strategy(attrs, inputs, out_type, target):
+    """avg_pool2d generic strategy"""
+    logger.warning("avg_pool2d is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_pool2d(topi.nn.pool2d, 'avg'),
+        wrap_topi_schedule_layout(topi.generic.schedule_pool),
+        name="pool2d.generic",
+    )
+    return strategy
 
 
 # pool_grad

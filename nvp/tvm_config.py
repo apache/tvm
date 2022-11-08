@@ -23,6 +23,7 @@ Config = {
                 'Add': [1],
                 'Max': [3],
                 'Mul': [3],
+                'Div': [1], # Shifting
                 'LT': [3],
                 'Ch Concat': [1],
             },

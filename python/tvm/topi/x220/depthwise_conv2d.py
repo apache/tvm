@@ -181,7 +181,7 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
     Filter = te.compute(
         Filter.shape,
         lambda oc, cm, kh, kw:
-        Filter[oc, cm, kh, kw], name="Filter", tag="Initialize"
+        Filter[oc, cm, kh, kw], name="Filter", tag="depthwise_conv2d_nchw",
     )
     Acc = te.compute(
         (batch, out_channel, out_height, out_width),
@@ -190,13 +190,13 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
             (Input[b, idxdiv(c, channel_multiplier), i * stride_h + di * dilation_h, j * stride_w + dj * dilation_w,].astype(out_dtype)
                 * Filter[idxdiv(c, channel_multiplier), idxmod(c, channel_multiplier), di, dj].astype(out_dtype)
             ), axis=[di, dj],
-        ), name="Acc", tag="accumulate",
+        ), name="Acc", tag="depthwise_conv2d_nchw",
     )
     Output = te.compute(
         (batch, out_channel, out_height, out_width),
         lambda b, c, i, j:
             Acc[b, c, i, j]
-        , name="Output", tag="depthwise_conv2d_nchw"
+        , name="Output", tag="depthwise_conv2d_nchw",
     )
     return Output
 

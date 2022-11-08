@@ -414,9 +414,7 @@ def schedule_depthwise_conv2d_nchw(outs):
     output = outs[0]
     acc = s[output].op.input_tensors[0]
     input, filter = acc.op.input_tensors[0], acc.op.input_tensors[1]
-    # b, c, i, j, di, dj = s[acc].all_iter_vars
     s[acc].compute_at(s[output], output.op.axis[3])
-    # s[filter].compute_at(s[acc], acc.op.axis[3])
     return s
 
 
@@ -690,6 +688,27 @@ def schedule_pool(outs, layout):
         The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+
+def schedule_pool_nchw(outs):
+    """Schedule for pool_nchw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of pool
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    s = te.create_schedule([x.op for x in outs])
+    output = outs[0]
+    acc = s[output].op.input_tensors[0]
+    s[acc].compute_at(s[output], output.op.axis[3])
+    return s
 
 
 def schedule_pool_grad(outs):

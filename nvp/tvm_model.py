@@ -90,13 +90,22 @@ class VectorProcessor():
         return
 
     def get_subgraph(self, sorted_nodes):
+        # get subgraph of depth=0
         loop_stack = []
         tmp = []
         depth = 0
+        seq_flag = False
         for node in sorted_nodes:
             if self.graph.nodes[node]['type'] == 'For Start':
                 depth += 1
+            if self.graph.nodes[node]['type'] == 'Seq' and depth == 0 and seq_flag == True:
+                seq_flag = False
+                loop_stack.append(tmp)
+                tmp = []
             tmp.append(node)
+            if self.graph.nodes[node]['type'] == 'Seq' and depth == 0 and seq_flag == False:
+                seq_flag = True
+                continue
             if self.graph.nodes[node]['type'] == 'For End':
                 depth -= 1
                 if depth == 0:
@@ -115,6 +124,7 @@ class VectorProcessor():
         if FLAG == True: print('########## Optimize Graph (%s) ##########'%(option))
 
     def optimize_vstore(self):
+        """ Vstore at the end of loop can be bypassed """
         FLAG = False
         store_nodes = self.get_nodes(attr='type', str='Store')
         for node in store_nodes:
@@ -125,6 +135,7 @@ class VectorProcessor():
         return FLAG
 
     def optimize_filter_load(self):
+        """ Filter is loaded from Scalar Memory """
         # (Parent)                     (Parent)
         #    |                         /      \
         # (Vector LD)          (Scalar LD)  (Scalar LD)
@@ -171,6 +182,8 @@ class VectorProcessor():
         return [node for node in self.graph.nodes if self.graph.nodes[node][attr]==str]
 
     def remove_nodes(self, attr, str):
+        if any([self.graph.nodes[node][attr]==str for node in self.graph.nodes]):
+            print('########## Remove Nodes (%s: %s) ##########'%(attr, str))
         while True:
             nodes = [node for node in self.graph.nodes if self.graph.nodes[node][attr]==str]
             if len(nodes)==0: break
