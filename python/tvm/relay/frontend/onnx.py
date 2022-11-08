@@ -243,6 +243,7 @@ def get_scalar_or_1d_tensor(x, params, dtype="float32"):
 
 
 def flatten_to_nd(x, x_shape, nd=3):
+    """Flatten input tensor to nd rank"""
     ndims = infer_shape(x_shape)[0]
     if ndims == nd:
         return x
@@ -4647,9 +4648,6 @@ class QLinearMatMul(OnnxOpConverter):
         y_scale_type = infer_type(y_scale).checked_type
         y_zp_type = infer_type(y_zp).checked_type  # 'T3' in ONNX doc for this op
 
-        a_shape = infer_shape(a)
-        b_shape = infer_shape(b)
-
         # Verify type assumptions, based on the ONNX doc for this op...
         assert a_type.dtype in ["int8", "uint8"]
         assert a_scale_type.dtype == "float32"
@@ -4693,7 +4691,8 @@ class QLinearMatMul(OnnxOpConverter):
         # expressed in a Relay graph. And then update this importer and various TVM
         # backends accordingly.
         matmul_result_dtype = "int32"
-        # TODO(vvchernov): possibly it is better to use unsigned type for result if input types are unsigned:
+        # TODO(vvchernov): possibly it is better to use unsigned type for result
+        # if input types are unsigned:
         # if a_type.dtype == "uint8" and b_type.dtype == "uint8":
         #     matmul_result_dtype = "uint32"
 
