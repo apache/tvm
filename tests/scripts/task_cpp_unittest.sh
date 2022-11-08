@@ -54,11 +54,9 @@ pushd "${BUILD_DIR}"
 ctest --gtest_death_test_style=threadsafe
 popd
 
-# Test MISRA-C runtime. It requires USE_MICRO to be enabled.
-if grep -Fq "USE_MICRO ON" ${BUILD_DIR}/TVMBuildOptions.txt; then
-  pushd apps/bundle_deploy
-  rm -rf build
-  make test_dynamic test_static
-  popd
-fi
+# Test MISRA-C runtime.
+pushd apps/bundle_deploy
+rm -rf build
+make test_dynamic test_static
+popd
 
