@@ -6165,8 +6165,8 @@ def test_qlinearmatmul(target, dev):
         x_array = np.random.randint(low=0, high=255, size=x_shape).astype(x_dtype)
         w_array = np.random.uniform(low=0, high=255, size=w_shape).astype(w_dtype)
 
-        x_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[x_dtype]
-        w_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[w_dtype]
+        x_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(x_dtype)]
+        w_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(w_dtype)]
 
         initializer = [
             helper.make_tensor("x_scale", TensorProto.FLOAT, (), [np.random.rand()]),
