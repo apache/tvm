@@ -6172,6 +6172,9 @@ def test_qlinearmatmul(target, dev):
             helper.make_tensor("x_scale", TensorProto.FLOAT, (), [np.random.rand()]),
             # TODO: type and value?
             helper.make_tensor("x_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]),
+            helper.make_tensor("w_scale", TensorProto.FLOAT, (), [np.random.rand()]),
+            # TODO: type and value?
+            helper.make_tensor("w_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]),
             helper.make_tensor("y_scale", TensorProto.FLOAT, (), [np.random.rand()]),
             # TODO: type?
             helper.make_tensor("y_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]),
@@ -6199,11 +6202,15 @@ def test_qlinearmatmul(target, dev):
             outputs=["y"],
         )
 
+        y_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype("int8")]
+        if x_dtype == "uint8" or w_dtype == "uint8":
+            y_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype("uint8")]
+
         graph = helper.make_graph(
             [node],
             "qmatmul_test",
             inputs=input_nodes,
-            outputs=[helper.make_tensor_value_info("y", TensorProto.INT32, list(y_shape))],
+            outputs=[helper.make_tensor_value_info("y", y_proto_type, list(y_shape))],
             initializer=initializer,
         )
         model = helper.make_model(graph, producer_name="qlinearmatmul_test")
