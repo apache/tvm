@@ -28,7 +28,7 @@ from tvm.ir import IRModule
 from tvm.tir import Schedule
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
-from tvm.meta_schedule.testing.tune_utils import create_computer, generate_input_data
+from tvm.meta_schedule.testing.tune_utils import create_calculator, generate_input_data
 from tvm._ffi import get_global_func, register_func
 from tvm.support import describe
 
@@ -38,25 +38,19 @@ DELIMITOR = "\n" + "-" * 30 + "\n"
 def _parse_args():
     args = argparse.ArgumentParser()
     args.add_argument(
-        "--path-workload",
+        "--work-dir",
         type=str,
         required=True,
-        help="The path to the database workload file.",
-    )
-    args.add_argument(
-        "--path-tuning-record",
-        type=str,
-        required=True,
-        help="The path to the database tuning record file.",
+        help="The path to the work directory containing database files.",
     )
     args.add_argument(
         "--target",
-        type=str,
+        type=Target,
         required=True,
     )
     args.add_argument(
         "--baseline-target",
-        type=str,
+        type=Target,
         default="llvm -num-cores=1",
         required=False,
         help="The baseline target to compile the original module.",
@@ -114,7 +108,7 @@ def _parse_args():
 logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
 )
-logging.getLogger("tvm.meta_schedule").setLevel(logging.INFO)
+logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 
 # arg parser
 ARGS = _parse_args()
@@ -143,8 +137,8 @@ def validate_correctness(
     original_mod: IRModule,  # compiled for "baseline_target"
     scheduled_mod: IRModule,  # compiled for "target"
     *,
-    baseline_target: Union[str, Target],
-    target: Union[str, Target],
+    baseline_target: Target,
+    target: Target,
     dev_type: str,
     rpc_config: ms.runner.RPCConfig,
     f_input_generator: Union[
@@ -162,8 +156,12 @@ def validate_correctness(
         The original module to be compiled.
     scheduled_mod : IRModule
         The scheduled module to be compiled.
+    baseline_target : Target
+        The baseline target to compile the original module.
     target : Target
         The target to compile the scheduled module.
+    dev_type : str
+        The device type to run the module via rpc.
     rpc_config : RPCConfig
         The RPCConfig to run the scheduled module.
     f_input_generator : Union[str, Callable]
@@ -173,7 +171,7 @@ def validate_correctness(
 
     Returns
     -------
-    result : ...
+    result : bool
         The result of the validation.
     """
 
@@ -195,13 +193,10 @@ def validate_correctness(
             lib=rt_mod,
             dev_type=dev_type,
             args={i: v for i, v in enumerate(inputs)},  # pylint: disable=unnecessary-comprehension
-            continuation=create_computer(backend="tir"),
+            continuation=create_calculator(backend="tir"),
             backend="tir",
         )
 
-    # make targets
-    target = Target(target)
-    baseline_target = Target(baseline_target)
     # fetch functions & prepare inputs
     if isinstance(f_input_generator, str):
         f_input_generator = get_global_func(f_input_generator)
@@ -233,11 +228,14 @@ def validate_correctness(
 def main():
     """Main function"""
     describe()
-    database = ms.database.JSONDatabase(
-        path_workload=ARGS.path_workload, path_tuning_record=ARGS.path_tuning_record
-    )
-    assert Target(ARGS.target).kind.name in ["llvm", "cuda"]
-    dev_type = "cpu" if Target(ARGS.target).kind.name == "llvm" else "cuda"
+    database = ms.database.create(work_dir=ARGS.work_dir)
+    target = ARGS.target
+    if target.kind.name == "llvm":
+        dev_type = "cpu"
+    elif target.kind.name == "cuda":
+        dev_type = "cuda"
+    else:
+        raise RuntimeError(f"Unsupported target kind: {target.kind.name}")
     records = database.get_all_tuning_records()
     with ms.Profiler() as profiler:
         for i, record in enumerate(records):
@@ -247,12 +245,12 @@ def main():
                 sch = Schedule(original_mod)
                 record.trace.apply_to_schedule(sch=sch, remove_postproc=False)
                 scheduled_mod = sch.mod
-                flag = False
+                is_success = False
                 try:
-                    flag = validate_correctness(
+                    is_success = validate_correctness(
                         original_mod=original_mod,
                         scheduled_mod=scheduled_mod,
-                        target=ARGS.target,
+                        target=target,
                         baseline_target=ARGS.baseline_target,
                         dev_type=dev_type,
                         rpc_config=ARGS.rpc_config,
@@ -268,7 +266,7 @@ def main():
                             ]
                         )
                     )
-            if flag:
+            if is_success:
                 print(
                     f"Progress {i+1: 6d} / {len(records): 6d} checked,"
                     f" used {float(profiler.get()[scope_name]): 3.3f} sec."

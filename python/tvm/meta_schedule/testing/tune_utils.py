@@ -194,13 +194,13 @@ def create_time_per_layer(graph: str) -> Callable:
     return f_time_per_layer
 
 
-def create_computer(backend: str) -> Callable:
+def create_calculator(backend: str) -> Callable:
     """Create a function to fetch the computing result of running the given runtime module.
 
     Parameters
     ----------
     backend : str
-        The backend to use, graph / vm.
+        The backend to use, only tir is supported for now.
 
     Returns
     -------
@@ -208,7 +208,7 @@ def create_computer(backend: str) -> Callable:
         The function to fetch the computing result.
     """
 
-    def f_computer(
+    def f_calculator(
         rt_mod: tvm.runtime.Module,
         dev: tvm.runtime.Device,  # pylint: disable=unused-argument
         input_data: Dict[str, NDArray],
@@ -230,12 +230,12 @@ def create_computer(backend: str) -> Callable:
                 rt_mod(*data)
                 return data
             else:
-                raise ValueError(f"Backend {backend} not supported in f_computer!")
+                raise ValueError(f"Backend {backend} not supported in f_calculator!")
 
         except Exception as exc:  # pylint: disable=broad-except
             print(
-                f"Run module f_computer via RPC failed, exception: {exc}",
+                f"Run module f_calculator via RPC failed, exception: {exc}",
             )
             return None
 
-    return f_computer
+    return f_calculator
