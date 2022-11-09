@@ -81,12 +81,13 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
   }
 
   ICHECK(last_block_idx != -1);
+  // The last block can only be reverse compute inlined. We make sure to inline all
+  // producer blocks of the last block beforehand so that reverse compute inline can succeed.
   std::swap(inline_todos[last_block_idx], inline_todos.back());
 
   auto inline_rule = GetDefaultAutoInline(target->kind->name);
 
   for (auto name : inline_todos) {
-    LOG(INFO) << "Inlining " << name;
     inline_rule->Apply(sch, sch->GetBlock(name));
   }
 }
@@ -158,7 +159,8 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       auto block_sref = sch->GetSRef(block);
       auto state = sch->state();
       if (!CanComputeInline(state, block_sref)) {
-        ICHECK(IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false)));
+        ICHECK(IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false)))
+            << "If a spatial block cannot be inlined, it should be the output block";
         if (CanReverseComputeInline(sch->state(), block_sref)) {
           sch->ReverseComputeInline(block);
         }
