@@ -214,6 +214,33 @@ class OpaqueAccessError : public ScheduleError {
   Block scope_root_;
 };
 
+class ProducerHasNonTrivialPredicateError : public ScheduleError {
+ public:
+  explicit ProducerHasNonTrivialPredicateError(IRModule mod, BlockRealize producer)
+      : mod_(mod), producer_(producer) {}
+
+  String FastErrorString() const final {
+    return "ScheduleError: The producer block has a non-trivial predicate.";
+  }
+
+  String DetailRenderTemplate() const final {
+    return "ScheduleError: The producer block has a non-trivial predicate: {0}.";
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {producer_}; }
+
+  static void Check(const IRModule& mod, const BlockRealize& producer) {
+    arith::Analyzer ana;
+    if (!ana.CanProve(producer->predicate == 1)) {
+      throw ProducerHasNonTrivialPredicateError(mod, producer);
+    }
+  }
+
+  IRModule mod_;
+  BlockRealize producer_;
+};
+
 /*!
  * \brief The base class of the inliner, which handles:
  * 1) Substitute a subtree with the specific block being inlined
@@ -812,21 +839,24 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
   // Step 3. Check if the consumer has a single complete producer
   StmtSRef producer_block_sref =
       NonSingleProducerError::Check(self, consumer_block_sref, scope_root_sref);
-  // Step 4. Analyze the block body
+  // Step 4. Make sure that the producer does not have a predicate
+  BlockRealize producer_realize = GetBlockRealize(self, producer_block_sref);
+  ProducerHasNonTrivialPredicateError::Check(self->mod, producer_realize);
+  // Step 5. Analyze the block body
   ReverseComputeInliner inliner(inlined_buffer, producer_block_sref->StmtAs<BlockNode>(),
                                 consumer_block_realize, scope_root_sref);
   if (!inliner.BodyPatternAllowInline(consumer_block_realize)) {
     throw BodyAnalysisError(true, self->mod, consumer_block);
   }
-  // Step 5. Create a plan that removes the leaf block to be inlined
+  // Step 6. Create a plan that removes the leaf block to be inlined
   LeafBlockRemovalPlan(self, consumer_block_sref, &inliner.src_stmt, &inliner.tgt_stmt);
-  // Step 6. Create an AST where the leaf `consumer_block_sref` points to is removed,
+  // Step 7. Create an AST where the leaf `consumer_block_sref` points to is removed,
   // and update other blocks who read from the removed block
   Stmt tgt_stmt = inliner(GetRef<Stmt>(scope_root_sref->stmt));
   if (inliner.has_opaque_access) {
     throw OpaqueAccessError(self->mod, scope_root_sref);
   }
-  // Step 7. Do the real mutation on the AST and the sref tree in the schedule state
+  // Step 8. Do the real mutation on the AST and the sref tree in the schedule state
   if (check_only) {
     return;
   }
