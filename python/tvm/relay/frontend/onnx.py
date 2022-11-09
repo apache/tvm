@@ -4713,7 +4713,6 @@ class QLinearMatMul(OnnxOpConverter):
         #
         # 'matmul_result_zp_scalar' has type 'int32' to satisfy input requirements
         # of the [de/re]quantize ops below.
-        # TODO(vvchernov): do it cover all cases except dense?
         matmul_result_scale_scalar = fold_constant(_op.multiply(a_scale_scalar, b_scale_scalar))
         matmul_result_zp_scalar = _op.const(0, dtype="int32")
 
