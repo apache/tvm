@@ -21,6 +21,7 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -62,7 +63,7 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
   auto anchor_block = FindAnchorBlock(sch->mod());
 
   std::vector<std::string> inline_todos;
-  int last_block_idx = -1;
+  std::optional<int> last_block_idx{std::nullopt};
 
   for (auto name : GetBlockNames(sch->mod())) {
     auto block = sch->GetBlock(name);
@@ -80,10 +81,11 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
     }
   }
 
-  ICHECK(last_block_idx != -1);
-  // The last block can only be reverse compute inlined. We make sure to inline all
-  // producer blocks of the last block beforehand so that reverse compute inline can succeed.
-  std::swap(inline_todos[last_block_idx], inline_todos.back());
+  if (last_block_idx) {
+    // The last block can only be reverse compute inlined. We make sure to inline all
+    // producer blocks of the last block beforehand so that reverse compute inline can succeed.
+    std::swap(inline_todos[*last_block_idx], inline_todos.back());
+  }
 
   auto inline_rule = GetDefaultAutoInline(target->kind->name);
 

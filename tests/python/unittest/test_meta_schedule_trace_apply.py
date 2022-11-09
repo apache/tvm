@@ -1529,6 +1529,290 @@ class Conv2dWinogradAddResidualRelu_scheduled:
                     T_relu[n, h, w, co] = T.max(inverse[h % 4, w % 4, n * 196 + h // 4 * 14 + w // 4, co] + p2[n, 0, 0, co] + p3[n, h, w, co], T.float32(0))
 
 
+@tvm.script.ir_module
+class Conv2dInt8_with_predicate:
+    @T.prim_func
+    def main(p0: T.Buffer[(16, 56, 56, 64), "int8"], p1: T.Buffer[(256, 1, 1, 64), "int8"], p2: T.Buffer[(1, 1, 1, 256), "int32"], p3: T.Buffer[(1, 1, 1, 256), "int32"], p4: T.Buffer[256, "int32"], p5: T.Buffer[256, "int32"], p6: T.Buffer[256, "int32"], p7: T.Buffer[(), "int32"], p8: T.Buffer[1, "int32"], compute: T.Buffer[(16, 56, 56, 256), "int32"]) -> None:
+        # function attr dict
+        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        # body
+        # with T.block("root")
+        pad_temp = T.alloc_buffer([16, 56, 56, 64], dtype="int8")
+        conv2d_nhwc = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        T_subtract = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        T_add = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        compute_1 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        T_add_1 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        compute_2 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        T_subtract_1 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        for i0, i1, i2, i3 in T.grid(16, 56, 56, 64):
+            with T.block("pad_temp"):
+                i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(p0[i0_1, i1_1, i2_1, i3_1])
+                T.writes(pad_temp[i0_1, i1_1, i2_1, i3_1])
+                pad_temp[i0_1, i1_1, i2_1, i3_1] = p0[i0_1, i1_1, i2_1, i3_1]
+        for i0, i1, i2, i3, i4, i5, i6 in T.grid(16, 56, 56, 256, 1, 1, 64):
+            with T.block("conv2d_nhwc"):
+                nn, yy, xx, ff, ry, rx, rc = T.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
+                T.reads(pad_temp[nn, yy + ry, xx + rx, rc], p1[ff, ry, rx, rc])
+                T.writes(conv2d_nhwc[nn, yy, xx, ff])
+                with T.init():
+                    conv2d_nhwc[nn, yy, xx, ff] = 0
+                conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], "int32") * T.cast(p1[ff, ry, rx, rc], "int32")
+        for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
+            with T.block("T_subtract"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(conv2d_nhwc[ax0, ax1, ax2, ax3], p2[0, 0, 0, ax3])
+                T.writes(T_subtract[ax0, ax1, ax2, ax3])
+                T_subtract[ax0, ax1, ax2, ax3] = conv2d_nhwc[ax0, ax1, ax2, ax3] - p2[0, 0, 0, ax3]
+        for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
+            with T.block("T_add"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(T_subtract[ax0, ax1, ax2, ax3], p3[0, 0, 0, ax3])
+                T.writes(T_add[ax0, ax1, ax2, ax3])
+                T_add[ax0, ax1, ax2, ax3] = T_subtract[ax0, ax1, ax2, ax3] + p3[0, 0, 0, ax3]
+        for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
+            with T.block("compute"):
+                i0_2, i1_2, i2_2, i3_2 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2])
+                T.writes(compute_1[i0_2, i1_2, i2_2, i3_2])
+                compute_1[i0_2, i1_2, i2_2, i3_2] = T.q_multiply_shift_per_axis(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2], 31, False, True, dtype="int32")
+        for i0_3, i1_3, i2_3, i3_3 in T.grid(16, 56, 56, 256):
+            with T.block("T_add_1"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
+                T.reads(p7[()], compute_1[ax0, ax1, ax2, ax3])
+                T.writes(T_add_1[ax0, ax1, ax2, ax3])
+                T_add_1[ax0, ax1, ax2, ax3] = p7[()] + compute_1[ax0, ax1, ax2, ax3]
+        for i0_4, i1_4, i2_4, i3_4 in T.grid(16, 56, 56, 256):
+            with T.block("compute_1"):
+                i0_5, i1_5, i2_5, i3_5 = T.axis.remap("SSSS", [i0_4, i1_4, i2_4, i3_4])
+                T.reads(T_add_1[i0_5, i1_5, i2_5, i3_5])
+                T.writes(compute_2[i0_5, i1_5, i2_5, i3_5])
+                compute_2[i0_5, i1_5, i2_5, i3_5] = T.max(T.min(T_add_1[i0_5, i1_5, i2_5, i3_5], 255), 0)
+        for i0_6, i1_6, i2_6, i3_6 in T.grid(16, 56, 56, 256):
+            with T.block("T_subtract_1"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_6, i1_6, i2_6, i3_6])
+                T.reads(compute_2[ax0, ax1, ax2, ax3], p8[0])
+                T.writes(T_subtract_1[ax0, ax1, ax2, ax3])
+                T_subtract_1[ax0, ax1, ax2, ax3] = compute_2[ax0, ax1, ax2, ax3] - p8[0]
+        for i0_7, i1_7, i2_7, i3_7 in T.grid(16, 56, 56, 256):
+            with T.block("compute_2"):
+                i0_8, i1_8, i2_8, i3_8 = T.axis.remap("SSSS", [i0_7, i1_7, i2_7, i3_7])
+                T.reads(T_subtract_1[i0_8, i1_8, i2_8, i3_8])
+                T.writes(compute[i0_8, i1_8, i2_8, i3_8])
+                compute[i0_8, i1_8, i2_8, i3_8] = T.q_multiply_shift(T_subtract_1[i0_8, i1_8, i2_8, i3_8], 1963325822, 31, 1, dtype="int32")
+
+
+@tvm.script.ir_module
+class Conv2dInt8_with_predicate_target:
+    @T.prim_func
+    def main(p0: T.Buffer[(16, 56, 56, 64), "int8"], p1: T.Buffer[(256, 1, 1, 64), "int8"], p2: T.Buffer[(1, 1, 1, 256), "int32"], p3: T.Buffer[(1, 1, 1, 256), "int32"], p4: T.Buffer[256, "int32"], p5: T.Buffer[256, "int32"], p6: T.Buffer[256, "int32"], p7: T.Buffer[(), "int32"], p8: T.Buffer[1, "int32"], p9: T.Buffer[(16, 56, 56, 256), "int32"], compute: T.Buffer[(16, 56, 56, 256), "int32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        # with T.block("root")
+        pad_temp = T.alloc_buffer([16, 56, 56, 64], dtype="int8")
+        conv2d_nhwc = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        T_subtract = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        T_add = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        compute_1 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        T_add_1 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        compute_2 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        T_subtract_1 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        compute_3 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        compute_4 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        T_add_2 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
+        for i0, i1, i2, i3 in T.grid(16, 56, 56, 64):
+            with T.block("pad_temp"):
+                i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(p0[i0_1, i1_1, i2_1, i3_1])
+                T.writes(pad_temp[i0_1, i1_1, i2_1, i3_1])
+                pad_temp[i0_1, i1_1, i2_1, i3_1] = p0[i0_1, i1_1, i2_1, i3_1]
+        for i0, i1, i2, i3, i4, i5, i6 in T.grid(16, 56, 56, 256, 1, 1, 64):
+            with T.block("conv2d_nhwc"):
+                nn, yy, xx, ff, ry, rx, rc = T.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
+                T.reads(pad_temp[nn, yy + ry, xx + rx, rc], p1[ff, ry, rx, rc])
+                T.writes(conv2d_nhwc[nn, yy, xx, ff])
+                with T.init():
+                    conv2d_nhwc[nn, yy, xx, ff] = 0
+                conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], "int32") * T.cast(p1[ff, ry, rx, rc], "int32")
+        for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
+            with T.block("T_subtract"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(conv2d_nhwc[ax0, ax1, ax2, ax3], p2[0, 0, 0, ax3])
+                T.writes(T_subtract[ax0, ax1, ax2, ax3])
+                T_subtract[ax0, ax1, ax2, ax3] = conv2d_nhwc[ax0, ax1, ax2, ax3] - p2[0, 0, 0, ax3]
+        for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
+            with T.block("T_add"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(T_subtract[ax0, ax1, ax2, ax3], p3[0, 0, 0, ax3])
+                T.writes(T_add[ax0, ax1, ax2, ax3])
+                T_add[ax0, ax1, ax2, ax3] = T_subtract[ax0, ax1, ax2, ax3] + p3[0, 0, 0, ax3]
+        for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
+            with T.block("compute"):
+                i0_2, i1_2, i2_2, i3_2 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2])
+                T.writes(compute_1[i0_2, i1_2, i2_2, i3_2])
+                compute_1[i0_2, i1_2, i2_2, i3_2] = T.q_multiply_shift_per_axis(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2], 31, False, True, dtype="int32")
+        for i0_3, i1_3, i2_3, i3_3 in T.grid(16, 56, 56, 256):
+            with T.block("T_add_1"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
+                T.reads(p7[()], compute_1[ax0, ax1, ax2, ax3])
+                T.writes(T_add_1[ax0, ax1, ax2, ax3])
+                T_add_1[ax0, ax1, ax2, ax3] = p7[()] + compute_1[ax0, ax1, ax2, ax3]
+        for i0_4, i1_4, i2_4, i3_4 in T.grid(16, 56, 56, 256):
+            with T.block("compute_1"):
+                i0_5, i1_5, i2_5, i3_5 = T.axis.remap("SSSS", [i0_4, i1_4, i2_4, i3_4])
+                T.reads(T_add_1[i0_5, i1_5, i2_5, i3_5])
+                T.writes(compute_2[i0_5, i1_5, i2_5, i3_5])
+                compute_2[i0_5, i1_5, i2_5, i3_5] = T.max(T.min(T_add_1[i0_5, i1_5, i2_5, i3_5], 255), 0)
+        for i0_6, i1_6, i2_6, i3_6 in T.grid(16, 56, 56, 256):
+            with T.block("T_subtract_1"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_6, i1_6, i2_6, i3_6])
+                T.reads(compute_2[ax0, ax1, ax2, ax3], p8[0])
+                T.writes(T_subtract_1[ax0, ax1, ax2, ax3])
+                T_subtract_1[ax0, ax1, ax2, ax3] = compute_2[ax0, ax1, ax2, ax3] - p8[0]
+        for i0_7, i1_7, i2_7, i3_7 in T.grid(16, 56, 56, 256):
+            with T.block("compute_2"):
+                i0_8, i1_8, i2_8, i3_8 = T.axis.remap("SSSS", [i0_7, i1_7, i2_7, i3_7])
+                T.reads(T_subtract_1[i0_8, i1_8, i2_8, i3_8])
+                T.writes(compute_3[i0_8, i1_8, i2_8, i3_8])
+                compute_3[i0_8, i1_8, i2_8, i3_8] = T.q_multiply_shift(T_subtract_1[i0_8, i1_8, i2_8, i3_8], 1457846997, 31, 0, dtype="int32")
+        for i0_9, i1_9, i2_9, i3_9 in T.grid(16, 56, 56, 256):
+            with T.block("compute_3"):
+                i0_10, i1_10, i2_10, i3_10 = T.axis.remap("SSSS", [i0_9, i1_9, i2_9, i3_9])
+                T.reads(p9[i0_10, i1_10, i2_10, i3_10])
+                T.writes(compute_4[i0_10, i1_10, i2_10, i3_10])
+                compute_4[i0_10, i1_10, i2_10, i3_10] = T.q_multiply_shift(p9[i0_10, i1_10, i2_10, i3_10], 2101000910, 31, 0, dtype="int32")
+        for i0_11, i1_11, i2_11, i3_11 in T.grid(16, 56, 56, 256):
+            with T.block("T_add_2"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_11, i1_11, i2_11, i3_11])
+                T.reads(compute_3[ax0, ax1, ax2, ax3], compute_4[ax0, ax1, ax2, ax3])
+                T.writes(T_add_2[ax0, ax1, ax2, ax3])
+                T_add_2[ax0, ax1, ax2, ax3] = compute_3[ax0, ax1, ax2, ax3] + compute_4[ax0, ax1, ax2, ax3]
+        for i0_12, i1_12, i2_12, i3_12 in T.grid(16, 56, 56, 256):
+            with T.block("compute_4"):
+                i0_13, i1_13, i2_13, i3_13 = T.axis.remap("SSSS", [i0_12, i1_12, i2_12, i3_12])
+                T.reads(T_add_2[i0_13, i1_13, i2_13, i3_13])
+                T.writes(compute[i0_13, i1_13, i2_13, i3_13])
+                compute[i0_13, i1_13, i2_13, i3_13] = T.max(T.min(T_add_2[i0_13, i1_13, i2_13, i3_13], 255), 0)
+
+
+@tvm.script.ir_module
+class Conv2dInt8_with_predicate_scheduled:
+    @T.prim_func
+    def main(p0: T.Buffer[(16, 56, 56, 64), "int8"], p1: T.Buffer[(256, 1, 1, 64), "int8"], p2: T.Buffer[(1, 1, 1, 256), "int32"], p3: T.Buffer[(1, 1, 1, 256), "int32"], p4: T.Buffer[256, "int32"], p5: T.Buffer[256, "int32"], p6: T.Buffer[256, "int32"], p7: T.Buffer[(), "int32"], p8: T.Buffer[1, "int32"], p9: T.Buffer[(16, 56, 56, 256), "int32"], compute: T.Buffer[(16, 56, 56, 256), "int32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.unroll_explicit":1024})
+            conv2d_nhwc_reindex_shared = T.alloc_buffer([50176, 256], dtype="int32", scope="shared")
+            conv2d_nhwc_reindex_shared_wmma_accumulator = T.alloc_buffer([50176, 256], dtype="int32", scope="wmma.accumulator")
+            pad_temp_reindex_shared = T.alloc_buffer([50176, 64], dtype="int8", scope="shared")
+            p1_reindex_shared = T.alloc_buffer([1, 1, 256, 64], dtype="int8", scope="shared")
+            pad_temp_reindex_shared_wmma_matrix_a = T.alloc_buffer([50176, 64], dtype="int8", scope="wmma.matrix_a")
+            p1_reindex_shared_wmma_matrix_b = T.alloc_buffer([1, 1, 256, 64], dtype="int8", scope="wmma.matrix_b")
+            for ax2_0_0_ax3_0_0_fused in T.thread_binding(32, thread="blockIdx.y"):
+                for ax2_0_1_ax3_0_1_fused in T.thread_binding(196, thread="blockIdx.x"):
+                    for ax2_0_2_ax3_0_2_fused in T.thread_binding(4, thread="threadIdx.y"):
+                        for ax0_0, ax1_0, ax4_0_0 in T.grid(1, 1, 2):
+                            for ax0_ax1_fused in T.serial(1024):
+                                with T.block("pad_temp_reindex_shared"):
+                                    v0 = T.axis.spatial(50176, ax2_0_0_ax3_0_0_fused // 4 * 6272 + ax2_0_1_ax3_0_1_fused * 32 + ax0_ax1_fused // 32)
+                                    v1 = T.axis.spatial(64, ax4_0_0 * 32 + ax0_ax1_fused % 32)
+                                    T.reads(p0[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
+                                    T.writes(pad_temp_reindex_shared[v0, v1])
+                                    T.block_attr({"buffer_dim_align":[[0, 0, 32, 16]], "meta_schedule.cooperative_fetch":4})
+                                    pad_temp_reindex_shared[v0, v1] = p0[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1]
+                            for ax0_ax1_ax2_ax3_fused in T.serial(2048):
+                                with T.block("p1_reindex_shared"):
+                                    v0 = T.axis.spatial(1, 0)
+                                    v1 = T.axis.spatial(1, 0)
+                                    v2 = T.axis.spatial(256, ax2_0_0_ax3_0_0_fused % 4 * 64 + ax0_ax1_ax2_ax3_fused // 32)
+                                    v3 = T.axis.spatial(64, ax4_0_0 * 32 + ax0_ax1_ax2_ax3_fused % 32)
+                                    T.reads(p1[v2, v0, v1, v3])
+                                    T.writes(p1_reindex_shared[v0, v1, v2, v3])
+                                    T.block_attr({"buffer_dim_align":[[0, 2, 32, 16]], "meta_schedule.cooperative_fetch":3})
+                                    p1_reindex_shared[v0, v1, v2, v3] = p1[v2, v0, v1, v3]
+                            for ax0_1, ax1_1, ax4_0_1 in T.grid(1, 1, 2):
+                                for ax0_0_1, ax1_0_1 in T.grid(1, 1):
+                                    with T.block("pad_temp_reindex_shared_wmma.matrix_a_o"):
+                                        v0_o = T.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 4 * 392 + ax2_0_1_ax3_0_1_fused * 2 + ax2_0_2_ax3_0_2_fused // 2)
+                                        v1_o = T.axis.spatial(4, ax4_0_0 * 2 + ax4_0_1)
+                                        T.reads(pad_temp_reindex_shared[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                                        T.writes(pad_temp_reindex_shared_wmma_matrix_a[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                                        T.block_attr({"meta_schedule.auto_tensorize":"wmma_load_16x16x16_s8_a"})
+                                        for ax0_1_1, ax1_1_1 in T.grid(16, 16):
+                                            with T.block("pad_temp_reindex_shared_wmma.matrix_a"):
+                                                v0_i, v1_i = T.axis.remap("SS", [ax0_1_1, ax1_1_1])
+                                                T.reads(pad_temp_reindex_shared[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
+                                                T.writes(pad_temp_reindex_shared_wmma_matrix_a[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
+                                                pad_temp_reindex_shared_wmma_matrix_a[v0_o * 16 + v0_i, v1_o * 16 + v1_i] = pad_temp_reindex_shared[v0_o * 16 + v0_i, v1_o * 16 + v1_i]
+                                for ax0, ax1, ax2_0, ax3_0 in T.grid(1, 1, 2, 1):
+                                    with T.block("p1_reindex_shared_wmma.matrix_b_o"):
+                                        v0 = T.axis.spatial(1, 0)
+                                        v1 = T.axis.spatial(1, 0)
+                                        v2_o = T.axis.spatial(16, ax2_0_0_ax3_0_0_fused % 4 * 4 + ax2_0_2_ax3_0_2_fused % 2 * 2 + ax2_0)
+                                        v3_o = T.axis.spatial(4, ax4_0_0 * 2 + ax4_0_1)
+                                        T.reads(p1_reindex_shared[v0, v1, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
+                                        T.writes(p1_reindex_shared_wmma_matrix_b[v0, v1, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
+                                        T.block_attr({"meta_schedule.auto_tensorize":"wmma_load_16x16x16_s8_b_trans"})
+                                        for ax2_1, ax3_1 in T.grid(16, 16):
+                                            with T.block("p1_reindex_shared_wmma.matrix_b"):
+                                                v2_i, v3_i = T.axis.remap("SS", [ax2_1, ax3_1])
+                                                T.reads(p1_reindex_shared[v0, v1, v2_o * 16 + v2_i, v3_o * 16 + v3_i])
+                                                T.writes(p1_reindex_shared_wmma_matrix_b[v0, v1, v2_o * 16 + v2_i, v3_o * 16 + v3_i])
+                                                p1_reindex_shared_wmma_matrix_b[v0, v1, v2_o * 16 + v2_i, v3_o * 16 + v3_i] = p1_reindex_shared[v0, v1, v2_o * 16 + v2_i, v3_o * 16 + v3_i]
+                                for ax2_0_3, ax3_0_3, ax0_2, ax1_2, ax4_0_2, ax2_0_4, ax3_0_4 in T.grid(1, 1, 1, 1, 1, 1, 2):
+                                    with T.block("conv2d_nhwc_o"):
+                                        v0 = T.axis.reduce(1, 0)
+                                        v1 = T.axis.reduce(1, 0)
+                                        v2_o = T.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 4 * 392 + ax2_0_1_ax3_0_1_fused * 2 + ax2_0_2_ax3_0_2_fused // 2 + ax2_0_3 + ax2_0_4)
+                                        v3_o = T.axis.spatial(16, ax2_0_0_ax3_0_0_fused % 4 * 4 + ax2_0_2_ax3_0_2_fused % 2 * 2 + ax3_0_3 * 2 + ax3_0_4)
+                                        v4_o = T.axis.reduce(4, ax4_0_0 * 2 + ax4_0_1 + ax4_0_2)
+                                        T.reads(pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 : v2_o * 16 + 16, v4_o * 16 : v4_o * 16 + 16], p1_reindex_shared_wmma_matrix_b[v0, v1, v3_o * 16 : v3_o * 16 + 16, v4_o * 16 : v4_o * 16 + 16])
+                                        T.writes(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
+                                        T.block_attr({"meta_schedule.auto_tensorize":"wmma_sync_16x16x16_s8s8s32_trans", "meta_schedule.auto_tensorize_init":"wmma_fill_16x16x16_s32", "meta_schedule.thread_extent_high_inclusive":1024, "meta_schedule.thread_extent_low_inclusive":32, "warp_execution":1})
+                                        with T.init():
+                                            for ax2_1, ax3_1 in T.grid(16, 16):
+                                                with T.block("conv2d_nhwc_init"):
+                                                    v2_i_init, v3_i_init = T.axis.remap("SS", [ax2_1, ax3_1])
+                                                    T.reads()
+                                                    T.writes(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i_init, v3_o * 16 + v3_i_init])
+                                                    conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i_init, v3_o * 16 + v3_i_init] = 0
+                                        for ax2_1, ax3_1, ax4_1 in T.grid(16, 16, 16):
+                                            with T.block("conv2d_nhwc"):
+                                                v2_i, v3_i, v4_i = T.axis.remap("SSR", [ax2_1, ax3_1, ax4_1])
+                                                T.reads(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i], pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i], p1_reindex_shared_wmma_matrix_b[v0, v1, v3_o * 16 + v3_i, v4_o * 16 + v4_i])
+                                                T.writes(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i])
+                                                T.block_attr({"meta_schedule.tiling_structure":"SSSRRSRS"})
+                                                conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] = conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] + T.cast(pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i], "int32") * T.cast(p1_reindex_shared_wmma_matrix_b[v0, v1, v3_o * 16 + v3_i, v4_o * 16 + v4_i], "int32")
+                        for ax0_0, ax1_0 in T.grid(1, 2):
+                            with T.block("conv2d_nhwc_reindex_shared_wmma.accumulator_o"):
+                                v0_o = T.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 4 * 392 + ax2_0_1_ax3_0_1_fused * 2 + ax2_0_2_ax3_0_2_fused // 2)
+                                v1_o = T.axis.spatial(16, ax2_0_0_ax3_0_0_fused % 4 * 4 + ax2_0_2_ax3_0_2_fused % 2 * 2 + ax1_0)
+                                T.reads(conv2d_nhwc_reindex_shared_wmma_accumulator[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                                T.writes(conv2d_nhwc_reindex_shared[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                                T.block_attr({"meta_schedule.auto_tensorize":"wmma_store_16x16x16_s32_shared"})
+                                for ax0_1, ax1_1 in T.grid(16, 16):
+                                    with T.block("conv2d_nhwc_reindex_shared_wmma.accumulator"):
+                                        v0_i, v1_i = T.axis.remap("SS", [ax0_1, ax1_1])
+                                        T.reads(conv2d_nhwc_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
+                                        T.writes(conv2d_nhwc_reindex_shared[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
+                                        conv2d_nhwc_reindex_shared[v0_o * 16 + v0_i, v1_o * 16 + v1_i] = conv2d_nhwc_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i]
+                    for ax0, ax1_0, ax1_1, ax1_2, ax1_3 in T.grid(32, 1, 4, 32, 2):
+                        with T.block("conv2d_nhwc_reindex_shared"):
+                            T.where(((ax1_0 * 4 + ax1_1) * 32 + ax1_2) * 2 + ax1_3 < 64)
+                            v0 = T.axis.spatial(50176, ax2_0_0_ax3_0_0_fused // 4 * 6272 + ax2_0_1_ax3_0_1_fused * 32 + ax0)
+                            v1 = T.axis.spatial(256, ax2_0_0_ax3_0_0_fused % 4 * 64 + (ax1_0 * 256 + ax1_1 * 64 + ax1_2 * 2 + ax1_3))
+                            T.reads(p7[()], conv2d_nhwc_reindex_shared[v0, v1], p2[0, 0, 0, v1], p3[0, 0, 0, v1], p4[v1], p5[v1], p6[v1], p8[0], p9[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
+                            T.writes(compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
+                            compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1] = T.max(T.min(T.q_multiply_shift(T.max(T.min(p7[()] + T.q_multiply_shift_per_axis(conv2d_nhwc_reindex_shared[v0, v1] - p2[0, 0, 0, v1] + p3[0, 0, 0, v1], p4[v1], p5[v1], p6[v1], 31, False, True, dtype="int32"), 255), 0) - p8[0], 1457846997, 31, 0, dtype="int32") + T.q_multiply_shift(p9[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1], 2101000910, 31, 0, dtype="int32"), 255), 0)
+
+
 # fmt: on
 def verify(anchor_mod, anchor_trace_fun, target_mod, target, ref):
     anchor_sch = Schedule(anchor_mod)
@@ -2739,6 +3023,352 @@ def test_winograd_gpu():
         Conv2dWinogradAddResidualRelu,
         "cuda",
         Conv2dWinogradAddResidualRelu_scheduled,
+    )
+
+
+def test_inline_order():
+    # In this test, the order of applying AutoInline is tested.
+    # We need to make sure that the last block in Conv2dInt8_with_predicate_target,
+    # "compute_4", is AutoInline-ed after all other blocks have been processed.
+    #
+    # Otherwise, if the order is "T_add_2" -> "compute_4" -> "compute_3", "compute_4" is neither
+    # inlined (because this is the last block) nor reverse-inlined
+    # (because it has multiple producers). This results in the "compute_4" block being
+    # reverse-inlined at the very end of ScheduleUsingAnchorTrace, where its producer block
+    # "conv2d_nhwc_reindex_shared" has the predicate
+    # T.where(((ax1_0 * 4 + ax1_1) * 32 + ax1_2) * 2 + ax1_3 < 64) due to anchor-block scheduling
+    # (see Conv2dInt8_with_predicate_scheduled). Currently, if we try to reverse-inline a block to
+    # its producer that has a predicate, the predicate disappears after reverse inlining.
+
+    def apply_trace(sch: Schedule) -> None:
+        b0 = sch.get_block(name="pad_temp", func_name="main")
+        b1 = sch.get_block(name="conv2d_nhwc", func_name="main")
+        b2 = sch.get_block(name="T_subtract", func_name="main")
+        b3 = sch.get_block(name="T_add", func_name="main")
+        b4 = sch.get_block(name="compute", func_name="main")
+        b5 = sch.get_block(name="T_add_1", func_name="main")
+        b6 = sch.get_block(name="compute_1", func_name="main")
+        b7 = sch.get_block(name="T_subtract_1", func_name="main")
+        b8 = sch.get_block(name="compute_2", func_name="main")
+        b9 = sch.get_block(name="root", func_name="main")
+        sch.annotate(block_or_loop=b1, ann_key="meta_schedule.tiling_structure", ann_val="SSSRRSRS")
+        b10 = sch.reindex(block=b1, buffer=("write", 0))
+        b11 = sch.reindex(block=b1, buffer=("read", 0))
+        b12 = sch.reindex(block=b1, buffer=("read", 1))
+        sch.transform_layout(
+            block=b1,
+            buffer=("read", 0),
+            index_map=lambda nn, yy, xx, rc: (
+                (((nn * 3136) + (yy * 56)) + xx),
+                rc,
+            ),
+            pad_value=None,
+        )
+        sch.transform_layout(
+            block=b1,
+            buffer=("read", 1),
+            index_map=lambda ff, ry, rx, rc: (
+                ry,
+                rx,
+                ff,
+                rc,
+            ),
+            pad_value=None,
+        )
+        sch.transform_layout(
+            block=b1,
+            buffer=("write", 0),
+            index_map=lambda nn, yy, xx, ff: (
+                (((nn * 3136) + (yy * 56)) + xx),
+                ff,
+            ),
+            pad_value=None,
+        )
+        sch.transform_block_layout(
+            block=b10,
+            index_map=lambda nn, yy, xx, ff: (
+                (((nn * 3136) + (yy * 56)) + xx),
+                ff,
+            ),
+        )
+        sch.transform_block_layout(
+            block=b11,
+            index_map=lambda nn, yy, xx, rc: (
+                (((nn * 3136) + (yy * 56)) + xx),
+                rc,
+            ),
+        )
+        sch.transform_block_layout(
+            block=b12,
+            index_map=lambda ff, ry, rx, rc: (
+                ry,
+                rx,
+                ff,
+                rc,
+            ),
+        )
+        sch.transform_block_layout(
+            block=b1,
+            index_map=lambda nn, yy, xx, ff, ry, rx, rc: (
+                ry,
+                rx,
+                (((nn * 3136) + (yy * 56)) + xx),
+                ff,
+                rc,
+            ),
+        )
+        l13, l14, l15, l16, l17 = sch.get_loops(block=b1)
+        l18, l19 = sch.split(loop=l17, factors=[None, 16], preserve_unit_iters=True)
+        l20, l21 = sch.split(loop=l16, factors=[None, 16], preserve_unit_iters=True)
+        l22, l23 = sch.split(loop=l15, factors=[None, 16], preserve_unit_iters=True)
+        l24, l25, l26, l27, l28, l29, l30, l31 = sch.get_loops(block=b1)
+        sch.reorder(l28, l30, l23, l21, l19)
+        b32 = sch.blockize(loop=l23)
+        sch.annotate(
+            block_or_loop=b32,
+            ann_key="meta_schedule.auto_tensorize",
+            ann_val="wmma_sync_16x16x16_s8s8s32_trans",
+        )
+        sch.annotate(
+            block_or_loop=b32,
+            ann_key="meta_schedule.auto_tensorize_init",
+            ann_val="wmma_fill_16x16x16_s32",
+        )
+        sch.annotate(block_or_loop=b32, ann_key="warp_execution", ann_val=1)
+        l33, l34, l35, l36, l37 = sch.get_loops(block=b32)
+        v38, v39, v40 = sch.sample_perfect_tile(
+            loop=l33, n=3, max_innermost_factor=4, decision=[1, 1, 1]
+        )
+        l41, l42, l43 = sch.split(loop=l33, factors=[v38, v39, v40], preserve_unit_iters=True)
+        v44, v45, v46 = sch.sample_perfect_tile(
+            loop=l34, n=3, max_innermost_factor=4, decision=[1, 1, 1]
+        )
+        l47, l48, l49 = sch.split(loop=l34, factors=[v44, v45, v46], preserve_unit_iters=True)
+        v50, v51, v52, v53, v54 = sch.sample_perfect_tile(
+            loop=l35, n=5, max_innermost_factor=4, decision=[8, 196, 2, 1, 1]
+        )
+        l55, l56, l57, l58, l59 = sch.split(
+            loop=l35, factors=[v50, v51, v52, v53, v54], preserve_unit_iters=True
+        )
+        v60, v61, v62, v63, v64 = sch.sample_perfect_tile(
+            loop=l36, n=5, max_innermost_factor=4, decision=[4, 1, 2, 1, 2]
+        )
+        l65, l66, l67, l68, l69 = sch.split(
+            loop=l36, factors=[v60, v61, v62, v63, v64], preserve_unit_iters=True
+        )
+        v70, v71, v72 = sch.sample_perfect_tile(
+            loop=l37, n=3, max_innermost_factor=4, decision=[2, 2, 1]
+        )
+        l73, l74, l75 = sch.split(loop=l37, factors=[v70, v71, v72], preserve_unit_iters=True)
+        sch.reorder(
+            l55,
+            l65,
+            l56,
+            l66,
+            l57,
+            l67,
+            l41,
+            l47,
+            l73,
+            l42,
+            l48,
+            l74,
+            l58,
+            l68,
+            l43,
+            l49,
+            l75,
+            l59,
+            l69,
+        )
+        l76 = sch.fuse(l55, l65, preserve_unit_iters=True)
+        sch.bind(loop=l76, thread_axis="blockIdx.y")
+        l77 = sch.fuse(l56, l66, preserve_unit_iters=True)
+        sch.bind(loop=l77, thread_axis="blockIdx.x")
+        l78 = sch.fuse(l57, l67, preserve_unit_iters=True)
+        sch.bind(loop=l78, thread_axis="threadIdx.y")
+        sch.annotate(
+            block_or_loop=b32, ann_key="meta_schedule.thread_extent_low_inclusive", ann_val=32
+        )
+        sch.annotate(
+            block_or_loop=b32, ann_key="meta_schedule.thread_extent_high_inclusive", ann_val=1024
+        )
+        b79 = sch.cache_write(block=b32, write_buffer_index=0, storage_scope="shared")
+        sch.reverse_compute_at(block=b79, loop=l77, preserve_unit_loops=True, index=-1)
+        b80 = sch.cache_write(block=b32, write_buffer_index=0, storage_scope="wmma.accumulator")
+        sch.reverse_compute_at(block=b80, loop=l78, preserve_unit_loops=True, index=-1)
+        v81 = sch.sample_categorical(
+            candidates=[1, 2, 3, 4, 8, 16],
+            probs=[
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+            ],
+            decision=1,
+        )
+        sch.annotate(block_or_loop=b79, ann_key="meta_schedule.cooperative_fetch", ann_val=v81)
+        sch.reverse_compute_inline(block=b10)
+        l82, l83, l84, l85, l86 = sch.get_loops(block=b80)
+        l87, l88 = sch.split(loop=l86, factors=[None, 16], preserve_unit_iters=True)
+        l89, l90 = sch.split(loop=l85, factors=[None, 16], preserve_unit_iters=True)
+        l91, l92, l93, l94, l95, l96, l97 = sch.get_loops(block=b80)
+        sch.reorder(l96, l90, l88)
+        b98 = sch.blockize(loop=l90)
+        sch.annotate(
+            block_or_loop=b98,
+            ann_key="meta_schedule.auto_tensorize",
+            ann_val="wmma_store_16x16x16_s32_shared",
+        )
+        b99 = sch.cache_read(
+            block=b32, read_buffer_index=0, storage_scope="shared", consumer_blocks=[b32]
+        )
+        sch.compute_at(block=b99, loop=l73, preserve_unit_loops=True, index=-1)
+        l100, l101, l102, l103, l104, l105, l106, l107 = sch.get_loops(block=b99)
+        l108 = sch.fuse(l106, l107, preserve_unit_iters=True)
+        v109 = sch.sample_categorical(
+            candidates=[1, 2, 3, 4, 8, 16],
+            probs=[
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+            ],
+            decision=3,
+        )
+        sch.annotate(block_or_loop=b99, ann_key="meta_schedule.cooperative_fetch", ann_val=v109)
+        b110 = sch.cache_read(
+            block=b32, read_buffer_index=1, storage_scope="shared", consumer_blocks=[b32]
+        )
+        sch.compute_at(block=b110, loop=l73, preserve_unit_loops=True, index=-1)
+        l111, l112, l113, l114, l115, l116, l117, l118, l119, l120 = sch.get_loops(block=b110)
+        l121 = sch.fuse(l117, l118, l119, l120, preserve_unit_iters=True)
+        v122 = sch.sample_categorical(
+            candidates=[1, 2, 3, 4, 8, 16],
+            probs=[
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+            ],
+            decision=2,
+        )
+        sch.annotate(block_or_loop=b110, ann_key="meta_schedule.cooperative_fetch", ann_val=v122)
+        b123 = sch.cache_read(block=b32, read_buffer_index=0, storage_scope="wmma.matrix_a")
+        sch.compute_at(block=b123, loop=l74, preserve_unit_loops=True, index=-1)
+        l124, l125, l126, l127, l128, l129, l130, l131, l132, l133, l134 = sch.get_loops(block=b123)
+        l135, l136 = sch.split(loop=l134, factors=[None, 16], preserve_unit_iters=True)
+        l137, l138 = sch.split(loop=l133, factors=[None, 16], preserve_unit_iters=True)
+        (
+            l139,
+            l140,
+            l141,
+            l142,
+            l143,
+            l144,
+            l145,
+            l146,
+            l147,
+            l148,
+            l149,
+            l150,
+            l151,
+        ) = sch.get_loops(block=b123)
+        sch.reorder(l150, l138, l136)
+        b152 = sch.blockize(loop=l138)
+        sch.annotate(
+            block_or_loop=b152,
+            ann_key="meta_schedule.auto_tensorize",
+            ann_val="wmma_load_16x16x16_s8_a",
+        )
+        b153 = sch.cache_read(block=b32, read_buffer_index=1, storage_scope="wmma.matrix_b")
+        sch.compute_at(block=b153, loop=l74, preserve_unit_loops=True, index=-1)
+        (
+            l154,
+            l155,
+            l156,
+            l157,
+            l158,
+            l159,
+            l160,
+            l161,
+            l162,
+            l163,
+            l164,
+            l165,
+            l166,
+        ) = sch.get_loops(block=b153)
+        l167, l168 = sch.split(loop=l166, factors=[None, 16], preserve_unit_iters=True)
+        l169, l170 = sch.split(loop=l165, factors=[None, 16], preserve_unit_iters=True)
+        (
+            l171,
+            l172,
+            l173,
+            l174,
+            l175,
+            l176,
+            l177,
+            l178,
+            l179,
+            l180,
+            l181,
+            l182,
+            l183,
+            l184,
+            l185,
+        ) = sch.get_loops(block=b153)
+        sch.reorder(l184, l170, l168)
+        b186 = sch.blockize(loop=l170)
+        sch.annotate(
+            block_or_loop=b186,
+            ann_key="meta_schedule.auto_tensorize",
+            ann_val="wmma_load_16x16x16_s8_b_trans",
+        )
+        sch.compute_inline(block=b11)
+        sch.compute_inline(block=b12)
+        sch.storage_align(block=b99, buffer_index=0, axis=-2, factor=32, offset=16)
+        sch.storage_align(block=b110, buffer_index=0, axis=-2, factor=32, offset=16)
+        sch.reverse_compute_inline(block=b8)
+        sch.reverse_compute_inline(block=b7)
+        sch.reverse_compute_inline(block=b6)
+        sch.reverse_compute_inline(block=b5)
+        sch.reverse_compute_inline(block=b4)
+        sch.reverse_compute_inline(block=b3)
+        sch.reverse_compute_inline(block=b2)
+        sch.compute_inline(block=b0)
+
+        v187 = sch.sample_categorical(
+            candidates=[0, 16, 64, 512, 1024],
+            probs=[
+                0.20000000000000001,
+                0.20000000000000001,
+                0.20000000000000001,
+                0.20000000000000001,
+                0.20000000000000001,
+            ],
+            decision=4,
+        )
+        sch.annotate(block_or_loop=b9, ann_key="meta_schedule.unroll_explicit", ann_val=v187)
+        sch.enter_postproc()
+        sch.unannotate(block_or_loop=b79, ann_key="meta_schedule.cooperative_fetch")
+        l188, l189, l190, l191 = sch.get_loops(block=b79)
+
+        l192, l193, l194, l195 = sch.split(
+            loop=l191, factors=[None, 4, 32, 2], preserve_unit_iters=True
+        )
+
+    verify(
+        Conv2dInt8_with_predicate,
+        apply_trace,
+        Conv2dInt8_with_predicate_target,
+        "cuda",
+        Conv2dInt8_with_predicate_scheduled,
     )
 
 
