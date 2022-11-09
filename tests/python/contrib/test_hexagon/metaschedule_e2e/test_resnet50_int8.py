@@ -207,7 +207,7 @@ def _schedule_packed_8x8x32_conv2d():
 
     def schedule_fn(sch, conv2d_block: Optional[BlockRV] = None) -> bool:
         if conv2d_block is None:
-            if has_block("conv2d_NCHWc_int8"):
+            if has_block(sch, "conv2d_NCHWc_int8"):
                 conv2d_block = sch.get_block("conv2d_NCHWc_int8")
             else:
                 return False

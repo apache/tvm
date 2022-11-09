@@ -22,7 +22,7 @@ blocks in a schedule. See also PostOrderApply.
 from .add_rfactor import AddRFactor
 from .apply_custom_rule import ApplyCustomRule
 from .auto_bind import AutoBind
-from .auto_inline import AutoInline
+from .auto_inline import AutoInline, InlineConstantScalars
 from .cross_thread_reduction import CrossThreadReduction
 from .multi_level_tiling import (
     MultiLevelTiling,
@@ -34,4 +34,3 @@ from .multi_level_tiling import (
 from .parallel_vectorize_unroll import ParallelizeVectorizeUnroll
 from .random_compute_location import RandomComputeLocation
 from .schedule_rule import PyScheduleRule, ScheduleRule
-from .inline_const_scalars import InlineConstantScalars
