@@ -186,8 +186,8 @@ class TestStrided(BaseCompare):
                 C[i0 * 4 + i1, j] = B_1[i1, j] * 2.0
 
     def expected(input_A: T.Buffer[(16, 16), "float32"], input_C: T.Buffer[(16, 16), "float32"]):
-        A = T.buffer_decl(128, dtype="float32", data=input_A.data)
-        C = T.buffer_decl(128, dtype="float32", data=input_C.data)
+        A = T.buffer_decl(256, dtype="float32", data=input_A.data)
+        C = T.buffer_decl(256, dtype="float32", data=input_C.data)
         for i0 in T.serial(0, 4):
             B_new_data = T.allocate([68], "float32", scope="global")
             B_new = T.buffer_decl([68], "float32", scope="global", data=B_new_data)

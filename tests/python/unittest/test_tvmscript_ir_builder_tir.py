@@ -41,7 +41,6 @@ def test_ir_builder_tir_primfunc_base():
         body=tir.Evaluate(0),
         ret_type=None,
         buffer_map=None,
-        preflattened_buffer_map=None,
         attrs=None,
     )
 

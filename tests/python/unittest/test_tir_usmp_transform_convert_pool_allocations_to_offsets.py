@@ -561,9 +561,6 @@ class TensorIntrinStructurePlanned:
         global_workspace_1_buffer_var = T.match_buffer(
             global_workspace_1_var, [40], dtype="uint8", strides=[1], elem_offset=0, align=16
         )
-        T.preflattened_buffer(
-            global_workspace_1_buffer_var, [40], dtype="uint8", strides=[1], elem_offset=0, align=16
-        )
         dense_let = T.buffer_decl([10], "int32")
         with T.let(dense_let.data, T.address_of(global_workspace_1_buffer_var[0], dtype="handle")):
             T.evaluate(

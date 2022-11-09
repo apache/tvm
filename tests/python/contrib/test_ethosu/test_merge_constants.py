@@ -399,7 +399,7 @@ def test_read_from_the_same_buffer():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def main(input_placeholder: T.Buffer[[1, 16, 16, 32], "int8"], buffer1: T.Buffer[(368,), "uint8"], buffer2: T.Buffer[(96,), "uint8"], input_ethosu_write: T.Buffer[[1, 16, 16, 8], "int8"]) -> None:
+        def main(input_placeholder: T.Buffer[(1, 16, 16, 32), "int8"], buffer1: T.Buffer[(368,), "uint8"], buffer2: T.Buffer[(96,), "uint8"], input_ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
             # buffer definition
