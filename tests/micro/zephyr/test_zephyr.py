@@ -39,7 +39,7 @@ _LOG = logging.getLogger(__name__)
 
 
 def _make_sess_from_op(
-    temp_dir, model, zephyr_board, west_cmd, op_name, sched, arg_bufs, build_config, use_fvp
+    temp_dir, model, zephyr_board, west_cmd, op_name, sched, arg_bufs, build_config, use_fvp, serial=None
 ):
     runtime = Runtime("crt", {"system-lib": True})
     target = tvm.target.target.micro(model)
@@ -47,10 +47,10 @@ def _make_sess_from_op(
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.build(sched, arg_bufs, target=target, runtime=runtime, name=op_name)
 
-    return _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config, use_fvp)
+    return _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config, use_fvp, serial=serial)
 
 
-def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config, use_fvp):
+def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config, use_fvp, serial=None):
     config_main_stack_size = None
     if test_utils.qemu_boards(zephyr_board):
         config_main_stack_size = 1536
@@ -62,6 +62,7 @@ def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config, use_fvp):
         "board": zephyr_board,
         "arm_fvp_path": "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/FVP_Corstone_SSE-300_Ethos-U55",
         "use_fvp": bool(use_fvp),
+        "openocd_serial": serial,
     }
     if config_main_stack_size is not None:
         project_options["config_main_stack_size"] = config_main_stack_size
@@ -77,13 +78,13 @@ def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config, use_fvp):
     return tvm.micro.Session(project.transport())
 
 
-def _make_add_sess(temp_dir, model, zephyr_board, west_cmd, build_config, use_fvp, dtype="int8"):
+def _make_add_sess(temp_dir, model, zephyr_board, west_cmd, build_config, use_fvp, dtype="int8", serial=None):
     A = tvm.te.placeholder((2,), dtype=dtype)
     B = tvm.te.placeholder((1,), dtype=dtype)
     C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
     sched = tvm.te.create_schedule(C.op)
     return _make_sess_from_op(
-        temp_dir, model, zephyr_board, west_cmd, "add", sched, [A, B, C], build_config, use_fvp
+        temp_dir, model, zephyr_board, west_cmd, "add", sched, [A, B, C], build_config, use_fvp, serial=serial
     )
 
 
@@ -91,7 +92,7 @@ def _make_add_sess(temp_dir, model, zephyr_board, west_cmd, build_config, use_fv
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
 @pytest.mark.xfail_on_fvp()
-def test_add_uint(workspace_dir, board, west_cmd, microtvm_debug, use_fvp):
+def test_add_uint(workspace_dir, board, west_cmd, microtvm_debug, use_fvp, serial):
     """Test compiling the on-device runtime."""
 
     model = test_utils.ZEPHYR_BOARDS[board]
@@ -110,7 +111,7 @@ def test_add_uint(workspace_dir, board, west_cmd, microtvm_debug, use_fvp):
         system_lib.get_function("add")(A_data, B_data, C_data)
         assert (C_data.numpy() == np.array([6, 7])).all()
 
-    with _make_add_sess(workspace_dir, model, board, west_cmd, build_config, use_fvp) as sess:
+    with _make_add_sess(workspace_dir, model, board, west_cmd, build_config, use_fvp, serial=serial) as sess:
         test_basic_add(sess)
 
 
