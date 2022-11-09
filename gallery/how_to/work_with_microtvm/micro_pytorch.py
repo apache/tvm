@@ -56,7 +56,7 @@ from tvm.relay.backend import Executor
 # download a cat image and preprocess it to use as the model input.
 #
 
-model = torchvision.models.quantization.mobilenet_v2(pretrained=True, quantize=True)
+model = torchvision.models.quantization.mobilenet_v2(weights="DEFAULT", quantize=True)
 model = model.eval()
 
 input_shape = [1, 3, 224, 224]
@@ -130,7 +130,7 @@ with tvm.transform.PassContext(
 #
 
 template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("crt"))
-project_options = {"verbose": True, "memory_size_bytes": 6 * 1024 * 1024}
+project_options = {"verbose": False, "memory_size_bytes": 6 * 1024 * 1024}
 
 temp_dir = tvm.contrib.utils.tempdir() / "project"
 project = tvm.micro.generate_project(
