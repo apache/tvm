@@ -26,6 +26,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../tir/schedule/analysis.h"
 #include "utils.h"
 
 namespace tvm {
@@ -60,7 +61,8 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
 
   auto anchor_block = FindAnchorBlock(sch->mod());
 
-  auto inline_rule = GetDefaultAutoInline(target->kind->name);
+  std::vector<std::string> inline_todos;
+  int last_block_idx = -1;
 
   for (auto name : GetBlockNames(sch->mod())) {
     auto block = sch->GetBlock(name);
@@ -69,9 +71,23 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
       if (IsAncestor(block, anchor_block_rv, sch)) continue;
     }
     // Spatial blocks which are not referenced in the anchor trace will be inlined here.
-    if (IsSpatial(sch->GetSRef(block)) && !get_block_names.count(name)) {
-      inline_rule->Apply(sch, block);
+    auto block_sref = sch->GetSRef(block);
+    if (IsSpatial(block_sref) && !get_block_names.count(name)) {
+      if (IsOutputBlock(sch->state(), block_sref, GetScopeRoot(sch->state(), block_sref, false))) {
+        last_block_idx = inline_todos.size();
+      }
+      inline_todos.push_back(name);
     }
+  }
+
+  ICHECK(last_block_idx != -1);
+  std::swap(inline_todos[last_block_idx], inline_todos.back());
+
+  auto inline_rule = GetDefaultAutoInline(target->kind->name);
+
+  for (auto name : inline_todos) {
+    LOG(INFO) << "Inlining " << name;
+    inline_rule->Apply(sch, sch->GetBlock(name));
   }
 }
 
