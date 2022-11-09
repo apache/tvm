@@ -584,11 +584,13 @@ bool ReductionIterNotIndexOutputBuffer(const Block& block) {
       return true;
     }
 
-    bool write_is_covered_by_match_buffer = match_buffer_sources.count(store->buffer.get()) && buffer_written.count(match_buffer_sources.find(store->buffer.get())->second);
+    bool write_is_covered_by_match_buffer =
+        match_buffer_sources.count(store->buffer.get()) &&
+        buffer_written.count(match_buffer_sources.find(store->buffer.get())->second);
     ICHECK(buffer_written.count(store->buffer.get()) || write_is_covered_by_match_buffer)
         << "ValueError: The buffer \"" << store->buffer
         << "\" is written in the block but is not in the block's signature nor is it covered by "
-            "a match_buffer";
+           "a match_buffer";
     for (const PrimExpr& index : store->indices) {
       if (f_uses_reduction_block_var(index)) {
         affected = true;

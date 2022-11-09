@@ -571,10 +571,18 @@ def nested_reduction_loop_with_inner_match_buffers(
                             T.writes(out[yi, ii])
                             out[yi, ii] = 0
                 with T.block("C"):
-                    T.reads(out[yi, xr], in0[yi, yi * 4 + xr : yi * 4 + xr + 4], in1[yi, yi * 4 + xr : yi * 4 + xr + 4])
+                    T.reads(
+                        out[yi, xr],
+                        in0[yi, yi * 4 + xr : yi * 4 + xr + 4],
+                        in1[yi, yi * 4 + xr : yi * 4 + xr + 4],
+                    )
                     T.writes(out[yi, xr])
-                    A = T.match_buffer(in0[yi, yi * 4 + xr : yi * 4 + xr + 4], [4], dtype="int8", offset_factor=1)
-                    B = T.match_buffer(in1[yi, yi * 4 + xr : yi * 4 + xr + 4], [4], dtype="int8", offset_factor=1)
+                    A = T.match_buffer(
+                        in0[yi, yi * 4 + xr : yi * 4 + xr + 4], [4], dtype="int8", offset_factor=1
+                    )
+                    B = T.match_buffer(
+                        in1[yi, yi * 4 + xr : yi * 4 + xr + 4], [4], dtype="int8", offset_factor=1
+                    )
                     C = T.match_buffer(out[yi, xr], [1], dtype="int32", offset_factor=1)
                     A_i8x4: T.int8x4 = A[0:4]
                     A_i32: T.int32 = T.reinterpret(A_i8x4, dtype="int32")
@@ -609,13 +617,18 @@ def nested_reduction_loop_with_outer_match_buffers(
                             T.writes(out[yi, ii])
                             out[yi, ii] = 0
                 with T.block("C"):
-                    T.reads(out[yi, xr], in0[yi, yi * 4 + xr : yi * 4 + xr + 4], in1[yi, yi * 4 + xr : yi * 4 + xr + 4])
+                    T.reads(
+                        out[yi, xr],
+                        in0[yi, yi * 4 + xr : yi * 4 + xr + 4],
+                        in1[yi, yi * 4 + xr : yi * 4 + xr + 4],
+                    )
                     T.writes(out[yi, xr])
                     A_i8x4: T.int8x4 = A[yi * 4 + xr : yi * 4 + xr + 4]
                     A_i32: T.int32 = T.reinterpret(A_i8x4, dtype="int32")
                     B_i8x4: T.int8x4 = B[yi * 4 + xr : yi * 4 + xr + 4]
                     B_i32: T.int32 = T.reinterpret(B_i8x4, dtype="int32")
                     C[xr] = A_i32 + B_i32 + C[xr]
+
 
 @T.prim_func
 def reducer_max(a: T.handle, b: T.handle) -> None:
@@ -1321,6 +1334,7 @@ def test_nested_reduction_loop_with_inner_match_buffers():
         nested_reduction_loop_with_inner_match_buffers,
         nested_reduction_loop_with_inner_match_buffers,
     )
+
 
 def test_nested_reduction_loop_with_outer_match_buffers():
     _check(
