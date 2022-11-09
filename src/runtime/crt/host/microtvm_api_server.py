@@ -37,6 +37,7 @@ MODEL_LIBRARY_FORMAT_RELPATH = "model.tar"
 
 IS_TEMPLATE = not os.path.exists(os.path.join(PROJECT_DIR, MODEL_LIBRARY_FORMAT_RELPATH))
 
+# Used this size to pass most CRT tests in TVM.
 MEMORY_SIZE_BYTES = 2 * 1024 * 1024
 
 MAKEFILE_FILENAME = "Makefile"
@@ -62,6 +63,7 @@ class Handler(server.ProjectAPIHandler):
                     "verbose",
                     optional=["build"],
                     type="bool",
+                    default=False,
                     help="Run make with verbose output",
                 ),
                 server.ProjectOption(
