@@ -1182,7 +1182,8 @@ def get_conv2d_vnni_mod(intrin_id):
                                 A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")
                                 B_i8x64: T.int8x64 = B[0, 0:64]
                                 B_i32x16: T.int32x16 = T.reinterpret(B_i8x64, dtype="int32x16")
-                                C[0:16] = C[0:16] + T.call_llvm_pure_intrin(intrin_id, T.uint32(0), T.broadcast(0, 16), T.broadcast(A_i32, 16), B_i32x16, dtype="int32x16")
+                                C_i32x16: T.int32x16 = C[0:16]
+                                C[0:16] = T.call_llvm_pure_intrin(intrin_id, T.uint32(0), C_i32x16, T.broadcast(A_i32, 16), B_i32x16, dtype="int32x16")
                     for ax0, ax1, ax2, ax3 in T.grid(1, 1, 1, 7):
                         for ax4_fused in T.vectorized(16):
                             with T.block("T_cast_8"):
