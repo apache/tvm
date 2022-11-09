@@ -719,8 +719,13 @@ class Handler(server.ProjectAPIHandler):
             recover_args = ["nrfjprog", "--recover"]
             recover_args.extend(_get_nrf_device_args(options))
             check_call(recover_args, cwd=API_SERVER_DIR / "build")
+        
+        flash_extra_args = []
+        openocd_serial = options.get("openocd_serial")
+        if _get_flash_runner() == "openocd" and openocd_serial:
+            flash_extra_args = ["--cmd-pre-init", f'''hla_serial {openocd_serial}''']
 
-        check_call(["ninja", "flash"], cwd=API_SERVER_DIR / "build")
+        check_call(["west", "flash", "-r", _get_flash_runner()] + flash_extra_args, cwd=API_SERVER_DIR / "build")
 
     def open_transport(self, options):
         zephyr_board = _find_board_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME)
