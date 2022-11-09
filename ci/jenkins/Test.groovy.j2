@@ -89,7 +89,6 @@
 ) %}
   {{ m.download_artifacts(tag='hexagon', filenames=tvm_lib, folders=hexagon_api) }}
   add_hexagon_permissions()
-  ci_setup(ci_hexagon)
   {% if shard_index == 1 %}
   cpp_unittest(ci_hexagon)
   {% endif %}
