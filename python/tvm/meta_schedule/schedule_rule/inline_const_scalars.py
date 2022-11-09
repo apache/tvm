@@ -23,7 +23,11 @@ from .schedule_rule import ScheduleRule
 
 @register_object("meta_schedule.InlineConstantScalars")
 class InlineConstantScalars(ScheduleRule):
-    """
+    """Inline blocks that produce a constant scalar.
+
+    Such blocks get in the way of ReverseComputeInline during AutoInline, since they are also
+    counted as a producer block unless they are inlined first. So it is recommended to run
+    InlineConstantScalars before AutoInline.
     """
 
     def __init__(

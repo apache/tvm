@@ -21,7 +21,7 @@
 namespace tvm {
 namespace meta_schedule {
 
-/*! \brief The rule that inlines spatial blocks if it satisfies some conditions. */
+/*! \brief Inline blocks that produce a constant scalar. */
 class InlineConstantScalarsNode : public ScheduleRuleNode {
  public:
   void InitializeWithTuneContext(const TuneContext& context) final {}

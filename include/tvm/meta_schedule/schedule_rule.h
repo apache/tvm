@@ -127,7 +127,10 @@ class ScheduleRule : public runtime::ObjectRef {
                                          Optional<Array<String>> disallow_op);
 
   /*!
-   * \brief TODO
+   * \brief Inline blocks that produce a constant scalar. Such blocks get in the way of
+   * ReverseComputeInline during AutoInline, since they are also counted as a producer block
+   * unless they are inlined first. So it is recommended to run InlineConstantScalars before
+   * AutoInline.
    * \return The schedule rule created
    */
   TVM_DLL static ScheduleRule InlineConstantScalars();
