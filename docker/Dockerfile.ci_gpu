@@ -29,6 +29,9 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
 RUN rm -f /etc/apt/sources.list.d/nvidia-ml.list && apt-get clean
 RUN apt-get update --fix-missing
 
+COPY install/ubuntu_setup_tz.sh /install/ubuntu_setup_tz.sh
+RUN bash /install/ubuntu_setup_tz.sh
+
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
