@@ -152,12 +152,12 @@ def test_weight_stream_only(accelerator, reference_mod, reference_const_sizes):
 @tvm.script.ir_module
 class RereadWeightsU55:
     @T.prim_func
-    def main(placeholder: T.Buffer[(1, 16, 16, 32), "int8"], ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
+    def main(input_placeholder: T.Buffer[(1, 16, 16, 32), "int8"], input_ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer1 = T.buffer_decl([384], "uint8")
-        placeholder = T.buffer_decl([8192], "int8", data=placeholder.data)
-        ethosu_write = T.buffer_decl([2048], "int8", data=ethosu_write.data)
+        placeholder = T.buffer_decl([8192], "int8", data=input_placeholder.data)
+        ethosu_write = T.buffer_decl([2048], "int8", data=input_ethosu_write.data)
         # body
         p1_data = T.allocate([384], "uint8", "global", annotations={"disable_lower_builtin":True})
         p1 = T.buffer_decl([384], "uint8", data=p1_data)
@@ -361,7 +361,7 @@ class MixedReadU55:
         buffer9 = T.buffer_decl([592], "uint8")
         buffer10 = T.buffer_decl([160], "uint8")
         buffer11 = T.buffer_decl([2048], "int8")
-        placeholder = T.buffer_decl([2048], "int8", data=placeholder.data)
+        placeholder = T.buffer_decl([8192], "int8", data=input_placeholder.data)
         # body
         p1_data = T.allocate([112], "uint8", "global", annotations={"disable_lower_builtin":True})
         p1 = T.buffer_decl([112], "uint8", data=p1_data)

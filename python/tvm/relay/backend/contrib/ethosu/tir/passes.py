@@ -326,7 +326,7 @@ def EncodeConstants(const_dict):
     """
     new_const_dict = {}
 
-    def collect_encoding_definitions(stmt, old_buffer_to_const):
+    def collect_encoding_definitions(stmt, old_buffer_var_to_const):
         # Map from copy destination to copy source.
         copy_map = {}
         # List of buffer copies that occurred
@@ -361,6 +361,7 @@ def EncodeConstants(const_dict):
                 dtype=str(encoded_constants.dtype),
                 name=old_buffer.name + "_encoded",
                 scope=old_buffer.scope(),
+                data=old_buffer.data,
             )
 
             constant_buffer_replacements.append(
@@ -375,7 +376,7 @@ def EncodeConstants(const_dict):
         def _encode_weights_or_bias(buffer1, buffer2, stmt, encode_func):
             """Encode the weights or align the bias either for one or two cores,
             depending on the variant."""
-            constant = old_buffer_to_const[buffer1]
+            constant = old_buffer_var_to_const[buffer1.data]
 
             # If we have just one core, encode the whole constant
             if buffer2 is None:
@@ -470,7 +471,12 @@ def EncodeConstants(const_dict):
         }
 
     def transform_stmt(
-        stmt, buf_remap, var_remap, pointer_to_buffer, new_buffer_to_const, new_buffer_to_split_idx
+        stmt,
+        buf_remap,
+        var_remap,
+        pointer_to_buffer,
+        new_buffer_var_to_const,
+        new_buffer_to_split_idx,
     ):
         def _visit_rewrite(stmt):
             if isinstance(stmt, tvm.tir.Call):
@@ -484,7 +490,7 @@ def EncodeConstants(const_dict):
                     # encoded buffer, the current should be a length.
                     if (
                         isinstance(prev_arg, tvm.tir.BufferLoad)
-                        and prev_arg.buffer in new_buffer_to_const
+                        and prev_arg.buffer.data in new_buffer_var_to_const
                     ):
                         buffer_size = np.prod(list(prev_arg.buffer.shape))
                         arg = buffer_size
@@ -556,25 +562,25 @@ def EncodeConstants(const_dict):
     def _ftransform(f, mod, ctx):
         # Step 0: Unpack the constant dictionary in terms of the
         # functions buffers.
-        old_buffer_to_const = {}
+        old_buffer_var_to_const = {}
         for i, param in enumerate(f.params):
             if i in const_dict:
-                old_buffer_to_const[f.buffer_map[param]] = const_dict[i]
+                old_buffer_var_to_const[f.buffer_map[param].data] = const_dict[i]
 
         # Step 1: Collect information on the buffers that will be
         # replaced by encodings.
-        buffer_information = collect_encoding_definitions(f.body, old_buffer_to_const)
+        buffer_information = collect_encoding_definitions(f.body, old_buffer_var_to_const)
 
         # Step 2: Generate variable/buffer remaps, based on the
         # collected information.
         buf_remap = {}
-        new_buffer_to_const = {}
+        new_buffer_var_to_const = {}
         new_buffer_to_split_idx = {}
 
         # Any encoded buffers must be replaced
         for info in buffer_information["constant_buffer_replacements"]:
             buf_remap[info["old_buffer"]] = info["new_buffer"]
-            new_buffer_to_const[info["new_buffer"]] = info["encoded_constants"]
+            new_buffer_var_to_const[info["new_buffer"].data] = info["encoded_constants"]
 
             if info["split_idx"]:
                 new_buffer_to_split_idx[info["new_buffer"]] = info["split_idx"]
@@ -596,8 +602,10 @@ def EncodeConstants(const_dict):
                     scope=copy_dest.scope(),
                 )
                 buf_remap[copy_dest] = new_dest
-                if copy_source in new_buffer_to_const:
-                    new_buffer_to_const[new_dest] = new_buffer_to_const[copy_source]
+                if copy_source.data in new_buffer_var_to_const:
+                    new_buffer_var_to_const[new_dest.data] = new_buffer_var_to_const[
+                        copy_source.data
+                    ]
 
                 if copy_source in new_buffer_to_split_idx:
                     new_buffer_to_split_idx[new_dest] = new_buffer_to_split_idx[copy_source]
@@ -614,7 +622,7 @@ def EncodeConstants(const_dict):
             buf_remap,
             var_remap,
             pointer_to_buffer,
-            new_buffer_to_const,
+            new_buffer_var_to_const,
             new_buffer_to_split_idx,
         )
 
@@ -625,10 +633,10 @@ def EncodeConstants(const_dict):
             if buffer in buf_remap:
                 buffer = buf_remap[buffer]
 
-            if buffer in new_buffer_to_const:
-                new_const_dict[i] = new_buffer_to_const[buffer].flatten()
-            elif buffer in old_buffer_to_const:
-                new_const_dict[i] = old_buffer_to_const[buffer].flatten()
+            if buffer.data in new_buffer_var_to_const:
+                new_const_dict[i] = new_buffer_var_to_const[buffer.data].flatten()
+            elif buffer.data in old_buffer_var_to_const:
+                new_const_dict[i] = old_buffer_var_to_const[buffer.data].flatten()
 
             new_buffer_map[param] = buffer
 
