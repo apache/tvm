@@ -38,8 +38,6 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length);
-
 HexagonDeviceAPI* HexagonDeviceAPI::Global() {
   static auto* inst = new HexagonDeviceAPI();
   return inst;
@@ -206,27 +204,24 @@ void HexagonDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void
   memcpy(static_cast<char*>(to) + to_offset, static_cast<const char*>(from) + from_offset, size);
 }
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy_DLTensor")
+TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy_dltensor")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
       DLTensor* dst = args[0];
       DLTensor* src = args[1];
       int size = args[2];
+      ICHECK(size > 0);
+      bool bypass_cache = args[3];
 
-      hexagon_user_dma_1d_sync(dst->data, src->data, size);
+      int ret = DMA_RETRY;
+      do {
+        ret = HexagonDeviceAPI::Global()->UserDMA()->Copy(SYNC_DMA_QUEUE, dst->data, src->data,
+                                                          size, bypass_cache);
+      } while (ret == DMA_RETRY);
+      CHECK(ret == DMA_SUCCESS);
+      HexagonDeviceAPI::Global()->UserDMA()->Wait(SYNC_DMA_QUEUE, 0);
 
       *rv = static_cast<int32_t>(0);
     });
-
-TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
-  void* dst = args[0];
-  void* src = args[1];
-  int size = args[2];
-
-  int error_code = hexagon_user_dma_1d_sync(dst, src, size);
-  CHECK_EQ(error_code, 0);
-
-  *rv = static_cast<int32_t>(0);
-});
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
   int queue_id = args[0];
@@ -234,11 +229,13 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy").set_body([](TVMArgs args, TVM
   void* src = args[2];
   int size = args[3];
   ICHECK(size > 0);
+  bool bypass_cache = args[3];
 
   int ret = DMA_RETRY;
   do {
-    ret = HexagonDeviceAPI::Global()->UserDMA()->Copy(queue_id, dst, src, size);
+    ret = HexagonDeviceAPI::Global()->UserDMA()->Copy(queue_id, dst, src, size, bypass_cache);
   } while (ret == DMA_RETRY);
+  CHECK(ret == DMA_SUCCESS);
   *rv = static_cast<int32_t>(ret);
 });
 

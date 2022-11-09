@@ -70,6 +70,16 @@ class HexagonVtcmPool {
   //! \brief Returns the total number of bytes in this pool
   size_t TotalBytes() { return reinterpret_cast<size_t>(vtcm_size_); }
 
+  bool IsVtcm(void* ptr, unsigned size) {
+    auto char_ptr = static_cast<char*>(ptr);
+    auto char_vtcm = static_cast<char*>(vtcm_data_);
+
+    if (char_ptr >= char_vtcm && (char_ptr + size) <= (char_vtcm + vtcm_size_)) {
+      return true;
+    }
+    return false;
+  }
+
  private:
   //! \brief Total size of VTCM pool
   unsigned int vtcm_size_;

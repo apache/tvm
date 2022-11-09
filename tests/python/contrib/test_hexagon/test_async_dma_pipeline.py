@@ -89,6 +89,7 @@ def evaluate(
     with tvm.transform.PassContext(
         config={
             "tir.use_async_copy": use_async_copy,
+            "tir.dma_bypass_cache": 1,
             "tir.merge_async_commit_queue_scope": merge_async_commit_queue_scope,
         }
     ):
@@ -133,7 +134,7 @@ def get_single_dma_schedule(size_a, size_w):
         c_global_vtcm = T.alloc_buffer(out_shape, dtype="int32", scope="global")
         T.evaluate(
             T.tvm_call_packed(
-                "device_api.hexagon.mem_copy_DLTensor",
+                "device_api.hexagon.dma_copy_dltensor",
                 T.tvm_stack_make_array(
                     a_global_vtcm.data,
                     T.tvm_stack_make_shape(size_a, VRMPY_SIZE_B, dtype="handle"),
@@ -153,12 +154,13 @@ def get_single_dma_schedule(size_a, size_w):
                     dtype="handle",
                 ),
                 T.Cast("int", a_bytes),
+                True,  # bypass cache
                 dtype="int32",
             )
         )
         T.evaluate(
             T.tvm_call_packed(
-                "device_api.hexagon.mem_copy_DLTensor",
+                "device_api.hexagon.dma_copy_dltensor",
                 T.tvm_stack_make_array(
                     w_global_vtcm.data,
                     T.tvm_stack_make_shape(size_w, VRMPY_SIZE_B, dtype="handle"),
@@ -178,6 +180,7 @@ def get_single_dma_schedule(size_a, size_w):
                     dtype="handle",
                 ),
                 T.Cast("int", w_bytes),
+                True,  # bypass cache
                 dtype="int32",
             )
         )
@@ -202,7 +205,7 @@ def get_single_dma_schedule(size_a, size_w):
                 )
         T.evaluate(
             T.tvm_call_packed(
-                "device_api.hexagon.mem_copy_DLTensor",
+                "device_api.hexagon.dma_copy_dltensor",
                 T.tvm_stack_make_array(
                     c_buffer.data,
                     T.tvm_stack_make_shape(size_a, VRMPY_SIZE_B, dtype="handle"),
@@ -222,6 +225,7 @@ def get_single_dma_schedule(size_a, size_w):
                     dtype="handle",
                 ),
                 T.Cast("int", a_bytes),
+                True,  # bypass cache
                 dtype="int32",
             )
         )
@@ -290,7 +294,7 @@ class TestAsyncDMAPipeline:
     size_a = tvm.testing.parameter(
         1024,
         64 * 64,
-        128 * 64,
+        # 128 * 64, # Only works on 8Gen1 HDK's
     )
 
     size_w = tvm.testing.parameter(
