@@ -156,9 +156,12 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       // Similar to the reverse_compute_inline case above.
       auto block = Downcast<BlockRV>(inputs[0]);
       auto block_sref = sch->GetSRef(block);
-      if (!CanComputeInline(sch->state(), block_sref)) {
-        ICHECK(CanReverseComputeInline(sch->state(), block_sref));
-        sch->ReverseComputeInline(block);
+      auto state = sch->state();
+      if (!CanComputeInline(state, block_sref)) {
+        ICHECK(IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false)));
+        if (CanReverseComputeInline(sch->state(), block_sref)) {
+          sch->ReverseComputeInline(block);
+        }
         continue;
       }
     }
