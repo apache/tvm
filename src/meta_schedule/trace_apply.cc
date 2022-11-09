@@ -21,11 +21,14 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
+#include "../tir/schedule/analysis.h"
 #include "utils.h"
 
 namespace tvm {
@@ -60,7 +63,8 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
 
   auto anchor_block = FindAnchorBlock(sch->mod());
 
-  auto inline_rule = GetDefaultAutoInline(target->kind->name);
+  std::vector<std::string> inline_todos;
+  std::optional<int> last_block_idx{std::nullopt};
 
   for (auto name : GetBlockNames(sch->mod())) {
     auto block = sch->GetBlock(name);
@@ -69,9 +73,25 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
       if (IsAncestor(block, anchor_block_rv, sch)) continue;
     }
     // Spatial blocks which are not referenced in the anchor trace will be inlined here.
-    if (IsSpatial(sch->GetSRef(block)) && !get_block_names.count(name)) {
-      inline_rule->Apply(sch, block);
+    auto block_sref = sch->GetSRef(block);
+    if (IsSpatial(block_sref) && !get_block_names.count(name)) {
+      if (IsOutputBlock(sch->state(), block_sref, GetScopeRoot(sch->state(), block_sref, false))) {
+        last_block_idx = inline_todos.size();
+      }
+      inline_todos.push_back(name);
     }
+  }
+
+  if (last_block_idx) {
+    // The last block can only be reverse compute inlined. We make sure to inline all
+    // producer blocks of the last block beforehand so that reverse compute inline can succeed.
+    std::swap(inline_todos[*last_block_idx], inline_todos.back());
+  }
+
+  auto inline_rule = GetDefaultAutoInline(target->kind->name);
+
+  for (auto name : inline_todos) {
+    inline_rule->Apply(sch, sch->GetBlock(name));
   }
 }
 
@@ -140,9 +160,13 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       // Similar to the reverse_compute_inline case above.
       auto block = Downcast<BlockRV>(inputs[0]);
       auto block_sref = sch->GetSRef(block);
-      if (!CanComputeInline(sch->state(), block_sref)) {
-        ICHECK(CanReverseComputeInline(sch->state(), block_sref));
-        sch->ReverseComputeInline(block);
+      auto state = sch->state();
+      if (!CanComputeInline(state, block_sref)) {
+        ICHECK(IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false)))
+            << "If a spatial block cannot be inlined, it should be the output block";
+        if (CanReverseComputeInline(sch->state(), block_sref)) {
+          sch->ReverseComputeInline(block);
+        }
         continue;
       }
     }
