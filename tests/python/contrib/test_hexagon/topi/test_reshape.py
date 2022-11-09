@@ -21,8 +21,9 @@ import tvm
 import tvm.testing
 import tvm.topi.hexagon.slice_ops as sl
 from tvm import te
+from tvm.contrib.hexagon import allocate_hexagon_array
 
-from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
+from ..infrastructure import transform_numpy, get_hexagon_target
 
 BATCH_FLATTEN_FP16_TESTS = (
     ([1, 1, 1, 2048], [1, 2048], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
