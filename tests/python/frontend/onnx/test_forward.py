@@ -6162,19 +6162,19 @@ def test_qlinearmatmul(target, dev):
         x_dtype="uint8",
         w_dtype="uint8",
     ):
-        def get_randint_numpy_scalar(dtype = "uint8"):
-            if (dtype == "uint8"):
+        def get_randint_numpy_scalar(dtype="uint8"):
+            if dtype == "uint8":
                 return np.random.randint(0, 255)
-            else:   # "int8"
+            else:  # "int8"
                 return np.random.randint(-128, 127)
 
-        if (x_dtype == "uint8"):
+        if x_dtype == "uint8":
             x_array = np.random.randint(low=0, high=255, size=x_shape).astype("uint8")
-        else:   # "int8"
+        else:  # "int8"
             x_array = np.random.randint(low=-128, high=127, size=x_shape).astype("int8")
-        if (w_dtype == "uint8"):
+        if w_dtype == "uint8":
             w_array = np.random.uniform(low=0, high=255, size=w_shape).astype("uint8")
-        else:   # "int8"
+        else:  # "int8"
             w_array = np.random.uniform(low=-128, high=127, size=w_shape).astype("int8")
 
         x_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(x_dtype)]
@@ -6188,12 +6188,18 @@ def test_qlinearmatmul(target, dev):
         initializer = [
             helper.make_tensor("x_scale", TensorProto.FLOAT, (), [np.random.rand()]),
             # TODO: 0 value for int8?
-            helper.make_tensor("x_zero_point", x_proto_type, (), [get_randint_numpy_scalar(x_dtype)]),
+            helper.make_tensor(
+                "x_zero_point", x_proto_type, (), [get_randint_numpy_scalar(x_dtype)]
+            ),
             helper.make_tensor("w_scale", TensorProto.FLOAT, (), [np.random.rand()]),
             # TODO: 0 value for int8?
-            helper.make_tensor("w_zero_point", w_proto_type, (), [get_randint_numpy_scalar(w_dtype)]),
+            helper.make_tensor(
+                "w_zero_point", w_proto_type, (), [get_randint_numpy_scalar(w_dtype)]
+            ),
             helper.make_tensor("y_scale", TensorProto.FLOAT, (), [np.random.rand()]),
-            helper.make_tensor("y_zero_point", y_proto_type, (), [get_randint_numpy_scalar(y_dtype)]),
+            helper.make_tensor(
+                "y_zero_point", y_proto_type, (), [get_randint_numpy_scalar(y_dtype)]
+            ),
         ]
 
         input_nodes = [
