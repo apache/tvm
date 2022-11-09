@@ -6239,20 +6239,28 @@ def test_qlinearmatmul(target, dev):
     # Default matmul both ranks = 2 (x_dtype = "int8", w_dtype = "int8")
     verify_qlinearmatmul((2, 3), (3, 2), (2, 2), "int8", "int8")
 
+    # TODO(vvchernov): problems on ONNX Runtime side and type check (onnx.py:L4763) on TVM side
     # Default matmul both ranks = 2 (x_dtype = "uint8", w_dtype = "int8")
-    #verify_qlinearmatmul((2, 3), (3, 2), (2, 2), "uint8", "int8")
+    # verify_qlinearmatmul((2, 3), (3, 2), (2, 2), "uint8", "int8")
 
+    # TODO(vvchernov): problems on ONNX Runtime side and type check (onnx.py:L4763) on TVM side
     # Default matmul both ranks = 2 (x_dtype = "int8", w_dtype = "uint8")
-    #verify_qlinearmatmul((2, 3), (3, 2), (2, 2), "int8", "uint8")
+    # verify_qlinearmatmul((2, 3), (3, 2), (2, 2), "int8", "uint8")
+
+    # Reduced matmul: x_ranks = 1, w_rank = 2 (x_dtype = "uint8", w_dtype = "uint8")
+    verify_qlinearmatmul((3,), (3, 2), (2,))
+
+    # Special case matmul: x_ranks = 3, w_rank = 2 (x_dtype = "uint8", w_dtype = "uint8")
+    verify_qlinearmatmul((2, 3, 4), (4, 3), (2, 3, 3))
 
     # GPT2-style matmul both ranks = 4 (x_dtype = "uint8", w_dtype = "uint8")
     verify_qlinearmatmul((2, 4, 3, 3), (2, 4, 3, 3), (2, 4, 3, 3))
 
-    # Asymetric matmul: x_ranks = 3, w_rank = 2 (x_dtype = "uint8", w_dtype = "uint8")
-    verify_qlinearmatmul((2, 4, 3, 3), (1, 3, 3), (2, 4, 3, 3))
+    # Asymetric matmul: x_ranks = 4, w_rank = 3 (x_dtype = "uint8", w_dtype = "uint8")
+    verify_qlinearmatmul((2, 4, 3, 3), (4, 3, 3), (2, 4, 3, 3))
 
     # Asymetric matmul: x_ranks = 2, w_rank = 3 (x_dtype = "uint8", w_dtype = "uint8")
-    #verify_qlinearmatmul((3, 3), (4, 3, 3), (4, 3, 3))
+    # verify_qlinearmatmul((3, 3), (4, 3, 3), (4, 3, 3))
 
 
 @tvm.testing.parametrize_targets
