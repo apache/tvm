@@ -292,6 +292,18 @@ def compile_model(
 
     config = parse_configs(pass_context_configs)
 
+    tvm_target, extra_targets = target_from_cli(target, additional_target_options)
+    tvm_target, target_host = Target.canon_target_and_host(tvm_target, target_host)
+
+    partition_functions = []
+    partition_opts = []
+    for codegen_from_cli in extra_targets:
+        codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])
+        partition_functions.append(codegen["pass_pipeline"])
+        partition_opts.append(codegen_from_cli["opts"])
+        if codegen["config_key"] is not None:
+            config[codegen["config_key"]] = codegen_from_cli["opts"]
+
     with tvm.transform.PassContext(
         opt_level=opt_level,
         config=config,
@@ -301,16 +313,8 @@ def compile_model(
         if desired_layout:
             mod = convert_graph_layout(mod, desired_layout)
 
-        tvm_target, extra_targets = target_from_cli(target, additional_target_options)
-        tvm_target, target_host = Target.canon_target_and_host(tvm_target, target_host)
-
-        for codegen_from_cli in extra_targets:
-            codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])
-            partition_function = codegen["pass_pipeline"]
-
-            if codegen["config_key"] is not None:
-                config[codegen["config_key"]] = codegen_from_cli["opts"]
-            mod = partition_function(mod, params, mod_name=mod_name, **codegen_from_cli["opts"])
+        for partition_function, opts in zip(partition_functions, partition_opts):
+            mod = partition_function(mod, params, mod_name=mod_name, **opts)
 
         if tuning_records and os.path.exists(tuning_records):
             logger.debug("tuning records file provided: %s", tuning_records)

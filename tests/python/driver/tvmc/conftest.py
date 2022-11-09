@@ -291,7 +291,7 @@ def relay_text_conv2d(tmpdir_factory):
 @pytest.fixture(scope="session")
 def relay_conv2d():
     """
-    Simple conv2d Replay implementation.
+    Simple conv2d Relay implementation.
     """
     dtype = "float32"
 
