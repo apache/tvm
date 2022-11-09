@@ -275,6 +275,7 @@ def main():
                 return
 
     print("Validation passed!")
+    print(f"Total time spent: {float(profiler.get()['Total']): 3.3f} sec.")
 
 
 if __name__ == "__main__":
