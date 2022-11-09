@@ -1755,7 +1755,7 @@ def shard_run_test_Hexagon_1_of_8() {
                       )
 
               add_hexagon_permissions()
-              ci_setup(ci_hexagon)
+              // ci_setup(ci_hexagon)
               cpp_unittest(ci_hexagon)
               sh (
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
@@ -1816,7 +1816,7 @@ def shard_run_test_Hexagon_2_of_8() {
                       )
 
               add_hexagon_permissions()
-              ci_setup(ci_hexagon)
+              // ci_setup(ci_hexagon)
               sh (
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
@@ -1876,7 +1876,7 @@ def shard_run_test_Hexagon_3_of_8() {
                       )
 
               add_hexagon_permissions()
-              ci_setup(ci_hexagon)
+              // ci_setup(ci_hexagon)
               sh (
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
@@ -1936,7 +1936,7 @@ def shard_run_test_Hexagon_4_of_8() {
                       )
 
               add_hexagon_permissions()
-              ci_setup(ci_hexagon)
+              // ci_setup(ci_hexagon)
               sh (
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
@@ -1996,7 +1996,7 @@ def shard_run_test_Hexagon_5_of_8() {
                       )
 
               add_hexagon_permissions()
-              ci_setup(ci_hexagon)
+              // ci_setup(ci_hexagon)
               sh (
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
@@ -2056,7 +2056,7 @@ def shard_run_test_Hexagon_6_of_8() {
                       )
 
               add_hexagon_permissions()
-              ci_setup(ci_hexagon)
+              // ci_setup(ci_hexagon)
               sh (
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
@@ -2116,7 +2116,7 @@ def shard_run_test_Hexagon_7_of_8() {
                       )
 
               add_hexagon_permissions()
-              ci_setup(ci_hexagon)
+              // ci_setup(ci_hexagon)
               sh (
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
@@ -2176,7 +2176,7 @@ def shard_run_test_Hexagon_8_of_8() {
                       )
 
               add_hexagon_permissions()
-              ci_setup(ci_hexagon)
+              // ci_setup(ci_hexagon)
               sh (
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
