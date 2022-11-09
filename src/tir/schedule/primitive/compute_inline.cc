@@ -849,7 +849,6 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
   StmtSRef producer_block_sref =
       NonSingleProducerError::Check(self, consumer_block_sref, scope_root_sref);
   // Step 4. Analyze the block body
-  BlockRealize producer_realize = GetBlockRealize(self, producer_block_sref);
   ReverseComputeInliner inliner(inlined_buffer, producer_block_sref->StmtAs<BlockNode>(),
                                 consumer_block_realize, scope_root_sref, self->mod);
   if (!inliner.BodyPatternAllowInline(consumer_block_realize)) {
