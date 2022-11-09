@@ -106,9 +106,9 @@ runtime = tvm.relay.backend.Runtime("crt", {"system-lib": True})
 # Use the AOT executor rather than graph or vm executors. Don't use unpacked API or C calling style.
 executor = Executor("aot")
 
-###################
+####################
 # Compile the model
-# -----------------
+# ------------------
 #
 # Now, we compile the model for the target:
 #
