@@ -125,6 +125,13 @@ class ScheduleRule : public runtime::ObjectRef {
                                          bool require_injective,      //
                                          bool require_ordered,        //
                                          Optional<Array<String>> disallow_op);
+
+  /*!
+   * \brief TODO
+   * \return The schedule rule created
+   */
+  TVM_DLL static ScheduleRule InlineConstantScalars();
+
   /*!
    * \brief Create a mega rule: multi-level tiling with data reuse
    * \param structure The tiling structure. Recommended:
