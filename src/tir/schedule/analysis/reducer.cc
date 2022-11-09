@@ -563,34 +563,32 @@ bool ReductionIterNotIndexOutputBuffer(const Block& block) {
       return reduction_block_iters.count(var);
     });
   };
+
+  std::unordered_map<const BufferNode*, const BufferNode*> match_buffer_sources;
+  for (const MatchBufferRegion& region : block->match_buffers) {
+    match_buffer_sources[region->buffer.get()] = region->source->buffer.get();
+  }
   bool affected = false;
   PreOrderVisit(block->body, [&](const ObjectRef& obj) {
     if (affected) {
       return false;
     }
+    const auto* block_node = obj.as<BlockNode>();
+    if (block_node) {
+      for (const MatchBufferRegion& region : block_node->match_buffers) {
+        match_buffer_sources[region->buffer.get()] = region->source->buffer.get();
+      }
+    }
     const auto* store = obj.as<BufferStoreNode>();
     if (!store) {
       return true;
     }
-    const auto* body_block = block->body.as<BlockRealizeNode>();
-    if (body_block) {
-      bool write_is_covered_by_match_buffer = false;
-      for (const MatchBufferRegion& match_region : body_block->block->match_buffers) {
-        if (store->buffer.get() == match_region->buffer.get() &&
-            buffer_written.count(match_region->source->buffer.get())) {
-          write_is_covered_by_match_buffer = true;
-          break;
-        }
-      }
-      ICHECK(buffer_written.count(store->buffer.get()) || write_is_covered_by_match_buffer)
-          << "ValueError: The buffer \"" << store->buffer
-          << "\" is written in the block but is not in the block's signature nor is it covered by "
-             "a match_buffer";
-    } else {
-      ICHECK(buffer_written.count(store->buffer.get()))
-          << "ValueError: The buffer \"" << store->buffer
-          << "\" is written in the block but is not in the block's signature";
-    }
+
+    bool write_is_covered_by_match_buffer = match_buffer_sources.count(store->buffer.get()) && buffer_written.count(match_buffer_sources.find(store->buffer.get())->second);
+    ICHECK(buffer_written.count(store->buffer.get()) || write_is_covered_by_match_buffer)
+        << "ValueError: The buffer \"" << store->buffer
+        << "\" is written in the block but is not in the block's signature nor is it covered by "
+            "a match_buffer";
     for (const PrimExpr& index : store->indices) {
       if (f_uses_reduction_block_var(index)) {
         affected = true;
