@@ -32,11 +32,11 @@ device) using:
 
 ```
 $ cd tvm/tests/micro/zephyr
-$ pytest test_zephyr.py --zephyr-board=qemu_x86       # For QEMU emulation
-$ pytest test_zephyr.py --zephyr-board=nrf5340dk_nrf5340_cpuapp  # For nRF5340DK
+$ pytest test_zephyr.py --board=qemu_x86       # For QEMU emulation
+$ pytest test_zephyr.py --board=nrf5340dk_nrf5340_cpuapp  # For nRF5340DK
 ```
 
-To see the list of supported values for `--zephyr-board`, run:
+To see the list of supported values for `--board`, run:
 ```
 $ pytest test_zephyr.py --help
 ```

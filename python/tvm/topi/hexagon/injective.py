@@ -42,8 +42,9 @@ def schedule_injective(outs):
     # Fuse axes and vectorize inner elements
     for x in outs:
         fused = s[x].fuse(*x.op.axis)
-        _, inner = s[x].split(fused, factor=128 // np.dtype(x.dtype).itemsize)
+        outer, inner = s[x].split(fused, factor=128 // np.dtype(x.dtype).itemsize)
         s[x].vectorize(inner)
+        s[x].parallel(outer)
     return s
 
 

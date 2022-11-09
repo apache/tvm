@@ -176,11 +176,20 @@ class MicroTransportChannel : public RPCChannel {
     // confusion.
     unsigned int seed = random_seed.load();
     if (seed == 0) {
+#if defined(_MSC_VER)
       seed = (unsigned int)time(nullptr);
+      srand(seed);
+#else
+      seed = (unsigned int)time(nullptr);
+#endif
     }
     uint8_t initial_nonce = 0;
     for (int i = 0; i < kNumRandRetries && initial_nonce == 0; ++i) {
+#if defined(_MSC_VER)
+      initial_nonce = rand();  // NOLINT(runtime/threadsafe_fn)
+#else
       initial_nonce = rand_r(&seed);
+#endif
     }
     random_seed.store(seed);
     ICHECK_NE(initial_nonce, 0) << "rand() does not seem to be producing random values";

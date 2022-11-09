@@ -326,7 +326,7 @@ def unravel_index(idx, shape):
     return indices
 
 
-def const_matrix(matrix, name="const_matrix"):
+def const_matrix(matrix, name="const_matrix", attrs=None):
     """convert a const numpy 2-dimensional matrix to tvm tensor
 
     Parameters
@@ -356,14 +356,17 @@ def const_matrix(matrix, name="const_matrix"):
                 )
         return now
 
+    if attrs is None:
+        attrs = {
+            "const_matrix": True,
+            "schedule_rule": "None",
+        }
+
     return te.compute(
         matrix.shape,
         select_array,
         name=name,
-        attrs={
-            "const_matrix": True,
-            "schedule_rule": "meta_schedule.compute_inline",
-        },
+        attrs=attrs,
     )
 
 

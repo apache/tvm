@@ -457,6 +457,13 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
  */
 template <typename T>
 void NDArrayToTIR(::tvm::runtime::NDArray arr, std::ostream& os) {
+  if ((arr.DataType().code() == runtime::DataType::kInt ||
+       arr.DataType().code() == runtime::DataType::kUInt) &&
+      arr.DataType().bits() == 8) {
+    // Printing int8 NDArrays causes "UnicodeDecodeError: 'utf-8' codec can't decode byte"
+    // error during MetaSchedule tuning on int8 models.
+    return;
+  }
   int ndim = arr->ndim;
   int tot_dim = 1;
   for (int i = 0; i < ndim; i++) {
@@ -1166,7 +1173,7 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
     }
   } else if (alloc->dtype.is_uint()) {
     if (alloc->dtype.bits() == 8) {
-      // NDArrayToTIR<uint8_t>(data, ss);
+      NDArrayToTIR<uint8_t>(data, ss);
     } else if (alloc->dtype.bits() == 16) {
       NDArrayToTIR<uint16_t>(data, ss);
     } else if (alloc->dtype.bits() == 32) {
@@ -1237,9 +1244,9 @@ Doc TVMScriptPrinter::VisitStmt_(const IfThenElseNode* op) {
   Doc doc;
   doc << "if " << Print(op->condition) << ":";
   doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->then_case));
-  if (!is_one(op->condition) && op->else_case.defined()) {
+  if (!is_one(op->condition) && op->else_case) {
     doc << Doc::NewLine();
-    doc << "else:" << Doc::Indent(4, Doc::NewLine() << PrintBody(op->else_case));
+    doc << "else:" << Doc::Indent(4, Doc::NewLine() << PrintBody(op->else_case.value()));
   }
   return doc;
 }
@@ -1627,7 +1634,14 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     }
     params.push_back(Print(param) << ": " << Print(GetType(param)));
   }
-  doc << PrintSep(params, Doc::Text(", ")) << ") -> " << Print(primFunc->ret_type) << ":";
+  doc << PrintSep(params, Doc::Text(", ")) << ")";
+  if (primFunc->ret_type.defined()) {
+    auto as_tuple = primFunc->ret_type.as<TupleTypeNode>();
+    if (!as_tuple || as_tuple->fields.size()) {
+      doc << " -> " << Print(primFunc->ret_type);
+    }
+  }
+  doc << ":";
 
   Doc body = Doc::NewLine();
   // print buffer_bind

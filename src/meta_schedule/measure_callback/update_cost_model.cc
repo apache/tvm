@@ -28,11 +28,12 @@ class UpdateCostModelNode : public MeasureCallbackNode {
              const Array<BuilderResult>& builder_results,
              const Array<RunnerResult>& runner_results) final {
     auto _ = Profiler::TimedScope("MeasureCallback/UpdateCostModel");
-    TuneContext task = task_scheduler->tasks[task_id];
-    ICHECK(task_scheduler->cost_model.defined())
-        << "Cost model must be defined for the task scheduler!";
+    const TaskRecord& task = task_scheduler->tasks_[task_id];
+    if (!task_scheduler->cost_model_.defined()) {
+      return;
+    }
+    CostModel cost_model = task_scheduler->cost_model_.value();
     ICHECK(task->measure_candidates.defined()) << "Task's measure candidates must be present!";
-    CostModel cost_model = task_scheduler->cost_model.value();
     ICHECK_EQ(measure_candidates.size(), builder_results.size());
     ICHECK_EQ(runner_results.size(), builder_results.size());
     int n = builder_results.size();
@@ -46,7 +47,7 @@ class UpdateCostModelNode : public MeasureCallbackNode {
         pruned_runner_result.push_back(runner_results[i]);
       }
     }
-    cost_model->Update(task, pruned_candidate, pruned_runner_result);
+    cost_model->Update(task->ctx, pruned_candidate, pruned_runner_result);
   }
 
   static constexpr const char* _type_key = "meta_schedule.UpdateCostModel";

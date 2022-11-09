@@ -62,6 +62,7 @@ We do encourage everyone to work anything they are interested in.
 - [Trevor Morris](https://github.com/trevor-m): @trevor-m - byoc, compiler
 - [Leandro Nunes](https://github.com/leandron) (PMC): @leandron - tvmc
 - [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies - relay
+- [Ashutosh Parkhi](https://github.com/ashutosh-arm): @ashutosh-arm - cmsis-nn
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic) (PMC): @kparzysz-quic - hexagon, llvm
 - [Andrew Reusch](https://github.com/areusch): (PMC) @areusch - runtime, microTVM
 - [David Riazati](https://github.com/driazati): @driazati - ci, community
@@ -92,6 +93,7 @@ We do encourage everyone to work anything they are interested in.
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri
 - [Matthew Barrett](https://github.com/mbaret): @mbaret
 - [Arnaud Bergeron](https://github.com/abergeron): @abergeron
+- [Florin Blanaru](https://github.com/gigiblender): @gigiblender
 - [Matthew Brookhart](https://github.com/mbrookhart): @mbrookhart
 - [Yaxing Cai](https://github.com/cyx-6): @cyx-6
 - [Liangfu Chen](https://github.com/liangfu): @liangfu
@@ -150,8 +152,8 @@ We do encourage everyone to work anything they are interested in.
 - [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies
 - [Wei Pan](https://github.com/wpan11nv): @wpan11nv
 - [Michalis Papadimitriou](https://github.com/mikepapadim): @mikepapadim
-- [Ashutosh Parkhi](https://github.com/ashutosh-arm): @ashutosh-arm
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
+- [Ashutosh Parkhi](https://github.com/ashutosh-arm): @ashutosh-arm
 - [Alexander Peskov](https://github.com/apeskov): @apeskov
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
@@ -173,11 +175,13 @@ We do encourage everyone to work anything they are interested in.
 - [Jon Soifer](https://github.com/soiferj): @soiferj
 - [Adam Straw](https://github.com/adstraw): @adstraw
 - [Chris Sullivan](https://github.com/csullivan): @csullivan
+- [Anirudh Sundar Subramaniam](https://github.com/quic-sanirudh): @quic-sanirudh
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
 - [Jorn Tuyls](https://github.com/jtuyls): @jtuyls
 - [Gavin Uberti](https://github.com/guberti): @guberti
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose
+- [Jyotsna Verma](https://github.com/jverma-quic): @jverma-quic
 - [Thomas Viehmann](https://github.com/t-vi): @t-vi
 - [An Wang](https://github.com/anwang2009): @anwang2009
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun

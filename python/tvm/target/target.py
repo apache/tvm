@@ -234,6 +234,10 @@ class Target(Object):
         """
         return _ffi_api.TargetKindGetAttr(self.kind, attr_name)
 
+    def get_target_device_type(self):
+        """Returns the device_type for this target."""
+        return _ffi_api.TargetGetDeviceType(self)
+
     @staticmethod
     def list_kinds():
         """Returns the list of available target names."""

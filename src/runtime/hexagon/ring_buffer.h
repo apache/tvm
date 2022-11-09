@@ -21,6 +21,7 @@
 #define TVM_RUNTIME_HEXAGON_RING_BUFFER_H_
 
 #include <functional>
+#include <vector>
 
 #include "hexagon_common.h"
 
@@ -72,19 +73,51 @@ class RingBuffer {
   }
 
   //! \brief Pointer to the ring buffer
-  T* ring_buff_ptr_{nullptr};
+  T* ring_buff_ptr_ = nullptr;
 
   //! \brief Size of the ring buffer in number of Ts
-  const uint32_t ring_buff_size_;
+  const uint32_t ring_buff_size_ = 0;
 
   //! \brief Function that determines whether a T is in flight
   const std::function<bool(T*)> in_flight_;
 
   //! \brief Tracks the ID of the next T to be added to the ring buffer
-  uint32_t id_next_{0};
+  uint32_t id_next_ = 0;
 
   //! \brief Tracks the ID of the oldest T in flight
-  uint32_t id_oldest_{0};
+  uint32_t id_oldest_ = 0;
+};
+
+//! \brief Separates a single RingBuffer into multiple virtual queues with each queue having a
+//! unique integer ID; queues allow for indepent users of the same RingBuffer while mainting overall
+//! FIFO ordering among all queues
+template <class T>
+class QueuedRingBuffer : RingBuffer<T> {
+ public:
+  QueuedRingBuffer(uint32_t ring_buff_size, std::function<bool(T*)> in_flight)
+      : RingBuffer<T>(ring_buff_size, in_flight) {}
+
+  //! \brief Returns pointer to next T; add the queue ID for tracking
+  T* Next(int queue_id) {
+    queue_ids_.push_back(queue_id);
+    return RingBuffer<T>::Next();
+  }
+
+  //! \brief Returns the number of Ts in flight for a given queue ID
+  uint32_t InFlight(int queue_id) {
+    uint32_t in_flight = 0;
+    // look at the queue IDs for the RingBuffer entries in flight
+    for (size_t i = queue_ids_.size() - RingBuffer<T>::InFlight(); i < queue_ids_.size(); ++i) {
+      // increment return value if in flight queue ID matches
+      if (queue_ids_[i] == queue_id) {
+        in_flight++;
+      }
+    }
+    return in_flight;
+  }
+
+ private:
+  std::vector<int> queue_ids_;
 };
 
 }  // namespace hexagon

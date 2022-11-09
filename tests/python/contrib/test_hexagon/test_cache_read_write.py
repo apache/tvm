@@ -24,6 +24,8 @@ from tvm import te, tir
 from tvm.contrib.hexagon.session import Session
 from tvm.script import tir as T
 
+from .infrastructure import get_hexagon_target
+
 
 def intrin_mem_copy(shape, dtype, dst_scope, src_scope):
     """Define and return tensor intrinsic for mem copy"""
@@ -76,11 +78,10 @@ def verify(hexagon_session: Session, schedule, x_tensor, y_tensor, z_tensor, siz
     """Verify correctness with reference from numpy"""
     print(tvm.lower(schedule, [x_tensor, y_tensor, z_tensor]))
 
-    target_hexagon = tvm.target.hexagon("v68", link_params=True)
     func = tvm.build(
         schedule,
         [x_tensor, y_tensor, z_tensor],
-        tvm.target.Target(target_hexagon, host=target_hexagon),
+        get_hexagon_target("v68"),
         name="dmacpy",
     )
 
@@ -219,3 +220,7 @@ def test_vtcm_lowering():
         "AllocateNode found in lowered IRModule, "
         "VTCM allocations should have been lowered to tir.nd_mem_alloc_with_scope"
     )
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

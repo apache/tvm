@@ -100,7 +100,7 @@ class HexagonRPCRunner(PyRunner):
 
 
 def _worker_func(hexagon_launcher, evaluator_config, alloc_repeat, artifact_path, args_info):
-    with hexagon_launcher.start_session() as session:
+    with hexagon_launcher.create_session() as session:
         device = session.device
         _, remote_path = os.path.split(artifact_path)
         uploaded = session.upload(artifact_path, remote_path)

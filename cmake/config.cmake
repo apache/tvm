@@ -340,6 +340,10 @@ set(USE_BNNS OFF)
 # - OFF: disable libbacktrace
 set(USE_LIBBACKTRACE AUTO)
 
+# Whether to install a signal handler to print a backtrace on segfault. This
+# may replace existing signal handlers specified by other libraries.
+set(BACKTRACE_ON_SEGFAULT OFF)
+
 # Whether to build static libtvm_runtime.a, the default is to build the dynamic
 # version: libtvm_runtime.so.
 #

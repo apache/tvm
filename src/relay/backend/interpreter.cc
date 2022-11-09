@@ -477,7 +477,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
 
     // TODO(mbs): Take this from the host_virtual_device.
     Device shape_device;
-    shape_device.device_type = static_cast<DLDeviceType>(prim_shape_target->kind->device_type);
+    shape_device.device_type = static_cast<DLDeviceType>(prim_shape_target->GetTargetDeviceType());
     shape_device.device_id = 0;
 
     // 'Compile' the TIR shape function to appropriate callable form.
@@ -1017,7 +1017,7 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
           << PrettyPrint(mod) << "and expression:" << std::endl
           << PrettyPrint(expr);
 
-  ICHECK_EQ(device.device_type, target->kind->device_type);
+  ICHECK_EQ(device.device_type, target->GetTargetDeviceType());
   Array<Target> raw_targets = {target};
   CompilationConfig config(transform::PassContext::Current(), raw_targets);
 
@@ -1106,7 +1106,7 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
 ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
                std::unordered_set<String> import_set, Device device, Target target,
                Map<String, ObjectRef> attrs) {
-  ICHECK_EQ(device.device_type, target->kind->device_type);
+  ICHECK_EQ(device.device_type, target->GetTargetDeviceType());
   Array<Target> raw_targets = {target};
   CompilationConfig config(transform::PassContext::Current(), raw_targets);
 

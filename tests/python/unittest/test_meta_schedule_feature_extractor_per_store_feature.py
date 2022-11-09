@@ -365,19 +365,22 @@ def test_cpu_matmul():
         atol=1e-5,
     )
     # Group 3: Arithmetic intensity
+    # arithmetic intensity = flops/bytes touched = 2*512*512*512/(3 * 4 * 512*512)
+    #                             add and multiply ^     3 arrays ^   ^ 4 bytes per f32
+    # = 85.3 but log2 is used so values should be around 6.4
     assert_allclose(
         actual=f[147:157],
         desired=[
-            0.7097842693328857,
-            0.7408391237258911,
-            0.8750449419021606,
-            0.9449487924575806,
-            1.0148526430130005,
-            1.0847564935684204,
-            1.113688349723816,
-            1.1394684314727783,
-            1.2119636535644531,
-            1.2971993684768677,
+            3.812599,
+            4.464822,
+            4.912349,
+            5.253426,
+            5.529086,
+            5.76043,
+            5.959752,
+            6.134849,
+            6.290977,
+            6.431846,
         ],
         rtol=1e-5,
         atol=1e-5,
@@ -1357,19 +1360,22 @@ def test_gpu():
         atol=1e-5,
     )
     # Group 3: Arithmetic intensity
+    # Arithmetic intensity is high here because of repeated use of a shared
+    # buffer. Multiple accesses to the same memory location are counted as a
+    # single byte, skewing these numbers towards higher intensity.
     assert_allclose(
         actual=f[147:157],
         desired=[
-            0.7097842504665767,
-            0.7548801745187567,
-            0.8775907547541741,
-            0.9957389916154509,
-            1.2446737395193135,
-            1.493608487423176,
-            1.7093103019954263,
-            1.8031580276850985,
-            1.9841832691827785,
-            2.204648076869754,
+            11.98533,
+            12.977811,
+            13.562714,
+            13.977722,
+            14.299632,
+            14.562654,
+            14.785038,
+            14.977677,
+            15.147597,
+            15.299596,
         ],
         rtol=1e-5,
         atol=1e-5,
@@ -1586,6 +1592,22 @@ def test_cpu_layout_transform():
         _make_context(tvm.target.Target("llvm")),
         candidates=[_make_candidate(lambda: tir.Schedule(LayoutTransform))],
     )
+
+
+@T.prim_func
+def negative_extent(A: T.Buffer[(1,), "float32"]):
+    for j in range(0, -1):
+        A[j] = A[j] + 1.0
+
+
+def test_negative_extent():
+    extractor = ms.feature_extractor.PerStoreFeature()
+    (features,) = extractor.extract_from(
+        _make_context(tvm.target.Target("llvm")),
+        candidates=[_make_candidate(lambda: tir.Schedule(negative_extent))],
+    )
+    named_features = dict(zip(_feature_names(), list(features.numpy()[0, :])))
+    assert named_features["B0.unique_bytes"] == 0
 
 
 if __name__ == "__main__":

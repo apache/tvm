@@ -31,7 +31,9 @@
 #include <tvm/tir/schedule/trace.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 #include "../../arith/pattern_match.h"
@@ -441,6 +443,50 @@ inline String BufferIndexType2Str(BufferIndexType buffer_index_type) {
     return "write";
   }
 }
+
+/******** Utilities for retrieving information about blocks ********/
+
+/*! \brief Returns the names of the blocks in the provided module. */
+inline std::unordered_set<std::string> GetBlockNames(const IRModule& mod) {
+  struct BlockNameCollector : public tir::StmtVisitor {
+    void VisitStmt_(const tir::BlockNode* block) override {
+      block_names.insert(block->name_hint);
+      StmtVisitor::VisitStmt(block->body);
+    }
+    std::unordered_set<std::string> block_names;
+  };
+
+  auto prim_func = tir::FindEntryFunc(mod, nullptr);
+  BlockNameCollector collector;
+  collector(prim_func->body);
+  return collector.block_names;
+}
+
+/*! \brief Query if the given block name exists in the module associated with the schedule */
+inline bool HasBlock(const Schedule& sch, const std::string& block_name) {
+  auto block_names = GetBlockNames(sch->mod());
+  return block_names.count(block_name);
+}
+
+/******** Utilites for trace application ********/
+
+/*!
+ * \brief Translate the input objects using the provided substitution map.
+ * \param inputs The input objects.
+ * \param rv_map The substitution map for variables.
+ * \return The transformed objects.
+ */
+Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
+                                   const std::unordered_map<const Object*, const Object*>& rv_map);
+
+/*!
+ * \brief Update the variable substitution map according to the new outputs.
+ * \param old_outputs The previous outputs of a schedule instruction.
+ * \param new_outputs The new outputs of the same schedule instruction.
+ * \param rv_map The substitution map for variables.
+ */
+void TranslateAddOutputRVs(const Array<ObjectRef>& old_outputs, const Array<ObjectRef>& new_outputs,
+                           std::unordered_map<const Object*, const Object*>* rv_map);
 
 }  // namespace tir
 }  // namespace tvm

@@ -18,7 +18,7 @@
 
 import tvm
 import tvm.testing
-from tvm.script import tir as T
+from tvm.script import tir as T, ir_module
 
 
 class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
@@ -75,6 +75,53 @@ class TestBeforeAfterParametrizedFixture(BaseBeforeAfter):
                 A[i] = 0.0
 
         return func
+
+    expected = before
+
+
+class TestBeforeAfterIRModule(BaseBeforeAfter):
+    """The preferred form for writing TIR unit tests
+
+    All evaluation is done at test-time, with the minimal amount of
+    additional lines.  The `@tvm.testing.fixture`, `@ir_module`, and
+    `@T.prim_func` annotations are handled by
+    `tvm.testing.CompareBeforeAfter`.
+    """
+
+    class before:
+        def func_A(A: T.Buffer[16, "float32"]):
+            for i in T.serial(16):
+                A[i] = 0.0
+
+        def func_B(A: T.Buffer[16, "int32"]):
+            for i in T.serial(16):
+                A[i] = 42
+
+    expected = before
+
+
+class TestBeforeAfterIRModuleExplicitFixture(BaseBeforeAfter):
+    """Like TestBeforeAfterIRModule, but with an explicit fixture
+
+    If the IRModule depends on additional fixtures, this form can be
+    used.
+    """
+
+    @tvm.testing.fixture
+    def before(self):
+        @ir_module
+        class mod:
+            @T.prim_func
+            def func_A(A: T.Buffer[16, "float32"]):
+                for i in T.serial(16):
+                    A[i] = 0.0
+
+            @T.prim_func
+            def func_B(A: T.Buffer[16, "int32"]):
+                for i in T.serial(16):
+                    A[i] = 42
+
+        return mod
 
     expected = before
 

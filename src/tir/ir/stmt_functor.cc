@@ -86,8 +86,8 @@ void StmtVisitor::VisitStmt_(const BufferRealizeNode* op) {
 void StmtVisitor::VisitStmt_(const IfThenElseNode* op) {
   this->VisitExpr(op->condition);
   this->VisitStmt(op->then_case);
-  if (op->else_case.defined()) {
-    this->VisitStmt(op->else_case);
+  if (op->else_case) {
+    this->VisitStmt(op->else_case.value());
   }
 }
 
@@ -352,9 +352,9 @@ Stmt StmtMutator::VisitStmt_(const DeclBufferNode* op) {
 Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
   Stmt then_case = this->VisitStmt(op->then_case);
-  Stmt else_case;
-  if (op->else_case.defined()) {
-    else_case = this->VisitStmt(op->else_case);
+  Optional<Stmt> else_case = NullOpt;
+  if (op->else_case) {
+    else_case = this->VisitStmt(op->else_case.value());
   }
   if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
       else_case.same_as(op->else_case)) {
@@ -807,6 +807,98 @@ void PreOrderVisit(const ObjectRef& stmt_or_expr,
     LOG(FATAL) << "InternalError: PreOrderVisit does not accept object with type: "
                << stmt_or_expr->GetTypeKey();
   }
+}
+
+class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
+ public:
+  explicit IRSubstituteWithDataTypeLegalization(std::function<Optional<PrimExpr>(const Var&)> vmap)
+      : vmap_(vmap) {}
+
+  using DataTypeLegalizer::VisitExpr_;
+  using DataTypeLegalizer::VisitStmt_;
+
+  PrimExpr VisitExpr_(const VarNode* op) final {
+    Var var = GetRef<Var>(op);
+    auto ret = vmap_(var);
+    if (ret.defined()) {
+      return ret.value();
+    }
+    return std::move(var);
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    Buffer new_buf = GetRemappedBuffer(node->buffer);
+
+    if (!new_buf.same_as(node->buffer)) {
+      auto writer = node.CopyOnWrite();
+      writer->buffer = new_buf;
+    }
+
+    return node;
+  }
+
+  Buffer GetRemappedBuffer(Buffer buf) {
+    auto key = buf.get();
+    auto it = buf_remap_.find(key);
+    if (it != buf_remap_.end()) {
+      return it->second;
+    }
+
+    auto new_buffer_var = vmap_(buf->data);
+    if (new_buffer_var.defined() && !new_buffer_var.value().same_as(buf->data)) {
+      auto writer = buf.CopyOnWrite();
+      writer->data = Downcast<Var>(new_buffer_var);
+    }
+
+    buf_remap_[key] = buf;
+    return buf;
+  }
+
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    Stmt ret = StmtExprMutator::VisitStmt_(op);
+    op = ret.as<AttrStmtNode>();
+    // remap var node in attr
+    if (const auto* var_node = op->node.as<VarNode>()) {
+      if (auto mapped_var = vmap_(GetRef<Var>(var_node))) {
+        return AttrStmt(mapped_var, op->attr_key, op->value, op->body);
+      }
+    }
+    return ret;
+  }
+
+ private:
+  // Caller provided function that defines the variables to be remapped.
+  std::function<Optional<PrimExpr>(const Var&)> vmap_;
+
+  /* \brief Generated map to track buffers being remapped.
+   *
+   * If a `Var BufferNode::data` is remapped, then all buffers
+   * containing that data pointer should also be remapped.  This map
+   * is used to track buffer modifications, and ensure all instances
+   * of a buffer are replaced by the same modified buffer object.
+   */
+  std::unordered_map<const BufferNode*, Buffer> buf_remap_;
+};
+
+Stmt SubstituteWithDataTypeLegalization(Stmt stmt,
+                                        std::function<Optional<PrimExpr>(const Var&)> vmap) {
+  return IRSubstituteWithDataTypeLegalization(vmap)(std::move(stmt));
+}
+
+PrimExpr SubstituteWithDataTypeLegalization(PrimExpr expr,
+                                            std::function<Optional<PrimExpr>(const Var&)> vmap) {
+  return IRSubstituteWithDataTypeLegalization(vmap)(std::move(expr));
 }
 
 TVM_REGISTER_GLOBAL("tir.IRTransform").set_body_typed(IRTransform);

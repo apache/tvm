@@ -97,7 +97,7 @@ class RewriteCooperativeFetchNode : public PostprocNode {
     if (Optional<Integer> v = context->target.value()->GetAttr<Integer>("thread_warp_size")) {
       this->thread_warp_size_ = v.value()->value;
     } else {
-      TVM_PY_LOG(INFO, context->logging_func) << "'thread_warp_size' is not defined in the target";
+      TVM_PY_LOG(INFO, context->logger) << "'thread_warp_size' is not defined in the target";
     }
   }
 

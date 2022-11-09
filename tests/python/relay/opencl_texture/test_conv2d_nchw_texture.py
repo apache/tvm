@@ -479,7 +479,6 @@ def test_conv2d_winograd_conv(target, dtype):
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-@pytest.mark.skipif(tvm.testing.utils.IS_IN_CI, reason="failed due to nvidia libOpencl in the CI")
 def test_residual_block(target, dtype):
     """
     - some kind of residual block followed by convolution to have texture after residual block
@@ -569,20 +568,33 @@ def test_residual_block(target, dtype):
         "weight2": tvm.nd.array(filter_data2),
         "weight3": tvm.nd.array(filter_data3),
     }
-
-    static_memory_scope = [
-        "global",
-        "global.texture",
-        "global.texture-weight",
-        "global.texture-weight",
-        "global.texture",
-        "global.texture-weight",
-        "global",
-        "global.texture",
-        "global.texture-weight",
-        "",
-        "",
-    ]
+    if dtype == "float16":
+        static_memory_scope = [
+            "global",
+            "global.texture",
+            "global.texture-weight",
+            "global.texture-weight",
+            "global.texture",
+            "global.texture-weight",
+            "global",
+            "global.texture",
+            "global.texture-weight",
+            "",
+            "",
+        ]
+    else:
+        static_memory_scope = [
+            "global",
+            "global.texture",
+            "global.texture-weight",
+            "global.texture-weight",
+            "global.texture",
+            "global.texture-weight",
+            "global.texture",
+            "global.texture-weight",
+            "",
+            "",
+        ]
 
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
 
@@ -1028,4 +1040,230 @@ def test_conv2d_different_lowering_same_op(target, dtype):
         "",
     ]
 
+    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
+
+
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_winograd_non_rect(target, dtype):
+    input_shape = (1, 771, 36, 64)
+    A = relay.var("data", shape=input_shape, dtype=dtype)
+    filter_shape = (128, 771, 3, 3)
+    B = relay.var("weight", shape=filter_shape, dtype=dtype)
+    D = relay.nn.conv2d(
+        A, B, padding=[1, 1, 1, 1], channels=128, kernel_size=[3, 3], out_dtype=dtype
+    )
+
+    mod = relay.Function([A, B], D)
+    np.random.seed(1)
+    initializer = relay.testing.init.Xavier()
+    filter_data = np.zeros(filter_shape).astype(dtype)
+    initializer("weight", filter_data)
+    params1 = {
+        "weight": tvm.nd.array(filter_data),
+    }
+
+    temp = utils.tempdir()
+    stat_file = temp.relpath("stat.log")
+    with open(stat_file, "w") as f:
+        f.write(
+            f'{{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256 -texture_spatial_limit=16384 -thread_warp_size=1", "conv2d_nchw_winograd.image2d", [["TENSOR", [1, 771, 36, 64], "{dtype}"], ["TENSOR", [128, 771, 3, 3], "{dtype}"], [1, 1], [1, 1, 1, 1], [1, 1], "{dtype}"], {{}}], "config": {{"index": 5399, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 16], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 8]], ["tile_rc", "sp", [-1, 193]]]}}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}}\n'
+        )
+    graph = build_run_compare(
+        mod, params1, {"data": input_shape}, dtype, target, stat_file=stat_file
+    )
+    matches = re.findall("winograd", graph)
+    assert len(matches) > 0
+
+
+# function repeat, params scope are different in reused functions
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_injective_nwo_inputs1(target, dtype):
+    """
+    Use case for verification of stability of annotation primary functions
+    having several ops accepting data outside of Primary function
+    The visiting of ops during traversing of graph inside primary function
+    can depend on order of relay graph creation. Thus the annotation mechanism
+    should be reliable for graph traversal order
+    The current decision if Prim Function support textures or not depend on
+    *any* op accepting input of the function and if op support textures
+                                     Input
+                               /                   \
+                layout_transform (NCHW->NCHW4c)    |
+                         |                        /
+                      conv2d (1)                 /
+                         |                      /
+                      conv2d (2)       mean    /
+                  /         \                 /   <- Primary function several head ops
+             (1)add    (2)layout_transform    |
+                 |        (NCHW4c->NCHW)      |
+                 |           |      \        /
+                 |           |       (3) add
+                 |           |         |
+    layout_transform          \       /
+     (NCHW4c->NCHW)             \    /
+                 \                mul
+                  \            /
+                        add
+
+    This test verifies a case when the latest op which is visited is (3) and does not
+    support textures, but there is (1) supporting textures, thus the whole func will
+    support textures
+    """
+    input_shape = (1, 4, 40, 40)
+    filter_shape1 = (4, 4, 3, 3)
+    filter_shape2 = (4, 4, 3, 3)
+    filter_shape3 = (4, 4, 3, 3)
+    A = relay.var("data", shape=input_shape, dtype=dtype)
+    W1 = relay.var("weight1", shape=filter_shape1, dtype=dtype)
+    W2 = relay.var("weight2", shape=filter_shape2, dtype=dtype)
+    mean = relay.mean(A, axis=1, keepdims=True)
+    conv1 = relay.nn.conv2d(
+        A,
+        W1,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        padding=[1, 1, 1, 1],
+        strides=[1, 1],
+        out_dtype=dtype,
+        channels=4,
+        kernel_size=(3, 3),
+    )
+
+    conv2 = relay.nn.conv2d(
+        conv1,
+        W2,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        padding=[1, 1, 1, 1],
+        strides=[1, 1],
+        out_dtype=dtype,
+        channels=4,
+        kernel_size=(3, 3),
+    )
+
+    ad3 = relay.op.add(conv1, conv2)
+    ad1 = relay.op.add(mean, conv1)
+    ad2 = relay.op.multiply(ad1, conv2)
+    ad4 = relay.op.add(ad3, ad2)
+
+    mod = relay.Function([A, W1, W2], ad4)
+    np.random.seed(0)
+    initializer = relay.testing.init.Xavier()
+    filter_data1 = np.zeros(filter_shape1).astype(dtype)
+    filter_data2 = np.zeros(filter_shape2).astype(dtype)
+    initializer("weight", filter_data1)
+    initializer("weight", filter_data2)
+    params1 = {
+        "weight1": tvm.nd.array(filter_data1),
+        "weight2": tvm.nd.array(filter_data2),
+    }
+
+    static_memory_scope = [
+        "global",
+        "global.texture",
+        "global.texture-nhwc",
+        "global.texture",
+        "global.texture-nhwc",
+        "global.texture",
+        "global",
+        "global",
+    ]
+    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
+
+
+# function repeat, params scope are different in reused functions
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_injective_nwo_inputs2(target, dtype):
+    """
+    Use case for verification of stability of annotation primary functions
+    having several ops accepting data outside of Primary function
+    The visiting of ops during traversing of graph inside primary function
+    can depend on order of relay graph creation. Thus the annotation mechanism
+    should be reliable for graph traversal order
+    The current decision if Prim Function support textures or not depend on
+    *any* op accepting input of the function and if op support textures
+                                     Input
+                               /                   \
+                layout_transform (NCHW->NCHW4c)    |
+                         |                        /
+                      conv2d (1)                 /
+                         |                      /
+                      conv2d (2)       mean    /
+                  /         \                 /   <- Primary function several head ops
+             (1)add    (2)layout_transform    |
+                 |        (NCHW4c->NCHW)      |
+                 |           |      \        /
+                 |           |       (3) add
+                 |           |         |
+    layout_transform          \       /
+     (NCHW4c->NCHW)             \    /
+                 \                mul
+                  \            /
+                        add
+
+    This test verifies a case when the latest op which is (1), it supports textures
+    an whole prim function is considered as a func working with textures
+    """
+    input_shape = (1, 4, 40, 40)
+    filter_shape1 = (4, 4, 3, 3)
+    filter_shape2 = (4, 4, 3, 3)
+    filter_shape3 = (4, 4, 3, 3)
+    A = relay.var("data", shape=input_shape, dtype=dtype)
+    W1 = relay.var("weight1", shape=filter_shape1, dtype=dtype)
+    W2 = relay.var("weight2", shape=filter_shape2, dtype=dtype)
+    mean = relay.mean(A, axis=1, keepdims=True)
+    conv1 = relay.nn.conv2d(
+        A,
+        W1,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        padding=[1, 1, 1, 1],
+        strides=[1, 1],
+        out_dtype=dtype,
+        channels=4,
+        kernel_size=(3, 3),
+    )
+
+    conv2 = relay.nn.conv2d(
+        conv1,
+        W2,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        padding=[1, 1, 1, 1],
+        strides=[1, 1],
+        out_dtype=dtype,
+        channels=4,
+        kernel_size=(3, 3),
+    )
+
+    ad3 = relay.op.add(conv1, conv2)
+    ad1 = relay.op.add(mean, conv1)
+    ad2 = relay.op.multiply(ad1, conv2)
+    ad4 = relay.op.add(ad2, ad3)
+
+    mod = relay.Function([A, W1, W2], ad4)
+    np.random.seed(0)
+    initializer = relay.testing.init.Xavier()
+    filter_data1 = np.zeros(filter_shape1).astype(dtype)
+    filter_data2 = np.zeros(filter_shape2).astype(dtype)
+    initializer("weight", filter_data1)
+    initializer("weight", filter_data2)
+    params1 = {
+        "weight1": tvm.nd.array(filter_data1),
+        "weight2": tvm.nd.array(filter_data2),
+    }
+
+    static_memory_scope = [
+        "global",
+        "global.texture",
+        "global.texture-nhwc",
+        "global.texture",
+        "global",
+        "global.texture-nhwc",
+        "global.texture",
+        "global",
+    ]
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)

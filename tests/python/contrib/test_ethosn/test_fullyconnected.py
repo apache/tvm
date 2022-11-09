@@ -19,9 +19,11 @@
 
 import numpy as np
 import pytest
+
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
+
 from . import infrastructure as tei
 
 
@@ -30,7 +32,11 @@ def _get_model(
 ):
     """Return a model an any parameters it may have"""
     a = relay.var("a", shape=shape, dtype=dtype)
-    weights_array = tvm.nd.array(np.ones(weight_shape, dtype))
+    weights_array = tvm.nd.array(
+        np.random.randint(
+            np.iinfo(dtype).min, high=np.iinfo(dtype).max, size=weight_shape, dtype=dtype
+        )
+    )
     weights = relay.const(weights_array, dtype)
     dense = relay.qnn.op.dense(
         a,
@@ -66,26 +72,24 @@ def _get_model(
         ((1, 1280), 1000),
     ],
 )
-@pytest.mark.parametrize(
-    "dtype,input_zp,input_sc,kernel_zp,kernel_sc",
-    [
-        ("uint8", 71, 0.580, 176, 1.498),
-        ("uint8", 166, 1.724, 138, 0.180),
-        ("int8", 71, 0.580, 0, 1.498),
-        ("int8", 120, 1.724, 0, 0.180),
-    ],
-)
-def test_fullyconnected(shape, out_channels, dtype, input_zp, input_sc, kernel_zp, kernel_sc):
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_fullyconnected(shape, out_channels, dtype):
     """Compare Fully Connected output with TVM."""
 
     np.random.seed(0)
-    inputs = {
-        "a": tvm.nd.array(
-            np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype)
-        ),
-    }
+    iinfo = np.iinfo(dtype)
+    data_min = iinfo.min
+    data_max = iinfo.max
 
+    inputs = {
+        "a": tvm.nd.array(np.random.randint(data_min, data_max + 1, size=shape, dtype=dtype)),
+    }
     outputs = []
+
+    input_zp = np.random.randint(data_min, data_max)
+    input_sc = np.random.random() * 2
+    kernel_zp = np.random.randint(data_min, data_max)
+    kernel_sc = np.random.random() * 2
     output_zp, output_sc = tei.get_conv2d_qnn_params(
         dtype,
         input_zp,
@@ -96,18 +100,18 @@ def test_fullyconnected(shape, out_channels, dtype, input_zp, input_sc, kernel_z
         shape[1],
         1,
     )
+    model, params = _get_model(
+        shape,
+        (out_channels, shape[1]),
+        input_zp,
+        input_sc,
+        kernel_zp,
+        kernel_sc,
+        output_zp,
+        output_sc,
+        dtype,
+    )
     for npu in [False, True]:
-        model, params = _get_model(
-            shape,
-            (out_channels, shape[1]),
-            input_zp,
-            input_sc,
-            kernel_zp,
-            kernel_sc,
-            output_zp,
-            output_sc,
-            dtype,
-        )
         mod = tei.make_module(model, params)
         outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
     tei.verify(outputs, dtype, 1)

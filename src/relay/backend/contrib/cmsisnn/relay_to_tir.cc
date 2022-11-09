@@ -93,17 +93,17 @@ class RelayToTIRVisitor : public MixedModeMutator {
                                const Map<tir::Var, tir::Buffer>& buffer_map,
                                tvm::Array<PrimExpr> call_extern_args,
                                PrimExpr context_buffer_var = PrimExpr(),
-                               int context_buffer_size = 0) {
+                               int context_buffer_size = 0, int num_bits = 8) {
     Map<String, ObjectRef> dict_attrs;
     dict_attrs.Set(tvm::attr::kGlobalSymbol, global_var->name_hint);
     dict_attrs.Set(tvm::attr::kTarget, target_);
     dict_attrs.Set("tir.noalias", Bool(true));
 
     tir::Stmt body = tir::Evaluate(
-        tvm::tir::Call(DataType::Int(8), tir::builtin::call_extern(), call_extern_args));
+        tvm::tir::Call(DataType::Int(num_bits), tir::builtin::call_extern(), call_extern_args));
 
     if (context_buffer_size) {
-      body = tir::Allocate(Downcast<tir::Var>(context_buffer_var), DataType::Int(8),
+      body = tir::Allocate(Downcast<tir::Var>(context_buffer_var), DataType::Int(num_bits),
                            {context_buffer_size}, tir::const_true(), body);
     }
 
@@ -133,6 +133,22 @@ class RelayToTIRVisitor : public MixedModeMutator {
     } else {
       conv2d_call = requantize_input;
     }
+    int32_t dtype_bits = conv2d_call->args[0]->type_as<TensorTypeNode>()->dtype.bits();
+
+    // Determine bitwidth of buffers based on input dtype
+    int32_t input_bits = 8;
+    int32_t filter_bits = 8;
+    int32_t bias_bits = 32;
+    int32_t output_bits = 8;
+    int32_t context_buffer_bits = 8;
+    bool is_int16 = false;
+    if (dtype_bits == 16) {
+      is_int16 = true;
+      input_bits = 16;
+      bias_bits = 64;
+      output_bits = 16;
+      context_buffer_bits = 16;
+    }
 
     // TIR variables are created in the order they appear in the Relay partitioned function
     // %1 = qnn.conv2d(%input, %weight_const_0, input_zero_point_scalar,
@@ -145,14 +161,14 @@ class RelayToTIRVisitor : public MixedModeMutator {
     const int filter_scale_pos = 3;
     const int input_scale_pos = bias_add_call ? 5 : 4;
     BufferCreator buffer_creator;
-    tir::Var input = buffer_creator.CreateBufferVar("input", DataType::Handle(8));
-    tir::Var filter = buffer_creator.CreateBufferVar("filter", DataType::Handle(8));
+    tir::Var input = buffer_creator.CreateBufferVar("input", DataType::Handle(input_bits));
+    tir::Var filter = buffer_creator.CreateBufferVar("filter", DataType::Handle(filter_bits));
     tir::Var multiplier = buffer_creator.CreateBufferVar("multiplier", DataType::Handle(32));
     if (bias_add_call) {
-      buffer_creator.CreateBufferVar("bias", DataType::Handle(32));
+      buffer_creator.CreateBufferVar("bias", DataType::Handle(bias_bits));
     }
     tir::Var shift = buffer_creator.CreateBufferVar("shift", DataType::Handle(32));
-    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
+    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(output_bits));
 
     // Relay function contains input_scale and filter_scale as function parameters at the following
     // locations in the global partitioned function for Conv2D
@@ -217,10 +233,10 @@ class RelayToTIRVisitor : public MixedModeMutator {
     scalar_args.push_back(ToArg(depth_multiplier));
 
     // original filter_layout for depthwise is HWOI
-    std::string cmsisnn_api = "arm_convolve_wrapper_s8";
+    std::string cmsisnn_api = is_int16 ? "arm_convolve_wrapper_s16" : "arm_convolve_wrapper_s8";
     bool is_depthwise = depth_multiplier != -1;
     if (is_depthwise) {
-      cmsisnn_api = "arm_depthwise_conv_wrapper_s8";
+      cmsisnn_api = is_int16 ? "arm_depthwise_conv_wrapper_s16" : "arm_depthwise_conv_wrapper_s8";
       int filter_pos_h = kernel_layout.find("H");
       int filter_pos_w = kernel_layout.find("W");
       Array<PrimExpr> depthwise_filter_shape{1, filter_shape[filter_pos_h],
@@ -242,18 +258,20 @@ class RelayToTIRVisitor : public MixedModeMutator {
     Target target = CreateTarget(transform::PassContext::Current());
     size_t context_buffer_size;
     if (is_depthwise) {
-      context_buffer_size = DepthwiseConv2dBufferSize(target, input_n, input_c, output_c, filter_w,
-                                                      filter_h, dilation_w, dilation_h);
+      context_buffer_size =
+          DepthwiseConv2dBufferSize(is_int16, target, input_n, input_c, output_c, filter_w,
+                                    filter_h, dilation_w, dilation_h, depth_multiplier);
     } else {
-      context_buffer_size = Conv2dBufferSize(target, padding_w, padding_h, input_n, input_h,
-                                             input_c, output_h, output_w, stride_w, stride_h,
-                                             dilation_w, dilation_h, filter_w, filter_h);
+      context_buffer_size = Conv2dBufferSize(is_int16, target, padding_w, padding_h, input_n,
+                                             input_h, input_c, output_h, output_w, stride_w,
+                                             stride_h, dilation_w, dilation_h, filter_w, filter_h);
     }
 
     if (context_buffer_size) {
       String context_buffer_name = "context_buffer_" + std::to_string(context_buffer_id_++);
-      context_buffer_var = tir::Var(context_buffer_name,
-                                    PointerType(PrimType(DataType::Int(8)), "global.workspace"));
+      context_buffer_var =
+          tir::Var(context_buffer_name,
+                   PointerType(PrimType(DataType::Int(context_buffer_bits)), "global.workspace"));
     }
     tvm::Array<PrimExpr> context_buffer_args = {context_buffer_var, ToArg(context_buffer_size)};
 
@@ -266,7 +284,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     CreatePrimFuncForExtern(global_var, buffer_creator.GetPrimFuncParams(),
                             buffer_creator.GetBufferMap(), call_ext_args, context_buffer_var,
-                            context_buffer_size);
+                            context_buffer_size, context_buffer_bits);
   }
 
   void EmitFullyConnected(const GlobalVar& global_var, const Expr& expr) {

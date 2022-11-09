@@ -226,16 +226,11 @@ class BlockBufferAccessSimplifier : public arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitStmt_;
 
   void SimplifyAccessRegion(Array<BufferRegion>* old_access_regions);
+  void SimplifyBufferIndices(Array<PrimExpr>* indices);
+
   Stmt VisitStmt_(const BlockNode* op) final;
   Stmt VisitStmt_(const BufferStoreNode* op) final;
   PrimExpr VisitExpr_(const BufferLoadNode* op) final;
-
-  template <typename Node>
-  Node VisitBufferAccess(Node node) {
-    node.CopyOnWrite()->indices.MutateByApply(
-        [this](const PrimExpr& expr) { return analyzer_->Simplify(expr); });
-    return node;
-  }
 };
 
 }  // namespace tir

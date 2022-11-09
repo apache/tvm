@@ -152,7 +152,7 @@ if use_physical_hw:
     module_loader = tvm.micro.AutoTvmModuleLoader(
         template_project_dir=pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")),
         project_options={
-            "zephyr_board": BOARD,
+            "board": BOARD,
             "west_cmd": "west",
             "verbose": False,
             "project_type": "host_driven",
@@ -219,7 +219,7 @@ if use_physical_hw:
         lowered,
         temp_dir / "project",
         {
-            "zephyr_board": BOARD,
+            "board": BOARD,
             "west_cmd": "west",
             "verbose": False,
             "project_type": "host_driven",
@@ -262,7 +262,7 @@ if use_physical_hw:
         lowered_tuned,
         temp_dir / "project",
         {
-            "zephyr_board": BOARD,
+            "board": BOARD,
             "west_cmd": "west",
             "verbose": False,
             "project_type": "host_driven",

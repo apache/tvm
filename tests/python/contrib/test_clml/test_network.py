@@ -16,13 +16,13 @@
 # under the License.
 """OpenCL ML network tests."""
 
-import numpy as np
-import pytest
-from tvm import testing
-from tvm import relay
-
 import tvm
-from test_clml.infrastructure import skip_runtime_test, build_and_run, Device
+import numpy as np
+from tvm import relay
+from tvm.relay import testing
+from tvm.contrib import utils
+from test_clml.infrastructure import build_and_run, Device
+import pytest
 
 
 def _build_and_run_network(mod, params, inputs, data, device, atol, rtol, tvm_log=""):
@@ -59,15 +59,9 @@ def _get_keras_model(keras_model, inputs_dict, data):
     return mod, params, ref_output
 
 
-def test_mobilenet():
-    Device.load("test_config.json")
-
-    if skip_runtime_test():
-        return
-
-    device = Device()
-    dtype = "float16"
-
+@pytest.mark.parametrize("dtype", ["float16"])
+@tvm.testing.requires_openclml
+def test_mobilenet(device, dtype):
     def get_model():
         from tensorflow.keras.applications import MobileNet
         import tensorflow as tf
@@ -107,15 +101,9 @@ def test_mobilenet():
     tvm.testing.assert_allclose(opencl_sort[:10], clml_sort[:10], rtol=1e-5, atol=1e-5)
 
 
-def test_inception_v3():
-    Device.load("test_config.json")
-
-    if skip_runtime_test():
-        return
-
-    device = Device()
-    dtype = "float16"
-
+@pytest.mark.parametrize("dtype", ["float16"])
+@tvm.testing.requires_openclml
+def test_inception_v3(device, dtype):
     def get_model():
         from tensorflow.keras.applications import InceptionV3
         import tensorflow as tf
@@ -150,15 +138,9 @@ def test_inception_v3():
     tvm.testing.assert_allclose(opencl_sort[:5], clml_sort[:5], rtol=1e-5, atol=1e-5)
 
 
-def test_resnet50v2():
-    Device.load("test_config.json")
-
-    if skip_runtime_test():
-        return
-
-    device = Device()
-    dtype = "float16"
-
+@pytest.mark.parametrize("dtype", ["float16"])
+@tvm.testing.requires_openclml
+def test_resnet50v2(device, dtype):
     def get_model():
         from tensorflow.keras.applications import ResNet50V2
         import tensorflow as tf
@@ -202,9 +184,3 @@ def test_resnet50v2():
     clml_sort = np.argsort(outputs[0].asnumpy()).flatten()
 
     tvm.testing.assert_allclose(opencl_sort[:10], clml_sort[:10], rtol=1e-5, atol=1e-5)
-
-
-if __name__ == "__main__":
-    test_mobilenet()
-    test_resnet50v2()
-    test_inception_v3()

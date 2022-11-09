@@ -89,31 +89,27 @@ class BlockCollector : public tir::StmtVisitor {
  * */
 class PostOrderApplyNode : public SpaceGeneratorNode {
  public:
-  /*! \brief The random state. -1 means using random number. */
-  TRandState rand_state_ = -1;
-  /*! \brief The schedule rules to be applied in order. */
-  Array<ScheduleRule> sch_rules_{nullptr};
-  /*! \brief The logging function to use. */
-  PackedFunc logging_func;
-  /*! \brief Optional block names to target. If not specified all blocks will have spaces generated.
+  /*!
+   * \brief Optional block names to target. If not specified all blocks will have spaces generated.
    */
   runtime::PackedFunc f_block_filter_ = nullptr;
+  /*! \brief The random state. -1 means using random number. */
+  TRandState rand_state_ = -1;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
+    SpaceGeneratorNode::VisitAttrs(v);
     // `rand_state_` is not visited
     // `sch_rules_` is not visited
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final {
+    SpaceGeneratorNode::InitializeWithTuneContext(context);
     this->rand_state_ = ForkSeed(&context->rand_state);
-    CHECK(context->sch_rules.defined())
-        << "ValueError: Schedules rules not given in PostOrderApply!";
-    this->sch_rules_ = context->sch_rules;
-    this->logging_func = context->logging_func;
   }
 
   Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
     using ScheduleAndUnvisitedBlocks = std::pair<tir::Schedule, Array<tir::BlockRV>>;
+    CHECK(sch_rules.defined()) << "ValueError: `sch_rules` is not set in PostOrderApply";
     tir::Schedule sch = tir::Schedule::Traced(
         /*mod=*/mod,
         /*rand_state=*/ForkSeed(&this->rand_state_),
@@ -122,20 +118,11 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
 
     std::vector<ScheduleAndUnvisitedBlocks> stack;
     Array<tir::Schedule> result{sch};
-    // Enumerate the schedule rules first because you can
-    // always concat multiple schedule rules as one
     Array<tir::BlockRV> all_blocks = BlockCollector::Collect(sch, f_block_filter_);
-    Array<Optional<ScheduleRule>> rules{NullOpt};
-    rules.insert(rules.end(), sch_rules_.begin(), sch_rules_.end());
-    for (Optional<ScheduleRule> sch_rule : rules) {
-      if (sch_rule.defined()) {
-        for (const tir::Schedule& sch : result) {
-          stack.emplace_back(sch, all_blocks);
-        }
-      } else {
-        for (const tir::Schedule& sch : result) {
-          stack.emplace_back(sch, Array<tir::BlockRV>{all_blocks.rbegin(), all_blocks.rend()});
-        }
+
+    for (ScheduleRule sch_rule : sch_rules.value()) {
+      for (const tir::Schedule& sch : result) {
+        stack.emplace_back(sch, all_blocks);
       }
       result.clear();
       while (!stack.empty()) {
@@ -154,33 +141,13 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
           stack.emplace_back(sch, blocks);
           continue;
         }
-
-        Optional<String> ann = tir::GetAnn<String>(sch->GetSRef(block_rv), "schedule_rule");
-        const runtime::PackedFunc* custom_schedule_fn =
-            ann.defined() ? runtime::Registry::Get(ann.value()) : nullptr;
-        const bool has_schedule_rule = custom_schedule_fn != nullptr;
-
-        if (ann.defined() && ann.value() != "None" && !has_schedule_rule) {
-          LOG(WARNING) << "Custom schedule rule not found, ignoring schedule_rule annotation: "
-                       << ann.value();
+        if (!ScheduleRule::IsApplyCustomRule(sch_rule)) {
+          if (tir::GetAnn<String>(sch->GetSRef(block_rv), "schedule_rule").defined()) {
+            stack.emplace_back(sch, blocks);
+            continue;
+          }
         }
-
-        if ((has_schedule_rule && sch_rule.defined()) ||
-            (!has_schedule_rule && !sch_rule.defined()) ||
-            (ann.defined() && ann.value() == "None")) {
-          stack.emplace_back(sch, blocks);
-          continue;
-        }
-
-        Array<tir::Schedule> applied{nullptr};
-        if (sch_rule.defined()) {
-          applied = sch_rule.value()->Apply(sch, /*block=*/block_rv);
-        } else {
-          ICHECK(custom_schedule_fn)
-              << "ValueError: Custom schedule rule not found: " << ann.value();
-          applied = (*custom_schedule_fn)(sch, block_rv);
-        }
-
+        Array<tir::Schedule> applied = sch_rule->Apply(sch, /*block=*/block_rv);
         for (const tir::Schedule& sch : applied) {
           stack.emplace_back(sch, blocks);
         }
@@ -191,19 +158,22 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
 
   SpaceGenerator Clone() const final {
     ObjectPtr<PostOrderApplyNode> n = make_object<PostOrderApplyNode>(*this);
-    n->sch_rules_ = Array<ScheduleRule>();
-    for (const ScheduleRule& sch_rule : this->sch_rules_) {
-      n->sch_rules_.push_back(sch_rule->Clone());
-    }
+    CloneRules(this, n.get());
     return SpaceGenerator(n);
   }
   static constexpr const char* _type_key = "meta_schedule.PostOrderApply";
   TVM_DECLARE_FINAL_OBJECT_INFO(PostOrderApplyNode, SpaceGeneratorNode);
 };
 
-SpaceGenerator SpaceGenerator::PostOrderApply(runtime::PackedFunc f_block_filter) {
+SpaceGenerator SpaceGenerator::PostOrderApply(runtime::PackedFunc f_block_filter,
+                                              Optional<Array<ScheduleRule>> sch_rules,
+                                              Optional<Array<Postproc>> postprocs,
+                                              Optional<Map<Mutator, FloatImm>> mutator_probs) {
   ObjectPtr<PostOrderApplyNode> n = make_object<PostOrderApplyNode>();
-  n->f_block_filter_ = f_block_filter;
+  n->sch_rules = std::move(sch_rules);
+  n->postprocs = std::move(postprocs);
+  n->mutator_probs = std::move(mutator_probs);
+  n->f_block_filter_ = std::move(f_block_filter);
   return SpaceGenerator(n);
 }
 

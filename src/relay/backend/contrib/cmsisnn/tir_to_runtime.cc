@@ -111,7 +111,9 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
         cmsis_func_name == "arm_elementwise_add_s8") {
       CodeGenC::VisitExpr_(op, os);
     } else if (cmsis_func_name == "arm_convolve_wrapper_s8" ||
-               cmsis_func_name == "arm_depthwise_conv_wrapper_s8") {
+               cmsis_func_name == "arm_convolve_wrapper_s16" ||
+               cmsis_func_name == "arm_depthwise_conv_wrapper_s8" ||
+               cmsis_func_name == "arm_depthwise_conv_wrapper_s16") {
       EmitConv2D(op);
     } else if (cmsis_func_name == "arm_fully_connected_s8") {
       EmitFullyConnected(op);

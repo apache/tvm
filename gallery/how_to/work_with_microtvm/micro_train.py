@@ -478,7 +478,7 @@ arduino_project = tvm.micro.generate_project(
     mod,
     f"{FOLDER}/models/project",
     {
-        "arduino_board": "nano33ble",
+        "board": "nano33ble",
         "arduino_cli_cmd": "/content/bin/arduino-cli",
         "project_type": "example_project",
     },

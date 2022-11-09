@@ -368,7 +368,7 @@ def test_binary_add_with_non_4d_shapes(
     )
 
 
-@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10487")
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/12634")
 @pytest.mark.parametrize(
     "accel_type",
     ACCEL_TYPES,

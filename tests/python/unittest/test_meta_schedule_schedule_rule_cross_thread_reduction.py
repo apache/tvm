@@ -19,8 +19,10 @@
 import tvm
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing import te_workload
-from tvm.meta_schedule.testing.schedule_rule import get_rules
-from tvm.meta_schedule.testing.space_generation import check_sketches
+from tvm.meta_schedule.testing.space_generation import (
+    check_sketches,
+    generate_design_space,
+)
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.te import create_prim_func
@@ -280,13 +282,12 @@ def test_gpu_softmax_mn():
         ("SampleCategorical", 7),
     ]
     mod = create_prim_func(te_workload.softmax_mn(n=256, m=256))
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("nvidia/geforce-rtx-3090", host="llvm"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=get_rules("cuda", ms.schedule_rule.CrossThreadReduction),
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.CrossThreadReduction,
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -476,13 +477,12 @@ def test_gpu_softmax_mn_after_inline():
     ]
 
     mod = Softmax_mn_after_inline
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("nvidia/geforce-rtx-3090", host="llvm"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=get_rules("cuda", ms.schedule_rule.CrossThreadReduction),
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.CrossThreadReduction,
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -552,13 +552,12 @@ def test_gpu_batch_norm_bmn():
     ]
 
     mod = create_prim_func(te_workload.norm_bmn(B=1, M=512, N=512))
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("nvidia/geforce-rtx-3090", host="llvm"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=get_rules("cuda", ms.schedule_rule.CrossThreadReduction),
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.CrossThreadReduction,
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -670,13 +669,12 @@ def test_gpu_argmax():
     ]
 
     mod = argmax
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("nvidia/geforce-rtx-3090", host="llvm"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=get_rules("cuda", ms.schedule_rule.CrossThreadReduction),
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.CrossThreadReduction,
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -745,13 +743,12 @@ def test_gpu_argmax_32():
     ]
 
     mod = argmax_32
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("nvidia/geforce-rtx-3090", host="llvm"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=get_rules("cuda", ms.schedule_rule.CrossThreadReduction),
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.CrossThreadReduction,
+    )
     check_sketches(
         mod,
         sketches=actual,

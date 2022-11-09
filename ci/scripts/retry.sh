@@ -32,7 +32,7 @@ retry() {
           exit 1
       fi
 
-      WAIT=$(python3 -c 'import random; print(random.randint(10, 30))')
+      WAIT=$(python3 -c 'import random; print(random.randint(30, 200))')
       echo "failed to update $n / $max_retries, waiting $WAIT to try again"
       sleep "$WAIT"
   done

@@ -68,9 +68,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 VirtualDevice::VirtualDevice(DLDeviceType device_type, int virtual_device_id, Target target,
                              MemoryScope memory_scope) {
-  ICHECK(!target.defined() || device_type == target->kind->device_type)
-      << "target " << target->ToDebugString() << " has device type " << target->kind->device_type
-      << " but virtual device has device type " << device_type;
+  ICHECK(!target.defined() || device_type == target->GetTargetDeviceType())
+      << "target " << target->ToDebugString() << " has device type "
+      << target->GetTargetDeviceType() << " but virtual device has device type " << device_type;
   auto node = make_object<VirtualDeviceNode>();
   node->device_type_int = device_type;
   node->virtual_device_id = virtual_device_id;
@@ -151,7 +151,7 @@ VirtualDevice VirtualDevice::Default(const VirtualDevice& lhs, const VirtualDevi
     defaulted_target = lhs->target;
   } else {
     // We can only default to the rhs's target if it is consistent with the device type
-    if (rhs->target.defined() && rhs->target->kind->device_type == defaulted_device_type) {
+    if (rhs->target.defined() && rhs->target->GetTargetDeviceType() == defaulted_device_type) {
       defaulted_target = rhs->target;
     }
     // else: leave as null

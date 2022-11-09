@@ -27,7 +27,7 @@ if (NOT DEFINED CMSIS_PATH)
 endif()
 
 set(TVMC_COMMAND python3 -m tvm.driver.tvmc)
-set(TVMC_ARGS 
+set(TVMC_ARGS
     --target="cmsis-nn -mcpu=cortex-m55, c" # CMSIS-NN and C targets
     --runtime=crt # C Runtime
     --executor=aot # Ahead-of-Time Executor
@@ -41,14 +41,14 @@ set(TVM_RUNTIME
     ${CMAKE_CURRENT_BINARY_DIR}/runtime/src/runtime/crt/common/crt_backend_api.c
     ${CMAKE_CURRENT_BINARY_DIR}/runtime/src/runtime/crt/memory/stack_allocator.c
 )
-set(CODEGEN_OUTPUT 
+set(CODEGEN_OUTPUT
     ${CMAKE_CURRENT_BINARY_DIR}/codegen/host/src/default_lib0.c
     ${CMAKE_CURRENT_BINARY_DIR}/codegen/host/src/default_lib1.c
     ${CMAKE_CURRENT_BINARY_DIR}/codegen/host/src/default_lib2.c
 )
-set(DATA_FILES 
-    ${CMAKE_CURRENT_BINARY_DIR}/inputs.c 
-    ${CMAKE_CURRENT_BINARY_DIR}/outputs.c 
+set(DATA_FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/inputs.c
+    ${CMAKE_CURRENT_BINARY_DIR}/outputs.c
     ${CMAKE_CURRENT_BINARY_DIR}/labels.c
 )
 set(CMSIS_SOURCES
@@ -71,7 +71,7 @@ set(CMSIS_SOURCES
 
 add_custom_command(
     OUTPUT ${TVM_RUNTIME}
-    OUTPUT ${CODEGEN_OUTPUT} 
+    OUTPUT ${CODEGEN_OUTPUT}
     COMMAND ${TVMC_COMMAND} compile ${TVMC_ARGS} ${CMAKE_CURRENT_SOURCE_DIR}/model/cnn_s_quantized.tflite
     COMMAND tar xf ${CMAKE_CURRENT_BINARY_DIR}/module.tar
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -83,15 +83,15 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-target_sources(app PRIVATE 
+target_sources(app PRIVATE
     src/main.c
     ${TVM_RUNTIME}
     ${CODEGEN_OUTPUT}
     ${DATA_FILES}
     ${CMSIS_SOURCES}
 )
-target_include_directories(app 
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include 
+target_include_directories(app
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/runtime/include ${CMAKE_CURRENT_BINARY_DIR}/codegen/host/include
     PUBLIC ${CMSIS_PATH}/CMSIS/NN/Include/ ${CMSIS_PATH}/CMSIS/DSP/Include
 )

@@ -303,7 +303,7 @@ MOBILENET_V2_URL = (
     "model_url, usmp_algo, workspace_size, constant_size",
     [
         (MOBILENET_V1_URL, "greedy_by_size", 4845696, 8468008),
-        (MOBILENET_V1_URL, "greedy_by_conflicts", 4444288, 8468008),
+        (MOBILENET_V1_URL, "greedy_by_conflicts", 4845696, 8468008),
         (MOBILENET_V1_URL, "hill_climb", 3240064, 8468008),
     ],
 )

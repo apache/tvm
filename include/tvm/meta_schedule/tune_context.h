@@ -22,10 +22,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/meta_schedule/builder.h>
-#include <tvm/meta_schedule/mutator.h>
-#include <tvm/meta_schedule/postproc.h>
 #include <tvm/meta_schedule/runner.h>
-#include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/meta_schedule/search_strategy.h>
 #include <tvm/meta_schedule/space_generator.h>
 #include <tvm/node/reflection.h>
@@ -48,6 +45,8 @@ class TuneContext;
 /*! \brief The auto tuning context. */
 class TuneContextNode : public runtime::Object {
  public:
+  using TRandState = support::LinearCongruentialEngine::TRandState;
+
   /*! \brief The workload to be tuned. */
   Optional<IRModule> mod;
   /*! \brief The target to be tuned for. */
@@ -56,74 +55,35 @@ class TuneContextNode : public runtime::Object {
   Optional<SpaceGenerator> space_generator;
   /*! \brief The search strategy. */
   Optional<SearchStrategy> search_strategy;
-  /*! \brief The schedule rules. */
-  Array<ScheduleRule> sch_rules;
-  /*! \brief The postprocessors. */
-  Array<Postproc> postprocs;
-  /*! \brief The probability of using certain mutator. */
-  Map<Mutator, FloatImm> mutator_probs;
   /*! \brief The name of the tuning task. */
   Optional<String> task_name;
-  /*! \brief The tuning task's logging function. t*/
-  PackedFunc logging_func;
-  /*! \brief The random state. */
-  support::LinearCongruentialEngine::TRandState rand_state;
   /*! \brief The number of threads to be used. */
   int num_threads;
-
-  /*! \brief Whether the tuning task has been stopped or finished. */
-  bool is_terminated;  // TODO(@junrushao1994): move to TaskScheduler
-  /*! \brief The measure candidates. */
-  Optional<Array<MeasureCandidate>> measure_candidates;
-  /*! \brief The building results. */
-  Optional<Array<BuilderResult>> builder_results;
-  /*! \brief Packed functions to fetch the runner results asynchronously. */
-  Optional<Array<RunnerFuture>> runner_futures;
+  /*! \brief The random state. */
+  TRandState rand_state;
+  /*! \brief The tuning task's logging function. t*/
+  PackedFunc logger;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("mod", &mod);
     v->Visit("target", &target);
     v->Visit("space_generator", &space_generator);
     v->Visit("search_strategy", &search_strategy);
-    v->Visit("sch_rules", &sch_rules);
-    v->Visit("postprocs", &postprocs);
-    v->Visit("mutator_probs", &mutator_probs);
     v->Visit("task_name", &task_name);
-    // `logging_func` is not visited
-    v->Visit("rand_state", &rand_state);
     v->Visit("num_threads", &num_threads);
-    v->Visit("is_terminated", &is_terminated);
-    v->Visit("measure_candidates", &measure_candidates);
-    v->Visit("builder_results", &builder_results);
-    v->Visit("runner_futures", &runner_futures);
+    v->Visit("rand_state", &rand_state);
+    // `logger` is not visited
   }
-
-  /*! \brief Initialize members that needs initialization with tune context. */
+  /*!
+   * \brief Initialize members that needs initialization with tune context.
+   */
   void Initialize();
   /*!
    * \brief Clone the tune context.
    * \return The cloned tune context.
    */
   TuneContext Clone() const;
-  /*! \brief Set the measure candidates from the SearchStrategy */
-  void _SetMeasureCandidates(const Array<MeasureCandidate>& candidates);
-  /*!
-   * \brief Send the measure candidates to builder.
-   * \param builder The builder to send the candidates to.
-   */
-  void _SendToBuilder(const Builder& builder);
-  /*!
-   * \brief Send the built measure candidates to runner.
-   * \param runner The runner to send the candidates to.
-   */
-  void _SendToRunner(const Runner& runner);
-  /*!
-   * \brief Join the running tasks.
-   * \returns The results from the runner
-   */
-  Array<RunnerResult> _Join();
-  /*! \brief Set `measure_candidates`, `builder_results` and `runner_futures` to null. */
-  void _ClearMeasureState();
+
   static constexpr const char* _type_key = "meta_schedule.TuneContext";
   TVM_DECLARE_FINAL_OBJECT_INFO(TuneContextNode, Object);
 };
@@ -134,31 +94,22 @@ class TuneContextNode : public runtime::Object {
  */
 class TuneContext : public runtime::ObjectRef {
  public:
+  using TRandState = support::LinearCongruentialEngine::TRandState;
   /*!
    * \brief Constructor.
    * \param mod The workload to be tuned.
    * \param target The target to be tuned for.
    * \param space_generator The design space generator.
    * \param search_strategy The search strategy.
-   * \param sch_rules The schedule rules.
-   * \param postprocs The postprocessors.
-   * \param mutator_probs The probability of using certain mutator.
    * \param task_name The name of the tuning task.
-   * \param logging_func The tuning task's logging function.
-   * \param rand_state The random state.
    * \param num_threads The number of threads to be used.
+   * \param rand_state The random state.
+   * \param logger The tuning task's logging function.
    */
-  TVM_DLL explicit TuneContext(Optional<IRModule> mod,                                    //
-                               Optional<Target> target,                                   //
-                               Optional<SpaceGenerator> space_generator,                  //
-                               Optional<SearchStrategy> search_strategy,                  //
-                               Optional<Array<ScheduleRule>> sch_rules,                   //
-                               Optional<Array<Postproc>> postprocs,                       //
-                               Optional<Map<Mutator, FloatImm>> mutator_probs,            //
-                               Optional<String> task_name,                                //
-                               PackedFunc logging_func,                                   //
-                               support::LinearCongruentialEngine::TRandState rand_state,  //
-                               int num_threads);
+  TVM_DLL explicit TuneContext(Optional<IRModule> mod, Optional<Target> target,
+                               Optional<SpaceGenerator> space_generator,
+                               Optional<SearchStrategy> search_strategy, Optional<String> task_name,
+                               int num_threads, TRandState rand_state, PackedFunc logger);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TuneContext, ObjectRef, TuneContextNode);
 };
 

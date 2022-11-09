@@ -24,6 +24,8 @@ import shutil
 import subprocess
 import tarfile
 import time
+import re
+
 from tvm.micro.project_api import server
 
 
@@ -34,6 +36,11 @@ MODEL_LIBRARY_FORMAT_RELPATH = "model.tar"
 
 
 IS_TEMPLATE = not os.path.exists(os.path.join(PROJECT_DIR, MODEL_LIBRARY_FORMAT_RELPATH))
+
+# Used this size to pass most CRT tests in TVM.
+MEMORY_SIZE_BYTES = 2 * 1024 * 1024
+
+MAKEFILE_FILENAME = "Makefile"
 
 
 class Handler(server.ProjectAPIHandler):
@@ -56,8 +63,16 @@ class Handler(server.ProjectAPIHandler):
                     "verbose",
                     optional=["build"],
                     type="bool",
+                    default=False,
                     help="Run make with verbose output",
-                )
+                ),
+                server.ProjectOption(
+                    "memory_size_bytes",
+                    optional=["generate_project"],
+                    type="int",
+                    default=MEMORY_SIZE_BYTES,
+                    help="Sets the value of MEMORY_SIZE_BYTES.",
+                ),
             ],
         )
 
@@ -66,6 +81,27 @@ class Handler(server.ProjectAPIHandler):
 
     # The build target given to make
     BUILD_TARGET = "build/main"
+
+    def _populate_makefile(
+        self,
+        makefile_template_path: pathlib.Path,
+        makefile_path: pathlib.Path,
+        memory_size: int,
+    ):
+        """Generate Makefile from template."""
+        flags = {
+            "MEMORY_SIZE_BYTES": str(memory_size),
+        }
+
+        regex = re.compile(r"([A-Z_]+) := (<[A-Z_]+>)")
+        with open(makefile_path, "w") as makefile_f:
+            with open(makefile_template_path, "r") as makefile_template_f:
+                for line in makefile_template_f:
+                    m = regex.match(line)
+                    if m:
+                        var, token = m.groups()
+                        line = line.replace(token, flags[var])
+                    makefile_f.write(line)
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # Make project directory.
@@ -97,8 +133,12 @@ class Handler(server.ProjectAPIHandler):
             else:
                 shutil.copy2(src_path, dst_path)
 
-        # Populate Makefile.
-        shutil.copy2(pathlib.Path(__file__).parent / "Makefile", project_dir / "Makefile")
+        # Populate Makefile
+        self._populate_makefile(
+            pathlib.Path(__file__).parent / f"{MAKEFILE_FILENAME}.template",
+            project_dir / MAKEFILE_FILENAME,
+            options.get("memory_size_bytes", MEMORY_SIZE_BYTES),
+        )
 
         # Populate crt-config.h
         crt_config_dir = project_dir / "crt_config"

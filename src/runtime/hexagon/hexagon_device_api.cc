@@ -33,7 +33,6 @@
 
 #include "../workspace_pool.h"
 #include "hexagon_common.h"
-#include "hexagon_user_dma.h"
 
 namespace tvm {
 namespace runtime {
@@ -82,7 +81,7 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
 
   // NOTE: This check should be superfluous, but it's probably a good idea to leave it in
   // until the AoT executor's multi-device dispatch code is mature. --cconvey 2022-08-26
-  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon)
+  CHECK(dev.device_type == kDLHexagon)
       << "dev.device_type: " << dev.device_type << " DeviceName(" << dev.device_type
       << "): " << DeviceName(dev.device_type) << "";
 
@@ -91,18 +90,23 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
 
   const size_t typesize = (dtype.bits / 8) * dtype.lanes;
 
+  CHECK(runtime_hexbuffs) << "Attempted to allocate Hexagon data with "
+                          << "HexagonDeviceAPI::AllocDataSpace before initializing resources.  "
+                          << "Please call HexagonDeviceAPI::AcquireResources";
+
   if (ndim == 0) {
     // Allocate storage for a single scalar value.
-    return mgr->AllocateHexagonBuffer(typesize, kHexagonAllocAlignment, mem_scope);
+    return runtime_hexbuffs->AllocateHexagonBuffer(typesize, kHexagonAllocAlignment, mem_scope);
   } else if (ndim == 1) {
     // Allocate a single, contiguous memory region.
     size_t nbytes = shape[0] * typesize;
-    return mgr->AllocateHexagonBuffer(nbytes, kHexagonAllocAlignment, mem_scope);
+    return runtime_hexbuffs->AllocateHexagonBuffer(nbytes, kHexagonAllocAlignment, mem_scope);
   } else if (ndim == 2) {
     // Allocate the region(s) needed for Hexagon's indirect-tensor format.
     size_t nallocs = shape[0];
     size_t nbytes = shape[1] * typesize;
-    return mgr->AllocateHexagonBuffer(nallocs, nbytes, kHexagonAllocAlignment, mem_scope);
+    return runtime_hexbuffs->AllocateHexagonBuffer(nallocs, nbytes, kHexagonAllocAlignment,
+                                                   mem_scope);
   } else {
     return nullptr;  // unreachable
   }
@@ -116,13 +120,22 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignme
   if (alignment < kHexagonAllocAlignment) {
     alignment = kHexagonAllocAlignment;
   }
-  return mgr->AllocateHexagonBuffer(nbytes, alignment, String("global"));
+  CHECK(runtime_hexbuffs) << "Attempted to allocate Hexagon data with "
+                          << "HexagonDeviceAPI::AllocDataSpace before initializing resources.  "
+                          << "Please call HexagonDeviceAPI::AcquireResources";
+  return runtime_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, String("global"));
 }
 
 void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
   CHECK(ptr) << "buffer pointer is null";
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  mgr->FreeHexagonBuffer(ptr);
+  if (runtime_hexbuffs) {
+    runtime_hexbuffs->FreeHexagonBuffer(ptr);
+  } else {
+    // Either AcquireResources was never called, or ReleaseResources was called.  Since this can
+    // occur in the normal course of shutdown, log a message and continue.
+    DLOG(INFO) << "FreeDataSpace called outside a session for " << ptr;
+  }
 }
 
 // WorkSpace: runtime allocations for Hexagon
@@ -138,7 +151,10 @@ void* HexagonDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_
 
 void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  CHECK(mgr->count(data) != 0)
+  CHECK(runtime_hexbuffs) << "Attempted to free Hexagon workspace with "
+                          << "HexagonDeviceAPI::FreeWorkspace outside of a session.  "
+                          << "Please call HexagonDeviceAPI::AcquireResources";
+  CHECK(runtime_hexbuffs->FindHexagonBuffer(data) != nullptr)
       << "Attempt made to free unknown or already freed workspace allocation";
   dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
@@ -146,14 +162,14 @@ void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
 void* HexagonDeviceAPI::AllocVtcmWorkspace(Device dev, int ndim, const int64_t* shape,
                                            DLDataType dtype, Optional<String> mem_scope) {
   // must be Hexagon device (not CPU)
-  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
+  CHECK(dev.device_type == kDLHexagon) << "dev.device_type: " << dev.device_type;
   CHECK((ndim == 1 || ndim == 2) && "Hexagon Device API supports only 1d and 2d allocations");
   return AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
 }
 
 void HexagonDeviceAPI::FreeVtcmWorkspace(Device dev, void* ptr) {
   // must be Hexagon device (not CPU)
-  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
+  CHECK(dev.device_type == kDLHexagon) << "dev.device_type: " << dev.device_type;
   FreeDataSpace(dev, ptr);
 }
 
@@ -161,8 +177,13 @@ void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHan
   CHECK_EQ(from->byte_offset, 0);
   CHECK_EQ(to->byte_offset, 0);
   CHECK_EQ(GetDataSize(*from), GetDataSize(*to));
+  CHECK(runtime_hexbuffs) << "Attempted to copy Hexagon data with "
+                          << "HexagonDeviceAPI::CopyDataFromTo before initializing resources.  "
+                          << "Please call HexagonDeviceAPI::AcquireResources";
 
-  auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* { return mgr->find(ptr); };
+  auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* {
+    return runtime_hexbuffs->FindHexagonBuffer(ptr);
+  };
 
   HexagonBuffer* hex_from_buf = lookup_hexagon_buffer(from->data);
   HexagonBuffer* hex_to_buf = lookup_hexagon_buffer(to->data);
@@ -209,7 +230,6 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVM
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
   int queue_id = args[0];
-  ICHECK(queue_id == 0 && "Hexagon supports just a single asynchronous queue for DMA");
   void* dst = args[1];
   void* src = args[2];
   int size = args[3];
@@ -217,17 +237,16 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy").set_body([](TVMArgs args, TVM
 
   int ret = DMA_RETRY;
   do {
-    ret = HexagonUserDMA::Get().Copy(dst, src, size);
+    ret = HexagonDeviceAPI::Global()->UserDMA()->Copy(queue_id, dst, src, size);
   } while (ret == DMA_RETRY);
   *rv = static_cast<int32_t>(ret);
 });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.dma_wait").set_body([](TVMArgs args, TVMRetValue* rv) {
   int queue_id = args[0];
-  ICHECK(queue_id == 0 && "Hexagon supports just a single asynchronous queue for DMA");
   int inflight = args[1];
   ICHECK(inflight >= 0);
-  HexagonUserDMA::Get().Wait(inflight);
+  HexagonDeviceAPI::Global()->UserDMA()->Wait(queue_id, inflight);
   *rv = static_cast<int32_t>(0);
 });
 

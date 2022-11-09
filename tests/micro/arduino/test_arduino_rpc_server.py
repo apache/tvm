@@ -44,7 +44,7 @@ def _make_session(model, arduino_board, arduino_cli_cmd, workspace_dir, mod, bui
         mod,
         workspace_dir / "project",
         {
-            "arduino_board": arduino_board,
+            "board": arduino_board,
             "arduino_cli_cmd": arduino_cli_cmd,
             "project_type": "host_driven",
             "verbose": bool(build_config.get("debug")),

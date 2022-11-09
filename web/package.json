@@ -2,7 +2,7 @@
   "name": "tvmjs",
   "displayName": "TVM Wasm JS runtime",
   "license": "Apache-2.0",
-  "version": "0.10.0-dev0",
+  "version": "0.11.0-dev0",
   "scripts": {
     "prepwasm": "make && python3 tests/python/prepare_test_libs.py",
     "build": "tsc -b && make rmtypedep",

@@ -63,4 +63,3 @@ if grep -Fq "USE_MICRO ON" ${BUILD_DIR}/TVMBuildOptions.txt; then
   make test_dynamic test_static
   popd
 fi
-

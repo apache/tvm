@@ -25,7 +25,21 @@ else
     changed_files=$(git diff --no-commit-id --name-only -r origin/main)
 fi
 
+FILES_THAT_SHOULDNT_TRIGGER_REBUILDS=(
+    "docker/bash.sh"
+    "docker/with_the_same_user"
+    "README.md"
+    "lint.sh"
+    "clear-stale-images.sh"
+)
+
 for file in $changed_files; do
+    # Certain files under docker/ don't matter for rebuilds, so ignore them
+    if printf '%s\0' "${FILES_THAT_SHOULDNT_TRIGGER_REBUILDS[@]}" | grep -F -x -z -- "$file"; then
+        echo "Skipping $file"
+        continue
+    fi
+    # if grep -q "docker/"
     echo "Checking $file"
     if grep -q "docker/" <<< "$file"; then
         exit 1

@@ -96,5 +96,5 @@ except ``popcount`` and ``sigmoid``. I implemented them manually.
 Casting
 ~~~~~~~
 
-You can cast values by using the keywords ``uint8``, ``uint16`` ``uint32``, ``uint64``, ``int8``, ``int16``, ``int32``, ``int64``, 
+You can cast values by using the keywords ``uint8``, ``uint16`` ``uint32``, ``uint64``, ``int8``, ``int16``, ``int32``, ``int64``,
 ``float16``, ``float32``, ``float64``.

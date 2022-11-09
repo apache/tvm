@@ -30,6 +30,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include "../../tir/ir/functor_common.h"
 #include "../../tir/transforms/ir_utils.h"
@@ -107,15 +108,21 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
 
   Stmt VisitStmt_(const BlockNode* _block) final {
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(_block));
-    if (Optional<ObjectRef> ann = block->annotations.Get(topi_attr)) {
-      Array<Buffer> buffers = Downcast<Array<Buffer>>(ann);
-      for (Buffer buffer : buffers) {
+    BlockNode* n = block.CopyOnWrite();
+    if (Optional<ObjectRef> ann = n->annotations.Get(topi_attr)) {
+      for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
         auto it = buffer2index_.find(buffer);
         if (it != buffer2index_.end()) {
           layout_free_buffer_indices_.insert(it->second);
         }
       }
-      block.CopyOnWrite()->annotations.erase(topi_attr);
+      n->annotations.erase(topi_attr);
+    }
+    for (const String& attr : this->blocklist) {
+      auto it = n->annotations.find(attr);
+      if (it != n->annotations.end()) {
+        n->annotations.erase(attr);
+      }
     }
     return std::move(block);
   }
@@ -123,6 +130,8 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
   std::unordered_map<tir::Buffer, int, ObjectPtrHash, ObjectPtrEqual> buffer2index_;
   std::set<int> layout_free_buffer_indices_;
   String topi_attr = "layout_free_placeholders";
+  std::vector<String> blocklist = {"const_matrix", "auto_scheduler_simplify_const_tensor_indices",
+                                   "workload"};
 };
 
 BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
@@ -473,10 +482,11 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
   const auto* complete = runtime::Registry::Get("script.Complete");
   ICHECK(complete);
   func = (*complete)(std::move(func), info->root_alloc);
-  return LayoutFreePlaceholdersNormalizer().Process(std::move(func));
+  return func;
 }
 
-PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
+PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
+                                     const Array<runtime::NDArray>& constants) {
   // Infomations used in CreatePrimFunc and its sub-functions.
   CreateFuncInfo info(arg_list);
   // Root body stmts.
@@ -494,14 +504,15 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
   for (const te::Operation& op : order) {
     RewriteStageToBlock(op, &info, &root_stmts, &analyzer);
   }
+
   // Step 4. Create func and complete prim func.
-  return GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
+  auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
+  func = tir::BindParams(func, constants);
+  return LayoutFreePlaceholdersNormalizer().Process(std::move(func));
 }
 
-PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
-                                     const Array<runtime::NDArray>& constants) {
-  PrimFunc func = CreatePrimFunc(arg_list);
-  return tir::BindParams(func, constants);
+PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
+  return CreatePrimFuncWithConstants(arg_list, {});
 }
 
 TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_typed(CreatePrimFunc);

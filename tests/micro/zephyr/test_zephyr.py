@@ -59,7 +59,7 @@ def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config, use_fvp):
         "project_type": "host_driven",
         "west_cmd": west_cmd,
         "verbose": bool(build_config.get("debug")),
-        "zephyr_board": zephyr_board,
+        "board": zephyr_board,
         "arm_fvp_path": "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/FVP_Corstone_SSE-300_Ethos-U55",
         "use_fvp": bool(use_fvp),
     }
@@ -456,7 +456,7 @@ def test_autotune_conv2d(workspace_dir, board, west_cmd, microtvm_debug, use_fvp
         config_main_stack_size = 1536
 
     project_options = {
-        "zephyr_board": board,
+        "board": board,
         "west_cmd": west_cmd,
         "verbose": 1,
         "project_type": "host_driven",
@@ -577,7 +577,7 @@ def test_schedule_build_with_cmsis_dependency(
         "project_type": "host_driven",
         "west_cmd": west_cmd,
         "verbose": bool(build_config.get("debug")),
-        "zephyr_board": board,
+        "board": board,
         "cmsis_path": os.getenv("CMSIS_PATH"),
         "use_fvp": bool(use_fvp),
     }
