@@ -626,6 +626,22 @@ def elementwise_producer_not_cover_consumer(
             D[vi, vj] = T.if_then_else(vi >= 128, B[vi - 128, vj], T.float32(0), dtype="float32")
 
 
+@T.prim_func
+def elementwise_predicate_producer(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.alloc_buffer((127, 128))
+    C = T.match_buffer(c, (127, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.where(i < 127)
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(127, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
+
+
 # pylint: enable=no-member,invalid-name,unused-variable
 
 use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
@@ -881,6 +897,15 @@ def test_reverse_compute_inline_error_producer_not_cover_consumer(use_block_name
     compute = "C" if use_block_name else sch.get_block("C")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reverse_compute_inline(compute)
+
+
+def test_reverse_compute_inline_producer_predicate():
+    """Test reverse compute inline failure when the producer has a non-trivial predicate."""
+
+    sch = tir.Schedule(elementwise_predicate_producer, debug_mask="all")
+    with pytest.raises(tvm.tir.ScheduleError) as e:
+        sch.reverse_compute_inline(sch.get_block("C"))
+    assert "The producer block has a non-trivial predicate" in str(e)
 
 
 if __name__ == "__main__":
