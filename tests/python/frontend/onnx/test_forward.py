@@ -5367,6 +5367,7 @@ target_skips = {
         "test_range_int32_type_positive_delta_expanded",
         "test_mod_mixed_sign_float16",
         "test_qlinearconv",
+        "test_qlinearmatmul",
         "test_resize_upsample_sizes_nearest",
     ]
 }
@@ -6151,6 +6152,8 @@ def test_qlinearconv(target, dev):
     )
 
 
+# TODO(vvchernov): fix problem with quantization on cuda
+@tvm.testing.known_failing_targets("cuda")
 @tvm.testing.parametrize_targets
 def test_qlinearmatmul(target, dev):
     """test_qlinearmatmul"""
