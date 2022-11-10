@@ -23,6 +23,7 @@ from .depthwise_conv2d import *
 from .conv2d_transpose import *
 from .conv2d_int8 import *
 from . import conv2d_alter_op
+from . import qnn_alter_op
 from .bitserial_conv2d import *
 from .bitserial_dense import *
 from .injective import *

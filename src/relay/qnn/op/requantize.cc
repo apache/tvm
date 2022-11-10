@@ -501,7 +501,7 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     axis_shape = Integer(1);
   }
   // Check and assign types for scale and zero points.
-  AssignType(types[1], DataType::Float(32), axis_shape, reporter);  // input_scale
+  //AssignType(types[1], DataType::Float(32), axis_shape, reporter);  // input_scale
   AssignType(types[2], DataType::Int(32), axis_shape, reporter);    // input_zero_pt
   // For now, requantize output tensor is limited to full tensor uniform quantization.
   ICHECK(IsScalarType(types[3], DataType::Float(32)));  // output_scale

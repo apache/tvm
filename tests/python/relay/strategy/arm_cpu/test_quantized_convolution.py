@@ -17,13 +17,16 @@
 """microTVM cares a lot about the convolution + bias + requantize + fused ReLU use case. There have
 been some accuracy issues in the past, so this test steps through a model (MobileNetV1) layer by
 layer and ensures there is 1-1 correspondance at each step. This test would run way faster if we ran
-the model all at once, but then we wouldn't know which layers had issues."""
+the model all at once, but then we wouldn't know which layers had issues.
+
+Furthermore, this test uses some in-development optimizations for microTVM that aren't part of the
+main pipeline.
+"""
 
 import numpy as np
 from PIL import Image
 import pytest
 import tensorflow as tf
-import time
 
 import tvm
 import tvm.testing
@@ -34,22 +37,28 @@ from tvm.micro.testing.aot_test_utils import AOT_CORSTONE300_RUNNER
 from tvm.contrib.download import download_testdata
 from test_generalized_conv2d import change_ndarray_layout
 
+
 MODEL_URL = "https://github.com/mlcommons/tiny/raw/master/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite"
-SAMPLE_URL = "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/elephant-299.jpg"
+SAMPLE_URL = (
+    "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/elephant-299.jpg"
+)
+
 
 @pytest.fixture(scope="module")
-def interpreter(request):
+def interpreter():
+    """Returns a TFLite interpreter with the MLPerf Tiny visual wakewords model loaded, with an
+    elephant image run through it, and with all intermediate layer outputs saved."""
     # Download the reference model
-    rel_model_path = f"model_microtvm_mobilenetv1.tflite"
+    rel_model_path = "model_microtvm_mobilenetv1.tflite"
     file = download_testdata(MODEL_URL, rel_model_path, overwrite=False)
 
     # Load it into TensorFlow and allocate memory
     interpreter = tf.lite.Interpreter(file, experimental_preserve_all_tensors=True)
     interpreter.allocate_tensors()
 
-    # Download an image. The neuron activations are very strange if we use random data or ones,
-    # so downloading an image is necessary.
-    rel_image_path = f"image_microtvm_mobilenetv1.jpg"
+    # Download an image. The neuron activations are strange if we use random data or ones,
+    # so downloading an image is useful.
+    rel_image_path = "image_microtvm_mobilenetv1.jpg"
     img_path = download_testdata(SAMPLE_URL, rel_image_path, overwrite=False)
     image = Image.open(img_path).resize((96, 96))
     image_data_hwc_uint8 = np.asarray(image)
@@ -59,32 +68,31 @@ def interpreter(request):
 
     # Load the image into the TFLite interpreter and compute all intermediate tensor values
     input_details = interpreter.get_input_details()
-    interpreter.set_tensor(input_details[0]['index'], image_data_nhwc_int8)
+    interpreter.set_tensor(input_details[0]["index"], image_data_nhwc_int8)
     interpreter.invoke()
     return interpreter
 
 
 def _get_layer_attributes(layer_num):
-    """Returns the relevant schedule, data type, padding, and stride for a given layer in a
-    MobileNetV1 model. It's a huge headache to read this data from TensorFlow, as it is not user
-    accessible via the interpreter. If we really wanted to, we would have to parse the .tflite file
-    ourselves. This function is a bit of a hack, but lets us skip that."""
+    """Returns the relevant padding and stride for a given layer in a MobileNetV1 model. It's a huge
+    headache to read this data from TensorFlow, as it is not user accessible via the interpreter. If
+    we really wanted to, we would have to parse the .tflite file ourselves. This function is a bit
+    of a hack, but lets us skip that."""
 
-    if layer_num == 0: # Regular conv2d
-        return (None, "int16", (1, 1, 0, 0), (2, 2))
-    elif layer_num % 2 == 0: # 1x1 conv2d
-        return (None, "int16", (1, 1, 1, 1), (1, 1))
-    elif layer_num in [3, 7, 11, 23]: # Downsizing depthwise_conv2d layers
-        return (None, "int16", (1, 1, 0, 0), (2, 2))
-    else: # Depthwise conv2d
-        return (None, "int16", (1, 1, 1, 1), (1, 1))
+    if layer_num == 0:  # Regular conv2d
+        return ((0, 0, 1, 1), (2, 2))
+    if layer_num % 2 == 0:  # 1x1 conv2d
+        return ((0, 0, 0, 0), (1, 1))
+    if layer_num in [3, 7, 11, 23]:  # Downsizing depthwise_conv2d layers
+        return ((0, 0, 1, 1), (2, 2))
+    # Depthwise conv2d
+    return ((1, 1, 1, 1), (1, 1))
 
 
 def _get_relu_activation_prefix(layer_num):
     if layer_num == 0:
         return "model/activation/Relu;"
-    else:
-        return f"model/activation_{layer_num}/Relu;"
+    return f"model/activation_{layer_num}/Relu;"
 
 
 def _get_main_path_tensor_details(details, tensor_num):
@@ -140,7 +148,7 @@ def _get_quant_scale_const(quantization_dict, as_scalar=False):
     return relay.const(scales, "float32")
 
 
-def _get_quant_zp_const(quantization_dict, as_scalar = False):
+def _get_quant_zp_const(quantization_dict, as_scalar=False):
     zero_points = quantization_dict["zero_points"]
     if as_scalar:
         assert len(zero_points) == 1
@@ -148,85 +156,120 @@ def _get_quant_zp_const(quantization_dict, as_scalar = False):
     return relay.const(zero_points, "int32")
 
 
+def _change_layout(data, old_layout, new_layout, dtype):
+    return change_ndarray_layout(data, old_layout, new_layout).astype(dtype)
 
 
-
-@pytest.mark.parametrize("layer", range(2, 3))
-@tvm.testing.requires_corstone300
-def test_qnn_conv2d_mobilenetv1_layer(layer, interpreter):
-    schedule_name, dtype, padding, strides = _get_layer_attributes(layer)
-    """Load the input, kernel, bias, and generated output from each layer when it was run by the
-    TensorFlow TFLite interpreter. The tensor values are quantized (though note that biases_tensor
-    is an int32), while the quantization data is not. Note the zero points are zero everywhere
-    except between layers."""
+def _load_tflite_layer(interpreter, layer):
     tensor_details = interpreter.get_tensor_details()
+
     def lookup(detail):
         return interpreter.get_tensor(detail["index"]), detail["quantization_parameters"]
-    inputs_tensor, inputs_quant = lookup(_get_main_path_tensor_details(tensor_details, layer))
-    kernel_tensor, kernel_quant = lookup(_get_kernel_details(tensor_details, layer))
-    biases_tensor, biases_quant = lookup(_get_bias_details(tensor_details, layer))
-    output_tensor, output_quant = lookup(_get_main_path_tensor_details(tensor_details, layer + 1))
-    out_channel_multiplier, kernel_h, kernel_w, in_channels = kernel_tensor.shape
 
-    # Reshape tensors to match the layouts we will see after legalization
-    if layer % 2 == 0: # Regular conv2d
-        new_inputs_layout, new_kernel_layout, new_output_layout = "NHWC", "OHWI", "NHWC"
-    else: # Depthwise conv2d
-        new_inputs_layout, new_kernel_layout, new_output_layout = "NCHW", "OIHW", "NCHW"
-    inputs_ndarr = change_ndarray_layout(inputs_tensor, "NHWC", new_inputs_layout).astype(dtype)
-    kernel_ndarr = change_ndarray_layout(kernel_tensor, "OHWI", new_kernel_layout).astype(dtype)
-    output_ndarr = change_ndarray_layout(output_tensor, "NHWC", new_output_layout).astype(dtype)
+    input_data = lookup(_get_main_path_tensor_details(tensor_details, layer))
+    kernel_data = lookup(_get_kernel_details(tensor_details, layer))
+    bias_data = lookup(_get_bias_details(tensor_details, layer))
+    output_data = lookup(_get_main_path_tensor_details(tensor_details, layer + 1))
 
-    """Construct our Relay function out of a qnn.conv2d, bias_add, and qnn.requantize. These will be
-    fused into a single schedule by te_compiler_cache.cc."""
-    input_var = relay.var("input", relay.TensorType(inputs_ndarr.shape, dtype))
-    convolution = relay.qnn.op.conv2d(
-        input_var,
+    return input_data, kernel_data, bias_data, output_data
+
+
+def _make_relay_partial_func(relay_op, *args, **kwargs):
+    return lambda op: relay_op(op, *args, **kwargs)
+
+
+def _make_conv2d_op(kernel, data_quant, kernel_quant, hyperparams, is_depthwise=False):
+    dtype, padding, strides, data_layout, kernel_layout, output_layout = hyperparams
+    kernel_size = kernel.shape[1:3]
+    if is_depthwise:
+        channels = groups = kernel.shape[3]
+    else:
+        channels = kernel.shape[0]
+        groups = 1
+
+    kernel_ndarr = _change_layout(kernel, "OHWI", kernel_layout, dtype)
+
+    return _make_relay_partial_func(
+        relay.qnn.op.conv2d,
         relay.const(kernel_ndarr, dtype),
-        input_zero_point=_get_quant_zp_const(inputs_quant, as_scalar=True),
+        input_zero_point=_get_quant_zp_const(data_quant, as_scalar=True),
         kernel_zero_point=_get_quant_zp_const(kernel_quant),
-        input_scale=_get_quant_scale_const(inputs_quant, as_scalar=True),
+        input_scale=_get_quant_scale_const(data_quant, as_scalar=True),
         kernel_scale=_get_quant_scale_const(kernel_quant),
-        kernel_size=(kernel_h, kernel_w),
-        data_layout=new_inputs_layout,
-        kernel_layout=new_kernel_layout,
-
+        kernel_size=kernel_size,
+        data_layout=data_layout,
+        kernel_layout=kernel_layout,
         dilation=(1, 1),
         strides=strides,
         padding=padding,
-        groups=(1 if layer % 2 == 0 else in_channels),
-        channels=(out_channel_multiplier if layer % 2 == 0 else in_channels),
+        groups=groups,
+        channels=channels,
         out_dtype="int32",
+        out_layout=output_layout,
     )
 
-    biased_convolution = relay.op.nn.bias_add(
-        convolution,
-        relay.const(biases_tensor, "int32"),
-        axis=3,
+
+def _make_bias_op(bias, output_layout):
+    requantize_axis = output_layout.index("C")
+    return _make_relay_partial_func(
+        relay.op.nn.bias_add,
+        relay.const(bias, "int32"),
+        axis=requantize_axis,
     )
 
-    output = relay.qnn.op.requantize(
-        biased_convolution,
-        _get_quant_scale_const(biases_quant),
-        _get_quant_zp_const(biases_quant),
+
+def _make_requantize_op(bias_quant, output_quant, output_dtype, output_layout):
+    requantize_axis = output_layout.index("C")
+    return _make_relay_partial_func(
+        relay.qnn.op.requantize,
+        _get_quant_scale_const(bias_quant),
+        _get_quant_zp_const(bias_quant),
         _get_quant_scale_const(output_quant, as_scalar=True),
         _get_quant_zp_const(output_quant, as_scalar=True),
-        axis=3,
+        axis=requantize_axis,
         compute_dtype="int64",
-        out_dtype=dtype,
+        out_dtype=output_dtype,
     )
 
-    test_function = relay.Function([input_var], output)
-    test_model = AOTTestModel(
-        module=tvm.IRModule.from_expr(test_function),
-        inputs={"input": inputs_ndarr},
+
+def _make_aot_model(params, hyperparams, layouts, is_depthwise=False):
+    tensors, quantizations = zip(*params)
+    data, kernel, bias, output = tensors
+    data_quant, kernel_quant, bias_quant, output_quant = quantizations
+
+    dtype, padding, _strides = hyperparams
+    data_layout, _, output_layout = layouts
+
+    if any(padding):
+        pad_const = int(data_quant["zero_points"][0])
+        pad_before = (0, padding[0], padding[1], 0)
+        pad_after = (0, padding[2], padding[3], 0)
+        data = np.pad(data, tuple(zip(pad_before, pad_after)), constant_values=pad_const)
+    data_ndarr = _change_layout(data, "NHWC", data_layout, dtype)
+
+    output_ndarr = _change_layout(output, "NHWC", output_layout, dtype)
+
+    input_var = relay.var("input", relay.TensorType(data_ndarr.shape, dtype))
+    conv2d = _make_conv2d_op(kernel, data_quant, kernel_quant, hyperparams + layouts, is_depthwise)
+    bias = _make_bias_op(bias, output_layout)
+    requantize = _make_requantize_op(bias_quant, output_quant, dtype, output_layout)
+
+    relay_mod = requantize(bias(conv2d(input_var)))
+    relay_func = relay.Function([input_var], relay_mod)
+    return AOTTestModel(
+        module=tvm.IRModule.from_expr(relay_func),
+        inputs={"input": data_ndarr},
         outputs={"output": output_ndarr},
+        output_tolerance=1,
     )
-    print(test_model.params)
 
-    target = tvm.target.Target("c -keys=arm_cpu -mcpu=cortex-m7")
-    runtime = Runtime("crt")
-    executor = Executor(
+
+def _make_target():
+    return tvm.target.Target("c -keys=arm_cpu -mcpu=cortex-m7")
+
+
+def _make_executor():
+    return Executor(
         "aot",
         {
             "workspace-byte-alignment": 8,
@@ -237,16 +280,28 @@ def test_qnn_conv2d_mobilenetv1_layer(layer, interpreter):
     )
 
 
-    # There should only be one operator
-    def schedule_fn(sch):
-        print(sch.mod.attrs["task_name"])
-        assert "fused_qnn_conv2d_add_qnn_requantize" in sch.mod.attrs["task_name"]
-        tvm.topi.arm_cpu.schedule_qnn_conv2d(sch)
-        #import pdb
-        #pdb.set_trace()
+@pytest.mark.parametrize("layer", range(0, 23, 2))
+@tvm.testing.requires_corstone300
+def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer):
+    dtype = "int16"
 
+    tensor, kernel, bias, output = _load_tflite_layer(interpreter, layer)
+    padding, strides = _get_layer_attributes(layer)
+
+    if layer % 2 == 0:
+        data_layout, kernel_layout, output_layout = "NHWC", "OHWI", "NHWC"
+    else:
+        data_layout, kernel_layout, output_layout = "NCHW", "OIHW", "NCHW"
+
+    test_model = _make_aot_model(
+        (tensor, kernel, bias, output),
+        (dtype, padding, strides),
+        (data_layout, kernel_layout, output_layout),
+        is_depthwise=layer % 2 == 1,
+    )
+
+    def schedule_fn(_sch):
         return True
-
 
     with tvm.transform.PassContext(
         opt_level=3,
@@ -255,13 +310,13 @@ def test_qnn_conv2d_mobilenetv1_layer(layer, interpreter):
             "relay.backend.use_meta_schedule": True,
             "relay.backend.tir_converter": "allow_extern",
         },
-        disabled_pass=["qnn.Legalize"]
+        disabled_pass=["qnn.Legalize"],
     ), meta_schedule.database.ScheduleFnDatabase(schedule_fn):
         executor_factory = tvm.relay.build(
             test_model.module,
-            target,
-            executor=executor,
-            runtime=runtime,
+            _make_target(),
+            executor=_make_executor(),
+            runtime=Runtime("crt"),
             params=test_model.params,
             mod_name=test_model.name,
         )

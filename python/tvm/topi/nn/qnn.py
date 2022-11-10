@@ -188,3 +188,19 @@ def simulated_dequantize(data, in_dtype, input_scale=None, input_zero_point=None
         return intn_value
 
     return te.compute(data.shape, lambda *indices: _dispatch_sim_dequantize(data)[indices])
+
+@tvm.target.generic_func
+def qnn_dense_alter_layout(attrs, inputs, tinfos, out_type):
+    return None
+
+@tvm.target.generic_func
+def qnn_conv2d_alter_layout(attrs, inputs, tinfos, out_type):
+    return None
+
+@tvm.target.generic_func
+def qnn_add_alter_layout(attrs, inputs, tinfos, out_type):
+    return None
+
+@tvm.target.generic_func
+def qnn_requantize_alter_layout(attrs, inputs, tinfos, out_type):
+    return None
