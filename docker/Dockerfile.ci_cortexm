@@ -84,6 +84,10 @@ RUN bash /install/ubuntu_install_zephyr.sh
 ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr
 ENV PATH /opt/zephyr-sdk/sysroots/x86_64-pokysdk-linux/usr/bin:$PATH
 
+# NRF
+COPY install/ubuntu_install_nrfjprog.sh /install/ubuntu_install_nrfjprog.sh
+RUN bash /install/ubuntu_install_nrfjprog.sh
+
 # FreeRTOS deps
 COPY install/ubuntu_install_freertos.sh /install/ubuntu_install_freertos.sh
 RUN bash /install/ubuntu_install_freertos.sh
