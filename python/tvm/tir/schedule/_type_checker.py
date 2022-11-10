@@ -21,7 +21,6 @@ import functools
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 import typing
-import sys
 
 
 def _is_none_type(type_: Any) -> bool:
