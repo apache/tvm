@@ -667,6 +667,77 @@ class Schedule(Object):
         )
 
     @type_checked
+    def partition(self, loop_rv: LoopRV, factor: Union[int, ExprRV]) -> List[LoopRV]:
+        """
+        Partition a loop into two sequential loops.
+
+        The original block is split two blocks, one from 0 to `factor` (which
+        retains its original name) and one from `factor` to the extent of the
+        original loop (with "_tail" suffixed to the original name). For loops with
+        a nonzero start are not well supported by TVM so a dummy variable is
+        introduced to shift the iter var to start at `factor`. The two generated
+        blocks are wrapped in another block (suffixed with "_wrapper") because
+        `Replace` does not support replacing `For` with a `SeqStmt`.
+
+
+        Parameters
+        ----------
+        loop_rv : LoopRV
+            The loop to partition.
+
+        factor : Union[int, ExprRV]
+            Extent of the first loop in that partition.
+
+        Returns
+        -------
+        List[LoopRV]
+            The two loops resulting from the partition in order of appearance
+            in the program.
+
+        Example
+        -------
+
+        .. code-block:: python
+
+           @T.prim_func
+           def func(A: T.Buffer[100, "float32"]) -> None:
+               # body
+               # with T.block("root")
+               for i in T.serial(100):
+                   with T.block("main"):
+                       T.reads()
+                       T.writes(A[i])
+                       A[i] = T.float32(1)
+
+        becomes
+
+        .. code-block:: python
+
+           @T.prim_func
+           def main(A: T.Buffer[100, "float32"]) -> None:
+               # body
+               with T.block("root"):
+                   T.reads()
+                   T.writes()
+                   with T.block("main_wrapper"):
+                       T.reads()
+                       T.writes()
+                       for i in T.serial(64):
+                           with T.block("main"):
+                               T.reads()
+                               T.writes(A[i])
+                               A[i] = T.float32(1)
+                       for i_ in T.serial(36):
+                           i: T.int32 = i_ + 64
+                           with T.block("main_tail"):
+                               T.reads()
+                               T.writes(A[i])
+                               A[i] = T.float32(1)
+
+        """
+        return list(_ffi_api.SchedulePartition(self, loop_rv, factor))
+
+    @type_checked
     def reorder(self, *ordered_loops: List[LoopRV]) -> None:
         """
         Reorder a list of loops. It doesn't require the loops to be consecutive.

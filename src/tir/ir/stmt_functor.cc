@@ -655,6 +655,8 @@ Stmt IRTransform(Stmt ir_node, const runtime::PackedFunc& f_preorder,
 
 class IRSubstitute : public StmtExprMutator {
  public:
+  using StmtExprMutator::VisitExpr_;
+  using StmtExprMutator::VisitStmt_;
   explicit IRSubstitute(std::function<Optional<PrimExpr>(const Var&)> vmap) : vmap_(vmap) {}
 
   PrimExpr VisitExpr_(const VarNode* op) final {
@@ -748,6 +750,50 @@ class IRSubstitute : public StmtExprMutator {
   std::unordered_map<const BufferNode*, Buffer> buf_remap_;
 };
 
+struct VarSubstituter : public IRSubstitute {
+  explicit VarSubstituter(std::function<Optional<Var>(const Var&)> vmap)
+      : IRSubstitute([vmap](const Var& v) -> Optional<PrimExpr> {
+          auto r = vmap(v);
+          if (r) {
+            return Optional<PrimExpr>(r.value());
+          } else {
+            return Optional<PrimExpr>();
+          }
+        }){};
+
+  using IRSubstitute::VisitStmt_;
+
+  Stmt VisitStmt_(const ForNode* op) override {
+    Var new_var = Downcast<Var>(this->VisitExpr(op->loop_var));
+    For s = Downcast<For>(IRSubstitute::VisitStmt_(op));
+    if (new_var.same_as(op->loop_var)) {
+      return s;
+    } else {
+      return For(new_var, s->min, s->extent, s->kind, s->body, s->thread_binding, s->annotations,
+                 s->span);
+    }
+  }
+
+  Stmt VisitStmt_(const BlockNode* op) override {
+    Array<IterVar> new_vars;
+    bool changed = false;
+    for (auto iv : op->iter_vars) {
+      Var new_var = Downcast<Var>(this->VisitExpr(iv->var));
+      new_vars.push_back(IterVar(iv->dom, new_var, iv->iter_type, iv->thread_tag, iv->span));
+      if (!new_var.same_as(iv->var)) {
+        changed = true;
+      }
+    }
+    Block b = Downcast<Block>(IRSubstitute::VisitStmt_(op));
+    if (changed) {
+      return Block(new_vars, b->reads, b->writes, b->name_hint, b->body, b->init, b->alloc_buffers,
+                   b->match_buffers, b->annotations, b->span);
+    } else {
+      return b;
+    }
+  }
+};
+
 Stmt Substitute(Stmt stmt, std::function<Optional<PrimExpr>(const Var&)> vmap) {
   return IRSubstitute(vmap)(std::move(stmt));
 }
@@ -765,6 +811,10 @@ Array<Range> Substitute(const Array<Range>& region, const Map<Var, PrimExpr>& vm
     result.push_back(Range::FromMinExtent(std::move(min), std::move(extent)));
   }
   return result;
+}
+
+Stmt VarSubstitute(Stmt stmt, std::function<Optional<Var>(const Var&)> vmap) {
+  return VarSubstituter(vmap)(std::move(stmt));
 }
 
 void PreOrderVisit(const ObjectRef& stmt_or_expr,

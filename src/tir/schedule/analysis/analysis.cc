@@ -890,7 +890,7 @@ IterVarType GetLoopIterType(const StmtSRef& loop_sref) {
           }
         });
       }
-      return false;
+      return true;
     }
     return true;
   };

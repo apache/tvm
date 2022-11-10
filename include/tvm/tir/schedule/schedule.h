@@ -304,7 +304,7 @@ class ScheduleNode : public runtime::Object {
    */
   virtual LoopRV Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters = true) = 0;
   /*!
-   * \brief Split a loop into a list of consecutive loops. It requires:
+   * \brief Split a loop into a list of nested loops. It requires:
    * 1) The loop can't have annotation or thread binding.
    * 2) The loop must start with 0.
    * \param loop_rv The loop to be split
@@ -315,6 +315,57 @@ class ScheduleNode : public runtime::Object {
    */
   virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
                               bool preserve_unit_iters = true) = 0;
+  /*!
+   * \brief Parition a loop into two sequential loops. The first loop is executed before the second.
+   *
+   * Example transformation:
+   * \code{.py}
+   *    @T.prim_func
+   *    def func(A: T.Buffer[100, "float32"]) -> None:
+   *        # body
+   *        # with T.block("root")
+   *        for i in T.serial(100):
+   *            with T.block("main"):
+   *                T.reads()
+   *                T.writes(A[i])
+   *                A[i] = T.float32(1)
+   * \endcode
+   * becomes
+   * \code{.py}
+   *     @T.prim_func
+   *     def main(A: T.Buffer[100, "float32"]) -> None:
+   *         # body
+   *         with T.block("root"):
+   *             T.reads()
+   *             T.writes()
+   *             with T.block("main_wrapper"):
+   *                 T.reads()
+   *                 T.writes()
+   *                 for i in T.serial(64):
+   *                     with T.block("main"):
+   *                         T.reads()
+   *                         T.writes(A[i])
+   *                         A[i] = T.float32(1)
+   *                 for i_ in T.serial(36):
+   *                     i: T.int32 = i_ + 64
+   *                     with T.block("main_tail"):
+   *                         T.reads()
+   *                         T.writes(A[i])
+   *                         A[i] = T.float32(1)
+   * \endcode
+   *
+   * The original block is split two blocks, one from 0 to `factor` (which
+   * retains its original name) and one from `factor` to the extent of the
+   * original loop (with "_tail" suffixed to the original name). For loops with
+   * a nonzero start are not well supported by TVM so a dummy variable is
+   * introduced to shift the iter var to start at `factor`. The two generated
+   * blocks are wrapped in another block (suffixed with "_wrapper") because
+   * `Replace` does not support replacing `For` with a `SeqStmt`.
+   *
+   * \param loop_rv The loop to partition.
+   * \param factor The size of the first loop. The second loops size will be the remaining extent.
+   */
+  virtual Array<LoopRV> Partition(const LoopRV& loop_rv, const ExprRV& factor) = 0;
   /*!
    * \brief Reorder a list of loops. It doesn't require the loops to be consecutive.
    * It requires:

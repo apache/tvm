@@ -471,6 +471,114 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
   return CreateRV<LoopRV>(results);
 }
 
+// Adds a suffix to each block visited
+struct BlockRenamer : public StmtMutator {
+  using StmtMutator::VisitStmt_;
+
+  std::string suffix;
+  BlockRenamer(std::string suffix) : suffix(suffix){};
+
+  Stmt VisitStmt_(const BlockNode* op) override {
+    Block visited = Downcast<Block>(StmtMutator::VisitStmt_(op));
+    return Block(visited->iter_vars, visited->reads, visited->writes, visited->name_hint + suffix,
+                 visited->body, visited->init, visited->alloc_buffers, visited->match_buffers,
+                 visited->annotations, visited->span);
+  }
+};
+
+struct FirstBlockName : public StmtVisitor {
+  using StmtVisitor::VisitStmt_;
+  void VisitStmt_(const BlockNode* op) override { name = op->name_hint; }
+  String name{"partition"};
+
+  String Get(const Stmt& stmt) {
+    operator()(stmt);
+    return name;
+  }
+};
+
+// Create new loop vars for every loop in the primexpr. This ensures that
+// duplicated blocks dont reference the same vars. Also applies the same
+// transformation to iter vars in blocks.
+Stmt ReInitLoopVars(Stmt expr) {
+  std::unordered_map<const VarNode*, Var> loop_vars;
+  PostOrderVisit(expr, [&loop_vars](const ObjectRef& o) {
+    auto f = o.as<ForNode>();
+    if (f != nullptr) {
+      auto v = f->loop_var;
+      loop_vars[v.get()] = Var(v->name_hint, v->type_annotation);
+    }
+    auto block = o.as<BlockNode>();
+    if (block != nullptr) {
+      for (auto v : block->iter_vars) {
+        loop_vars[v->var.get()] = Var(v->var->name_hint, v->var->type_annotation);
+      }
+    }
+  });
+  return VarSubstitute(expr, loop_vars);
+}
+
+Array<LoopRV> ConcreteScheduleNode::Partition(const LoopRV& loop_rv, const ExprRV& factor_) {
+  StmtSRef first_ref, second_ref;
+  TVM_TIR_SCHEDULE_BEGIN();
+  // TODO: check that axis is special (could handle reduce, but need to be careful about init
+  // blocks)
+  auto fr = Get(loop_rv);
+  // Change dtype of factor so it matches extent
+  PrimExpr factor = IntImm(fr->extent.dtype(), Downcast<IntImm>(factor_)->value);
+  // Make sure factor does not exceed extent
+  PrimExpr ext;
+  if (Downcast<IntImm>(fr->extent)->value < Downcast<IntImm>(factor)->value) {
+    ext = fr->extent;
+  } else {
+    // Change dtype of factor so it matches extent
+    ext = factor;
+  }
+  For first(fr->loop_var, fr->min, ext, fr->kind, fr->body);
+  // Most transformations and lowering do not support loops with a nonzero
+  // start, so we rewrite `for i = a:b` to `for i_ = 0:b-a; i = i_ + a`.
+  // This loop may have zero or negative extent. We cannot drop this loop if it
+  // has zero or negative extent because metaschedule assumes that loop
+  // structure remains the same across different random variable choices.
+  Var iter(fr->loop_var->name_hint + "_", fr->loop_var->dtype, fr->loop_var->span);
+  Var index(fr->loop_var->name_hint, fr->loop_var->dtype, fr->loop_var->span);
+  // TODO: should fr->body be deep copied?
+  For second(iter, 0, fr->extent - ext, fr->kind,
+             LetStmt(index, iter + ext + fr->min,
+                     ReInitLoopVars(BlockRenamer("_" + fr->loop_var->name_hint + "_tail")(
+                         VarSubstitute(fr->body, {{fr->loop_var, index}})))));
+  // ScheduleState only lets us replace a for loop with another for loop or
+  // with a blockrealize, so we wrap our seqstmt containing both loops in a
+  // blockrealize.
+  std::string base_name = FirstBlockName().Get(fr->body) + "_wrapper";
+  std::string wrapper_block_name = base_name;
+  // TODO: doesn't work while scheduling
+  // int i = 1;
+  // while (tir::GetBlocks(state_, wrapper_block_name, this->func_working_on_.value()).size() > 0) {
+  //   wrapper_block_name = base_name + "_" + std::to_string(i);
+  //   i++;
+  // }
+  Block block = Block({}, {}, {}, wrapper_block_name, SeqStmt({first, second}));
+  BlockRealize seq({}, Bool(true), block);
+
+  // Map blocks in original schedule to the first block in the partitioning
+  Map<Block, Block> reuse;
+  for (auto b : CreateRV<BlockRV>(tir::GetChildBlocks(state_, this->GetSRef(loop_rv)))) {
+    reuse.Set(Get(b), Get(b));
+  }
+  state_->Replace(this->GetSRef(loop_rv), seq, reuse);
+
+  // Need to update block info, not sure why...
+  state_->UpdateScopeBlockInfo(seq);
+
+  // save these for returning, TVM_TIR_SCHEDULE_BEGIN is actually a try catch
+  first_ref = GetSRef(first);
+  second_ref = GetSRef(second);
+  TVM_TIR_SCHEDULE_END("partition", error_render_level_);
+  state_->DebugVerify();
+  return CreateRV<LoopRV>({first_ref, second_ref});
+}
+
 void ConcreteScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::Reorder(state_, GetSRefs(ordered_loop_rvs));

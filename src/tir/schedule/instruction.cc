@@ -40,7 +40,8 @@ using InstructionKindRegistry = AttrRegistry<InstructionKindRegEntry, Instructio
 
 InstructionKind InstructionKind::Get(const String& name) {
   const InstructionKindRegEntry* reg = InstructionKindRegistry::Global()->Get(name);
-  ICHECK(reg != nullptr) << "AttributeError: Instruction kind " << name << " is not registered";
+  ICHECK(reg != nullptr) << "AttributeError: Instruction kind " << name
+                         << " is not registered. Register it with TVM_REGISTER_INST_KIND.";
   return reg->inst_kind_;
 }
 

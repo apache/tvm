@@ -410,6 +410,44 @@ inline T Substitute(T input, const std::unordered_map<const VarNode*, PrimExpr>&
 }
 
 /*!
+ * \brief Replace one variable in the TIR with another. Replaces loop variables and block iter vars.
+ * \param stmt The source statement to be substituted
+ * \param vmap The map of new values.
+ * \return The result.
+ */
+Stmt VarSubstitute(Stmt stmt, std::function<Optional<Var>(const Var&)> vmap);
+
+/*!
+ * \brief Replace one variable in the TIR with another. Replaces loop variables and block iter vars.
+ * \param stmt The source statement to be substituted
+ * \param vmap The map of new values.
+ * \return The result.
+ */
+inline Stmt VarSubstitute(Stmt input, const Map<Var, Var>& value_map) {
+  auto vmap = [&](const Var& var) -> Optional<Var> {
+    auto it = value_map.find(var);
+    if (it != value_map.end()) return (*it).second;
+    return Optional<Var>(nullptr);
+  };
+  return VarSubstitute(std::move(input), vmap);
+}
+
+/*!
+ * \brief Replace one variable in the TIR with another. Replaces loop variables and block iter vars.
+ * \param stmt The source statement to be substituted
+ * \param vmap The map of new values.
+ * \return The result.
+ */
+inline Stmt VarSubstitute(Stmt input, const std::unordered_map<const VarNode*, Var>& value_map) {
+  auto vmap = [&](const Var& var) -> Optional<Var> {
+    auto it = value_map.find(var.get());
+    if (it != value_map.end()) return (*it).second;
+    return Optional<Var>(nullptr);
+  };
+  return VarSubstitute(std::move(input), vmap);
+}
+
+/*!
  * \brief Substitute the var specified by vmap and legalize data types after substitution.
  * \param stmt The source statement to be substituted
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.

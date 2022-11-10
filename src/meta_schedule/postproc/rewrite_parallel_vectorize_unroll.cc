@@ -144,6 +144,20 @@ void RemoveParsedAnn(const Schedule& sch, const BlockRV& block_rv, const ParsedA
   }
 }
 
+bool IsInnermostBlock(const Schedule& sch, const BlockRV& block_rv) {
+  bool is_innermost = true;
+  auto f = [&is_innermost](const ObjectRef& o) -> bool {
+    auto block = o.as<BlockNode>();
+    if (block != nullptr) {
+      is_innermost = false;
+      return false;
+    }
+    return true;
+  };
+  PreOrderVisit(sch->Get(block_rv)->body, f);
+  return is_innermost;
+}
+
 void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
                              const Array<LoopRV>& loop_rvs, ParsedAnnotation* parsed) {
   StmtSRef block_sref = sch->GetSRef(block_rv);
@@ -255,7 +269,7 @@ void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
     }
   }
   // Calculate the vectorize extent
-  if (parsed->max_vectorize_extent != -1) {
+  if (parsed->max_vectorize_extent != -1 && IsInnermostBlock(sch, block_rv)) {
     int max_extent = parsed->max_vectorize_extent;
     int& num_fusible = parsed->num_vectorize_loops = 0;
     int64_t prod_extent = 1;
@@ -277,6 +291,9 @@ void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
       // Check if the loop extent is valid
       const int64_t* extent = GetLoopIntExtent(loop_sref);
       if (extent == nullptr) {
+        break;
+      }
+      if (*extent <= 0) {
         break;
       }
       // Check if the extent is still in a good range
@@ -357,7 +374,23 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
     tir::ParsedAnnotation parsed_root;
     tir::BlockRV root_rv{nullptr};
     while (tir::FindAnnotatedRootBlock(sch, &parsed_root, &root_rv)) {
-      for (tir::BlockRV block_rv : sch->GetChildBlocks(root_rv)) {
+      // blocks may be nested so we recursively visit children of each block
+      std::vector<tir::BlockRV> blocks;
+      std::set<tir::Block> seen;  // not sure this is necessary
+      for (auto child : sch->GetChildBlocks(root_rv)) {
+        blocks.push_back(child);
+      }
+      while (!blocks.empty()) {
+        tir::BlockRV block_rv = blocks.back();
+        blocks.pop_back();
+        // add children of this block
+        for (auto child : sch->GetChildBlocks(block_rv)) {
+          if (sch->Get(child) != sch->Get(block_rv) && seen.find(sch->Get(child)) == seen.end()) {
+            blocks.push_back(child);
+            seen.insert(sch->Get(child));
+          }
+        }
+
         Array<tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
         if (loop_rvs.empty()) {
           continue;

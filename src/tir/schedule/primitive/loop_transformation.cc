@@ -795,6 +795,42 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
+struct PartitionTraits : public UnpackedInstTraits<PartitionTraits> {
+  static constexpr const char* kName = "Partition";
+  static constexpr bool kIsPure = false;  // FIXME
+
+ private:
+  static constexpr size_t kNumInputs = 2;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  template <size_t delta>
+  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
+                                           const Array<ObjectRef>& inputs) {
+    // XXX: inputs need to copied here otherwise the arguments somehow get
+    // corrupted before being passed to the next function.
+    const ObjectRef loop_rv = inputs[0];
+    const ObjectRef factor = inputs[1];
+    setter(delta, loop_rv);
+    setter(delta + 1, factor);
+  }
+
+  static Array<LoopRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, ExprRV factor) {
+    return sch->Partition(loop_rv, factor);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String loop_rv, ObjectRef factor) {
+    PythonAPICall py("partition");
+    py.Input("loop_rv", loop_rv);
+    py.Input("factor", factor);
+    py.OutputList(outputs);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
 struct FuseTraits : public UnpackedInstTraits<FuseTraits> {
   static constexpr const char* kName = "Fuse";
   static constexpr bool kIsPure = false;
@@ -893,6 +929,7 @@ struct AddUnitLoopTraits : public UnpackedInstTraits<AddUnitLoopTraits> {
 };
 
 TVM_REGISTER_INST_KIND_TRAITS(SplitTraits);
+TVM_REGISTER_INST_KIND_TRAITS(PartitionTraits);
 TVM_REGISTER_INST_KIND_TRAITS(FuseTraits);
 TVM_REGISTER_INST_KIND_TRAITS(ReorderTraits);
 TVM_REGISTER_INST_KIND_TRAITS(AddUnitLoopTraits);

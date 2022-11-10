@@ -325,7 +325,8 @@ Array<ObjectRef> UnpackedInstTraits<TTraits>::ApplyToSchedule(const Schedule& sc
     using runtime::detail::unpack_call;
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
     ICHECK_EQ(args.size(), kNumArgs);
-    unpack_call<return_type, kNumArgs>(nullptr, TTraits::UnpackedApplyToSchedule, args, rv);
+    std::string call_name = std::string(TTraits::kName) + "::UnpackedApplyToSchedule";
+    unpack_call<return_type, kNumArgs>(&call_name, TTraits::UnpackedApplyToSchedule, args, rv);
   });
   TVMRetValue rv;
   pf.CallPacked(TVMArgs(tvm_values, tvm_type_codes, kNumArgs), &rv);
@@ -358,7 +359,8 @@ String UnpackedInstTraits<TTraits>::AsPython(const Array<ObjectRef>& inputs,
     using runtime::detail::unpack_call;
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
     ICHECK_EQ(args.size(), kNumArgs);
-    unpack_call<return_type, kNumArgs>(nullptr, TTraits::UnpackedAsPython, args, rv);
+    std::string call_name = std::string(TTraits::kName) + "::UnpackAsPython";
+    unpack_call<return_type, kNumArgs>(&call_name, TTraits::UnpackedAsPython, args, rv);
   });
   TVMRetValue rv;
   pf.CallPacked(TVMArgs(tvm_values, tvm_type_codes, kNumArgs), &rv);

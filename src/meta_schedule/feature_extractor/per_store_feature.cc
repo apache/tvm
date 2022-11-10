@@ -393,7 +393,11 @@ struct LoopNest {
       this->auto_unroll.pop_back();
     }
     if (const int64_t* extent = GetLoopIntExtent(loop)) {
-      this->prod /= *extent;
+      if (*extent <= 0) {
+        this->prod = 0;
+      } else {
+        this->prod /= *extent;
+      }
     }
     this->loops.pop_back();
   }
@@ -1078,10 +1082,14 @@ struct Feature {
     double total_compute_ops = arith_ops.float_mad + arith_ops.float_add_sub + arith_ops.float_mul +
                                arith_ops.float_div_mod + arith_ops.float_cmp +
                                arith_ops.float_math_func + arith_ops.float_other_func;
-    total_compute_ops /= loop_nest.prod;
+    if (loop_nest.prod <= 0) {
+      total_compute_ops = 0;
+    } else {
+      total_compute_ops /= loop_nest.prod;
+    }
     for (int i = n_loops - 1; i >= 0; --i) {
       if (const int64_t* extent = GetLoopIntExtent(loops[i])) {
-        total_compute_ops *= *extent;
+        total_compute_ops *= std::max<int64_t>(*extent, 0);
       }
       compute_ops.push_back(total_compute_ops);
     }
@@ -1134,7 +1142,7 @@ struct Feature {
         slog(alloc_size),
         slog(alloc_prod),
         slog(alloc_outer_prod),
-        slog(static_cast<double>(outer_prod) / alloc_outer_prod),
+        slog(alloc_outer_prod > 0 ? static_cast<double>(outer_prod) / alloc_outer_prod : 0.),
     };
     v->insert(v->end(), std::begin(vs), std::end(vs));
   }

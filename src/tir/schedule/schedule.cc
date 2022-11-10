@@ -153,6 +153,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetConsumers")
 /******** (FFI) Transform loops ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleFuse").set_body_method<Schedule>(&ScheduleNode::Fuse);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSplit").set_body_method<Schedule>(&ScheduleNode::Split);
+TVM_REGISTER_GLOBAL("tir.schedule.SchedulePartition")
+    .set_body_method<Schedule>(&ScheduleNode::Partition);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorder")
     .set_body_method<Schedule>(&ScheduleNode::Reorder);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAddUnitLoop")
