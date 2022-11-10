@@ -439,16 +439,10 @@ def should_skip_subgraph(graph_module: torch.fx.GraphModule) -> bool:
     """
     graph = graph_module.graph
 
-    if len(graph.nodes) == 0:
-        return True
-
     inputs = [n for n in graph.nodes if n.op == "placeholder"]
     outputs = [n for n in graph.nodes if n.op == "output"]
 
     return len(inputs) == 0 and all(output.args == ((),) for output in outputs)
-        return True
-
-    return False
 
 
 def create_tvm_task_collection_backend() -> Tuple[Callable, List[ms.ExtractedTask]]:
