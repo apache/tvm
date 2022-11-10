@@ -14,43 +14,60 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
-import numpy as np
+
+from unittest.mock import MagicMock
 
 import tvm
 from tvm import relay
+from tvm.ir.instrument import pass_instrument
 from tvm.driver.tvmc.transform import convert_graph_layout
 
 
-def test_layout_transform():
+def test_layout_transform_fold_constant(relay_conv2d):
     """
     Test layout is correctly transformed and constant folding is applied.
     """
-    dtype = "int8"
-    iinfo = np.iinfo(dtype)
-    data_min = iinfo.min
-    data_max = iinfo.max
-
-    x = relay.var("x", shape=(1, 4, 2, 2), dtype=dtype)
-    weight = relay.const(
-        np.random.randint(data_min, data_max, size=(2, 4, 2, 2), dtype=dtype), dtype=dtype
-    )
-    x = relay.nn.conv2d(x, weight)
-    func = relay.Function(relay.analysis.free_vars(x), x)
-    mod = tvm.IRModule.from_expr(func)
-
     desired_layout = "NHWC"
-    mod = convert_graph_layout(mod, desired_layout)
 
-    main_expr = mod["main"].body
-    conv = main_expr.args[0]
-    assert conv.op.name == "nn.conv2d"
-    assert conv.attrs["data_layout"] == "NHWC"
-    assert conv.attrs["kernel_layout"] == "HWIO"
+    @pass_instrument
+    class CollectPassNames:
+        def __init__(self):
+            self.names = []
 
-    # Ensure transform has been folded into the constant
-    weights = conv.args[1]
-    assert isinstance(weights, relay.expr.Constant)
+        def run_after_pass(self, _, info):
+            self.names.append(info.name)
+
+    pass_names = CollectPassNames()
+    with tvm.transform.PassContext(opt_level=3, instruments=[pass_names]):
+        convert_graph_layout(relay_conv2d, desired_layout)
+
+    names = pass_names.names
+    assert "ConvertLayout" in names
+    assert "FoldConstant" in names
+    assert names.index("ConvertLayout") < names.index("FoldConstant")
+
+
+def test_layout_transform_convert_layout_pass_args(relay_conv2d, monkeypatch):
+    """
+    Check the convert layout desired layouts arugment is what is expected when
+    a desired layout is provided.
+    """
+    desired_layout = "NHWC"
+
+    mock_convert_layout = MagicMock()
+    mock_convert_layout.return_value = relay.transform.ConvertLayout({})
+    monkeypatch.setattr(relay.transform, "ConvertLayout", mock_convert_layout)
+
+    with tvm.transform.PassContext(opt_level=3):
+        convert_graph_layout(relay_conv2d, desired_layout)
+
+    mock_convert_layout.assert_called_once_with(
+        {
+            "nn.conv2d": ["NHWC", "default"],
+            "nn.conv2d_transpose": ["NHWC", "default"],
+            "qnn.conv2d": ["NHWC", "default"],
+        }
+    )
 
 
 if __name__ == "__main__":
