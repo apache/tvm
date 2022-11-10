@@ -31,7 +31,7 @@ HEX_TARGET = tvm.target.hexagon("v68", link_params=True)
 
 
 class TestLUT:
-    """ Class containing test params for LUT testing """
+    """Class containing test params for LUT testing"""
 
     shape, func, dtype = tvm.testing.parameters(
         ([1, 8, 8, 32], {"py": np.sqrt, "tvm": tvm.topi.hexagon.qnn.injective.qsqrt}, "uint8"),
@@ -52,7 +52,7 @@ class TestLUT:
         func,
         dtype,
     ):
-    """ Main test function. Compares py function output to hexagon output. """
+        """Main test function. Compares py function output to hexagon output."""
 
         # Make input
         a_np = np.random.random(shape)
