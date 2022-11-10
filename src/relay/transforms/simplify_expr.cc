@@ -37,6 +37,7 @@
 #include <utility>
 
 #include "../op/tensor/transform.h"
+#include "fold_constant.h"
 #include "pattern_utils.h"
 
 namespace tvm {
@@ -795,10 +796,7 @@ class SwitchAddMultiply : public DFPatternRewrite {
     }
 
     Expr const_expr = Call(Op::Get("multiply"), {c1, c2});
-    IRModule const_mod = IRModule::FromExpr(const_expr);
-    const_mod = transform::FoldConstant()(const_mod);
-    GlobalVar const_main = const_mod->GetGlobalVar("main");
-    Expr const_val = Downcast<Function>(const_mod->functions[const_main])->body;
+    Expr const_val = transform::FoldConstantExpr(const_expr);
 
     return Call(Op::Get("add"), {Call(Op::Get("multiply"), {x, c2}), const_val});
   }
@@ -833,10 +831,7 @@ class SimplifyAdjacentMultiplyOrAdd : public DFPatternRewrite {
     }
 
     Expr const_expr = Call(call->op, {c1, c2});
-    IRModule const_mod = IRModule::FromExpr(const_expr);
-    const_mod = transform::FoldConstant()(const_mod);
-    GlobalVar const_main = const_mod->GetGlobalVar("main");
-    Expr const_val = Downcast<Function>(const_mod->functions[const_main])->body;
+    Expr const_val = transform::FoldConstantExpr(const_expr);
 
     return Call(call->op, {x, const_val});
   }

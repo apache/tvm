@@ -21,6 +21,7 @@
 
 #include <string>
 
+#include "../../transforms/fold_constant.h"
 #include "../../transforms/pattern_utils.h"
 #include "../../transforms/simplify_expr.h"
 
@@ -33,13 +34,6 @@ namespace tvm {
 namespace relay {
 namespace contrib {
 
-Expr FoldConstantExpr(const Expr& expr, bool fold_qnn) {
-  auto mod = IRModule::FromExpr(expr);
-  mod = transform::FoldConstant(fold_qnn)(mod);
-  auto entry_func = Downcast<Function>(mod->Lookup("main"));
-  return expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
-}
-
 Constant TransposeWeights(const Constant& data, const std::string& source_layout,
                           const std::string& target_layout) {
   Array<Integer> transpose_matrix;
@@ -48,7 +42,7 @@ Constant TransposeWeights(const Constant& data, const std::string& source_layout
     transpose_matrix.push_back(pos);
   }
   Expr transpose = MakeTranspose(data, transpose_matrix);
-  transpose = InferType(FoldConstantExpr(transpose));
+  transpose = InferType(transform::FoldConstantExpr(transpose));
   Constant transposed_data = Downcast<Constant>(transpose);
   return transposed_data;
 }
