@@ -445,7 +445,7 @@ def should_skip_subgraph(graph_module: torch.fx.GraphModule) -> bool:
     inputs = [n for n in graph.nodes if n.op == "placeholder"]
     outputs = [n for n in graph.nodes if n.op == "output"]
 
-    if len(inputs) == 0 and all(output.args == ((),) for output in outputs):
+    return len(inputs) == 0 and all(output.args == ((),) for output in outputs)
         return True
 
     return False
