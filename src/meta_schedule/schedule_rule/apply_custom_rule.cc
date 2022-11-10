@@ -85,7 +85,7 @@ bool ScheduleRule::IsApplyCustomRule(const ScheduleRule& rule) {
 }
 
 TVM_REGISTER_NODE_TYPE(ApplyCustomRuleNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleApplyCustomRule")
+TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleApplyCustomRule")
     .set_body_typed(ScheduleRule::ApplyCustomRule);
 
 }  // namespace meta_schedule
