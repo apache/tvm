@@ -269,8 +269,8 @@ std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const {
       sch->ComputeAt(cache_read_block, loop_rv, true);
       // Fuse the iterators of the cache_read
       Array<LoopRV> buffer_loops = sch->GetLoops(cache_read_block);
-      LoopRV fused = sch->Fuse(Array<LoopRV>{buffer_loops.end() - buffer_ndim,  //
-                                             buffer_loops.end()});
+      sch->Fuse(Array<LoopRV>{buffer_loops.end() - buffer_ndim,  //
+                              buffer_loops.end()});
       AnnotateCooperativeFetching(&sch, cache_read_block);
       new_state->read_reuse.emplace(i, cache_read_block);
     }
