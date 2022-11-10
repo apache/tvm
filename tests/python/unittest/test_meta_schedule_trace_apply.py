@@ -3037,8 +3037,8 @@ def test_inline_order():
     # reverse-inlined at the very end of ScheduleUsingAnchorTrace, where its producer block
     # "conv2d_nhwc_reindex_shared" has the predicate
     # T.where(((ax1_0 * 4 + ax1_1) * 32 + ax1_2) * 2 + ax1_3 < 64) due to anchor-block scheduling
-    # (see Conv2dInt8_with_predicate_scheduled). Currently, if we try to reverse-inline a block to
-    # its producer that has a predicate, the predicate disappears after reverse inlining.
+    # (see Conv2dInt8_with_predicate_scheduled). ReverseComputeInline cannot be applied in
+    # such cases.
 
     def apply_trace(sch: Schedule) -> None:
         b0 = sch.get_block(name="pad_temp", func_name="main")
