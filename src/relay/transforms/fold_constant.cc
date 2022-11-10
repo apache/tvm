@@ -259,9 +259,7 @@ class ConstantFolder : public MixedModeMutator {
 
     // Use a fresh build context in case we are already in a build context.
     // needed for both execution and creation(due to JIT)
-    auto context = transform::PassContext::Create();
-    context->instruments = transform::PassContext::Current()->instruments;
-    With<transform::PassContext> fresh_build_ctx(context);
+    With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
 
     Map<String, ObjectRef> dict = (module_->attrs.defined())
                                       ? Map<String, ObjectRef>(module_->attrs.CopyOnWrite()->dict)
