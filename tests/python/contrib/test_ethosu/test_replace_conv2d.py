@@ -388,15 +388,15 @@ class Conv2dDoubleCascade1:
 @tvm.script.ir_module
 class Conv2dDoubleCascade2:
     @T.prim_func
-    def main(placeholder_5: T.Buffer[(1, 8, 8, 3), "int8"], ethosu_write_1: T.Buffer[(1, 8, 8, 8), "int8"]) -> None:
+    def main(input_placeholder_5: T.Buffer[(1, 8, 8, 3), "int8"], input_ethosu_write_1: T.Buffer[(1, 8, 8, 8), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.buffer_decl([80], "uint8")
         buffer_1 = T.buffer_decl([320], "uint8")
         buffer_2 = T.buffer_decl([1312], "uint8")
         buffer_3 = T.buffer_decl([2608], "uint8")
-        placeholder_5 = T.buffer_decl([192], 'int8', data=placeholder_5.data)
-        ethosu_write_1 = T.buffer_decl([512], 'int8', data=ethosu_write_1.data)
+        placeholder_5 = T.buffer_decl([192], 'int8', data=input_placeholder_5.data)
+        ethosu_write_1 = T.buffer_decl([512], 'int8', data=input_ethosu_write_1.data)
         # body
         ethosu_write_2_data = T.allocate([1536], "int8", "global", annotations={"disable_lower_builtin": True})
         ethosu_write_2 = T.buffer_decl([1536], "int8", data=ethosu_write_2_data)
@@ -464,8 +464,8 @@ class Conv2dDoubleCascade5:
         buffer_1 = T.buffer_decl([320], "uint8")
         buffer_2 = T.buffer_decl([304], "uint8")
         buffer_3 = T.buffer_decl([80], "uint8")
-        placeholder = T.buffer_decl([192], 'int8', data=placeholder.data)
-        ethosu_write = T.buffer_decl([8192], 'int8', data=ethosu_write.data)
+        placeholder = T.buffer_decl([192], 'int8', data=input_placeholder.data)
+        ethosu_write = T.buffer_decl([8192], 'int8', data=input_ethosu_write.data)
         # body
         ethosu_write_1_data = T.allocate([4096], "int8", "global", annotations={"disable_lower_builtin":True})
         ethosu_write_1 = T.buffer_decl([4096], "int8", data=ethosu_write_1_data)
