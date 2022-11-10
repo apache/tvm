@@ -116,7 +116,6 @@ def test_missing_type_annotation():
 def test_invalid_for_function():
     def invalid_for_function(a: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
-
         for i in T.evaluate(0.0):  # error
             for j in T.serial(0, 16):
                 A[i, j] = 0.0

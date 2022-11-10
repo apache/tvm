@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """The entry point of TVM parser for tir."""
-
 import inspect
 from typing import Callable, Union
 
@@ -23,7 +22,6 @@ from tvm.tir import Buffer, PrimFunc
 
 from ...ir_builder.tir import buffer_decl, ptr
 from .._core import parse, utils
-from ..ir import is_defined_in_class
 
 
 def prim_func(func: Callable) -> Union[PrimFunc, Callable]:
@@ -41,7 +39,7 @@ def prim_func(func: Callable) -> Union[PrimFunc, Callable]:
     """
     if not inspect.isfunction(func):
         raise TypeError(f"Expect a function, but got: {func}")
-    if is_defined_in_class(inspect.stack()):
+    if utils.is_defined_in_class(inspect.stack(), func):
         return func
     return parse(func, utils.inspect_function_capture(func))
 
@@ -57,7 +55,7 @@ class BufferProxy:
     def __call__(
         self,
         shape,
-        dtype="float32",
+        dtype=None,
         data=None,
         strides=None,
         elem_offset=None,
@@ -67,6 +65,8 @@ class BufferProxy:
         buffer_type="",
         axis_separators=None,
     ) -> Buffer:
+        if dtype is None:
+            raise ValueError("Data type must be specified when constructing buffer")
         return buffer_decl(
             shape,
             dtype=dtype,

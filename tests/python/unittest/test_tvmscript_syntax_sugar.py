@@ -288,8 +288,8 @@ def test_letstmt_bind_with_constant():
 
     @T.prim_func
     def constant_binds_wrapped():
-        x = T.int32(1)
-        y = T.float32(42.0)
+        x = T.meta_var(T.int32(1))
+        y = T.meta_var(T.float32(42.0))
         T.evaluate(T.cast(x, "float32") + y)
 
     assert_structural_equal(constant_binds, constant_binds_wrapped)
@@ -298,7 +298,7 @@ def test_letstmt_bind_with_constant():
 def test_func_call():
     def shared_16x16_to_ldmatrix_32x8_layout(i, j):
         thread_id = (i % 8) * 4 + (j % 8) // 2
-        return thread_id, (j // 8) * 4 + (i // 8) * 2 + (j % 2)
+        return T.meta_var((thread_id, (j // 8) * 4 + (i // 8) * 2 + (j % 2)))
 
     @T.prim_func
     def mma_sync_m16n16k16_desc(a: T.handle, b: T.handle, c: T.handle) -> None:

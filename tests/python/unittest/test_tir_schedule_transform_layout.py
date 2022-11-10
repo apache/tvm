@@ -18,7 +18,6 @@
 import sys
 
 import pytest
-
 import tvm
 import tvm.testing
 from tvm import tir
@@ -707,7 +706,7 @@ class TestPaddedTransformOfInputCreatesAssumption(BasePaddingCompare):
         for i, j in T.grid(4, 4):
             with T.block("buffer_A_assumption"):
                 vi, vj = T.axis.remap("SS", [i, j])
-                T.assume(not (vi == 3 and 2 <= vj) or A[vi, vj] == 42)
+                T.evaluate(T.assume(not (vi == 3 and 2 <= vj) or A[vi, vj] == 42))
 
         for i in T.serial(14):
             with T.block("block"):
@@ -790,9 +789,11 @@ class TestPaddedTransformRepeatedBufferElement(tvm.testing.CompareBeforeAfter):
         for i, j in T.grid(4, 4):
             with T.block("buffer_A_assumption"):
                 vi, vj = T.axis.remap("SS", [i, j])
-                T.assume(
-                    not (vi == 3 and 2 <= vj)
-                    or A[vi, vj] == A[((4 * vi + j) % 14) // 4, ((4 * vi + j) % 14) % 4]
+                T.evaluate(
+                    T.assume(
+                        not (vi == 3 and 2 <= vj)
+                        or A[vi, vj] == A[((4 * vi + j) % 14) // 4, ((4 * vi + j) % 14) % 4]
+                    )
                 )
 
         B = T.alloc_buffer(14, "int32")

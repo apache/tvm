@@ -128,9 +128,9 @@ def get_single_dma_schedule(size_a, size_w):
         a_buffer = T.match_buffer(a_input, a_shape, dtype="uint8", scope="global")
         w_buffer = T.match_buffer(b_input, w_shape, dtype="uint8", scope="global")
         c_buffer = T.match_buffer(c_output, out_shape, dtype="int32", scope="global")
-        a_global_vtcm = T.alloc_buffer(a_shape, dtype="uint8", mem_scope="global.vtcm")
-        w_global_vtcm = T.alloc_buffer(w_shape, dtype="uint8", mem_scope="global.vtcm")
-        c_global_vtcm = T.alloc_buffer(out_shape, dtype="int32", mem_scope="global.vtcm")
+        a_global_vtcm = T.alloc_buffer(a_shape, dtype="uint8", scope="global")
+        w_global_vtcm = T.alloc_buffer(w_shape, dtype="uint8", scope="global")
+        c_global_vtcm = T.alloc_buffer(out_shape, dtype="int32", scope="global")
         T.evaluate(
             T.tvm_call_packed(
                 "device_api.hexagon.mem_copy_DLTensor",
