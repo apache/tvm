@@ -20,8 +20,9 @@ import numpy as np
 
 import tvm
 from tvm.script import tir as T
+from tvm.contrib.hexagon import allocate_hexagon_array
 
-from .infrastructure import allocate_hexagon_array, get_hexagon_target
+from .infrastructure import get_hexagon_target
 
 
 def generated_func(shape: tuple, dtype: str, axis_separators: list):

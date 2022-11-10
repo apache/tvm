@@ -20,8 +20,7 @@ import tvm
 from tvm import te
 from tvm.topi.testing import softmax_python
 import tvm.topi.hexagon.slice_ops as sl
-
-from ...infrastructure import allocate_hexagon_array
+from tvm.contrib.hexagon import allocate_hexagon_array
 
 
 def transform_numpy(arr_np, layout):

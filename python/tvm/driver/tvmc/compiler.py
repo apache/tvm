@@ -292,39 +292,42 @@ def compile_model(
 
     config = parse_configs(pass_context_configs)
 
-    if desired_layout:
-        mod = convert_graph_layout(mod, desired_layout)
-
     tvm_target, extra_targets = target_from_cli(target, additional_target_options)
     tvm_target, target_host = Target.canon_target_and_host(tvm_target, target_host)
 
+    partition_functions = []
+    partition_opts = []
     for codegen_from_cli in extra_targets:
         codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])
-        partition_function = codegen["pass_pipeline"]
-
+        partition_functions.append(codegen["pass_pipeline"])
+        partition_opts.append(codegen_from_cli["opts"])
         if codegen["config_key"] is not None:
             config[codegen["config_key"]] = codegen_from_cli["opts"]
-        with tvm.transform.PassContext(config=config):
-            mod = partition_function(mod, params, mod_name=mod_name, **codegen_from_cli["opts"])
 
-    if tuning_records and os.path.exists(tuning_records):
-        logger.debug("tuning records file provided: %s", tuning_records)
+    with tvm.transform.PassContext(
+        opt_level=opt_level,
+        config=config,
+        disabled_pass=disabled_pass,
+        instruments=instruments,
+    ):
+        if desired_layout:
+            mod = convert_graph_layout(mod, desired_layout)
 
-        use_autoscheduler = True
-        try:
-            auto_scheduler.load_records(tuning_records)
-        except tvm._ffi.base.TVMError:
-            use_autoscheduler = False
+        for partition_function, opts in zip(partition_functions, partition_opts):
+            mod = partition_function(mod, params, mod_name=mod_name, **opts)
 
-        if use_autoscheduler:
-            with auto_scheduler.ApplyHistoryBest(tuning_records):
-                config["relay.backend.use_auto_scheduler"] = True
-                with tvm.transform.PassContext(
-                    opt_level=opt_level,
-                    config=config,
-                    disabled_pass=disabled_pass,
-                    instruments=instruments,
-                ):
+        if tuning_records and os.path.exists(tuning_records):
+            logger.debug("tuning records file provided: %s", tuning_records)
+
+            use_autoscheduler = True
+            try:
+                auto_scheduler.load_records(tuning_records)
+            except tvm._ffi.base.TVMError:
+                use_autoscheduler = False
+
+            if use_autoscheduler:
+                with auto_scheduler.ApplyHistoryBest(tuning_records):
+                    config["relay.backend.use_auto_scheduler"] = True
                     logger.debug("building relay graph with autoscheduler")
                     graph_module = build(
                         mod,
@@ -336,14 +339,8 @@ def compile_model(
                         mod_name=mod_name,
                         workspace_pools=workspace_pools,
                     )
-        else:
-            with autotvm.apply_history_best(tuning_records):
-                with tvm.transform.PassContext(
-                    opt_level=opt_level,
-                    config=config,
-                    disabled_pass=disabled_pass,
-                    instruments=instruments,
-                ):
+            else:
+                with autotvm.apply_history_best(tuning_records):
                     logger.debug("building relay graph with tuning records")
                     graph_module = build(
                         mod,
@@ -355,10 +352,7 @@ def compile_model(
                         mod_name=mod_name,
                         workspace_pools=workspace_pools,
                     )
-    else:
-        with tvm.transform.PassContext(
-            opt_level=opt_level, config=config, disabled_pass=disabled_pass, instruments=instruments
-        ):
+        else:
             logger.debug("building relay graph (no tuning records provided)")
             graph_module = build(
                 mod,
@@ -371,32 +365,32 @@ def compile_model(
                 workspace_pools=workspace_pools,
             )
 
-    # Generate output dump files with sources
-    if dump_code is None:
-        dump_code = []
-    if not isinstance(dump_code, list):
-        dump_code = [dump_code]
-    dumps = {}
-    for source_type in dump_code:
-        if use_vm:
-            lib = graph_module.lib
-        else:
-            lib = graph_module.get_lib()
-        # TODO lib.get_source call have inconsistent behavior for unsupported
-        #      formats (@leandron).
-        source = str(mod) if source_type == "relay" else lib.get_source(source_type)
-        dumps[source_type] = source
+        # Generate output dump files with sources
+        if dump_code is None:
+            dump_code = []
+        if not isinstance(dump_code, list):
+            dump_code = [dump_code]
+        dumps = {}
+        for source_type in dump_code:
+            if use_vm:
+                lib = graph_module.lib
+            else:
+                lib = graph_module.get_lib()
+            # TODO lib.get_source call have inconsistent behavior for unsupported
+            #      formats (@leandron).
+            source = str(mod) if source_type == "relay" else lib.get_source(source_type)
+            dumps[source_type] = source
 
-    # Create a new tvmc model package object from the graph definition.
-    package_path = tvmc_model.export_package(
-        graph_module, package_path, cross, cross_options, output_format
-    )
+        # Create a new tvmc model package object from the graph definition.
+        package_path = tvmc_model.export_package(
+            graph_module, package_path, cross, cross_options, output_format
+        )
 
-    # Write dumps to file.
-    if dumps:
-        save_dumps(package_path, dumps)
+        # Write dumps to file.
+        if dumps:
+            save_dumps(package_path, dumps)
 
-    return TVMCPackage(package_path)
+        return TVMCPackage(package_path)
 
 
 def build(

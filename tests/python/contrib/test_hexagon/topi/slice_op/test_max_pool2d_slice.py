@@ -22,8 +22,9 @@ from tvm import te
 import tvm.testing
 from tvm.contrib.hexagon.session import Session
 import tvm.topi.hexagon.slice_ops as sl
+from tvm.contrib.hexagon import allocate_hexagon_array
 
-from ...infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
+from ...infrastructure import transform_numpy, get_hexagon_target
 from ...pytest_util import (
     get_multitest_ids,
     create_populated_numpy_ndarray,

@@ -34,7 +34,7 @@ class Profiler(Object):
         )
 
     def get(self) -> Dict[str, float]:
-        """Get the profiling results in minutes"""
+        """Get the profiling results in seconds"""
         return _ffi_api.ProfilerGet(self)  # type: ignore # pylint: disable=no-member
 
     def table(self) -> str:

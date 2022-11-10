@@ -72,3 +72,4 @@ RUN cd /usr && \
 ENV PYTHONPATH=/usr/tvm/python:/usr/tvm/vta/python:${PYTHONPATH}
 ENV ANDROID_HOME=/opt/android-sdk-linux/
 ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147/
+ENV ANDROID_NDK_MAJOR=21
