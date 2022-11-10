@@ -236,7 +236,8 @@ inline Optional<PrimExpr> TryConstFold<tir::Div>(PrimExpr a, PrimExpr b) {
       if (pb->value == 1) return a;
       ICHECK_NE(pb->value, 0) << "Divide by zero";
     }
-    if (fa && fb && fb->value != 0) {
+    if (fa && fb) {
+      ICHECK_NE(fb->value, 0) << "Divide by zero";
       if (rtype.bits() == 32) {
         return FloatImm(rtype, GetFoldResultDoubleRepr(static_cast<float>(fa->value) /
                                                        static_cast<float>(fb->value)));
