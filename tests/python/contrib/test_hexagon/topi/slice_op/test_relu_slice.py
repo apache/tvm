@@ -21,8 +21,9 @@ import tvm
 import tvm.testing
 from tvm.topi.hexagon.slice_ops.relu import relu_compute, relu_stir_schedule
 from tvm import te
+from tvm.contrib.hexagon import allocate_hexagon_array
 
-from ...infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
+from ...infrastructure import transform_numpy, get_hexagon_target
 
 
 @tvm.testing.fixture

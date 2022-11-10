@@ -22,7 +22,9 @@ import tvm
 from tvm import te
 from tvm.topi.testing import resize2d_python
 import tvm.topi.hexagon as s1
-from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
+from tvm.contrib.hexagon import allocate_hexagon_array
+
+from ..infrastructure import transform_numpy, get_hexagon_target
 
 
 class TestResize2d:

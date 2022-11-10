@@ -23,8 +23,9 @@ import tvm.testing
 from tvm import te
 from tvm import tir
 from tvm import topi
+from tvm.contrib.hexagon import allocate_hexagon_array
 
-from .infrastructure import allocate_hexagon_array, get_hexagon_target
+from .infrastructure import get_hexagon_target
 
 
 def sigmoid_compute(sigmoid_input):
