@@ -18,29 +18,22 @@
 
 set -e
 set -u
-# Used for debugging RVM build
-set -x
 set -o pipefail
+set -x
 
-# install libraries for building c++ core on ubuntu
-apt-get update && apt-install-and-clear -y --no-install-recommends \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    g++ \
-    gdb \
-    git \
-    graphviz \
-    libcurl4-openssl-dev \
-    libopenblas-dev \
-    libssl-dev \
-    libtinfo-dev \
-    libz-dev \
-    lsb-core \
-    make \
-    ninja-build \
-    parallel \
-    pkg-config \
-    sudo \
-    unzip \
-    wget \
+NRF_COMMANDLINE_TOOLS_FILE=nRFCommandLineToolsLinuxamd64.tar.gz
+NRF_COMMANDLINE_TOOLS_URL=https://www.nordicsemi.com/-/media/Software-and-other-downloads/Desktop-software/nRF-command-line-tools/sw/Versions-10-x-x/10-12-1/nRFCommandLineTools10121Linuxamd64.tar.gz
+NRF_COMMANDLINE_TOOLS_INSTALLER=nRF-Command-Line-Tools_10_12_1_Linux-amd64.deb
+JLINK_LINUX_INSTALLER=JLink_Linux_V688a_x86_64.deb
+
+cd ~
+mkdir -p nrfjprog
+wget --no-verbose -O $NRF_COMMANDLINE_TOOLS_FILE $NRF_COMMANDLINE_TOOLS_URL
+
+cd nrfjprog
+tar -xzvf "../${NRF_COMMANDLINE_TOOLS_FILE}"
+apt-install-and-clear -y "./${JLINK_LINUX_INSTALLER}"
+apt-install-and-clear -y "./${NRF_COMMANDLINE_TOOLS_INSTALLER}"
+
+cd ..
+rm -rf nrfjprog "${NRF_COMMANDLINE_TOOLS_FILE}"
