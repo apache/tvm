@@ -18,10 +18,12 @@
   cpp_unittest(ci_gpu)
 
   {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib) }}
+  standalone_crt_build(ci_gpu)
   ci_setup(ci_gpu)
   cpp_unittest(ci_gpu)
   {% else %}
   {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib) }}
+  standalone_crt_build(ci_gpu)
   ci_setup(ci_gpu)
   {% endif %}
   {% if shard_index == 2 or num_shards < 2 %}
@@ -49,6 +51,7 @@
   test_method_names=test_method_names,
 ) %}
   {{ m.download_artifacts(tag='cpu', filenames=tvm_multilib_tsim) }}
+  standalone_crt_build(ci_cpu)
   ci_setup(ci_cpu)
   sh (
     script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
@@ -65,6 +68,7 @@
   test_method_names=test_method_names,
 ) %}
   {{ m.download_artifacts(tag='i386', filenames=tvm_multilib) }}
+  standalone_crt_build(ci_i386)
   ci_setup(ci_i386)
   {% if shard_index == 1 %}
   cpp_unittest(ci_i386)
@@ -88,6 +92,7 @@
   num_shards=8,
 ) %}
   {{ m.download_artifacts(tag='hexagon', filenames=tvm_lib, folders=hexagon_api) }}
+  ci_setup(ci_hexagon)
   add_hexagon_permissions()
   {% if shard_index == 1 %}
   cpp_unittest(ci_hexagon)
@@ -107,6 +112,7 @@
   test_method_names=test_method_names,
 ) %}
   {{ m.download_artifacts(tag='arm', filenames=tvm_multilib) }}
+  standalone_crt_build(ci_arm)
   ci_setup(ci_arm)
   python_unittest(ci_arm)
   sh (
@@ -124,6 +130,7 @@
   test_method_names=test_method_names,
 ) %}
   {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib) }}
+  standalone_crt_build(ci_gpu)
   ci_setup(ci_gpu)
   sh (
     script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh",
@@ -140,6 +147,7 @@
   test_method_names=test_method_names,
 ) %}
   {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib) }}
+  standalone_crt_build(ci_gpu)
   ci_setup(ci_gpu)
   sh (
     script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh",
@@ -156,6 +164,7 @@
   test_method_names=test_method_names,
 ) %}
   {{ m.download_artifacts(tag='arm', filenames=tvm_multilib) }}
+  standalone_crt_build(ci_arm)
   ci_setup(ci_arm)
   {% if shard_index == 1 %}
   cpp_unittest(ci_arm)
@@ -179,6 +188,7 @@
   test_method_names=test_method_names,
 ) %}
   {{ m.download_artifacts(tag='arm', filenames=tvm_multilib) }}
+  standalone_crt_build(ci_arm)
   ci_setup(ci_arm)
   sh (
     script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
@@ -196,6 +206,7 @@
 ) %}
   {{ m.download_artifacts(tag='cortexm', filenames=tvm_lib, folders=microtvm_template_projects) }}
   add_microtvm_permissions()
+  standalone_crt_build(ci_cortexm)
   ci_setup(ci_cortexm)
   {% if shard_index == 1%}
   cpp_unittest(ci_cortexm)
@@ -220,6 +231,7 @@
 ) %}
   {{ m.download_artifacts(tag='riscv', filenames=tvm_lib, folders=microtvm_template_projects) }}
   add_microtvm_permissions()
+  standalone_crt_build(ci_riscv)
   ci_setup(ci_riscv)
   {% if shard_index == 1%}
   cpp_unittest(ci_cortexm)
@@ -266,6 +278,7 @@ stage('Test') {
     docker_image="ci_cpu",
   ) %}
     {{ m.download_artifacts(tag='cpu', filenames=tvm_multilib_tsim) }}
+    standalone_crt_build(ci_cpu)
     ci_setup(ci_cpu)
     cpp_unittest(ci_cpu)
     python_unittest(ci_cpu)
@@ -283,6 +296,7 @@ stage('Test') {
     docker_image="ci_cpu",
 ) %}
     {{ m.download_artifacts(tag='cpu', filenames=tvm_multilib) }}
+    standalone_crt_build(ci_cpu)
     ci_setup(ci_cpu)
     sh (
       script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh",
@@ -298,6 +312,7 @@ stage('Test') {
           {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib, folders=microtvm_template_projects) }}
           add_microtvm_permissions()
           timeout(time: 180, unit: 'MINUTES') {
+            standalone_crt_build(ci_gpu)
             ci_setup(ci_gpu)
             sh (
               script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh",

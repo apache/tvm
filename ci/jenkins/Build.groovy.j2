@@ -5,6 +5,13 @@ def ci_setup(image) {
   )
 }
 
+def standalone_crt_build(image) {
+  sh (
+    script: "${docker_run} ${image} ./tests/scripts/task_standalone_crt.sh",
+    label: 'Build standalone_crt',
+  )
+}
+
 def python_unittest(image) {
   sh (
     script: "${docker_run} ${image} ./tests/scripts/task_python_unittest.sh",
@@ -111,6 +118,7 @@ stage('Build') {
     )
     make(ci_cpu, 'build', '-j2')
     {{ m.upload_artifacts(tag='cpu', filenames=tvm_multilib_tsim) }}
+    standalone_crt_build(ci_cpu)
     ci_setup(ci_cpu)
     // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
     // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
@@ -145,6 +153,7 @@ stage('Build') {
     )
     make(ci_wasm, 'build', '-j2')
     cpp_unittest(ci_wasm)
+    standalone_crt_build(ci_wasm)
     ci_setup(ci_wasm)
     sh (
       script: "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh",
