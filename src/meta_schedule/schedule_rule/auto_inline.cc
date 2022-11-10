@@ -195,8 +195,15 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
-    const std::string block_name = sch->Get(block_rv)->name_hint;
-    if (block_name.find("compile_engine_const") != std::string::npos) {
+    // Look for a block of the form
+    // block compile_engine_const(iter_var(vi, range(min=0, ext=1))) {
+    //   reads([])
+    //   writes([compile_engine_const[]])
+    //   compile_engine_const[] = 59
+    // }
+    auto block = sch->Get(block_rv);
+    if (block->reads.size() == 0 && block->writes.size() == 1 &&
+        block->writes[0]->buffer->shape.size() == 0) {
       sch->ComputeInline(block_rv);
     }
     return {sch};
