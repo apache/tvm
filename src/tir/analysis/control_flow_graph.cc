@@ -264,7 +264,8 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
       } else if (side_effect == tir::CallEffectKind::kReadState) {
         buffer_exprs.push_back(expr);
       } else {
-        LOG(FATAL) << "Assumption must be pure or read-only";
+        LOG(FATAL) << "Assumption must be pure or read-only, but contained expression " << expr
+                   << " with side-effect \'" << side_effect << "\'";
       }
     }
 
@@ -281,7 +282,7 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
            "value', but received "
         << assumption;
     if (!as_equal_node) {
-      // This assumption is an inequality a data-dependent
+      // This assumption is an inequality on a data-dependent
       // conditional.  Not an error for this to occur, but also not
       // something that is currently supported.
       return;

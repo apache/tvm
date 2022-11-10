@@ -42,8 +42,13 @@ namespace tir {
 /*! \brief Represents an interaction with a buffer */
 struct BufferTouch {
   enum class AccessType {
+    /*! \brief Buffer access occurs in BufferLoad */
     Read,
+
+    /*! \brief Buffer access occurs in BufferStore */
     Write,
+
+    /*! \brief Buffer access occurs in tir::builtin::assume() */
     Assume,
   };
 
@@ -82,6 +87,12 @@ struct BufferTouch {
 
   /*! \brief Active loops during the buffer touch
    *
+   * The vector contains one entry for each loop that contains the
+   * buffer touch.  The `Var` item in each entry is the loop variable
+   * itself.  The `PrimExpr` item is an expression for the loop
+   * variable in terms of the buffer axis variables in
+   * `ControlFlowGraph::axis_var_lookup_`.
+   *
    * Used to construct boolean expressions indicating whether the loop
    * iteration that performs this touch has been reached.
    */
@@ -94,8 +105,33 @@ struct BufferTouch {
    */
   AccessType touch_type{AccessType::Assume};
 
+  /*! \brief Generate a boolean expression that is true for indices
+   *  accessed by this touch during this iteration or a previous
+   *  loop iteration.
+   *
+   * Used during forward propagation, to track known values that were
+   * written in the current loop iteration, or in a preceding loop
+   * iteration.
+   */
   PrimExpr BeforeLoopIteration() const;
+
+  /*! \brief Generate a boolean expression that is true for indices
+   *  accessed by this touch during this loop iteration.
+   *
+   * Used during speculative no-op insertion checks, to specify which
+   * indices must be later overwritten for a store to have no impact
+   * on final results.
+   */
   PrimExpr AtLoopIteration() const;
+
+  /*! \brief Generate a boolean expression that is true for indices
+   *  accessed by this touch during this loop iteration or a
+   *  subsequent loop iteration.
+   *
+   * Used during backward propagation, to track indices that that are
+   * overwritten in the current loop iteration or in a later loop
+   * iteration.
+   */
   PrimExpr AfterLoopIteration() const;
 
   /* \brief Checks if this touch affects a subset of indices of another
@@ -107,7 +143,7 @@ struct BufferTouch {
    */
   bool IsSubsetOf(const BufferTouch& other, arith::Analyzer* analyzer) const;
 
-  /* \brief Checks if this touch affects distinct indicates from another
+  /* \brief Checks if this touch affects distinct indices from another
    *
    * Returns true if it can be proven that the two predicates cannot
    * be simultaneously true.  Returns false if it cannot be proven
@@ -115,7 +151,7 @@ struct BufferTouch {
    */
   bool IsDistinctFrom(const BufferTouch& other, arith::Analyzer* analyzer) const;
 
-  /* \brief Checks if this touch affects distinct indicates from another
+  /* \brief Checks if this touch affects distinct indices from another
    *
    * Returns true if it can be proven that the two predicates cannot
    * be simultaneously true.  Returns false if it cannot be proven
@@ -180,8 +216,7 @@ class BufferState {
    *
    * For any Write or Assume touches, update the known values.  For
    * any Read touches, ignore.  Used to determine known values at the
-   * end of a series of a control flow block, given the known values
-   * at the start.
+   * end of a control flow block, given the known values at the start.
    *
    * \param axis_var_lookup A map from buffer to the variables
    * representing positions along the buffer's axes.
@@ -193,6 +228,22 @@ class BufferState {
   void ApplyTouches(const Map<Buffer, Array<Var>>& axis_var_lookup,
                     const std::vector<BufferTouch>& touch_points, arith::Analyzer* analyzer);
 
+  /*! \brief Update unused buffer locations based on buffer touches
+   *
+   * For any Write, mark the written-to indices as unused.  (That is,
+   * immediately prior to assigning `buf[i] = expr`, the value stored
+   * at `buf[i]` is irrelevant.)  For any Read, mark the read-from
+   * indices as used.  This method is used to determine unused buffer
+   * indices at the start of a control flow block, given the unused
+   * buffer indices values at the end.
+   *
+   * \param axis_var_lookup A map from buffer to the variables
+   * representing positions along the buffer's axes.
+   *
+   * \param touch_points The buffer touch points to apply
+   *
+   * \param analyzer The analyzer to use for simplifications
+   */
   void BackpropUnusedIndices(const Map<Buffer, Array<Var>>& axis_var_lookup,
                              const std::vector<BufferTouch>& touch_points,
                              arith::Analyzer* analyzer);
@@ -240,6 +291,8 @@ class BufferState {
   std::vector<BufferTouch> constraints;
 };
 
+/*! \brief
+ */
 class ControlFlowGraph {
  public:
   /* \brief Extract the touch pattern from a TIR statement
