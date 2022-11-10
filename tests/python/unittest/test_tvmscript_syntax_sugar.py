@@ -20,9 +20,8 @@ import sys
 import pytest
 import tvm.testing
 from tvm.ir import assert_structural_equal
+from tvm.script import from_source
 from tvm.script import tir as T
-from tvm.script.parser import from_source
-from tvm.testing import check_error
 
 
 @T.prim_func
@@ -89,18 +88,8 @@ def loop_syntax_sugar(a: T.handle) -> None:
                             A[i, j, k, x] = A[i, j, k, x] * 2.0
 
 
-def loop_syntax_sugar_fail(a: T.handle) -> None:
-    A = T.match_buffer(a, (128,))
-    for i in T.thread_binding(128, 128):
-        A[i] = A[i] * 2.0
-
-
 def test_loop_syntax_sugar():
     assert_structural_equal(loop_no_syntax_sugar, loop_syntax_sugar)
-
-
-def test_syntax_sugar_fail():
-    check_error(loop_syntax_sugar_fail, 3)
 
 
 # match buffer - use kwargs
