@@ -102,9 +102,9 @@ def test_sync_read_thread_id_independent_location():
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
         T.preflattened_buffer(p0, [1, 2, 1, 1], dtype="float32", data=p0.data)
-        T.launch_thread(blockIdx_x, 8)
         result_local = T.alloc_buffer([1], dtype="float32", scope="local")
         temp_shared = T.alloc_buffer([1], dtype="float32", scope="shared")
+        T.launch_thread(blockIdx_x, 8)
         T.launch_thread(threadIdx_x, 4)
         result_local[0] = T.float32(0)
         if threadIdx_x < 1:
