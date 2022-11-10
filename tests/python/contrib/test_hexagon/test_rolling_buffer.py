@@ -46,6 +46,7 @@ def generate_conv2d(dtype):
     return conv2d_2x1_filter
 
 
+@tvm.testing.requires_hexagon
 def test_rolling_buffer_conv2d_2x1(hexagon_session):
     """Test the rolling buffer schedule primitive on a pseudo conv2d"""
     dtype = "float16"
@@ -63,3 +64,7 @@ def test_rolling_buffer_conv2d_2x1(hexagon_session):
     b = tvm.nd.array(np.zeros((5, 32), dtype=dtype), device=hexagon_session.device)
     mod(a, b)
     tvm.testing.assert_allclose(b.numpy(), np.full((5, 32), 2, dtype=dtype), atol=1e-3, rtol=1e-3)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
