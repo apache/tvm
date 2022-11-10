@@ -437,13 +437,13 @@ class CacheLocDetector : public StmtVisitor {
       if (visited_block_ && visited_related_ && loc_pos_ == -1) {
         // The offset of insert position from the block
         loc_pos_ = i;
-        return;
+        break;
       } else if (visited_related_) {
         // If meet the target consumer, stop searching
-        visited_block_ = visited_block_ || previous_visited_block;
-        return;
+        break;
       }
     }
+    visited_block_ = visited_block_ || previous_visited_block;
   }
 
   void VisitStmt_(const BlockNode* block) final {
