@@ -352,7 +352,7 @@ def test_direct_read_only(accelerator, reference_mod, reference_const_sizes):
 @tvm.script.ir_module
 class MixedReadU55:
     @T.prim_func
-    def main(input_ifm: T.Buffer[(1,16,16,32), "int8"], ethosu_write: T.Buffer[(2048,), "int8"]) -> None:
+    def main(input_ifm: T.Buffer[(1,16,16,32), "int8"], input_ethosu_write: T.Buffer[(1,16,16,8), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer1 = T.buffer_decl([112], "uint8")
@@ -362,6 +362,7 @@ class MixedReadU55:
         buffer9 = T.buffer_decl([592], "uint8")
         buffer10 = T.buffer_decl([160], "uint8")
         ifm = T.buffer_decl([8192], "int8", data=input_ifm.data)
+        ethosu_write = T.buffer_decl([2048], "int8", data=input_ethosu_write.data)
         # body
         p1_data = T.allocate([112], "uint8", "global", annotations={"disable_lower_builtin":True})
         p1 = T.buffer_decl([112], "uint8", data=p1_data)
@@ -384,11 +385,12 @@ class MixedReadU55:
 @tvm.script.ir_module
 class MixedReadU65:
     @T.prim_func
-    def main(ifm: T.Buffer[(8192,), "int8"], ethosu_write: T.Buffer[(2048,), "int8"]) -> None:
+    def main(input_ifm: T.Buffer[(1,16,16,32), "int8"], input_ethosu_write: T.Buffer[(1,16,16,8), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         # buffer definition
         ifm = T.buffer_decl([8192], dtype="int8", data=input_ifm.data)
+        ethosu_write = T.buffer_decl([2048], dtype="int8", data=input_ethosu_write.data)
         buffer1 = T.buffer_decl([128], dtype="uint8")
         buffer2 = T.buffer_decl([128], dtype="uint8")
         buffer3 = T.buffer_decl([128], dtype="uint8")
