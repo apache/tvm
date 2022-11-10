@@ -31,6 +31,7 @@ from tvm.tir.tensor_intrin.rocm import AMDGPU_SDOT4_INTRIN
 from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 SCH_RULES_FOR_VNNI = [
+    ms.schedule_rule.ApplyCustomRule(),
     ms.schedule_rule.AutoInline(
         into_producer=False,
         into_consumer=True,
