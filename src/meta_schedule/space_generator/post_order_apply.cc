@@ -141,6 +141,12 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
           stack.emplace_back(sch, blocks);
           continue;
         }
+        if (!ScheduleRule::IsApplyCustomRule(sch_rule)) {
+          if (tir::GetAnn<String>(sch->GetSRef(block_rv), "schedule_rule").defined()) {
+            stack.emplace_back(sch, blocks);
+            continue;
+          }
+        }
         Array<tir::Schedule> applied = sch_rule->Apply(sch, /*block=*/block_rv);
         for (const tir::Schedule& sch : applied) {
           stack.emplace_back(sch, blocks);
