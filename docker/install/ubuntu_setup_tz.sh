@@ -18,8 +18,6 @@
 
 set -e
 set -u
-# Used for debugging RVM build
-set -x
 set -o pipefail
 
 export TZ=Etc/UTC
