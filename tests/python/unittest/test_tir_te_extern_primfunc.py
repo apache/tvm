@@ -21,10 +21,8 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import tir, te, TVMError
+from tvm import te
 from tvm.script import tir as T
-from tvm.arith import _ffi_api as _ffi_arith_api
-from tvm.tir.schedule import _ffi_api as _ffi_schedule_api
 
 
 # TODO(csullivan): Additional tests cases needed:
