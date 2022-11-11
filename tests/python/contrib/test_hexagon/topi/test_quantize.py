@@ -20,8 +20,8 @@ import numpy as np
 import tvm
 from tvm import te
 import tvm.topi.hexagon.qnn as s1
+from tvm.contrib.hexagon import allocate_hexagon_array
 from ..infrastructure import (
-    allocate_hexagon_array,
     transform_numpy,
     quantize_np,
     get_hexagon_target,

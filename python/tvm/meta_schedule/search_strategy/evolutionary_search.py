@@ -58,7 +58,7 @@ class EvolutionarySearch(SearchStrategy):
     def __init__(
         self,
         *,
-        population_size: int = 2048,
+        population_size: int = 512,
         init_measured_ratio: float = 0.2,
         init_min_unmeasured: int = 50,
         max_fail_count: int = 5,

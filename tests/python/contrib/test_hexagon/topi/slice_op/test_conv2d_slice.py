@@ -24,8 +24,9 @@ import tvm
 import tvm.testing
 from tvm.topi.hexagon.slice_ops.conv2d import conv2d_compute, conv2d_schedule
 from tvm.topi.testing import conv2d_nhwc_python
+from tvm.contrib.hexagon import allocate_hexagon_array
 
-from ...infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
+from ...infrastructure import transform_numpy, get_hexagon_target
 
 input_layout = tvm.testing.parameter(
     "nhwc-8h2w32c2w-2d",

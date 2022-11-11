@@ -57,7 +57,14 @@ def test_split(dtype, shape, splits, axis):
         mod = tei.make_module(model, {})
         output_count = splits if isinstance(splits, int) else len(splits) + 1
         outputs.append(
-            tei.build_and_run(mod, inputs, output_count, {}, npu=npu, optimize_partitions=False)
+            tei.build_and_run(
+                mod,
+                inputs,
+                output_count,
+                {},
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
         )
 
         tei.verify(outputs, dtype, 0)

@@ -233,10 +233,11 @@ class Conv2dNCHWcVNNIModuleTensorized:
                     A_i32 = T.reinterpret(A_u8x4, dtype="int32")
                     B_i8x64 = B.vload([0, 0], dtype="int8x64")
                     B_i32x16 = T.reinterpret(B_i8x64, dtype="int32x16")
-                    C[T.ramp(0, 1, 16)] = C[T.ramp(0, 1, 16)] + T.call_llvm_pure_intrin(
+                    C_i32x16 = C.vload([0], dtype="int32x16")
+                    C[T.ramp(0, 1, 16)] = T.call_llvm_pure_intrin(
                         T.llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512"),
                         T.uint32(0),
-                        T.broadcast(0, 16),
+                        C_i32x16,
                         T.broadcast(A_i32, 16),
                         B_i32x16,
                         dtype="int32x16",

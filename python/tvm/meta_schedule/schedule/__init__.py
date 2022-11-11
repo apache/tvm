@@ -14,16 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-""" OpenCL testing fixtures used to deduce testing argument
-    values from testing parameters """
-
-
-import pytest
-
-import tvm
-import tvm.testing
-
-pytest_plugins = [
-    "tvm.contrib.hexagon.pytest_plugin",
-]
+"""Per-block schedule rules in MetaSchedule"""
+from . import cpu, cuda, generic, x86

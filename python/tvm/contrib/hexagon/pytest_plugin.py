@@ -345,8 +345,6 @@ def clear_logcat(request) -> bool:
 def pytest_addoption(parser):
     """Add pytest options."""
 
-    parser.addoption("--gtest_args", action="store", default="")
-
     parser.addoption(
         "--skip-rpc",
         action="store_true",
@@ -372,9 +370,3 @@ def pytest_addoption(parser):
         default=False,
         help="If set true, it will clear logcat before execution.",
     )
-
-
-def pytest_generate_tests(metafunc):
-    option_value = metafunc.config.option.gtest_args
-    if "gtest_args" in metafunc.fixturenames and option_value is not None:
-        metafunc.parametrize("gtest_args", [option_value])

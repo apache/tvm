@@ -22,11 +22,8 @@
  * \brief Implementation of libtorch codegen.
  */
 
-#include <ATen/DLConvertor.h>
+// clang-format off
 #include <dlpack/dlpack.h>
-#include <torch/csrc/jit/api/compilation_unit.h>
-#include <torch/csrc/jit/serialization/import.h>
-#include <torch/torch.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
@@ -42,6 +39,12 @@
 #include <sstream>
 
 #include "../../utils.h"
+
+#include <ATen/DLConvertor.h>
+#include <torch/csrc/jit/api/compilation_unit.h>
+#include <torch/csrc/jit/serialization/import.h>
+#include <torch/torch.h>
+// clang-format on
 
 namespace tvm {
 namespace relay {

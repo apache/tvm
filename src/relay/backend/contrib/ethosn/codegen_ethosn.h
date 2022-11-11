@@ -296,13 +296,14 @@ class EthosnCompilerConfig : public Attrs {
 TVM_REGISTER_NODE_TYPE(EthosnCompilerConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.ethos-n.options", EthosnCompilerConfig);
 
-auto GetCompilerAttrs() {
+EthosnCompilerConfig GetCompilerAttrs() {
   auto ctx = transform::PassContext::Current();
-  auto cfg = ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options");
+  Optional<EthosnCompilerConfig> cfg =
+      ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options");
   if (!cfg.defined()) {
-    cfg = AttrsWithDefaultValues<EthosnCompilerConfig>();
+    return AttrsWithDefaultValues<EthosnCompilerConfig>();
   }
-  return cfg;
+  return cfg.value();
 }
 TVM_REGISTER_GLOBAL("relay.ext.ethos-n.get_compiler_attrs").set_body_typed(GetCompilerAttrs);
 

@@ -157,6 +157,8 @@ class Session:
         if not self._exit_called:
             self._exit_called = True
             self.transport.__exit__(exc_type, exc_value, exc_traceback)
+            shutdown_func = self._rpc._sess.get_function("CloseRPCConnection")
+            shutdown_func()
 
     def _cleanup(self):
         self.__exit__(None, None, None)

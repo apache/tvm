@@ -70,11 +70,21 @@ def pytest_configure(config):
     print("pytest marker:", config.option.markexpr)
 
 
+def pytest_addoption(parser):
+    """Add pytest options."""
+    parser.addoption("--gtest_args", action="store", default="")
+
+
 def pytest_generate_tests(metafunc):
     """Called once per unit test, modifies/parametrizes it as needed."""
     _parametrize_correlated_parameters(metafunc)
     _auto_parametrize_target(metafunc)
     _add_target_specific_marks(metafunc)
+
+    # Process gtest arguments
+    option_value = metafunc.config.option.gtest_args
+    if "gtest_args" in metafunc.fixturenames and option_value is not None:
+        metafunc.parametrize("gtest_args", [option_value])
 
 
 def pytest_collection_modifyitems(config, items):

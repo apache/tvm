@@ -158,6 +158,7 @@ def test_group_conv2d_transpose_nchw():
     verify_group_conv2d_transpose_nchw(
         1, 3, (224, 224), 32, (3, 3), (2, 2), (1, 1, 1, 1), (0, 0), 1
     )
+    verify_group_conv2d_transpose_nchw(1, 48, (64, 64), 12, (4, 4), (2, 2), (1, 1, 1, 1), (0, 0), 1)
 
 
 if __name__ == "__main__":
