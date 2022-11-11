@@ -258,6 +258,11 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddWriteReuseTensorCore(
   sch->ReverseComputeAt(cache_write, loop, true);
 
   if (state->write_reuse.count(0)) {
+    // Fuse the iterators of the cache_write
+    Array<LoopRV> buffer_loops = sch->GetLoops(state->write_reuse[0]);
+    ICHECK_GT(buffer_loops.size(), 2);
+    sch->Fuse(Array<LoopRV>{buffer_loops.end() - 2,  // The src shmem is always 2D
+                            buffer_loops.end()});
     AnnotateCooperativeFetching(&sch, state->write_reuse[0]);
   }
   sch->ReverseComputeInline(state->tensor_core_reindex_store);
