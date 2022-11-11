@@ -24,7 +24,7 @@ common_includes = """
 #include <stdlib.h>
 #include <string.h>
 
-#include <arm_nnsupportfunctions.h>
+#include <arm_acle.h>
 
 #include <tvm/runtime/crt/error_codes.h>
 

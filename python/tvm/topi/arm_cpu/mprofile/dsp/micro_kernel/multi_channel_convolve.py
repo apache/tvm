@@ -109,7 +109,7 @@ def _quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, ke
         (
             f"""
         #include <stdint.h>
-        #include <arm_nnsupportfunctions.h>
+        #include <arm_acle.h>
 
         // __SXTB16(_ROR(X, Y)) is combined into one assembly instruction
 
