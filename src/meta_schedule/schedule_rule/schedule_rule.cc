@@ -54,6 +54,7 @@ ScheduleRule ScheduleRule::PyScheduleRule(
 Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
   return {
       ScheduleRule::ApplyCustomRule(),
+      ScheduleRule::InlineConstantScalars(),
       ScheduleRule::AutoInline(
           /*into_producer=*/false,
           /*into_consumer=*/true,
@@ -100,6 +101,7 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
           Map<String, ObjectRef>{{"req", String("must")},
                                  {"levels", Array<Integer>{3}},  //
                                  {"scope", String("local")}}),
+      ScheduleRule::InlineConstantScalars(),
       ScheduleRule::AutoInline(
           /*into_producer=*/true,
           /*into_consumer=*/true,
@@ -178,6 +180,7 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
 Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
   return {
       ScheduleRule::ApplyCustomRule(),
+      ScheduleRule::InlineConstantScalars(),
       ScheduleRule::AutoInline(
           /*into_producer=*/false,
           /*into_consumer=*/true,
