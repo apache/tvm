@@ -1,17 +1,14 @@
 import argparse
 import os
 from tvm_layer import *
-from tvm_lower import *
 from tvm_parse import *
 from tvm_model import *
 from tvm_visualize import *
 
 def Run(args):
     #1. Args --> Relay IR module
-    RelayIRModule = gen_module(args.layer, args.layout, args.input, args.kernel)
-
     #2. Relay IR module --> nested TIR
-    nestedTIR = get_lowered_tir(RelayIRModule, args.model)
+    nestedTIR = gen_module(args.model, args.layer, args.layout, args.input, args.kernel)
     print(nestedTIR)
 
     #3. nested TIR --> Empty Graph

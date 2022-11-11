@@ -163,16 +163,8 @@ def avg_pool2d_nchw(Input, Filter, stride, dilation, padding, pool_type, out_dty
     di = te.reduce_axis((0, filter_h), name="di")
     dj = te.reduce_axis((0, filter_w), name="dj")
 
-    Multiplier = te.compute(
-        (1, ),
-        lambda e:
-        float(1), name="Multiplier", tag="avg_pool2d_nchw",
-    )
-    Shifter = te.compute(
-        (1, ),
-        lambda e:
-        float(dilated_kernel_h*dilated_kernel_w), name="Shifter", tag="avg_pool2d_nchw",
-    )
+    multiplier = tvm.te.const(1, "float")
+    Multiplier = tvm.te.compute((batch, ), lambda b: multiplier, name="Multiplier")
     Input = te.compute(
         Input.shape,
         lambda b, ic, ih, iw:
@@ -183,14 +175,14 @@ def avg_pool2d_nchw(Input, Filter, stride, dilation, padding, pool_type, out_dty
         lambda b, c, i, j:
         te.sum(
             (Input[b, c, i * stride_h + di * dilation_h, j * stride_w + dj * dilation_w,].astype(out_dtype)
-                * Multiplier[0].astype(out_dtype)
+                * Multiplier[b].astype(out_dtype)
             ), axis=[di, dj],
         ), name="Acc", tag="avg_pool2d_nchw",
     )
     Output = te.compute(
         (batch, out_channel, out_height, out_width),
         lambda b, c, i, j:
-        Acc[b, c, i, j] / Shifter[0].astype(out_dtype)
+        (Acc[b, c, i, j].astype("int")>>(dilated_kernel_h*dilated_kernel_w)).astype(out_dtype)
         , name="Output", tag="avg_pool2d_nchw",
     )
     return Output
