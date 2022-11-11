@@ -98,7 +98,7 @@ import sys
 import warnings
 from collections import defaultdict
 from enum import Enum
-from typing import Callable, List, Tuple, Dict
+from typing import Callable, Dict, List, Tuple
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
@@ -431,6 +431,20 @@ def get_vm_forward(virtual_machine: VirtualMachine, device: tvm.runtime.Device) 
     return forward
 
 
+def should_skip_subgraph(graph_module: torch.fx.GraphModule) -> bool:
+    """
+    Returns whether it should skip optimizing the input graph module.
+    The graph could be empyt or only containing nodes calling function
+    for side effect.
+    """
+    graph = graph_module.graph
+
+    inputs = [n for n in graph.nodes if n.op == "placeholder"]
+    outputs = [n for n in graph.nodes if n.op == "output"]
+
+    return len(inputs) == 0 and all(output.args == ((),) for output in outputs)
+
+
 def create_tvm_task_collection_backend() -> Tuple[Callable, List[ms.ExtractedTask]]:
     """
     This torchdynamo backend only collects the extracted tasks from MetaSchedule.
@@ -460,6 +474,9 @@ def create_tvm_task_collection_backend() -> Tuple[Callable, List[ms.ExtractedTas
 
         torch.save(graph_module, os.path.join(subgraphs_dir, f"graph_module_{subgraph_idx}"))
         torch.save(example_inputs, os.path.join(subgraphs_dir, f"example_inputs_{subgraph_idx}"))
+
+        if should_skip_subgraph(graph_module):
+            return graph_module.forward
 
         jit_mod = torch.jit.trace(graph_module, example_inputs)
         shape_list = [(f"inp_{idx}", i.shape) for idx, i in enumerate(example_inputs)]
@@ -494,6 +511,9 @@ def create_tvm_compilation_backend(database: ms.database.Database) -> Callable:
     """
 
     def backend(graph_module, example_inputs):
+        if should_skip_subgraph(graph_module):
+            return graph_module.forward
+
         jit_mod = torch.jit.trace(graph_module, example_inputs)
         shape_list = [(f"inp_{idx}", i.shape) for idx, i in enumerate(example_inputs)]
         ir_mod, params = tvm.relay.frontend.from_pytorch(jit_mod, shape_list)
