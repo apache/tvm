@@ -1014,23 +1014,33 @@ std::pair<Array<StmtSRef>, std::vector<int>> CollectComputeLocation(const Schedu
 /******** Producer-consumer relation ********/
 
 Array<StmtSRef> GetProducers(const StmtSRef& block_sref, const BlockScope& scope) {
-  Array<Dependency> deps = scope->GetDepsByDst(block_sref);
-  Array<StmtSRef> result;
-  result.reserve(deps.size());
-  for (const Dependency& dep : deps) {
-    result.push_back(dep->src);
+  Array<Dependency> edges = scope->GetDepsByDst(block_sref);
+  Array<StmtSRef> results;
+  std::unordered_set<StmtSRef, ObjectPtrHash, ObjectPtrEqual> result_set;
+  results.reserve(edges.size());
+  for (const Dependency& edge : edges) {
+    if ((edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) &&
+        !result_set.count(edge->src)) {
+      results.push_back(edge->src);
+      result_set.emplace(edge->src);
+    }
   }
-  return result;
+  return results;
 }
 
 Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const BlockScope& scope) {
-  Array<Dependency> deps = scope->GetDepsBySrc(block_sref);
-  Array<StmtSRef> result;
-  result.reserve(deps.size());
-  for (const Dependency& dep : deps) {
-    result.push_back(dep->dst);
+  Array<Dependency> edges = scope->GetDepsBySrc(block_sref);
+  Array<StmtSRef> results;
+  std::unordered_set<StmtSRef, ObjectPtrHash, ObjectPtrEqual> result_set;
+  results.reserve(edges.size());
+  for (const Dependency& edge : edges) {
+    if ((edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) &&
+        !result_set.count(edge->dst)) {
+      results.push_back(edge->dst);
+      result_set.emplace(edge->dst);
+    }
   }
-  return result;
+  return results;
 }
 
 ProducerConsumerSplit ProducerConsumerSplit::Find(
