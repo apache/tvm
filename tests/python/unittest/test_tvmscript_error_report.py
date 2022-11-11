@@ -52,7 +52,7 @@ def check_error(func, rel_lineno):
         return
     error = errors[0]
     assert (
-        error.span.line - 1 == rel_lineno
+        error.span.line - 1 == rel_lineno or error.span.line == rel_lineno
     ), f"Expected error to be on line {rel_lineno}, but it was on {error.span.line - 1}"
 
     error_line = source_code.split("\n")[rel_lineno]
