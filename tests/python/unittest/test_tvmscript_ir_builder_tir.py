@@ -16,15 +16,15 @@
 # under the License.
 # pylint: disable=invalid-name, missing-docstring
 """Unittests for tvm.script.ir_builder.tir"""
-import pytest
 import numpy as np
+import pytest
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm.runtime import ndarray
-from tvm.script.ir_builder import tir as T
-from tvm.script.ir_builder import IRBuilder
 from tvm.ir.base import assert_structural_equal
+from tvm.runtime import ndarray
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import tir as T
 
 
 def test_ir_builder_tir_primfunc_base():
@@ -372,7 +372,12 @@ def test_ir_builder_tir_allocate_const():
     # the expected allocate const
     buffer_var = tir.Var("v", tvm.ir.PointerType(tvm.ir.PrimType("int32")))
     ir_expected = tir.AllocateConst(
-        buffer_var, "int32", [10], ndarray.array(np.asarray(data, "int32")), tir.Evaluate(1)
+        buffer_var,
+        "int32",
+        [10],
+        ndarray.array(np.asarray(data, "int32")),
+        tir.Evaluate(1),
+        annotations={},
     )
 
     # Check if the generated ir is expected
@@ -470,7 +475,13 @@ def test_ir_builder_tir_decl_buffer():
 
     # the expected decl_buffer
     buffer = T.buffer_decl((128, 128), "float32")
-    ir_expected = tir.DeclBuffer(buffer, tir.Evaluate(0))
+    ir_expected = tir.Allocate(
+        buffer.data,
+        "float32",
+        (128, 128),
+        tir.IntImm("bool", True),
+        tir.DeclBuffer(buffer, tir.Evaluate(0)),
+    )
 
     # Check if the generated ir is expected
     assert_structural_equal(ir_actual, ir_expected, map_free_vars=True)
