@@ -30,9 +30,9 @@
 #include <unordered_map>
 
 #include "../../../qnn/utils.h"
+#include "../../../transforms/fold_constant.h"
 #include "../../../transforms/pattern_utils.h"
 #include "../../../transforms/simplify_expr.h"
-#include "../constant_transforms.h"
 #include "ethosn_api.h"
 
 namespace tvm {
@@ -176,7 +176,7 @@ Optional<Expr> ConvertQnnAddToDepthwise(const Expr& expr) {
   Expr reshape_bias = MakeReshape(requantize_bias, {channels});
 
   try {
-    reshape_bias = FoldConstantExpr(reshape_bias);
+    reshape_bias = transform::FoldConstantExpr(reshape_bias);
   } catch (tvm::Error& e) {
     // Conversion produced an invalid op.
     return NullOpt;
