@@ -54,6 +54,7 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
           os << "\n  " << GetCustomRuleName(ann.value(), key);
         }
         LOG(WARNING) << os.str();
+        sch->Unannotate(block_rv, "schedule_rule");
       }
     }
     return {sch};
