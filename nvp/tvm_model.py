@@ -9,7 +9,8 @@ class VectorProcessor():
             raise TypeError("Currently Not Supported Graph: %s"%(type(graph)))
         self.model = model
         self.graph = graph
-        self.slot = dict.fromkeys(self.import_slot(model))
+        # self.slot = dict.fromkeys(self.import_slot(model))
+        self.slot = {key:[] for key in self.import_slot(model)}
         self.latency = self.import_latency(model)
         self.type = self.import_type(model)
         self.debug = debug
@@ -274,15 +275,22 @@ class VectorProcessor():
         free_nodes = []
         #1. Free slot w/ finished op & Add finished op to 'free_nodes'
         for s in self.slot.keys():
-            if (not self.slot[s]==None) and (self.slot[s]['end']==clk):
-                free_nodes.append(self.slot[s]['node'])
-                self.slot[s] = None
+            if not self.slot[s]==[]:
+                for node in self.slot[s]:
+                    if node['end']==clk:
+                        free_nodes.append(node['node'])
+                        self.slot[s].remove(node)
 
         #2. Remove duplicates in list (; All three slots are occupied by 'Control')
         free_nodes = list(dict.fromkeys(free_nodes))
         return free_nodes
 
     def slot_occupy(self, rdy_nodes, clk):
+        """
+        Occupy slot
+          1. If 'Control' slot, occupy when all slots are IDLE.
+          2. If NOT 'Control' slot, occupy when corresponding slot was NOT occupied during current clk
+        """
         for rn in rdy_nodes:
             slot = self.graph.nodes[rn]['slot']
             type = self.graph.nodes[rn]['type']
@@ -292,16 +300,16 @@ class VectorProcessor():
             except:
                 raise TypeError("Currently Not Supported latency config; Slot: %s, Type: %s"%(slot, type))
             if slot == 'Control':
-                if all([self.slot[s]==None for s in self.slot.keys()]): # If all slots are IDLE, 'Occupy'!!
+                if all([self.slot[s]==[] for s in self.slot.keys()]): # If all slots are IDLE, 'Occupy'!!
                     for s in self.slot.keys():
-                        self.slot[s] = {'node': rn, 'start': clk, 'end': clk+dur} # Occupy
+                        self.slot[s].append({'node': rn, 'start': clk, 'end': clk+dur}) # Occupy
                 else: # Else, move to next clk
                     continue
             else:
-                if self.slot[slot] == None:
-                    self.slot[slot] = {'node': rn, 'start': clk, 'end': clk+dur} # Occupy
-                else:
-                    continue
+                CHECK_START_TIME = all([slot_node['start']!=clk for slot_node in self.slot[slot]])
+                CHECK_SAME_NODE = all([slot_node['node']!=rn for slot_node in self.slot[slot]])
+                if CHECK_START_TIME and CHECK_SAME_NODE:
+                    self.slot[slot].append({'node': rn, 'start': clk, 'end': clk+dur}) # Occupy
 
     def node_update(self, free_nodes, in_nodes, rdy_nodes, out_nodes):
         #1. free_nodes: Remove from rdy_nodes & Add to out_nodes
@@ -314,8 +322,6 @@ class VectorProcessor():
         for fn in free_nodes:
             for s in self.graph.successors(fn):
                 if set(self.graph.predecessors(s)).issubset(set(out_nodes)):
-                    # in_nodes.remove(s)
-                    # rdy_nodes.append(s)
                     tmp.append(s)
         tmp = list(dict.fromkeys(tmp)) # remove duplicates
         in_nodes = [n for n in in_nodes if n not in tmp] # remove newly_ready_nodes from in_nodes
@@ -332,11 +338,12 @@ class VectorProcessor():
                 self.time_stamp[clk] = loop_stack[-1]
                 loop_stack.pop()
         else:
-            # self.time_stamp[clk] = self.time_stamp[clk-1]
             self.time_stamp[clk] = loop_stack[-1]
 
     def get_occupied_nodes(self):
-        occupied_nodes = [self.slot[s]['node'] for s in self.slot.keys() if self.slot[s] is not None]
+        occupied_nodes = []
+        [occupied_nodes.extend(self.slot[s]) for s in self.slot.keys() if self.slot[s] is not None]
+        occupied_nodes = [node['node'] for node in occupied_nodes]
         return list(dict.fromkeys(occupied_nodes)) # remove duplicates in list
 
     def print_node_status(self, clk, in_nodes, rdy_nodes, out_nodes):

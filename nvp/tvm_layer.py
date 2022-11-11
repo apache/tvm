@@ -60,6 +60,31 @@ def gen_module(model, layer, layout, input, kernel):
         data2 = relay.var("data", shape=[1, 8, 5, 5], dtype="float32") #NCHW
         Trelay = tvm.relay.nn.correlation(data1, data2, kernel_size=3, max_displacement=5,
                                     stride1=1, stride2=1, padding=0, is_multiply=True, layout="NCHW")
+        module = get_module_from_Trelay(Trelay)
+        module = lower_module(model, module)
+    # User-defined layers
+    elif layer == 'eadd':
+        (b, cw, ih, iw) = input
+        data0 = tvm.relay.var("data", tvm.relay.TensorType([b*ih*iw, cw], dtype="float32"))
+        data1 = tvm.relay.var("data", tvm.relay.TensorType([b*ih*iw, cw], dtype="float32"))
+        weight0 = tvm.relay.var("weight", tvm.relay.TensorType([b*ih*iw, cw], dtype="float32"))
+        weight1 = tvm.relay.var("weight", tvm.relay.TensorType([b*ih*iw, cw], dtype="float32"))
+        A = tvm.relay.multiply(data0, weight0)
+        B = tvm.relay.multiply(data1, weight1)
+        Trelay = tvm.relay.add(A, B)
+        module = get_module_from_Trelay(Trelay)
+        module = lower_module(model, module)
+    elif layer == 'eadd0':
+        if len(input)==4: (vlength, vcount) = (input[0]*input[2]*input[3], input[1])
+        elif len(input)==2: (vlength, vcount) = input # vlength: b*ih*iw, vcount: cw
+        else: raise NotImplementedError("Currently NOT supported input format for elemwise-add: %s"%(input))
+        data0 = tvm.te.placeholder((vlength, vcount), name="input0")
+        data1 = tvm.te.placeholder((vlength, vcount), name="input1")
+        weight0 = tvm.te.placeholder((vlength, vcount), name="weight0")
+        weight1 = tvm.te.placeholder((vlength, vcount), name="weight1")
+        output = tvm.te.compute((vlength, vcount), lambda i, j: data0[i, j]*weight0[i, j] + data1[i, j]*weight1[i, j], name="C")
+        s = tvm.te.create_schedule([output.op])
+        module = tvm.lower(s, [data0, data1, weight0, weight1, output], simple_mode=True)
     else:
         raise NotImplementedError("Currently NOT implemented: %s" %(layer))
 
