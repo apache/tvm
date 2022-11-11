@@ -540,6 +540,19 @@ inline ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
   throw;
 }
 
+/*!
+ * \brief Summarize the run time of the given FloatImm array.
+ * \param arr The array of FloatImm.
+ * \return The summary of the values in the given array.
+ */
+inline double Sum(const Array<FloatImm>& arr) {
+  double sum = 0;
+  for (const FloatImm& f : arr) {
+    sum += f->value;
+  }
+  return sum;
+}
+
 }  // namespace meta_schedule
 }  // namespace tvm
 
