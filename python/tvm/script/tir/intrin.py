@@ -17,12 +17,13 @@
 """TVM Script Parser Intrinsic Classes"""
 # pylint: disable=redefined-builtin, relative-beyond-top-level
 import builtins
-from typing import List, Any
+from typing import Any, List
 
 import tvm.tir
 from tvm.tir import FloatImm
-from ..registry import register
+
 from ...target import codegen
+from ..registry import register
 from ..utils import get_param_list, tvm_span_from_synr
 
 
@@ -229,3 +230,78 @@ def comm_reducer(lambda_io, identities, span):
 def llvm_lookup_intrinsic_id(name, span):
     # pylint: disable=unused-argument
     return codegen.llvm_lookup_intrinsic_id(name)
+
+
+@register
+def FloorMod(x, y, span):  # pylint: disable=invalid-name
+    return tvm.tir.FloorMod(x, y, span)
+
+
+@register
+def FloorDiv(x, y, span):  # pylint: disable=invalid-name
+    return tvm.tir.FloorDiv(x, y, span)
+
+
+@register
+def Mul(x, y, span):  # pylint: disable=invalid-name
+    return tvm.tir.Mul(x, y, span)
+
+
+@register
+def Div(x, y, span):  # pylint: disable=invalid-name
+    return tvm.tir.Div(x, y, span)
+
+
+@register
+def Add(x, y, span):  # pylint: disable=invalid-name
+    return tvm.tir.Add(x, y, span)
+
+
+@register
+def Sub(x, y, span):  # pylint: disable=invalid-name
+    return tvm.tir.Sub(x, y, span)
+
+
+@register
+def LT(x, y, span):  # pylint: disable=invalid-name
+    return tvm.tir.LT(x, y, span)
+
+
+@register
+def LE(x, y, span):  # pylint: disable=invalid-name
+    return tvm.tir.LE(x, y, span)
+
+
+@register
+def GT(x, y, span):  # pylint: disable=invalid-name
+    return tvm.tir.GT(x, y, span)
+
+
+@register
+def GE(x, y, span):  # pylint: disable=invalid-name
+    return tvm.tir.GE(x, y, span)
+
+
+@register
+def EQ(x, y, span):  # pylint: disable=invalid-name
+    return tvm.tir.EQ(x, y, span)
+
+
+@register
+def NE(x, y, span):  # pylint: disable=invalid-name
+    return tvm.tir.NE(x, y, span)
+
+
+@register
+def And(x, y, span):  # pylint: disable=invalid-name
+    return tvm.tir.And(x, y, span)
+
+
+@register
+def Or(x, y, span):  # pylint: disable=invalid-name
+    return tvm.tir.Or(x, y, span)
+
+
+@register
+def Cast(dtype, value, span):  # pylint: disable=invalid-name
+    return tvm.tir.Cast(dtype, value, span)

@@ -18,11 +18,10 @@
 """ Test different strategies for loading data into vtcm before running HVX workloads. """
 
 import numpy as np
-import tvm
 import pytest
-
-from tvm.script import tir as T
+import tvm
 from numpy.random import default_rng
+from tvm.script import tir as T
 
 VRMPY_SIZE_B = 128
 VRMPY_SIZE_INT32 = 32
@@ -126,9 +125,9 @@ def get_single_dma_schedule(size_a, size_w):
     @T.prim_func
     def operator(a_input: T.handle, b_input: T.handle, c_output: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        a_buffer = T.match_buffer(a_input, a_shape, dtype="uint8", mem_scope="global")
-        w_buffer = T.match_buffer(b_input, w_shape, dtype="uint8", mem_scope="global")
-        c_buffer = T.match_buffer(c_output, out_shape, dtype="int32", mem_scope="global")
+        a_buffer = T.match_buffer(a_input, a_shape, dtype="uint8", scope="global")
+        w_buffer = T.match_buffer(b_input, w_shape, dtype="uint8", scope="global")
+        c_buffer = T.match_buffer(c_output, out_shape, dtype="int32", scope="global")
         a_global_vtcm = T.alloc_buffer(a_shape, dtype="uint8", mem_scope="global.vtcm")
         w_global_vtcm = T.alloc_buffer(w_shape, dtype="uint8", mem_scope="global.vtcm")
         c_global_vtcm = T.alloc_buffer(out_shape, dtype="int32", mem_scope="global.vtcm")
@@ -153,7 +152,7 @@ def get_single_dma_schedule(size_a, size_w):
                     0,
                     dtype="handle",
                 ),
-                T.cast(a_bytes, dtype="int"),
+                T.Cast("int", a_bytes),
                 dtype="int32",
             )
         )
@@ -178,7 +177,7 @@ def get_single_dma_schedule(size_a, size_w):
                     0,
                     dtype="handle",
                 ),
-                T.cast(w_bytes, dtype="int"),
+                T.Cast("int", w_bytes),
                 dtype="int32",
             )
         )
@@ -222,7 +221,7 @@ def get_single_dma_schedule(size_a, size_w):
                     0,
                     dtype="handle",
                 ),
-                T.cast(a_bytes, dtype="int"),
+                T.Cast("int", a_bytes),
                 dtype="int32",
             )
         )
