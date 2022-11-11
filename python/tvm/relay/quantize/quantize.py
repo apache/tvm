@@ -238,6 +238,7 @@ class QConfig(Object):
     _node_defaults = {
         "network_name": "Default",
         "have_prequantized": False,
+        "hybrid_needed": False,
         "nbit_input": 8,
         "nbit_weight": 8,
         "nbit_activation": 32,
@@ -299,10 +300,15 @@ class QConfig(Object):
         act_as = "Asym" if getattr(self, "quantizer_activation") == "Asymmetric" else "Sym"
         act_es = getattr(self, "estimator_activation")
         dir_name = "Wgt" + wgt_bits + wgt_as + wgt_es.capitalize() + wgt_cf + "__" + "Act" + act_bits + act_as + act_es.capitalize()
+        if self.get_hybrid():
+            dir_name = "Wgt" + wgt_bits + wgt_as + wgt_es.capitalize() + wgt_cf + "__" + "Act" + act_bits + act_as + act_es.capitalize() + "_hybrid"
         return dir_name
 
     def get_debug_mode(self):
         return getattr(self, "debug_mode")
+    
+    def get_hybrid(self):
+        return getattr(self, "hybrid_needed")
 
     def get_prequantized(self):
         return getattr(self, "have_prequantized")

@@ -321,10 +321,13 @@ def multiply_rewrite(ref_call, new_args, ctx):
             qnode_name = get_layer_name(lhs_expr)
             lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT, qnode_name)
         if _analysis.check_constant(rhs_expr):
-            qnode_name = ref_call.op.name + "_" + "weight" + "_" + str(inference_layer_count) + "_0" + ":in"
-            rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT, qnode_name)
+            if rhs_expr.data.shape == 0:
+                pass
+            else:
+                qnode_name = ref_call.op.name + "_" + "weight" + "_" + str(inference_layer_count) + "_0" + ":in"
+                rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT, qnode_name)
         else:
-            qnode_name = get_layer_name(lhs_expr)
+            qnode_name = get_layer_name(rhs_expr)
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT, qnode_name)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
         return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
@@ -665,11 +668,14 @@ def calibrate_rewrite(ref_call, new_args, ctx):
             elif(ref_call.op == pad_op): #pad
                 new_arg = arg
             else:
-                qnode_name = ref_call.op.name + "_" + "weight" + "_" + str(layer_count) + "_" + str(weight_count) + ":in"
-                if(ref_call.op == conv1d_op or ref_call.op == conv2d_op):
-                    new_arg = attach_simulated_quantize(arg, QAnnotateKind.WEIGHT, qnode_name, True)
+                if(len(arg.data.shape) == 0): # It's a scalar, not need to quantize
+                    new_arg = arg
                 else:
-                    new_arg = attach_simulated_quantize(arg, QAnnotateKind.WEIGHT, qnode_name)
+                    qnode_name = ref_call.op.name + "_" + "weight" + "_" + str(layer_count) + "_" + str(weight_count) + ":in"
+                    if(ref_call.op == conv1d_op or ref_call.op == conv2d_op):
+                        new_arg = attach_simulated_quantize(arg, QAnnotateKind.WEIGHT, qnode_name, True)
+                    else:
+                        new_arg = attach_simulated_quantize(arg, QAnnotateKind.WEIGHT, qnode_name)
             args_out.append(new_arg)
             weight_count = weight_count + 1
         elif(isinstance(arg, _expr.TupleGetItem)):

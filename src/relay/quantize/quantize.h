@@ -67,6 +67,7 @@ class QConfigNode : public Object {
  public:
   std::string network_name = "Default";
   bool have_prequantized = false;
+  bool hybrid_needed = false;
   int nbit_input = 8;
   int nbit_weight = 8;
   int nbit_activation = 32;
@@ -99,6 +100,7 @@ class QConfigNode : public Object {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("network_name", &network_name);
     v->Visit("have_prequantized", &have_prequantized);
+    v->Visit("hybrid_needed", &hybrid_needed);
     v->Visit("nbit_input", &nbit_input);
     v->Visit("nbit_weight", &nbit_weight);
     v->Visit("nbit_activation", &nbit_activation);

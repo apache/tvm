@@ -181,7 +181,7 @@ def collect_min_max(mod, dataset):
     
     return min_max_list
 
-def initialize_quantizer(mod, min_max):
+def initialize_quantizer(mod, min_max, hybrid_dict):
     """
     Initialize quantizer and Estimator here
     """
@@ -209,6 +209,13 @@ def initialize_quantizer(mod, min_max):
                 estimator_type = cfg.get_estimator_by_kind(kind)
                 opt_method_type = cfg.get_optMethod()
                 quantizer_name = attrs.name
+
+                if quantizer_name in hybrid_dict:
+                    quantizer_config_tmp = hybrid_dict[quantizer_name]
+                    quantizer_type_tmp = quantizer_config_tmp["quantizer"]
+                    if (quantizer_type_tmp != quantizer_type):
+                        raise ValueError("Unsupported hybrid method. Quantizer type must be the same.")
+                    nbit = quantizer_config_tmp["bit_width"]
 
                 if(opt_method_type == "grid"):
                     opt_method = OptMethod.grid
@@ -604,14 +611,27 @@ def calibrate(dataset=None):
         """make transform.module pass happy"""
         cfg = quantize.current_qconfig()
         debug_mode = cfg.get_debug_mode()
+        hybrid_needed = cfg.get_hybrid()
         min_max = 0
+
+        saved_dir_name = cfg.get_rootdir_name()
+        hybrid_file = saved_dir_name + "/hybrid_config.json"
+        print(hybrid_file)
+        hybrid_dict = {}
+
+        """Step 0. If hybrid quantization needed."""
+        if hybrid_needed:
+            assert(os.path.exists(hybrid_file))
+            f_hybrid = open(hybrid_file, "r")
+            hybrid_dict = json.load(f_hybrid)
+            f_hybrid.close()
 
         """Step 1. Get the all input data's min max"""
         min_max = collect_min_max(mod, dataset)
 
         """Step 2. Initialize quantizer for every quantize Node"""
         quantizer_weight_node, estimator_weight_node, quantizer_act_node, estimator_act_node, quantizer_bias_node= \
-            initialize_quantizer(mod, min_max)
+            initialize_quantizer(mod, min_max, hybrid_dict)
 
         """Step 3. Start Quantizing Weight"""
         quantize_weight(mod, quantizer_weight_node, estimator_weight_node)
