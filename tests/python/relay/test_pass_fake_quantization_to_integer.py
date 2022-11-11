@@ -814,6 +814,27 @@ def test_fake_quantize_max_min():
     run_test_case(lambda x: relay.op.min(x, axis=1))
 
 
+def test_fq_avg_pool_conv2d():
+    dtype = "uint8"
+    shape_x = [1, 4, 24, 24]
+    shape_w = [8, 4, 1, 1]
+    x = relay.var("x", shape=shape_x, dtype=dtype)
+    w = relay.var("w", shape=shape_w, dtype=dtype)
+    zero = relay.const(0)
+    one = relay.const(1.0)
+
+    # Tested expression.
+    op0 = relay.qnn.op.dequantize(x, relay.const(0.64), relay.const(2))
+    op1 = relay.op.nn.avg_pool2d(op0, [3, 3])
+    op2 = relay.qnn.op.dequantize(w, relay.const(0.5), relay.const(10))
+    op3 = relay.op.nn.conv2d(op1, op2, kernel_size=[1, 1])
+    expr = relay.qnn.op.quantize(op3, one, zero, out_dtype="uint8")
+
+    x_np = np.random.randint(0, 255, size=shape_x, dtype=dtype)
+    w_np = np.random.randint(0, 255, size=shape_w, dtype=dtype)
+    compare_fq_to_int(expr, [x_np, w_np])
+
+
 def test_fq_hard_fail():
     @tvm.ir.register_op_attr("nn.conv2d", "FTVMFakeQuantizationToInteger", level=11)
     def conv2d(expr, type_map):  # pylint: disable=unused-variable
