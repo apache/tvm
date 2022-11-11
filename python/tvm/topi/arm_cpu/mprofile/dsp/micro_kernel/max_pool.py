@@ -94,7 +94,7 @@ def max_impl(uniq_id):
 #ifdef __cplusplus
 extern "C"
 #endif
-__STATIC_FORCEINLINE int32_t max8_reset_{uniq_id}(
+__attribute__((always_inline)) static inline int32_t max8_reset_{uniq_id}(
     int8_t *res,
     int N) {{
   memset(res, (int8_t)-128, N * sizeof(*res));
@@ -104,7 +104,7 @@ __STATIC_FORCEINLINE int32_t max8_reset_{uniq_id}(
 #ifdef __cplusplus
 extern "C"
 #endif
-__STATIC_FORCEINLINE int32_t max8_loop_{uniq_id}(
+__attribute__((always_inline)) static inline int32_t max8_loop_{uniq_id}(
     int8_t *arg,
     int8_t *res,
     int N) {{
@@ -117,7 +117,7 @@ __STATIC_FORCEINLINE int32_t max8_loop_{uniq_id}(
 #ifdef __cplusplus
 extern "C"
 #endif
-__STATIC_FORCEINLINE int32_t max8_{uniq_id}(
+__attribute__((always_inline)) static inline int32_t max8_{uniq_id}(
     int8_t *arg,
     int8_t *res,
     int N) {{
