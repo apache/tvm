@@ -24,9 +24,6 @@ import pytest
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--west-cmd", default="west", help="Path to `west` command for flashing device."
-    )
-    parser.addoption(
         "--use-fvp",
         action="store_true",
         default=False,
@@ -39,18 +36,15 @@ def pytest_addoption(parser):
     )
 
 
-@pytest.fixture(scope="session")
-def west_cmd(request):
-    return request.config.getoption("--west-cmd")
-
-
 @pytest.fixture
 def use_fvp(request):
     return request.config.getoption("--use-fvp")
 
+
 @pytest.fixture
-def serial(request):
+def serial_number(request):
     return request.config.getoption("--serial")
+
 
 @pytest.fixture(autouse=True)
 def xfail_on_fvp(request, use_fvp):

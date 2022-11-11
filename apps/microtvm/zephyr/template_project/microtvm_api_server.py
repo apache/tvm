@@ -261,7 +261,7 @@ def generic_find_serial_port(serial_number=None):
 
 
 def _get_openocd_device_args(options):
-    serial_number = options.get("openocd_serial")
+    serial_number = options.get("serial_number")
     return ["--serial", generic_find_serial_port(serial_number)]
 
 
@@ -273,17 +273,17 @@ def _get_nrf_device_args(options):
 
     boards = nrfjprog_ids.split("\n")[:-1]
     if len(boards) > 1:
-        if options["nrfjprog_snr"] is None:
+        if options["serial_number"] is None:
             raise BoardError(
                 "Multiple boards connected; specify one with nrfjprog_snr=: " f'{", ".join(boards)}'
             )
 
-        if str(options["nrfjprog_snr"]) not in boards:
+        if str(options["serial_number"]) not in boards:
             raise BoardError(
                 f"nrfjprog_snr ({options['nrfjprog_snr']}) not found in {nrfjprog_args}: {boards}"
             )
 
-        return ["--snr", options["nrfjprog_snr"]]
+        return ["--snr", options["serial_number"]]
 
     if not boards:
         return []
@@ -310,18 +310,11 @@ PROJECT_OPTIONS = server.default_project_options(
         help=("If given, port number to use when running the local gdbserver."),
     ),
     server.ProjectOption(
-        "nrfjprog_snr",
+        "serial_number",
         optional=["open_transport"],
-        type="int",
+        type="str",
         default=None,
-        help=("When used with nRF targets, serial # of the attached board to use, from nrfjprog."),
-    ),
-    server.ProjectOption(
-        "openocd_serial",
-        optional=["open_transport"],
-        type="int",
-        default=None,
-        help=("When used with OpenOCD targets, serial # of the attached board to use."),
+        help=("Board serial number."),
     ),
     server.ProjectOption(
         "west_cmd",
@@ -719,13 +712,16 @@ class Handler(server.ProjectAPIHandler):
             recover_args = ["nrfjprog", "--recover"]
             recover_args.extend(_get_nrf_device_args(options))
             check_call(recover_args, cwd=API_SERVER_DIR / "build")
-        
-        flash_extra_args = []
-        openocd_serial = options.get("openocd_serial")
-        if _get_flash_runner() == "openocd" and openocd_serial:
-            flash_extra_args = ["--cmd-pre-init", f'''hla_serial {openocd_serial}''']
 
-        check_call(["west", "flash", "-r", _get_flash_runner()] + flash_extra_args, cwd=API_SERVER_DIR / "build")
+        flash_extra_args = []
+        openocd_serial = options.get("serial_number")
+        if _get_flash_runner() == "openocd" and openocd_serial:
+            flash_extra_args = ["--cmd-pre-init", f"""hla_serial {openocd_serial}"""]
+
+        check_call(
+            ["west", "flash", "-r", _get_flash_runner()] + flash_extra_args,
+            cwd=API_SERVER_DIR / "build",
+        )
 
     def open_transport(self, options):
         zephyr_board = _find_board_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME)
@@ -826,7 +822,7 @@ class ZephyrSerialTransport:
 
     @classmethod
     def _find_openocd_serial_port(cls, options):
-        serial_number = options.get("openocd_serial")
+        serial_number = options.get("serial_number")
         return generic_find_serial_port(serial_number)
 
     @classmethod
