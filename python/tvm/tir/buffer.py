@@ -184,31 +184,31 @@ class Buffer(Object):
 
         if not isinstance(indices, (tuple, list)):
             indices = [indices]
-        if any(isinstance(index, slice) and index.step is None for index in indices):
+        has_slice = any(isinstance(i, slice) for i in indices)
+        has_step = any(isinstance(i, slice) and i.step is not None for i in indices)
+        analyzer = Analyzer()
+        if has_slice and not has_step:
             region = []
-            analyzer = Analyzer()
-            for index in indices:
+            for i, index in enumerate(indices):
                 if isinstance(index, slice):
-                    region.append(
-                        Range.from_min_extent(
-                            index.start, analyzer.simplify(index.stop - index.start)
-                        )
-                    )
+                    start = 0 if index.start is None else index.start
+                    stop = self.shape[i] if index.stop is None else index.stop
+                    region.append(Range.from_min_extent(start, analyzer.simplify(stop - start)))
                 else:
                     region.append(Range.from_min_extent(index, 1))
             return BufferRegion(self, region)
         else:
-            analyzer = Analyzer()
             expr_indices = []
             for index in indices:
                 if isinstance(index, slice):
-                    lanes = analyzer.simplify(
-                        (index.stop - index.start + index.step - 1) // index.step
-                    )
+                    start = 0 if index.start is None else index.start
+                    stop = self.shape[i] if index.stop is None else index.stop
+                    step = 1 if index.step is None else index.step
+                    lanes = analyzer.simplify((stop - start + step - 1) // step)
                     if lanes == 1:
-                        expr_indices.append(index.start)
+                        expr_indices.append(start)
                     else:
-                        expr_indices.append(Ramp(index.start, index.step, int(lanes)))
+                        expr_indices.append(Ramp(start, step, int(lanes)))
                 else:
                     expr_indices.append(index)
             return BufferLoad(self, expr_indices)

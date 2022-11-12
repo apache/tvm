@@ -1665,13 +1665,14 @@ start_profile_intrinsic = _op_wrapper(_tir_op.start_profile_intrinsic)
 end_profile_intrinsic = _op_wrapper(_tir_op.end_profile_intrinsic)
 
 
-class inline:
-    """Inline function for meta-programming.
+class meta_var:
+    """A meta variable used in TVMScript metaprogramming. It means that the value of the variable
+    does not appear in the final TIR, but only stays in the parser.
 
     Parameters
     ----------
     value: Any
-        The value to be inlined.
+        The meta variable.
     """
 
     def __init__(self, value: Any) -> None:
@@ -1680,7 +1681,7 @@ class inline:
     def __iter__(self):
         def f():
             for i in self.value:
-                yield inline(i)
+                yield meta_var(i)
 
         return f()
 
@@ -1844,7 +1845,7 @@ __all__ += [
     "TVMBackendFreeWorkspace",
     "start_profile_intrinsic",
     "end_profile_intrinsic",
-    "inline",
+    "meta_var",
     "llvm_lookup_intrinsic_id",
     "type_annotation",
     "broadcast",
