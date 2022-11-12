@@ -764,6 +764,10 @@ struct PackedFuncValueConverter<PrimExpr> {
       return PrimExpr(ObjectPtr<Object>(nullptr));
     }
     if (val.type_code() == kDLInt) {
+      int64_t value = val.operator int64_t();
+      if (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min()) {
+        return IntImm(runtime::DataType::Int(64), value);
+      }
       return IntImm(runtime::DataType::Int(32), val.operator int());
     }
     if (val.type_code() == kDLFloat) {

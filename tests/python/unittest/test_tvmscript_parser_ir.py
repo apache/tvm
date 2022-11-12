@@ -19,7 +19,7 @@
 import pytest
 import inspect
 import tvm.testing
-from tvm.script._parser import ir_module
+from tvm.script.parser import ir_module
 from tvm.ir import IRModule
 
 

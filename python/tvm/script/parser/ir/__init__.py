@@ -17,6 +17,6 @@
 """The ir module parser"""
 
 from . import parser as _parser
-from .entry import ir_module, is_defined_in_class
+from .entry import ir_module
 
-__all__ = ["ir_module", "is_defined_in_class"]
+__all__ = ["ir_module"]
