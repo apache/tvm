@@ -17,11 +17,11 @@
 # pylint: disable=line-too-long,missing-class-docstring,missing-module-docstring,missing-function-docstring,no-self-argument,unused-argument,invalid-name
 import numpy as np
 import pytest
-
 import tvm
 import tvm.testing
-from tvm.script import tir as T
+from tvm.ir import assert_structural_equal
 from tvm.relay.backend.aot import AOTLowerMain, CallType
+from tvm.script import tir as T
 
 
 def _make_const(dtype, shape):
@@ -48,7 +48,7 @@ def _assert_lowered_main(mod, main_func, call_type, print_script=False):
     if print_script:
         print(mod["__tvm_main__"].script())
 
-    assert mod["__tvm_main__"].script() == main_func.script()
+    assert_structural_equal(mod["__tvm_main__"], main_func)
 
 
 def test_single_call_cpacked():

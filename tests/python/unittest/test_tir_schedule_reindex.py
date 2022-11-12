@@ -233,7 +233,7 @@ def mixed_dtype_reindex_write(
     for ax0, ax1 in T.grid(T.int64(2), 1280):
         with T.block("T_matmul_NT_reindex"):
             v0 = T.axis.spatial(T.int64(2), ax0)
-            (v1,) = T.axis.remap("S", [ax1])
+            v1 = T.axis.remap("S", [ax1])
             T.reads(T_matmul_NT_reindex[v0, v1])
             T.writes(T_matmul_NT[v0, v1])
             T_matmul_NT[v0, v1] = T_matmul_NT_reindex[v0, v1]

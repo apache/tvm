@@ -19,7 +19,7 @@
 import pytest
 import inspect
 import tvm.testing
-from tvm.script._parser import tir as T
+from tvm.script.parser import tir as T
 from tvm import ir, tir
 
 

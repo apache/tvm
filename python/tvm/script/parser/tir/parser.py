@@ -125,7 +125,7 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
     res : Any
         The bound value.
     """
-    if isinstance(value, T.inline):
+    if isinstance(value, T.meta_var):
         return value.value
     elif isinstance(value, (list, tuple)):
         for i, v in enumerate(value):

@@ -1832,7 +1832,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
+            @T.prim_func
             def before_decompose(a: ty.handle, c: ty.handle) -> None:
                 A = tir.match_buffer(a, [128, 128])
                 B = tir.match_buffer(b, [128, 128])
@@ -1851,13 +1851,13 @@ class Schedule(Object):
             C = sch.get_block("C")
             i, j, k = sch.get_loops(C)
             sch.decompose_reduction(C, i)
-            print(tvm.script.asscript(sch.mod["main"]))
+            print(sch.mod["main"].script())
 
         After applying decompose-reduction, the IR becomes:
 
         .. code-block:: python
 
-            @tvm.script.tir
+            @T.prim_func
             def after_decompose(a: ty.handle, c: ty.handle) -> None:
                 A = tir.match_buffer(a, [128, 128])
                 B = tir.match_buffer(b, [128, 128])

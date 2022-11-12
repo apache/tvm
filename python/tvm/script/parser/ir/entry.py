@@ -14,35 +14,33 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The entry point of TVM parser."""
+"""The entry point of TVM parser for ir module."""
 
-from typing import Any, Dict, Union
+import inspect
+from typing import Type
 
-from ...ir_builder import IRBuilder
-from . import doc
-from .diagnostics import Source
-from .parser import Parser
+from tvm.ir import IRModule
+
+from .._core import parse, utils
 
 
-def parse(program: Union[doc.AST, Any, str], extra_vars: Dict[str, Any] = None) -> Any:
-    """Register a method for a operand type, AST operator node and operand index.
+def ir_module(mod: Type) -> IRModule:
+    """The parsing method for ir module, by using `@ir_module` as decorator.
 
     Parameters
     ----------
-    program : Union[doc.AST, Any, str]
-        The TVMScript code to parse.
-
-    extra_vars : Dict[str, Any]
-        The extra variable table for parsing.
+    mod : Type
+        The class to be parsed as ir module.
 
     Returns
     -------
-    func : Any
-        The parsed TVMScript program.
+    ir_module : IRModule
+        The parsed ir module.
     """
+    if not inspect.isclass(mod):
+        raise TypeError(f"Expect a class, but got: {mod}")
 
-    source = Source(program)
-    parser = Parser(source)
-    with IRBuilder() as builder:
-        parser.parse(extra_vars=extra_vars)
-    return builder.get()
+    return parse(mod, utils.inspect_class_capture(mod))
+
+
+setattr(ir_module, "dispatch_token", "ir")

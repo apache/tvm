@@ -17,7 +17,10 @@
 """TVM Script Parser utils"""
 
 import inspect
-from typing import Any, Callable, Dict
+from types import FrameType
+from typing import Any, Callable, Dict, List
+
+from .diagnostics import findsource
 
 
 def inspect_function_capture(func: Callable) -> Dict[str, Any]:
@@ -59,3 +62,34 @@ def inspect_class_capture(cls: type) -> Dict[str, Any]:
             func_vars = inspect_function_capture(v)
             result.update(**func_vars)
     return result
+
+
+def is_defined_in_class(frames: List[FrameType], obj: Any) -> bool:
+    """Check whether a object is defined in a class scope.
+
+    Parameters
+    ----------
+    frames : List[FrameType]
+        The frame stack of the object, obtained by `inspect.stack()`.
+
+    Returns
+    -------
+    res : bool
+        The result if the object is defined in a class scope.
+    """
+    if len(frames) > 2:
+        frame_info = frames[2]
+        code_context = frame_info.code_context
+        if code_context is None:
+            return False
+        line = code_context[0].strip()
+        if line.startswith("@") and "ir_module" in line:
+            return True
+        if line.startswith("class"):
+            lineno = frame_info.lineno
+            if lineno >= 2:
+                source, _ = findsource(obj)
+                line = source[lineno - 2].strip()
+                if line.startswith("@") and "ir_module" in line:
+                    return True
+    return False

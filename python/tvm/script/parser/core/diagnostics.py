@@ -17,7 +17,6 @@
 """TVM Script Parser Source and diagnostics"""
 
 import inspect
-import re
 import sys
 from typing import Union
 
@@ -144,18 +143,34 @@ def findsource(obj):
     if not lines:
         raise OSError("could not get source code")
     qual_names = obj.__qualname__.replace(".<locals>", "<locals>").split(".")
-    pattern_list = []
-    for name in qual_names:
-        if name.endswith("<locals>"):
-            pattern_list.append(re.compile(r"^(\s*)def\s*" + name[:-8] + r"\b"))
-        else:
-            pattern_list.append(re.compile(r"^(\s*)class\s*" + name + r"\b"))
+    in_comment = 0
+    scope_stack = []
+    indent_info = {}
     for i, line in enumerate(lines):
-        match = pattern_list[0].match(line)
-        if match:
-            pattern_list.pop(0)
-        if not pattern_list:
-            return lines, i
+        n_comment = line.count('"""')
+        if n_comment:
+            # update multi-line comments status
+            in_comment = in_comment ^ (n_comment & 1)
+            continue
+        if in_comment:
+            # skip lines within multi-line comments
+            continue
+        indent = len(line) - len(line.lstrip())
+        tokens = line.split()
+        if len(tokens) > 1:
+            name = None
+            if tokens[0] == "def":
+                name = tokens[1].split(":")[0].split("(")[0] + "<locals>"
+            elif tokens[0] == "class":
+                name = tokens[1].split(":")[0].split("(")[0]
+            if name:
+                while scope_stack and indent_info[scope_stack[-1]] >= indent:
+                    scope_stack.pop()
+                scope_stack.append(name)
+                indent_info[name] = indent
+                if scope_stack == qual_names:
+                    return lines, i
+
     raise OSError("could not find class definition")
 
 
