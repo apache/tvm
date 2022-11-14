@@ -153,7 +153,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
   auto f_push_block_vars = [&iter_vars, &var_map, &analyzer](const Array<IterVar>& iters) {
     for (IterVar iter_var : iters) {
       // Create new var
-      Var new_var(iter_var->var->name_hint, iter_var->var->dtype);
+      Var new_var("v_" + iter_var->var->name_hint, iter_var->var->dtype);
       var_map[iter_var->var.get()] = new_var;
 
       PrimExpr dom_min = analyzer->Simplify(iter_var->dom->min);
@@ -307,12 +307,9 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   // Step 1. Creating loop vars for block bindings.
   Array<IterVar> axes = compute_op->axis;
   axes.insert(axes.end(), compute_op->reduce_axis.begin(), compute_op->reduce_axis.end());
-  Array<PrimExpr> bindings;
-  for (size_t i = 0; i < axes.size(); ++i) {
-    const IterVar& axis = axes[i];
-    int bits = std::max(axis->dom->min.dtype().bits(), axis->dom->extent.dtype().bits());
-    bindings.push_back(Var("i" + std::to_string(i), runtime::DataType::Int(bits)));
-  }
+
+  Array<PrimExpr> bindings = axes.Map([&](IterVar iter_var) -> PrimExpr { return iter_var->var; });
+
   // Step 2. Generate block bodies.
   Array<Stmt> seq_stmt;
   if (compute_op->body[0]->IsInstance<ReduceNode>()) {
@@ -354,8 +351,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     const IterVar& axis = axes[i - 1];
     PrimExpr dom_min = analyzer->Simplify(axis->dom->min);
     PrimExpr dom_extent = analyzer->Simplify(axis->dom->extent);
-    const Var& loop_var = Downcast<Var>(bindings[i - 1]);
-    body = For(loop_var, dom_min, dom_extent, ForKind::kSerial, body);
+    body = For(axis->var, dom_min, dom_extent, ForKind::kSerial, body);
   }
 
   return body;
