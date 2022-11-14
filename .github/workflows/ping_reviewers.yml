@@ -20,4 +20,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eux
-          python ci/scripts/ping_reviewers.py --wait-time-minutes 10080 || echo failed
+          python ci/scripts/github/ping_reviewers.py --wait-time-minutes 10080 || echo failed

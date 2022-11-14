@@ -24,7 +24,8 @@ from pathlib import Path
 from typing import List
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+assert (REPO_ROOT / "Jenkinsfile").exists
 
 
 class RelativePathFilter(logging.Filter):

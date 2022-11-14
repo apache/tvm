@@ -106,6 +106,8 @@ rebuild_docker_images = false
 // Filenames for stashing between build and test steps
 s3_prefix = "tvm-jenkins-artifacts-prod/tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"
 
+// Jenkins script root directory
+jenkins_scripts_root = "ci/scripts/jenkins"
 
 // General note: Jenkins has limits on the size of a method (or top level code)
 // that are pretty strict, so most usage of groovy methods in these templates
@@ -146,7 +148,7 @@ def init_git() {
   sh(
     script: """
       set -eux
-      . ci/scripts/retry.sh
+      . ${jenkins_scripts_root}/retry.sh
       retry 3 timeout 5m git submodule update --init -f --jobs 0
     """,
     label: 'Update git submodules',
@@ -178,7 +180,7 @@ def docker_init(image) {
     sh(
       script: """
       set -eux
-      . ci/scripts/retry.sh
+      . ${jenkins_scripts_root}/retry.sh
       retry 5 docker pull ${image}
       """,
       label: 'Pull docker image',
@@ -194,7 +196,7 @@ def should_skip_slow_tests(pr_number) {
     // Exit code of 1 means run slow tests, exit code of 0 means skip slow tests
     result = sh (
       returnStatus: true,
-      script: "./ci/scripts/should_run_slow_tests.py --pr '${pr_number}'",
+      script: "./${jenkins_scripts_root}/should_run_slow_tests.py --pr '${pr_number}'",
       label: 'Check if CI should run slow tests',
     )
   }
@@ -230,7 +232,7 @@ def checkout_trusted_files() {
     // (especially those that access secrets) should be checked out here so
     // only trusted versions are used in CI
     sh(
-      script: "git checkout ${upstream_revision} ci/scripts/.",
+      script: "git checkout ${upstream_revision} ${jenkins_scripts_root}/.",
       label: 'Check out trusted files',
     )
   }
@@ -243,7 +245,7 @@ def should_skip_ci(pr_number) {
   }
   glob_skip_ci_code = sh (
     returnStatus: true,
-    script: "./ci/scripts/git_skip_ci_globs.py",
+    script: "./${jenkins_scripts_root}/git_skip_ci_globs.py",
     label: 'Check if CI should be skipped due to changed files',
   )
   if (glob_skip_ci_code == 0) {
@@ -257,7 +259,7 @@ def should_skip_ci(pr_number) {
     // full CI just in case). Exit code of 0 means skip CI.
     git_skip_ci_code = sh (
       returnStatus: true,
-      script: "./ci/scripts/git_skip_ci.py --pr '${pr_number}'",
+      script: "./${jenkins_scripts_root}/git_skip_ci.py --pr '${pr_number}'",
       label: 'Check if CI should be skipped',
     )
   }
@@ -274,7 +276,7 @@ def check_pr(pr_number) {
     variable: 'GITHUB_TOKEN',
     )]) {
     sh (
-      script: "python3 ci/scripts/check_pr.py --pr ${pr_number}",
+      script: "python3 ${jenkins_scripts_root}/check_pr.py --pr ${pr_number}",
       label: 'Check PR title and body',
     )
   }
@@ -291,7 +293,7 @@ def prepare() {
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./ci/scripts/determine_docker_images.py ci_arm=${ci_arm} ci_cortexm=${ci_cortexm} ci_cpu=${ci_cpu} ci_gpu=${ci_gpu} ci_hexagon=${ci_hexagon} ci_i386=${ci_i386} ci_lint=${ci_lint} ci_minimal=${ci_minimal} ci_riscv=${ci_riscv} ci_wasm=${ci_wasm} ",
+            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm=${ci_arm} ci_cortexm=${ci_cortexm} ci_cpu=${ci_cpu} ci_gpu=${ci_gpu} ci_hexagon=${ci_hexagon} ci_i386=${ci_i386} ci_lint=${ci_lint} ci_minimal=${ci_minimal} ci_riscv=${ci_riscv} ci_wasm=${ci_wasm} ",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
@@ -374,14 +376,14 @@ def prepare() {
 
         is_docs_only_build = sh (
           returnStatus: true,
-          script: './ci/scripts/git_change_docs.sh',
+          script: './${jenkins_scripts_root}/git_change_docs.sh',
           label: 'Check for docs only changes',
         )
         skip_ci = should_skip_ci(env.CHANGE_ID)
         skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
         rebuild_docker_images = sh (
           returnStatus: true,
-          script: './ci/scripts/git_change_docker.sh',
+          script: './${jenkins_scripts_root}/git_change_docker.sh',
           label: 'Check for any docker changes',
         )
 
@@ -416,7 +418,7 @@ def ecr_push(full_name) {
       sh(
         script: """
           set -x
-          . ci/scripts/retry.sh
+          . ${jenkins_scripts_root}/retry.sh
           docker tag ${full_name} \$AWS_ECR_REPO/${full_name}
           retry 5 docker push \$AWS_ECR_REPO/${full_name}
         """,
@@ -459,7 +461,7 @@ def ecr_pull(full_name) {
       sh(
         script: """
           set -eux
-          . ci/scripts/retry.sh
+          . ${jenkins_scripts_root}/retry.sh
           retry 5 docker pull ${full_name}
         """,
         label: 'Pull image from ECR'
@@ -745,7 +747,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              . ci/scripts/retry.sh
+              . ${jenkins_scripts_root}/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu/build/libtvm.so
               md5sum build/libvta_fsim.so
@@ -766,7 +768,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              . ci/scripts/retry.sh
+              . ${jenkins_scripts_root}/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu2/build/libtvm.so
               md5sum build/libvta_fsim.so
@@ -801,7 +803,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              . ci/scripts/retry.sh
+              . ${jenkins_scripts_root}/retry.sh
               md5sum build/libvta_tsim.so
               retry 3 aws s3 cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/cpu/build/libvta_tsim.so
               md5sum build/libtvm.so
@@ -843,7 +845,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              . ci/scripts/retry.sh
+              . ${jenkins_scripts_root}/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/cpu-minimal/build/libtvm.so
               md5sum build/libtvm_runtime.so
@@ -902,7 +904,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              . ci/scripts/retry.sh
+              . ${jenkins_scripts_root}/retry.sh
               md5sum build/libvta_tsim.so
               retry 3 aws s3 cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/i386/build/libvta_tsim.so
               md5sum build/libtvm.so
@@ -939,7 +941,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              . ci/scripts/retry.sh
+              . ${jenkins_scripts_root}/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/arm/build/libtvm.so
               md5sum build/libvta_fsim.so
@@ -974,7 +976,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              . ci/scripts/retry.sh
+              . ${jenkins_scripts_root}/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/cortexm/build/libtvm.so
               md5sum build/libtvm_runtime.so
@@ -1012,7 +1014,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              . ci/scripts/retry.sh
+              . ${jenkins_scripts_root}/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/hexagon/build/libtvm.so
               md5sum build/libtvm_runtime.so
@@ -1046,7 +1048,7 @@ stage('Build') {
           sh(
             script: """
               set -eux
-              . ci/scripts/retry.sh
+              . ${jenkins_scripts_root}/retry.sh
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/riscv/build/libtvm.so
               md5sum build/libtvm_runtime.so
@@ -1091,7 +1093,7 @@ def shard_run_unittest_GPU_1_of_3() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libvta_fsim.so build/libvta_fsim.so
@@ -1109,7 +1111,7 @@ def shard_run_unittest_GPU_1_of_3() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -1174,7 +1176,7 @@ def shard_run_unittest_GPU_2_of_3() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -1242,7 +1244,7 @@ def shard_run_unittest_GPU_3_of_3() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -1307,7 +1309,7 @@ def shard_run_integration_CPU_1_of_4() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
@@ -1369,7 +1371,7 @@ def shard_run_integration_CPU_2_of_4() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
@@ -1431,7 +1433,7 @@ def shard_run_integration_CPU_3_of_4() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
@@ -1493,7 +1495,7 @@ def shard_run_integration_CPU_4_of_4() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
@@ -1556,7 +1558,7 @@ def shard_run_python_i386_1_of_3() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
@@ -1618,7 +1620,7 @@ def shard_run_python_i386_2_of_3() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
@@ -1680,7 +1682,7 @@ def shard_run_python_i386_3_of_3() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
@@ -1742,7 +1744,7 @@ def shard_run_test_Hexagon_1_of_8() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -1803,7 +1805,7 @@ def shard_run_test_Hexagon_2_of_8() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -1863,7 +1865,7 @@ def shard_run_test_Hexagon_3_of_8() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -1923,7 +1925,7 @@ def shard_run_test_Hexagon_4_of_8() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -1983,7 +1985,7 @@ def shard_run_test_Hexagon_5_of_8() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -2043,7 +2045,7 @@ def shard_run_test_Hexagon_6_of_8() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -2103,7 +2105,7 @@ def shard_run_test_Hexagon_7_of_8() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -2163,7 +2165,7 @@ def shard_run_test_Hexagon_8_of_8() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -2224,7 +2226,7 @@ def shard_run_integration_aarch64_1_of_4() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -2285,7 +2287,7 @@ def shard_run_integration_aarch64_2_of_4() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -2346,7 +2348,7 @@ def shard_run_integration_aarch64_3_of_4() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -2407,7 +2409,7 @@ def shard_run_integration_aarch64_4_of_4() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -2469,7 +2471,7 @@ def shard_run_topi_GPU_1_of_3() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -2529,7 +2531,7 @@ def shard_run_topi_GPU_2_of_3() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -2589,7 +2591,7 @@ def shard_run_topi_GPU_3_of_3() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -2650,7 +2652,7 @@ def shard_run_frontend_GPU_1_of_6() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -2710,7 +2712,7 @@ def shard_run_frontend_GPU_2_of_6() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -2770,7 +2772,7 @@ def shard_run_frontend_GPU_3_of_6() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -2830,7 +2832,7 @@ def shard_run_frontend_GPU_4_of_6() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -2890,7 +2892,7 @@ def shard_run_frontend_GPU_5_of_6() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -2950,7 +2952,7 @@ def shard_run_frontend_GPU_6_of_6() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -3011,7 +3013,7 @@ def shard_run_topi_aarch64_1_of_2() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -3076,7 +3078,7 @@ def shard_run_topi_aarch64_2_of_2() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -3141,7 +3143,7 @@ def shard_run_frontend_aarch64_1_of_2() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -3201,7 +3203,7 @@ def shard_run_frontend_aarch64_2_of_2() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
@@ -3262,7 +3264,7 @@ def shard_run_test_Cortex_M_1_of_12() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -3327,7 +3329,7 @@ def shard_run_test_Cortex_M_2_of_12() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -3387,7 +3389,7 @@ def shard_run_test_Cortex_M_3_of_12() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -3447,7 +3449,7 @@ def shard_run_test_Cortex_M_4_of_12() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -3507,7 +3509,7 @@ def shard_run_test_Cortex_M_5_of_12() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -3567,7 +3569,7 @@ def shard_run_test_Cortex_M_6_of_12() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -3627,7 +3629,7 @@ def shard_run_test_Cortex_M_7_of_12() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -3687,7 +3689,7 @@ def shard_run_test_Cortex_M_8_of_12() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -3747,7 +3749,7 @@ def shard_run_test_Cortex_M_9_of_12() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -3807,7 +3809,7 @@ def shard_run_test_Cortex_M_10_of_12() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -3867,7 +3869,7 @@ def shard_run_test_Cortex_M_11_of_12() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -3927,7 +3929,7 @@ def shard_run_test_Cortex_M_12_of_12() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -3988,7 +3990,7 @@ def shard_run_test_RISC_V_1_of_1() {
               sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/riscv/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/riscv/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -4045,7 +4047,7 @@ def run_unittest_minimal() {
               sh(
                     script: """
                       set -eux
-                      . ci/scripts/retry.sh
+                      . ${jenkins_scripts_root}/retry.sh
                       retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu-minimal/build/libtvm.so build/libtvm.so
                       md5sum build/libtvm.so
                       retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu-minimal/build/libtvm_runtime.so build/libtvm_runtime.so
@@ -4250,7 +4252,7 @@ stage('Test') {
                 sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
@@ -4311,7 +4313,7 @@ stage('Test') {
                 sh(
                         script: """
                           set -eux
-                          . ci/scripts/retry.sh
+                          . ${jenkins_scripts_root}/retry.sh
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -4362,7 +4364,7 @@ stage('Test') {
           sh(
             script: """
               set -eux
-              . ci/scripts/retry.sh
+              . ${jenkins_scripts_root}/retry.sh
               retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
               md5sum build/libtvm.so
               retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
@@ -4387,7 +4389,7 @@ stage('Test') {
           sh(
       script: """
         set -eux
-        . ci/scripts/retry.sh
+        . ${jenkins_scripts_root}/retry.sh
         md5sum docs.tgz
         retry 3 aws s3 cp --no-progress docs.tgz s3://${s3_prefix}/docs/docs.tgz
       """,
@@ -4437,7 +4439,7 @@ def update_docker(ecr_image, hub_image) {
   sh(
     script: """
     set -eux
-    . ci/scripts/retry.sh
+    . ${jenkins_scripts_root}/retry.sh
     docker tag \
       ${ecr_image} \
       ${hub_image}
@@ -4501,7 +4503,7 @@ def deploy() {
                     sh(
                       script: """
                         set -eux
-                        . ci/scripts/retry.sh
+                        . ${jenkins_scripts_root}/retry.sh
                         retry 3 aws s3 cp --no-progress s3://${s3_prefix}/docs/docs.tgz docs.tgz
                         md5sum docs.tgz
                       """,
@@ -4582,7 +4584,7 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
-                              . ci/scripts/retry.sh
+                              . ${jenkins_scripts_root}/retry.sh
                               docker pull tlcpackstaging/ci_arm:${tag}
                               docker tag tlcpackstaging/ci_arm:${tag} tlcpack/ci-arm:${tag}
                               retry 5 docker push tlcpack/ci-arm:${tag}
@@ -4596,7 +4598,7 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
-                              . ci/scripts/retry.sh
+                              . ${jenkins_scripts_root}/retry.sh
                               docker pull tlcpackstaging/ci_cortexm:${tag}
                               docker tag tlcpackstaging/ci_cortexm:${tag} tlcpack/ci-cortexm:${tag}
                               retry 5 docker push tlcpack/ci-cortexm:${tag}
@@ -4610,7 +4612,7 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
-                              . ci/scripts/retry.sh
+                              . ${jenkins_scripts_root}/retry.sh
                               docker pull tlcpackstaging/ci_cpu:${tag}
                               docker tag tlcpackstaging/ci_cpu:${tag} tlcpack/ci-cpu:${tag}
                               retry 5 docker push tlcpack/ci-cpu:${tag}
@@ -4624,7 +4626,7 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
-                              . ci/scripts/retry.sh
+                              . ${jenkins_scripts_root}/retry.sh
                               docker pull tlcpackstaging/ci_gpu:${tag}
                               docker tag tlcpackstaging/ci_gpu:${tag} tlcpack/ci-gpu:${tag}
                               retry 5 docker push tlcpack/ci-gpu:${tag}
@@ -4638,7 +4640,7 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
-                              . ci/scripts/retry.sh
+                              . ${jenkins_scripts_root}/retry.sh
                               docker pull tlcpackstaging/ci_hexagon:${tag}
                               docker tag tlcpackstaging/ci_hexagon:${tag} tlcpack/ci-hexagon:${tag}
                               retry 5 docker push tlcpack/ci-hexagon:${tag}
@@ -4652,7 +4654,7 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
-                              . ci/scripts/retry.sh
+                              . ${jenkins_scripts_root}/retry.sh
                               docker pull tlcpackstaging/ci_i386:${tag}
                               docker tag tlcpackstaging/ci_i386:${tag} tlcpack/ci-i386:${tag}
                               retry 5 docker push tlcpack/ci-i386:${tag}
@@ -4666,7 +4668,7 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
-                              . ci/scripts/retry.sh
+                              . ${jenkins_scripts_root}/retry.sh
                               docker pull tlcpackstaging/ci_lint:${tag}
                               docker tag tlcpackstaging/ci_lint:${tag} tlcpack/ci-lint:${tag}
                               retry 5 docker push tlcpack/ci-lint:${tag}
@@ -4680,7 +4682,7 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
-                              . ci/scripts/retry.sh
+                              . ${jenkins_scripts_root}/retry.sh
                               docker pull tlcpackstaging/ci_minimal:${tag}
                               docker tag tlcpackstaging/ci_minimal:${tag} tlcpack/ci-minimal:${tag}
                               retry 5 docker push tlcpack/ci-minimal:${tag}
@@ -4694,7 +4696,7 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
-                              . ci/scripts/retry.sh
+                              . ${jenkins_scripts_root}/retry.sh
                               docker pull tlcpackstaging/ci_riscv:${tag}
                               docker tag tlcpackstaging/ci_riscv:${tag} tlcpack/ci-riscv:${tag}
                               retry 5 docker push tlcpack/ci-riscv:${tag}
@@ -4708,7 +4710,7 @@ def deploy() {
                           sh(
                             script: """
                               set -eux
-                              . ci/scripts/retry.sh
+                              . ${jenkins_scripts_root}/retry.sh
                               docker pull tlcpackstaging/ci_wasm:${tag}
                               docker tag tlcpackstaging/ci_wasm:${tag} tlcpack/ci-wasm:${tag}
                               retry 5 docker push tlcpack/ci-wasm:${tag}
