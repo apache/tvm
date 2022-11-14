@@ -85,6 +85,106 @@ def gen_module(model, layer, layout, input, kernel):
         output = tvm.te.compute((vlength, vcount), lambda i, j: data0[i, j]*weight0[i, j] + data1[i, j]*weight1[i, j], name="C")
         s = tvm.te.create_schedule([output.op])
         module = tvm.lower(s, [data0, data1, weight0, weight1, output], simple_mode=True)
+    elif layer == 'gap':
+        (b, cw, ih, iw) = input
+        cluster = 7
+
+        ## Phase 0) Initialize
+        data = tvm.te.placeholder((b, cw, ih, iw), name="data")
+        multiplier = tvm.te.const(16, "float")
+        multiplier = tvm.te.compute((b, ), lambda b: multiplier, name="multiplier")
+        shifter = tvm.te.const(16, "int32")
+        di = tvm.te.reduce_axis((0, ih), name="di")
+        dj = tvm.te.reduce_axis((0, iw), name="dj")
+
+        ## Phase 1) Intra-core GAP
+        Acc0 = tvm.te.compute((b, cw),
+            lambda b, c:
+            tvm.te.sum(data[b, c, di, dj]*multiplier[b], axis=[di, dj]),
+            name = "Acc0"
+        )
+        vacc0 = tvm.te.compute((b, cw), lambda b, c: (Acc0[b, c].astype("int")>>16).astype("float"), name = "vacc0")
+        vacc1 = tvm.te.compute((b, cw), lambda b, c: (Acc0[b, c].astype("int")>>8).astype("float"),  name = "vacc1")
+        vacc2 = tvm.te.compute((b, cw), lambda b, c: (Acc0[b, c].astype("int")>>0).astype("float"),  name = "vacc2")
+        output0, output1, output2 = tvm.te.compute((b, cw), lambda b, c: (vacc0[b, c], vacc1[b, c], vacc2[b, c]), name = "output")
+
+        ## Phase 2) Inter-core GAP
+        temp0, temp1, temp2 = tvm.te.compute((b, cw), lambda b, c: (output0[b, c], output1[b, c], output2[b, c]), name = "temp")
+        output3, output4, output5 = tvm.te.compute((b, cw), lambda b, c: (temp0[b, c], temp1[b, c], temp2[b, c]), name = "output")
+        h_vacc0, h_vacc1, h_vacc2 = tvm.te.compute((b, cw, cluster),
+            lambda b, c, cs: (
+                (2 << 13 | output3[b, c].astype("int")).astype("float"),
+                (2 << 13 | output4[b, c].astype("int")).astype("float"),
+                (2 << 13 | output5[b, c].astype("int")).astype("float"),
+            ), name = "h_vacc")
+        hAcc1, Acc1 = tvm.te.compute((b, cw, cluster),
+            lambda b, c, cs: (
+                ((h_vacc0[b, c, cs].astype("int")<<16)
+                 + (h_vacc1[b, c, cs].astype("int")<<8)
+                 + (h_vacc2[b, c, cs].astype("int")<<0)).astype("float"),
+                ((output0[b, c].astype("int")<<16)
+                 + (output1[b, c].astype("int")<<8)
+                 + (output2[b, c].astype("int")<<0)).astype("float"),
+            ), name = "Acc1"
+        )
+        Acc2 = tvm.te.compute((b, cw, cluster),
+            lambda b, c, cs:
+            Acc1[b, c, cs] + hAcc1[b, c, cs],
+            name = "Acc2"
+        )
+        temp3, temp4, temp5 = tvm.te.compute((b, cw, cluster),
+            lambda b, c, cs: (
+                (Acc2[b, c, cs].astype("int")>>16).astype("float"),
+                (Acc2[b, c, cs].astype("int")>>8).astype("float"),
+                (Acc2[b, c, cs].astype("int")>>0).astype("float"),
+            ), name = "temp"
+        )
+
+        ## Phase 3)
+        Acc3 = tvm.te.compute((b, cw),
+            lambda b, c:
+                ((temp3[b, c, cluster-1].astype("int")<<16)
+                 + (temp4[b, c, cluster-1].astype("int")<<8)
+                 + (temp5[b, c, cluster-1].astype("int")<<0)).astype("float"),
+            name = "Acc3"
+        )
+        output = tvm.te.compute((b, cw),
+            lambda b, c:
+            (Acc3[b, c].astype("int") >> shifter).astype("float"),
+            name = "output"
+        )
+
+        s = tvm.te.create_schedule([temp3.op, temp4.op, temp5.op, output.op])
+        # s = tvm.te.create_schedule([output.op])
+        s[vacc0].compute_inline()
+        s[vacc1].compute_inline()
+        s[vacc2].compute_inline()
+        s[Acc0].compute_at(s[output0], s[output0].op.axis[1])
+        s[Acc0].compute_at(s[output1], s[output1].op.axis[1])
+        s[Acc0].compute_at(s[output2], s[output2].op.axis[1])
+
+        s[temp0].compute_at(s[output3], s[output3].op.axis[1])
+        s[temp1].compute_at(s[output4], s[output4].op.axis[1])
+        s[temp2].compute_at(s[output5], s[output5].op.axis[1])
+
+        s[h_vacc0].compute_at(s[hAcc1], s[hAcc1].op.axis[2])
+        s[h_vacc1].compute_at(s[hAcc1], s[hAcc1].op.axis[2])
+        s[h_vacc2].compute_at(s[hAcc1], s[hAcc1].op.axis[2])
+
+        s[Acc1].compute_at(s[Acc2], s[Acc2].op.axis[2])
+        s[hAcc1].compute_at(s[Acc2], s[Acc2].op.axis[2])
+
+        s[Acc2].compute_at(s[temp3], s[temp3].op.axis[2])
+        s[Acc2].compute_at(s[temp4], s[temp4].op.axis[2])
+        s[Acc2].compute_at(s[temp5], s[temp5].op.axis[2])
+
+        #s[temp3].compute_at(s[Acc3], s[Acc3].op.axis[1])
+        #s[temp4].compute_at(s[Acc3], s[Acc3].op.axis[1])
+        #s[temp5].compute_at(s[Acc3], s[Acc3].op.axis[1])
+
+        s[Acc3].compute_at(s[output], s[output].op.axis[1])
+        module = tvm.lower(s, [data, multiplier, temp3, temp4, temp5, output])
+        # module = tvm.lower(s, [data, multiplier, output])
     else:
         raise NotImplementedError("Currently NOT implemented: %s" %(layer))
 
