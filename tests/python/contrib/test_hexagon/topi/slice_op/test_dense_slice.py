@@ -26,7 +26,8 @@ from tvm.contrib.hexagon.build import HexagonLauncher
 from tvm.contrib.hexagon.session import Session
 import tvm.topi.hexagon.qnn as qnn
 import tvm.topi.hexagon.slice_ops as sl
-from ..infrastructure import allocate_hexagon_array, transform_numpy, quantize_np
+from ...infrastructure import transform_numpy, quantize_np
+from tvm.contrib.hexagon import allocate_hexagon_array
 
 
 @tvm.testing.fixture
