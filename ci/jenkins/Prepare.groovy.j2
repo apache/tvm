@@ -205,14 +205,14 @@ def prepare() {
 
         is_docs_only_build = sh (
           returnStatus: true,
-          script: './${jenkins_scripts_root}/git_change_docs.sh',
+          script: "./${jenkins_scripts_root}/git_change_docs.sh",
           label: 'Check for docs only changes',
         )
         skip_ci = should_skip_ci(env.CHANGE_ID)
         skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
         rebuild_docker_images = sh (
           returnStatus: true,
-          script: './${jenkins_scripts_root}/git_change_docker.sh',
+          script: "./${jenkins_scripts_root}/git_change_docker.sh",
           label: 'Check for any docker changes',
         )
 

@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-10-19T13:44:32.119961
+// Generated at 2022-11-14T12:32:18.663464
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -376,14 +376,14 @@ def prepare() {
 
         is_docs_only_build = sh (
           returnStatus: true,
-          script: './${jenkins_scripts_root}/git_change_docs.sh',
+          script: "./${jenkins_scripts_root}/git_change_docs.sh",
           label: 'Check for docs only changes',
         )
         skip_ci = should_skip_ci(env.CHANGE_ID)
         skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
         rebuild_docker_images = sh (
           returnStatus: true,
-          script: './${jenkins_scripts_root}/git_change_docker.sh',
+          script: "./${jenkins_scripts_root}/git_change_docker.sh",
           label: 'Check for any docker changes',
         )
 
