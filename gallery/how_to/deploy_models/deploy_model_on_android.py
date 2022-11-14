@@ -115,7 +115,8 @@ from tvm.contrib.download import download_testdata
 # Follow this `readme page <https://github.com/apache/tvm/tree/main/apps/android_rpc>`_ to
 # install TVM RPC APK on the android device.
 #
-# Here is an example of config.mk. I enabled OpenCL and Vulkan.
+# Here is an example of config.mk. I enabled Vulkan. Dynamic OpenCL support is
+# enabled by default.
 #
 #
 # .. code-block:: bash
@@ -123,9 +124,6 @@ from tvm.contrib.download import download_testdata
 #   APP_ABI = arm64-v8a
 #
 #   APP_PLATFORM = android-24
-#
-#   # whether enable OpenCL during compile
-#   USE_OPENCL = 1
 #
 #   # whether to enable Vulkan during compile
 #   USE_VULKAN = 1
@@ -137,11 +135,10 @@ from tvm.contrib.download import download_testdata
 #
 #   # the additional include headers you want to add, e.g., SDK_PATH/adrenosdk/Development/Inc
 #   ADD_C_INCLUDES += /work/adrenosdk-linux-5_0/Development/Inc
-#   # downloaded from https://github.com/KhronosGroup/OpenCL-Headers
-#   ADD_C_INCLUDES += /usr/local/OpenCL-Headers/
+#   ADD_C_INCLUDES =
 #
 #   # the additional link libs you want to add, e.g., ANDROID_LIB_PATH/libOpenCL.so
-#   ADD_LDLIBS = /workspace/pull-from-android-device/libOpenCL.so
+#   ADD_LDLIBS =
 #
 # .. note::
 #

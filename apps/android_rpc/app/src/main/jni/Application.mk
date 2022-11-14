@@ -32,9 +32,9 @@ APP_ABI ?= armeabi-v7a arm64-v8a x86 x86_64 mips
 APP_STL := c++_shared
 
 APP_CPPFLAGS += -DTVM_LOG_STACK_TRACE=0 -DTVM4J_ANDROID=1 -std=c++17 -Oz -frtti
-ifeq ($(USE_OPENCL), 1)
-    APP_CPPFLAGS += -DTVM_OPENCL_RUNTIME=1
-endif
+
+# OpenCL support
+APP_CPPFLAGS += -DTVM_OPENCL_RUNTIME=1
 
 ifeq ($(USE_VULKAN), 1)
     APP_CPPFLAGS += -DTVM_VULKAN_RUNTIME=1

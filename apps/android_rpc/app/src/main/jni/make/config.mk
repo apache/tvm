@@ -33,9 +33,6 @@ APP_ABI = all
 
 APP_PLATFORM = android-24
 
-# whether enable OpenCL during compile
-USE_OPENCL = 0
-
 # whether to enable Vulkan during compile
 USE_VULKAN = 0
 
