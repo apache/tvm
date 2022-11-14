@@ -35,6 +35,8 @@ class EvolutionarySearch(SearchStrategy):
         The ratio of measured samples in the initial population.
     init_min_unmeasured : int
         The minimal size of unmeasured population in the initial sampling.
+    max_fail_count : int
+        The maximum number of failure during initial sampling.
     genetic_num_iters : int
         The number of iterations for genetic algorithm.
     genetic_mutate_prob : float
@@ -56,9 +58,10 @@ class EvolutionarySearch(SearchStrategy):
     def __init__(
         self,
         *,
-        population_size: int = 2048,
+        population_size: int = 512,
         init_measured_ratio: float = 0.2,
         init_min_unmeasured: int = 50,
+        max_fail_count: int = 5,
         genetic_num_iters: int = 4,
         genetic_mutate_prob: float = 0.85,
         genetic_max_fail_count: int = 10,
@@ -70,6 +73,7 @@ class EvolutionarySearch(SearchStrategy):
             population_size,
             init_measured_ratio,
             init_min_unmeasured,
+            max_fail_count,
             genetic_num_iters,
             genetic_mutate_prob,
             genetic_max_fail_count,

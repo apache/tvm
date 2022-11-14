@@ -168,11 +168,13 @@ class ExecutorCodegenMetadataNode : public Object {
     v->Visit("pools", &pools);
     v->Visit("devices", &devices);
     v->Visit("executor", &executor);
+    v->Visit("interface_api", &interface_api);
     v->Visit("unpacked_api", &unpacked_api);
     v->Visit("workspace_alignment", &workspace_alignment);
     v->Visit("constant_alignment", &constant_alignment);
     v->Visit("pool_inputs", &pool_inputs);
     v->Visit("io_pool_allocations", &io_pool_allocations);
+    v->Visit("mod_name", &mod_name);
   }
 
   static constexpr const char* _type_key = "MetadataObj";

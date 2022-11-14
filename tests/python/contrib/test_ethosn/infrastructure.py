@@ -31,6 +31,7 @@ import tvm
 from tvm import relay
 from tvm.contrib import utils, graph_executor, download
 from tvm.relay.op.contrib import partition_for_ethosn
+from tvm.driver.tvmc.target import parse_target
 
 from . import _infrastructure
 
@@ -143,7 +144,9 @@ def get_host_op_count(mod):
     return c.count
 
 
-def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
+def build(
+    mod, params, npu=True, expected_host_ops=0, npu_partitions=1, additional_config_args=None
+):
     """Build a network with or without Ethos-N offloading.
 
     Parameters
@@ -158,14 +161,18 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
         The number of ops expected to remain on the host.
     npu_partitions : int, optional
         The number of Ethos-N partitions expected.
+    additional_config_args : dict, optional
+        Additional compiler config options for the NPU.
     """
     relay.backend.te_compiler.get().clear()
-    with tvm.transform.PassContext(
-        opt_level=3, config={"relay.ext.ethos-n.options": {"variant": get_ethosn_variant()}}
-    ):
+    if not additional_config_args:
+        additional_config_args = {}
+    npu_config = {**get_ethosn_device_options(), **additional_config_args}
+    print(npu_config)
+    with tvm.transform.PassContext(opt_level=3, config={"relay.ext.ethos-n.options": npu_config}):
         with tvm.target.Target("llvm"):
             if npu:
-                mod = partition_for_ethosn(mod, params, variant="n78")
+                mod = partition_for_ethosn(mod, params)
                 host_op_count = get_host_op_count(mod)
                 assert (
                     host_op_count == expected_host_ops
@@ -228,8 +235,20 @@ def run(lib, inputs, outputs, npu=True):
     return out
 
 
-def build_and_run(mod, inputs, outputs, params, npu=True, expected_host_ops=0, npu_partitions=1):
-    lib = build(mod, params, npu, expected_host_ops, npu_partitions)
+def build_and_run(
+    mod,
+    inputs,
+    outputs,
+    params,
+    npu=True,
+    expected_host_ops=0,
+    npu_partitions=1,
+    additional_config_args=None,
+):
+    """
+    Convenient wrapper for building and running a module on the NPU.
+    """
+    lib = build(mod, params, npu, expected_host_ops, npu_partitions, additional_config_args)
     return run(lib, inputs, outputs, npu)
 
 
@@ -265,7 +284,7 @@ def test_error(mod, params, err_msg):
 
     caught = None
     with tvm.transform.PassContext(
-        opt_level=3, config={"relay.ext.ethos-n.options": {"variant": get_ethosn_variant()}}
+        opt_level=3, config={"relay.ext.ethos-n.options": get_ethosn_device_options()}
     ):
         with tvm.target.Target("llvm"):
             try:
@@ -383,5 +402,9 @@ def get_same_padding(
     return (pad_top, pad_left, pad_bottom, pad_right)
 
 
-def get_ethosn_variant():
-    return os.getenv("ETHOSN_VARIANT_CONFIG", default="Ethos-N78_1TOPS_2PLE_RATIO")
+def get_ethosn_device_options():
+    """Determine the NPU configuration used for testing."""
+    default_target_string = "ethos-n -variant=n78 -tops=1 -ple_ratio=2"
+    target_string = os.getenv("ETHOSN_TEST_TARGET_CONFIG", default_target_string)
+    target = parse_target(target_string)
+    return target[0]["opts"]

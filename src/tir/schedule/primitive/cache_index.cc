@@ -203,7 +203,7 @@ Array<Block> MakeIndexCacheStage(IndexInfo* info) {
     // which will be used to create new loop vars
     std::vector<Var> iter_vars;
     for (const Var& it : info->origin_block_vars[expr_index]) {
-      PostOrderVisit(info->var_binding.at(it), [&info, &iter_vars](const ObjectRef& node) {
+      PostOrderVisit(info->var_binding.at(it), [/*&info,*/ &iter_vars](const ObjectRef& node) {
         if (node->IsInstance<VarNode>()) {
           Var iter_var = Downcast<Var>(node);
           if (std::find_if(iter_vars.begin(), iter_vars.end(),

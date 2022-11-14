@@ -111,7 +111,16 @@ def test_addition(dtype, shape):
     model = _get_model(shape, shape, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, dtype)
     for npu in [False, True]:
         mod = tei.make_module(model, [])
-        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                1,
+                {},
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
+        )
 
     tei.verify(outputs, dtype, 1)
 
@@ -227,7 +236,16 @@ def test_addition_to_reinterpret_quantize(lhs_shape, lhs_is_constant, rhs_shape,
     outputs = []
     for npu in [False, True]:
         mod = tei.make_module(model, {})
-        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                1,
+                {},
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
+        )
     tei.verify(outputs, dtype, 1)
 
 

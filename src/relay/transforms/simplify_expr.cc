@@ -37,6 +37,7 @@
 #include <utility>
 
 #include "../op/tensor/transform.h"
+#include "fold_constant.h"
 #include "pattern_utils.h"
 
 namespace tvm {
@@ -795,10 +796,7 @@ class SwitchAddMultiply : public DFPatternRewrite {
     }
 
     Expr const_expr = Call(Op::Get("multiply"), {c1, c2});
-    IRModule const_mod = IRModule::FromExpr(const_expr);
-    const_mod = transform::FoldConstant()(const_mod);
-    GlobalVar const_main = const_mod->GetGlobalVar("main");
-    Expr const_val = Downcast<Function>(const_mod->functions[const_main])->body;
+    Expr const_val = transform::FoldConstantExpr(const_expr);
 
     return Call(Op::Get("add"), {Call(Op::Get("multiply"), {x, c2}), const_val});
   }
@@ -833,10 +831,7 @@ class SimplifyAdjacentMultiplyOrAdd : public DFPatternRewrite {
     }
 
     Expr const_expr = Call(call->op, {c1, c2});
-    IRModule const_mod = IRModule::FromExpr(const_expr);
-    const_mod = transform::FoldConstant()(const_mod);
-    GlobalVar const_main = const_mod->GetGlobalVar("main");
-    Expr const_val = Downcast<Function>(const_mod->functions[const_main])->body;
+    Expr const_val = transform::FoldConstantExpr(const_expr);
 
     return Call(call->op, {x, const_val});
   }
@@ -845,6 +840,37 @@ class SimplifyAdjacentMultiplyOrAdd : public DFPatternRewrite {
   DFPattern x_;
   DFPattern c1_;
   DFPattern c2_;
+};
+
+/*! \brief Simplifying x+x to x*2 */
+class SimplifyAdd : public DFPatternRewrite {
+ public:
+  SimplifyAdd() {
+    x_ = IsWildcard();
+    y_ = IsWildcard();
+    pattern_ = IsOp("add")({x_, y_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    Type pre_type = pre->checked_type_;
+    auto dtype = pre_type.as<TensorTypeNode>()->dtype;
+    auto x = node_map[x_][0];
+    auto y = node_map[y_][0];
+    auto data_type = Downcast<TensorType>(x->checked_type());
+
+    if (x == y) {
+      Expr value;
+      value = MakeConstantScalar(dtype, 2);
+      return InferType(Call(Op::Get("multiply"), {x, value}));
+    }
+    return post;
+  }
+
+ private:
+  /*! \brief Pattern input */
+  DFPattern x_;
+  DFPattern y_;
 };
 
 /*! \brief Simplifying x/sqrt to x*sqrt */
@@ -925,6 +951,7 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<ConcretizeCollapseSumLikeRewrite>();
   composer.AddRewrite<ConcretizeBroadcastToLikeRewrite>();
   composer.AddRewrite<ConcretizeCastLikeRewrite>();
+  composer.AddRewrite<SimplifyAdd>();
   composer.AddRewrite<SimplifyRSqrt>();
   composer.AddRewrite<EliminateIdentityRewrite>();
   composer.AddRewrite<SimplifyReshape>();

@@ -197,20 +197,39 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
     // Same index value means no conflicts
     // TODO(tqchen) more standard set based testing.
     bool has_same_index = true;
+    // Even if access has the same index, those indices need to
+    // depend on the innermost thread id to avoid race condition
+    bool depends_on_thread_index = true;
+    const VarNode* thread_index_var = nullptr;
+    if (!curr.threads.empty()) {
+      thread_index_var = curr.threads.back()->var.get();
+    }
+
     for (size_t i = 0; i < prev.touched.size(); i++) {
       const auto& prev_intset = prev.touched[i];
       const auto& curr_intset = curr.touched[i];
 
-      bool provably_same_index =
-          prev_intset.IsSinglePoint() && curr_intset.IsSinglePoint() &&
-          ExprDeepEqual()(prev_intset.PointValue(), curr_intset.PointValue());
-
-      if (!provably_same_index) {
+      if (prev_intset.IsSinglePoint() && curr_intset.IsSinglePoint()) {
+        PrimExpr prev_index = prev_intset.PointValue();
+        PrimExpr curr_index = curr_intset.PointValue();
+        has_same_index = ExprDeepEqual()(prev_index, curr_index);
+        if (thread_index_var != nullptr) {
+          auto f_uses_thread_index = [=](const tvm::tir::VarNode* parameter) {
+            return parameter == thread_index_var;
+          };
+          depends_on_thread_index = depends_on_thread_index &&
+                                    UsesVar(curr_index, f_uses_thread_index) &&
+                                    UsesVar(prev_index, f_uses_thread_index);
+        }
+      } else {
         has_same_index = false;
+      }
+
+      if (!(has_same_index && depends_on_thread_index)) {
         break;
       }
     }
-    if (has_same_index) {
+    if (has_same_index && depends_on_thread_index) {
       return false;
     }
 

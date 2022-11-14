@@ -16,7 +16,7 @@
 # under the License.
 
 
-from tvm.script import tir as T
+from tvm.script.parser_v1 import tir as T
 
 
 @T.prim_func

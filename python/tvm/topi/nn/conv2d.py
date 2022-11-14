@@ -548,7 +548,7 @@ def conv2d_NCHWc_int8(
             ),
             name="conv2d_NCHWc_int8",
             tag="conv2d_NCHWc_int8",
-            attrs={"schedule_rule": "meta_schedule.conv2d_NCHWc_int8"},
+            attrs={"schedule_rule": "conv2d_NCHWc_int8"},
         )
     # for int8 group conv support
     ic_chunk = in_channel // ic_bn
@@ -571,7 +571,7 @@ def conv2d_NCHWc_int8(
         ),
         name="conv2d_NCHWc_int8",
         tag="conv2d_NCHWc_int8",
-        attrs={"schedule_rule": "meta_schedule.conv2d_NCHWc_int8"},
+        attrs={"schedule_rule": "conv2d_NCHWc_int8"},
     )
 
 
@@ -989,6 +989,119 @@ def unpack_NCHWc_to_nchw(packed_out, out_dtype):
     return unpacked_out
 
 
+@tvm.target.generic_func
+def conv2d_winograd_nhwc(
+    data,
+    weight,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    pre_computed=False,
+    auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
+):
+    """Conv2D Winograd in NHWC layout.
+    This is a clean version to be used by the auto-scheduler for both CPU and GPU.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        4-D with shape [batch, in_height, in_width, in_channel]
+    weight : tvm.te.Tensor
+        4-D with shape [filter_height, filter_width, in_channel, num_filter]
+    strides : int or a list/tuple of two ints
+        stride size, or [stride_height, stride_width]
+    padding : int or a list/tuple of two ints
+        padding size, or [pad_height, pad_width]
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
+    out_dtype : str, optional
+        Specifies the output data type.
+    pre_computed: bool
+        Whether the kernel is precomputed
+    auto_scheduler_rewritten_layout: str = ""
+        The layout after auto-scheduler's layout rewrite pass.
+    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+        The original shape of the input tensor.
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        4-D with shape [batch, out_height, out_width, out_channel]
+    """
+    tile_size = 4
+    return _conv2d_winograd_nhwc_impl(
+        data,
+        weight,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        tile_size,
+        pre_computed=pre_computed,
+        write_cache_level=2,
+        auto_scheduler_rewritten_layout=auto_scheduler_rewritten_layout,
+        meta_schedule_original_shape=meta_schedule_original_shape,
+    )
+
+
+@tvm.target.generic_func
+def conv2d_winograd_nchw(
+    data,
+    weight,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    pre_computed=False,
+    auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
+):
+    """Conv2D Winograd in NCHW layout.
+    This is a clean version to be used by the auto-scheduler for both CPU and GPU.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        4-D with shape [batch, in_channel, in_height, in_width]
+    weight : tvm.te.Tensor
+        4-D with shape [filter_height, filter_width, in_channel, num_filter]
+    strides : int or a list/tuple of two ints
+        stride size, or [stride_height, stride_width]
+    padding : int or a list/tuple of two ints
+        padding size, or [pad_height, pad_width]
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
+    out_dtype : str, optional
+        Specifies the output data type.
+    pre_computed: bool
+        Whether the kernel is precomputed
+    auto_scheduler_rewritten_layout: str = ""
+        The layout after auto-scheduler's layout rewrite pass.
+    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+        The original shape of the input tensor.
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        4-D with shape [batch, out_height, out_width, out_channel]
+    """
+    tile_size = 4
+    return _conv2d_winograd_nchw_impl(
+        data,
+        weight,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        tile_size,
+        pre_computed,
+        auto_scheduler_rewritten_layout,
+        meta_schedule_original_shape,
+    )
+
+
 def _conv2d_winograd_nhwc_impl(
     data,
     weight,
@@ -998,6 +1111,7 @@ def _conv2d_winograd_nhwc_impl(
     out_dtype,
     tile_size,
     pre_computed=False,
+    write_cache_level=None,
     auto_scheduler_rewritten_layout="",
     meta_schedule_original_shape=None,
 ):
@@ -1022,6 +1136,8 @@ def _conv2d_winograd_nhwc_impl(
         The size of the tile to use for the Winograd filter
     pre_computed: bool = False
         Whether the kernel is precomputed
+    write_cache_level: Optional[int] = None
+        The cache level to write to in multi-level tiling rule in MetaSchedule.
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
     meta_schedule_original_shape: Optional[List[PrimExpr]] = None
@@ -1085,45 +1201,48 @@ def _conv2d_winograd_nhwc_impl(
         kernel_pack = te.compute(
             (alpha, alpha, CO, CI),
             lambda eps, nu, co, ci: te.sum(
-                weight[r_kh][r_kw][ci][co] * G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]
+                weight[r_kh, r_kw, ci, co] * G[eps, r_kh] * G[nu, r_kw],
+                axis=[r_kh, r_kw],
             ),
             name="kernel_pack",
         )
-        attrs = {}
+        bgemm_attrs = {}
     else:
         kernel_pack = weight
-        attrs = {"layout_free_placeholders": [kernel_pack]}
+        bgemm_attrs = {"layout_free_placeholders": [kernel_pack]}
+    if write_cache_level is not None:
+        if not isinstance(write_cache_level, int):
+            bgemm_attrs["meta_schedule.write_cache_level"] = write_cache_level
+        else:
+            bgemm_attrs["meta_schedule.write_cache_level"] = [write_cache_level]
 
     # pack data tile
     input_tile = te.compute(
         (alpha, alpha, P, CI),
-        lambda eps, nu, p, ci: data_pad[p // (nH * nW)][((p // nW) % nH) * m + eps][
-            (p % nW) * m + nu
-        ][ci],
+        lambda eps, nu, p, ci: data_pad[
+            p // (nH * nW),
+            ((p // nW) % nH) * m + eps,
+            (p % nW) * m + nu,
+            ci,
+        ],
         name="input_tile",
         attrs={"schedule_rule": "None"},
     )
 
     # transform data
-    target = tvm.target.Target.current(allow_none=True)
-    if target is not None:
-        target_kind = "meta_schedule.winograd_data_pack." + target.kind.name
-    else:
-        target_kind = "None"
-
     r_a = te.reduce_axis((0, alpha), "r_a")
     r_b = te.reduce_axis((0, alpha), "r_b")
     data_pack = te.compute(
         (alpha, alpha, P, CI),
         lambda eps, nu, p, ci: te.sum(
-            input_tile[r_a][r_b][p][ci] * B[r_a][eps] * B[r_b][nu], axis=[r_a, r_b]
+            input_tile[r_a, r_b, p, ci] * B[r_a, eps] * B[r_b, nu],
+            axis=[r_a, r_b],
         ),
         name="data_pack",
         attrs={
             "auto_scheduler_simplify_const_tensor_indices": ["eps", "nu", "r_a", "r_b"],
-            "schedule_rule": target_kind,
+            "schedule_rule": "conv2d_nhwc_winograd_data_pack",
         },
-        # the attrs are necessary hints for the auto-scheduler
     )
 
     # do batch gemm
@@ -1131,101 +1250,198 @@ def _conv2d_winograd_nhwc_impl(
     bgemm = te.compute(
         (alpha, alpha, P, CO),
         lambda eps, nu, p, co: te.sum(
-            data_pack[eps][nu][p][ci] * kernel_pack[eps][nu][co][ci], axis=[ci]
+            data_pack[eps, nu, p, ci] * kernel_pack[eps, nu, co, ci],
+            axis=[ci],
         ),
         name="bgemm",
-        attrs=attrs,
+        attrs=bgemm_attrs,
     )
 
     if auto_scheduler_rewritten_layout:
         bgemm = auto_scheduler.rewrite_compute_body(bgemm, auto_scheduler_rewritten_layout)
 
     # inverse transform
-    if target is not None:
-        target_kind = "meta_schedule.winograd_inverse." + target.kind.name
-    else:
-        target_kind = "None"
 
     r_a = te.reduce_axis((0, alpha), "r_a")
     r_b = te.reduce_axis((0, alpha), "r_b")
     inverse = te.compute(
         (m, m, P, CO),
         lambda vh, vw, p, co: te.sum(
-            bgemm[r_a][r_b][p][co] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]
+            bgemm[r_a, r_b, p, co] * A[r_a, vh] * A[r_b, vw],
+            axis=[r_a, r_b],
         ),
         name="inverse",
         attrs={
             "auto_scheduler_simplify_const_tensor_indices": ["vh", "vw", "r_a", "r_b"],
-            "schedule_rule": target_kind,
+            "schedule_rule": "conv2d_nhwc_winograd_inverse",
         },
-        # the attrs are necessary hints for the auto-scheduler
     )
 
     # output
     output = te.compute(
         (N, H, W, CO),
-        lambda n, h, w, co: inverse[h % m, w % m, n * nH * nW + (h // m) * nW + (w // m), co],
+        lambda n, h, w, co: inverse[
+            h % m,
+            w % m,
+            n * nH * nW + (h // m) * nW + (w // m),
+            co,
+        ],
         name="conv2d_winograd",
     )
 
     return output
 
 
-@tvm.target.generic_func
-def conv2d_winograd_nhwc(
+def _conv2d_winograd_nchw_impl(
     data,
     weight,
     strides,
     padding,
     dilation,
     out_dtype,
+    tile_size,
     pre_computed=False,
+    write_cache_level=None,
     auto_scheduler_rewritten_layout="",
     meta_schedule_original_shape=None,
 ):
-    """Conv2D Winograd in NHWC layout.
-    This is a clean version to be used by the auto-scheduler for both CPU and GPU.
-
-    Parameters
-    ----------
-    data : tvm.te.Tensor
-        4-D with shape [batch, in_height, in_width, in_channel]
-    weight : tvm.te.Tensor
-        4-D with shape [filter_height, filter_width, in_channel, num_filter]
-    strides : int or a list/tuple of two ints
-        stride size, or [stride_height, stride_width]
-    padding : int or a list/tuple of two ints
-        padding size, or [pad_height, pad_width]
-    dilation: int or a list/tuple of two ints
-        dilation size, or [dilation_height, dilation_width]
-    out_dtype : str, optional
-        Specifies the output data type.
-    pre_computed: bool
-        Whether the kernel is precomputed
-    auto_scheduler_rewritten_layout: str = ""
-        The layout after auto-scheduler's layout rewrite pass.
-    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
-        The original shape of the input tensor.
-
-    Returns
-    -------
-    output : tvm.te.Tensor
-        4-D with shape [batch, out_height, out_width, out_channel]
     """
-    tile_size = 4
+    write_cache_level: Optional[int] = None
+        The cache level to write to in multi-level tiling rule in MetaSchedule.
+    """
+    del auto_scheduler_rewritten_layout
 
-    return _conv2d_winograd_nhwc_impl(
+    N, CI, H, W = get_const_tuple(data.shape)
+    if isinstance(dilation, int):
+        dilation_h = dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+    if meta_schedule_original_shape:
+        auto_scheduler.rewrite_tensor_shape(weight, meta_schedule_original_shape)
+
+    assert (dilation_h, dilation_w) == (1, 1), "Does not support dilation"
+    HSTR, WSTR = (strides, strides) if isinstance(strides, int) else strides
+
+    if not pre_computed:  # kernel tensor is raw tensor, do strict check
+        CO, CI, KH, KW = get_const_tuple(weight.shape)
+        alpha = KW + tile_size - 1
+        assert HSTR == 1 and WSTR == 1 and KH == KW
+    else:
+        alpha, _, CI, CO = get_const_tuple(weight.shape)
+        KH = KW = alpha + 1 - tile_size
+        assert HSTR == 1 and WSTR == 1 and dilation_h == 1 and dilation_w == 1
+
+    pad_t, pad_l, pad_b, pad_r = get_pad_tuple(padding, (KH, KW))
+    assert HSTR == 1 and WSTR == 1 and KH == 3 and KW == 3
+
+    pt, pl, pb, pr = get_pad_tuple(padding, (KH, KW))
+    data_pad = pad(
         data,
-        weight,
-        strides,
-        padding,
-        dilation,
-        out_dtype,
-        tile_size,
-        pre_computed,
-        auto_scheduler_rewritten_layout,
-        meta_schedule_original_shape,
+        (0, 0, pt, pl),
+        (0, 0, pb, pr),
+        name="data_pad",
     )
+
+    r = KW
+    m = tile_size
+    A, B, G = winograd_transform_matrices(m, r, out_dtype)
+
+    H = (H + pt + pb - KH) // HSTR + 1
+    W = (W + pl + pr - KW) // WSTR + 1
+    nH, nW = (H + m - 1) // m, (W + m - 1) // m
+
+    P = N * nH * nW if isinstance(N, int) else nH * nW
+
+    # transform kernel
+    if not pre_computed:
+        r_kh = te.reduce_axis((0, KH), name="r_kh")
+        r_kw = te.reduce_axis((0, KW), name="r_kw")
+        kernel_pack = te.compute(
+            (alpha, alpha, CI, CO),
+            lambda eps, nu, ci, co: te.sum(
+                weight[co, ci, r_kh, r_kw] * G[eps, r_kh] * G[nu, r_kw],
+                axis=[r_kh, r_kw],
+            ),
+            name="kernel_pack",
+        )
+        bgemm_attrs = {}
+    else:
+        kernel_pack = weight
+        bgemm_attrs = {"layout_free_placeholders": [kernel_pack]}
+    if write_cache_level is not None:
+        if not isinstance(write_cache_level, int):
+            bgemm_attrs["meta_schedule.write_cache_level"] = write_cache_level
+        else:
+            bgemm_attrs["meta_schedule.write_cache_level"] = [write_cache_level]
+
+    # pack data tile
+    input_tile = te.compute(
+        (CI, P, alpha, alpha),
+        lambda ci, p, eps, nu: data_pad[
+            p // (nH * nW),
+            ci,
+            ((p // nW) % nH) * m + eps,
+            (p % nW) * m + nu,
+        ],
+        name="input_tile",
+        attrs={"schedule_rule": "None"},
+    )
+
+    # transform data
+    r_a = te.reduce_axis((0, alpha), "r_a")
+    r_b = te.reduce_axis((0, alpha), "r_b")
+    data_pack = te.compute(
+        (alpha, alpha, CI, P),
+        lambda eps, nu, ci, p: te.sum(
+            input_tile[ci, p, r_a, r_b] * B[r_a, eps] * B[r_b, nu],
+            axis=[r_a, r_b],
+        ),
+        name="data_pack",
+        attrs={
+            "schedule_rule": "conv2d_nchw_winograd_data_pack",
+        },
+    )
+
+    # do batch gemm
+    ci = te.reduce_axis((0, CI), name="ci")
+    bgemm = te.compute(
+        (alpha, alpha, CO, P),
+        lambda eps, nu, co, p: te.sum(
+            data_pack[eps, nu, ci, p] * kernel_pack[eps, nu, ci, co],
+            axis=[ci],
+        ),
+        name="bgemm",
+        attrs=bgemm_attrs,
+    )
+
+    # inverse transform
+    r_a = te.reduce_axis((0, alpha), "r_a")
+    r_b = te.reduce_axis((0, alpha), "r_b")
+    inverse = te.compute(
+        (CO, P, m, m),
+        lambda co, p, vh, vw: te.sum(
+            bgemm[r_a, r_b, co, p] * A[r_a, vh] * A[r_b, vw],
+            axis=[r_a, r_b],
+        ),
+        name="inverse",
+        attrs={
+            "schedule_rule": "conv2d_nchw_winograd_inverse",
+        },
+    )
+
+    # output
+    output = te.compute(
+        (N, CO, H, W),
+        lambda n, co, h, w: inverse[
+            co,
+            n * nH * nW + (h // m) * nW + (w // m),
+            h % m,
+            w % m,
+        ],
+        name="conv2d_winograd",
+    )
+
+    return output
 
 
 def conv2d_winograd_nhwc_without_weight_transform(
@@ -1267,6 +1483,56 @@ def conv2d_winograd_nhwc_without_weight_transform(
     """
 
     return conv2d_winograd_nhwc(
+        data,
+        weight,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        pre_computed=True,
+        auto_scheduler_rewritten_layout=auto_scheduler_rewritten_layout,
+        meta_schedule_original_shape=meta_schedule_original_shape,
+    )
+
+
+def conv2d_winograd_nchw_without_weight_transform(
+    data,
+    weight,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
+):
+    """Conv2D Winograd without layout transform in NCHW layout.
+    This is a clean version to be used by meta-schedule for both CPU and GPU.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        4-D with shape [batch, in_height, in_width, in_channel]
+    weight : tvm.te.Tensor
+        4-D with shape [filter_height, filter_width, in_channel, num_filter]
+    strides : int or a list/tuple of two ints
+        stride size, or [stride_height, stride_width]
+    padding : int or a list/tuple of two ints
+        padding size, or [pad_height, pad_width]
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
+    out_dtype : str, optional
+        Specifies the output data type.
+    auto_scheduler_rewritten_layout: str = ""
+        The layout after auto-scheduler's layout rewrite pass.
+    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+        The original shape of the input tensor.
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        4-D with shape [batch, out_height, out_width, out_channel]
+    """
+    return conv2d_winograd_nchw(
         data,
         weight,
         strides,

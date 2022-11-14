@@ -17,8 +17,8 @@
 """Unittests for tvm.script.parser.evaluator"""
 import pytest
 import tvm.testing
-from tvm.script._parser.core.diagnostics import Source
-from tvm.script._parser.core.evaluator import ExprEvaluator
+from tvm.script.parser.core.diagnostics import Source
+from tvm.script.parser.core.evaluator import ExprEvaluator
 
 
 def _calc(expr, extra_vars=None):

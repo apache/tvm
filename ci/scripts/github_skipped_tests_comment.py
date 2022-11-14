@@ -15,6 +15,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import inspect
+import json
 import os
 import logging
 import subprocess
@@ -102,10 +104,30 @@ def to_node_name(dir_name: str):
     return dir_name.replace("_", ": ", 1)
 
 
+def build_diff_comment_with_main(
+    common_commit_sha,
+    skipped_list,
+    commit_sha,
+):
+    if len(skipped_list) == 0:
+        return f"No diff in skipped tests with main found in this branch for commit {commit_sha}.\n"
+
+    text = (
+        f"The list below shows tests that ran in main {common_commit_sha} but were "
+        f"skipped in the CI build of {commit_sha}:\n"
+        f"```\n"
+    )
+    for skip in skipped_list:
+        text += skip + "\n"
+    text += f"```\n"
+    return text
+
+
 def build_comment(
     common_commit_sha,
     common_main_build,
     skipped_list,
+    additional_skipped_list,
     pr_number,
     build_number,
     commit_sha,
@@ -114,18 +136,21 @@ def build_comment(
     if common_main_build["state"] != "success":
         return f"Unable to run tests bot because main failed to pass CI at {common_commit_sha}."
 
-    if len(skipped_list) == 0:
-        return f"No additional skipped tests found in this branch for commit {commit_sha}."
+    text = build_diff_comment_with_main(common_commit_sha, skipped_list, commit_sha)
 
-    text = (
-        f"The list below shows some tests that ran in main {common_commit_sha} but were "
-        f"skipped in the CI build of {commit_sha}:\n"
-        f"```\n"
-    )
-    for skip in skipped_list:
-        text += skip + "\n"
+    if len(additional_skipped_list) != 0:
+        text += "\n"
+        text += (
+            f"Additional tests that were skipped in the CI build and present in the [`required_tests_to_run`]"
+            f"(https://github.com/apache/tvm/blob/main/ci/scripts/required_tests_to_run.json) file:"
+            f"\n```\n"
+        )
+        for skip in additional_skipped_list:
+            text += skip + "\n"
+        text += f"```\n"
+
     text += (
-        f"```\nA detailed report of ran tests is [here](https://{jenkins_prefix}/job/tvm/job/PR-{str(pr_number)}"
+        f"A detailed report of ran tests is [here](https://{jenkins_prefix}/job/tvm/job/PR-{str(pr_number)}"
         f"/{str(build_number)}/testReport/)."
     )
     return text
@@ -148,6 +173,7 @@ def get_skipped_tests_comment(
     main_test_report_dir: str = "main-reports",
     common_commit_sha: Optional[str] = None,
     common_main_build: Optional[Dict[str, Any]] = None,
+    additional_tests_to_check_file: str = "required_tests_to_run.json",
 ) -> str:
     pr_head = pr["commits"]["nodes"][0]["commit"]
     target_url = find_target_url(pr_head)
@@ -195,10 +221,41 @@ def get_skipped_tests_comment(
     if len(skipped_list) == 0:
         logging.info("No skipped tests found.")
 
+    if not is_dry_run:
+        current_file = Path(__file__).resolve()
+        additional_tests_to_check_file = Path(current_file).parent / "required_tests_to_run.json"
+
+    logging.info(
+        f"Checking additional tests in file {additional_tests_to_check_file} are not skipped."
+    )
+    try:
+        with open(additional_tests_to_check_file, "r") as f:
+            additional_tests_to_check = json.load(f)
+    except IOError:
+        logging.info(
+            f"Failed to read additional tests from file: {additional_tests_to_check_file}."
+        )
+        additional_tests_to_check = {}
+
+    # Assert that tests present in "required_tests_to_run.json" are not skipped.
+    additional_skipped_tests = []
+    for subdir, test_set in additional_tests_to_check.items():
+        if subdir not in build_tests.keys():
+            logging.warning(f"Could not find directory {subdir} in the build test set.")
+            continue
+
+        for test in test_set:
+            if test in build_tests[subdir]:
+                additional_skipped_tests.append(f"{to_node_name(subdir)} -> {test}")
+
+    if len(additional_skipped_tests) == 0:
+        logging.info("No skipped tests found in the additional list.")
+
     body = build_comment(
         common_commit_sha,
         common_main_build,
         skipped_list,
+        additional_skipped_tests,
         pr_and_build["pr_number"],
         pr_and_build["build_number"],
         commit_sha,

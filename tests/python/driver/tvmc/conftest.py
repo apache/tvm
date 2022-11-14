@@ -23,6 +23,8 @@ import numpy as np
 
 from PIL import Image
 
+import tvm
+from tvm import relay
 from tvm.driver import tvmc
 
 from tvm.contrib.download import download_testdata
@@ -284,3 +286,17 @@ def relay_text_conv2d(tmpdir_factory):
     with open(file_path, "w") as relay_text:
         relay_text.write(RELAY_MODEL)
     return file_path
+
+
+@pytest.fixture(scope="session")
+def relay_conv2d():
+    """
+    Simple conv2d Relay implementation.
+    """
+    dtype = "float32"
+
+    x = relay.var("x", shape=(1, 4, 2, 2), dtype=dtype)
+    weight = relay.const(np.random.uniform(size=(2, 4, 2, 2)), dtype=dtype)
+    x = relay.nn.conv2d(x, weight)
+    func = relay.Function(relay.analysis.free_vars(x), x)
+    return tvm.IRModule.from_expr(func)

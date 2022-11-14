@@ -28,66 +28,66 @@ from tvm.topi.nn.utils import get_pad_tuple
 
 from ..infrastructure import get_hexagon_target
 
-dtype = tvm.testing.parameter("float32")
-random_seed = tvm.testing.parameter(0)
-
-
-@tvm.testing.fixture
-def input_shape(batch, in_channel, in_size):
-    return (batch, in_channel, in_size, in_size)
-
-
-@tvm.testing.fixture
-def weight_shape(num_filter, in_channel, kernel):
-    return (num_filter, in_channel, kernel, kernel)
-
-
-@tvm.testing.fixture
-def bias_shape(num_filter):
-    return (num_filter, 1, 1)
-
-
-@tvm.testing.fixture(cache_return_value=True)
-def ref_data(
-    random_seed,
-    input_shape,
-    weight_shape,
-    bias_shape,
-    dtype,
-    stride,
-    padding,
-    dilation,
-    add_bias,
-    apply_relu,
-):
-    np.random.seed(random_seed)
-
-    # scipy.signal.convolve2d does not support float16 data types, and
-    # the python fallback is too slow for general use.  Computing
-    # ref_data in float32 will have fewer rounding errors than the TVM
-    # float16 compute, but those vary based on schedule anyways.
-    conv_dtype = "float32" if dtype == "float16" else dtype
-
-    a_np = np.random.uniform(size=input_shape).astype(dtype)
-    w_np = np.random.uniform(size=weight_shape).astype(dtype)
-    b_np = np.random.uniform(size=bias_shape).astype(dtype)
-    dw_np = tvm.topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
-    c_np = tvm.topi.testing.conv2d_nchw_python(
-        a_np.astype(conv_dtype), dw_np.astype(conv_dtype), stride, padding
-    ).astype(dtype)
-
-    if add_bias:
-        c_np = c_np + b_np
-    if apply_relu:
-        c_np = np.maximum(c_np, 0)
-    return a_np, w_np, b_np, c_np
-
 
 class BaseConv2DTests:
+    """Conv2D test class."""
+
     add_bias = tvm.testing.parameter(False)
     apply_relu = tvm.testing.parameter(False)
     dilation = tvm.testing.parameter(1)
     batch = tvm.testing.parameter(1)
+    dtype = tvm.testing.parameter("float32")
+
+    random_seed = tvm.testing.parameter(0)
+
+    @tvm.testing.fixture
+    def input_shape(self, batch, in_channel, in_size):
+        return (batch, in_channel, in_size, in_size)
+
+    @tvm.testing.fixture
+    def weight_shape(self, num_filter, in_channel, kernel):
+        return (num_filter, in_channel, kernel, kernel)
+
+    @tvm.testing.fixture
+    def bias_shape(self, num_filter):
+        return (num_filter, 1, 1)
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def ref_data(
+        self,
+        random_seed,
+        input_shape,
+        weight_shape,
+        bias_shape,
+        dtype,
+        stride,
+        padding,
+        dilation,
+        add_bias,
+        apply_relu,
+    ):
+        """Generate reference data."""
+        np.random.seed(random_seed)
+
+        # scipy.signal.convolve2d does not support float16 data types, and
+        # the python fallback is too slow for general use.  Computing
+        # ref_data in float32 will have fewer rounding errors than the TVM
+        # float16 compute, but those vary based on schedule anyways.
+        conv_dtype = "float32" if dtype == "float16" else dtype
+
+        a_np = np.random.uniform(size=input_shape).astype(dtype)
+        w_np = np.random.uniform(size=weight_shape).astype(dtype)
+        b_np = np.random.uniform(size=bias_shape).astype(dtype)
+        dw_np = tvm.topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
+        c_np = tvm.topi.testing.conv2d_nchw_python(
+            a_np.astype(conv_dtype), dw_np.astype(conv_dtype), stride, padding
+        ).astype(dtype)
+
+        if add_bias:
+            c_np = c_np + b_np
+        if apply_relu:
+            c_np = np.maximum(c_np, 0)
+        return a_np, w_np, b_np, c_np
 
     @tvm.testing.requires_hexagon
     def test_conv2d_nchw(
@@ -106,14 +106,15 @@ class BaseConv2DTests:
         add_bias,
         apply_relu,
     ):
+        """Test Conv2d NCHW."""
 
         pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel, kernel))
         padding_sum = pad_top + pad_left + pad_bottom + pad_right
 
         a_np, w_np, b_np, c_np = ref_data
 
-        A = te.placeholder(a_np.shape, name="A", dtype=dtype)
-        W = te.placeholder(w_np.shape, name="W", dtype=dtype)
+        a_tensor = te.placeholder(a_np.shape, name="a_tensor", dtype=dtype)
+        w_tensor = te.placeholder(w_np.shape, name="w_tensor", dtype=dtype)
         bias = te.placeholder(b_np.shape, name="bias", dtype=dtype)
 
         if "int" in dtype:
@@ -121,7 +122,7 @@ class BaseConv2DTests:
         elif dtype == "float32":
             tol = {"rtol": 1e-4, "atol": 2e-4}
         elif dtype == "float16":
-            # A summation in float16 with a single accumulator very
+            # a_tensor summation in float16 with a single accumulator very
             # quickly runs into large rounding errors.  At some point,
             # this tolerance should be schedule-dependent for to avoid
             # false negatives.
@@ -132,12 +133,14 @@ class BaseConv2DTests:
         with tvm.target.Target(get_hexagon_target("v68")):
             fcompute = topi.nn.conv2d_nchw
             fschedule = topi.hexagon.schedule_conv2d_nchw
-            C = fcompute(A, W, (stride, stride), padding, (dilation, dilation), dtype)
+            c_tensor = fcompute(
+                a_tensor, w_tensor, (stride, stride), padding, (dilation, dilation), dtype
+            )
             if add_bias:
-                C = topi.add(C, bias)
+                c_tensor = topi.add(c_tensor, bias)
             if apply_relu:
-                C = topi.nn.relu(C)
-            s = fschedule([C])
+                c_tensor = topi.nn.relu(c_tensor)
+            s = fschedule([c_tensor])
 
         func_name = "conv2d_{}_{}_{}_{}_{}_{}_{}_{}_{}".format(
             dtype,
@@ -152,19 +155,19 @@ class BaseConv2DTests:
         )
         func = tvm.build(
             s,
-            [A, W, bias, C],
+            [a_tensor, w_tensor, bias, c_tensor],
             get_hexagon_target("v68"),
             name=func_name,
         )
         mod = hexagon_session.load_module(func)
 
         dev = hexagon_session.device
-        a = tvm.nd.array(a_np, dev)
-        w = tvm.nd.array(w_np, dev)
+        a_data = tvm.nd.array(a_np, dev)
+        weight = tvm.nd.array(w_np, dev)
         b = tvm.nd.array(b_np, dev)
 
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
-        mod[func_name](a, w, b, c)
+        c = tvm.nd.array(np.zeros(get_const_tuple(c_tensor.shape), dtype=c_tensor.dtype), dev)
+        mod[func_name](a_data, weight, b, c)
         tvm.testing.assert_allclose(c.numpy(), c_np, **tol)
 
 

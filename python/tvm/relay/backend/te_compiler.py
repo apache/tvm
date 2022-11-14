@@ -24,7 +24,7 @@ import numpy as np
 import tvm
 from tvm import autotvm, te
 from tvm.auto_scheduler import is_auto_scheduler_enabled
-from tvm.meta_schedule import is_meta_schedule_dispatch_enabled
+from tvm.meta_schedule import is_meta_schedule_enabled
 from tvm.runtime import Object
 from tvm.support import libinfo
 from tvm.target import Target
@@ -181,7 +181,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
 
     # Disable autotvm if auto_scheduler is enabled.
     # (i.e., always return the implementation with the highest priority for auto-scheduler).
-    if is_auto_scheduler_enabled() or is_meta_schedule_dispatch_enabled():
+    if is_auto_scheduler_enabled() or is_meta_schedule_enabled():
         use_autotvm = False
 
     # If not use autotvm, always return the implementation with the highest priority

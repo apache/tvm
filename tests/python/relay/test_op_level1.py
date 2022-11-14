@@ -683,6 +683,14 @@ def test_dense(executor_kind):
         yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType((n, c, h, ww), dtype)
 
+        # test dynamic shape in inner
+        m, k = 4, 2
+        x = relay.var("x", relay.TensorType((m, k), dtype))
+        k, nw = relay.Any(), 6
+        w = relay.var("w", relay.TensorType((k, n), dtype))
+        y = relay.nn.dense(x, w)
+        yy = run_infer_type(y)
+
         n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), 2
         x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
         w = relay.var("w", relay.IncompleteType())
@@ -818,6 +826,32 @@ def test_dense_rocm_sdot4():
     ref = np.dot(a.astype("int32"), b.transpose().astype("int32")) + c
 
     np.testing.assert_equal(out, ref)
+
+
+def test_extern_concat_injective_fuse():
+    # This is a subgraph from MobileBERT, which crashes compilation if buffers created in te.extern(...)
+    # do not have their elem_offset explicitly set as a variable.
+
+    # fmt: off
+    mod = tvm.parser.fromtext(
+        """
+       #[version = "0.0.5"]
+       def @main(%p0844: Tensor[(1, 384), int64], %p1652: Tensor[(2016, 128), float16]) {
+        %1331 = cast(%p0844, dtype="int32");
+        %1332 = take(%p1652, %1331, axis=0);
+        %1333 = strided_slice(%1332, begin=[0, 1, 0], end=[1, 384, 128], strides=[1, 1, 1], axes=None);
+        %1334 = strided_slice(%1332, begin=[0, 0, 0], end=[1, -1, 128], strides=[1, 1, 1], axes=None);
+        %1335 = nn.pad(%1333, 0, pad_width=[[0, 0], [0, 1], [0, 0]]);
+        %1336 = nn.pad(%1334, 0, pad_width=[[0, 0], [1, 0], [0, 0]]);
+        %1337 = (%1335, %1332, %1336);
+        %1338 = concatenate(%1337, axis=2);
+        reshape(%1338, newshape=[-1, 384])
+      }
+    """
+    )
+    # fmt: on
+
+    relay.build(mod, params={}, target="llvm")
 
 
 if __name__ == "__main__":

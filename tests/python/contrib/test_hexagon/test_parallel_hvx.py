@@ -26,7 +26,11 @@ from tvm.script import tir as T
 
 from .infrastructure import get_hexagon_target
 
-TEST_OUTPUT_TEMPLATE = "Test {} with {} operations... \n    -Single Thread: {} ms \n    -Parallel: {} ms\n    -Speedup: {}x\n"
+TEST_OUTPUT_TEMPLATE = (
+    "Test {} with {} operations... \n"
+    "    -Single Thread: {} ms \n"
+    "    -Parallel: {} ms\n    -Speedup: {}x\n"
+)
 
 
 def get_vrmpy_shape_dtypes(operations):
@@ -61,28 +65,30 @@ def vrmpy_expected_producer(shape, a, b):
     expected = np.zeros(shape, dtype="int32")
     for n in range(shape[0]):
         for i in range(32):
-            for r in range(4):
-                expected[n, i] = expected[n, i] + np.uint32(a[n, i * 4 + r]) * np.uint32(
-                    b[n, i * 4 + r]
+            for r_ind in range(4):
+                expected[n, i] = expected[n, i] + np.uint32(a[n, i * 4 + r_ind]) * np.uint32(
+                    b[n, i * 4 + r_ind]
                 )
     return expected
 
 
 def get_vmpy_operator(operations):
+    """Generate vector multiply operator"""
+
     @T.prim_func
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = T.match_buffer(a, [operations, 128], dtype="uint8")
-        B = T.match_buffer(b, [operations, 128], dtype="uint8")
-        C = T.match_buffer(c, [operations, 128], dtype="int16")
+        a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8")
+        b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8")
+        c_buffer = T.match_buffer(c, [operations, 128], dtype="int16")
         for n in T.grid(operations):
-            with T.block("C"):
-                vn = T.axis.remap("S", [n])
-                C[vn, T.ramp(0, 1, 128)] = T.call_llvm_intrin(
+            with T.block("c_buffer"):
+                vn_ind = T.axis.remap("S", [n])
+                c_buffer[vn_ind, T.ramp(0, 1, 128)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vmpybusv.128B"),
                     T.uint32(2),
-                    T.reinterpret(A[vn, T.ramp(0, 1, 128)], dtype="int32x32"),
-                    T.reinterpret(B[vn, T.ramp(0, 1, 128)], dtype="int32x32"),
+                    T.reinterpret(a_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
+                    T.reinterpret(b_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     dtype="int16x128",
                 )
 
@@ -90,20 +96,22 @@ def get_vmpy_operator(operations):
 
 
 def get_vadd_operator(operations):
+    """Generate vadd operator."""
+
     @T.prim_func
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = T.match_buffer(a, [operations, 128], dtype="uint8")
-        B = T.match_buffer(b, [operations, 128], dtype="uint8")
-        C = T.match_buffer(c, [operations, 128], dtype="int16")
+        a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8")
+        b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8")
+        c_buffer = T.match_buffer(c, [operations, 128], dtype="int16")
         for n in T.grid(operations):
-            with T.block("C"):
-                vn = T.axis.remap("S", [n])
-                C[vn, T.ramp(0, 1, 128)] = T.call_llvm_intrin(
+            with T.block("c_buffer"):
+                vn_ind = T.axis.remap("S", [n])
+                c_buffer[vn_ind, T.ramp(0, 1, 128)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vaddubh.128B"),
                     T.uint32(2),
-                    T.reinterpret(A[vn, T.ramp(0, 1, 128)], dtype="int32x32"),
-                    T.reinterpret(B[vn, T.ramp(0, 1, 128)], dtype="int32x32"),
+                    T.reinterpret(a_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
+                    T.reinterpret(b_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     dtype="int16x128",
                 )
 
@@ -111,20 +119,22 @@ def get_vadd_operator(operations):
 
 
 def get_vrmpy_operator(operations):
+    """Generate vrmpy operator."""
+
     @T.prim_func
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = T.match_buffer(a, [operations, 128], dtype="uint8")
-        B = T.match_buffer(b, [operations, 128], dtype="uint8")
-        C = T.match_buffer(c, [operations, 32], dtype="int32")
+        a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8")
+        b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8")
+        c_buffer = T.match_buffer(c, [operations, 32], dtype="int32")
         for n in T.grid(operations):
-            with T.block("C"):
-                vn = T.axis.remap("S", [n])
-                C[vn, T.ramp(0, 1, 32)] = T.call_llvm_intrin(
+            with T.block("c_buffer"):
+                vn_ind = T.axis.remap("S", [n])
+                c_buffer[vn_ind, T.ramp(0, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
                     T.uint32(2),
-                    T.reinterpret(A[vn, T.ramp(0, 1, 128)], dtype="int32x32"),
-                    T.reinterpret(B[vn, T.ramp(0, 1, 128)], dtype="int32x32"),
+                    T.reinterpret(a_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
+                    T.reinterpret(b_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     dtype="int32x32",
                 )
 
@@ -132,6 +142,7 @@ def get_vrmpy_operator(operations):
 
 
 def evaluate(hexagon_session, shape_dtypes, expected_output_producer, sch):
+    """Evaluate schedule."""
     a_shape, a_dtype, b_shape, b_dtype, c_shape, c_dtype = shape_dtypes
 
     func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v68"))
@@ -160,6 +171,7 @@ def evaluate(hexagon_session, shape_dtypes, expected_output_producer, sch):
 
 
 class TestMatMulVec:
+    """MatMul test class."""
 
     (
         operation_name,
@@ -182,9 +194,11 @@ class TestMatMulVec:
         128,
         # 256,
         # 512,
-        # 1024,  # Single thread runs faster since L2 cache can handle the entire request quickly
+        # Single thread runs faster since L2 cache can handle the entire request quickly
+        # 1024,
         # 2048,
-        # 4096,  # Significant performance degredation once the inputs and outputs cannot all fit in L2
+        # Significant performance degredation once the inputs and outputs cannot all fit in L2
+        # 4096,
         # 8192,
         # 16384,
     )
@@ -200,6 +214,7 @@ class TestMatMulVec:
         expected_output_producer,
         split_factor,
     ):
+        """Test function handler."""
 
         sch = tvm.tir.Schedule(operator_producer(operation_count))
         single_thread_runtime = evaluate(
@@ -207,10 +222,10 @@ class TestMatMulVec:
         )
 
         sch = tvm.tir.Schedule(operator_producer(operation_count))
-        block = sch.get_block("C")
+        block = sch.get_block("c_buffer")
         b = sch.get_loops(block)
-        bo, _ = sch.split(b[0], factors=[split_factor, None])
-        sch.parallel(bo)
+        b_output, _ = sch.split(b[0], factors=[split_factor, None])
+        sch.parallel(b_output)
 
         parallel_runtime = evaluate(
             hexagon_session, shape_dtypes_producer(operation_count), expected_output_producer, sch

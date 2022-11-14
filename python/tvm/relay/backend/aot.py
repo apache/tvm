@@ -19,6 +19,7 @@
 from typing import Dict
 
 from tvm import IRModule
+from tvm.relay.backend import Executor
 from tvm.ir.transform import Pass
 from .utils import CallType
 
@@ -67,3 +68,36 @@ def CreateFunctionMetadata(
 
     """
     return _aot.CreateFunctionMetadata(mod, workspace_byte_alignment, constant_byte_alignment)
+
+
+def CreateExecutorMetadata(
+    mod: IRModule,
+    mod_name: str,
+    executor: Executor,
+    workspace_byte_alignment: int,
+    constant_byte_alignment: int,
+) -> object:
+    """Create the executor metadata from an AOT module.
+
+    Parameters
+    ----------
+    mod : IRModule
+        The IRModule.
+    mod_name : str
+        The name of the module.
+    executor : Executor
+        The executor configuration.
+    workspace_byte_alignment : int
+        The alignment of the workspace buffer in bytes.
+    constant_byte_alignment : int
+        The alignment of the constant buffer in bytes.
+
+    Returns
+    -------
+    ExecutorCodegenMetadata
+        The executor metadata.
+
+    """
+    return _aot.CreateExecutorMetadata(
+        mod, mod_name, executor, workspace_byte_alignment, constant_byte_alignment
+    )

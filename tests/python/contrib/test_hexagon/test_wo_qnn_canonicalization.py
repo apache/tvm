@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""No QNN canonicalization tests."""
 
-import pytest
 import numpy as np
 
 import tvm.testing
@@ -27,6 +27,7 @@ from tvm.relay.backend import Executor
 
 @tvm.testing.requires_hexagon
 def test_no_qnn_pass():
+    """No QNN pass test."""
     x = relay.var("x", shape=(4, 8), dtype="float32")
     op0 = relay.qnn.op.quantize(x, relay.const(2.0), relay.const(10), out_dtype="uint8")
     op1 = relay.qnn.op.dequantize(op0, relay.const(0.5), relay.const(5))
@@ -61,6 +62,7 @@ def execute(executor, data_np, weight_np, bias_np=None):
 
 @tvm.testing.requires_hexagon
 def test_qnn_conv2d_rq(hexagon_session: Session):
+    """QNN conv2d test."""
     data_shape = [1, 8, 32, 32]
     weight_shape = [16, 8, 3, 3]
     data = relay.var("data", shape=data_shape, dtype="float32")
@@ -119,6 +121,7 @@ def test_qnn_conv2d_rq(hexagon_session: Session):
 
 @tvm.testing.requires_hexagon
 def test_qnn_dense_bias_rq(hexagon_session: Session):
+    """QNN dense with bias test."""
     data_shape = [8, 8]
     weight_shape = [16, 8]
     bias_shape = [16]

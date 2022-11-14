@@ -14,34 +14,36 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-import os.path
+"""Test memory allocation."""
 
 import numpy as np
 
 import tvm
 from tvm.script import tir as T
+from tvm.contrib.hexagon import allocate_hexagon_array
 
-from .infrastructure import allocate_hexagon_array, get_hexagon_target
+from .infrastructure import get_hexagon_target
 
 
-@tvm.testing.fixture
-def generated_func(shape, scope, dtype, axis_separators):
+def generated_func(shape: tuple, dtype: str, axis_separators: list):
+    """Generate element wise function."""
     dim0, dim1 = shape
 
     @T.prim_func
     def elwise(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, shape, dtype=dtype, axis_separators=axis_separators)
-        B = T.match_buffer(b, shape, dtype=dtype, axis_separators=axis_separators)
+        a_buffer = T.match_buffer(a, shape, dtype=dtype, axis_separators=axis_separators)
+        b_buffer = T.match_buffer(b, shape, dtype=dtype, axis_separators=axis_separators)
 
         for i, j in T.grid(dim0, dim1):
             with T.block("compute"):
-                B[i, j] = A[i, j] * T.cast(2, dtype=dtype)
+                b_buffer[i, j] = a_buffer[i, j] * T.cast(2, dtype=dtype)
 
     return elwise
 
 
 class TestMemoryAlloc:
+    """Memory allocation test."""
+
     dtype = tvm.testing.parameter("int8")
     shape = tvm.testing.parameter((128, 128))
 
@@ -53,11 +55,10 @@ class TestMemoryAlloc:
         ("global.ddr", [1]),
     )
 
-    def test_global_axis_separator(
-        self, hexagon_session, generated_func, shape, dtype, scope, axis_separators
-    ):
+    def test_global_axis_separator(self, hexagon_session, shape, dtype, scope, axis_separators):
+        """Test with global axis separator."""
         mod1 = tvm.build(
-            generated_func,
+            generated_func(shape, dtype, axis_separators),
             target=get_hexagon_target("v69"),
         )
         mod2 = hexagon_session.load_module(mod1)

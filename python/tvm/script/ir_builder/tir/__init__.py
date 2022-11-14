@@ -16,3 +16,4 @@
 # under the License.
 """Package tvm.script.ir_builder.tir"""
 from .ir import *  # pylint: disable=wildcard-import,redefined-builtin
+from .ir import boolean as bool  # pylint: disable=redefined-builtin

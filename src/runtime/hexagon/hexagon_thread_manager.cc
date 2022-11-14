@@ -325,8 +325,9 @@ void HexagonThreadManager::thread_exit(void* context) {
     tc->hvx->Unlock();
     DLOG(INFO) << "Thread " << index << " unlocked an HVX instance";
   } else if (resource_type == HTP_0) {
-    tc->htp->Unlock();
-    DLOG(INFO) << "Thread " << index << " unlocked the HTP";
+    // TODO(HWE): Perform HTP lock/unlock in thread instead of HexagonHtp
+    // tc->htp->Unlock();
+    // DLOG(INFO) << "Thread " << index << " unlocked the HTP";
   }
 
   DLOG(INFO) << "Thread " << index << " exiting";
@@ -346,8 +347,9 @@ void HexagonThreadManager::thread_main(void* context) {
     tc->hvx->Lock();
     DLOG(INFO) << "Thread " << index << " locked an HVX instance";
   } else if (resource_type == HTP_0) {
-    tc->htp->Lock();
-    DLOG(INFO) << "Thread " << index << " locked the HTP";
+    // TODO(HWE): Perform HTP lock/unlock in thread instead of HexagonHtp
+    // tc->htp->Lock();
+    // DLOG(INFO) << "Thread " << index << " locked the HTP";
   }
 
   while (true) {  // loop, executing commands from pipe

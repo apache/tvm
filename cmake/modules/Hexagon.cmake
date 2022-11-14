@@ -184,7 +184,7 @@ if(BUILD_FOR_HEXAGON)
   )
 
   # Include hexagon external library runtime sources
-  if(DEFINED USE_HEXAGON_EXTERNAL_LIBS AND NOT ${USE_HEXAGON_EXTERNAL_LIBS} STREQUAL "")
+  if(USE_HEXAGON_EXTERNAL_LIBS)
     # Check if the libs are provided as an absolute path
     if (EXISTS ${USE_HEXAGON_EXTERNAL_LIBS})
     # Check if the libs are provided as a git url

@@ -14,94 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-
-import pytest
+"""Test code for Add, Subtract and Multiply."""
 import numpy as np
 
 import tvm
 from tvm import te
 import tvm.topi.hexagon.slice_ops as sl
 import tvm.topi.hexagon.qnn as qn
+from tvm.contrib.hexagon import allocate_hexagon_array
 from ..infrastructure import (
-    allocate_hexagon_array,
     transform_numpy,
     quantize_np,
     get_hexagon_target,
 )
 
+ZERO_POINT_A_VAL = None
+SCALE_A_VAL = None
 
-@tvm.testing.fixture
-def expected_output_np(input_np_A, input_np_B, op_name):
-    if op_name == "add":
-        out_ref = np.add(input_np_A, input_np_B)
-    elif op_name == "subtract":
-        out_ref = np.subtract(input_np_A, input_np_B)
-    elif op_name == "multiply":
-        out_ref = np.multiply(input_np_A, input_np_B)
-    return out_ref
+ZERO_POINT_B_VAL = None
+SCALE_B_VAL = None
 
-
-@tvm.testing.fixture
-def input_np_A(input_shape_A, dtype):
-    if dtype == "uint8" or dtype == "int8":
-        dtype = "float32"
-    return np.random.random(input_shape_A).astype(dtype)
-
-
-@tvm.testing.fixture
-def input_np_B(input_shape_B, dtype):
-    if dtype == "uint8" or dtype == "int8":
-        dtype = "float32"
-    return np.random.random(input_shape_B).astype(dtype)
-
-
-@tvm.testing.fixture
-def quantize_input_np_A(input_np_A, dtype):
-    if dtype == "uint8" or dtype == "int8":
-        global zero_point_A_val, scale_A_val
-        input_np_A_quantized, scale_A_val, zero_point_A_val = quantize_np(input_np_A, dtype)
-        return input_np_A_quantized
-
-
-@tvm.testing.fixture
-def quantize_input_np_B(input_np_B, dtype):
-    if dtype == "uint8" or dtype == "int8":
-        global zero_point_B_val, scale_B_val
-        input_np_B_quantized, scale_B_val, zero_point_B_val = quantize_np(input_np_B, dtype)
-        return input_np_B_quantized
-
-
-@tvm.testing.fixture
-def transformed_input_np_A(input_np_A, quantize_input_np_A, input_A_layout, dtype):
-    if dtype == "float16":
-        return transform_numpy(input_np_A, "nhwc", input_A_layout)
-    if dtype == "uint8" or dtype == "int8":
-        return transform_numpy(quantize_input_np_A, "nhwc", input_A_layout)
-
-    raise RuntimeError(f"Unsupported data type '{dtype}'")
-
-
-@tvm.testing.fixture
-def transformed_input_np_B(input_np_B, quantize_input_np_B, input_B_layout, dtype):
-    if dtype == "float16":
-        return transform_numpy(input_np_B, "nhwc", input_B_layout)
-    if dtype == "uint8" or dtype == "int8":
-        return transform_numpy(quantize_input_np_B, "nhwc", input_B_layout)
-
-    raise RuntimeError(f"Unsupported data type '{dtype}'")
-
-
-@tvm.testing.fixture
-def transformed_expected_output_np(expected_output_np, output_layout, dtype):
-    if dtype == "float16":
-        return transform_numpy(expected_output_np, "nhwc", output_layout)
-    if dtype == "uint8" or dtype == "int8":
-        global zero_point_M_val, scale_M_val
-        out_ref_quantized, scale_M_val, zero_point_M_val = quantize_np(expected_output_np, dtype)
-        return transform_numpy(out_ref_quantized, "nhwc", output_layout)
-
-    raise RuntimeError(f"Unsupported data type '{dtype}'")
+ZERO_POINT_M_VAL = None
+SCALE_M_VAL = None
 
 
 def hexagon_wrapper_allocation(
@@ -114,7 +48,7 @@ def hexagon_wrapper_allocation(
     dtype=None,
 ):
     """Input layout can either be nhwc-8h2w32c2w-2d or nhwc"""
-    if layout == "nhwc-8h2w32c2w-2d" or layout == "nhwc-8h8w32c-2d":
+    if layout in ["nhwc-8h2w32c2w-2d", "nhwc-8h8w32c-2d"]:
         data_nd = allocate_hexagon_array(
             device,
             tensor_shape=tensor_shape,
@@ -132,11 +66,13 @@ def hexagon_wrapper_allocation(
 
 
 class TestAddSubtractMultiplyBroadcast2d:
+    """Test Add, Subtract and Multiply class."""
+
     (
-        input_shape_A,
-        input_shape_B,
-        input_A_layout,
-        input_B_layout,
+        input_shape_a,
+        input_shape_b,
+        input_a_layout,
+        input_b_layout,
         output_layout,
         dtype,
     ) = tvm.testing.parameters(
@@ -269,60 +205,134 @@ class TestAddSubtractMultiplyBroadcast2d:
 
     op_name = tvm.testing.parameter("add", "subtract", "multiply")
 
+    @tvm.testing.fixture
+    def expected_output_np(self, input_np_a, input_np_b, op_name):
+        """Generate expected output."""
+        if op_name == "add":
+            out_ref = np.add(input_np_a, input_np_b)
+        elif op_name == "subtract":
+            out_ref = np.subtract(input_np_a, input_np_b)
+        elif op_name == "multiply":
+            out_ref = np.multiply(input_np_a, input_np_b)
+        return out_ref
+
+    @tvm.testing.fixture
+    def transformed_expected_output_np(self, expected_output_np, output_layout, dtype):
+        """Generate expected output."""
+        if dtype == "float16":
+            return transform_numpy(expected_output_np, "nhwc", output_layout)
+        if dtype in ["uint8", "int8"]:
+            global ZERO_POINT_M_VAL, SCALE_M_VAL
+            out_ref_quantized, SCALE_M_VAL, ZERO_POINT_M_VAL = quantize_np(
+                expected_output_np, dtype
+            )
+            return transform_numpy(out_ref_quantized, "nhwc", output_layout)
+
+        raise RuntimeError(f"Unsupported data type '{dtype}'")
+
+    @tvm.testing.fixture
+    def input_np_a(self, input_shape_a, dtype):
+        """Generate numpy input for variable a."""
+        if dtype in ["uint8", "int8"]:
+            dtype = "float32"
+        return np.random.random(input_shape_a).astype(dtype)
+
+    @tvm.testing.fixture
+    def input_np_b(self, input_shape_b, dtype):
+        """Generate numpy input for variable b."""
+        if dtype in ["uint8", "int8"]:
+            dtype = "float32"
+        return np.random.random(input_shape_b).astype(dtype)
+
+    @tvm.testing.fixture
+    def quantize_input_np_a(self, input_np_a, dtype):
+        if dtype in ["uint8", "int8"]:
+            global ZERO_POINT_A_VAL, SCALE_A_VAL
+            input_np_a_quantized, SCALE_A_VAL, ZERO_POINT_A_VAL = quantize_np(input_np_a, dtype)
+            return input_np_a_quantized
+        return None
+
+    @tvm.testing.fixture
+    def quantize_input_np_b(self, input_np_b, dtype):
+        if dtype in ["uint8", "int8"]:
+            global ZERO_POINT_B_VAL, SCALE_B_VAL
+            input_np_b_quantized, SCALE_B_VAL, ZERO_POINT_B_VAL = quantize_np(input_np_b, dtype)
+            return input_np_b_quantized
+        return None
+
+    @tvm.testing.fixture
+    def transformed_input_np_a(self, input_np_a, quantize_input_np_a, input_a_layout, dtype):
+        if dtype == "float16":
+            return transform_numpy(input_np_a, "nhwc", input_a_layout)
+        if dtype in ["uint8", "int8"]:
+            return transform_numpy(quantize_input_np_a, "nhwc", input_a_layout)
+
+        raise RuntimeError(f"Unsupported data type '{dtype}'")
+
+    @tvm.testing.fixture
+    def transformed_input_np_b(self, input_np_b, quantize_input_np_b, input_b_layout, dtype):
+        if dtype == "float16":
+            return transform_numpy(input_np_b, "nhwc", input_b_layout)
+        if dtype in ["uint8", "int8"]:
+            return transform_numpy(quantize_input_np_b, "nhwc", input_b_layout)
+
+        raise RuntimeError(f"Unsupported data type '{dtype}'")
+
     @tvm.testing.requires_hexagon
     def test_transform(
         self,
         dtype,
-        input_shape_A,
-        input_shape_B,
-        input_np_A,
-        input_np_B,
-        quantize_input_np_A,
-        quantize_input_np_B,
-        transformed_input_np_A,
-        transformed_input_np_B,
+        input_shape_a,
+        input_shape_b,
+        input_np_a,
+        input_np_b,
+        quantize_input_np_a,
+        quantize_input_np_b,
+        transformed_input_np_a,
+        transformed_input_np_b,
         expected_output_np,
         transformed_expected_output_np,
         hexagon_session,
         output_layout,
-        input_A_layout,
-        input_B_layout,
+        input_a_layout,
+        input_b_layout,
         op_name,
     ):
+        """Test transform."""
         output_shape = expected_output_np.shape
-        A = te.placeholder(input_shape_A, name="A", dtype=dtype)
-        B = te.placeholder(input_shape_B, name="B", dtype=dtype)
+        a_tensor = te.placeholder(input_shape_a, name="a_tensor", dtype=dtype)
+        b_tensor = te.placeholder(input_shape_b, name="b_tensor", dtype=dtype)
         if dtype == "float16":
             if op_name == "add":
-                M = sl.add_broadcast_compute(A, B)
+                m_tensor = sl.add_broadcast_compute(a_tensor, b_tensor)
             elif op_name == "subtract":
-                M = sl.subtract_broadcast_compute(A, B)
+                m_tensor = sl.subtract_broadcast_compute(a_tensor, b_tensor)
             elif op_name == "multiply":
-                M = sl.multiply_broadcast_compute(A, B)
+                m_tensor = sl.multiply_broadcast_compute(a_tensor, b_tensor)
             tir_schedule = sl.tir_broadcast_schedule(
-                M, A, B, output_layout, input_A_layout, input_B_layout, op_name
+                m_tensor, a_tensor, b_tensor, output_layout, input_a_layout, input_b_layout, op_name
             )
-        elif dtype == "uint8" or dtype == "int8":
+        elif dtype in ["uint8", "int8"]:
             args = [
-                A,
-                B,
+                a_tensor,
+                b_tensor,
                 output_shape,
-                zero_point_A_val,
-                scale_A_val,
-                zero_point_B_val,
-                scale_B_val,
-                zero_point_M_val,
-                scale_M_val,
+                ZERO_POINT_A_VAL,
+                SCALE_A_VAL,
+                ZERO_POINT_B_VAL,
+                SCALE_B_VAL,
+                ZERO_POINT_M_VAL,
+                SCALE_M_VAL,
                 dtype,
             ]
             if op_name == "add":
-                M = qn.qadd_broadcast_compute(*args)
+                m_tensor = qn.qadd_broadcast_compute(*args)
             elif op_name == "subtract":
-                M = qn.qsubtract_broadcast_compute(*args)
+                m_tensor = qn.qsubtract_broadcast_compute(*args)
             elif op_name == "multiply":
-                M = qn.qmultiply_broadcast_compute(*args)
+                m_tensor = qn.qmultiply_broadcast_compute(*args)
             tir_schedule = qn.tir_schedule_quant(
-                M, A, B, output_layout, input_A_layout, input_B_layout
+                m_tensor, a_tensor, b_tensor, output_layout, input_a_layout, input_b_layout
             )
 
         sch = tir_schedule.mod
@@ -339,35 +349,35 @@ class TestAddSubtractMultiplyBroadcast2d:
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(
                 sch,
-                [A, B, M],
+                [a_tensor, b_tensor, m_tensor],
                 get_hexagon_target("v69"),
                 name="slice_op_with_transform",
             )
 
         if dtype == "float16":
-            in_data_np_A = input_np_A
-            in_data_np_B = input_np_B
-        elif dtype == "int8" or dtype == "uint8":
-            in_data_np_A = quantize_input_np_A
-            in_data_np_B = quantize_input_np_B
+            in_data_np_a = input_np_a
+            in_data_np_b = input_np_b
+        elif dtype in ["int8", "uint8"]:
+            in_data_np_a = quantize_input_np_a
+            in_data_np_b = quantize_input_np_b
         else:
             raise RuntimeError(f"Unsupport dtype '{dtype}'")
 
-        A_data_nd = hexagon_wrapper_allocation(
+        a_data_nd = hexagon_wrapper_allocation(
             hexagon_session.device,
-            layout=input_A_layout,
-            data_original=in_data_np_A,
-            transformed_data=transformed_input_np_A,
+            layout=input_a_layout,
+            data_original=in_data_np_a,
+            transformed_data=transformed_input_np_a,
             axis_separators=input_axis_separator,
         )
-        B_data_nd = hexagon_wrapper_allocation(
+        b_data_nd = hexagon_wrapper_allocation(
             hexagon_session.device,
-            layout=input_B_layout,
-            data_original=in_data_np_B,
-            transformed_data=transformed_input_np_B,
+            layout=input_b_layout,
+            data_original=in_data_np_b,
+            transformed_data=transformed_input_np_b,
             axis_separators=input_axis_separator,
         )
-        M_data_nd = hexagon_wrapper_allocation(
+        m_data_nd = hexagon_wrapper_allocation(
             hexagon_session.device,
             layout=output_layout,
             tensor_shape=transformed_expected_output_np.shape,
@@ -376,21 +386,25 @@ class TestAddSubtractMultiplyBroadcast2d:
         )
 
         mod = hexagon_session.load_module(func)
-        mod(A_data_nd, B_data_nd, M_data_nd)
+        mod(a_data_nd, b_data_nd, m_data_nd)
 
-        b, h, w, c = output_shape
+        batch, height, width, channel = output_shape
         # convert nd to np and reshape to fixed chunk size layout
         if output_layout == "nhwc-8h2w32c2w-2d":
-            M_data_np = M_data_nd.numpy().reshape([b, h // 8, w // 4, c // 32, 8, 2, 32, 2])
+            m_data_np = m_data_nd.numpy().reshape(
+                [batch, height // 8, width // 4, channel // 32, 8, 2, 32, 2]
+            )
         elif output_layout == "nhwc-8h8w32c-2d":
-            M_data_np = M_data_nd.numpy().reshape([b, h // 8, w // 8, c // 32, 8, 8, 32])
+            m_data_np = m_data_nd.numpy().reshape(
+                [batch, height // 8, width // 8, channel // 32, 8, 8, 32]
+            )
 
         if dtype == "float16":
             np.testing.assert_allclose(
-                transformed_expected_output_np, M_data_np, rtol=1e-3, atol=1e-3
+                transformed_expected_output_np, m_data_np, rtol=1e-3, atol=1e-3
             )
-        elif dtype == "int8" or dtype == "uint8":
-            np.testing.assert_allclose(transformed_expected_output_np, M_data_np, rtol=1, atol=1)
+        elif dtype in ["int8", "uint8"]:
+            np.testing.assert_allclose(transformed_expected_output_np, m_data_np, rtol=1, atol=1)
 
 
 if __name__ == "__main__":

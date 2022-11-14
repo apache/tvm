@@ -452,20 +452,19 @@ AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_s
   n->storage_scope = storage_scope;
   n->condition = condition.value_or(tvm::Bool(true));
   n->annotations = annotations.value_or(Map<String, ObjectRef>());
-  n->buffer = BufferDecl(extents, dtype, "", NullOpt, NullOpt, NullOpt, storage_scope, 0, 0,
-                         "default", NullOpt);
+  n->buffer_var = Var("", tvm::PointerType(tvm::PrimType(dtype), storage_scope));
   return AllocateFrame(n);
 }
 
 AllocateConstFrame AllocateConst(tvm::runtime::NDArray data, DataType dtype,
-                                 Array<PrimExpr> extents, Map<String, ObjectRef> annotations) {
+                                 Array<PrimExpr> extents,
+                                 Optional<Map<String, ObjectRef>> annotations) {
   ObjectPtr<AllocateConstFrameNode> n = make_object<AllocateConstFrameNode>();
   n->dtype = dtype;
   n->extents = extents;
   n->data = data;
-  n->annotations = annotations;
-  n->buffer =
-      BufferDecl(extents, dtype, "", NullOpt, NullOpt, NullOpt, "", 0, 0, "default", NullOpt);
+  n->annotations = annotations.value_or(Map<String, ObjectRef>());
+  n->buffer_var = Var("", tvm::PointerType(tvm::PrimType(dtype)));
   return AllocateConstFrame(n);
 }
 
@@ -529,6 +528,7 @@ DeclBufferFrame DeclBuffer(Array<PrimExpr> shape, DataType dtype, String buffer_
   ObjectPtr<DeclBufferFrameNode> n = make_object<DeclBufferFrameNode>();
   n->buffer = BufferDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope,
                          align, offset_factor, buffer_type, axis_separators);
+  n->allocated = data.defined();
   return DeclBufferFrame(n);
 }
 
@@ -638,21 +638,35 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.Evaluate").set_body_typed(Evaluate);
 
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Ptr").set_body_typed(Ptr);
 
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Int8").set_body_typed(Int8);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Int16").set_body_typed(Int16);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Int32").set_body_typed(Int32);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Int64").set_body_typed(Int64);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.UInt8").set_body_typed(UInt8);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.UInt16").set_body_typed(UInt16);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.UInt32").set_body_typed(UInt32);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.UInt64").set_body_typed(UInt64);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Float8").set_body_typed(Float8);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Float16").set_body_typed(Float16);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Float32").set_body_typed(Float32);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Float64").set_body_typed(Float64);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Int32x4").set_body_typed(Int32x4);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Int32x8").set_body_typed(Int32x8);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Int32x16").set_body_typed(Int32x16);
+#define TVM_TMP_STR(x) #x
+
+#define TVM_REGISTER_GLOBAL_SIZE(Prefix, DType)                          \
+  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(8)).set_body_typed(DType##8);   \
+  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(16)).set_body_typed(DType##16); \
+  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(32)).set_body_typed(DType##32); \
+  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(64)).set_body_typed(DType##64);
+
+TVM_REGISTER_GLOBAL_SIZE("script.ir_builder.tir.Float", Float);
+TVM_REGISTER_GLOBAL_SIZE("script.ir_builder.tir.UInt", UInt);
+TVM_REGISTER_GLOBAL_SIZE("script.ir_builder.tir.Int", Int);
+
+#define TVM_REGISTER_GLOBAL_LANES(Prefix, Func)                           \
+  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x4)).set_body_typed(Func##x4);   \
+  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x8)).set_body_typed(Func##x8);   \
+  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x16)).set_body_typed(Func##x16); \
+  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x32)).set_body_typed(Func##x32); \
+  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x64)).set_body_typed(Func##x64);
+
+#define TVM_REGISTER_GLOBAL_SIZES_LANES(Prefix, DType)          \
+  TVM_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(8), DType##8);   \
+  TVM_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(16), DType##16); \
+  TVM_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(32), DType##32); \
+  TVM_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(64), DType##64);
+
+TVM_REGISTER_GLOBAL_SIZES_LANES("script.ir_builder.tir.Float", Float);
+TVM_REGISTER_GLOBAL_SIZES_LANES("script.ir_builder.tir.UInt", UInt);
+TVM_REGISTER_GLOBAL_SIZES_LANES("script.ir_builder.tir.Int", Int);
+
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Boolean").set_body_typed(Boolean);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Handle").set_body_typed(Handle);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Void").set_body_typed(Void);

@@ -22,6 +22,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import meta_schedule as ms
+from tvm.meta_schedule.utils import derived_object
 from tvm.meta_schedule.testing.dummy_object import DummyMutator
 from tvm.script import tir as T
 from tvm.tir.schedule import Schedule, Trace
@@ -251,8 +252,63 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
     assert num_trials_each_iter == [1, 0, 0, 0, 0]
 
 
+def test_meta_schedule_evolutionary_search_fail_init_population():  # pylint: disable = invalid-name
+    @derived_object
+    class AlwaysFailPostproc(ms.postproc.PyPostproc):
+        """A postproc that always fails."""
+
+        def _initialize_with_tune_context(self, context: ms.TuneContext) -> None:
+            pass
+
+        def apply(self, sch: Schedule) -> bool:
+            return False
+
+        def clone(self) -> "AlwaysFailPostproc":
+            return AlwaysFailPostproc()
+
+        def __str__(self) -> str:
+            return "AlwaysFailPostproc"
+
+    num_trials_per_iter = 10
+    max_trials_per_task = 2000
+
+    context = ms.TuneContext(
+        mod=Matmul,
+        space_generator=ms.space_generator.ScheduleFn(
+            sch_fn=_schedule_matmul,
+            sch_rules=[],
+            postprocs=[AlwaysFailPostproc()],
+            mutator_probs={
+                DummyMutator(): 1.0,
+            },
+        ),
+        search_strategy=ms.search_strategy.EvolutionarySearch(
+            population_size=5,
+            init_measured_ratio=0.1,
+            init_min_unmeasured=50,
+            genetic_num_iters=3,
+            genetic_mutate_prob=0.5,
+            genetic_max_fail_count=10,
+            eps_greedy=0.9,
+        ),
+        target=tvm.target.Target("llvm"),
+        num_threads=1,  # because we are using a mutator from the python side
+    )
+    strategy = context.search_strategy
+    strategy.pre_tuning(
+        max_trials=max_trials_per_task,
+        num_trials_per_iter=num_trials_per_iter,
+        design_spaces=context.space_generator.generate_design_space(context.mod),
+        database=ms.database.MemoryDatabase(),
+        cost_model=ms.cost_model.RandomModel(),
+    )
+    candidates = strategy.generate_measure_candidates()
+    assert candidates is None
+
+
 if __name__ == "__main__":
     test_meta_schedule_replay_func(ms.search_strategy.ReplayFunc)
     test_meta_schedule_replay_func(ms.search_strategy.ReplayTrace)
     test_meta_schedule_evolutionary_search()
     test_meta_schedule_evolutionary_search_early_stop()
+    test_meta_schedule_evolutionary_search_fail_init_population()

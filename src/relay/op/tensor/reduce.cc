@@ -606,18 +606,29 @@ Example::
 
 Array<te::Tensor> MeanCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                               const Type& out_type) {
-  IndexExpr count = tir::make_const(inputs[0]->dtype, 1);
+  auto data = inputs[0];
+  IndexExpr count = tir::make_const(DataType::Int(64), 1);
   const ReduceAttrs* param = attrs.as<ReduceAttrs>();
   ICHECK(param != nullptr);
   auto axes = param->axis;
   for (int64_t i : GetReduceAxes(inputs[0]->shape.size(), param->axis, param->exclude)) {
     count *= inputs[0]->shape[i];
   }
-  // Although count is created as inputs[0]->dtype,
-  // its type may be changed (promoted) during multiplication
-  count = cast(inputs[0]->dtype, count);
-  auto res = ReduceCompute(attrs, inputs, out_type, topi::sum);
-  return {topi::divide(res[0], count)};
+  // Check the datatype of input data. If it's fp16, we'll have trouble representing all
+  // indices and summation needed so we instead just cast to fp32.
+  bool recast_fp16 = false;
+  if (data->dtype.is_float16()) {
+    recast_fp16 = true;
+    data = topi::cast(data, DataType::Float(32));
+  }
+  count = cast(data->dtype, count);
+  auto res = ReduceCompute(attrs, {data}, out_type, topi::sum);
+  auto output = topi::divide(res[0], count);
+  // Set the output back to the appropriate fp16 type if needed.
+  if (recast_fp16) {
+    output = topi::cast(output, DataType::Float(16));
+  }
+  return {output};
 }
 
 RELAY_REGISTER_REDUCE_OP("mean")
@@ -667,7 +678,7 @@ bool VarianceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 Array<te::Tensor> VarianceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                   const Type& out_type) {
-  IndexExpr count = tir::make_const(inputs[0]->dtype, 1);
+  IndexExpr count = tir::make_const(DataType::Int(64), 1);
   const VarianceAttrs* param = attrs.as<VarianceAttrs>();
   ICHECK(param != nullptr);
   auto axes = param->axis;
@@ -687,7 +698,19 @@ Array<te::Tensor> VarianceCompute(const Attrs& attrs, const Array<te::Tensor>& i
     axes = GetExcludeAxes(sq_diff->shape.size(), param->axis);
     ICHECK_NE(axes.size(), 0);
   }
+  // If the input is fp16, we might have trouble representing the full sum of
+  // indices or values. We recast to fp32 to avoid this issue.
+  bool recast_fp16 = false;
+  if (data->dtype.is_float16()) {
+    recast_fp16 = true;
+    sq_diff = topi::cast(sq_diff, DataType::Float(32));
+  }
   auto var = topi::divide(topi::sum(sq_diff, axes, param->keepdims, false), count);
+
+  // Recast back to fp16 if needed.
+  if (recast_fp16) {
+    var = topi::cast(var, DataType::Float(16));
+  }
 
   return {var};
 }

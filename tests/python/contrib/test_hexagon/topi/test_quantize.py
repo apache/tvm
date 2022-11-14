@@ -14,42 +14,44 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""TIR quantize schedule tests."""
 import numpy as np
 
 import tvm
 from tvm import te
 import tvm.topi.hexagon.qnn as s1
+from tvm.contrib.hexagon import allocate_hexagon_array
 from ..infrastructure import (
-    allocate_hexagon_array,
     transform_numpy,
     quantize_np,
     get_hexagon_target,
 )
 
-
-@tvm.testing.fixture
-def expected_output_np(input_np, output_dtype):
-    global scale, zero_point
-    quant_np, scale, zero_point = quantize_np(input_np, output_dtype)
-    return quant_np
-
-
-@tvm.testing.fixture
-def input_np(input_shape, input_dtype):
-    return np.random.random(input_shape).astype(input_dtype)
-
-
-@tvm.testing.fixture
-def transformed_input_np(input_np, input_crouton_layout):
-    return transform_numpy(input_np, "nhwc", input_crouton_layout)
-
-
-@tvm.testing.fixture
-def transformed_expected_output_np(expected_output_np, output_layout):
-    return transform_numpy(expected_output_np, "nhwc", output_layout)
+QUANTIZE_SCALE = None
+QUANTIZE_ZERO_POINT = None
 
 
 class TestQuantize:
+    """Test quantize class."""
+
+    @tvm.testing.fixture
+    def expected_output_np(self, input_np, output_dtype):
+        global QUANTIZE_SCALE, QUANTIZE_ZERO_POINT
+        quant_np, QUANTIZE_SCALE, QUANTIZE_ZERO_POINT = quantize_np(input_np, output_dtype)
+        return quant_np
+
+    @tvm.testing.fixture
+    def input_np(self, input_shape, input_dtype):
+        return np.random.random(input_shape).astype(input_dtype)
+
+    @tvm.testing.fixture
+    def transformed_input_np(self, input_np, input_crouton_layout):
+        return transform_numpy(input_np, "nhwc", input_crouton_layout)
+
+    @tvm.testing.fixture
+    def transformed_expected_output_np(self, expected_output_np, output_layout):
+        return transform_numpy(expected_output_np, "nhwc", output_layout)
+
     input_crouton_layout, output_layout, input_dtype = tvm.testing.parameters(
         ("nhwc-4h2w32c2w-2d", "nhwc-8h8w32c-2d", "float32"),
     )
@@ -65,7 +67,6 @@ class TestQuantize:
         self,
         input_dtype,
         output_dtype,
-        input_np,
         transformed_input_np,
         input_shape,
         expected_output_np,
@@ -74,11 +75,14 @@ class TestQuantize:
         output_layout,
         hexagon_session,
     ):
-        A = te.placeholder(input_shape, name="A", dtype=input_dtype)
+        """Test quantize."""
+        a_tensor = te.placeholder(input_shape, name="a_tensor", dtype=input_dtype)
 
-        M = s1.quantize_compute(A, scale, zero_point, output_dtype)
+        m_tensor = s1.quantize_compute(a_tensor, QUANTIZE_SCALE, QUANTIZE_ZERO_POINT, output_dtype)
 
-        tir_schedule = s1.tir_quantize_schedule(M, A, input_crouton_layout, output_layout)
+        tir_schedule = s1.tir_quantize_schedule(
+            m_tensor, a_tensor, input_crouton_layout, output_layout
+        )
 
         sch = tir_schedule.mod
 
@@ -88,12 +92,12 @@ class TestQuantize:
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(
                 sch,
-                [A, M],
+                [a_tensor, m_tensor],
                 get_hexagon_target("v69"),
                 name="quantize",
             )
 
-        A_data_nd = allocate_hexagon_array(
+        a_data_nd = allocate_hexagon_array(
             hexagon_session.device,
             data=transformed_input_np,
             dtype=input_dtype,
@@ -101,7 +105,7 @@ class TestQuantize:
             mem_scope="global.vtcm",
         )
 
-        M_data_nd = allocate_hexagon_array(
+        m_data_nd = allocate_hexagon_array(
             hexagon_session.device,
             tensor_shape=transformed_expected_output_np.shape,
             dtype=output_dtype,
@@ -110,14 +114,14 @@ class TestQuantize:
         )
 
         mod = hexagon_session.load_module(func)
-        mod(A_data_nd, M_data_nd)
+        mod(a_data_nd, m_data_nd)
 
-        b, h, w, c = expected_output_np.shape
+        b, h, weight, c = expected_output_np.shape
 
         # convert nd to np and reshape to fixed chunk size layout
-        M_data_np = M_data_nd.numpy().reshape([b, h // 8, w // 8, c // 32, 8, 8, 32])
+        m_data_np = m_data_nd.numpy().reshape([b, h // 8, weight // 8, c // 32, 8, 8, 32])
 
-        np.testing.assert_allclose(transformed_expected_output_np, M_data_np, atol=1)
+        np.testing.assert_allclose(transformed_expected_output_np, m_data_np, atol=1)
 
 
 if __name__ == "__main__":

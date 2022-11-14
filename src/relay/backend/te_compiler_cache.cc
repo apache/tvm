@@ -294,10 +294,10 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
     pattern_matcher_.Register(call_node);
 
     Array<te::Tensor> inputs;
-    int count_tuple = 0;
+    // int count_tuple = 0;
     for (Expr arg : call_node->args) {
       if (arg->checked_type().as<TupleTypeNode>()) {
-        ++count_tuple;
+        // ++count_tuple;
       }
       for (te::Tensor tensor : VisitExpr(arg)) {
         inputs.push_back(tensor);

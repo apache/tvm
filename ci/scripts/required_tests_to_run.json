@@ -1,0 +1,11 @@
+{
+  "unittest_GPU":
+    [
+      "ctypes.tests.python.unittest.test_meta_schedule_integration#test_meta_schedule_integration_extract_from_bert_base",
+      "cython.tests.python.unittest.test_meta_schedule_integration#test_meta_schedule_integration_extract_from_bert_base",
+      "ctypes.tests.python.unittest.test_meta_schedule_integration#test_meta_schedule_dynamic_loop_extent",
+      "cython.tests.python.unittest.test_meta_schedule_integration#test_meta_schedule_dynamic_loop_extent",
+      "ctypes.tests.python.unittest.test_meta_schedule_integration#test_extract_task_arm_conv2d_nchwc",
+      "cython.tests.python.unittest.test_meta_schedule_integration#test_extract_task_arm_conv2d_nchwc"
+    ]
+}

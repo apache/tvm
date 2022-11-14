@@ -54,9 +54,6 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.use_async_copy", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.merge_async_commit_queue_scope", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_lwp", Bool);
 
-using runtime::PackedFunc;
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
 using tvm::Array;
 using tvm::transform::Pass;
 
@@ -365,7 +362,7 @@ IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args, const st
   for (ObjectRef x : args) {
     ref_args.push_back(x);
   }
-  return LowerSchedule(std::move(sch), ref_args, name, binds, global_var_supply);
+  return LowerSchedule(std::move(sch), ref_args, name, binds, global_var_supply, simple_mode);
 }
 
 IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,

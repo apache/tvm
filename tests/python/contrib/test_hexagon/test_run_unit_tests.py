@@ -48,3 +48,7 @@ def test_run_unit_tests(hexagon_session: Session, gtest_args):
         raise RuntimeError(
             f"Hexagon gtest retruned non-zero error code = {gtest_error_code}:\n{gtest_output}"
         )
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

@@ -387,7 +387,7 @@ enum class ComputeType { kNormal, kCrossThreadReduction, kTensorize };
 
 ComputeType DetectComputeType(const ComputeOpNode* self, const Stage& stage) {
   // Verify correctness of leaf nest.
-  int normal_red = 0, thread_red = 0, tensorize = 0;
+  int thread_red = 0, tensorize = 0;
 
   for (IterVar iv : stage->leaf_iter_vars) {
     IterVarAttr attr;
@@ -401,8 +401,6 @@ ComputeType DetectComputeType(const ComputeOpNode* self, const Stage& stage) {
     if (iv->iter_type == kCommReduce) {
       if (attr.defined() && attr->bind_thread.defined()) {
         ++thread_red;
-      } else {
-        ++normal_red;
       }
     } else {
       ICHECK_EQ(thread_red, 0) << "Cross thread reduce cannot swap with normal data axis";

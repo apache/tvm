@@ -54,10 +54,7 @@ def convert_graph_layout(mod, desired_layout):
         ]
     )
 
-    with transform.PassContext(opt_level=3):
-        try:
-            return seq(mod)
-        except Exception as err:
-            raise TVMCException(
-                "Error converting layout to {0}: {1}".format(desired_layout, str(err))
-            )
+    try:
+        return seq(mod)
+    except Exception as err:
+        raise TVMCException("Error converting layout to {0}: {1}".format(desired_layout, str(err)))
