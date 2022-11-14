@@ -466,8 +466,8 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
     For new_for = GetRef<For>(op);
     auto* n = new_for.CopyOnWrite();
     n->loop_var = new_loop_var;
-    n->min = min;
-    n->extent = extent;
+    n->min = cast(new_loop_var.dtype(), min);
+    n->extent = cast(new_loop_var.dtype(), extent);
     n->body = new_body;
     return std::move(new_for);
   } else {
