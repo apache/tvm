@@ -121,11 +121,11 @@ inline std::ostream& operator<<(std::ostream& os, CallEffectKind side_effect) {
       LOG(FATAL) << "Unknown CallEffectKind: " << static_cast<int>(side_effect);
       return os;
   }
-}  // namespace tir
+}
 
 /*! \brief Use integer to record the kind. */
 using TCallEffectKind = Integer;
 
-}  // namespace tvm
+}  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_OP_ATTR_TYPES_H_
