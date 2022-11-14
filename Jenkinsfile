@@ -129,21 +129,13 @@ def init_git() {
   )
 
   // Determine merge commit to use for all stages
-  sh (
-    script: 'git fetch origin main',
-    label: 'Fetch upstream',
-  )
-  if (upstream_revision == null) {
-    upstream_revision = sh(
-      script: 'git log -1 FETCH_HEAD --format=\'%H\'',
-      label: 'Determine upstream revision',
-      returnStdout: true,
-    ).trim()
+  if (env.BRANCH_NAME == 'main') {
+    // Only set upstream_revision to HEAD and skip merging to avoid a race with another commit merged to main.
+    update_upstream_revision("HEAD")
+  } else {
+    // This is PR branch so merge with latest main.
+    merge_with_main()
   }
-  sh (
-    script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
-    label: 'Merge to origin/main'
-  )
 
   sh(
     script: """
@@ -154,6 +146,28 @@ def init_git() {
     label: 'Update git submodules',
   )
   checkout_trusted_files()
+}
+
+def update_upstream_revision(git_ref) {
+  if (upstream_revision == null) {
+    upstream_revision = sh(
+      script: "git log -1 ${git_ref} --format=\'%H\'",
+      label: 'Determine upstream revision',
+      returnStdout: true,
+    ).trim()
+  }
+}
+
+def merge_with_main() {
+  sh (
+    script: 'git fetch origin main',
+    label: 'Fetch upstream',
+  )
+  update_upstream_revision("FETCH_HEAD")
+  sh (
+    script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
+    label: 'Merge to origin/main'
+  )
 }
 
 def docker_init(image) {
