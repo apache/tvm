@@ -343,6 +343,86 @@ class Conv2dVTCMCacheReadRewritten:
                             conv2d_nhwc[v0, v1, v2, v3] = conv2d_nhwc_global[v0, v1, v2, v3]
 
 
+# This is a contrived example to demonstrate layout rewrite propagating over multiple cache reads.
+@tvm.script.ir_module
+class Conv2dVTCMCacheReadMultipleRewritten:
+    @T.prim_func
+    def main(p0: T.Buffer[(1, 56, 56, 64), "float32"], p1: T.Buffer[(3, 3, 64, 64), "float32"], conv2d_nhwc: T.Buffer[(1, 56, 56, 64), "float32"]):
+        T.func_attr({"layout_free_buffers": [1], "tir.noalias": True, "global_symbol": "main"})
+        conv2d_nhwc_global = T.alloc_buffer([1, 56, 56, 64], dtype="float32")
+        pad_temp_global_vtcm = T.alloc_buffer([1, 58, 58, 64], dtype="float32", scope="global.vtcm")
+        p1_global_vtcm = T.alloc_buffer([2, 2, 16, 3, 3, 32, 2], dtype="float32", scope="global.vtcm")
+        p1_global_vtcm2 = T.alloc_buffer([2, 2, 16, 3, 3, 32, 2], dtype="float32", scope="global.vtcm2")
+        p1_global = T.alloc_buffer([2, 2, 16, 3, 3, 32, 2], dtype="float32")
+        for ax0, ax1, ax2, ax3 in T.grid(3, 3, 64, 64):
+            with T.block("p1_global"):
+                v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T.reads(p1[v0, v1, v2, v3])
+                T.writes(p1_global[v3 // 32, v2 // 32, v3 % 32 // 2, v0, v1, v2 % 32, v3 % 2])
+                T.block_attr({"meta_schedule.layout_rewrite_preproc":True})
+                p1_global[v3 // 32, v2 // 32, v3 % 32 // 2, v0, v1, v2 % 32, v3 % 2] = p1[v0, v1, v2, v3]
+        for ax0, ax1, ax2, ax3 in T.grid(3, 3, 64, 64):
+            with T.block("p1_global.vtcm2"):
+                v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T.reads(p1_global[v3 // 32, v2 // 32, v3 % 32 // 2, v0, v1, v2 % 32, v3 % 2])
+                T.writes(p1_global_vtcm2[v3 // 32, v2 // 32, v3 % 32 // 2, v0, v1, v2 % 32, v3 % 2])
+                p1_global_vtcm2[v3 // 32, v2 // 32, v3 % 32 // 2, v0, v1, v2 % 32, v3 % 2] = p1_global[v3 // 32, v2 // 32, v3 % 32 // 2, v0, v1, v2 % 32, v3 % 2]
+        for i0_0_i1_0_i2_0_i3_0_fused in T.parallel(64, annotations={"pragma_auto_unroll_max_step":64, "pragma_unroll_explicit":1}):
+            for ax0_ax1_ax2_ax3_fused in T.serial(9216):
+                with T.block("pad_temp_global.vtcm"):
+                    v0 = T.axis.spatial(1, 0)
+                    v1 = T.axis.spatial(58, i0_0_i1_0_i2_0_i3_0_fused // 8 * 7 + ax0_ax1_ax2_ax3_fused // 1024)
+                    v2 = T.axis.spatial(58, i0_0_i1_0_i2_0_i3_0_fused % 8 // 2 * 14 + ax0_ax1_ax2_ax3_fused % 1024 // 64)
+                    v3 = T.axis.spatial(64, ax0_ax1_ax2_ax3_fused % 64)
+                    T.reads(p0[v0, v1 - 1, v2 - 1, v3])
+                    T.writes(pad_temp_global_vtcm[v0, v1, v2, v3])
+                    pad_temp_global_vtcm[v0, v1, v2, v3] = T.if_then_else(1 <= v1 and v1 < 57 and 1 <= v2 and v2 < 57, p0[v0, v1 - 1, v2 - 1, v3], T.float32(0), dtype="float32")
+            for ax0_ax1_ax2_ax3_fused in T.serial(18432):
+                with T.block("p1_global.vtcm"):
+                    v0 = T.axis.spatial(3, ax0_ax1_ax2_ax3_fused // 6144)
+                    v1 = T.axis.spatial(3, ax0_ax1_ax2_ax3_fused % 6144 // 2048)
+                    v2 = T.axis.spatial(64, ax0_ax1_ax2_ax3_fused % 2048 // 32)
+                    v3 = T.axis.spatial(64, i0_0_i1_0_i2_0_i3_0_fused % 2 * 32 + ax0_ax1_ax2_ax3_fused % 32)
+                    T.reads(p1_global_vtcm2[v3 // 32, v2 // 32, v3 % 32 // 2, v0, v1, v2 % 32, v3 % 2])
+                    T.writes(p1_global_vtcm[v3 // 32, v2 // 32, v3 % 32 // 2, v0, v1, v2 % 32, v3 % 2])
+                    p1_global_vtcm[v3 // 32, v2 // 32, v3 % 32 // 2, v0, v1, v2 % 32, v3 % 2] = p1_global_vtcm2[v3 // 32, v2 // 32, v3 % 32 // 2, v0, v1, v2 % 32, v3 % 2]
+            for i0_1, i1_1, i2_1, i3_1 in T.grid(1, 1, 1, 1):
+                for i0_2_init, i1_2_init, i2_2_init, i3_2_init, i0_3_init, i1_3_init, i2_3_init in T.grid(1, 7, 1, 16, 1, 1, 14):
+                    for i3_3_fused_init in T.vectorized(2):
+                        with T.block("conv2d_nhwc_init"):
+                            nn = T.axis.spatial(1, i0_2_init + i0_3_init + i0_1)
+                            yy = T.axis.spatial(56, i0_0_i1_0_i2_0_i3_0_fused // 8 * 7 + i1_1 * 7 + i1_2_init + i1_3_init)
+                            xx = T.axis.spatial(56, i0_0_i1_0_i2_0_i3_0_fused % 8 // 2 * 14 + i2_1 * 14 + i2_2_init * 14 + i2_3_init)
+                            ff = T.axis.spatial(64, i0_0_i1_0_i2_0_i3_0_fused % 2 * 32 + i3_1 * 32 + i3_2_init * 2 + i3_3_fused_init)
+                            T.reads()
+                            T.writes(conv2d_nhwc_global[nn, yy, xx, ff])
+                            T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                            conv2d_nhwc_global[nn, yy, xx, ff] = T.float32(0)
+                for i4_0, i5_0, i6_0, i0_2, i1_2, i2_2, i3_2, i4_1, i5_1, i6_1, i0_3, i1_3, i2_3 in T.grid(1, 1, 2, 1, 7, 1, 16, 3, 3, 32, 1, 1, 14):
+                    for i3_3_fused in T.vectorized(2):
+                        with T.block("conv2d_nhwc_update"):
+                            nn = T.axis.spatial(1, i0_2 + i0_3 + i0_1)
+                            yy = T.axis.spatial(56, i0_0_i1_0_i2_0_i3_0_fused // 8 * 7 + i1_1 * 7 + i1_2 + i1_3)
+                            xx = T.axis.spatial(56, i0_0_i1_0_i2_0_i3_0_fused % 8 // 2 * 14 + i2_1 * 14 + i2_2 * 14 + i2_3)
+                            ff = T.axis.spatial(64, i0_0_i1_0_i2_0_i3_0_fused % 2 * 32 + i3_1 * 32 + i3_2 * 2 + i3_3_fused)
+                            ry = T.axis.reduce(3, i4_0 * 3 + i4_1)
+                            rx = T.axis.reduce(3, i5_0 * 3 + i5_1)
+                            rc = T.axis.reduce(64, i6_0 * 32 + i6_1)
+                            T.reads(conv2d_nhwc_global[nn, yy, xx, ff], pad_temp_global_vtcm[nn, yy + ry, xx + rx, rc], p1_global_vtcm[ff // 32, rc // 32, ff % 32 // 2, ry, rx, rc % 32, ff % 2])
+                            T.writes(conv2d_nhwc_global[nn, yy, xx, ff])
+                            T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                            conv2d_nhwc_global[nn, yy, xx, ff] = conv2d_nhwc_global[nn, yy, xx, ff] + pad_temp_global_vtcm[nn, yy + ry, xx + rx, rc] * p1_global_vtcm[ff // 32, rc // 32, ff % 32 // 2, ry, rx, rc % 32, ff % 2]
+                for ax0, ax1, ax2 in T.grid(1, 7, 14):
+                    for ax3_fused in T.vectorized(32):
+                        with T.block("conv2d_nhwc_global"):
+                            v0 = T.axis.spatial(1, ax0)
+                            v1 = T.axis.spatial(56, i0_0_i1_0_i2_0_i3_0_fused // 8 * 7 + ax1)
+                            v2 = T.axis.spatial(56, i0_0_i1_0_i2_0_i3_0_fused % 8 // 2 * 14 + ax2)
+                            v3 = T.axis.spatial(64, i0_0_i1_0_i2_0_i3_0_fused % 2 * 32 + ax3_fused)
+                            T.reads(conv2d_nhwc_global[v0, v1, v2, v3])
+                            T.writes(conv2d_nhwc[v0, v1, v2, v3])
+                            conv2d_nhwc[v0, v1, v2, v3] = conv2d_nhwc_global[v0, v1, v2, v3]
+
 # fmt: on
 
 def test_layout_rewrite_cache_read():
@@ -354,6 +434,15 @@ def test_layout_rewrite_cache_read():
     tvm.ir.assert_structural_equal(sch.mod, Conv2dVTCMCacheReadRewritten)
 
 
+def test_layout_rewrite_cache_read_multiple():
+    target = Target("llvm")
+    ctx = _create_context(Conv2dVTCMCacheRead, target)
+    sch = tvm.tir.Schedule(Conv2dVTCMCacheRead, debug_mask="all")
+    sch.cache_read(sch.get_block("p1_global.vtcm"), 0, "global.vtcm2")
+    sch.enter_postproc()
+    assert ctx.space_generator.postprocs[0].apply(sch)
+    tvm.ir.assert_structural_equal(sch.mod, Conv2dVTCMCacheReadMultipleRewritten)
+
+
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_layout_rewrite_cache_read()
+    tvm.testing.main()
