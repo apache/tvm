@@ -74,7 +74,11 @@ $ANDROID_HOME/platform-tools/adb uninstall org.apache.tvm.tvmrpc
 
 ### Build with OpenCL
 
-Application is building with OpenCL support by default. [OpenCL-wrapper](../../src/runtime/opencl/opencl_wrapper) is used and will dynamically load OpenCL library on the device. If the device doesn't have OpenCL library on it, then you'll see in the runtime that OpenCL library cannot be open.
+Application is building with OpenCL support by default.
+[OpenCL-wrapper](../../src/runtime/opencl/opencl_wrapper) is used and will dynamically load OpenCL library on the device.
+If the device doesn't have OpenCL library on it, then you'll see in the runtime that OpenCL library cannot be opened.
+If you want to build this application without OpenCL then set `USE_OPENCL = 0`
+in [config.mk](./app/src/main/jni/make/config.mk)
 
 ## Cross Compile and Run on Android Devices
 

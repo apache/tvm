@@ -49,21 +49,17 @@ else()
 endif(USE_AOCL)
 
 if(USE_OPENCL)
-  if (NOT OpenCL_FOUND)
-    find_package(OpenCL)
-  endif()
+  tvm_file_glob(GLOB RUNTIME_OPENCL_SRCS src/runtime/opencl/*.cc)
   if (OpenCL_FOUND)
     message(STATUS "Build with OpenCL support")
+    list(APPEND TVM_RUNTIME_LINKER_LIBS ${OpenCL_LIBRARIES})
   else()
     message(WARNING "Build with OpenCL wrapper")
-    add_library(OpenCL STATIC src/runtime/opencl/opencl_wrapper/opencl_wrapper.cc)
-    set(OpenCL_FOUND true)
-    set(OpenCL_LIBRARIES OpenCL)
-    set(OpenCL_INCLUDE_DIRS "3rdparty/OpenCL-Headers")
-    include_directories(SYSTEM ${OpenCL_INCLUDE_DIRS})
+    file_glob_append(RUNTIME_OPENCL_SRCS
+      "src/runtime/opencl/opencl_wrapper/opencl_wrapper.cc"
+    )
+    include_directories(SYSTEM "3rdparty/OpenCL-Headers")
   endif()
-  tvm_file_glob(GLOB RUNTIME_OPENCL_SRCS src/runtime/opencl/*.cc)
-  list(APPEND TVM_RUNTIME_LINKER_LIBS ${OpenCL_LIBRARIES})
 
   if(DEFINED USE_OPENCL_GTEST AND EXISTS ${USE_OPENCL_GTEST})
     file_glob_append(RUNTIME_OPENCL_SRCS

@@ -115,8 +115,7 @@ from tvm.contrib.download import download_testdata
 # Follow this `readme page <https://github.com/apache/tvm/tree/main/apps/android_rpc>`_ to
 # install TVM RPC APK on the android device.
 #
-# Here is an example of config.mk. I enabled Vulkan. Dynamic OpenCL support is
-# enabled by default.
+# Here is an example of config.mk. I enabled OpenCL and Vulkan.
 #
 #
 # .. code-block:: bash
@@ -124,6 +123,9 @@ from tvm.contrib.download import download_testdata
 #   APP_ABI = arm64-v8a
 #
 #   APP_PLATFORM = android-24
+#
+#   # whether enable OpenCL during compile
+#   USE_OPENCL = 1
 #
 #   # whether to enable Vulkan during compile
 #   USE_VULKAN = 1

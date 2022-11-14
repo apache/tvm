@@ -41,7 +41,9 @@ This folder contains a simple recipe to make RPC server in c++.
   ```
   set(USE_OPENCL ON)
   ```
-  In this case [OpenCL-wrapper](../../src/runtime/opencl/opencl_wrapper) or OpenCL installed to your system will be used. When OpenCL-wrapper is used, it will dynamically load OpenCL library on the device. If the device doesn't have OpenCL library on it, then you'll see in the runtime that OpenCL library cannot be open.
+  In this case [OpenCL-wrapper](../../src/runtime/opencl/opencl_wrapper) or OpenCL installed to your system will be used.
+  When OpenCL-wrapper is used, it will dynamically load OpenCL library on the device.
+  If the device doesn't have OpenCL library on it, then you'll see in the runtime that OpenCL library cannot be opened.
 
   If linking against a custom device OpenCL library is needed, in the config specify the path to the OpenCL SDK containing the include/CL headers and lib/ or lib64/libOpenCL.so:
 ```

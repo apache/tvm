@@ -80,9 +80,9 @@ class LibOpenCLWrapper {
   void openLibOpenCL() {
     for (const auto it : default_so_paths) {
       m_libHandler = dlopen(it, RTLD_LAZY);
-      if (m_libHandler != NULL) return;
+      if (m_libHandler != nullptr) return;
     }
-    ICHECK(m_libHandler != NULL) << "Error! Cannot open libOpenCL!";
+    ICHECK(m_libHandler != nullptr) << "Error! Cannot open libOpenCL!";
   }
 
  private:
@@ -204,7 +204,7 @@ cl_context clCreateContext(const cl_context_properties* properties, cl_uint num_
   if (func) {
     return func(properties, num_devices, devices, pfn_notify, user_data, errcode_ret);
   } else {
-    return NULL;
+    return nullptr;
   }
 }
 
@@ -248,7 +248,7 @@ cl_mem clCreateBuffer(cl_context context, cl_mem_flags flags, size_t size, void*
   if (func) {
     return func(context, flags, size, host_ptr, errcode_ret);
   } else {
-    return NULL;
+    return nullptr;
   }
 }
 
@@ -259,7 +259,7 @@ cl_mem clCreateImage(cl_context context, cl_mem_flags flags, const cl_image_form
   if (func) {
     return func(context, flags, image_format, image_desc, host_ptr, errcode_ret);
   } else {
-    return NULL;
+    return nullptr;
   }
 }
 
@@ -280,7 +280,7 @@ cl_program clCreateProgramWithSource(cl_context context, cl_uint count, const ch
   if (func) {
     return func(context, count, strings, lengths, errcode_ret);
   } else {
-    return NULL;
+    return nullptr;
   }
 }
 
@@ -293,7 +293,7 @@ cl_program clCreateProgramWithBinary(cl_context context, cl_uint num_devices,
   if (func) {
     return func(context, num_devices, device_list, lengths, binaries, binary_status, errcode_ret);
   } else {
-    return NULL;
+    return nullptr;
   }
 }
 
@@ -337,7 +337,7 @@ cl_kernel clCreateKernel(cl_program program, const char* kernel_name, cl_int* er
   if (func) {
     return func(program, kernel_name, errcode_ret);
   } else {
-    return NULL;
+    return nullptr;
   }
 }
 
@@ -377,7 +377,7 @@ cl_event clCreateUserEvent(cl_context context, cl_int* errcode_ret) {
   if (func) {
     return func(context, errcode_ret);
   } else {
-    return NULL;
+    return nullptr;
   }
 }
 
@@ -546,6 +546,6 @@ cl_command_queue clCreateCommandQueue(cl_context context, cl_device_id device,
   if (func) {
     return func(context, device, properties, errcode_ret);
   } else {
-    return NULL;
+    return nullptr;
   }
 }
