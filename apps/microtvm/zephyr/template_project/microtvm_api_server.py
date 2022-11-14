@@ -97,6 +97,11 @@ CMAKE_BOOL_MAP = dict(
     + [(k, False) for k in ("0", "OFF", "NO", "FALSE", "N", "IGNORE", "NOTFOUND", "")]
 )
 
+CMSIS_PATH_ERROR = (
+    "cmsis_path is not defined! Please pass it as"
+    "an option or provide it with setting `CMSIS_PATH` env variable."
+)
+
 
 class CMakeCache(collections.abc.Mapping):
     def __init__(self, path):
@@ -265,7 +270,7 @@ def _get_openocd_device_args(options):
     return ["--serial", generic_find_serial_port(serial_number)]
 
 
-def _get_nrf_device_args(options):
+def _get_nrf_device_args(serial_number: str):
     nrfjprog_args = ["nrfjprog", "--ids"]
     nrfjprog_ids = subprocess.check_output(nrfjprog_args, encoding="utf-8")
     if not nrfjprog_ids.strip("\n"):
@@ -273,17 +278,17 @@ def _get_nrf_device_args(options):
 
     boards = nrfjprog_ids.split("\n")[:-1]
     if len(boards) > 1:
-        if options["serial_number"] is None:
+        if serial_number is None:
             raise BoardError(
                 "Multiple boards connected; specify one with nrfjprog_snr=: " f'{", ".join(boards)}'
             )
 
-        if str(options["serial_number"]) not in boards:
+        if serial_number not in boards:
             raise BoardError(
-                f"nrfjprog_snr ({options['nrfjprog_snr']}) not found in {nrfjprog_args}: {boards}"
+                f"serial number ({serial_number}) not found in {nrfjprog_args}: {boards}"
             )
 
-        return ["--snr", options["serial_number"]]
+        return ["--snr", serial_number]
 
     if not boards:
         return []
@@ -374,9 +379,13 @@ def get_zephyr_base(options: dict):
 
 def get_cmsis_path(options: dict) -> pathlib.Path:
     """Returns CMSIS dependency path"""
-    cmsis_path = options.get("cmsis_path")
-    assert cmsis_path, "'cmsis_path' option not passed!"
+    cmsis_path = options.get("cmsis_path", os.environ["CMSIS_PATH"])
     return pathlib.Path(cmsis_path)
+
+
+def get_west_cmd(options: dict) -> str:
+    """Returns west command"""
+    return options.get("west_cmd", WEST_CMD)
 
 
 class Handler(server.ProjectAPIHandler):
@@ -414,8 +423,9 @@ class Handler(server.ProjectAPIHandler):
         ),
     }
 
-    def _create_prj_conf(self, project_dir, options):
-        zephyr_board = options["board"]
+    def _create_prj_conf(
+        self, project_dir: pathlib.Path, board: str, project_type: str, config_main_stack_size
+    ):
         with open(project_dir / "prj.conf", "w") as f:
             f.write(
                 "# For UART used from main().\n"
@@ -426,7 +436,7 @@ class Handler(server.ProjectAPIHandler):
             )
             f.write("# For TVMPlatformAbort().\n" "CONFIG_REBOOT=y\n" "\n")
 
-            if options["project_type"] == "host_driven":
+            if project_type == "host_driven":
                 f.write(
                     "CONFIG_TIMING_FUNCTIONS=y\n"
                     "# For RPC server C++ bindings.\n"
@@ -437,22 +447,22 @@ class Handler(server.ProjectAPIHandler):
 
             f.write("# For math routines\n" "CONFIG_NEWLIB_LIBC=y\n" "\n")
 
-            if self._has_fpu(zephyr_board):
+            if self._has_fpu(board):
                 f.write("# For models with floating point.\n" "CONFIG_FPU=y\n" "\n")
 
             # Set main stack size, if needed.
-            if options.get("config_main_stack_size") is not None:
-                f.write(f"CONFIG_MAIN_STACK_SIZE={options['config_main_stack_size']}\n")
+            if config_main_stack_size is not None:
+                f.write(f"CONFIG_MAIN_STACK_SIZE={config_main_stack_size}\n")
 
             f.write("# For random number generation.\n" "CONFIG_TEST_RANDOM_GENERATOR=y\n")
 
             f.write("\n# Extra prj.conf directives\n")
             for line, board_list in self.EXTRA_PRJ_CONF_DIRECTIVES.items():
-                if zephyr_board in board_list:
+                if board in board_list:
                     f.write(f"{line}\n")
 
             # TODO(mehrdadh): due to https://github.com/apache/tvm/issues/12721
-            if zephyr_board not in ["qemu_riscv64"]:
+            if board not in ["qemu_riscv64"]:
                 f.write("# For setting -O2 in compiler.\n" "CONFIG_SPEED_OPTIMIZATIONS=y\n")
 
             f.write("\n")
@@ -497,42 +507,62 @@ class Handler(server.ProjectAPIHandler):
                     return True
         return False
 
-    def _generate_cmake_args(self, mlf_extracted_path, options) -> str:
+    def _generate_cmake_args(
+        self, mlf_extracted_path, board, use_fvp, west_cmd, zephyr_base, verbose, cmsis_path
+    ) -> str:
         cmake_args = "\n# cmake args\n"
-        if options.get("verbose"):
+        if verbose:
             cmake_args += "set(CMAKE_VERBOSE_MAKEFILE TRUE)\n"
 
-        if options.get("zephyr_base"):
-            cmake_args += f"set(ZEPHYR_BASE {options['zephyr_base']})\n"
+        if zephyr_base:
+            cmake_args += f"set(ZEPHYR_BASE {zephyr_base})\n"
 
-        if options.get("west_cmd"):
-            cmake_args += f"set(WEST {options['west_cmd']})\n"
+        if west_cmd:
+            cmake_args += f"set(WEST {west_cmd})\n"
 
-        if self._is_qemu(options["board"], options.get("use_fvp")):
+        if self._is_qemu(board, use_fvp):
             # Some boards support more than one emulator, so ensure QEMU is set.
             cmake_args += f"set(EMU_PLATFORM qemu)\n"
 
-        if self._is_fvp(options["board"], options.get("use_fvp")):
+        if self._is_fvp(board, use_fvp):
             cmake_args += "set(EMU_PLATFORM armfvp)\n"
             cmake_args += "set(ARMFVP_FLAGS -I)\n"
 
-        cmake_args += f"set(BOARD {options['board']})\n"
+        cmake_args += f"set(BOARD {board})\n"
 
         enable_cmsis = self._cmsis_required(mlf_extracted_path)
         if enable_cmsis:
-            assert os.environ.get("CMSIS_PATH"), "CMSIS_PATH is not defined."
+            assert cmsis_path, CMSIS_PATH_ERROR
         cmake_args += f"set(ENABLE_CMSIS {str(enable_cmsis).upper()})\n"
 
         return cmake_args
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         zephyr_board = options["board"]
+        project_type = options["project_type"]
+
+        zephyr_base = get_zephyr_base(options)
+        warning_as_error = options.get("warning_as_error")
+        use_fvp = options.get("use_fvp")
+        west_cmd = get_west_cmd(options)
+        verbose = options.get("verbose")
+
+        recommended_heap_size = _get_recommended_heap_size_bytes(options)
+        heap_size_bytes = options.get("heap_size_bytes")
+        board_mem_size = _get_board_mem_size_bytes(options)
+
+        compile_definitions = options.get("compile_definitions")
+        config_main_stack_size = options.get("config_main_stack_size")
+
+        extra_files_tar = options.get("extra_files_tar")
+
+        cmsis_path = get_cmsis_path(options)
 
         # Check Zephyr version
-        version = self._get_platform_version(get_zephyr_base(options))
+        version = self._get_platform_version(zephyr_base)
         if version != ZEPHYR_VERSION:
             message = f"Zephyr version found is not supported: found {version}, expected {ZEPHYR_VERSION}."
-            if options.get("warning_as_error") is not None and options["warning_as_error"]:
+            if warning_as_error is not None and warning_as_error:
                 raise server.ServerError(message=message)
             _LOG.warning(message)
 
@@ -563,9 +593,9 @@ class Handler(server.ProjectAPIHandler):
             os.makedirs(extract_path)
             tf.extractall(path=extract_path)
 
-        if self._is_qemu(zephyr_board, options.get("use_fvp")):
+        if self._is_qemu(zephyr_board, use_fvp):
             shutil.copytree(API_SERVER_DIR / "qemu-hack", project_dir / "qemu-hack")
-        elif self._is_fvp(zephyr_board, options.get("use_fvp")):
+        elif self._is_fvp(zephyr_board, use_fvp):
             shutil.copytree(API_SERVER_DIR / "fvp-hack", project_dir / "fvp-hack")
 
         # Populate CRT.
@@ -584,25 +614,33 @@ class Handler(server.ProjectAPIHandler):
             with open(API_SERVER_DIR / f"{CMAKELIST_FILENAME}.template", "r") as cmake_template_f:
                 for line in cmake_template_f:
                     if self.API_SERVER_CRT_LIBS_TOKEN in line:
-                        crt_libs = self.CRT_LIBS_BY_PROJECT_TYPE[options["project_type"]]
+                        crt_libs = self.CRT_LIBS_BY_PROJECT_TYPE[project_type]
                         line = line.replace("<API_SERVER_CRT_LIBS>", crt_libs)
 
                     if self.CMAKE_ARGS_TOKEN in line:
-                        line = self._generate_cmake_args(extract_path, options)
+                        line = self._generate_cmake_args(
+                            extract_path,
+                            zephyr_board,
+                            use_fvp,
+                            west_cmd,
+                            zephyr_base,
+                            verbose,
+                            cmsis_path,
+                        )
 
                     if self.QEMU_PIPE_TOKEN in line:
                         self.qemu_pipe_dir = pathlib.Path(tempfile.mkdtemp())
                         line = line.replace(self.QEMU_PIPE_TOKEN, str(self.qemu_pipe_dir / "fifo"))
 
                     if self.CMSIS_PATH_TOKEN in line and self._cmsis_required(extract_path):
-                        line = line.replace(self.CMSIS_PATH_TOKEN, str(os.environ["CMSIS_PATH"]))
+                        assert cmsis_path, CMSIS_PATH_ERROR
+                        line = line.replace(self.CMSIS_PATH_TOKEN, cmsis_path)
 
                     cmake_f.write(line)
 
-                heap_size = _get_recommended_heap_size_bytes(options)
-                if options.get("heap_size_bytes"):
-                    board_mem_size = _get_board_mem_size_bytes(options)
-                    heap_size = options["heap_size_bytes"]
+                heap_size = recommended_heap_size
+                if heap_size_bytes:
+                    heap_size = heap_size_bytes
                     if board_mem_size is not None:
                         assert (
                             heap_size < board_mem_size
@@ -611,15 +649,15 @@ class Handler(server.ProjectAPIHandler):
                     f"target_compile_definitions(app PUBLIC -DHEAP_SIZE_BYTES={heap_size})\n"
                 )
 
-                if options.get("compile_definitions"):
-                    flags = options.get("compile_definitions")
+                if compile_definitions:
+                    flags = compile_definitions
                     for item in flags:
                         cmake_f.write(f"target_compile_definitions(app PUBLIC {item})\n")
 
-                if self._is_fvp(zephyr_board, options.get("use_fvp")):
+                if self._is_fvp(zephyr_board, use_fvp):
                     cmake_f.write(f"target_compile_definitions(app PUBLIC -DFVP=1)\n")
 
-        self._create_prj_conf(project_dir, options)
+        self._create_prj_conf(project_dir, zephyr_board, project_type, config_main_stack_size)
 
         # Populate crt-config.h
         crt_config_dir = project_dir / "crt_config"
@@ -630,20 +668,20 @@ class Handler(server.ProjectAPIHandler):
 
         # Populate src/
         src_dir = project_dir / "src"
-        if options["project_type"] != "host_driven" or self._is_fvp(
-            zephyr_board, options.get("use_fvp")
-        ):
-            shutil.copytree(API_SERVER_DIR / "src" / options["project_type"], src_dir)
+        if project_type != "host_driven" or self._is_fvp(zephyr_board, use_fvp):
+            shutil.copytree(API_SERVER_DIR / "src" / project_type, src_dir)
         else:
             src_dir.mkdir()
-            shutil.copy2(API_SERVER_DIR / "src" / options["project_type"] / "main.c", src_dir)
+            shutil.copy2(API_SERVER_DIR / "src" / project_type / "main.c", src_dir)
 
         # Populate extra_files
-        if options.get("extra_files_tar"):
-            with tarfile.open(options["extra_files_tar"], mode="r:*") as tf:
+        if extra_files_tar:
+            with tarfile.open(extra_files_tar, mode="r:*") as tf:
                 tf.extractall(project_dir)
 
     def build(self, options):
+        verbose = options.get("verbose", None)
+
         if BUILD_DIR.exists():
             shutil.rmtree(BUILD_DIR)
         BUILD_DIR.mkdir()
@@ -665,7 +703,7 @@ class Handler(server.ProjectAPIHandler):
         check_call(["cmake", "-GNinja", ".."], cwd=BUILD_DIR, env=env)
 
         args = ["ninja"]
-        if options.get("verbose"):
+        if verbose:
             args.append("-v")
         check_call(args, cwd=BUILD_DIR, env=env)
 
@@ -699,6 +737,9 @@ class Handler(server.ProjectAPIHandler):
         return zephyr_board in fpu_boards
 
     def flash(self, options):
+        serial_number = options.get("serial_number")
+        west_cmd = get_west_cmd(options)
+
         if _find_platform_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME):
             return  # NOTE: qemu requires no flash step--it is launched from open_transport.
 
@@ -710,16 +751,15 @@ class Handler(server.ProjectAPIHandler):
         zephyr_board = _find_board_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME)
         if zephyr_board.startswith("nrf5340dk") and _get_flash_runner() == "nrfjprog":
             recover_args = ["nrfjprog", "--recover"]
-            recover_args.extend(_get_nrf_device_args(options))
+            recover_args.extend(_get_nrf_device_args(serial_number))
             check_call(recover_args, cwd=API_SERVER_DIR / "build")
 
         flash_extra_args = []
-        openocd_serial = options.get("serial_number")
-        if _get_flash_runner() == "openocd" and openocd_serial:
-            flash_extra_args = ["--cmd-pre-init", f"""hla_serial {openocd_serial}"""]
+        if _get_flash_runner() == "openocd" and serial_number:
+            flash_extra_args = ["--cmd-pre-init", f"""hla_serial {serial_number}"""]
 
         check_call(
-            ["west", "flash", "-r", _get_flash_runner()] + flash_extra_args,
+            [west_cmd, "flash", "-r", _get_flash_runner()] + flash_extra_args,
             cwd=API_SERVER_DIR / "build",
         )
 
