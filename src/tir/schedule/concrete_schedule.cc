@@ -476,7 +476,7 @@ struct BlockRenamer : public StmtMutator {
   using StmtMutator::VisitStmt_;
 
   std::string suffix;
-  BlockRenamer(std::string suffix) : suffix(suffix){};
+  explicit BlockRenamer(std::string suffix) : suffix(suffix) {}
 
   Stmt VisitStmt_(const BlockNode* op) override {
     Block visited = Downcast<Block>(StmtMutator::VisitStmt_(op));
@@ -521,8 +521,8 @@ Stmt ReInitLoopVars(Stmt expr) {
 Array<LoopRV> ConcreteScheduleNode::Partition(const LoopRV& loop_rv, const ExprRV& factor_) {
   StmtSRef first_ref, second_ref;
   TVM_TIR_SCHEDULE_BEGIN();
-  // TODO: check that axis is special (could handle reduce, but need to be careful about init
-  // blocks)
+  // TODO(tkonolige): check that axis is special (could handle reduce, but need
+  // to be careful about init blocks)
   auto fr = Get(loop_rv);
   // Change dtype of factor so it matches extent
   PrimExpr factor = IntImm(fr->extent.dtype(), Downcast<IntImm>(factor_)->value);
@@ -542,7 +542,7 @@ Array<LoopRV> ConcreteScheduleNode::Partition(const LoopRV& loop_rv, const ExprR
   // structure remains the same across different random variable choices.
   Var iter(fr->loop_var->name_hint + "_", fr->loop_var->dtype, fr->loop_var->span);
   Var index(fr->loop_var->name_hint, fr->loop_var->dtype, fr->loop_var->span);
-  // TODO: should fr->body be deep copied?
+  // TODO(tkonolige): should fr->body be deep copied?
   For second(iter, 0, fr->extent - ext, fr->kind,
              LetStmt(index, iter + ext + fr->min,
                      ReInitLoopVars(BlockRenamer("_" + fr->loop_var->name_hint + "_tail")(
@@ -552,7 +552,7 @@ Array<LoopRV> ConcreteScheduleNode::Partition(const LoopRV& loop_rv, const ExprR
   // blockrealize.
   std::string base_name = FirstBlockName().Get(fr->body) + "_wrapper";
   std::string wrapper_block_name = base_name;
-  // TODO: doesn't work while scheduling
+  // TODO(tkonolige): doesn't work while scheduling
   // int i = 1;
   // while (tir::GetBlocks(state_, wrapper_block_name, this->func_working_on_.value()).size() > 0) {
   //   wrapper_block_name = base_name + "_" + std::to_string(i);

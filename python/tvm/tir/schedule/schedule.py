@@ -735,7 +735,11 @@ class Schedule(Object):
                                A[i] = T.float32(1)
 
         """
-        return list(_ffi_api.SchedulePartition(self, loop_rv, factor))
+        return list(
+            _ffi_api.SchedulePartition(  # type: ignore # pylint: disable=no-member
+                self, loop_rv, factor
+            )
+        )
 
     @type_checked
     def reorder(self, *ordered_loops: List[LoopRV]) -> None:

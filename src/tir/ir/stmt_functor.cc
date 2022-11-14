@@ -759,7 +759,7 @@ struct VarSubstituter : public IRSubstitute {
           } else {
             return Optional<PrimExpr>();
           }
-        }){};
+        }) {}
 
   using IRSubstitute::VisitStmt_;
 
