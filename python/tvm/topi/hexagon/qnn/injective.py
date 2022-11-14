@@ -14,13 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
-
-"""Compute and schedule for quantized add, multiply, subtract op
-
-Please note the following assumptions made by the implementation:
-
-1) The inputs will be multiple of crouton layout except for the axis that needs broadcasting."""
 
 from tvm import te
 from tvm import tir

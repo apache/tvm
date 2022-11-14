@@ -25,9 +25,9 @@ import tvm.testing
 from tvm.contrib.hexagon.session import Session
 import tvm.contrib.hexagon
 import numpy as np
-from .infrastructure import quantize_np
+from ...infrastructure import quantize_np, get_hexagon_target
 
-HEX_TARGET = tvm.target.hexagon("v68", link_params=True)
+HEX_TARGET = get_hexagon_target("v68")
 
 
 class TestLUT:
