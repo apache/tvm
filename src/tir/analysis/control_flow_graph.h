@@ -291,7 +291,93 @@ class BufferState {
   std::vector<BufferTouch> constraints;
 };
 
-/*! \brief
+/*! \brief Represents the flow of control through a `tir::Stmt`
+ *
+ * This class contains an internal representation of the possible
+ * control flow that may occur during execution of a `tir::Stmt`.  It
+ * consists of a collection of ControlFlowBlock objects, each of which
+ * represents a subset of operations performed during execution, along
+ * with edges that represent allowed transitions between
+ * `ControlFlowBlock`.
+ *
+ * In addition, the following restrictions are used.
+ *
+ * 1. Each block may have at most two predecessors, and at most two
+ *    successors.
+ *
+ * 2. Within each block, values stored in a buffer do not change.
+ *    That is, encountering a `BufferStore` node requires creating a
+ *    new block.
+ *
+ * For example, consider the following PrimFunc
+ *
+ * ```python
+ * @T.prim_func
+ * def func(T.Buffer[16, "float32"]):
+ *     for i in T.serial(16):
+ *         if i < 8:
+ *              B[i] = i
+ *         else:
+ *              B[i] = i-8
+ * ```
+ *
+ * The control flow graph would have eight control blocks.
+ *
+ * 1. function_entry, from the start of the function through the
+ *    evaluation of the loop's extent.
+ *
+ *    Predecessors: n/a
+ *    Successors: loop_start
+ *
+ * 2. loop_start, after entering the body of the loop, through the
+ *    evaluation of the conditional `i < 8`
+ *
+ *    Predecessors: function_entry, after_conditional
+ *    Successors: then_clause_start, else_clause_start
+ *
+ * 3. then_clause_start, after entering the then_clause of `i < 8`,
+ *    through evaluation of the value `i`.
+ *
+ *    Predecessors: loop_start
+ *    Successors: then_clause_end
+ *
+ * 4. then_clause_end, after storing to `B[i]` prior to exiting the
+ *    then_clause.
+ *
+ *    Predecessors: then_clause_start
+ *    Successors: after_conditional
+ *
+ * 5. else_clause_start, after entering the else_clause of `i < 8`,
+ *    through evaluation of the value `i-8`.
+ *
+ *    Predecessors: loop_start
+ *    Successors: else_clause_end
+ *
+ * 6. else_clause_end, after storing to `B[i]` prior to exiting the
+ *    else_clause.
+ *
+ *    Predecessors: else_clause_start
+ *    Successors: after_conditional
+ *
+ * 7. after_conditional, after the end of the if/then/else, before the
+ *    end of the loop body
+ *
+ *    Predecessors: then_clause_end, else_clause_end
+ *    Successors: loop_start, after_loop
+ *
+ * 8. after_loop, after the loop
+ *
+ *    Predecessors: after_conditional
+ *    Successors: n/a
+ *
+ *
+ * By identifying `BufferStore` nodes whose value does not depend on
+ * values stored in input buffers (e.g. initializing `buf[i] = 0.0`),
+ * or whose values are provided using `builtin::assume()`
+ * (e.g. `T.assume(buf[i] == 0.0)`), the value stored in a buffer at
+ * those indices may be known for a given control block.  These known
+ * values can then be propagated forward to successor blocks, to be
+ * used in context-dependent simplifications.
  */
 class ControlFlowGraph {
  public:
