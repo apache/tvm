@@ -138,7 +138,7 @@ def get_ldmatrix_intrin(k_dim, dtype, is_b, transposed, shared_scope="shared"):
                     v0, v1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(shared[v0, v1])
 
-                    thread_id, local_id = index_map(v0, v1)
+                    thread_id, local_id = T.meta_var(index_map(v0, v1))
                     T.writes(warp[thread_id, local_id])
                     warp[thread_id, local_id] = shared[v0, v1]
 
@@ -245,9 +245,9 @@ def get_mma_intrin(k_dim, out_dtype, b_transposed):
                     i, j, k = T.axis.remap("SSR", [i, j, k])
                     b_row_ind, b_col_ind = maybe_swap(k, j)
 
-                    thread_id_C, local_id_C = index_map_C(i, j)
-                    thread_id_A, local_id_A = index_map_A(i, k)
-                    thread_id_B, local_id_B = index_map_B(b_row_ind, b_col_ind)
+                    thread_id_C, local_id_C = T.meta_var(index_map_C(i, j))
+                    thread_id_A, local_id_A = T.meta_var(index_map_A(i, k))
+                    thread_id_B, local_id_B = T.meta_var(index_map_B(b_row_ind, b_col_ind))
 
                     T.reads(
                         C[thread_id_C, local_id_C],
@@ -339,7 +339,7 @@ def get_mma_fill_intrin(dtype, local_size):
             for i0, i1 in T.grid(M_DIM, N_DIM):
                 with T.block("C_warp"):
                     i, j = T.axis.remap("SS", [i0, i1])
-                    thread_id, local_id = index_map(i, j)
+                    thread_id, local_id = T.meta_var(index_map(i, j))
                     T.reads()
                     T.writes(C_warp[thread_id, local_id])
                     C_warp[thread_id, local_id] = zero
@@ -376,7 +376,7 @@ def get_mma_store_intrin(dtype, local_size, scope="global"):
             for i0, i1 in T.grid(M_DIM, N_DIM):
                 with T.block("C_warp"):
                     v0, v1 = T.axis.remap("SS", [i0, i1])
-                    thread_id, local_id = index_map(v0, v1)
+                    thread_id, local_id = T.meta_var(index_map(v0, v1))
                     T.reads(C_warp[thread_id, local_id])
                     T.writes(C[v0, v1])
                     C[v0, v1] = C_warp[thread_id, local_id]

@@ -856,7 +856,7 @@ def test_cuda_nrm():
                 for i0_1 in T.thread_binding(128, thread="threadIdx.x"):
                     with T.block("D"):
                         b = T.axis.spatial(1, i0_1)
-                        T.where(0 * 128 + i0_1 < 1)
+                        T.where(T.Mul(0, 128) + i0_1 < 1)
                         T.reads(C_shared[b])
                         T.writes(D[b])
                         D[b] = T.sqrt(C_shared[b], dtype="float32")

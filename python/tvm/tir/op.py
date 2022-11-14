@@ -18,14 +18,15 @@
 """Operators used in TIR expression."""
 import warnings
 from typing import Any, Optional
-import tvm._ffi
-from tvm.ir.base import Span
-from tvm.runtime import convert, const
-from tvm.ir import Array, Op, PrimExpr
 
-from .buffer import Buffer
-from .expr import Call, PrimExprWithOp, StringImm, Var, CommReducer, IntImm
+import tvm._ffi
+from tvm.ir import Array, Op, PrimExpr
+from tvm.ir.base import Span
+from tvm.runtime import const, convert
+
 from . import _ffi_api
+from .buffer import Buffer
+from .expr import Call, CommReducer, IntImm, PrimExprWithOp, StringImm, Var
 
 
 def _pack_buffer(buf, span=None):
@@ -322,6 +323,24 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     )
 
 
+def tvm_check_return(expected, return_unexpected, nested_call):
+    """Return new on stack dtype[num]
+    Parameters
+    ----------
+    expected : int
+        The expected return code.
+    return_unexpected : int
+        The unexpected return code.
+    nested_call : PrimExpr
+        The call expression to check return.
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("int32", "tir.tvm_check_return", expected, return_unexpected, nested_call)
+
+
 def tvm_stack_alloca(dtype_str, num):
     """Return new on stack dtype[num]
 
@@ -403,7 +422,7 @@ def assume(cond=None):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("int32", "tir.assume", cond)
+    return call_intrin("bool", "tir.assume", cond)
 
 
 def undef():
@@ -415,6 +434,34 @@ def undef():
         The call expression.
     """
     return call_intrin("int32", "tir.undef")
+
+
+def start_profile_intrinsic(id):
+    """Start profile intrinsic.
+    Parameters
+    ----------
+    id : int
+        The intrinsic id.
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.start_profile_intrinsic", id)
+
+
+def end_profile_intrinsic(id):
+    """End profile intrinsic.
+    Parameters
+    ----------
+    id : int
+        The intrinsic id.
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.end_profile_intrinsic", id)
 
 
 def tvm_tuple(*value):
