@@ -1,20 +1,18 @@
 import networkx as nx
 import tvm_config
+from tvm_layer import *
+from tvm_parse import *
+
 
 class VectorProcessor():
-    def __init__(self, model, graph, debug):
+    def __init__(self, model, debug):
         if not model in ['x220', 'x330']:
             raise NotImplementedError("Currently Not Supported Model: %s"%(model))
-        if not isinstance(graph, nx.digraph.DiGraph):
-            raise TypeError("Currently Not Supported Graph: %s"%(type(graph)))
         self.model = model
-        self.graph = graph
-        # self.slot = dict.fromkeys(self.import_slot(model))
         self.slot = {key:[] for key in self.import_slot(model)}
         self.latency = self.import_latency(model)
         self.type = self.import_type(model)
         self.debug = debug
-        self.time_stamp = {}
 
     def import_slot(self, model):
         return tvm_config.Config[model]['Slot']
@@ -25,7 +23,50 @@ class VectorProcessor():
     def import_type(self, model):
         return tvm_config.Config[model]['Type']
 
+    ### Primary Functions
+    def generate_graph(self, layer, layout, input, kernel):
+        """
+        Generate Graph
+          1. gen_module(): layer configurations --> Relay IR module --> nested TIR
+          2. visit_stmts(): nested TIR --> empty graph
+          3. color_graph(): empty graph --> colored graph
+        """
+        if self.debug: print('> Generate Graph')
+        nestedTIR = gen_module(self.model, layer, layout, input, kernel) # Relay IR module
+        self.graph = visit_stmts(nestedTIR, self.debug) # empty graph
+        self.color_graph()
+    
+    def optimize_graph(self):
+        """
+        Optimize Graph
+          1. loop_hoisting(): hoist loop variables & remove scalar nodes
+          2. remove_tensor_init_nodes(): remove tensor initialization nodes
+          3. remove_nodes(): remove unncessary nodes
+          4. optimize()
+        """
+        if self.debug: print('> Optimize Graph')
+        self.loop_hoisting() 
+        self.remove_tensor_init_nodes(['Input', 'Filter', 'Multiplier', 'Shifter'])
+        self.remove_nodes(attr='type', str='Seq')
+        self.remove_nodes(attr='name', str='Multiplier')
+        self.remove_nodes(attr='name', str='Shifter')
+
+        self.optimize('vstore')
+        self.optimize('filter load') # For kernels that use filter; e.g, Dwconv
+
+    def run(self):
+        """
+        Run
+          1. analyze_graph(): analyze graph to geneate time_stamp
+          2. get_estimated_cycles(): cycle = sum(duration*extent)
+        """
+        if self.debug: print('> Run')
+        self.analyze_graph()
+        self.estimate_cycles()
+
+    ### Secondary Functions
     def color_graph(self):
+        if self.debug: print('>> Color Graph')
         misc_nodes = list(self.graph.nodes)
 
         #1. Color distinct nodes
@@ -54,9 +95,9 @@ class VectorProcessor():
                         raise RuntimeError("Currently Not Supported MISC node's parent type: %s"%(parent_slots))
                     misc_nodes.remove(misc)
                     break
-        return
 
     def loop_hoisting(self):
+        if self.debug: print('>> Loop Hoisting')
         loop_var_nodes = self.get_nodes(attr='type', str='For Start')
         loop_var_names = [self.graph.nodes[node]['var'] for node in loop_var_nodes]
 
@@ -69,7 +110,6 @@ class VectorProcessor():
             self.graph.nodes[loop_var_node]['min_time'] += 1
 
         self.remove_nodes(attr='slot', str='Scalar')
-        return
 
     def remove_tensor_init_nodes(self, names):
         sorted_nodes = list(nx.topological_sort(self.graph))
@@ -82,13 +122,116 @@ class VectorProcessor():
                 idx = store_names.index(name)
             except:
                 continue
-            print('########## Removing Tensor Init Nodes (%s) ##########'%(name))
+            if self.debug: print('>> Removing Tensor Init Nodes (%s)'%(name))
             node_num = store_nodes[idx]
             index = [idx for idx, sg in enumerate(subgraph) if node_num in sg]
             for idx in index:
                 sg = subgraph[idx]
                 self.graph.remove_nodes_from(sg)
-        return
+
+    def remove_nodes(self, attr, str):
+        if any([self.graph.nodes[node][attr]==str for node in self.graph.nodes]):
+            if self.debug: print('>> Remove Nodes (%s: %s)'%(attr, str))
+        while True:
+            nodes = [node for node in self.graph.nodes if self.graph.nodes[node][attr]==str]
+            if len(nodes)==0: break
+
+            node = nodes[0]
+            parents = list(self.graph.predecessors(node))
+            children = list(self.graph.successors(node))
+            for pair in [(p,c) for p in parents for c in children]:
+                self.graph.add_edge(pair[0], pair[1])
+            self.graph.remove_node(node)
+
+    def optimize(self, option):
+        FLAG = False
+        if option == 'vstore':
+            FLAG = self.optimize_vstore()
+        elif option == 'filter load':
+            FLAG = self.optimize_filter_load()
+        else:
+            raise TypeError("Currently Not Supported Optimization Option: %s"%(option))
+        if (FLAG == True) and self.debug: print('>> Optimize Graph (%s)'%(option))
+
+    def analyze_graph(self):
+        """
+        Analyze Graph
+          [Steps]
+            1. Update each slot's state for current CLK
+            2. For available slot, occupy it with node in candid_nodes with appropriate type
+            3. Update node states (in_nodes, candid_nodes, out_nodes)
+            4. Update CLK
+
+          [Nodes Status]
+            in_nodes:   Ready: X, Processed: X
+            rdy_nodes:  Ready: O, Processed: X
+            out_nodes:  Ready: O, Processed: O
+
+          [Time Stamp] 
+            time: node_num
+        """
+        if self.debug: print('>> Analyze Graph')
+        self.time_stamp = {} 
+        in_nodes, rdy_nodes, out_nodes = [], [], []
+
+        # Initialize: clk=0
+        clk = 0
+        rdy_nodes = [node for node in self.graph.nodes if self.graph.in_degree(node)==0]
+        in_nodes = list(set(self.graph.nodes)-set(rdy_nodes)) # Update in_nodes
+        loop_stack = ['NO LOOP']
+
+        while True:
+            free_nodes = self.slot_update(clk)
+            in_nodes, rdy_nodes, out_nodes = self.node_update(free_nodes, in_nodes, rdy_nodes, out_nodes)
+            if len(in_nodes)==0 and len(rdy_nodes)==0:
+                break
+            self.slot_occupy(rdy_nodes, clk)
+            self.time_stamp_update(clk, loop_stack)
+            self.print_node_status(clk, in_nodes, rdy_nodes, out_nodes)
+            clk = clk+1
+
+        self.print_node_status(clk, in_nodes, rdy_nodes, out_nodes)
+        self.print_time_stamp_status()
+
+    def estimate_cycles(self):
+        if self.debug: print('>> Estimate Cycles')
+        max_depth = max([self.graph.nodes[node_num]['depth'] for node_num in self.time_stamp.values()])
+        name = ['NO LOOP']
+        extent = [1]
+        min_time = [0]
+        duration = [0]*(max_depth+1) # 0-th depth: NO loop area
+        for time in self.time_stamp.keys():
+            node_num = self.time_stamp[time]
+            node = self.graph.nodes[node_num]
+            if (node['type']=='For Start'):
+                duration[node['depth']] += 1
+                if (name[-1]!=node['name']) and (node['name'] not in name):
+                    name.append(node['name'])
+                    extent.append(extent[-1]*node['extent'])
+                    min_time.append(node['min_time'])
+            else:
+                raise RuntimeError("Currently Not Supported control node type: %s"%(node['type']))
+
+        if self.debug:
+            print("name:     %s"%(name))
+            print("extent:   %s"%(extent))
+            print("min_time: %s"%(min_time))
+            print("duration: %s"%(duration))
+        if not all(len(name) == len(l) for l in [name, extent, min_time, duration]):
+            raise RuntimeError("Error!!: 'name', 'extent', 'min_time', 'duration' must have same length!!")
+
+        cycles = []
+        self.estimated_cycles = 0
+        for i in range(0, len(name)):
+            cycles.append("%s*max(%s, %s)"%(extent[i], min_time[i], duration[i]))
+            self.estimated_cycles += extent[i]*max(min_time[i], duration[i])
+        if self.debug:
+            print(">> Total Cycles: %s <- %s"%(self.estimated_cycles, cycles))
+
+
+    ### Tertiary Functions
+    def get_nodes(self, attr, str):
+        return [node for node in self.graph.nodes if self.graph.nodes[node][attr]==str]
 
     def get_subgraph(self, sorted_nodes):
         # get subgraph of depth=0
@@ -113,163 +256,6 @@ class VectorProcessor():
                     loop_stack.append(tmp)
                     tmp = []
         return loop_stack
-
-    def optimize(self, option):
-        FLAG = False
-        if option == 'vstore':
-            FLAG = self.optimize_vstore()
-        elif option == 'filter load':
-            FLAG = self.optimize_filter_load()
-        else:
-            raise TypeError("Currently Not Supported Optimization Option: %s"%(option))
-        if FLAG == True: print('########## Optimize Graph (%s) ##########'%(option))
-
-    def optimize_vstore(self):
-        """ Vstore at the end of loop can be bypassed """
-        FLAG = False
-        store_nodes = self.get_nodes(attr='type', str='Store')
-        for node in store_nodes:
-            children = self.graph.successors(node)
-            if all(self.graph.nodes[child]['type']=='For End' for child in children):
-                FLAG = True
-                self.graph.nodes[node]['optimize'] = 1
-        return FLAG
-
-    def optimize_filter_load(self):
-        """ Filter is loaded from Scalar Memory """
-        # (Parent)                     (Parent)
-        #    |                         /      \
-        # (Vector LD)          (Scalar LD)  (Scalar LD)
-        #    |  6 cycle                \      /  1 cycle
-        # (Child)               (Vector Ch-wise Concat)
-        #                                  |  1 cycle
-        #                               (Child)
-        load_nodes = [node for node in self.graph.nodes if self.graph.nodes[node]['type']=='Load' and \
-                                                            self.graph.nodes[node]['name']=='Filter']
-        if len(load_nodes)==0: return False
-        else:
-            for node in load_nodes:
-                parents = list(self.graph.predecessors(node))
-                children= list(self.graph.successors(node))
-                name = str(self.graph.nodes[node]['name'])
-                node_num = max(self.graph.nodes)+1
-
-                # Add two 'Scalar LD' nodes
-                for e in range(0,2):
-                    new_node = node_num + e
-                    self.graph.add_node(new_node)
-                    self.graph.nodes[new_node]['name'] = name+str(e)
-                    for key in self.graph.nodes[node].keys():
-                        if key is not 'name': self.graph.nodes[new_node][key] = self.graph.nodes[node][key]
-                    self.graph.nodes[new_node]['optimize'] = 1
-                    for parent in parents:
-                        self.graph.add_edge(parent, new_node)
-
-                # Add 'Vector Ch-wise Concat' node
-                new_node = node_num+2
-                self.graph.add_node(new_node)
-                self.graph.nodes[new_node]['name'] = name+'0'+'::'+name+'1'
-                self.graph.nodes[new_node]['type'] = 'Ch Concat'
-                self.graph.nodes[new_node]['slot'] = 'Vector'
-                self.graph.add_edge(node_num+0, new_node)
-                self.graph.add_edge(node_num+1, new_node)
-                for child in children:
-                    self.graph.add_edge(new_node, child)
-
-                self.graph.remove_node(node)
-            return True
-
-    def get_nodes(self, attr, str):
-        return [node for node in self.graph.nodes if self.graph.nodes[node][attr]==str]
-
-    def remove_nodes(self, attr, str):
-        if any([self.graph.nodes[node][attr]==str for node in self.graph.nodes]):
-            print('########## Remove Nodes (%s: %s) ##########'%(attr, str))
-        while True:
-            nodes = [node for node in self.graph.nodes if self.graph.nodes[node][attr]==str]
-            if len(nodes)==0: break
-
-            node = nodes[0]
-            parents = list(self.graph.predecessors(node))
-            children = list(self.graph.successors(node))
-            for pair in [(p,c) for p in parents for c in children]:
-                self.graph.add_edge(pair[0], pair[1])
-            self.graph.remove_node(node)
-        return
-
-    def run_single_iteration(self):
-        '''    
-        [Steps in 'run_single_iteration()']
-        1. Update each slot's state for current CLK
-        2. For available slot, occupy it with node in candid_nodes with appropriate type
-        3. Update node states (in_nodes, candid_nodes, out_nodes)
-        4. Update CLK
-        '''
-
-        '''
-        [Nodes Status]
-        in_nodes:   Ready: X, Processed: X
-        rdy_nodes:  Ready: O, Processed: X
-        out_nodes:  Ready: O, Processed: O
-        '''
-
-        print('########## Run Single Iteration ##########')
-        in_nodes, rdy_nodes, out_nodes = [], [], []
-
-        # Initialize: clk=0
-        clk = 0
-        rdy_nodes = [node for node in self.graph.nodes if self.graph.in_degree(node)==0]
-        in_nodes = list(set(self.graph.nodes)-set(rdy_nodes)) # Update in_nodes
-        loop_stack = ['NO LOOP']
-
-        while True:
-            free_nodes = self.slot_update(clk)
-            in_nodes, rdy_nodes, out_nodes = self.node_update(free_nodes, in_nodes, rdy_nodes, out_nodes)
-            if len(in_nodes)==0 and len(rdy_nodes)==0:
-                break
-            self.slot_occupy(rdy_nodes, clk)
-            self.time_stamp_update(clk, loop_stack)
-            self.print_node_status(clk, in_nodes, rdy_nodes, out_nodes)
-            clk = clk+1
-
-        self.print_node_status(clk, in_nodes, rdy_nodes, out_nodes)
-        print("Single Iteration Run Time: %d"%(clk))
-        self.print_time_stamp_status()
-
-    def get_estimated_cycles(self):
-        print('########## Get Estimated Cycles ##########')
-        # time_stamp: {time: node_num}
-        max_depth = max([self.graph.nodes[node_num]['depth'] for node_num in self.time_stamp.values()])
-        name = ['NO LOOP']
-        extent = [1]
-        min_time = [0]
-        duration = [0]*(max_depth+1) # 0-th depth: NO loop area
-        for time in self.time_stamp.keys():
-            node_num = self.time_stamp[time]
-            node = self.graph.nodes[node_num]
-            if (node['type']=='For Start'):
-                duration[node['depth']] += 1
-                if (name[-1]!=node['name']) and (node['name'] not in name):
-                    name.append(node['name'])
-                    extent.append(extent[-1]*node['extent'])
-                    min_time.append(node['min_time'])
-            else:
-                raise RuntimeError("Currently Not Supported control node type: %s"%(node['type']))
-
-        print("name:     %s"%(name))
-        print("extent:   %s"%(extent))
-        print("min_time: %s"%(min_time))
-        print("duration: %s"%(duration))
-        print(name, extent, min_time, duration) # Suhong
-        if not all(len(name) == len(l) for l in [name, extent, min_time, duration]):
-            raise RuntimeError("Error!!: 'name', 'extent', 'min_time', 'duration' must have same length!!")
-
-        cycles = []
-        estimated_cycles = 0
-        for i in range(0, len(name)):
-            cycles.append("%s*max(%s, %s)"%(extent[i], min_time[i], duration[i]))
-            estimated_cycles += extent[i]*max(min_time[i], duration[i])
-        print(">> Total Cycles: %s <- %s"%(estimated_cycles, cycles))
 
     def slot_update(self, clk):
         free_nodes = []
@@ -345,6 +331,61 @@ class VectorProcessor():
         [occupied_nodes.extend(self.slot[s]) for s in self.slot.keys() if self.slot[s] is not None]
         occupied_nodes = [node['node'] for node in occupied_nodes]
         return list(dict.fromkeys(occupied_nodes)) # remove duplicates in list
+
+    def optimize_vstore(self):
+        """ Vstore at the end of loop can be bypassed """
+        FLAG = False
+        store_nodes = self.get_nodes(attr='type', str='Store')
+        for node in store_nodes:
+            children = self.graph.successors(node)
+            if all(self.graph.nodes[child]['type']=='For End' for child in children):
+                FLAG = True
+                self.graph.nodes[node]['optimize'] = 1
+        return FLAG
+
+    def optimize_filter_load(self):
+        """ Filter is loaded from Scalar Memory """
+        # (Parent)                     (Parent)
+        #    |                         /      \
+        # (Vector LD)          (Scalar LD)  (Scalar LD)
+        #    |  6 cycle                \      /  1 cycle
+        # (Child)               (Vector Ch-wise Concat)
+        #                                  |  1 cycle
+        #                               (Child)
+        load_nodes = [node for node in self.graph.nodes if self.graph.nodes[node]['type']=='Load' and \
+                                                            self.graph.nodes[node]['name']=='Filter']
+        if len(load_nodes)==0: return False
+        else:
+            for node in load_nodes:
+                parents = list(self.graph.predecessors(node))
+                children= list(self.graph.successors(node))
+                name = str(self.graph.nodes[node]['name'])
+                node_num = max(self.graph.nodes)+1
+
+                # Add two 'Scalar LD' nodes
+                for e in range(0,2):
+                    new_node = node_num + e
+                    self.graph.add_node(new_node)
+                    self.graph.nodes[new_node]['name'] = name+str(e)
+                    for key in self.graph.nodes[node].keys():
+                        if key != 'name': self.graph.nodes[new_node][key] = self.graph.nodes[node][key]
+                    self.graph.nodes[new_node]['optimize'] = 1
+                    for parent in parents:
+                        self.graph.add_edge(parent, new_node)
+
+                # Add 'Vector Ch-wise Concat' node
+                new_node = node_num+2
+                self.graph.add_node(new_node)
+                self.graph.nodes[new_node]['name'] = name+'0'+'::'+name+'1'
+                self.graph.nodes[new_node]['type'] = 'Ch Concat'
+                self.graph.nodes[new_node]['slot'] = 'Vector'
+                self.graph.add_edge(node_num+0, new_node)
+                self.graph.add_edge(node_num+1, new_node)
+                for child in children:
+                    self.graph.add_edge(new_node, child)
+
+                self.graph.remove_node(node)
+            return True
 
     def print_node_status(self, clk, in_nodes, rdy_nodes, out_nodes):
         if self.debug:

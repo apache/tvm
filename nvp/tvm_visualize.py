@@ -13,11 +13,9 @@ import matplotlib.pyplot as plt
 #           }
 
 def save_graph_viz(g, viz, dir='graph.png'):
-    print('########## Plotting (%s) ##########'%(dir))
+    print('>> Plotting (%s)'%(dir))
     empty_idxes = [idx for idx in g.nodes if not g.nodes[idx]] # remove empty node
     g.remove_nodes_from(empty_idxes)
-    # print('Nodes List: %s'%(g.nodes))
-    # [print(["%s"%(idx), g.nodes[idx]]) for idx in g.nodes]
 
     f = plt.figure(figsize=(12, 9))
     color_map = []

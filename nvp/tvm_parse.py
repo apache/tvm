@@ -29,10 +29,6 @@ def generate_nodes(stmt, G, DEPTH, WS="", DEBUG=False): # tir.stmt.___
         g = generate_nodes(stmt.body, g, DEPTH, WS+'|', DEBUG)
         Dprint(WS+' '+str(type(stmt))+' End(%d)'%(DEPTH), DEBUG)
 
-        # if all([g.nodes[node]['type'] != 'Seq' for node in g.nodes]): # if there is no 'Seq' node in the subgraph
-        #     g, bool = merge_redundant_nodes(g)
-        #     if bool: save_graph_viz(g, 'typeNum', 'graph_reduced%d.png'%(DEPTH))
-
         start = max(list(g.nodes))+1
         end = start+1
         VAR = stmt.loop_var.name
@@ -58,10 +54,6 @@ def generate_nodes(stmt, G, DEPTH, WS="", DEBUG=False): # tir.stmt.___
                 save_graph_viz(g, 'typeNum', 'graph%d.png'%(SEQ_DEBUG))
                 SEQ_DEBUG=SEQ_DEBUG+1
                 ## SEQ_DEBUG
-
-            # if all([g.nodes[node]['type'] != 'Seq' for node in g.nodes]): # if there is no 'Seq' node in the subgraph
-            #     g, bool = merge_redundant_nodes(g)
-            #     if bool: save_graph_viz(g, 'typeNum', 'graph%d_reduced.png'%(SEQ_DEBUG-1))
 
             glist.append(g)
             acc_node_cnt.append(len(glist[-1].nodes)+acc_node_cnt[idx])
