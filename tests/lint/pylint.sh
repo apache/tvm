@@ -25,6 +25,7 @@ python3 -m pylint tests/python/contrib/test_ethosn --rcfile="$(dirname "$0")"/py
 python3 -m pylint tests/python/relay/aot/*.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/ci --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/integration/ --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/conftest.py --rcfile="$(dirname "$0")"/pylintrc
 
 # tests/python/contrib/test_hexagon tests
 python3 -m pylint tests/python/contrib/test_hexagon/*.py --rcfile="$(dirname "$0")"/pylintrc
@@ -43,6 +44,3 @@ python3 -m pylint tests/python/frontend/oneflow/*.py --rcfile="$(dirname "$0")"/
 python3 -m pylint tests/python/frontend/tensorflow/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/frontend/pytorch/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/frontend/tflite/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
-
-# tests/python/conftest tests
-python3 -m pylint tests/python/conftest.py --rcfile="$(dirname "$0")"/pylintrc
