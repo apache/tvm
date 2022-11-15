@@ -242,6 +242,22 @@ def get_scalar_or_1d_tensor(x, params, dtype="float32"):
     return _op.cast(x, dtype)
 
 
+def flatten_to_nd(x, x_shape, nd=3):
+    """Flatten input tensor to nd rank"""
+    ndims = infer_shape(x_shape)[0]
+    if ndims == nd:
+        return x
+    newshape = _op.concatenate(
+        [
+            _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
+            _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
+        ],
+        0,
+    )
+    out = _op.reshape(x, fold_constant(newshape))
+    return out
+
+
 def matmul_out_dtype(inputs, out_dtype):
     """Common function to handle MatMul and MatMulInteger16"""
     a_shape = shape_of(inputs[0])
@@ -249,21 +265,6 @@ def matmul_out_dtype(inputs, out_dtype):
     b_shape = shape_of(inputs[1])
     b_rank = infer_shape(b_shape)[0]
     if a_rank > 2 or b_rank > 2:
-
-        def flatten_to_nd(x, x_shape, nd=3):
-            ndims = infer_shape(x_shape)[0]
-            if ndims == nd:
-                return x
-            newshape = _op.concatenate(
-                [
-                    _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
-                    _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
-                ],
-                0,
-            )
-            out = _op.reshape(x, fold_constant(newshape))
-            return out
-
         # Determine the output batch dimension.
         new_a_shape = a_shape
         new_b_shape = b_shape
@@ -363,6 +364,167 @@ def matmul_out_dtype(inputs, out_dtype):
     # Otherwise a simple dense op will get the job done.
     input_1_t = _op.transpose(inputs[1], axes=(1, 0))
     return _op.nn.dense(inputs[0], input_1_t, out_dtype=out_dtype)
+
+
+def qmatmul(
+    a,
+    b,
+    a_zp_scalar,
+    b_zp_scalar,
+    a_scale_scalar,
+    b_scale_scalar,
+    transform_num_hidden_units,
+    matmul_result_dtype,
+):
+    """
+    Helper function to handle QLinearMatMul
+    It is very close to 'matmul_out_dtype' but separated due to
+    differences in signatures of dense, matmul, batch_matmul of nn and qnn.
+    They requre scaling and zero point arguments
+    """
+    a_shape = shape_of(a)
+    a_rank = infer_shape(a_shape)[0]
+    b_shape = shape_of(b)
+    b_rank = infer_shape(b_shape)[0]
+    if a_rank > 2 or b_rank > 2:
+        # Determine the output batch dimension.
+        new_a_shape = a_shape
+        new_b_shape = b_shape
+        if a_rank > b_rank:
+            rank_diff = a_rank - b_rank
+            new_b_shape = _op.concatenate(
+                [
+                    _expr.const([1] * rank_diff, dtype=infer_type(b_shape).checked_type.dtype),
+                    b_shape,
+                ],
+                0,
+            )
+        elif a_rank < b_rank:
+            rank_diff = b_rank - a_rank
+            new_a_shape = _op.concatenate(
+                [
+                    _expr.const([1] * rank_diff, dtype=infer_type(a_shape).checked_type.dtype),
+                    a_shape,
+                ],
+                0,
+            )
+        else:
+            pass
+
+        out_batch = _op.concatenate(
+            [
+                _op.maximum(
+                    _op.strided_slice(new_b_shape, [i], [i + 1]),
+                    _op.strided_slice(new_a_shape, [i], [i + 1]),
+                )
+                for i in range(max(a_rank, b_rank) - 2)
+            ],
+            0,
+        )
+
+        b_type = infer_type(b)
+        # Convert to dense if the second matrix is 2d and non-dynamic
+        if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
+            a = flatten_to_nd(a, a_shape, 2)
+            b = _op.transpose(b)
+            output = _qnn.op.dense(
+                a,
+                b,
+                a_zp_scalar,
+                b_zp_scalar,
+                a_scale_scalar,
+                b_scale_scalar,
+                transform_num_hidden_units,
+                matmul_result_dtype,
+            )
+        else:
+            # broadcast a and b
+            a_broadcasted_shape = fold_constant(
+                _op.concatenate(
+                    [
+                        out_batch,
+                        _op.strided_slice(a_shape, [a_rank - 2], [a_rank]),
+                    ],
+                    0,
+                )
+            )
+            b_broadcasted_shape = fold_constant(
+                _op.concatenate(
+                    [
+                        out_batch,
+                        _op.strided_slice(b_shape, [b_rank - 2], [b_rank]),
+                    ],
+                    0,
+                )
+            )
+            if not tvm.ir.structural_equal(a_shape, a_broadcasted_shape):
+                a = _op.transform.broadcast_to(a, a_broadcasted_shape)
+            if not tvm.ir.structural_equal(b_shape, b_broadcasted_shape):
+                b = _op.transform.broadcast_to(b, b_broadcasted_shape)
+            # Convert a and b into 3 dimensional tensors.
+            a = flatten_to_nd(a, shape_of(a), 3)
+            b = flatten_to_nd(b, shape_of(b), 3)
+            # Transpose matrix dimensions of b.
+            bt = _op.transpose(b, [0, 2, 1])
+            # Perform a NT batch matmul.
+            output = _qnn.op.batch_matmul(
+                a,
+                bt,
+                a_zp_scalar,
+                b_zp_scalar,
+                a_scale_scalar,
+                b_scale_scalar,
+                matmul_result_dtype,
+            )
+        # Reshape output to original dimensions.
+        final_shape = _op.concatenate(
+            [
+                out_batch,
+                _op.strided_slice(a_shape, [a_rank - 2], [a_rank - 1]),
+                _op.strided_slice(b_shape, [b_rank - 1], [b_rank]),
+            ],
+            0,
+        )
+        return _op.reshape(output, fold_constant(final_shape))
+
+    if a_rank == 1:
+        # TODO(vvchernov): There should be qnn.matmul but it is not implemented
+        # return _op.squeeze(_qnn.op.matmul(_op.expand_dims(a, axis=0),
+        #                                   b,
+        #                                   a_zp_scalar,
+        #                                   b_zp_scalar,
+        #                                   a_scale_scalar,
+        #                                   b_scale_scalar,
+        #                                   transform_num_hidden_units,
+        #                                   matmul_result_dtype,
+        #                                  ),
+        #                    axis=[0]
+        #                   )
+        return _op.squeeze(
+            _qnn.op.dense(
+                _op.expand_dims(a, axis=0),
+                _op.transpose(b),
+                a_zp_scalar,
+                b_zp_scalar,
+                a_scale_scalar,
+                b_scale_scalar,
+                transform_num_hidden_units,
+                matmul_result_dtype,
+            ),
+            axis=[0],
+        )
+
+    # Otherwise a simple dense op will get the job done.
+    return _qnn.op.dense(
+        a,
+        _op.transpose(b),
+        a_zp_scalar,
+        b_zp_scalar,
+        a_scale_scalar,
+        b_scale_scalar,
+        transform_num_hidden_units,
+        matmul_result_dtype,
+    )
 
 
 def layer_norm(x, eps, gamma, beta):
@@ -4437,7 +4599,6 @@ class QLinearMatMul(OnnxOpConverter):
     Operator converter for QLinearMatMul from Microsoft onnxruntime contrib opset.
 
     Limitations:
-    - Only supports 2D input tensors.
     - Not guaranteed to meet the integer-overflow behavior stipulated in the
       ONNX documentation for this operator.
 
@@ -4487,9 +4648,6 @@ class QLinearMatMul(OnnxOpConverter):
         y_scale_type = infer_type(y_scale).checked_type
         y_zp_type = infer_type(y_zp).checked_type  # 'T3' in ONNX doc for this op
 
-        a_shape = infer_shape(a)
-        b_shape = infer_shape(b)
-
         # Verify type assumptions, based on the ONNX doc for this op...
         assert a_type.dtype in ["int8", "uint8"]
         assert a_scale_type.dtype == "float32"
@@ -4501,14 +4659,6 @@ class QLinearMatMul(OnnxOpConverter):
 
         assert y_scale_type.dtype == "float32"
         assert y_zp_type.dtype in expected_out_dtypes
-
-        # TODO: relax this limitation in a future version of this importer.
-        a_rank = len(a_shape)
-        b_rank = len(b_shape)
-        assert (a_rank == 2) and (b_rank == 2), (
-            "QLinearMatMul importer currently requires both 'a' and 'b' tensors to be 2D, but"
-            " rank(a)={}, rank(b)={}".format(a_rank, b_rank)
-        )
 
         # _qnn.op.dense requires the zero-point values to have dtype int32.
         a_scale_scalar = try_resolve_to_const(a_scale)
@@ -4541,10 +4691,14 @@ class QLinearMatMul(OnnxOpConverter):
         # expressed in a Relay graph. And then update this importer and various TVM
         # backends accordingly.
         matmul_result_dtype = "int32"
+        # TODO(vvchernov): possibly it is better to use unsigned type for result
+        # if input types are unsigned:
+        # if a_type.dtype == "uint8" and b_type.dtype == "uint8":
+        #     matmul_result_dtype = "uint32"
 
-        matmul_result = _qnn.op.dense(
+        matmul_result = qmatmul(
             a,
-            _op.transpose(b),
+            b,
             a_zp_scalar,
             b_zp_scalar,
             a_scale_scalar,

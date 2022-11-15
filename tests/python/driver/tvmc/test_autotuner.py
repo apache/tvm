@@ -23,6 +23,7 @@ from unittest import mock
 from os import path
 from pathlib import Path
 
+import tvm
 from tvm import autotvm
 from tvm.driver import tvmc
 
@@ -191,3 +192,18 @@ def test_tune_rpc_tracker_parsing(mock_load_model, mock_tune_model, mock_auto_sc
     assert "10.0.0.1" == kwargs["hostname"]
     assert "port" in kwargs
     assert 9999 == kwargs["port"]
+
+
+@mock.patch("tvm.transform.PassContext", return_value=tvm.transform.PassContext())
+def test_autotune_pass_context(mock_pc, onnx_mnist, tmpdir_factory):
+    """
+    Check that the pass context while tuning is as expected.
+    """
+    pytest.importorskip("onnx")
+
+    tmpdir_name = tmpdir_factory.mktemp("data")
+    _tuner_test_helper(onnx_mnist, "gridsearch", tmpdir_name)
+
+    # AutoTVM overrides the pass context later in the pipeline to disable AlterOpLayout
+    assert mock_pc.call_count == 2
+    assert mock_pc.call_args_list[0][1]["opt_level"] == 3

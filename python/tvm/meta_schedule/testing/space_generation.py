@@ -127,7 +127,7 @@ def check_sketches(
 def print_sketches(sketches: List[Schedule]):
     for i, sch in enumerate(sketches):
         print(f"###### {i}")
-        print(sch.mod.script())
+        sch.mod.show()
         for inst in sch.trace.insts:
             if inst in sch.trace.decisions:
                 print(f'("{inst.kind.name}", {sch.trace.decisions[inst]}),')

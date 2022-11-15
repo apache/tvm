@@ -26,6 +26,9 @@ RUN apt-get update --fix-missing
 
 RUN apt-install-and-clear -y ca-certificates
 
+COPY install/ubuntu_setup_tz.sh /install/ubuntu_setup_tz.sh
+RUN bash /install/ubuntu_setup_tz.sh
+
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 

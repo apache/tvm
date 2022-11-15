@@ -15,11 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
-
 import tvm
-from tvm.tir.analysis import find_anchor_block
 from tvm import te, topi
-from tvm.meta_schedule.testing.te_workload import matmul, conv2d_winograd_nhwc
+from tvm.meta_schedule.testing.te_workload import conv2d_winograd_nhwc, matmul
+from tvm.tir.analysis import find_anchor_block
 
 
 def test_matmul_add():
@@ -35,7 +34,7 @@ def test_matmul_add():
 
 def test_winograd():
     mod = tvm.IRModule()
-    mod["main"] = te.create_prim_func(conv2d_winograd_nhwc(1, 56, 56, 64, 64, 3))
+    mod["main"] = te.create_prim_func(conv2d_winograd_nhwc(1, 14, 14, 128, 128, 6))
 
     block = find_anchor_block(mod)
 

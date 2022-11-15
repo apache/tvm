@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Integration test for MetaSchedule"""
-from typing import List
 import tempfile
+from typing import List
+
 import numpy as np
 import pytest
 import tvm
@@ -27,7 +28,7 @@ from tvm import relay, te, tir
 from tvm._ffi import register_func
 from tvm.contrib import graph_executor
 from tvm.ir.transform import PassContext
-from tvm.meta_schedule.database import Workload, TuningRecord
+from tvm.meta_schedule.database import TuningRecord, Workload
 from tvm.meta_schedule.testing.relay_workload import get_network
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
 from tvm.meta_schedule.tune_context import _normalize_mod
@@ -333,7 +334,6 @@ def extract_task_qbert():
 
             assert "schedule_rule" in annotations
             assert "vnni" in annotations["schedule_rule"]
-        ...
 
     mod, params, _ = load_quantized_bert_base(batch_size=1, seq_len=128)
     _test(mod, params, target="llvm -mcpu=cascadelake")
@@ -445,7 +445,6 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
                     n, oc_chunk, oh, ow, oc_block, ic, kh, kw = T.axis.remap("SSSSSRRR", [i0, i1, i2, i3, i4, i5, i6, i7])
                     T.reads(data_pad[n, ic // 3, oh + kh, ow + kw, ic % 3], placeholder_1[oc_chunk, ic // 3, kh, kw, ic % 3, oc_block]) # type: ignore
                     T.writes(conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block])
-                    T.block_attr({"workload":["conv2d_NCHWc.x86", ["TENSOR", [1, 1, 16, 16, 3], "float32"], ["TENSOR", [2, 1, 5, 5, 3, 4], "float32"], [1, 1], [2, 2, 2, 2], [1, 1], "NCHW3c", "NCHW4c", "float32"]})
                     with T.init():
                         conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] = T.float32(0)
                     conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] + data_pad[n, ic // 3, oh + kh, ow + kw, ic % 3] * placeholder_1[oc_chunk, ic // 3, kh, kw, ic % 3, oc_block] # type: ignore

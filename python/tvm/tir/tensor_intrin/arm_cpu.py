@@ -119,10 +119,12 @@ def dot_product_4x4_i8i8i32_sdot(
 
         vec_b = B.vload([0, 0], dtype="int8x16")
 
-        C[T.ramp(T.int32(0), 1, 4)] += T.call_llvm_pure_intrin(
+        vec_c = C.vload([0], dtype="int32x4")
+
+        C[T.ramp(T.int32(0), 1, 4)] = T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.sdot.v4i32.v16i8"),
             T.uint32(3),
-            T.int32x4(0),
+            vec_c,
             vec_a,
             vec_b,
             dtype="int32x4",

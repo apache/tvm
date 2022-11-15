@@ -30,6 +30,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include "../../tir/ir/functor_common.h"
 #include "../../tir/transforms/ir_utils.h"
@@ -107,17 +108,21 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
 
   Stmt VisitStmt_(const BlockNode* _block) final {
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(_block));
-    if (Optional<ObjectRef> ann = block->annotations.Get(topi_attr)) {
-      Array<Buffer> new_buffers;
+    BlockNode* n = block.CopyOnWrite();
+    if (Optional<ObjectRef> ann = n->annotations.Get(topi_attr)) {
       for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
         auto it = buffer2index_.find(buffer);
         if (it != buffer2index_.end()) {
           layout_free_buffer_indices_.insert(it->second);
-        } else {
-          new_buffers.push_back(buffer);
         }
       }
-      block.CopyOnWrite()->annotations.Set(topi_attr, new_buffers);
+      n->annotations.erase(topi_attr);
+    }
+    for (const String& attr : this->blocklist) {
+      auto it = n->annotations.find(attr);
+      if (it != n->annotations.end()) {
+        n->annotations.erase(attr);
+      }
     }
     return std::move(block);
   }
@@ -125,6 +130,8 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
   std::unordered_map<tir::Buffer, int, ObjectPtrHash, ObjectPtrEqual> buffer2index_;
   std::set<int> layout_free_buffer_indices_;
   String topi_attr = "layout_free_placeholders";
+  std::vector<String> blocklist = {"const_matrix", "auto_scheduler_simplify_const_tensor_indices",
+                                   "workload"};
 };
 
 BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,

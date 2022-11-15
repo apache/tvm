@@ -100,16 +100,16 @@ def conv2d_strategy_bifrost(attrs, inputs, out_type, target):
     return strategy
 
 
-@conv2d_winograd_without_weight_transfrom_strategy.register("bifrost")
-def conv2d_winograd_without_weight_transfrom_strategy_bifrost(attrs, inputs, out_type, target):
-    """conv2d_winograd_without_weight_transfrom mali(bifrost) strategy"""
+@conv2d_winograd_without_weight_transform_strategy.register("bifrost")
+def conv2d_winograd_without_weight_transform_strategy_bifrost(attrs, inputs, out_type, target):
+    """conv2d_winograd_without_weight_transform mali(bifrost) strategy"""
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
     layout = attrs.data_layout
     strides = attrs.get_int_tuple("strides")
     assert dilation == (1, 1), "Do not support dilate now"
     assert strides == (1, 1), "Do not support strides now"
-    assert groups == 1, "Do not supoort arbitrary group number"
+    assert groups == 1, "Do not support arbitrary group number"
     strategy = _op.OpStrategy()
     if layout == "NCHW":
         strategy.add_implementation(
@@ -119,7 +119,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_bifrost(attrs, inputs, out
         )
     else:
         raise RuntimeError(
-            "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)
+            "Unsupported conv2d_winograd_without_weight_transform layout {}".format(layout)
         )
     return strategy
 
