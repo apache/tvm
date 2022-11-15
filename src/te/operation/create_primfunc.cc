@@ -110,13 +110,20 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(_block));
     BlockNode* n = block.CopyOnWrite();
     if (Optional<ObjectRef> ann = n->annotations.Get(topi_attr)) {
+      Array<Buffer> new_buffers;
       for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
         auto it = buffer2index_.find(buffer);
         if (it != buffer2index_.end()) {
           layout_free_buffer_indices_.insert(it->second);
+        } else {
+          new_buffers.push_back(buffer);
         }
       }
-      n->annotations.erase(topi_attr);
+      if (new_buffers.empty()) {
+        n->annotations.erase(topi_attr);
+      } else {
+        n->annotations.Set(topi_attr, new_buffers);
+      }
     }
     for (const String& attr : this->blocklist) {
       auto it = n->annotations.find(attr);

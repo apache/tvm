@@ -227,7 +227,7 @@ bool RewriteLayout(const Schedule& sch) {
           BlockRV cache_read_block_rv = sch->GetBlock(cache_read_chain[i], func_name);
           if (i == 0) {
             // Before the first cache_read that consumes the layout-free buffer, insert
-            // a layout-rewrite block. Another cache read buffer is added, and its layout is
+            // a layout-rewrite block. Another cache-read buffer is added, and its layout is
             // transformed by TransformLayout below.
             add_layout_rewrite_block(cache_read_block_rv, 0);
           }
