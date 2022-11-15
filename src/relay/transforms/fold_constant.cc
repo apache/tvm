@@ -418,14 +418,6 @@ class ConstantFolder : public MixedModeMutator {
 
 TVM_REGISTER_GLOBAL("relay.analysis.check_constant").set_body_typed(IsComplexConstant);
 
-/*!
- * \brief Returns \p expr with any constants expressions evaluated and let-bound constants
- * inlined. Returns \p expr unchanged if no change.
- *
- * CAUTION: The importers rely on this function returning \p expr unchanged to preserve sharing
- * from their p.o.v. Furthermore, this function can be called before conversion to ANF so
- * we must avoid all recursion.
- */
 Expr FoldConstantExpr(const Expr& expr, const IRModule& mod, bool fold_qnn) {
   VLOG_CONTEXT << "FoldConstantExpr";
   VLOG(1) << "folding:" << std::endl << PrettyPrint(expr);
@@ -434,11 +426,19 @@ Expr FoldConstantExpr(const Expr& expr, const IRModule& mod, bool fold_qnn) {
   return result;
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.FoldConstantExpr").set_body_typed(FoldConstantExpr);
+Expr FoldConstantExpr(const Expr& expr, bool fold_qnn) {
+  auto mod = IRModule::FromExpr(expr);
+  return FoldConstantExpr(expr, mod, fold_qnn);
+}
+
+TVM_REGISTER_GLOBAL("relay._transform.FoldConstantExpr")
+    .set_body_typed([](const Expr& expr, const IRModule& mod, bool fold_qnn) {
+      return FoldConstantExpr(expr, mod, fold_qnn);
+    });
 
 Pass FoldConstant(bool fold_qnn) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
+      [=](Function f, IRModule m, PassContext /* pc */) {
         return Downcast<Function>(FoldConstantExpr(f, m, fold_qnn));
       };
   return CreateFunctionPass(pass_func, 2, "FoldConstant", {});

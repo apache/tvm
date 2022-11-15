@@ -22,7 +22,7 @@ blocks in a schedule. See also PostOrderApply.
 from .add_rfactor import AddRFactor
 from .apply_custom_rule import ApplyCustomRule
 from .auto_bind import AutoBind
-from .auto_inline import AutoInline
+from .auto_inline import AutoInline, InlineConstantScalars
 from .cross_thread_reduction import CrossThreadReduction
 from .multi_level_tiling import (
     MultiLevelTiling,

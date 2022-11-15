@@ -15,31 +15,45 @@ def init_git() {
   )
 
   // Determine merge commit to use for all stages
-  sh (
-    script: 'git fetch origin main',
-    label: 'Fetch upstream',
-  )
-  if (upstream_revision == null) {
-    upstream_revision = sh(
-      script: 'git log -1 FETCH_HEAD --format=\'%H\'',
-      label: 'Determine upstream revision',
-      returnStdout: true,
-    ).trim()
+  if (env.BRANCH_NAME == 'main') {
+    // Only set upstream_revision to HEAD and skip merging to avoid a race with another commit merged to main.
+    update_upstream_revision("HEAD")
+  } else {
+    // This is PR branch so merge with latest main.
+    merge_with_main()
   }
-  sh (
-    script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
-    label: 'Merge to origin/main'
-  )
 
   sh(
     script: """
       set -eux
-      . ci/scripts/retry.sh
+      . ${jenkins_scripts_root}/retry.sh
       retry 3 timeout 5m git submodule update --init -f --jobs 0
     """,
     label: 'Update git submodules',
   )
   checkout_trusted_files()
+}
+
+def update_upstream_revision(git_ref) {
+  if (upstream_revision == null) {
+    upstream_revision = sh(
+      script: "git log -1 ${git_ref} --format=\'%H\'",
+      label: 'Determine upstream revision',
+      returnStdout: true,
+    ).trim()
+  }
+}
+
+def merge_with_main() {
+  sh (
+    script: 'git fetch origin main',
+    label: 'Fetch upstream',
+  )
+  update_upstream_revision("FETCH_HEAD")
+  sh (
+    script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
+    label: 'Merge to origin/main'
+  )
 }
 
 def docker_init(image) {
@@ -66,7 +80,7 @@ def docker_init(image) {
     sh(
       script: """
       set -eux
-      . ci/scripts/retry.sh
+      . ${jenkins_scripts_root}/retry.sh
       retry 5 docker pull ${image}
       """,
       label: 'Pull docker image',
@@ -82,7 +96,7 @@ def should_skip_slow_tests(pr_number) {
     // Exit code of 1 means run slow tests, exit code of 0 means skip slow tests
     result = sh (
       returnStatus: true,
-      script: "./ci/scripts/should_run_slow_tests.py --pr '${pr_number}'",
+      script: "./${jenkins_scripts_root}/should_run_slow_tests.py --pr '${pr_number}'",
       label: 'Check if CI should run slow tests',
     )
   }
@@ -118,7 +132,7 @@ def checkout_trusted_files() {
     // (especially those that access secrets) should be checked out here so
     // only trusted versions are used in CI
     sh(
-      script: "git checkout ${upstream_revision} ci/scripts/.",
+      script: "git checkout ${upstream_revision} ${jenkins_scripts_root}/.",
       label: 'Check out trusted files',
     )
   }
@@ -131,7 +145,7 @@ def should_skip_ci(pr_number) {
   }
   glob_skip_ci_code = sh (
     returnStatus: true,
-    script: "./ci/scripts/git_skip_ci_globs.py",
+    script: "./${jenkins_scripts_root}/git_skip_ci_globs.py",
     label: 'Check if CI should be skipped due to changed files',
   )
   if (glob_skip_ci_code == 0) {
@@ -145,7 +159,7 @@ def should_skip_ci(pr_number) {
     // full CI just in case). Exit code of 0 means skip CI.
     git_skip_ci_code = sh (
       returnStatus: true,
-      script: "./ci/scripts/git_skip_ci.py --pr '${pr_number}'",
+      script: "./${jenkins_scripts_root}/git_skip_ci.py --pr '${pr_number}'",
       label: 'Check if CI should be skipped',
     )
   }
@@ -162,7 +176,7 @@ def check_pr(pr_number) {
     variable: 'GITHUB_TOKEN',
     )]) {
     sh (
-      script: "python3 ci/scripts/check_pr.py --pr ${pr_number}",
+      script: "python3 ${jenkins_scripts_root}/check_pr.py --pr ${pr_number}",
       label: 'Check PR title and body',
     )
   }
@@ -179,7 +193,7 @@ def prepare() {
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./ci/scripts/determine_docker_images.py {% for image in images %}{{ image.name }}={% raw %}${{% endraw %}{{ image.name }}{% raw %}}{% endraw %} {% endfor %}",
+            script: "./${jenkins_scripts_root}/determine_docker_images.py {% for image in images %}{{ image.name }}={% raw %}${{% endraw %}{{ image.name }}{% raw %}}{% endraw %} {% endfor %}",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
@@ -205,14 +219,14 @@ def prepare() {
 
         is_docs_only_build = sh (
           returnStatus: true,
-          script: './ci/scripts/git_change_docs.sh',
+          script: "./${jenkins_scripts_root}/git_change_docs.sh",
           label: 'Check for docs only changes',
         )
         skip_ci = should_skip_ci(env.CHANGE_ID)
         skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
         rebuild_docker_images = sh (
           returnStatus: true,
-          script: './ci/scripts/git_change_docker.sh',
+          script: "./${jenkins_scripts_root}/git_change_docker.sh",
           label: 'Check for any docker changes',
         )
 

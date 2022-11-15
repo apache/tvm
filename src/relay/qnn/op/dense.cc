@@ -47,12 +47,14 @@ bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (data == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<DenseAttrs>();
   ICHECK(param != nullptr) << "DenseAttrs cannot be nullptr.";
-  ICHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8))
-      << "Expected quantized dense type(int8, uint8) for input but was " << data->dtype;
+  ICHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8) ||
+         data->dtype == DataType::Int(16) || data->dtype == DataType::UInt(16))
+      << "Expected quantized dense type(int8, uint8, int16, uint16) for input but was "
+      << data->dtype;
   ICHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8))
       << "Expected quantized dense type(int8, uint8) for weight but was " << weight->dtype;
-  ICHECK(param->out_dtype == DataType::Int(32))
-      << "Expected quantized dense type(int32) for output but was " << param->out_dtype;
+  ICHECK(param->out_dtype == DataType::Int(32) || param->out_dtype == DataType::Int(64))
+      << "Expected quantized dense type(int32, int64) for output but was " << param->out_dtype;
 
   // Check the types of scale and zero points.
   for (size_t i = 2; i < 5; ++i) {

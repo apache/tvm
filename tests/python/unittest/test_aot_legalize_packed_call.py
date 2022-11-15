@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import tvm
-from tvm.script import tir as T
-from tvm import tir
-import tvm.testing
 import pytest
+import tvm
+import tvm.testing
+from tvm import tir
+from tvm.script import tir as T
 
 
 @tvm.script.ir_module
@@ -79,7 +79,7 @@ class Expected:
                     T.tvm_stack_make_shape(1, dtype="handle"),
                     T.reinterpret(T.uint64(0), dtype="handle"),
                     T.uint32(1),
-                    T.cast(0, dtype="float32"),
+                    T.Cast("float32", 0),
                     0,
                     dtype="handle",
                 ),
@@ -88,7 +88,7 @@ class Expected:
                     T.tvm_stack_make_shape(1, dtype="handle"),
                     T.reinterpret(T.uint64(0), dtype="handle"),
                     T.uint32(1),
-                    T.cast(0, dtype="float32"),
+                    T.Cast("float32", 0),
                     0,
                     dtype="handle",
                 ),
@@ -97,7 +97,7 @@ class Expected:
                     T.tvm_stack_make_shape(1, dtype="handle"),
                     T.reinterpret(T.uint64(0), dtype="handle"),
                     T.uint32(1),
-                    T.cast(0, dtype="float32"),
+                    T.Cast("float32", 0),
                     0,
                     dtype="handle",
                 ),

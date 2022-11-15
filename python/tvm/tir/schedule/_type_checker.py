@@ -21,15 +21,10 @@ import functools
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 import typing
-import sys
 
 
 def _is_none_type(type_: Any) -> bool:
     return type_ is None or type_ is type(None)
-
-
-def get_python_version():
-    return sys.version_info[:3]
 
 
 if hasattr(typing, "_GenericAlias"):
@@ -38,12 +33,12 @@ if hasattr(typing, "_GenericAlias"):
     class _Subtype:
         @staticmethod
         def _origin(type_: Any) -> Any:
-            if get_python_version() >= (3, 9, 0):
+            if hasattr(typing, "_SpecialGenericAlias"):
                 if isinstance(type_, typing._SpecialGenericAlias):  # type: ignore # pylint: disable=protected-access
                     return type_.__origin__
-            else:
-                if isinstance(type_, typing._GenericAlias):  # type: ignore # pylint: disable=protected-access
-                    return type_.__origin__
+
+            if isinstance(type_, typing._GenericAlias):  # type: ignore # pylint: disable=protected-access
+                return type_.__origin__
             return None
 
         @staticmethod

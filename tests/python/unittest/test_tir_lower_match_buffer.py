@@ -82,14 +82,13 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
                 offset_factor=1,
             )
             T.evaluate(
-                T.intrin_test(
+                intrin_test(
                     sub_A.data,
                     sub_A.elem_offset,
                     sub_A.strides[0],
                     sub_A.strides[1],
                     sub_A.shape[0],
                     sub_A.shape[1],
-                    dtype="handle",
                 )
             )
     for i, j, k in T.grid(64, 2, 8):
@@ -105,14 +104,13 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
                 offset_factor=1,
             )
             T.evaluate(
-                T.intrin_test(
+                intrin_test(
                     sub_B.data,
                     sub_B.elem_offset,
                     sub_B.strides[0],
                     sub_B.strides[1],
                     sub_B.shape[0],
                     sub_B.shape[1],
-                    dtype="handle",
                 )
             )
 
@@ -126,14 +124,13 @@ def transformed_opaque_access(a: T.handle, b: T.handle) -> None:
             T.reads([])
             T.writes(A[i * 16 : i * 16 + 16, j, k * 16 : k * 16 + 16])
             T.evaluate(
-                T.intrin_test(
+                intrin_test(
                     A.data,
                     i * 131072 + j * 128 + k * 16,
                     8192,
                     128,
                     16,
                     1,
-                    dtype="handle",
                 )
             )
     for i, j, k in T.grid(64, 2, 8):
@@ -141,14 +138,13 @@ def transformed_opaque_access(a: T.handle, b: T.handle) -> None:
             T.reads([])
             T.writes(B[i, j * 32 : j * 32 + 32, k * 8 : k * 8 + 8])
             T.evaluate(
-                T.intrin_test(
+                intrin_test(
                     B.data,
                     i * 4096 + j * 2048 + k * 8,
                     64,
                     1,
                     32,
                     8,
-                    dtype="handle",
                 )
             )
 
@@ -169,14 +165,13 @@ def high_dim_opaque_access(a: T.handle) -> None:
                 offset_factor=1,
             )
             T.evaluate(
-                T.intrin_test(
+                intrin_test(
                     sub_A.data,
                     sub_A.elem_offset,
                     sub_A.strides[0],
                     sub_A.strides[1],
                     sub_A.shape[0],
                     sub_A.shape[1],
-                    dtype="handle",
                 )
             )
 
@@ -189,14 +184,13 @@ def transformed_high_dim_opaque_access(a: T.handle) -> None:
             T.reads([])
             T.writes(A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16])
             T.evaluate(
-                T.intrin_test(
+                intrin_test(
                     A.data,
                     i * 2048 + j * 1024 + k * 16,
                     64,
                     1,
                     16,
                     16,
-                    dtype="handle",
                 )
             )
 
@@ -217,14 +211,13 @@ def high_dim_opaque_access_with_source_strides(a: T.handle) -> None:
                 offset_factor=1,
             )
             T.evaluate(
-                T.intrin_test(
+                intrin_test(
                     sub_A.data,
                     sub_A.elem_offset,
                     sub_A.strides[0],
                     sub_A.strides[1],
                     sub_A.shape[0],
                     sub_A.shape[1],
-                    dtype="handle",
                 )
             )
 
@@ -237,14 +230,13 @@ def transformed_high_dim_opaque_access_with_source_strides(a: T.handle) -> None:
             T.reads([])
             T.writes(A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16])
             T.evaluate(
-                T.intrin_test(
+                intrin_test(
                     A.data,
                     i * 2576 + j * 1280 + k * 16,
                     80,
                     1,
                     16,
                     16,
-                    dtype="handle",
                 )
             )
 
@@ -298,14 +290,13 @@ def recursive_match(a: T.handle, b: T.handle) -> None:
                         offset_factor=1,
                     )
                     T.evaluate(
-                        T.intrin_test(
+                        intrin_test(
                             sub_sub_A.data,
                             sub_sub_A.elem_offset,
                             sub_sub_A.strides[0],
                             sub_sub_A.strides[1],
                             sub_sub_A.shape[0],
                             sub_sub_A.shape[1],
-                            dtype="handle",
                         )
                     )
                     for jjj, kkk in T.grid(4, 4):
@@ -343,14 +334,13 @@ def transformed_recursive_match(a: T.handle, b: T.handle) -> None:
                         ]
                     )
                     T.evaluate(
-                        T.intrin_test(
+                        intrin_test(
                             A.data,
                             i * 4096 + j * 1024 + jj * 256 + k * 16 + kk * 4,
                             64,
                             1,
                             4,
                             4,
-                            dtype="handle",
                         )
                     )
                     for jjj, kkk in T.grid(4, 4):
@@ -375,14 +365,13 @@ def symbolic_match(a: T.handle, b: T.handle, n: T.int32, m: T.int32) -> None:
                 sub_A[ii, jj] = 1
             for j in range(0, 4):
                 T.evaluate(
-                    T.intrin_test(
+                    intrin_test(
                         sub_B.data,
                         sub_B.elem_offset,
                         sub_B.strides[0],
                         sub_B.strides[1],
                         sub_B.shape[0],
                         sub_B.shape[1],
-                        dtype="handle",
                     )
                 )
 
@@ -399,14 +388,13 @@ def transformed_symbolic_match(a: T.handle, b: T.handle, n: T.int32, m: T.int32)
                 A[i * m + ii, jj] = 1
             for j in range(0, 4):
                 T.evaluate(
-                    T.intrin_test(
+                    intrin_test(
                         B.data,
                         i * n * (m * 4),
                         m * 4,
                         1,
                         2,
                         m * 4,
-                        dtype="handle",
                     )
                 )
 
@@ -423,14 +411,13 @@ def rank0_buffer(a: T.handle, b: T.handle) -> None:
             sub_B = T.match_buffer(B[i, j], (), offset_factor=1)
             sub_A[()] = 1
             T.evaluate(
-                T.intrin_test(
+                intrin_test(
                     sub_B.data,
                     sub_B.elem_offset,
                     0,
                     0,
                     0,
                     0,
-                    dtype="handle",
                 )
             )
 
@@ -445,14 +432,13 @@ def transformed_rank0_buffer(a: T.handle, b: T.handle) -> None:
             T.writes([A[i, j], B[i, j]])
             A[i, j] = 1
             T.evaluate(
-                T.intrin_test(
+                intrin_test(
                     B.data,
                     i * 8 + j,
                     0,
                     0,
                     0,
                     0,
-                    dtype="handle",
                 )
             )
 

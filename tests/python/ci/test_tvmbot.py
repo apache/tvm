@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 import tvm
-from .test_utils import REPO_ROOT, TempGit, run_script
+from .test_utils import GITHUB_SCRIPT_ROOT, TempGit, run_script
 
 
 SUCCESS_EXPECTED_OUTPUT = """
@@ -51,7 +51,7 @@ class _TvmBotTest:
         """
         Run the tvm-bot script using the data from preprocess_data
         """
-        mergebot_script = REPO_ROOT / "ci" / "scripts" / "github_tvmbot.py"
+        mergebot_script = GITHUB_SCRIPT_ROOT / "github_tvmbot.py"
         test_json_dir = Path(__file__).resolve().parent / "sample_prs"
         with open(test_json_dir / f"pr{self.NUMBER}.json") as f:
             test_data = json.load(f)

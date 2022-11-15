@@ -52,7 +52,7 @@ def check_error(func, rel_lineno):
         return
     error = errors[0]
     assert (
-        error.span.line - 1 == rel_lineno
+        error.span.line - 1 == rel_lineno or error.span.line == rel_lineno
     ), f"Expected error to be on line {rel_lineno}, but it was on {error.span.line - 1}"
 
     error_line = source_code.split("\n")[rel_lineno]
@@ -116,7 +116,6 @@ def test_missing_type_annotation():
 def test_invalid_for_function():
     def invalid_for_function(a: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
-
         for i in T.evaluate(0.0):  # error
             for j in T.serial(0, 16):
                 A[i, j] = 0.0

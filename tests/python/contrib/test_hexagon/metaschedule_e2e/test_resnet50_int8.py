@@ -33,6 +33,7 @@ from tvm.contrib.hexagon.meta_schedule import (
 )
 from tvm.meta_schedule import postproc, schedule_rule
 from tvm.tir.schedule import BlockRV, Schedule
+from tvm.tir.schedule.analysis import has_block
 from tvm.tir.tensor_intrin.hexagon import VRMPY_u8i8i32_INTRIN, VRMPY_u8u8i32_INTRIN
 
 from ..infrastructure import get_hexagon_target
@@ -206,9 +207,9 @@ def _schedule_packed_8x8x32_conv2d():
 
     def schedule_fn(sch, conv2d_block: Optional[BlockRV] = None) -> bool:
         if conv2d_block is None:
-            try:
+            if has_block(sch, "conv2d_NCHWc_int8"):
                 conv2d_block = sch.get_block("conv2d_NCHWc_int8")
-            except ValueError:
+            else:
                 return False
 
         assert "conv2d_NCHWc_int8" in sch.get(conv2d_block).annotations["schedule_rule"]

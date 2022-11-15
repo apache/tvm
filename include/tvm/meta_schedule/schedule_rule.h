@@ -125,6 +125,16 @@ class ScheduleRule : public runtime::ObjectRef {
                                          bool require_injective,      //
                                          bool require_ordered,        //
                                          Optional<Array<String>> disallow_op);
+
+  /*!
+   * \brief Inline blocks that produce a constant scalar. Such blocks get in the way of
+   * ReverseComputeInline during AutoInline, since they are also counted as a producer block
+   * unless they are inlined first. So it is recommended to run InlineConstantScalars before
+   * AutoInline.
+   * \return The schedule rule created
+   */
+  TVM_DLL static ScheduleRule InlineConstantScalars();
+
   /*!
    * \brief Create a mega rule: multi-level tiling with data reuse
    * \param structure The tiling structure. Recommended:
@@ -275,6 +285,8 @@ class ScheduleRule : public runtime::ObjectRef {
 
   /*! \brief Create default schedule rules for LLVM */
   TVM_DLL static Array<ScheduleRule, void> DefaultLLVM();
+  /*! \brief Create default schedule rules for x86 VNNI */
+  TVM_DLL static Array<ScheduleRule, void> DefaultVNNI();
   /*! \brief Create default schedule rules for CUDA */
   TVM_DLL static Array<ScheduleRule, void> DefaultCUDA();
   /*! \brief Create default postprocessors for CUDA with TensorCore */

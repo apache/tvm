@@ -18,9 +18,8 @@
 """ Test different strategies for loading data into vtcm before running HVX workloads. """
 
 import numpy as np
-from numpy.random import default_rng
-
 import tvm
+from numpy.random import default_rng
 from tvm.script import tir as T
 
 from .infrastructure import get_hexagon_target
@@ -109,17 +108,17 @@ def preloaded_vrmpy(operations):
             [T.cast(operations, "int32") * 128],
             dtype="uint8",
             align=128,
-            mem_scope="global.vtcm",
+            scope="global.vtcm",
         )
         b_buffer = T.match_buffer(
             b,
             [T.cast(operations, "int32") * 128],
             dtype="uint8",
             align=128,
-            mem_scope="global.vtcm",
+            scope="global.vtcm",
         )
         c_buffer = T.match_buffer(
-            c, [T.cast(operations, "int32") * 32], dtype="int32", align=128, mem_scope="global.vtcm"
+            c, [T.cast(operations, "int32") * 32], dtype="int32", align=128, scope="global.vtcm"
         )
         for n in T.grid(operations):
             with T.block("c_buffer"):
@@ -149,21 +148,13 @@ def preallocated_vrmpy(operations):
         a: T.handle, b: T.handle, c: T.handle, a_v: T.handle, b_v: T.handle, c_v: T.handle
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        a_buffer = T.match_buffer(
-            a, [operations, 128], dtype="uint8", align=128, mem_scope="global"
-        )
-        b_buffer = T.match_buffer(
-            b, [operations, 128], dtype="uint8", align=128, mem_scope="global"
-        )
-        c_buffer = T.match_buffer(c, [operations, 32], dtype="int32", align=128, mem_scope="global")
-        a_global_vtcm = T.match_buffer(
-            a_v, [size], dtype="uint8", align=128, mem_scope="global.vtcm"
-        )
-        b_global_vtcm = T.match_buffer(
-            b_v, [size], dtype="uint8", align=128, mem_scope="global.vtcm"
-        )
+        a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8", align=128, scope="global")
+        b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8", align=128, scope="global")
+        c_buffer = T.match_buffer(c, [operations, 32], dtype="int32", align=128, scope="global")
+        a_global_vtcm = T.match_buffer(a_v, [size], dtype="uint8", align=128, scope="global.vtcm")
+        b_global_vtcm = T.match_buffer(b_v, [size], dtype="uint8", align=128, scope="global.vtcm")
         c_global_vtcm = T.match_buffer(
-            c_v, [out_size], dtype="int32", align=128, mem_scope="global.vtcm"
+            c_v, [out_size], dtype="int32", align=128, scope="global.vtcm"
         )
         for n, i in T.grid(operations, 128):
             with T.block("a_buffer_global.vtcm"):
@@ -212,21 +203,13 @@ def preallocated_single_dma_vrmpy(operations):
         c_v: T.handle,
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        a_buffer = T.match_buffer(
-            a, [operations, 128], dtype="uint8", align=128, mem_scope="global"
-        )
-        b_buffer = T.match_buffer(
-            b, [operations, 128], dtype="uint8", align=128, mem_scope="global"
-        )
-        c_buffer = T.match_buffer(c, [operations, 32], dtype="int32", align=128, mem_scope="global")
-        a_global_vtcm = T.match_buffer(
-            a_v, [size], dtype="uint8", align=128, mem_scope="global.vtcm"
-        )
-        b_global_vtcm = T.match_buffer(
-            b_v, [size], dtype="uint8", align=128, mem_scope="global.vtcm"
-        )
+        a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8", align=128, scope="global")
+        b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8", align=128, scope="global")
+        c_buffer = T.match_buffer(c, [operations, 32], dtype="int32", align=128, scope="global")
+        a_global_vtcm = T.match_buffer(a_v, [size], dtype="uint8", align=128, scope="global.vtcm")
+        b_global_vtcm = T.match_buffer(b_v, [size], dtype="uint8", align=128, scope="global.vtcm")
         c_global_vtcm = T.match_buffer(
-            c_v, [out_size], dtype="int32", align=128, mem_scope="global.vtcm"
+            c_v, [out_size], dtype="int32", align=128, scope="global.vtcm"
         )
         T.evaluate(
             T.tvm_call_packed(

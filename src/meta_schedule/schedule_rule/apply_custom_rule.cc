@@ -54,6 +54,7 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
           os << "\n  " << GetCustomRuleName(ann.value(), key);
         }
         LOG(WARNING) << os.str();
+        sch->Unannotate(block_rv, "schedule_rule");
       }
     }
     return {sch};
@@ -85,7 +86,7 @@ bool ScheduleRule::IsApplyCustomRule(const ScheduleRule& rule) {
 }
 
 TVM_REGISTER_NODE_TYPE(ApplyCustomRuleNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleApplyCustomRule")
+TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleApplyCustomRule")
     .set_body_typed(ScheduleRule::ApplyCustomRule);
 
 }  // namespace meta_schedule

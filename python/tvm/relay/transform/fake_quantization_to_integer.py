@@ -141,6 +141,7 @@ def avgpool2d(expr, type_map):
     arg = expr.args[0]
     t = type_map[arg]
     out_t = type_map[expr]
+    # Cast (or requantize) to int32.
     if not (
         approx_equal(t.scale, out_t.scale)
         and approx_equal(t.zero_point, out_t.zero_point)
@@ -158,7 +159,11 @@ def avgpool2d(expr, type_map):
     else:
         arg = relay.op.cast(arg, "int32")
     out = relay.op.nn.avg_pool2d(arg, **expr.attrs)
-    return [out, TensorAffineType(out_t.scale, out_t.zero_point, "int32", out_t.axis)]
+    if out_t.dtype != "int32":
+        # Cast back to output dtype to preserve input dtype == output dtype for AvgPool2d.
+        out = relay.op.clip(out, a_min=np.iinfo(out_t.dtype).min, a_max=np.iinfo(out_t.dtype).max)
+        out = relay.op.cast(out, out_t.dtype)
+    return [out, TensorAffineType(out_t.scale, out_t.zero_point, out_t.dtype, out_t.axis)]
 
 
 @register_fake_quantization_to_integer("nn.global_avg_pool2d")

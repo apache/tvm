@@ -788,7 +788,7 @@ Doc TVMScriptPrinter::VisitExpr_(const StringImmNode* op, ExprPrecedence* out_pr
 Doc TVMScriptPrinter::VisitExpr_(const CastNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << tir_prefix_ << ".cast(" << Print(op->value) << ", " << PrintDType(op->dtype) << ")";
+  doc << tir_prefix_ << ".Cast(" << PrintDType(op->dtype) << ", " << Print(op->value) << ")";
   return doc;
 }
 
@@ -798,46 +798,61 @@ Doc TVMScriptPrinter::VisitExpr_(const VarNode* op, ExprPrecedence* out_preceden
   return meta_.InMeta(var) ? meta_.GetMetaNode(var) : AllocVar(GetRef<Var>(op));
 }
 
-#define TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OpName, OpString, OpPrecedence)            \
-  Doc TVMScriptPrinter::VisitExpr_(const OpName* op, ExprPrecedence* out_precedence) { \
-    Doc doc;                                                                           \
-    ExprPrecedence lhs_precedence = ExprPrecedence::kUnknown;                          \
-    ExprPrecedence rhs_precedence = ExprPrecedence::kUnknown;                          \
-    /* Get children expr out_precedence */                                             \
-    Doc lhs_doc = VisitExpr(op->a, &lhs_precedence);                                   \
-    Doc rhs_doc = VisitExpr(op->b, &rhs_precedence);                                   \
-    ICHECK(lhs_precedence != ExprPrecedence::kUnknown);                                \
-    ICHECK(rhs_precedence != ExprPrecedence::kUnknown);                                \
-    /* Update out_precedence of current node. */                                       \
-    *out_precedence = OpPrecedence;                                                    \
-    if (lhs_precedence > OpPrecedence) {                                               \
-      doc << "(" << lhs_doc << ")";                                                    \
-    } else {                                                                           \
-      doc << lhs_doc;                                                                  \
-    }                                                                                  \
-    doc << OpString;                                                                   \
-    if (rhs_precedence >= OpPrecedence) {                                              \
-      doc << "(" << rhs_doc << ")";                                                    \
-    } else {                                                                           \
-      doc << rhs_doc;                                                                  \
-    }                                                                                  \
-    return doc;                                                                        \
+bool WillPrintConstScalar(const PrimExpr& expr) {
+  if (const auto* imm = expr.as<IntImmNode>()) {
+    DataType dtype = imm->dtype;
+    return dtype == DataType::Int(32) || dtype == DataType::Bool();
+  }
+  return false;
+}
+
+#define TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OpName, OpString, OpClass, OpPrecedence)              \
+  Doc TVMScriptPrinter::VisitExpr_(const OpName* op, ExprPrecedence* out_precedence) {            \
+    Doc doc;                                                                                      \
+    if (WillPrintConstScalar(op->a) && WillPrintConstScalar(op->b)) {                             \
+      *out_precedence = ExprPrecedence::kIdentity;                                                \
+      doc << tir_prefix_ << "." << OpClass << "(" << Print(op->a) << ", " << Print(op->b) << ")"; \
+      return doc;                                                                                 \
+    }                                                                                             \
+    ExprPrecedence lhs_precedence = ExprPrecedence::kUnknown;                                     \
+    ExprPrecedence rhs_precedence = ExprPrecedence::kUnknown;                                     \
+    /* Get children expr out_precedence */                                                        \
+    Doc lhs_doc = VisitExpr(op->a, &lhs_precedence);                                              \
+    Doc rhs_doc = VisitExpr(op->b, &rhs_precedence);                                              \
+    ICHECK(lhs_precedence != ExprPrecedence::kUnknown);                                           \
+    ICHECK(rhs_precedence != ExprPrecedence::kUnknown);                                           \
+    /* Update out_precedence of current node. */                                                  \
+    *out_precedence = OpPrecedence;                                                               \
+    if (lhs_precedence > OpPrecedence) {                                                          \
+      doc << "(" << lhs_doc << ")";                                                               \
+    } else {                                                                                      \
+      doc << lhs_doc;                                                                             \
+    }                                                                                             \
+    doc << OpString;                                                                              \
+    if (rhs_precedence >= OpPrecedence) {                                                         \
+      doc << "(" << rhs_doc << ")";                                                               \
+    } else {                                                                                      \
+      doc << rhs_doc;                                                                             \
+    }                                                                                             \
+    return doc;                                                                                   \
   }
 
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(MulNode, " * ", ExprPrecedence::kMultiplicationDivision)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(DivNode, " / ", ExprPrecedence::kMultiplicationDivision)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorDivNode, " // ", ExprPrecedence::kMultiplicationDivision)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorModNode, " % ", ExprPrecedence::kMultiplicationDivision)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AddNode, " + ", ExprPrecedence::kAdditionSubtraction)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(SubNode, " - ", ExprPrecedence::kAdditionSubtraction)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LTNode, " < ", ExprPrecedence::kRelational)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LENode, " <= ", ExprPrecedence::kRelational)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GTNode, " > ", ExprPrecedence::kRelational)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GENode, " >= ", ExprPrecedence::kRelational)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(EQNode, " == ", ExprPrecedence::kEquality)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(NENode, " != ", ExprPrecedence::kEquality)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AndNode, " and ", ExprPrecedence::kAnd)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OrNode, " or ", ExprPrecedence::kOr)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(MulNode, " * ", "Mul", ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(DivNode, " / ", "Div", ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorDivNode, " // ", "FloorDiv",
+                                    ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorModNode, " % ", "FloorMod",
+                                    ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AddNode, " + ", "Add", ExprPrecedence::kAdditionSubtraction)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(SubNode, " - ", "Sub", ExprPrecedence::kAdditionSubtraction)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LTNode, " < ", "LT", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LENode, " <= ", "LE", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GTNode, " > ", "GT", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GENode, " >= ", "GE", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(EQNode, " == ", "EQ", ExprPrecedence::kEquality)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(NENode, " != ", "NE", ExprPrecedence::kEquality)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AndNode, " and ", "And", ExprPrecedence::kAnd)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OrNode, " or ", "Or", ExprPrecedence::kOr)
 
 Doc TVMScriptPrinter::VisitExpr_(const ModNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
