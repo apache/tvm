@@ -393,13 +393,11 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
   tvm::Target target_;
   std::ostringstream readable_name_stream_;
   // Index of the global constants
-  static int const_index;
+  int const_index{0};
   // Cache device copy op for equivalence checking to reduce registry lookup
   // overhead for each invocation of call node when retrieving schedules.
   const Op& device_copy_op_;
 };
-
-int LowerToTECompute::const_index = 0;
 
 using namespace tvm::tir;
 
