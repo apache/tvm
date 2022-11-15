@@ -62,8 +62,7 @@ Map<String, backend::FunctionInfo> CalculateFunctionInfos(const IRModule& mod,
       auto params = pfunc->params;
       int64_t total_io_bytes = 0;
       for (const auto& param : params) {
-        // Inputs/outputs will be handles, workspaces are pointers
-        if (param->dtype.is_handle()) {
+        if (pfunc->buffer_map.find(param) != pfunc->buffer_map.end()) {
           auto buffer = pfunc->buffer_map[param];
           total_io_bytes += GetMemorySizeBytes(buffer->shape, buffer->dtype);
         }
