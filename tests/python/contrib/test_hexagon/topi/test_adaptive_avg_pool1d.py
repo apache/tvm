@@ -23,7 +23,8 @@ import tvm
 from tvm import te
 from tvm.topi.testing import adaptive_pool
 import tvm.topi.hexagon.qnn as s1
-from ..infrastructure import allocate_hexagon_array, transform_numpy, quantize_np
+from tvm.contrib.hexagon import allocate_hexagon_array
+from ..infrastructure import transform_numpy, quantize_np
 
 
 SCALE_M_VAL = None
