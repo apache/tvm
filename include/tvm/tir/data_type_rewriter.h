@@ -90,9 +90,11 @@ class DataTypeLegalizer : public StmtExprMutator {
  * implement different rewriting rules.
  */
 class IndexDataTypeRewriter : public DataTypeLegalizer {
-  using Parent = DataTypeLegalizer;
-
  protected:
+  using Parent = DataTypeLegalizer;
+  using Parent::VisitExpr_;
+  using Parent::VisitStmt_;
+
   Stmt VisitStmt_(const BlockRealizeNode* op) override;
   Stmt VisitStmt_(const BlockNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
@@ -109,9 +111,6 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   PrimExpr VisitExpr_(const GENode* op) override;
   PrimExpr VisitExpr_(const CallNode* op) override;
   Stmt VisitStmt_(const ForNode* op) override;
-
-  using DataTypeLegalizer::VisitExpr_;
-  using DataTypeLegalizer::VisitStmt_;
 
   Buffer VisitBuffer(const Buffer& buffer);
   Buffer GetRemappedBuffer(const Buffer& buffer);
@@ -139,7 +138,10 @@ class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
   explicit IndexDataTypeNormalizer(DataType target_data_type);
   PrimFunc Rewrite(PrimFunc func);
 
- private:
+ protected:
+  using Parent = IndexDataTypeRewriter;
+  using Parent::VisitExpr_;
+  using Parent::VisitStmt_;
   PrimExpr VisitExpr_(const IntImmNode* op) final;
   PrimExpr VisitExpr_(const VarNode* op) final;
   PrimExpr VisitExpr_(const SizeVarNode* op) final;

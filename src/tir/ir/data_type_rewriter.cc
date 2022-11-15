@@ -274,7 +274,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BlockNode* op) {
   if (!new_init.same_as(op->init) || !new_body.same_as(op->body) ||
       !new_alloc_buffers.same_as(op->alloc_buffers) ||
       !new_match_buffers.same_as(op->match_buffers) || !new_reads.same_as(op->reads) ||
-      !new_writes.same_as(op->writes) | new_iter_vars.same_as(op->iter_vars)) {
+      !new_writes.same_as(op->writes) || new_iter_vars.same_as(op->iter_vars)) {
     Block new_block = GetRef<Block>(op);
     BlockNode* n = new_block.CopyOnWrite();
     n->alloc_buffers = std::move(new_alloc_buffers);
