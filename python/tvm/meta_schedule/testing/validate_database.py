@@ -15,22 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 """JSON Database validation script"""
-from typing import Union, Callable, List
-from distutils.util import strtobool
 import argparse
 import logging
 import warnings
+from distutils.util import strtobool
+from typing import Callable, List, Tuple, Union
+
 import numpy as np  # type: ignore
 
 import tvm
-from tvm.target import Target
-from tvm.ir import IRModule
-from tvm.tir import Schedule
 from tvm import meta_schedule as ms
+from tvm._ffi import get_global_func, register_func
+from tvm.ir import IRModule
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.tune_utils import create_calculator, generate_input_data
-from tvm._ffi import get_global_func, register_func
 from tvm.support import describe
+from tvm.target import Target
+from tvm.tir import Schedule
+from tvm.tir.schedule import Trace
+from tvm.tir.tensor_intrin import cuda, x86  # type: ignore # pylint: disable=unused-import
 
 DELIMITOR = "\n" + "-" * 30 + "\n"
 
@@ -133,6 +136,64 @@ def default_check_metric(a: List[tvm.nd.NDArray], b: List[tvm.nd.NDArray]) -> bo
     return True
 
 
+def is_failed_record(record: ms.database.TuningRecord) -> bool:
+    """Check if a tuning record is failed."""
+    return len(record.run_secs) == 1 and record.run_secs[0] == 1e9
+
+
+def print_validation_result(
+    idx: int,
+    total: int,
+    result: str,
+    time: float,
+    *,
+    original_mod: IRModule = None,
+    scheduled_mod: IRModule = None,
+    inputs: List[np.ndarray] = None,
+    original_res: List[np.ndarray] = None,
+    scheduled_res: List[np.ndarray] = None,
+    exception: Exception = None,
+    trace: Trace = None,
+) -> None:
+    """Print the validation result."""
+    output = [
+        f"Progress {idx: 6d} / {total: 6d} checked, used {float(time): 3.3f} sec. Result: {result}"
+    ]
+    if result not in ["pass", "skip"]:
+        output.extend(
+            [
+                "Original IRModule:" + DELIMITOR + original_mod.script(),
+                "Scheduled IRModule:" + DELIMITOR + scheduled_mod.script(),
+                "Trace" + DELIMITOR + str(trace),
+                "Input:" + DELIMITOR + str(inputs),
+            ]
+        )
+        if result == "wrong answer":
+            output.extend(
+                [
+                    "Original Result:" + DELIMITOR + str(original_res),
+                    "Scheduled Result:" + DELIMITOR + str(scheduled_res),
+                    "Max Diff:"
+                    + DELIMITOR
+                    + str(
+                        [
+                            np.max(np.abs(original_res[i] - scheduled_res[i]))
+                            for i in range(len(original_res))
+                        ]
+                    ),
+                ]
+            )
+        elif result == "exception":
+            output.extend(
+                [
+                    "Exception:" + DELIMITOR + str(exception),
+                ]
+            )
+        else:
+            raise ValueError(f"Unknown result: {result}")
+    print("\n\n".join(output))
+
+
 def validate_correctness(
     original_mod: IRModule,  # compiled for "baseline_target"
     scheduled_mod: IRModule,  # compiled for "target"
@@ -147,7 +208,7 @@ def validate_correctness(
     f_check_metric: Union[
         str, Callable[[tvm.nd.NDArray, tvm.nd.NDArray], bool]
     ] = default_check_metric,
-) -> bool:
+) -> Tuple[bool, List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
     """Function to validate the correctness of a scheduled module.
 
     Parameters
@@ -185,7 +246,7 @@ def validate_correctness(
         assert a is not None, "Empty result cannot be converted to TVM NDArray"
         return [tvm.nd.array(x) for x in a]
 
-    def build_and_run(mod: IRModule, target: Target, dev_type: str) -> np.ndarray:
+    def build_and_run(mod: IRModule, target: Target, dev_type: str) -> List[tvm.nd.NDArray]:
         """Build and run the module on the target device."""
         rt_mod = tvm.build(mod, target=target)
         return run_module_via_rpc(
@@ -197,32 +258,26 @@ def validate_correctness(
             backend="tir",
         )
 
-    # fetch functions & prepare inputs
+    # fetch input function & prepare inputs
     if isinstance(f_input_generator, str):
         f_input_generator = get_global_func(f_input_generator)
-    if isinstance(f_check_metric, str):
-        f_check_metric = get_global_func(f_check_metric)
     inputs = to_numpy(f_input_generator(original_mod))  # type: ignore
+
     # build & run original result
     original_res = to_numpy(build_and_run(original_mod, target=baseline_target, dev_type="cpu"))
     scheduled_res = to_numpy(build_and_run(scheduled_mod, target=target, dev_type=dev_type))
+
+    # fetch comparison function
+    if isinstance(f_check_metric, str):
+        f_check_metric = get_global_func(f_check_metric)
+
     # check metric
-    if f_check_metric(to_tvm_ndarray(original_res), to_tvm_ndarray(scheduled_res)):  # type: ignore
-        return True
-    else:
-        print(
-            ("\n\n").join(
-                [
-                    "Validation failed!",
-                    "Original Result:" + DELIMITOR + str(original_res),
-                    "Scheduled Result:" + DELIMITOR + str(scheduled_res),
-                    "Input:" + DELIMITOR + str(inputs),
-                    "Original IRModule:" + DELIMITOR + original_mod.script(),
-                    "Scheduled IRModule:" + DELIMITOR + scheduled_mod.script(),
-                ]
-            )
-        )
-        return False
+    return (
+        f_check_metric(to_tvm_ndarray(original_res), to_tvm_ndarray(scheduled_res)),  # type: ignore
+        inputs,
+        original_res,
+        scheduled_res,
+    )
 
 
 def main():
@@ -240,14 +295,18 @@ def main():
     with ms.Profiler() as profiler:
         for i, record in enumerate(records):
             scope_name = f"validate #{i}"
-            with profiler.timeit(scope_name):
-                original_mod = record.workload.mod
-                sch = Schedule(original_mod)
-                record.trace.apply_to_schedule(sch=sch, remove_postproc=False)
-                scheduled_mod = sch.mod
-                is_success = False
-                try:
-                    is_success = validate_correctness(
+            if is_failed_record(record):
+                print_validation_result(i + 1, total=len(records), result="skip", time=0.0)
+                continue
+            try:
+                with profiler.timeit(scope_name):
+                    original_mod = record.workload.mod
+                    sch = Schedule(original_mod)
+                    record.trace.apply_to_schedule(sch=sch, remove_postproc=False)
+                    scheduled_mod = sch.mod
+                    passed = False
+
+                    passed, inputs, original_res, scheduled_res = validate_correctness(
                         original_mod=original_mod,
                         scheduled_mod=scheduled_mod,
                         target=target,
@@ -255,26 +314,31 @@ def main():
                         dev_type=dev_type,
                         rpc_config=ARGS.rpc_config,
                     )
-                except Exception as e:  # pylint: disable=broad-except, invalid-name
-                    print(
-                        ("\n\n").join(
-                            [
-                                "Validation failed!",
-                                "Original IRModule:" + DELIMITOR + original_mod.script(),
-                                "Scheduled IRModule:" + DELIMITOR + scheduled_mod.script(),
-                                "Exception" + DELIMITOR + str(e),
-                            ]
-                        )
-                    )
-            if is_success:
-                print(
-                    f"Progress {i+1: 6d} / {len(records): 6d} checked,"
-                    f" used {float(profiler.get()[scope_name]): 3.3f} sec."
+                print_validation_result(
+                    i + 1,
+                    total=len(records),
+                    result="pass" if passed else "wrong answer",
+                    time=profiler.get()[scope_name],
+                    original_mod=original_mod,
+                    scheduled_mod=scheduled_mod,
+                    trace=record.trace,
+                    inputs=inputs,
+                    original_res=original_res,
+                    scheduled_res=scheduled_res,
                 )
-            else:
-                return
+            except Exception as e:  # pylint: disable=broad-except, invalid-name
+                print_validation_result(
+                    i + 1,
+                    total=len(records),
+                    result="exception",
+                    time=profiler.get()[scope_name],
+                    original_mod=original_mod,
+                    scheduled_mod=scheduled_mod,
+                    trace=record.trace,
+                    exception=e,
+                )
 
-    print("Validation passed!")
+    print("Validation finished!")
     print(f"Total time spent: {float(profiler.get()['Total']): 3.3f} sec.")
 
 
