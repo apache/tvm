@@ -123,6 +123,19 @@ logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 ARGS = _parse_args()
 
 
+class OriginalModule:
+    """Original module class"""
+
+    def __init__(self, mod: IRModule):
+        self.mod = mod
+
+    def __eq__(self, __o: "OriginalModule") -> bool:  # type: ignore
+        return tvm.ir.structural_equal(self.mod, __o.mod)
+
+    def __hash__(self) -> int:
+        return tvm.ir.structural_hash(self.mod)
+
+
 @register_func("tvm.meta_schedule.testing.default_input_generator")
 def default_input_generator(mod: IRModule) -> List[tvm.nd.NDArray]:
     args_info = ms.arg_info.TensorInfo.from_prim_func(mod["main"])
@@ -313,7 +326,9 @@ def validate_correctness(
     )
 
     # fetch comparison function
-    validation_res = check_and_run(f_check_metric, original_res, scheduled_res)
+    validation_res = check_and_run(
+        f_check_metric, to_tvm_ndarray(original_res), to_tvm_ndarray(scheduled_res)
+    )
 
     # check metric
     return (
@@ -343,40 +358,32 @@ def main():
         # collect records
         with profiler.timeit("collect records"):
             records = database.get_all_tuning_records()
-            print(
-                f"Total {len(records)} records to be validated. "
-                f"Collected in {float(profiler.get()['collect records']): 3.3f} sec."
-            )
+        total = len(records)
+        print(
+            f"Total {total} records to be validated. "
+            f"Collected in {float(profiler.get()['collect records']): 3.3f} sec."
+        )
 
         # collect unique original TIR
         with profiler.timeit("deduplicate records"):
-            workloads = dict()
+            workloads = set()
             for record in records:
-                mod = record.workload.mod
-                s_hash = tvm.ir.structural_hash(mod)
-                if s_hash not in workloads:
-                    workloads[s_hash] = [mod]
-                else:
-                    duplicate = False
-                    for previous_mod in workloads[hash]:
-                        if tvm.ir.structural_equal(mod, previous_mod):
-                            duplicate = True
-                            break
-                    if not duplicate:
-                        workloads[hash].append(mod)
-            # put the workload into a list
-            unique_workloads = []
-            for _, mods in workloads.items():
-                unique_workloads.extend(mods)
-            print(
-                f"Total {len(unique_workloads)} unique original TIR to be validated. "
-                f"Deduplicated in {float(profiler.get()['deduplicate records']): 3.3f} sec."
-            )
+                workloads.add(OriginalModule(record.workload.mod))
+        print(
+            f"Total {len(workloads)} unique original TIR to validate. "
+            f"Deduplicated in {float(profiler.get()['deduplicate records']): 3.3f} sec."
+        )
+        if ARGS.top_k < 10**9:
+            print(f"Top {ARGS.top_k} records for each original TIR will be validated.")
+            total = len(workloads) * ARGS.top_k
 
         # validate correctness
         counter = 0
-        for original_mod in unique_workloads:
-            records = database.get_top_k(workload=database.commit_workload(mod), top_k=10**9)
+        for item in workloads:
+            original_mod = item.mod
+            records = database.get_top_k(
+                workload=database.commit_workload(original_mod), top_k=ARGS.top_k
+            )
             inputs = None
             original_res = None
             for record in records:
@@ -406,8 +413,8 @@ def main():
                         )
                     # validation finished
                     print_result(
-                        counter + 1,
-                        total=len(records),
+                        counter,
+                        total=total,
                         result="pass" if passed else "wrong answer",
                         time=profiler.get()[scope_name],
                         original_mod=original_mod,
@@ -420,8 +427,8 @@ def main():
                 except Exception as e:  # pylint: disable=broad-except, invalid-name
                     # validation failed with exception
                     print_result(
-                        counter + 1,
-                        total=len(records),
+                        counter,
+                        total=total,
                         result="exception",
                         time=profiler.get()[scope_name],
                         original_mod=original_mod,
@@ -429,8 +436,8 @@ def main():
                         trace=record.trace,
                         exception=e,
                     )
-        print("Validation finished!")
-        print(f"Total time spent: {float(profiler.get()['Total']): 3.3f} sec.")
+    print("Validation finished!")
+    print(f"Total time spent: {float(profiler.get()['Total']): 3.3f} sec.")
 
 
 if __name__ == "__main__":
