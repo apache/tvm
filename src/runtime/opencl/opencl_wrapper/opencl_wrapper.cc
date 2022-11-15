@@ -19,14 +19,21 @@
 
 /*!
  * \file opencl_wrapper.cc
+ * \brief This wrapper is actual for OpenCL 1.2, but can be easily upgraded
+ * when TVM will use newer version of OpenCL
  */
 
 #define CL_TARGET_OPENCL_VERSION 120
 #include <CL/cl.h>
 #include <CL/cl_gl.h>
 
-#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
+#if defined(_WIN32)
+#include <windows.h>
+#else
 #include <dlfcn.h>
+#endif
+
+#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 #include <tvm/runtime/logging.h>
 
 #include <vector>
@@ -49,7 +56,7 @@ static const std::vector<const char*> default_so_paths = {
     "/system/vendor/lib/libPVROCL.so",
     "/data/data/org.pocl.libs/files/lib/libpocl.so"};
 #elif defined(_WIN32)
-static const std::vector<const char*> default_so_paths = {"OpenCL.dll"};
+static const std::vector<const TCHAR*> default_so_paths = {__TEXT("OpenCL.dll")};
 #elif defined(__linux__)
 static const std::vector<const char*> default_so_paths = {"libOpenCL.so",
                                                           "/usr/lib/libOpenCL.so",
@@ -69,24 +76,40 @@ class LibOpenCLWrapper {
   LibOpenCLWrapper& operator=(const LibOpenCLWrapper&) = delete;
   void* getOpenCLFunction(const char* funcName) {
     if (m_libHandler == nullptr) openLibOpenCL();
+#if defined(_WIN32)
+    return GetProcAddress(m_libHandler, funcName);
+#else
     return dlsym(m_libHandler, funcName);
+#endif
   }
 
  private:
   LibOpenCLWrapper() {}
   ~LibOpenCLWrapper() {
+#if defined(_WIN32)
+    if (m_libHandler) FreeLibrary(m_libHandler);
+#else
     if (m_libHandler) dlclose(m_libHandler);
+#endif
   }
   void openLibOpenCL() {
     for (const auto it : default_so_paths) {
+#if defined(_WIN32)
+      m_libHandler = LoadLibrary(it);
+#else
       m_libHandler = dlopen(it, RTLD_LAZY);
+#endif
       if (m_libHandler != nullptr) return;
     }
     ICHECK(m_libHandler != nullptr) << "Error! Cannot open libOpenCL!";
   }
 
  private:
+#if defined(_WIN32)
+  HMODULE m_libHandler = nullptr;
+#else
   void* m_libHandler = nullptr;
+#endif
 };
 
 // Function pointers declaration
