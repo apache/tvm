@@ -264,7 +264,7 @@ def test_create_function_metadata_workspace_multi_funcs():
             T.evaluate(T.tvm_call_cpacked("test_fused_add", a_buffer.data, a_buffer.data, output_buffer.data, T.reinterpret(T.uint64(0), dtype="handle"), dtype="int32"))
 
         @T.prim_func
-        def test_fused_add(a: T.handle, b: T.handle, output: T.handle) -> None:
+        def test_fused_add(a: T.handle, b: T.handle, output: T.handle, device_context_unused: T.handle) -> None:
             # function attr dict
             T.func_attr({"global_symbol": "test_mod_test_fused_add", "target": T.target({"kind":"llvm", "tag":"", "keys":["cpu"]})})
             a_buffer = T.match_buffer(a, [5, 7], dtype="float32", align=16)
