@@ -86,7 +86,10 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
 
 def vnni_legalize(inputs, arg_types, op, attrs, need_expand=False):
     """Legalizes s8, s8 -> s32 GEMM op for VNNI."""
-    if check_vnni_applicable(arg_types[0], arg_types[1], allow_padding=True) and arg_types[0].dtype == "int8":
+    if (
+        check_vnni_applicable(arg_types[0], arg_types[1], allow_padding=True)
+        and arg_types[0].dtype == "int8"
+    ):
         x, y = inputs
         x = relay.cast(x, "int32")
         x = relay.add(x, relay.const(128, "int32"))
@@ -100,23 +103,25 @@ def vnni_legalize(inputs, arg_types, op, attrs, need_expand=False):
         analyzer = tvm.arith.Analyzer()
         x_shape = arg_types[0].shape
         y_shape = arg_types[1].shape
-        pad_k = analyzer.simplify(4 - y_shape[-1] % 4)
-        pad_n = analyzer.simplify(16 - y_shape[-2] % 16)
-        ndim = len(x_shape)
+        inst_n = 16
+        inst_k = 4
+        pad_n = analyzer.simplify((inst_n - y_shape[-2] % inst_n) % inst_n)
+        pad_k = analyzer.simplify((inst_k - y_shape[-1] % inst_k) % inst_k)
         if pad_k != 0 or pad_n != 0:
+            ndim = len(x_shape)
             unpadded_dims = [(0, 0)] * (ndim - 2)
-            padded_y = relay.nn.pad(y, pad_width=unpadded_dims +[(0, pad_n), (0, pad_k)], pad_value=0)
+            padding_y = [(0, 0)] * (len(y_shape) - 2) + [(0, pad_n), (0, pad_k)]
+            padded_y = relay.nn.pad(y, pad_width=padding_y, pad_value=0)
             if pad_k != 0:
-                padded_x = relay.nn.pad(x, pad_width=unpadded_dims + [(0, 0), (0, pad_k)], pad_value=0)
+                padding_x = [(0, 0)] * (len(x_shape) - 1) + [(0, pad_k)]
+                padded_x = relay.nn.pad(x, pad_width=padding_x, pad_value=0)
             else:
                 padded_x = x
             out = op(padded_x, padded_y, **attrs)
             if pad_n != 0:
-                begin = [0] * ndim
+                begin = [0] * len(x_shape)
                 end = x_shape[:-2] + [x_shape[-2], y_shape[-2]]
                 out = relay.strided_slice(out, begin, end, slice_mode="size")
-                # cropping only needed if padding was added to N dimension
-                # out = relay.strided_slice(out, begin=[0, 0, 0], end=[x.shape[0], x.shape[1], y.shape[1]], strides=[1, 1, 1])
         else:
             out = op(x, y, **attrs)
 
