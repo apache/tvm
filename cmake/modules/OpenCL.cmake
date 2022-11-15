@@ -15,15 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# OPENCL Module
-find_opencl(${USE_OPENCL})
-
-if(OpenCL_FOUND)
-  # always set the includedir when cuda is available
-  # avoid global retrigger of cmake
-  include_directories(SYSTEM ${OpenCL_INCLUDE_DIRS})
-endif(OpenCL_FOUND)
-
 if(USE_SDACCEL)
   message(STATUS "Build with SDAccel support")
   tvm_file_glob(GLOB RUNTIME_SDACCEL_SRCS src/runtime/opencl/sdaccel/*.cc)
@@ -49,12 +40,23 @@ else()
 endif(USE_AOCL)
 
 if(USE_OPENCL)
-  if (NOT OpenCL_FOUND)
-    find_package(OpenCL REQUIRED)
-  endif()
-  message(STATUS "Build with OpenCL support")
   tvm_file_glob(GLOB RUNTIME_OPENCL_SRCS src/runtime/opencl/*.cc)
-  list(APPEND TVM_RUNTIME_LINKER_LIBS ${OpenCL_LIBRARIES})
+
+  if(${USE_OPENCL} MATCHES ${IS_TRUE_PATTERN})
+    message(WARNING "Build with OpenCL wrapper")
+    file_glob_append(RUNTIME_OPENCL_SRCS
+      "src/runtime/opencl/opencl_wrapper/opencl_wrapper.cc"
+    )
+    include_directories(SYSTEM "3rdparty/OpenCL-Headers")
+  else()
+    find_opencl(${USE_OPENCL})
+    if(NOT OpenCL_FOUND)
+        message(FATAL_ERROR "Error! Cannot find specified OpenCL library")
+    endif()
+    message(STATUS "Build with OpenCL support")
+    include_directories(SYSTEM ${OpenCL_INCLUDE_DIRS})
+    list(APPEND TVM_RUNTIME_LINKER_LIBS ${OpenCL_LIBRARIES})
+  endif()
 
   if(DEFINED USE_OPENCL_GTEST AND EXISTS ${USE_OPENCL_GTEST})
     file_glob_append(RUNTIME_OPENCL_SRCS
