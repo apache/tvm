@@ -288,7 +288,7 @@ class BufferState {
  private:
   friend class ControlFlowGraph;
   /*! \brief The known constraints */
-  std::vector<BufferTouch> constraints;
+  std::vector<BufferTouch> constraints_;
 };
 
 /*! \brief Represents the flow of control through a `tir::Stmt`
@@ -378,6 +378,20 @@ class BufferState {
  * those indices may be known for a given control block.  These known
  * values can then be propagated forward to successor blocks, to be
  * used in context-dependent simplifications.
+ *
+ * In addition to the allowed transitions between control-flow
+ * blocks, each block also tracks the buffer touch points; which
+ * indices are read from a buffer, which values are written to which
+ * indices of a buffer, and assumptions are provided using
+ * `builtin::assume()`; that occur during the control-flow block.
+ *
+ * Note: The current implementation only tracks the values of
+ * buffers that are constrained to a specific value, and does not
+ * track inequalities that may partially constrain buffer values.
+ * That is, entering a scoped context with a data-dependent equality
+ * condition (e.g. `if buf[i] == value`) is tracked, but entering a
+ * scoped context with a data-dependent inequality condition
+ * (e.g. `if buf[i] > value`) is not tracked.
  */
 class ControlFlowGraph {
  public:
@@ -399,8 +413,7 @@ class ControlFlowGraph {
    * overwritten without contributing to any later statements.
    * Returns false otherwise.
    */
-  bool IsOverwrittenWithoutEffect(const BufferStore& store, const Stmt& context,
-                                  arith::Analyzer* analyzer) const;
+  bool IsOverwrittenWithoutEffect(const BufferStore& store, const Stmt& context) const;
 
   /* \brief Simplify the expression, assuming it occurs within the given context
    *
@@ -464,6 +477,9 @@ class ControlFlowGraph {
    */
   void ForwardPropagateKnownValues(size_t max_revisits);
 
+  /*! \brief Propagate overwritten/unused indices to preceding control
+   *  flow blocks
+   */
   void BackwardPropagateUnusedValues(size_t max_revisits);
 
   struct ControlFlowEdge {
@@ -535,10 +551,50 @@ class ControlFlowGraph {
     /* \brief The blocks that occur before this block */
     std::vector<ControlFlowEdge> predecessors;
 
+    /* \brief Construct a BufferTouch instance within this
+     * ControlFlowBlock
+     *
+     * \param graph The mutable ControlFlowGraph that owns the buffer
+     * touch.  Any free parameters used in the BufferTouch's predicate
+     * will be tracked by the ControlFlowGraph.
+     *
+     * \param buf The Buffer being accessed
+     *
+     * \param indices The indices at which the buffer is accessed, in
+     * terms of the loop variables.
+     *
+     * \param touch_type The type of touch being generated
+     *
+     * \param known_expr_value The value being written to the buffer
+     *
+     * \returns The newly generated BufferTouch
+     */
     BufferTouch MakeBufferTouch(ControlFlowGraph* graph, const Buffer& buf,
                                 const Array<PrimExpr>& indices, BufferTouch::AccessType touch_type,
                                 PrimExpr known_value_expr) const;
 
+    /* \brief Construct a BufferTouch instance as if it occurred in
+     * this ControlFlowBlock
+     *
+     * Used when speculative checking if a BufferStore could be
+     * inserted.
+     *
+     * \param buf The Buffer being accessed
+     *
+     * \param index_variables The variables representing location
+     * within a buffer, with one variable for each axis of the buffer.
+     *
+     * \param indices The indices at which the buffer is accessed, in
+     * terms of the loop variables.
+     *
+     * \param touch_type The type of touch being generated
+     *
+     * \param known_expr_value The value being written to the buffer
+     *
+     * \returns The newly generated BufferTouch, and a map specifying
+     * all free parameters that may occur in the BufferTouch's
+     * predicate.
+     */
     std::pair<BufferTouch, Map<Var, Range>> MakeBufferTouch(const Buffer& buf,
                                                             Array<Var> index_variables,
                                                             Array<PrimExpr> indices,

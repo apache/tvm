@@ -258,8 +258,8 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
         // on a buffer value allows the following two forms to be
         // treated identically.
         //
-        // if i < 3: T.assume(buf[i] == value)
-        // T.assume(i>=3 or buf[i] == value)
+        // Option 1: if i < 3: T.assume(buf[i] == value)
+        // Option 2: T.assume(i>=3 or buf[i] == value)
         additional_predicate = additional_predicate && logical_not(expr);
       } else if (side_effect == tir::CallEffectKind::kReadState) {
         buffer_exprs.push_back(expr);
@@ -919,9 +919,9 @@ bool BufferTouch::IsEquivalentTo(const BufferTouch& other, Analyzer* analyzer) c
 }
 
 std::ostream& operator<<(std::ostream& os, const BufferState& state) {
-  for (size_t i = 0; i < state.constraints.size(); i++) {
-    os << "constraints[" << i << "] = " << state.constraints[i]
-       << (i + 1 == state.constraints.size() ? "" : "\n");
+  for (size_t i = 0; i < state.constraints_.size(); i++) {
+    os << "constraints[" << i << "] = " << state.constraints_[i]
+       << (i + 1 == state.constraints_.size() ? "" : "\n");
   }
   return os;
 }
@@ -929,19 +929,19 @@ std::ostream& operator<<(std::ostream& os, const BufferState& state) {
 PrimExpr BufferState::SubstituteKnownBufferValues(
     PrimExpr expr, const Map<tir::Buffer, Array<tir::Var>>& axis_var_lookup,
     Analyzer* analyzer) const {
-  BufferConstraintApply mutator(axis_var_lookup, constraints, analyzer);
+  BufferConstraintApply mutator(axis_var_lookup, constraints_, analyzer);
   return mutator(std::move(expr));
 }
 
 void BufferState::AddCondition(const PrimExpr& condition) {
-  for (auto& constraint : constraints) {
+  for (auto& constraint : constraints_) {
     constraint.predicate = constraint.predicate && condition;
   }
 }
 
 void BufferState::Substitute(const Map<Var, PrimExpr>& var_remap, Analyzer* analyzer) {
   if (var_remap.size()) {
-    for (auto& prior : constraints) {
+    for (auto& prior : constraints_) {
       PrimExpr updated = tvm::tir::Substitute(prior.predicate, var_remap);
       if (!updated.same_as(prior.predicate)) {
         prior.predicate = SimplifyAsAndOfOrs(updated, analyzer);
@@ -951,15 +951,15 @@ void BufferState::Substitute(const Map<Var, PrimExpr>& var_remap, Analyzer* anal
 }
 
 void BufferState::Simplify(Analyzer* analyzer) {
-  for (auto& constraint : constraints) {
+  for (auto& constraint : constraints_) {
     constraint.predicate = SimplifyAsAndOfOrs(constraint.predicate, analyzer);
   }
 }
 
 void BufferState::Union(const BufferState& b, Analyzer* analyzer) {
-  for (const auto& b_constraint : b.constraints) {
+  for (const auto& b_constraint : b.constraints_) {
     bool used = false;
-    for (auto& a_constraint : constraints) {
+    for (auto& a_constraint : constraints_) {
       if (a_constraint.buffer.same_as(b_constraint.buffer) &&
           analyzer->CanProveEqual(a_constraint.value, b_constraint.value)) {
         a_constraint.predicate =
@@ -969,7 +969,7 @@ void BufferState::Union(const BufferState& b, Analyzer* analyzer) {
       }
     }
     if (!used) {
-      constraints.push_back(b_constraint);
+      constraints_.push_back(b_constraint);
     }
   }
 }
@@ -979,8 +979,8 @@ void BufferState::Intersection(const BufferState& b, Analyzer* analyzer) {
   // inputs.
 
   std::vector<BufferTouch> new_constraints;
-  for (const auto& ai : constraints) {
-    for (const auto& bi : b.constraints) {
+  for (const auto& ai : constraints_) {
+    for (const auto& bi : b.constraints_) {
       if (ai.buffer.same_as(bi.buffer)) {
         PrimExpr predicate = SimplifyAsAndOfOrs(ai.predicate && bi.predicate, analyzer);
         if (!is_zero(predicate)) {
@@ -997,7 +997,7 @@ void BufferState::Intersection(const BufferState& b, Analyzer* analyzer) {
     }
   }
 
-  constraints = std::move(new_constraints);
+  constraints_ = std::move(new_constraints);
 }
 
 class BufferRegionCollector : public ExprVisitor {
@@ -1143,7 +1143,7 @@ void BufferState::ApplyTouches(const Map<Buffer, Array<Var>>& axis_var_lookup,
     PrimExpr known_value = touch.value;
 
     PrimExpr predicate = touch.predicate && touch.AfterLoopIteration();
-    auto regions = BufferRegionCollector::Collect(axis_var_lookup, constraints,
+    auto regions = BufferRegionCollector::Collect(axis_var_lookup, constraints_,
                                                   {predicate, touch.value}, analyzer);
 
     for (const auto& region : regions) {
@@ -1170,7 +1170,7 @@ void BufferState::ApplyTouches(const Map<Buffer, Array<Var>>& axis_var_lookup,
   }
 
   if (keep_prior_known_at.size()) {
-    for (auto& constraint : constraints) {
+    for (auto& constraint : constraints_) {
       if (auto it = keep_prior_known_at.find(constraint.buffer); it != keep_prior_known_at.end()) {
         constraint.predicate = SimplifyAsAndOfOrs(constraint.predicate && (*it).second, analyzer);
       }
@@ -1180,7 +1180,7 @@ void BufferState::ApplyTouches(const Map<Buffer, Array<Var>>& axis_var_lookup,
   if (new_knowns.size()) {
     std::vector<bool> used(new_knowns.size(), false);
 
-    for (auto& constraint : constraints) {
+    for (auto& constraint : constraints_) {
       PrimExpr expand_known_at = Bool(false);
 
       PrimExpr prev_value = constraint.value;
@@ -1204,15 +1204,15 @@ void BufferState::ApplyTouches(const Map<Buffer, Array<Var>>& axis_var_lookup,
 
     for (size_t i = 0; i < new_knowns.size(); i++) {
       if (!used[i]) {
-        constraints.push_back(new_knowns[i]);
+        constraints_.push_back(new_knowns[i]);
       }
     }
   }
 
-  constraints.erase(
-      std::remove_if(constraints.begin(), constraints.end(),
+  constraints_.erase(
+      std::remove_if(constraints_.begin(), constraints_.end(),
                      [&](const auto& constraint) { return is_zero(constraint.predicate); }),
-      constraints.end());
+      constraints_.end());
 }
 
 void BufferState::BackpropUnusedIndices(const Map<Buffer, Array<Var>>& axis_var_lookup,
@@ -1252,7 +1252,7 @@ void BufferState::BackpropUnusedIndices(const Map<Buffer, Array<Var>>& axis_var_
   update_map(regions_read);
 
   // If buffer is already in used, widen the predicate
-  for (auto& prev_unused : constraints) {
+  for (auto& prev_unused : constraints_) {
     if (auto opt_predicate = regions_written.Get(prev_unused.buffer)) {
       PrimExpr new_predicate = prev_unused.predicate || opt_predicate.value();
       prev_unused.predicate = SimplifyAsAndOfOrs(new_predicate, analyzer);
@@ -1262,12 +1262,12 @@ void BufferState::BackpropUnusedIndices(const Map<Buffer, Array<Var>>& axis_var_
 
   // Otherwise, add new "touch" to represent the unused values
   for (auto [buffer, predicate] : regions_written) {
-    constraints.push_back(
+    constraints_.push_back(
         BufferTouch{buffer, predicate, tir::Call(buffer->dtype, builtin::undef(), {})});
   }
 
   // If buffer is read out, narrow the predicate
-  for (auto& prev_unused : constraints) {
+  for (auto& prev_unused : constraints_) {
     if (auto opt_pred = regions_read.Get(prev_unused.buffer)) {
       PrimExpr predicate = opt_pred.value();
       prev_unused.predicate = SimplifyAsAndOfOrs(prev_unused.predicate && !predicate, analyzer);
@@ -1275,27 +1275,27 @@ void BufferState::BackpropUnusedIndices(const Map<Buffer, Array<Var>>& axis_var_
   }
 
   // Clean-up and remove any empty constraints
-  constraints.erase(
-      std::remove_if(constraints.begin(), constraints.end(),
+  constraints_.erase(
+      std::remove_if(constraints_.begin(), constraints_.end(),
                      [](const auto& constraint) { return is_zero(constraint.predicate); }),
-      constraints.end());
+      constraints_.end());
 }
 
 void BufferState::RemoveFreeParameters(const Map<Var, Range>& free_predicate_parameters,
                                        Analyzer* analyzer) {
-  for (auto& known : constraints) {
+  for (auto& known : constraints_) {
     known.predicate = NarrowPredicateExpression(known.predicate, free_predicate_parameters);
     known.predicate = SimplifyAsAndOfOrs(known.predicate, analyzer);
   }
 }
 
 bool BufferState::IsEquivalentTo(const BufferState& other, Analyzer* analyzer) const {
-  if (constraints.size() != other.constraints.size()) {
+  if (constraints_.size() != other.constraints_.size()) {
     return false;
   }
 
-  for (size_t i = 0; i < constraints.size(); i++) {
-    if (!constraints[i].IsEquivalentTo(other.constraints[i], analyzer)) {
+  for (size_t i = 0; i < constraints_.size(); i++) {
+    if (!constraints_[i].IsEquivalentTo(other.constraints_[i], analyzer)) {
       return false;
     }
   }
@@ -1367,12 +1367,18 @@ void ControlFlowGraph::ForwardPropagateKnownValues(size_t max_revisits) {
 
     ControlFlowBlock& block = control_flow_[visiting];
 
-    // Step 1: Collect known values provided from each precedessor
+    // Step 1: Collect known values provided from each predecessor
     block.known_at_block_start = [&]() -> BufferState {
       if (num_previous_visits >= max_revisits) {
         return BufferState();
       }
-      ICHECK_LE(block.predecessors.size(), 2) << "Each block should have at most two predecessors";
+
+      // Validate internal constraint.  This should be true by
+      // construction, as ControlFlowGraphBuilder only builds graphs
+      // that have two or fewer predecessors.
+      ICHECK_LE(block.predecessors.size(), 2)
+          << "InternalError: Each block should have at most two predecessors.  "
+          << "Graph constructed in ControlFlowGraphBuilder did not satisfy this constraint.";
 
       std::vector<BufferState> states;
       for (const auto& pred : block.predecessors) {
@@ -1535,17 +1541,17 @@ void ControlFlowGraph::BackwardPropagateUnusedValues(size_t max_revisits) {
       }
 
       if (successor_a.post_condition && successor_b.post_condition) {
-        // The predicate can identify which predecessor block applies
-        // (e.g. i==0 for the first loop iteration, i>0 for remaining
+        // The predicate can identify which successor block applies
+        // (e.g. i==n-1 for the last loop iteration, i<n-1 for earlier
         // loop iterations).  Therefore, we can use all buffer
         // constraints, conditional on having come from the
-        // predecessor that provides it.
+        // successor that provides it.
         post_a.AddCondition(successor_a.post_condition.value());
         post_b.AddCondition(successor_b.post_condition.value());
         post_a.Union(post_b, &analyzer);
         return post_a;
       } else {
-        // We don't know which predecessor applies.  Therefore, the
+        // We don't know which successor applies.  Therefore, the
         // only buffer constraints that can be used are those that
         // appear in both successors.
         post_a.Intersection(post_b, &analyzer);
@@ -1578,7 +1584,7 @@ void ControlFlowGraph::BackwardPropagateUnusedValues(size_t max_revisits) {
 }
 
 bool ControlFlowGraph::IsOverwrittenWithoutEffect(const tir::BufferStore& store,
-                                                  const Stmt& context, Analyzer* analyzer) const {
+                                                  const Stmt& context) const {
   Optional<Array<Var>> index_variables = GetIndexVariables(store->buffer);
   if (!index_variables) {
     return false;
@@ -1599,15 +1605,14 @@ bool ControlFlowGraph::IsOverwrittenWithoutEffect(const tir::BufferStore& store,
   local_analyzer.Bind(free_params);
   local_analyzer.rewrite_simplify.SetEnabledExtensions(
       RewriteSimplifier::kTransitivelyProveInequalities);
-  analyzer = &local_analyzer;
 
   PrimExpr predicate = store_touch.predicate && store_touch.AtLoopIteration();
 
-  predicate = SimplifyAsAndOfOrs(predicate, analyzer);
+  predicate = SimplifyAsAndOfOrs(predicate, &local_analyzer);
 
-  for (const auto& unused : context_block.unused_at_block_end.constraints) {
+  for (const auto& unused : context_block.unused_at_block_end.constraints_) {
     if (store_touch.buffer.same_as(unused.buffer)) {
-      PrimExpr difference = SimplifyAsAndOfOrs(predicate && !unused.predicate, analyzer);
+      PrimExpr difference = SimplifyAsAndOfOrs(predicate && !unused.predicate, &local_analyzer);
       if (is_zero(difference)) {
         return true;
       }
