@@ -87,6 +87,8 @@ Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
 
 Array<ScheduleRule> ScheduleRule::DefaultVNNI() {
   return {
+      ScheduleRule::ApplyCustomRule(),
+      ScheduleRule::InlineConstantScalars(),
       ScheduleRule::AutoInline(
           /*into_producer=*/false,
           /*into_consumer=*/true,
@@ -100,6 +102,16 @@ Array<ScheduleRule> ScheduleRule::DefaultVNNI() {
           /*max_innermost_factor=*/Integer(64)),
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/"dot_16x4_vnni",
+          /*structure=*/"SSRSRS",
+          /*tile_binds=*/NullOpt,
+          /*max_innermost_factor=*/Integer(64),
+          /*vector_load_lens=*/NullOpt,
+          /*reuse_read=*/NullOpt,
+          /*reuse_write=*/
+          Map<String, ObjectRef>{{"req", String("may")},
+                                 {"levels", Array<Integer>{1, 2}},
+                                 {"scope", String("global")}}),
+      ScheduleRule::MultiLevelTiling(
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,
           /*max_innermost_factor=*/Integer(64),
