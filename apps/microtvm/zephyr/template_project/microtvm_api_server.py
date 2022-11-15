@@ -370,7 +370,7 @@ PROJECT_OPTIONS = server.default_project_options(
 ]
 
 
-def get_zephyr_base(options: dict):
+def get_zephyr_base(options: dict) -> str:
     """Returns Zephyr base path"""
     zephyr_base = options.get("zephyr_base", ZEPHYR_BASE)
     assert zephyr_base, "'zephyr_base' option not passed and not found by default!"
@@ -470,7 +470,6 @@ class Handler(server.ProjectAPIHandler):
     API_SERVER_CRT_LIBS_TOKEN = "<API_SERVER_CRT_LIBS>"
     CMAKE_ARGS_TOKEN = "<CMAKE_ARGS>"
     QEMU_PIPE_TOKEN = "<QEMU_PIPE>"
-    CMSIS_PATH_TOKEN = "<CMSIS_PATH>"
 
     CRT_LIBS_BY_PROJECT_TYPE = {
         "host_driven": "microtvm_rpc_server microtvm_rpc_common aot_executor_module aot_executor common",
@@ -508,7 +507,14 @@ class Handler(server.ProjectAPIHandler):
         return False
 
     def _generate_cmake_args(
-        self, mlf_extracted_path, board, use_fvp, west_cmd, zephyr_base, verbose, cmsis_path
+        self,
+        mlf_extracted_path,
+        board: str,
+        use_fvp: bool,
+        west_cmd: str,
+        zephyr_base: str,
+        verbose: bool,
+        cmsis_path: pathlib.Path,
     ) -> str:
         cmake_args = "\n# cmake args\n"
         if verbose:
@@ -530,10 +536,9 @@ class Handler(server.ProjectAPIHandler):
 
         cmake_args += f"set(BOARD {board})\n"
 
-        enable_cmsis = self._cmsis_required(mlf_extracted_path)
-        if enable_cmsis:
+        if self._cmsis_required(mlf_extracted_path):
             assert cmsis_path, CMSIS_PATH_ERROR
-        cmake_args += f"set(ENABLE_CMSIS {str(enable_cmsis).upper()})\n"
+        cmake_args += f"set(CMSIS_PATH {str(cmsis_path)})\n"
 
         return cmake_args
 
@@ -631,10 +636,6 @@ class Handler(server.ProjectAPIHandler):
                     if self.QEMU_PIPE_TOKEN in line:
                         self.qemu_pipe_dir = pathlib.Path(tempfile.mkdtemp())
                         line = line.replace(self.QEMU_PIPE_TOKEN, str(self.qemu_pipe_dir / "fifo"))
-
-                    if self.CMSIS_PATH_TOKEN in line and self._cmsis_required(extract_path):
-                        assert cmsis_path, CMSIS_PATH_ERROR
-                        line = line.replace(self.CMSIS_PATH_TOKEN, cmsis_path)
 
                     cmake_f.write(line)
 
