@@ -219,7 +219,8 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape);
  * \return Tuple of the lowered TE compute, constant raw data, and fused function name.
  */
 std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompute(
-    const Function& source_func, Target target, bool return_inputs = true);
+    const Function& source_func, Target target, NameSupply constant_name_supply,
+    bool return_inputs = true);
 
 /*!
  * \brief Create schedule for target.
@@ -229,7 +230,11 @@ std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompu
  *  The funcs field in cache is not yet populated.
  */
 CachedFunc PrimFuncFor(const Function& source_func, const Target& target,
-                       GlobalVarSupply global_var_supply);
+                       GlobalVarSupply global_var_supply, NameSupply constant_name_supply);
+
+inline CachedFunc PrimFuncFor(const Function& source_func, const Target& target) {
+  return PrimFuncFor(source_func, target, GlobalVarSupply(NameSupply("")), NameSupply(""));
+}
 
 CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,
                         GlobalVarSupply global_var_supply);
