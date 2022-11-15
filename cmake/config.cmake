@@ -65,7 +65,8 @@ set(USE_AOCL OFF)
 # Whether enable OpenCL runtime
 #
 # Possible values:
-# - ON: enable OpenCL with cmake's auto search
+# - ON: enable OpenCL with OpenCL wrapper to remove dependency during build
+#       time and trigger dynamic search and loading of OpenCL in runtime
 # - OFF: disable OpenCL
 # - /path/to/opencl-sdk: use specific path to opencl-sdk
 set(USE_OPENCL OFF)
