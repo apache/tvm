@@ -463,6 +463,11 @@ if(USE_PIPELINE_EXECUTOR)
   list(APPEND RUNTIME_SRCS ${RUNTIME_PIPELINE_SRCS})
 endif(USE_PIPELINE_EXECUTOR)
 
+if(USE_KALLOC_ALIGNMENT)
+  message(STATUS "Build Alloc alignment set to ${USE_KALLOC_ALIGNMENT}")
+  add_definitions(-DTVM_KALLOC_ALIGNMENT=${USE_KALLOC_ALIGNMENT})
+endif(USE_KALLOC_ALIGNMENT)
+
 # Caches the build.
 # Note that ccache-3.x doesn't support nvcc well, so CUDA kernels may never hit the cache and still
 # need to be re-compiled every time. Using ccache 4.0+ can resolve this issue.

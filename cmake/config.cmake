@@ -401,3 +401,6 @@ set(USE_LIBTORCH OFF)
 
 # Whether to use the Universal Modular Accelerator Interface
 set(USE_UMA OFF)
+
+# Set custom Alloc Alignment for device allocated memory ndarray points to
+set(USE_KALLOC_ALIGNMENT 64)
