@@ -51,11 +51,19 @@ enum DeviceAttrKind : int {
   kDriverVersion = 12
 };
 
+#ifdef TVM_KALLOC_ALIGNMENT
+/*! \brief Number of bytes each allocation must align to */
+constexpr int kAllocAlignment = TVM_KALLOC_ALIGNMENT;
+
+/*! \brief Number of bytes each allocation must align to in temporary allocation */
+constexpr int kTempAllocaAlignment = TVM_KALLOC_ALIGNMENT;
+#else
 /*! \brief Number of bytes each allocation must align to */
 constexpr int kAllocAlignment = 64;
 
 /*! \brief Number of bytes each allocation must align to in temporary allocation */
 constexpr int kTempAllocaAlignment = 64;
+#endif  // TVM_KALLOC_ALIGNMENT
 
 /*! \brief Maximum size that can be allocated on stack */
 constexpr int kMaxStackAlloca = 1024;
