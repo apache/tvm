@@ -17,13 +17,9 @@
 # under the License.
 
 import os
-import json
 import argparse
-import subprocess
-import re
 import textwrap
-from urllib import request
-from typing import Dict, Tuple, Any, List, Optional
+from typing import Tuple, List, Optional
 
 
 from git_utils import GitHubRepo, parse_remote, git

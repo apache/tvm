@@ -30,7 +30,7 @@ def update_docker(ecr_image, hub_image) {
   sh(
     script: """
     set -eux
-    . ci/scripts/retry.sh
+    . ${jenkins_scripts_root}/retry.sh
     docker tag \
       ${ecr_image} \
       ${hub_image}
@@ -148,7 +148,7 @@ def deploy() {
                 sh(
                   script: """
                     set -eux
-                    . ci/scripts/retry.sh
+                    . ${jenkins_scripts_root}/retry.sh
                     docker pull tlcpackstaging/{{ image.name }}:${tag}
                     docker tag tlcpackstaging/{{ image.name }}:${tag} tlcpack/{{ image.name.replace("_", "-") }}:${tag}
                     retry 5 docker push tlcpack/{{ image.name.replace("_", "-") }}:${tag}

@@ -21,7 +21,7 @@ def ecr_push(full_name) {
       sh(
         script: """
           set -x
-          . ci/scripts/retry.sh
+          . ${jenkins_scripts_root}/retry.sh
           docker tag ${full_name} \$AWS_ECR_REPO/${full_name}
           retry 5 docker push \$AWS_ECR_REPO/${full_name}
         """,
@@ -64,7 +64,7 @@ def ecr_pull(full_name) {
       sh(
         script: """
           set -eux
-          . ci/scripts/retry.sh
+          . ${jenkins_scripts_root}/retry.sh
           retry 5 docker pull ${full_name}
         """,
         label: 'Pull image from ECR'
