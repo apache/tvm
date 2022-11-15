@@ -465,7 +465,7 @@ endif(USE_PIPELINE_EXECUTOR)
 
 if(USE_KALLOC_ALIGNMENT)
   message(STATUS "Build Alloc alignment set to ${USE_KALLOC_ALIGNMENT}")
-  add_definitions(-DKALLOC_ALIGNMENT=${USE_KALLOC_ALIGNMENT})
+  add_definitions(-DTVM_KALLOC_ALIGNMENT=${USE_KALLOC_ALIGNMENT})
 endif(USE_KALLOC_ALIGNMENT)
 
 # Caches the build.
