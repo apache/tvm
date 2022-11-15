@@ -460,6 +460,7 @@ class Conv2dCacheReadMultipleRewritten:
 
 # fmt: on
 
+
 def test_layout_rewrite_cache_read():
     target = Target("llvm")
     ctx = _create_context(Conv2dCacheRead, target)
