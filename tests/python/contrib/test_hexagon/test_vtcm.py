@@ -14,13 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""VTCM Tests"""
 
 import tvm.testing
 from tvm import tir
-from tvm.contrib.hexagon.session import Session
 from tvm.script import tir as T
-
-from .infrastructure import get_hexagon_target
 
 
 @T.prim_func
