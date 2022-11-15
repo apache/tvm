@@ -26,7 +26,7 @@ namespace tir {
 
 /*!
  * \brief Collect the block and index where the buffer is read.
- * \note The buffers are expected to be read by only one BufferLoad
+ * \note The buffer is expected to be read by only one BufferLoad
  */
 class BufferReadPosCollector : public StmtExprVisitor {
  public:
@@ -86,11 +86,11 @@ class BufferReadPosCollector : public StmtExprVisitor {
   }
 
  private:
-  /*! \brief All interested buffer. */
+  /*! \brief The buffer of interest. */
   const BufferNode* buffer_;
-  /*! \brief The result mapping from buffer to its inner-most block and read index. */
+  /*! \brief The block that consumes the buffer and the corresponding read index. */
   std::pair<Block, int> buffer_loc_;
-  /*! \brief The result mapping from buffer to its IndexMap. */
+  /*! \brief The proposed IndexMap. */
   Optional<IndexMap> buffer_index_map_;
 
   /*! \brief Loop stack for calculating IndexMap. */
@@ -152,12 +152,14 @@ std::optional<std::tuple<Block, int, IndexMap>> GetSuggestedIndexMap(
   return std::make_tuple(anchor_block, buffer_index, index_map.value());
 }
 
+/*! \brief Get a chain of cache-read blocks, starting from the one consuming buf. */
 std::vector<std::string> GetCacheReadChain(const Buffer& buf, const PrimFuncNode* prim_func) {
   class BufferReadChainCollector : public StmtVisitor {
    public:
     explicit BufferReadChainCollector(const Buffer& buffer) : cur_buffer_(buffer.get()) {}
 
     void VisitStmt_(const BlockNode* op) final {
+      // Check if this block is doing cache_read or a similar operation that consumes cur_buffer_.
       if (!op->init && op->reads.size() == 1 && op->writes.size() == 1 &&
           op->reads[0]->buffer.get() == cur_buffer_) {
         cache_read_chain.push_back(op->name_hint);
@@ -195,6 +197,8 @@ bool RewriteLayout(const Schedule& sch) {
     for (auto buffer : CollectLayoutFreeBuffers(prim_func)) {
       const auto cache_read_chain = GetCacheReadChain(buffer, prim_func);
       if (cache_read_chain.empty()) {
+        // The common case, where the layout-free buffer is directly consumed by an anchor op such
+        // as conv2d or dense.
         auto tup_opt = GetSuggestedIndexMap(buffer, prim_func);
         if (tup_opt == std::nullopt) continue;
 
@@ -204,18 +208,27 @@ bool RewriteLayout(const Schedule& sch) {
         sch->TransformLayout(anchor_block_rv, buffer_index, BufferIndexType::kRead, index_map,
                              NullOpt);
       } else {
+        // When the layout-free buffer is consumed by cache_read, we need to find the index map
+        // for a cache-read buffer that is directly consumed by an anchor op. The last buffer
+        // in cache_read_chain corresponds to that buffer.
         Block cache_read_block = sch->Get(sch->GetBlock(cache_read_chain.back(), func_name));
         ICHECK_EQ(cache_read_block->writes.size(), 1);
         auto tup_opt = GetSuggestedIndexMap(cache_read_block->writes[0]->buffer, prim_func);
         if (tup_opt == std::nullopt) continue;
 
         auto [anchor_block, buffer_index, index_map] = *tup_opt;
+        // Transform the layout of the last cache-read buffer.
         sch->TransformLayout(sch->GetBlock(anchor_block->name_hint, func_name), buffer_index,
                              BufferIndexType::kRead, index_map, NullOpt);
 
+        // Propagate the layout transformation over cache_read_chain, starting from
+        // the next-to-last cache-read buffer.
         for (int i = static_cast<int>(cache_read_chain.size()) - 1; i >= 0; --i) {
           BlockRV cache_read_block_rv = sch->GetBlock(cache_read_chain[i], func_name);
           if (i == 0) {
+            // Before the first cache_read that consumes the layout-free buffer, insert
+            // a layout-rewrite block. Another cache read buffer is added, and its layout is
+            // transformed by TransformLayout below.
             add_layout_rewrite_block(cache_read_block_rv, 0);
           }
           sch->TransformLayout(cache_read_block_rv, 0, BufferIndexType::kRead, index_map, NullOpt);
