@@ -1277,9 +1277,15 @@ Doc TVMScriptPrinter::VisitStmt_(const SeqStmtNode* op) {
 Doc TVMScriptPrinter::VisitStmt_(const EvaluateNode* op) {
   // When parsing TVMScript, a PrimExpr that occurs as a statement is
   // automatically wrapped in `tir::Evaluate`.  Therefore, when
-  // printing we only need to print the value.
+  // printing, it's only necessary to print the value.  For
+  // readability, though, we still print T.evaluate() when the
+  // expression is something other than a call node.
   Doc doc;
-  doc << Print(op->value);
+  if (op->value.as<CallNode>()) {
+    doc << Print(op->value);
+  } else {
+    doc << tir_prefix_ << ".evaluate(" << Print(op->value) << ")";
+  }
   return doc;
 }
 
