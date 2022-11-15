@@ -236,6 +236,10 @@ void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& 
 
   // Finally, do the memory copies.
   for (const auto& copy : macro_copies) {
+    // clean Hexagon cache before / after memcpy to ensure clean cache state to enable usage of DMA
+    // bypass mode for increased DMA bandwidth
+    // TODO(HWE): Switch to ION Buffer to avoid need for memcpy and potentially lighten or alleviate
+    // the burden of cache invalidation in this code
     qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.dest), copy.num_bytes,
                          QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
     qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.src), copy.num_bytes,
