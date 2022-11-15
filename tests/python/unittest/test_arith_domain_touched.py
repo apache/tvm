@@ -78,7 +78,7 @@ def test_domain_touched_vector():
         B = T.match_buffer(b, (n * m,))
 
         for i in T.serial(n):
-            A[i * m : (i + 1) * m] = A[i * m : (i + 1) * m] + B[i * m : (i + 1) * m]
+            A[i * m : (i + 1) * m : 1] = A[i * m : (i + 1) * m : 1] + B[i * m : (i + 1) * m : 1]
 
     a, b = [func.buffer_map[var] for var in func.params]
 
