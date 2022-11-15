@@ -197,12 +197,12 @@ def print_result(
                 "Original IRModule:" + DELIMITOR + original_mod.script(),
                 "Scheduled IRModule:" + DELIMITOR + scheduled_mod.script(),
                 "Trace" + DELIMITOR + str(trace),
-                "Input:" + DELIMITOR + str(inputs),
             ]
         )
         if result == "wrong answer":
             output.extend(
                 [
+                    "Input:" + DELIMITOR + str(inputs),
                     "Original Result:" + DELIMITOR + str(original_res),
                     "Scheduled Result:" + DELIMITOR + str(scheduled_res),
                     "Max Diff:"
