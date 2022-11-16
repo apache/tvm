@@ -308,37 +308,8 @@ class BF16LowerRewriter : public StmtExprMutator {
       }
     }
 
-    // Most passes do not change the preflattened buffer map, nor
-    // should they change it.  This is an exception, because the Var
-    // associated with the `BufferNode::data` in
-    // `PrimFunc::buffer_map` may be replaced, and the corresponding
-    // Var in the `PrimFunc::preflattened_buffer_map` must also be
-    // replaced.
-    Map<Var, Buffer> new_preflattened_buffer_map;
-    for (auto& itr : op->preflattened_buffer_map) {
-      auto param_var = itr.first;
-      auto oldbuf = itr.second;
-      if (oldbuf->dtype.is_bfloat16()) {
-        auto it = new_buffer_map.find(param_var);
-        ICHECK(it != new_buffer_map.end())
-            << "PrimFunc parameter " << param_var->name_hint
-            << " is associated with the pre-flattened buffer " << oldbuf->name
-            << ", but isn't associated with any post-flatten buffer.";
-        const Buffer& flatbuf = (*it).second;
-        DataType dtype = DataType::UInt(16, oldbuf->dtype.lanes());
-        auto newbuf = Buffer(flatbuf->data, dtype, oldbuf->shape, oldbuf->strides,
-                             oldbuf->elem_offset, oldbuf->name, oldbuf->data_alignment,
-                             oldbuf->offset_factor, oldbuf->buffer_type);
-        buffer_remap_[oldbuf] = newbuf;
-        new_preflattened_buffer_map.Set(param_var, newbuf);
-      } else {
-        new_preflattened_buffer_map.Set(param_var, oldbuf);
-      }
-    }
-
     if (buffer_remap_.size() != 0) {
       op->buffer_map = new_buffer_map;
-      op->preflattened_buffer_map = new_preflattened_buffer_map;
     }
   }
 
