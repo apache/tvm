@@ -71,6 +71,7 @@ class DataTypeLegalizer : public StmtExprMutator {
   PrimExpr VisitExpr_(const GTNode* op) override;
   PrimExpr VisitExpr_(const GENode* op) override;
   PrimExpr VisitExpr_(const CallNode* op) override;
+  PrimExpr VisitExpr_(const CastNode* op) override;
 
   using StmtExprMutator::VisitExpr_;
   using StmtExprMutator::VisitStmt_;

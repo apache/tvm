@@ -138,6 +138,10 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const RampNode* op) {
   }
 }
 
+PrimExpr DataTypeLegalizer::VisitExpr_(const CastNode* op) {
+  return StmtExprMutator::VisitExpr_(op);
+}
+
 #define TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)             \
   PrimExpr DataTypeLegalizer::VisitExpr_(const OP* op) {                  \
     PrimExpr a = this->VisitExpr(op->a);                                  \
