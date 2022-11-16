@@ -283,7 +283,6 @@ Pass NarrowDataType(int target_bits) {
   auto pass_func = [target_bits](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = NarrowDataTypeRewriter(target_bits)(std::move(n->body));
-    // LOG(INFO) << "AfterNarrow: " << tir::AsTVMScript(f);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.NarrowDataType", {});

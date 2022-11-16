@@ -138,7 +138,7 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const RampNode* op) {
   }
 }
 
-#define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                 \
+#define TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)             \
   PrimExpr DataTypeLegalizer::VisitExpr_(const OP* op) {                  \
     PrimExpr a = this->VisitExpr(op->a);                                  \
     PrimExpr b = this->VisitExpr(op->b);                                  \
@@ -149,23 +149,23 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const RampNode* op) {
     }                                                                     \
   }
 
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(AddNode, operator+);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(SubNode, operator-);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MulNode, operator*);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(DivNode, div);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(ModNode, truncmod);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorDivNode, floordiv);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorModNode, floormod);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MinNode, min);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MaxNode, max);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(AddNode, operator+);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(SubNode, operator-);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MulNode, operator*);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(DivNode, div);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(ModNode, truncmod);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorDivNode, floordiv);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorModNode, floormod);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MinNode, min);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MaxNode, max);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
 
-#undef DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH
+#undef TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH
 
 PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
   PrimExpr e = StmtExprMutator::VisitExpr_(op);
@@ -475,7 +475,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
   }
 }
 
-#define DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                         \
+#define TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                     \
   PrimExpr IndexDataTypeRewriter::VisitExpr_(const OP* op) {                       \
     bool is_enabled = is_enabled_;                                                 \
     is_enabled_ = is_condition_ && op->a->dtype.is_int() && op->b->dtype.is_int(); \
@@ -484,12 +484,12 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
     return std::move(result);                                                      \
   }
 
-DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
-DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=);
-DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=);
-DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
-DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
-DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
+TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
+TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=);
+TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=);
+TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
+TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
+TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
 
 PrimExpr IndexDataTypeRewriter::VisitExpr_(const CallNode* op) {
   // handle if_then_else condition
@@ -503,7 +503,7 @@ PrimExpr IndexDataTypeRewriter::VisitExpr_(const CallNode* op) {
   return Parent::VisitExpr_(op);
 }
 
-#undef DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH
+#undef TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH
 
 IndexDataTypeNormalizer::IndexDataTypeNormalizer(DataType target_data_type)
     : target_data_type_(std::move(target_data_type)) {}
