@@ -253,7 +253,7 @@ class TestRerunPermissions(_TvmBotTest):
 
     COMMENT = "@tvm-bot rerun"
     USER = "someone"
-    EXPECTED = "Failed auth check 'metionable_users', quitting"
+    EXPECTED = "Failed auth check 'mentionable_users', quitting"
 
 
 class TestRerunNonAuthor(_TvmBotTest):
@@ -263,7 +263,7 @@ class TestRerunNonAuthor(_TvmBotTest):
 
     COMMENT = "@tvm-bot rerun"
     USER = "other-abc"
-    EXPECTED = "Passed auth check 'metionable_users', continuing"
+    EXPECTED = "Passed auth check 'mentionable_users', continuing"
 
 
 class TestIgnoreJobs(_TvmBotTest):
