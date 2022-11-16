@@ -18,11 +18,21 @@
 
 import argparse
 import logging
+import re
 from pathlib import Path
+from typing import List
+from enum import Enum
 
 from cmd_utils import Sh, REPO_ROOT, init_log
 
 RETRY_SCRIPT = REPO_ROOT / "ci" / "scripts" / "jenkins" / "retry.sh"
+S3_DOWNLOAD_REGEX = re.compile(r"download: s3://.* to (.*)")
+SH = Sh()
+
+
+class Action(Enum):
+    UPLOAD = 1
+    DOWNLOAD = 2
 
 
 def show_md5(item: str) -> None:
@@ -30,10 +40,48 @@ def show_md5(item: str) -> None:
         sh.run(f"md5sum {item}")
 
 
-def is_file(bucket: str, prefix: str) -> bool:
-    cmd = f"aws s3api head-object --bucket {bucket} --key {prefix}"
-    proc = Sh().run(cmd, check=False)
-    return proc.returncode == 0
+def parse_output_files(stdout: str) -> List[str]:
+    """
+    Grab the list of downloaded files from the output of 'aws s3 cp'. Lines look
+    like:
+
+        download: s3://some/prefix/a_file.txt to a_file.txt
+    """
+    files = []
+    for line in stdout.split("\n"):
+        line = line.strip()
+        if line == "":
+            continue
+        m = S3_DOWNLOAD_REGEX.match(line)
+        if m:
+            files.append(m.groups()[0])
+
+    return files
+
+
+def chmod(files: List[str]) -> None:
+    """
+    S3 has no concept of file permissions so add them back in here to every file
+    """
+    # Add execute bit for downloads
+    to_chmod = [str(f) for f in files]
+    logging.info(f"Adding execute bit for files: {to_chmod}")
+    if len(to_chmod) > 0:
+        SH.run(f"chmod +x {' '.join(to_chmod)}")
+
+
+def s3(source: str, destination: str, recursive: bool) -> List[str]:
+    """
+    Send or download the source to the destination in S3
+    """
+    cmd = f". {RETRY_SCRIPT.relative_to(REPO_ROOT)} && retry 3 aws s3 cp --no-progress"
+
+    if recursive:
+        cmd += " --recursive"
+
+    cmd += f" {source} {destination}"
+    _, stdout = SH.tee(cmd)
+    return stdout
 
 
 if __name__ == "__main__":
@@ -45,7 +93,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--prefix", help="s3 bucket + tag (e.g. s3://tvm-ci-prod/PR-1234/cpu", required=True
     )
-    parser.add_argument("--items", help="files and folders to upload", nargs="+", required=True)
+    parser.add_argument("--items", help="files and folders to upload", nargs="+")
 
     args = parser.parse_args()
     logging.info(args)
@@ -61,48 +109,32 @@ if __name__ == "__main__":
     logging.info(f"Using s3 path: {s3_path}")
 
     if args.action == "upload":
-        upload = True
+        action = Action.UPLOAD
     elif args.action == "download":
-        upload = False
+        action = Action.DOWNLOAD
     else:
         logging.error(f"Unsupported action: {args.action}")
         exit(1)
 
-    for item in args.items:
-        destination = s3_path + "/" + item
-        recursive_arg = ""
-
-        if upload:
-            # Show md5 before uploading
-            show_md5(item)
-
-        # Download/upload the item
-        cmd = f". {RETRY_SCRIPT.relative_to(REPO_ROOT)} && retry 3 aws s3 cp --no-progress"
-        if upload and Path(item).is_dir():
-            cmd += " --recursive"
-        if not upload and not is_file(args.bucket, prefix + "/" + item):
-            cmd += " --recursive"
-
-        if upload:
-            cmd += f" {item} {destination}"
+    if args.items is None:
+        if args.action == "upload":
+            logging.error(f"Cannot upload without --items")
+            exit(1)
         else:
-            cmd += f" {destination} {item}"
-        sh.run(cmd)
+            # Download the whole prefix
+            items = ["."]
 
-        if not upload:
-            to_chmod = []
-            print(item)
-            if Path(item).is_dir():
-                to_chmod = [f for f in Path(item).glob("**/*") if not f.is_dir()]
-            else:
-                to_chmod = [item]
+    else:
+        items = args.items
 
-            # Add execute bit for downloads
-            to_chmod = [str(f) for f in to_chmod]
-            logging.info(f"Adding execute bit for files: {to_chmod}")
-            if len(to_chmod) > 0:
-                sh.run(f"chmod +x {' '.join(to_chmod)}")
-
-        if not upload:
-            # Show md5 after downloading
+    for item in items:
+        if action == Action.DOWNLOAD:
+            stdout = s3(source=s3_path, destination=item, recursive=True)
+            files = parse_output_files(stdout)
+            chmod(files)
+            for file in files:
+                # Show md5 after downloading
+                show_md5(file)
+        elif action == Action.UPLOAD:
             show_md5(item)
+            s3(item, s3_path + "/" + item, recursive=Path(item).is_dir())

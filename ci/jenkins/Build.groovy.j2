@@ -56,34 +56,6 @@ def cmake_build(image, path, make_flag) {
   )
 }
 
-def add_microtvm_permissions() {
-  {% for folder in microtvm_template_projects %}
-  sh(
-    script: 'find {{ folder }} -type f | grep qemu-hack | xargs chmod +x',
-    label: 'Add execute permissions for microTVM files',
-  )
-  {% endfor %}
-}
-
-def add_hexagon_permissions() {
-  {% for folder in hexagon_api %}
-  sh(
-    script: 'find {{ folder }} -type f | xargs chmod +x',
-    label: 'Add execute permissions for hexagon files',
-  )
-  {% endfor %}
-}
-
-def add_crttest_permissions() {
-  {% for file in crttest %}
-  sh(
-    script: 'chmod +x {{ file }}',
-    label: 'Add execute permissions for crttest',
-  )
-  {% endfor %}
-}
-
-
 def build() {
 stage('Build') {
   environment {
@@ -101,7 +73,7 @@ stage('Build') {
     sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
     cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
     make_standalone_crt("${ci_gpu} --no-gpu", 'build')
-    {{ m.upload_artifacts(tag='gpu', filenames=tvm_multilib + microtvm_template_projects + crttest + standalone_crt) }}
+    {{ m.upload_artifacts(tag='gpu', filenames=tvm_multilib + tvm_allvisible + microtvm_template_projects + crttest + standalone_crt) }}
 
     // compiler test
     sh "rm -rf build"
@@ -125,7 +97,7 @@ stage('Build') {
     cmake_build(ci_cpu, 'build', '-j2')
     make_standalone_crt(ci_cpu, 'build')
     make_cpp_tests(ci_cpu, 'build')
-    {{ m.upload_artifacts(tag='cpu', filenames=tvm_multilib_tsim + crttest + cpptest + standalone_crt) }}
+    {{ m.upload_artifacts(tag='cpu', filenames=tvm_multilib_tsim + tvm_allvisible + crttest + cpptest + standalone_crt) }}
     ci_setup(ci_cpu)
     // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
     // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
@@ -145,7 +117,7 @@ stage('Build') {
     )
     cmake_build(ci_minimal, 'build', '-j2')
     make_cpp_tests(ci_minimal, 'build')
-    {{ m.upload_artifacts(tag='cpu-minimal', filenames=tvm_lib + cpptest) }}
+    {{ m.upload_artifacts(tag='cpu-minimal', filenames=tvm_lib + tvm_allvisible + cpptest) }}
   {% endcall %}
 
   {% call m.build_step(
@@ -201,7 +173,7 @@ stage('Build') {
     cmake_build(ci_arm, 'build', '-j4')
     make_standalone_crt(ci_arm, 'build')
     make_cpp_tests(ci_arm, 'build')
-    {{ m.upload_artifacts(tag='arm', filenames=tvm_multilib + cpptest + standalone_crt) }}
+    {{ m.upload_artifacts(tag='arm', filenames=tvm_multilib + cpptest + crttest + standalone_crt) }}
   {% endcall %}
 
   {% call m.build_step(
@@ -218,7 +190,7 @@ stage('Build') {
     cmake_build(ci_cortexm, 'build', '-j2')
     make_standalone_crt(ci_cortexm, 'build')
     make_cpp_tests(ci_cortexm, 'build')
-    {{ m.upload_artifacts(tag='cortexm', filenames=tvm_lib + crttest + standalone_crt + cpptest + microtvm_template_projects) }}
+    {{ m.upload_artifacts(tag='cortexm', filenames=tvm_lib + tvm_allvisible + crttest + standalone_crt + cpptest + microtvm_template_projects) }}
   {% endcall %}
 
   {% call m.build_step(
@@ -255,7 +227,7 @@ stage('Build') {
     cmake_build(ci_riscv, 'build', '-j2')
     make_standalone_crt(ci_riscv, 'build')
     make_cpp_tests(ci_riscv, 'build')
-    {{ m.upload_artifacts(tag='riscv', filenames=tvm_lib + crttest + cpptest + microtvm_template_projects) }}
+    {{ m.upload_artifacts(tag='riscv', filenames=tvm_lib + tvm_allvisible + standalone_crt + crttest + cpptest + microtvm_template_projects) }}
   {% endcall %}
 
   )

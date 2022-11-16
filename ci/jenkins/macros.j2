@@ -191,10 +191,9 @@ sh(
     )
 {% endmacro %}
 
-{% macro download_artifacts(tag, filenames) %}
-{% set items = ' '.join(filenames) %}
+{% macro download_artifacts(tag) %}
 sh(
-      script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/{{ tag }} --items {{ items }}",
+      script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/{{ tag }}",
       label: 'Download artifacts from S3',
     )
 {% endmacro %}

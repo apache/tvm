@@ -38,5 +38,6 @@ export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
 pushd "${BUILD_DIR}"
-ctest --gtest_death_test_style=threadsafe
+# run cpp test executable
+./cpptest
 popd

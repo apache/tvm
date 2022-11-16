@@ -33,9 +33,7 @@ export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
 # crttest requries USE_MICRO to be enabled.
-pushd "${BUILD_DIR}"
-ninja crttest
-popd
+./build/crttest
 
 # Test MISRA-C runtime. It requires USE_MICRO to be enabled.
 pushd apps/bundle_deploy

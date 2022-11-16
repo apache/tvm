@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-11-15T16:25:54.047844
+// Generated at 2022-11-17T23:53:21.059864
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -729,28 +729,6 @@ def cmake_build(image, path, make_flag) {
   )
 }
 
-def add_microtvm_permissions() {
-  sh(
-    script: 'find build/microtvm_template_projects -type f | grep qemu-hack | xargs chmod +x',
-    label: 'Add execute permissions for microTVM files',
-  )
-}
-
-def add_hexagon_permissions() {
-  sh(
-    script: 'find build/hexagon_api_output -type f | xargs chmod +x',
-    label: 'Add execute permissions for hexagon files',
-  )
-}
-
-def add_crttest_permissions() {
-  sh(
-    script: 'chmod +x build/crttest',
-    label: 'Add execute permissions for crttest',
-  )
-}
-
-
 def build() {
 stage('Build') {
   environment {
@@ -769,7 +747,7 @@ stage('Build') {
           cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
           make_standalone_crt("${ci_gpu} --no-gpu", 'build')
           sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/crttest build/standalone_crt",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/microtvm_template_projects build/crttest build/standalone_crt build/build.ninja",
             label: 'Upload artifacts to S3',
           )
 
@@ -780,7 +758,7 @@ stage('Build') {
           cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
           make_standalone_crt("${ci_gpu} --no-gpu", 'build')
           sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu2 --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/crttest build/standalone_crt",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu2 --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/crttest build/standalone_crt build/build.ninja",
             label: 'Upload artifacts to S3',
           )
           }
@@ -806,7 +784,7 @@ stage('Build') {
           make_standalone_crt(ci_cpu, 'build')
           make_cpp_tests(ci_cpu, 'build')
           sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu --items build/libvta_tsim.so build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/crttest build/cpptest build/standalone_crt",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu --items build/libvta_tsim.so build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/crttest build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/standalone_crt build/build.ninja",
             label: 'Upload artifacts to S3',
           )
 
@@ -836,7 +814,7 @@ stage('Build') {
           cmake_build(ci_minimal, 'build', '-j2')
           make_cpp_tests(ci_minimal, 'build')
           sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu-minimal --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/cpptest",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu-minimal --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/cpptest build/build.ninja build/CMakeFiles/rules.ninja",
             label: 'Upload artifacts to S3',
           )
           }
@@ -890,7 +868,7 @@ stage('Build') {
           make_standalone_crt(ci_i386, 'build')
           make_cpp_tests(ci_i386, 'build')
           sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/i386 --items build/libvta_tsim.so build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/standalone_crt build/crttest build/cpptest",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/i386 --items build/libvta_tsim.so build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/standalone_crt build/build.ninja build/crttest build/cpptest build/build.ninja build/CMakeFiles/rules.ninja",
             label: 'Upload artifacts to S3',
           )
           }
@@ -916,7 +894,7 @@ stage('Build') {
           make_standalone_crt(ci_arm, 'build')
           make_cpp_tests(ci_arm, 'build')
           sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/arm --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/cpptest build/standalone_crt",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/arm --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/crttest build/standalone_crt build/build.ninja",
             label: 'Upload artifacts to S3',
           )
           }
@@ -942,7 +920,7 @@ stage('Build') {
           make_standalone_crt(ci_cortexm, 'build')
           make_cpp_tests(ci_cortexm, 'build')
           sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/crttest build/standalone_crt build/cpptest build/microtvm_template_projects",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/crttest build/standalone_crt build/build.ninja build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/microtvm_template_projects",
             label: 'Upload artifacts to S3',
           )
           }
@@ -971,7 +949,7 @@ stage('Build') {
             label: 'Build Hexagon API',
           )
           sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/cpptest build/hexagon_api_output",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/hexagon_api_output",
             label: 'Upload artifacts to S3',
           )
           }
@@ -997,7 +975,7 @@ stage('Build') {
           make_standalone_crt(ci_riscv, 'build')
           make_cpp_tests(ci_riscv, 'build')
           sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/riscv --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/crttest build/cpptest build/microtvm_template_projects",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/riscv --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/standalone_crt build/build.ninja build/crttest build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/microtvm_template_projects",
             label: 'Upload artifacts to S3',
           )
           }
@@ -1016,6 +994,13 @@ def cpp_unittest(image) {
   sh (
     script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_cpp_unittest.sh",
     label: 'Run C++ tests',
+  )
+}
+
+def micro_cpp_unittest(image) {
+  sh (
+    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_microtvm_cpp_tests.sh build",
+    label: 'Run microTVM C++ tests',
   )
 }
 
@@ -1039,7 +1024,7 @@ def shard_run_unittest_GPU_1_of_3() {
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu2 --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/crttest build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu2",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1051,7 +1036,7 @@ def shard_run_unittest_GPU_1_of_3() {
 
               sh "rm -rf build"
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/crttest build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1060,6 +1045,7 @@ def shard_run_unittest_GPU_1_of_3() {
               make_standalone_crt(ci_gpu, 'build')
               make_cpp_tests(ci_gpu, 'build')
               cpp_unittest(ci_gpu)
+              micro_cpp_unittest(ci_gpu)
               sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
                 label: 'Run Python GPU unit tests',
@@ -1104,7 +1090,7 @@ def shard_run_unittest_GPU_2_of_3() {
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1157,7 +1143,7 @@ def shard_run_unittest_GPU_3_of_3() {
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1207,7 +1193,7 @@ def shard_run_integration_CPU_1_of_4() {
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu --items build/libvta_tsim.so build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1252,7 +1238,7 @@ def shard_run_integration_CPU_2_of_4() {
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu --items build/libvta_tsim.so build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1297,7 +1283,7 @@ def shard_run_integration_CPU_3_of_4() {
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu --items build/libvta_tsim.so build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1342,7 +1328,7 @@ def shard_run_integration_CPU_4_of_4() {
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu --items build/libvta_tsim.so build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1388,12 +1374,13 @@ def shard_run_python_i386_1_of_3() {
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/i386 --items build/libvta_tsim.so build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/standalone_crt build/crttest build/cpptest",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/i386",
                   label: 'Download artifacts from S3',
                 )
 
               ci_setup(ci_i386)
               cpp_unittest(ci_i386)
+              micro_cpp_unittest(ci_i386)
               python_unittest(ci_i386)
               sh (
                 script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
@@ -1435,7 +1422,7 @@ def shard_run_python_i386_2_of_3() {
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/i386 --items build/libvta_tsim.so build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/standalone_crt build/crttest build/cpptest",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/i386",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1482,7 +1469,7 @@ def shard_run_python_i386_3_of_3() {
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/i386 --items build/libvta_tsim.so build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/standalone_crt build/crttest build/cpptest",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/i386",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1529,7 +1516,7 @@ def shard_run_test_Hexagon_1_of_8() {
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/hexagon_api_output build/cpptest",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1575,7 +1562,7 @@ def shard_run_test_Hexagon_2_of_8() {
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/hexagon_api_output build/cpptest",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1620,7 +1607,7 @@ def shard_run_test_Hexagon_3_of_8() {
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/hexagon_api_output build/cpptest",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1665,7 +1652,7 @@ def shard_run_test_Hexagon_4_of_8() {
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/hexagon_api_output build/cpptest",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1710,7 +1697,7 @@ def shard_run_test_Hexagon_5_of_8() {
               'TVM_SHARD_INDEX=4',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/hexagon_api_output build/cpptest",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1755,7 +1742,7 @@ def shard_run_test_Hexagon_6_of_8() {
               'TVM_SHARD_INDEX=5',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/hexagon_api_output build/cpptest",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1800,7 +1787,7 @@ def shard_run_test_Hexagon_7_of_8() {
               'TVM_SHARD_INDEX=6',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/hexagon_api_output build/cpptest",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1845,7 +1832,7 @@ def shard_run_test_Hexagon_8_of_8() {
               'TVM_SHARD_INDEX=7',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/hexagon_api_output build/cpptest",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1891,7 +1878,7 @@ def shard_run_integration_aarch64_1_of_4() {
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1937,7 +1924,7 @@ def shard_run_integration_aarch64_2_of_4() {
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -1983,7 +1970,7 @@ def shard_run_integration_aarch64_3_of_4() {
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2029,7 +2016,7 @@ def shard_run_integration_aarch64_4_of_4() {
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2076,7 +2063,7 @@ def shard_run_topi_GPU_1_of_3() {
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2121,7 +2108,7 @@ def shard_run_topi_GPU_2_of_3() {
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2166,7 +2153,7 @@ def shard_run_topi_GPU_3_of_3() {
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2212,7 +2199,7 @@ def shard_run_frontend_GPU_1_of_6() {
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2257,7 +2244,7 @@ def shard_run_frontend_GPU_2_of_6() {
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2302,7 +2289,7 @@ def shard_run_frontend_GPU_3_of_6() {
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2347,7 +2334,7 @@ def shard_run_frontend_GPU_4_of_6() {
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2392,7 +2379,7 @@ def shard_run_frontend_GPU_5_of_6() {
               'TVM_SHARD_INDEX=4',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2437,7 +2424,7 @@ def shard_run_frontend_GPU_6_of_6() {
               'TVM_SHARD_INDEX=5',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2483,12 +2470,13 @@ def shard_run_topi_aarch64_1_of_2() {
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/cpptest",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm",
                   label: 'Download artifacts from S3',
                 )
 
               ci_setup(ci_arm)
               cpp_unittest(ci_arm)
+              micro_cpp_unittest(ci_arm)
               sh (
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
                 label: 'Run test_arm_compute_lib test',
@@ -2533,7 +2521,7 @@ def shard_run_topi_aarch64_2_of_2() {
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/cpptest",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2583,7 +2571,7 @@ def shard_run_frontend_aarch64_1_of_2() {
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2628,7 +2616,7 @@ def shard_run_frontend_aarch64_2_of_2() {
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2674,12 +2662,13 @@ def shard_run_test_Cortex_M_1_of_12() {
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/cpptest build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
                   label: 'Download artifacts from S3',
                 )
 
               ci_setup(ci_cortexm)
               cpp_unittest(ci_cortexm)
+              micro_cpp_unittest(ci_cortexm)
               sh (
                 script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_demo_microtvm.sh",
                 label: 'Run microTVM demos',
@@ -2724,7 +2713,7 @@ def shard_run_test_Cortex_M_2_of_12() {
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/cpptest build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2769,7 +2758,7 @@ def shard_run_test_Cortex_M_3_of_12() {
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/cpptest build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2814,7 +2803,7 @@ def shard_run_test_Cortex_M_4_of_12() {
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/cpptest build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2859,7 +2848,7 @@ def shard_run_test_Cortex_M_5_of_12() {
               'TVM_SHARD_INDEX=4',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/cpptest build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2904,7 +2893,7 @@ def shard_run_test_Cortex_M_6_of_12() {
               'TVM_SHARD_INDEX=5',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/cpptest build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2949,7 +2938,7 @@ def shard_run_test_Cortex_M_7_of_12() {
               'TVM_SHARD_INDEX=6',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/cpptest build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -2994,7 +2983,7 @@ def shard_run_test_Cortex_M_8_of_12() {
               'TVM_SHARD_INDEX=7',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/cpptest build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -3039,7 +3028,7 @@ def shard_run_test_Cortex_M_9_of_12() {
               'TVM_SHARD_INDEX=8',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/cpptest build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -3084,7 +3073,7 @@ def shard_run_test_Cortex_M_10_of_12() {
               'TVM_SHARD_INDEX=9',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/cpptest build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -3129,7 +3118,7 @@ def shard_run_test_Cortex_M_11_of_12() {
               'TVM_SHARD_INDEX=10',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/cpptest build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -3174,7 +3163,7 @@ def shard_run_test_Cortex_M_12_of_12() {
               'TVM_SHARD_INDEX=11',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/cpptest build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
                   label: 'Download artifacts from S3',
                 )
 
@@ -3220,12 +3209,13 @@ def shard_run_test_RISC_V_1_of_1() {
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/riscv --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/cpptest",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/riscv",
                   label: 'Download artifacts from S3',
                 )
 
               ci_setup(ci_riscv)
               cpp_unittest(ci_cortexm)
+              micro_cpp_unittest(ci_cortexm)
               sh (
                 script: "${docker_run} ${ci_riscv} ./tests/scripts/task_riscv_microtvm.sh",
                 label: 'Run microTVM tests',
@@ -3262,7 +3252,7 @@ def run_unittest_minimal() {
             docker_init(ci_minimal)
             withEnv(['PLATFORM=minimal'], {
               sh(
-              script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu-minimal --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/cpptest",
+              script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu-minimal",
               label: 'Download artifacts from S3',
             )
 
@@ -3454,12 +3444,13 @@ stage('Test') {
               'TEST_STEP_NAME=unittest: CPU',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
                 sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu --items build/libvta_tsim.so build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/cpptest build/standalone_crt",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu",
                   label: 'Download artifacts from S3',
                 )
 
                 ci_setup(ci_cpu)
                 cpp_unittest(ci_cpu)
+                micro_cpp_unittest(ci_cpu)
                 python_unittest(ci_cpu)
                 fsim_test(ci_cpu)
                 sh (
@@ -3498,7 +3489,7 @@ stage('Test') {
               'TEST_STEP_NAME=frontend: CPU',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
                 sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake",
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu",
                   label: 'Download artifacts from S3',
                 )
 
@@ -3534,7 +3525,7 @@ stage('Test') {
           init_git()
           docker_init(ci_gpu)
           sh(
-      script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/microtvm_template_projects build/standalone_crt",
+      script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
       label: 'Download artifacts from S3',
     )
 
@@ -3655,7 +3646,7 @@ def deploy() {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
                     sh(
-                script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/docs --items docs.tgz",
+                script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/docs",
                 label: 'Download artifacts from S3',
               )
 
