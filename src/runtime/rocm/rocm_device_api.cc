@@ -149,7 +149,8 @@ class ROCMDeviceAPI final : public DeviceAPI {
       if (dev_from.device_id == dev_to.device_id) {
         GPUCopy(from, to, size, hipMemcpyDeviceToDevice, hip_stream);
       } else {
-        hipMemcpyPeerAsync(to, dev_to.device_id, from, dev_from.device_id, size, hip_stream);
+        ROCM_CALL(
+            hipMemcpyPeerAsync(to, dev_to.device_id, from, dev_from.device_id, size, hip_stream));
       }
     } else if (dev_from.device_type == kDLROCM && dev_to.device_type == kDLCPU) {
       ROCM_CALL(hipSetDevice(dev_from.device_id));
