@@ -353,7 +353,9 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_
     return std::make_tuple(indices, reduce_axes);
   };
 
+  Map<String, ObjectRef> attrs;
   if (pool_type == kMaxPool) {
+    attrs.Set("schedule_rule", tvm::runtime::String("meta_schedule.adaptive_pool_max"));
     return tvm::te::compute(
         out_shape,
         [&](const Array<Var>& output) {
@@ -362,8 +364,9 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_
           std::tie(indices, reduce_axes) = get_iter_vars(output, true);
           return tvm::max(x(indices), reduce_axes);  // NOLINT(*)
         },
-        "tensor", "adaptive_pool_max");
+        "adaptive_pool_max", "adaptive_pool_max", attrs);
   } else if (pool_type == kAvgPool) {
+    attrs.Set("schedule_rule", tvm::runtime::String("meta_schedule.adaptive_pool_avg"));
     auto pool_sum = tvm::te::compute(
         out_shape,
         [&](const Array<Var>& output) {
@@ -372,7 +375,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_
           std::tie(indices, reduce_axes) = get_iter_vars(output, true);
           return tvm::sum(x(indices), reduce_axes);
         },
-        "tensor", "adaptive_pool_sum");
+        "adaptive_pool_sum", "adaptive_pool_sum");
 
     return tvm::te::compute(
         out_shape,
@@ -388,7 +391,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_
 
           return div(pool_sum(indices), divide_factor);
         },
-        "tensor", kElementWise);
+        "adaptive_pool_avg", kElementWise, attrs);
   } else {
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
     return x;
@@ -566,8 +569,10 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
     out_shape.Set(ii, out_dim);
   }
 
+  Map<String, ObjectRef> attrs;
   if (pool_type == kMaxPool) {
     auto temp = do_pad ? pad(x, pad_before, pad_after, tvm::min_value(x->dtype), "pad_temp") : x;
+    attrs.Set("schedule_rule", tvm::runtime::String("meta_schedule.pool_max"));
     return tvm::te::compute(
         out_shape,
         [&](const Array<Var>& output) {
@@ -580,8 +585,9 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
           }
           return tvm::max(temp(indices), daxis);
         },
-        "tensor", "pool_max");
+        "pool_max", "pool_max", attrs);
   } else if (pool_type == kAvgPool) {
+    attrs.Set("schedule_rule", tvm::runtime::String("meta_schedule.pool_avg"));
     // Pad the inputs
     auto temp = do_pad ? pad(x, pad_before, pad_after, 0, "pad_temp") : x;
 
@@ -598,7 +604,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
           }
           return tvm::sum(temp(indices), daxis);
         },
-        "tensor", "pool_sum");
+        "pool_sum", "pool_sum");
 
     // TVM compute for dividing the reduced window sum by kernel size.
     return tvm::te::compute(
@@ -650,7 +656,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
             return div(pool_sum(indices), divide_factor);
           }
         },
-        "tensor", kElementWise);
+        "pool_avg", kElementWise, attrs);
   } else {
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
     return x;
