@@ -83,10 +83,12 @@ def _get_int16_alias(position) -> str:
 
 def _load_tensor_vars(halfwords, tensor_w) -> Iterator[str]:
     assert len(halfwords) % 2 == 0
+    offset = int(not bool(halfwords[0]))
+
     for i in range(0, len(halfwords), 2):
         var_name = "__".join(map(_get_int16_alias, halfwords[i : i + 2]))
         y, x = halfwords[i + 1] or halfwords[i]
-        tensor_index = (y * tensor_w + x) // 2
+        tensor_index = (y * tensor_w + x + offset) // 2
         yield f"int tensor__{var_name} = tensor[{tensor_index}];"
 
 

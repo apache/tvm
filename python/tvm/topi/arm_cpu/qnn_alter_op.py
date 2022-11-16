@@ -30,6 +30,16 @@ def alter_requantize_layout(attrs, inputs, tinfos, out_type):
     return relay.qnn.op.requantize(inputs[0], scale_constant, *inputs[2:], **attrs)
 
 
+def _is_qnn_op_depthwise_conv2d(qnn_conv2d_op):
+    return relay.op.strategy.generic.is_depthwise_conv2d(
+        qnn_conv2d_op.args[0].type_annotation.shape,
+        qnn_conv2d_op.attrs.data_layout,
+        qnn_conv2d_op.args[1].data.shape,
+        qnn_conv2d_op.attrs.kernel_layout,
+        qnn_conv2d_op.attrs.groups
+    )
+
+
 @qnn_add_alter_layout.register(["arm_cpu"])
 def alter_add_layout(attrs, inputs, tinfos, out_type):
     prev_op, biases = inputs
@@ -39,7 +49,13 @@ def alter_add_layout(attrs, inputs, tinfos, out_type):
     conv_input_zp = prev_op.args[2].data.numpy().item()
     assert conv_input_zp == -128
     kernel = prev_op.args[1].data.numpy()
-    element_sums = np.sum(kernel, axis=(1, 2, 3))
+
+    kernel_layout = prev_op.attrs.kernel_layout
+    axes_to_sum = [kernel_layout.index("H"), kernel_layout.index("W")]
+    if not _is_qnn_op_depthwise_conv2d(prev_op):
+        axes_to_sum.append(kernel_layout.index("I"))
+    element_sums = np.sum(kernel, axis=tuple(axes_to_sum)).flatten()
+
 
     # The zero point is subtracted from the input elements, so we need a "-" sign here
     zp_shifted_sums = element_sums * (-conv_input_zp)

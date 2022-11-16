@@ -29,33 +29,45 @@ from tvm.tir import TensorIntrin
 from tvm.topi.arm_cpu.mprofile.dsp.micro_kernel import tensordot
 import textwrap
 
-def _pick_tensordot_impl(attrs, data, kernel, out_type, num_sums=2, is_depthwise=False):
+
+def int_ceil_division(x, y):
+    return -(x // -y)
+
+
+def _compute_output_dim(data_length, kernel_length, stride):
+    return int_ceil_division(data_length + 1 - kernel_length, stride)
+
+
+def _pick_tensordot_impl(attrs, data, kernel, num_sums=2, is_depthwise=False):
     """Helper function that chooses the right implementation of micro_kernel.tensordot depending on
     the input parameters of the conv2d. It returns a tuple of TWO function_name, function_code
     pairs - one (the aligned one) for even-numbered output channels, and one (the offset one) for
     odd-numbered output channels. This function is used for regular and depthwise convolutions.
 
     We need different implementations for even vs odd numbered output channels, because the "start"
-    of an odd output channel in the data tensor or kernel might or might not be on a word boundary.
-    If all starts will be on word boundaries, then ("", "") is returned for the offset impl.
-    Otherwise, a second tensordot implementation for data that does not start on a halfword boundary
-    is returned."""
+    of an odd output channel in the data tensor or kernel might or might not be on a word boundary,
+    and the tensordot code expects all input pointers to be word-aligned."""
 
-    _, height, width, in_channels = get_const_tuple(data.shape)
-    out_channels, kernel_h, kernel_w, _ = get_const_tuple(kernel.shape)
-    _, out_height, out_width, _ = get_const_tuple(out_type.shape)
     stride_h, stride_w = get_const_tuple(attrs.strides)
 
     if is_depthwise:
         assert attrs.data_layout == "NCHW"
-        assert attrs.kernel_layout == "OIHW"
+        assert attrs.kernel_layout == "IOHW"
+        _, _, height, width = get_const_tuple(data.shape)
+        _, out_channels, kernel_h, kernel_w = get_const_tuple(kernel.shape)
+
         dimensions = (width, kernel_h, kernel_w)
         in_stride = stride_w
+        data_per_oc_size = height * width
     else:
         assert attrs.data_layout == "NHWC"
         assert attrs.kernel_layout == "OHWI"
+        _, height, width, in_channels = get_const_tuple(data.shape)
+        out_channels, kernel_h, kernel_w, _ = get_const_tuple(kernel.shape)
+
         dimensions = (width * in_channels, kernel_h, kernel_w * in_channels)
         in_stride = in_channels * stride_w
+        data_per_oc_size = 0
 
     assert attrs.out_layout is not None
     if attrs.out_layout == "NHWC":
@@ -66,18 +78,12 @@ def _pick_tensordot_impl(attrs, data, kernel, out_type, num_sums=2, is_depthwise
         raise ValueError(f"Unsupported output layout {attrs.out_layout}!")
 
     x_strides = (in_stride, out_stride)
-
     aligned_func = tensordot.tensordot_int16_impl(num_sums, dimensions, (0, 0, 0), x_strides)
 
-    # Figure out if we will need to alternate function calls between output channels. This isn't
-    # that rare (maybe 1/50 layers in common models), so we need to support it.
     kernel_per_oc_size = dimensions[1] * dimensions[2]
-    offsets = (0, (kernel_per_oc_size % 2), 0)
-    # If either is odd, we need to alternate
-    if any(offsets):
-        offset_func = tensordot.tensordot_int16_impl(num_sums, dimensions, offsets, x_strides)
-    else:
-        offset_func = ("", "")
+
+    offsets = (data_per_oc_size % 2, (kernel_per_oc_size % 2), 0)
+    offset_func = tensordot.tensordot_int16_impl(num_sums, dimensions, offsets, x_strides)
 
     return (aligned_func, offset_func)
 
@@ -114,8 +120,12 @@ def qnn_conv2d(attrs, inputs, out_type):
 
     _, height, width, in_channels = get_const_tuple(data.shape)
     out_channels, kernel_h, kernel_w, _ = get_const_tuple(kernel.shape)
-    _, out_height, out_width, _ = get_const_tuple(out_type.shape)
     y_stride, x_stride = get_const_tuple(attrs.strides)
+
+    out_height = _compute_output_dim(height, kernel_h, y_stride)
+    out_width = _compute_output_dim(width, kernel_w, x_stride)
+
+
 
     """Step two: we decide how many sums our function should have running at the same time. Doing
     this lets us do "more work" for each memory load, but doing too many of them causes us to run
@@ -135,14 +145,13 @@ def qnn_conv2d(attrs, inputs, out_type):
 
     _pick_tensordot_impl decides whether this is the case. If not, we only want to generate one
     function (to save flash), so offset_func is a tuple of empty strings."""
-    aligned_func, offset_func = _pick_tensordot_impl(attrs, data, kernel, out_type, num_sums, False)
+    aligned_func, offset_func = _pick_tensordot_impl(attrs, data, kernel, num_sums, False)
     aligned_func_name, aligned_func_code = aligned_func
     offset_func_name, offset_func_code = offset_func
 
     """These constants decide how much the aligned and offset functions will be called. They are
     chosen so that the offset function will be deleted if not used."""
-    out_channels = get_const_tuple(kernel.shape)[0]
-    if offset_func_name:
+    if aligned_func_name != offset_func_name:
         aligned_calls = tvm.tir.const(out_channels // 2)
         offset_calls = tvm.tir.const(out_channels // 2)
         tc_oc_step = tvm.tir.const(2)
@@ -276,21 +285,68 @@ def schedule_qnn_conv2d(attrs, outs, target):
 
 
 def qnn_depthwise_conv2d(attrs, inputs, out_type):
-    """TODO write this"""
     assert len(inputs) == 11
     data, kernel, _izp, _kzp, _iscale, _kscale, bias, rq_scale = inputs[0:8]
-
-    data_layout = attrs.data_layout
-    kernel_layout = attrs.kernel_layout
     output_layout = attrs.out_layout
     assert output_layout == "NHWC"
-
-    num_sums = 2 # TODO fix
-    func_calls_per_row = data.shape[2] // num_sums
-
-    func_names, func_code = _pick_tensordot_impl(attrs, data, kernel, num_sums, True)
-    aligned_func, offset_func = func_names
     assert rq_scale.dtype == "int32"
+
+    _, in_channels, height, width = get_const_tuple(data.shape)
+    _, out_channels, kernel_h, kernel_w = get_const_tuple(kernel.shape)
+    _, out_height, out_width, _ = get_const_tuple(out_type.shape)
+    y_stride, x_stride = get_const_tuple(attrs.strides)
+
+    out_height = _compute_output_dim(height, kernel_h, y_stride)
+    out_width = _compute_output_dim(width, kernel_w, x_stride)
+
+
+    """Step two: we decide how many sums our function should have running at the same time. Doing
+    this lets us do "more work" for each memory load, but doing too many of them causes us to run
+    out of registers. Currently this is set to either 1 or 2, but autotuning this value would
+    improve performance a lot."""
+    num_sums = 2
+
+    aligned_func, offset_func = _pick_tensordot_impl(attrs, data, kernel, num_sums, True)
+    aligned_func_name, aligned_func_code = aligned_func
+    offset_func_name, offset_func_code = offset_func
+
+    """These constants decide how much the aligned and offset functions will be called. They are
+    chosen so that the offset function will be deleted if not used."""
+    if offset_func_name:
+        aligned_calls = tvm.tir.const(out_channels // 2)
+        offset_calls = tvm.tir.const(out_channels // 2)
+        tc_oc_step = tvm.tir.const(2)
+        if height * width % 2 == 1:
+            x_ptr_offset = tvm.tir.const(-1)
+        else:
+            x_ptr_offset = tvm.tir.const(0)
+
+
+    else:
+        assert False
+        aligned_calls = tvm.tir.const(out_channels)
+        offset_calls = tvm.tir.const(0)
+        tc_oc_step = tvm.tir.const(1)
+        x_ptr_offset = tvm.tir.const(0)
+
+    """Step four: we set up some constants to help index into our buffers. Data layout is NHWC."""
+
+    #
+
+    # NHWC
+    tc_out_y_stride = tvm.tir.const(out_width * out_channels)
+    tc_out_x_stride = tvm.tir.const(out_channels * num_sums)
+    tc_out_calls_per_row = tvm.tir.const(out_width // num_sums)
+    tc_out_num_rows = tvm.tir.const(out_height)
+
+    # NCHW
+    tc_data_oc_stride = tvm.tir.const(width * height)
+    tc_data_y_stride = tvm.tir.const(y_stride * width)
+    tc_data_x_stride = tvm.tir.const(x_stride * num_sums)
+
+    # OIHW
+    tc_kernel_oc_stride = tvm.tir.const(kernel_h * kernel_w * in_channels)
+    tc_kernel_ic_stride = tvm.tir.const(kernel_h * kernel_w)
 
     @T.prim_func
     def biased_quantized_conv2d(
@@ -301,8 +357,6 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
         output_handle: T.handle,
     ) -> None:
 
-        _batch_size, height, width, in_channels = _get_tscript_const_tuple(data.shape)
-        out_channels, kernel_h, kernel_w, _ = _get_tscript_const_tuple(kernel.shape)
 
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         DATA = T.match_buffer(data_handle, data.shape, dtype="int16")
@@ -317,17 +371,57 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
         x = DATA[0, 0, 0, 0]
         y = KERNEL[0, 0, 0, 0]
 
-        for oh, ow, oc in T.grid(height, T.floordiv(width, 2), out_channels):
-            with T.block("conv2d"):
-                T.block_attr({"pragma_import_c": func_code})
+
+
+        for oc, oh, ow in T.grid(offset_calls, tc_out_num_rows, tc_out_calls_per_row):
+            with T.block("depthwise_conv2d_aligned"):
+                T.block_attr({"pragma_import_c": aligned_func_code})
                 voh, vow, voc = T.axis.remap("SSS", [oh, ow, oc])
+
                 T.evaluate(
                     T.call_extern(
                         aligned_func_name,
                         T.tvm_access_ptr(
                             T.type_annotation(dtype="int16"),
                             OUTPUT.data,
-                            voh * width * out_channels + vow * out_channels * 2 + voc,
+                            voh * tc_out_y_stride + vow * tc_out_x_stride + voc * tc_oc_step,
+                            1,
+                            1,
+                            dtype="handle",
+                        ),
+                        T.tvm_access_ptr(
+                            T.type_annotation(dtype="int16"),
+                            DATA.data,
+                            voc * tc_data_oc_stride * tc_oc_step + voh * tc_data_y_stride + vow * tc_data_x_stride,
+                            1,
+                            1,
+                            dtype="handle",
+                        ),
+                        T.tvm_access_ptr(
+                            T.type_annotation(dtype="int16"),
+                            KERNEL.data,
+                            voc * tc_kernel_ic_stride * tc_oc_step,
+                            1,
+                            1,
+                            dtype="handle",
+                        ),
+                        BIAS[0, 0, 0, voc * tc_oc_step],
+                        REQUANTIZE_SCALE[voc * tc_oc_step],
+                        dtype="int32",
+                    )
+                )
+
+        for oc, oh, ow in T.grid(offset_calls, tc_out_num_rows, tc_out_calls_per_row):
+            with T.block("depthwise_conv2d_offset"):
+                T.block_attr({"pragma_import_c": offset_func_code})
+                voh, vow, voc = T.axis.remap("SSS", [oh, ow, oc])
+                T.evaluate(
+                    T.call_extern(
+                        offset_func_name,
+                        T.tvm_access_ptr(
+                            T.type_annotation(dtype="int16"),
+                            OUTPUT.data,
+                            voh * tc_out_y_stride + vow * tc_out_x_stride + voc * tc_oc_step + 1,
                             0,
                             1,
                             dtype="handle",
@@ -335,7 +429,7 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
                         T.tvm_access_ptr(
                             T.type_annotation(dtype="int16"),
                             DATA.data,
-                            voh * width * in_channels + vow * in_channels * 2,
+                            (voc * tc_oc_step + 1) * tc_data_oc_stride + voh * tc_data_y_stride + vow * tc_data_x_stride + x_ptr_offset,
                             0,
                             1,
                             dtype="handle",
@@ -343,21 +437,21 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
                         T.tvm_access_ptr(
                             T.type_annotation(dtype="int16"),
                             KERNEL.data,
-                            voc * in_channels,
+                            (voc * tc_oc_step + 1) * tc_kernel_ic_stride - 1,
                             0,
                             1,
                             dtype="handle",
                         ),
-                        BIAS[0, 0, 0, voc],
-                        REQUANTIZE_SCALE[voc],
+                        BIAS[0, 0, 0, voc * tc_oc_step + 1],
+                        REQUANTIZE_SCALE[voc * tc_oc_step + 1],
                         dtype="int32",
                     )
                 )
+
     output = te.extern_primfunc(
         [data, kernel, bias, rq_scale], biased_quantized_conv2d, name="tir", dtype="int16"
     )
     return [output]
 
-
-def schedule_qnn_conv2d(attrs, outs, target):
+def schedule_qnn_depthwise_conv2d(attrs, outs, target):
     return None

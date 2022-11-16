@@ -39,10 +39,10 @@ def qnn_conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 name="qnn_conv2d.arm_cpu",
             )
     elif is_depthwise_conv2d(data.shape, data_layout, kernel.shape, kernel_layout, groups):
-        if data_layout == "NCHW" and kernel_layout == "OIHW":
+        if data_layout == "NCHW" and kernel_layout == "IOHW":
             strategy.add_implementation(
-                wrap_topi_qnn_conv2d(topi.arm_cpu.qnn_depthwise_conv2d),
-                wrap_topi_schedule(topi.arm_cpu.schedule_qnn_depthwise_conv2d),
+                topi.arm_cpu.qnn_depthwise_conv2d,
+                topi.arm_cpu.schedule_qnn_depthwise_conv2d,
                 name="qnn_depthwise_conv2d.arm_cpu",
             )
     else:

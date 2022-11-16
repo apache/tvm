@@ -73,20 +73,20 @@ def interpreter():
     return interpreter
 
 
-def _get_layer_attributes(layer_num):
+def _get_mobilenet_v1_layer_attributes(layer_num):
     """Returns the relevant padding and stride for a given layer in a MobileNetV1 model. It's a huge
     headache to read this data from TensorFlow, as it is not user accessible via the interpreter. If
     we really wanted to, we would have to parse the .tflite file ourselves. This function is a bit
     of a hack, but lets us skip that."""
 
     if layer_num == 0:  # Regular conv2d
-        return ((0, 0, 1, 1), (2, 2))
+        return ((0, 0, 1, 1), (2, 2), False)
     if layer_num % 2 == 0:  # 1x1 conv2d
-        return ((0, 0, 0, 0), (1, 1))
+        return ((0, 0, 0, 0), (1, 1), False)
     if layer_num in [3, 7, 11, 23]:  # Downsizing depthwise_conv2d layers
-        return ((0, 0, 1, 1), (2, 2))
+        return ((0, 0, 1, 1), (2, 2), True)
     # Depthwise conv2d
-    return ((1, 1, 1, 1), (1, 1))
+    return ((1, 1, 1, 1), (1, 1), True)
 
 
 def _get_relu_activation_prefix(layer_num):
@@ -170,7 +170,6 @@ def _load_tflite_layer(interpreter, layer):
     kernel_data = lookup(_get_kernel_details(tensor_details, layer))
     bias_data = lookup(_get_bias_details(tensor_details, layer))
     output_data = lookup(_get_main_path_tensor_details(tensor_details, layer + 1))
-
     return input_data, kernel_data, bias_data, output_data
 
 
@@ -198,7 +197,7 @@ def _make_conv2d_op(kernel, data_quant, kernel_quant, hyperparams, is_depthwise=
         kernel_scale=_get_quant_scale_const(kernel_quant),
         kernel_size=kernel_size,
         data_layout=data_layout,
-        kernel_layout=kernel_layout,
+        kernel_layout="IOHW" if is_depthwise else kernel_layout,
         dilation=(1, 1),
         strides=strides,
         padding=padding,
@@ -238,7 +237,7 @@ def _make_aot_model(params, hyperparams, layouts, is_depthwise=False):
     data_quant, kernel_quant, bias_quant, output_quant = quantizations
 
     dtype, padding, _strides = hyperparams
-    data_layout, _, output_layout = layouts
+    data_layout, kernel_layout, output_layout = layouts
 
     if any(padding):
         pad_const = int(data_quant["zero_points"][0])
@@ -246,7 +245,7 @@ def _make_aot_model(params, hyperparams, layouts, is_depthwise=False):
         pad_after = (0, padding[2], padding[3], 0)
         data = np.pad(data, tuple(zip(pad_before, pad_after)), constant_values=pad_const)
     data_ndarr = _change_layout(data, "NHWC", data_layout, dtype)
-
+    kernel_ndarr = _change_layout(kernel, "OHWI", kernel_layout, dtype)
     output_ndarr = _change_layout(output, "NHWC", output_layout, dtype)
 
     input_var = relay.var("input", relay.TensorType(data_ndarr.shape, dtype))
@@ -280,24 +279,24 @@ def _make_executor():
     )
 
 
-@pytest.mark.parametrize("layer", range(0, 23, 2))
+@pytest.mark.parametrize("layer", range(23))
 @tvm.testing.requires_corstone300
 def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer):
     dtype = "int16"
 
     tensor, kernel, bias, output = _load_tflite_layer(interpreter, layer)
-    padding, strides = _get_layer_attributes(layer)
 
-    if layer % 2 == 0:
-        data_layout, kernel_layout, output_layout = "NHWC", "OHWI", "NHWC"
+    padding, strides, is_depthwise = _get_mobilenet_v1_layer_attributes(layer)
+    if is_depthwise:
+        data_layout, kernel_layout, output_layout = "NCHW", "OIHW", "NHWC"
     else:
-        data_layout, kernel_layout, output_layout = "NCHW", "OIHW", "NCHW"
+        data_layout, kernel_layout, output_layout = "NHWC", "OHWI", "NHWC"
 
     test_model = _make_aot_model(
         (tensor, kernel, bias, output),
         (dtype, padding, strides),
         (data_layout, kernel_layout, output_layout),
-        is_depthwise=layer % 2 == 1,
+        is_depthwise=is_depthwise
     )
 
     def schedule_fn(_sch):
