@@ -74,33 +74,11 @@ $ANDROID_HOME/platform-tools/adb uninstall org.apache.tvm.tvmrpc
 
 ### Build with OpenCL
 
-This application does not link any OpenCL library unless you configure it to. In `app/src/main/jni/make` you will find JNI Makefile config `config.mk`. Copy it to `app/src/main/jni` and modify it.
-
-```bash
-cd apps/android_rpc/app/src/main/jni
-cp make/config.mk .
-```
-
-Here's a piece of example for `config.mk`.
-
-```makefile
-APP_ABI = arm64-v8a
-
-APP_PLATFORM = android-17
-
-# whether enable OpenCL during compile
-USE_OPENCL = 1
-
-# the additional include headers you want to add, e.g., SDK_PATH/adrenosdk/Development/Inc
-ADD_C_INCLUDES = /opt/adrenosdk-osx/Development/Inc
-
-# the additional link libs you want to add, e.g., ANDROID_LIB_PATH/libOpenCL.so
-ADD_LDLIBS = libOpenCL.so
-```
-
-Note that you should specify the correct GPU development headers for your android device. Run `adb shell dumpsys | grep GLES` to find out what GPU your android device uses. It is very likely the library (libOpenCL.so) is already present on the mobile device. For instance, I found it under `/system/vendor/lib64`. You can do `adb pull /system/vendor/lib64/libOpenCL.so ./` to get the file to your desktop.
-
-After you setup the `config.mk`, follow the instructions in [Build APK](#buildapk) to build the Android package.
+Application is building with OpenCL support by default.
+[OpenCL-wrapper](../../src/runtime/opencl/opencl_wrapper) is used and will dynamically load OpenCL library on the device.
+If the device doesn't have OpenCL library on it, then you'll see in the runtime that OpenCL library cannot be opened.
+If you want to build this application without OpenCL then set `USE_OPENCL = 0`
+in [config.mk](./app/src/main/jni/make/config.mk)
 
 ## Cross Compile and Run on Android Devices
 

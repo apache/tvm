@@ -211,6 +211,7 @@ Apache Software Foundation License 2.0
 
 3rdparty/dlpack
 3rdparty/dmlc-core
+3rdparty/OpenCL-Headers
 
 
 BSD 2-clause License

@@ -4878,6 +4878,28 @@ def test_forward_mobilenet_int16():
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 
+def test_forward_ds_cnn_int16():
+    """Test DS_CNN int16 quantized model"""
+    tflite_model_file = download_testdata(
+        "https://github.com/ARM-software/ML-zoo/blob/48f458af1e9065d9aad2ad94d24b58d6e7c00817/"
+        "models/keyword_spotting/ds_cnn_small/tflite_int16/ds_cnn_quantized.tflite?raw=true",
+        "ds_cnn_quantized_int16.tflite",
+    )
+
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+
+    data = np.random.uniform(size=(1, 490)).astype("int16")
+
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tflite_predictions = np.squeeze(tflite_output)
+    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+    tvm_output = run_tvm_graph(tflite_model_buf, data, "serving_default_input:0")
+    tvm_predictions = np.squeeze(tvm_output)
+    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+    tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
+
 #######################################################################
 # Unidirectional Sequence LSTM
 # ---------------------
@@ -5250,3 +5272,4 @@ if __name__ == "__main__":
     test_forward_tflite_float16()
 
     test_forward_tflite_int16()
+    test_forward_ds_cnn_int16()

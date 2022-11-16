@@ -85,6 +85,51 @@ Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
   };
 }
 
+Array<ScheduleRule> ScheduleRule::DefaultVNNI() {
+  return {
+      ScheduleRule::ApplyCustomRule(),
+      ScheduleRule::InlineConstantScalars(),
+      ScheduleRule::AutoInline(
+          /*into_producer=*/false,
+          /*into_consumer=*/true,
+          /*inline_const_tensor=*/true,
+          /*disallow_if_then_else=*/true,
+          /*require_injective=*/true,
+          /*require_ordered=*/true,
+          /*disallow_op=*/Array<String>{"tir.exp"}),
+      ScheduleRule::AddRFactor(
+          /*max_jobs_per_core=*/16,
+          /*max_innermost_factor=*/Integer(64)),
+      ScheduleRule::MultiLevelTilingWithIntrin(
+          /*intrin_name=*/"dot_16x4_vnni",
+          /*structure=*/"SSRSRS",
+          /*tile_binds=*/NullOpt,
+          /*max_innermost_factor=*/Integer(64),
+          /*vector_load_lens=*/NullOpt,
+          /*reuse_read=*/NullOpt,
+          /*reuse_write=*/
+          Map<String, ObjectRef>{{"req", String("may")},
+                                 {"levels", Array<Integer>{1, 2}},
+                                 {"scope", String("global")}}),
+      ScheduleRule::MultiLevelTiling(
+          /*structure=*/"SSRSRS",
+          /*tile_binds=*/NullOpt,
+          /*max_innermost_factor=*/Integer(64),
+          /*vector_load_lens=*/NullOpt,
+          /*reuse_read=*/NullOpt,
+          /*reuse_write=*/
+          Map<String, ObjectRef>{{"req", String("may")},
+                                 {"levels", Array<Integer>{1, 2}},
+                                 {"scope", String("global")}}),
+      ScheduleRule::ParallelizeVectorizeUnroll(
+          /*max_jobs_per_core=*/16,
+          /*max_vectorize_extent=*/64,
+          /*unroll_max_steps=*/Array<Integer>{0, 16, 64, 512},
+          /*unroll_explicit=*/true),
+      ScheduleRule::RandomComputeLocation(),
+  };
+}
+
 Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
   return {
       ScheduleRule::ApplyCustomRule(),

@@ -209,9 +209,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
       continue;
     }
 
-    if (func_ptr->preflattened_buffer_map.count(param)) {
-      buffer_def.emplace_back(v_arg, func_ptr->preflattened_buffer_map[param]);
-    } else if (func_ptr->buffer_map.count(param)) {
+    if (func_ptr->buffer_map.count(param)) {
       buffer_def.emplace_back(v_arg, func_ptr->buffer_map[param]);
     } else {
       var_def.emplace_back(v_arg, param);

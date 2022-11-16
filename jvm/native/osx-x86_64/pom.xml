@@ -120,14 +120,14 @@ under the License.
           <compilerEndOptions>
             <compilerEndOption>-I../../../include</compilerEndOption>
             <compilerEndOption>-I${JAVA_HOME}/include</compilerEndOption>
-            <compilerEndOption>-I${JAVA_HOME}/include/linux</compilerEndOption
+            <compilerEndOption>-I${JAVA_HOME}/include/linux</compilerEndOption>
             <compilerEndOption>${cflags}</compilerEndOption>
           </compilerEndOptions>
           <linkerStartOptions>
             <linkerStartOption>-shared</linkerStartOption>
           </linkerStartOptions>
           <linkerMiddleOptions>
-            <linkerMiddleOption>-framework JavaVM</linkerMiddleOption>
+            <linkerMiddleOption>-framework JavaNativeFoundation</linkerMiddleOption>
             <linkerMiddleOption>-Wl,-exported_symbol,_Java_*</linkerMiddleOption>
             <linkerMiddleOption>-undefined dynamic_lookup</linkerMiddleOption>
             <linkerMiddleOption>-Wl,-x</linkerMiddleOption>

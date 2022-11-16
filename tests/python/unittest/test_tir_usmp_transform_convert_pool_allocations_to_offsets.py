@@ -75,11 +75,8 @@ class LinearStructure:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_cast_subtract", "tir.noalias": True})
         placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
-        T.preflattened_buffer(placeholder_4, [150528], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
         placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=64, offset_factor=1)
-        T.preflattened_buffer(placeholder_5, [1], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         T_subtract_1 = T.match_buffer(T_subtract, [452], dtype="int16", elem_offset=0, align=64, offset_factor=1)
-        T.preflattened_buffer(T_subtract_1, [452], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
         for ax0_ax1_fused_1 in T.serial(0, 224):
             for ax2_1, ax3_inner_1 in T.grid(224, 3):
@@ -90,13 +87,9 @@ class LinearStructure:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast", "tir.noalias": True})
         placeholder_65 = T.match_buffer(placeholder_62, [150528], dtype="int16", elem_offset=0, align=64, offset_factor=1)
-        T.preflattened_buffer(placeholder_65, [150528], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         placeholder_66 = T.match_buffer(placeholder_63, [9408], dtype="int16", elem_offset=0, align=64, offset_factor=1)
-        T.preflattened_buffer(placeholder_66, [9408], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         placeholder_67 = T.match_buffer(placeholder_64, [64], dtype="int32", elem_offset=0, align=64, offset_factor=1)
-        T.preflattened_buffer(placeholder_67, [64], dtype="int32", elem_offset=0, align=64, offset_factor=1)
         T_cast_21 = T.match_buffer(T_cast_20, [289], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
-        T.preflattened_buffer(T_cast_21, [289], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
         # body
         PaddedInput_7_data = T.allocate([157323], "int16", "global")
         PaddedInput_7 = T.buffer_decl(shape=[157323], dtype="int16", data=PaddedInput_7_data)
@@ -118,9 +111,7 @@ class LinearStructure:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_max_pool2d_cast", "tir.noalias": True})
         placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
-        T.preflattened_buffer(placeholder_29, [802816], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
         T_cast_7 = T.match_buffer(T_cast_6, [177], dtype="int16", elem_offset=0, align=64, offset_factor=1)
-        T.preflattened_buffer(T_cast_7, [177], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
         tensor_2_data = T.allocate([200704], "uint8", "global")
         tensor_2 = T.buffer_decl(shape=[200704], dtype="uint8", data=tensor_2_data)
@@ -168,13 +159,9 @@ class LinearStructurePlanned:
     @T.prim_func
     def tvmgen_default_fused_nn_max_pool2d_cast(placeholder_28: T.handle, T_cast_6: T.handle, fast_memory_6_var: T.Ptr[T.uint8], slow_memory_7_var: T.Ptr[T.uint8]) -> None:
         placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8")
-        T.preflattened_buffer(placeholder_29, [802816], dtype="uint8")
         T_cast_7 = T.match_buffer(T_cast_6, [177], dtype="int16")
-        T.preflattened_buffer(T_cast_7, [177], dtype="int16")
         fast_memory_6_buffer_var = T.match_buffer(fast_memory_6_var, [200704], dtype="uint8", strides=[1], elem_offset=0, align=16)
-        T.preflattened_buffer(fast_memory_6_buffer_var, [200704], dtype="uint8", strides=[1], elem_offset=0, align=16)
         slow_memory_7_buffer_var = T.match_buffer(slow_memory_7_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
-        T.preflattened_buffer(slow_memory_7_buffer_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         tensor_2_let = T.buffer_decl([200704], dtype="uint8")
         with T.let(tensor_2_let.data, T.address_of(fast_memory_6_buffer_var[0], dtype="handle")):
@@ -189,15 +176,10 @@ class LinearStructurePlanned:
     @T.prim_func
     def tvmgen_default_fused_cast_subtract(placeholder_2: T.handle, placeholder_3: T.handle, T_subtract: T.handle, fast_memory_2_var: T.Ptr[T.uint8], slow_memory_3_var: T.Ptr[T.uint8]) -> None:
         placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8")
-        T.preflattened_buffer(placeholder_4, [150528], dtype="uint8")
         placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16")
-        T.preflattened_buffer(placeholder_5, [1], dtype="int16")
         T_subtract_1 = T.match_buffer(T_subtract, [452], dtype="int16")
-        T.preflattened_buffer(T_subtract_1, [452], dtype="int16")
         fast_memory_2_buffer_var = T.match_buffer(fast_memory_2_var, [200704], dtype="uint8", strides=[1], elem_offset=0, align=16)
-        T.preflattened_buffer(fast_memory_2_buffer_var, [200704], dtype="uint8", strides=[1], elem_offset=0, align=16)
         slow_memory_3_buffer_var = T.match_buffer(slow_memory_3_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
-        T.preflattened_buffer(slow_memory_3_buffer_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         for ax0_ax1_fused_1, ax2_1, ax3_inner_1 in T.grid(224, 224, 3):
             T_subtract_1[ax0_ax1_fused_1 * 672 + ax2_1 * 3 + ax3_inner_1] = T.cast(placeholder_4[ax0_ax1_fused_1 * 672 + ax2_1 * 3 + ax3_inner_1], "int16") - placeholder_5[0]
@@ -205,17 +187,11 @@ class LinearStructurePlanned:
     @T.prim_func
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast(placeholder_62: T.handle, placeholder_63: T.handle, placeholder_64: T.handle, T_cast_20: T.handle, fast_memory_4_var: T.Ptr[T.uint8], slow_memory_5_var: T.Ptr[T.uint8]) -> None:
         placeholder_65 = T.match_buffer(placeholder_62, [150528], dtype="int16")
-        T.preflattened_buffer(placeholder_65, [150528], dtype="int16")
         placeholder_66 = T.match_buffer(placeholder_63, [9408], dtype="int16")
-        T.preflattened_buffer(placeholder_66, [9408], dtype="int16")
         placeholder_67 = T.match_buffer(placeholder_64, [64], dtype="int32")
-        T.preflattened_buffer(placeholder_67, [64], dtype="int32")
         T_cast_21 = T.match_buffer(T_cast_20, [289], dtype="uint8")
-        T.preflattened_buffer(T_cast_21, [289], dtype="uint8")
         fast_memory_4_buffer_var = T.match_buffer(fast_memory_4_var, [200704], dtype="uint8", strides=[1], elem_offset=0, align=16)
-        T.preflattened_buffer(fast_memory_4_buffer_var, [200704], dtype="uint8", strides=[1], elem_offset=0, align=16)
         slow_memory_5_buffer_var = T.match_buffer(slow_memory_5_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
-        T.preflattened_buffer(slow_memory_5_buffer_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_7_let = T.buffer_decl([157323], "int16")
         with T.let(PaddedInput_7_let.data, T.address_of(slow_memory_5_buffer_var[802816], dtype="handle")):
@@ -280,11 +256,8 @@ class ResnetStructure:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_cast_subtract_fixed_point_multiply_add_clip_cast_cast", "tir.noalias": True})
         placeholder_2 = T.match_buffer(placeholder, [360000], dtype="uint8")
-        T.preflattened_buffer(placeholder_2, [360000], dtype="uint8")
         placeholder_3 = T.match_buffer(placeholder_1, [64], dtype="int32")
-        T.preflattened_buffer(placeholder_3, [64], dtype="int32")
         T_cast_1 = T.match_buffer(T_cast, [215], dtype="int16")
-        T.preflattened_buffer(T_cast_1, [215], dtype="int16")
         # body
         for ax0_ax1_fused, ax2, ax3_outer, ax3_inner in T.grid(75, 75, 4, 16):
             T_cast_1[ax0_ax1_fused * 4800 + ax2 * 64 + ax3_outer * 16 + ax3_inner] = T.cast(T.cast(T.max(T.min(T.q_multiply_shift(T.cast(placeholder_2[ax0_ax1_fused * 4800 + ax2 * 64 + ax3_outer * 16 + ax3_inner], "int32") - 94, 1843157232, 31, 1, dtype="int32") + placeholder_3[ax3_outer * 16 + ax3_inner], 255), 0), "uint8"), "int16")
@@ -294,13 +267,9 @@ class ResnetStructure:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_1", "tir.noalias": True})
         placeholder_13 = T.match_buffer(placeholder_10, [360000], dtype="int16")
-        T.preflattened_buffer(placeholder_13, [360000], dtype="int16")
         placeholder_14 = T.match_buffer(placeholder_11, [36864], dtype="int16")
-        T.preflattened_buffer(placeholder_14, [36864], dtype="int16")
         placeholder_15 = T.match_buffer(placeholder_12, [64], dtype="int32")
-        T.preflattened_buffer(placeholder_15, [64], dtype="int32")
         T_cast_5 = T.match_buffer(T_cast_4, [215], dtype="int16")
-        T.preflattened_buffer(T_cast_5, [215], dtype="int16")
         # body
         PaddedInput_1_data = T.allocate([379456], "int16", "global")
         PaddedInput_1 = T.buffer_decl(shape=[379456], dtype="int16", data=PaddedInput_1_data)
@@ -321,13 +290,9 @@ class ResnetStructure:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_add_clip_cast_cast_subtract_fixed_point_15934180698220515269_", "tir.noalias": True})
         placeholder_19 = T.match_buffer(placeholder_16, [360000], dtype="int16")
-        T.preflattened_buffer(placeholder_19, [360000], dtype="int16")
         placeholder_20 = T.match_buffer(placeholder_17, [16384], dtype="int16")
-        T.preflattened_buffer(placeholder_20, [16384], dtype="int16")
         placeholder_21 = T.match_buffer(placeholder_18, [256], dtype="int32")
-        T.preflattened_buffer(placeholder_21, [256], dtype="int32")
         T_add_1 = T.match_buffer(T_add, [407], dtype="int32")
-        T.preflattened_buffer(T_add_1, [407], dtype="int32")
         # body
         PaddedInput_2_data = T.allocate([360000], "int16", "global")
         PaddedInput_2 = T.buffer_decl(shape=[360000], dtype="int16", data=PaddedInput_2_data)
@@ -349,15 +314,10 @@ class ResnetStructure:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_add_clip_cast_cast_subtract_fixed_point_4200876283395191415_", "tir.noalias": True})
         placeholder_29 = T.match_buffer(placeholder_22, [360000], dtype="int16")
-        T.preflattened_buffer(placeholder_29, [360000], dtype="int16")
         placeholder_27 = T.match_buffer(placeholder_23, [16384], dtype="int16")
-        T.preflattened_buffer(placeholder_27, [16384], dtype="int16")
         placeholder_26 = T.match_buffer(placeholder_24, [256], dtype="int32")
-        T.preflattened_buffer(placeholder_26, [256], dtype="int32")
         placeholder_28 = T.match_buffer(placeholder_25, [1440000], dtype="int32")
-        T.preflattened_buffer(placeholder_28, [1440000], dtype="int32")
         T_cast_7 = T.match_buffer(T_cast_6, [407], dtype="uint8")
-        T.preflattened_buffer(T_cast_7, [407], dtype="uint8")
         # body
         PaddedInput_3_data = T.allocate([360000], "int16", "global")
         PaddedInput_3 = T.buffer_decl(shape=[360000], dtype="int16", data=PaddedInput_3_data)
@@ -396,13 +356,9 @@ class ResnetStructure:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast", "tir.noalias": True})
         placeholder_7 = T.match_buffer(placeholder_4, [360000], dtype="int16")
-        T.preflattened_buffer(placeholder_7, [360000], dtype="int16")
         placeholder_8 = T.match_buffer(placeholder_5, [4096], dtype="int16")
-        T.preflattened_buffer(placeholder_8, [4096], dtype="int16")
         placeholder_9 = T.match_buffer(placeholder_6, [64], dtype="int32")
-        T.preflattened_buffer(placeholder_9, [64], dtype="int32")
         T_cast_3 = T.match_buffer(T_cast_2, [215], dtype="int16")
-        T.preflattened_buffer(T_cast_3, [215], dtype="int16")
         # body
         PaddedInput_data = T.allocate([360000], "int16", "global")
         PaddedInput = T.buffer_decl([360000], "int16", data=PaddedInput_data)
@@ -426,13 +382,9 @@ class ResnetStructurePlanned:
     @T.prim_func
     def tvmgen_default_fused_cast_subtract_fixed_point_multiply_add_clip_cast_cast(placeholder: T.handle, placeholder_1: T.handle, T_cast: T.handle, global_workspace_1_var: T.Ptr[T.uint8]) -> None:
         placeholder_2 = T.match_buffer(placeholder, [360000], dtype="uint8")
-        T.preflattened_buffer(placeholder_2, [360000], dtype="uint8")
         placeholder_3 = T.match_buffer(placeholder_1, [64], dtype="int32")
-        T.preflattened_buffer(placeholder_3, [64], dtype="int32")
         T_cast_1 = T.match_buffer(T_cast, [215], dtype="int16")
-        T.preflattened_buffer(T_cast_1, [215], dtype="int16")
         global_workspace_1_buffer_var = T.match_buffer(global_workspace_1_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
-        T.preflattened_buffer(global_workspace_1_buffer_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         for ax0_ax1_fused, ax2, ax3_outer, ax3_inner in T.grid(75, 75, 4, 16):
             T_cast_1[ax0_ax1_fused * 4800 + ax2 * 64 + ax3_outer * 16 + ax3_inner] = T.cast(T.cast(T.max(T.min(T.q_multiply_shift(T.cast(placeholder_2[ax0_ax1_fused * 4800 + ax2 * 64 + ax3_outer * 16 + ax3_inner], "int32") - 94, 1843157232, 31, 1, dtype="int32") + placeholder_3[ax3_outer * 16 + ax3_inner], 255), 0), "uint8"), "int16")
@@ -440,17 +392,11 @@ class ResnetStructurePlanned:
     @T.prim_func
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_add_clip_cast_cast_subtract_fixed_point_4200876283395191415_(placeholder_22: T.handle, placeholder_23: T.handle, placeholder_24: T.handle, placeholder_25: T.handle, T_cast_6: T.handle, global_workspace_5_var: T.Ptr[T.uint8]) -> None:
         placeholder_29 = T.match_buffer(placeholder_22, [360000], dtype="int16")
-        T.preflattened_buffer(placeholder_29, [360000], dtype="int16")
         placeholder_27 = T.match_buffer(placeholder_23, [16384], dtype="int16")
-        T.preflattened_buffer(placeholder_27, [16384], dtype="int16")
         placeholder_26 = T.match_buffer(placeholder_24, [256], dtype="int32")
-        T.preflattened_buffer(placeholder_26, [256], dtype="int32")
         placeholder_28 = T.match_buffer(placeholder_25, [1440000], dtype="int32")
-        T.preflattened_buffer(placeholder_28, [1440000], dtype="int32")
         T_cast_7 = T.match_buffer(T_cast_6, [407], dtype="uint8")
-        T.preflattened_buffer(T_cast_7, [407], dtype="uint8")
         global_workspace_5_buffer_var = T.match_buffer(global_workspace_5_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
-        T.preflattened_buffer(global_workspace_5_buffer_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_3_let = T.buffer_decl([360000], 'int16')
         with T.let(PaddedInput_3_let.data, T.address_of(global_workspace_5_buffer_var[6480000], dtype="handle")):
@@ -470,15 +416,10 @@ class ResnetStructurePlanned:
     @T.prim_func
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_add_clip_cast_cast_subtract_fixed_point_15934180698220515269_(placeholder_16: T.handle, placeholder_17: T.handle, placeholder_18: T.handle, T_add: T.handle, global_workspace_4_var: T.Ptr[T.uint8]) -> None:
         placeholder_19 = T.match_buffer(placeholder_16, [360000], dtype="int16")
-        T.preflattened_buffer(placeholder_19, [360000], dtype="int16")
         placeholder_20 = T.match_buffer(placeholder_17, [16384], dtype="int16")
-        T.preflattened_buffer(placeholder_20, [16384], dtype="int16")
         placeholder_21 = T.match_buffer(placeholder_18, [256], dtype="int32")
-        T.preflattened_buffer(placeholder_21, [256], dtype="int32")
         T_add_1 = T.match_buffer(T_add, [407], dtype="int32")
-        T.preflattened_buffer(T_add_1, [407], dtype="int32")
         global_workspace_4_buffer_var = T.match_buffer(global_workspace_4_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
-        T.preflattened_buffer(global_workspace_4_buffer_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_2_let = T.buffer_decl([360000], "int16")
         with T.let(PaddedInput_2_let.data, T.address_of(global_workspace_4_buffer_var[7200000], dtype="handle")):
@@ -498,15 +439,10 @@ class ResnetStructurePlanned:
     @T.prim_func
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast(placeholder_4: T.handle, placeholder_5: T.handle, placeholder_6: T.handle, T_cast_2: T.handle, global_workspace_2_var: T.Ptr[T.uint8]) -> None:
         placeholder_7 = T.match_buffer(placeholder_4, [360000], dtype="int16")
-        T.preflattened_buffer(placeholder_7, [360000], dtype="int16")
         placeholder_8 = T.match_buffer(placeholder_5, [4096], dtype="int16")
-        T.preflattened_buffer(placeholder_8, [4096], dtype="int16")
         placeholder_9 = T.match_buffer(placeholder_6, [64], dtype="int32")
-        T.preflattened_buffer(placeholder_9, [64], dtype="int32")
         T_cast_3 = T.match_buffer(T_cast_2, [215], dtype="int16")
-        T.preflattened_buffer(T_cast_3, [215], dtype="int16")
         global_workspace_2_buffer_var = T.match_buffer(global_workspace_2_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
-        T.preflattened_buffer(global_workspace_2_buffer_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_let = T.buffer_decl([360000], "int16")
         with T.let(PaddedInput_let.data, T.address_of(global_workspace_2_buffer_var[7200000], dtype="handle")):
@@ -525,15 +461,10 @@ class ResnetStructurePlanned:
     @T.prim_func
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_1(placeholder_10: T.handle, placeholder_11: T.handle, placeholder_12: T.handle, T_cast_4: T.handle, global_workspace_3_var: T.Ptr[T.uint8]) -> None:
         placeholder_13 = T.match_buffer(placeholder_10, [360000], dtype="int16")
-        T.preflattened_buffer(placeholder_13, [360000], dtype="int16")
         placeholder_14 = T.match_buffer(placeholder_11, [36864], dtype="int16")
-        T.preflattened_buffer(placeholder_14, [36864], dtype="int16")
         placeholder_15 = T.match_buffer(placeholder_12, [64], dtype="int32")
-        T.preflattened_buffer(placeholder_15, [64], dtype="int32")
         T_cast_5 = T.match_buffer(T_cast_4, [215], dtype="int16")
-        T.preflattened_buffer(T_cast_5, [215], dtype="int16")
         global_workspace_3_buffer_var = T.match_buffer(global_workspace_3_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
-        T.preflattened_buffer(global_workspace_3_buffer_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_1_let = T.buffer_decl([379456], "int16")
         with T.let(PaddedInput_1_let.data, T.address_of(global_workspace_3_buffer_var[0], dtype="handle")):
@@ -629,9 +560,6 @@ class TensorIntrinStructurePlanned:
     def tensor_intrin_primfunc(global_workspace_1_var: T.Ptr[T.uint8]) -> None:
         global_workspace_1_buffer_var = T.match_buffer(
             global_workspace_1_var, [40], dtype="uint8", strides=[1], elem_offset=0, align=16
-        )
-        T.preflattened_buffer(
-            global_workspace_1_buffer_var, [40], dtype="uint8", strides=[1], elem_offset=0, align=16
         )
         dense_let = T.buffer_decl([10], "int32")
         with T.let(dense_let.data, T.address_of(global_workspace_1_buffer_var[0], dtype="handle")):

@@ -20,6 +20,7 @@ import contextlib
 from functools import partial
 from typing import Any
 
+import tvm
 from tvm.ir import PrimType
 from tvm.tir import Buffer, IterVar, PrimExpr, Var
 
@@ -411,6 +412,10 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     if isinstance(res, Frame):
         res.add_callback(partial(res.__exit__, None, None, None))
         res.__enter__()
+    elif isinstance(res, PrimExpr):
+        T.evaluate(res)
+    elif isinstance(res, (int, bool)):
+        T.evaluate(tvm.tir.const(res))
 
 
 @dispatch.register(token="tir", type_name="If")

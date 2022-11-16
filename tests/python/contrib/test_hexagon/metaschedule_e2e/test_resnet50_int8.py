@@ -248,8 +248,9 @@ def _schedule_packed_8x8x32_conv2d():
 
         # Add cache for input and output activation layout transform,
         # note that weight is already in correct layout
-        input_cache = sch.cache_read(conv2d_block, 0, "global")  # pylint: disable=unused-variable
-        output_cache = sch.cache_write(outer_block, 0, "global")  # pylint: disable=unused-variable
+        # pylint: disable=unused-variable
+        input_cache = sch.cache_read(conv2d_block, 0, "global.vtcm")
+        output_cache = sch.cache_write(outer_block, 0, "global.vtcm")
         # Transform the layout of the input
         sch.transform_layout(
             conv2d_block, ("read", 0), index_map=index_map_nchw32c_nchw8h8w32c, pad_value=0

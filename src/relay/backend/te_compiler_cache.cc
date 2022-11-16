@@ -20,6 +20,7 @@
 #include "./te_compiler_cache.h"
 
 #include <tvm/driver/driver_api.h>
+#include <tvm/ir/name_supply.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/meta_schedule/database.h>
 #include <tvm/relay/analysis.h>
@@ -204,8 +205,10 @@ class QnnPatternMatcher {
 // Lowers Relay primitive Function to TE Compute
 class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
  public:
-  explicit LowerToTECompute(Target target)
-      : target_(target), device_copy_op_(Op::Get("device_copy")) {}
+  LowerToTECompute(Target target, NameSupply constants_name_supply)
+      : target_(target),
+        device_copy_op_(Op::Get("device_copy")),
+        constants_name_supply_(constants_name_supply) {}
 
   Array<te::Tensor> Lower(const Function& relay_func) {
     for (Var param : relay_func->params) {
@@ -280,7 +283,7 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
       std::stringstream ss;
       std::string s = readable_name_stream_.str();
       std::replace(s.begin(), s.end(), '.', '_');
-      ss << s << "_constant_" << const_index++;
+      ss << constants_name_supply_->FreshName(s + "_constant");
       tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype, ss.str());
       constant_tensors_[op] = tensor;
       return {tensor};
@@ -392,14 +395,13 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
 
   tvm::Target target_;
   std::ostringstream readable_name_stream_;
-  // Index of the global constants
-  static int const_index;
   // Cache device copy op for equivalence checking to reduce registry lookup
   // overhead for each invocation of call node when retrieving schedules.
   const Op& device_copy_op_;
+  // A NameSupply object passed from a caller, used to assign unique names to constants
+  // across different invocations of LowerToTECompute.
+  NameSupply constants_name_supply_;
 };
-
-int LowerToTECompute::const_index = 0;
 
 using namespace tvm::tir;
 
@@ -478,8 +480,9 @@ class ScheduleBuilder : public ExprVisitor {
     }
   }
 
-  CachedFunc Create(const Function& relay_func, GlobalVarSupply global_var_supply) {
-    LowerToTECompute lower_te_compute(target_);
+  CachedFunc Create(const Function& relay_func, GlobalVarSupply global_var_supply,
+                    NameSupply constant_name_supply) {
+    LowerToTECompute lower_te_compute(target_, constant_name_supply);
     Array<te::Tensor> tensor_outs = lower_te_compute.Lower(relay_func);
     Array<te::Tensor> fn_inputs = lower_te_compute.fn_inputs_;
     VisitExpr(relay_func->body);
@@ -724,8 +727,8 @@ class ScheduleBuilder : public ExprVisitor {
  *  The funcs field in cache is not yet populated.
  */
 CachedFunc PrimFuncFor(const Function& source_func, const Target& target,
-                       GlobalVarSupply global_var_supply) {
-  return ScheduleBuilder(target).Create(source_func, global_var_supply);
+                       GlobalVarSupply global_var_supply, NameSupply constant_name_supply) {
+  return ScheduleBuilder(target).Create(source_func, global_var_supply, constant_name_supply);
 }
 
 // Creates shape function from functor.
@@ -1066,8 +1069,9 @@ CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,
 }
 
 std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompute(
-    const Function& source_func, Target target, bool return_inputs) {
-  LowerToTECompute lower_te_compute(target);
+    const Function& source_func, Target target, NameSupply constant_name_supply,
+    bool return_inputs) {
+  LowerToTECompute lower_te_compute(target, constant_name_supply);
   Array<te::Tensor> outputs = lower_te_compute.Lower(source_func);
   // Following ScheduleBuilder, remove placeholder ops from outputs.
   tvm::Array<te::Tensor> tensor_outs;
@@ -1092,7 +1096,7 @@ std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompu
 
 TVM_REGISTER_GLOBAL("relay.backend.LowerToTE").set_body_typed([](Function prim_func) {
   auto tgt = tvm::Target("ext_dev");
-  LowerToTECompute lower_te_compute(tgt);
+  LowerToTECompute lower_te_compute(tgt, NameSupply(""));
   auto outputs = lower_te_compute.Lower(prim_func);
   return CachedFunc(tgt, GlobalVar(lower_te_compute.candidate_name_), lower_te_compute.fn_inputs_,
                     outputs, te::Schedule(), tir::PrimFunc(), {},
