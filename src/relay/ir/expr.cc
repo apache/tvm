@@ -72,8 +72,8 @@ Constant::Constant(runtime::NDArray data, Span span) {
 
 TVM_REGISTER_NODE_TYPE(ConstantNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.Constant").set_body_typed([](runtime::NDArray data) {
-  return Constant(data);
+TVM_REGISTER_GLOBAL("relay.ir.Constant").set_body_typed([](runtime::NDArray data, Span span) {
+  return Constant(data, span);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -200,8 +200,8 @@ Var WithFields(Var var, Optional<Id> opt_vid, Optional<Type> opt_type_annotation
 
 TVM_REGISTER_NODE_TYPE(VarNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.Var").set_body_typed([](String str, Type type_annotation) {
-  return Var(str, type_annotation);
+TVM_REGISTER_GLOBAL("relay.ir.Var").set_body_typed([](String str, Type type_annotation, Span span) {
+  return Var(str, type_annotation, span);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -320,8 +320,8 @@ Let WithFields(Let let, Optional<Var> opt_var, Optional<Expr> opt_value, Optiona
 
 TVM_REGISTER_NODE_TYPE(LetNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.Let").set_body_typed([](Var var, Expr value, Expr body) {
-  return Let(var, value, body);
+TVM_REGISTER_GLOBAL("relay.ir.Let").set_body_typed([](Var var, Expr value, Expr body, Span span) {
+  return Let(var, value, body, span);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -367,8 +367,8 @@ If WithFields(If if_expr, Optional<Expr> opt_cond, Optional<Expr> opt_true_branc
 TVM_REGISTER_NODE_TYPE(IfNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.If")
-    .set_body_typed([](Expr cond, Expr true_branch, Expr false_branch) {
-      return If(cond, true_branch, false_branch);
+    .set_body_typed([](Expr cond, Expr true_branch, Expr false_branch, Span span) {
+      return If(cond, true_branch, false_branch, span);
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -410,8 +410,8 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
 
 TVM_REGISTER_NODE_TYPE(TupleGetItemNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.TupleGetItem").set_body_typed([](Expr tuple, int index) {
-  return TupleGetItem(tuple, index);
+TVM_REGISTER_GLOBAL("relay.ir.TupleGetItem").set_body_typed([](Expr tuple, int index, Span span) {
+  return TupleGetItem(tuple, index, span);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -448,8 +448,8 @@ RefCreate WithFields(RefCreate ref_create, Optional<Expr> opt_value,
 
 TVM_REGISTER_NODE_TYPE(RefCreateNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.RefCreate").set_body_typed([](Expr value) {
-  return RefCreate(value);
+TVM_REGISTER_GLOBAL("relay.ir.RefCreate").set_body_typed([](Expr value, Span span) {
+  return RefCreate(value, span);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -486,7 +486,9 @@ RefRead WithFields(RefRead ref_read, Optional<Expr> opt_ref,
 
 TVM_REGISTER_NODE_TYPE(RefReadNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.RefRead").set_body_typed([](Expr ref) { return RefRead(ref); });
+TVM_REGISTER_GLOBAL("relay.ir.RefRead").set_body_typed([](Expr ref, Span span) {
+  return RefRead(ref, span);
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<RefReadNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -525,8 +527,8 @@ RefWrite WithFields(RefWrite ref_write, Optional<Expr> opt_ref, Optional<Expr> o
 
 TVM_REGISTER_NODE_TYPE(RefWriteNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.RefWrite").set_body_typed([](Expr ref, Expr value) {
-  return RefWrite(ref, value);
+TVM_REGISTER_GLOBAL("relay.ir.RefWrite").set_body_typed([](Expr ref, Expr value, Span span) {
+  return RefWrite(ref, value, span);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

@@ -2081,3 +2081,28 @@ class CompareBeforeAfter:
                 f"or an instance of `tvm.tir.PrimFunc`.  "
                 f"Instead, received {type(expected)}."
             )
+
+
+class _control_span_filling:
+    def __init__(self, on=True):
+        self._old_state = os.environ["TVM_SPANFILLING"] if "TVM_SPANFILLING" in os.environ else None
+        self._on = on
+
+    def __enter__(self):
+        os.environ["TVM_SPANFILLING"] = str(int(self._on))
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._old_state:
+            os.environ["TVM_SPANFILLING"] = self._old_state
+        else:
+            del os.environ["TVM_SPANFILLING"]
+
+
+class enable_span_filling(_control_span_filling):
+    def __init__(self):
+        super().__init__()
+
+
+class disable_span_filling(_control_span_filling):
+    def __init__(self):
+        super().__init__(on=False)
