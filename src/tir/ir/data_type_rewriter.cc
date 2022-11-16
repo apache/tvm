@@ -538,17 +538,5 @@ PrimExpr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
   return GetRef<PrimExpr>(op);
 }
 
-PrimExpr IndexDataTypeNormalizer::VisitExpr_(const SizeVarNode* op) {
-  if (auto it = var_remap_.find(GetRef<Var>(op)); it != var_remap_.end()) {
-    return (*it).second;
-  }
-  if (is_enabled_) {
-    ICHECK_LE(op->dtype.bits(), target_data_type_.bits());
-    Var new_var = GetRef<Var>(op).copy_with_dtype(target_data_type_);
-    var_remap_.Set(GetRef<Var>(op), new_var);
-    return std::move(new_var);
-  }
-  return GetRef<PrimExpr>(op);
-}
 }  // namespace tir
 }  // namespace tvm
