@@ -113,124 +113,6 @@ def evaluate(
     return round(time.mean * 1000, 4)
 
 
-def get_single_dma_schedule(size_a, size_w):
-    """Generate single DMA schedule."""
-    a_shape = (size_a, VRMPY_SIZE_B)
-    w_shape = (size_w, VRMPY_SIZE_B)
-    out_shape = (size_a, VRMPY_SIZE_INT32)
-
-    a_bytes = size_a * VRMPY_SIZE_B
-    w_bytes = size_w * VRMPY_SIZE_B
-
-    @T.prim_func
-    def operator(a_input: T.handle, b_input: T.handle, c_output: T.handle) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        a_buffer = T.match_buffer(a_input, a_shape, dtype="uint8", scope="global")
-        w_buffer = T.match_buffer(b_input, w_shape, dtype="uint8", scope="global")
-        c_buffer = T.match_buffer(c_output, out_shape, dtype="int32", scope="global")
-        a_global_vtcm = T.alloc_buffer(a_shape, dtype="uint8", scope="global")
-        w_global_vtcm = T.alloc_buffer(w_shape, dtype="uint8", scope="global")
-        c_global_vtcm = T.alloc_buffer(out_shape, dtype="int32", scope="global")
-        T.evaluate(
-            T.tvm_call_packed(
-                "device_api.hexagon.mem_copy_DLTensor",
-                T.tvm_stack_make_array(
-                    a_global_vtcm.data,
-                    T.tvm_stack_make_shape(size_a, VRMPY_SIZE_B, dtype="handle"),
-                    0,
-                    2,
-                    a_global_vtcm.dtype,
-                    0,
-                    dtype="handle",
-                ),
-                T.tvm_stack_make_array(
-                    a_buffer.data,
-                    T.tvm_stack_make_shape(size_a, VRMPY_SIZE_B, dtype="handle"),
-                    0,
-                    2,
-                    a_buffer.dtype,
-                    0,
-                    dtype="handle",
-                ),
-                T.Cast("int", a_bytes),
-                dtype="int32",
-            )
-        )
-        T.evaluate(
-            T.tvm_call_packed(
-                "device_api.hexagon.mem_copy_DLTensor",
-                T.tvm_stack_make_array(
-                    w_global_vtcm.data,
-                    T.tvm_stack_make_shape(size_w, VRMPY_SIZE_B, dtype="handle"),
-                    0,
-                    2,
-                    w_global_vtcm.dtype,
-                    0,
-                    dtype="handle",
-                ),
-                T.tvm_stack_make_array(
-                    w_buffer.data,
-                    T.tvm_stack_make_shape(size_w, VRMPY_SIZE_B, dtype="handle"),
-                    0,
-                    2,
-                    w_buffer.dtype,
-                    0,
-                    dtype="handle",
-                ),
-                T.Cast("int", w_bytes),
-                dtype="int32",
-            )
-        )
-        for n, index_0 in T.grid(size_a, size_w):
-            with T.block("c_buffer"):
-                vn_index, vi_index = T.axis.remap("SR", [n, index_0])
-                T.reads(
-                    a_global_vtcm[vn_index, 0:VRMPY_SIZE_B],
-                    w_global_vtcm[vi_index, 0:VRMPY_SIZE_B],
-                    c_global_vtcm[vn_index, 0:VRMPY_SIZE_INT32],
-                )
-                T.writes(c_global_vtcm[vn_index, 0:VRMPY_SIZE_INT32])
-                with T.init():
-                    for x in T.serial(VRMPY_SIZE_INT32):
-                        c_global_vtcm[vn_index, x] = 0
-                c_global_vtcm[vn_index, T.ramp(0, 1, 32)] += T.call_llvm_intrin(
-                    T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
-                    T.uint32(2),
-                    T.reinterpret(a_global_vtcm[vn_index, T.ramp(0, 1, 128)], dtype="int32x32"),
-                    T.reinterpret(w_global_vtcm[vi_index, T.ramp(0, 1, 128)], dtype="int32x32"),
-                    dtype="int32x32",
-                )
-        T.evaluate(
-            T.tvm_call_packed(
-                "device_api.hexagon.mem_copy_DLTensor",
-                T.tvm_stack_make_array(
-                    c_buffer.data,
-                    T.tvm_stack_make_shape(size_a, VRMPY_SIZE_B, dtype="handle"),
-                    0,
-                    2,
-                    c_buffer.dtype,
-                    0,
-                    dtype="handle",
-                ),
-                T.tvm_stack_make_array(
-                    c_global_vtcm.data,
-                    T.tvm_stack_make_shape(size_a, VRMPY_SIZE_B, dtype="handle"),
-                    0,
-                    2,
-                    c_global_vtcm.dtype,
-                    0,
-                    dtype="handle",
-                ),
-                T.Cast("int", a_bytes),
-                dtype="int32",
-            )
-        )
-
-    sch = tvm.tir.Schedule(operator)
-
-    return sch
-
-
 def get_fake_conv_vtcm_schedule(size_a, size_w, blocks=2):
     """Generate fake conv schedule with VTCM."""
     sch = conv_approximation(size_a, size_w)
@@ -434,16 +316,6 @@ class TestAsyncDMAPipeline:
             use_async_copy=1,
         )
 
-        sch = get_single_dma_schedule(size_a, size_w)
-        single_dma_runtime = evaluate(
-            hexagon_session,
-            sch,
-            input_a,
-            input_w,
-            np.zeros(expected_output.shape, "int32"),
-            expected_output,
-        )
-
         # Total transfer size is equal to the size of
         # a_buffer + w_buffer + c_buffer which is equal to 2 * size_a * 128 + size_w * 128
         transfer_mb = round((2 * size_a * VRMPY_SIZE_B + size_w * VRMPY_SIZE_B) / 1e6, 2)
@@ -461,7 +333,6 @@ class TestAsyncDMAPipeline:
             ),
             {
                 "without_vtcm": base_runtime,
-                "synchronous_dma": single_dma_runtime,
                 "base_vtcm": base_vtcm_runtime,
                 "async_dma_input": async_input_runtime,
                 "async_dma_output": async_output_runtime,

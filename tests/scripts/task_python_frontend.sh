@@ -42,7 +42,7 @@ run_pytest cython python-frontend-pytorch tests/python/frontend/pytorch
 
 echo "Running relay Tensorflow frontend test..."
 # Note: Tensorflow tests often have memory issues, so invoke each one separately
-TENSORFLOW_TESTS=$(./ci/scripts/pytest_ids.py --folder tests/python/frontend/tensorflow)
+TENSORFLOW_TESTS=$(./ci/scripts/jenkins/pytest_ids.py --folder tests/python/frontend/tensorflow)
 i=0
 for node_id in $TENSORFLOW_TESTS; do
     echo "$node_id"

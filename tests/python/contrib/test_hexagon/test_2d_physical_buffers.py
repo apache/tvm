@@ -304,7 +304,7 @@ class TestElementWise:
     def test_param_shapes(self, ir_module, transformed_input_shape, transformed_output_shape):
         func = ir_module["main"]
         primfunc_input_shape, primfunc_output_shape = [
-            list(func.preflattened_buffer_map[param].shape) for param in func.params
+            list(func.buffer_map[param].shape) for param in func.params
         ]
         assert primfunc_input_shape == transformed_input_shape
         assert primfunc_output_shape == transformed_output_shape

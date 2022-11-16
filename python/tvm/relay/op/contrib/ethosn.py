@@ -428,24 +428,7 @@ def qnn_concatenate(expr):
     if not _ethosn.concatenate(expr):
         return False
 
-    # Support library has some unenforced restrictions on qnn params
-    args = expr.args
-    min_range = 1e9
-    max_range = -1e9
-    qnn_params = []
-    for i in range(len(args[1].fields)):
-        scale = args[1].fields[i].data.numpy()
-        zero_point = args[2].fields[i].data.numpy()
-        min_range = min(-1 * zero_point * scale, min_range)
-        max_range = max((255 - zero_point) * scale, max_range)
-        qnn_params.append((scale, zero_point))
-
-    scale = (max_range - min_range) / 255
-    zero_point = int(-min_range / scale)
-    if (scale, zero_point) in qnn_params:
-        return True
-
-    return False
+    return True
 
 
 @tvm.ir.register_op_attr("split", "target.ethos-n")

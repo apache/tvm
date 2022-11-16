@@ -142,7 +142,7 @@ def build_comment(
         text += "\n"
         text += (
             f"Additional tests that were skipped in the CI build and present in the [`required_tests_to_run`]"
-            f"(https://github.com/apache/tvm/blob/main/ci/scripts/required_tests_to_run.json) file:"
+            f"(https://github.com/apache/tvm/blob/main/ci/scripts/github/required_tests_to_run.json) file:"
             f"\n```\n"
         )
         for skip in additional_skipped_list:

@@ -195,9 +195,8 @@ IRModule IOAllocateCreator::operator()() {
     }
   }
   const GlobalVar& gv = mod_->GetGlobalVar(::tvm::runtime::symbol::tvm_module_main);
-  mod_->Update(gv,
-               PrimFunc(new_main_params, main_body, main_func_->ret_type, main_func_->buffer_map,
-                        main_func_->preflattened_buffer_map, main_func_->attrs, main_func_->span));
+  mod_->Update(gv, PrimFunc(new_main_params, main_body, main_func_->ret_type,
+                            main_func_->buffer_map, main_func_->attrs, main_func_->span));
   return mod_;
 }
 

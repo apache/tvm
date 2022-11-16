@@ -166,8 +166,8 @@ IRModule PoolInfoAssigner::operator()() {
     if (kv.second->IsInstance<PrimFuncNode>()) {
       func_ = Downcast<PrimFunc>(kv.second);
       Stmt body = this->VisitStmt(func_->body);
-      PrimFunc new_prim_func = PrimFunc(func_->params, body, func_->ret_type, func_->buffer_map,
-                                        func_->preflattened_buffer_map, func_->attrs);
+      PrimFunc new_prim_func =
+          PrimFunc(func_->params, body, func_->ret_type, func_->buffer_map, func_->attrs);
       mod_->Update(gv, new_prim_func);
     }
   }

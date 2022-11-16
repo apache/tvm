@@ -402,6 +402,7 @@ class BufferStrideLegalize : public StmtExprMutator {
 
       auto fptr = func.CopyOnWrite();
       fptr->body = pass(std::move(fptr->body));
+      fptr->buffer_map = pass.UpdatedExternBufferMap();
       if (auto map = func->attrs.GetAttr<Map<Buffer, Array<IndexMap>>>("layout_transform_map")) {
         func = WithAttr(std::move(func), "layout_transform_map", pass.UpdateIndexMap(map.value()));
       }
@@ -420,7 +421,6 @@ class BufferStrideLegalize : public StmtExprMutator {
         BufferEntry entry;
         entry.remap_to = with_strides;
         entry.in_scope = true;
-        entry.is_external = true;
         buf_map_[buf] = entry;
       }
       updated_extern_buffer_map_.Set(kv.first, with_strides);
@@ -443,51 +443,54 @@ class BufferStrideLegalize : public StmtExprMutator {
   Map<Var, Buffer> UpdatedExternBufferMap() const { return updated_extern_buffer_map_; }
 
   Buffer WithStrides(Buffer buf) {
-    auto it = buf_map_.find(buf);
+    auto cache_key = buf;
+
+    auto it = buf_map_.find(cache_key);
     if (it != buf_map_.end()) {
       const BufferEntry& entry = it->second;
       ICHECK(entry.in_scope) << "Cannot annotate an out-of-scope buffer";
       return entry.remap_to;
     }
 
+    Array<PrimExpr> shape = buf->shape;
+
     if (buf->strides.size()) {
       ICHECK_EQ(buf->strides.size(), buf->shape.size())
           << "Buffer " << buf << " has inconsistent strides/shape.";
-      return buf;
-    }
-
-    // Keeping this to have matched behavior to previous version.
-    // There are many parts of the codebase that assume that a strided
-    // array cannot be compact.  For example, ArgBinder::BindBuffer
-    // and tir.Specialize.
-    if (dim_align_.count(buf) == 0) {
-      return buf;
-    }
-
-    // Can't define the strides for a buffer without a known shape.
-    Array<PrimExpr> shape = buf->shape;
-    if (shape.size() == 0) {
-      return buf;
-    }
-
-    std::vector<PrimExpr> rstrides;
-    const std::vector<DimAlignInfo>& avec = dim_align_[buf];
-    int first_dim = 0;
-    PrimExpr stride = make_const(shape[first_dim].dtype(), 1);
-    for (size_t i = shape.size(); i != 0; --i) {
-      size_t dim = i - 1;
-      if (dim < avec.size() && avec[dim].align_factor != 0) {
-        PrimExpr factor = make_const(stride.dtype(), avec[dim].align_factor);
-        PrimExpr offset = make_const(stride.dtype(), avec[dim].align_offset);
-        stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
-        stride = bound_analyzer_->Simplify(stride);
+    } else if (dim_align_.count(buf) == 0) {
+      // Keeping this to have matched behavior to previous version.
+      // There are many parts of the codebase that assume that a
+      // strided array cannot be compact.  For example,
+      // ArgBinder::BindBuffer and tir.Specialize.  To avoid breaking
+      // these, do not define the strides unless required for a
+      // non-compact array.
+    } else if (shape.size() == 0) {
+      // Can't define the strides for a buffer without a known shape.
+    } else {
+      // With everything checked, can now define the updated strides
+      std::vector<PrimExpr> rstrides;
+      const std::vector<DimAlignInfo>& avec = dim_align_[buf];
+      int first_dim = 0;
+      PrimExpr stride = make_const(shape[first_dim].dtype(), 1);
+      for (size_t i = shape.size(); i != 0; --i) {
+        size_t dim = i - 1;
+        if (dim < avec.size() && avec[dim].align_factor != 0) {
+          PrimExpr factor = make_const(stride.dtype(), avec[dim].align_factor);
+          PrimExpr offset = make_const(stride.dtype(), avec[dim].align_offset);
+          stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
+          stride = bound_analyzer_->Simplify(stride);
+        }
+        rstrides.push_back(stride);
+        stride = stride * shape[dim];
       }
-      rstrides.push_back(stride);
-      stride = stride * shape[dim];
+
+      buf.CopyOnWrite()->strides = Array<PrimExpr>(rstrides.rbegin(), rstrides.rend());
     }
 
-    auto ptr = buf.CopyOnWrite();
-    ptr->strides = Array<PrimExpr>(rstrides.rbegin(), rstrides.rend());
+    BufferEntry entry;
+    entry.remap_to = buf;
+    entry.in_scope = true;
+    buf_map_[cache_key] = entry;
 
     return buf;
   }
@@ -513,15 +516,9 @@ class BufferStrideLegalize : public StmtExprMutator {
       Buffer target_with_strides = WithStrides(Downcast<Buffer>(arr[1]));
       Buffer source_with_strides = WithStrides(source);
 
-      {
-        BufferEntry entry;
-        entry.remap_to = source_with_strides;
-        entry.in_scope = true;
-        entry.is_external = false;
-        buf_map_[source] = entry;
-      }
-
       Stmt body = this->VisitStmt(op->body);
+
+      buf_map_[source].in_scope = false;
 
       return AttrStmt(Array<ObjectRef>{source_with_strides, target_with_strides}, op->attr_key,
                       op->value, body, op->span);
@@ -560,13 +557,6 @@ class BufferStrideLegalize : public StmtExprMutator {
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
     Buffer key = op->buffer;
     Buffer with_strides = WithStrides(op->buffer);
-    {
-      BufferEntry entry;
-      entry.remap_to = with_strides;
-      entry.in_scope = true;
-      entry.is_external = false;
-      buf_map_[key] = entry;
-    }
 
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
 
@@ -589,22 +579,14 @@ class BufferStrideLegalize : public StmtExprMutator {
 
   template <typename Node>
   Node VisitBufferAccess(Node node) {
-    auto alloc_key = node->buffer->data.get();
-    if (!buf_map_.count(node->buffer) && buffer_var_defines_.count(alloc_key)) {
-      BufferEntry entry;
-      entry.remap_to = WithStrides(node->buffer);
-      entry.in_scope = true;
-      entry.is_external = false;
-      buf_map_[node->buffer] = entry;
-    }
-
     auto it = buf_map_.find(node->buffer);
-    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << node->buffer;
-    const BufferEntry& e = it->second;
-    ICHECK(e.in_scope) << "Cannot access a buffer " << node->buffer->name << ", out of scope";
+    ICHECK(it == buf_map_.end() || it->second.in_scope)
+        << "Cannot access a buffer " << node->buffer->name << ", out of scope";
 
-    auto writer = node.CopyOnWrite();
-    writer->buffer = e.remap_to;
+    auto with_strides = WithStrides(node->buffer);
+    if (!with_strides.same_as(node->buffer)) {
+      node.CopyOnWrite()->buffer = with_strides;
+    }
 
     return node;
   }
@@ -623,7 +605,6 @@ class BufferStrideLegalize : public StmtExprMutator {
   struct BufferEntry {
     Buffer remap_to;
     bool in_scope;
-    bool is_external;
   };
 
   std::unordered_map<Buffer, BufferEntry, ObjectPtrHash, ObjectPtrEqual> buf_map_;
@@ -846,6 +827,7 @@ class BufferBindUnwrapper : public StmtExprMutator {
       BufferEntry e;
       e.buffer = kv.second;
       e.external = true;
+      var_to_buffer_[kv.second->data.get()] = kv.second;
       buf_map_[kv.second.get()] = std::move(e);
     }
   }
@@ -1001,6 +983,7 @@ class BufferBindUnwrapper : public StmtExprMutator {
       BufferEntry e;
       e.bounds = op->bounds;
       e.buffer = op->buffer;
+      var_to_buffer_[op->buffer->data.get()] = op->buffer;
       buf_map_[key] = std::move(e);
     }
 
@@ -1089,6 +1072,7 @@ class BufferBindUnwrapper : public StmtExprMutator {
       source_info.buffer = source;
       source_info.remap = std::make_unique<RemapInfo>(remap);
 
+      var_to_buffer_[source->data.get()] = source;
       buf_map_[source.get()] = std::move(source_info);
     }
 
@@ -1160,18 +1144,70 @@ class BufferBindUnwrapper : public StmtExprMutator {
   };
 
   const BufferEntry& GetBufferEntry(Buffer buffer) {
-    auto alloc_key = buffer->data.get();
-    if (!buf_map_.count(buffer.get()) && buffer_var_defines_.count(alloc_key)) {
+    if (buf_map_.count(buffer.get())) {
+      const BufferEntry& e = buf_map_[buffer.get()];
+      ICHECK(e.in_scope) << "Cannot access a buffer " << buffer->name << ", out of scope";
+      return e;
+    } else if (buffer_var_defines_.count(buffer->data.get())) {
+      // The buffer var was defined, but the buffer hasn't been seen
+      // before.
       BufferEntry entry;
       entry.buffer = buffer;
+      var_to_buffer_[buffer->data.get()] = buffer;
       buf_map_[buffer.get()] = std::move(entry);
-    }
+      return buf_map_[buffer.get()];
+    } else if (var_remap_.count(buffer->data.get())) {
+      // The buffer var is an alias of a bound buffer.  Only
+      // supported if the bound buffer has no offsets.  In this
+      // case, we just need to make a new aliasing buffer that
+      // shares the remapped data variable.
+      Var old_var = buffer->data;
+      Var new_var = Downcast<Var>(var_remap_[old_var.get()]);
 
-    auto it = buf_map_.find(buffer.get());
-    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << buffer;
-    const BufferEntry& e = it->second;
-    ICHECK(e.in_scope) << "Cannot access a buffer " << buffer->name << ", out of scope";
-    return it->second;
+      {
+        ICHECK(var_to_buffer_.count(old_var.get()))
+            << "Cannot find remap information for aliased buffer var " << old_var->name_hint
+            << ", required to verify this alias is legal.";
+        const Buffer& aliased_buffer = var_to_buffer_[old_var.get()];
+        const BufferEntry& entry = buf_map_[aliased_buffer.get()];
+        if (entry.remap) {
+          for (const auto& begin : entry.remap->begins) {
+            ICHECK(is_zero(begin)) << "Aliasing of buffer with offset is not supported";
+          }
+        }
+      }
+
+      {
+        Buffer new_buf = buffer;
+        new_buf.CopyOnWrite()->data = new_var;
+
+        RemapInfo remap_info;
+        remap_info.target = new_buf;
+        remap_info.begins = Array<PrimExpr>(buffer->shape.size(), 0);
+        remap_info.extents = buffer->shape;
+
+        BufferEntry entry;
+        entry.buffer = buffer;
+        entry.remap = std::make_unique<RemapInfo>(remap_info);
+        entry.in_scope = true;
+        var_to_buffer_[buffer->data.get()] = buffer;
+        buf_map_[buffer.get()] = std::move(entry);
+      }
+      return buf_map_[buffer.get()];
+    } else if (var_to_buffer_.count(buffer->data.get())) {
+      // This buffer is an alias of a known buffer, with no remaps.  A
+      // buffer entry should be generated and returned.
+      BufferEntry entry;
+      entry.buffer = buffer;
+      entry.in_scope = true;
+      var_to_buffer_[buffer->data.get()] = buffer;
+      buf_map_[buffer.get()] = std::move(entry);
+
+      return buf_map_[buffer.get()];
+    } else {
+      LOG(FATAL) << "Can't work around the undefined buffer";
+      return *static_cast<BufferEntry*>(nullptr);
+    }
   }
 
   // The buffer assignment map
@@ -1181,6 +1217,9 @@ class BufferBindUnwrapper : public StmtExprMutator {
   std::unordered_set<const VarNode*> illegal_vars_;
   // Buffer map
   std::unordered_map<const BufferNode*, BufferEntry> buf_map_;
+  // Map from Var to the Buffer they occurred in.  In case of aliased
+  // buffers, contains the first buffer.
+  std::unordered_map<const VarNode*, Buffer> var_to_buffer_;
   // Set of vars that have occurred in an AllocateNode, but haven't
   // yet occurred in a BufferLoad/BufferStore.
   std::unordered_set<const VarNode*> buffer_var_defines_;
@@ -1311,13 +1350,12 @@ class StorageFlattener : public StmtExprMutator {
       auto pass = StorageFlattener(func->buffer_map, cache_line_size, create_bound_attributes,
                                    &bound_analyzer);
 
-      Map<Var, Buffer> preflattened_buffer_map =
-          Merge(func->buffer_map, func->preflattened_buffer_map);
-
       auto fptr = func.CopyOnWrite();
       fptr->body = pass(std::move(fptr->body));
-      fptr->preflattened_buffer_map = preflattened_buffer_map;
-      fptr->buffer_map = pass.UpdatedBufferMap();
+      // The buffers in func->buffer_map are deliberately left
+      // unflattened, as they are used for validation of user-provided
+      // arguments.  The flattened buffers used in the updated
+      // function body alias the argument buffers.
       return func;
     };
     return transform::CreatePrimFuncPass(pass_func, 0, "tir.StorageFlattener", {});
@@ -1345,14 +1383,11 @@ class StorageFlattener : public StmtExprMutator {
         }
       }
       e.external = true;
+      buffer_var_defines_.insert(kv.second->data.get());
       buf_map_[kv.second] = e;
-
-      updated_extern_buffer_map_.Set(kv.first, e.flattened_buffer);
     }
     cache_line_size_ = cache_line_size;
   }
-
-  Map<Var, Buffer> UpdatedBufferMap() { return updated_extern_buffer_map_; }
 
   Stmt VisitStmt_(const StoreNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
@@ -1512,8 +1547,10 @@ class StorageFlattener : public StmtExprMutator {
         writer->dtype = DataType::Int(8);
       }
 
+      buffer_var_defines_.insert(op->buffer->data.get());
       buf_map_[key] = e;
       Stmt body = this->VisitStmt(op->body);
+      buffer_var_defines_.erase(op->buffer->data.get());
       buf_map_[key].in_scope = false;
 
       Stmt ret =
@@ -1777,8 +1814,6 @@ class StorageFlattener : public StmtExprMutator {
   std::unordered_map<const VarNode*, std::vector<Buffer>> buffer_var_map_;
   // Buffer map
   std::unordered_map<Buffer, BufferEntry, ObjectPtrHash, ObjectPtrEqual> buf_map_;
-  // The extern buffer map, updated to include flattened buffers.
-  Map<Var, Buffer> updated_extern_buffer_map_;
   // Collects shapes.
   std::vector<std::pair<Var, Array<PrimExpr>>> shape_collector_;
   // bounds populator. We really need the analyzer from it.

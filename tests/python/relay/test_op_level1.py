@@ -753,9 +753,10 @@ def test_bitserial_dense():
 
 
 @tvm.testing.requires_cascadelake
-def test_dense_vnni():
-    data_shape = (32, 96)
-    weight_shape = (128, 96)
+@pytest.mark.parametrize("m,n,k", [(32, 128, 96), (32, 128, 97)])
+def test_dense_vnni(m, n, k):
+    data_shape = (m, k)
+    weight_shape = (n, k)
 
     for data_dtype in ["uint8", "int8"]:
         data = relay.var("data", shape=data_shape, dtype=data_dtype)

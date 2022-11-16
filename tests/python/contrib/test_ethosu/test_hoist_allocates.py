@@ -106,15 +106,15 @@ def test_double_convolution():
     @tvm.script.ir_module
     class Module:
         @T.prim_func
-        def main(placeholder: T.Buffer[(3402,), "int8"], placeholder_encoded: T.Buffer[(128,), "uint8"], placeholder_encoded_1: T.Buffer[(32,), "uint8"], placeholder_encoded_2: T.Buffer[(128,), "uint8"], placeholder_encoded_3: T.Buffer[(32,), "uint8"], ethosu_write: T.Buffer[(3402,), "int8"]) -> None:
+        def main(input_placeholder: T.Buffer[(1, 27, 42, 3), "int8"], input_placeholder_encoded: T.Buffer[(3, 3, 2, 3), "uint8"], input_placeholder_encoded_1: T.Buffer[(3, 10), "uint8"], input_placeholder_encoded_2: T.Buffer[(3, 3, 2, 3), "uint8"], input_placeholder_encoded_3: T.Buffer[(3, 10), "uint8"], input_ethosu_write: T.Buffer[(1, 27, 42, 3), "int8"]) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-            T.preflattened_buffer(placeholder, [1, 27, 42, 3], dtype="int8", data=placeholder.data)
-            T.preflattened_buffer(placeholder_encoded, [3, 3, 2, 3], dtype="int8")
-            T.preflattened_buffer(placeholder_encoded_1, [3, 10], dtype="uint8")
-            T.preflattened_buffer(placeholder_encoded_2, [3, 3, 2, 3], dtype="int8")
-            T.preflattened_buffer(placeholder_encoded_3, [3, 10], dtype="uint8")
-            T.preflattened_buffer(ethosu_write, [1, 27, 42, 3], dtype="int8", data=ethosu_write.data)
+            placeholder = T.buffer_decl([3402], dtype="int8", data=input_placeholder.data)
+            placeholder_encoded = T.buffer_decl([128], dtype="int8", data=input_placeholder_encoded.data)
+            placeholder_encoded_1 = T.buffer_decl([32], dtype="uint8", data=input_placeholder_encoded_1.data)
+            placeholder_encoded_2 = T.buffer_decl([128], dtype="int8", data=input_placeholder_encoded_2.data)
+            placeholder_encoded_3 = T.buffer_decl([32], dtype="uint8", data=input_placeholder_encoded_3.data)
+            ethosu_write = T.buffer_decl([3402], dtype="int8", data=input_ethosu_write.data)
             # body
             placeholder_global_data = T.allocate([128], "uint8", "global")
             placeholder_global = T.buffer_decl([128], "uint8", data=placeholder_global_data)
@@ -150,11 +150,10 @@ def test_identities():
     @tvm.script.ir_module
     class Module:
         @T.prim_func
-        def main(placeholder: T.Buffer[(24,), "int8"], T_concat: T.Buffer[(24,), "int8"]) -> None:
+        def main(input_placeholder: T.Buffer[(1, 2, 3, 4), "int8"], T_concat: T.Buffer[(24,), "int8"]) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-            T.preflattened_buffer(placeholder, [1, 2, 3, 4], dtype="int8", data=placeholder.data)
-            T.preflattened_buffer(T_concat, [24], dtype="int8", data=T_concat.data)
+            placeholder = T.buffer_decl([24], dtype="int8", data=input_placeholder.data)
             # body
             ethosu_write_data = T.allocate([12], "int8", "global")
             ethosu_write = T.buffer_decl([12], "int8", data=ethosu_write_data)
@@ -188,11 +187,11 @@ def test_outer_seq_stmt():
     @tvm.script.ir_module
     class Module:
         @T.prim_func
-        def main(placeholder: T.Buffer[(8192,), "int8"], ethosu_write: T.Buffer[(2048,), "int8"], buffer_encoded: T.Buffer[(128,), "uint8"], buffer_encoded_1: T.Buffer[(32,), "uint8"], buffer_encoded_2: T.Buffer[(112,), "uint8"], buffer_encoded_3: T.Buffer[(32,), "uint8"], buffer_encoded_4: T.Buffer[(112,), "uint8"], buffer_encoded_5: T.Buffer[(32,), "uint8"], buffer_encoded_6: T.Buffer[(112,), "uint8"], buffer_encoded_7: T.Buffer[(32,), "uint8"]) -> None:
+        def main(input_placeholder: T.Buffer[(1, 16, 16, 32), "int8"], input_ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"], buffer_encoded: T.Buffer[(128,), "uint8"], buffer_encoded_1: T.Buffer[(32,), "uint8"], buffer_encoded_2: T.Buffer[(112,), "uint8"], buffer_encoded_3: T.Buffer[(32,), "uint8"], buffer_encoded_4: T.Buffer[(112,), "uint8"], buffer_encoded_5: T.Buffer[(32,), "uint8"], buffer_encoded_6: T.Buffer[(112,), "uint8"], buffer_encoded_7: T.Buffer[(32,), "uint8"]) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-            T.preflattened_buffer(placeholder, [1, 16, 16, 32], dtype="int8", data=placeholder.data)
-            T.preflattened_buffer(ethosu_write, [1, 16, 16, 8], dtype="int8", data=ethosu_write.data)
+            placeholder = T.buffer_decl([8192], dtype="int8", data=input_placeholder.data)
+            ethosu_write = T.buffer_decl([2048], dtype="int8", data=input_ethosu_write.data)
             # body
             with T.allocate([128], "uint8", "global") as placeholder_global_data:
                 placeholder_global = T.buffer_decl([128], "uint8", data=placeholder_global_data)
@@ -238,11 +237,11 @@ def test_allocate_without_seq_stmt():
     @tvm.script.ir_module
     class Module:
         @T.prim_func
-        def main(placeholder: T.Buffer[(8192,), "int8"], ethosu_write: T.Buffer[(2048,), "int8"], buffer_encoded: T.Buffer[(128,), "uint8"], buffer_encoded_1: T.Buffer[(32,), "uint8"], buffer_encoded_2: T.Buffer[(112,), "uint8"], buffer_encoded_3: T.Buffer[(32,), "uint8"], buffer_encoded_4: T.Buffer[(112,), "uint8"], buffer_encoded_5: T.Buffer[(32,), "uint8"], buffer_encoded_6: T.Buffer[(112,), "uint8"], buffer_encoded_7: T.Buffer[(32,), "uint8"]) -> None:
+        def main(input_placeholder: T.Buffer[(1, 16, 16, 32), "int8"], input_ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"], buffer_encoded: T.Buffer[(128,), "uint8"], buffer_encoded_1: T.Buffer[(32,), "uint8"], buffer_encoded_2: T.Buffer[(112,), "uint8"], buffer_encoded_3: T.Buffer[(32,), "uint8"], buffer_encoded_4: T.Buffer[(112,), "uint8"], buffer_encoded_5: T.Buffer[(32,), "uint8"], buffer_encoded_6: T.Buffer[(112,), "uint8"], buffer_encoded_7: T.Buffer[(32,), "uint8"]) -> None:
             # function attr dict
             T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-            T.preflattened_buffer(placeholder, [1, 16, 16, 32], dtype="int8", data=placeholder.data)
-            T.preflattened_buffer(ethosu_write, [1, 16, 16, 8], dtype="int8", data=ethosu_write.data)
+            placeholder = T.buffer_decl([8192], dtype="int8", data=input_placeholder.data)
+            ethosu_write = T.buffer_decl([2048], dtype="int8", data=input_ethosu_write.data)
             # body
             placeholder_global_data = T.allocate([128], "uint8", "global")
             placeholder_global = T.buffer_decl([128], "uint8", data=placeholder_global_data)

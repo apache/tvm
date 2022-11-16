@@ -19,12 +19,17 @@
 import os
 import json
 import argparse
+import sys
 import warnings
 import logging
 import traceback
 import re
 from typing import Dict, Any, List, Optional, Callable, Union
 from pathlib import Path
+
+# Hackery to enable importing of utils from ci/scripts/jenkins
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 
 from git_utils import git, GitHubRepo, parse_remote, post
 from cmd_utils import init_log
@@ -627,7 +632,7 @@ def check_mentionable_users(pr, triggering_comment, args):
 
 
 AUTH_CHECKS = {
-    "metionable_users": check_mentionable_users,
+    "mentionable_users": check_mentionable_users,
     "collaborators": check_collaborator,
     "author": check_author,
 }
@@ -671,7 +676,7 @@ class Rerun:
         "run ci",
     ]
 
-    auth = [AUTH_CHECKS["metionable_users"]]
+    auth = [AUTH_CHECKS["mentionable_users"]]
 
     @staticmethod
     def run(pr: PR):

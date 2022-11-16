@@ -200,9 +200,13 @@ from_dtype, to_dtype = tvm.testing.parameters(
     ("int32", "float32"),
     ("int32", "float64"),
     ("int32", "bool"),
+    ("float16", "float32"),
+    ("float16", "float64"),
     ("float32", "int32"),
     ("float32", "float64"),
     ("float32", "bool"),
+    ("float64", "float16"),
+    ("float64", "float32"),
     ("bool", "float32"),
     ("bool", "int32"),
 )
