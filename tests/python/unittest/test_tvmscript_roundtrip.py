@@ -3458,6 +3458,15 @@ def bool_cast():
     return func
 
 
+def implicit_evaluate():
+    @T.prim_func
+    def func(A: T.Buffer[1, "int32"]):
+        T.evaluate(T.assume(A[0] == 5))
+        A[0] = 10
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3509,6 +3518,7 @@ ir_generator = tvm.testing.parameter(
     bool_primitive,
     bool_cast,
     return_none,
+    implicit_evaluate,
 )
 
 

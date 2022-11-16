@@ -402,5 +402,31 @@ def test_int64_loop():
     assert_structural_equal(int64_grid, int64_grid_expanded)
 
 
+def test_implicit_evaluate_assume():
+    @T.prim_func
+    def explicit(A: T.Buffer[1, "int32"]):
+        T.evaluate(T.assume(A[0] == 5))
+        A[0] = 10
+
+    @T.prim_func
+    def implicit(A: T.Buffer[1, "int32"]):
+        T.assume(A[0] == 5)
+        A[0] = 10
+
+    assert_structural_equal(implicit, explicit)
+
+
+def test_implicit_evaluate_call_extern():
+    @T.prim_func
+    def explicit(A: T.Buffer[1, "int32"]):
+        T.evaluate(T.call_extern("extern_func", A.data, dtype="int32"))
+
+    @T.prim_func
+    def implicit(A: T.Buffer[1, "int32"]):
+        T.call_extern("extern_func", A.data, dtype="int32")
+
+    assert_structural_equal(implicit, explicit)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
