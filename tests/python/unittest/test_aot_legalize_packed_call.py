@@ -26,15 +26,12 @@ from tvm.script import tir as T
 class Module:
     @T.prim_func
     def tvm_test_cpacked(
-        A: T.handle, B: T.handle, C: T.handle, device_context: T.handle
+        A: T.Buffer[(1,), "float32"],
+        B: T.Buffer[(1,), "float32"],
+        C: T.Buffer[(1,), "float32"],
+        device_context: T.Buffer[(1,), "float32"],
     ) -> T.handle:
-        A_0 = T.match_buffer(A, (1,), dtype="float32")
-        T.preflattened_buffer(A_0, (1,), dtype="float32")
-        B_0 = T.match_buffer(B, (1,), dtype="float32")
-        T.preflattened_buffer(B_0, (1,), dtype="float32")
-        C_0 = T.match_buffer(C, (1,), dtype="float32")
-        T.preflattened_buffer(C_0, (1,), dtype="float32")
-        T.evaluate(C)
+        T.evaluate(C.data)
 
     @T.prim_func
     def tir_packed_call() -> None:
@@ -59,15 +56,12 @@ class Module:
 class Expected:
     @T.prim_func
     def tvm_test_cpacked(
-        A: T.handle, B: T.handle, C: T.handle, device_context: T.handle
+        A: T.Buffer[(1,), "float32"],
+        B: T.Buffer[(1,), "float32"],
+        C: T.Buffer[(1,), "float32"],
+        device_context: T.Buffer[(1,), "float32"],
     ) -> T.handle:
-        A_0 = T.match_buffer(A, (1,), dtype="float32")
-        T.preflattened_buffer(A_0, (1,), dtype="float32")
-        B_0 = T.match_buffer(B, (1,), dtype="float32")
-        T.preflattened_buffer(B_0, (1,), dtype="float32")
-        C_0 = T.match_buffer(C, (1,), dtype="float32")
-        T.preflattened_buffer(C_0, (1,), dtype="float32")
-        T.evaluate(C)
+        T.evaluate(C.data)
 
     @T.prim_func
     def tir_packed_call() -> None:

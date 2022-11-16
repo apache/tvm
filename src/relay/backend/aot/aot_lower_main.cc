@@ -504,7 +504,7 @@ class AOTMainLowerer : public MixedModeVisitor {
     tir::Stmt final_body = tir::SeqStmt({device_activations, body, device_deactivations});
 
     // Make the PrimFunc
-    return tir::PrimFunc(main_signature_, final_body, VoidType(), main_buffer_map_, {},
+    return tir::PrimFunc(main_signature_, final_body, VoidType(), main_buffer_map_,
                          DictAttrs(dict_attrs));
   }
 

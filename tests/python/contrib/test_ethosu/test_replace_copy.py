@@ -31,10 +31,12 @@ from .infra import make_ethosu_conv2d
 @tvm.script.ir_module
 class ReferenceModule:
     @T.prim_func
-    def main(placeholder_3: T.Buffer[(8192,), "int8"], ethosu_write_1: T.Buffer[(2048,), "int8"]) -> None:
+    def main(input_placeholder_3: T.Buffer[(1, 16, 16, 32), "int8"], input_ethosu_write_1: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer_1 = T.buffer_decl([384], "uint8")
+        placeholder_3 = T.buffer_decl([8192], dtype="int8", data=input_placeholder_3.data)
+        ethosu_write_1 = T.buffer_decl([2048], dtype="int8", data=input_ethosu_write_1.data)
         # body
         placeholder_global_data = T.allocate([384], "uint8", "global", annotations={"disable_lower_builtin": True})
         placeholder_global = T.buffer_decl([384], "uint8", data=placeholder_global_data)
@@ -73,11 +75,13 @@ def test_copy():
 @tvm.script.ir_module
 class WeightStream:
     @T.prim_func
-    def main(placeholder_5: T.Buffer[(8192,), "int8"], ethosu_write_1: T.Buffer[(4096,), "int8"]) -> None:
+    def main(input_placeholder_5: T.Buffer[(1, 16, 16, 32), "int8"], input_ethosu_write_1: T.Buffer[(1, 16, 16, 16), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.buffer_decl([528], "uint8")
         buffer_2 = T.buffer_decl([336], "uint8")
+        placeholder_5 = T.buffer_decl([8192], dtype="int8", data=input_placeholder_5.data)
+        ethosu_write_1 = T.buffer_decl([4096], dtype="int8", data=input_ethosu_write_1.data)
         # body
         placeholder_d_global_data = T.allocate([528], "uint8", "global", annotations={"disable_lower_builtin": True})
         placeholder_d_global = T.buffer_decl([528], "uint8", data=placeholder_d_global_data)

@@ -117,18 +117,6 @@ def store(
 ) -> None: ...
 def comm_reducer(lambda_io: Callable[[Any, Any], Any], identities: List[PrimExpr]) -> PrimExpr: ...
 def llvm_lookup_intrinsic_id(name: str) -> PrimExpr: ...
-def preflattened_buffer(
-    buf: Buffer,
-    shape: Sequence[PrimExpr],
-    dtype: str = "float32",
-    data: Optional[Ptr] = None,
-    strides: Optional[Sequence[int]] = None,
-    elem_offset: Optional[int] = None,
-    scope: str = "global",
-    align: int = -1,
-    offset_factor: int = 0,
-    buffer_type: str = "default",
-) -> Buffer: ...
 
 """
 Intrinsics - tvm builtin

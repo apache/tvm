@@ -187,23 +187,6 @@ def test_dynamic_shape_gemm():
 
 
 @T.prim_func
-def preflattened_buffer_map(A: T.handle, B: T.handle):
-    A_1 = T.match_buffer(A, [1])
-    T.preflattened_buffer(A_1, [1], align=1, offset_factor=2)
-    B_1 = T.match_buffer(B, [1])
-    T.preflattened_buffer(B_1, [1])
-    B_1[0] = A_1[0]
-
-
-def test_preflattened_buffer_map():
-    A_var = [
-        k for k, _ in preflattened_buffer_map.preflattened_buffer_map.items() if k.name == "A"
-    ][0]
-    assert preflattened_buffer_map.preflattened_buffer_map[A_var].data_alignment == 1
-    assert preflattened_buffer_map.preflattened_buffer_map[A_var].offset_factor == 2
-
-
-@T.prim_func
 def match_buffer_int64(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (T.int64(128), T.int64(128)), dtype="float32")
     B = T.alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
