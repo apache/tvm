@@ -315,8 +315,6 @@ class BuiltinLower : public StmtExprMutator {
       return MakeArray(op);
     } else if (op->op.same_as(builtin::tvm_context_id())) {
       return make_zero(op->dtype);
-    } else if (op->op.same_as(builtin::mem_copy())) {
-      return MakeMemCopy(op);
     } else if (op->op.same_as(builtin::dma_copy())) {
       return MakeDMACopy(op);
     } else if (op->op.same_as(builtin::dma_wait())) {
@@ -324,19 +322,6 @@ class BuiltinLower : public StmtExprMutator {
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
-  }
-
-  PrimExpr MakeMemCopy(const CallNode* op) {
-    PrimExpr dst = op->args[0];
-    PrimExpr src = op->args[1];
-    PrimExpr size = op->args[2];
-
-    std::string fdevapi_prefix =
-        "device_api." + std::string(runtime::DeviceName(device_type_.as<IntImmNode>()->value));
-
-    Call call_packed = Call(DataType::Int(32), builtin::tvm_call_packed(),
-                            {StringImm(fdevapi_prefix + ".mem_copy"), dst, src, size});
-    return VisitExpr(call_packed);
   }
 
   PrimExpr MakeDMACopy(const CallNode* op) {
