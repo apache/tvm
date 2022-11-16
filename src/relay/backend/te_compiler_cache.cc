@@ -398,6 +398,8 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
   // Cache device copy op for equivalence checking to reduce registry lookup
   // overhead for each invocation of call node when retrieving schedules.
   const Op& device_copy_op_;
+  // A NameSupply object passed from a caller, used to assign unique names to constants
+  // across different invocations of LowerToTECompute.
   NameSupply constants_name_supply_;
 };
 
@@ -1094,7 +1096,7 @@ std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompu
 
 TVM_REGISTER_GLOBAL("relay.backend.LowerToTE").set_body_typed([](Function prim_func) {
   auto tgt = tvm::Target("ext_dev");
-  LowerToTECompute lower_te_compute(tgt, NameSupply(""));  // TODO
+  LowerToTECompute lower_te_compute(tgt, NameSupply(""));
   auto outputs = lower_te_compute.Lower(prim_func);
   return CachedFunc(tgt, GlobalVar(lower_te_compute.candidate_name_), lower_te_compute.fn_inputs_,
                     outputs, te::Schedule(), tir::PrimFunc(), {},
