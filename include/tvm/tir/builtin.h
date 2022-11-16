@@ -714,13 +714,6 @@ TVM_DLL const Op& texture2d_store();
 TVM_DLL const Op& texture2d_load();
 
 /*!
- * \brief Copy 1d memory from source to destination
- * Same semantics as memcpy(destination, source, size)
- * Allows for device specific implementations e.g. direct memory access (DMA)
- */
-TVM_DLL const Op& mem_copy();
-
-/*!
  * \brief Initiate a non-blocking DMA copy from source to destination
  */
 TVM_DLL const Op& dma_copy();

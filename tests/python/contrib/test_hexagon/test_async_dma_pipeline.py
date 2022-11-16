@@ -89,6 +89,7 @@ def evaluate(
     with tvm.transform.PassContext(
         config={
             "tir.use_async_copy": use_async_copy,
+            "tir.dma_bypass_cache": 1,
             "tir.merge_async_commit_queue_scope": merge_async_commit_queue_scope,
         }
     ):
@@ -172,7 +173,7 @@ class TestAsyncDMAPipeline:
     size_a = tvm.testing.parameter(
         1024,
         64 * 64,
-        128 * 64,
+        # 128 * 64, # Only works on 8Gen1 HDK's
     )
 
     size_w = tvm.testing.parameter(
