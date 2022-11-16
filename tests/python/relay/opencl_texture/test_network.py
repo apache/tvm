@@ -20,7 +20,6 @@ import tvm
 import numpy as np
 from tvm import relay
 from tvm.relay import testing
-import tvm.relay.testing.tf as tf_testing
 from tvm.contrib import utils
 from utils.adreno_utils import gpu_preprocess, build_run_compare, get_model
 import pytest
@@ -45,6 +44,9 @@ def convert_to_fp16(mod, dtype):
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
 def test_mobilenet_v1(remote, target, dtype):
+    if dtype == "float16" and remote is None:
+        # CI doesn't support fp16(half datatypes).
+        return
     mod, params, inputs, dtypes = get_model(
         "https://github.com/mlcommons/mobile_models/raw/main/v0_7/tflite/mobilenet_edgetpu_224_1.0_float.tflite",
         "mobilenet_edgetpu_224_1.0_float.tflite",
