@@ -68,7 +68,9 @@ class GradientBasedNode final : public TaskSchedulerNode {
     }
     if (round_robin_rounds_ == n_tasks) {
       for (int i = 0; i < n_tasks; ++i) {
-        this->JoinRunningTask(i);
+        if (this->tasks_[i]->runner_futures.defined()) {
+          this->JoinRunningTask(i);
+        }
       }
       ++round_robin_rounds_;
     }
@@ -92,11 +94,10 @@ class GradientBasedNode final : public TaskSchedulerNode {
     for (int task_id : tasks_alive) {
       const std::vector<double>& best_latency = this->best_latency_history_.at(task_id);
       int n = best_latency.size();
-      ICHECK_GE(n, 1);
       double task_weight = this->tasks_[task_id]->task_weight;
       int w = this->window_size;
-      double best = best_latency[n - 1];
-      if (best < 1e9) {
+      if (n > 0 && best_latency[n - 1] < 1e9) {
+        double best = best_latency[n - 1];
         double g1 = (n >= 1 + w) ? (best_latency[n - 1 - w] - best) / w : 0.0;
         double g2 = best / n;
         double g = alpha * g1 + (1 - alpha) * g2;
@@ -124,9 +125,11 @@ class GradientBasedNode final : public TaskSchedulerNode {
   Array<RunnerResult> JoinRunningTask(int task_id) final {
     Array<RunnerResult> results = TaskSchedulerNode::JoinRunningTask(task_id);
     TaskRecordNode* task = this->tasks_[task_id].get();
-    this->best_latency_history_.at(task_id).push_back(
-        *std::min_element(task->latency_ms.begin(),  //
-                          task->latency_ms.end()));
+    if (task->latency_ms.size() > 0) {
+      this->best_latency_history_.at(task_id).push_back(
+          *std::min_element(task->latency_ms.begin(),  //
+                            task->latency_ms.end()));
+    }
     return results;
   }
 };
