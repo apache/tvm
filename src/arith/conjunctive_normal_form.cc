@@ -248,14 +248,14 @@ void AndOfOrs::TrySimplifyOr(Key* a_ptr, Key* b_ptr, Analyzer* analyzer) {
   Key& a = *a_ptr;
   Key& b = *b_ptr;
   PrimExpr joint = GetExpr(a) || GetExpr(b);
-  PrimExpr simplified = analyzer->Simplify(joint);
+  PrimExpr simplified = analyzer->rewrite_simplify(joint);
   if (!ExprDeepEqual()(simplified, joint)) {
     if (auto* simplified_or = simplified.as<OrNode>()) {
       a = GetKey(simplified_or->a);
       b = GetKey(simplified_or->b);
     } else {
-      a = GetKey(simplified);
-      b = key_false_;
+      a = key_false_;
+      b = GetKey(simplified);
     }
   }
 }
@@ -264,14 +264,14 @@ void AndOfOrs::TrySimplifyAnd(Key* a_ptr, Key* b_ptr, Analyzer* analyzer) {
   Key& a = *a_ptr;
   Key& b = *b_ptr;
   PrimExpr joint = GetExpr(a) && GetExpr(b);
-  PrimExpr simplified = analyzer->Simplify(joint);
+  PrimExpr simplified = analyzer->rewrite_simplify(joint);
   if (!ExprDeepEqual()(simplified, joint)) {
     if (auto* simplified_and = simplified.as<AndNode>()) {
       a = GetKey(simplified_and->a);
       b = GetKey(simplified_and->b);
     } else {
-      a = GetKey(simplified);
-      b = key_true_;
+      a = key_true_;
+      b = GetKey(simplified);
     }
   }
 }
@@ -362,6 +362,20 @@ void AndOfOrs::SimplifyAcrossChunks(Analyzer* analyzer) {
           // (A or B) and (A or C) => A or (B and C)
           auto& key_i = i_chunk[i_distinct_index.value()];
           auto& key_j = j_chunk[j_distinct_index.value()];
+
+          // When attempting to simplify (B and C), the analyzer may
+          // assume that A is false.
+          PrimExpr known = [&]() {
+            PrimExpr known = Bool(true);
+            for (const auto& key : i_chunk) {
+              if (&key != &key_i) {
+                known = known && analyzer->Simplify(!GetExpr(key));
+              }
+            }
+            return known;
+          }();
+
+          With<ConstraintContext> context(analyzer, known);
           TrySimplifyAnd(&key_i, &key_j, analyzer);
         }
       }
