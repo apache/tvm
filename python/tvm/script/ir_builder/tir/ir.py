@@ -314,74 +314,6 @@ def match_buffer(
     )
 
 
-def preflattened_buffer(
-    postflattened: Buffer,
-    shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral],
-    dtype: str = "float32",
-    data: Var = None,
-    strides: List[PrimExpr] = None,
-    elem_offset: PrimExpr = None,
-    scope: str = "global",
-    align: int = -1,
-    offset_factor: int = 0,
-    buffer_type: str = "default",
-    axis_separators: List[int] = None,
-) -> None:
-    """The pre-flattened buffer statement.
-
-    Parameters
-    ----------
-    postflattened : Buffer
-        The original buffer to be flattened.
-
-    shape : Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral]
-        The type of the buffer prior to flattening.
-
-    dtype : str
-        The data type in the content of the buffer.
-
-    data : Var
-        The pointer to the head of the data.
-
-    strides : List[PrimExpr]
-        The strides of each dimension.
-
-    elem_offset : PrimExpr
-        The offset in terms of number of dtype elements (including lanes).
-
-    scope : str
-        The optional storage scope of buffer data pointer.
-
-    align : int
-        The alignment requirement of data pointer in bytes.
-
-    offset_factor : int
-        The factor of elem_offset field.
-
-    buffer_type : str
-        The buffer type.
-
-    axis_separators : List[int]
-        The separators between input axes when generating flattened output axes.
-    """
-    shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
-    if strides is None:
-        strides = []
-    _ffi_api.PreflattenedBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
-        postflattened,
-        shape,
-        dtype,
-        data,
-        strides,
-        elem_offset,
-        scope,
-        align,
-        offset_factor,
-        buffer_type,
-        axis_separators,
-    )
-
-
 def block(name: str = "", no_realize: bool = False) -> frame.BlockFrame:
     """The block declaration statement.
 
@@ -1697,7 +1629,6 @@ __all__ += [
     "func_attr",
     "func_ret",
     "match_buffer",
-    "preflattened_buffer",
     "block",
     "init",
     "where",
