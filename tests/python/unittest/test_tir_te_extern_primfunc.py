@@ -21,10 +21,8 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import tir, te, TVMError
+from tvm import te
 from tvm.script import tir as T
-from tvm.arith import _ffi_api as _ffi_arith_api
-from tvm.tir.schedule import _ffi_api as _ffi_schedule_api
 
 
 # TODO(csullivan): Additional tests cases needed:
@@ -174,11 +172,11 @@ def verify_func_4(module):
 
 
 class TestPrimFuncs:
-    func, verify = tvm.testing.parameters(
-        [func_1, verify_func_1],
-        [func_2, verify_func_2],
-        [func_3, verify_func_3],
-        [func_4, verify_func_4],
+    func, params, verify = tvm.testing.parameters(
+        [func_1, ("A"), verify_func_1],
+        [func_2, ("C", "D"), verify_func_2],
+        [func_3, ("C", "A", "D", "E"), verify_func_3],
+        [func_4, ("C", "A", "D", "E"), verify_func_4],
     )
 
     def test_primfunc_call(self, func, verify):
@@ -186,11 +184,12 @@ class TestPrimFuncs:
         func = tvm.build(func, target=target)
         verify(func)
 
-    def test_te_extern_call(self, func, verify):
+    def test_te_extern_call(self, func, params, verify):
         ir_mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
         prim_func = ir_mod["main"]
 
-        input_tensors = create_input_tensors_for_primfunc(prim_func)
+        buf_name_map = {buf.name: buf for buf in func.buffer_map.values()}
+        input_tensors = [te.placeholder(buf_name_map[name].shape) for name in params]
         output = te.extern_primfunc(input_tensors, prim_func)
         rt_prim_func = te.create_prim_func(tensors_from_extern_op(output, prim_func))
         tvm.ir.assert_structural_equal(tvm.lower(prim_func), tvm.lower(rt_prim_func))
@@ -220,37 +219,6 @@ def tensors_from_extern_op(extern, func):
         buf = func.buffer_map[var]
         ordered_tensors.append(buffer_to_tensor[buf])
     return ordered_tensors
-
-
-def create_input_tensors_for_primfunc(primfunc):
-    access_map = {k: tuple(v) for k, v in _ffi_arith_api.DomainTouchedAccessMap(primfunc).items()}
-    in_buffers = [buf for buf, access in access_map.items() if len(access[0])]
-    out_buffers = [buf for buf, access in access_map.items() if len(access[1])]
-    assert in_buffers, "PrimFunc has no input buffers"
-    assert out_buffers, "PrimFunc has no output buffers"
-
-    outputs = []
-    inplace = []
-    inputs = in_buffers
-    for obuf in out_buffers:
-        if obuf in in_buffers:
-            inplace.append(obuf)
-        else:
-            outputs.append(obuf)
-
-    if not outputs:
-        iobuf = inplace.pop()
-        inputs.remove(iobuf)
-        outputs = [iobuf]
-
-    def create_tensors(input_buffers):
-        tensors = []
-        for buf in input_buffers:
-            t = te.placeholder(buf.shape, dtype=buf.dtype, name=buf.name + "_placeholder")
-            tensors.append(t)
-        return tensors
-
-    return create_tensors(inputs)
 
 
 if __name__ == "__main__":

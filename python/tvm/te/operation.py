@@ -398,11 +398,12 @@ def extern_primfunc(input_tensors: List[_tensor.Tensor], primfunc: tvm.tir.PrimF
 
         C = te.extern_primfunc([A, B], func)
     """
-    access_map = {
-        k: tuple(v) for k, v in tvm.arith._ffi_api.DomainTouchedAccessMap(primfunc).items()
-    }
-    in_buffers = [buf for buf, access in access_map.items() if len(access[0])]
-    out_buffers = [buf for buf, access in access_map.items() if len(access[1])]
+
+    # dt_access_map and primfunc.buffer_map are unordered, so use order from primfunc.params
+    dt_access_map = tvm.arith._ffi_api.DomainTouchedAccessMap(primfunc)
+    ordered_buffers = [primfunc.buffer_map[param] for param in primfunc.params]
+    in_buffers = [buf for buf in ordered_buffers if len(dt_access_map[buf][0])]
+    out_buffers = [buf for buf in ordered_buffers if len(dt_access_map[buf][1])]
     assert in_buffers, "PrimFunc has no input buffers"
     assert out_buffers, "PrimFunc has no output buffers"
 
