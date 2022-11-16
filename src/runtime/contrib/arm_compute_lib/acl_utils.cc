@@ -130,6 +130,8 @@ arm_compute::DataType MakeACLDataType(const DLDataType& data_type) {
     return arm_compute::DataType::F32;
   } else if (data_type.code == DLDataTypeCode::kDLUInt && data_type.bits == 8) {
     return arm_compute::DataType::QASYMM8;
+  } else if (data_type.code == DLDataTypeCode::kDLInt && data_type.bits == 8) {
+    return arm_compute::DataType::QASYMM8_SIGNED;
   } else if (data_type.code == DLDataTypeCode::kDLInt && data_type.bits == 32) {
     return arm_compute::DataType::S32;
   } else {

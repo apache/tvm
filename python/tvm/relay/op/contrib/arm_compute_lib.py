@@ -511,7 +511,7 @@ def qnn_add(expr):
     """Check if the external ACL codegen for add should be used."""
     args = expr.args
     for typ in [args[0].checked_type, args[1].checked_type]:
-        if typ.dtype != "uint8":
+        if typ.dtype not in ["int8", "uint8"]:
             return False
 
     return True
