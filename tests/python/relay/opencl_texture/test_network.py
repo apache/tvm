@@ -20,35 +20,39 @@ import tvm
 import numpy as np
 from tvm import relay
 from tvm.relay import testing
+import tvm.relay.testing.tf as tf_testing
 from tvm.contrib import utils
-from utils.adreno_utils import gpu_preprocess, build_run_compare
+from utils.adreno_utils import gpu_preprocess, build_run_compare, get_model
+import pytest
+
+from tvm.relay.op import register_mixed_precision_conversion
+
+dtype = tvm.testing.parameter("float32", "float16")
 
 
-dtype = tvm.testing.parameter("float32")
+def convert_to_fp16(mod, dtype):
+    from tvm.ir import IRModule
+
+    mod = IRModule.from_expr(mod)
+    seq = tvm.transform.Sequential(
+        [relay.transform.InferType(), relay.transform.ToMixedPrecision()]
+    )
+    with tvm.transform.PassContext(opt_level=3):
+        mod = seq(mod)
+        return mod
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_mean(remote, target, dtype):
-    # NCHW
-    input_shape = (1, 3, 720, 1280)
-    A = relay.var("data", shape=input_shape, dtype=dtype)
-    mean = relay.mean(A, axis=1, keepdims=True)
-    mod = relay.Function([A], mean)
-
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
-
-
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_argmax(remote, target, dtype):
-    # NCHW
-    input_shape = (1, 3, 720, 1280)
-    A = relay.var("data", shape=input_shape, dtype=dtype)
-    argmax = relay.op.argmax(A, axis=[1])
-    mod = relay.Function([A], argmax)
-
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+def test_mobilenet_v1(remote, target, dtype):
+    mod, params, inputs, dtypes = get_model(
+        "https://github.com/mlcommons/mobile_models/raw/main/v0_7/tflite/mobilenet_edgetpu_224_1.0_float.tflite",
+        "mobilenet_edgetpu_224_1.0_float.tflite",
+        "tflite",
+    )
+    if dtype == "float16":
+        mod = convert_to_fp16(mod["main"], dtype)
+    build_run_compare(remote, mod, params, inputs, dtypes, target, [])
 
 
 if __name__ == "__main__":
