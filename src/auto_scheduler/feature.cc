@@ -1737,7 +1737,10 @@ TVM_REGISTER_GLOBAL("auto_scheduler.FeaturesFromPrimFunc")
       std::vector<float> vec;
       GetPerStoreFeature(func, cache_line_size, max_n_bufs, &vec, log_scale);
       int64_t num_feature_rows = vec[0];  // first element is number of rows
-      int64_t row_length = (vec.size() - 1) / num_feature_rows;
+      int64_t row_length = 0;
+      if (num_feature_rows != 0) {
+        row_length = (vec.size() - 1) / num_feature_rows;
+      }
       auto ary =
           runtime::NDArray::Empty({num_feature_rows, row_length}, {kDLFloat, 32, 1}, {kDLCPU, 0});
       // NDArray is row major by default
