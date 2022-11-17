@@ -35,6 +35,7 @@ We do encourage everyone to work anything they are interested in.
 - [Tianqi Chen](https://github.com/tqchen) (PMC): @tqchen - topi, compiler, relay, docs
 - [Wei Chen](https://github.com/wweic): @wweic - runtime, relay, vm
 - [Zhi Chen](https://github.com/zhiics) (PMC): @zhiics - relay, quantization, pass manager
+- [Egor Churaev](https://github.com/echuraev): @echuraev - metal, opencl, adreno
 - [Siyuan Feng](https://github.com/Hzfengsy) (PMC): @Hzfengsy - tir
 - [Josh Fromm](https://github.com/jwfromm) (PMC): @jwfromm - frontends, quantization, topi
 - [Mehrdad Hessar](https://github.com/mehrdadh): @mehrdadh - microTVM, hexagon
@@ -104,7 +105,7 @@ We do encourage everyone to work anything they are interested in.
 - [Christian Convey](https://github.com/cconvey/): @cconvey
 - [Meghan Cowan](https://github.com/cowanmeg): @cowanmeg
 - [Balint Cristian](https://github.com/cbalint13): @cbalint13
-- [Egor Churaev](https://github.com/echuraev): @echuraev - metal
+- [Egor Churaev](https://github.com/echuraev): @echuraev
 - [Xiaoqiang Dan](https://github.com/xqdan): @xqdan
 - [Haozheng Fan](https://github.com/hzfan): @hzfan
 - [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy
