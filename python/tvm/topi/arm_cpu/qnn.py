@@ -17,17 +17,14 @@
 """Contains the TVMScript implementations of some QNN operators for Arm. Currently, the only ops
 with schedules are fused regular and depthwise convolutions for Arm Cortex-M with DSP."""
 
+from typing import Tuple
 
 import tvm
-from tvm import te, tir
+from tvm import te
+from tvm.tir import const
 from tvm.script import tir as T
 from ..utils import get_const_tuple
-from ..nn.utils import get_pad_tuple
-from ..nn.pad import pad
-from .. import tag, nn
-from tvm.tir import TensorIntrin
-from tvm.topi.arm_cpu.mprofile.dsp.micro_kernel import tensordot
-import textwrap
+from .mprofile.dsp.micro_kernel import tensordot
 
 
 def int_ceil_division(x, y):
@@ -48,7 +45,7 @@ def _pick_tensordot_impl(attrs, data, kernel, num_sums=2, is_depthwise=False):
     of an odd output channel in the data tensor or kernel might or might not be on a word boundary,
     and the tensordot code expects all input pointers to be word-aligned."""
 
-    stride_h, stride_w = get_const_tuple(attrs.strides)
+    _, stride_w = get_const_tuple(attrs.strides)
 
     if is_depthwise:
         assert attrs.data_layout == "NCHW"
@@ -88,18 +85,6 @@ def _pick_tensordot_impl(attrs, data, kernel, num_sums=2, is_depthwise=False):
     return (aligned_func, offset_func)
 
 
-def _get_align_tuple(output_channels, is_unaligned):
-    if is_unaligned:
-        alignment_vals = (output_channels // 2, output_channels // 2, 2)
-    else:
-        alignment_vals = (output_channels, 0, 1)
-    return tuple(tvm.tir.const(n) for n in alignment_vals)
-
-
-def _get_tscript_const_tuple(values):
-    return tuple(tvm.tir.const(n) for n in get_const_tuple(values))
-
-
 def _make_tscript_ptr(buffer, offset, length):
     return T.tvm_access_ptr(
         T.type_annotation(dtype="int16"),
@@ -115,19 +100,95 @@ def _make_tscript_call(func_name, *args):
     return T.evaluate(T.call_extern(func_name, *args, dtype="int32"))
 
 
+def _make_conv2d_primfunc(
+    call_dimensions: Tuple,
+    buffer_shapes: Tuple[Tuple, Tuple, Tuple, Tuple, Tuple],
+    aligned_func: Tuple[str, str],
+    offset_func: Tuple[str, str],
+    ptr_gens: Tuple,
+):
+    height, width, out_channels = call_dimensions
+    data_shape, kernel_shape, bias_shape, scale_shape, output_shape = buffer_shapes
+    aligned_func_name, aligned_func_code = aligned_func
+    offset_func_name, offset_func_code = offset_func
+    output_ptr, data_ptr, kernel_ptr = ptr_gens
+
+    # If the functions are identical, we can skip the second loop
+    if aligned_func_name == offset_func_name:
+        aligned_channels = out_channels
+        offset_channels = tvm.tir.const(0)
+        c_step = tvm.tir.const(1)
+    else:
+        aligned_channels = out_channels // 2
+        offset_channels = out_channels // 2
+        c_step = tvm.tir.const(2)
+
+    @T.prim_func
+    def biased_quantized_conv2d(
+        data_handle: T.handle,
+        kernel_handle: T.handle,
+        bias_handle: T.handle,
+        scale_handle: T.handle,
+        output_handle: T.handle,
+    ) -> None:
+
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        data = T.match_buffer(data_handle, data_shape, dtype="int16")
+        kernel = T.match_buffer(kernel_handle, kernel_shape, dtype="int16")
+        bias = T.match_buffer(bias_handle, bias_shape, dtype="int32")
+        scale = T.match_buffer(scale_handle, scale_shape, dtype="int32")
+        output = T.match_buffer(output_handle, output_shape, dtype="int16")
+
+        # This hack prevents TVM from seeing these variables as "unused". I should be using T.reads
+        # and T.writes, but they don't work. I think it's an issue with BufferTouchedDomain.
+        # pylint: disable=unused-variable
+        output[0, 0, 0, 0] = 0
+        a = data[0, 0, 0, 0]
+        b = kernel[0, 0, 0, 0]
+        # pylint: enable=unused-variable
+
+        for c_ax, y_ax, x_ax in T.grid(aligned_channels, height, width):
+            with T.block("conv2d_aligned"):
+                T.block_attr({"pragma_import_c": aligned_func_code})
+                y, x, c = T.axis.remap("SSS", [y_ax, x_ax, c_ax])
+                _make_tscript_call(
+                    aligned_func_name,
+                    output_ptr(output, y, x, c * c_step),
+                    data_ptr(data, y, x, c * c_step),
+                    kernel_ptr(kernel, c * c_step),
+                    bias[0, 0, 0, c * c_step],
+                    scale[c * c_step],
+                )
+
+        for c_ax, y_ax, x_ax in T.grid(offset_channels, height, width):
+            with T.block("conv2d_offset"):
+                T.block_attr({"pragma_import_c": offset_func_code})
+                y, x, c = T.axis.remap("SSS", [y_ax, x_ax, c_ax])
+                _make_tscript_call(
+                    offset_func_name,
+                    output_ptr(output, y, x, c * c_step + 1),
+                    data_ptr(data, y, x, c * c_step + 1, offset=1),
+                    kernel_ptr(kernel, c * c_step + 1, offset=1),
+                    bias[0, 0, 0, c * c_step + 1],
+                    scale[c * c_step + 1],
+                )
+
+    return biased_quantized_conv2d
+
+
 def qnn_conv2d(attrs, inputs, out_type):
     """Compute for qnn.conv2d with NHWC layout. Note that this is a DIFFERENT layout from the
     Hexagon variant, because they have special instructions Cortex-M doesn't have. We also expect
     the kernel to have OHWI layout. We also assume that padding is not necessary, as it will have
     been done by another pass."""
 
-    """Step one: Make a few checks to unpack the function arguments and ensure it was called with
-    the right arguments. Note that this function does not use a wrapper."""
+    # Make a few checks to unpack the function arguments and ensure it was called with the right
+    # arguments. Note that unlike most schedules, qnn_conv2d does not use a wrapper."""
     assert len(inputs) == 11
-    data, kernel, _izp, _kzp, _iscale, _kscale, bias, rq_scale = inputs[0:8]
+    data, kernel, _izp, _kzp, _iscale, _kscale, bias, scale = inputs[0:8]
     output_layout = attrs.out_layout
     assert output_layout == "NHWC"
-    assert rq_scale.dtype == "int32"
+    assert scale.dtype == "int32"
 
     _, height, width, in_channels = get_const_tuple(data.shape)
     out_channels, kernel_h, kernel_w, _ = get_const_tuple(kernel.shape)
@@ -136,128 +197,69 @@ def qnn_conv2d(attrs, inputs, out_type):
     out_height = _compute_output_dim(height, kernel_h, y_stride)
     out_width = _compute_output_dim(width, kernel_w, x_stride)
 
-    """Step two: we decide how many sums our function should have running at the same time. Doing
-    this lets us do "more work" for each memory load, but doing too many of them causes us to run
-    out of registers. Currently this is set to either 1 or 2, but autotuning this value would
-    improve performance a lot."""
+    # Decide how many sums our function should have running at the same time. Doing
+    # this lets us do "more work" for each memory load, but doing too many of them causes us to run
+    # out of registers. Currently this is set to either 1 or 2, but autotuning this value would
+    # improve performance a lot.
     num_sums = 2
 
-    """Step three: decide whether whether we need "parity alternation". For example, if we have an
-    8x3x3x3 kernel (8 output channels, height 3, width 3, input channels 3) in the OHWI layout, then
-    every output channel kernel slice will be 27 halfwords. This means every other output channel
-    will not be word aligned, which will cause slowness/crashes!
+    # Next, decide whether whether we need "parity alternation". For example, if we have an
+    # 8x3x3x3 kernel (8 output channels, height 3, width 3, input channels 3) in the OHWI layout,
+    # then every output channel kernel slice will be 27 halfwords. This means every other output
+    # channel will not be word aligned, which will cause slowness/crashes!
 
-    We solve this problem by handling the "aligned" and "offset" output channels with different
-    versions of our tensordot function. The "aligned func" assumes that the start positions of the
-    output, data, and kernel are given exactly by their pointer. The "offset" version assumes that
-    the "true" start of the output is the value in the output pointer, plus an offset of 0 or 1.
+    # We solve this problem by handling the "aligned" and "offset" output channels with different
+    # versions of our tensordot function. The "aligned func" assumes that the start positions of the
+    # output, data, and kernel are given exactly by their pointer. The "offset" version assumes that
+    # the "true" start of the output is the value in the output pointer, plus an offset of 0 or 1.
+    # _pick_tensordot_impl decides whether this is the case. If not, we only want to generate one
+    # function (to save flash), so offset_func is a tuple of empty strings.
 
-    _pick_tensordot_impl decides whether this is the case. If not, we only want to generate one
-    function (to save flash), so offset_func is a tuple of empty strings."""
     aligned_func, offset_func = _pick_tensordot_impl(attrs, data, kernel, num_sums, False)
-    aligned_func_name, aligned_func_code = aligned_func
-    offset_func_name, offset_func_code = offset_func
 
-    """These constants decide how much the aligned and offset functions will be called. They are
-    chosen so that the offset function will be deleted if not used."""
-    if aligned_func_name != offset_func_name:
-        aligned_calls = tvm.tir.const(out_channels // 2)
-        offset_calls = tvm.tir.const(out_channels // 2)
-        tc_oc_step = tvm.tir.const(2)
-
-    else:
-        aligned_calls = tvm.tir.const(out_channels)
-        offset_calls = tvm.tir.const(0)
-        tc_oc_step = tvm.tir.const(1)
-
-    # Helper functions for making pointers.
-
-    tc_out_y_stride = tvm.tir.const(out_width * out_channels)
-    tc_out_x_stride = tvm.tir.const(out_channels * num_sums)
-    tc_out_calls_per_row = tvm.tir.const(out_width // num_sums)
-    tc_out_num_rows = tvm.tir.const(out_height)
-
+    # Helper functions to make pointers
     def output_ptr(buffer, y, x, c):
         return _make_tscript_ptr(
             buffer,
-            y * tc_out_y_stride + x * tc_out_x_stride + c,
+            y * const(out_width * out_channels) + x * const(out_channels * num_sums) + c,
             1,
         )
 
-    tc_data_y_stride = tvm.tir.const(y_stride * width * in_channels)
-    tc_data_x_stride = tvm.tir.const(x_stride * num_sums * in_channels)
+    # We need to disable pylint's unused argument checker, as the kwarg offset is unused but must
+    # be present for compatibility. We cannot add an underscore as we normally would, as this makes
+    # the keyword not match.
 
-    def data_ptr(buffer, y, x):
+    # pylint: disable=unused-argument
+    def data_ptr(buffer, y, x, c, offset=0):
         return _make_tscript_ptr(
             buffer,
-            y * tc_data_y_stride + x * tc_data_x_stride,
-            tc_data_x_stride * num_sums,
+            y * const(y_stride * width * in_channels)
+            + x * const(x_stride * num_sums * in_channels),
+            1,
         )
 
-    tc_kernel_oc_stride = tvm.tir.const(kernel_h * kernel_w * in_channels)
+    # pylint: enable=unused-argument
 
     def kernel_ptr(buffer, c, offset=0):
         return _make_tscript_ptr(
             buffer,
-            c * tc_kernel_oc_stride - offset,
-            tc_kernel_oc_stride + offset,
+            c * const(kernel_h * kernel_w * in_channels) - offset,
+            1,
         )
 
-    @T.prim_func
-    def biased_quantized_conv2d(
-        data_handle: T.handle,
-        kernel_handle: T.handle,
-        bias_handle: T.handle,
-        requantize_handle: T.handle,
-        output_handle: T.handle,
-    ) -> None:
-
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        DATA = T.match_buffer(data_handle, data.shape, dtype="int16")
-        KERNEL = T.match_buffer(kernel_handle, kernel.shape, dtype="int16")
-        BIAS = T.match_buffer(bias_handle, bias.shape, dtype="int32")
-        REQUANTIZE_SCALE = T.match_buffer(requantize_handle, rq_scale.shape, dtype="int32")
-        OUTPUT = T.match_buffer(output_handle, out_type.shape, dtype=out_type.dtype)
-
-        # This hack prevents TVM from seeing these variables as "unused". I should be using T.reads
-        # and T.writes, but they don't work. I think it's an issue with BufferTouchedDomain.
-        OUTPUT[0, 0, 0, 0] = 0
-        x = DATA[0, 0, 0, 0]
-        y = KERNEL[0, 0, 0, 0]
-
-        for oc, oh, ow in T.grid(aligned_calls, tc_out_num_rows, tc_out_calls_per_row):
-            with T.block("conv2d_aligned"):
-                T.block_attr({"pragma_import_c": aligned_func_code})
-                voh, vow, voc = T.axis.remap("SSS", [oh, ow, oc])
-                _make_tscript_call(
-                    aligned_func_name,
-                    output_ptr(OUTPUT, voh, vow, voc * tc_oc_step),
-                    data_ptr(DATA, voh, vow),
-                    kernel_ptr(KERNEL, voc * tc_oc_step),
-                    BIAS[0, 0, 0, voc * tc_oc_step],
-                    REQUANTIZE_SCALE[voc * tc_oc_step],
-                )
-
-        for oc, oh, ow in T.grid(offset_calls, tc_out_num_rows, tc_out_calls_per_row):
-            with T.block("conv2d_offset"):
-                T.block_attr({"pragma_import_c": offset_func_code})
-                voh, vow, voc = T.axis.remap("SSS", [oh, ow, oc])
-                _make_tscript_call(
-                    offset_func_name,
-                    output_ptr(OUTPUT, voh, vow, voc * tc_oc_step + 1),
-                    data_ptr(DATA, voh, vow),
-                    kernel_ptr(KERNEL, voc * tc_oc_step + 1, offset=1),
-                    BIAS[0, 0, 0, voc * tc_oc_step + 1],
-                    REQUANTIZE_SCALE[voc * tc_oc_step + 1],
-                )
-
-    output = te.extern_primfunc(
-        [data, kernel, bias, rq_scale], biased_quantized_conv2d, name="tir", dtype="int16"
+    prim_func = _make_conv2d_primfunc(
+        (const(out_height), const(out_width // num_sums), const(out_channels)),
+        (data.shape, kernel.shape, bias.shape, scale.shape, out_type.shape),
+        aligned_func,
+        offset_func,
+        (output_ptr, data_ptr, kernel_ptr),
     )
+
+    output = te.extern_primfunc([data, kernel, bias, scale], prim_func, name="tir", dtype="int16")
     return [output]
 
 
-def schedule_qnn_conv2d(attrs, outs, target):
+def schedule_qnn_conv2d(_attrs, _outs, _target):
     """Schedule function for qnn.conv2d."""
     return None
 
@@ -267,12 +269,12 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
     conv2d - see above."""
 
     assert len(inputs) == 11
-    data, kernel, _izp, _kzp, _iscale, _kscale, bias, rq_scale = inputs[0:8]
+    data, kernel, _izp, _kzp, _iscale, _kscale, bias, scale = inputs[0:8]
     output_layout = attrs.out_layout
     assert output_layout == "NHWC"
-    assert rq_scale.dtype == "int32"
+    assert scale.dtype == "int32"
 
-    _, in_channels, height, width = get_const_tuple(data.shape)
+    _, _, height, width = get_const_tuple(data.shape)
     _, out_channels, kernel_h, kernel_w = get_const_tuple(kernel.shape)
     _, out_height, out_width, _ = get_const_tuple(out_type.shape)
     y_stride, x_stride = get_const_tuple(attrs.strides)
@@ -283,116 +285,49 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
     num_sums = 2
 
     aligned_func, offset_func = _pick_tensordot_impl(attrs, data, kernel, num_sums, True)
-    aligned_func_name, aligned_func_code = aligned_func
-    offset_func_name, offset_func_code = offset_func
 
-    if offset_func_name:
-        aligned_calls = tvm.tir.const(out_channels // 2)
-        offset_calls = tvm.tir.const(out_channels // 2)
-        tc_oc_step = tvm.tir.const(2)
+    # Helper functions for making pointers.
+    def output_ptr(buffer, y, x, c):
+        return _make_tscript_ptr(
+            buffer,
+            y * const(out_width * out_channels) + x * const(out_channels * num_sums) + c,
+            1,
+        )
+
+    def data_ptr(buffer, y, x, c, offset=0):
         if height * width % 2 == 1:
             x_ptr_offset = tvm.tir.const(-1)
         else:
             x_ptr_offset = tvm.tir.const(0)
 
-    else:
-        aligned_calls = tvm.tir.const(out_channels)
-        offset_calls = tvm.tir.const(0)
-        tc_oc_step = tvm.tir.const(1)
-        x_ptr_offset = tvm.tir.const(0)
-
-    # Helper functions for making pointers.
-
-    # NHWC
-    tc_out_y_stride = tvm.tir.const(out_width * out_channels)
-    tc_out_x_stride = tvm.tir.const(out_channels * num_sums)
-    tc_out_calls_per_row = tvm.tir.const(out_width // num_sums)
-    tc_out_num_rows = tvm.tir.const(out_height)
-
-    def output_ptr(buffer, y, x, c):
         return _make_tscript_ptr(
             buffer,
-            y * tc_out_y_stride + x * tc_out_x_stride + c,
+            c * const(width * height)
+            + y * const(y_stride * width)
+            + x * const(x_stride * num_sums)
+            + offset * x_ptr_offset,
             1,
         )
 
-    # NCHW
-    tc_data_oc_stride = tvm.tir.const(width * height)
-    tc_data_y_stride = tvm.tir.const(y_stride * width)
-    tc_data_x_stride = tvm.tir.const(x_stride * num_sums)
-
-    def data_ptr(buffer, c, y, x, offset=0):
+    def kernel_ptr(buffer, c, offset=0):
         return _make_tscript_ptr(
             buffer,
-            c * tc_data_oc_stride + y * tc_data_y_stride + x * tc_data_x_stride + offset,
-            tc_data_x_stride * num_sums,
+            c * tvm.tir.const(kernel_h * kernel_w) - offset,
+            1,
         )
 
-    # OIHW
-    tc_kernel_ic_stride = tvm.tir.const(kernel_h * kernel_w)
-
-    def kernel_ptr(buffer, ic, offset=0):
-        return _make_tscript_ptr(
-            buffer,
-            ic * tc_kernel_ic_stride - offset,
-            tc_kernel_ic_stride + offset,
-        )
-
-    @T.prim_func
-    def biased_quantized_conv2d(
-        data_handle: T.handle,
-        kernel_handle: T.handle,
-        bias_handle: T.handle,
-        requantize_handle: T.handle,
-        output_handle: T.handle,
-    ) -> None:
-
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        DATA = T.match_buffer(data_handle, data.shape, dtype="int16")
-        KERNEL = T.match_buffer(kernel_handle, kernel.shape, dtype="int16")
-        BIAS = T.match_buffer(bias_handle, bias.shape, dtype="int32")
-        REQUANTIZE_SCALE = T.match_buffer(requantize_handle, rq_scale.shape, dtype="int32")
-        OUTPUT = T.match_buffer(output_handle, out_type.shape, dtype=out_type.dtype)
-
-        # This hack prevents TVM from seeing these variables as "unused". I should be using T.reads
-        # and T.writes, but they don't work. I think it's an issue with BufferTouchedDomain.
-        OUTPUT[0, 0, 0, 0] = 0
-        x = DATA[0, 0, 0, 0]
-        y = KERNEL[0, 0, 0, 0]
-
-        for oc, oh, ow in T.grid(offset_calls, tc_out_num_rows, tc_out_calls_per_row):
-            with T.block("depthwise_conv2d_aligned"):
-                T.block_attr({"pragma_import_c": aligned_func_code})
-                voh, vow, voc = T.axis.remap("SSS", [oh, ow, oc])
-
-                _make_tscript_call(
-                    aligned_func_name,
-                    output_ptr(OUTPUT, voh, vow, voc * tc_oc_step),
-                    data_ptr(DATA, voc * tc_oc_step, voh, vow),
-                    kernel_ptr(KERNEL, voc * tc_oc_step),
-                    BIAS[0, 0, 0, voc * tc_oc_step],
-                    REQUANTIZE_SCALE[voc * tc_oc_step],
-                )
-
-        for oc, oh, ow in T.grid(offset_calls, tc_out_num_rows, tc_out_calls_per_row):
-            with T.block("depthwise_conv2d_offset"):
-                T.block_attr({"pragma_import_c": offset_func_code})
-                voh, vow, voc = T.axis.remap("SSS", [oh, ow, oc])
-                _make_tscript_call(
-                    offset_func_name,
-                    output_ptr(OUTPUT, voh, vow, voc * tc_oc_step + 1),
-                    data_ptr(DATA, voc * tc_oc_step + 1, voh, vow, offset=x_ptr_offset),
-                    kernel_ptr(KERNEL, voc * tc_oc_step + 1, offset=1),
-                    BIAS[0, 0, 0, voc * tc_oc_step + 1],
-                    REQUANTIZE_SCALE[voc * tc_oc_step + 1],
-                )
-
-    output = te.extern_primfunc(
-        [data, kernel, bias, rq_scale], biased_quantized_conv2d, name="tir", dtype="int16"
+    prim_func = _make_conv2d_primfunc(
+        (const(out_height), const(out_width // num_sums), const(out_channels)),
+        (data.shape, kernel.shape, bias.shape, scale.shape, out_type.shape),
+        aligned_func,
+        offset_func,
+        (output_ptr, data_ptr, kernel_ptr),
     )
+
+    output = te.extern_primfunc([data, kernel, bias, scale], prim_func, name="tir", dtype="int16")
     return [output]
 
 
-def schedule_qnn_depthwise_conv2d(attrs, outs, target):
+def schedule_qnn_depthwise_conv2d(_attrs, _outs, _target):
     """Schedule function for qnn.depthwise_conv2d."""
     return None

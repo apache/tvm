@@ -245,7 +245,6 @@ def _make_aot_model(params, hyperparams, layouts, is_depthwise=False):
         pad_after = (0, padding[2], padding[3], 0)
         data = np.pad(data, tuple(zip(pad_before, pad_after)), constant_values=pad_const)
     data_ndarr = _change_layout(data, "NHWC", data_layout, dtype)
-    kernel_ndarr = _change_layout(kernel, "OHWI", kernel_layout, dtype)
     output_ndarr = _change_layout(output, "NHWC", output_layout, dtype)
 
     input_var = relay.var("input", relay.TensorType(data_ndarr.shape, dtype))
@@ -296,7 +295,7 @@ def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer):
         (tensor, kernel, bias, output),
         (dtype, padding, strides),
         (data_layout, kernel_layout, output_layout),
-        is_depthwise=is_depthwise
+        is_depthwise=is_depthwise,
     )
 
     def schedule_fn(_sch):
