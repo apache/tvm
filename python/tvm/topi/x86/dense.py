@@ -485,6 +485,8 @@ def schedule_matmul_dnnl(_, outs):
 def dense_dynamic(A, B, bias, dtype):
     """Compute for dense with dynamic shape"""
 
+    assert A[0].shape == 1, "Only dynamic matrix vector multiplication with vector LHS is supported"
+
     # Right now we only support matrix-vector multiplication with lhs as the
     # vector. We don't need to do much optimization here because the access
     # pattern and parallelization are straight forward.

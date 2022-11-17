@@ -507,7 +507,7 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
     return strategy
 
 
-def is_any(shape):
+def is_dynamic_shape(shape):
     return any([isinstance(x, tir.Any) or isinstance(x, tir.SizeVar) for x in shape])
 
 
@@ -518,7 +518,7 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     # For dynamic shapes we use a hand written kernel. Right now it only
     # supports matrix-vector multiplication.
-    if is_any(inputs[0].shape) or is_any(inputs[1].shape):
+    if is_dynamic_shape(inputs[0].shape) or is_dynamic_shape(inputs[1].shape):
         strategy.add_implementation(
             wrap_compute_dense(topi.x86.dense_dynamic),
             wrap_topi_schedule(topi.x86.schedule_dense_dynamic),
