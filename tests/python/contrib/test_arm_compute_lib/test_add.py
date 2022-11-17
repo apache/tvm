@@ -92,7 +92,8 @@ def test_runtime_add():
 
     for dtype, low, high, atol, rtol, op, op_params in [
         ("float32", -127, 128, 1e-7, 1e-7, relay.add, {}),
-        ("uint8", 0, 255, 0.0, 1.0, relay.qnn.op.add, _qnn_params),
+        ("uint8", 0, 255, 1.0, 0.0, relay.qnn.op.add, _qnn_params),
+        ("int8", -127, 128, 1.0, 0.0, relay.qnn.op.add, _qnn_params),
     ]:
         shape = (2, 2)
         for inputs in [
@@ -125,6 +126,7 @@ def test_codegen_add():
     for dtype, op_name, op, qnn_params in [
         ("float32", "add", relay.add, {}),
         ("uint8", "qnn.add", relay.qnn.op.add, _qnn_params),
+        ("int8", "qnn.add", relay.qnn.op.add, _qnn_params),
     ]:
         for shape in [(1, 1), (2, 2, 2), (3, 3, 3, 3)]:
             func = _get_model(shape, dtype, iter(inputs), op, qnn_params)
