@@ -15,21 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """Computes a "jumpy tensordot" operator, which can be used to tensorize many common operators
-including regular conv2d, depthwise conv2d, and grouped conv2d provided the data and kernel layouts
-are the optimal ones. When groups=1, the optimal data layout is NHWC and kernel layout is OHWI. When
-this is a depthwise convolution, the optimal data layout is NCHW and kernel layout is OIHW."""
+including regular conv2d, depthwise conv2d, and grouped conv2d for some data and kernel layouts.
+When for regular convolution, use data laout HHWC and kernel layout OHWI. For depthwise convolution,
+use data layout data layout is NCHW and kernel layout OIHW."""
 
 from itertools import chain
 import textwrap
 from typing import Iterator, Tuple
 
-import numpy as np
-
-from tvm import te, tir
-
-
-def get_c_function_name(split_size, dimensions, offsets, x_strides):
-    """Gets the C function name of the tensordot function."""
+def _get_c_function_name(split_size, dimensions, offsets, x_strides):
+    """Gets the C function name of the tensordot function. We do not need a suffix, as the generated
+    function will have an #include guard. Unlike other microTVM operators, _get_c_function_name is
+    never called externally."""
     tensor_w, kernel_h, kernel_w = dimensions
     return (
         f"tensordot_opt_x{split_size}_int16_w{tensor_w}_"
@@ -42,7 +39,7 @@ def get_c_function_name(split_size, dimensions, offsets, x_strides):
 def _init_biased_accumulators(split_size):
     """Addition is commutative, so we could add the bias before, during, or after performing our
     multiply-accumulate operations. It "costs" one cycle either way - if done at the beginning we
-    can't use our SMULXY trick to set sum_i to zero for "free", and if done at the end it doesn't
+    can't use a SMULXY trick to set sum_i to zero for "free", and if done at the end it doesn't
     combine with anything. However, doing it at the beginning frees up a register/prevents needing
     to do a stack push/pop, so we'll do it first."""
     assignments = map(lambda x: f"sum_{x:x} = bias", range(split_size))
@@ -64,7 +61,7 @@ def _get_tensor_halfwords(dimensions, offset, split_size, in_stride) -> Iterator
 
 
 def _get_kernel_halfwords(dimensions, offset) -> Iterator:
-    _tensor_w, kernel_h, kernel_w = dimensions
+    _, kernel_h, kernel_w = dimensions
     if offset == 1:
         yield None
     for y in range(kernel_h):
@@ -100,22 +97,32 @@ def _load_kernel_vars(halfwords) -> Iterator[str]:
 
 
 def _get_draft_macs(kernel_dims, tensor_halfwords, kernel_halfwords, offset) -> Iterator[Tuple]:
+    """Generates a functional but un-optimized list of multiply-accumulate instructions that we will
+    optimize later. The tuples in the returned iterator are organized as:
+
+    (instruction, (arg1_y, arg1_x), (arg2_y, arg2_x))
+
+    We return an iterator so that optimizations may be done by iterator chaining."""
+
     def get_var(y, x, halfwords):
         i = halfwords.index((y, x))
         if i % 2 == 0:
             return f"{_get_int16_alias((y, x))}__{_get_int16_alias(halfwords[i + 1])}", "b"
-        else:
-            return f"{_get_int16_alias(halfwords[i - 1])}__{_get_int16_alias((y, x))}", "t"
+        return f"{_get_int16_alias(halfwords[i - 1])}__{_get_int16_alias((y, x))}", "t"
 
     kernel_h, kernel_w = kernel_dims
     for y in range(kernel_h):
         for x in range(kernel_w):
             tensor_var, tensor_half = get_var(y, x + offset, tensor_halfwords)
             kernel_var, kernel_half = get_var(y, x, kernel_halfwords)
-            yield f"smla{tensor_half}{kernel_half}", f"tensor__{tensor_var}", f"kernel__{kernel_var}"
+            instruction = f"smla{tensor_half}{kernel_half}"
+            yield instruction, f"tensor__{tensor_var}", f"kernel__{kernel_var}"
 
 
 def _apply_simd_optimizations(instruction_tuples) -> Iterator[Tuple]:
+    """Fuses single halfword MAC instructions into double halfword MAC instructions when possible.
+    The compiler cannot do this automatically, as calling __builtin_arm_smlaxy forces the SMLAxy
+    instruction to be used."""
     curr_tuple = next(instruction_tuples, None)
     while curr_tuple:
         next_tuple = next(instruction_tuples, None)
@@ -125,10 +132,10 @@ def _apply_simd_optimizations(instruction_tuples) -> Iterator[Tuple]:
 
         if curr_tuple[1:] == next_tuple[1:]:
             if set([curr_tuple[0], next_tuple[0]]) == set(["smlatt", "smlabb"]):
-                yield "smlad", *curr_tuple[1:]
+                yield ("smlad", *curr_tuple[1:])
                 next_tuple = next(instruction_tuples, None)
             elif set([curr_tuple[0], next_tuple[0]]) == set(["smlatb", "smlabt"]):
-                yield "smladx", *curr_tuple[1:]
+                yield ("smladx", *curr_tuple[1:])
                 next_tuple = next(instruction_tuples, None)
             else:
                 yield curr_tuple
@@ -138,60 +145,23 @@ def _apply_simd_optimizations(instruction_tuples) -> Iterator[Tuple]:
         curr_tuple = next_tuple
 
 
-NO_ACC_PREFIX_CONVERSIONS = {
-    "smlad": "smuad",
-    "smladx": "smuadx",
-    "smlatt": "smultt",
-    "smlatb": "smultb",
-    "smlabt": "smulbt",
-    "smlabb": "smulbb",
-}
-
-
-# def _no_first_accumulate(instruction_tuples) -> Iterator[Tuple]:
-#     ins, op1, op2 = next(instruction_tuples)
-#     yield NO_ACC_PREFIX_CONVERSIONS[ins], op1, op2
-#     for instruction_tuple in instruction_tuples:
-#         yield instruction_tuple
-
-
 def _expand_instruction_tuples(instruction_tuples, index) -> Iterator[str]:
-    """Converts a series of (instruction, var1, var2) tuples into lines of C code. Should be simple,
-    but we need to work around a series of cryptic bugs while ensuring the compiler makes certain
-    optimizations.
-
-    1. Ideally, we would call __builtin_arm functions instead of including inline assembly, as this
-       is easier to read and more future proof. However:
-        a. Arm GCC apparently *forgot* to include `__builtin_arm_smlabt`, even though
-           `__builtin_arm_smlatt`, `__builtin_arm_smlatb`, `__builtin_arm_smlad` and so on all
-           exist. These work as expected on Clang - the issue is GCC only.
-
-        b. Calling `__builtin_arm_smlatt` (and `smlatb` and `smlabb`) works fine on real devices.
-           However, calling these builtins causes the Corstone300 simulator to freeze and stall. I
-           have no clue on why this is - wouldn't these builtins be compiled to assembly? - yet it
-           occurs consistently.
-
-
-    2. Ideally, the compiler would know that the first multiply instruction should *not* accumulate,
-       and would automatically replace it with an otherwise identical but non-accumulating
-       instruction. Doing this saves us one cycle, as we don't need to load a zero into sum_i.
-       However, the compiler (understandably) does not like overwriting instructions we explicitly
-       as for, so we must do this ourselves.
-
-    3. Ideally, since we're going to emit several lines of assembly code, we would do it in a single
-       `asm` block. However, we *want* the compiler to reorder the instructions and interleave them
-       with memory loads, and it can only do this if we specify the instructions as individual non-
-       volatile memory loads.
+    """Converts a series of (instruction, var1, var2) tuples into lines of C code. We want the
+    compiler to re-order these with the memory loads, so we generate them as a series of calls to
+    instruction aliases instead of as a single `asm` block.
     """
-    for instruction, op1, op2 in instruction_tuples:
-        if "smla" in instruction:
-            if instruction == "smlabt":
-                yield f"sum_{index} = __builtin_arm_smlatb({op2}, {op1}, sum_{index});"
-            else:
-                yield f"sum_{index} = __builtin_arm_{instruction}({op1}, {op2}, sum_{index});"
 
+    for instruction, op1, op2 in instruction_tuples:
+        assert "smla" in instruction
+
+        # Arm GCC does not have `__builtin_arm_smlabt`, even though `__builtin_arm_smlatt`,
+        # `__builtin_arm_smlatb`, `__builtin_arm_smlad` and so on all exist. Perhaps this is a
+        # choice, since we can just use `smlabt` with the argument order swapped instead? Note that
+        # `__builtin_arm_smlabt` exists on most compilers (e.g. Clang) - this is just a GCC thing.
+        if instruction == "smlabt":
+            yield f"sum_{index} = __builtin_arm_smlatb({op2}, {op1}, sum_{index});"
         else:
-            yield f'asm ("{instruction} %0, %1, %2" : "=r" (sum_{index}) : "r" ({op1}), "r" ({op2}));'
+            yield f"sum_{index} = __builtin_arm_{instruction}({op1}, {op2}, sum_{index});"
 
 
 def _requantize_sums(num_sums) -> Iterator[str]:
@@ -207,9 +177,9 @@ def _requantize_sums(num_sums) -> Iterator[str]:
     halfwords in a word, and rearrainging it would take at least one cycle. Two SSAT operations is
     just as good.
 
-    Lastly, calling __builtin_arm_ssat is a little bit gross, but GCC and Clang are unreliable about
-    compiling other ways of writing this. Both the multiply + shift and shift + saturation combine
-    to one instruction each."""
+    Calling __builtin_arm_ssat directly is a little bit gross, but GCC and Clang are unreliable
+    about compiling other ways of writing this. Both the multiply + shift and shift + saturation
+    combine to one instruction each."""
 
     for i in range(num_sums):
         yield f"int requant_{i} = (sum_{i} * (long long) requant_scale) >> 32;"
@@ -237,7 +207,7 @@ def _write_sums_to_memory(num_sums, offset, stride) -> Iterator[str]:
             yield f"int packed_res_{i} = requant_{index} + (requant_{index + 1} << 16);"
 
         if offset == 1:
-            yield f"((short*) output)[1] = (short) requant_0;"
+            yield "((short*) output)[1] = (short) requant_0;"
 
         for i in range(num_halfwords):
             yield f"output[{offset + i}] = packed_res_{i};"
@@ -251,12 +221,39 @@ def tensordot_int16_impl(
     dimensions: Tuple[int, int, int],
     offsets: Tuple[int, int, int],
     x_strides: Tuple[int, int],
-) -> str:
-    """Code for a specialized version of tensordot, which computes `split_size` tensordot operations
+) -> Tuple[str, str]:
+    """Code for a quantized version of tensordot, which computes `split_size` tensordot operations
     at the same time. Only works with `int16`. The generated function takes as input pointers to the
-    output, tensor, and kernel, which must be word-aligned. However, the stride can be half a word.
+    output, tensor, and kernel, which must be word-aligned.
+
+    Parameters
+    ----------
+    split_size: int
+        The number of tensordot values to compute in this function. Computing more than one at once
+        makes us much faster by reducing how often overlapping data is loaded. However, setting this
+        too high causes us to run out of registers and need to store data on the stack. We should
+        autotune this, but split_size=2 is usually OK.
+
+    dimensions: Tuple[int, int, int]
+        The dimensions of each tensordot operation. dimensions[1] and dimensions[2] are the height
+        and width of the kernel, respectively. dimensions[0] is the width of the data tensor, which
+        is usually larger than the kernel.
+
+    offsets: Tuple[int, int, int]
+        Each value is 0 or 1, and represents how far after the given data, kernel, and output
+        pointers (respectively) we should start reading/writing. This prevents us from having to
+        check if each pointer is aligned or unaligned at runtime, making us faster.
+
+    x_strides: Tuple[int, int]
+        The distance (in halfwords) between the start of each input tensor, and where to write each
+        output result respectively. Only used when split_size > 1.
+
+    Returns
+    -------
+    func_name, func_code: Tuple[str, str]
+        The name and source code of the generated function.
     """
-    function_name = get_c_function_name(split_size, dimensions, offsets, x_strides)
+    function_name = _get_c_function_name(split_size, dimensions, offsets, x_strides)
     tensor_w, kernel_h, kernel_w = dimensions
     tensor_offset, kernel_offset, output_offset = offsets
     assert tensor_offset < 2 and kernel_offset < 2 and output_offset < 2
@@ -281,11 +278,14 @@ def tensordot_int16_impl(
     def insert_lines(lines):
         return ("\n" + " " * 10).join(lines)
 
-    # __WEAK allows multiple copies of the function to overwrite themselves, saving flash
+    # It's very common for one model to have different layers that use identical tensordot
+    # functions. To prevent function re-definition errors, we need an #include guard. This is better
+    # than adding a random suffix, as it saves flash memory.
     code = textwrap.dedent(
         f"""
-        #include <arm_nnsupportfunctions.h>
-        __STATIC_FORCEINLINE __WEAK int {function_name}(
+        #ifndef {function_name.upper()}_EXISTS
+        #define {function_name.upper()}_EXISTS
+        __attribute__((always_inline)) static inline int {function_name}(
             int *output, int *tensor, int *kernel, int bias, int requant_scale
         ) {{
           {_init_biased_accumulators(split_size)}
@@ -301,6 +301,7 @@ def tensordot_int16_impl(
           {insert_lines(write_out_lines)}
           return 0;
         }}
+        #endif
         """
     )
     return (function_name, code)

@@ -115,7 +115,7 @@ class GeneralizedConv2dTests:
         output_tensor_name, output_tensor = next(iter(ref_outputs.items()))
         ref_outputs[output_tensor_name] = change_ndarray_layout(output_tensor, "NHWC", out_layout)
 
-        test_input_data = _change_ndarray_layout(ref_input_data, "NHWC", data_layout)
+        test_input_data = change_ndarray_layout(ref_input_data, "NHWC", data_layout)
         test_input_var = relay.var("input", relay.TensorType(test_input_data.shape, in_dtype))
         test_kernel_data = change_ndarray_layout(ref_kernel_data, "HWIO", kernel_layout)
 

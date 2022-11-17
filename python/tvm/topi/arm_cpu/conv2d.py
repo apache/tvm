@@ -38,6 +38,7 @@ from .mprofile.dsp.conv2d import (
     conv2d_nhwc_dsp_schedule,
 )
 
+
 @autotvm.register_topi_compute("conv2d_nchw_spatial_pack.arm_cpu")
 def conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """Compute conv2d with NCHW layout"""

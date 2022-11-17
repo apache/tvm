@@ -14,23 +14,34 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Definition of Hexagon operator strategy."""
-# pylint: disable=unused-argument,wildcard-import,unused-wildcard-import
+"""Quantized operator strategy for Arm CPU. These schedules are only used if the qnn.Legalize pass
+is disabled. These schedules only work on fused operators with a bias, as this is a very common use
+case. Currently only regular/depthwise conv2d is supported, but qnn_dense should be added."""
 
 from tvm import topi
-from .generic import *
+from .generic import qnn_conv2d_strategy
 from ... import op as _op
 from ...op.strategy.generic import is_depthwise_conv2d
 
+
 @qnn_conv2d_strategy.register("arm_cpu")
-def qnn_conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
-    """qnn.conv2d strategy for Arm CPU"""
+def qnn_conv2d_strategy_arm_cpu(attrs, inputs, _out_type, target):
+    """qnn.conv2d strategy for Arm CPU. Currently, the schedules only support Cortex-M processors
+    with DSP - the qnn.Legalize pass should be run on all others."""
+
+    if not (target.features.has_dsp and "cortex-m" in target.mcpu):
+        raise RuntimeError(
+            "Quantized Arm schedules only exist for Cortex-M with DSP! "
+            "The qnn.Legalize pass should be run for other Arm processors."
+        )
+
     data = inputs[0]
     kernel = inputs[1]
     data_layout = attrs.data_layout
     kernel_layout = attrs.kernel_layout
     groups = attrs.groups
     strategy = _op.OpStrategy()
+
     if groups == 1:
         if data_layout == "NHWC" and kernel_layout == "OHWI":
             strategy.add_implementation(
@@ -46,6 +57,6 @@ def qnn_conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 name="qnn_depthwise_conv2d.arm_cpu",
             )
     else:
-        raise RuntimeError("Unsupported strategy for group qnn.conv2d")
+        raise RuntimeError("No Arm Cortex-M DSP strategy exists for generic group qnn.conv2d")
 
     return strategy
