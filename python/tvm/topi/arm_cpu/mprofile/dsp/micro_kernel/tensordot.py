@@ -23,6 +23,7 @@ from itertools import chain
 import textwrap
 from typing import Iterator, Tuple
 
+
 def _get_c_function_name(split_size, dimensions, offsets, x_strides):
     """Gets the C function name of the tensordot function. We do not need a suffix, as the generated
     function will have an #include guard. Unlike other microTVM operators, _get_c_function_name is

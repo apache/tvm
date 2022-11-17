@@ -21,6 +21,7 @@ import numpy as np
 from tvm import nd, relay, target
 from ..nn import qnn_requantize_alter_layout, qnn_add_alter_layout
 
+
 @qnn_requantize_alter_layout.register(["arm_cpu"])
 def alter_requantize_layout(attrs, inputs, _tinfos, _out_type):
     """microTVM wants to manually choose the integer rounding constants in order to:
@@ -53,7 +54,7 @@ def _is_qnn_op_depthwise_conv2d(qnn_conv2d_op):
         qnn_conv2d_op.attrs.data_layout,
         qnn_conv2d_op.args[1].data.shape,
         qnn_conv2d_op.attrs.kernel_layout,
-        qnn_conv2d_op.attrs.groups
+        qnn_conv2d_op.attrs.groups,
     )
 
 
@@ -94,7 +95,7 @@ def alter_add_layout(_attrs, inputs, _tinfos, _out_type):
     # whether arr.dtype == "int32" (since Numpy will automatically increase dtype in some cases)
     # but this leads to weird wrapping behavior and doesn't work. We must do it manually.
     new_biases = biases.data.numpy().astype("int64") + zp_shifted_sums
-    if new_biases.min() < -2**31 or new_biases.max() > 2**31 - 1:
+    if new_biases.min() < -(2**31) or new_biases.max() > 2**31 - 1:
         return None
 
     new_input_zp = relay.Constant(nd.array(np.int32(0)))

@@ -191,7 +191,7 @@ def simulated_dequantize(data, in_dtype, input_scale=None, input_zero_point=None
 
 
 @tvm.target.generic_func
-def qnn_requantize_alter_layout(attrs, inputs, tinfos, out_type):
+def qnn_requantize_alter_layout(_attrs, _inputs, _tinfos, _out_type):
     """Change requantize layout.
 
     Parameters
@@ -213,7 +213,7 @@ def qnn_requantize_alter_layout(attrs, inputs, tinfos, out_type):
 
 
 @tvm.target.generic_func
-def qnn_add_alter_layout(attrs, inputs, tinfos, out_type):
+def qnn_add_alter_layout(_attrs, _inputs, _tinfos, _out_type):
     """Change add layout. Add is not a QNN-specific function, but this generic exists so that bias
     add operations can be fused with input zero point add optimizations, which only happens if the
     previous operator is quantized.
