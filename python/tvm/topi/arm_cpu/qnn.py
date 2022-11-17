@@ -82,7 +82,7 @@ def _pick_tensordot_impl(attrs, data, kernel, num_sums=2, is_depthwise=False):
 
     kernel_per_oc_size = dimensions[1] * dimensions[2]
 
-    offsets = (data_per_oc_size % 2, (kernel_per_oc_size % 2), 0)
+    offsets = (data_per_oc_size % 2, kernel_per_oc_size % 2, 0)
     offset_func = tensordot.tensordot_int16_impl(num_sums, dimensions, offsets, x_strides)
 
     return (aligned_func, offset_func)
@@ -100,8 +100,19 @@ def _get_tscript_const_tuple(values):
     return tuple(tvm.tir.const(n) for n in get_const_tuple(values))
 
 
-def _make_tscript_val(val):
-    return tvm.tir.const(val)
+def _make_tscript_ptr(buffer, offset, length):
+    return T.tvm_access_ptr(
+        T.type_annotation(dtype="int16"),
+        buffer.data,
+        offset,
+        length,
+        1,
+        dtype="handle",
+    )
+
+
+def _make_tscript_call(func_name, *args):
+    return T.evaluate(T.call_extern(func_name, *args, dtype="int32"))
 
 
 def qnn_conv2d(attrs, inputs, out_type):
@@ -124,8 +135,6 @@ def qnn_conv2d(attrs, inputs, out_type):
 
     out_height = _compute_output_dim(height, kernel_h, y_stride)
     out_width = _compute_output_dim(width, kernel_w, x_stride)
-
-
 
     """Step two: we decide how many sums our function should have running at the same time. Doing
     this lets us do "more work" for each memory load, but doing too many of them causes us to run
@@ -161,19 +170,38 @@ def qnn_conv2d(attrs, inputs, out_type):
         offset_calls = tvm.tir.const(0)
         tc_oc_step = tvm.tir.const(1)
 
-    """Step four: we set up some constants to help index into our buffers. Data layout is NHWC."""
-
-    #
+    # Helper functions for making pointers.
 
     tc_out_y_stride = tvm.tir.const(out_width * out_channels)
     tc_out_x_stride = tvm.tir.const(out_channels * num_sums)
     tc_out_calls_per_row = tvm.tir.const(out_width // num_sums)
     tc_out_num_rows = tvm.tir.const(out_height)
 
+    def output_ptr(buffer, y, x, c):
+        return _make_tscript_ptr(
+            buffer,
+            y * tc_out_y_stride + x * tc_out_x_stride + c,
+            1,
+        )
+
     tc_data_y_stride = tvm.tir.const(y_stride * width * in_channels)
     tc_data_x_stride = tvm.tir.const(x_stride * num_sums * in_channels)
 
+    def data_ptr(buffer, y, x):
+        return _make_tscript_ptr(
+            buffer,
+            y * tc_data_y_stride + x * tc_data_x_stride,
+            tc_data_x_stride * num_sums,
+        )
+
     tc_kernel_oc_stride = tvm.tir.const(kernel_h * kernel_w * in_channels)
+
+    def kernel_ptr(buffer, c, offset=0):
+        return _make_tscript_ptr(
+            buffer,
+            c * tc_kernel_oc_stride - offset,
+            tc_kernel_oc_stride + offset,
+        )
 
     @T.prim_func
     def biased_quantized_conv2d(
@@ -183,7 +211,6 @@ def qnn_conv2d(attrs, inputs, out_type):
         requantize_handle: T.handle,
         output_handle: T.handle,
     ) -> None:
-
 
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         DATA = T.match_buffer(data_handle, data.shape, dtype="int16")
@@ -198,80 +225,30 @@ def qnn_conv2d(attrs, inputs, out_type):
         x = DATA[0, 0, 0, 0]
         y = KERNEL[0, 0, 0, 0]
 
-
         for oc, oh, ow in T.grid(aligned_calls, tc_out_num_rows, tc_out_calls_per_row):
             with T.block("conv2d_aligned"):
                 T.block_attr({"pragma_import_c": aligned_func_code})
                 voh, vow, voc = T.axis.remap("SSS", [oh, ow, oc])
-
-                T.evaluate(
-                    T.call_extern(
-                        aligned_func_name,
-                        T.tvm_access_ptr(
-                            T.type_annotation(dtype="int16"),
-                            OUTPUT.data,
-                            voh * tc_out_y_stride + vow * tc_out_x_stride + voc * tc_oc_step,
-                            1,
-                            1,
-                            dtype="handle",
-                        ),
-                        T.tvm_access_ptr(
-                            T.type_annotation(dtype="int16"),
-                            DATA.data,
-                            voh * tc_data_y_stride + vow * tc_data_x_stride,
-                            1,
-                            1,
-                            dtype="handle",
-                        ),
-                        T.tvm_access_ptr(
-                            T.type_annotation(dtype="int16"),
-                            KERNEL.data,
-                            voc * tc_kernel_oc_stride * tc_oc_step,
-                            1,
-                            1,
-                            dtype="handle",
-                        ),
-                        BIAS[0, 0, 0, voc * tc_oc_step],
-                        REQUANTIZE_SCALE[voc * tc_oc_step],
-                        dtype="int32",
-                    )
+                _make_tscript_call(
+                    aligned_func_name,
+                    output_ptr(OUTPUT, voh, vow, voc * tc_oc_step),
+                    data_ptr(DATA, voh, vow),
+                    kernel_ptr(KERNEL, voc * tc_oc_step),
+                    BIAS[0, 0, 0, voc * tc_oc_step],
+                    REQUANTIZE_SCALE[voc * tc_oc_step],
                 )
 
         for oc, oh, ow in T.grid(offset_calls, tc_out_num_rows, tc_out_calls_per_row):
             with T.block("conv2d_offset"):
                 T.block_attr({"pragma_import_c": offset_func_code})
                 voh, vow, voc = T.axis.remap("SSS", [oh, ow, oc])
-                T.evaluate(
-                    T.call_extern(
-                        offset_func_name,
-                        T.tvm_access_ptr(
-                            T.type_annotation(dtype="int16"),
-                            OUTPUT.data,
-                            voh * tc_out_y_stride + vow * tc_out_x_stride + voc * tc_oc_step + 1,
-                            0,
-                            1,
-                            dtype="handle",
-                        ),
-                        T.tvm_access_ptr(
-                            T.type_annotation(dtype="int16"),
-                            DATA.data,
-                            voh * tc_data_y_stride + vow * tc_data_x_stride,
-                            0,
-                            1,
-                            dtype="handle",
-                        ),
-                        T.tvm_access_ptr(
-                            T.type_annotation(dtype="int16"),
-                            KERNEL.data,
-                            (voc * tc_oc_step + 1) * tc_kernel_oc_stride - 1,
-                            0,
-                            1,
-                            dtype="handle",
-                        ),
-                        BIAS[0, 0, 0, voc * tc_oc_step + 1],
-                        REQUANTIZE_SCALE[voc * tc_oc_step + 1],
-                        dtype="int32",
-                    )
+                _make_tscript_call(
+                    offset_func_name,
+                    output_ptr(OUTPUT, voh, vow, voc * tc_oc_step + 1),
+                    data_ptr(DATA, voh, vow),
+                    kernel_ptr(KERNEL, voc * tc_oc_step + 1, offset=1),
+                    BIAS[0, 0, 0, voc * tc_oc_step + 1],
+                    REQUANTIZE_SCALE[voc * tc_oc_step + 1],
                 )
 
     output = te.extern_primfunc(
@@ -281,10 +258,14 @@ def qnn_conv2d(attrs, inputs, out_type):
 
 
 def schedule_qnn_conv2d(attrs, outs, target):
+    """Schedule function for qnn.conv2d."""
     return None
 
 
 def qnn_depthwise_conv2d(attrs, inputs, out_type):
+    """Compute for qnn.depthwise_conv2d with NCHW layout. Works basically the same way as regular
+    conv2d - see above."""
+
     assert len(inputs) == 11
     data, kernel, _izp, _kzp, _iscale, _kscale, bias, rq_scale = inputs[0:8]
     output_layout = attrs.out_layout
@@ -299,19 +280,12 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
     out_height = _compute_output_dim(height, kernel_h, y_stride)
     out_width = _compute_output_dim(width, kernel_w, x_stride)
 
-
-    """Step two: we decide how many sums our function should have running at the same time. Doing
-    this lets us do "more work" for each memory load, but doing too many of them causes us to run
-    out of registers. Currently this is set to either 1 or 2, but autotuning this value would
-    improve performance a lot."""
     num_sums = 2
 
     aligned_func, offset_func = _pick_tensordot_impl(attrs, data, kernel, num_sums, True)
     aligned_func_name, aligned_func_code = aligned_func
     offset_func_name, offset_func_code = offset_func
 
-    """These constants decide how much the aligned and offset functions will be called. They are
-    chosen so that the offset function will be deleted if not used."""
     if offset_func_name:
         aligned_calls = tvm.tir.const(out_channels // 2)
         offset_calls = tvm.tir.const(out_channels // 2)
@@ -321,17 +295,13 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
         else:
             x_ptr_offset = tvm.tir.const(0)
 
-
     else:
-        assert False
         aligned_calls = tvm.tir.const(out_channels)
         offset_calls = tvm.tir.const(0)
         tc_oc_step = tvm.tir.const(1)
         x_ptr_offset = tvm.tir.const(0)
 
-    """Step four: we set up some constants to help index into our buffers. Data layout is NHWC."""
-
-    #
+    # Helper functions for making pointers.
 
     # NHWC
     tc_out_y_stride = tvm.tir.const(out_width * out_channels)
@@ -339,14 +309,34 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
     tc_out_calls_per_row = tvm.tir.const(out_width // num_sums)
     tc_out_num_rows = tvm.tir.const(out_height)
 
+    def output_ptr(buffer, y, x, c):
+        return _make_tscript_ptr(
+            buffer,
+            y * tc_out_y_stride + x * tc_out_x_stride + c,
+            1,
+        )
+
     # NCHW
     tc_data_oc_stride = tvm.tir.const(width * height)
     tc_data_y_stride = tvm.tir.const(y_stride * width)
     tc_data_x_stride = tvm.tir.const(x_stride * num_sums)
 
+    def data_ptr(buffer, c, y, x, offset=0):
+        return _make_tscript_ptr(
+            buffer,
+            c * tc_data_oc_stride + y * tc_data_y_stride + x * tc_data_x_stride + offset,
+            tc_data_x_stride * num_sums,
+        )
+
     # OIHW
-    tc_kernel_oc_stride = tvm.tir.const(kernel_h * kernel_w * in_channels)
     tc_kernel_ic_stride = tvm.tir.const(kernel_h * kernel_w)
+
+    def kernel_ptr(buffer, ic, offset=0):
+        return _make_tscript_ptr(
+            buffer,
+            ic * tc_kernel_ic_stride - offset,
+            tc_kernel_ic_stride + offset,
+        )
 
     @T.prim_func
     def biased_quantized_conv2d(
@@ -356,7 +346,6 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
         requantize_handle: T.handle,
         output_handle: T.handle,
     ) -> None:
-
 
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         DATA = T.match_buffer(data_handle, data.shape, dtype="int16")
@@ -371,81 +360,31 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
         x = DATA[0, 0, 0, 0]
         y = KERNEL[0, 0, 0, 0]
 
-
-
         for oc, oh, ow in T.grid(offset_calls, tc_out_num_rows, tc_out_calls_per_row):
             with T.block("depthwise_conv2d_aligned"):
                 T.block_attr({"pragma_import_c": aligned_func_code})
                 voh, vow, voc = T.axis.remap("SSS", [oh, ow, oc])
 
-                T.evaluate(
-                    T.call_extern(
-                        aligned_func_name,
-                        T.tvm_access_ptr(
-                            T.type_annotation(dtype="int16"),
-                            OUTPUT.data,
-                            voh * tc_out_y_stride + vow * tc_out_x_stride + voc * tc_oc_step,
-                            1,
-                            1,
-                            dtype="handle",
-                        ),
-                        T.tvm_access_ptr(
-                            T.type_annotation(dtype="int16"),
-                            DATA.data,
-                            voc * tc_data_oc_stride * tc_oc_step + voh * tc_data_y_stride + vow * tc_data_x_stride,
-                            1,
-                            1,
-                            dtype="handle",
-                        ),
-                        T.tvm_access_ptr(
-                            T.type_annotation(dtype="int16"),
-                            KERNEL.data,
-                            voc * tc_kernel_ic_stride * tc_oc_step,
-                            1,
-                            1,
-                            dtype="handle",
-                        ),
-                        BIAS[0, 0, 0, voc * tc_oc_step],
-                        REQUANTIZE_SCALE[voc * tc_oc_step],
-                        dtype="int32",
-                    )
+                _make_tscript_call(
+                    aligned_func_name,
+                    output_ptr(OUTPUT, voh, vow, voc * tc_oc_step),
+                    data_ptr(DATA, voc * tc_oc_step, voh, vow),
+                    kernel_ptr(KERNEL, voc * tc_oc_step),
+                    BIAS[0, 0, 0, voc * tc_oc_step],
+                    REQUANTIZE_SCALE[voc * tc_oc_step],
                 )
 
         for oc, oh, ow in T.grid(offset_calls, tc_out_num_rows, tc_out_calls_per_row):
             with T.block("depthwise_conv2d_offset"):
                 T.block_attr({"pragma_import_c": offset_func_code})
                 voh, vow, voc = T.axis.remap("SSS", [oh, ow, oc])
-                T.evaluate(
-                    T.call_extern(
-                        offset_func_name,
-                        T.tvm_access_ptr(
-                            T.type_annotation(dtype="int16"),
-                            OUTPUT.data,
-                            voh * tc_out_y_stride + vow * tc_out_x_stride + voc * tc_oc_step + 1,
-                            0,
-                            1,
-                            dtype="handle",
-                        ),
-                        T.tvm_access_ptr(
-                            T.type_annotation(dtype="int16"),
-                            DATA.data,
-                            (voc * tc_oc_step + 1) * tc_data_oc_stride + voh * tc_data_y_stride + vow * tc_data_x_stride + x_ptr_offset,
-                            0,
-                            1,
-                            dtype="handle",
-                        ),
-                        T.tvm_access_ptr(
-                            T.type_annotation(dtype="int16"),
-                            KERNEL.data,
-                            (voc * tc_oc_step + 1) * tc_kernel_ic_stride - 1,
-                            0,
-                            1,
-                            dtype="handle",
-                        ),
-                        BIAS[0, 0, 0, voc * tc_oc_step + 1],
-                        REQUANTIZE_SCALE[voc * tc_oc_step + 1],
-                        dtype="int32",
-                    )
+                _make_tscript_call(
+                    offset_func_name,
+                    output_ptr(OUTPUT, voh, vow, voc * tc_oc_step + 1),
+                    data_ptr(DATA, voc * tc_oc_step + 1, voh, vow, offset=x_ptr_offset),
+                    kernel_ptr(KERNEL, voc * tc_oc_step + 1, offset=1),
+                    BIAS[0, 0, 0, voc * tc_oc_step + 1],
+                    REQUANTIZE_SCALE[voc * tc_oc_step + 1],
                 )
 
     output = te.extern_primfunc(
@@ -453,5 +392,7 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
     )
     return [output]
 
+
 def schedule_qnn_depthwise_conv2d(attrs, outs, target):
+    """Schedule function for qnn.depthwise_conv2d."""
     return None
