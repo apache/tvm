@@ -32,18 +32,13 @@ from tvm.tir.schedule import BlockRV, Schedule
 logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 
-
+# fmt: off
 @tvm.script.ir_module
 class WinogradConv2d:
     @T.prim_func
-    def main(
-        p0: T.Buffer[(2, 2048, 50, 75), "float32"],
-        p1: T.Buffer[(4, 4, 2048, 2048), "float32"],
-        p2: T.Buffer[(1, 2048, 1, 1), "float32"],
-        T_relu: T.Buffer[(2, 2048, 50, 75), "float32"],
-    ):
+    def main(p0: T.Buffer[(2, 2048, 50, 75), "float32"], p1: T.Buffer[(4, 4, 2048, 2048), "float32"], p2: T.Buffer[(1, 2048, 1, 1), "float32"], T_relu: T.Buffer[(2, 2048, 50, 75), "float32"]):
         # function attr dict
-        T.func_attr({"layout_free_buffers": [1], "tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         # body
         # with T.block("root")
         data_pad = T.alloc_buffer([2, 2048, 52, 77], dtype="float32")
@@ -60,109 +55,30 @@ class WinogradConv2d:
                 i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(p0[i0_1, i1_1, i2_1 - 1, i3_1 - 1])
                 T.writes(data_pad[i0_1, i1_1, i2_1, i3_1])
-                data_pad[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(
-                    1 <= i2_1 and i2_1 < 51 and 1 <= i3_1 and i3_1 < 76,
-                    p0[i0_1, i1_1, i2_1 - 1, i3_1 - 1],
-                    T.float32(0),
-                    dtype="float32",
-                )
+                data_pad[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(1 <= i2_1 and i2_1 < 51 and 1 <= i3_1 and i3_1 < 76, p0[i0_1, i1_1, i2_1 - 1, i3_1 - 1], T.float32(0), dtype="float32")
         for i0, i1, i2, i3 in T.grid(2048, 1900, 4, 4):
             with T.block("input_tile"):
                 ci, p, eps, nu = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(data_pad[p // 950, ci, p % 950 // 38 * 2 + eps, p % 38 * 2 + nu])
                 T.writes(input_tile[ci, p, eps, nu])
-                T.block_attr({"schedule_rule": "None"})
-                input_tile[ci, p, eps, nu] = data_pad[
-                    p // 950, ci, p % 950 // 38 * 2 + eps, p % 38 * 2 + nu
-                ]
+                T.block_attr({"schedule_rule":"None"})
+                input_tile[ci, p, eps, nu] = data_pad[p // 950, ci, p % 950 // 38 * 2 + eps, p % 38 * 2 + nu]
         for i0, i1 in T.grid(4, 4):
             with T.block("B"):
                 i, j = T.axis.remap("SS", [i0, i1])
                 T.reads()
                 T.writes(B[i, j])
-                T.block_attr({"schedule_rule": "None"})
-                B[i, j] = T.Select(
-                    i % 4 == 3 and j % 4 == 3,
-                    T.float32(1),
-                    T.Select(
-                        i % 4 == 3 and j % 4 == 2,
-                        T.float32(0),
-                        T.Select(
-                            i % 4 == 3 and j % 4 == 1,
-                            T.float32(0),
-                            T.Select(
-                                i % 4 == 3 and j % 4 == 0,
-                                T.float32(0),
-                                T.Select(
-                                    i % 4 == 2 and j % 4 == 3,
-                                    T.float32(0),
-                                    T.Select(
-                                        i % 4 == 2 and j % 4 == 2,
-                                        T.float32(1),
-                                        T.Select(
-                                            i % 4 == 2 and j % 4 == 1,
-                                            T.float32(1),
-                                            T.Select(
-                                                i % 4 == 2 and j % 4 == 0,
-                                                T.float32(-1),
-                                                T.Select(
-                                                    i % 4 == 1 and j % 4 == 3,
-                                                    T.float32(-1),
-                                                    T.Select(
-                                                        i % 4 == 1 and j % 4 == 2,
-                                                        T.float32(1),
-                                                        T.Select(
-                                                            i % 4 == 1 and j % 4 == 1,
-                                                            T.float32(-1),
-                                                            T.Select(
-                                                                i % 4 == 1 and j % 4 == 0,
-                                                                T.float32(0),
-                                                                T.Select(
-                                                                    i % 4 == 0 and j % 4 == 3,
-                                                                    T.float32(0),
-                                                                    T.Select(
-                                                                        i % 4 == 0 and j % 4 == 2,
-                                                                        T.float32(0),
-                                                                        T.Select(
-                                                                            i % 4 == 0
-                                                                            and j % 4 == 1,
-                                                                            T.float32(0),
-                                                                            T.Select(
-                                                                                i % 4 == 0
-                                                                                and j % 4 == 0,
-                                                                                T.float32(1),
-                                                                                T.float32(0),
-                                                                            ),
-                                                                        ),
-                                                                    ),
-                                                                ),
-                                                            ),
-                                                        ),
-                                                    ),
-                                                ),
-                                            ),
-                                        ),
-                                    ),
-                                ),
-                            ),
-                        ),
-                    ),
-                )
+                T.block_attr({"schedule_rule":"None"})
+                B[i, j] = T.Select(i % 4 == 3 and j % 4 == 3, T.float32(1), T.Select(i % 4 == 3 and j % 4 == 2, T.float32(0), T.Select(i % 4 == 3 and j % 4 == 1, T.float32(0), T.Select(i % 4 == 3 and j % 4 == 0, T.float32(0), T.Select(i % 4 == 2 and j % 4 == 3, T.float32(0), T.Select(i % 4 == 2 and j % 4 == 2, T.float32(1), T.Select(i % 4 == 2 and j % 4 == 1, T.float32(1), T.Select(i % 4 == 2 and j % 4 == 0, T.float32(-1), T.Select(i % 4 == 1 and j % 4 == 3, T.float32(-1), T.Select(i % 4 == 1 and j % 4 == 2, T.float32(1), T.Select(i % 4 == 1 and j % 4 == 1, T.float32(-1), T.Select(i % 4 == 1 and j % 4 == 0, T.float32(0), T.Select(i % 4 == 0 and j % 4 == 3, T.float32(0), T.Select(i % 4 == 0 and j % 4 == 2, T.float32(0), T.Select(i % 4 == 0 and j % 4 == 1, T.float32(0), T.Select(i % 4 == 0 and j % 4 == 0, T.float32(1), T.float32(0)))))))))))))))))
         for i0, i1, i2, i3, i4, i5 in T.grid(4, 4, 2048, 1900, 4, 4):
             with T.block("data_pack"):
                 eps, nu, ci, p, r_a, r_b = T.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
-                T.reads(
-                    input_tile[ci, p, r_a, r_b],
-                    B[T.min(r_a, r_b) : T.max(r_a, r_b) + 1, T.min(eps, nu) : T.max(eps, nu) + 1],
-                )
+                T.reads(input_tile[ci, p, r_a, r_b], B[T.min(r_a, r_b) : T.max(r_a, r_b) + 1, T.min(eps, nu) : T.max(eps, nu) + 1])
                 T.writes(data_pack[eps, nu, ci, p])
-                T.block_attr({"schedule_rule": "conv2d_nchw_winograd_data_pack"})
+                T.block_attr({"schedule_rule":"conv2d_nchw_winograd_data_pack"})
                 with T.init():
                     data_pack[eps, nu, ci, p] = T.float32(0)
-                data_pack[eps, nu, ci, p] = (
-                    data_pack[eps, nu, ci, p]
-                    + input_tile[ci, p, r_a, r_b] * B[r_a, eps] * B[r_b, nu]
-                )
+                data_pack[eps, nu, ci, p] = data_pack[eps, nu, ci, p] + input_tile[ci, p, r_a, r_b] * B[r_a, eps] * B[r_b, nu]
         for i0, i1, i2, i3, i4 in T.grid(4, 4, 2048, 1900, 2048):
             with T.block("bgemm"):
                 eps, nu, co, p, ci = T.axis.remap("SSSSR", [i0, i1, i2, i3, i4])
@@ -170,70 +86,29 @@ class WinogradConv2d:
                 T.writes(bgemm[eps, nu, co, p])
                 with T.init():
                     bgemm[eps, nu, co, p] = T.float32(0)
-                bgemm[eps, nu, co, p] = (
-                    bgemm[eps, nu, co, p] + data_pack[eps, nu, ci, p] * p1[eps, nu, ci, co]
-                )
+                bgemm[eps, nu, co, p] = bgemm[eps, nu, co, p] + data_pack[eps, nu, ci, p] * p1[eps, nu, ci, co]
         for i0, i1 in T.grid(4, 2):
             with T.block("A"):
                 i, j = T.axis.remap("SS", [i0, i1])
                 T.reads()
                 T.writes(A[i, j])
-                T.block_attr({"schedule_rule": "None"})
-                A[i, j] = T.Select(
-                    i % 4 == 3 and j % 2 == 1,
-                    T.float32(1),
-                    T.Select(
-                        i % 4 == 3 and j % 2 == 0,
-                        T.float32(0),
-                        T.Select(
-                            i % 4 == 2 and j % 2 == 1,
-                            T.float32(1),
-                            T.Select(
-                                i % 4 == 2 and j % 2 == 0,
-                                T.float32(1),
-                                T.Select(
-                                    i % 4 == 1 and j % 2 == 1,
-                                    T.float32(-1),
-                                    T.Select(
-                                        i % 4 == 1 and j % 2 == 0,
-                                        T.float32(1),
-                                        T.Select(
-                                            i % 4 == 0 and j % 2 == 1,
-                                            T.float32(0),
-                                            T.Select(
-                                                i % 4 == 0 and j % 2 == 0,
-                                                T.float32(1),
-                                                T.float32(0),
-                                            ),
-                                        ),
-                                    ),
-                                ),
-                            ),
-                        ),
-                    ),
-                )
+                T.block_attr({"schedule_rule":"None"})
+                A[i, j] = T.Select(i % 4 == 3 and j % 2 == 1, T.float32(1), T.Select(i % 4 == 3 and j % 2 == 0, T.float32(0), T.Select(i % 4 == 2 and j % 2 == 1, T.float32(1), T.Select(i % 4 == 2 and j % 2 == 0, T.float32(1), T.Select(i % 4 == 1 and j % 2 == 1, T.float32(-1), T.Select(i % 4 == 1 and j % 2 == 0, T.float32(1), T.Select(i % 4 == 0 and j % 2 == 1, T.float32(0), T.Select(i % 4 == 0 and j % 2 == 0, T.float32(1), T.float32(0)))))))))
         for i0, i1, i2, i3, i4, i5 in T.grid(2048, 1900, 2, 2, 4, 4):
             with T.block("inverse"):
                 co, p, vh, vw, r_a, r_b = T.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
-                T.reads(
-                    bgemm[r_a, r_b, co, p],
-                    A[T.min(r_a, r_b) : T.max(r_a, r_b) + 1, T.min(vh, vw) : T.max(vh, vw) + 1],
-                )
+                T.reads(bgemm[r_a, r_b, co, p], A[T.min(r_a, r_b) : T.max(r_a, r_b) + 1, T.min(vh, vw) : T.max(vh, vw) + 1])
                 T.writes(inverse[co, p, vh, vw])
-                T.block_attr({"schedule_rule": "conv2d_nchw_winograd_inverse"})
+                T.block_attr({"schedule_rule":"conv2d_nchw_winograd_inverse"})
                 with T.init():
                     inverse[co, p, vh, vw] = T.float32(0)
-                inverse[co, p, vh, vw] = (
-                    inverse[co, p, vh, vw] + bgemm[r_a, r_b, co, p] * A[r_a, vh] * A[r_b, vw]
-                )
+                inverse[co, p, vh, vw] = inverse[co, p, vh, vw] + bgemm[r_a, r_b, co, p] * A[r_a, vh] * A[r_b, vw]
         for i0, i1, i2, i3 in T.grid(2, 2048, 50, 75):
             with T.block("conv2d_winograd"):
                 n, co, h, w = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(inverse[co, n * 950 + h // 2 * 38 + w // 2, h % 2, w % 2])
                 T.writes(conv2d_winograd[n, co, h, w])
-                conv2d_winograd[n, co, h, w] = inverse[
-                    co, n * 950 + h // 2 * 38 + w // 2, h % 2, w % 2
-                ]
+                conv2d_winograd[n, co, h, w] = inverse[co, n * 950 + h // 2 * 38 + w // 2, h % 2, w % 2]
         for i0, i1, i2, i3 in T.grid(2, 2048, 50, 75):
             with T.block("T_add"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -274,6 +149,7 @@ def two_step(a: T.handle, c: T.handle) -> None:
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 3.0
+# fmt: on
 
 
 @tvm.testing.requires_llvm
