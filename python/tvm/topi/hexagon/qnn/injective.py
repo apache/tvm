@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""One to one quantized operators. Use LUTs."""
+
 from tvm import te
 from tvm import tir
 

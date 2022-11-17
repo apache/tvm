@@ -15,6 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""This LUT code is designed to take an arbitrary python function,
+passed in as the compute tag, and turn it into a compile-time computed
+LUT."""
+
 # pylint: disable=unused-import
 import math
 from textwrap import dedent
