@@ -203,14 +203,16 @@ class HillClimbAllocator : public GreedyBase {
 #else
 #define rnd_func() rand()
 #endif
-
+    Map<BufferInfo, PoolAllocation> result;
+    if (!buffer_info_arr.size()) {
+      return result;
+    }
     std::vector<BufferInfo> buffer_info_vec;
     for (const auto& buffer_info : buffer_info_arr) {
       ICHECK(buffer_info->pool_candidates.size())
           << "Cannot process buffer \"" << buffer_info->name_hint << "\" with no pool candidates";
       buffer_info_vec.push_back(std::move(buffer_info));
     }
-
     sort_vector<BufferInfo>(&buffer_info_vec);
 
     // populate positional index map
@@ -342,7 +344,6 @@ class HillClimbAllocator : public GreedyBase {
       swap_buffers(swap_i1, swap_i2);
     }
 
-    Map<BufferInfo, PoolAllocation> result;
     // return winning combination
     for (auto it : result_pool_allocations) {
       // post-check that everything was fit
