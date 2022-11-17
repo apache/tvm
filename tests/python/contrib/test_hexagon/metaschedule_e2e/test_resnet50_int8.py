@@ -138,7 +138,6 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
             # from 36 to 23, with negligible performance difference.
             module_equality="anchor-block",
         )
-
         return ms.relay_integration.compile_relay(
             database=database,
             mod=mod,
@@ -521,7 +520,7 @@ def test_async_dma_resnet50(hexagon_launcher):
 
     pass_config = {
         "tir.use_async_copy": 1,
-        "tir.merge_async_commit_queue_scope": 1,
+        "tir.merge_async_commit_queue_scope": False,
         "relay.backend.use_meta_schedule": True,
         "relay.backend.tir_converter": "default",
     }
@@ -529,7 +528,6 @@ def test_async_dma_resnet50(hexagon_launcher):
     hexagon_lowered = tune_conv2d_template(
         mod, _schedule_async_dma_conv2d, "async_dma", params, hexagon_launcher, pass_config
     )
-
     with tvm.transform.PassContext(opt_level=3):
         llvm_lowered = tvm.relay.build(
             mod, tvm.target.Target(TARGET_LLVM, host=TARGET_LLVM), params=params
