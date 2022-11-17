@@ -19,6 +19,7 @@
 from __future__ import absolute_import as _abs
 from collections import namedtuple
 import tvm
+import numpy as np
 from tvm import te
 
 from .dilate import dilate
@@ -211,7 +212,7 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
     return Output
 
 
-def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=None):
+def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, kernel_layout, out_dtype=None):
     """Depthwise convolution nhwc forward operator.
 
     Parameters
@@ -252,9 +253,19 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
         dilation_h, dilation_w = dilation
 
     batch, in_height, in_width, in_channel = Input.shape
+    
+    dim = len(Input.shape) - 2
+    
     # shape of dilated kernel
-    filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
-
+    if kernel_layout == "HWOI":
+         filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
+         kernel_permutation_to = [0, 1] + list(range(2, dim + 2))
+    elif kernel_layout == "HWIO":
+        filter_height, filter_width, channel_multiplier, filter_channel = Filter.shape
+        kernel_permutation_to = [dim + 1, dim] + list(range(dim))
+        
+    kernel_permutation_from = np.argsort(kernel_permutation_to)
+    
     dilated_kernel_h = (filter_height - 1) * dilation_h + 1
     dilated_kernel_w = (filter_width - 1) * dilation_w + 1
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
@@ -284,9 +295,9 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
                     j * stride_w + dj * dilation_w,
                     idxdiv(c, channel_multiplier),
                 ].astype(out_dtype)
-                * Filter[
-                    di, dj, idxdiv(c, channel_multiplier), idxmod(c, channel_multiplier)
-                ].astype(out_dtype)
+                * Filter.__getitem__(tuple(np.array([
+                    di, dj, idxdiv(c, channel_multiplier), idxmod(c, channel_multiplier)])[kernel_permutation_from])
+                ).astype(out_dtype)
             ),
             axis=[di, dj],
         ),
