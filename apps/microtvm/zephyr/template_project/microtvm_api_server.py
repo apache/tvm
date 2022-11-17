@@ -379,7 +379,7 @@ def get_zephyr_base(options: dict) -> str:
 
 def get_cmsis_path(options: dict) -> pathlib.Path:
     """Returns CMSIS dependency path"""
-    cmsis_path = options.get("cmsis_path", os.environ["CMSIS_PATH"])
+    cmsis_path = options.get("cmsis_path", os.environ.get("CMSIS_PATH", None))
     return pathlib.Path(cmsis_path)
 
 
