@@ -23,10 +23,7 @@ from tvm.relay import testing
 from tvm.contrib import utils
 from utils.adreno_utils import gpu_preprocess, build_run_compare, get_model
 import pytest
-
 from tvm.relay.op import register_mixed_precision_conversion
-
-dtype = tvm.testing.parameter("float32", "float16")
 
 
 def convert_to_fp16(mod, dtype):
@@ -41,12 +38,7 @@ def convert_to_fp16(mod, dtype):
         return mod
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_mobilenet_v1(remote, target, dtype):
-    if dtype == "float16" and remote is None:
-        # CI doesn't support fp16(half datatypes).
-        return
+def _test_mobilenet_v1(remote, target, dtype):
     mod, params, inputs, dtypes = get_model(
         "https://github.com/mlcommons/mobile_models/raw/main/v0_7/tflite/mobilenet_edgetpu_224_1.0_float.tflite",
         "mobilenet_edgetpu_224_1.0_float.tflite",
@@ -55,6 +47,19 @@ def test_mobilenet_v1(remote, target, dtype):
     if dtype == "float16":
         mod = convert_to_fp16(mod["main"], dtype)
     build_run_compare(remote, mod, params, inputs, dtypes, target, [])
+
+
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+@pytest.mark.skipif(tvm.testing.utils.IS_IN_CI, reason="CI doesn't support fp16(half datatypes)")
+def test_mobilenet_v1_fp16(remote, target):
+    _test_mobilenet_v1(remote, target, "float16")
+
+
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_mobilenet_v1_fp32(remote, target):
+    _test_mobilenet_v1(remote, target, "float32")
 
 
 if __name__ == "__main__":
