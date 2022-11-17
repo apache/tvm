@@ -113,6 +113,8 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
    */
   Doc PrintMapAsAttributeValue(const Map<ObjectRef, ObjectRef>& map);
 
+  Doc PrintSpan(const Span& span);
+
   Doc Print(const ObjectRef& node, bool meta = false, bool try_inline = false);
 
   Doc TempVar(int n);
@@ -468,27 +470,6 @@ class TextPrinter {
 
   Doc PrintMod(const IRModule& mod);
 };
-}  // namespace tvm
-
-namespace tvm {
-namespace runtime {
-
-inline std::ostream& operator<<(std::ostream& os, const SourceName& source_name) {  // NOLINT(*)
-  ICHECK(source_name->name.defined());
-  os << source_name->name;
-  return os;
-}
-
-inline std::ostream& operator<<(std::ostream& os, const Span& span) {  // NOLINT(*)
-  if (span.defined()) {
-    os << span->source_name;
-  } else {
-    os << "nullptr";
-  }
-  return os;
-}
-
-}  // namespace runtime
 }  // namespace tvm
 
 #endif  // TVM_PRINTER_TEXT_PRINTER_H_

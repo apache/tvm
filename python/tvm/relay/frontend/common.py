@@ -313,10 +313,9 @@ class ExprTable(object):
             shape = value.shape
         self.const_ctr += 1
         self.params[name] = value
-        tmp_var = _expr.var(name_hint=name, shape=shape, dtype=dtype)
+        self.exprs[name] = _expr.var(name_hint=name, shape=shape, dtype=dtype)
         if source_name:
-            tmp_var = set_span(tmp_var, source_name)
-        self.exprs[name] = tmp_var
+            self.exprs[name] = set_span(self.exprs[name], source_name)
         return self.exprs[name]
 
     def get_expr(self, name):
@@ -1130,7 +1129,39 @@ def _should_fill_span():
 
 
 def set_span(sym, span):
-    """Set up the sapn of relay expression(s) while converting OP"""
+    """
+    Recursively tag the span to the symbol. Stop when it encounters a span-tagged expr. Disabled
+    when setting the environment variable "TVM_SPANFILLING" as 0.
+
+    Parameters
+    ----------
+    sym :
+        A symbol is generated from the conversion of a frontend operator. Raise an error when the
+        type of the symbol is not supported.
+
+    span : String, Span, or bytes
+        The source information of the corresponding symbol.
+
+    Returns
+    -------
+    result :
+        The symbol tagged with span.
+
+    Examples
+    --------
+    .. code-block:: python
+
+      x = set_span(relay.var("x", shape=(1, 64, 56, 56)), "x_var")
+      w = relay.const(np.ones([64, 64, 3, 3]), dtype="int64")
+      y = set_span(
+          relay.nn.conv2d(x, w, channels=64, kernel_size=(3, 3), padding=(1, 1)), "conv2d"
+      )
+      print(relay.Function([x], y))
+
+      #fn (%x: Tensor[(1, 64, 56, 56), float32] /* span=x_var:0:0 */) {
+      #  nn.conv2d(%x, meta[relay.Constant][0] /* span=conv2d:0:0 */, ...) /* span=conv2d:0:0 */
+      #}
+    """
 
     if _should_fill_span():
         return _SpanFiller(span).fill(sym)

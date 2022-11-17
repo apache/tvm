@@ -65,8 +65,15 @@ Doc RelayTextPrinter::PrintOptionalInfo(const Expr& expr) {
   if (annotate_ == nullptr) {
     if ((expr.as<ConstantNode>() || expr.as<CallNode>() || expr.as<VarNode>() ||
          expr.as<FunctionNode>() || expr.as<TupleNode>() || expr.as<TupleGetItemNode>()) &&
-        expr->checked_type_.defined()) {
-      doc << " /* ty=" << Print(expr->checked_type()) << " */";
+        (expr->checked_type_.defined() || expr->span.defined())) {
+      doc << " /*";
+      if (expr->checked_type_.defined()) {
+        doc << " ty=" << Print(expr->checked_type());
+      }
+      if (expr->span.defined()) {
+        doc << " span=" << PrintSpan(expr->span);
+      }
+      doc << " */";
     }
   } else {
     std::string annotated_expr = annotate_(expr);
@@ -74,11 +81,6 @@ Doc RelayTextPrinter::PrintOptionalInfo(const Expr& expr) {
       doc << annotated_expr;
     }
   }
-
-  if (expr->span.defined()) {
-    doc << " /* si=" << Print(expr->span) << " */";
-  }
-
   return doc;
 }
 
@@ -130,10 +132,6 @@ Doc RelayTextPrinter::Print(const ObjectRef& node, bool meta, bool try_inline) {
     return PrintPattern(Downcast<Pattern>(node), meta);
   } else if (node.as<IRModuleNode>()) {
     return PrintMod(Downcast<IRModule>(node));
-  } else if (node.as<SpanNode>()) {
-    std::ostringstream os;
-    os << Downcast<Span>(node);
-    return Doc::RawText(os.str());
   } else {
     // default module.
     std::ostringstream os;
@@ -961,6 +959,14 @@ Doc RelayTextPrinter::PrintMapAsAttributeValue(const Map<ObjectRef, ObjectRef>& 
   }
   Doc doc;
   doc << "{" << Doc::Concat(docs) << "}";
+  return doc;
+}
+
+Doc RelayTextPrinter::PrintSpan(const Span& span) {
+  Doc doc;
+  const auto* span_node = span.as<SpanNode>();
+  ICHECK(span_node);
+  doc << span_node->source_name->name << ":" << span_node->line << ":" << span_node->column;
   return doc;
 }
 
