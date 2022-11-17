@@ -480,3 +480,44 @@ def matmul_dnnl(
 def schedule_matmul_dnnl(_, outs):
     """Create schedule for matmul_dnnl."""
     return generic.schedule_extern(outs)
+
+
+def dense_dynamic(A, B, bias, dtype):
+    """Compute for dense with dynamic shape"""
+
+    # Right now we only support matrix-vector multiplication with lhs as the
+    # vector. We don't need to do much optimization here because the access
+    # pattern and parallelization are straight forward.
+    def gen_ir(a, b, bias, c):
+        ib = tvm.tir.ir_builder.create()
+        A = ib.buffer_ptr(a)
+        B = ib.buffer_ptr(b)
+        C = ib.buffer_ptr(c)
+        with ib.for_range(0, b.shape[0], name="j", kind="parallel") as j:
+            if bias is None:
+                C[0, j] = 0.0
+            else:
+                C[0, j] = bias[j]
+            with ib.for_range(0, b.shape[1], name="k") as k:
+                C[0, j] += A[0, k] * B[j, k]
+        return ib.get()
+
+    out_shape = (A.shape[0], B.shape[0])
+    out_buf = tvm.tir.decl_buffer(out_shape, dtype, "out_buf")
+    out = te.extern(
+        [out_shape],
+        [A, B, bias],
+        lambda ins, outs: gen_ir(*ins, *outs),
+        dtype=dtype,
+        out_buffers=[out_buf],
+        name="dense_dynamic_cpu",
+        tag="dense_dynamic_cpu",
+    )
+    return out
+
+
+def schedule_dense_dynamic(outs):
+    """Create schedule for dense_dynamic."""
+    s = te.create_schedule([o.op for o in outs])
+    return s
+    return generic.schedule_extern(outs)
