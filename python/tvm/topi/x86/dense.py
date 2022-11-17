@@ -520,6 +520,4 @@ def dense_dynamic(A, B, bias, dtype):
 
 def schedule_dense_dynamic(outs):
     """Create schedule for dense_dynamic."""
-    s = te.create_schedule([o.op for o in outs])
-    return s
     return generic.schedule_extern(outs)
