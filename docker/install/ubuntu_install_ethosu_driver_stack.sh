@@ -76,14 +76,8 @@ export PATH="/opt/arm/gcc-arm-none-eabi/bin:${PATH}"
 # Clone Arm(R) Ethos(TM)-U NPU driver stack
 mkdir -p "${ethosu_dir}"
 cd "${ethosu_dir}"
-git clone "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-driver" core_driver
-cd core_driver
-git checkout tags/${ethosu_driver_ver}
-
-cd "${ethosu_dir}"
-git clone "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-platform" core_platform
-cd core_platform
-git checkout tags/${ethosu_driver_ver}
+git clone --branch ${ethosu_driver_ver} "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-driver" core_driver
+git clone --branch ${ethosu_driver_ver} "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-platform" core_platform
 
 # Build Driver
 mkdir ${ethosu_dir}/core_driver/build && cd ${ethosu_dir}/core_driver/build
