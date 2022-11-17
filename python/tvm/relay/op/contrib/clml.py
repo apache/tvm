@@ -137,11 +137,10 @@ def clml_pattern_table():
         pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
         pattern = pattern.optional(lambda x: is_op("add")(x, is_constant()))
         pattern = pattern.optional(
-            lambda x: is_op("nn.batch_norm")(
+            lambda x: is_tuple_get_item(is_op("nn.batch_norm")(
                 x, is_constant(), is_constant(), is_constant(), is_constant()
-            )
+            ))
         )
-        pattern = pattern.optional(is_tuple_get_item)
         pattern = pattern.optional(is_op("nn.relu"))
         pattern = pattern.optional(is_op("clip"))
         return pattern
