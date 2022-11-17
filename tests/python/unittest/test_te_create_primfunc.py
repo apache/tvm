@@ -44,8 +44,10 @@ def test_unique_name_reduction_block():
     assert isinstance(s.get_sref(s.get_block("sum_1")), tir.schedule.StmtSRef)
 
 
-def _check_workload(te_workload, tir_workload):
-    func = te.create_prim_func(te_workload())
+def _check_workload(te_workload, tir_workload, index_dtype_override=None):
+    func = te.create_prim_func(te_workload(), index_dtype_override)
+    print(func.script())
+    print(tvm.ir.base.get_first_structural_mismatch(func, tir_workload))
     tvm.ir.assert_structural_equal(func, tir_workload)
     # make sure that we can create schedule from the func
     s = tir.Schedule(func, debug_mask="all")
@@ -75,8 +77,27 @@ def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[i, j] += A[i, k] * B[j, k]
 
 
+@T.prim_func
+def tir_matmul_int64(
+    A: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+    B: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+    C: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    for i0, j0, k0 in T.grid(T.int64(128), T.int64(128), T.int64(128)):
+        with T.block():
+            i, j, k = T.axis.remap("SSR", [i0, j0, k0])
+            with T.init():
+                C[i, j] = 0.0
+            C[i, j] += A[i, k] * B[j, k]
+
+
 def test_matmul():
     _check_workload(te_matmul, tir_matmul)
+
+
+def test_matmul_int64():
+    _check_workload(te_matmul, tir_matmul_int64, index_dtype_override="int64")
 
 
 def te_element_wise():

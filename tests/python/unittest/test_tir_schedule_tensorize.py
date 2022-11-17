@@ -717,34 +717,34 @@ def test_tensorize_matmul_mixed_dtype():
                         ]
                     )
                     T.writes(C[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vj * T.int64(16) : vj * T.int64(16) + T.int64(16)])
-                    A_elem_offset = T.var("int32")
-                    B_elem_offset = T.var("int32")
-                    C_elem_offset = T.var("int32")
+                    A_elem_offset = T.var("int64")
+                    B_elem_offset = T.var("int64")
+                    C_elem_offset = T.var("int64")
                     A_sub = T.match_buffer(
                         A[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vk * T.int64(16) : vk * T.int64(16) + T.int64(16)],
-                        [16, 16],
+                        [T.int64(16), T.int64(16)],
                         elem_offset=A_elem_offset,
                     )
                     B_sub = T.match_buffer(
                         B[vj * T.int64(16) : vj * T.int64(16) + T.int64(16), vk * T.int64(16) : vk * T.int64(16) + T.int64(16)],
-                        [16, 16],
+                        [T.int64(16), T.int64(16)],
                         elem_offset=B_elem_offset,
                     )
                     C_sub = T.match_buffer(
                         C[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vj * T.int64(16) : vj * T.int64(16) + T.int64(16)],
-                        [16, 16],
+                        [T.int64(16), T.int64(16)],
                         elem_offset=C_elem_offset,
                     )
                     T.evaluate(
                         T.tvm_mma_sync(
                             C_sub.data,
-                            T.floordiv(C_sub.elem_offset, 256),
+                            T.floordiv(C_sub.elem_offset, T.int64(256)),
                             A_sub.data,
-                            T.floordiv(A_sub.elem_offset, 256),
+                            T.floordiv(A_sub.elem_offset, T.int64(256)),
                             B_sub.data,
-                            T.floordiv(B_sub.elem_offset, 256),
+                            T.floordiv(B_sub.elem_offset, T.int64(256)),
                             C_sub.data,
-                            T.floordiv(C_sub.elem_offset, 256),
+                            T.floordiv(C_sub.elem_offset, T.int64(256)),
                             dtype="handle",
                         )
                     )

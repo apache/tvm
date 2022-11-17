@@ -391,21 +391,21 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
     class _fused_layout_transform:
         @T.prim_func
         def main( # type: ignore
-            placeholder: T.Buffer[(1, 3, 16, 16), "float32"], # type: ignore
-            T_layout_trans: T.Buffer[(1, 1, 16, 16, 3), "float32"], # type: ignore
+            placeholder: T.Buffer[(T.int64(1), T.int64(3), T.int64(16), T.int64(16)), "float32"], # type: ignore
+            T_layout_trans: T.Buffer[(T.int64(1), T.int64(1), T.int64(16), T.int64(16), T.int64(3)), "float32"], # type: ignore
         ) -> None: # type: ignore
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # body
             # with T.block("root")
-            for i0, i1, i2, i3, i4 in T.grid(1, 1, 16, 16, 3):
+            for i0, i1, i2, i3, i4 in T.grid(T.int64(1), T.int64(1), T.int64(16), T.int64(16), T.int64(3)):
                 with T.block("T_layout_trans"):
                     ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                    T.reads(placeholder[ax0, ax1 * 3 + ax4, ax2, ax3])
+                    T.reads(placeholder[ax0, ax1 * T.int64(3) + ax4, ax2, ax3])
                     T.writes(T_layout_trans[ax0, ax1, ax2, ax3, ax4])
                     T_layout_trans[ax0, ax1, ax2, ax3, ax4] = T.if_then_else(
-                        ax0 < 1 and ax1 * 3 + ax4 < 3 and ax2 < 16 and ax3 < 16, # type: ignore
-                        placeholder[ax0, ax1 * 3 + ax4, ax2, ax3],
+                        ax0 < T.int64(1) and ax1 * T.int64(3) + ax4 < T.int64(3) and ax2 < T.int64(16) and ax3 < T.int64(16), # type: ignore
+                        placeholder[ax0, ax1 * T.int64(3) + ax4, ax2, ax3],
                         T.float32(0),
                         dtype="float32",
                     )
@@ -413,41 +413,41 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
     @tvm.script.ir_module
     class _fused_layout_transform_1:
         @T.prim_func
-        def main(placeholder: T.Buffer[(1, 2, 16, 16, 4), "float32"], T_layout_trans: T.Buffer[(1, 8, 16, 16), "float32"]) -> None: # type: ignore
+        def main(placeholder: T.Buffer[(T.int64(1), T.int64(2), T.int64(16), T.int64(16), T.int64(4)), "float32"], T_layout_trans: T.Buffer[(T.int64(1), T.int64(8), T.int64(16), T.int64(16)), "float32"]) -> None: # type: ignore
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # body
             # with T.block("root")
-            for i0, i1, i2, i3 in T.grid(1, 8, 16, 16):
+            for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(8), T.int64(16), T.int64(16)):
                 with T.block("T_layout_trans"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                    T.reads(placeholder[ax0, ax1 // 4, ax2, ax3, ax1 % 4]) # type: ignore
+                    T.reads(placeholder[ax0, ax1 // T.int64(4), ax2, ax3, ax1 % T.int64(4)]) # type: ignore
                     T.writes(T_layout_trans[ax0, ax1, ax2, ax3])
-                    T_layout_trans[ax0, ax1, ax2, ax3] = T.if_then_else(ax0 < 1 and ax1 < 8 and ax2 < 16 and ax3 < 16, placeholder[ax0, ax1 // 4, ax2, ax3, ax1 % 4], T.float32(0), dtype="float32") # type: ignore
+                    T_layout_trans[ax0, ax1, ax2, ax3] = T.if_then_else(ax0 < T.int64(1) and ax1 < T.int64(8) and ax2 < T.int64(16) and ax3 < T.int64(16), placeholder[ax0, ax1 // T.int64(4), ax2, ax3, ax1 % T.int64(4)], T.float32(0), dtype="float32") # type: ignore
 
     @tvm.script.ir_module
     class _fused_nn_contrib_conv2d_NCHWc:
         @T.prim_func
-        def main(placeholder: T.Buffer[(1, 1, 16, 16, 3), "float32"], placeholder_1: T.Buffer[(2, 1, 5, 5, 3, 4), "float32"], conv2d_NCHWc: T.Buffer[(1, 2, 16, 16, 4), "float32"]) -> None: # type: ignore
+        def main(placeholder: T.Buffer[(T.int64(1), T.int64(1), T.int64(16), T.int64(16), T.int64(3)), "float32"], placeholder_1: T.Buffer[(T.int64(2), T.int64(1), T.int64(5), T.int64(5), T.int64(3), T.int64(4)), "float32"], conv2d_NCHWc: T.Buffer[(T.int64(1), T.int64(2), T.int64(16), T.int64(16), T.int64(4)), "float32"]) -> None: # type: ignore
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # body
             # with T.block("root")
-            data_pad = T.alloc_buffer([1, 1, 20, 20, 3], dtype="float32")
-            for i0, i1, i2, i3, i4 in T.grid(1, 1, 20, 20, 3):
+            data_pad = T.alloc_buffer([T.int64(1), T.int64(1), T.int64(20), T.int64(20), T.int64(3)], dtype="float32")
+            for i0, i1, i2, i3, i4 in T.grid(T.int64(1), T.int64(1), T.int64(20), T.int64(20), T.int64(3)):
                 with T.block("data_pad"):
                     i0_1, i1_1, i2_1, i3_1, i4_1 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                    T.reads(placeholder[i0_1, i1_1, i2_1 - 2, i3_1 - 2, i4_1])
+                    T.reads(placeholder[i0_1, i1_1, i2_1 - T.int64(2), i3_1 - T.int64(2), i4_1])
                     T.writes(data_pad[i0_1, i1_1, i2_1, i3_1, i4_1])
-                    data_pad[i0_1, i1_1, i2_1, i3_1, i4_1] = T.if_then_else(2 <= i2_1 and i2_1 < 18 and 2 <= i3_1 and i3_1 < 18, placeholder[i0_1, i1_1, i2_1 - 2, i3_1 - 2, i4_1], T.float32(0), dtype="float32") # type: ignore # pylint: disable=R1716
-            for i0, i1, i2, i3, i4, i5, i6, i7 in T.grid(1, 2, 16, 16, 4, 3, 5, 5):
+                    data_pad[i0_1, i1_1, i2_1, i3_1, i4_1] = T.if_then_else(T.int64(2) <= i2_1 and i2_1 < T.int64(18) and T.int64(2) <= i3_1 and i3_1 < T.int64(18), placeholder[i0_1, i1_1, i2_1 - T.int64(2), i3_1 - T.int64(2), i4_1], T.float32(0), dtype="float32") # type: ignore # pylint: disable=R1716
+            for i0, i1, i2, i3, i4, i5, i6, i7 in T.grid(T.int64(1), T.int64(2), T.int64(16), T.int64(16), T.int64(4), T.int64(3), T.int64(5), T.int64(5)):
                 with T.block("conv2d_NCHWc"):
                     n, oc_chunk, oh, ow, oc_block, ic, kh, kw = T.axis.remap("SSSSSRRR", [i0, i1, i2, i3, i4, i5, i6, i7])
-                    T.reads(data_pad[n, ic // 3, oh + kh, ow + kw, ic % 3], placeholder_1[oc_chunk, ic // 3, kh, kw, ic % 3, oc_block]) # type: ignore
+                    T.reads(data_pad[n, ic // T.int64(3), oh + kh, ow + kw, ic % T.int64(3)], placeholder_1[oc_chunk, ic // T.int64(3), kh, kw, ic % T.int64(3), oc_block]) # type: ignore
                     T.writes(conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block])
                     with T.init():
                         conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] = T.float32(0)
-                    conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] + data_pad[n, ic // 3, oh + kh, ow + kw, ic % 3] * placeholder_1[oc_chunk, ic // 3, kh, kw, ic % 3, oc_block] # type: ignore
+                    conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] + data_pad[n, ic // T.int64(3), oh + kh, ow + kw, ic % T.int64(3)] * placeholder_1[oc_chunk, ic // T.int64(3), kh, kw, ic % T.int64(3), oc_block] # type: ignore
 
     # fmt: on
     # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
