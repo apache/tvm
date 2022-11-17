@@ -508,7 +508,7 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
 
 
 def is_dynamic_shape(shape):
-    return any([isinstance(x, tir.Any) or isinstance(x, tir.SizeVar) for x in shape])
+    return any([isinstance(x, (tir.Any, tir.SizeVar)) for x in shape])
 
 
 @dense_strategy.register("cpu")
