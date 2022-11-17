@@ -384,6 +384,9 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& input_zero_point, const Expr& output_scale,
                      const Expr& output_zero_point, const RequantizeAttrs* param,
                      const Array<IndexExpr>& input_shape, const DataType& out_dtype) {
+  // Check output scale validity.
+  ICHECK_NE(GetScalarFromConstant<float>(output_scale), 0.0)
+      << "QNN requantize output scale can not be equal to 0.0";
   // Check rounding validity.
   ICHECK(param->rounding == "UPWARD" || param->rounding == "TONEAREST")
       << "QNN requantize supports two rounding modes - UPWARD and "
