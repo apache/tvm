@@ -409,7 +409,6 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
     SetCallNodeAttribute(json_node, node);
     return json_node;
   }
-
 };
 
 /*!
