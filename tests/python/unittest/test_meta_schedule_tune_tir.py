@@ -269,7 +269,7 @@ def test_tune_block_cpu():
         sch.trace.show()
 
 
-@pytest.skip("Slow test and requires rtx-3070")
+@pytest.mark.skip(reason="slow test and requires rtx-3070")
 def test_tune_winograd_conv2d_cuda():
     mod = WinogradConv2d
     with tempfile.TemporaryDirectory() as work_dir:
