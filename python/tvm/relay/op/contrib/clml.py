@@ -204,7 +204,7 @@ def clml_pattern_table():
         if attrs.data_layout != "NCHW":
             return False
         if (
-            (clip_found == False)
+            (not clip_found)
             and (attrs.kernel_size[0] == 3)
             and (attrs.dilation[0] != 1)
             and (attrs.groups != 1)
