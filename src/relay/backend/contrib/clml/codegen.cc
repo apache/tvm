@@ -399,7 +399,7 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
 
     std::vector<JSONGraphNodeEntry> inputs;
     //inputs.push_back(VisitExpr(cn->args[0])[0]);
-    unsigned int i=0;    
+    unsigned int i=0;
     for (i=0; i<cn->args.size(); i++) {
       inputs.push_back(VisitExpr(cn->args[i])[0]);
     }

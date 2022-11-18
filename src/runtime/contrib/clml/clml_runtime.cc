@@ -1173,7 +1173,6 @@ class CLMLRuntime : public JSONRuntimeBase {
                                              cl_arithmetic_mode};
 
 
-   
     result = h_ClmlIntf->clCreateMLOpConvolutionForwardQCOM(
             workspace->context, 0, &conv_desc, input->tensor, weight->tensor, bias->tensor,
             output->tensor, &op, NULL);
