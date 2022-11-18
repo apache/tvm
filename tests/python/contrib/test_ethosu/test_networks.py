@@ -143,11 +143,11 @@ def test_networks_with_usmp_and_cascader_wo_striping(accel_type, model_url, work
     "accel_type, model_url, workspace_size",
     [
         # Checks the same test case multiple times to make sure its not flaky
-        ("ethos-u55-256", MOBILENET_V1_URL, 1204224),
-        ("ethos-u55-256", MOBILENET_V1_URL, 1204224),
-        ("ethos-u55-256", MOBILENET_V1_URL, 1204224),
-        ("ethos-u55-256", MOBILENET_V1_URL, 1204224),
-        ("ethos-u55-256", MOBILENET_V1_URL, 1204224),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
         # Checks the same test case multiple times to make sure its not flaky
         ("ethos-u55-256", MOBILENET_V2_URL, 1400000),
         ("ethos-u55-256", MOBILENET_V2_URL, 1400000),
