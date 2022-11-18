@@ -91,6 +91,15 @@ std::vector<Plan> ParetoCullPlans(std::vector<Plan> plans, size_t max_plans,
   }
 
   std::sort(plans.begin(), plans.end(), [](const Plan& a, const Plan& b) -> bool {
+    if (a->GetMemoryUsage() == b->GetMemoryUsage()) {
+      if (a->GetCycles() == b->GetCycles()) {
+        // In the case of equal metrics compare stripe shapes.
+        if (auto result = CompareStripeShapes(a, b)) {
+          return result.value();
+        }
+      }
+      return a->GetCycles() < b->GetCycles();
+    }
     return a->GetMemoryUsage() < b->GetMemoryUsage();
   });
   std::vector<std::array<float, 2>> costs;
@@ -122,6 +131,32 @@ std::vector<Proposal> ParetoCullProposals(std::vector<Proposal> proposals, size_
   }
 
   std::sort(proposals.begin(), proposals.end(), [](const Proposal& a, const Proposal& b) -> bool {
+    if (a->GetMemoryUsage() == b->GetMemoryUsage()) {
+      if (a->GetCycles() == b->GetCycles()) {
+        auto plans_a = a->GetPlans();
+        auto plans_b = b->GetPlans();
+        const auto plans_size = std::min(plans_a.size(), plans_b.size());
+        auto comparison_function = [](const Plan& plan_a, const Plan& plan_b) -> bool {
+          if (plan_a->GetMemoryUsage() == plan_b->GetMemoryUsage()) {
+            return plan_a->GetCycles() < plan_b->GetCycles();
+          }
+          return plan_a->GetMemoryUsage() < plan_b->GetMemoryUsage();
+        };
+        // After ParetoCullPlans, there should be no variants with the same metrics, so the plans
+        // are sorted by metrics.
+        std::sort(plans_a.begin(), plans_a.end(), comparison_function);
+        std::sort(plans_b.begin(), plans_b.end(), comparison_function);
+
+        for (size_t i = 0; i < plans_size; i++) {
+          // In the case of equal metrics compare stripe shapes, if the plans have the same stripe
+          // shapes, then move on to the next pair.
+          if (auto result = CompareStripeShapes(plans_a.at(i), plans_b.at(i))) {
+            return result.value();
+          }
+        }
+      }
+      return a->GetCycles() < b->GetCycles();
+    }
     return a->GetMemoryUsage() < b->GetMemoryUsage();
   });
   std::vector<std::array<float, 2>> costs;
@@ -143,6 +178,20 @@ std::vector<Proposal> ParetoCullProposals(std::vector<Proposal> proposals, size_
     return optimal_proposals;
   }
   return ThinVector(optimal_proposals, max_proposals);
+}
+
+std::optional<bool> CompareStripeShapes(const Plan& plan_a, const Plan& plan_b) {
+  const auto stripe_configs_a = plan_a->GetOutputConfig()->GetStripeConfigs();
+  const auto stripe_configs_b = plan_b->GetOutputConfig()->GetStripeConfigs();
+  const auto stripe_configs_size = std::min(stripe_configs_a.size(), stripe_configs_b.size());
+  for (size_t i = 0; i < stripe_configs_size; i++) {
+    const auto stripe_shape_a = stripe_configs_a.at(i)->GetShape();
+    const auto stripe_shape_b = stripe_configs_b.at(i)->GetShape();
+    if (stripe_shape_a != stripe_shape_b) {
+      return stripe_shape_a > stripe_shape_b;
+    }
+  }
+  return std::nullopt;
 }
 
 TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.GetParetoFrontier")

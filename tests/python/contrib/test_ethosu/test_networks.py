@@ -143,17 +143,17 @@ def test_networks_with_usmp_and_cascader_wo_striping(accel_type, model_url, work
     "accel_type, model_url, workspace_size",
     [
         # Checks the same test case multiple times to make sure its not flaky
-        ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
-        ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
-        ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
-        ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
-        ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1005312),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1005312),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1005312),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1005312),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1005312),
         # Checks the same test case multiple times to make sure its not flaky
-        ("ethos-u55-256", MOBILENET_V2_URL, 1400000),
-        ("ethos-u55-256", MOBILENET_V2_URL, 1400000),
-        ("ethos-u55-256", MOBILENET_V2_URL, 1400000),
-        ("ethos-u55-256", MOBILENET_V2_URL, 1400000),
-        ("ethos-u55-256", MOBILENET_V2_URL, 1400000),
+        ("ethos-u55-256", MOBILENET_V2_URL, 1162448),
+        ("ethos-u55-256", MOBILENET_V2_URL, 1162448),
+        ("ethos-u55-256", MOBILENET_V2_URL, 1162448),
+        ("ethos-u55-256", MOBILENET_V2_URL, 1162448),
+        ("ethos-u55-256", MOBILENET_V2_URL, 1162448),
     ],
 )
 def test_networks_with_usmp_and_cascader_with_striping(accel_type, model_url, workspace_size):
@@ -195,7 +195,7 @@ def test_networks_with_usmp_and_cascader_with_striping(accel_type, model_url, wo
     allocated_pool_info = list(
         dict(compiled_models[0].executor_factory.executor_codegen_metadata.pool_inputs).values()
     )[0]
-    assert allocated_pool_info.allocated_size <= workspace_size
+    assert allocated_pool_info.allocated_size == workspace_size
 
 
 if __name__ == "__main__":
