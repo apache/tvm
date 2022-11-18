@@ -45,7 +45,6 @@ std::function<tir::ExprRV(int64_t)> MakeFactorSampler(tir::Schedule sch,
  * \param max_threadblocks The maximum number of threadblocks allowed.
  * \param max_threads_per_block The maximum number of threads allowed.
  * \param get_factor A function that returns the tiling factor.
- * \param allow_reorder Whether to allow reorder.
  * \return The binded loops in the order of blockIdx.x, threadIdx.x, and the rest.
  */
 Array<tir::LoopRV> BindSpatialLoop(tir::Schedule sch, tir::LoopRV loop,  //
