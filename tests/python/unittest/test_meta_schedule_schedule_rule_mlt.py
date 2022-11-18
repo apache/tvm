@@ -635,12 +635,12 @@ def test_cache_read_specify_consumer():
     )
 
     residual_block = """
-        for i0, i1 in T.grid(512, 512):
+        for ax0, ax1 in T.grid(512, 512):
             with T.block("T_add"):
-                ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                T.reads(C[ax0, ax1], A[ax0, ax1])
-                T.writes(T_add[ax0, ax1])
-                T_add[ax0, ax1] = C[ax0, ax1] + A[ax0, ax1]
+                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                T.reads(C[v_ax0, v_ax1], A[v_ax0, v_ax1])
+                T.writes(T_add[v_ax0, v_ax1])
+                T_add[v_ax0, v_ax1] = C[v_ax0, v_ax1] + A[v_ax0, v_ax1]
     """
 
     assert residual_block in space[0].mod.script()
