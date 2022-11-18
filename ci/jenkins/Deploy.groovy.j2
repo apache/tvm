@@ -91,7 +91,7 @@ def deploy() {
           ws="tvm/deploy-docs",
         ) %}
           init_git()
-          {{ m.download_artifacts(tag='docs', filenames=["docs.tgz"]) }}
+          {{ m.download_artifacts(tag='docs') }}
           deploy_docs()
         {% endcall %}
         {% call m.deploy_step(

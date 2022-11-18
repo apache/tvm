@@ -18,17 +18,12 @@
 
 set -euxo pipefail
 
-if [ $# -gt 0 ]; then
-    BUILD_DIR="$1"
-elif [ -n "${TVM_BUILD_PATH:-}" ]; then
-    # TVM_BUILD_PATH may contain multiple space-separated paths.  If
-    # so, use the first one.
-    BUILD_DIR=$(IFS=" "; set -- $TVM_BUILD_PATH; echo $1)
-else
-    BUILD_DIR=build
-fi
+BUILD_DIR=$1
 
+# Python is required by apps/bundle_deploy
+source tests/scripts/setup-pytest-env.sh
 
+export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
 # NOTE: important to use abspath, when VTA is enabled.
 VTA_HW_PATH=$(pwd)/3rdparty/vta-hw
 export VTA_HW_PATH
@@ -37,7 +32,11 @@ export VTA_HW_PATH
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
-pushd "${BUILD_DIR}"
-# run cpp test executable
-./cpptest
+# crttest requries USE_MICRO to be enabled.
+./build/crttest
+
+# Test MISRA-C runtime. It requires USE_MICRO to be enabled.
+pushd apps/bundle_deploy
+rm -rf build
+make test_dynamic test_static
 popd
