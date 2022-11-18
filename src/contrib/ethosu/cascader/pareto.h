@@ -29,6 +29,7 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <vector>
 
 namespace tvm {
