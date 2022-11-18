@@ -517,7 +517,11 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
 
     strategy = _op.OpStrategy()
     # For dynamic matrix-vector multiply we use a hand written kernel.
-    if inputs[0].shape[0] == 1 and is_dynamic_shape(inputs[0].shape) or is_dynamic_shape(inputs[1].shape):
+    if (
+        inputs[0].shape[0] == 1
+        and is_dynamic_shape(inputs[0].shape)
+        or is_dynamic_shape(inputs[1].shape)
+    ):
         strategy.add_implementation(
             wrap_compute_dense(topi.x86.dense_dynamic),
             wrap_topi_schedule(topi.x86.schedule_dense_dynamic),
