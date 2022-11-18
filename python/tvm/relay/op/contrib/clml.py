@@ -137,9 +137,11 @@ def clml_pattern_table():
         pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
         pattern = pattern.optional(lambda x: is_op("add")(x, is_constant()))
         pattern = pattern.optional(
-            lambda x: is_tuple_get_item(is_op("nn.batch_norm")(
-                x, is_constant(), is_constant(), is_constant(), is_constant()
-            ))
+            lambda x: is_tuple_get_item(
+                is_op("nn.batch_norm")(
+                    x, is_constant(), is_constant(), is_constant(), is_constant()
+                )
+            )
         )
         pattern = pattern.optional(is_op("nn.relu"))
         pattern = pattern.optional(is_op("clip"))
@@ -202,8 +204,10 @@ def clml_pattern_table():
         if attrs.data_layout != "NCHW":
             return False
         if (
-            (clip_found == False) and (attrs.kernel_size[0] == 3)
-            and (attrs.dilation[0] != 1) and (attrs.groups != 1)
+            (clip_found == False)
+            and (attrs.kernel_size[0] == 3)
+            and (attrs.dilation[0] != 1)
+            and (attrs.groups != 1)
             and (attrs.channels == attrs.groups)
         ):
             return False
@@ -222,15 +226,15 @@ def clml_pattern_table():
 
     def check_binary_op(extract):
         call = extract
-        if (len(call.args[1].checked_type.shape)>0):
+        if len(call.args[1].checked_type.shape)>0:
             return True
         return False
 
     def check_pad_op(extract):
         call = extract
-        if(len(call.attrs["pad_width"]) != 4):
+        if len(call.attrs["pad_width"]) != 4:
             return False
-        return True 
+        return True
 
     def check_softmax_op(extract):
         call = extract
@@ -267,6 +271,7 @@ def _register_external_op_helper(op_name, supported=True):
         return supported
 
     return _func_wrapper
+
 
 _register_external_op_helper("minimum")
 _register_external_op_helper("maximum")

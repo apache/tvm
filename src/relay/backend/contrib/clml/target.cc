@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file src/relay/backend/contrib/cudnn/target.cc
- * \brief Registers the "cudnn" external codegen TargetKind.
+ * \file src/relay/backend/contrib/clml/target.cc
+ * \brief Registers the "clml" external codegen TargetKind.
  */
 
 #include <tvm/target/target.h>
@@ -29,10 +29,9 @@ namespace relay {
 namespace contrib {
 
 /*!
- * \brief This external codegen target can use the CuDNN library linked into the TVM runtime.
- *  - Patterns and custom compiler: python/tvm/relay/op/contrib/cudnn.py
- *  - Custom schedules: python/tvm/contrib/cudnn.py
- *  - Runtime: src/runtime/contrib/cudnn/ *.cc
+ * \brief This external codegen target can use the CLML library linked into the TVM runtime.
+ *  - Patterns and custom compiler: python/tvm/relay/op/contrib/clml.py
+ *  - Runtime: src/runtime/contrib/clml/clml_runtime.cc
  */
 TVM_REGISTER_TARGET_KIND("clml", kDLOpenCL)
     .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(true));
