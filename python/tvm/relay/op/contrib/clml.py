@@ -226,7 +226,7 @@ def clml_pattern_table():
 
     def check_binary_op(extract):
         call = extract
-        if len(call.args[1].checked_type.shape)>0:
+        if len(call.args[1].checked_type.shape) > 0:
             return True
         return False
 
