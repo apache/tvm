@@ -399,10 +399,10 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
 
     std::vector<JSONGraphNodeEntry> inputs;
     unsigned int i = 0;
-    for (i=0; i < cn->args.size(); i++) {
+    for (i = 0; i < cn->args.size(); i++) {
       inputs.push_back(VisitExpr(cn->args[i])[0]);
     }
-    for (unsigned int j=i; j < node->args.size(); j++) {
+    for (unsigned int j = i; j < node->args.size(); j++) {
       inputs.push_back(VisitExpr(node->args[j])[0]);
     }
     auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);

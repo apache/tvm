@@ -1155,28 +1155,27 @@ class CLMLRuntime : public JSONRuntimeBase {
     } else {
       cl_ml_tensor_desc_qcom desc = {};
       desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
-      result = h_ClmlIntf->clCreateMLTensorQCOM(workspace->context, NULL, &desc,
-                                                &layer_.unusedTensor);
+      result = 
+          h_ClmlIntf->clCreateMLTensorQCOM(workspace->context, NULL, &desc, &layer_.unusedTensor);
       ICHECK(layer_.unusedTensor && result == CL_SUCCESS) << "clCreateMLTensorQCOM:" << result;
       bias->tensor = layer_.unusedTensor;
     }
     // Output
-    auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype,
-                                             nullptr, {1, wt_dims.n, 1, 1});
+    auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype, nullptr,
+                                             {1, wt_dims.n, 1, 1});
     cl_ml_op_convolution_desc_qcom conv_desc = {CL_CONVOLUTION_MODE_CONVOLUTION_QCOM,
-                                             1,
-                                             4,
-                                             {0, 0},
-                                             {0, 0},
-                                             {1, 1},
-                                             {1, 1},
-                                             0,
-                                             cl_arithmetic_mode};
-
+                                                1,
+                                                4,
+                                                {0, 0},
+                                                {0, 0},
+                                                {1, 1},
+                                                {1, 1},
+                                                0,
+                                                cl_arithmetic_mode};
 
     result = h_ClmlIntf->clCreateMLOpConvolutionForwardQCOM(
-            workspace->context, 0, &conv_desc, input->tensor, weight->tensor, bias->tensor,
-            output->tensor, &op, NULL);
+        workspace->context, 0, &conv_desc, input->tensor, weight->tensor, bias->tensor,
+        output->tensor, &op, NULL);
     ICHECK(op && result == CL_SUCCESS) << "Fully Connected Error:" << result;
 
     layer->function.push_back(op);
