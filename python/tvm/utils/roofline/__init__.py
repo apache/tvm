@@ -54,11 +54,18 @@ class SaveLoweredTIR:
     """Save TIR functions from right before final lowering. Right now this
     means right before tir.MakePackedAPI."""
 
-    def __init__(self):
+    def __init__(self, before_pass: str = "tir.MakePackedAPI"):
+        """
+        Parameters
+        ----------
+        before_pass: str
+            Pass before which the TIR is saved.
+        """
         self.functions = {}
+        self.before_pass = before_pass
 
     def run_before_pass(self, mod, info):
-        if info.name == "tir.MakePackedAPI":
+        if info.name == self.before_pass:
             for v, func in mod.functions.items():
                 if isinstance(func, tir.PrimFunc):
                     self.functions[v] = func
