@@ -1155,7 +1155,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     } else {
       cl_ml_tensor_desc_qcom desc = {};
       desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
-      result = 
+      result =
           h_ClmlIntf->clCreateMLTensorQCOM(workspace->context, NULL, &desc, &layer_.unusedTensor);
       ICHECK(layer_.unusedTensor && result == CL_SUCCESS) << "clCreateMLTensorQCOM:" << result;
       bias->tensor = layer_.unusedTensor;
