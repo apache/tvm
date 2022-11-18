@@ -72,6 +72,7 @@ def ReplaceOperators():
     producers_consumers = ProducersConsumers()
     replace_output_pointer = {}
     pointer_to_extents = {}
+    replaced_pointers = []
 
     ReplaceInfo = namedtuple("ReplaceInfo", ["pointer", "reallocate"])
 
@@ -136,9 +137,13 @@ def ReplaceOperators():
                     stmt, producers_consumers
                 )
                 if replace_pointer is not None:
+                    # Allocate pointer only once
+                    if replace_pointer in replaced_pointers:
+                        is_allocator = False
                     replace_output_pointer[output_pointer] = ReplaceInfo(
                         replace_pointer, is_allocator
                     )
+                    replaced_pointers.append(replace_pointer)
                 # Make the extern call
                 irb = tvm.tir.ir_builder.create()
                 irb.emit(tvm.tir.call_extern("handle", op_name, *info))
