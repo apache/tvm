@@ -32,8 +32,6 @@ from tvm.tir.schedule import BlockRV, Schedule
 logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 
-# fmt: off
-
 
 @T.prim_func
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
@@ -61,7 +59,6 @@ def two_step(a: T.handle, c: T.handle) -> None:
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 3.0
-# fmt: on
 
 
 @tvm.testing.requires_llvm
@@ -179,17 +176,6 @@ def test_tune_block_cpu():
         assert sch is not None
         sch.mod.show()
         sch.trace.show()
-
-
-@pytest.mark.skip(reason="slow test and requires rtx-3070")
-def test_tune_winograd_conv2d_cuda():
-    mod = WinogradConv2d
-    with tempfile.TemporaryDirectory() as work_dir:
-        database = ms.tune_tir(
-            mod, target="nvidia/geforce-rtx-3070", max_trials_global=10, work_dir=work_dir
-        )
-        records = database.get_top_k(database.commit_workload(mod), 1)
-        assert len(records) == 1, "No valid schedule found!"
 
 
 if __name__ == """__main__""":
