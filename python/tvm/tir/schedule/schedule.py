@@ -2757,7 +2757,7 @@ class Schedule(Object):
                 pad_value = FloatImm(buffer_obj.dtype, pad_value)
             else:
                 raise TypeError(
-                    f"Buffer type: {buffer_obj.dtype} and pad_value: {type(pad_value)} type don't match"
+                    f"Buffer type: {buffer_obj.dtype} and pad_value: {type(pad_value)} mismatch"
                 )
             pad_value = IndexMap.from_func(
                 lambda *indices: pad_value, ndim=len(index_map.final_indices)
