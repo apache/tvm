@@ -368,7 +368,7 @@ class ProxyServerHandler(object):
             need_update_info = False
             # report new connections
             for key in self._tracker_pending_puts:
-                rpc_key = key.split(":")[0]
+                rpc_key = key.rsplit(":", 1)[0]
                 base.sendjson(
                     self._tracker_conn, [TrackerCode.PUT, rpc_key, (self._listen_port, key), None]
                 )
