@@ -21,7 +21,7 @@ Config = {
                 'Float Imm': [1],
                 'Float Var': [1],
                 'Add': [1],
-                'Max': [3],
+                'Max': [3, 1],
                 'Mul': [3],
                 'Div': [1], # Shifting
                 'LT': [3],

@@ -1,8 +1,9 @@
 import networkx as nx
-import tvm_config
+import math
+
 from tvm_layer import *
 from tvm_parse import *
-
+from tvm_config import *
 
 class VectorProcessor():
     def __init__(self, model, debug):
@@ -15,16 +16,16 @@ class VectorProcessor():
         self.debug = debug
 
     def import_slot(self, model):
-        return tvm_config.Config[model]['Slot']
+        return Config[model]['Slot']
 
     def import_latency(self, model):
-        return tvm_config.Config[model]['Latency']
+        return Config[model]['Latency']
 
     def import_type(self, model):
-        return tvm_config.Config[model]['Type']
+        return Config[model]['Type']
 
     ### Primary Functions
-    def generate_graph(self, layer, layout, input, kernel):
+    def generate_graph(self, layer, layout, data, kernel, stride):
         """
         Generate Graph
           1. gen_module(): layer configurations --> Relay IR module --> nested TIR
@@ -32,7 +33,8 @@ class VectorProcessor():
           3. color_graph(): empty graph --> colored graph
         """
         if self.debug: print('> Generate Graph')
-        nestedTIR = gen_module(self.model, layer, layout, input, kernel) # Relay IR module
+        nestedTIR = gen_module(self.model, layer, layout, data, kernel, stride) # Relay IR module
+        if self.debug: print(nestedTIR)
         self.graph = visit_stmts(nestedTIR, self.debug) # empty graph
         self.color_graph()
     
@@ -46,15 +48,19 @@ class VectorProcessor():
         """
         if self.debug: print('> Optimize Graph')
         self.loop_hoisting() 
+        if self.debug: save_graph_viz(self.graph, "typeNum", 'graph_raw.png')
         self.remove_tensor_init_nodes(['Input', 'Filter', 'Multiplier', 'Shifter'])
         self.remove_nodes(attr='type', str='Seq')
         self.remove_nodes(attr='name', str='Multiplier')
         self.remove_nodes(attr='name', str='Shifter')
 
+        # self.optimize('accumulate register')
         self.optimize('vstore')
         self.optimize('filter load') # For kernels that use filter; e.g, Dwconv
+        self.optimize('consecutive max')
+        # self.optimize('consecutive load')
 
-    def run(self):
+    def run(self, swp):
         """
         Run
           1. analyze_graph(): analyze graph to geneate time_stamp
@@ -62,7 +68,8 @@ class VectorProcessor():
         """
         if self.debug: print('> Run')
         self.analyze_graph()
-        self.estimate_cycles()
+        self.estimate_cycles(swp)
+        return self.estimated_cycles
 
     ### Secondary Functions
     def color_graph(self):
@@ -107,7 +114,7 @@ class VectorProcessor():
         for int_var_name in int_var_names:
             if int_var_name.rsplit('_', 1)[0] == 'cse_var': continue
             loop_var_node = loop_var_nodes[loop_var_names.index(int_var_name)]
-            self.graph.nodes[loop_var_node]['min_time'] += 1
+            self.graph.nodes[loop_var_node]['scalar_time'] += 1
 
         self.remove_nodes(attr='slot', str='Scalar')
 
@@ -149,6 +156,10 @@ class VectorProcessor():
             FLAG = self.optimize_vstore()
         elif option == 'filter load':
             FLAG = self.optimize_filter_load()
+        elif option == 'consecutive max':
+            FLAG = self.optimize_consecutive_max()
+        elif option == 'consecutive load':
+            FLAG = self.optimize_consecutive_load()
         else:
             raise TypeError("Currently Not Supported Optimization Option: %s"%(option))
         if (FLAG == True) and self.debug: print('>> Optimize Graph (%s)'%(option))
@@ -167,8 +178,10 @@ class VectorProcessor():
             rdy_nodes:  Ready: O, Processed: X
             out_nodes:  Ready: O, Processed: O
 
-          [Time Stamp] 
-            time: node_num
+          [time_stamp]
+            {CLK: {'Scalar': _, 'Memory': _, 'Vector': _, 'loop': _}}
+            - Scalar, Memory, Vector: when node is newly occupied at CLK
+            - loop: infers which loop is running at CLK
         """
         if self.debug: print('>> Analyze Graph')
         self.time_stamp = {} 
@@ -186,48 +199,89 @@ class VectorProcessor():
             if len(in_nodes)==0 and len(rdy_nodes)==0:
                 break
             self.slot_occupy(rdy_nodes, clk)
-            self.time_stamp_update(clk, loop_stack)
+            self.loop_stack_update(clk, loop_stack)
             self.print_node_status(clk, in_nodes, rdy_nodes, out_nodes)
             clk = clk+1
 
         self.print_node_status(clk, in_nodes, rdy_nodes, out_nodes)
-        self.print_time_stamp_status()
+        self.single_iteration = clk+1
+        self.print_time_stamp()
 
-    def estimate_cycles(self):
-        if self.debug: print('>> Estimate Cycles')
-        max_depth = max([self.graph.nodes[node_num]['depth'] for node_num in self.time_stamp.values()])
+    def estimate_cycles(self, SWP=True):
+        if self.debug: print('>> Estimate Cycles w/ SWP %s'%('ON' if SWP==True else 'OFF'))
+        max_depth = max([self.graph.nodes[value['loop']]['depth'] for value in self.time_stamp.values()])
         name = ['NO LOOP']
+        nodes = ['']
         extent = [1]
-        min_time = [0]
-        duration = [0]*(max_depth+1) # 0-th depth: NO loop area
+        scalar_time = [0]
+        duration = [0]
+        depth = [0]
         for time in self.time_stamp.keys():
-            node_num = self.time_stamp[time]
+            node_num = self.time_stamp[time]['loop']
             node = self.graph.nodes[node_num]
             if (node['type']=='For Start'):
-                duration[node['depth']] += 1
-                if (name[-1]!=node['name']) and (node['name'] not in name):
+                if depth[-1] != node['depth']:
+                    duration.append(0)
                     name.append(node['name'])
-                    extent.append(extent[-1]*node['extent'])
-                    min_time.append(node['min_time'])
+                    nodes.append(node_num)
+                    if node['depth']==depth[-1]+1: extent.append(extent[-1]*node['extent'])
+                    elif node['depth']==depth[-1]-1: extent.append(extent[name.index(node['name'])])
+                    else: raise NotImplementedError("Currently Not Supported case!")
+                    scalar_time.append(node['scalar_time'])
+                    depth.append(node['depth']) # update depth
+                duration[-1] += 1
             else:
                 raise RuntimeError("Currently Not Supported control node type: %s"%(node['type']))
 
+        name.append('NO LOOP')
+        nodes.append('')
+        extent.append(1)
+        scalar_time.append(0)
+        duration.append(0)
+        depth.append(0)
+
+        if SWP == True:
+            local_maxima = [] # SWP-able loops
+            for idx, node in enumerate(depth[1:-1]):
+                if depth[idx] > depth[idx-1] and depth[idx] > depth[idx+1]:
+                    local_maxima.append(idx)
+            for lm in local_maxima:
+                SI = self.single_iteration
+                II = self.get_initiation_interval(lm, nodes, scalar_time, duration)
+                CI = math.ceil(SI/II)
+                node_num = nodes[lm]
+                innermost_iter = (self.graph.nodes[node_num]['extent']-CI+1)*extent[lm-1]
+
+                print("SWP loop: %s"%(name[lm]))
+                print("SI: %s, II: %s, CI: %s, innermost_iter: %s"%(SI, II, CI, innermost_iter))
+
+                prologue = math.floor((SI-1)/II)*II
+                epilogue = (SI+(CI-2)*II) - prologue
+                kernel = II
+                duration[lm] = (prologue, kernel, epilogue)
+                extent[lm] = (extent[lm-1], innermost_iter, extent[lm-1])
+
         if self.debug:
-            print("name:     %s"%(name))
-            print("extent:   %s"%(extent))
-            print("min_time: %s"%(min_time))
-            print("duration: %s"%(duration))
-        if not all(len(name) == len(l) for l in [name, extent, min_time, duration]):
-            raise RuntimeError("Error!!: 'name', 'extent', 'min_time', 'duration' must have same length!!")
+            print("name:        %s"%(name))
+            print("nodes:       %s"%(nodes))
+            print("depth:       %s"%(depth))
+            print("extent:      %s"%(extent))
+            print("scalar_time: %s"%(scalar_time))
+            print("duration:    %s"%(duration))
+        if not all(len(name) == len(l) for l in [name, depth, extent, scalar_time, duration]):
+            raise RuntimeError("Error!!: 'name', 'depth', 'extent', 'scalar_time', 'duration' must have same length!!")
 
         cycles = []
         self.estimated_cycles = 0
         for i in range(0, len(name)):
-            cycles.append("%s*max(%s, %s)"%(extent[i], min_time[i], duration[i]))
-            self.estimated_cycles += extent[i]*max(min_time[i], duration[i])
+            cycles.append("%s*max(%s, %s)"%(extent[i], scalar_time[i], duration[i]))
+            if isinstance(extent[i], tuple) and isinstance(duration[i], tuple):
+                for j in range(0, len(extent[i])):
+                    self.estimated_cycles += extent[i][j]*max(scalar_time[i], duration[i][j])
+            else:
+                self.estimated_cycles += extent[i]*max(scalar_time[i], duration[i])
         if self.debug:
             print(">> Total Cycles: %s <- %s"%(self.estimated_cycles, cycles))
-
 
     ### Tertiary Functions
     def get_nodes(self, attr, str):
@@ -289,6 +343,7 @@ class VectorProcessor():
                 if all([self.slot[s]==[] for s in self.slot.keys()]): # If all slots are IDLE, 'Occupy'!!
                     for s in self.slot.keys():
                         self.slot[s].append({'node': rn, 'start': clk, 'end': clk+dur}) # Occupy
+                        # self.time_stamp_update(clk, 'Control', rn)
                 else: # Else, move to next clk
                     continue
             else:
@@ -296,6 +351,7 @@ class VectorProcessor():
                 CHECK_SAME_NODE = all([slot_node['node']!=rn for slot_node in self.slot[slot]])
                 if CHECK_START_TIME and CHECK_SAME_NODE:
                     self.slot[slot].append({'node': rn, 'start': clk, 'end': clk+dur}) # Occupy
+                    self.time_stamp_update(clk, slot, rn)
 
     def node_update(self, free_nodes, in_nodes, rdy_nodes, out_nodes):
         #1. free_nodes: Remove from rdy_nodes & Add to out_nodes
@@ -314,17 +370,22 @@ class VectorProcessor():
         rdy_nodes.extend(tmp) # add newly_ready_nodes to rdy_nodes
         return in_nodes, rdy_nodes, out_nodes
 
-    def time_stamp_update(self, clk, loop_stack):
+    def time_stamp_update(self, clk, str, node_num):
+        if clk not in self.time_stamp.keys():
+            self.time_stamp[clk] = {}
+        self.time_stamp[clk][str] = node_num
+
+    def loop_stack_update(self, clk, loop_stack):
         occupied_nodes = self.get_occupied_nodes()
         if len(occupied_nodes)==1 and self.graph.nodes[occupied_nodes[0]]['slot']=='Control':
             if self.graph.nodes[occupied_nodes[0]]['type']=='For Start':
                 loop_stack.append(occupied_nodes[0])
-                self.time_stamp[clk] = loop_stack[-1]
+                self.time_stamp_update(clk, 'loop', loop_stack[-1])
             elif self.graph.nodes[occupied_nodes[0]]['type']=='For End':
-                self.time_stamp[clk] = loop_stack[-1]
+                self.time_stamp_update(clk, 'loop', loop_stack[-1])
                 loop_stack.pop()
         else:
-            self.time_stamp[clk] = loop_stack[-1]
+            self.time_stamp_update(clk, 'loop', loop_stack[-1])
 
     def get_occupied_nodes(self):
         occupied_nodes = []
@@ -387,6 +448,17 @@ class VectorProcessor():
                 self.graph.remove_node(node)
             return True
 
+    def optimize_consecutive_max(self):
+        """ Consecutive MAX can be bypassed (MAXP_3x3) """
+        FLAG = False
+        max_nodes = self.get_nodes(attr='type', str='Max')
+        for node in max_nodes:
+            children = self.graph.successors(node)
+            if all(self.graph.nodes[child]['type']=='Max' for child in children):
+                FLAG = True
+                self.graph.nodes[node]['optimize'] = 1
+        return FLAG
+
     def print_node_status(self, clk, in_nodes, rdy_nodes, out_nodes):
         if self.debug:
             print("CLK: %s"%(clk))
@@ -396,8 +468,45 @@ class VectorProcessor():
                 print("%s: %s"%(key, self.slot[key]))
             print("#"*20)
 
-    def print_time_stamp_status(self):
+    def print_time_stamp(self):
+        """
+        time_stamp: {CLK: {'Scalar': A, 'Memory': B, 'Vector': C, 'loop': D}}
+          - Scalar, Memory, Vector: when node is newly occupied at CLK
+          - loop: infers which loop is running at CLK
+        """
         if self.debug:
             for time in self.time_stamp.keys():
-                node_num, info = self.time_stamp[time], self.graph.nodes[self.time_stamp[time]]
-                print("#(%d): %d, %s"%(time, node_num, info))
+                print("#(%d): %s --> %s"%(time, self.time_stamp[time], self.graph.nodes[self.time_stamp[time]['loop']]))
+                # node_num, info = self.time_stamp[time]['loop'], self.graph.nodes[self.time_stamp[time]['loop']]
+                # print("#(%d): %d, %s"%(time, node_num, info))
+
+    def get_initiation_interval(self, idx, nodes, scalar_time, duration):
+        if self.debug: print(">>> Get Initiation Interval")
+        start_time, end_time = sum(duration[0:idx]), sum(duration[0:idx+1])
+        Scalar, Memory, Vector = scalar_time[idx], 0, 0
+        max_instr_latency = 0
+        for time in range(start_time, end_time):
+            if 'Memory' in self.time_stamp[time].keys():
+                Memory+=1
+                node_num = self.time_stamp[time]['Memory']
+                type = self.graph.nodes[node_num]['type']
+                optimize = self.graph.nodes[node_num]['optimize'] if 'optimize' in self.graph.nodes[node_num].keys() else 0
+                instr_latency = self.latency['Memory'][type][optimize]
+                if any(self.graph.nodes[child]['type']=='Memory' for child in self.graph.successors(node_num)):
+                    instr_latency+=1
+                max_instr_latency = max(max_instr_latency, instr_latency)
+            if 'Vector' in self.time_stamp[time].keys():
+                Vector+=1
+                node_num = self.time_stamp[time]['Vector']
+                type = self.graph.nodes[node_num]['type']
+                optimize = self.graph.nodes[node_num]['optimize'] if 'optimize' in self.graph.nodes[node_num].keys() else 0
+                instr_latency = self.latency['Vector'][type][optimize]
+                if any(self.graph.nodes[child]['type']=='Vector' for child in self.graph.successors(node_num)):
+                    instr_latency+=1
+                max_instr_latency = max(max_instr_latency, instr_latency)
+        min_length = max(Scalar, Memory, Vector)
+        if self.debug:
+            print("    (Scalar, Memory, Vector): (%s, %s, %s)"%(Scalar, Memory, Vector))
+            print("    max_instr_latency: %s"%(max_instr_latency))
+        initiation_interval = max(min_length, max_instr_latency)
+        return initiation_interval

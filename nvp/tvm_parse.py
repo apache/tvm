@@ -18,7 +18,12 @@ def Dprint(message, DEBUG=False):
 def visit_stmts(primfn, DEBUG):
     g = nx.DiGraph()
     g = generate_nodes(primfn.body, g, DEPTH=0, WS="", DEBUG=DEBUG)
-    assert nx.is_directed_acyclic_graph(g), "Currenlty Not Supported: Graph must be DAG!!"
+    try:
+        nx.is_directed_acyclic_graph(g)
+    except:
+        print("Currenlty Not Supported: Graph must be DAG!!")
+        print(nx.find_cycle(g, orientation="original"))
+        assert 0
     return g
 
 def generate_nodes(stmt, G, DEPTH, WS="", DEBUG=False): # tir.stmt.___
@@ -32,7 +37,7 @@ def generate_nodes(stmt, G, DEPTH, WS="", DEBUG=False): # tir.stmt.___
         start = max(list(g.nodes))+1
         end = start+1
         VAR = stmt.loop_var.name
-        g.add_node(start, name='For %s[%d]'%(VAR, DEPTH), type='For Start', depth=DEPTH, var=VAR, extent=stmt.extent, min_time=0)
+        g.add_node(start, name='For %s[%d]'%(VAR, DEPTH), type='For Start', depth=DEPTH, var=VAR, extent=stmt.extent, scalar_time=0)
         [g.add_edge(start, node) for node in g.nodes if g.in_degree(node)==0 and not node==start] # Connect 'For Start' with 'Src'
         
         g.add_node(end, name='For %s[%d]'%(VAR, DEPTH), type='For End', depth=DEPTH, var=VAR)
@@ -118,6 +123,10 @@ def visit_LET(stmt, g, parent, WS, DEBUG):
     ## Make temporary DiGraph to merge w/ the original one
     g_ = nx.DiGraph()
     g_ = generate_nodes(stmt.body, g_, 0, WS, DEBUG) # pad_temp[cse_var_1] = placeholder[cse_var_1]
+    seq_nodes = [node for node in g_.nodes if g_.nodes[node]['type']=='Seq']
+    for seq_node in seq_nodes: # remove edge: seq_node --> cse_var
+        children = list(g_.successors(seq_node))
+        [g_.remove_edge(seq_node, child) for child in children if g_.nodes[child]['name']==g.nodes[var_num]['name']]
 
     ## Merge two graphs with new node_num
     u = nx.disjoint_union(g, g_)
