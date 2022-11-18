@@ -22,19 +22,20 @@ import itertools
 from statistics import mean
 from distutils.util import strtobool
 from typing import Callable, Tuple, Union, List, Any
-
 import numpy as np  # type: ignore
 
 import tvm
 from tvm import meta_schedule as ms
 from tvm._ffi import get_global_func, register_func
 from tvm.ir import IRModule
-from tvm.meta_schedule.testing.tune_utils import generate_input_data
 from tvm.support import describe
 from tvm.target import Target
 from tvm.tir import Schedule
 from tvm.tir.schedule import Trace
-from tvm.tir.tensor_intrin import cuda, x86  # type: ignore # pylint: disable=unused-import
+from tvm.meta_schedule.testing.tune_utils import generate_input_data
+
+# todo add tensor intrinsics
+# from tvm.tir.tensor_intrin import cuda, x86  # type: ignore # pylint: disable=unused-import
 
 DELIMITOR = "\n" + "-" * 30 + "\n"
 
@@ -102,6 +103,16 @@ def _parse_args():
         help="example: True / False",
         required=True,
     )
+    args.add_argument(
+        "--input-generator-func",
+        type=str,
+        default="tvm.meta_schedule.testing.default_input_generator",
+    )
+    args.add_argument(
+        "--check-metric-func",
+        type=str,
+        default="tvm.meta_schedule.testing.default_check_metric",
+    )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
     parsed.rpc_config = ms.runner.RPCConfig(
@@ -123,6 +134,25 @@ logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
 )
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
+
+
+def get_device_type(target: Target) -> str:
+    """Get the device type string from a target."""
+    if target.kind.name == "llvm":
+        return "cpu"
+    elif target.kind.name == "cuda":
+        return "cuda"
+    else:
+        raise RuntimeError(f"Unsupported target kind for device type: {target.kind.name}")
+
+
+def get_runtime_device(target: Target) -> tvm.runtime.Device:
+    if target.kind.name == "llvm":
+        return tvm.cpu()
+    elif target.kind.name == "cuda":
+        return tvm.cuda()
+    else:
+        raise RuntimeError(f"Unsupported target kind for runtime device: {target.kind.name}")
 
 
 def check_and_run(func: Union[str, Callable], *args, **kwargs) -> Any:
@@ -181,68 +211,73 @@ def is_failed_record(record: ms.database.TuningRecord) -> bool:
     return len(record.run_secs) == 1 and record.run_secs[0] == 1e9
 
 
-def print_result(
-    counter: int,
-    total: int,
-    result: str,
-    time: float,
-    *,
-    original_mod: IRModule = None,
-    scheduled_mod: IRModule = None,
-    inputs: List[np.ndarray] = None,
-    original_res: List[np.ndarray] = None,
-    scheduled_res: List[np.ndarray] = None,
-    original_run_secs: List[float] = None,
-    scheduled_run_secs: List[float] = None,
-    exception: Exception = None,
-    trace: Trace = None,
-) -> None:
-    """Print the validation result."""
-    status = (
-        f"Progress {counter: 6d} / {total: 6d} checked, "
-        f"used {float(time): 3.3f} sec. Result: {result}"
-    )
+def print_with_counter_func(counter: int, total: int) -> Callable:
+    """Print with counter"""
 
-    if result in ["pass", "wrong answer"]:
-        status += (
-            f"original: {mean(original_run_secs): 3.3f} sec, "
-            f"scheduled: {mean(scheduled_run_secs): 3.3f} sec"
-        )
+    def print_result(
+        result: str,
+        *,
+        original_mod: IRModule = None,
+        scheduled_mod: IRModule = None,
+        inputs: List[np.ndarray] = None,
+        original_res: List[np.ndarray] = None,
+        scheduled_res: List[np.ndarray] = None,
+        original_run_secs: List[float] = None,
+        scheduled_run_secs: List[float] = None,
+        exception: Exception = None,
+        trace: Trace = None,
+    ) -> None:
+        """Print the validation result."""
+        status = f"Progress {counter: 6d} / {total: 6d} checked, result: {result}"
 
-    output = [status]
-    if result not in ["pass", "skip"]:
-        output.extend(
-            [
-                "Original IRModule:" + DELIMITOR + original_mod.script(),
-                "Scheduled IRModule:" + DELIMITOR + scheduled_mod.script(),
-                "Trace" + DELIMITOR + str(trace),
-            ]
-        )
-        if result == "wrong answer":
+        if result in ["pass", "wrong answer"]:
+            status += (
+                f"original: {mean(original_run_secs): 3.3f} sec, "
+                f"scheduled: {mean(scheduled_run_secs): 3.3f} sec"
+            )
+
+        output = [status]
+        if result not in ["pass", "skip"]:
             output.extend(
                 [
-                    "Input:" + DELIMITOR + str(inputs),
-                    "Original Result:" + DELIMITOR + str(original_res),
-                    "Scheduled Result:" + DELIMITOR + str(scheduled_res),
-                    "Max Diff:"
-                    + DELIMITOR
-                    + str(
-                        [
-                            np.max(np.abs(original_res[i] - scheduled_res[i]))
-                            for i in range(len(original_res))
-                        ]
-                    ),
+                    "Original IRModule:" + DELIMITOR + original_mod.script(),
+                    "Scheduled IRModule:" + DELIMITOR + scheduled_mod.script(),
+                    "Trace" + DELIMITOR + str(trace),
                 ]
             )
-        elif result == "exception":
-            output.extend(["Exception:" + DELIMITOR + str(exception) + "\n"])
-        else:
-            raise ValueError(f"Unknown result: {result}")
-    print("\n\n".join(output))
+            if result == "wrong answer":
+                output.extend(
+                    [
+                        "Input:" + DELIMITOR + str(inputs),
+                        "Original Result:" + DELIMITOR + str(original_res),
+                        "Scheduled Result:" + DELIMITOR + str(scheduled_res),
+                        "Max Diff:"
+                        + DELIMITOR
+                        + str(
+                            [
+                                np.max(np.abs(original_res[i] - scheduled_res[i]))
+                                for i in range(len(original_res))
+                            ]
+                        ),
+                    ]
+                )
+            elif result == "exception":
+                output.extend(["Exception:" + DELIMITOR + str(exception) + "\n"])
+            else:
+                raise ValueError(f"Unknown result: {result}")
+        print("\n\n".join(output))
+
+    return print_result
 
 
 def make_alloc_arg_and_check(
-    args: List[np.ndarray], results: List[List[np.ndarray]]
+    inputs: List[np.ndarray],
+    original_mod: IRModule,
+    scheduled_mod: IRModule,
+    trace: Trace,
+    original_res: List[np.ndarray],
+    original_run_secs: List[float],
+    print_result: Callable,
 ) -> Tuple[Callable, Callable]:
     """Make alloc_arg and check functions for the given inputs and collect results."""
 
@@ -254,7 +289,7 @@ def make_alloc_arg_and_check(
         alloc_repeat: int,
         # pylint: enable=unused-argument
     ) -> List[ms.runner.rpc_runner.T_ARGUMENT_LIST]:
-        return [[tvm.nd.array(arg, device=device) for arg in args] for _ in range(alloc_repeat)]
+        return [[tvm.nd.array(arg, device=device) for arg in inputs] for _ in range(alloc_repeat)]
 
     def run_evaluator_with_args(
         rt_mod: tvm.runtime.Module,
@@ -291,13 +326,34 @@ def make_alloc_arg_and_check(
             else "",
         )
 
-        results.append([[arg.numpy() for arg in args] for args in repeated_args])  # type: ignore
         repeated_costs: List[List[float]] = []
         for args in repeated_args:
             device.sync()
             profile_result = evaluator(*args)
             repeated_costs.append(profile_result.results)
         costs = [float(cost) for cost in itertools.chain.from_iterable(repeated_costs)]
+
+        assert len(repeated_args) == 1, "Only support one set of arguments"
+        scheduled_res = [arg.numpy() for arg in repeated_args[0]]  # type: ignore
+        # fetch comparison function
+        passed = check_and_run(
+            ARGS.check_metric_func,
+            to_tvm_ndarray(original_res),
+            to_tvm_ndarray(scheduled_res),
+        )
+
+        print_result(
+            result="pass" if passed else "wrong answer",
+            original_mod=original_mod,
+            scheduled_mod=scheduled_mod,
+            trace=trace,
+            inputs=inputs,
+            original_res=original_res,
+            scheduled_res=scheduled_res,
+            original_run_secs=original_run_secs,
+            scheduled_run_secs=mean(costs),
+        )
+
         return costs
 
     def f_with_args_run_evaluator(
@@ -315,15 +371,26 @@ def make_alloc_arg_and_check(
     return f_with_args_alloc_argument, f_with_args_run_evaluator
 
 
-def build_and_run(
+def local_build_and_run(
     mod: IRModule,
     target: Target,
-    rpc_config: ms.runner.RPCConfig,
-    dev_type: str,
+    device: tvm.runtime.Device,
     inputs: List[np.ndarray],
-    builder: ms.builder.Builder,
 ) -> Tuple[List[np.ndarray], List[float]]:
-    """Build and run the module on the target device."""
+    """Build and run the module locally."""
+    # potential memory leak https://github.com/apache/tvm/issues/11096
+    lib = tvm.build(mod, target=target)
+    tvm_inputs = [tvm.nd.array(inp, device=device) for inp in inputs]
+    device.sync()
+    func = lib.time_evaluator(lib.entry_name, dev=device, number=ARGS.number, repeat=ARGS.repeat)
+    benchmark_res = func(*tvm_inputs)
+    device.sync()
+    return [arg.numpy() for arg in tvm_inputs], benchmark_res
+
+
+def _build_single_mod(
+    mod: IRModule, builder: ms.builder.Builder, target: Target
+) -> ms.builder.BuilderResult:
     builder_results = builder.build([ms.builder.BuilderInput(mod, target)])
     assert (
         len(builder_results) == 1
@@ -332,24 +399,14 @@ def build_and_run(
     assert builder_result.error_msg is None, "Builder failed: " + str(
         builder_result.error_msg if builder_result.error_msg else "Empty error message"
     )
+    return builder_results[0]
 
-    results: List[List[np.ndarray]] = []
 
-    f_with_args_alloc_argument, f_with_args_run_evaluator = make_alloc_arg_and_check(
-        inputs, results
-    )
-    runner = ms.runner.RPCRunner(
-        rpc_config=rpc_config,
-        evaluator_config=ms.runner.EvaluatorConfig(
-            number=ARGS.number,
-            repeat=ARGS.repeat,
-            min_repeat_ms=ARGS.min_repeat_ms,
-            enable_cpu_cache_flush=ARGS.cpu_flush,
-        ),
-        alloc_repeat=1,
-        f_alloc_argument=f_with_args_alloc_argument,
-        f_run_evaluator=f_with_args_run_evaluator,
-    )
+def _run_single_mod(
+    builder_result: ms.builder.BuilderResult,
+    runner: ms.runner.Runner,
+    dev_type: str,
+) -> None:
     runner_futures = runner.run(
         # arginfo is not used in this case so we can pass an empty list
         [ms.runner.RunnerInput(builder_result.artifact_path, device_type=dev_type, args_info=[])]
@@ -362,130 +419,18 @@ def build_and_run(
     assert runner_res.error_msg is None, "Runner failed: " + (
         runner_res.error_msg if runner_res.error_msg else "Empty error message"
     )
-    assert len(results) == 1, f"Unexpected number of repeat results, expected 1 got {len(results)}"
-    return results[0], runner_res.run_secs
-
-
-def validate_correctness(
-    original_mod: IRModule,  # compiled for "baseline_target"
-    scheduled_mod: IRModule,  # compiled for "target"
-    *,
-    baseline_target: Target,
-    target: Target,
-    dev_type: str,
-    rpc_config: ms.runner.RPCConfig,
-    builder: ms.builder.Builder,
-    inputs: List[np.ndarray] = None,  # for input reuse
-    original_res: List[np.ndarray] = None,  # for original mod results reuse
-    original_run_secs: List[float] = None,  # for original mod run secs reuse
-    f_input_generator: Union[
-        str, Callable[[IRModule], List[tvm.nd.NDArray]]
-    ] = default_input_generator,
-    f_check_metric: Union[
-        str, Callable[[tvm.nd.NDArray, tvm.nd.NDArray], bool]
-    ] = default_check_metric,
-) -> Tuple[bool, List[np.ndarray], List[np.ndarray], List[np.ndarray], List[float], List[float]]:
-    """Function to validate the correctness of a scheduled module.
-
-    Parameters
-    ----------
-    original_mod : IRModule
-        The original module to be compiled.
-    scheduled_mod : IRModule
-        The scheduled module to be compiled.
-    baseline_target : Target
-        The baseline target to compile the original module.
-    target : Target
-        The target to compile the scheduled module.
-    dev_type : str
-        The device type to run the module via rpc.
-    rpc_config : RPCConfig
-        The RPCConfig to run the scheduled module.
-    builder : Builder
-        The builder to build the original and scheduled modules.
-    inputs : List[np.ndarray]
-        The input data to be reused, if None, generate new inputs.
-    original_res : List[np.ndarray]
-        The original module results to be reused, if None, run the original module.
-    original_run_secs : List[float]
-        The original module run secs to be reused, if None, run the original module.
-    f_input_generator : Union[str, Callable]
-        The function to generate the input data.
-    f_check_metric : Union[str, Callable]
-        The function to check the metric.
-
-    Returns
-    -------
-    passed: bool
-        Whether the validation passed.
-    inputs: List[np.ndarray]
-        The input data used for validation in numpy array.
-    original_res: List[np.ndarray]
-        The original module results in numpy array.
-    scheduled_res: List[np.ndarray]
-        The scheduled module results in numpy array.
-    original_run_secs: List[float]
-        The running time of the original module via rpc runner.
-    scheduled_run_secs: List[float]
-        The running time of the scheduled module via rpc runner.
-    """
-
-    # fetch input function & prepare inputs
-    if inputs is None:
-        inputs = to_numpy(check_and_run(f_input_generator, original_mod))
-
-    # build & run original result
-    if original_res is None:
-        original_res, original_run_secs = build_and_run(
-            original_mod,
-            builder=builder,
-            target=baseline_target,
-            rpc_config=rpc_config,
-            dev_type="cpu",
-            inputs=inputs,
-        )
-    scheduled_res, scheduled_run_secs = build_and_run(
-        scheduled_mod,
-        builder=builder,
-        target=target,
-        rpc_config=rpc_config,
-        dev_type=dev_type,
-        inputs=inputs,
-    )
-
-    # fetch comparison function
-    validation_res = check_and_run(
-        f_check_metric, to_tvm_ndarray(original_res), to_tvm_ndarray(scheduled_res)
-    )
-
-    # check metric
-    return (
-        validation_res,
-        inputs,
-        original_res,
-        scheduled_res,
-        original_run_secs,
-        scheduled_run_secs,
-    )
 
 
 def main():
     """Main function"""
     describe()
-    target = ARGS.target
-    builder = ms.builder.LocalBuilder()
-    database = ms.database.create(work_dir=ARGS.work_dir)
-
-    # determine target kind
-    if target.kind.name == "llvm":
-        dev_type = "cpu"
-    elif target.kind.name == "cuda":
-        dev_type = "cuda"
-    else:
-        raise RuntimeError(f"Unsupported target kind: {target.kind.name}")
-
-    # start profiling
     with ms.Profiler() as profiler:
+        # initialize
+        target = ARGS.target
+        dev_type = get_device_type(target)
+        builder = ms.builder.LocalBuilder()
+        database = ms.database.create(work_dir=ARGS.work_dir)
+
         # collect records
         with profiler.timeit("collect records"):
             records = database.get_all_tuning_records()
@@ -515,66 +460,60 @@ def main():
             records = database.get_top_k(
                 workload=database.commit_workload(original_mod), top_k=ARGS.top_k
             )
-            inputs = None
-            original_res = None
-            original_run_secs = None
+            inputs = to_numpy(check_and_run(ARGS.input_generator_func, original_mod))
+            original_res, original_run_secs = local_build_and_run(
+                original_mod,
+                target=ARGS.baseline_target,
+                inputs=inputs,
+                device=get_runtime_device(ARGS.baseline_target),
+            )
             for record in records:
                 counter += 1
-                scope_name = f"validate #{counter}"
+                print_result = print_with_counter_func(counter=counter, total=len(records))
                 if is_failed_record(record):
                     # skip failed records where run_secs is 1e9
                     # these records are only negative samples for cost model
-                    print_result(counter + 1, total=len(records), result="skip", time=0.0)
+                    print_result(result="skip")
                     continue
                 try:
-                    with profiler.timeit(scope_name):
-                        # prepare scheduled module
-                        sch = Schedule(original_mod)
-                        record.trace.apply_to_schedule(sch=sch, remove_postproc=False)
-                        scheduled_mod = sch.mod
-                        # validate correctness
-                        (
-                            passed,
-                            inputs,
-                            original_res,
-                            scheduled_res,
-                            original_run_secs,
-                            scheduled_run_secs,
-                        ) = validate_correctness(
-                            original_mod=original_mod,
-                            scheduled_mod=scheduled_mod,
-                            target=target,
-                            baseline_target=ARGS.baseline_target,
-                            dev_type=dev_type,
-                            rpc_config=ARGS.rpc_config,
-                            builder=builder,  # type: ignore
-                            inputs=inputs,
-                            original_res=original_res,
-                            original_run_secs=original_run_secs,
-                        )
-                    # validation finished
-                    print_result(
-                        counter,
-                        total=total,
-                        result="pass" if passed else "wrong answer",
-                        time=profiler.get()[scope_name],
-                        original_mod=original_mod,
-                        scheduled_mod=scheduled_mod,
-                        trace=record.trace,
-                        inputs=inputs,
-                        original_res=original_res,
-                        scheduled_res=scheduled_res,
-                        original_run_secs=original_run_secs,
-                        scheduled_run_secs=scheduled_run_secs,
+                    # prepare scheduled module
+                    sch = Schedule(original_mod)
+                    record.trace.apply_to_schedule(sch=sch, remove_postproc=False)
+                    scheduled_mod = sch.mod
+                    # build the scheduled module locally
+                    builder_result = _build_single_mod(
+                        scheduled_mod, builder, target  # type: ignore
                     )
+                    (
+                        f_with_args_alloc_argument,
+                        f_with_args_run_evaluator,
+                    ) = make_alloc_arg_and_check(
+                        inputs,
+                        original_mod,
+                        scheduled_mod,
+                        record.trace,
+                        original_res=original_res,
+                        original_run_secs=original_run_secs,
+                        print_result=print_result,
+                    )
+                    runner = ms.runner.RPCRunner(
+                        rpc_config=ARGS.rpc_config,
+                        evaluator_config=ms.runner.EvaluatorConfig(
+                            number=ARGS.number,
+                            repeat=ARGS.repeat,
+                            min_repeat_ms=ARGS.min_repeat_ms,
+                            enable_cpu_cache_flush=ARGS.cpu_flush,
+                        ),
+                        alloc_repeat=1,
+                        f_alloc_argument=f_with_args_alloc_argument,
+                        f_run_evaluator=f_with_args_run_evaluator,
+                    )
+                    _run_single_mod(builder_result, runner, dev_type)  # type: ignore
                 except Exception as e:  # pylint: disable=broad-except, invalid-name
-                    raise e  # todo remove this line
+                    raise e
                     # validation failed with exception
                     print_result(
-                        counter,
-                        total=total,
                         result="exception",
-                        time=profiler.get()[scope_name],
                         original_mod=original_mod,
                         scheduled_mod=scheduled_mod,
                         trace=record.trace,
