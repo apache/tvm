@@ -66,7 +66,16 @@ register_pattern("qnn.requantize", OpPattern.ELEMWISE)
 
 # qnn.add
 register_strategy("qnn.add", strategy.qnn_add_strategy)
-register_pattern("qnn.add", OpPattern.BROADCAST)
+
+# qnn.subtract
+register_strategy("qnn.subtract", strategy.qnn_subtract_strategy)
+
+# qnn.mul
+register_strategy("qnn.mul", strategy.qnn_mul_strategy)
+
+# qnn.tanh
+register_strategy("qnn.tanh", strategy.qnn_tanh_strategy)
+register_pattern("qnn.tanh", OpPattern.ELEMWISE)
 
 # qnn.concatenate
 register_strategy("qnn.concatenate", strategy.qnn_concatenate_strategy)

@@ -71,6 +71,42 @@ def qnn_add_strategy_hexagon(attrs, inputs, out_type, target):
     return strategy
 
 
+@qnn_subtract_strategy.register("hexagon")
+def qnn_subtract_strategy_hexagon(attrs, inputs, out_type, target):
+    """qnn.subtract strategy for Hexagon"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_topi_compute(topi.hexagon.qnn_subtract),
+        wrap_topi_schedule(topi.hexagon.schedule_qnn_subtract),
+        name="qnn_subtract.hexagon",
+    )
+    return strategy
+
+
+@qnn_mul_strategy.register("hexagon")
+def qnn_mul_strategy_hexagon(attrs, inputs, out_type, target):
+    """qnn.mul strategy for Hexagon"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_topi_compute(topi.hexagon.qnn_mul),
+        wrap_topi_schedule(topi.hexagon.schedule_qnn_mul),
+        name="qnn_mul.hexagon",
+    )
+    return strategy
+
+
+@qnn_tanh_strategy.register("hexagon")
+def qnn_tanh_strategy_hexagon(attrs, inputs, out_type, target):
+    """qnn.tanh strategy for Hexagon"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_topi_compute(topi.hexagon.qnn_tanh),
+        wrap_topi_schedule(topi.hexagon.schedule_qnn_tanh),
+        name="qnn_tanh.hexagon",
+    )
+    return strategy
+
+
 @qnn_concatenate_strategy.register("hexagon")
 def qnn_concatenate_strategy_hexagon(attrs, inputs, out_type, target):
     """qnn.concatenate strategy for Hexagon"""
