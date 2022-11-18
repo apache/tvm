@@ -329,12 +329,14 @@ class BuiltinLower : public StmtExprMutator {
     PrimExpr dst = op->args[1];
     PrimExpr src = op->args[2];
     PrimExpr size = op->args[3];
+    PrimExpr bypass_cache = op->args[4];
 
     std::string fdevapi_prefix =
         "device_api." + std::string(runtime::DeviceName(device_type_.as<IntImmNode>()->value));
 
-    Call call_packed = Call(DataType::Int(32), builtin::tvm_call_packed(),
-                            {StringImm(fdevapi_prefix + ".dma_copy"), queue_id, dst, src, size});
+    Call call_packed =
+        Call(DataType::Int(32), builtin::tvm_call_packed(),
+             {StringImm(fdevapi_prefix + ".dma_copy"), queue_id, dst, src, size, bypass_cache});
     return VisitExpr(call_packed);
   }
 
