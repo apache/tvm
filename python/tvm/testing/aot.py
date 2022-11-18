@@ -25,7 +25,6 @@ import subprocess
 import tarfile
 import logging
 from typing import Any, NamedTuple, Union, Optional, List, Dict
-import time
 import numpy as np
 
 import tvm
@@ -810,8 +809,6 @@ def run_and_check(
             + f" FVP_DIR={fvp_dir}"
             + custom_params
         )
-        print(os.path.join(codegen_path, "host", "src", "default_lib1.c"))
-        time.sleep(0)
 
         compile_log_path = os.path.join(build_path, "test_compile.log")
         compile_command = f"{make_command} aot_test_runner"

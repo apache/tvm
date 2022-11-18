@@ -65,6 +65,8 @@ def alter_add_layout(_attrs, inputs, _tinfos, _out_type):
     means we must pad tensors with the input zero point, and NOT with zero."""
 
     prev_op, biases = inputs
+    if not hasattr(prev_op, "op"):
+        return None
     if prev_op.op.name != "qnn.conv2d":
         return None
 
