@@ -28,6 +28,7 @@ export TVM_INTEGRATION_TESTSUITE_NAME=python-integration-adreno
 
 export TVM_TRACKER_HOST=127.0.0.1
 export TVM_TRACKER_PORT=$(((RANDOM % 100) + 9100))
+export RPC_DEVICE_KEY="android"
 export RPC_TARGET="adreno"
 export TVM_NDK_CC="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang"
 
@@ -45,7 +46,7 @@ adb reverse tcp:${TVM_TRACKER_PORT} tcp:${TVM_TRACKER_PORT}
 adb forward tcp:5000 tcp:5000
 adb forward tcp:5001 tcp:5001
 adb forward tcp:5002 tcp:5002
-env adb shell "cd /data/local/tmp/tvm_ci; killall -9 tvm_rpc_ci; sleep 2; LD_LIBRARY_PATH=/data/local/tmp/tvm_ci/ ./tvm_rpc_ci server --host=0.0.0.0 --port=5000 --port-end=5010 --tracker=127.0.0.1:${TVM_TRACKER_PORT} --key=android" &
+env adb shell "cd /data/local/tmp/tvm_ci; killall -9 tvm_rpc_ci; sleep 2; LD_LIBRARY_PATH=/data/local/tmp/tvm_ci/ ./tvm_rpc_ci server --host=0.0.0.0 --port=5000 --port-end=5010 --tracker=127.0.0.1:${TVM_TRACKER_PORT} --key=${RPC_DEVICE_KEY}" &
 DEVICE_PID=$!
 sleep 5 # Wait for the device connections
 trap "{ kill ${TRACKER_PID}; kill ${DEVICE_PID}; }" 0
