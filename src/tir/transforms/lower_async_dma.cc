@@ -71,7 +71,7 @@ class AsyncDMALowerer : public StmtExprMutator {
           Evaluate(Call(DataType::Int(32), builtin::dma_wait(), {queue_id, async_wait->value}));
 
       // concatenate the call with the body and return
-      return SeqStmt({call_dma_wait, async_wait->body});
+      return SeqStmt({call_dma_wait, StmtExprMutator::VisitStmt(async_wait->body)});
 
       // Convert this, for example:
       // attr [0] "async_commit_queue_scope" = 0;
