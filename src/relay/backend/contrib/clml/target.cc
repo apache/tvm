@@ -38,4 +38,4 @@ TVM_REGISTER_TARGET_KIND("clml", kDLOpenCL)
 
 }  // namespace contrib
 }  // namespace relay
-}
+}  // namespace tvm
