@@ -251,6 +251,7 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
   bool enable_intermediate_compression;
   bool disable_winograd;
   String debug_dir;
+  bool inline_non_compute_intensive_partitions;
 
   TVM_DECLARE_ATTRS(EthosnCompilerConfigNode, "ext.attrs.EthosnCompilerConfigNode") {
     TVM_ATTR_FIELD(variant).describe("See Ethos-N documentation.").set_default("n78");
@@ -278,6 +279,12 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
     TVM_ATTR_FIELD(enable_intermediate_compression).set_default(true);
     TVM_ATTR_FIELD(disable_winograd).set_default(false);
     TVM_ATTR_FIELD(debug_dir).set_default(".");
+    TVM_ATTR_FIELD(inline_non_compute_intensive_partitions)
+        .describe(
+            "A heuristic to improve performance. Inlines functions partitioned for Arm(R) "
+            "Ethos(TM)-N that are deemed 'non-compute-intensive'. The inlined functions will "
+            "continue through TVM's standard compilation flow.")
+        .set_default(true);
   }
 };
 
@@ -288,6 +295,17 @@ class EthosnCompilerConfig : public Attrs {
 
 TVM_REGISTER_NODE_TYPE(EthosnCompilerConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.ethos-n.options", EthosnCompilerConfig);
+
+EthosnCompilerConfig GetCompilerAttrs() {
+  auto ctx = transform::PassContext::Current();
+  Optional<EthosnCompilerConfig> cfg =
+      ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options");
+  if (!cfg.defined()) {
+    return AttrsWithDefaultValues<EthosnCompilerConfig>();
+  }
+  return cfg.value();
+}
+TVM_REGISTER_GLOBAL("relay.ext.ethos-n.get_compiler_attrs").set_body_typed(GetCompilerAttrs);
 
 /*! \brief The compiler for Ethos-N functions */
 class EthosnCompiler {

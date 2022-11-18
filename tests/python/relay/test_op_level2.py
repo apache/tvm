@@ -2209,7 +2209,9 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instr):
 
 @tvm.testing.requires_arm_dot
 def test_conv2d_int8_alter_dtype_arm():
-    _test_conv2d_int8_alter_dtype("uint8", "llvm --device arm_cpu -mattr=+v8.2a,+dotprod", "sdot")
+    _test_conv2d_int8_alter_dtype(
+        "uint8", "llvm -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod", "sdot"
+    )
 
 
 @tvm.testing.requires_cascadelake

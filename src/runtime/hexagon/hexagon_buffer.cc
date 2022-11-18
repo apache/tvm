@@ -26,12 +26,11 @@
 
 #include "hexagon_common.h"
 #include "hexagon_device_api.h"
+#include "qurt_memory.h"
 
 namespace tvm {
 namespace runtime {
 namespace hexagon {
-
-int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length);
 
 struct Allocation {
   Allocation(size_t allocation_nbytes, size_t alignment)
@@ -237,8 +236,19 @@ void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& 
 
   // Finally, do the memory copies.
   for (const auto& copy : macro_copies) {
-    int error_code = hexagon_user_dma_1d_sync(copy.dest, copy.src, copy.num_bytes);
-    CHECK_EQ(error_code, 0);
+    // clean Hexagon cache before / after memcpy to ensure clean cache state to enable usage of DMA
+    // bypass mode for increased DMA bandwidth
+    // TODO(HWE): Switch to ION Buffer to avoid need for memcpy and potentially lighten or alleviate
+    // the burden of cache invalidation in this code
+    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.dest), copy.num_bytes,
+                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
+    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.src), copy.num_bytes,
+                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
+    memcpy(copy.dest, copy.src, copy.num_bytes);
+    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.dest), copy.num_bytes,
+                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
+    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.src), copy.num_bytes,
+                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
   }
 }
 

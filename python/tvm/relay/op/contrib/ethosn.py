@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name, unused-argument
 """Arm(R) Ethos(TM)-N NPU supported operators."""
 from enum import Enum
-import warnings
 from distutils.version import LooseVersion
 
 import tvm.ir
@@ -64,12 +63,42 @@ def ConvertEquivalents() -> tvm.ir.IRModule:  # pylint: disable=invalid-name
     """Converts operations into a numerically equivalent form
     that can be understood by the NPU codegen.
 
-    Return
-    ------
+    Returns
+    -------
     Pass
         The module pass.
     """
     return _ethosn.ConvertEquivalents()
+
+
+def InlineNonComputeIntensivePartitions() -> tvm.ir.IRModule:  # pylint: disable=invalid-name
+    """This pass checks whether functions partitioned for the NPU are considered
+    non-compute intensive. If they are not, they will be unpartitioned and passed onto
+    other backends to consider.
+
+    A partitioned function is currently considered non-compute intensive if it contains
+    no multiply accumulate operations.
+
+    Returns
+    -------
+    Pass
+        The module pass.
+    """
+    return _ethosn.InlineNonComputeIntensivePartitions()
+
+
+def is_inline_non_compute_intensive_partitions_enabled() -> bool:
+    """
+    Determine whether to inline none-compute-intensive partitions.
+
+    Returns
+    -------
+    True if inlining should happen, False if not.
+    """
+    compiler_attrs = tvm.get_global_func("relay.ext.ethos-n.get_compiler_attrs")()
+    if not compiler_attrs:
+        return False
+    return compiler_attrs.inline_non_compute_intensive_partitions
 
 
 def partition_for_ethosn(mod, params=None, **opts):
@@ -87,20 +116,6 @@ def partition_for_ethosn(mod, params=None, **opts):
     -------
     ret : annotated and partitioned module.
     """
-    opts = opts or {}
-    if "variant" not in opts:
-        raise ValueError("Please specify a variant in the target string, e.g. -variant=n78.")
-
-    # -variant=ethos-n78 deprecated in favour of -variant=n78
-    if opts["variant"].lower() == "ethos-n78":
-        warnings.warn(
-            "Please use '-variant=n78' instead of the deprecated "
-            "'-variant=ethos-n78', which will be removed in TVM v0.9.",
-            DeprecationWarning,
-        )
-    elif opts["variant"] != "n78":
-        raise ValueError("When targeting Ethos(TM)-N78, -variant=n78 should be set.")
-
     api_version = ethosn_api_version()
     supported_api_versions = ["3.1.0"]
     if all(api_version != LooseVersion(exp_ver) for exp_ver in supported_api_versions):
@@ -112,17 +127,18 @@ def partition_for_ethosn(mod, params=None, **opts):
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
 
-    seq = tvm.transform.Sequential(
-        [
-            transform.InferType(),
-            transform.MergeComposite(pattern_table()),
-            transform.AnnotateTarget("ethos-n"),
-            transform.MergeCompilerRegions(),
-            transform.PartitionGraph(),
-            ConvertEquivalents(),
-        ]
-    )
-    return seq(mod)
+    passes = [
+        transform.InferType(),
+        transform.MergeComposite(pattern_table()),
+        transform.AnnotateTarget("ethos-n"),
+        transform.MergeCompilerRegions(),
+        transform.PartitionGraph(),
+        ConvertEquivalents(),
+    ]
+    if is_inline_non_compute_intensive_partitions_enabled():
+        passes.append(InlineNonComputeIntensivePartitions())
+
+    return tvm.transform.Sequential(passes)(mod)
 
 
 @register_pattern_table("ethos-n")
@@ -412,24 +428,7 @@ def qnn_concatenate(expr):
     if not _ethosn.concatenate(expr):
         return False
 
-    # Support library has some unenforced restrictions on qnn params
-    args = expr.args
-    min_range = 1e9
-    max_range = -1e9
-    qnn_params = []
-    for i in range(len(args[1].fields)):
-        scale = args[1].fields[i].data.numpy()
-        zero_point = args[2].fields[i].data.numpy()
-        min_range = min(-1 * zero_point * scale, min_range)
-        max_range = max((255 - zero_point) * scale, max_range)
-        qnn_params.append((scale, zero_point))
-
-    scale = (max_range - min_range) / 255
-    zero_point = int(-min_range / scale)
-    if (scale, zero_point) in qnn_params:
-        return True
-
-    return False
+    return True
 
 
 @tvm.ir.register_op_attr("split", "target.ethos-n")

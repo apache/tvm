@@ -17,6 +17,7 @@
 """Local Runner"""
 from contextlib import contextmanager
 from typing import Callable, List, Optional, Union
+import subprocess
 
 import tvm
 
@@ -277,6 +278,7 @@ class LocalRunner(PyRunner):
             max_workers=1,  # one local worker
             timeout=timeout_sec,
             initializer=initializer,
+            stderr=subprocess.DEVNULL,  # suppress the stderr output
         )
         self._sanity_check()
 

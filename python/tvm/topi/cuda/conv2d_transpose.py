@@ -161,7 +161,7 @@ def schedule_conv2d_transpose_nchw(cfg, outs):
             cfg["tile_n"] = SplitEntity([1, 1, 1, 1])
         # split F (output channel dimension)
         if F > 1:
-            cfg["tile_f"] = SplitEntity([-1, 1, 64, 1])
+            cfg["tile_f"] = SplitEntity([-1, 1, 4, 1])
         # split Y (height dimension)
         y_split_factor = 1
         for candidate in range(5, 17):

@@ -181,6 +181,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheWrite")
     .set_body_method<Schedule>(&ScheduleNode::CacheWrite);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheInplace")
     .set_body_method<Schedule>(&ScheduleNode::CacheInplace);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheIndex")
+    .set_body_method<Schedule>(&ScheduleNode::CacheIndex);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReIndex")
     .set_body_typed([](Schedule self, const BlockRV& block_rv, int buffer_index,
                        int buffer_index_type) {
@@ -270,6 +272,9 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleDecomposePadding")
     .set_body_method<Schedule>(&ScheduleNode::DecomposePadding);
 TVM_REGISTER_GLOBAL("tir.schedule.SchedulePadEinsum")
     .set_body_method<Schedule>(&ScheduleNode::PadEinsum);
+/******** (FFI) Buffer transformation ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRollingBuffer")
+    .set_body_method<Schedule>(&ScheduleNode::RollingBuffer);
 /******** (FFI) Misc ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleEnterPostproc")
     .set_body_method<Schedule>(&ScheduleNode::EnterPostproc);

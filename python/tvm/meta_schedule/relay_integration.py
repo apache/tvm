@@ -119,6 +119,7 @@ def extract_tasks(
         }
     ),
     executor: Optional["relay.backend.Executor"] = None,
+    module_equality: str = "structural",
 ) -> List[ExtractedTask]:
     """Extract tuning tasks from a relay program.
 
@@ -136,6 +137,16 @@ def extract_tasks(
         The pass configuration
     executor : Optional[relay.backend.Executor]
         The executor to use
+    module_equality : Optional[str]
+        A string to specify the module equality testing and hashing method.
+        It must be one of the followings:
+          - "structural": Use StructuralEqual/Hash
+          - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
+                              equality testing and hashing.
+          - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
+                            given module. The "ignore-ndarray" varint is used for the extracted
+                            blocks or in case no anchor block is found.
+                            For the definition of the anchor block, see tir/analysis/analysis.py.
 
     Returns
     -------
@@ -161,7 +172,7 @@ def extract_tasks(
                 opt_level=opt_level,
                 config=pass_config,
             ):
-                return list(_extract_task(mod, target, params))
+                return list(_extract_task(mod, target, params, module_equality))
 
 
 def extracted_tasks_to_tune_contexts(
@@ -237,6 +248,7 @@ def tune_relay(
     space: SpaceGenerator.SpaceGeneratorType = "post-order-apply",
     strategy: SearchStrategy.SearchStrategyType = "evolutionary",
     seed: Optional[int] = None,
+    module_equality: str = "structural",
 ) -> Database:
     """Tune a Relay program.
 
@@ -274,6 +286,16 @@ def tune_relay(
         The search strategy to use
     seed : Optional[int]
         The random seed
+    module_equality : Optional[str]
+        A string to specify the module equality testing and hashing method.
+        It must be one of the followings:
+          - "structural": Use StructuralEqual/Hash
+          - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
+                              equality testing and hashing.
+          - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
+                            given module. The "ignore-ndarray" varint is used for the extracted
+                            blocks or in case no anchor block is found.
+                            For the definition of the anchor block, see tir/analysis/analysis.py.
 
     Returns
     -------
@@ -281,7 +303,7 @@ def tune_relay(
         The database that contains the tuning records
     """
     tasks, task_weights = extracted_tasks_to_tune_contexts(
-        extracted_tasks=extract_tasks(mod, target, params),
+        extracted_tasks=extract_tasks(mod, target, params, module_equality=module_equality),
         work_dir=work_dir,
         space=space,
         strategy=strategy,
@@ -300,6 +322,7 @@ def tune_relay(
         cost_model=cost_model,
         measure_callbacks=measure_callbacks,
         task_scheduler=task_scheduler,
+        module_equality=module_equality,
     )
 
 
@@ -354,7 +377,7 @@ def compile_relay(
     mod, target, params, pass_config, executor = _normalize_params(
         mod, target, params, pass_config, executor
     )
-    pass_config.setdefault("relay.backend.use_meta_schedule_dispatch", target.kind.name != "cuda")
+    pass_config.setdefault("relay.backend.use_meta_schedule_dispatch", True)
     with Profiler.timeit("PostTuningCompilation"):
         with target, _autotvm_silencer(), database:
             with transform.PassContext(
@@ -379,19 +402,5 @@ def is_meta_schedule_enabled() -> bool:
     """
     return transform.PassContext.current().config.get(
         "relay.backend.use_meta_schedule",
-        False,
-    )
-
-
-def is_meta_schedule_dispatch_enabled() -> bool:
-    """Return whether the meta-schedule dispatch is enabled.
-
-    Returns
-    -------
-    enabled: bool
-        Whether the meta schedule is enabled
-    """
-    return transform.PassContext.current().config.get(
-        "relay.backend.use_meta_schedule_dispatch",
         False,
     )

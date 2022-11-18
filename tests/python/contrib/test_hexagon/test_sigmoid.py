@@ -14,43 +14,32 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Sigmoid operator tests."""
 
 import numpy as np
-import pytest
 
 import tvm
 import tvm.testing
 from tvm import te
 from tvm import tir
 from tvm import topi
-from tvm.contrib.hexagon.build import HexagonLauncher
+from tvm.contrib.hexagon import allocate_hexagon_array
 
-from .infrastructure import allocate_hexagon_array, get_hexagon_target
-
-
-def sigmoid_compute(Input):
-    return topi.sigmoid(Input)
+from .infrastructure import get_hexagon_target
 
 
-def sigmoid_stir_schedule(Input, Output):
-    sigmoid_func = te.create_prim_func([Input, Output])
+def sigmoid_compute(sigmoid_input):
+    return topi.sigmoid(sigmoid_input)
+
+
+def sigmoid_stir_schedule(sigmoid_input, sigmoid_output):
+    sigmoid_func = te.create_prim_func([sigmoid_input, sigmoid_output])
     sch = tir.Schedule(sigmoid_func, debug_mask="all")
     block = sch.get_block("compute")
 
     (n,) = sch.get_loops(block)
     sch.vectorize(n)
     return sch
-
-
-@tvm.testing.fixture
-def input_np(in_shape, dtype, min_val, max_val):
-    return np.random.uniform(low=min_val, high=max_val, size=in_shape).astype(dtype)
-
-
-@tvm.testing.fixture
-def ref_output_np(input_np):
-    output_np = 1 / (1 + np.exp(-input_np))
-    return output_np
 
 
 class BaseSigmoid:
@@ -64,6 +53,17 @@ class BaseSigmoid:
 
 
 class TestSigmoid(BaseSigmoid):
+    """Sigmoid test class."""
+
+    @tvm.testing.fixture
+    def input_np(self, in_shape, dtype, min_val, max_val):
+        return np.random.uniform(low=min_val, high=max_val, size=in_shape).astype(dtype)
+
+    @tvm.testing.fixture
+    def ref_output_np(self, input_np):
+        output_np = 1 / (1 + np.exp(-input_np))
+        return output_np
+
     @tvm.testing.requires_hexagon
     def test_sigmoid(
         self,
@@ -73,11 +73,12 @@ class TestSigmoid(BaseSigmoid):
         ref_output_np,
         hexagon_session,
     ):
-        InputTensor = te.placeholder(in_shape, name="InputTensor", dtype=dtype)
+        """Sigmoid test."""
+        input_tensor = te.placeholder(in_shape, name="input_tensor", dtype=dtype)
 
-        OutputTensor = sigmoid_compute(InputTensor)
+        output_tensor = sigmoid_compute(input_tensor)
 
-        tir_s = sigmoid_stir_schedule(InputTensor, OutputTensor)
+        tir_s = sigmoid_stir_schedule(input_tensor, output_tensor)
 
         input_data = allocate_hexagon_array(
             hexagon_session.device,

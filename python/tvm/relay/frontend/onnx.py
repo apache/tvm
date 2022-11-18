@@ -242,6 +242,22 @@ def get_scalar_or_1d_tensor(x, params, dtype="float32"):
     return _op.cast(x, dtype)
 
 
+def flatten_to_nd(x, x_shape, nd=3):
+    """Flatten input tensor to nd rank"""
+    ndims = infer_shape(x_shape)[0]
+    if ndims == nd:
+        return x
+    newshape = _op.concatenate(
+        [
+            _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
+            _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
+        ],
+        0,
+    )
+    out = _op.reshape(x, fold_constant(newshape))
+    return out
+
+
 def matmul_out_dtype(inputs, out_dtype):
     """Common function to handle MatMul and MatMulInteger16"""
     a_shape = shape_of(inputs[0])
@@ -249,21 +265,6 @@ def matmul_out_dtype(inputs, out_dtype):
     b_shape = shape_of(inputs[1])
     b_rank = infer_shape(b_shape)[0]
     if a_rank > 2 or b_rank > 2:
-
-        def flatten_to_nd(x, x_shape, nd=3):
-            ndims = infer_shape(x_shape)[0]
-            if ndims == nd:
-                return x
-            newshape = _op.concatenate(
-                [
-                    _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
-                    _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
-                ],
-                0,
-            )
-            out = _op.reshape(x, fold_constant(newshape))
-            return out
-
         # Determine the output batch dimension.
         new_a_shape = a_shape
         new_b_shape = b_shape
@@ -365,10 +366,173 @@ def matmul_out_dtype(inputs, out_dtype):
     return _op.nn.dense(inputs[0], input_1_t, out_dtype=out_dtype)
 
 
-def layer_norm(x, eps, gamma, beta):
-    """Common function to handle layer norm"""
-    eps_dtype = infer_type(x).checked_type.dtype
+def qmatmul(
+    a,
+    b,
+    a_zp_scalar,
+    b_zp_scalar,
+    a_scale_scalar,
+    b_scale_scalar,
+    transform_num_hidden_units,
+    matmul_result_dtype,
+):
+    """
+    Helper function to handle QLinearMatMul
+    It is very close to 'matmul_out_dtype' but separated due to
+    differences in signatures of dense, matmul, batch_matmul of nn and qnn.
+    They requre scaling and zero point arguments
+    """
+    a_shape = shape_of(a)
+    a_rank = infer_shape(a_shape)[0]
+    b_shape = shape_of(b)
+    b_rank = infer_shape(b_shape)[0]
+    if a_rank > 2 or b_rank > 2:
+        # Determine the output batch dimension.
+        new_a_shape = a_shape
+        new_b_shape = b_shape
+        if a_rank > b_rank:
+            rank_diff = a_rank - b_rank
+            new_b_shape = _op.concatenate(
+                [
+                    _expr.const([1] * rank_diff, dtype=infer_type(b_shape).checked_type.dtype),
+                    b_shape,
+                ],
+                0,
+            )
+        elif a_rank < b_rank:
+            rank_diff = b_rank - a_rank
+            new_a_shape = _op.concatenate(
+                [
+                    _expr.const([1] * rank_diff, dtype=infer_type(a_shape).checked_type.dtype),
+                    a_shape,
+                ],
+                0,
+            )
+        else:
+            pass
 
+        out_batch = _op.concatenate(
+            [
+                _op.maximum(
+                    _op.strided_slice(new_b_shape, [i], [i + 1]),
+                    _op.strided_slice(new_a_shape, [i], [i + 1]),
+                )
+                for i in range(max(a_rank, b_rank) - 2)
+            ],
+            0,
+        )
+
+        b_type = infer_type(b)
+        # Convert to dense if the second matrix is 2d and non-dynamic
+        if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
+            a = flatten_to_nd(a, a_shape, 2)
+            b = _op.transpose(b)
+            output = _qnn.op.dense(
+                a,
+                b,
+                a_zp_scalar,
+                b_zp_scalar,
+                a_scale_scalar,
+                b_scale_scalar,
+                transform_num_hidden_units,
+                matmul_result_dtype,
+            )
+        else:
+            # broadcast a and b
+            a_broadcasted_shape = fold_constant(
+                _op.concatenate(
+                    [
+                        out_batch,
+                        _op.strided_slice(a_shape, [a_rank - 2], [a_rank]),
+                    ],
+                    0,
+                )
+            )
+            b_broadcasted_shape = fold_constant(
+                _op.concatenate(
+                    [
+                        out_batch,
+                        _op.strided_slice(b_shape, [b_rank - 2], [b_rank]),
+                    ],
+                    0,
+                )
+            )
+            if not tvm.ir.structural_equal(a_shape, a_broadcasted_shape):
+                a = _op.transform.broadcast_to(a, a_broadcasted_shape)
+            if not tvm.ir.structural_equal(b_shape, b_broadcasted_shape):
+                b = _op.transform.broadcast_to(b, b_broadcasted_shape)
+            # Convert a and b into 3 dimensional tensors.
+            a = flatten_to_nd(a, shape_of(a), 3)
+            b = flatten_to_nd(b, shape_of(b), 3)
+            # Transpose matrix dimensions of b.
+            bt = _op.transpose(b, [0, 2, 1])
+            # Perform a NT batch matmul.
+            output = _qnn.op.batch_matmul(
+                a,
+                bt,
+                a_zp_scalar,
+                b_zp_scalar,
+                a_scale_scalar,
+                b_scale_scalar,
+                matmul_result_dtype,
+            )
+        # Reshape output to original dimensions.
+        final_shape = _op.concatenate(
+            [
+                out_batch,
+                _op.strided_slice(a_shape, [a_rank - 2], [a_rank - 1]),
+                _op.strided_slice(b_shape, [b_rank - 1], [b_rank]),
+            ],
+            0,
+        )
+        return _op.reshape(output, fold_constant(final_shape))
+
+    if a_rank == 1:
+        # TODO(vvchernov): There should be qnn.matmul but it is not implemented
+        # return _op.squeeze(_qnn.op.matmul(_op.expand_dims(a, axis=0),
+        #                                   b,
+        #                                   a_zp_scalar,
+        #                                   b_zp_scalar,
+        #                                   a_scale_scalar,
+        #                                   b_scale_scalar,
+        #                                   transform_num_hidden_units,
+        #                                   matmul_result_dtype,
+        #                                  ),
+        #                    axis=[0]
+        #                   )
+        return _op.squeeze(
+            _qnn.op.dense(
+                _op.expand_dims(a, axis=0),
+                _op.transpose(b),
+                a_zp_scalar,
+                b_zp_scalar,
+                a_scale_scalar,
+                b_scale_scalar,
+                transform_num_hidden_units,
+                matmul_result_dtype,
+            ),
+            axis=[0],
+        )
+
+    # Otherwise a simple dense op will get the job done.
+    return _qnn.op.dense(
+        a,
+        _op.transpose(b),
+        a_zp_scalar,
+        b_zp_scalar,
+        a_scale_scalar,
+        b_scale_scalar,
+        transform_num_hidden_units,
+        matmul_result_dtype,
+    )
+
+
+def layer_norm(x, eps, gamma, beta):
+    """A common function to handle layer norm.
+
+    Use LayerNormalization for the actual onnx op.
+    """
+    eps_dtype = infer_type(x).checked_type.dtype
     u, s = _op.mean_variance(x, axis=-1, keepdims=True)
     output = _op.divide(
         _op.subtract(x, u),
@@ -926,10 +1090,45 @@ class Gelu(OnnxOpConverter):
         return _op.multiply(term1, term2)
 
 
+class FastGelu(OnnxOpConverter):
+    """Operator converter for FastGelu from Microsoft onnxruntime contrib opset.
+
+    fast_gelu(x) = 0.5x(1 + tanh(sqrt(2/pi)(x + 0.044715x^3)))
+                 = 0.5x(1 + tanh((sqrt(2/pi)x + 0.044715(sqrt(2/pi)x^3)))
+                 = 0.5x(1 + tanh(c1 * x + c2 * x^3)))
+    , where
+        c1 = sqrt(2/pi)
+        c2 = 0.044715 * sqrt(2/pi)
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        x = inputs[0]
+        if inputs[1]:
+            bias = inputs[1]
+            bias_shape = infer_shape(bias)
+            assert len(bias_shape) == 1, "bias term must be a 1D tensor"
+            x += bias
+
+        # Declare consts
+        const_dtype = infer_type(x).checked_type.dtype
+        half = _expr.const(0.5, dtype=const_dtype)
+        one = _expr.const(1.0, dtype=const_dtype)
+        const1 = _expr.const(math.sqrt(2 / math.pi), dtype=const_dtype)
+        const2 = _expr.const(0.044715 * math.sqrt(2 / math.pi), dtype=const_dtype)
+
+        # Compute FastGelu
+        term1 = _op.multiply(half, x)
+        term2 = _op.multiply(const1, x)
+        term3 = _op.multiply(const2, _op.power(x, _expr.const(3, const_dtype)))
+        tanh = _op.tanh(_op.add(term2, term3))
+        return _op.multiply(term1, _op.add(one, tanh))
+
+
 class BiasGelu(OnnxOpConverter):
     """Operator converter for BiasGelu from Microsoft onnxruntime contrib opset.
 
-    bias_gelu(x, b) = 0.5(x, b)(1 + erf((x + b)/sqrt(2)))
+    bias_gelu(x, b) = 0.5(x + b)(1 + erf((x + b)/sqrt(2)))
     """
 
     @classmethod
@@ -942,6 +1141,36 @@ class BiasGelu(OnnxOpConverter):
 
         inp = _op.add(x, b)
         return Gelu._impl_v1([inp], attr, params)
+
+
+class LayerNormalization(OnnxOpConverter):
+    """Operator converter for LayerNormalization from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v17(cls, inputs, attr, params):
+        x = inputs[0]
+        gamma = inputs[1]
+        beta = inputs[2]
+        axis = attr.get("axis", -1)
+        eps = attr.get("epsilon", 1e-5)
+        # according to the onnx doc, given the int axis (default -1)
+        # to compute the mean and inv_stdev which are of dim [d[0], ..., d[axis-1], 1, ..., 1]
+        # the actual computation is over (axis, ..., rank(x) - 1) axes
+        # see https://github.com/onnx/onnx/blob/main/docs/Changelog.md#layernormalization-17
+        rank = len(infer_shape(x))
+        axis = tuple(range(axis, rank)) if axis >= 0 else tuple(range(rank + axis, rank))
+        dtype = infer_type(x).checked_type.dtype
+        mean = _op.mean(x, axis, keepdims=True)
+        var = _op.variance(x, axis, keepdims=True, with_mean=mean)
+        inv_stdev = _op.divide(
+            _op.const(1, dtype=dtype), _op.sqrt(_op.add(var, _op.const(eps, dtype=dtype)))
+        )
+        x_norm = _op.multiply(_op.subtract(x, mean), inv_stdev)
+        ln = _op.multiply(x_norm, gamma)
+        if beta is not None:
+            ln = _op.add(ln, beta)
+
+        return _expr.TupleWrapper(_expr.Tuple([ln, mean, inv_stdev]), 3)
 
 
 class EmbedLayerNormalization(OnnxOpConverter):
@@ -1615,6 +1844,32 @@ class Sum(OnnxOpConverter):
         return inputs[len(inputs) - 1]
 
 
+class Optional_(OnnxOpConverter):
+    """Operator converter for Optional based on sequence construction op."""
+
+    @classmethod
+    def _impl_v15(cls, inputs, attr, params):
+        return SequenceConstruct._impl_v11(inputs, attr, params)
+
+
+class OptionalHasElement(OnnxOpConverter):
+    """Operator converter for OptionalHasElement."""
+
+    @classmethod
+    def _impl_v15(cls, inputs, attr, params):
+        shape = infer_shape(inputs[0])
+        return _op.const(True) if shape else _op.const(False)
+
+
+class OptionalGetElement(OnnxOpConverter):
+    """Operator converter for OptionalGetElement based on sequence construction op."""
+
+    @classmethod
+    def _impl_v15(cls, inputs, attr, params):
+        opt_as_seq = Optional_._impl_v15(inputs, attr, params)
+        return _expr.TupleGetItem(opt_as_seq, 0)
+
+
 class Affine(OnnxOpConverter):
     """Operator converter for Affine transformation."""
 
@@ -1776,7 +2031,7 @@ class Cast(OnnxOpConverter):
         return AttrCvt(op_name="cast", transforms={"to": "dtype"})(inputs, attr)
 
     @classmethod
-    def _impl_v5(cls, inputs, attr, params):
+    def _impl_v6(cls, inputs, attr, params):
         try:
             from onnx import TensorProto
         except ImportError as e:
@@ -1793,7 +2048,16 @@ class Cast(OnnxOpConverter):
                 attr["to"] = str(TENSOR_TYPE_TO_NP_TYPE[attr["to"]])
             except ImportError as e:
                 raise ImportError("Unable to import onnx.mapping which is required {}".format(e))
+
         return AttrCvt(op_name="cast", transforms={"to": "dtype"})(inputs, attr)
+
+
+class CastLike(OnnxOpConverter):
+    """Operator converter for CastLike."""
+
+    @classmethod
+    def _impl_v15(cls, inputs, attr, params):
+        return AttrCvt(op_name="cast_like")(inputs, attr)
 
 
 class Unsqueeze(OnnxOpConverter):
@@ -4335,7 +4599,6 @@ class QLinearMatMul(OnnxOpConverter):
     Operator converter for QLinearMatMul from Microsoft onnxruntime contrib opset.
 
     Limitations:
-    - Only supports 2D input tensors.
     - Not guaranteed to meet the integer-overflow behavior stipulated in the
       ONNX documentation for this operator.
 
@@ -4385,9 +4648,6 @@ class QLinearMatMul(OnnxOpConverter):
         y_scale_type = infer_type(y_scale).checked_type
         y_zp_type = infer_type(y_zp).checked_type  # 'T3' in ONNX doc for this op
 
-        a_shape = infer_shape(a)
-        b_shape = infer_shape(b)
-
         # Verify type assumptions, based on the ONNX doc for this op...
         assert a_type.dtype in ["int8", "uint8"]
         assert a_scale_type.dtype == "float32"
@@ -4399,14 +4659,6 @@ class QLinearMatMul(OnnxOpConverter):
 
         assert y_scale_type.dtype == "float32"
         assert y_zp_type.dtype in expected_out_dtypes
-
-        # TODO: relax this limitation in a future version of this importer.
-        a_rank = len(a_shape)
-        b_rank = len(b_shape)
-        assert (a_rank == 2) and (b_rank == 2), (
-            "QLinearMatMul importer currently requires both 'a' and 'b' tensors to be 2D, but"
-            " rank(a)={}, rank(b)={}".format(a_rank, b_rank)
-        )
 
         # _qnn.op.dense requires the zero-point values to have dtype int32.
         a_scale_scalar = try_resolve_to_const(a_scale)
@@ -4439,10 +4691,14 @@ class QLinearMatMul(OnnxOpConverter):
         # expressed in a Relay graph. And then update this importer and various TVM
         # backends accordingly.
         matmul_result_dtype = "int32"
+        # TODO(vvchernov): possibly it is better to use unsigned type for result
+        # if input types are unsigned:
+        # if a_type.dtype == "uint8" and b_type.dtype == "uint8":
+        #     matmul_result_dtype = "uint32"
 
-        matmul_result = _qnn.op.dense(
+        matmul_result = qmatmul(
             a,
-            _op.transpose(b),
+            b,
             a_zp_scalar,
             b_zp_scalar,
             a_scale_scalar,
@@ -4781,6 +5037,23 @@ class Trilu(OnnxOpConverter):
             data = inputs[0]
             k = 0
         return _op.trilu(data, k, upper)
+
+
+class GridSample(OnnxOpConverter):
+    """Operator converter for GridSample"""
+
+    @classmethod
+    def _impl_v16(cls, inputs, attr, params):
+        grid = inputs[1]
+        # onnx grid is of shape (N, H, W, 2) which should be transposed to (N, 2, H, W) for relay
+        grid = _op.transform.transpose(grid, axes=(0, 3, 1, 2))
+        method: str = attr.get("mode", b"bilinear").decode("utf-8")
+        padding_mode: str = attr.get("padding_mode", b"zeros").decode("utf-8")
+        # onnx default is 0 which should be changed to False in relay
+        align_corners = attr.get("align_corners", 0) != 0
+        return _op.image.grid_sample(
+            inputs[0], grid, method, padding_mode=padding_mode, align_corners=align_corners
+        )
 
 
 class RandomNormal(OnnxOpConverter):
@@ -5290,6 +5563,9 @@ def _get_convert_map(opset):
     return {
         # defs/experimental
         "Identity": Renamer("copy"),
+        "Optional": Optional_.get_converter(opset),
+        "OptionalHasElement": OptionalHasElement.get_converter(opset),
+        "OptionalGetElement": OptionalGetElement.get_converter(opset),
         "Affine": Affine.get_converter(opset),
         "BitShift": BitShift.get_converter(opset),
         "ThresholdedRelu": ThresholdedRelu.get_converter(opset),
@@ -5309,7 +5585,6 @@ def _get_convert_map(opset):
         "Upsample": Upsample.get_converter(opset),
         "SpatialBN": BatchNorm.get_converter(opset),
         # defs/generator
-        # 'Constant' # Implemented
         # 'RandomUniform'
         # 'RandomNormal'
         # 'RandomUniformLike'
@@ -5335,7 +5610,9 @@ def _get_convert_map(opset):
         "Selu": Selu.get_converter(opset),
         "Elu": Elu.get_converter(opset),
         "Gelu": Gelu.get_converter(opset),
+        "FastGelu": FastGelu.get_converter(opset),
         "BiasGelu": BiasGelu.get_converter(opset),
+        "LayerNormalization": LayerNormalization.get_converter(opset),
         # TODO: We need a better way to handle different domains, in case
         # of name collisions. EmbedLayerNormalization, SkipLayerNormalization, and Attention
         # are in the `com.microsoft` domain.
@@ -5425,6 +5702,7 @@ def _get_convert_map(opset):
         "TopK": TopK.get_converter(opset),
         # defs/tensor
         "Cast": Cast.get_converter(opset),
+        "CastLike": CastLike.get_converter(opset),
         "Reshape": Reshape.get_converter(opset),
         "Expand": Expand.get_converter(opset),
         "Concat": Concat.get_converter(opset),
@@ -5461,6 +5739,7 @@ def _get_convert_map(opset):
         "Unique": Unique.get_converter(opset),
         "Einsum": Einsum.get_converter(opset),
         "Trilu": Trilu.get_converter(opset),
+        "GridSample": GridSample.get_converter(opset),
         # defs/control_flow
         "Loop": Loop.get_converter(opset),
         "If": If.get_converter(opset),
@@ -5906,7 +6185,16 @@ def from_onnx(
     graph = model.graph
 
     try:
-        opset_in_model = model.opset_import[0].version if model.opset_import else 1
+        opset_in_model = 1
+        if model.opset_import:
+            # TODO: for now we only really support ai.onnx op set
+            # TODO: handle other namespaces well see https://github.com/apache/tvm/issues/10950
+            for opset_identifier in model.opset_import:
+                # As per https://github.com/onnx/onnx/blob/main/docs/IR.md
+                # All operator sets except the default one must specify the operator version
+                if str(opset_identifier.domain) in ["ai.onnx", ""]:
+                    opset_in_model = opset_identifier.version
+                    break
     except AttributeError:
         opset_in_model = 1
 

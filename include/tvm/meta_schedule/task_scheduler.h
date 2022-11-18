@@ -196,8 +196,8 @@ class TaskSchedulerNode : public runtime::Object {
    * \param task_id The task id to be checked.
    */
   void TouchTask(int task_id);
-  /*! \brief Returns a human-readable string of the tuning statistics. */
-  std::string TuningStatistics() const;
+  /*! \brief Print out a human-readable format of the tuning statistics. */
+  void PrintTuningStatistics();
 
   static constexpr const char* _type_key = "meta_schedule.TaskScheduler";
   TVM_DECLARE_BASE_OBJECT_INFO(TaskSchedulerNode, Object);

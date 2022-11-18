@@ -37,22 +37,18 @@ namespace tir {
 class BufferFlattener : public StmtExprMutator {
  public:
   static PrimFunc Flatten(PrimFunc func) {
-    Map<Var, Buffer> preflattened_buffer_map =
-        Merge(func->buffer_map, func->preflattened_buffer_map);
-    auto pass = BufferFlattener(func->buffer_map);
+    auto pass = BufferFlattener();
     auto writer = func.CopyOnWrite();
     writer->body = pass.VisitStmt(func->body);
-    writer->preflattened_buffer_map = preflattened_buffer_map;
-    writer->buffer_map = pass.updated_extern_buffer_map_;
+    // The buffers in func->buffer_map are deliberately left
+    // unflattened, as they are used for validation of user-provided
+    // arguments.  The flattened buffers used in the updated
+    // function body alias the argument buffers.
     return func;
   }
 
  private:
-  explicit BufferFlattener(const Map<Var, Buffer>& extern_buffer_map) {
-    for (const auto& kv : extern_buffer_map) {
-      updated_extern_buffer_map_.Set(kv.first, GetFlattenedBuffer(kv.second));
-    }
-  }
+  BufferFlattener() {}
 
   Stmt VisitStmt_(const BlockNode* op) final {
     ICHECK_EQ(op->match_buffers.size(), 0)

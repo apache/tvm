@@ -23,7 +23,6 @@ extern "C" {
 #include <HAP_farf.h>
 #include <HAP_perf.h>
 #include <qurt_error.h>
-#include <qurt_hvx.h>
 }
 
 #include <tvm/runtime/object.h>
@@ -36,6 +35,7 @@ extern "C" {
 #include "launcher_rpc.h"
 
 static std::unique_ptr<Model> TheModel;
+bool WriteLWPOutput(const std::string&);
 
 static AEEResult error_too_small(const std::string& func_name, const std::string& value_name,
                                  int given, int needed) {
@@ -204,28 +204,11 @@ AEEResult __QAIC_HEADER(launcher_rpc_get_output)(remote_handle64 handle, int out
 }
 
 AEEResult __QAIC_HEADER(launcher_rpc_run)(remote_handle64 handle, uint64_t* pcycles,
-                                          uint64_t* usecs) {
+                                          uint64_t* usecs, int gen_lwp_json) {
   if (!TheModel) {
     // No model created.
     LOG(ERROR) << __func__ << ": no model created";
     return AEE_EBADSTATE;
-  }
-
-  // Reserve HVX.
-  int res = qurt_hvx_reserve(QURT_HVX_RESERVE_ALL_AVAILABLE);
-  switch (res) {
-    case QURT_HVX_RESERVE_NOT_SUPPORTED:
-    case QURT_HVX_RESERVE_NOT_SUCCESSFUL:
-      LOG(ERROR) << "error reserving HVX: " << res;
-      return AEE_EFAILED;
-    default:
-      break;
-  }
-  // Lock HVX.
-  int lck = qurt_hvx_lock(QURT_HVX_MODE_128B);
-  if (lck != 0) {
-    LOG(ERROR) << "error locking HVX: " << lck;
-    return AEE_EFAILED;
   }
 
   uint64_t us_begin = HAP_perf_get_time_us();
@@ -238,17 +221,11 @@ AEEResult __QAIC_HEADER(launcher_rpc_run)(remote_handle64 handle, uint64_t* pcyc
   *pcycles = pc_end - pc_begin;
   *usecs = us_end - us_begin;
 
-  // Unlock HVX.
-  int unl = qurt_hvx_unlock();
-  if (unl != 0) {
-    LOG(ERROR) << "error unlocking HVX: " << unl;
-    return AEE_EFAILED;
-  }
-  // Release HVX.
-  int rel = qurt_hvx_cancel_reserve();
-  if (rel != 0) {
-    LOG(ERROR) << "error canceling HVX reservation: " << rel;
-    return AEE_EFAILED;
+  if (gen_lwp_json) {
+    if (!WriteLWPOutput("lwp.json")) {
+      LOG(ERROR) << "ERROR: failed to generate lwp json file";
+      return AEE_EFAILED;
+    }
   }
 
   return AEE_SUCCESS;

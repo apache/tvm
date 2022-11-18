@@ -575,5 +575,18 @@ def test_size_one_buffer(shape, transform):
     s[B].transform_layout(transform)
 
 
+def test_non_divisible_transform_raises_error():
+    A = te.placeholder([1, 3, 8, 8])
+    B = te.compute(A.shape, lambda *indices: A[indices])
+    s = te.create_schedule(B.op)
+
+    transform = lambda n, c, h, w: [n, c // 4, h, w, c % 4]
+    # Error occurs here, because the transformation would introduce
+    # padding.  Padded transforms are supported in TIR-based
+    # schedules.
+    with pytest.raises(tvm.TVMError):
+        s[B].transform_layout(transform)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

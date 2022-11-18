@@ -97,6 +97,7 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-xavier")
 #define TVM_REGISTER_CUDA_TAG(Name, Arch, SharedMem, RegPerBlock) \
   TVM_REGISTER_TARGET_TAG(Name).set_config({                      \
       {"kind", String("cuda")},                                   \
+      {"keys", Array<String>{"cuda", "gpu"}},                     \
       {"arch", String(Arch)},                                     \
       {"max_shared_memory_per_block", Integer(SharedMem)},        \
       {"max_threads_per_block", Integer(1024)},                   \
@@ -358,9 +359,11 @@ TVM_REGISTER_CUDA_TAG("nvidia/tegra-x1", "sm_53", 49152, 32768);
 
 #undef TVM_REGISTER_CUDA_TAG
 
-#define TVM_REGISTER_TAG_AWS_C5(Name, Cores, Arch) \
-  TVM_REGISTER_TARGET_TAG(Name).set_config(        \
-      {{"kind", String("llvm")}, {"mcpu", String(Arch)}, {"num-cores", Integer(Cores)}});
+#define TVM_REGISTER_TAG_AWS_C5(Name, Cores, Arch)                                 \
+  TVM_REGISTER_TARGET_TAG(Name).set_config({{"kind", String("llvm")},              \
+                                            {"keys", Array<String>{"x86", "cpu"}}, \
+                                            {"mcpu", String(Arch)},                \
+                                            {"num-cores", Integer(Cores)}});
 
 TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.large", 1, "skylake-avx512");
 TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.xlarge", 2, "skylake-avx512");

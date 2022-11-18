@@ -35,6 +35,7 @@
 #include "../support/base64.h"
 #include "../support/str_escape.h"
 #include "../support/utils.h"
+#include "ndarray_hash_equal.h"
 
 namespace tvm {
 
@@ -359,41 +360,25 @@ struct ADTObjTrait {
 
 TVM_REGISTER_REFLECTION_VTABLE(runtime::ADTObj, ADTObjTrait);
 
-void NDArrayContainerTrait::SHashReduce(const runtime::NDArray::Container* key,
-                                        SHashReducer hash_reduce) {
-  ICHECK_EQ(key->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
-  ICHECK(runtime::IsContiguous(key->dl_tensor)) << "Can only hash contiguous tensor";
-  hash_reduce(runtime::DataType(key->dl_tensor.dtype));
-  hash_reduce(key->dl_tensor.ndim);
-  for (int i = 0; i < key->dl_tensor.ndim; ++i) {
-    hash_reduce(key->dl_tensor.shape[i]);
+void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer* hash_reduce,
+                 bool hash_data) {
+  ICHECK_EQ(arr->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
+  ICHECK(runtime::IsContiguous(arr->dl_tensor)) << "Can only hash contiguous tensor";
+  (*hash_reduce)(runtime::DataType(arr->dl_tensor.dtype));
+  (*hash_reduce)(arr->dl_tensor.ndim);
+  for (int i = 0; i < arr->dl_tensor.ndim; ++i) {
+    (*hash_reduce)(arr->dl_tensor.shape[i]);
   }
-  hash_reduce->SHashReduceHashedValue(runtime::String::HashBytes(
-      static_cast<const char*>(key->dl_tensor.data), runtime::GetDataSize(key->dl_tensor)));
+  if (hash_data) {
+    (*hash_reduce)
+        ->SHashReduceHashedValue(runtime::String::HashBytes(
+            static_cast<const char*>(arr->dl_tensor.data), runtime::GetDataSize(arr->dl_tensor)));
+  }
 }
 
-bool NDArrayContainerTrait::SEqualReduce(const runtime::NDArray::Container* lhs,
-                                         const runtime::NDArray::Container* rhs,
-                                         SEqualReducer equal) {
-  if (lhs == rhs) return true;
-
-  auto ldt = lhs->dl_tensor.dtype;
-  auto rdt = rhs->dl_tensor.dtype;
-  ICHECK_EQ(lhs->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
-  ICHECK_EQ(rhs->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
-  ICHECK(runtime::IsContiguous(lhs->dl_tensor)) << "Can only compare contiguous tensor";
-  ICHECK(runtime::IsContiguous(rhs->dl_tensor)) << "Can only compare contiguous tensor";
-
-  if (lhs->dl_tensor.ndim != rhs->dl_tensor.ndim) return false;
-  for (int i = 0; i < lhs->dl_tensor.ndim; ++i) {
-    if (!equal(lhs->dl_tensor.shape[i], rhs->dl_tensor.shape[i])) return false;
-  }
-  if (ldt.code == rdt.code && ldt.lanes == rdt.lanes && ldt.bits == rdt.bits) {
-    size_t data_size = runtime::GetDataSize(lhs->dl_tensor);
-    return std::memcmp(lhs->dl_tensor.data, rhs->dl_tensor.data, data_size) == 0;
-  } else {
-    return false;
-  }
+void NDArrayContainerTrait::SHashReduce(const runtime::NDArray::Container* key,
+                                        SHashReducer hash_reduce) {
+  NDArrayHash(key, &hash_reduce, /*bool hash_data*/ true);
 }
 
 TVM_REGISTER_REFLECTION_VTABLE(runtime::NDArray::Container, NDArrayContainerTrait)

@@ -69,19 +69,24 @@ void* HexagonVtcmPool::Allocate(size_t nbytes) {
   // If this is not aligned on a 2k block, allocate from the end to avoid fragmentation
   if (nbytes & size_t(0x7FF)) {
     DLOG(INFO) << "VTCM nbytes requested: " << nbytes << " allocate from the end";
-    auto last_free_entry = free_.rbegin();
+    auto last_free_entry = free_.end();
+    last_free_entry--;
     CHECK(last_free_entry->second >= nbytes)
         << "Not enough contiguous VTCM space at the end to allocate";
     char* ptr = last_free_entry->first + (last_free_entry->second - nbytes);
     allocations_.emplace_back(std::pair<char*, size_t>(ptr, nbytes));
     last_free_entry->second -= nbytes;
+    if (last_free_entry->second == 0) {
+      free_.erase(last_free_entry);
+    }
     // DebugDump();
     return ptr;
   }
 
   auto entry_to_allocate = free_.begin();
   for (auto it = free_.begin(); it != free_.end(); it++) {
-    if ((it->second < entry_to_allocate->second) && (it->second >= nbytes)) {
+    if ((entry_to_allocate->second < nbytes || it->second < entry_to_allocate->second) &&
+        it->second >= nbytes) {
       entry_to_allocate = it;
       if (entry_to_allocate->second == nbytes) {
         break;

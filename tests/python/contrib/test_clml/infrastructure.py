@@ -73,12 +73,12 @@ class Device:
     """
 
     connection_type = "tracker"
-    host = "localhost"
-    port = 9150
+    host = os.getenv("TVM_TRACKER_HOST", "localhost")
+    port = int(os.getenv("TVM_TRACKER_PORT", 9090))
     target = "opencl"
     target_host = "llvm -mtriple=aarch64-linux-gnu"
     device_key = "android"
-    cross_compile = "aarch64-linux-android-g++"
+    cross_compile = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
 
     def __init__(self):
         """Keep remote device for lifetime of object."""
@@ -99,43 +99,6 @@ class Device:
             )
 
         return device
-
-    @classmethod
-    def load(cls, file_name):
-        """Load test config
-
-        Load the test configuration by looking for file_name relative
-        to the test_clml directory.
-        """
-        location = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
-        config_file = os.path.join(location, file_name)
-        if not os.path.exists(config_file):
-            warnings.warn("Config file doesn't exist, resuming CLML tests with default config.")
-            return
-        with open(config_file, mode="r") as config:
-            test_config = json.load(config)
-
-        cls.connection_type = test_config["connection_type"]
-        cls.host = test_config["host"]
-        cls.port = test_config["port"]
-        cls.target = test_config["target"]
-        cls.target_host = test_config["target_host"]
-        cls.device_key = test_config.get("device_key") or ""
-        cls.cross_compile = test_config.get("cross_compile") or ""
-
-
-def skip_runtime_test():
-    """Skip test if it requires the runtime and it's not present."""
-    # CLML codegen not present.
-    if not tvm.get_global_func("relay.ext.clml", True):
-        print("Skip because CLML codegen is not available.")
-        return True
-
-    # Remote device is in use or CLML runtime not present
-    # Note: Ensure that the device config has been loaded before this check
-    if not Device.connection_type != "local" and not clml.is_clml_runtime_enabled():
-        print("Skip because runtime isn't present or a remote device isn't being used.")
-        return True
 
 
 def skip_codegen_test():

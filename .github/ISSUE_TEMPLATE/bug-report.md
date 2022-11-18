@@ -1,6 +1,6 @@
 ---
 name: "\U0001F41B Bug report"
-about: Please include a description of your environment, preferably a minimum script to reproduce the problem. Find the list of label tags [here](https://github.com/apache/tvm/wiki/Issue-Triage-Labels).
+about: Please include a description of your environment, preferably a minimum script to reproduce the problem. Find the list of label tags at https://tinyurl.com/5fnd5rkn.
 title: "[Bug] "
 labels: "needs-triage, type: bug"
 ---
@@ -27,6 +27,6 @@ Preferably a minimal script to cause the issue to occur.
 
 ### Triage
 
-Please refer to the list of label tags linked above to find the relevant tags and add them here in a bullet format (example below).
+Please refer to the list of label tags [here](https://github.com/apache/tvm/wiki/Issue-Triage-Labels) to find the relevant tags and add them below in a bullet format (example below).
 
 * needs-triage

@@ -226,36 +226,27 @@ sl::TensorsAndId MakeOps(const sl::TensorAndId<sl::Operand>& op) {
   return ops;
 }
 
-String MakeVariant(Optional<EthosnCompilerConfig> configuration) {
-  String variant = configuration.value()->variant;
-  // Transform variant string to lowercase for comparison
-  std::string variant_string = variant.c_str();
+sl::EthosNVariant MakeVariant(EthosnCompilerConfig configuration) {
+  String variant = configuration->variant;
+  String tops = configuration->tops;
+  String ple_ratio = configuration->ple_ratio;
 
-  // Checking deprecated variant format. Support for specifying
-  // the variant in this way only remains for backwards compatibility
-  // and will be removed in a later release of TVM.
-  std::string deprecated_variant_string = variant_string;
-  std::transform(deprecated_variant_string.begin(), deprecated_variant_string.end(),
-                 deprecated_variant_string.begin(), ::tolower);
-  if (variant_string == "n78" || deprecated_variant_string == "ethos-n78") {
-    String tops = configuration.value()->tops;
-    String ple_ratio = configuration.value()->ple_ratio;
-    variant = "Ethos-N78_" + tops + "TOPS_" + ple_ratio + "PLE_RATIO";
-  }
-  return variant;
+  std::string capitalized_variant = variant;
+  std::transform(capitalized_variant.begin(), capitalized_variant.end(),
+                 capitalized_variant.begin(), ::toupper);
+  std::string sl_variant_string =
+      "Ethos-" + capitalized_variant + "_" + tops + "TOPS_" + ple_ratio + "PLE_RATIO";
+  return sl::EthosNVariantFromString(sl_variant_string.c_str());
 }
 
 NetworkWithIDs ConstructNetworkVisitor::Construct(const Function& func) {
   // Initialise everything
-  auto ctx = transform::PassContext::Current();
-  auto cfg = ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options");
-  if (!cfg.defined()) {
-    cfg = AttrsWithDefaultValues<EthosnCompilerConfig>();
-  }
+  EthosnCompilerConfig cfg = GetCompilerAttrs();
+  sl::EthosNVariant variant = MakeVariant(cfg);
+
   NetworkWithIDs network_with_ids;
   network_ = sl::CreateNetwork(
-      sl::GetFwAndHwCapabilities(sl::EthosNVariantFromString(MakeVariant(cfg).c_str()),
-                                 static_cast<uint32_t>(std::stoul(cfg.value()->sram_size))));
+      sl::GetFwAndHwCapabilities(variant, static_cast<uint32_t>(std::stoul(cfg->sram_size))));
   network_with_ids.network = network_;
   operand_table_.clear();
 
@@ -744,28 +735,24 @@ runtime::ethosn::OrderedCompiledNetwork EthosnCompiler::CompileEthosnFunc(const 
 }
 
 sl::CompilationOptions EthosnCompiler::CreateOptions() {
-  auto ctx = transform::PassContext::Current();
-  auto cfg = ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options");
-  if (!cfg.defined()) {
-    cfg = AttrsWithDefaultValues<EthosnCompilerConfig>();
-  }
+  EthosnCompilerConfig cfg = GetCompilerAttrs();
 
   sl::CompilationOptions options;
-  options.m_Strategy0 = cfg.value()->strategy0;
-  options.m_Strategy1 = cfg.value()->strategy1;
-  options.m_Strategy3 = cfg.value()->strategy3;
-  options.m_Strategy4 = cfg.value()->strategy4;
-  options.m_Strategy6 = cfg.value()->strategy6;
-  options.m_Strategy7 = cfg.value()->strategy7;
-  options.m_DebugInfo.m_DumpRam = cfg.value()->dump_ram;
-  options.m_DebugInfo.m_InitialSramDump = cfg.value()->initial_sram_dump;
-  options.m_BlockConfig16x16 = cfg.value()->block_config_16x16;
-  options.m_BlockConfig32x8 = cfg.value()->block_config_32x8;
-  options.m_BlockConfig8x32 = cfg.value()->block_config_8x32;
-  options.m_BlockConfig8x8 = cfg.value()->block_config_8x8;
-  options.m_EnableIntermediateCompression = cfg.value()->enable_intermediate_compression;
-  options.m_DisableWinograd = cfg.value()->disable_winograd;
-  options.m_DebugInfo.m_DebugDir = cfg.value()->debug_dir;
+  options.m_Strategy0 = cfg->strategy0;
+  options.m_Strategy1 = cfg->strategy1;
+  options.m_Strategy3 = cfg->strategy3;
+  options.m_Strategy4 = cfg->strategy4;
+  options.m_Strategy6 = cfg->strategy6;
+  options.m_Strategy7 = cfg->strategy7;
+  options.m_DebugInfo.m_DumpRam = cfg->dump_ram;
+  options.m_DebugInfo.m_InitialSramDump = cfg->initial_sram_dump;
+  options.m_BlockConfig16x16 = cfg->block_config_16x16;
+  options.m_BlockConfig32x8 = cfg->block_config_32x8;
+  options.m_BlockConfig8x32 = cfg->block_config_8x32;
+  options.m_BlockConfig8x8 = cfg->block_config_8x8;
+  options.m_EnableIntermediateCompression = cfg->enable_intermediate_compression;
+  options.m_DisableWinograd = cfg->disable_winograd;
+  options.m_DebugInfo.m_DebugDir = cfg->debug_dir;
   return options;
 }
 
@@ -806,12 +793,10 @@ std::unique_ptr<sl::SupportQueries> EthosnCompiler::m_Queries;
 
 EthosnError EthosnCompiler::SupportedSetup() {
   if (m_Queries == nullptr) {
-    auto ctx = transform::PassContext::Current();
-    auto cfg = ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options").defined()
-                   ? ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options")
-                   : AttrsWithDefaultValues<EthosnCompilerConfig>();
-    m_Queries = std::make_unique<sl::SupportQueries>(sl::GetFwAndHwCapabilities(
-        sl::EthosNVariantFromString(MakeVariant(cfg).c_str()), std::stoul(cfg.value()->sram_size)));
+    EthosnCompilerConfig cfg = GetCompilerAttrs();
+    sl::EthosNVariant variant = MakeVariant(cfg);
+    m_Queries = std::make_unique<sl::SupportQueries>(
+        sl::GetFwAndHwCapabilities(variant, std::stoul(cfg->sram_size)));
     if (m_Queries == nullptr) {
       return EthosnError("Could not initialise Arm(R) Ethos(TM)-N compiler isSupported");
     }

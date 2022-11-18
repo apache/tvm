@@ -29,6 +29,8 @@
 
 #include <unordered_map>
 
+#include "ndarray_hash_equal.h"
+
 namespace tvm {
 
 TVM_REGISTER_OBJECT_TYPE(ObjectPathPairNode);
@@ -291,23 +293,19 @@ class SEqualHandlerDefault::Impl {
       }
       if (equal_map_rhs_.count(rhs)) return false;
 
-      SEqualReducer reducer = GetReducer(lhs, rhs, map_free_vars, current_paths);
-      return vtable_->SEqualReduce(lhs.get(), rhs.get(), reducer);
+      if (!IsPathTracingEnabled()) {
+        return vtable_->SEqualReduce(lhs.get(), rhs.get(),
+                                     SEqualReducer(parent_, nullptr, map_free_vars));
+      } else {
+        PathTracingData tracing_data = {current_paths.value(), lhs, rhs, first_mismatch_};
+        return vtable_->SEqualReduce(lhs.get(), rhs.get(),
+                                     SEqualReducer(parent_, &tracing_data, map_free_vars));
+      }
     };
     return CheckResult(compute(), lhs, rhs, current_paths);
   }
 
  protected:
-  SEqualReducer GetReducer(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars,
-                           const Optional<ObjectPathPair>& current_paths) {
-    if (!IsPathTracingEnabled()) {
-      return SEqualReducer(parent_, nullptr, map_free_vars);
-    } else {
-      PathTracingData tracing_data = {current_paths.value(), lhs, rhs, first_mismatch_};
-      return SEqualReducer(parent_, &tracing_data, map_free_vars);
-    }
-  }
-
   // Check the result.
   bool CheckResult(bool result, const ObjectRef& lhs, const ObjectRef& rhs,
                    const Optional<ObjectPathPair>& current_paths) {
@@ -478,6 +476,39 @@ TVM_REGISTER_GLOBAL("node.GetFirstStructuralMismatch")
 
 bool StructuralEqual::operator()(const ObjectRef& lhs, const ObjectRef& rhs) const {
   return SEqualHandlerDefault(false, nullptr).Equal(lhs, rhs, false);
+}
+
+bool NDArrayEqual(const runtime::NDArray::Container* lhs, const runtime::NDArray::Container* rhs,
+                  SEqualReducer equal, bool compare_data) {
+  if (lhs == rhs) return true;
+
+  auto ldt = lhs->dl_tensor.dtype;
+  auto rdt = rhs->dl_tensor.dtype;
+  ICHECK_EQ(lhs->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
+  ICHECK_EQ(rhs->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
+  ICHECK(runtime::IsContiguous(lhs->dl_tensor)) << "Can only compare contiguous tensor";
+  ICHECK(runtime::IsContiguous(rhs->dl_tensor)) << "Can only compare contiguous tensor";
+
+  if (lhs->dl_tensor.ndim != rhs->dl_tensor.ndim) return false;
+  for (int i = 0; i < lhs->dl_tensor.ndim; ++i) {
+    if (!equal(lhs->dl_tensor.shape[i], rhs->dl_tensor.shape[i])) return false;
+  }
+  if (ldt.code == rdt.code && ldt.lanes == rdt.lanes && ldt.bits == rdt.bits) {
+    size_t data_size = runtime::GetDataSize(lhs->dl_tensor);
+    if (compare_data) {
+      return std::memcmp(lhs->dl_tensor.data, rhs->dl_tensor.data, data_size) == 0;
+    } else {
+      return true;
+    }
+  } else {
+    return false;
+  }
+}
+
+bool NDArrayContainerTrait::SEqualReduce(const runtime::NDArray::Container* lhs,
+                                         const runtime::NDArray::Container* rhs,
+                                         SEqualReducer equal) {
+  return NDArrayEqual(lhs, rhs, equal, true);
 }
 
 }  // namespace tvm

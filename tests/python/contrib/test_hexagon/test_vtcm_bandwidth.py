@@ -27,51 +27,61 @@ from .infrastructure import get_hexagon_target
 
 MB = 1024**2
 KB = 1024
-TEST_OUTPUT_TEMPLATE = "Test bandwidth with buffer size {}MB... \n    -Base: {} GBps \n    -Vectorized: {} GBps\n    -Vectorized and Parallelized: {} GBps\n    -Single DMA Copy: {} GBps\n"
+TEST_OUTPUT_TEMPLATE = (
+    "Test bandwidth with buffer size {}MB... \n"
+    "    -Base: {} GBps \n    -Vectorized: {} GBps\n"
+    "    -Vectorized and Parallelized: {} GBps\n"
+    "    -Single DMA Copy: {} GBps\n"
+)
 
 
 def memcopy_operator(size):
+    """Generate memory copy operator."""
+
     @T.prim_func
     def operator(a: T.handle, a_v: T.handle) -> None:
-        A = T.match_buffer(a, size, dtype="int8", align=128, scope="global")
-        A_global_vtcm = T.match_buffer(a_v, size, dtype="int8", align=128, scope="global.vtcm")
+        a_buffer = T.match_buffer(a, size, dtype="int8", align=128, scope="global")
+        a_global_vtcm = T.match_buffer(a_v, size, dtype="int8", align=128, scope="global.vtcm")
         for ax0 in T.serial(size):
             with T.block("A_global.vtcm"):
-                v0 = T.axis.spatial(size, ax0)
-                T.reads(A[v0])
-                T.writes(A_global_vtcm[v0])
-                A_global_vtcm[v0] = A[v0]
+                v0_ind = T.axis.spatial(size, ax0)
+                T.reads(a_buffer[v0_ind])
+                T.writes(a_global_vtcm[v0_ind])
+                a_global_vtcm[v0_ind] = a_buffer[v0_ind]
 
     return operator
 
 
 def single_dma_operator(size):
+    """Generate single dma operator."""
+
     @T.prim_func
     def operator(a: T.handle, a_v: T.handle) -> None:
-        A = T.match_buffer(a, size, dtype="int8", align=128, scope="global")
-        A_global_vtcm = T.match_buffer(a_v, size, dtype="int8", align=128, scope="global.vtcm")
+        a_buffer = T.match_buffer(a, size, dtype="int8", align=128, scope="global")
+        a_global_vtcm = T.match_buffer(a_v, size, dtype="int8", align=128, scope="global.vtcm")
         T.evaluate(
             T.tvm_call_packed(
-                "device_api.hexagon.mem_copy_DLTensor",
+                "device_api.hexagon.dma_copy_dltensor",
                 T.tvm_stack_make_array(
-                    A_global_vtcm.data,
+                    a_global_vtcm.data,
                     T.tvm_stack_make_shape(size, dtype="handle"),
                     0,
                     1,
-                    A_global_vtcm.dtype,
+                    a_global_vtcm.dtype,
                     0,
                     dtype="handle",
                 ),
                 T.tvm_stack_make_array(
-                    A.data,
+                    a_buffer.data,
                     T.tvm_stack_make_shape(size, dtype="handle"),
                     0,
                     1,
-                    A.dtype,
+                    a_buffer.dtype,
                     0,
                     dtype="handle",
                 ),
                 T.cast(size, dtype="int"),
+                True,  # bypass cache
                 dtype="int32",
             )
         )
@@ -80,6 +90,7 @@ def single_dma_operator(size):
 
 
 def evaluate(hexagon_session, sch, size):
+    """Evaluate schedule."""
     a_shape = size
 
     func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v69"))
@@ -110,6 +121,7 @@ def evaluate(hexagon_session, sch, size):
 
 
 class TestMatMulVec:
+    """MatMul test class."""
 
     # Removed most of these to speedup CI.
     size = tvm.testing.parameter(
@@ -133,7 +145,7 @@ class TestMatMulVec:
 
     @tvm.testing.requires_hexagon
     def test_bandwidth(self, hexagon_session, size, outer_split, unroll_split, vector_split):
-
+        """Test bandwidth."""
         # Run the base memcopy operator.
         sch = tvm.tir.Schedule(memcopy_operator(size))
         base_gpbs = evaluate(hexagon_session, sch, size)
@@ -141,8 +153,8 @@ class TestMatMulVec:
         # Run with some basic unroll and vectorize scheduling.
         sch = tvm.tir.Schedule(memcopy_operator(size))
         vtcm_block_a = sch.get_block("A_global.vtcm")
-        vb = sch.get_loops(vtcm_block_a)
-        vbi_a, vio_a, vii_a = sch.split(vb[0], factors=[None, unroll_split, vector_split])
+        v_block = sch.get_loops(vtcm_block_a)
+        _, vio_a, vii_a = sch.split(v_block[0], factors=[None, unroll_split, vector_split])
         sch.unroll(vio_a)
         sch.vectorize(vii_a)
         vectorize_gbps = evaluate(hexagon_session, sch, size)
@@ -150,9 +162,9 @@ class TestMatMulVec:
         # Run with some basic unroll and vectorize scheduling and parallelization.
         sch = tvm.tir.Schedule(memcopy_operator(size))
         vtcm_block_a = sch.get_block("A_global.vtcm")
-        vb = sch.get_loops(vtcm_block_a)
-        vbo_a, vbi_a, vio_a, vii_a = sch.split(
-            vb[0], factors=[outer_split, None, unroll_split, vector_split]
+        v_block = sch.get_loops(vtcm_block_a)
+        vbo_a, _, vio_a, vii_a = sch.split(
+            v_block[0], factors=[outer_split, None, unroll_split, vector_split]
         )
         sch.unroll(vio_a)
         sch.vectorize(vii_a)
@@ -169,3 +181,7 @@ class TestMatMulVec:
                 mbs, base_gpbs, vectorize_gbps, parallel_gbps, single_dma_gbps
             )
         )
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

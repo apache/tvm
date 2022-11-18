@@ -305,6 +305,19 @@ class RewriteSimplifier {
      *   (a && b) || c => (a || c) && (b || c)
      */
     kConvertBooleanToAndOfOrs = (1 << 1),
+
+    /* When simplifying a boolean AND or a boolean OR, simplify each
+     * branch under the assumption that the other branch does not
+     * already dominate the result.  That is, simplify each branch of
+     * (A && B) under the assumption that the other branch is true,
+     * and simplify each branch of (A || B) under the assumption that
+     * the other branch is false.
+     *
+     * Example:
+     *   (n < 10) && (n < 5) => (n < 10)
+     *   (n < 10) || (n < 5) => (n < 5)
+     */
+    kApplyConstraintsToBooleanBranches = (1 << 2),
   };
 
   /*! \brief Enable an optional extension or extensions
@@ -396,10 +409,19 @@ class TransitiveComparisonAnalyzer {
    *
    * \param rhs The right-hand side of the comparison
    *
+   * \param propagate_inequalities If true, attempt to find a sequence
+   * of transitive inequalities that allow the lhs and rhs to be
+   * compared.  If false, only use the known comparison that have been
+   * directly provided.  Using `propagate_inequalities = false` is
+   * roughly equivalent to comparing against all known inequality
+   * expressions using `ExprDeepEqual`, but also allows for constant
+   * offsets on either side of the inequality.
+   *
    * \return The most specific result that can be proven about the
    * comparison.  If nothing can be proven, returns kUnknown.
    */
-  TVM_DLL CompareResult TryCompare(const PrimExpr& lhs, const PrimExpr& rhs);
+  TVM_DLL CompareResult TryCompare(const PrimExpr& lhs, const PrimExpr& rhs,
+                                   bool propagate_inequalities = true);
 
   /*! \brief Bind a variable as being equal to a known expression
    *

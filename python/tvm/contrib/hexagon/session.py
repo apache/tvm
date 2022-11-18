@@ -30,7 +30,7 @@ from tvm.relay.backend.executor_factory import (
     AOTExecutorFactoryModule,
     GraphExecutorFactoryModule,
 )
-from .tools import export_module
+from .tools import export_module, HEXAGON_SIMULATOR_NAME
 
 
 class Session:
@@ -38,11 +38,17 @@ class Session:
 
     Parameters
     ----------
-    launcher : HexagonLauncherRPC
-        The launcher from which this session was started.
+    remote_workspace : Union[str, pathlib.Path]
+        Remote workspace path
 
-    remote_kw : dict
-        Remote configs for RPC tracker.
+    rpc_tracker : tuple(str, int)
+        RPC tracker host and port number.
+
+    rpc_server_key : str
+        RPC server key on remote device.
+
+    serial_number : str
+        Device serial number. `simulator` used for hexagon simulator.
 
     session_name : str
         Hexagon RPC session name.
@@ -50,21 +56,28 @@ class Session:
     remote_stack_size_bytes : int
         The stack size of the remote device, to be passed to
         tvm.contrib.hexagon.create_hexagon_session.
+
+    rpc_receive_buffer_size_bytes : int
+        RPC receive buffer size in bytes.
     """
 
     def __init__(
         self,
-        launcher: "HexagonLauncherRPC",
-        remote_kw: dict,
+        remote_workspace: Union[str, pathlib.Path],
+        rpc_tracker: tuple,
+        rpc_server_key: str,
+        serial_number: str,
         session_name: str = "hexagon-rpc",
         remote_stack_size_bytes: int = 256 * 1024,  # Min size for main thread in QuRT/sim
         rpc_receive_buffer_size_bytes: int = 256 * 1024 * 1024,  # Size for passing hexagon tests
     ):
-        self._launcher = launcher
+        self._workspace = str(remote_workspace)
+        self._rpc_tracker = rpc_tracker
+        self._rpc_server_key = rpc_server_key
+        self._serial_number = serial_number
         self._session_name: str = session_name
         self._remote_stack_size_bytes: int = remote_stack_size_bytes
         self._rpc_receive_buffer_size_bytes: int = rpc_receive_buffer_size_bytes
-        self._remote_kw: dict = remote_kw
         self._rpc = None
         self._requires_cpu_device = False
         self._device = None
@@ -74,12 +87,12 @@ class Session:
             # Already initialized
             return self
 
-        tracker = _rpc.connect_tracker(self._remote_kw["host"], self._remote_kw["port"])
+        tracker = _rpc.connect_tracker(self._rpc_tracker[0], self._rpc_tracker[1])
         try:
             self._rpc = tracker.request(
-                self._remote_kw["key"],
-                priority=self._remote_kw["priority"],
-                session_timeout=self._remote_kw["timeout"],
+                self._rpc_server_key,
+                priority=0,
+                session_timeout=0,
                 session_constructor_args=[
                     "tvm.contrib.hexagon.create_hexagon_session",
                     self._session_name,
@@ -124,6 +137,9 @@ class Session:
 
         return self._device
 
+    def is_simulator(self):
+        return self._serial_number == HEXAGON_SIMULATOR_NAME
+
     def get_function(self, name):
         return self._rpc.get_function(name)
 
@@ -142,7 +158,12 @@ class Session:
         pathlib.Path :
             Uploaded file remote path.
         """
-        return self._launcher.upload(local_path, remote_filename)
+        upload_func = self._rpc.get_function("tvm.rpc.server.upload")
+        remote_path = f"{self._workspace}/{remote_filename}"
+        with open(local_path, mode="rb") as src_f:
+            data = bytearray(src_f.read())
+        upload_func(remote_path, data)
+        return remote_path
 
     def load_module(self, module: Union[str, pathlib.Path, tvm.runtime.Module]):
         """Load TVM module.
@@ -206,7 +227,6 @@ class Session:
             Runtime graph module that can be used to execute the graph.
 
         """
-
         graph_mod = self.load_module(module_name)
         self._set_device_type(graph_mod)
         return tvm.contrib.graph_executor.create(graph_json, graph_mod, self.device)
@@ -393,3 +413,8 @@ class Session:
             remote_file_path = self.upload(binary_path, binary_name)
 
         return self.get_aot_executor(remote_file_path)
+
+    def get_profile_output(self, mode: str, path: str):
+        assert isinstance(mode, str), f"Invalid mode type, {type(mode)} != str"
+        assert isinstance(path, str), f"Invalid path type, {type(path)} != str"
+        return self._rpc.get_function("tvm.hexagon.get_profile_output")(mode, path)

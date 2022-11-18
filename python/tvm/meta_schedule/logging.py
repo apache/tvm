@@ -39,7 +39,7 @@ def get_logger(name: str) -> Logger:
     return logging.getLogger(name)
 
 
-def get_logging_func(logger: Logger) -> Optional[Callable[[int, str], None]]:
+def get_logging_func(logger: Logger) -> Optional[Callable[[int, str, int, str], None]]:
     """Get the logging function.
 
     Parameters
@@ -62,15 +62,15 @@ def get_logging_func(logger: Logger) -> Optional[Callable[[int, str], None]]:
         # logging.FATAL not included
     }
 
-    def logging_func(level: int, msg: str):
-        if level < 0:
+    def logging_func(level: int, filename: str, lineo: int, msg: str):
+        if level < 0:  # clear the output in notebook / console
             from IPython.display import (  # type: ignore # pylint: disable=import-outside-toplevel
                 clear_output,
             )
 
             clear_output(wait=True)
         else:
-            level2log[level](msg)
+            level2log[level](f"[{os.path.basename(filename)}:{lineo}] " + msg)
 
     return logging_func
 
@@ -94,12 +94,15 @@ def create_loggers(
     global_logger_name = "tvm.meta_schedule"
     global_logger = logging.getLogger(global_logger_name)
     if global_logger.level is logging.NOTSET:
-        global_logger.setLevel(logging.INFO)
+        global_logger.setLevel(logging.DEBUG)
+    console_logging_level = logging._levelToName[  # pylint: disable=protected-access
+        global_logger.level
+    ]
 
     config["loggers"].setdefault(
         global_logger_name,
         {
-            "level": logging._levelToName[global_logger.level],  # pylint: disable=protected-access
+            "level": logging.DEBUG,
             "handlers": [handler.get_name() for handler in global_logger.handlers]
             + [global_logger_name + ".console", global_logger_name + ".file"],
             "propagate": False,
@@ -108,7 +111,7 @@ def create_loggers(
     config["loggers"].setdefault(
         "{logger_name}",
         {
-            "level": "INFO",
+            "level": "DEBUG",
             "handlers": [
                 "{logger_name}.file",
             ],
@@ -121,6 +124,7 @@ def create_loggers(
             "class": "logging.StreamHandler",
             "stream": "ext://sys.stdout",
             "formatter": "tvm.meta_schedule.standard_formatter",
+            "level": console_logging_level,
         },
     )
     config["handlers"].setdefault(
@@ -129,7 +133,7 @@ def create_loggers(
             "class": "logging.FileHandler",
             "filename": "{log_dir}/" + __name__ + ".task_scheduler.log",
             "mode": "a",
-            "level": "INFO",
+            "level": "DEBUG",
             "formatter": "tvm.meta_schedule.standard_formatter",
         },
     )
@@ -139,14 +143,14 @@ def create_loggers(
             "class": "logging.FileHandler",
             "filename": "{log_dir}/{logger_name}.log",
             "mode": "a",
-            "level": "INFO",
+            "level": "DEBUG",
             "formatter": "tvm.meta_schedule.standard_formatter",
         },
     )
     config["formatters"].setdefault(
         "tvm.meta_schedule.standard_formatter",
         {
-            "format": "%(asctime)s.%(msecs)03d %(levelname)s %(message)s",
+            "format": "%(asctime)s [%(levelname)s] %(message)s",
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
     )

@@ -32,6 +32,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <string>
 
 #include "ethosn_driver_library/Buffer.hpp"
 #include "ethosn_runtime.h"
@@ -48,7 +49,7 @@ namespace ethosn {
 
 namespace dl = ::ethosn::driver_library;
 
-bool WaitForInference(dl::Inference* inference, int timeout) {
+InferenceWaitStatus WaitForInference(dl::Inference* inference, int timeout) {
   // Wait for inference to complete
   int fd = inference->GetFileDescriptor();
   struct pollfd fds;
@@ -58,20 +59,32 @@ bool WaitForInference(dl::Inference* inference, int timeout) {
 
   const int ms_per_seconds = 1000;
   int poll_result = poll(&fds, 1, timeout * ms_per_seconds);
-  if (poll_result > 0) {
-    dl::InferenceResult result;
-    if (read(fd, &result, sizeof(result)) != sizeof(result)) {
-      return false;
-    }
-    if (result != dl::InferenceResult::Completed) {
-      return false;
-    }
+  int poll_error_code = errno;
+
+  if (poll_result < 0) {
+    return InferenceWaitStatus(InferenceWaitErrorCode::kError,
+                               "Error while waiting for the inference to complete (" +
+                                   std::string(strerror(poll_error_code)) + ")");
   } else if (poll_result == 0) {
-    return false;
-  } else {
-    return false;
+    return InferenceWaitStatus(InferenceWaitErrorCode::kTimeout,
+                               "Timed out while waiting for the inference to complete.");
   }
-  return true;
+
+  // poll_result > 0
+  dl::InferenceResult npu_result;
+  if (read(fd, &npu_result, sizeof(npu_result)) != static_cast<ssize_t>(sizeof(npu_result))) {
+    return InferenceWaitStatus(
+        InferenceWaitErrorCode::kError,
+        "Failed to read inference result status (" + std::string(strerror(poll_error_code)) + ")");
+  }
+
+  if (npu_result != dl::InferenceResult::Completed) {
+    return InferenceWaitStatus(
+        InferenceWaitErrorCode::kError,
+        "Inference failed with status " + std::to_string(static_cast<uint32_t>(npu_result)));
+  }
+
+  return InferenceWaitStatus(InferenceWaitErrorCode::kSuccess);
 }
 
 void CreateBuffers(std::vector<std::shared_ptr<dl::Buffer>>* fm,
@@ -123,21 +136,26 @@ bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
   }
 
   // Execute the inference.
-  std::unique_ptr<dl::Inference> result(
+  std::unique_ptr<dl::Inference> inference(
       npu->ScheduleInference(ifm_raw, n_inputs, ofm_raw, n_outputs));
-  bool inferenceCompleted = WaitForInference(result.get(), 60);
-  if (inferenceCompleted) {
-    for (size_t i = 0; i < n_outputs; i++) {
-      DLTensor* tensor = outputs[i];
-      dl::Buffer* source_buffer = ofm_raw[i];
-      uint8_t* dest_buffer = static_cast<uint8_t*>(tensor->data);
-      size_t size = source_buffer->GetSize();
-      uint8_t* source_buffer_data = source_buffer->Map();
-      std::copy(source_buffer_data, source_buffer_data + size, dest_buffer);
-      source_buffer->Unmap();
-    }
+  InferenceWaitStatus result = WaitForInference(inference.get(), 60);
+
+  if (result.GetErrorCode() != InferenceWaitErrorCode::kSuccess) {
+    LOG(FATAL) << "An error has occured waiting for the inference of a sub-graph on the NPU: "
+               << result.GetErrorDescription();
   }
-  return inferenceCompleted;
+
+  for (size_t i = 0; i < n_outputs; i++) {
+    DLTensor* tensor = outputs[i];
+    dl::Buffer* source_buffer = ofm_raw[i];
+    uint8_t* dest_buffer = static_cast<uint8_t*>(tensor->data);
+    size_t size = source_buffer->GetSize();
+    uint8_t* source_buffer_data = source_buffer->Map();
+    std::copy(source_buffer_data, source_buffer_data + size, dest_buffer);
+    source_buffer->Unmap();
+  }
+
+  return true;
 }
 
 }  // namespace ethosn

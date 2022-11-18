@@ -188,11 +188,43 @@ def cpu_count(logical: bool = True) -> int:
 
 
 @register_func("meta_schedule.using_ipython")
-def _using_ipython():
+def _using_ipython() -> bool:
+    """Return whether the current process is running in an IPython shell.
+
+    Returns
+    -------
+    result : bool
+        Whether the current process is running in an IPython shell.
+    """
     try:
         return get_ipython().__class__.__name__ == "ZMQInteractiveShell"  # type: ignore
     except NameError:
         return False
+
+
+@register_func("meta_schedule.print_interactive_table")
+def print_interactive_table(data: str) -> None:
+    """Print the dataframe interactive table in notebook.
+
+    Parameters
+    ----------
+    data : str
+        The serialized performance table from MetaSchedule table printer.
+    """
+    import pandas as pd  # type: ignore # pylint: disable=import-outside-toplevel
+    from IPython.display import display  # type: ignore # pylint: disable=import-outside-toplevel
+
+    pd.set_option("display.max_rows", None)
+    pd.set_option("display.max_colwidth", None)
+    parsed = [
+        x.split("|")[1:] for x in list(filter(lambda x: set(x) != {"-"}, data.strip().split("\n")))
+    ]
+    display(
+        pd.DataFrame(
+            parsed[1:],
+            columns=parsed[0],
+        )
+    )
 
 
 def get_global_func_with_default_on_worker(

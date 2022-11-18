@@ -28,35 +28,16 @@ else
     BUILD_DIR=build
 fi
 
-# Python is required by apps/bundle_deploy
-source tests/scripts/setup-pytest-env.sh
 
-export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
 # NOTE: important to use abspath, when VTA is enabled.
-export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
+VTA_HW_PATH=$(pwd)/3rdparty/vta-hw
+export VTA_HW_PATH
 
 # to avoid CI thread throttling.
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
-# Build cpptest suite
-python3 tests/scripts/task_build.py \
-    --sccache-bucket tvm-sccache-prod \
-    --cmake-target cpptest \
-    --build-dir "${BUILD_DIR}"
-
-# Build crttest
 pushd "${BUILD_DIR}"
-ninja crttest
+# run cpp test executable
+./cpptest
 popd
-
-pushd "${BUILD_DIR}"
-ctest --gtest_death_test_style=threadsafe
-popd
-
-# Test MISRA-C runtime.
-pushd apps/bundle_deploy
-rm -rf build
-make test_dynamic test_static
-popd
-

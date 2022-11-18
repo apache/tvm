@@ -61,6 +61,7 @@ EXTRA_SCRIPTS = [
     "docker/install/ubuntu_init_zephyr_project.sh",
     "docker/install/ubuntu_install_zephyr_sdk.sh",
     "docker/install/ubuntu_install_cmsis.sh",
+    "docker/install/ubuntu_install_nrfjprog.sh",
 ]
 
 PACKER_FILE_NAME = "packer.json"

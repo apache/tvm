@@ -14,16 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""Test reshape class."""
 import numpy as np
-import pytest
 
 import tvm
 import tvm.testing
 import tvm.topi.hexagon.slice_ops as sl
 from tvm import te
+from tvm.contrib.hexagon import allocate_hexagon_array
 
-from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
+from ..infrastructure import transform_numpy, get_hexagon_target
+
+BATCH_FLATTEN_FP16_TESTS = (
+    ([1, 1, 1, 2048], [1, 2048], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
+    ([1, 2, 4, 2048], [1, 2 * 4 * 2048], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
+    ([1, 8, 8, 1024], [1, 8 * 8 * 1024], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
+    ([2, 4, 8, 1024], [2, 4 * 8 * 1024], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
+)
+
+BATCH_FLATTEN_UINT8_TESTS = (
+    ([1, 1, 1, 2048], [1, 2048], "nhwc-2048c-2d", "nc-2048-2d", "uint8"),
+    ([1, 2, 4, 2048], [1, 2 * 4 * 2048], "nhwc-2048c-2d", "nc-2048-2d", "uint8"),
+)
 
 
 def reshape_helper(
@@ -37,17 +49,18 @@ def reshape_helper(
     output_layout,
     hexagon_session,
 ):
+    """Reshape helper function."""
 
-    A = te.placeholder(input_shape, name="A", dtype=data_type)
+    a_tensor = te.placeholder(input_shape, name="a_tensor", dtype=data_type)
     if func == "reshape":
-        D = fcompute(A, output_shape)
+        d_tesnsor = fcompute(a_tensor, output_shape)
     elif func == "batch_flatten":
-        D = fcompute(A)
+        d_tesnsor = fcompute(a_tensor)
     else:
         raise RuntimeError(f"Unexpected func'{func}'")
     tir_s = fschedule(
-        D,
-        A,
+        d_tesnsor,
+        a_tensor,
         output_layout,
         input_layout,
     )
@@ -87,28 +100,18 @@ def reshape_helper(
     np.testing.assert_allclose(output.numpy(), ref_np_transformed, atol=1e-07, rtol=0)
 
 
-batch_flatten_fp16_tests = (
-    ([1, 1, 1, 2048], [1, 2048], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
-    ([1, 2, 4, 2048], [1, 2 * 4 * 2048], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
-    ([1, 8, 8, 1024], [1, 8 * 8 * 1024], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
-    ([2, 4, 8, 1024], [2, 4 * 8 * 1024], "nhwc-1024c-2d", "nc-1024-2d", "float16"),
-)
-
-
-batch_flatten_uint8_tests = (
-    ([1, 1, 1, 2048], [1, 2048], "nhwc-2048c-2d", "nc-2048-2d", "uint8"),
-    ([1, 2, 4, 2048], [1, 2 * 4 * 2048], "nhwc-2048c-2d", "nc-2048-2d", "uint8"),
-)
-
-
 class BaseTestBatchFlatten:
+    """Test batch flatten class."""
+
     (input_shape, output_shape, input_layout, output_layout, data_type,) = tvm.testing.parameters(
-        *batch_flatten_fp16_tests,
-        *batch_flatten_uint8_tests,
+        *BATCH_FLATTEN_FP16_TESTS,
+        *BATCH_FLATTEN_UINT8_TESTS,
     )
 
 
 class TestBatchFlatten(BaseTestBatchFlatten):
+    """Test batch flatten class."""
+
     @tvm.testing.requires_hexagon
     def test_batch_flatten(
         self,
@@ -119,6 +122,7 @@ class TestBatchFlatten(BaseTestBatchFlatten):
         output_layout,
         hexagon_session,
     ):
+        """Test batch flatten."""
         reshape_helper(
             "batch_flatten",
             sl.batch_flatten_compute,
@@ -132,28 +136,30 @@ class TestBatchFlatten(BaseTestBatchFlatten):
         )
 
 
-reshape_fp16_tests = (
-    ([1, 8, 4, 64], [1, 8, 8, 32], "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", "float16"),
-    ([1, 16, 8, 128], [1, 16, 16, 64], "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", "float16"),
-)
-
-
-reshape_uint8_tests = (
-    ([1, 8, 8, 128], [1, 8, 16, 64], "nhwc-8h8w32c-2d", "nhwc-8h8w32c-2d", "uint8"),
-    ([1, 16, 64, 128], [1, 16, 128, 64], "nhwc-8h8w32c-2d", "nhwc-8h8w32c-2d", "uint8"),
-)
-
-
 class BaseTestReshape(BaseTestBatchFlatten):
+    """Test reshape base class."""
+
+    reshape_fp16_tests = (
+        ([1, 8, 4, 64], [1, 8, 8, 32], "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", "float16"),
+        ([1, 16, 8, 128], [1, 16, 16, 64], "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", "float16"),
+    )
+
+    reshape_uint8_tests = (
+        ([1, 8, 8, 128], [1, 8, 16, 64], "nhwc-8h8w32c-2d", "nhwc-8h8w32c-2d", "uint8"),
+        ([1, 16, 64, 128], [1, 16, 128, 64], "nhwc-8h8w32c-2d", "nhwc-8h8w32c-2d", "uint8"),
+    )
+
     (input_shape, output_shape, input_layout, output_layout, data_type,) = tvm.testing.parameters(
-        *batch_flatten_fp16_tests,
-        *batch_flatten_uint8_tests,
+        *BATCH_FLATTEN_FP16_TESTS,
+        *BATCH_FLATTEN_UINT8_TESTS,
         *reshape_fp16_tests,
         *reshape_uint8_tests,
     )
 
 
 class TestReshape(BaseTestReshape):
+    """Test reshape class."""
+
     @tvm.testing.requires_hexagon
     def test_reshape(
         self,
@@ -164,6 +170,7 @@ class TestReshape(BaseTestReshape):
         output_layout,
         hexagon_session,
     ):
+        """Test reshape."""
         reshape_helper(
             "reshape",
             sl.reshape_compute,

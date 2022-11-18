@@ -17,7 +17,7 @@
 """
 Compile PyTorch Models
 ======================
-**Author**: 
+**Author**:
 `Yaoda Zhou <https://github.com/juda>`_
 
 This article is a tutorial to optimize PyTorch models by using decorator `optimize_torch`.

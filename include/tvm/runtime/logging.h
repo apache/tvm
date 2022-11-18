@@ -294,7 +294,8 @@ namespace detail {
  *
  * \sa TVM_LOG_CUSTOMIZE
  */
-TVM_DLL void LogMessageImpl(const std::string& file, int lineno, const std::string& message);
+TVM_DLL void LogMessageImpl(const std::string& file, int lineno, int level,
+                            const std::string& message);
 
 /*!
  * \brief Class to accumulate an error message and throw it. Do not use
@@ -325,13 +326,15 @@ class LogFatal {
  */
 class LogMessage {
  public:
-  LogMessage(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
-  ~LogMessage() { LogMessageImpl(file_, lineno_, stream_.str()); }
+  LogMessage(const std::string& file, int lineno, int level)
+      : file_(file), lineno_(lineno), level_(level) {}
+  ~LogMessage() { LogMessageImpl(file_, lineno_, level_, stream_.str()); }
   std::ostringstream& stream() { return stream_; }
 
  private:
   std::string file_;
   int lineno_;
+  int level_;
   std::ostringstream stream_;
 };
 
@@ -378,17 +381,19 @@ class LogFatal {
  */
 class LogMessage {
  public:
-  LogMessage(const std::string& file, int lineno) {
+  LogMessage(const std::string& file, int lineno, int level) {
     std::time_t t = std::time(nullptr);
     stream_ << "[" << std::put_time(std::localtime(&t), "%H:%M:%S") << "] " << file << ":" << lineno
-            << ": ";
+            << level_strings_[level];
   }
   TVM_NO_INLINE ~LogMessage() { std::cerr << stream_.str() << std::endl; }
   std::ostringstream& stream() { return stream_; }
 
  private:
   std::ostringstream stream_;
+  TVM_DLL static const char* level_strings_[];
 };
+
 #endif
 
 // Below is from dmlc-core
@@ -568,11 +573,20 @@ TVM_CHECK_FUNC(_NE, !=)
 
 }  // namespace detail
 
+#define TVM_LOG_LEVEL_DEBUG 0
+#define TVM_LOG_LEVEL_INFO 1
+#define TVM_LOG_LEVEL_WARNING 2
+#define TVM_LOG_LEVEL_ERROR 3
+#define TVM_LOG_LEVEL_FATAL 4
 #define LOG(level) LOG_##level
+#define LOG_DEBUG \
+  ::tvm::runtime::detail::LogMessage(__FILE__, __LINE__, TVM_LOG_LEVEL_DEBUG).stream()
 #define LOG_FATAL ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()
-#define LOG_INFO ::tvm::runtime::detail::LogMessage(__FILE__, __LINE__).stream()
-#define LOG_ERROR (::tvm::runtime::detail::LogMessage(__FILE__, __LINE__).stream() << "Error: ")
-#define LOG_WARNING (::tvm::runtime::detail::LogMessage(__FILE__, __LINE__).stream() << "Warning: ")
+#define LOG_INFO ::tvm::runtime::detail::LogMessage(__FILE__, __LINE__, TVM_LOG_LEVEL_INFO).stream()
+#define LOG_ERROR \
+  ::tvm::runtime::detail::LogMessage(__FILE__, __LINE__, TVM_LOG_LEVEL_ERROR).stream()
+#define LOG_WARNING \
+  ::tvm::runtime::detail::LogMessage(__FILE__, __LINE__, TVM_LOG_LEVEL_WARNING).stream()
 
 #define TVM_CHECK_BINARY_OP(name, op, x, y)                                \
   if (auto __tvm__log__err = ::tvm::runtime::detail::LogCheck##name(x, y)) \

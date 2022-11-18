@@ -23,6 +23,9 @@ COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 
 RUN apt-get update --fix-missing
 
+COPY install/ubuntu_setup_tz.sh /install/ubuntu_setup_tz.sh
+RUN bash /install/ubuntu_setup_tz.sh
+
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
@@ -80,6 +83,10 @@ COPY install/ubuntu_install_zephyr_sdk.sh /install/ubuntu_install_zephyr_sdk.sh
 RUN bash /install/ubuntu_install_zephyr.sh
 ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr
 ENV PATH /opt/zephyr-sdk/sysroots/x86_64-pokysdk-linux/usr/bin:$PATH
+
+# NRF
+COPY install/ubuntu_install_nrfjprog.sh /install/ubuntu_install_nrfjprog.sh
+RUN bash /install/ubuntu_install_nrfjprog.sh
 
 # FreeRTOS deps
 COPY install/ubuntu_install_freertos.sh /install/ubuntu_install_freertos.sh

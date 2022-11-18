@@ -127,6 +127,15 @@ def iohw_16i32o2i_1d(height, width, in_channel, out_channel):
     ]
 
 
+def ohwi32o_1d(height, width, in_channel, out_channel):
+    return [out_channel // 32, height, width, in_channel, out_channel % 32]
+
+
+def ncw_32c64w_2d(n, c, w):
+    """Return index map for ncw_32c64w 2d layout"""
+    return [n, c // 32, w // 64, te.AXIS_SEPARATOR, c % 32, w % 64]
+
+
 def get_layout_transform_fn(layout):
     """Return index map function as per the layout string"""
     if layout == "nhwc-8h2w32c2w-2d":
@@ -167,6 +176,10 @@ def get_layout_transform_fn(layout):
         return nhwc_8h8w32c_2d
     if layout == "n11c-2048c-2d":
         return n11c_2048c_2d
+    if layout == "ohwi32o-1d":
+        return ohwi32o_1d
+    if layout == "ncw-32c64w-2d":
+        return ncw_32c64w_2d
     raise RuntimeError(f"Unexpected layout '{layout}'")
 
 
@@ -234,6 +247,19 @@ def get_fixed_point_value(flp: float, dtype: str = "int16") -> Tuple[int, int]:
     For most cases, 2^x, where x = 14 - (E - Bias) or 14 - (E - 127) for single precision, is the
     best scaling factor for 'int16' type that can be used to convert the floating-point value to
     fixed-point with the least amount of precision loss.
+
+
+    Here is a more rigorous explanation of the above, for non-negative scale values, which are of
+    interest. M < 2, so M * 2^(E-Bias+x) < 2 ^ (E-Bias+x+1)   [Note: LHS is a fraction, RHS int]
+    => round(M * 2^(E-Bias+x)) <= 2 ^ (E-Bias+x+1)  [Note the "<=", not "<"]
+    We want x s.t. round(M * 2^(E-Bias+x)) <= 2^15 - 1
+    We know round(M * 2^(E-Bias+x)) <= 2^(E-Bias+x+1)
+    It will be sufficient to choose x s.t. 2^(E-Bias+x+1) <= 2^15 - 1
+    That is, max x. s.t. 2^(E-Bias+x+1) < 2^15
+    E-Bias+x+1 < 15
+    E-Bias+x+1 <= 14
+    Max x will make E-Bias+x+1 = 14
+    x = 13 - E + Bias
 
     Additonal notes on various floating-point values:
     ------------------------------------------------

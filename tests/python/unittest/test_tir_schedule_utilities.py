@@ -150,7 +150,7 @@ def tuple_reduction(data: T.Buffer[(4, 32), "float32"], T_add: T.Buffer[(4,), "f
                 data_red_temp_v1[ax0] = v_data_red_temp_v1
         for i0 in range(4):
             with T.block("T_add"):
-                (ax0,) = T.axis.remap("S", [i0])
+                ax0 = T.axis.remap("S", [i0])
                 T.reads(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
                 T.writes(T_add[ax0])
                 T_add[ax0] = data_red_temp_v0[ax0] + data_red_temp_v1[ax0]

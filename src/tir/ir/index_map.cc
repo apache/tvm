@@ -53,19 +53,21 @@ IndexMap IndexMap::FromFunc(int ndim, runtime::TypedPackedFunc<Array<PrimExpr>(A
   return IndexMap(initial_indices, func(initial_indices), std::move(inverse_index_map));
 }
 
-std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initial_ranges) const {
-  if ((*this)->inverse_index_map.defined()) {
+std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
+                                                  const Array<Range>& initial_ranges,
+                                                  arith::IterMapLevel check_level) {
+  if (self->inverse_index_map.defined()) {
     // return the pre-defined inverse index map if exists.  In this
     // case, the user-defined inverse is assumed to be correct and
     // bijective.
     PrimExpr padding_predicate = Bool(false);
-    return {Downcast<IndexMap>((*this)->inverse_index_map.value()), padding_predicate};
+    return {Downcast<IndexMap>(self->inverse_index_map.value()), padding_predicate};
   }
 
   // Dummy variables to represent the inverse's inputs.
   Array<Var> output_vars;
-  for (size_t i = 0; i < (*this)->final_indices.size(); i++) {
-    PrimExpr index = (*this)->final_indices[i];
+  for (size_t i = 0; i < self->final_indices.size(); i++) {
+    PrimExpr index = self->final_indices[i];
     // TODO(Lunderberg): Better names for these variables.  A variable
     // that is passed through unmodified (`index` is an element of
     // `initial_indices`) should use that input index's name.  A pair
@@ -79,16 +81,16 @@ std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initia
 
   // Dummy ranges for the extent of each input.
   Map<Var, Range> input_iters;
-  ICHECK_EQ((*this)->initial_indices.size(), initial_ranges.size());
+  ICHECK_EQ(self->initial_indices.size(), initial_ranges.size());
   for (size_t i = 0; i < initial_ranges.size(); i++) {
-    input_iters.Set((*this)->initial_indices[i], initial_ranges[i]);
+    input_iters.Set(self->initial_indices[i], initial_ranges[i]);
   }
 
   // Unpack the output indices into linear combinations of the initial
   // indices.
   arith::Analyzer analyzer;
-  auto padded_iter_map = DetectIterMap((*this)->final_indices, input_iters, /* predicate = */ 1,
-                                       /*check_level=*/arith::IterMapLevel::NoCheck, &analyzer,
+  auto padded_iter_map = DetectIterMap(self->final_indices, input_iters, /* predicate = */ 1,
+                                       /*check_level=*/check_level, &analyzer,
                                        /*simplify_trivial_iterators=*/false);
   CHECK(padded_iter_map->errors.empty()) << "Could not parse mapping as sum of iterators.  "
                                          << "Error: " << padded_iter_map->errors[0];
@@ -100,8 +102,8 @@ std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initia
 
   // Unpack the map to an array, maintaining the same parameter order.
   Array<PrimExpr> inverse_exprs;
-  for (int i = 0, n = (*this)->initial_indices.size(); i < n; ++i) {
-    Var index = (*this)->initial_indices[i];
+  for (int i = 0, n = self->initial_indices.size(); i < n; ++i) {
+    Var index = self->initial_indices[i];
     PrimExpr expr;
     if (is_one(initial_ranges[i]->extent) && !inverse_exprs_map.count(index)) {
       expr = initial_ranges[i]->min;
@@ -116,7 +118,7 @@ std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initia
   padding_predicate = Substitute(padding_predicate, inverse_exprs_map);
 
   {
-    auto output_ranges = (*this)->MapRanges(initial_ranges);
+    auto output_ranges = self->MapRanges(initial_ranges);
     ICHECK_EQ(output_ranges.size(), output_vars.size());
 
     arith::Analyzer analyzer;
@@ -131,8 +133,13 @@ std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initia
   return {IndexMap(output_vars, inverse_exprs), padding_predicate};
 }
 
+std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initial_ranges) const {
+  return IndexMapInverseImpl(*this, initial_ranges, arith::IterMapLevel::NoCheck);
+}
+
 IndexMap IndexMap::Inverse(Array<Range> initial_ranges) const {
-  auto [inverse, padding_predicate] = NonSurjectiveInverse(std::move(initial_ranges));
+  auto [inverse, padding_predicate] =
+      IndexMapInverseImpl(*this, initial_ranges, arith::IterMapLevel::Bijective);
   arith::Analyzer analyzer;
   CHECK(analyzer.CanProve(!padding_predicate))
       << "Bijective inverse should not contain padding, but inverse of " << *this << " over range "
@@ -155,9 +162,11 @@ Array<PrimExpr> IndexMapNode::MapIndices(const Array<PrimExpr>& indices,
     analyzer = &local_analyzer;
   }
 
-  Array<PrimExpr> output = final_indices.Map(
-      [&](PrimExpr index) { return analyzer->Simplify(Substitute(std::move(index), vmap)); });
-
+  Array<PrimExpr> output = final_indices.Map([&](PrimExpr index) {
+    PrimExpr result = SubstituteWithDataTypeLegalization(
+        std::move(index), [&](const Var& var) { return vmap.Get(var); });
+    return analyzer->Simplify(result);
+  });
   return output;
 }
 
@@ -211,6 +220,21 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer
                                             analyzer->Simplify(int_set.max() - int_set.min() + 1)));
     }
   }
+  auto output_dtype = [&]() {
+    int max_bits = 0;
+    for (const auto& range : ranges) {
+      max_bits = std::max(max_bits, range->extent.dtype().bits());
+    }
+    return DataType::Int(max_bits);
+  }();
+  output.MutateByApply([&](const Range& range) {
+    if (range->min.dtype() != output_dtype || range->extent.dtype() != output_dtype) {
+      return Range::FromMinExtent(cast(output_dtype, range->min),
+                                  cast(output_dtype, range->extent));
+    } else {
+      return range;
+    }
+  });
   return output;
 }
 
@@ -220,7 +244,7 @@ Array<PrimExpr> IndexMapNode::MapShape(const Array<PrimExpr>& shape,
 
   Array<Range> ranges;
   for (auto& dim : shape) {
-    ranges.push_back(Range(0, dim));
+    ranges.push_back(Range(make_zero(dim.dtype()), dim));
   }
   Array<Range> mapped = MapRanges(std::move(ranges), analyzer);
 

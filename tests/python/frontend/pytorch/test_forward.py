@@ -4034,6 +4034,14 @@ def test_forward_index():
     input_data = torch.rand(input_shape).float()
     verify_model(Index1().eval(), input_data=input_data)
 
+    def test_fn_bool_mask():
+        return lambda data, mask: data[0, mask]
+
+    data = torch.tensor([[1, 2, 3], [4, 5, 6]])
+    mask = torch.tensor([True, True, False])
+
+    verify_trace_model(test_fn_bool_mask(), [data, mask], ["llvm", "cuda"])
+
 
 def test_logsumexp():
     """test_logsumexp"""
@@ -4847,8 +4855,9 @@ def test_grid_sample():
 
     data_2D = torch.rand([4, 4, 8, 8]).float()
     grid_2D = torch.rand([4, 16, 16, 2]).float()
-    data_3D = torch.rand([4, 4, 8, 8, 8]).float()
-    grid_3D = torch.rand([4, 16, 16, 16, 3]).float()
+    # choosing smaller sizes to be testable on weaker GPUs
+    data_3D = torch.rand([4, 4, 4, 4, 4]).float()
+    grid_3D = torch.rand([4, 8, 8, 8, 3]).float()
 
     for _method in methods:
         for _padding in padding_modes:

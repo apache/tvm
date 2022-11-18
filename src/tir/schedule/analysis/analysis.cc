@@ -46,47 +46,6 @@ const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_bl
   throw;
 }
 
-const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var) {
-  GlobalVar result = NullValue<GlobalVar>();
-  // Priority 1: PrimFunc marked as `tir::attr::kIsEntryFunc`
-  int num_prim_func = 0;
-  const tir::PrimFuncNode* main_func = nullptr;
-  const tir::PrimFuncNode* last_func = nullptr;
-  for (const auto& kv : mod->functions) {
-    GlobalVar gv = kv.first;
-    BaseFunc base_func = kv.second;
-    if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
-      last_func = func;
-      if (func->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
-        if (result_g_var != nullptr) {
-          *result_g_var = gv;
-        }
-        return func;
-      }
-      if (gv->name_hint == "main") {
-        main_func = func;
-        result = gv;
-      }
-      ++num_prim_func;
-    }
-  }
-  // Priority 2: PrimFunc whose name is `main`
-  if (main_func != nullptr) {
-    if (result_g_var != nullptr) {
-      *result_g_var = result;
-    }
-    return main_func;
-  }
-  // Priority 3: The only PrimFunc in the IRModule
-  if (num_prim_func == 1) {
-    if (result_g_var != nullptr) {
-      *result_g_var = result;
-    }
-    return last_func;
-  }
-  return nullptr;
-}
-
 /******** Scope ********/
 
 StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref,
@@ -581,7 +540,8 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
       /*input_iters=*/loop_var_ranges,
       /*predicate=*/realize->predicate,
       /*check_level=*/arith::IterMapLevel::Surjective,
-      /*analyzer=*/analyzer);
+      /*analyzer=*/analyzer,
+      /*simplify_trivial_iterators=*/false);
   if (res->indices.empty()) {
     return false;
   }
@@ -1054,23 +1014,33 @@ std::pair<Array<StmtSRef>, std::vector<int>> CollectComputeLocation(const Schedu
 /******** Producer-consumer relation ********/
 
 Array<StmtSRef> GetProducers(const StmtSRef& block_sref, const BlockScope& scope) {
-  Array<Dependency> deps = scope->GetDepsByDst(block_sref);
-  Array<StmtSRef> result;
-  result.reserve(deps.size());
-  for (const Dependency& dep : deps) {
-    result.push_back(dep->src);
+  Array<Dependency> edges = scope->GetDepsByDst(block_sref);
+  Array<StmtSRef> results;
+  std::unordered_set<StmtSRef, ObjectPtrHash, ObjectPtrEqual> result_set;
+  results.reserve(edges.size());
+  for (const Dependency& edge : edges) {
+    if ((edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) &&
+        !result_set.count(edge->src)) {
+      results.push_back(edge->src);
+      result_set.emplace(edge->src);
+    }
   }
-  return result;
+  return results;
 }
 
 Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const BlockScope& scope) {
-  Array<Dependency> deps = scope->GetDepsBySrc(block_sref);
-  Array<StmtSRef> result;
-  result.reserve(deps.size());
-  for (const Dependency& dep : deps) {
-    result.push_back(dep->dst);
+  Array<Dependency> edges = scope->GetDepsBySrc(block_sref);
+  Array<StmtSRef> results;
+  std::unordered_set<StmtSRef, ObjectPtrHash, ObjectPtrEqual> result_set;
+  results.reserve(edges.size());
+  for (const Dependency& edge : edges) {
+    if ((edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) &&
+        !result_set.count(edge->dst)) {
+      results.push_back(edge->dst);
+      result_set.emplace(edge->dst);
+    }
   }
-  return result;
+  return results;
 }
 
 ProducerConsumerSplit ProducerConsumerSplit::Find(
@@ -2099,6 +2069,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.GetAutoTensorizeMappingInfo")
     .set_body_typed([](Schedule sch, BlockRV block, PrimFunc desc_func) {
       return GetAutoTensorizeMappingInfo(sch->state(), sch->GetSRef(block), desc_func);
     });
+
+TVM_REGISTER_GLOBAL("tir.schedule.HasBlock").set_body_typed(HasBlock);
 
 }  // namespace tir
 }  // namespace tvm

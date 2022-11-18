@@ -14,81 +14,88 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import csv
+import json
+import os
+import platform
+from io import StringIO
+
 import numpy as np
 import pytest
-from io import StringIO
-import csv
-import os
-import json
-import platform
 
 import tvm.testing
 import tvm.utils
-from tvm.runtime import profiler_vm
-from tvm import relay
-from tvm.relay.testing import mlp
-from tvm.contrib.debugger import debug_executor
-from tvm import rpc
+from tvm import relay, rpc
 from tvm.contrib import utils
+from tvm.contrib.debugger import debug_executor
+from tvm.relay.testing import mlp
+from tvm.runtime import profiler_vm
 from tvm.runtime.profiling import Report
 from tvm.script import tir as T
 
 
-@tvm.testing.parametrize_targets("llvm", "cuda")
-def test_estimate_peak_flops(target, dev):
-    server = rpc.Server(key="roofline_flops")
-    remote = rpc.connect("127.0.0.1", server.port, key="roofline_flops")
-    dev = remote.device(target)
+@tvm.testing.requires_llvm
+@pytest.mark.parametrize("dtype", ["float32", "int8", "int32"])
+def test_estimate_peak_flops_cpu(dtype):
+    server = rpc.Server(key="roofline_flops_cpu")
+    remote = rpc.connect("127.0.0.1", server.port, key="roofline_flops_cpu")
+    target = tvm.target.Target("llvm -mattr=+fma,+avx2")
+    dev = remote.device(str(target))
     # This test uses vectorized instructions so we need a target that supports them
-    if target == "llvm":
-        target = "llvm -mattr=+fma,+avx2"
-    target = tvm.target.Target(target)
-    with target:
-        flops = tvm.utils.roofline.registry.estimate_peak_flops(target, dev, remote)
-    if str(target.kind) == "llvm":
-        # Assume we can achieve 1 GFLOP/s per thread, which is 1 FLOP per cycle on a 1GHz cpu.
-        assert (
-            flops > 10**9 and flops < 10**14
-        ), f"FLOP/s should be between 10^9 and 10^14, but it is {flops}"
-    elif str(target.kind) == "cuda":
-        # should be able to hit a TFLOP/s with tensor cores
-        assert (
-            flops > 10**12 and flops < 10**14
-        ), f"FLOP/s should be between 10^12 and 10^14, but it is {flops}"
-    else:
-        raise RuntimeError("Unsupported target " + str(target))
+    flops = tvm.utils.roofline.x86.estimate_peak_fma_vector_flops(target, dev, remote, "float32")
+    # Assume we can achieve 1 GFLOP/s per thread, which is 1 FLOP per cycle on a 1GHz cpu.
+    assert (
+        flops > 10**9 and flops < 10**14
+    ), f"FLOP/s should be between 10^9 and 10^14, but it is {flops}"
+
+
+@tvm.testing.requires_cuda
+def test_estimate_peak_flops_gpu():
+    server = rpc.Server(key="roofline_flops_gpu")
+    remote = rpc.connect("127.0.0.1", server.port, key="roofline_flops_gpu")
+    target = tvm.target.Target("cuda")
+    dev = remote.device(str(target))
+    # This test uses vectorized instructions so we need a target that supports them
+    flops = tvm.utils.roofline.cuda.estimate_peak_flops_tensorcore(target, dev, remote)
+    # should be able to hit a TFLOP/s with tensor cores
+    assert (
+        flops > 10**12 and flops < 10**14
+    ), f"FLOP/s should be between 10^12 and 10^14, but it is {flops}"
 
 
 @tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
-@tvm.testing.parametrize_targets("llvm", "cuda")
-def test_estimate_peak_bandwidth(target, dev):
-    server = rpc.Server(key="roofline_bandwidth")
-    remote = rpc.connect("127.0.0.1", server.port, key="roofline_bandwidth")
-    dev = remote.device(target)
+@tvm.testing.requires_llvm
+def test_estimate_peak_bandwidth_cpu():
+    server = rpc.Server(key="roofline_bandwidth_cpu")
+    remote = rpc.connect("127.0.0.1", server.port, key="roofline_bandwidth_cpu")
+    target = tvm.target.Target("llvm -mattr=+fma,+avx2")
+    dev = remote.device(str(target))
     # This test uses vectorized instructions so we need a target that supports them
-    if target == "llvm":
-        target = "llvm -mattr=+fma,+avx2"
-    target = tvm.target.Target(target)
-    with target:
-        bandwidth = tvm.utils.roofline.registry.estimate_peak_bandwidth(target, dev, remote)
-    if str(target.kind) == "llvm":
-        # Assume we can achieve 1 GB/s. DDR2 should transfer somewhere around 6
-        # GB/s, so this should leave enough wiggle room.
-        assert (
-            bandwidth > 10**9 and bandwidth < 10**12
-        ), f"Bandwidth should be between 10^9 and 10^12, but it is {bandwidth}"
-    elif str(target.kind) == "cuda":
-        # should be able to hit a 100 GB/s on a GPU. GTX 280 hits 140 GB/s and
-        # it is really old.
-        assert (
-            bandwidth > 10**11 and bandwidth < 10**13
-        ), f"Bandwidth should be between 10^9 and 10^12, but it is {bandwidth}"
-    else:
-        raise RuntimeError("Unsupported target " + str(target))
+    bandwidth = tvm.utils.roofline.x86.estimate_peak_bandwidth_dram(target, dev, remote)
+    # Assume we can achieve 1 GB/s. DDR2 should transfer somewhere around 6
+    # GB/s, so this should leave enough wiggle room.
+    assert (
+        bandwidth > 10**9 and bandwidth < 10**12
+    ), f"Bandwidth should be between 10^9 and 10^12, but it is {bandwidth}"
+
+
+@tvm.testing.requires_cuda
+def test_estimate_peak_bandwidth_gpu():
+    server = rpc.Server(key="roofline_bandwidth_gpu")
+    remote = rpc.connect("127.0.0.1", server.port, key="roofline_bandwidth_gpu")
+    target = tvm.target.Target("cuda")
+    dev = remote.device(str(target))
+    # This test uses vectorized instructions so we need a target that supports them
+    bandwidth = tvm.utils.roofline.cuda.estimate_peak_bandwidth_global_mem(target, dev, remote)
+    # should be able to hit a 100 GB/s on a GPU. GTX 280 hits 140 GB/s and
+    # it is really old.
+    assert (
+        bandwidth > 10**11 and bandwidth < 10**13
+    ), f"Bandwidth should be between 10^9 and 10^12, but it is {bandwidth}"
 
 
 @tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
-@tvm.testing.parametrize_targets("llvm -mattr=+fma+avx2", "cuda")
+@tvm.testing.parametrize_targets("llvm -mattr=+fma,+avx2", "cuda")
 def test_roofline_analysis(target, dev):
     a = relay.var("a", relay.TensorType((512, 512), "float32"))
     b = relay.var("b", relay.TensorType((512, 512), "float32"))

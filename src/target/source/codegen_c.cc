@@ -936,11 +936,11 @@ void CodeGenC::VisitStmt_(const IfThenElseNode* op) {
   PrintStmt(op->then_case);
   this->EndScope(then_scope);
 
-  if (op->else_case.defined()) {
+  if (op->else_case) {
     PrintIndent();
     stream << "} else {\n";
     int else_scope = BeginScope();
-    PrintStmt(op->else_case);
+    PrintStmt(op->else_case.value());
     this->EndScope(else_scope);
   }
   PrintIndent();

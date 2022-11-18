@@ -414,6 +414,14 @@ class ScheduleNode : public runtime::Object {
   virtual Array<BlockRV> CacheInplace(const BlockRV& block_rv, int read_buffer_index,
                                       const String& storage_scope) = 0;
   /*!
+   * \brief Create a block to cache precomputed index for later use.
+   * if there is no index computation, keep unchanged.
+   * \param block_rv The target block
+   * \param buffer_index The index of the target buffer in block's read region
+   * \return The cache stage blocks.
+   */
+  virtual Array<BlockRV> CacheIndex(const BlockRV& block_rv, int buffer_index) = 0;
+  /*!
    * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
    * The layout of the cache will be the same as by the iterators of the block that reads/writes the
    * buffer. It requires:
@@ -680,6 +688,23 @@ class ScheduleNode : public runtime::Object {
    * The producer buffers are padded by the initial value of the corresponding reduction.
    */
   virtual void PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) = 0;
+
+  /******** Schedule: Buffer transformation ********/
+  /*!
+   * \brief Compute the target buffer via rolling buffering.
+   * \details This primitive selects the outermost rollable axis with a positive bound overlap that
+   * appears in the block's ancestor loops as `rolling axis`, fold and circularize the buffer along
+   * the rolling dimension, append block predicate to avoid recomputing overlapping elements.
+   * It requires:
+   * 1) The buffer to be an intermediate buffer defined via `alloc_buffer`.
+   * 2) The LCA of the producer and consumer of the buffer is a for loop, typically,
+   *    the producer and consumer of the buffer are cascaded through compute_at.
+   * 3) The access region of the buffer has at least one dimension that contains
+   *    a positive bound overlap.
+   * \param block_rv The producer block of the buffer.
+   * \param write_buffer_index The index of the buffer in block's write region.
+   */
+  virtual void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) = 0;
 
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */

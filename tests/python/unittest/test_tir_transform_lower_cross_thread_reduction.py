@@ -341,8 +341,8 @@ def single_reduction_loop_with_block_predicate(
         for ax0, ax1_0 in T.grid(1, 1):
             for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
                 with T.block("T_softmax_maxelem"):
-                    i0_1 = T.axis.spatial(256, i0)
-                    k = T.axis.reduce(256, ax1_1)
+                    i0_1 = T.axis.spatial(256, i0 + ax0)
+                    k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
                     T.where(ax1_0 * 512 + ax1_1 < 256)
                     T.reads(A[i0_1, k])
                     T.writes(T_softmax_maxelem_shared[i0_1])
@@ -354,8 +354,8 @@ def single_reduction_loop_with_block_predicate(
         for ax0, ax1_0 in T.grid(1, 1):
             for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
                 with T.block("T_softmax_expsum"):
-                    i0_2 = T.axis.spatial(256, i0)
-                    k = T.axis.reduce(256, ax1_1)
+                    i0_2 = T.axis.spatial(256, i0 + ax0)
+                    k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
                     T.where(ax1_0 * 512 + ax1_1 < 256)
                     T.reads(A[i0_2, k], T_softmax_maxelem_shared[i0_2])
                     T.writes(T_softmax_expsum_shared[i0_2])
@@ -368,7 +368,7 @@ def single_reduction_loop_with_block_predicate(
             for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
                 with T.block("T_softmax_norm"):
                     i0_3 = T.axis.spatial(256, i0)
-                    i1 = T.axis.spatial(256, i1_1)
+                    i1 = T.axis.spatial(256, i1_0 * 512 + i1_1)
                     T.where(i1_0 * 512 + i1_1 < 256)
                     T.reads(
                         A[i0_3, i1], T_softmax_maxelem_shared[i0_3], T_softmax_expsum_shared[i0_3]
@@ -392,19 +392,20 @@ def lowered_single_reduction_loop_with_block_predicate(
     cross_thread_1 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     in_thread_1 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i0 in T.serial(256):
-        for ax0, ax1_0 in T.grid(1, 1):
+        for ax0 in T.serial(1):
             for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
                 with T.block("T_softmax_maxelem_in_thread_init"):
                     T.reads()
                     T.writes(in_thread_0[0])
                     in_thread_0[0] = T.float32(-3.4028234663852886e38)
-                with T.block("T_softmax_maxelem_in_thread"):
-                    i0_1 = T.axis.spatial(256, i0)
-                    k = T.axis.reduce(256, ax1_1)
-                    T.where(ax1_0 * 512 + ax1_1 < 256)
-                    T.reads(A[i0_1, k])
-                    T.writes(in_thread_0[0])
-                    in_thread_0[0] = T.max(in_thread_0[0], A[i0_1, k])
+                for ax1_0 in T.serial(1):
+                    with T.block("T_softmax_maxelem_in_thread"):
+                        T.where(ax1_0 * 512 + ax1_1 < 256)
+                        i0_1 = T.axis.spatial(256, i0 + ax0)
+                        k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                        T.reads(A[i0_1, k])
+                        T.writes(in_thread_0[0])
+                        in_thread_0[0] = T.max(in_thread_0[0], A[i0_1, k])
                 with T.block("T_softmax_maxelem_cross_thread"):
                     T.reads(in_thread_0[0])
                     T.writes(cross_thread_0[0])
@@ -426,25 +427,26 @@ def lowered_single_reduction_loop_with_block_predicate(
                         )
                     )
                 with T.block("T_softmax_maxelem_write_back"):
-                    i0_2 = T.axis.spatial(256, i0)
+                    i0_2 = T.axis.spatial(256, i0 + ax0)
                     T.reads(cross_thread_0[0])
                     T.writes(T_softmax_maxelem_shared[i0_2])
                     T_softmax_maxelem_shared[i0_2] = cross_thread_0[0]
-        for ax0, ax1_0 in T.grid(1, 1):
+        for ax0 in T.serial(1):
             for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
                 with T.block("T_softmax_expsum_in_thread_init"):
                     T.reads()
                     T.writes(in_thread_1[0])
                     in_thread_1[0] = T.float32(0)
-                with T.block("T_softmax_expsum_in_thread"):
-                    i0_3 = T.axis.spatial(256, i0)
-                    k = T.axis.reduce(256, ax1_1)
-                    T.where(ax1_0 * 512 + ax1_1 < 256)
-                    T.reads(A[i0_3, k], T_softmax_maxelem_shared[i0_3])
-                    T.writes(in_thread_1[0])
-                    in_thread_1[0] = in_thread_1[0] + T.exp(
-                        A[i0_3, k] - T_softmax_maxelem_shared[i0_3], dtype="float32"
-                    )
+                for ax1_0 in T.serial(1):
+                    with T.block("T_softmax_expsum_in_thread"):
+                        T.where(ax1_0 * 512 + ax1_1 < 256)
+                        i0_3 = T.axis.spatial(256, i0 + ax0)
+                        k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                        T.reads(A[i0_3, k], T_softmax_maxelem_shared[i0_3])
+                        T.writes(in_thread_1[0])
+                        in_thread_1[0] = in_thread_1[0] + T.exp(
+                            A[i0_3, k] - T_softmax_maxelem_shared[i0_3], dtype="float32"
+                        )
                 with T.block("T_softmax_expsum_cross_thread"):
                     T.reads(in_thread_1[0])
                     T.writes(cross_thread_1[0])
@@ -464,7 +466,7 @@ def lowered_single_reduction_loop_with_block_predicate(
                         )
                     )
                 with T.block("T_softmax_expsum_write_back"):
-                    i0_4 = T.axis.spatial(256, i0)
+                    i0_4 = T.axis.spatial(256, i0 + ax0)
                     T.reads(cross_thread_1[0])
                     T.writes(T_softmax_expsum_shared[i0_4])
                     T_softmax_expsum_shared[i0_4] = cross_thread_1[0]
@@ -472,7 +474,7 @@ def lowered_single_reduction_loop_with_block_predicate(
             for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
                 with T.block("T_softmax_norm"):
                     i0_5 = T.axis.spatial(256, i0)
-                    i1 = T.axis.spatial(256, i1_1)
+                    i1 = T.axis.spatial(256, i1_0 * 512 + i1_1)
                     T.where(i1_0 * 512 + i1_1 < 256)
                     T.reads(
                         A[i0_5, i1], T_softmax_maxelem_shared[i0_5], T_softmax_expsum_shared[i0_5]
@@ -483,6 +485,117 @@ def lowered_single_reduction_loop_with_block_predicate(
                         T.exp(A[i0_5, i1] - T_softmax_maxelem_shared[i0_5], dtype="float32")
                         / T_softmax_expsum_shared[i0_5]
                     )
+
+
+@T.prim_func
+def single_reduction_loop_with_tensorize(
+    input_A: T.Buffer[(1, 64, 7, 7, 32), "uint8"],
+    input_B: T.Buffer[(16, 64, 1, 1, 8, 32, 4), "int8"],
+    output: T.Buffer[(1, 16, 7, 7, 32), "int32"],
+) -> None:
+    # body
+    # with T.block("root")
+    for i1, i2, i3, i4, i5 in T.grid(16, 4, 98, 2, 32):
+        with T.block("compute_o"):
+            n = T.axis.spatial(1, 0)
+            oc_chunk = T.axis.spatial(16, i1)
+            oh = T.axis.spatial(7, (i2 * 6272 + i3 * 64 + i4 * 32 + i5) // 3584)
+            ow = T.axis.spatial(7, (i2 * 6272 + i3 * 64 + i4 * 32 + i5) % 3584 // 512)
+            kh = T.axis.reduce(1, 0)
+            kw = T.axis.reduce(1, 0)
+            ic_outer = T.axis.reduce(64, (i2 * 6272 + i3 * 64 + i4 * 32 + i5) % 512 // 8)
+            ic_f_inner = T.axis.reduce(8, (i2 * 6272 + i3 * 64 + i4 * 32 + i5) % 8)
+            T.reads(
+                input_A[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4],
+                input_B[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:32, 0:4],
+            )
+            T.writes(output[n, oc_chunk, oh, ow, 0:32])
+            with T.init():
+                for x in T.serial(32):
+                    with T.block("compute_init"):
+                        oc_block_i_init = T.axis.spatial(32, x)
+                        T.reads()
+                        T.writes(output[n, oc_chunk, oh, ow, oc_block_i_init])
+                        output[n, oc_chunk, oh, ow, oc_block_i_init] = 0
+            with T.block("compute_o"):
+                T.reads(
+                    output[n, oc_chunk, oh, ow, 0:32],
+                    input_A[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4],
+                    input_B[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:32, 0:4],
+                )
+                T.writes(output[n, oc_chunk, oh, ow, 0:32])
+                A = T.match_buffer(
+                    input_A[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4],
+                    [4],
+                    dtype="uint8",
+                    offset_factor=1,
+                )
+                B = T.match_buffer(
+                    input_B[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:32, 0:4],
+                    [32, 4],
+                    dtype="int8",
+                    offset_factor=1,
+                )
+                C = T.match_buffer(
+                    output[n, oc_chunk, oh, ow, 0:32], [32], dtype="int32", offset_factor=1
+                )
+                A_u8x4: T.uint8x4 = A[0:4]
+                A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")
+                B_i8x128 = B[0, 0:128]
+                B_i32x32: T.int32x32 = T.reinterpret(B_i8x128, dtype="int32x32")
+                C[0:32] = T.call_llvm_pure_intrin(
+                    4217, T.uint32(3), C[0:32], T.broadcast(A_i32, 32), B_i32x32, dtype="int32x32"
+                )
+
+
+@T.prim_func
+def nested_reduction_loop_with_inner_match_buffers(
+    in0: T.Buffer[(4, 16), "int8"],
+    in1: T.Buffer[(4, 16), "int8"],
+    out: T.Buffer[(4, 4), "int32"],
+) -> None:
+    # body
+    # with T.block("root")
+    for y in T.serial(4):
+        with T.block("C"):
+            yi = T.axis.spatial(4, y)
+            T.reads(in0[yi, 0:16], in1[yi, 0:16])
+            T.writes(out[yi, 0:4])
+            for x in T.serial(4):
+                with T.block("C"):
+                    xr = T.axis.reduce(4, x)
+                    with T.init():
+                        for i in T.serial(4):
+                            with T.block("C_init"):
+                                ii = T.axis.spatial(4, i)
+                                T.reads()
+                                T.writes(out[yi, ii])
+                                out[yi, ii] = 0
+                    with T.block("C"):
+                        T.reads(
+                            out[yi, xr],
+                            in0[yi, yi * 4 + xr : yi * 4 + xr + 4],
+                            in1[yi, yi * 4 + xr : yi * 4 + xr + 4],
+                        )
+                        T.writes(out[yi, xr])
+                        A = T.match_buffer(
+                            in0[yi, yi * 4 + xr : yi * 4 + xr + 4],
+                            [4],
+                            dtype="int8",
+                            offset_factor=1,
+                        )
+                        B = T.match_buffer(
+                            in1[yi, yi * 4 + xr : yi * 4 + xr + 4],
+                            [4],
+                            dtype="int8",
+                            offset_factor=1,
+                        )
+                        C = T.match_buffer(out[yi, xr], [1], dtype="int32", offset_factor=1)
+                        A_i8x4: T.int8x4 = A[0:4]
+                        A_i32: T.int32 = T.reinterpret(A_i8x4, dtype="int32")
+                        B_i8x4: T.int8x4 = B[0:4]
+                        B_i32: T.int32 = T.reinterpret(B_i8x4, dtype="int32")
+                        C[0] = A_i32 + B_i32 + C[0]
 
 
 @T.prim_func
@@ -1174,6 +1287,20 @@ def test_single_reduction_loop_with_block_predicate():
     _check(
         single_reduction_loop_with_block_predicate,
         lowered_single_reduction_loop_with_block_predicate,
+    )
+
+
+def test_single_reduction_loop_with_tensorize():
+    _check(
+        single_reduction_loop_with_tensorize,
+        single_reduction_loop_with_tensorize,
+    )
+
+
+def test_nested_reduction_loop_with_inner_match_buffers():
+    _check(
+        nested_reduction_loop_with_inner_match_buffers,
+        nested_reduction_loop_with_inner_match_buffers,
     )
 
 

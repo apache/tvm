@@ -417,8 +417,8 @@ class CoProcInstDepDetector : public StmtVisitor {
       first_state_.clear();
       last_state_.clear();
     }
-    if (op->else_case.defined()) {
-      this->VisitStmt(op->else_case);
+    if (op->else_case) {
+      this->VisitStmt(op->else_case.value());
       if (last_state_.node != nullptr) {
         curr_state.node = op;
         MatchFixEnterPop(first_state_);

@@ -434,6 +434,7 @@ class _PyDatabase(Database):
         f_query_schedule: Callable = None,
         f_query_ir_module: Callable = None,
         f_size: Callable = None,
+        module_equality: str = "structural",
     ):
         """Constructor."""
 
@@ -448,6 +449,7 @@ class _PyDatabase(Database):
             f_query_schedule,
             f_query_ir_module,
             f_size,
+            module_equality,
         )
 
 

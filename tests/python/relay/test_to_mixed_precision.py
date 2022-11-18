@@ -24,6 +24,12 @@ from tvm import relay
 from tvm.relay.testing import lstm
 from tvm.relay.transform import InferType, ToMixedPrecision, mixed_precision
 
+target_precision = tvm.testing.parameter(
+    pytest.param("float16"),
+    pytest.param("bfloat16"),
+    ids=["float16", "bfloat16"],
+)
+
 
 def run_module(mod: tvm.runtime.Module, mod_params: Dict[str, Any]) -> List:
     dev = tvm.device("llvm", 0)
@@ -48,28 +54,29 @@ def verify_mixed_precision_output_close(
     result_fp32 = run_module(mod, mod_params)
 
     if not keep_orig_output_dtype:
-        fp16_mod = ToMixedPrecision(mixed_precision_dtype)(mod)
-        result_fp16 = run_module(fp16_mod, mod_params)
+        amp_mod = ToMixedPrecision(mixed_precision_dtype)(mod)
+        result_amp = run_module(amp_mod, mod_params)
     else:
         with tvm.transform.PassContext(
             config={"relay.ToMixedPrecision.keep_orig_output_dtype": True}
         ):
-            fp16_mod = ToMixedPrecision(mixed_precision_dtype)(mod)
-            result_fp16 = run_module(fp16_mod, mod_params)
+            amp_mod = ToMixedPrecision(mixed_precision_dtype)(mod)
+            result_amp = run_module(amp_mod, mod_params)
 
     # Ensure the results are close
-    for fp32, fp16 in zip(result_fp32, result_fp16):
-        np.testing.assert_allclose(fp32, fp16, rtol=rtol, atol=atol)
+    if mixed_precision_dtype != "bfloat16":
+        for fp32, amp in zip(result_fp32, result_amp):
+            np.testing.assert_allclose(fp32, amp, rtol=rtol, atol=atol)
 
     if keep_orig_output_dtype:
         assert (
-            np.array(result_fp16).dtype == np.array(result_fp32).dtype
+            np.array(result_amp).dtype == np.array(result_fp32).dtype
         ), "output type and original type mismatch"
 
-    return fp16_mod
+    return amp_mod
 
 
-def test_lstm():
+def test_lstm(target_precision):
     """A small stress test on a single unrolled lstm unit.
 
     Has internal functions and let statements the pass must work on.
@@ -87,7 +94,9 @@ def test_lstm():
             -10, 10, (1, units)
         ).astype("float32")
 
-    verify_mixed_precision_output_close(mod, mod_params, rtol=0.01, atol=0.01)
+    verify_mixed_precision_output_close(
+        mod, mod_params, mixed_precision_dtype=target_precision, rtol=0.01, atol=0.01
+    )
 
 
 def test_lstm_float64():
@@ -114,7 +123,7 @@ def test_lstm_float64():
     )
 
 
-def test_convert_single_conv():
+def test_convert_single_conv(target_precision):
     """Conv is a green listed operation meaning it will always use fp16 workload.
 
     By default it accumulates to fp32 and outputs fp16.
@@ -131,26 +140,31 @@ def test_convert_single_conv():
         "data": np.random.uniform(-1, 1, size=data_shape).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
     }
-    fp16_mod = verify_mixed_precision_output_close(
-        mod, mod_params, atol=0.01, rtol=1e-3, keep_orig_output_dtype=True
+    amp_mod = verify_mixed_precision_output_close(
+        mod,
+        mod_params,
+        mixed_precision_dtype=target_precision,
+        atol=0.01,
+        rtol=1e-3,
+        keep_orig_output_dtype=True,
     )
 
     expected_mod = tvm.IRModule.from_expr(
         relay.cast(
             relay.nn.conv2d(
-                relay.cast(data, "float16"),
-                relay.cast(weight, "float16"),
+                relay.cast(data, target_precision),
+                relay.cast(weight, target_precision),
                 strides=(1, 1),
                 padding=(1, 1),
-                out_dtype="float16",
+                out_dtype=target_precision,
             ),
             "float32",
         )
     )
     expected_mod = tvm.relay.transform.InferType()(expected_mod)
 
-    assert not tvm.ir.structural_equal(fp16_mod, mod)
-    assert tvm.ir.structural_equal(fp16_mod, expected_mod)
+    assert not tvm.ir.structural_equal(amp_mod, mod)
+    assert tvm.ir.structural_equal(amp_mod, expected_mod)
 
 
 def test_convert_single_conv_fp64():
@@ -167,7 +181,7 @@ def test_convert_single_conv_fp64():
         "data": np.random.uniform(-1, 1, size=data_shape).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
     }
-    fp16_mod = verify_mixed_precision_output_close(
+    amp_mod = verify_mixed_precision_output_close(
         mod, mod_params, mixed_precision_dtype="float64", atol=0.01, rtol=1e-3
     )
 
@@ -184,11 +198,11 @@ def test_convert_single_conv_fp64():
     )
     expected_mod = tvm.relay.transform.InferType()(expected_mod)
 
-    assert not tvm.ir.structural_equal(fp16_mod, mod)
-    assert tvm.ir.structural_equal(fp16_mod, expected_mod)
+    assert not tvm.ir.structural_equal(amp_mod, mod)
+    assert tvm.ir.structural_equal(amp_mod, expected_mod)
 
 
-def test_convert_conv_bn():
+def test_convert_conv_bn(target_precision):
     """Conv is green and batch norm is gray. As Conv should output fp16 batch_norm should be green."""
     data_shape = (1, 3, 32, 32)
     weight_shape = (5, 3, 3, 3)
@@ -213,49 +227,51 @@ def test_convert_conv_bn():
         "moving_mean": np.random.uniform(-1, 1, size=bn_shape).astype("float32"),
         "moving_var": np.random.uniform(-1, 1, size=bn_shape).astype("float32"),
     }
-    fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.025, rtol=0.01)
+    amp_mod = verify_mixed_precision_output_close(
+        mod, mod_params, mixed_precision_dtype=target_precision, atol=0.025, rtol=0.01
+    )
 
     # Creating expected module
-    data = relay.cast(relay.var("data", shape=data_shape), "float16")
-    weight = relay.cast(relay.var("weight", shape=weight_shape), "float16")
-    conv = relay.nn.conv2d(data, weight, strides=(1, 1), padding=(1, 1), out_dtype="float16")
+    data = relay.cast(relay.var("data", shape=data_shape), target_precision)
+    weight = relay.cast(relay.var("weight", shape=weight_shape), target_precision)
+    conv = relay.nn.conv2d(data, weight, strides=(1, 1), padding=(1, 1), out_dtype=target_precision)
 
     bn_shape = [5]
-    gamma = relay.cast(relay.var("gamma", shape=bn_shape), "float16")
-    beta = relay.cast(relay.var("beta", shape=bn_shape), "float16")
-    moving_mean = relay.cast(relay.var("moving_mean", shape=bn_shape), "float16")
-    moving_var = relay.cast(relay.var("moving_var", shape=bn_shape), "float16")
+    gamma = relay.cast(relay.var("gamma", shape=bn_shape), target_precision)
+    beta = relay.cast(relay.var("beta", shape=bn_shape), target_precision)
+    moving_mean = relay.cast(relay.var("moving_mean", shape=bn_shape), target_precision)
+    moving_var = relay.cast(relay.var("moving_var", shape=bn_shape), target_precision)
     bn = relay.nn.batch_norm(conv, gamma, beta, moving_mean, moving_var)
 
     expected_mod = tvm.IRModule.from_expr(bn[0])
     expected_mod = tvm.relay.transform.InferType()(expected_mod)
-    assert not tvm.ir.structural_equal(fp16_mod, mod)
-    assert tvm.ir.structural_equal(fp16_mod, expected_mod)
+    assert not tvm.ir.structural_equal(amp_mod, mod)
+    assert tvm.ir.structural_equal(amp_mod, expected_mod)
 
 
-def test_do_not_convert_softmax():
+def test_do_not_convert_softmax(target_precision):
     """Softmax is a red listed operation and therefore should never be fp16."""
     shape = [1, 2, 3]
     a = relay.var("a", shape=shape)
     b = relay.nn.softmax(a)
     mod = tvm.IRModule.from_expr(b)
     mod = tvm.relay.transform.InferType()(mod)
-    out_mod = ToMixedPrecision("float16")(mod)
+    out_mod = ToMixedPrecision(target_precision)(mod)
     orig_mod = tvm.relay.transform.InferType()(mod)
     assert tvm.ir.structural_equal(orig_mod, out_mod)
 
 
-def test_do_not_convert_arange():
+def test_do_not_convert_arange(target_precision):
     """Arange is a red listed operation and therefore should never be fp16."""
     dtype = "float32"
     arange = relay.arange(relay.const(1, dtype), relay.const(128, dtype))
     mod = tvm.IRModule.from_expr(arange)
-    out_mod = ToMixedPrecision("float16")(mod)
+    out_mod = ToMixedPrecision(target_precision)(mod)
     orig_mod = tvm.relay.transform.InferType()(mod)
     assert tvm.ir.structural_equal(orig_mod, out_mod)
 
 
-def test_do_not_convert_summation():
+def test_do_not_convert_summation(target_precision):
     """Ops that could involve a large summation are not allowed in fp16."""
     shape = [1, 3, 16, 16]
     a = relay.var("a", shape=shape)
@@ -267,12 +283,12 @@ def test_do_not_convert_summation():
     ]
     for op in ops:
         mod = tvm.IRModule.from_expr(op(a))
-        out_mod = ToMixedPrecision("float16")(mod)
+        out_mod = ToMixedPrecision(target_precision)(mod)
         orig_mod = tvm.relay.transform.InferType()(mod)
         assert tvm.ir.structural_equal(orig_mod, out_mod)
 
 
-def test_green_gray_propagates_simple():
+def test_green_gray_propagates_simple(target_precision):
     """Conv is a green listed operation, while addition is gray.
 
     As Conv outputs fp16 the add should be done in fp16.
@@ -290,23 +306,25 @@ def test_green_gray_propagates_simple():
         "data": np.random.uniform(-1, 1, size=data_shape).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
     }
-    fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=0.01)
+    amp_mod = verify_mixed_precision_output_close(
+        mod, mod_params, mixed_precision_dtype=target_precision, atol=0.01, rtol=0.01
+    )
 
     conv_expr = relay.nn.conv2d(
-        relay.cast(data, "float16"),
-        relay.cast(weight, "float16"),
+        relay.cast(data, target_precision),
+        relay.cast(weight, target_precision),
         strides=(1, 1),
         padding=(1, 1),
-        out_dtype="float16",
+        out_dtype=target_precision,
     )
     expected_mod = tvm.IRModule.from_expr(conv_expr + conv_expr)
     expected_mod = tvm.relay.transform.InferType()(expected_mod)
 
-    assert not tvm.ir.structural_equal(fp16_mod, mod)
-    assert tvm.ir.structural_equal(fp16_mod, expected_mod)
+    assert not tvm.ir.structural_equal(amp_mod, mod)
+    assert tvm.ir.structural_equal(amp_mod, expected_mod)
 
 
-def test_green_red_not_use_extraneous_cast():
+def test_green_red_not_use_extraneous_cast(target_precision):
     """Conv. is a green listed operation, while softmax is red.
 
     Conv. also by default accumulates to fp32 but outputs fp16.
@@ -346,16 +364,18 @@ def test_green_red_not_use_extraneous_cast():
         "data": np.random.uniform(-1, 1, size=data_shape).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
     }
-    fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
+    amp_mod = verify_mixed_precision_output_close(
+        mod, mod_params, mixed_precision_dtype=target_precision, atol=0.01, rtol=1e-3
+    )
 
     # Construct expected structure
     conv = relay.cast(
         relay.nn.conv2d(
-            relay.cast(data, "float16"),
-            relay.cast(weight, "float16"),
+            relay.cast(data, target_precision),
+            relay.cast(weight, target_precision),
             strides=(1, 1),
             padding=(1, 1),
-            out_dtype="float16",
+            out_dtype=target_precision,
         ),
         "float32",
     )
@@ -363,10 +383,10 @@ def test_green_red_not_use_extraneous_cast():
     expected_mod = tvm.IRModule.from_expr(result)
     expected_mod = InferType()(expected_mod)
 
-    assert tvm.ir.structural_equal(expected_mod, fp16_mod)
+    assert tvm.ir.structural_equal(expected_mod, amp_mod)
 
 
-def test_red_gray_propagates_simple():
+def test_red_gray_propagates_simple(target_precision):
     """Everything after a softmax should be in FP32 (exception green colored ops)"""
     shape = [1, 2, 3]
     a = relay.var("a", shape=shape)
@@ -378,12 +398,14 @@ def test_red_gray_propagates_simple():
     mod_params = {
         "a": np.random.uniform(-1, 1, size=shape).astype("float32"),
     }
-    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.0, rtol=0.0)
+    output_mod = verify_mixed_precision_output_close(
+        mod, mod_params, mixed_precision_dtype=target_precision, atol=0.0, rtol=0.0
+    )
 
     assert tvm.ir.structural_equal(mod, output_mod)
 
 
-def test_let_statement_simple():
+def test_let_statement_simple(target_precision):
     """A 'simple' let statement example.
 
     Noticeable is the mutation of the bound variable types.
@@ -405,23 +427,25 @@ def test_let_statement_simple():
         "data": np.random.uniform(-1, 1, size=[1, 20]).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=[20, 20]).astype("float32"),
     }
-    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.05, rtol=0.15)
+    output_mod = verify_mixed_precision_output_close(
+        mod, mod_params, mixed_precision_dtype=target_precision, atol=0.05, rtol=0.15
+    )
 
     # Construct expected structure
-    var1 = relay.var("var1", shape=[1, 20], dtype="float16")
-    var2 = relay.var("var2", shape=[1, 20], dtype="float16")
-    data = relay.cast(relay.var("data", shape=[1, 20]), "float16")
-    weight = relay.cast(relay.var("weight", shape=[20, 20]), "float16")
+    var1 = relay.var("var1", shape=[1, 20], dtype=target_precision)
+    var2 = relay.var("var2", shape=[1, 20], dtype=target_precision)
+    data = relay.cast(relay.var("data", shape=[1, 20]), target_precision)
+    weight = relay.cast(relay.var("weight", shape=[20, 20]), target_precision)
     r1 = var1 + var1
     r2 = var2 + var2
     let2 = relay.Let(
         var2,
-        relay.nn.dense(r1, weight, units=20, out_dtype="float16"),
+        relay.nn.dense(r1, weight, units=20, out_dtype=target_precision),
         r2,
     )
     let1 = relay.Let(
         var1,
-        relay.nn.dense(data, weight, units=20, out_dtype="float16"),
+        relay.nn.dense(data, weight, units=20, out_dtype=target_precision),
         let2,
     )
     expected_mod = tvm.IRModule.from_expr(let1)
@@ -430,7 +454,7 @@ def test_let_statement_simple():
     assert tvm.ir.structural_equal(expected_mod, output_mod)
 
 
-def test_where_simple():
+def test_where_simple(target_precision):
     data = relay.var("data", shape=[1, 20])
     weight = relay.var("weight", shape=[20, 20])
     a = relay.nn.dense(data, weight, units=20)
@@ -441,12 +465,14 @@ def test_where_simple():
         "weight": np.random.uniform(-1, 1, size=[20, 20]).astype("float32"),
     }
 
-    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=0.01)
+    output_mod = verify_mixed_precision_output_close(
+        mod, mod_params, mixed_precision_dtype=target_precision, atol=0.01, rtol=0.01
+    )
 
     # Create expected module
-    data = relay.cast(relay.var("data", shape=[1, 20]), "float16")
-    weight = relay.cast(relay.var("weight", shape=[20, 20]), "float16")
-    a = relay.nn.dense(data, weight, units=20, out_dtype="float16")
+    data = relay.cast(relay.var("data", shape=[1, 20]), target_precision)
+    weight = relay.cast(relay.var("weight", shape=[20, 20]), target_precision)
+    a = relay.nn.dense(data, weight, units=20, out_dtype=target_precision)
     b = relay.where(data, a, a)
     expected_mod = tvm.IRModule.from_expr(b)
     expected_mod = InferType()(expected_mod)
@@ -454,7 +480,7 @@ def test_where_simple():
     assert tvm.ir.structural_equal(expected_mod, output_mod)
 
 
-def test_batch_matmul_simple():
+def test_batch_matmul_simple(target_precision):
     """Batch matmul is a special case where we try to accumulate to fp16.
 
     This is due to the fact heterogenous accumulation dtypes does not work
@@ -468,17 +494,19 @@ def test_batch_matmul_simple():
         "data": np.random.uniform(-1, 1, size=[1, 1, 20]).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=[1, 20, 20]).astype("float32"),
     }
-    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=0.01)
+    output_mod = verify_mixed_precision_output_close(
+        mod, mod_params, mixed_precision_dtype=target_precision, atol=0.01, rtol=0.01
+    )
     # Create expected module
-    data = relay.cast(relay.var("data", shape=[1, 1, 20]), "float16")
-    weight = relay.cast(relay.var("weight", shape=[1, 20, 20]), "float16")
-    a = relay.nn.batch_matmul(data, weight, out_dtype="float16")
+    data = relay.cast(relay.var("data", shape=[1, 1, 20]), target_precision)
+    weight = relay.cast(relay.var("weight", shape=[1, 20, 20]), target_precision)
+    a = relay.nn.batch_matmul(data, weight, out_dtype=target_precision)
     expected_mod = tvm.IRModule.from_expr(a)
     expected_mod = InferType()(expected_mod)
     assert tvm.ir.structural_equal(expected_mod, output_mod)
 
 
-def test_convert_follow_node_with_integer_arguments():
+def test_convert_follow_node_with_integer_arguments(target_precision):
     """Tests the conversion of a follow op with integer arguments + constant float args.
 
     The follow op should convert the floating point argument into fp16 as constants/vars
@@ -497,10 +525,12 @@ def test_convert_follow_node_with_integer_arguments():
         "data": np.random.uniform(-1, 1, size=[1, 10]).astype("float32"),
         "indices": np.array([[0]]).astype("int32"),
     }
-    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=0.01)
+    output_mod = verify_mixed_precision_output_close(
+        mod, mod_params, mixed_precision_dtype=target_precision, atol=0.01, rtol=0.01
+    )
 
     # Create expected module
-    data = relay.cast(relay.var("data", shape=[1, 10]), "float16")
+    data = relay.cast(relay.var("data", shape=[1, 10]), target_precision)
     take = relay.take(data, indices, axis=0)
     expected_mod = tvm.IRModule.from_expr(take)
     expected_mod = InferType()(expected_mod)

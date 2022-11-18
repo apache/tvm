@@ -24,8 +24,8 @@ microTVM Host-Driven AoT
 `Alan MacDonald <https://github.com/alanmacd>`_
 
 This tutorial is showcasing microTVM host-driven AoT compilation with
-a TFLite model. AoTExecutor reduces the overhead of parsing graph at runtime 
-compared to GraphExecutor. Also, we can have better memory management using ahead 
+a TFLite model. AoTExecutor reduces the overhead of parsing graph at runtime
+compared to GraphExecutor. Also, we can have better memory management using ahead
 of time compilation. This tutorial can be executed on a x86 CPU using C runtime (CRT)
 or on Zephyr platform on a microcontroller/board supported by Zephyr.
 """
@@ -94,7 +94,7 @@ relay_mod, params = relay.frontend.from_tflite(
 # Use the C runtime (crt) and enable static linking by setting system-lib to True
 RUNTIME = Runtime("crt", {"system-lib": True})
 
-# Simulate a microcontroller on the host machine. Uses the main() from `src/runtime/crt/host/main.cc <https://github.com/apache/tvm/blob/main/src/runtime/crt/host/main.cc>`_.
+# Simulate a microcontroller on the host machine. Uses the main() from `src/runtime/crt/host/main.cc`.
 # To use physical hardware, replace "host" with something matching your hardware.
 TARGET = tvm.target.target.micro("host")
 
@@ -174,7 +174,3 @@ with tvm.micro.Session(project.transport()) as session:
     aot_executor.run()
     result = aot_executor.get_output(0).numpy()
     print(f"Label is `{labels[np.argmax(result)]}` with index `{np.argmax(result)}`")
-#
-# Output:
-# Label is `left` with index `6`
-#

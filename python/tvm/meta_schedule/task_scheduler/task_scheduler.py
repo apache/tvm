@@ -163,15 +163,9 @@ class TaskScheduler(Object):
         """
         _ffi_api.TaskSchedulerTouchTask(self, task_id)  # type: ignore # pylint: disable=no-member
 
-    def tuning_statistics(self) -> str:
-        """Returns a human-readable string of the tuning statistics.
-
-        Returns
-        -------
-        tuning_statistics : str
-            The tuning statistics.
-        """
-        return _ffi_api.TaskSchedulerTuningStatistics(self)  # type: ignore # pylint: disable=no-member
+    def print_tuning_statistics(self) -> None:
+        """Print out a human-readable format of the tuning statistics."""
+        return _ffi_api.TaskSchedulerPrintTuningStatistics(self)  # type: ignore # pylint: disable=no-member
 
     @staticmethod
     def create(  # pylint: disable=keyword-arg-before-vararg

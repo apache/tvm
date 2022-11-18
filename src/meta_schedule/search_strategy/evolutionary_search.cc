@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include "../module_equality.h"
 #include "../utils.h"
 
 #define TVM_META_SCHEDULE_CHECK_PROB_RANGE(p, name)                               \
@@ -33,6 +34,9 @@ using tir::Schedule;
 /*! \brief An auxiliary data structure to help deduplicate IRModules */
 class IRModuleSet {
  public:
+  explicit IRModuleSet(const ModuleEquality& mod_eq)
+      : tab_(/*bucket_count*/ 0, ItemHash(), ItemEqual(mod_eq)) {}
+
   /*! \brief Add an IRModule to the set */
   void Add(const IRModule& mod, size_t shash) { tab_.insert(Item{mod, shash}); }
   /*! \brief Check if the IRModule is in the set */
@@ -47,10 +51,16 @@ class IRModuleSet {
     size_t operator()(const Item& hash) const { return hash.shash; }
   };
   struct ItemEqual {
+    explicit ItemEqual(const ModuleEquality& mod_eq) : mod_eq_(mod_eq) {}
+    ItemEqual& operator=(const ItemEqual& other) { return *this; }
+
     bool operator()(const Item& lhs, const Item& rhs) const {
-      return lhs.shash == rhs.shash && StructuralEqual()(lhs.mod, rhs.mod);
+      return lhs.shash == rhs.shash && mod_eq_.Equal(lhs.mod, rhs.mod);
     }
+
+    const ModuleEquality& mod_eq_;
   };
+
   std::unordered_set<Item, ItemHash, ItemEqual> tab_;
 };
 
@@ -271,7 +281,8 @@ class EvolutionarySearchNode : public SearchStrategyNode {
           num_trials_per_iter(num_trials_per_iter),
           st(0),
           ed(num_trials_per_iter),
-          num_empty_iters(0) {
+          num_empty_iters(0),
+          measured_workloads_(database->GetModuleEquality()) {
       design_spaces.reserve(design_spaces.size());
       for (const Schedule& space : design_space_schedules) {
         design_spaces.push_back(space->trace().value()->Simplified(true));
@@ -322,6 +333,12 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     /*! \brief An interface method to be called by it's counterpart in EvolutionarySearchNode */
     inline void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                                     const Array<RunnerResult>& results);
+    /*!
+     * \brief Compute the hash for the given module.
+     * \param mod The input TIR module.
+     * \return The calculated hash.
+     */
+    inline size_t ModuleHash(const IRModule& mod) const;
   };
 
   /*! \brief The tuning context of the evolutionary search strategy. */
@@ -348,6 +365,8 @@ class EvolutionarySearchNode : public SearchStrategyNode {
   double init_measured_ratio;
   /*! \brief The minimal size of unmeasured population in the initial sampling.*/
   int init_min_unmeasured;
+  /*! \brief The maximum number of failure during initial sampling. */
+  int max_fail_count;
   /*** Configuration: evolution ***/
   /*! \brief The number of iterations performed by generic algorithm. */
   int genetic_num_iters;
@@ -370,6 +389,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     /*** Configuration: the initial population ***/
     v->Visit("init_measured_ratio", &init_measured_ratio);
     v->Visit("init_min_unmeasured", &init_min_unmeasured);
+    v->Visit("max_fail_count", &max_fail_count);
     /*** Configuration: evolution ***/
     v->Visit("genetic_num_iters", &genetic_num_iters);
     v->Visit("genetic_mutate_prob", &genetic_mutate_prob);
@@ -439,6 +459,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     n->num_empty_iters_before_early_stop = this->num_empty_iters_before_early_stop;
     n->init_measured_ratio = this->init_measured_ratio;
     n->init_min_unmeasured = this->init_min_unmeasured;
+    n->max_fail_count = this->max_fail_count;
     n->genetic_num_iters = this->genetic_num_iters;
     n->genetic_mutate_prob = this->genetic_mutate_prob;
     n->genetic_max_fail_count = this->genetic_max_fail_count;
@@ -484,7 +505,9 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
   auto _ = Profiler::TimedScope("EvoSearch/SampleInitPopulation");
   ThreadedTraceApply pp(self->postprocs_);
   std::vector<Schedule> out_schs;
-  while (static_cast<int>(out_schs.size()) < self->init_min_unmeasured) {
+  int fail_count = 0;
+  while (static_cast<int>(out_schs.size()) < self->init_min_unmeasured &&
+         fail_count < self->max_fail_count) {
     std::vector<Schedule> results(num, Schedule{nullptr});
     auto f_proc_unmeasured = [this, &results, &pp](int thread_id, int trace_id) -> void {
       PerThreadData& data = this->per_thread_data_.at(thread_id);
@@ -499,11 +522,14 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
       }
     };
     support::parallel_for_dynamic(0, num, self->ctx_->num_threads, f_proc_unmeasured);
+    bool found_new = false;
     for (int i = 0; i < num; i++) {
       if (results[i].defined()) {
+        found_new = true;
         out_schs.push_back(results[i]);
       }
     }
+    fail_count += !found_new;
     TVM_PY_LOG(INFO, self->ctx_->logger) << "Sample-Init-Population summary:\n"
                                          << pp.SummarizeFailures();
   }
@@ -512,7 +538,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
 
 std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
     std::vector<Schedule> population, int num) {
-  IRModuleSet exists;
+  IRModuleSet exists(database_->GetModuleEquality());
   {
     auto _ = Profiler::TimedScope("EvoSearch/Evolve/Misc/CopyMeasuredWorkloads");
     ICHECK_GT(num, 0);
@@ -531,7 +557,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
       for (int i = 0, n = population.size(); i < n; ++i) {
         Schedule sch = population.at(i);
         IRModule mod = sch->mod();
-        size_t shash = StructuralHash()(mod);
+        size_t shash = ModuleHash(mod);
         double score = scores.at(i);
         if (!exists.Has(mod, shash)) {
           exists.Add(mod, shash);
@@ -661,7 +687,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickWithEpsGreedy(
       }
     }
     IRModule mod = sch->mod();
-    size_t shash = StructuralHash()(mod);
+    size_t shash = ModuleHash(mod);
     if (!measured_workloads.Has(mod, shash)) {
       measured_workloads.Add(mod, shash);
       results.push_back(sch);
@@ -689,6 +715,11 @@ Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasure
   TVM_PY_LOG(INFO, self->ctx_->logger)
       << "Picked top " << measured.size() << " candidate(s) from database";
   std::vector<Schedule> unmeasured = SampleInitPopulation(pop - measured.size());
+  if (static_cast<int>(unmeasured.size()) < self->init_min_unmeasured) {
+    TVM_PY_LOG(WARNING, self->ctx_->logger)
+        << "Cannot sample enough initial population, evolutionary search failed.";
+    return NullOpt;
+  }
   TVM_PY_LOG(INFO, self->ctx_->logger) << "Sampled " << unmeasured.size() << " candidate(s)";
   inits.insert(inits.end(), measured.begin(), measured.end());
   inits.insert(inits.end(), unmeasured.begin(), unmeasured.end());
@@ -713,9 +744,14 @@ void EvolutionarySearchNode::State::NotifyRunnerResults(
   ed += results.size();
 }
 
+size_t EvolutionarySearchNode::State::ModuleHash(const IRModule& mod) const {
+  return database_->GetModuleEquality().Hash(mod);
+}
+
 SearchStrategy SearchStrategy::EvolutionarySearch(int population_size,         //
                                                   double init_measured_ratio,  //
                                                   int init_min_unmeasured,     //
+                                                  int max_fail_count,          //
                                                   int genetic_num_iters,       //
                                                   double genetic_mutate_prob,  //
                                                   int genetic_max_fail_count,  //
@@ -728,6 +764,7 @@ SearchStrategy SearchStrategy::EvolutionarySearch(int population_size,         /
   n->num_empty_iters_before_early_stop = 5;
   n->init_measured_ratio = init_measured_ratio;
   n->init_min_unmeasured = init_min_unmeasured;
+  n->max_fail_count = max_fail_count;
   n->genetic_num_iters = genetic_num_iters;
   n->genetic_max_fail_count = genetic_max_fail_count;
   n->genetic_mutate_prob = genetic_mutate_prob;
@@ -754,7 +791,7 @@ Array<Schedule> EvolutionarySearchEvolveWithCostModel(EvolutionarySearch self,
   std::vector<Schedule> schs = self->state_->EvolveWithCostModel(population_vec, num);
   for (Schedule sch : schs) {
     IRModule mod = sch->mod();
-    size_t shash = StructuralHash()(mod);
+    size_t shash = self->state_->ModuleHash(mod);
     if (!self->state_->measured_workloads_.Has(mod, shash)) {
       self->state_->measured_workloads_.Add(mod, shash);
       result.push_back(sch);

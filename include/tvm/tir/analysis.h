@@ -202,6 +202,13 @@ TVM_DLL Array<Array<BufferRegion>> GetBlockReadWriteRegion(const Block& block,
 TVM_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
 
 /*!
+ * \brief Calculate the constants size in bytes needed by the TIR allocates inside the TIR PrimFunc
+ * \param func The TIR PrimFunc for which the constants size to be calculated
+ * \param constant_byte_alignment The byte alignment required for each constant allocated
+ */
+TVM_DLL size_t CalculateConstantBytes(const PrimFunc& func, const Integer& constant_byte_alignment);
+
+/*!
  * \brief Calculate the workspace size in bytes needed by the TIR allocates inside the TIR PrimFunc
  * \param func The TIR PrimFunc for which the workspace size to be calculated
  * \param workspace_byte_alignment The byte alignment required for each tensor allocated in this
@@ -228,6 +235,31 @@ TVM_DLL Map<Buffer, Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func);
  * \return Whether it is a well-formed TIR function.
  */
 TVM_DLL bool VerifyWellFormed(const PrimFunc& func, bool assert_mode = true);
+
+/*!
+ * \brief Find the entry function of the given IRModule, i.e, functions marked by
+ * `tir::attr::kIsEntryFunc`, whose name is `main` or being the only PrimeFunc.
+ * \param mod The IRModule to find the entry function.
+ * \param result_g_var The result GlobalVar of the entry function.
+ * \return The entry function.
+ */
+const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var);
+
+/*!
+ * \brief Find the "anchor block" of the given module.
+ * We define the anchor block to be the block with (1) an init statement and (2) having
+ * the biggest flops count. The latter condition is only used when there are multiple blocks
+ * with an init statement.
+ * For example, if the input module is conv2d + fused spatial blocks, conv2d is the anchor block.
+ * The input module may not contain more than one such block. For example, a module having
+ * two conv2d is not allowed as an input.
+ * However, a module created from winograd convolution has multiple blocks with an init statement
+ * (input transform, batched GEMM, and output transform). We use the second condition, the flops
+ * count, to determine that the batched GEMM block is the anchor block.
+ * \param mod The input TIR module.
+ * \return The anchor block if found, nullptr otherwise.
+ */
+const tir::BlockNode* FindAnchorBlock(const IRModule& mod);
 
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.

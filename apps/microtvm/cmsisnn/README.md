@@ -28,7 +28,7 @@ If the demo is run in the ci_cpu Docker container provided with TVM, then the fo
 software will already be installed.
 
 If the demo is not run in the ci_cpu Docker container, then you will need the following:
-- Software required to build and run the demo (These can all be installed by running 
+- Software required to build and run the demo (These can all be installed by running
   tvm/docker/install/ubuntu_install_ethosu_driver_stack.sh.)
   - [Fixed Virtual Platform (FVP) based on Arm(R) Corstone(TM)-300 software](https://developer.arm.com/tools-and-software/open-source-software/arm-platforms-software/arm-ecosystem-fvps)
   - [cmake 3.19.5](https://github.com/Kitware/CMake/releases/)

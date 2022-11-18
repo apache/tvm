@@ -34,7 +34,7 @@ Pass Legalize() {
   Array<Pass> pass_seqs;
   pass_seqs.push_back(relay::transform::Legalize("FTVMQnnLegalize"));
   pass_seqs.push_back(relay::transform::Legalize("FTVMQnnCanonicalize"));
-  relay::transform::Pass seq = relay::transform::Sequential(pass_seqs);
+  relay::transform::Pass seq = relay::transform::Sequential(pass_seqs, "qnn.Legalize");
   return seq;
 }
 

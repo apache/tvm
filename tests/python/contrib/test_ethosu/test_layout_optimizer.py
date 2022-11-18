@@ -381,7 +381,7 @@ def test_multiple_inputs():
 def test_multiple_outputs():
     """Test the layout optimization pass works as expected when there
     are multiple outputs in the graph.
-    
+
           pool_1
        /    |   \
   pool_2 pool_3 pool_4
