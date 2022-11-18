@@ -142,6 +142,8 @@ def roofline_from_existing(
     for call in report.calls:
         if "Hash" in call.keys() and call["Hash"] in all_features:
             _, prim, features = all_features[call["Hash"]]
+            if features is None:
+                continue
 
             with target:
                 flops, peak_flops, flops_name = registry.estimate_peak_flops(
