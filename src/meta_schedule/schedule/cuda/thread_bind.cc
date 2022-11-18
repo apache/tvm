@@ -55,14 +55,14 @@ std::function<ExprRV(int64_t)> MakeFactorSampler(Schedule sch, Array<Integer> th
 
 Array<LoopRV> BindSpatialLoop(Schedule sch, LoopRV loop, int64_t max_threadblocks,
                               int64_t max_threads_per_block,
-                              std::function<ExprRV(int64_t)> get_factor, bool allow_reorder) {
+                              std::function<ExprRV(int64_t)> get_factor) {
   int64_t extent = -1;
   if (const int64_t* e = as_const_int(sch->Get(loop)->extent)) {
     extent = *e;
   } else {
     extent = std::numeric_limits<int64_t>::max();
   }
-  if (extent <= max_threadblocks * max_threads_per_block || !allow_reorder) {
+  if (extent <= max_threadblocks * max_threads_per_block) {
     if (!get_factor) {
       get_factor = MakeFactorSampler(sch, {32, 64, 128, 256, 512, 1024});
     }
@@ -80,7 +80,7 @@ Array<LoopRV> BindSpatialLoop(Schedule sch, LoopRV loop, int64_t max_threadblock
     sch->Reorder({splits[1], splits[2], splits[0]});
     sch->Bind(splits[1], "blockIdx.x");
     sch->Bind(splits[2], "threadIdx.x");
-    return {splits[1], splits[2]};
+    return {splits[1], splits[2], splits[0]};
   }
 }
 
