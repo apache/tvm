@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-11-17T23:53:21.059864
+// Generated at 2022-11-19T01:24:31.191996
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -3646,10 +3646,9 @@ def deploy() {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
                     sh(
-                script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/docs",
-                label: 'Download artifacts from S3',
-              )
-
+                      script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/docs --items docs.tgz",
+                      label: 'Download docs folder from S3',
+                    )
                     deploy_docs()
           }
         }
