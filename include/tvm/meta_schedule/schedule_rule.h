@@ -205,18 +205,17 @@ class ScheduleRule : public runtime::ObjectRef {
       Optional<Array<Integer>> vector_load_lens, Optional<Map<String, ObjectRef>> reuse_read,
       Optional<Map<String, ObjectRef>> reuse_write, bool use_software_pipeline);
 
-
   /*!
    * \brief Extension of MultiLevelTiling for auto-tensorization with multiple groups of candidate
    * tensor core intrinsics
    * \param intrin_groups A list of groups of tensor core intrinsics. The map should contain key
-   * "compute" which represents the tensor intrin for computation. The value of the map should be 
+   * "compute" which represents the tensor intrin for computation. The value of the map should be
    * names of tensor intrinsics, must be registered via
    * TensorIntrin.register(...) beforehand
    * \param structure The tiling structure. Recommended:
    * - 'SRSRS' on Hexagon
    * \param tile_binds For each level of tiles, which thread axis it is bound to. These are not
-   * supported on hexagon. 
+   * supported on hexagon.
    * \param max_innermost_factor The maximum size of the innermost factor. NullOpt means no limit
    * \param vector_load_lens The length of vector lane in vectorized cooperative fetching.
    * NullOpt means disable vectorization

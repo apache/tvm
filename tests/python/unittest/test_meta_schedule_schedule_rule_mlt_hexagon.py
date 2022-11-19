@@ -22,7 +22,7 @@ import tvm.testing
 from tvm import meta_schedule as ms
 from tvm import te
 from tvm.meta_schedule.testing import te_workload
-from tvm.meta_schedule.testing.space_generation import ( 
+from tvm.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
     get_rules,
@@ -67,9 +67,12 @@ def multi_level_tiling_hexagon(
 
 
 def test_dense_base():
-
     @T.prim_func
-    def main(X: T.Buffer[(128, 768), "uint8"], packed_width: T.Buffer[(24, 192, 32, 4), "uint8"], compute: T.Buffer[(128, 768), "int32"]):
+    def main(
+        X: T.Buffer[(128, 768), "uint8"],
+        packed_width: T.Buffer[(24, 192, 32, 4), "uint8"],
+        compute: T.Buffer[(128, 768), "int32"],
+    ):
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -78,7 +81,9 @@ def test_dense_base():
         X_reindex = T.alloc_buffer([128, 768], dtype="uint8")
         packed_width_reindex = T.alloc_buffer([768, 768], dtype="uint8")
         X_reindex_global_vtcm = T.alloc_buffer([128, 768], dtype="uint8", scope="global.vtcm")
-        packed_width_reindex_global_vtcm = T.alloc_buffer([768, 768], dtype="uint8", scope="global.vtcm")
+        packed_width_reindex_global_vtcm = T.alloc_buffer(
+            [768, 768], dtype="uint8", scope="global.vtcm"
+        )
         for ax0, ax1 in T.grid(128, 768):
             with T.block("X_reindex_reindex"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
@@ -110,9 +115,14 @@ def test_dense_base():
                     v0 = T.axis.spatial(128, ax0_0 + ax0_1 + ax0_2)
                     v1_o = T.axis.spatial(24, ax1_0_0 * 4 + ax1_0_1 * 2 + ax1_0_2)
                     v2_o = T.axis.reduce(192, ax2_0_0 * 4 + ax2_0_1)
-                    T.reads(X_reindex_global_vtcm[v0, v2_o * 4 : v2_o * 4 + 4], packed_width_reindex_global_vtcm[v1_o * 32 : v1_o * 32 + 32, v2_o * 4 : v2_o * 4 + 4])
+                    T.reads(
+                        X_reindex_global_vtcm[v0, v2_o * 4 : v2_o * 4 + 4],
+                        packed_width_reindex_global_vtcm[
+                            v1_o * 32 : v1_o * 32 + 32, v2_o * 4 : v2_o * 4 + 4
+                        ],
+                    )
                     T.writes(compute_reindex[v0, v1_o * 32 : v1_o * 32 + 32])
-                    T.block_attr({"meta_schedule.auto_tensorize":"dot_32x4_u8u8i32_vtcm_vrmpy"})
+                    T.block_attr({"meta_schedule.auto_tensorize": "dot_32x4_u8u8i32_vtcm_vrmpy"})
                     with T.init():
                         for ax1_1 in T.serial(32):
                             with T.block("compute_init"):
@@ -123,17 +133,28 @@ def test_dense_base():
                     for ax1_1, ax2_1 in T.grid(32, 4):
                         with T.block("compute"):
                             v1_i, v2_i = T.axis.remap("SR", [ax1_1, ax2_1])
-                            T.reads(compute_reindex[v0, v1_o * 32 + v1_i], X_reindex_global_vtcm[v0, v2_o * 4 + v2_i], packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i])
+                            T.reads(
+                                compute_reindex[v0, v1_o * 32 + v1_i],
+                                X_reindex_global_vtcm[v0, v2_o * 4 + v2_i],
+                                packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i],
+                            )
                             T.writes(compute_reindex[v0, v1_o * 32 + v1_i])
-                            T.block_attr({"meta_schedule.tiling_structure":"SRSRS"})
-                            compute_reindex[v0, v1_o * 32 + v1_i] = compute_reindex[v0, v1_o * 32 + v1_i] + T.Cast("int32", X_reindex_global_vtcm[v0, v2_o * 4 + v2_i]) * T.Cast("int32", packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i])
+                            T.block_attr({"meta_schedule.tiling_structure": "SRSRS"})
+                            compute_reindex[v0, v1_o * 32 + v1_i] = compute_reindex[
+                                v0, v1_o * 32 + v1_i
+                            ] + T.Cast(
+                                "int32", X_reindex_global_vtcm[v0, v2_o * 4 + v2_i]
+                            ) * T.Cast(
+                                "int32",
+                                packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i],
+                            )
         for ax0, ax1 in T.grid(128, 768):
             with T.block("compute_reindex"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(compute_reindex[v0, v1])
                 T.writes(compute[v0, v1])
                 compute[v0, v1] = compute_reindex[v0, v1]
-    
+
     # fmt: on
     decision_0 = [
         ("SamplePerfectTile", [4, 1, 1]),
@@ -143,7 +164,7 @@ def test_dense_base():
 
     mod = te.create_prim_func(
         dense_compute(
-            m=128, 
+            m=128,
             n=768,
             k=768,
         )
@@ -160,7 +181,6 @@ def test_dense_base():
         + get_rules(kind="hexagon", types=ms.schedule_rule.AutoInline),
     )
 
-
     check_sketches(
         mod,
         sketches=actual_design_space,
@@ -168,11 +188,16 @@ def test_dense_base():
         expected_decisions=[decision_0],
     )
 
+
 def test_dense_with_fallback():
 
     # from tvm.script import tir as T
     @T.prim_func
-    def main(X: T.Buffer[(128, 768), "uint8"], packed_width: T.Buffer[(24, 192, 32, 4), "uint8"], compute: T.Buffer[(128, 768), "int32"]):
+    def main(
+        X: T.Buffer[(128, 768), "uint8"],
+        packed_width: T.Buffer[(24, 192, 32, 4), "uint8"],
+        compute: T.Buffer[(128, 768), "int32"],
+    ):
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -181,7 +206,9 @@ def test_dense_with_fallback():
         X_reindex = T.alloc_buffer([128, 768], dtype="uint8")
         packed_width_reindex = T.alloc_buffer([768, 768], dtype="uint8")
         X_reindex_global_vtcm = T.alloc_buffer([128, 768], dtype="uint8", scope="global.vtcm")
-        packed_width_reindex_global_vtcm = T.alloc_buffer([768, 768], dtype="uint8", scope="global.vtcm")
+        packed_width_reindex_global_vtcm = T.alloc_buffer(
+            [768, 768], dtype="uint8", scope="global.vtcm"
+        )
         for ax0, ax1 in T.grid(128, 768):
             with T.block("X_reindex_reindex"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
@@ -213,9 +240,14 @@ def test_dense_with_fallback():
                     v0 = T.axis.spatial(128, ax0_0 + ax0_1 + ax0_2)
                     v1_o = T.axis.spatial(24, ax1_0_0 * 4 + ax1_0_1 * 2 + ax1_0_2)
                     v2_o = T.axis.reduce(192, ax2_0_1 + ax2_0_0)
-                    T.reads(X_reindex_global_vtcm[v0, v2_o * 4 : v2_o * 4 + 4], packed_width_reindex_global_vtcm[v1_o * 32 : v1_o * 32 + 32, v2_o * 4 : v2_o * 4 + 4])
+                    T.reads(
+                        X_reindex_global_vtcm[v0, v2_o * 4 : v2_o * 4 + 4],
+                        packed_width_reindex_global_vtcm[
+                            v1_o * 32 : v1_o * 32 + 32, v2_o * 4 : v2_o * 4 + 4
+                        ],
+                    )
                     T.writes(compute_reindex[v0, v1_o * 32 : v1_o * 32 + 32])
-                    T.block_attr({"meta_schedule.auto_tensorize":"dot_32x4_u8u8i32_vtcm_vrmpy"})
+                    T.block_attr({"meta_schedule.auto_tensorize": "dot_32x4_u8u8i32_vtcm_vrmpy"})
                     with T.init():
                         for ax1_1 in T.serial(32):
                             with T.block("compute_init"):
@@ -226,17 +258,28 @@ def test_dense_with_fallback():
                     for ax1_1, ax2_1 in T.grid(32, 4):
                         with T.block("compute"):
                             v1_i, v2_i = T.axis.remap("SR", [ax1_1, ax2_1])
-                            T.reads(compute_reindex[v0, v1_o * 32 + v1_i], X_reindex_global_vtcm[v0, v2_o * 4 + v2_i], packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i])
+                            T.reads(
+                                compute_reindex[v0, v1_o * 32 + v1_i],
+                                X_reindex_global_vtcm[v0, v2_o * 4 + v2_i],
+                                packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i],
+                            )
                             T.writes(compute_reindex[v0, v1_o * 32 + v1_i])
-                            T.block_attr({"meta_schedule.tiling_structure":"SRSRS"})
-                            compute_reindex[v0, v1_o * 32 + v1_i] = compute_reindex[v0, v1_o * 32 + v1_i] + T.Cast("int32", X_reindex_global_vtcm[v0, v2_o * 4 + v2_i]) * T.Cast("int32", packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i])
+                            T.block_attr({"meta_schedule.tiling_structure": "SRSRS"})
+                            compute_reindex[v0, v1_o * 32 + v1_i] = compute_reindex[
+                                v0, v1_o * 32 + v1_i
+                            ] + T.Cast(
+                                "int32", X_reindex_global_vtcm[v0, v2_o * 4 + v2_i]
+                            ) * T.Cast(
+                                "int32",
+                                packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i],
+                            )
         for ax0, ax1 in T.grid(128, 768):
             with T.block("compute_reindex"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(compute_reindex[v0, v1])
                 T.writes(compute[v0, v1])
                 compute[v0, v1] = compute_reindex[v0, v1]
-    
+
     # fmt: on
     decision_0 = [
         ("SamplePerfectTile", [4, 1, 1]),
@@ -246,7 +289,7 @@ def test_dense_with_fallback():
 
     mod = te.create_prim_func(
         dense_compute(
-            m=128, 
+            m=128,
             n=768,
             k=768,
         )
@@ -263,7 +306,6 @@ def test_dense_with_fallback():
         + get_rules(kind="hexagon", types=ms.schedule_rule.AutoInline),
     )
 
-
     check_sketches(
         mod,
         sketches=actual_design_space,
@@ -271,9 +313,14 @@ def test_dense_with_fallback():
         expected_decisions=[decision_0],
     )
 
+
 def test_dense_with_pipeline():
     @T.prim_func
-    def main(X: T.Buffer[(128, 768), "uint8"], packed_width: T.Buffer[(24, 192, 32, 4), "uint8"], compute: T.Buffer[(128, 768), "int32"]):
+    def main(
+        X: T.Buffer[(128, 768), "uint8"],
+        packed_width: T.Buffer[(24, 192, 32, 4), "uint8"],
+        compute: T.Buffer[(128, 768), "int32"],
+    ):
         # function attr dict
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # body
@@ -282,7 +329,9 @@ def test_dense_with_pipeline():
         X_reindex = T.alloc_buffer([128, 768], dtype="uint8")
         packed_width_reindex = T.alloc_buffer([768, 768], dtype="uint8")
         X_reindex_global_vtcm = T.alloc_buffer([128, 768], dtype="uint8", scope="global.vtcm")
-        packed_width_reindex_global_vtcm = T.alloc_buffer([768, 768], dtype="uint8", scope="global.vtcm")
+        packed_width_reindex_global_vtcm = T.alloc_buffer(
+            [768, 768], dtype="uint8", scope="global.vtcm"
+        )
         for ax0, ax1 in T.grid(128, 768):
             with T.block("X_reindex_reindex"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
@@ -296,7 +345,14 @@ def test_dense_with_pipeline():
                 T.writes(packed_width_reindex[v0, v1])
                 packed_width_reindex[v0, v1] = packed_width[v0 // 32, v1 // 4, v0 % 32, v1 % 4]
         for ax0_0 in T.serial(128):
-            for ax1_0_0 in T.serial(6, annotations={"software_pipeline_async_stages":[0], "software_pipeline_order":[0, 1, 2], "software_pipeline_stage":[0, 0, 1]}):
+            for ax1_0_0 in T.serial(
+                6,
+                annotations={
+                    "software_pipeline_async_stages": [0],
+                    "software_pipeline_order": [0, 1, 2],
+                    "software_pipeline_stage": [0, 0, 1],
+                },
+            ):
                 for ax0_ax1_fused in T.serial(768):
                     with T.block("X_reindex_global.vtcm"):
                         v0, v1 = T.axis.remap("SS", [ax0_0, ax0_ax1_fused])
@@ -315,9 +371,16 @@ def test_dense_with_pipeline():
                         v0 = T.axis.spatial(128, ax0_0 + ax0_1 + ax0_2)
                         v1_o = T.axis.spatial(24, ax1_0_0 * 4 + ax1_0_1 * 2 + ax1_0_2)
                         v2_o = T.axis.reduce(192, ax2_0_0 * 4 + ax2_0_1)
-                        T.reads(X_reindex_global_vtcm[v0, v2_o * 4 : v2_o * 4 + 4], packed_width_reindex_global_vtcm[v1_o * 32 : v1_o * 32 + 32, v2_o * 4 : v2_o * 4 + 4])
+                        T.reads(
+                            X_reindex_global_vtcm[v0, v2_o * 4 : v2_o * 4 + 4],
+                            packed_width_reindex_global_vtcm[
+                                v1_o * 32 : v1_o * 32 + 32, v2_o * 4 : v2_o * 4 + 4
+                            ],
+                        )
                         T.writes(compute_reindex[v0, v1_o * 32 : v1_o * 32 + 32])
-                        T.block_attr({"meta_schedule.auto_tensorize":"dot_32x4_u8u8i32_vtcm_vrmpy"})
+                        T.block_attr(
+                            {"meta_schedule.auto_tensorize": "dot_32x4_u8u8i32_vtcm_vrmpy"}
+                        )
                         with T.init():
                             for ax1_1 in T.serial(32):
                                 with T.block("compute_init"):
@@ -328,17 +391,32 @@ def test_dense_with_pipeline():
                         for ax1_1, ax2_1 in T.grid(32, 4):
                             with T.block("compute"):
                                 v1_i, v2_i = T.axis.remap("SR", [ax1_1, ax2_1])
-                                T.reads(compute_reindex[v0, v1_o * 32 + v1_i], X_reindex_global_vtcm[v0, v2_o * 4 + v2_i], packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i])
+                                T.reads(
+                                    compute_reindex[v0, v1_o * 32 + v1_i],
+                                    X_reindex_global_vtcm[v0, v2_o * 4 + v2_i],
+                                    packed_width_reindex_global_vtcm[
+                                        v1_o * 32 + v1_i, v2_o * 4 + v2_i
+                                    ],
+                                )
                                 T.writes(compute_reindex[v0, v1_o * 32 + v1_i])
-                                T.block_attr({"meta_schedule.tiling_structure":"SRSRS"})
-                                compute_reindex[v0, v1_o * 32 + v1_i] = compute_reindex[v0, v1_o * 32 + v1_i] + T.Cast("int32", X_reindex_global_vtcm[v0, v2_o * 4 + v2_i]) * T.Cast("int32", packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i])
+                                T.block_attr({"meta_schedule.tiling_structure": "SRSRS"})
+                                compute_reindex[v0, v1_o * 32 + v1_i] = compute_reindex[
+                                    v0, v1_o * 32 + v1_i
+                                ] + T.Cast(
+                                    "int32", X_reindex_global_vtcm[v0, v2_o * 4 + v2_i]
+                                ) * T.Cast(
+                                    "int32",
+                                    packed_width_reindex_global_vtcm[
+                                        v1_o * 32 + v1_i, v2_o * 4 + v2_i
+                                    ],
+                                )
         for ax0, ax1 in T.grid(128, 768):
             with T.block("compute_reindex"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(compute_reindex[v0, v1])
                 T.writes(compute[v0, v1])
                 compute[v0, v1] = compute_reindex[v0, v1]
-    
+
     # fmt: on
     decision_0 = [
         ("SamplePerfectTile", [4, 1, 1]),
@@ -346,10 +424,9 @@ def test_dense_with_pipeline():
         ("SamplePerfectTile", [1, 4]),
     ]
 
-
     mod = te.create_prim_func(
         dense_compute(
-            m=128, 
+            m=128,
             n=768,
             k=768,
         )
@@ -366,7 +443,6 @@ def test_dense_with_pipeline():
         + get_rules(kind="hexagon", types=ms.schedule_rule.AutoInline),
     )
 
-
     check_sketches(
         mod,
         sketches=actual_design_space,
@@ -374,11 +450,16 @@ def test_dense_with_pipeline():
         expected_decisions=[decision_0],
     )
 
+
 def test_dense_global():
 
     # from tvm.script import tir as T
     @T.prim_func
-    def main(X: T.Buffer[(128, 768), "uint8"], packed_width: T.Buffer[(24, 192, 32, 4), "uint8"], compute: T.Buffer[(128, 768), "int32"]):
+    def main(
+        X: T.Buffer[(128, 768), "uint8"],
+        packed_width: T.Buffer[(24, 192, 32, 4), "uint8"],
+        compute: T.Buffer[(128, 768), "int32"],
+    ):
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -387,7 +468,9 @@ def test_dense_global():
         X_reindex = T.alloc_buffer([128, 768], dtype="uint8")
         packed_width_reindex = T.alloc_buffer([768, 768], dtype="uint8")
         X_reindex_global_vtcm = T.alloc_buffer([128, 768], dtype="uint8", scope="global.vtcm")
-        packed_width_reindex_global_vtcm = T.alloc_buffer([768, 768], dtype="uint8", scope="global.vtcm")
+        packed_width_reindex_global_vtcm = T.alloc_buffer(
+            [768, 768], dtype="uint8", scope="global.vtcm"
+        )
         for ax0, ax1 in T.grid(128, 768):
             with T.block("X_reindex_reindex"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
@@ -419,9 +502,14 @@ def test_dense_global():
                     v0 = T.axis.spatial(128, ax0_0 + ax0_1 + ax0_2)
                     v1_o = T.axis.spatial(24, ax1_0_0 * 4 + ax1_0_1 * 2 + ax1_0_2)
                     v2_o = T.axis.reduce(192, ax2_0_1 + ax2_0_0)
-                    T.reads(X_reindex_global_vtcm[v0, v2_o * 4 : v2_o * 4 + 4], packed_width_reindex_global_vtcm[v1_o * 32 : v1_o * 32 + 32, v2_o * 4 : v2_o * 4 + 4])
+                    T.reads(
+                        X_reindex_global_vtcm[v0, v2_o * 4 : v2_o * 4 + 4],
+                        packed_width_reindex_global_vtcm[
+                            v1_o * 32 : v1_o * 32 + 32, v2_o * 4 : v2_o * 4 + 4
+                        ],
+                    )
                     T.writes(compute_reindex[v0, v1_o * 32 : v1_o * 32 + 32])
-                    T.block_attr({"meta_schedule.auto_tensorize":"dot_32x4_u8u8i32_vtcm_vrmpy"})
+                    T.block_attr({"meta_schedule.auto_tensorize": "dot_32x4_u8u8i32_vtcm_vrmpy"})
                     with T.init():
                         for ax1_1 in T.serial(32):
                             with T.block("compute_init"):
@@ -432,17 +520,28 @@ def test_dense_global():
                     for ax1_1, ax2_1 in T.grid(32, 4):
                         with T.block("compute"):
                             v1_i, v2_i = T.axis.remap("SR", [ax1_1, ax2_1])
-                            T.reads(compute_reindex[v0, v1_o * 32 + v1_i], X_reindex_global_vtcm[v0, v2_o * 4 + v2_i], packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i])
+                            T.reads(
+                                compute_reindex[v0, v1_o * 32 + v1_i],
+                                X_reindex_global_vtcm[v0, v2_o * 4 + v2_i],
+                                packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i],
+                            )
                             T.writes(compute_reindex[v0, v1_o * 32 + v1_i])
-                            T.block_attr({"meta_schedule.tiling_structure":"SRSRS"})
-                            compute_reindex[v0, v1_o * 32 + v1_i] = compute_reindex[v0, v1_o * 32 + v1_i] + T.Cast("int32", X_reindex_global_vtcm[v0, v2_o * 4 + v2_i]) * T.Cast("int32", packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i])
+                            T.block_attr({"meta_schedule.tiling_structure": "SRSRS"})
+                            compute_reindex[v0, v1_o * 32 + v1_i] = compute_reindex[
+                                v0, v1_o * 32 + v1_i
+                            ] + T.Cast(
+                                "int32", X_reindex_global_vtcm[v0, v2_o * 4 + v2_i]
+                            ) * T.Cast(
+                                "int32",
+                                packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i],
+                            )
         for ax0, ax1 in T.grid(128, 768):
             with T.block("compute_reindex"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(compute_reindex[v0, v1])
                 T.writes(compute[v0, v1])
                 compute[v0, v1] = compute_reindex[v0, v1]
-    
+
     # fmt: on
     decision_0 = [
         ("SamplePerfectTile", [4, 1, 1]),
@@ -452,7 +551,7 @@ def test_dense_global():
 
     mod = te.create_prim_func(
         dense_compute(
-            m=128, 
+            m=128,
             n=768,
             k=768,
         )
@@ -469,7 +568,6 @@ def test_dense_global():
         + get_rules(kind="hexagon", types=ms.schedule_rule.AutoInline),
     )
 
-
     check_sketches(
         mod,
         sketches=actual_design_space,
@@ -477,10 +575,14 @@ def test_dense_global():
         expected_decisions=[decision_0],
     )
 
-def test_padded_dense():
 
+def test_padded_dense():
     @T.prim_func
-    def main(X: T.Buffer[(128, 768), "uint8"], packed_width: T.Buffer[(24, 192, 32, 4), "uint8"], compute: T.Buffer[(128, 768), "int32"]):
+    def main(
+        X: T.Buffer[(128, 768), "uint8"],
+        packed_width: T.Buffer[(24, 192, 32, 4), "uint8"],
+        compute: T.Buffer[(128, 768), "int32"],
+    ):
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -489,7 +591,9 @@ def test_padded_dense():
         X_reindex = T.alloc_buffer([128, 768], dtype="uint8")
         packed_width_reindex = T.alloc_buffer([768, 768], dtype="uint8")
         X_reindex_global_vtcm = T.alloc_buffer([128, 768], dtype="uint8", scope="global.vtcm")
-        packed_width_reindex_global_vtcm = T.alloc_buffer([768, 768], dtype="uint8", scope="global.vtcm")
+        packed_width_reindex_global_vtcm = T.alloc_buffer(
+            [768, 768], dtype="uint8", scope="global.vtcm"
+        )
         for ax0, ax1 in T.grid(128, 768):
             with T.block("X_reindex_reindex"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
@@ -521,9 +625,14 @@ def test_padded_dense():
                     v0 = T.axis.spatial(128, ax0_0 + ax0_1 + ax0_2)
                     v1_o = T.axis.spatial(24, ax1_0_0 * 4 + ax1_0_1 * 2 + ax1_0_2)
                     v2_o = T.axis.reduce(192, ax2_0_0 * 4 + ax2_0_1)
-                    T.reads(X_reindex_global_vtcm[v0, v2_o * 4 : v2_o * 4 + 4], packed_width_reindex_global_vtcm[v1_o * 32 : v1_o * 32 + 32, v2_o * 4 : v2_o * 4 + 4])
+                    T.reads(
+                        X_reindex_global_vtcm[v0, v2_o * 4 : v2_o * 4 + 4],
+                        packed_width_reindex_global_vtcm[
+                            v1_o * 32 : v1_o * 32 + 32, v2_o * 4 : v2_o * 4 + 4
+                        ],
+                    )
                     T.writes(compute_reindex[v0, v1_o * 32 : v1_o * 32 + 32])
-                    T.block_attr({"meta_schedule.auto_tensorize":"dot_32x4_u8u8i32_vtcm_vrmpy"})
+                    T.block_attr({"meta_schedule.auto_tensorize": "dot_32x4_u8u8i32_vtcm_vrmpy"})
                     with T.init():
                         for ax1_1 in T.serial(32):
                             with T.block("compute_init"):
@@ -534,17 +643,28 @@ def test_padded_dense():
                     for ax1_1, ax2_1 in T.grid(32, 4):
                         with T.block("compute"):
                             v1_i, v2_i = T.axis.remap("SR", [ax1_1, ax2_1])
-                            T.reads(compute_reindex[v0, v1_o * 32 + v1_i], X_reindex_global_vtcm[v0, v2_o * 4 + v2_i], packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i])
+                            T.reads(
+                                compute_reindex[v0, v1_o * 32 + v1_i],
+                                X_reindex_global_vtcm[v0, v2_o * 4 + v2_i],
+                                packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i],
+                            )
                             T.writes(compute_reindex[v0, v1_o * 32 + v1_i])
-                            T.block_attr({"meta_schedule.tiling_structure":"SRSRS"})
-                            compute_reindex[v0, v1_o * 32 + v1_i] = compute_reindex[v0, v1_o * 32 + v1_i] + T.Cast("int32", X_reindex_global_vtcm[v0, v2_o * 4 + v2_i]) * T.Cast("int32", packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i])
+                            T.block_attr({"meta_schedule.tiling_structure": "SRSRS"})
+                            compute_reindex[v0, v1_o * 32 + v1_i] = compute_reindex[
+                                v0, v1_o * 32 + v1_i
+                            ] + T.Cast(
+                                "int32", X_reindex_global_vtcm[v0, v2_o * 4 + v2_i]
+                            ) * T.Cast(
+                                "int32",
+                                packed_width_reindex_global_vtcm[v1_o * 32 + v1_i, v2_o * 4 + v2_i],
+                            )
         for ax0, ax1 in T.grid(128, 768):
             with T.block("compute_reindex"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(compute_reindex[v0, v1])
                 T.writes(compute[v0, v1])
                 compute[v0, v1] = compute_reindex[v0, v1]
-    
+
     # fmt: on
     decision_0 = [
         ("SamplePerfectTile", [4, 1, 1]),
@@ -552,10 +672,9 @@ def test_padded_dense():
         ("SamplePerfectTile", [1, 4]),
     ]
 
-
     mod = te.create_prim_func(
         dense_compute(
-            m=128, 
+            m=128,
             n=768,
             k=768,
         )
@@ -572,7 +691,6 @@ def test_padded_dense():
         + get_rules(kind="hexagon", types=ms.schedule_rule.AutoInline),
     )
 
-
     check_sketches(
         mod,
         sketches=actual_design_space,
@@ -580,11 +698,16 @@ def test_padded_dense():
         expected_decisions=[decision_0],
     )
 
+
 def test_conv2d():
 
     # from tvm.script import tir as T
     @T.prim_func
-    def main(inputs: T.Buffer[(1, 16, 16, 32), "uint8"], weight: T.Buffer[(3, 3, 32, 32), "uint8"], conv2d_nhwc: T.Buffer[(1, 16, 16, 32), "int32"]):
+    def main(
+        inputs: T.Buffer[(1, 16, 16, 32), "uint8"],
+        weight: T.Buffer[(3, 3, 32, 32), "uint8"],
+        conv2d_nhwc: T.Buffer[(1, 16, 16, 32), "int32"],
+    ):
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -593,20 +716,29 @@ def test_conv2d():
         conv2d_nhwc_reindex = T.alloc_buffer([1, 16, 16, 32], dtype="int32")
         PadInput_reindex = T.alloc_buffer([1, 16, 16, 288], dtype="uint8")
         weight_reindex = T.alloc_buffer([32, 288], dtype="uint8")
-        PadInput_reindex_global_vtcm = T.alloc_buffer([1, 16, 16, 288], dtype="uint8", scope="global.vtcm")
+        PadInput_reindex_global_vtcm = T.alloc_buffer(
+            [1, 16, 16, 288], dtype="uint8", scope="global.vtcm"
+        )
         weight_reindex_global_vtcm = T.alloc_buffer([32, 288], dtype="uint8", scope="global.vtcm")
         for i0, i1, i2, i3 in T.grid(1, 18, 18, 32):
             with T.block("PadInput"):
                 i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(inputs[i0_1, i1_1 - 1, i2_1 - 1, i3_1])
                 T.writes(PadInput[i0_1, i1_1, i2_1, i3_1])
-                PadInput[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(1 <= i1_1 and i1_1 < 17 and 1 <= i2_1 and i2_1 < 17, inputs[i0_1, i1_1 - 1, i2_1 - 1, i3_1], T.uint8(0), dtype="uint8")
+                PadInput[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(
+                    1 <= i1_1 and i1_1 < 17 and 1 <= i2_1 and i2_1 < 17,
+                    inputs[i0_1, i1_1 - 1, i2_1 - 1, i3_1],
+                    T.uint8(0),
+                    dtype="uint8",
+                )
         for ax0, ax1, ax2, ax3 in T.grid(1, 16, 16, 288):
             with T.block("PadInput_reindex_reindex"):
                 v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(PadInput[v0, v3 // 96 + v1, v3 % 96 // 32 + v2, v3 % 32])
                 T.writes(PadInput_reindex[v0, v1, v2, v3])
-                PadInput_reindex[v0, v1, v2, v3] = PadInput[v0, v3 // 96 + v1, v3 % 96 // 32 + v2, v3 % 32]
+                PadInput_reindex[v0, v1, v2, v3] = PadInput[
+                    v0, v3 // 96 + v1, v3 % 96 // 32 + v2, v3 % 32
+                ]
         for ax0, ax1 in T.grid(32, 288):
             with T.block("weight_reindex_reindex"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
@@ -630,16 +762,30 @@ def test_conv2d():
                     T.reads(weight_reindex[v0, v1])
                     T.writes(weight_reindex_global_vtcm[v0, v1])
                     weight_reindex_global_vtcm[v0, v1] = weight_reindex[v0, v1]
-            for ax4_0_0, ax0_1, ax1_1, ax2_1, ax3_0_1, ax4_0_1, ax0_2, ax1_2, ax2_2, ax3_0_2 in T.grid(18, 1, 1, 4, 1, 4, 1, 4, 1, 1):
+            for (
+                ax4_0_0,
+                ax0_1,
+                ax1_1,
+                ax2_1,
+                ax3_0_1,
+                ax4_0_1,
+                ax0_2,
+                ax1_2,
+                ax2_2,
+                ax3_0_2,
+            ) in T.grid(18, 1, 1, 4, 1, 4, 1, 4, 1, 1):
                 with T.block("conv2d_nhwc_o"):
                     v0 = T.axis.spatial(1, 0)
                     v1 = T.axis.spatial(16, ax1_0 * 4 + ax1_1 * 4 + ax1_2)
                     v2 = T.axis.spatial(16, ax2_2 + ax2_0 * 4 + ax2_1)
                     v3_o = T.axis.spatial(1, 0)
                     v4_o = T.axis.reduce(72, ax4_0_0 * 4 + ax4_0_1)
-                    T.reads(PadInput_reindex_global_vtcm[v0, v1, v2, v4_o * 4 : v4_o * 4 + 4], weight_reindex_global_vtcm[0 : 32, v4_o * 4 : v4_o * 4 + 4])
-                    T.writes(conv2d_nhwc_reindex[v0, v1, v2, 0 : 32])
-                    T.block_attr({"meta_schedule.auto_tensorize":"dot_32x4_u8u8i32_vtcm_vrmpy"})
+                    T.reads(
+                        PadInput_reindex_global_vtcm[v0, v1, v2, v4_o * 4 : v4_o * 4 + 4],
+                        weight_reindex_global_vtcm[0:32, v4_o * 4 : v4_o * 4 + 4],
+                    )
+                    T.writes(conv2d_nhwc_reindex[v0, v1, v2, 0:32])
+                    T.block_attr({"meta_schedule.auto_tensorize": "dot_32x4_u8u8i32_vtcm_vrmpy"})
                     with T.init():
                         for ax3_1 in T.serial(32):
                             with T.block("conv2d_nhwc_init"):
@@ -650,17 +796,27 @@ def test_conv2d():
                     for ax3_1, ax4_1 in T.grid(32, 4):
                         with T.block("conv2d_nhwc"):
                             v3_i, v4_i = T.axis.remap("SR", [ax3_1, ax4_1])
-                            T.reads(conv2d_nhwc_reindex[v0, v1, v2, v3_i], PadInput_reindex_global_vtcm[v0, v1, v2, v4_o * 4 + v4_i], weight_reindex_global_vtcm[v3_i, v4_o * 4 + v4_i])
+                            T.reads(
+                                conv2d_nhwc_reindex[v0, v1, v2, v3_i],
+                                PadInput_reindex_global_vtcm[v0, v1, v2, v4_o * 4 + v4_i],
+                                weight_reindex_global_vtcm[v3_i, v4_o * 4 + v4_i],
+                            )
                             T.writes(conv2d_nhwc_reindex[v0, v1, v2, v3_i])
-                            T.block_attr({"meta_schedule.tiling_structure":"SRSRS"})
-                            conv2d_nhwc_reindex[v0, v1, v2, v3_i] = conv2d_nhwc_reindex[v0, v1, v2, v3_i] + T.Cast("int32", PadInput_reindex_global_vtcm[v0, v1, v2, v4_o * 4 + v4_i]) * T.Cast("int32", weight_reindex_global_vtcm[v3_i, v4_o * 4 + v4_i])
+                            T.block_attr({"meta_schedule.tiling_structure": "SRSRS"})
+                            conv2d_nhwc_reindex[v0, v1, v2, v3_i] = conv2d_nhwc_reindex[
+                                v0, v1, v2, v3_i
+                            ] + T.Cast(
+                                "int32", PadInput_reindex_global_vtcm[v0, v1, v2, v4_o * 4 + v4_i]
+                            ) * T.Cast(
+                                "int32", weight_reindex_global_vtcm[v3_i, v4_o * 4 + v4_i]
+                            )
         for ax0, ax1, ax2, ax3 in T.grid(1, 16, 16, 32):
             with T.block("conv2d_nhwc_reindex"):
                 v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(conv2d_nhwc_reindex[v0, v1, v2, v3])
                 T.writes(conv2d_nhwc[v0, v1, v2, v3])
                 conv2d_nhwc[v0, v1, v2, v3] = conv2d_nhwc_reindex[v0, v1, v2, v3]
-    
+
     # fmt: on
     decision_0 = [
         ("SamplePerfectTile", [4, 1, 1]),
@@ -703,11 +859,16 @@ def test_conv2d():
         expected_decisions=[decision_0],
     )
 
+
 def test_conv2d_with_pipeline():
 
     # from tvm.script import tir as T
     @T.prim_func
-    def main(inputs: T.Buffer[(1, 16, 16, 32), "uint8"], weight: T.Buffer[(3, 3, 32, 32), "uint8"], conv2d_nhwc: T.Buffer[(1, 16, 16, 32), "int32"]):
+    def main(
+        inputs: T.Buffer[(1, 16, 16, 32), "uint8"],
+        weight: T.Buffer[(3, 3, 32, 32), "uint8"],
+        conv2d_nhwc: T.Buffer[(1, 16, 16, 32), "int32"],
+    ):
         # function attr dict
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # body
@@ -716,20 +877,29 @@ def test_conv2d_with_pipeline():
         conv2d_nhwc_reindex = T.alloc_buffer([1, 16, 16, 32], dtype="int32")
         PadInput_reindex = T.alloc_buffer([1, 16, 16, 288], dtype="uint8")
         weight_reindex = T.alloc_buffer([32, 288], dtype="uint8")
-        PadInput_reindex_global_vtcm = T.alloc_buffer([1, 16, 16, 288], dtype="uint8", scope="global.vtcm")
+        PadInput_reindex_global_vtcm = T.alloc_buffer(
+            [1, 16, 16, 288], dtype="uint8", scope="global.vtcm"
+        )
         weight_reindex_global_vtcm = T.alloc_buffer([32, 288], dtype="uint8", scope="global.vtcm")
         for i0, i1, i2, i3 in T.grid(1, 18, 18, 32):
             with T.block("PadInput"):
                 i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(inputs[i0_1, i1_1 - 1, i2_1 - 1, i3_1])
                 T.writes(PadInput[i0_1, i1_1, i2_1, i3_1])
-                PadInput[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(1 <= i1_1 and i1_1 < 17 and 1 <= i2_1 and i2_1 < 17, inputs[i0_1, i1_1 - 1, i2_1 - 1, i3_1], T.uint8(0), dtype="uint8")
+                PadInput[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(
+                    1 <= i1_1 and i1_1 < 17 and 1 <= i2_1 and i2_1 < 17,
+                    inputs[i0_1, i1_1 - 1, i2_1 - 1, i3_1],
+                    T.uint8(0),
+                    dtype="uint8",
+                )
         for ax0, ax1, ax2, ax3 in T.grid(1, 16, 16, 288):
             with T.block("PadInput_reindex_reindex"):
                 v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(PadInput[v0, v3 // 96 + v1, v3 % 96 // 32 + v2, v3 % 32])
                 T.writes(PadInput_reindex[v0, v1, v2, v3])
-                PadInput_reindex[v0, v1, v2, v3] = PadInput[v0, v3 // 96 + v1, v3 % 96 // 32 + v2, v3 % 32]
+                PadInput_reindex[v0, v1, v2, v3] = PadInput[
+                    v0, v3 // 96 + v1, v3 % 96 // 32 + v2, v3 % 32
+                ]
         for ax0, ax1 in T.grid(32, 288):
             with T.block("weight_reindex_reindex"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
@@ -737,7 +907,14 @@ def test_conv2d_with_pipeline():
                 T.writes(weight_reindex[v0, v1])
                 weight_reindex[v0, v1] = weight[v1 // 96, v1 % 96 // 32, v1 % 32, v0]
         for ax0_0, ax1_0, ax2_0 in T.grid(1, 4, 4):
-            for ax3_0_0 in T.serial(1, annotations={"software_pipeline_async_stages":[0], "software_pipeline_order":[0, 1, 2], "software_pipeline_stage":[0, 0, 1]}):
+            for ax3_0_0 in T.serial(
+                1,
+                annotations={
+                    "software_pipeline_async_stages": [0],
+                    "software_pipeline_order": [0, 1, 2],
+                    "software_pipeline_stage": [0, 0, 1],
+                },
+            ):
                 for ax0_ax1_ax2_ax3_fused in T.serial(4608):
                     with T.block("PadInput_reindex_global.vtcm"):
                         v0 = T.axis.spatial(1, 0)
@@ -746,7 +923,9 @@ def test_conv2d_with_pipeline():
                         v3 = T.axis.spatial(288, ax0_ax1_ax2_ax3_fused % 288)
                         T.reads(PadInput_reindex[v0, v1, v2, v3])
                         T.writes(PadInput_reindex_global_vtcm[v0, v1, v2, v3])
-                        PadInput_reindex_global_vtcm[v0, v1, v2, v3] = PadInput_reindex[v0, v1, v2, v3]
+                        PadInput_reindex_global_vtcm[v0, v1, v2, v3] = PadInput_reindex[
+                            v0, v1, v2, v3
+                        ]
                 for ax0_ax1_fused in T.serial(9216):
                     with T.block("weight_reindex_global.vtcm"):
                         v0 = T.axis.spatial(32, ax0_ax1_fused // 288)
@@ -754,16 +933,32 @@ def test_conv2d_with_pipeline():
                         T.reads(weight_reindex[v0, v1])
                         T.writes(weight_reindex_global_vtcm[v0, v1])
                         weight_reindex_global_vtcm[v0, v1] = weight_reindex[v0, v1]
-                for ax4_0_0, ax0_1, ax1_1, ax2_1, ax3_0_1, ax4_0_1, ax0_2, ax1_2, ax2_2, ax3_0_2 in T.grid(18, 1, 1, 4, 1, 4, 1, 4, 1, 1):
+                for (
+                    ax4_0_0,
+                    ax0_1,
+                    ax1_1,
+                    ax2_1,
+                    ax3_0_1,
+                    ax4_0_1,
+                    ax0_2,
+                    ax1_2,
+                    ax2_2,
+                    ax3_0_2,
+                ) in T.grid(18, 1, 1, 4, 1, 4, 1, 4, 1, 1):
                     with T.block("conv2d_nhwc_o"):
                         v0 = T.axis.spatial(1, 0)
                         v1 = T.axis.spatial(16, ax1_0 * 4 + ax1_1 * 4 + ax1_2)
                         v2 = T.axis.spatial(16, ax2_2 + ax2_0 * 4 + ax2_1)
                         v3_o = T.axis.spatial(1, 0)
                         v4_o = T.axis.reduce(72, ax4_0_0 * 4 + ax4_0_1)
-                        T.reads(PadInput_reindex_global_vtcm[v0, v1, v2, v4_o * 4 : v4_o * 4 + 4], weight_reindex_global_vtcm[0 : 32, v4_o * 4 : v4_o * 4 + 4])
-                        T.writes(conv2d_nhwc_reindex[v0, v1, v2, 0 : 32])
-                        T.block_attr({"meta_schedule.auto_tensorize":"dot_32x4_u8u8i32_vtcm_vrmpy"})
+                        T.reads(
+                            PadInput_reindex_global_vtcm[v0, v1, v2, v4_o * 4 : v4_o * 4 + 4],
+                            weight_reindex_global_vtcm[0:32, v4_o * 4 : v4_o * 4 + 4],
+                        )
+                        T.writes(conv2d_nhwc_reindex[v0, v1, v2, 0:32])
+                        T.block_attr(
+                            {"meta_schedule.auto_tensorize": "dot_32x4_u8u8i32_vtcm_vrmpy"}
+                        )
                         with T.init():
                             for ax3_1 in T.serial(32):
                                 with T.block("conv2d_nhwc_init"):
@@ -774,17 +969,28 @@ def test_conv2d_with_pipeline():
                         for ax3_1, ax4_1 in T.grid(32, 4):
                             with T.block("conv2d_nhwc"):
                                 v3_i, v4_i = T.axis.remap("SR", [ax3_1, ax4_1])
-                                T.reads(conv2d_nhwc_reindex[v0, v1, v2, v3_i], PadInput_reindex_global_vtcm[v0, v1, v2, v4_o * 4 + v4_i], weight_reindex_global_vtcm[v3_i, v4_o * 4 + v4_i])
+                                T.reads(
+                                    conv2d_nhwc_reindex[v0, v1, v2, v3_i],
+                                    PadInput_reindex_global_vtcm[v0, v1, v2, v4_o * 4 + v4_i],
+                                    weight_reindex_global_vtcm[v3_i, v4_o * 4 + v4_i],
+                                )
                                 T.writes(conv2d_nhwc_reindex[v0, v1, v2, v3_i])
-                                T.block_attr({"meta_schedule.tiling_structure":"SRSRS"})
-                                conv2d_nhwc_reindex[v0, v1, v2, v3_i] = conv2d_nhwc_reindex[v0, v1, v2, v3_i] + T.Cast("int32", PadInput_reindex_global_vtcm[v0, v1, v2, v4_o * 4 + v4_i]) * T.Cast("int32", weight_reindex_global_vtcm[v3_i, v4_o * 4 + v4_i])
+                                T.block_attr({"meta_schedule.tiling_structure": "SRSRS"})
+                                conv2d_nhwc_reindex[v0, v1, v2, v3_i] = conv2d_nhwc_reindex[
+                                    v0, v1, v2, v3_i
+                                ] + T.Cast(
+                                    "int32",
+                                    PadInput_reindex_global_vtcm[v0, v1, v2, v4_o * 4 + v4_i],
+                                ) * T.Cast(
+                                    "int32", weight_reindex_global_vtcm[v3_i, v4_o * 4 + v4_i]
+                                )
         for ax0, ax1, ax2, ax3 in T.grid(1, 16, 16, 32):
             with T.block("conv2d_nhwc_reindex"):
                 v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(conv2d_nhwc_reindex[v0, v1, v2, v3])
                 T.writes(conv2d_nhwc[v0, v1, v2, v3])
                 conv2d_nhwc[v0, v1, v2, v3] = conv2d_nhwc_reindex[v0, v1, v2, v3]
-    
+
     # fmt: on
     decision_0 = [
         ("SamplePerfectTile", [4, 1, 1]),
@@ -820,13 +1026,13 @@ def test_conv2d_with_pipeline():
         + get_rules(kind="hexagon", types=ms.schedule_rule.AutoInline),
     )
 
-
     check_sketches(
         mod,
         sketches=actual_design_space,
         expected_mods=[main],
         expected_decisions=[decision_0],
     )
+
 
 def test_conv_1x1():
     # fmt: off
@@ -942,13 +1148,13 @@ def test_conv_1x1():
         + get_rules(kind="hexagon", types=ms.schedule_rule.AutoInline),
     )
 
-
     check_sketches(
         mod,
         sketches=actual_design_space,
         expected_mods=[main],
         expected_decisions=[decision_0],
     )
+
 
 def test_matmul_relu_non_tensorizable():
     # expected to do nothing on non-tensorizable workloads
@@ -968,6 +1174,7 @@ def test_matmul_relu_non_tensorizable():
         + get_rules("hexagon", ms.schedule_rule.AutoInline),
     )
     tvm.ir.assert_structural_equal(mod, sch.mod["main"])
+
 
 if __name__ == "__main__":
     tvm.testing.main()

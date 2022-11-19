@@ -188,16 +188,17 @@ class MultiLevelTilingTensorCore(ScheduleRule):
             use_software_pipeline,
         )
 
+
 @register_object("meta_schedule.MultiLevelTilingHexagon")
 class MultiLevelTilingHexagon(ScheduleRule):
-    """Extension of MultiLevelTiling for auto-tensorizing with multiple groups of candidate hexagon 
+    """Extension of MultiLevelTiling for auto-tensorizing with multiple groups of candidate hexagon
     intrinsics.
 
     Parameters
     ----------
     intrin_groups : List[Mapping[str, str]]
         A list of groups of tensor core intrinsics. The map should contain key
-        "compute" which represents the tensor intrin for computation. The value of the map should be 
+        "compute" which represents the tensor intrin for computation. The value of the map should be
         names of tensor intrinsics, must be registered via
         TensorIntrin.register(...) beforehand
     structure : str
@@ -240,6 +241,7 @@ class MultiLevelTilingHexagon(ScheduleRule):
             reuse_write.as_dict() if reuse_write is not None else None,
             use_software_pipeline,
         )
+
 
 @register_object("meta_schedule.MultiLevelTilingWideVector")
 class MultiLevelTilingWideVector(ScheduleRule):

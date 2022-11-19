@@ -77,7 +77,8 @@ class HexagonStateNode : public StateNode {
 
 class HexagonState : public State {
  public:
-  explicit HexagonState(HexagonIntrinGroup intrin_group, tir::AutoTensorizeMappingInfo mapping_info, Schedule sch, BlockRV block_rv, Array<Array<tir::LoopRV>> tiles = {});
+  explicit HexagonState(HexagonIntrinGroup intrin_group, tir::AutoTensorizeMappingInfo mapping_info,
+                        Schedule sch, BlockRV block_rv, Array<Array<tir::LoopRV>> tiles = {});
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(HexagonState, State, HexagonStateNode);
 };
@@ -85,8 +86,8 @@ class HexagonState : public State {
 TVM_REGISTER_OBJECT_TYPE(HexagonStateNode);
 
 HexagonState::HexagonState(HexagonIntrinGroup intrin_group,
-                                 tir::AutoTensorizeMappingInfo mapping_info, Schedule sch,
-                                 BlockRV block_rv, Array<Array<LoopRV>> tiles) {
+                           tir::AutoTensorizeMappingInfo mapping_info, Schedule sch,
+                           BlockRV block_rv, Array<Array<LoopRV>> tiles) {
   ObjectPtr<HexagonStateNode> node = make_object<HexagonStateNode>();
   node->intrin_group = intrin_group;
   node->mapping_info = mapping_info;
@@ -121,8 +122,7 @@ class MultiLevelTilingHexagonNode : public MultiLevelTilingNode {
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
-    ObjectPtr<MultiLevelTilingHexagonNode> n =
-        make_object<MultiLevelTilingHexagonNode>(*this);
+    ObjectPtr<MultiLevelTilingHexagonNode> n = make_object<MultiLevelTilingHexagonNode>(*this);
     return ScheduleRule(n);
   }
 
@@ -207,23 +207,20 @@ std::vector<State> MultiLevelTilingHexagonNode::ApplySubRules(std::vector<State>
   states = SubRule(std::move(states), [&](State state) { return TileLoopNest(state); });
   states = SubRule(std::move(states), [&](State state) { return AddWriteReuse(state); });
   states = SubRule(std::move(states), [&](State state) { return AddReadReuse(state); });
-  states = SubRule(std::move(states), [&](State state) {
-    return AddSoftwarePipeline(Downcast<HexagonState>(state));
-  });
+  states = SubRule(std::move(states),
+                   [&](State state) { return AddSoftwarePipeline(Downcast<HexagonState>(state)); });
   return states;
 }
 
-void MultiLevelTilingHexagonNode::TileAndAnnotateTensorize(Schedule* sch,
-                                                              const BlockRV& block_rv,
-                                                              const String& intrin_name) const {
+void MultiLevelTilingHexagonNode::TileAndAnnotateTensorize(Schedule* sch, const BlockRV& block_rv,
+                                                           const String& intrin_name) const {
   Optional<LoopRV> loop = TileWithTensorIntrin(*sch, block_rv, intrin_name).value();
   ICHECK(loop.defined());
   BlockRV blockized_outer = (*sch)->Blockize(loop.value());
   (*sch)->Annotate(blockized_outer, tir::attr::meta_schedule_auto_tensorize, intrin_name);
 }
 
-std::vector<State> MultiLevelTilingHexagonNode::AddSoftwarePipeline(
-    HexagonState state) const {
+std::vector<State> MultiLevelTilingHexagonNode::AddSoftwarePipeline(HexagonState state) const {
   if (!use_software_pipeline) {
     return {state};
   }
@@ -251,15 +248,15 @@ std::vector<State> MultiLevelTilingHexagonNode::AddSoftwarePipeline(
   size_t cache_read_count = state->read_reuse.size();
   if (cache_read_count > 2 || cache_read_count == 0) {
     return {state};
-  } 
-  
-  // Add annotations for software pipelining at the loop right above the cache read stages. 
+  }
+
+  // Add annotations for software pipelining at the loop right above the cache read stages.
   tir::BlockRV cache_read_block = state->read_reuse.begin()->second;
   Array<LoopRV> cache_read_loops = sch->GetLoops(cache_read_block);
-  Array<Integer> software_pipeline_stage; 
-  Array<Integer> software_pipeline_order; 
-  Array<Integer> software_pipeline_async_stages; 
-  if(cache_read_count == 2) {
+  Array<Integer> software_pipeline_stage;
+  Array<Integer> software_pipeline_order;
+  Array<Integer> software_pipeline_async_stages;
+  if (cache_read_count == 2) {
     software_pipeline_stage = Array<Integer>{0, 0, 1};
     software_pipeline_order = Array<Integer>{0, 1, 2};
     software_pipeline_async_stages = Array<Integer>{0};
@@ -268,12 +265,15 @@ std::vector<State> MultiLevelTilingHexagonNode::AddSoftwarePipeline(
     software_pipeline_order = Array<Integer>{0, 1};
     software_pipeline_async_stages = Array<Integer>{0};
   }
-  sch->Annotate(cache_read_loops[cache_read_loops.size() - 2], tir::attr::software_pipeline_stage, software_pipeline_stage);
-  sch->Annotate(cache_read_loops[cache_read_loops.size() - 2], tir::attr::software_pipeline_order, software_pipeline_order);
-  sch->Annotate(cache_read_loops[cache_read_loops.size() - 2], tir::attr::software_pipeline_async_stages, software_pipeline_async_stages);
-  
+  sch->Annotate(cache_read_loops[cache_read_loops.size() - 2], tir::attr::software_pipeline_stage,
+                software_pipeline_stage);
+  sch->Annotate(cache_read_loops[cache_read_loops.size() - 2], tir::attr::software_pipeline_order,
+                software_pipeline_order);
+  sch->Annotate(cache_read_loops[cache_read_loops.size() - 2],
+                tir::attr::software_pipeline_async_stages, software_pipeline_async_stages);
+
   // TODO: Add support for nested async pipelines.
-  // TODO: Add support for async cache writes. 
+  // TODO: Add support for async cache writes.
   return {state};
 }
 
@@ -293,10 +293,8 @@ Optional<LoopRV> MultiLevelTilingHexagonNode::TransformWithTensorIntrin(
   }
   state->hexagon_reindex_store =
       state->sch->ReIndex(state->block_rv, 0, tir::BufferIndexType::kWrite);
-  state->hexagon_reindex_A =
-      state->sch->ReIndex(state->block_rv, 0, tir::BufferIndexType::kRead);
-  state->hexagon_reindex_B =
-      state->sch->ReIndex(state->block_rv, 1, tir::BufferIndexType::kRead);
+  state->hexagon_reindex_A = state->sch->ReIndex(state->block_rv, 0, tir::BufferIndexType::kRead);
+  state->hexagon_reindex_B = state->sch->ReIndex(state->block_rv, 1, tir::BufferIndexType::kRead);
 
   // Transform the layout of reindex buffers accordingly.
   // The index map defines the mapping for the computation block. We need to extract the sub index
