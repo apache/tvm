@@ -24,17 +24,14 @@ def gen_module(model, layer, layout, data, kernel, stride):
         module = get_module_from_Trelay(Trelay)
         module = lower_module(model, module)
     elif layer == 'maxpool':
-        if kernel == (3, 3):
-            module = maxpool_3x3(data, kernel, stride)
-        else:
-            (b, cw, h, w) = data
-            (kh, kw) = kernel
-            (sh, sw) = stride
-            pad = get_padding_tuple(data, kernel, padding='same')
-            data = relay.var("data", shape=[b, cw, h, w], dtype="float32") #NCHW
-            Trelay = tvm.relay.nn.max_pool2d(data, pool_size=(kh, kw), padding=pad)
-            module = get_module_from_Trelay(Trelay)
-            module = lower_module(model, module)
+        (b, cw, h, w) = data
+        (kh, kw) = kernel
+        (sh, sw) = stride
+        pad = get_padding_tuple(data, kernel, padding='same')
+        data = relay.var("data", shape=[b, cw, h, w], dtype="float32") #NCHW
+        Trelay = tvm.relay.nn.max_pool2d(data, pool_size=(kh, kw), padding=pad)
+        module = get_module_from_Trelay(Trelay)
+        module = lower_module(model, module)
     elif layer == 'maxpool_3x3':
         module = maxpool_3x3(data, (3, 3), stride)
     elif layer == 'avgpool':
@@ -46,18 +43,15 @@ def gen_module(model, layer, layout, data, kernel, stride):
         module = get_module_from_Trelay(Trelay)
         module = lower_module(model, module)
     elif layer == 'dwconv': # weight(I) == data(C)/groups
-        if kernel == (3, 3):
-            module = dwconv_3x3(data, kernel, stride)
-        else:
-            (b, cw, h, w) = data
-            (kh, kw) = kernel
-            stride = 1
-            pad = get_padding_tuple(data, kernel, padding='same', stride=stride)
-            data = relay.var("data", shape=[1, cw, h, w], dtype="float32") #NCHW
-            weight = relay.var("weight", shape=[cw, 1, kh, kw], dtype="float32") #OIHW
-            Trelay = tvm.relay.nn.conv2d(data, weight, strides=stride, padding=pad, groups=cw)
-            module = get_module_from_Trelay(Trelay)
-            module = lower_module(model, module)
+        (b, cw, h, w) = data
+        (kh, kw) = kernel
+        stride = 1
+        pad = get_padding_tuple(data, kernel, padding='same', stride=stride)
+        data = relay.var("data", shape=[1, cw, h, w], dtype="float32") #NCHW
+        weight = relay.var("weight", shape=[cw, 1, kh, kw], dtype="float32") #OIHW
+        Trelay = tvm.relay.nn.conv2d(data, weight, strides=stride, padding=pad, groups=cw)
+        module = get_module_from_Trelay(Trelay)
+        module = lower_module(model, module)
     elif layer == 'dwconv_3x3':
         module = dwconv_3x3(data, kernel, stride)
     elif layer == 'dense':
@@ -195,7 +189,7 @@ def maxpool_3x3(data, kernel, stride):
     return module
 
 def dwconv_3x3(data, kernel, stride):
-    if kernel!=(3,3): raise ValueError("Dwconv_3x3 only supports kernel size with 3x3: %s"%(kernel))
+    if kernel!=(3, 3): raise ValueError("Dwconv_3x3 only supports kernel size with 3x3: %s"%(kernel))
     (b, cw, h, w) = data
     (kh, kw) = kernel
     (sh, sw) = stride
@@ -219,37 +213,36 @@ def dwconv_3x3(data, kernel, stride):
     # data20 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+2], name="data")
     # data21 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+2], name="data")
     # data22 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+2], name="data")
-    Acc00 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+0], name="Acc")
-    Acc01 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+0], name="Acc")
-    Acc02 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+0], name="Acc")
-    Acc10 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+1], name="Acc")
-    Acc11 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+1], name="Acc")
-    Acc12 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+1], name="Acc")
-    Acc20 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+2], name="Acc")
-    Acc21 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+2], name="Acc")
-    Acc22 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+2], name="Acc")
-    # Acc00 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data00[b, c, i, j] + Acc__[b, c, i, j], name="Acc")
-    # Acc01 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data01[b, c, i, j] + Acc__[b, c, i, j], name="Acc")
-    # Acc02 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data02[b, c, i, j] + Acc__[b, c, i, j], name="Acc")
-    # Acc10 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data10[b, c, i, j] + Acc__[b, c, i, j], name="Acc")
-    # Acc11 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data11[b, c, i, j] + Acc__[b, c, i, j], name="Acc")
-    # Acc12 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data12[b, c, i, j] + Acc__[b, c, i, j], name="Acc")
-    # Acc20 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data20[b, c, i, j] + Acc__[b, c, i, j], name="Acc")
-    # Acc21 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data21[b, c, i, j] + Acc__[b, c, i, j], name="Acc")
-    # Acc22 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data22[b, c, i, j] + Acc__[b, c, i, j], name="Acc")
-    # Acc = tvm.te.compute((b, cw, oh, ow),
+    Reg00 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+0], name="Reg")
+    Reg01 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+0], name="Reg")
+    Reg02 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+0], name="Reg")
+    Reg10 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+1], name="Reg")
+    Reg11 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+1], name="Reg")
+    Reg12 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+1], name="Reg")
+    Reg20 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+2], name="Reg")
+    Reg21 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+2], name="Reg")
+    Reg22 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+2], name="Reg")
+    # Reg00 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data00[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
+    # Reg01 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data01[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
+    # Reg02 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data02[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
+    # Reg10 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data10[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
+    # Reg11 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data11[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
+    # Reg12 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data12[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
+    # Reg20 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data20[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
+    # Reg21 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data21[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
+    # Reg22 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data22[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
+    # Reg = tvm.te.compute((b, cw, oh, ow),
     #     lambda b, c, i, j:
     #         data00[b, c, i, j] + data01[b, c, i, j] + data02[b, c, i, j] + 
     #         data10[b, c, i, j] + data11[b, c, i, j] + data12[b, c, i, j] + 
     #         data20[b, c, i, j] + data21[b, c, i, j] + data22[b, c, i, j]
-    #     , name="Acc"
+    #     , name="Reg"
     # )
     output = tvm.te.compute((b, cw, oh, ow),
         lambda b, c, i, j: (
-            Acc00[b, c, i, j] + Acc01[b, c, i, j] 
-            # + Acc02[b, c, i, j] + 
-            # Acc10[b, c, i, j] + Acc11[b, c, i, j] + Acc12[b, c, i, j] + 
-            # Acc20[b, c, i, j] + Acc21[b, c, i, j] + Acc22[b, c, i, j]
+            Reg00[b, c, i, j] + Reg01[b, c, i, j] + Reg02[b, c, i, j] +
+            Reg10[b, c, i, j] + Reg11[b, c, i, j] + Reg12[b, c, i, j] +
+            Reg20[b, c, i, j] + Reg21[b, c, i, j] + Reg22[b, c, i, j]
         ), name = "output"
     )
     s = tvm.te.create_schedule([output.op])
@@ -262,28 +255,29 @@ def dwconv_3x3(data, kernel, stride):
     # s[data20].compute_inline()
     # s[data21].compute_inline()
     # s[data22].compute_inline()
-    s[Acc00].compute_at(s[output], s[output].op.axis[-1])
-    s[Acc01].compute_at(s[output], s[output].op.axis[-1])
-    # s[Acc02].compute_at(s[output], s[output].op.axis[-1])
-    # s[Acc10].compute_at(s[output], s[output].op.axis[-1])
-    # s[Acc11].compute_at(s[output], s[output].op.axis[-1])
-    # s[Acc12].compute_at(s[output], s[output].op.axis[-1])
-    # s[Acc20].compute_at(s[output], s[output].op.axis[-1])
-    # s[Acc21].compute_at(s[output], s[output].op.axis[-1])
-    # s[Acc22].compute_at(s[output], s[output].op.axis[-1])
+    s[Reg00].compute_at(s[output], s[output].op.axis[-1])
+    s[Reg01].compute_at(s[output], s[output].op.axis[-1])
+    s[Reg02].compute_at(s[output], s[output].op.axis[-1])
+    s[Reg10].compute_at(s[output], s[output].op.axis[-1])
+    s[Reg11].compute_at(s[output], s[output].op.axis[-1])
+    s[Reg12].compute_at(s[output], s[output].op.axis[-1])
+    s[Reg20].compute_at(s[output], s[output].op.axis[-1])
+    s[Reg21].compute_at(s[output], s[output].op.axis[-1])
+    s[Reg22].compute_at(s[output], s[output].op.axis[-1])
 
-    # s[data00].compute_at(s[Acc], s[Acc].op.axis[-1])
-    # s[data01].compute_at(s[Acc], s[Acc].op.axis[-1])
-    # s[data02].compute_at(s[Acc], s[Acc].op.axis[-1])
-    # s[data10].compute_at(s[Acc], s[Acc].op.axis[-1])
-    # s[data11].compute_at(s[Acc], s[Acc].op.axis[-1])
-    # s[data12].compute_at(s[Acc], s[Acc].op.axis[-1])
-    # s[data20].compute_at(s[Acc], s[Acc].op.axis[-1])
-    # s[data21].compute_at(s[Acc], s[Acc].op.axis[-1])
-    # s[data22].compute_at(s[Acc], s[Acc].op.axis[-1])
+    # s[data00].compute_at(s[Reg], s[Reg].op.axis[-1])
+    # s[data01].compute_at(s[Reg], s[Reg].op.axis[-1])
+    # s[data02].compute_at(s[Reg], s[Reg].op.axis[-1])
+    # s[data10].compute_at(s[Reg], s[Reg].op.axis[-1])
+    # s[data11].compute_at(s[Reg], s[Reg].op.axis[-1])
+    # s[data12].compute_at(s[Reg], s[Reg].op.axis[-1])
+    # s[data20].compute_at(s[Reg], s[Reg].op.axis[-1])
+    # s[data21].compute_at(s[Reg], s[Reg].op.axis[-1])
+    # s[data22].compute_at(s[Reg], s[Reg].op.axis[-1])
 
-    # s[Acc].compute_at(s[output], s[output].op.axis[3])
+    # s[Reg].compute_at(s[output], s[output].op.axis[3])
     module = tvm.lower(s, [data, output])
+    return module
 
 def eadd(data):
     if len(data)==4: (vlength, vcount) = (data[0]*data[2]*data[3], data[1])
