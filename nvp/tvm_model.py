@@ -54,7 +54,7 @@ class VectorProcessor():
         self.remove_nodes(attr='name', str='Multiplier')
         self.remove_nodes(attr='name', str='Shifter')
 
-        # self.optimize('accumulate register')
+        self.optimize('register')
         self.optimize('vstore')
         self.optimize('filter load') # For kernels that use filter; e.g, Dwconv
         self.optimize('consecutive max')
@@ -152,7 +152,9 @@ class VectorProcessor():
 
     def optimize(self, option):
         FLAG = False
-        if option == 'vstore':
+        if option == 'register':
+            FLAG = self.optimize_register()
+        elif option == 'vstore':
             FLAG = self.optimize_vstore()
         elif option == 'filter load':
             FLAG = self.optimize_filter_load()
@@ -392,6 +394,19 @@ class VectorProcessor():
         [occupied_nodes.extend(self.slot[s]) for s in self.slot.keys() if self.slot[s] is not None]
         occupied_nodes = [node['node'] for node in occupied_nodes]
         return list(dict.fromkeys(occupied_nodes)) # remove duplicates in list
+
+    def optimize_register(self):
+        """ Register is used to save temporary data, ommiting cache access """
+        FLAG = False
+        register_nodes = self.get_nodes(attr='name', str='Reg')
+        if len(register_nodes) > 0: FLAG=True
+        for node in register_nodes:
+            parents = self.graph.predecessors(node)
+            children = self.graph.successors(node)
+            for t in ((p, c) for p in parents for c in children):
+                self.graph.add_edge(*t)
+            self.graph.remove_node(node)
+        return FLAG
 
     def optimize_vstore(self):
         """ Vstore at the end of loop can be bypassed """

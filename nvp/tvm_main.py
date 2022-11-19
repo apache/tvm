@@ -7,6 +7,8 @@ from tvm_visualize import *
   TODO
     1. Message print part
     2. Eadd - vlength=8 --> unroll
+    # 3. tvm_parse.py --> Acc
+    4. tvm_parse.py --> Seq --> Delete consecutive max, load
 """
  
 def main():
@@ -21,6 +23,9 @@ def main():
     parser.add_argument('-v', '--viz', default=None, help='How to visualize node details (e.g., type, typeNum, name)')
     parser.add_argument('-d', '--debug', action='store_true')
     args = parser.parse_args()
+    args.data = tuple(args.data)
+    args.kernel = tuple(args.kernel)
+    args.stride = tuple(args.stride)
 
     for png in glob.glob('./graph*.png'):
         try:

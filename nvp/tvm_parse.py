@@ -99,14 +99,11 @@ def generate_data_nodes(stmt, g, parent, WS, DEBUG):
     return g
 
 def visit_STORE(stmt, g, parent, WS, DEBUG):
-    if stmt.buffer.name == 'Acc':
-        node_num = len(g.nodes)-1
-    else:
-        node_num = len(g.nodes)
-        Dprint(WS+" "+str(type(stmt))+"\t[Memory](%d)"%(node_num), DEBUG)
-        Dprint(WS+" ##################### "+"@Location to be stored"+" #####################", DEBUG)
-        g.add_node(node_num, name=str(stmt).split('=')[0].split('[')[0], type='Store')
-        g.add_edge(node_num, parent)
+    node_num = len(g.nodes)
+    Dprint(WS+" "+str(type(stmt))+"\t[Memory](%d)"%(node_num), DEBUG)
+    Dprint(WS+" ##################### "+"@Location to be stored"+" #####################", DEBUG)
+    g.add_node(node_num, name=str(stmt).split('=')[0].split('[')[0], type='Store')
+    g.add_edge(node_num, parent)
     for idx in range(0, len(stmt.indices)):
         g = generate_data_nodes(stmt.indices[idx], g, node_num, WS+str(idx), DEBUG)
     Dprint(WS+" ##################### "+"@Value to be stored"+" #####################", DEBUG)
@@ -140,15 +137,12 @@ def visit_LET(stmt, g, parent, WS, DEBUG):
 
 def visit_EXPR(expr, g, parent, WS, DEBUG): # tir.expr.__
     if hasattr(expr, "indices"): # BufferLoad
-        if expr.buffer.name == 'Acc':
-            node_num = len(g.nodes)-1
-        else:
-            node_num = len(g.nodes)
-            Dprint(WS+" "+str(type(expr))+" --> "+str(expr), DEBUG)
-            g.add_node(node_num, name=str(expr).split(':')[0], type='Load')
-            g.add_edge(node_num, parent)
-            for idx in range(0, len(expr.indices)):
-                g = visit_EXPR(expr.indices[idx], g, node_num, WS+str(idx), DEBUG)
+        node_num = len(g.nodes)
+        Dprint(WS+" "+str(type(expr))+" --> "+str(expr), DEBUG)
+        g.add_node(node_num, name=str(expr).split(':')[0], type='Load')
+        g.add_edge(node_num, parent)
+        for idx in range(0, len(expr.indices)):
+            g = visit_EXPR(expr.indices[idx], g, node_num, WS+str(idx), DEBUG)
     elif all(hasattr(expr, attr) for attr in ["a", "b"]): # Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod, Min, Max, EA, NE, LT, LE, GT, GE, And, Or
         node_num = len(g.nodes)
         Dprint(WS+" "+str(type(expr))+" --> "+str(expr), DEBUG)
