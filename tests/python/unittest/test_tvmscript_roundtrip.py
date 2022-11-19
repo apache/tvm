@@ -3467,6 +3467,45 @@ def implicit_evaluate():
     return func
 
 
+def if_true_else():
+    @T.prim_func
+    def func() -> None:
+        if True:
+            T.evaluate(0)
+        else:
+            T.evaluate(1)
+
+    return func
+
+
+def elif_chain_without_else():
+    @T.prim_func
+    def func(i: T.int32) -> None:
+        if i == 0:
+            T.evaluate(0)
+        elif i == 1:
+            T.evaluate(1)
+        elif i == 2:
+            T.evaluate(2)
+
+    return func
+
+
+def elif_chain_with_else():
+    @T.prim_func
+    def func(i: T.int32) -> None:
+        if i == 0:
+            T.evaluate(0)
+        elif i == 1:
+            T.evaluate(1)
+        elif i == 2:
+            T.evaluate(2)
+        else:
+            T.evaluate(3)
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3519,6 +3558,9 @@ ir_generator = tvm.testing.parameter(
     bool_cast,
     return_none,
     implicit_evaluate,
+    if_true_else,
+    elif_chain_without_else,
+    elif_chain_with_else,
 )
 
 
