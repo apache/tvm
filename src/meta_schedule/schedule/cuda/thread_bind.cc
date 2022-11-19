@@ -80,7 +80,7 @@ Array<LoopRV> BindSpatialLoop(Schedule sch, LoopRV loop, int64_t max_threadblock
     sch->Reorder({splits[1], splits[2], splits[0]});
     sch->Bind(splits[1], "blockIdx.x");
     sch->Bind(splits[2], "threadIdx.x");
-    return {splits[1], splits[2]};
+    return {splits[1], splits[2], splits[0]};
   }
 }
 
