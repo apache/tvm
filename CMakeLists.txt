@@ -188,6 +188,8 @@ if(MSVC)
   add_compile_options(/wd4141)
   # unknown pragma
   add_compile_options(/wd4068)
+  # Static linking. cmake behavior changed in 3.15 making this necessary.
+  add_compile_options(/MT)
 else(MSVC)
   set(WARNING_FLAG -Wall)
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
