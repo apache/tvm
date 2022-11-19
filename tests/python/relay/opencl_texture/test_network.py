@@ -16,14 +16,15 @@
 # under the License.
 
 import re
-import tvm
+
 import numpy as np
-from tvm import relay
-from tvm.relay import testing
-from tvm.contrib import utils
-from utils.adreno_utils import gpu_preprocess, build_run_compare, get_model
 import pytest
+import tvm
+from tvm import relay
+from tvm.contrib import utils
+from tvm.relay import testing
 from tvm.relay.op import register_mixed_precision_conversion
+from utils.adreno_utils import build_run_compare, get_model, gpu_preprocess
 
 
 def convert_to_fp16(mod, dtype):
@@ -49,6 +50,7 @@ def _test_mobilenet_v1(remote, target, dtype):
     build_run_compare(remote, mod, params, inputs, dtypes, target, [])
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/13443")
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
 @pytest.mark.skipif(tvm.testing.utils.IS_IN_CI, reason="CI doesn't support fp16(half datatypes)")
@@ -56,6 +58,7 @@ def test_mobilenet_v1_fp16(remote, target):
     _test_mobilenet_v1(remote, target, "float16")
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/13443")
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
 def test_mobilenet_v1_fp32(remote, target):
