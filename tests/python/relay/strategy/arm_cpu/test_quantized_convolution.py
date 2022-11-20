@@ -50,7 +50,7 @@ def interpreter():
 
     # Make sure the Tensorflow import is skipped if the test is being skipped. This is needed to
     # prevent the "python: i386" tests from failing, as they don't have Tensorflow installed.
-    import tensorflow as tf # pylint: disable=import-outside-toplevel
+    import tensorflow as tf  # pylint: disable=import-outside-toplevel
 
     # Download the reference model
     rel_model_path = "model_microtvm_mobilenetv1.tflite"
