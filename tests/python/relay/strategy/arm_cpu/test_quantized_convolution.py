@@ -26,7 +26,6 @@ main pipeline.
 import numpy as np
 from PIL import Image
 import pytest
-import tensorflow as tf
 
 import tvm
 import tvm.testing
@@ -48,6 +47,11 @@ SAMPLE_URL = (
 def interpreter():
     """Returns a TFLite interpreter with the MLPerf Tiny visual wakewords model loaded, with an
     elephant image run through it, and with all intermediate layer outputs saved."""
+
+    # Make sure the Tensorflow import is skipped if the test is being skipped. This is needed to
+    # prevent the "python: i386" tests from failing, as they don't have Tensorflow installed.
+    import tensorflow as tf # pylint: disable=import-outside-toplevel
+
     # Download the reference model
     rel_model_path = "model_microtvm_mobilenetv1.tflite"
     file = download_testdata(MODEL_URL, rel_model_path, overwrite=False)
