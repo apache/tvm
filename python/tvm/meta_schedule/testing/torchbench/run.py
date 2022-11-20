@@ -110,6 +110,7 @@ from tvm import meta_schedule as ms
 from tvm._ffi import get_global_func
 from tvm.contrib.graph_executor import GraphModule
 from tvm.meta_schedule.testing.torchbench.utils import (
+    DisallowedOperator,
     load_torchdynamo_benchmark_runner,
     same,
     timed,
@@ -195,6 +196,12 @@ def parse_args():
         type=int,
         default=5,
         help="The number of rounds to warmup before starting to measure the performance.",
+    )
+    args.add_argument(
+        "--disallowed-op",
+        type=str,
+        default="all",
+        help=DisallowedOperator.__doc__,
     )
 
     # Model selection
@@ -313,6 +320,12 @@ def parse_args():
 
     parsed = args.parse_args()
 
+    if parsed.disallowed_op == "all":
+        disallowed_op = set(DisallowedOperator)
+    else:
+        disallowed_op = {DisallowedOperator(v) for v in parsed.disallowed_op.split(",")}
+    parsed.disallowed_op = disallowed_op
+
     # Trim all args, otherwise it confuses the arg parser of timm_efficientdet
     sys.argv = sys.argv[:1]
 
@@ -335,6 +348,7 @@ runner = load_torchdynamo_benchmark_runner(  # pylint: disable=invalid-name
     IS_CUDA,
     cosine_similarity=ARGS.result_metric == ResultComparisonMetric.COSINE,
     float32=ARGS.float32,
+    disallowed_operators=ARGS.disallowed_op,
 )
 
 
