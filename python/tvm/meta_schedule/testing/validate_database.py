@@ -32,10 +32,9 @@ from tvm.support import describe
 from tvm.target import Target
 from tvm.tir import Schedule
 from tvm.tir.schedule import Trace
+from tvm.meta_schedule.utils import remove_build_dir
 from tvm.meta_schedule.testing.tune_utils import generate_input_data
-
-# todo add tensor intrinsics
-# from tvm.tir.tensor_intrin import cuda, x86  # type: ignore # pylint: disable=unused-import
+from tvm.tir.tensor_intrin import *  # type: ignore # pylint: disable=unused-import
 
 DELIMITOR = "\n" + "-" * 30 + "\n"
 
@@ -134,10 +133,22 @@ logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
 )
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
+logging.getLogger("tvm.meta_schedule.runner.rpc_runner").setLevel(logging.WARN)
 
 
 def get_device_type(target: Target) -> str:
-    """Get the device type string from a target."""
+    """Get the device type string from a target.
+
+    Parameters
+    ----------
+    target : Target
+        The target to get the device type from.
+
+    Returns
+    -------
+    device_type : str
+        The device type string.
+    """
     if target.kind.name == "llvm":
         return "cpu"
     elif target.kind.name == "cuda":
@@ -147,6 +158,18 @@ def get_device_type(target: Target) -> str:
 
 
 def get_runtime_device(target: Target) -> tvm.runtime.Device:
+    """Get the runtime device from a target.
+
+    Parameters
+    ----------
+    target : Target
+        The target to get the runtime device from.
+
+    Returns
+    -------
+    device : tvm.runtime.Device
+        The runtime device.
+    """
     if target.kind.name == "llvm":
         return tvm.cpu()
     elif target.kind.name == "cuda":
@@ -163,7 +186,7 @@ def check_and_run(func: Union[str, Callable], *args, **kwargs) -> Any:
 
 
 class OriginalModule:
-    """Original module class"""
+    """Original module class for deduplication."""
 
     def __init__(self, mod: IRModule):
         self.mod = mod
@@ -175,11 +198,26 @@ class OriginalModule:
         return tvm.ir.structural_hash(self.mod)
 
 
-def initializer():
-    """Initializer function to register the functions"""
+def initializer() -> None:
+    """Initializer function to register the functions on PopenWorker and locally."""
 
     @register_func("tvm.meta_schedule.testing.default_input_generator")
-    def default_input_generator(mod: IRModule) -> List[tvm.nd.NDArray]:
+    def default_input_generator(  # pylint: disable=unused-variable
+        mod: IRModule,
+    ) -> List[tvm.nd.NDArray]:
+        """Default input generator function
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to generate the input data for.
+
+        Returns
+        -------
+        inputs : List[tvm.nd.NDArray]
+            The generated input data.
+        """
+
         args_info = ms.arg_info.TensorInfo.from_prim_func(mod["main"])
         inputs = [
             tvm.nd.array(
@@ -190,8 +228,24 @@ def initializer():
         return inputs
 
     @register_func("tvm.meta_schedule.testing.default_check_metric")
-    def default_check_metric(a: List[tvm.nd.NDArray], b: List[tvm.nd.NDArray]) -> bool:
-        raise Exception("Not implemented")
+    def default_check_metric(  # pylint: disable=unused-variable,unreachable-code
+        a: List[tvm.nd.NDArray], b: List[tvm.nd.NDArray]
+    ) -> bool:
+        """Check if the outputs are equal
+
+        Parameters
+        ----------
+        a : List[tvm.nd.NDArray]
+            The first list of NDArrays to compare.
+
+        b : List[tvm.nd.NDArray]
+            The second list of NDArrays to compare.
+
+        Returns
+        -------
+        is_equal : bool
+            Whether the two lists of NDArrays are equal.
+        """
         assert len(a) == len(b), "Different number of outputs from two modules"
         for i, _ in enumerate(a):
             if not np.allclose(a[i].numpy(), b[i].numpy(), rtol=1e-3, atol=2e-3):
@@ -200,24 +254,69 @@ def initializer():
 
 
 def to_numpy(a: List[tvm.nd.NDArray]) -> List[np.ndarray]:
-    """Convert a list of TVM NDArray to a list of numpy array"""
+    """Convert a list of TVM NDArray to a list of numpy array
+
+    Parameters
+    ----------
+    a : List[tvm.nd.NDArray]
+        The list of TVM NDArray to be converted
+
+    Returns
+    -------
+    b : List[np.ndarray]
+        The list of numpy array
+    """
     assert a is not None, "Empty result cannot be converted to numpy"
     return [x.numpy() for x in a]
 
 
 def to_tvm_ndarray(a: List[np.ndarray]) -> List[tvm.nd.NDArray]:
-    """Convert a list of numpy array to a list of TVM NDArray"""
+    """Convert a list of numpy array to a list of TVM NDArray
+
+    Parameters
+    ----------
+    a : List[np.ndarray]
+        The list of numpy array to be converted.
+
+    Returns
+    -------
+    b : List[tvm.nd.NDArray]
+        The list of TVM NDArray.
+    """
     assert a is not None, "Empty result cannot be converted to TVM NDArray"
     return [tvm.nd.array(x) for x in a]
 
 
 def is_failed_record(record: ms.database.TuningRecord) -> bool:
-    """Check if a tuning record is failed."""
+    """Check if a tuning record is failed.
+
+    Parameters
+    ----------
+    record : TuningRecord
+        The tuning record to check.
+
+    Returns
+    -------
+    is_failed : bool
+    """
     return len(record.run_secs) == 1 and record.run_secs[0] == 1e9
 
 
 def print_with_counter_func(counter: int, total: int) -> Callable:
-    """Print with counter"""
+    """Print with counter
+
+    Parameters
+    ----------
+    counter : int
+        The counter to print with.
+    total : int
+        The total number of items to print with.
+
+    Returns
+    -------
+    print_result : Callable
+        The print result function.
+    """
 
     def print_result(
         result: str,
@@ -233,7 +332,7 @@ def print_with_counter_func(counter: int, total: int) -> Callable:
         trace: str = None,
     ) -> None:
         """Print the validation result."""
-        status = f"Progress {counter: 6d} / {total: 6d} checked, result: {result}, "
+        status = f"Progress {counter: 6d} / {total: 6d} (estimated) checked, result: {result:>10}, "
 
         if result in ["pass", "wrong answer"]:
             status += (
@@ -285,7 +384,33 @@ def make_alloc_arg_and_check(
     original_run_secs: List[float],
     print_result: Callable,
 ) -> Tuple[Callable, Callable]:
-    """Make alloc_arg and check functions for the given inputs and collect results."""
+    """Make alloc_arg and check functions for the given inputs and collect results.
+
+    Parameters
+    ----------
+    inputs : List[np.ndarray]
+        The inputs to the two modules.
+    original_mod : IRModule
+        The original IRModule.
+    scheduled_mod : IRModule
+        The scheduled IRModule.
+    trace : str
+        The trace of the scheduled IRModule.
+    original_res : List[np.ndarray]
+        The original results.
+    original_run_secs : List[float]
+        The original run times.
+    print_result : Callable
+        The print result function.
+
+    Returns
+    -------
+    f_with_args_alloc_argument : Callable
+        The function to allocate arguments.
+
+    f_with_args_run_evaluator : Callable
+        The function to run evaluator.
+    """
 
     def f_with_args_alloc_argument(
         # pylint: disable=unused-argument
@@ -295,9 +420,28 @@ def make_alloc_arg_and_check(
         alloc_repeat: int,
         # pylint: enable=unused-argument
     ) -> List[ms.runner.rpc_runner.T_ARGUMENT_LIST]:
+        """Allocate arguments using the given inputs.
+
+        Parameters
+        ----------
+        session : RPCSession
+            The RPC session.
+        device : Device
+            The device.
+        args_info : T_ARG_INFO_JSON_OBJ_LIST
+            argument information.
+        alloc_repeat : int
+            The number of times to repeat the allocation.
+
+        Returns
+        -------
+        args_list : List[T_ARGUMENT_LIST]
+            The list of argument lists.
+        """
         return [[tvm.nd.array(arg, device=device) for arg in inputs] for _ in range(alloc_repeat)]
 
-    def run_evaluator_with_args(
+    def f_with_args_run_evaluator(
+        session: tvm.rpc.RPCSession,  # pylint: disable=unused-argument
         rt_mod: tvm.runtime.Module,
         device: tvm.runtime.Device,
         evaluator_config: ms.runner.EvaluatorConfig,
@@ -307,6 +451,8 @@ def make_alloc_arg_and_check(
 
         Parameters
         ----------
+        session : tvm.rpc.RPCSession
+            The RPC session
         rt_mod: Module
             The runtime module
         device: Device
@@ -362,18 +508,6 @@ def make_alloc_arg_and_check(
 
         return costs
 
-    def f_with_args_run_evaluator(
-        session: tvm.rpc.RPCSession,  # pylint: disable=unused-argument
-        rt_mod: tvm.runtime.Module,
-        device: tvm.runtime.Device,
-        evaluator_config: ms.runner.EvaluatorConfig,
-        repeated_args: List[ms.runner.rpc_runner.T_ARGUMENT_LIST],
-    ) -> List[float]:
-        # run remote module
-        # pull remote args back using `arg.numpy() for arg in remote_args`
-        # check the results
-        return run_evaluator_with_args(rt_mod, device, evaluator_config, repeated_args)
-
     return f_with_args_alloc_argument, f_with_args_run_evaluator
 
 
@@ -383,7 +517,26 @@ def local_build_and_run(
     device: tvm.runtime.Device,
     inputs: List[np.ndarray],
 ) -> Tuple[List[np.ndarray], List[float]]:
-    """Build and run the module locally."""
+    """Build and run the module locally.
+
+    Parameters
+    ----------
+    mod: IRModule
+        The module to build and run
+    target: Target
+        The target to build the module
+    device: Device
+        The device to run the module
+    inputs: List[np.ndarray]
+        The inputs to run the module
+
+    Returns
+    -------
+    res: List[np.ndarray]
+        The results of running the module
+    run_secs: List[float]
+        The running time of running the module
+    """
     # potential memory leak https://github.com/apache/tvm/issues/11096
     lib = tvm.build(mod, target=target)
     tvm_inputs = [tvm.nd.array(inp, device=device) for inp in inputs]
@@ -394,18 +547,63 @@ def local_build_and_run(
     return [arg.numpy() for arg in tvm_inputs], list(benchmark_res.results)
 
 
-def _build_single_mod(
-    mod: IRModule, builder: ms.builder.Builder, target: Target
-) -> ms.builder.BuilderResult:
-    builder_results = builder.build([ms.builder.BuilderInput(mod, target)])
-    assert (
-        len(builder_results) == 1
-    ), f"Unexpected number of build results, expected 1 got {len(builder_results)}"
-    (builder_result,) = builder_results  # pylint: disable=unbalanced-tuple-unpacking
+def _check_builder_result(builder_result: ms.builder.BuilderResult) -> None:
+    """Check if the builder result is defined.
+
+    Parameters
+    ----------
+    builder_result: BuilderResult
+        The builder result
+    """
     assert builder_result.error_msg is None, "Builder failed: " + str(
         builder_result.error_msg if builder_result.error_msg else "Empty error message"
     )
-    return builder_results[0]
+
+
+def _apply_trace(mod: IRModule, trace: Trace) -> IRModule:
+    """Apply the trace to the module.
+
+    Parameters
+    ----------
+    mod: IRModule
+        The module to apply the trace to
+    trace: Trace
+        The trace to apply
+
+    Returns
+    -------
+    mod: IRModule
+        The module with the trace applied
+    """
+    sch = Schedule(mod)
+    trace.apply_to_schedule(sch, remove_postproc=False)
+    return sch.mod
+
+
+def _build_all_mods(
+    mods: List[IRModule], builder: ms.builder.Builder, target: Target
+) -> List[ms.builder.BuilderResult]:
+    """Build all the modules.
+
+    Parameters
+    ----------
+    mods: List[IRModule]
+        The modules to build
+    builder: Builder
+        The builder to build the modules
+    target: Target
+        The target to build the modules
+
+    Returns
+    -------
+    builder_results: List[BuilderResult]
+        The builder results
+    """
+    builder_results = builder.build([ms.builder.BuilderInput(mod, target) for mod in mods])
+    assert len(builder_results) == len(
+        mods
+    ), f"Unexpected number of build results, expected {len(mods)} got {len(builder_results)}"
+    return builder_results
 
 
 def _run_single_mod(
@@ -413,6 +611,17 @@ def _run_single_mod(
     runner: ms.runner.Runner,
     dev_type: str,
 ) -> None:
+    """Run a single module.
+
+    Parameters
+    ----------
+    builder_result: BuilderResult
+        The builder result
+    runner: Runner
+        The runner to run the module
+    dev_type: str
+        The device type
+    """
     runner_futures = runner.run(
         # arginfo is not used in this case so we can pass an empty list
         [ms.runner.RunnerInput(builder_result.artifact_path, device_type=dev_type, args_info=[])]
@@ -430,7 +639,7 @@ def _run_single_mod(
 def main():
     """Main function"""
     describe()
-    initializer()
+    initializer()  # for local input generation
     with ms.Profiler() as profiler:
         # initialize
         target = ARGS.target
@@ -468,6 +677,8 @@ def main():
             records = database.get_top_k(
                 workload=database.commit_workload(original_mod), top_k=ARGS.top_k
             )
+            if len(records) < ARGS.top_k:
+                total -= ARGS.top_k - len(records)
             inputs = to_numpy(check_and_run(ARGS.input_generator_func, original_mod))
             original_res, original_run_secs = local_build_and_run(
                 original_mod,
@@ -475,7 +686,11 @@ def main():
                 inputs=inputs,
                 device=get_runtime_device(ARGS.baseline_target),
             )
-            for record in records:
+            scheduled_mods = [_apply_trace(original_mod, record.trace) for record in records]
+            builder_results = _build_all_mods(
+                [scheduled_mod for scheduled_mod in scheduled_mods], builder, target  # type: ignore
+            )
+            for i, record in enumerate(records):
                 counter += 1
                 print_result = print_with_counter_func(counter=counter, total=total)
                 if is_failed_record(record):
@@ -485,13 +700,11 @@ def main():
                     continue
                 try:
                     # prepare scheduled module
-                    sch = Schedule(original_mod)
-                    record.trace.apply_to_schedule(sch=sch, remove_postproc=False)
-                    scheduled_mod = sch.mod
-                    # build the scheduled module locally
-                    builder_result = _build_single_mod(
-                        scheduled_mod, builder, target  # type: ignore
-                    )
+                    scheduled_mod = scheduled_mods[i]
+                    # check build result
+                    builder_result = builder_results[i]
+                    _check_builder_result(builder_result)
+                    # fetch functions
                     (
                         f_with_args_alloc_argument,
                         f_with_args_run_evaluator,
@@ -504,6 +717,7 @@ def main():
                         original_run_secs=original_run_secs,
                         print_result=print_result,
                     )
+                    # create rpc runner
                     runner = ms.runner.RPCRunner(
                         rpc_config=ARGS.rpc_config,
                         evaluator_config=ms.runner.EvaluatorConfig(
@@ -517,6 +731,7 @@ def main():
                         f_run_evaluator=f_with_args_run_evaluator,
                         initializer=initializer,
                     )
+                    # run and validate
                     _run_single_mod(builder_result, runner, dev_type)  # type: ignore
                 except Exception as e:  # pylint: disable=broad-except, invalid-name
                     # validation failed with exception
@@ -527,8 +742,9 @@ def main():
                         trace=str(record.trace),
                         exception=e,
                     )
-    print("Validation finished!")
-    print(f"Total time spent: {float(profiler.get()['Total']): 3.3f} sec.")
+                # clean up
+                remove_build_dir(builder_result.artifact_path)
+    print(f"Validation finished! Total time spent: {float(profiler.get()['Total']): 3.3f} sec.")
 
 
 if __name__ == "__main__":
