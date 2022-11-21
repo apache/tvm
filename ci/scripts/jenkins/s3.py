@@ -129,7 +129,12 @@ if __name__ == "__main__":
 
     for item in items:
         if action == Action.DOWNLOAD:
-            stdout = s3(source=s3_path, destination=item, recursive=True)
+            source = s3_path
+            recursive = True
+            if item != ".":
+                source = s3_path + "/" + item
+                recursive = False
+            stdout = s3(source=source, destination=item, recursive=recursive)
             files = parse_output_files(stdout)
             chmod(files)
             for file in files:
