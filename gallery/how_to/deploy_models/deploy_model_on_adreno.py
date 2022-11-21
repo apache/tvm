@@ -211,12 +211,10 @@ def convert_to_dtype(mod, dtype):
 		global conv2d_acc
 		conv2d_acc = "float16" if dtype == "float16" else "float32"
 		from tvm.ir import IRModule
+  
 		mod = IRModule.from_expr(mod)
 		seq = tvm.transform.Sequential(
-			[
-				relay.transform.InferType(),
-				relay.transform.ToMixedPrecision()
-			]
+			[relay.transform.InferType(), relay.transform.ToMixedPrecision()]
 		)
 		with tvm.transform.PassContext(opt_level=3):
 			mod = seq(mod)
@@ -226,7 +224,7 @@ def convert_to_dtype(mod, dtype):
 # Let's choose "float16_acc32" for example. 
 dtype = "float16_acc32"
 mod = convert_to_dtype(mod["main"], dtype)
-dtype = "float32"  if  dtype == "float32"  else  "float16"
+dtype = "float32" if dtype == "float32" else "float16"
 
 print(mod)
 
@@ -244,9 +242,7 @@ print(mod)
 target = tvm.target.Target("opencl -device=adreno", host="llvm -mtriple=arm64-linux-android")
 
 with tvm.transform.PassContext(opt_level=3):
-	lib = relay.build(
-		mod, target=target, params=params
-	)
+	lib = relay.build(mod, target=target, params=params)
 
 ######################################################################
 # Deploy the Model Remotely by RPC
@@ -256,11 +252,10 @@ with tvm.transform.PassContext(opt_level=3):
 
 rpc_tracker_host = os.environ.get("TVM_TRACKER_HOST")
 rpc_tracker_port = int(os.environ.get("TVM_TRACKER_PORT"))
-key="android"
+key = "android"
 
 tracker = rpc.connect_tracker(rpc_tracker_host, rpc_tracker_port)
-remote = tracker.request(
-	key, priority=0, session_timeout=6000)
+remote = tracker.request(key, priority=0, session_timeout=6000)
 
 temp = utils.tempdir()
 dso_binary = "dev_lib_cl.so"
@@ -299,21 +294,21 @@ top_categories = np.argsort(tvm_output.asnumpy()[0])
 top5 = np.flip(top_categories, axis=0)[:5]
 
 # Report top-1 classification result
-print("Top-1 id: {}, class name: {}".format(top5[1-1], synset[top5[1-1]]))
+print("Top-1 id: {}, class name: {}".format(top5[1 - 1], synset[top5[1 - 1]]))
 
 # Report top-5 classification results
 print("\nTop5 predictions: \n")
-print("\t#1:", synset[top5[1-1]])
-print("\t#2:", synset[top5[2-1]])
-print("\t#3:", synset[top5[3-1]])
-print("\t#4:", synset[top5[4-1]])
-print("\t#5:", synset[top5[5-1]])
+print("\t#1:", synset[top5[1 - 1]])
+print("\t#2:", synset[top5[2 - 1]])
+print("\t#3:", synset[top5[3 - 1]])
+print("\t#4:", synset[top5[4 - 1]])
+print("\t#5:", synset[top5[5 - 1]])
 print("\t", top5)
 ImageNetClassifier = False
-for  k  in  top_categories[-5:]:
-	if  "cat"  in  synset[k]:
+for k in top_categories[-5:]:
+	if "cat" in synset[k]:
 		ImageNetClassifier = True
-assert  ImageNetClassifier, "Failed ImageNet classifier validation check"
+assert ImageNetClassifier, "Failed ImageNet classifier validation check"
 
 print("Evaluate inference time cost...")
 print(m.benchmark(ctx, number=1, repeat=10))
