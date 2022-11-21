@@ -322,7 +322,7 @@ class ProxyServerHandler(object):
             rpc_key, _ = base.split_random_key(key)
             handle = self._server_pool[key]
             del self._server_pool[key]
-            new_key = base.random_key(rpc_key + ":", keyset)
+            new_key = base.random_key(rpc_key, keyset)
             self._server_pool[new_key] = handle
             keyset.add(new_key)
             new_keys.append(new_key)
