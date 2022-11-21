@@ -15,7 +15,7 @@ deliver high-performance graphics and a rich user experience with low
 power consumption.
 
 This guide will demonstrate :ref:`the benefits of using textures with Adreno<Advantages of the Textures>`,
-how to :ref:`build TVM with OpenCL-SDK<Building TVM for Adreno>` (needed by Adreno devices) and TVM RPC
+how to :ref:`build TVM with OpenCL<Building TVM for Adreno>` (needed by Adreno devices) and TVM RPC
 enabled. It will also provide :ref:`example code<Build and deploy model for Adreno>` to better understand the differences in compiling and deploying models
 for Adreno devices.
 
@@ -50,7 +50,7 @@ Building TVM for Adreno
 -----------------------
 
 This section gives instructions on how to build the Android part of TVM
-with OpenCL-SDK and TVM RPC Server in order to deploy models on Adreno.
+with OpenCL and TVM RPC Server in order to deploy models on Adreno.
 
 Since the process of building TVM for Adreno is exactly the same as the
 process of building TVM for Android, please refer to these instructions:
@@ -60,12 +60,11 @@ Server <https://github.com/apache/tvm/tree/main/apps/cpp_rpc>`_.
 Alternatively, to build a TVM via docker using OpenCL-Headers and set-up
 with Android TVM RPC, refer to this guide: `Deploy the Pretrained Model on Android <https://tvm.apache.org/docs/how_to/deploy_models/deploy_model_on_android.html>`_.
 
-**Prerequisites**: Android NDK, Android Debug Bridge and OpenCL-SDK must
-be installed and Android part of TVM must be built:
+**Prerequisites**: Android NDK and Android Debug Bridge must
+be installed, the desired device must have OpenCL support and Android part of TVM must be built:
 
 - Read documentation about *Android NDK installation* here: https://developer.android.com/ndk
 - To get access to adb tools you can see *Android Debug Bridge installation* here: https://developer.android.com/studio/command-line/adb
-- For *OpenCL-SDK installation* please refer to official github repository: https://github.com/KhronosGroup/OpenCL-SDK.git
 
 You can also build the android part of TVM locally. From the root
 folder of TVM:
@@ -74,7 +73,7 @@ folder of TVM:
 
    mkdir build_android
    cd build_android
-   cmake .. -DUSE_OPENCL=path/to/OpenCL -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a -DANDROID_NATIVE_API_LEVEL=android-28 -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ON -DANDROID_STL=c++_static -DUSE_CPP_RPC=ON
+   cmake .. -DUSE_OPENCL=ON -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a -DANDROID_NATIVE_API_LEVEL=android-28 -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ON -DANDROID_STL=c++_static -DUSE_CPP_RPC=ON
    make -jN tvm_runtime tvm_rpc
 
 where **N** is the number of cores available on your *CPU*.
@@ -237,7 +236,7 @@ and can be overridden by user
 
 In some cases, we want higher precision in accumulation than the input data.
 This is supported, for example, for conv2d and dense operations. To override accumulation type you need to register
-function with @register_mixed_precision_conversion decorator to modify parameters of ToMixedPrecision conversion
+function with ``@register_mixed_precision_conversion`` decorator to modify parameters of ``ToMixedPrecision`` conversion
 
 .. code:: python
 
@@ -297,7 +296,7 @@ after which we can convert it to the required **dtype** and then assemble our mo
    mod = convert_to_dtype(mod["main"], dtype)
    dtype = "float32"  if  dtype == "float32"  else  "float16"
 
-The "ToMixedPrecision" method is a pass to convert an FP32 relay graph into an FP16 version (with
+The ``ToMixedPrecision`` method is a pass to convert an FP32 relay graph into an FP16 version (with
 FP16 or FP32 accumulation dtypes). Doing this transformation is useful for reducing model size
 as it halves the expected size of the weights (FP16_acc16 case).
 
@@ -310,5 +309,5 @@ From this point onwards, we can compile our model as normal
            mod, target_host=target_host, target=target, params=params
        )
 
-.. |High-level overview of the Adreno A5x architecture for OpenCL| image:: images/adreno_architecture.png
-.. |Android deployment pipeline| image:: images/android_deployment_pipeline.jpg
+.. |High-level overview of the Adreno A5x architecture for OpenCL| image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/how-to/adreno_architecture.png
+.. |Android deployment pipeline| image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/how-to/android_deployment_pipeline.jpg
