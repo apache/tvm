@@ -175,23 +175,28 @@ class OriginalModule:
         return tvm.ir.structural_hash(self.mod)
 
 
-@register_func("tvm.meta_schedule.testing.default_input_generator")
-def default_input_generator(mod: IRModule) -> List[tvm.nd.NDArray]:
-    args_info = ms.arg_info.TensorInfo.from_prim_func(mod["main"])
-    inputs = [
-        tvm.nd.array(generate_input_data(input_shape=arg_info.shape, input_dtype=arg_info.dtype))
-        for arg_info in args_info
-    ]
-    return inputs
+def initializer():
+    """Initializer function to register the functions"""
 
+    @register_func("tvm.meta_schedule.testing.default_input_generator")
+    def default_input_generator(mod: IRModule) -> List[tvm.nd.NDArray]:
+        args_info = ms.arg_info.TensorInfo.from_prim_func(mod["main"])
+        inputs = [
+            tvm.nd.array(
+                generate_input_data(input_shape=arg_info.shape, input_dtype=arg_info.dtype)
+            )
+            for arg_info in args_info
+        ]
+        return inputs
 
-@register_func("tvm.meta_schedule.testing.default_check_metric")
-def default_check_metric(a: List[tvm.nd.NDArray], b: List[tvm.nd.NDArray]) -> bool:
-    assert len(a) == len(b), "Different number of outputs from two modules"
-    for i, _ in enumerate(a):
-        if not np.allclose(a[i].numpy(), b[i].numpy(), rtol=1e-3, atol=2e-3):
-            return False
-    return True
+    @register_func("tvm.meta_schedule.testing.default_check_metric")
+    def default_check_metric(a: List[tvm.nd.NDArray], b: List[tvm.nd.NDArray]) -> bool:
+        raise Exception("Not implemented")
+        assert len(a) == len(b), "Different number of outputs from two modules"
+        for i, _ in enumerate(a):
+            if not np.allclose(a[i].numpy(), b[i].numpy(), rtol=1e-3, atol=2e-3):
+                return False
+        return True
 
 
 def to_numpy(a: List[tvm.nd.NDArray]) -> List[np.ndarray]:
@@ -225,15 +230,15 @@ def print_with_counter_func(counter: int, total: int) -> Callable:
         original_run_secs: List[float] = None,
         scheduled_run_secs: List[float] = None,
         exception: Exception = None,
-        trace: Trace = None,
+        trace: str = None,
     ) -> None:
         """Print the validation result."""
-        status = f"Progress {counter: 6d} / {total: 6d} checked, result: {result}"
+        status = f"Progress {counter: 6d} / {total: 6d} checked, result: {result}, "
 
         if result in ["pass", "wrong answer"]:
             status += (
-                f"original: {mean(original_run_secs): 3.3f} sec, "
-                f"scheduled: {mean(scheduled_run_secs): 3.3f} sec"
+                f"original: {mean(original_run_secs) * 1e3: 10.3f} ms, "
+                f"scheduled: {mean(scheduled_run_secs) * 1e3: 10.3f} ms"
             )
 
         output = [status]
@@ -258,7 +263,8 @@ def print_with_counter_func(counter: int, total: int) -> Callable:
                                 np.max(np.abs(original_res[i] - scheduled_res[i]))
                                 for i in range(len(original_res))
                             ]
-                        ),
+                        )
+                        + "\n",
                     ]
                 )
             elif result == "exception":
@@ -274,7 +280,7 @@ def make_alloc_arg_and_check(
     inputs: List[np.ndarray],
     original_mod: IRModule,
     scheduled_mod: IRModule,
-    trace: Trace,
+    trace: str,
     original_res: List[np.ndarray],
     original_run_secs: List[float],
     print_result: Callable,
@@ -351,7 +357,7 @@ def make_alloc_arg_and_check(
             original_res=original_res,
             scheduled_res=scheduled_res,
             original_run_secs=original_run_secs,
-            scheduled_run_secs=mean(costs),
+            scheduled_run_secs=costs,
         )
 
         return costs
@@ -385,7 +391,7 @@ def local_build_and_run(
     func = lib.time_evaluator(lib.entry_name, dev=device, number=ARGS.number, repeat=ARGS.repeat)
     benchmark_res = func(*tvm_inputs)
     device.sync()
-    return [arg.numpy() for arg in tvm_inputs], benchmark_res
+    return [arg.numpy() for arg in tvm_inputs], list(benchmark_res.results)
 
 
 def _build_single_mod(
@@ -424,6 +430,7 @@ def _run_single_mod(
 def main():
     """Main function"""
     describe()
+    initializer()
     with ms.Profiler() as profiler:
         # initialize
         target = ARGS.target
@@ -452,6 +459,7 @@ def main():
         if ARGS.top_k < 10**9:
             print(f"Top {ARGS.top_k} records for each original TIR will be validated.")
             total = len(workloads) * ARGS.top_k
+        print()
 
         # validate correctness
         counter = 0
@@ -469,7 +477,7 @@ def main():
             )
             for record in records:
                 counter += 1
-                print_result = print_with_counter_func(counter=counter, total=len(records))
+                print_result = print_with_counter_func(counter=counter, total=total)
                 if is_failed_record(record):
                     # skip failed records where run_secs is 1e9
                     # these records are only negative samples for cost model
@@ -491,7 +499,7 @@ def main():
                         inputs,
                         original_mod,
                         scheduled_mod,
-                        record.trace,
+                        str(record.trace),
                         original_res=original_res,
                         original_run_secs=original_run_secs,
                         print_result=print_result,
@@ -507,16 +515,16 @@ def main():
                         alloc_repeat=1,
                         f_alloc_argument=f_with_args_alloc_argument,
                         f_run_evaluator=f_with_args_run_evaluator,
+                        initializer=initializer,
                     )
                     _run_single_mod(builder_result, runner, dev_type)  # type: ignore
                 except Exception as e:  # pylint: disable=broad-except, invalid-name
-                    raise e
                     # validation failed with exception
                     print_result(
                         result="exception",
                         original_mod=original_mod,
                         scheduled_mod=scheduled_mod,
-                        trace=record.trace,
+                        trace=str(record.trace),
                         exception=e,
                     )
     print("Validation finished!")
