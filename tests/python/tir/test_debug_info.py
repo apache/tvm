@@ -40,7 +40,7 @@ def find_di_locations(source: str) -> Dict[int, int]:
     return result
 
 
-def test_llvm_ir_debug_info():
+def _module():
     @tvm.script.ir_module
     class MyModule:
         @T.prim_func
@@ -58,6 +58,33 @@ def test_llvm_ir_debug_info():
                     assert 1 == 0, "Some numbers"
                     B[vi] = A[vi] + 1.0
 
+    return MyModule
+
+
+def test_tir_debug_info():
+    """
+    Test that Spans are correctly replaced with debug spans that reference
+    the printed TIR
+    """
+
+    def find_span(m):
+        func = next(m.functions.values())
+        return func.body.block.body.span
+
+    module_before = _module()
+    span_before = find_span(module_before)
+    assert span_before is None
+
+    module_after = tir.transform.InstallDebugSpans()(module_before)
+    span_after = find_span(module_after)
+
+    # Check that the module name has been added and a line number is present
+    assert span_after.source_name.name == "main.tir"
+    assert span_after.line == 4
+
+
+def test_llvm_ir_debug_info():
+    MyModule = _module()
     with tvm.transform.PassContext(opt_level=3, config={"tir.enable_debug": True}):
         runtime_module = tvm.build(MyModule, target="llvm")
 
