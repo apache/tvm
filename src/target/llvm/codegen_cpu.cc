@@ -197,6 +197,7 @@ llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const PrimFunc& f) {
 
   bool local_to_unit = llvm::GlobalVariable::isLocalLinkage(llvm::GlobalValue::InternalLinkage);
 
+  // TODO(driazati): determine the IRModule name instead of hardcoding 'main.tir'
 #if TVM_LLVM_VERSION >= 80
   auto SPFlags = llvm::DISubprogram::toSPFlags(local_to_unit, /*IsDefinition=*/true,
                                                /*IsOptimized=*/true);

@@ -38,6 +38,14 @@
 namespace tvm {
 namespace tir {
 
+/*!
+ * \brief This Pass prints out the provided 'stmt' through the TIR debug printer
+ while recording the statements and expressions printed on each line. Running
+ this pass uses the per-line information to change the Spans attached to each
+ statement and expression to the source location in the printed TIR. This pass
+ also writes to a file called '<name>.tir' so the line information used is
+ saved to disk.
+ */
 class DebugInfoInstaller : public StmtExprMutator {
  public:
   static Stmt InstallInfo(const std::string& name, const Stmt& stmt);
