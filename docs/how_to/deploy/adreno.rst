@@ -227,9 +227,9 @@ We then can compile our model in any convinient way
 
 ToMixedPrecision pass traverse over the network and split network to clusters of ops dealing with float or float16 data types.
 The clusters are defined by three types of operations:
-* Operations always be converted into float16 data type
-* Operations which can be converted if they follow by converted cluster
-* Operations never be converted to the float16 data type  
+- Operations always be converted into float16 data type
+- Operations which can be converted if they follow by converted cluster
+- Operations never be converted to the float16 data type  
 This list is defined in the ToMixedPrecision implementation here 
 `relay/transform/mixed_precision.py <https://github.com/apache/tvm/blob/main/python/tvm/relay/transform/mixed_precision.py#L34>`_ 
 and can be overridden by user

@@ -43,7 +43,7 @@ After the build section there should be two files in *build* directory «libtvm_
 Let's push them to the device and run TVM RPC Server.
 """
 
-#################################################################
+######################################################################
 # TVM RPC Server    
 # --------------
 # To get the hash of the device use:
@@ -114,7 +114,7 @@ Let's push them to the device and run TVM RPC Server.
 #    android      1      1     0
 #    ----------------------------------
 
-######################################################################
+#################################################################
 # Load a test image
 # -----------------
 # As an example we would use classical cat image from ImageNet
@@ -150,7 +150,7 @@ my_preprocess = transforms.Compose(
 img = my_preprocess(img)
 img = np.expand_dims(img, 0)
 
-######################################################################
+#################################################################
 # Load pretrained Pytorch model
 # -----------------------------
 # Create a Relay graph from a Pytorch ResNet-18 model
@@ -177,7 +177,7 @@ input_name = "input0"
 shape_list = [(input_name, img.shape)]
 mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 
-######################################################################
+#################################################################
 # Precisions
 # ----------
 # Since TVM support Mixed Precision, we need to register mixed_precision_conversion:
@@ -203,7 +203,7 @@ def conv2d_mixed_precision_rule(call_node: "relay.Call", mixed_precision_type: s
 		mixed_precision_type,
 	]
  
-######################################################################
+#################################################################
 # and also define the conversion function itself
 def convert_to_dtype(mod, dtype):
 	# downcast to float16
@@ -220,7 +220,7 @@ def convert_to_dtype(mod, dtype):
 			mod = seq(mod)
 	return mod
 
-######################################################################
+#################################################################
 # Let's choose "float16_acc32" for example. 
 dtype = "float16_acc32"
 mod = convert_to_dtype(mod["main"], dtype)
@@ -228,12 +228,12 @@ dtype = "float32" if dtype == "float32" else "float16"
 
 print(mod)
 
-######################################################################
+#################################################################
 # As you can see in the IR, the architecture now contains cast operations, which are
 # needed to convert to FP16 precision. 
 # You can also use "float16" or "float32" precisions as other dtype options.
 
-######################################################################
+#################################################################
 # Compile the model with relay
 # ----------------------------
 # Specify Adreno target before compiling to generate texture 
@@ -244,7 +244,7 @@ target = tvm.target.Target("opencl -device=adreno", host="llvm -mtriple=arm64-li
 with tvm.transform.PassContext(opt_level=3):
 	lib = relay.build(mod, target=target, params=params)
 
-######################################################################
+#################################################################
 # Deploy the Model Remotely by RPC
 # --------------------------------
 # Using RPC you can deploy the model from host
@@ -267,7 +267,7 @@ rlib = remote.load_module(dso_binary)
 ctx = remote.cl(0)
 m = graph_executor.GraphModule(rlib["default"](ctx))
 
-######################################################################
+#################################################################
 # Run inference
 # -------------
 # We now can set inputs, infer our model and get predictions as output
@@ -275,7 +275,7 @@ m.set_input(input_name, tvm.nd.array(img.astype("float32")))
 m.run()
 tvm_output = m.get_output(0)
 
-######################################################################
+#################################################################
 # Get predictions and performance statistic
 # -----------------------------------------
 # This piece of code displays the top-1 and top-5 predictions, as
