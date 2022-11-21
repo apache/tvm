@@ -37,7 +37,9 @@ from tvm.contrib.download import download_testdata
 from test_generalized_conv2d import change_ndarray_layout
 
 
-MODEL_URL = "https://github.com/mlcommons/tiny/raw/master/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite"
+# The model is the v0.7 version of the TinyML person detection (aka visual wake words) model. This
+# is an RGB 96x96 MobileNet V1 model.
+MODEL_URL = "https://github.com/mlcommons/tiny/raw/v0.7/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite"
 SAMPLE_URL = (
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/elephant-299.jpg"
 )
@@ -241,7 +243,7 @@ def _make_aot_model(params, hyperparams, layouts, is_depthwise=False):
     data_quant, kernel_quant, bias_quant, output_quant = quantizations
 
     dtype, padding, _strides = hyperparams
-    data_layout, kernel_layout, output_layout = layouts
+    data_layout, _, output_layout = layouts
 
     if any(padding):
         pad_const = int(data_quant["zero_points"][0])
@@ -285,6 +287,26 @@ def _make_executor():
 @pytest.mark.parametrize("layer", range(23))
 @tvm.testing.requires_corstone300
 def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer):
+    """Checks microTVM output against TFLite for one MobileNetV1 layer.
+
+    Loads the input, kernel, bias, expected output, and quantization parameters from the specified
+    layer in a TFLite Interpreter. That information is used to construct a Relay Function with the
+    same structure. The Function is run using microTVM and AOTTestModel, and we verify microTVM's
+    output is the same as the TFLite ground truth. Only works for 2D convolutions (depthwise and
+    regular).
+
+    Note that we disable the QNN Legalization pass. This allows TVM to use its QNN compute
+    definitions, fuse the three operations together, and perform other optimizations.
+
+    Parameters
+    ----------
+    interpreter: tensorflow.lite.python.interpreter.Interpreter
+        A TensorFlow Lite interpreter for a MobileNetV1 model, where invoke() has already been
+        called and experimental_preserve_all_tensors=True. Should be passed as a Pytest fixture.
+
+    layer: int
+        The index of the layer to check against TensorFlow's ground truth values.
+    """
     dtype = "int16"
 
     tensor, kernel, bias, output = _load_tflite_layer(interpreter, layer)

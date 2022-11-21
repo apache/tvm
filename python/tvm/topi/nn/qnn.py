@@ -214,9 +214,11 @@ def qnn_requantize_alter_layout(_attrs, _inputs, _tinfos, _out_type):
 
 @tvm.target.generic_func
 def qnn_add_alter_layout(_attrs, _inputs, _tinfos, _out_type):
-    """Change add layout. Add is not a QNN-specific function, but this generic exists so that bias
-    add operations can be fused with input zero point add optimizations, which only happens if the
-    previous operator is quantized.
+    """Change add layout.
+
+    Add is not a QNN-specific function, but this generic exists so that bias add operations can be
+    fused with input zero point add optimizations, which only happens if the previous operator is
+    quantized.
 
     Parameters
     ----------

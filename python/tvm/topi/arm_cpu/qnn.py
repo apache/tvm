@@ -14,8 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Contains the TVMScript implementations of some QNN operators for Arm. Currently, the only ops
-with schedules are fused regular and depthwise convolutions for Arm Cortex-M with DSP."""
+"""Contains TVMScript implementations of some QNN operators for Arm.
+
+Currently, the only ops with compute functions are fused regular and depthwise convolutions for
+Arm Cortex-M with DSP.
+"""
 
 from typing import Tuple
 
@@ -35,15 +38,22 @@ def _compute_output_dim(data_length, kernel_length, stride):
     return int_ceil_division(data_length + 1 - kernel_length, stride)
 
 
-def _pick_tensordot_impl(attrs, data, kernel, num_sums=2, is_depthwise=False):
-    """Helper function that chooses the right implementation of micro_kernel.tensordot depending on
-    the input parameters of the conv2d. It returns a tuple of TWO function_name, function_code
-    pairs - one (the aligned one) for even-numbered output channels, and one (the offset one) for
-    odd-numbered output channels. This function is used for regular and depthwise convolutions.
+def _pick_tensordot_impl(attrs, inputs, num_sums=2, is_depthwise=False):
+    """Helper function that chooses the right implementation of micro_kernel.tensordot.
+
+    Takes as input the parameters of the conv2d, and returns a tuple of TWO (function_name,
+    function_code). The first pair (the aligned one) is for even numbered output channels, and the
+    second pair (the offset one) is for odd-numbered output channels. This function is used for
+    regular and depthwise convolutions.
 
     We need different implementations for even vs odd numbered output channels, because the "start"
     of an odd output channel in the data tensor or kernel might or might not be on a word boundary,
-    and the tensordot code expects all input pointers to be word-aligned."""
+    and the tensordot code expects all input pointers to be word-aligned.
+    """
+    data, kernel = inputs[0:2]
+    rq_output_zero_point_const = inputs[10]
+    assert len(rq_output_zero_point_const.op.body) == 1
+    output_zero_point = rq_output_zero_point_const.op.body[0]
 
     _, stride_w = get_const_tuple(attrs.strides)
 
@@ -75,19 +85,31 @@ def _pick_tensordot_impl(attrs, data, kernel, num_sums=2, is_depthwise=False):
         raise ValueError(f"Unsupported output layout {attrs.out_layout}!")
 
     x_strides = (in_stride, out_stride)
-    aligned_func = tensordot.tensordot_int16_impl(num_sums, dimensions, (0, 0, 0), x_strides)
+    aligned_func = tensordot.tensordot_int16_impl(
+        num_sums,
+        dimensions,
+        (0, 0, 0),
+        x_strides,
+        output_zero_point=output_zero_point,
+    )
 
     kernel_per_oc_size = dimensions[1] * dimensions[2]
 
     offsets = (data_per_oc_size % 2, kernel_per_oc_size % 2, 0)
-    offset_func = tensordot.tensordot_int16_impl(num_sums, dimensions, offsets, x_strides)
+    offset_func = tensordot.tensordot_int16_impl(
+        num_sums,
+        dimensions,
+        offsets,
+        x_strides,
+        output_zero_point=output_zero_point,
+    )
 
     return (aligned_func, offset_func)
 
 
-def _make_tscript_ptr(buffer, offset, length):
+def _make_tscript_ptr(buffer, offset, length, dtype="int16"):
     return T.tvm_access_ptr(
-        T.type_annotation(dtype="int16"),
+        T.type_annotation(dtype=dtype),
         buffer.data,
         offset,
         length,
@@ -123,6 +145,12 @@ def _make_conv2d_primfunc(
         offset_channels = out_channels // 2
         c_step = tvm.tir.const(2)
 
+    def bias_ptr(bias, c):
+        return _make_tscript_ptr(bias, c, 1, dtype="int32")
+
+    def scale_ptr(scale, c):
+        return _make_tscript_ptr(scale, c, 1, dtype="int32")
+
     @T.prim_func
     def biased_quantized_conv2d(
         data_handle: T.handle,
@@ -136,15 +164,21 @@ def _make_conv2d_primfunc(
         data = T.match_buffer(data_handle, data_shape, dtype="int16")
         kernel = T.match_buffer(kernel_handle, kernel_shape, dtype="int16")
         bias = T.match_buffer(bias_handle, bias_shape, dtype="int32")
-        scale = T.match_buffer(scale_handle, scale_shape, dtype="int32")
+
+        # We don't specify a data type for the requantization scale, even though we will read it as
+        # an int32. This is because we must pretend it is a float32, as Relay's requantize op only
+        # allows floating point scales.
+        scale = T.match_buffer(scale_handle, scale_shape)
         output = T.match_buffer(output_handle, output_shape, dtype="int16")
 
         # This hack prevents TVM from seeing these variables as "unused". I should be using T.reads
         # and T.writes, but they don't work. I think it's an issue with BufferTouchedDomain.
         # pylint: disable=unused-variable
         output[0, 0, 0, 0] = 0
-        a = data[0, 0, 0, 0]
-        b = kernel[0, 0, 0, 0]
+        __1 = data[0, 0, 0, 0]
+        __2 = kernel[0, 0, 0, 0]
+        __3 = bias[0, 0, 0, 0]
+        __4 = scale[0]
         # pylint: enable=unused-variable
 
         for c_ax, y_ax, x_ax in T.grid(aligned_channels, height, width):
@@ -156,8 +190,8 @@ def _make_conv2d_primfunc(
                     output_ptr(output, y, x, c * c_step),
                     data_ptr(data, y, x, c * c_step),
                     kernel_ptr(kernel, c * c_step),
-                    bias[0, 0, 0, c * c_step],
-                    scale[c * c_step],
+                    bias_ptr(bias, c * c_step),
+                    scale_ptr(scale, c * c_step),
                 )
 
         for c_ax, y_ax, x_ax in T.grid(offset_channels, height, width):
@@ -169,26 +203,27 @@ def _make_conv2d_primfunc(
                     output_ptr(output, y, x, c * c_step + 1),
                     data_ptr(data, y, x, c * c_step + 1, offset=1),
                     kernel_ptr(kernel, c * c_step + 1, offset=1),
-                    bias[0, 0, 0, c * c_step + 1],
-                    scale[c * c_step + 1],
+                    bias_ptr(bias, c * c_step + 1),
+                    scale_ptr(scale, c * c_step + 1),
                 )
 
     return biased_quantized_conv2d
 
 
 def qnn_conv2d(attrs, inputs, out_type):
-    """Compute for qnn.conv2d with NHWC layout. Note that this is a DIFFERENT layout from the
-    Hexagon variant, because they have special instructions Cortex-M doesn't have. We also expect
-    the kernel to have OHWI layout. We also assume that padding is not necessary, as it will have
-    been done by another pass."""
+    """Compute for qnn.conv2d with NHWC layout.
+
+    Note that this is a DIFFERENT layout from the Hexagon variant, because they have special
+    instructions Cortex-M doesn't have. We expect the kernel to have OHWI layout. We also assume
+    that padding is not necessary, as it will have been done by another pass.
+    """
 
     # Make a few checks to unpack the function arguments and ensure it was called with the right
-    # arguments. Note that unlike most schedules, qnn_conv2d does not use a wrapper."""
+    # arguments. Note that unlike most schedules, qnn_conv2d does not use a wrapper.
     assert len(inputs) == 11
     data, kernel, _izp, _kzp, _iscale, _kscale, bias, scale = inputs[0:8]
     output_layout = attrs.out_layout
     assert output_layout == "NHWC"
-    assert scale.dtype == "int32"
 
     _, height, width, in_channels = get_const_tuple(data.shape)
     out_channels, kernel_h, kernel_w, _ = get_const_tuple(kernel.shape)
@@ -215,7 +250,7 @@ def qnn_conv2d(attrs, inputs, out_type):
     # _pick_tensordot_impl decides whether this is the case. If not, we only want to generate one
     # function (to save flash), so offset_func is a tuple of empty strings.
 
-    aligned_func, offset_func = _pick_tensordot_impl(attrs, data, kernel, num_sums, False)
+    aligned_func, offset_func = _pick_tensordot_impl(attrs, inputs, num_sums, False)
 
     # Helper functions to make pointers
     def output_ptr(buffer, y, x, c):
@@ -265,14 +300,15 @@ def schedule_qnn_conv2d(_attrs, _outs, _target):
 
 
 def qnn_depthwise_conv2d(attrs, inputs, out_type):
-    """Compute for qnn.depthwise_conv2d with NCHW layout. Works basically the same way as regular
-    conv2d - see above."""
+    """Compute for qnn.depthwise_conv2d with NCHW layout.
+
+    Works basically the same way as regular conv2d - see above.
+    """
 
     assert len(inputs) == 11
     data, kernel, _izp, _kzp, _iscale, _kscale, bias, scale = inputs[0:8]
     output_layout = attrs.out_layout
     assert output_layout == "NHWC"
-    assert scale.dtype == "int32"
 
     _, _, height, width = get_const_tuple(data.shape)
     _, out_channels, kernel_h, kernel_w = get_const_tuple(kernel.shape)
@@ -284,7 +320,7 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
 
     num_sums = 2
 
-    aligned_func, offset_func = _pick_tensordot_impl(attrs, data, kernel, num_sums, True)
+    aligned_func, offset_func = _pick_tensordot_impl(attrs, inputs, num_sums, True)
 
     # Helper functions for making pointers.
     def output_ptr(buffer, y, x, c):

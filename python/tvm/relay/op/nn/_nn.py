@@ -880,9 +880,11 @@ def convert_deformable_conv2d(attrs, inputs, tinfos, desired_layouts):
 # QNN ops
 @reg.register_alter_op_layout("add")
 def alter_op_layout_add(attrs, inputs, tinfos, out_type):
-    """Alter the layout of a add op. Useful for fusing the bias constant with an input zero point
-    constant in a previous quantized op. Only used when previous op is a quantized op, which is why
-    it lives in topi.nn.qnn."""
+    """Alter the layout of a add op.
+
+    Useful for fusing the bias constant with an input zero point constant in a previous quantized
+    op. Only used when previous op is a quantized op, which is why it lives in topi.nn.qnn.
+    """
     return topi.nn.qnn.qnn_add_alter_layout(attrs, inputs, tinfos, out_type)
 
 

@@ -61,9 +61,9 @@ def test_write_3x3_depthwise_code():
     #ifndef TENSORDOT_OPT_X1_INT16_W48_3X3_000_EXISTS
     #define TENSORDOT_OPT_X1_INT16_W48_3X3_000_EXISTS
     __attribute__((always_inline)) static inline int tensordot_opt_x1_int16_w48_3x3_000(
-        int *output, int *tensor, int *kernel, int bias, int requant_scale
+        int *output, int *tensor, int *kernel, int *bias, int *scale
     ) {
-      int sum_0 = bias;
+      int sum_0 = *bias;
 
       int tensor__y00_x00__y00_x01 = tensor[0];
       int tensor__y00_x02__unknown = tensor[1];
@@ -86,9 +86,10 @@ def test_write_3x3_depthwise_code():
       sum_0 = __builtin_arm_smlad(tensor__y02_x00__y02_x01, kernel__y02_x00__y02_x01, sum_0);
       sum_0 = __builtin_arm_smlabb(tensor__y02_x02__unknown, kernel__y02_x02__unknown, sum_0);
 
-      int requant_0 = (sum_0 * (long long) requant_scale) >> 32;
+      int scale_val = *scale;
+      int requant_0 = (sum_0 * (long long) scale_val) >> 32;
       requant_0 = (requant_0 + 1) >> 1;
-      requant_0 = __builtin_arm_ssat(requant_0 - 128, 8);
+      requant_0 = __builtin_arm_ssat(requant_0 + -128, 8);
 
       ((short*) output)[0] = (short) requant_0;
       return 0;
@@ -112,9 +113,9 @@ def test_odd_width_3x3_depthwise_strides_code():
     #ifndef TENSORDOT_OPT_X2_INT16_W49_3X3_000_2_4_EXISTS
     #define TENSORDOT_OPT_X2_INT16_W49_3X3_000_2_4_EXISTS
     __attribute__((always_inline)) static inline int tensordot_opt_x2_int16_w49_3x3_000_2_4(
-        int *output, int *tensor, int *kernel, int bias, int requant_scale
+        int *output, int *tensor, int *kernel, int *bias, int *scale
     ) {
-      int sum_0 = bias, sum_1 = bias;
+      int sum_0 = *bias, sum_1 = *bias;
 
       int tensor__y00_x00__y00_x01 = tensor[0];
       int tensor__y00_x02__y00_x03 = tensor[1];
@@ -145,12 +146,13 @@ def test_odd_width_3x3_depthwise_strides_code():
       sum_1 = __builtin_arm_smlad(tensor__y02_x02__y02_x03, kernel__y02_x00__y02_x01, sum_1);
       sum_1 = __builtin_arm_smlabb(tensor__y02_x04__unknown, kernel__y02_x02__unknown, sum_1);
 
-      int requant_0 = (sum_0 * (long long) requant_scale) >> 32;
+      int scale_val = *scale;
+      int requant_0 = (sum_0 * (long long) scale_val) >> 32;
       requant_0 = (requant_0 + 1) >> 1;
-      requant_0 = __builtin_arm_ssat(requant_0 - 128, 8);
-      int requant_1 = (sum_1 * (long long) requant_scale) >> 32;
+      requant_0 = __builtin_arm_ssat(requant_0 + -128, 8);
+      int requant_1 = (sum_1 * (long long) scale_val) >> 32;
       requant_1 = (requant_1 + 1) >> 1;
-      requant_1 = __builtin_arm_ssat(requant_1 - 128, 8);
+      requant_1 = __builtin_arm_ssat(requant_1 + -128, 8);
 
       ((short*) output)[0] = (short) requant_0;
       ((short*) output)[4] = (short) requant_1;
@@ -173,9 +175,9 @@ def test_1x1x8_convolution_code():
     #ifndef TENSORDOT_OPT_X4_INT16_W384_1X8_000_8_1_EXISTS
     #define TENSORDOT_OPT_X4_INT16_W384_1X8_000_8_1_EXISTS
     __attribute__((always_inline)) static inline int tensordot_opt_x4_int16_w384_1x8_000_8_1(
-        int *output, int *tensor, int *kernel, int bias, int requant_scale
+        int *output, int *tensor, int *kernel, int *bias, int *scale
     ) {
-      int sum_0 = bias, sum_1 = bias, sum_2 = bias, sum_3 = bias;
+      int sum_0 = *bias, sum_1 = *bias, sum_2 = *bias, sum_3 = *bias;
 
       int tensor__y00_x00__y00_x01 = tensor[0];
       int tensor__y00_x02__y00_x03 = tensor[1];
@@ -216,18 +218,19 @@ def test_1x1x8_convolution_code():
       sum_3 = __builtin_arm_smlad(tensor__y00_x1c__y00_x1d, kernel__y00_x04__y00_x05, sum_3);
       sum_3 = __builtin_arm_smlad(tensor__y00_x1e__y00_x1f, kernel__y00_x06__y00_x07, sum_3);
 
-      int requant_0 = (sum_0 * (long long) requant_scale) >> 32;
+      int scale_val = *scale;
+      int requant_0 = (sum_0 * (long long) scale_val) >> 32;
       requant_0 = (requant_0 + 1) >> 1;
-      requant_0 = __builtin_arm_ssat(requant_0 - 128, 8);
-      int requant_1 = (sum_1 * (long long) requant_scale) >> 32;
+      requant_0 = __builtin_arm_ssat(requant_0 + -128, 8);
+      int requant_1 = (sum_1 * (long long) scale_val) >> 32;
       requant_1 = (requant_1 + 1) >> 1;
-      requant_1 = __builtin_arm_ssat(requant_1 - 128, 8);
-      int requant_2 = (sum_2 * (long long) requant_scale) >> 32;
+      requant_1 = __builtin_arm_ssat(requant_1 + -128, 8);
+      int requant_2 = (sum_2 * (long long) scale_val) >> 32;
       requant_2 = (requant_2 + 1) >> 1;
-      requant_2 = __builtin_arm_ssat(requant_2 - 128, 8);
-      int requant_3 = (sum_3 * (long long) requant_scale) >> 32;
+      requant_2 = __builtin_arm_ssat(requant_2 + -128, 8);
+      int requant_3 = (sum_3 * (long long) scale_val) >> 32;
       requant_3 = (requant_3 + 1) >> 1;
-      requant_3 = __builtin_arm_ssat(requant_3 - 128, 8);
+      requant_3 = __builtin_arm_ssat(requant_3 + -128, 8);
 
       int packed_res_0 = requant_0 + (requant_1 << 16);
       int packed_res_1 = requant_2 + (requant_3 << 16);
@@ -248,17 +251,28 @@ def test_3x3x3_offset_convolution_code():
 
     To solve this 'every other' issue, we will need two different version of this function to
     alternate between. This alternation will be handled in TIR scheduling. Here, we just test the
-    version where the kernel is not word aligned."""
+    version where the kernel is not word aligned.
 
-    _, code = tensordot_int16_impl(1, (96 * 3, 3, 9), (1, 1, 1), (3, 1))
+    Also tests the requantize_shift and output_zero_point keyword args. These might be needed for
+    some ResNet models (like image classification from MLPerf Tiny).
+    """
+
+    _, code = tensordot_int16_impl(
+        1,
+        (96 * 3, 3, 9),
+        (1, 1, 1),
+        (3, 1),
+        requantize_shift=40,
+        output_zero_point=4,
+    )
     assert code == textwrap.dedent(
         """
     #ifndef TENSORDOT_OPT_X1_INT16_W288_3X9_111_EXISTS
     #define TENSORDOT_OPT_X1_INT16_W288_3X9_111_EXISTS
     __attribute__((always_inline)) static inline int tensordot_opt_x1_int16_w288_3x9_111(
-        int *output, int *tensor, int *kernel, int bias, int requant_scale
+        int *output, int *tensor, int *kernel, int *bias, int *scale
     ) {
-      int sum_0 = bias;
+      int sum_0 = *bias;
 
       int tensor__unknown__y00_x00 = tensor[0];
       int tensor__y00_x01__y00_x02 = tensor[1];
@@ -311,9 +325,10 @@ def test_3x3x3_offset_convolution_code():
       sum_0 = __builtin_arm_smlad(tensor__y02_x05__y02_x06, kernel__y02_x05__y02_x06, sum_0);
       sum_0 = __builtin_arm_smlad(tensor__y02_x07__y02_x08, kernel__y02_x07__y02_x08, sum_0);
 
-      int requant_0 = (sum_0 * (long long) requant_scale) >> 32;
+      int scale_val = *scale;
+      int requant_0 = (sum_0 * (long long) scale_val) >> 39;
       requant_0 = (requant_0 + 1) >> 1;
-      requant_0 = __builtin_arm_ssat(requant_0 - 128, 8);
+      requant_0 = __builtin_arm_ssat(requant_0 + 4, 8);
 
       ((short*) output)[1] = (short) requant_0;
       return 0;
