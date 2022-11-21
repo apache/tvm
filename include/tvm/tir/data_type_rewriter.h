@@ -145,6 +145,7 @@ class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
   using Parent::VisitStmt_;
   PrimExpr VisitExpr_(const IntImmNode* op) final;
   PrimExpr VisitExpr_(const VarNode* op) final;
+  PrimExpr VisitExpr_(const CastNode* op) final;
 
   DataType target_data_type_ = DataType::Int(64);
 };
