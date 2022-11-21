@@ -89,11 +89,11 @@ PartitionRule MakeTVMPartitionRule() {
 }
 
 /*!
- * \brief Returns the fusion style for \p compiler.
+ * \brief Returns the fusion style for default compiler.
  *
  * TODO(mbs): Defer to per-BYOC integration definition.
  */
-BYOCStyle BYOCFusionStyleForCompiler(const String& compiler) {
+BYOCStyle DefaultBYOCFusionStyleForCompiler(const String& compiler) {
   if (compiler == "cutlass" || compiler == "cublas" || compiler == "cudnn") {
     return kNoFusionBYOCStyle;
   } else if (compiler == "tensorrt") {
@@ -102,6 +102,42 @@ BYOCStyle BYOCFusionStyleForCompiler(const String& compiler) {
     return kArbitraryFusionBYOCStyle;
   }
 }
+
+/*!
+ * \brief Returns the fusion style for /p compiler.
+ *
+ * TODO(mbs): Defer to per-BYOC integration definition.
+ */
+BYOCStyle BYOCFusionStyleForCompiler(const String& compiler) {
+  tvm::transform::PassContext ctxt = tvm::transform::PassContext::Current();
+  std::string config_key = "relay.collage.byoc_fusion_style";
+  std::string compiler_id = compiler;
+  Optional<Array<String>> byoc_configs = ctxt->GetConfig(config_key, Optional<Array<String>>());
+  if (!byoc_configs.defined()) {
+    return DefaultBYOCFusionStyleForCompiler(compiler);
+  }
+  BYOCStyle byoc_fusion_style = kNoFusionBYOCStyle;
+  for(auto config_ : byoc_configs.value()) {
+      std::string byoc_str = static_cast<std::string>(config_);
+      std::string byoc_compiler = byoc_str.substr(0, byoc_str.find(".", 0));
+      if(byoc_compiler == compiler) {
+         std::string fusion_name = byoc_str.substr(byoc_str.find(".", 0)+1, byoc_str.size());
+         if (fusion_name == "NoFusion") {
+           byoc_fusion_style = kNoFusionBYOCStyle;
+         } else if (fusion_name == "TVMFusion") {
+           byoc_fusion_style = kTVMFusionBYOCStyle;
+         } else if (fusion_name == "MaxDepthFusion") {
+           byoc_fusion_style = kArbitraryFusionBYOCStyle;
+         } else {
+           ICHECK(false) << "Invalid fusion name for compiler " 
+                         << byoc_compiler << " in pass context";
+         }
+         break;
+      }
+  }  
+  return byoc_fusion_style;
+}
+
 
 /*!
  * \brief Returns the primitive combiner rules which allow for any touching candidates

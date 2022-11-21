@@ -21,4 +21,5 @@ from .collage import (
     WARMUP_MIN_REPEAT_MS,
     CostEstimator,
     MockCostEstimator,
+    CustomCostEstimator,
 )
