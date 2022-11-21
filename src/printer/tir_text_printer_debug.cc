@@ -28,8 +28,6 @@
 #include <optional>
 #include <string>
 
-#include "text_printer.h"
-
 namespace tvm {
 namespace tir {
 
@@ -85,21 +83,15 @@ Doc TIRTextPrinterDebug::NewLine() {
   return output;
 }
 
-#define X(TypeName)                                               \
-  Doc TIRTextPrinterDebug::VisitExpr_(const TypeName##Node* op) { \
-    exprs_by_line_.push_back(std::make_tuple(op, current_line_)); \
-    return TIRTextPrinter::VisitExpr_(op);                        \
-  }
-TVM_TIR_TRANSFORMS_INSTALL_DEBUG_SPANS_SUPPORTED_EXPRS
-#undef X
+Doc TIRTextPrinterDebug::VisitStmt(const tvm::tir::Stmt& n) {
+  stmts_by_line_.push_back(std::make_tuple(n.get(), current_line_));
+  return TIRTextPrinter::VisitStmt(n);
+}
 
-#define X(TypeName)                                               \
-  Doc TIRTextPrinterDebug::VisitStmt_(const TypeName##Node* op) { \
-    stmts_by_line_.push_back(std::make_tuple(op, current_line_)); \
-    return TIRTextPrinter::VisitStmt_(op);                        \
-  }
-TVM_TIR_TRANSFORMS_INSTALL_DEBUG_SPANS_SUPPORTED_STMTS
-#undef X
+Doc TIRTextPrinterDebug::VisitExpr(const PrimExpr& e) {
+  exprs_by_line_.push_back(std::make_tuple(e.get(), current_line_));
+  return TIRTextPrinter::VisitExpr(e);
+}
 
 }  // namespace tir
 }  // namespace tvm

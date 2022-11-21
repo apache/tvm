@@ -29,7 +29,6 @@
 #include <tuple>
 #include <vector>
 
-#include "../tir/transforms/install_debug_spans_ops.h"
 #include "text_printer.h"
 
 namespace tvm {
@@ -49,13 +48,8 @@ class TIRTextPrinterDebug : public TIRTextPrinter {
  private:
   Doc NewLine() override;
 
-#define X(TypeName) Doc VisitExpr_(const TypeName##Node* op) override;
-  TVM_TIR_TRANSFORMS_INSTALL_DEBUG_SPANS_SUPPORTED_EXPRS
-#undef X
-
-#define X(TypeName) Doc VisitStmt_(const TypeName##Node* op) override;
-  TVM_TIR_TRANSFORMS_INSTALL_DEBUG_SPANS_SUPPORTED_STMTS
-#undef X
+  Doc VisitStmt(const tvm::tir::Stmt& n) override;
+  Doc VisitExpr(const PrimExpr& e) override;
 
   TextMetaDataContext meta_;
 
