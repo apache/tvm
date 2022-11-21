@@ -43,12 +43,6 @@ After the build section there should be two files in *build* directory «libtvm_
 Let's push them to the device and run TVM RPC Server.
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
-
 #################################################################
 # TVM RPC Server    
 # --------------
@@ -124,6 +118,12 @@ testing.utils.install_request_hook(depth=3)
 # Load a test image
 # -----------------
 # As an example we would use classical cat image from ImageNet
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 
 from PIL import Image
 from tvm.contrib.download import download_testdata
