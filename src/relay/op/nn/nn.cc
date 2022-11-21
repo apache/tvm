@@ -35,6 +35,7 @@
 #include <tvm/topi/nn/softmax.h>
 
 #include <algorithm>
+#include <regex>
 #include <string>
 #include <vector>
 
@@ -253,6 +254,40 @@ Expr MakeDensePack(Expr data, Expr weight, tvm::String weight_layout, IndexExpr 
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_dense_pack").set_body_typed(MakeDensePack);
 
+tvm::PrimExpr InferDensePackOutShape(const std::string& weight_layout,
+                                     const TensorTypeNode* weight) {
+  std::regex blk_fmt_NCxcxn("^NC[[:digit:]]+c[[:digit:]]+n$");
+  std::regex blk_fmt_NCxnxc("^NC[[:digit:]]+n[[:digit:]]+c$");
+  std::regex blk_fmt_NCxn("^NC[[:digit:]]+n$");
+  std::regex blk_fmt_NCxc("^NC[[:digit:]]+c$");
+  std::regex blk_fmt_NC("^NC$");
+  std::regex blk_fmt_CNxcxn("^CN[[:digit:]]+c[[:digit:]]+n$");
+  std::regex blk_fmt_CNxnxc("^CN[[:digit:]]+n[[:digit:]]+c$");
+  std::regex blk_fmt_CNxn("^CN[[:digit:]]+n$");
+  std::regex blk_fmt_CNxc("^CN[[:digit:]]+c$");
+  std::regex blk_fmt_CN("^CN$");
+
+  tvm::PrimExpr ret;
+  if (std::regex_match(weight_layout, blk_fmt_NCxn) ||
+      std::regex_match(weight_layout, blk_fmt_NCxnxc)) {
+    ret = weight->shape[0] * weight->shape[2];
+  } else if (std::regex_match(weight_layout, blk_fmt_NCxcxn)) {
+    ret = weight->shape[0] * weight->shape[3];
+  } else if (std::regex_match(weight_layout, blk_fmt_NCxc) ||
+             std::regex_match(weight_layout, blk_fmt_NC)) {
+    ret = weight->shape[0];
+  } else if (std::regex_match(weight_layout, blk_fmt_CNxn) ||
+             std::regex_match(weight_layout, blk_fmt_CNxnxc)) {
+    ret = weight->shape[1] * weight->shape[2];
+  } else if (std::regex_match(weight_layout, blk_fmt_CNxcxn)) {
+    ret = weight->shape[1] * weight->shape[3];
+  } else if (std::regex_match(weight_layout, blk_fmt_CNxc) ||
+             std::regex_match(weight_layout, blk_fmt_CN)) {
+    ret = weight->shape[1];
+  }
+  return ret;
+}
+
 bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 3);
@@ -264,10 +299,22 @@ bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   ICHECK(param != nullptr);
 
   ICHECK_EQ(data->shape.size(), 2) << "Only 2D data is supported";
-  ICHECK(weight->shape.size() == 3 || weight->shape.size() == 4) << "Expect weight to be 3D or 4D";
+  ICHECK(weight->shape.size() == 2 || weight->shape.size() == 3 || weight->shape.size() == 4)
+      << "Expect weight to be 2D, 3D or 4D";
 
   Array<tvm::PrimExpr> oshape = data->shape;
-  oshape.Set(1, weight->shape[0] * weight->shape[2]);
+
+  const int64_t* units_val = tir::as_const_int(param->units);
+  if (units_val != nullptr) {
+    oshape.Set(1, param->units);
+  } else {
+    /*
+     * TODO(Billishyahao): we should crop the padding element
+     * otherwise correctness of output shape can not be guaranteed.
+     * In this case, it is mandatory to specify actual units.
+     */
+    oshape.Set(1, InferDensePackOutShape(param->weight_layout, weight));
+  }
 
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
