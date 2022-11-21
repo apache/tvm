@@ -129,12 +129,12 @@ BYOCStyle BYOCFusionStyleForCompiler(const String& compiler) {
          } else if (fusion_name == "MaxDepthFusion") {
            byoc_fusion_style = kArbitraryFusionBYOCStyle;
          } else {
-           ICHECK(false) << "Invalid fusion name for compiler " 
+           ICHECK(false) << "Invalid fusion name for compiler "
                          << byoc_compiler << " in pass context";
          }
          break;
       }
-  }  
+  }
   return byoc_fusion_style;
 }
 
