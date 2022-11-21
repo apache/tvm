@@ -602,6 +602,11 @@ def test_matmul_type_check():
     y = relay.nn.matmul(x, w)
     yy = run_infer_type(y)
 
+    i0 = relay.var("i0", shape=(1, 1), dtype="float32")
+    i1 = relay.var("i1", shape=(1,), dtype="float32")
+    with pytest.raises(tvm.TVMError):
+        run_infer_type(relay.nn.matmul(i0, i1))
+
 
 @tvm.testing.uses_gpu
 def test_matmul(executor_kind):

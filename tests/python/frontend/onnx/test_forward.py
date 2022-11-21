@@ -1298,10 +1298,7 @@ def test_matmul(target, dev):
     """test_matmul"""
 
     def test_one_matmul(a_shape, b_shape):
-        if len(a_shape) == 1:
-            out_shape = [b_shape[1]]
-        else:
-            out_shape = [a_shape[0], b_shape[1]]
+        out_shape = np.matmul(np.zeros(a_shape), np.zeros(b_shape)).shape
 
         a_array = np.random.uniform(size=a_shape).astype("float32")
         b_array = np.random.uniform(size=b_shape).astype("float32")
@@ -1323,6 +1320,8 @@ def test_matmul(target, dev):
 
     test_one_matmul((4, 3), (3, 4))
     test_one_matmul((3,), (3, 1))
+    test_one_matmul((1, 3), (3,))
+    test_one_matmul((3,), (3,))
 
 
 @tvm.testing.parametrize_targets
