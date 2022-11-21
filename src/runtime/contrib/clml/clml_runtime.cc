@@ -1150,8 +1150,8 @@ class CLMLRuntime : public JSONRuntimeBase {
     auto bias = std::make_shared<cl_ml_tensor_memory_desc_qcom>();
     if (has_bias) {
       auto bias_dims = get_tensor_dims(nodes_[node.GetInputs()[2].id_]);
-      bias = MakeCLMLTensorFromJSONEntry(node.GetInputs()[2], {1, bias_dims.c, 1, 1},
-                                         CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
+      bias = MakeCLMLTensorFromJSONEntry(node.GetInputs()[2], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
+                                         cl_dtype);
     } else {
       cl_ml_tensor_desc_qcom desc = {};
       desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
