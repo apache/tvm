@@ -165,6 +165,8 @@ if(MSVC)
         string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
       endif(${flag_var} MATCHES "/MD")
     endforeach(flag_var)
+    # Static linking. cmake behavior changed in 3.15 making this necessary.
+    add_compile_options(/MT)
   endif()
   # Disable common MSVC warnings
   # Integer conversion warnings(e.g. int64 to int)
