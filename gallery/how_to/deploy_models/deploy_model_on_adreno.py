@@ -39,7 +39,7 @@ See the following instructions on how to build it.
 
 `Deploy to Adreno GPU <https://tvm.apache.org/docs/how_to/deploy/adreno.html>`_
 
-After the build section there should be two files in *build* directory «libtvm_runtime.so» and «tvm_rpc». 
+After the build section there should be two files in *build* directory «libtvm_runtime.so» and «tvm_rpc».
 Let's push them to the device and run TVM RPC Server.
 """
 
@@ -222,6 +222,7 @@ def convert_to_dtype(mod, dtype):
         with tvm.transform.PassContext(opt_level=3):
             mod = seq(mod)
     return mod
+
 
 #################################################################
 # Let's choose "float16_acc32" for example.
