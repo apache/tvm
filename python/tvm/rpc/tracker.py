@@ -349,7 +349,14 @@ class TrackerServerHandler(object):
             for value in conn.put_values:
                 _, _, _, key = value
                 rpc_key = key.split(":")[0]
-                self._scheduler_map[rpc_key].remove(value)
+                try:
+                    smap = self._scheduler_map[rpc_key]
+                except KeyError as e:
+                    # someone removed it already
+                    pass
+                else:
+                    smap.remove(value)
+
 
     def stop(self):
         """Safely stop tracker."""
