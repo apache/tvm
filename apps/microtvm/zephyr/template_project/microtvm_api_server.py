@@ -98,8 +98,7 @@ CMAKE_BOOL_MAP = dict(
 )
 
 CMSIS_PATH_ERROR = (
-    "cmsis_path is not defined! Please pass it as"
-    "an option or provide it with setting `CMSIS_PATH` env variable."
+    "cmsis_path is not defined! Please pass it as" "an option or set the `CMSIS_PATH` env variable."
 )
 
 
@@ -510,7 +509,7 @@ class Handler(server.ProjectAPIHandler):
 
     def _generate_cmake_args(
         self,
-        mlf_extracted_path,
+        mlf_extracted_path: pathlib.Path,
         board: str,
         use_fvp: bool,
         west_cmd: str,
@@ -555,7 +554,7 @@ class Handler(server.ProjectAPIHandler):
         verbose = options.get("verbose")
 
         recommended_heap_size = _get_recommended_heap_size_bytes(options)
-        heap_size_bytes = options.get("heap_size_bytes")
+        heap_size_bytes = options.get("heap_size_bytes") or recommended_heap_size
         board_mem_size = _get_board_mem_size_bytes(options)
 
         compile_definitions = options.get("compile_definitions")
@@ -641,15 +640,12 @@ class Handler(server.ProjectAPIHandler):
 
                     cmake_f.write(line)
 
-                heap_size = recommended_heap_size
-                if heap_size_bytes:
-                    heap_size = heap_size_bytes
-                    if board_mem_size is not None:
-                        assert (
-                            heap_size < board_mem_size
-                        ), f"Heap size {heap_size} is larger than memory size {board_mem_size} on this board."
+                if board_mem_size is not None:
+                    assert (
+                        heap_size_bytes < board_mem_size
+                    ), f"Heap size {heap_size_bytes} is larger than memory size {board_mem_size} on this board."
                 cmake_f.write(
-                    f"target_compile_definitions(app PUBLIC -DHEAP_SIZE_BYTES={heap_size})\n"
+                    f"target_compile_definitions(app PUBLIC -DHEAP_SIZE_BYTES={heap_size_bytes})\n"
                 )
 
                 if compile_definitions:
