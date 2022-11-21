@@ -250,7 +250,7 @@ def compile_and_benchmark(label, model, targets, tmp_dir):
 # Preprocessing pass to alter the layouts for CLML compiler target
 def clml_preprocessing(mod):
     for _var in mod.get_global_vars():
-        if _var.name_hint == 'main':
+        if _var.name_hint == "main":
             continue
         new_fn = mod[_var.name_hint]
         if "Compiler" in new_fn.attrs.keys() and new_fn.attrs["Compiler"] != "clml":

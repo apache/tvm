@@ -117,10 +117,10 @@ BYOCStyle BYOCFusionStyleForCompiler(const String& compiler) {
     return DefaultBYOCFusionStyleForCompiler(compiler);
   }
   BYOCStyle byoc_fusion_style = kNoFusionBYOCStyle;
-  for(auto config_ : byoc_configs.value()) {
+  for (auto config_ : byoc_configs.value()) {
       std::string byoc_str = static_cast<std::string>(config_);
       std::string byoc_compiler = byoc_str.substr(0, byoc_str.find(".", 0));
-      if(byoc_compiler == compiler) {
+      if (byoc_compiler == compiler) {
          std::string fusion_name = byoc_str.substr(byoc_str.find(".", 0)+1, byoc_str.size());
          if (fusion_name == "NoFusion") {
            byoc_fusion_style = kNoFusionBYOCStyle;
