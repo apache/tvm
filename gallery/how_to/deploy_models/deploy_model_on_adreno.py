@@ -44,7 +44,7 @@ Let's push them to the device and run TVM RPC Server.
 """
 
 ######################################################################
-# TVM RPC Server    
+# TVM RPC Server
 # --------------
 # To get the hash of the device use:
 #
@@ -185,43 +185,46 @@ from tvm.relay.op import register_mixed_precision_conversion
 
 conv2d_acc = "float32"
 
+
 @register_mixed_precision_conversion("nn.conv2d", level=11)
 def conv2d_mixed_precision_rule(call_node: "relay.Call", mixed_precision_type: str):
-	global conv2d_acc
-	return [
-		relay.transform.mixed_precision.MIXED_PRECISION_ALWAYS,
-		conv2d_acc,
-		mixed_precision_type,
-	] 
+    global conv2d_acc
+    return [
+        relay.transform.mixed_precision.MIXED_PRECISION_ALWAYS,
+        conv2d_acc,
+        mixed_precision_type,
+    ]
+
 
 @register_mixed_precision_conversion("nn.dense", level=11)
 def conv2d_mixed_precision_rule(call_node: "relay.Call", mixed_precision_type: str):
-	global conv2d_acc
-	return [
-		relay.transform.mixed_precision.MIXED_PRECISION_ALWAYS,
-		conv2d_acc,
-		mixed_precision_type,
-	]
- 
+    global conv2d_acc
+    return [
+        relay.transform.mixed_precision.MIXED_PRECISION_ALWAYS,
+        conv2d_acc,
+        mixed_precision_type,
+    ]
+
+
 #################################################################
 # and also define the conversion function itself
 def convert_to_dtype(mod, dtype):
-	# downcast to float16
-	if dtype == "float16" or dtype == "float16_acc32":
-		global conv2d_acc
-		conv2d_acc = "float16" if dtype == "float16" else "float32"
-		from tvm.ir import IRModule
-  
-		mod = IRModule.from_expr(mod)
-		seq = tvm.transform.Sequential(
-			[relay.transform.InferType(), relay.transform.ToMixedPrecision()]
-		)
-		with tvm.transform.PassContext(opt_level=3):
-			mod = seq(mod)
-	return mod
+    # downcast to float16
+    if dtype == "float16" or dtype == "float16_acc32":
+        global conv2d_acc
+        conv2d_acc = "float16" if dtype == "float16" else "float32"
+        from tvm.ir import IRModule
+
+        mod = IRModule.from_expr(mod)
+        seq = tvm.transform.Sequential(
+            [relay.transform.InferType(), relay.transform.ToMixedPrecision()]
+        )
+        with tvm.transform.PassContext(opt_level=3):
+            mod = seq(mod)
+    return mod
 
 #################################################################
-# Let's choose "float16_acc32" for example. 
+# Let's choose "float16_acc32" for example.
 dtype = "float16_acc32"
 mod = convert_to_dtype(mod["main"], dtype)
 dtype = "float32" if dtype == "float32" else "float16"
@@ -230,19 +233,19 @@ print(mod)
 
 #################################################################
 # As you can see in the IR, the architecture now contains cast operations, which are
-# needed to convert to FP16 precision. 
+# needed to convert to FP16 precision.
 # You can also use "float16" or "float32" precisions as other dtype options.
 
 #################################################################
 # Compile the model with relay
 # ----------------------------
-# Specify Adreno target before compiling to generate texture 
-# leveraging kernels and get all the benefits of textures 
+# Specify Adreno target before compiling to generate texture
+# leveraging kernels and get all the benefits of textures
 
 target = tvm.target.Target("opencl -device=adreno", host="llvm -mtriple=arm64-linux-android")
 
 with tvm.transform.PassContext(opt_level=3):
-	lib = relay.build(mod, target=target, params=params)
+    lib = relay.build(mod, target=target, params=params)
 
 #################################################################
 # Deploy the Model Remotely by RPC
@@ -306,10 +309,9 @@ print("\t#5:", synset[top5[5 - 1]])
 print("\t", top5)
 ImageNetClassifier = False
 for k in top_categories[-5:]:
-	if "cat" in synset[k]:
-		ImageNetClassifier = True
+    if "cat" in synset[k]:
+        ImageNetClassifier = True
 assert ImageNetClassifier, "Failed ImageNet classifier validation check"
 
 print("Evaluate inference time cost...")
 print(m.benchmark(ctx, number=1, repeat=10))
-
