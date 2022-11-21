@@ -1,4 +1,6 @@
 """
+.. _tutorial-deploy-model-on-adreno:
+
 Deploy the Pretrained Model on Adreno
 =======================================
 **Author**: Daniil Barinov
@@ -133,7 +135,7 @@ img = np.expand_dims(img, 0)
 
 ######################################################################
 # Load pretrained Pytorch model
-# ---------------------------
+# -----------------------------
 # Create a Relay graph from a Pytorch ResNet-18 model
 import os
 import torch
@@ -255,7 +257,7 @@ m = graph_executor.GraphModule(rlib["default"](ctx))
 
 ######################################################################
 # Run inference
-# -----------------------
+# -------------
 # We now can set inputs, infer our model and get predictions as output
 m.set_input(input_name, tvm.nd.array(img.astype("float32")))
 m.run()
