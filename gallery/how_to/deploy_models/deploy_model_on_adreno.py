@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 """
 .. _tutorial-deploy-model-on-adreno:
 
@@ -164,13 +181,13 @@ mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 # Precisions
 # ----------
 # Since TVM support Mixed Precision, we need to register mixed_precision_conversion:
-from  tvm.relay.op  import  register_mixed_precision_conversion
+from tvm.relay.op import register_mixed_precision_conversion
 
 conv2d_acc = "float32"
 
 @register_mixed_precision_conversion("nn.conv2d", level=11)
-def  conv2d_mixed_precision_rule(call_node: "relay.Call", mixed_precision_type: str):
-	global  conv2d_acc
+def conv2d_mixed_precision_rule(call_node: "relay.Call", mixed_precision_type: str):
+	global conv2d_acc
 	return [
 		relay.transform.mixed_precision.MIXED_PRECISION_ALWAYS,
 		conv2d_acc,
@@ -178,8 +195,8 @@ def  conv2d_mixed_precision_rule(call_node: "relay.Call", mixed_precision_type: 
 	] 
 
 @register_mixed_precision_conversion("nn.dense", level=11)
-def  conv2d_mixed_precision_rule(call_node: "relay.Call", mixed_precision_type: str):
-	global  conv2d_acc
+def conv2d_mixed_precision_rule(call_node: "relay.Call", mixed_precision_type: str):
+	global conv2d_acc
 	return [
 		relay.transform.mixed_precision.MIXED_PRECISION_ALWAYS,
 		conv2d_acc,
@@ -188,12 +205,12 @@ def  conv2d_mixed_precision_rule(call_node: "relay.Call", mixed_precision_type: 
  
 ######################################################################
 # and also define the conversion function itself
-def  convert_to_dtype(mod, dtype):
+def convert_to_dtype(mod, dtype):
 	# downcast to float16
-	if  dtype == "float16"  or  dtype == "float16_acc32":
-		global  conv2d_acc
-		conv2d_acc = "float16"  if  dtype == "float16"  else  "float32"
-		from  tvm.ir  import  IRModule
+	if dtype == "float16" or dtype == "float16_acc32":
+		global conv2d_acc
+		conv2d_acc = "float16" if dtype == "float16" else "float32"
+		from tvm.ir import IRModule
 		mod = IRModule.from_expr(mod)
 		seq = tvm.transform.Sequential(
 			[
@@ -201,13 +218,13 @@ def  convert_to_dtype(mod, dtype):
 				relay.transform.ToMixedPrecision()
 			]
 		)
-		with  tvm.transform.PassContext(opt_level=3):
+		with tvm.transform.PassContext(opt_level=3):
 			mod = seq(mod)
-	return  mod
+	return mod
 
 ######################################################################
 # Let's choose "float16_acc32" for example. 
-dtype="float16_acc32"
+dtype = "float16_acc32"
 mod = convert_to_dtype(mod["main"], dtype)
 dtype = "float32"  if  dtype == "float32"  else  "float16"
 
@@ -226,7 +243,7 @@ print(mod)
 
 target = tvm.target.Target("opencl -device=adreno", host="llvm -mtriple=arm64-linux-android")
 
-with  tvm.transform.PassContext(opt_level=3):
+with tvm.transform.PassContext(opt_level=3):
 	lib = relay.build(
 		mod, target=target, params=params
 	)
@@ -268,9 +285,9 @@ tvm_output = m.get_output(0)
 # -----------------------------------------
 # This piece of code displays the top-1 and top-5 predictions, as
 # well as provides information about the model's performance
-from  os.path  import  join, isfile
-from  matplotlib  import  pyplot  as  plt
-from  tvm.contrib  import  download
+from os.path import join, isfile
+from matplotlib import pyplot as plt
+from tvm.contrib import download
 
 # Download ImageNet categories
 categ_url = "https://github.com/uwsampl/web-data/raw/main/vta/models/"
@@ -300,3 +317,4 @@ assert  ImageNetClassifier, "Failed ImageNet classifier validation check"
 
 print("Evaluate inference time cost...")
 print(m.benchmark(ctx, number=1, repeat=10))
+
