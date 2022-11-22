@@ -305,11 +305,7 @@ def _build_function_memory_map(function_metadata):
         # function (in bytes)
         input_dict = {}
         for input_param in main_func_metadata.relay_primfuncs[target].params:
-            if hasattr(input_param, "checked_type"):
-                input_dict[input_param.name_hint] = _create_type_metadata(input_param.checked_type)
-            else:
-                # TODO: maybe fill checked_type here?
-                input_dict[input_param.name_hint] = {"size": 0, "dtype": ""}
+            input_dict[input_param.name_hint] = _create_type_metadata(input_param.checked_type)
         target_main_entries[int(target.get_target_device_type())]["inputs"] = input_dict
 
         output_dict = {}
