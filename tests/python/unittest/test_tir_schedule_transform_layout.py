@@ -960,7 +960,7 @@ def test_index_map_dtype_legalize():
     def index_map_nchw32c_nchw8h8w32c(n_batch, channel, height, width, channel_32):
         return [n_batch, channel, height // 8, width // 8, height % 8, width % 8, channel_32]
 
-    sch = tir.Schedule(Conv2dNCHW32c, debug_mask="all")
+    sch = tir.Schedule(Conv2dNCHW32c)
 
     conv2d_block = sch.get_block("conv2d_NCHWc_int8")
     sch.cache_read(conv2d_block, 0, "global.vtcm")
