@@ -34,8 +34,7 @@ TVM_REGISTER_OBJECT_TYPE(CustomCostEstimatorNode);
 
 Cost CustomCostEstimatorNode::Estimate(const IRModule& mod, const Target& target) const {
   // TODO(mbs): Eventually should be abstract. For now bounce to the Python local impl.
-  static const runtime::PackedFunc* estimate_seconds =
-      runtime::Registry::Get(py_fn_estimator_);
+  static const runtime::PackedFunc* estimate_seconds = runtime::Registry::Get(py_fn_estimator_);
   ICHECK(estimate_seconds);
   const double value = (*estimate_seconds)(mod, target);
   if (std::isinf(value)) {
@@ -47,17 +46,15 @@ Cost CustomCostEstimatorNode::Estimate(const IRModule& mod, const Target& target
   }
 }
 
-
 CustomCostEstimator::CustomCostEstimator(String py_fn_estimator) {
   auto node = make_object<CustomCostEstimatorNode>();
   node->py_fn_estimator_ = std::move(py_fn_estimator);
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("relay.collage.CustomCostEstimator")
-    .set_body_typed([](String py_fn_estimator) {
-      return CustomCostEstimator(std::move(py_fn_estimator));
-    });
+TVM_REGISTER_GLOBAL("relay.collage.CustomCostEstimator").set_body_typed([](String py_fn_estimator) {
+  return CustomCostEstimator(std::move(py_fn_estimator));
+});
 
 }  // namespace collage
 }  // namespace relay
