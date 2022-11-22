@@ -20,6 +20,8 @@
 import urllib.request
 import logging
 
+from urllib.parse import quote
+
 LOGGER = None
 
 
@@ -33,17 +35,29 @@ URL_MAP = {
     "http://download.tensorflow.org/models/object_detection/ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03.tar.gz": f"{BASE}/models/object_detection/ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03.tar.gz",
     "http://download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224.tgz": f"{BASE}/models/tflite_11_05_08/mobilenet_v2_1.0_224.tgz",
     "http://images.cocodataset.org/zips/val2017.zip": f"{BASE}/cocodataset-val2017.zip",
-    "http://pjreddie.com/media/files/alexnet.weights?raw=true": f"{BASE}/media/files/alexnet.weights?raw=true",
-    "http://pjreddie.com/media/files/alexnet.weights?raw=true": f"{BASE}/media/files/alexnet.weights?raw=true",
-    "http://pjreddie.com/media/files/extraction.weights?raw=true": f"{BASE}/media/files/extraction.weights?raw=true",
-    "http://pjreddie.com/media/files/extraction.weights?raw=true": f"{BASE}/media/files/extraction.weights?raw=true",
-    "http://pjreddie.com/media/files/resnet50.weights?raw=true": f"{BASE}/media/files/resnet50.weights?raw=true",
-    "http://pjreddie.com/media/files/resnext50.weights?raw=true": f"{BASE}/media/files/resnext50.weights?raw=true",
-    "http://pjreddie.com/media/files/yolov2.weights?raw=true": f"{BASE}/media/files/yolov2.weights?raw=true",
-    "http://pjreddie.com/media/files/yolov3.weights?raw=true": f"{BASE}/media/files/yolov3.weights?raw=true",
+    "http://pjreddie.com/media/files/alexnet.weights?raw=true": f"{BASE}/media/files/alexnet.weights"
+    + quote("?raw=true"),
+    "http://pjreddie.com/media/files/alexnet.weights?raw=true": f"{BASE}/media/files/alexnet.weights"
+    + quote("?raw=true"),
+    "http://pjreddie.com/media/files/extraction.weights?raw=true": f"{BASE}/media/files/extraction.weights"
+    + quote("?raw=true"),
+    "http://pjreddie.com/media/files/extraction.weights?raw=true": f"{BASE}/media/files/extraction.weights"
+    + quote("?raw=true"),
+    "http://pjreddie.com/media/files/resnet50.weights?raw=true": f"{BASE}/media/files/resnet50.weights"
+    + quote("?raw=true"),
+    "http://pjreddie.com/media/files/resnext50.weights?raw=true": f"{BASE}/media/files/resnext50.weights"
+    + quote("?raw=true"),
+    "http://pjreddie.com/media/files/yolov2.weights?raw=true": f"{BASE}/media/files/yolov2.weights"
+    + quote("?raw=true"),
+    "http://pjreddie.com/media/files/yolov3.weights?raw=true": f"{BASE}/media/files/yolov3.weights"
+    + quote("?raw=true"),
     "http://www.fit.vutbr.cz/~imikolov/rnnlm/simple-examples.tgz": f"{BASE}/imikolov/rnnlm/simple-examples.tgz",
     "https://bj.bcebos.com/x2paddle/models/paddle_resnet50.tar": f"{BASE}/bcebos-paddle_resnet50.tar",
     "https://data.deepai.org/stanfordcars.zip": f"{BASE}/deepai-stanfordcars.zip",
+    "https://download.pytorch.org/models/quantized/mobilenet_v2_qnnpack_37f702c5.pth": f"{BASE}/models/quantized/mobilenet_v2_qnnpack_37f702c5.pth",
+    "https://github.com/ARM-software/ML-zoo/blob/48f458af1e9065d9aad2ad94d24b58d6e7c00817/models/keyword_spotting/ds_cnn_small/tflite_int16/ds_cnn_quantized.tflite?raw=true": f"{BASE}/ARM-software/ML-zoo/blob/48f458af1e9065d9aad2ad94d24b58d6e7c00817/models/keyword_spotting/ds_cnn_small/tflite_int16/ds_cnn_quantized.tflite"
+    + quote("?raw=true"),
+    "https://raw.githubusercontent.com/tlc-pack/tophub/main/tophub/adreno_v0.01.log": f"{BASE}/tlc-pack/tophub/main/tophub/adreno_v0.01.log",
     "https://docs-assets.developer.apple.com/coreml/models/MobileNet.mlmodel": f"{BASE}/2022-10-05/MobileNet.mlmodel",
     "https://docs-assets.developer.apple.com/coreml/models/Resnet50.mlmodel": f"{BASE}/coreml/models/Resnet50.mlmodel",
     "https://download.pytorch.org/models/deeplabv3_mobilenet_v3_large-fc3c493d.pth": f"{BASE}/models/deeplabv3_mobilenet_v3_large-fc3c493d.pth",
@@ -68,15 +82,22 @@ URL_MAP = {
     "https://github.com/ARM-software/ML-zoo/raw/48a22ee22325d15d2371a6df24eb7d67e21dcc97/models/keyword_spotting/cnn_small/tflite_int8/cnn_s_quantized.tflite": f"{BASE}/ARM-software/ML-zoo/raw/48a22ee22325d15d2371a6df24eb7d67e21dcc97/models/keyword_spotting/cnn_small/tflite_int8/cnn_s_quantized.tflite",
     "https://github.com/ARM-software/ML-zoo/raw/master/models/keyword_spotting/cnn_small/tflite_int8//cnn_s_quantized.tflite": f"{BASE}/ARM-software/ML-zoo/raw/master/models/keyword_spotting/cnn_small/tflite_int8//cnn_s_quantized.tflite",
     "https://github.com/czh978/models_for_tvm_test/raw/main/tflite_graph_with_postprocess.pb": f"{BASE}/czh978/models_for_tvm_test/raw/main/tflite_graph_with_postprocess.pb",
-    "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true": f"{BASE}/dmlc/mxnet.js/blob/main/data/cat.png?raw=true",
+    "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true": f"{BASE}/dmlc/mxnet.js/blob/main/data/cat.png"
+    + quote("?raw=true"),
     "https://github.com/dmlc/mxnet.js/raw/main/data/cat.png": f"{BASE}/dmlc/mxnet.js/raw/main/data/cat.png",
-    "https://github.com/dmlc/web-data/blob/main/darknet/cfg/yolov3.cfg?raw=true": f"{BASE}/dmlc/web-data/blob/main/darknet/cfg/yolov3.cfg?raw=true",
-    "https://github.com/dmlc/web-data/blob/main/darknet/data/arial.ttf?raw=true": f"{BASE}/dmlc/web-data/blob/main/darknet/data/arial.ttf?raw=true",
-    "https://github.com/dmlc/web-data/blob/main/darknet/data/coco.names?raw=true": f"{BASE}/dmlc/web-data/blob/main/darknet/data/coco.names?raw=true",
-    "https://github.com/dmlc/web-data/blob/main/darknet/data/dog.jpg?raw=true": f"{BASE}/dmlc/web-data/blob/main/darknet/data/dog.jpg?raw=true",
+    "https://github.com/dmlc/web-data/blob/main/darknet/cfg/yolov3.cfg?raw=true": f"{BASE}/dmlc/web-data/blob/main/darknet/cfg/yolov3.cfg"
+    + quote("?raw=true"),
+    "https://github.com/dmlc/web-data/blob/main/darknet/data/arial.ttf?raw=true": f"{BASE}/dmlc/web-data/blob/main/darknet/data/arial.ttf"
+    + quote("?raw=true"),
+    "https://github.com/dmlc/web-data/blob/main/darknet/data/coco.names?raw=true": f"{BASE}/dmlc/web-data/blob/main/darknet/data/coco.names"
+    + quote("?raw=true"),
+    "https://github.com/dmlc/web-data/blob/main/darknet/data/dog.jpg?raw=true": f"{BASE}/dmlc/web-data/blob/main/darknet/data/dog.jpg"
+    + quote("?raw=true"),
     "https://github.com/dmlc/web-data/blob/main/darknet/data/dog.jpg": f"{BASE}/dog.jpg",
-    "https://github.com/dmlc/web-data/blob/main/darknet/data/person.jpg?raw=true": f"{BASE}/dmlc/web-data/blob/main/darknet/data/person.jpg?raw=true",
-    "https://github.com/dmlc/web-data/blob/main/darknet/lib/libdarknet2.0.so?raw=true": f"{BASE}/dmlc/web-data/blob/main/darknet/lib/libdarknet2.0.so?raw=true",
+    "https://github.com/dmlc/web-data/blob/main/darknet/data/person.jpg?raw=true": f"{BASE}/dmlc/web-data/blob/main/darknet/data/person.jpg"
+    + quote("?raw=true"),
+    "https://github.com/dmlc/web-data/blob/main/darknet/lib/libdarknet2.0.so?raw=true": f"{BASE}/dmlc/web-data/blob/main/darknet/lib/libdarknet2.0.so"
+    + quote("?raw=true"),
     "https://github.com/dmlc/web-data/blob/main/gluoncv/detection/street_small.jpg?raw=true": f"{BASE}/2022-10-05/small_street_raw.jpg",
     "https://github.com/dmlc/web-data/raw/main/darknet/cfg/yolov3.cfg": f"{BASE}/dmlc/web-data/raw/main/darknet/cfg/yolov3.cfg",
     "https://github.com/dmlc/web-data/raw/main/darknet/data/arial.ttf": f"{BASE}/dmlc/web-data/raw/main/darknet/data/arial.ttf",
@@ -101,15 +122,23 @@ URL_MAP = {
     "https://github.com/onnx/models/raw/bd206494e8b6a27b25e5cf7199dbcdbfe9d05d1c/vision/classification/resnet/model/resnet50-v2-7.onnx": f"{BASE}/onnx/models/raw/bd206494e8b6a27b25e5cf7199dbcdbfe9d05d1c/vision/classification/resnet/model/resnet50-v2-7.onnx",
     "https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv2-7.onnx": f"{BASE}/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv2-7.onnx",
     "https://github.com/onnx/models/raw/main/vision/classification/resnet/model/resnet50-v2-7.onnx": f"{BASE}/2022-10-05/resnet50-v2-7.onnx",
-    "https://github.com/pjreddie/darknet/blob/master/cfg/alexnet.cfg?raw=true": f"{BASE}/pjreddie/darknet/blob/master/cfg/alexnet.cfg?raw=true",
-    "https://github.com/pjreddie/darknet/blob/master/cfg/extraction.cfg?raw=true": f"{BASE}/pjreddie/darknet/blob/master/cfg/extraction.cfg?raw=true",
-    "https://github.com/pjreddie/darknet/blob/master/cfg/resnet50.cfg?raw=true": f"{BASE}/pjreddie/darknet/blob/master/cfg/resnet50.cfg?raw=true",
-    "https://github.com/pjreddie/darknet/blob/master/cfg/resnext50.cfg?raw=true": f"{BASE}/pjreddie/darknet/blob/master/cfg/resnext50.cfg?raw=true",
-    "https://github.com/pjreddie/darknet/blob/master/cfg/yolov2.cfg?raw=true": f"{BASE}/pjreddie/darknet/blob/master/cfg/yolov2.cfg?raw=true",
+    "https://github.com/pjreddie/darknet/blob/master/cfg/alexnet.cfg?raw=true": f"{BASE}/pjreddie/darknet/blob/master/cfg/alexnet.cfg"
+    + quote("?raw=true"),
+    "https://github.com/pjreddie/darknet/blob/master/cfg/extraction.cfg?raw=true": f"{BASE}/pjreddie/darknet/blob/master/cfg/extraction.cfg"
+    + quote("?raw=true"),
+    "https://github.com/pjreddie/darknet/blob/master/cfg/resnet50.cfg?raw=true": f"{BASE}/pjreddie/darknet/blob/master/cfg/resnet50.cfg"
+    + quote("?raw=true"),
+    "https://github.com/pjreddie/darknet/blob/master/cfg/resnext50.cfg?raw=true": f"{BASE}/pjreddie/darknet/blob/master/cfg/resnext50.cfg"
+    + quote("?raw=true"),
+    "https://github.com/pjreddie/darknet/blob/master/cfg/yolov2.cfg?raw=true": f"{BASE}/pjreddie/darknet/blob/master/cfg/yolov2.cfg"
+    + quote("?raw=true"),
     "https://github.com/pjreddie/darknet/blob/master/cfg/yolov3-tiny.cfg?raw=true": f"{BASE}/2022-10-05/yolov3-tiny-raw.cfg",
-    "https://github.com/pjreddie/darknet/blob/master/cfg/yolov3.cfg?raw=true": f"{BASE}/pjreddie/darknet/blob/master/cfg/yolov3.cfg?raw=true",
-    "https://github.com/SebastianBoblestETAS/nn_models/blob/ce49c5de64889493161ca4194a20e0fd5eb707e6/lstm_1_in_3_out_2_ts_4.tflite?raw=true": f"{BASE}/SebastianBoblestETAS/nn_models/blob/ce49c5de64889493161ca4194a20e0fd5eb707e6/lstm_1_in_3_out_2_ts_4.tflite?raw=true",
-    "https://github.com/shicai/MobileNet-Caffe/blob/master/mobilenet_v2.caffemodel?raw=true": f"{BASE}/shicai/MobileNet-Caffe/blob/master/mobilenet_v2.caffemodel?raw=true",
+    "https://github.com/pjreddie/darknet/blob/master/cfg/yolov3.cfg?raw=true": f"{BASE}/pjreddie/darknet/blob/master/cfg/yolov3.cfg"
+    + quote("?raw=true"),
+    "https://github.com/SebastianBoblestETAS/nn_models/blob/ce49c5de64889493161ca4194a20e0fd5eb707e6/lstm_1_in_3_out_2_ts_4.tflite?raw=true": f"{BASE}/SebastianBoblestETAS/nn_models/blob/ce49c5de64889493161ca4194a20e0fd5eb707e6/lstm_1_in_3_out_2_ts_4.tflite"
+    + quote("?raw=true"),
+    "https://github.com/shicai/MobileNet-Caffe/blob/master/mobilenet_v2.caffemodel?raw=true": f"{BASE}/shicai/MobileNet-Caffe/blob/master/mobilenet_v2.caffemodel"
+    + quote("?raw=true"),
     "https://github.com/shicai/MobileNet-Caffe/raw/master/mobilenet_v2_deploy.prototxt": f"{BASE}/shicai/MobileNet-Caffe/raw/master/mobilenet_v2_deploy.prototxt",
     "https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite": f"{BASE}/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite",
     "https://github.com/tlc-pack/web-data/raw/25fe99fb00329a26bd37d3dca723da94316fd34c/testdata/microTVM/model/keyword_spotting_quant.tflite": f"{BASE}/tlc-pack/web-data/raw/25fe99fb00329a26bd37d3dca723da94316fd34c/testdata/microTVM/model/keyword_spotting_quant.tflite",
@@ -195,9 +224,6 @@ class TvmRequestHook(urllib.request.Request):
             raise RuntimeError(msg)
 
         new_url = URL_MAP[url]
-        # Just handle the '?raw=true' query
-        new_url = new_url.replace("?", "%3F")
-        new_url = new_url.replace("=", "%3D")
         LOGGER.info(f"Mapped URL {url} to {new_url}")
         super().__init__(new_url, *args, **kwargs)
 
