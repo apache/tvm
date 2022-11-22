@@ -14,16 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
 import sys
-import numpy as np
 
+import numpy as np
+import pytest
 import tvm
 import tvm.testing
 import tvm.tir.tensor_intrin.cuda
-from tvm import tir, te, TVMError
-from tvm.script import tir as T
+from tvm import TVMError, te, tir
 from tvm.meta_schedule.testing import te_workload
+from tvm.script import tir as T
 from tvm.testing.tir import mma_schedule
 from tvm.tir.tensor_intrin.cuda import (
     LDMATRIX_16x16_A_DYN_INTRIN,
@@ -263,7 +263,7 @@ def transformed_three_stage_compute(
                         T.writes(B[0:2, tx, 0])
                         B[i, tx, 0] = A[tx, i] * T.float32(2)
                     with T.block():
-                        T.where(1 <= i)
+                        T.where(i == 1)
                         T.reads(B[0:2, tx, 0])
                         T.writes(C[0:2, tx, 0])
                         C[(i + 1) % 2, tx, 0] = B[(i + 1) % 2, tx, 0] + T.float32(2)
@@ -1116,7 +1116,7 @@ def test_simple_compute_async():
     mod = tvm.tir.transform.InjectSoftwarePipeline()(sch.mod)
 
     @T.prim_func
-    def ref(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+    def ref(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
         for tx in T.thread_binding(16, thread="threadIdx.x"):
             with T.block():
                 T.reads(A[tx, 0:16])
@@ -1127,7 +1127,7 @@ def test_simple_compute_async():
                     T.writes(B[0, tx, 0])
                     with T.attr(0, "async_commit_queue_scope", 0):
                         with T.attr(0, "async_scope", 1):
-                            B[0 % 2, tx, 0] = A[tx, 0] * T.float32(2)
+                            B[T.FloorMod(0, 2), tx, 0] = A[tx, 0] * T.float32(2)
                 with T.block():
                     T.reads(A[tx, 1:16], B[0:2, tx, 0])
                     T.writes(B[0:2, tx, 0], C[tx, 0:15])
@@ -1147,11 +1147,11 @@ def test_simple_compute_async():
                                 with T.attr(0, "async_wait_inflight_count", 1):
                                     C[tx, i - 1 + 1] = B[(i - 1 + 1) % 2, tx, 0] + T.float32(1)
                 with T.block():
-                    T.reads(B[15 % 2, tx, 0])
+                    T.reads(B[T.FloorMod(15, 2), tx, 0])
                     T.writes(C[tx, 15])
                     with T.attr(0, "async_wait_queue_scope", 0):
                         with T.attr(0, "async_wait_inflight_count", 0):
-                            C[tx, 15] = B[15 % 2, tx, 0] + T.float32(1)
+                            C[tx, 15] = B[T.FloorMod(15, 2), tx, 0] + T.float32(1)
 
     tvm.ir.assert_structural_equal(mod["main"], ref, True)
 
@@ -1349,7 +1349,7 @@ def test_three_stage_compute_two_stage_async():
                                 with T.attr(0, "async_scope", 1):
                                     B[i % 2, tx, 0] = A[tx, i] * T.float32(2)
                         with T.block():
-                            T.where(1 <= i and i - 1 < 16)
+                            T.where(i == 1 and i - 1 < 16)
                             T.reads(B[(i + 1) % 2, tx, 0])
                             T.writes(C[(i + 1) % 2, tx, 0])
                             with T.attr(0, "async_commit_queue_scope", 1):

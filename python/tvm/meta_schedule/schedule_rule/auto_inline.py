@@ -65,3 +65,20 @@ class AutoInline(ScheduleRule):
             require_ordered,
             disallow_op,
         )
+
+
+@register_object("meta_schedule.InlineConstantScalars")
+class InlineConstantScalars(ScheduleRule):
+    """Inline blocks that produce a constant scalar.
+
+    Such blocks get in the way of ReverseComputeInline during AutoInline, since they are also
+    counted as a producer block unless they are inlined first. So it is recommended to run
+    InlineConstantScalars before AutoInline.
+    """
+
+    def __init__(
+        self,
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.ScheduleRuleInlineConstantScalars,  # type: ignore # pylint: disable=no-member
+        )

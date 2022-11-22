@@ -20,6 +20,7 @@
 #include "./te_compiler_cache.h"
 
 #include <tvm/driver/driver_api.h>
+#include <tvm/ir/name_supply.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/meta_schedule/database.h>
 #include <tvm/relay/analysis.h>
@@ -44,6 +45,7 @@
 
 #include <functional>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <utility>
@@ -52,6 +54,8 @@
 #include "../../printer/text_printer.h"
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
+#include "../src/meta_schedule/module_equality.h"
+#include "../src/meta_schedule/trace_apply.h"
 #include "../transforms/meta_schedule_layout_rewrite.h"
 #include "utils.h"
 
@@ -201,8 +205,10 @@ class QnnPatternMatcher {
 // Lowers Relay primitive Function to TE Compute
 class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
  public:
-  explicit LowerToTECompute(Target target)
-      : target_(target), device_copy_op_(Op::Get("device_copy")) {}
+  LowerToTECompute(Target target, NameSupply constants_name_supply)
+      : target_(target),
+        device_copy_op_(Op::Get("device_copy")),
+        constants_name_supply_(constants_name_supply) {}
 
   Array<te::Tensor> Lower(const Function& relay_func) {
     for (Var param : relay_func->params) {
@@ -277,7 +283,7 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
       std::stringstream ss;
       std::string s = readable_name_stream_.str();
       std::replace(s.begin(), s.end(), '.', '_');
-      ss << s << "_constant_" << const_index++;
+      ss << constants_name_supply_->FreshName(s + "_constant");
       tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype, ss.str());
       constant_tensors_[op] = tensor;
       return {tensor};
@@ -291,10 +297,10 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
     pattern_matcher_.Register(call_node);
 
     Array<te::Tensor> inputs;
-    int count_tuple = 0;
+    // int count_tuple = 0;
     for (Expr arg : call_node->args) {
       if (arg->checked_type().as<TupleTypeNode>()) {
-        ++count_tuple;
+        // ++count_tuple;
       }
       for (te::Tensor tensor : VisitExpr(arg)) {
         inputs.push_back(tensor);
@@ -389,14 +395,13 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
 
   tvm::Target target_;
   std::ostringstream readable_name_stream_;
-  // Index of the global constants
-  static int const_index;
   // Cache device copy op for equivalence checking to reduce registry lookup
   // overhead for each invocation of call node when retrieving schedules.
   const Op& device_copy_op_;
+  // A NameSupply object passed from a caller, used to assign unique names to constants
+  // across different invocations of LowerToTECompute.
+  NameSupply constants_name_supply_;
 };
-
-int LowerToTECompute::const_index = 0;
 
 using namespace tvm::tir;
 
@@ -461,7 +466,9 @@ class AllocateConstReplaceConstant : public StmtExprMutator {
 // Construct a schedule for a given Relay primitive function and target.
 class ScheduleBuilder : public ExprVisitor {
  public:
-  explicit ScheduleBuilder(Target target) : target_(target) {
+  explicit ScheduleBuilder(Target target)
+      : target_(target),
+        mod_eq_structural_(meta_schedule::ModuleEquality::Create("ignore-ndarray")) {
     // Whether to use auto_scheduler schedule.
     use_auto_scheduler_ = backend::IsAutoSchedulerEnabled();
     if (backend::IsMetaScheduleEnabled()) {
@@ -473,8 +480,9 @@ class ScheduleBuilder : public ExprVisitor {
     }
   }
 
-  CachedFunc Create(const Function& relay_func, GlobalVarSupply global_var_supply) {
-    LowerToTECompute lower_te_compute(target_);
+  CachedFunc Create(const Function& relay_func, GlobalVarSupply global_var_supply,
+                    NameSupply constant_name_supply) {
+    LowerToTECompute lower_te_compute(target_, constant_name_supply);
     Array<te::Tensor> tensor_outs = lower_te_compute.Lower(relay_func);
     Array<te::Tensor> fn_inputs = lower_te_compute.fn_inputs_;
     VisitExpr(relay_func->body);
@@ -614,9 +622,19 @@ class ScheduleBuilder : public ExprVisitor {
                 MetaScheduleLayoutRewriter::LayoutQueuePush(index_map);
               }
             }
+
             Schedule sch = Schedule::Traced(query_mod, /*seed=*/-1, /*debug_mask=*/0,
                                             tir::ScheduleErrorRenderLevel::kDetail);
-            record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
+
+            if (!mod_eq_structural_->Equal(query_mod, opt_record.value()->workload->mod)) {
+              // When the database lookup succeeds while structural equality check fails,
+              // it implies that the anchor block based equality has been used during tuning.
+              // The trace in the record cannot directly be applied to this query module.
+              meta_schedule::ScheduleUsingAnchorTrace(sch, record->trace, target_);
+            } else {
+              record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
+            }
+
             IRModule mod = sch->mod();
             ICHECK_EQ(mod->functions.size(), 1);
             mod = tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_ndarray_rewrite*/ false)(
@@ -698,6 +716,7 @@ class ScheduleBuilder : public ExprVisitor {
   int anchor_op_pattern_{0};
   bool use_auto_scheduler_;
   Optional<meta_schedule::Database> database_;
+  std::unique_ptr<meta_schedule::ModuleEquality> mod_eq_structural_;
 };
 
 /*!
@@ -708,8 +727,8 @@ class ScheduleBuilder : public ExprVisitor {
  *  The funcs field in cache is not yet populated.
  */
 CachedFunc PrimFuncFor(const Function& source_func, const Target& target,
-                       GlobalVarSupply global_var_supply) {
-  return ScheduleBuilder(target).Create(source_func, global_var_supply);
+                       GlobalVarSupply global_var_supply, NameSupply constant_name_supply) {
+  return ScheduleBuilder(target).Create(source_func, global_var_supply, constant_name_supply);
 }
 
 // Creates shape function from functor.
@@ -1050,8 +1069,9 @@ CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,
 }
 
 std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompute(
-    const Function& source_func, Target target, bool return_inputs) {
-  LowerToTECompute lower_te_compute(target);
+    const Function& source_func, Target target, NameSupply constant_name_supply,
+    bool return_inputs) {
+  LowerToTECompute lower_te_compute(target, constant_name_supply);
   Array<te::Tensor> outputs = lower_te_compute.Lower(source_func);
   // Following ScheduleBuilder, remove placeholder ops from outputs.
   tvm::Array<te::Tensor> tensor_outs;
@@ -1076,7 +1096,7 @@ std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompu
 
 TVM_REGISTER_GLOBAL("relay.backend.LowerToTE").set_body_typed([](Function prim_func) {
   auto tgt = tvm::Target("ext_dev");
-  LowerToTECompute lower_te_compute(tgt);
+  LowerToTECompute lower_te_compute(tgt, NameSupply(""));
   auto outputs = lower_te_compute.Lower(prim_func);
   return CachedFunc(tgt, GlobalVar(lower_te_compute.candidate_name_), lower_te_compute.fn_inputs_,
                     outputs, te::Schedule(), tir::PrimFunc(), {},

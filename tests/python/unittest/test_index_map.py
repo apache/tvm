@@ -91,7 +91,7 @@ padding_test_case = tvm.testing.parameter(
             inverse=lambda i, j: [4 * i + j],
             pre_shape=[15],
             post_shape=[4, 4],
-            padding=lambda i, j: tvm.tir.And(i == 3, j >= 3),
+            padding=lambda i, j: tvm.tir.And(i == 3, tvm.runtime.convert(3) == j),
         ),
         "left_padding": dict(
             forward=lambda i: [(i + 1) // 4, (i + 1) % 4],
@@ -107,7 +107,7 @@ padding_test_case = tvm.testing.parameter(
             post_shape=[4, 4],
             padding=lambda i, j: tvm.tir.Or(
                 tvm.tir.And(i == 0, j < 1),
-                tvm.tir.And(i == 3, j >= 3),
+                tvm.tir.And(i == 3, tvm.runtime.convert(3) == j),
             ),
         ),
         "dynamic_size": dict(
@@ -136,7 +136,7 @@ padding_test_case = tvm.testing.parameter(
             padding=lambda i_outer, j_outer, i_inner, j_inner: tvm.tir.Or(
                 tvm.tir.Or(
                     tvm.tir.And(i_outer == 0, i_inner < 1),
-                    tvm.tir.And(i_outer == 3, i_inner >= 3),
+                    tvm.tir.And(i_outer == 3, tvm.runtime.convert(3) == i_inner),
                 ),
                 tvm.tir.Or(
                     tvm.tir.And(j_outer == 0, j_inner < 5),
@@ -177,7 +177,7 @@ padding_test_case = tvm.testing.parameter(
             inverse=lambda i, j: [i * 4 + j],
             pre_shape=[3],
             post_shape=[1, 4],
-            padding=lambda i, j: 3 <= j,
+            padding=lambda i, j: tvm.runtime.convert(3) == j,
         ),
     }
 )

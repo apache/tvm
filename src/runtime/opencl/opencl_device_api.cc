@@ -25,6 +25,8 @@
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
+#include <sstream>
+
 #include "opencl_common.h"
 
 namespace tvm {
@@ -33,6 +35,7 @@ namespace cl {
 
 std::string GetPlatformInfo(cl_platform_id pid, cl_platform_info param_name);
 std::string GetDeviceInfo(cl_device_id pid, cl_device_info param_name);
+std::string GetOpenCLVersion(cl_device_id pid);
 
 struct ImageInfo {
   size_t origin[3] = {};
@@ -111,7 +114,7 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
     *rv = static_cast<int>(index < devices.size());
     return;
   }
-  ICHECK_LT(index, devices.size()) << "Invalid device id " << index;
+  ICHECK_LT(index, devices.size()) << "Invalid device id " << index << ". " << GetError();
   switch (kind) {
     case kExist:
       break;
@@ -139,17 +142,9 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       *rv = static_cast<int64_t>(value);
       break;
     }
-    case kComputeVersion: {
-      // String returned is "OpenCL $MAJOR.$MINOR $VENDOR_INFO".  To
-      // match other implementations, we want to return "$MAJOR.$MINOR"
-      std::string ret = GetDeviceInfo(devices[index], CL_DEVICE_VERSION);
-
-      const size_t version_start = 7;  // Length of initial "OpenCL " prefix to skip
-      const size_t version_end = ret.find(' ', version_start);
-      *rv = ret.substr(version_start, version_end - version_start);
+    case kComputeVersion:
+      *rv = GetOpenCLVersion(devices[index]);
       break;
-    }
-      return;
     case kDeviceName:
       *rv = GetDeviceInfo(devices[index], CL_DEVICE_NAME);
       break;
@@ -200,7 +195,7 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
 void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
                                       DLDataType type_hint) {
   this->Init();
-  ICHECK(context != nullptr) << "No OpenCL device";
+  ICHECK(context != nullptr) << "No OpenCL device. " << GetError();
   cl_int err_code;
   cl::BufferDescriptor* desc = new cl::BufferDescriptor;
   // CL_INVALID_BUFFER_SIZE if size is 0.
@@ -245,7 +240,7 @@ void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
 cl_mem OpenCLWorkspace::AllocTexture(Device dev, size_t width, size_t height,
                                      DLDataType type_hint) {
   this->Init();
-  ICHECK(context != nullptr) << "No OpenCL device";
+  ICHECK(context != nullptr) << "No OpenCL device. " << GetError();
   cl_int err_code;
   cl_channel_type cl_type = DTypeToOpenCLChannelType(type_hint);
   cl_image_format format = {CL_RGBA, cl_type};
@@ -373,10 +368,21 @@ std::string GetPlatformInfo(cl_platform_id pid, cl_platform_info param_name) {
 std::string GetDeviceInfo(cl_device_id pid, cl_device_info param_name) {
   size_t ret_size;
   OPENCL_CALL(clGetDeviceInfo(pid, param_name, 0, nullptr, &ret_size));
-  std::string ret;
-  ret.resize(ret_size);
-  OPENCL_CALL(clGetDeviceInfo(pid, param_name, ret_size, &ret[0], nullptr));
+  char* info = new char[ret_size];
+  OPENCL_CALL(clGetDeviceInfo(pid, param_name, ret_size, info, nullptr));
+  std::string ret = info;
+  delete[] info;
   return ret;
+}
+
+std::string GetOpenCLVersion(cl_device_id pid) {
+  // String returned is "OpenCL $MAJOR.$MINOR $VENDOR_INFO".  To
+  // match other implementations, we want to return "$MAJOR.$MINOR"
+  std::string ret = GetDeviceInfo(pid, CL_DEVICE_VERSION);
+
+  const size_t version_start = 7;  // Length of initial "OpenCL " prefix to skip
+  const size_t version_end = ret.find(' ', version_start);
+  return ret.substr(version_start, version_end - version_start);
 }
 
 std::vector<cl_platform_id> GetPlatformIDs() {
@@ -432,16 +438,44 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
       LOG(WARNING) << "Using CPU OpenCL device";
       devices_matched = cl::GetDeviceIDs(platform_id, "cpu");
     }
-    if (devices_matched.size() > 0) {
+    std::vector<cl_device_id> supported_devices = {};
+    auto get_version_str = [](int version) {
+      std::ostringstream out;
+      out.precision(1);
+      out << std::fixed << version / 100.f;
+      return out.str();
+    };
+    for (auto& device : devices_matched) {
+      std::string ver = GetOpenCLVersion(device);
+      int opencl_version = std::stod(ver) * 100;
+      if (opencl_version >= CL_TARGET_OPENCL_VERSION) {
+        supported_devices.push_back(device);
+      } else {
+        std::string dev_msg = GetDeviceInfo(device, CL_DEVICE_NAME) +
+                              " has OpenCL version == " + get_version_str(opencl_version);
+        LOG(WARNING) << "TVM supports devices with OpenCL version >= "
+                     << get_version_str(CL_TARGET_OPENCL_VERSION) << ", device " << dev_msg
+                     << ". This device will be ignored.";
+
+        if (noDevicesErrorMsg.empty()) {
+          noDevicesErrorMsg =
+              "Probably this error happen because TVM supports devices with OpenCL version >= " +
+              get_version_str(CL_TARGET_OPENCL_VERSION) + ". We found the following devices:\n";
+        }
+        noDevicesErrorMsg += "\t" + dev_msg + "\n";
+      }
+    }
+    if (supported_devices.size() > 0) {
       this->platform_id = platform_id;
       this->platform_name = cl::GetPlatformInfo(platform_id, CL_PLATFORM_NAME);
       this->device_type = device_type;
-      this->devices = devices_matched;
+      this->devices = supported_devices;
       break;
     }
   }
   if (this->platform_id == nullptr) {
     LOG(WARNING) << "No OpenCL device";
+    initialized_ = true;
     return;
   }
   cl_int err_code;

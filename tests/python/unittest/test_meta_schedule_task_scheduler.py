@@ -20,6 +20,7 @@ import weakref
 from typing import Set
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import meta_schedule as ms
@@ -352,6 +353,89 @@ def test_meta_schedule_task_scheduler_multiple_gradient_based():
         )
 
 
+def test_meta_schedule_task_scheduler_gradient_based_with_null_search_strategy():
+    """
+    When search strategy of one task returns empty list of candidates or None,
+    the scheduler should continue working as normal for other tasks
+    """
+
+    @ms.derived_object
+    class NullSearchStrategy(ms.search_strategy.PySearchStrategy):
+        def __init__(self, rounds_with_empty_candidates):
+            self.rounds_with_empty_candidates = rounds_with_empty_candidates
+
+        def _initialize_with_tune_context(self, context: "TuneContext") -> None:
+            pass
+
+        def pre_tuning(self, *args, **kwargs):
+            pass
+
+        def post_tuning(self):
+            pass
+
+        def generate_measure_candidates(self):
+            """
+            Returns empty list to indicate there is no result from search, while
+            the search isn't ended.
+            """
+            if self.rounds_with_empty_candidates:
+                self.rounds_with_empty_candidates -= 1
+                return []
+            return None
+
+        def notify_runner_results(self, *args, **kwargs):
+            pass
+
+        def clone(self):
+            return NullSearchStrategy(n=self.n)
+
+    tasks = [
+        ms.TuneContext(
+            MatmulModule,
+            target=tvm.target.Target("llvm"),
+            space_generator=_schedule_matmul,
+            search_strategy=NullSearchStrategy(rounds_with_empty_candidates=5),
+            task_name="Matmul",
+            rand_state=42,
+        ),
+        ms.TuneContext(
+            BatchMatmulModule,
+            target=tvm.target.Target("llvm"),
+            space_generator=_schedule_batch_matmul,
+            search_strategy=NullSearchStrategy(rounds_with_empty_candidates=0),
+            task_name="BatchMatmul",
+            rand_state=0x114514,
+        ),
+        ms.TuneContext(
+            MatmulReluModule,
+            target=tvm.target.Target("llvm"),
+            space_generator=_schedule_matmul,
+            search_strategy=ms.search_strategy.ReplayTrace(),
+            task_name="MatmulRelu",
+            rand_state=0xDEADBEEF,
+        ),
+    ]
+    database = ms.database.MemoryDatabase()
+    gradient_based = ms.task_scheduler.GradientBased()
+    gradient_based.tune(
+        tasks,
+        task_weights=[1.0, 1.0, 1.0],
+        builder=DummyBuilder(),
+        runner=DummyRunner(),
+        database=database,
+        measure_callbacks=[ms.measure_callback.AddToDatabase()],
+        max_trials_global=30,
+        max_trials_per_task=10,
+        num_trials_per_iter=6,
+        cost_model=None,
+    )
+
+    assert len(database) == 10
+    assert len(database.get_top_k(database.commit_workload(MatmulModule), 100)) == 0
+    assert len(database.get_top_k(database.commit_workload(BatchMatmulModule), 100)) == 0
+    assert len(database.get_top_k(database.commit_workload(MatmulReluModule), 100)) == 10
+
+
 if __name__ == "__main__":
     test_meta_schedule_task_scheduler_single()
     test_meta_schedule_task_scheduler_multiple()
@@ -359,3 +443,4 @@ if __name__ == "__main__":
     test_meta_schedule_task_scheduler_avoid_cyclic()
     test_meta_schedule_task_scheduler_override_next_task_id_only()
     test_meta_schedule_task_scheduler_multiple_gradient_based()
+    test_meta_schedule_task_scheduler_gradient_based_with_null_search_strategy()

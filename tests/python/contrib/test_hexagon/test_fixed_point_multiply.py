@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test Fixed Point Multiply on Hexagon."""
+
 import re
 import numpy as np
 
@@ -21,6 +23,7 @@ import tvm.testing
 from tvm import relay
 from tvm.relay.backend import Executor
 from tvm.contrib.hexagon.session import Session
+from tvm.contrib.hexagon.pytest_plugin import HEXAGON_AOT_LLVM_TARGET
 
 from .infrastructure import get_hexagon_target
 
@@ -28,7 +31,8 @@ from .infrastructure import get_hexagon_target
 @tvm.testing.requires_hexagon
 def test_vmpy_intrinsic_presence():
     """
-    check intrinsic lowering for fixed_point_multiply operation
+    check intrinsic lowering for fixed_point_multiply operation.
+    GraphExecutor is used here since get_source("asm") is not supported with aot.
     """
     ishape = (1, 128)
     a = relay.var("a", relay.TensorType(ishape, "int32"))
@@ -61,7 +65,7 @@ def test_vmpy_intrinsic_presence():
 
 def build_module(relay_mod, target):
     params = {}
-    executor = Executor("graph", {"link-params": True})
+    executor = Executor("aot", {"link-params": True})
     lowered = tvm.relay.build(
         relay_mod,
         tvm.target.Target(target, host=target),
@@ -71,69 +75,99 @@ def build_module(relay_mod, target):
     return lowered
 
 
-def run_module(graph_mod, inputs):
-    graph_mod.set_input(**inputs)
-    graph_mod.run()
-    output = graph_mod.get_output(0).numpy()
+def run_module(mod, inputs):
+    mod.set_input(**inputs)
+    mod.run()
+    output = mod.get_output(0).numpy()
     return output
 
 
-@tvm.testing.requires_hexagon
-def test_fixed_point_multiply_positive_shift(hexagon_session: Session):
-    ishape = (6, 32)
-    a = relay.var("a", relay.TensorType(ishape, "int32"))
-    multiplier, shift = (1395864320, 1)  # 1.3
-    fpm = relay.fixed_point_multiply(a, multiplier, shift)
-    relay_mod = tvm.IRModule.from_expr(fpm)
+class TestFixedPointMultiply:
+    """Fixed point Multiply test class"""
 
-    with tvm.transform.PassContext(opt_level=3):
-        # Compile for Hexagon...
-        hexagon_lowered = build_module(relay_mod, tvm.target.hexagon("v68"))
+    in_scale_const, out_scale_const = tvm.testing.parameters(
+        (1.3, 30.0),
+        (1.37, 1.0),
+        (0.6, 1.0),
+        ((1.7, 0.6), 1.0),
+        ((0.007, 1.9), 1.0),
+    )
 
-        # Compile for LLVM...
-        llvm_lowered = build_module(relay_mod, tvm.target.Target("llvm"))
+    multiplier, shift = tvm.testing.parameters(
+        (1288490240, -2),  # 0.15
+        (1395864320, 1),  # 1.3
+        (1288490188, 0),  # 0.6
+    )
 
-    data_in = np.arange(-96, 96).reshape(ishape)
-    inputs = {"a": data_in}
+    @tvm.testing.requires_hexagon
+    def test_fixed_point_multiply(self, hexagon_session: Session, multiplier: int, shift: int):
+        """Fixed point multiply test."""
+        ishape = (6, 32)
+        a = relay.var("a", relay.TensorType(ishape, "int32"))
+        fpm = relay.fixed_point_multiply(a, multiplier, shift)
+        relay_mod = tvm.IRModule.from_expr(fpm)
 
-    # Run hexagon...
-    graph_mod = hexagon_session.get_executor_from_factory(hexagon_lowered)
-    hexagon_output = run_module(graph_mod, inputs)
+        with tvm.transform.PassContext(opt_level=3):
+            # Compile for Hexagon...
+            hexagon_lowered = build_module(relay_mod, HEXAGON_AOT_LLVM_TARGET)
 
-    # Run llvm...
-    llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
-    expected_output = run_module(llvm_graph_mod, inputs)
+            # Compile for LLVM...
+            llvm_lowered = build_module(relay_mod, tvm.target.Target("llvm"))
 
-    tvm.testing.assert_allclose(hexagon_output, expected_output)
+        data_in = np.arange(-96, 96).reshape(ishape)
+        inputs = {"a": data_in}
 
+        # Run hexagon...
+        hexagon_mod = hexagon_session.get_executor_from_factory(hexagon_lowered)
+        hexagon_output = run_module(hexagon_mod, inputs)
 
-@tvm.testing.requires_hexagon
-def test_fixed_point_multiply_negative_shift(hexagon_session: Session):
-    ishape = (6, 32)
-    a = relay.var("a", relay.TensorType(ishape, "int32"))
-    multiplier, shift = (1288490240, -2)  # 0.15
-    fpm = relay.fixed_point_multiply(a, multiplier, shift)
-    relay_mod = tvm.IRModule.from_expr(fpm)
+        # Run llvm...
+        llvm_mod = tvm.runtime.executor.AotModule(llvm_lowered["default"](tvm.cpu(0)))
+        expected_output = run_module(llvm_mod, inputs)
 
-    with tvm.transform.PassContext(opt_level=3):
-        # Compile for Hexagon...
-        hexagon_lowered = build_module(relay_mod, tvm.target.hexagon("v68"))
+        tvm.testing.assert_allclose(hexagon_output, expected_output)
 
-        # Compile for LLVM...
-        llvm_lowered = build_module(relay_mod, tvm.target.Target("llvm"))
+    @tvm.testing.requires_hexagon
+    def test_per_channel(self, hexagon_session: Session, in_scale_const, out_scale_const):
+        """Per channel multiply test."""
+        ishape = [1, 128, 56, 56]
+        axis = 1
+        a = relay.var("a", shape=ishape, dtype="int32")
 
-    data_in = np.arange(-96, 96).reshape(ishape)
-    inputs = {"a": data_in}
+        # Make list of input scales from in_scale_const parameter.
+        if isinstance(in_scale_const, tuple):
+            in_scale = list(in_scale_const) * (ishape[axis] // len(in_scale_const))
+        else:
+            in_scale = [in_scale_const] * ishape[axis]
+        assert len(in_scale) == ishape[axis]
 
-    # Run hexagon...
-    graph_mod = hexagon_session.get_executor_from_factory(hexagon_lowered)
-    hexagon_output = run_module(graph_mod, inputs)
+        # qnn.requantize is lowered to fixed_point_multiply if zp == 0 and in_dtype == out_dtype.
+        iscale = relay.const(in_scale)
+        izero = relay.const(0)
+        oscale = relay.const(out_scale_const)
+        ozero = relay.const(0)
+        op = relay.qnn.op.requantize(a, iscale, izero, oscale, ozero, axis=axis, out_dtype="int32")
+        mod = tvm.IRModule.from_expr(op)
 
-    # Run llvm...
-    llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
-    expected_output = run_module(llvm_graph_mod, inputs)
+        with tvm.transform.PassContext(opt_level=3):
+            # Compile for Hexagon...
+            hexagon_lowered = build_module(mod, HEXAGON_AOT_LLVM_TARGET)
 
-    tvm.testing.assert_allclose(hexagon_output, expected_output, atol=1)
+            # Compile for LLVM...
+            llvm_lowered = build_module(mod, tvm.target.Target("llvm"))
+
+        a_np = np.random.randint(-1000, 1000, size=np.prod(ishape)).reshape(ishape)
+        inputs = {"a": a_np}
+
+        # Run hexagon...
+        hexagon_mod = hexagon_session.get_executor_from_factory(hexagon_lowered)
+        hexagon_output = run_module(hexagon_mod, inputs)
+
+        # Run llvm...
+        llvm_mod = tvm.runtime.executor.AotModule(llvm_lowered["default"](tvm.cpu(0)))
+        expected_output = run_module(llvm_mod, inputs)
+
+        tvm.testing.assert_allclose(hexagon_output, expected_output)
 
 
 if __name__ == "__main__":

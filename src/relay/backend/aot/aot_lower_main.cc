@@ -493,13 +493,18 @@ class AOTMainLowerer : public MixedModeVisitor {
         Array<tir::Var>(main_signature_.begin() + input_vars_.size(),
                         main_signature_.begin() + input_vars_.size() + return_sid_.size());
     dict_attrs.Set("output_vars", output_vars);
+    Array<String> device_names;
+    for (const auto& it : devices_) {
+      device_names.push_back(it.first);
+    }
+    dict_attrs.Set("devices", device_names);
 
     tir::Stmt device_activations = GenerateAllDeviceHook("Activate");
     tir::Stmt device_deactivations = GenerateAllDeviceHook("Deactivate");
     tir::Stmt final_body = tir::SeqStmt({device_activations, body, device_deactivations});
 
     // Make the PrimFunc
-    return tir::PrimFunc(main_signature_, final_body, VoidType(), main_buffer_map_, {},
+    return tir::PrimFunc(main_signature_, final_body, VoidType(), main_buffer_map_,
                          DictAttrs(dict_attrs));
   }
 

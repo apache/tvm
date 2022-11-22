@@ -19,38 +19,37 @@
 """Test depth_to_space slice op for hexagon"""
 
 import numpy as np
-import pytest
 
 import tvm
 from tvm import te
 import tvm.testing
 from tvm.topi.hexagon.slice_ops.depth_to_space import d2s_compute, d2s_schedule
 from tvm.topi.testing import depth_to_space_python
+from tvm.contrib.hexagon import allocate_hexagon_array
 
-from ..infrastructure import allocate_hexagon_array, transform_numpy, get_hexagon_target
-
-
-d2s_fp16_tests = (
-    ((1, 8, 8, 256), 2, "CDR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
-    ((1, 8, 8, 1024), 4, "CDR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
-    ((1, 16, 16, 256), 2, "CDR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
-    ((1, 16, 16, 1024), 4, "CDR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
-    ((1, 8, 8, 256), 2, "DCR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
-    ((1, 8, 8, 1024), 4, "DCR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
-    ((1, 16, 16, 256), 2, "DCR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
-    ((1, 16, 16, 1024), 4, "DCR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
-)
-
-d2s_uint8_tests = (
-    ((1, 8, 8, 256), 2, "CDR", "uint8", "nhwc-8h8w32c-2d", "nhwc-8h8w32c-2d"),
-    ((1, 8, 8, 1024), 4, "CDR", "uint8", "nhwc-8h8w32c-2d", "nhwc-8h8w32c-2d"),
-    ((1, 8, 8, 256), 2, "DCR", "uint8", "nhwc-8h8w32c-2d", "nhwc-8h8w32c-2d"),
-    ((1, 8, 8, 1024), 4, "DCR", "uint8", "nhwc-8h8w32c-2d", "nhwc-8h8w32c-2d"),
-)
+from ..infrastructure import transform_numpy, get_hexagon_target
 
 
 class TestD2SSlice:
     """Test class that defines the Depth to Space slice test"""
+
+    d2s_fp16_tests = (
+        ((1, 8, 8, 256), 2, "CDR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
+        ((1, 8, 8, 1024), 4, "CDR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
+        ((1, 16, 16, 256), 2, "CDR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
+        ((1, 16, 16, 1024), 4, "CDR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
+        ((1, 8, 8, 256), 2, "DCR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
+        ((1, 8, 8, 1024), 4, "DCR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
+        ((1, 16, 16, 256), 2, "DCR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
+        ((1, 16, 16, 1024), 4, "DCR", "float16", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d"),
+    )
+
+    d2s_uint8_tests = (
+        ((1, 8, 8, 256), 2, "CDR", "uint8", "nhwc-8h8w32c-2d", "nhwc-8h8w32c-2d"),
+        ((1, 8, 8, 1024), 4, "CDR", "uint8", "nhwc-8h8w32c-2d", "nhwc-8h8w32c-2d"),
+        ((1, 8, 8, 256), 2, "DCR", "uint8", "nhwc-8h8w32c-2d", "nhwc-8h8w32c-2d"),
+        ((1, 8, 8, 1024), 4, "DCR", "uint8", "nhwc-8h8w32c-2d", "nhwc-8h8w32c-2d"),
+    )
 
     (input_shape, block_size, mode, dtype, input_layout, output_layout,) = tvm.testing.parameters(
         *d2s_fp16_tests,
@@ -93,11 +92,11 @@ class TestD2SSlice:
         transformed_ref_output_np,
     ):
         """Top level testing function for depth to space"""
-        Input = te.placeholder(input_shape, name="Input", dtype=dtype)
+        input_tensor = te.placeholder(input_shape, name="input_tensor", dtype=dtype)
 
-        Output = d2s_compute(Input, block_size, "NHWC", mode)
+        output = d2s_compute(input_tensor, block_size, "NHWC", mode)
 
-        tir_s = d2s_schedule(Input, Output, input_layout, output_layout)
+        tir_s = d2s_schedule(input_tensor, output, input_layout, output_layout)
 
         input_data = allocate_hexagon_array(
             hexagon_session.device,
@@ -114,7 +113,10 @@ class TestD2SSlice:
         )
         with tvm.transform.PassContext(opt_level=3):
             runtime_module = tvm.build(
-                tir_s.mod, [Input, Output], target=get_hexagon_target("v69"), name="depth_to_space"
+                tir_s.mod,
+                [input_tensor, output],
+                target=get_hexagon_target("v69"),
+                name="depth_to_space",
             )
         mod = hexagon_session.load_module(runtime_module)
 

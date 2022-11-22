@@ -19,6 +19,7 @@
 
 import tvm
 from tvm import te, topi
+from ..utils import saturate
 from ...utils import get_const_tuple
 from ...nn.utils import get_pad_tuple
 from ...nn.pad import pad
@@ -31,6 +32,11 @@ def clip_cast(val, dtype):
     const_min = tvm.tir.min_value(dtype)
     const_max = tvm.tir.max_value(dtype)
     return te.max(tvm.te.min(val, const_max), const_min).astype(dtype)
+
+
+# Return True if given Tensor is scalar constant value.
+def is_constant(tensor: te.Tensor):
+    return tensor.ndim == 0
 
 
 def get_qnn_param(param, indices, axis):
@@ -62,7 +68,7 @@ def default_schedule(outs):
     return s
 
 
-def qnn_quantize(data, output_scale, output_zero_point, axis, out_dtype):
+def qnn_quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
     """Compute for qnn.quantize
 
     Q_output = clamp((round(input_tensor/output_scale) + output_zero_point),
@@ -101,7 +107,7 @@ def schedule_qnn_quantize(outs):
     return default_schedule(outs)
 
 
-def qnn_dequantize(data, input_scale, input_zero_point, axis):
+def qnn_dequantize(data, input_scale, input_zero_point, axis=-1):
     """Compute for qnn.dequantize
 
     fp_output = input_scale * (Q_input - input_zero_point)
@@ -134,7 +140,7 @@ def schedule_qnn_dequantize(outs):
     return default_schedule(outs)
 
 
-def qnn_requantize(data, input_scale, input_zp, output_scale, output_zp, axis, out_dtype):
+def qnn_requantize(data, input_scale, input_zp, output_scale, output_zp, axis=-1, out_dtype="int8"):
     """Compute for qnn.requantize
 
     Q_output = zp_output + round((scale_input)/(scale_output) * (Q_input - zp_input))
@@ -177,37 +183,58 @@ def schedule_qnn_requantize(outs):
     return default_schedule(outs)
 
 
-def qnn_add(
-    lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point, output_scale, output_zero_point
+def compute_qnn_binary_op(
+    lhs, rhs, lhs_scale, lhs_zp, rhs_scale, rhs_zp, output_scale, output_zp, func
 ):
-    """Compute for qnn.add
+    """Compute for QNN binary operation
 
-    Q_output = zp_output + round((lhs_scale)/(scale_output) * (lhs_input - lhs_zp_input))
-                         + round((rhs_scale)/(scale_output) * (rhs_input - rhs_zp_input))
-
-    TODO: support 'axis' argument.
+    Q_output = output_zp + round((lhs_scale)/(output_scale) * (lhs_input - lhs_zp))
+                      _OP_ round((rhs_scale)/(output_scale) * (rhs_input - rhs_zp))
+    where _OP_ is add/subtract
     """
-
     assert lhs.dtype == rhs.dtype
     dtype = lhs.dtype
 
+    def _compute_const(x: te.Tensor, iscale, input_zp):
+        return te.round(te.multiply(te.div(iscale, output_scale), te.subtract(x, input_zp))).astype(
+            "int32"
+        )
+
+    def _compute_tensor(x: te.Tensor, iscale, input_zp):
+        return te.compute(
+            x.shape,
+            lambda *i: te.round(
+                te.multiply(te.div(iscale, output_scale), te.subtract(x(*i), input_zp))
+            ).astype("int32"),
+        )
+
+    if is_constant(lhs):
+        lhs_tensor = _compute_const(lhs, lhs_scale, lhs_zp)
+    else:
+        lhs_tensor = _compute_tensor(lhs, lhs_scale, lhs_zp)
+
+    if is_constant(rhs):
+        rhs_tensor = _compute_const(rhs, rhs_scale, rhs_zp)
+    else:
+        rhs_tensor = _compute_tensor(rhs, rhs_scale, rhs_zp)
+
+    # Binary op with broadcasting
+    tensor = func(lhs_tensor, rhs_tensor)
+
+    # Add output zero point and clip+cast.
     def _compute(*indices):
-        lvalue = lhs(*indices)
-        rvalue = rhs(*indices)
-        q_lv = te.round(
-            te.multiply(te.div(lhs_scale, output_scale), te.subtract(lvalue, lhs_zero_point))
-        ).astype("int32")
-        q_rv = te.round(
-            te.multiply(te.div(rhs_scale, output_scale), te.subtract(rvalue, rhs_zero_point))
-        ).astype("int32")
-        val = te.add(te.add(q_lv, q_rv), output_zero_point)
+        return saturate(te.add(tensor(*indices), output_zp), dtype).astype(dtype)
 
-        # clip + cast:
-        const_min = tvm.tir.min_value(dtype)
-        const_max = tvm.tir.max_value(dtype)
-        return te.max(tvm.te.min(val, const_max), const_min).astype(dtype)
+    return te.compute(tensor.shape, _compute)
 
-    return te.compute(lhs.shape, _compute)
+
+def qnn_add(lhs, rhs, lhs_scale, lhs_zp, rhs_scale, rhs_zp, output_scale, output_zp):
+    """Compute for qnn.add
+    TODO: support 'axis' argument.
+    """
+    return compute_qnn_binary_op(
+        lhs, rhs, lhs_scale, lhs_zp, rhs_scale, rhs_zp, output_scale, output_zp, topi.add
+    )
 
 
 def schedule_qnn_add(outs):
@@ -227,19 +254,99 @@ def schedule_qnn_add(outs):
     return default_schedule(outs)
 
 
-def requantize_tensor(tensor, i_scale, i_zp, o_scale, o_zp, out_dtype):
-    """Requantize tensor"""
+def qnn_subtract(lhs, rhs, lhs_scale, lhs_zp, rhs_scale, rhs_zp, output_scale, output_zp):
+    """Compute for qnn.subtract"""
 
-    def _compute(*indices):
-        value = tensor(*indices)
-        mul_value = te.round(
-            te.multiply(te.div(i_scale, o_scale), te.subtract(value, i_zp))
-        ).astype("int32")
-        rq_value = te.add(mul_value, o_zp)
+    return compute_qnn_binary_op(
+        lhs, rhs, lhs_scale, lhs_zp, rhs_scale, rhs_zp, output_scale, output_zp, topi.subtract
+    )
 
-        return clip_cast(rq_value, out_dtype)
 
-    return te.compute(tensor.shape, _compute)
+def schedule_qnn_subtract(outs):
+    """Schedule for qnn.subtract
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of qnn.add
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return default_schedule(outs)
+
+
+def qnn_mul(lhs, rhs, lhs_scale, lhs_zp, rhs_scale, rhs_zp, output_scale, output_zp):
+    """Compute for qnn.mul
+
+    mul = (lhs_input - lhs_zp) * (rhs_input - rhs_zp)
+    Q_output = requantize(mul, lhs_scale * rhs_scale, 0, output_scale, output_zp)
+    """
+    assert lhs.dtype == rhs.dtype
+    odtype = lhs.dtype
+
+    if is_constant(lhs):
+        lhs_tensor = lhs - lhs_zp
+    else:
+        lhs_tensor = te.compute(lhs.shape, lambda *i: te.subtract(lhs(*i), lhs_zp))
+
+    if is_constant(rhs):
+        rhs_tensor = rhs - rhs_zp
+    else:
+        rhs_tensor = te.compute(rhs.shape, lambda *i: te.subtract(rhs(*i), rhs_zp))
+
+    # Multiply with broadcasting.
+    mul = topi.multiply(lhs_tensor, rhs_tensor)
+
+    iscale = lhs_scale * rhs_scale
+    return qnn_requantize(mul, iscale, tvm.tir.const(0), output_scale, output_zp, out_dtype=odtype)
+
+
+def schedule_qnn_mul(outs):
+    """Schedule for qnn.mul
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of qnn.add
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return default_schedule(outs)
+
+
+def qnn_tanh(data, input_scale, input_zp, output_scale, output_zp):
+    """Compute for qnn.tanh
+
+    Q_output = quantize(tanh(dequantize(data)))
+    """
+    dq_tensor = qnn_dequantize(data, input_scale, input_zp)
+    tanh = te.compute(dq_tensor.shape, lambda *i: te.tanh(dq_tensor(*i)))
+    return qnn_quantize(tanh, output_scale, output_zp, out_dtype=data.dtype)
+
+
+def schedule_qnn_tanh(outs):
+    """Schedule for qnn.tanh
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of qnn.add
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return default_schedule(outs)
 
 
 def qnn_concatenate(data, axis, out_dtype):
@@ -282,7 +389,7 @@ def qnn_concatenate(data, axis, out_dtype):
         i_zp = data[i + args_num * 2]
 
         # Requantize tensors and add them to the list.
-        args.append(requantize_tensor(tensor, i_scale, i_zp, o_scale, o_zp, out_dtype))
+        args.append(qnn_requantize(tensor, i_scale, i_zp, o_scale, o_zp, out_dtype=out_dtype))
 
     # Call x86 implementation of concatenate.
     return concatenate(args, axis)

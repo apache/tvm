@@ -214,6 +214,7 @@ Expr RequantizeLowerInt(const Expr& input_tensor, const Expr& input_scale,
   // if the input scale is per-tensor or per-channel. If it is per-tensor, there is single scale for
   // the whole tensor. For per-channel (aka per-axis), there is a vector of scales for the input
   // tensor. Depending on the quantization type, the fixed point multiplication routing is called.
+  const bool is_upward_rounding = (param->rounding == "UPWARD");
   auto scaled_int32_t = tensor;
   float output_scale_float = GetScalarFromConstant<float>(output_scale);
   if (IsConstScalar(input_scale)) {
@@ -224,8 +225,6 @@ Expr RequantizeLowerInt(const Expr& input_tensor, const Expr& input_scale,
     // Skip if input and output scales are same.
     if (!IsEqualScalar(input_scale, output_scale)) {
       auto [fixed_point_multiplier, shift] = GetFixedPointMultiplierShift(double_multiplier);
-
-      const bool is_upward_rounding = (param->rounding == "UPWARD");
 
       // When using upward rounding (i.e., x.5 rounded to x+1), leverage
       // the FixedPointMultiply operator
@@ -246,8 +245,13 @@ Expr RequantizeLowerInt(const Expr& input_tensor, const Expr& input_scale,
     }
     int axis = param->axis;
     axis = (axis == -1) ? input_shape.size() - 1 : axis;
-    scaled_int32_t = FixedPointMultiplyPerChannel(scaled_int32_t, double_multipliers, input_shape,
-                                                  axis, param->rounding);
+
+    // When using "upward" rounding, leverage the FixedPointMultiplyPerAxis operator,
+    // for "tonearest" rounding - lower to multiply, add, shift operators sequence.
+    scaled_int32_t = is_upward_rounding
+                         ? FixedPointMultiplyPerChannel(scaled_int32_t, double_multipliers, axis)
+                         : FixedPointMultiplyPerChannelToNearest(scaled_int32_t, double_multipliers,
+                                                                 input_shape, axis);
   }
 
   // 3) Add the output zero point.
@@ -380,6 +384,9 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& input_zero_point, const Expr& output_scale,
                      const Expr& output_zero_point, const RequantizeAttrs* param,
                      const Array<IndexExpr>& input_shape, const DataType& out_dtype) {
+  // Check output scale validity.
+  ICHECK_NE(GetScalarFromConstant<float>(output_scale), 0.0)
+      << "QNN requantize output scale can not be equal to 0.0";
   // Check rounding validity.
   ICHECK(param->rounding == "UPWARD" || param->rounding == "TONEAREST")
       << "QNN requantize supports two rounding modes - UPWARD and "
@@ -476,8 +483,9 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   const auto in_dtype = data->dtype;
   ICHECK(in_dtype == DataType::Int(8) || in_dtype == DataType::UInt(8) ||
-         in_dtype == DataType::Int(32) || in_dtype == DataType::Int(64))
-      << "Input type should be one of [int8, uint8, int32, int64] but was " << in_dtype;
+         in_dtype == DataType::Int(16) || in_dtype == DataType::Int(32) ||
+         in_dtype == DataType::Int(64))
+      << "Input type should be one of [int8, uint8, int16, int32, int64] but was " << in_dtype;
 
   const RequantizeAttrs* requantize_attrs = attrs.as<RequantizeAttrs>();
   int axis = requantize_attrs->axis;

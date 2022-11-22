@@ -22,7 +22,7 @@
 #
 # Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
 #          [--mount MOUNT_DIR] [--repo-mount-point REPO_MOUNT_POINT]
-#          [--dry-run] [--name NAME]
+#          [--dry-run] [--name NAME] [--privileged]
 #          <DOCKER_IMAGE_NAME> [--] [COMMAND]
 #
 # Usage: docker/bash.sh <CONTAINER_NAME>
@@ -96,6 +96,10 @@ Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
 
     Set the name of the docker container, and the hostname that will
     appear inside the container.
+
+--privileged
+
+    Give extended privileges to this container.
 
 DOCKER_IMAGE_NAME
 
@@ -213,6 +217,11 @@ while (( $# )); do
             fi
             ;;
 
+        --privileged)
+            DOCKER_FLAGS+=( "--privileged" )
+            shift 1
+            ;;
+
         --env)
             DOCKER_ENV+=( --env "$2" )
             shift 2
@@ -305,7 +314,8 @@ if [ -n "${EXPANDED_SHORTCUT}" ]; then
     if [ "${CI+x}" == "x" ]; then
         DOCKER_IMAGE_NAME="${EXPANDED_SHORTCUT}"
     else
-        python3 ci/scripts/determine_docker_images.py "$DOCKER_IMAGE_NAME=$EXPANDED_SHORTCUT" 2> /dev/null
+        python3 ci/scripts/jenkins/determine_docker_images.py "$DOCKER_IMAGE_NAME=$EXPANDED_SHORTCUT" 2> /dev/null
+        echo "HERE HERE HERE"
         DOCKER_IMAGE_NAME=$(cat ".docker-image-names/$DOCKER_IMAGE_NAME")
         if [[ "$DOCKER_IMAGE_NAME" == *"tlcpackstaging"* ]]; then
             echo "WARNING: resolved docker image to fallback tag in tlcpackstaging" >&2
@@ -329,16 +339,6 @@ DOCKER_ENV+=( --env CI_BUILD_HOME="${REPO_MOUNT_POINT}"
               --env CI_PYTEST_ADD_OPTIONS="${CI_PYTEST_ADD_OPTIONS:-}"
               --env CI_IMAGE_NAME="${DOCKER_IMAGE_NAME}"
             )
-
-
-# Pass tvm test data folder through to the docker container, to avoid
-# repeated downloads.  Check if we have permissions to write to the
-# directory first, since the CI may not.
-TEST_DATA_PATH="${TVM_DATA_ROOT_PATH:-${HOME}/.tvm_test_data}"
-if [[ -d "${TEST_DATA_PATH}" && -w "${TEST_DATA_PATH}" ]]; then
-    DOCKER_MOUNT+=( --volume "${TEST_DATA_PATH}":"${REPO_MOUNT_POINT}"/.tvm_test_data )
-fi
-
 
 # Remove the container once it finishes running (--rm) and share the
 # PID namespace (--pid=host).  The process inside does not have pid 1

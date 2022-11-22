@@ -29,5 +29,5 @@ interface launcher_rpc : remote_handle64 {
   AEEResult set_input(in long input_idx, in buffer input_meta, in buffer input_value);
   AEEResult get_num_outputs(rout long num_outputs);
   AEEResult get_output(in long output_idx, rout buffer output_meta, rout buffer output_value);
-  AEEResult run(rout uint64_t pcycles, rout uint64_t usecs);
+  AEEResult run(rout uint64_t pcycles, rout uint64_t usecs, in long gen_lwp_json);
 };

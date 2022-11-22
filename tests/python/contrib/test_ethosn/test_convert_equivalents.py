@@ -227,7 +227,7 @@ def test_multiply_to_reinterpret_quantize(shape, constant_shape, reverse_inputs)
 @requires_ethosn
 @pytest.mark.parametrize(
     "dtype,shape,constant_shape",
-    [("int16", (1, 16, 12, 4), None)],
+    [("float32", (1, 16, 12, 4), None)],
 )
 def test_unsupported_multiply_to_reinterpret_quantize(dtype, shape, constant_shape):
     """
@@ -445,7 +445,7 @@ def test_add_to_reinterpret_quantize(shape, constant_shape, reverse_inputs):
 @pytest.mark.parametrize(
     "dtype,shape,constant_shape",
     [
-        ("int16", (1, 16, 12, 4), None),
+        ("float32", (1, 16, 12, 4), None),
     ],
 )
 def test_unsupported_add_to_reinterpret_quantize(dtype, shape, constant_shape):

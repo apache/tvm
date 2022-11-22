@@ -80,16 +80,73 @@ extern "C" {
 /*! \brief type of array index. */
 typedef int64_t tvm_index_t;
 
-/*! \brief Extension device types in TVM */
+/*! \brief Extension device types in TVM
+ *
+ * Additional enumerators to supplement those provided by
+ * DLPack's `DLDeviceType` enumeration.
+ *
+ * MAINTAINERS NOTE #1: We need to ensure that the two devices
+ * are identified by the same integer.
+ * Currently this requires manual verification.
+ * Discussed here: https://github.com/dmlc/dlpack/issues/111
+ * As of DLPack v0.7, the highest-valued enumerator in
+ * `DLDeviceType` is kDLHexagon = 16.
+ *
+ * MAINTAINERS NOTE #2: As of DLPack v0.7, the definition for
+ * `DLDeviceType` specifies an underlying storage type of
+ * `int32_t`.  That guarantees a variable of type
+ * `DLDeviceType` is capable of holding any integers provided
+ * by *either* of these enumerations.
+ *
+ * However, the `int32_t` specification only applies when the
+ * header file is compiled as C++, and this header file is also
+ * meant to work as C code.  So the unspecified storage type
+ * could be a latent bug when compiled as C.
+ */
+#ifdef __cplusplus
+typedef enum : int32_t {
+#else
 typedef enum {
-  kDLAOCL = 5,
-  kDLSDAccel = 6,
-  kOpenGL = 11,
-  kDLMicroDev = 13,
-  kDLHexagon = 14,
-  kDLWebGPU = 15
-  // AddExtraTVMType which is not in DLPack here
+#endif
+  // To help avoid accidental conflicts between `DLDeviceType`
+  // and this enumeration, start numbering the new enumerators
+  // a little higher than (currently) seems necessary.
+  kDLAOCL = 32,
+  kDLSDAccel,
+  kOpenGL,
+  kDLMicroDev,
+  TVMDeviceExtType_End,  // sentinel value
 } TVMDeviceExtType;
+
+#ifdef __cplusplus
+// Some other parts of TVM hardcode the integer identifier for
+// some DLPack / TVM devices, rather then using the symbolic
+// enumerator.   E.g., `2` rather than `kDLCUDA`.
+// These asserts should alert us when that mapping breaks.
+#define TVM_HARCODED_INTEGER_CHANGED_MSG                                                          \
+  "Change in compile-time integer.  Make sure hardcoded uses of this integer throughout TVM are " \
+  "updated."
+static_assert(kDLCPU == 1, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kDLCUDA == 2, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kDLCUDAHost == 3, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kDLOpenCL == 4, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kDLVulkan == 7, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kDLMetal == 8, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kDLVPI == 9, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kDLROCM == 10, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kDLROCMHost == 11, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kDLExtDev == 12, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kDLCUDAManaged == 13, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kDLOneAPI == 14, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kDLWebGPU == 15, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kDLHexagon == 16, TVM_HARCODED_INTEGER_CHANGED_MSG);
+
+static_assert(kDLAOCL == 32, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kDLSDAccel == 33, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kOpenGL == 34, TVM_HARCODED_INTEGER_CHANGED_MSG);
+static_assert(kDLMicroDev == 35, TVM_HARCODED_INTEGER_CHANGED_MSG);
+#undef TVM_HARCODED_INTEGER_CHANGED_MSG
+#endif
 
 /*!
  * \brief The type code in used and only used in TVM FFI for argument passing.

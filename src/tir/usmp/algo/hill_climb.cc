@@ -78,16 +78,18 @@ class HillClimbAllocator : public GreedyBase {
    * HillClimb's version of greedy allocation
    * \param buffer_info_vec - buffers in specific order for allocation
    */
-  alloc_map_t greedy(const std::vector<BufferInfo>& buffer_info_vec) {
+  alloc_map_t greedy(const std::vector<BufferInfo>& buffer_info_vec, bool* could_not_fit) {
     alloc_map_t pool_allocations(buffer_info_vec.size());
     for (const auto& buf_info : buffer_info_vec) {
       std::unordered_map<PoolInfo, size_t, ObjectPtrHash, ObjectPtrEqual> pool_offset_candidates;
+
+      // check whether we can fit the buffer into the empty pool candidate
       for (const auto& pool_info : buf_info->pool_candidates) {
         if (IsValidPlacement(pool_info, 0, buf_info->size_bytes->value)) {
           pool_offset_candidates[pool_info] = 0;
         }
       }
-
+      // select conflicting buffers which have already been allocated
       std::vector<const BufferInfoNode*> buf_conf;
       for (const auto& conflict_buf_info_obj : buf_info->conflicts) {
         const BufferInfoNode* conflict_buf_info = conflict_buf_info_obj.as<BufferInfoNode>();
@@ -106,14 +108,18 @@ class HillClimbAllocator : public GreedyBase {
       for (const auto* conflict_buf_info : buf_conf) {
         size_t next_offset = 0;
         auto pool_allocation = pool_allocations[conflict_buf_info];
-        next_offset =
-            pool_allocation->byte_offset.IntValue() + conflict_buf_info->size_bytes.IntValue();
-        next_offset = round_up_to_byte_alignment(next_offset, conflict_buf_info->alignment->value);
         if (!pool_offset_candidates.count(pool_allocation->pool_info)) {
           continue;
         }
+
+        next_offset =
+            pool_allocation->byte_offset.IntValue() + conflict_buf_info->size_bytes.IntValue();
+        next_offset = round_up_to_byte_alignment(next_offset, conflict_buf_info->alignment->value);
+
         if (IsValidPlacement(pool_allocation->pool_info, next_offset,
                              buf_info->size_bytes->value)) {
+          // extra check whether the previous attempt to fit the buffer is clashing with the current
+          // conflict
           if (next_offset > pool_offset_candidates[pool_allocation->pool_info] &&
               pool_offset_candidates[pool_allocation->pool_info] +
                       static_cast<size_t>(buf_info->size_bytes.IntValue()) >
@@ -124,7 +130,18 @@ class HillClimbAllocator : public GreedyBase {
           pool_offset_candidates.erase(pool_allocation->pool_info);
         }
       }
-      auto selected_pool = SelectPlacementPool(buf_info, pool_offset_candidates);
+      auto selected_pool = NullValue<PoolInfo>();
+      for (const auto& pi : buf_info->pool_candidates) {
+        if (pool_offset_candidates.count(pi)) {
+          selected_pool = pi;
+          break;
+        }
+      }
+
+      if (selected_pool.same_as(NullValue<PoolInfo>())) {
+        *could_not_fit = true;
+      }
+
       pool_allocations[buf_info.as<BufferInfoNode>()] =
           PoolAllocation(selected_pool, Integer(pool_offset_candidates[selected_pool]));
     }
@@ -140,6 +157,9 @@ class HillClimbAllocator : public GreedyBase {
     for (const auto& it : *pool_allocations) {
       const BufferInfoNode* buf = it.first;
       const PoolAllocation& pa = it.second;
+      if (pa->pool_info.same_as(NullValue<PoolInfo>())) {
+        continue;
+      }
       size_t high_sz = pa->byte_offset.IntValue() + buf->size_bytes.IntValue();
       if (pool_sizes[pa->pool_info] <= high_sz) {
         pool_sizes[pa->pool_info] = high_sz;
@@ -183,14 +203,16 @@ class HillClimbAllocator : public GreedyBase {
 #else
 #define rnd_func() rand()
 #endif
-
+    Map<BufferInfo, PoolAllocation> result;
+    if (!buffer_info_arr.size()) {
+      return result;
+    }
     std::vector<BufferInfo> buffer_info_vec;
     for (const auto& buffer_info : buffer_info_arr) {
       ICHECK(buffer_info->pool_candidates.size())
           << "Cannot process buffer \"" << buffer_info->name_hint << "\" with no pool candidates";
       buffer_info_vec.push_back(std::move(buffer_info));
     }
-
     sort_vector<BufferInfo>(&buffer_info_vec);
 
     // populate positional index map
@@ -232,27 +254,34 @@ class HillClimbAllocator : public GreedyBase {
 
     for (; attempts < _max_attempts; ++attempts) {
       rollback_pool_allocations = std::move(pool_allocations);
-      pool_allocations = std::move(greedy(buffer_info_vec));
+      bool could_not_fit = false;
+      pool_allocations = std::move(greedy(buffer_info_vec, &could_not_fit));
 
       // estimate result buffers
       std::unordered_map<PoolInfo, size_t, ObjectPtrHash, ObjectPtrEqual> pool_sizes =
           find_highest(&pool_allocations);
+      if (!pool_sizes.size()) {
+        CHECK(false) << "TVM USMP Error: Please increase the size_hints for memory pools.";
+      }
+
       // calculate summary
       size_t total = 0;
       for (const auto& el : pool_sizes) {
         total += el.second;
       }
       // accept/reject result heuristic
-      if (!total_size ||         /* first run */
-          (total_size > total || /* always accept if better or with some probability */
-           rnd_func() % 100 < static_cast<int>(50 * (total - total_size) / total / attempts))) {
+      if (!total_size || /* first run */
+          (!could_not_fit &&
+           (total_size > total || /* always accept if better or with some probability */
+            rnd_func() % 100 < static_cast<int>(50 * (total - total_size) / total / attempts)))) {
         // remember winning combination
         result_pool_allocations = pool_allocations;
-        total_size = total;
-
-        // reached desired size
-        if (total_size <= desired_bytes_) {
-          break;
+        if (!could_not_fit) {
+          total_size = total;
+          // reached desired size
+          if (total_size <= desired_bytes_) {
+            break;
+          }
         }
 
       } else {
@@ -267,10 +296,16 @@ class HillClimbAllocator : public GreedyBase {
       for (const auto& it : pool_allocations) {
         const auto* buf = it.first;
         const auto pa = it.second;
+        if (pa->pool_info.same_as(NullValue<PoolInfo>())) {
+          continue;
+        }
         size_t high_sz = pa->byte_offset.IntValue() + buf->size_bytes.IntValue();
         if (pool_sizes[pa->pool_info] == high_sz) {
           max_pool_buf.push_back(buf);
         }
+      }
+      if (!max_pool_buf.size()) {
+        CHECK(false) << "TVM USMP Error: Please increase the size_hints for memory pools.";
       }
       sort(max_pool_buf.begin(), max_pool_buf.end(),
            [&_pos](const auto* a, const auto* b) { return _pos(a) < _pos(b); });
@@ -309,9 +344,16 @@ class HillClimbAllocator : public GreedyBase {
       swap_buffers(swap_i1, swap_i2);
     }
 
-    Map<BufferInfo, PoolAllocation> result;
     // return winning combination
     for (auto it : result_pool_allocations) {
+      // post-check that everything was fit
+      const BufferInfoNode* buf = it.first;
+      const PoolAllocation& pa = it.second;
+      if (NullValue<PoolInfo>().same_as(pa->pool_info) ||
+          !IsValidPlacement(pa->pool_info, pa->byte_offset->value, buf->size_bytes->value)) {
+        std::unordered_map<PoolInfo, size_t, ObjectPtrHash, ObjectPtrEqual> m = {};
+        SelectPlacementPool(GetRef<BufferInfo>(buf), m);
+      }
       result.Set(GetRef<BufferInfo>(it.first), it.second);
     }
     return result;

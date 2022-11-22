@@ -21,11 +21,7 @@
 
 {% macro junit_to_s3(test_dir_name) %}
 sh(
-            script: """
-              set -eux
-              . ci/scripts/retry.sh
-              retry 3 aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/{{ test_dir_name }} --recursive
-            """,
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/{{ test_dir_name }} --items build/pytest-results",
             label: 'Upload JUnits to S3',
           )
 {% endmacro %}
@@ -53,8 +49,12 @@ def {{ method_name }}() {
             })
           }
         } finally {
-          {{ junit_to_s3(test_dir_name) }}
-          junit 'build/pytest-results/*.xml'
+          try {
+            {{ junit_to_s3(test_dir_name) }}
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
         }
       }
     }
@@ -120,8 +120,12 @@ def {{ method_name }}() {
               {{ caller() | indent(width=8) | trim }}
             })
           } finally {
-            {{ junit_to_s3(test_dir_name) | indent(width=0) }}
-            junit 'build/pytest-results/*.xml'
+            try {
+              {{ junit_to_s3(test_dir_name) | indent(width=0) }}
+              junit 'build/pytest-results/*.xml'
+            } catch (Exception e) {
+              echo 'Exception during JUnit upload: ' + e.toString()
+            }
           }
         }
       }
@@ -147,8 +151,12 @@ def {{ method_name }}() {
                 {{ caller() | indent(width=12) | trim }}
               })
             } finally {
+            try {
               {{ junit_to_s3(test_dir_name) | indent(width=4) }}
               junit 'build/pytest-results/*.xml'
+            } catch (Exception e) {
+              echo 'Exception during JUnit upload: ' + e.toString()
+            }
             }
           }
         }
@@ -175,36 +183,17 @@ def {{ method_name }}() {
   },
 {% endmacro %}
 
-{% macro upload_artifacts(tag, filenames, folders=None) %}
+{% macro upload_artifacts(action, tag, filenames) %}
+{% set items = ' '.join(filenames) %}
 sh(
-      script: """
-        set -eux
-        . ci/scripts/retry.sh
-        {% for filename in filenames %}
-        md5sum {{ filename }}
-        retry 3 aws s3 cp --no-progress {{ filename }} s3://${s3_prefix}/{{ tag }}/{{ filename }}
-        {% endfor %}
-        {% for folder in (folders or []) %}
-        retry 3 aws s3 cp --no-progress {{ folder }} s3://${s3_prefix}/{{ tag }}/{{ folder }} --recursive
-        {% endfor %}
-      """,
+      script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/{{ tag }} --items {{ items }}",
       label: 'Upload artifacts to S3',
     )
 {% endmacro %}
 
-{% macro download_artifacts(tag, filenames, folders=None) %}
+{% macro download_artifacts(tag) %}
 sh(
-            script: """
-              set -eux
-              . ci/scripts/retry.sh
-              {% for filename in filenames %}
-              retry 3 aws s3 cp --no-progress s3://${s3_prefix}/{{ tag }}/{{ filename }} {{ filename }}
-              md5sum {{ filename }}
-              {% endfor %}
-              {% for folder in (folders or []) %}
-              retry 3 aws s3 cp --no-progress s3://${s3_prefix}/{{ tag }}/{{ folder }} {{ folder }} --recursive
-              {% endfor %}
-            """,
-            label: 'Download artifacts from S3',
-          )
+      script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/{{ tag }}",
+      label: 'Download artifacts from S3',
+    )
 {% endmacro %}

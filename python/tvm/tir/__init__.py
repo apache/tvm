@@ -48,6 +48,7 @@ from .function import PrimFunc, TensorIntrin, IndexMap
 from .op import call_packed_lowered, call_cpacked_lowered
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
 from .op import call_llvm_intrin, call_llvm_pure_intrin, ret, all, any, min_value, max_value, trace
+from .op import tvm_check_return
 from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
 from .op import tvm_tuple, tvm_struct_get, tvm_struct_set
 from .op import address_of, lookup_param, assume, undef
@@ -72,8 +73,9 @@ from .op import trunc, abs, round, nextafter, nearbyint, power, popcount, fmod, 
 from .op import likely, isnan, isnullptr, isfinite, isinf, copysign
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, ceildiv
 from .op import comm_reducer, min, max, sum
-from .op import q_multiply_shift, shift_left, shift_right
+from .op import q_multiply_shift, q_multiply_shift_per_axis, shift_left, shift_right
 from .op import TVMBackendAllocWorkspace, TVMBackendFreeWorkspace
+from .op import start_profile_intrinsic, end_profile_intrinsic
 from .generic import add, subtract, multiply
 
 from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError

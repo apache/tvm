@@ -328,11 +328,11 @@ def numpyasarray(np_data):
     arr.dtype = DataType(np.dtype(data.dtype).name)
     arr.ndim = data.ndim
     # CPU device
-    arr.device = device(1, 0)
+    arr.device = device(Device.kDLCPU, 0)
     return arr, shape
 
 
-def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):
+def empty(shape, dtype="float32", device=device(Device.kDLCPU, 0), mem_scope=None):
     """Create an empty array given shape and device
 
     Parameters
@@ -399,7 +399,7 @@ def cpu(dev_id=0):
     dev : Device
         The created device
     """
-    return Device(1, dev_id)
+    return Device(Device.kDLCPU, dev_id)
 
 
 def cuda(dev_id=0):
@@ -415,7 +415,7 @@ def cuda(dev_id=0):
     dev : Device
         The created device
     """
-    return Device(2, dev_id)
+    return Device(Device.kDLCUDA, dev_id)
 
 
 def gpu(dev_id=0):
@@ -437,7 +437,7 @@ def gpu(dev_id=0):
     warnings.warn(
         "Please use tvm.cuda() instead of tvm.gpu(). tvm.gpu() is going to be deprecated in 0.9.0",
     )
-    return Device(2, dev_id)
+    return Device(Device.kDLCUDA, dev_id)
 
 
 def rocm(dev_id=0):
@@ -453,7 +453,7 @@ def rocm(dev_id=0):
     dev : Device
         The created device
     """
-    return Device(10, dev_id)
+    return Device(Device.kDLROCM, dev_id)
 
 
 def opencl(dev_id=0):
@@ -469,7 +469,7 @@ def opencl(dev_id=0):
     dev : Device
         The created device
     """
-    return Device(4, dev_id)
+    return Device(Device.kDLOpenCL, dev_id)
 
 
 def metal(dev_id=0):
@@ -485,7 +485,7 @@ def metal(dev_id=0):
     dev : Device
         The created device
     """
-    return Device(8, dev_id)
+    return Device(Device.kDLMetal, dev_id)
 
 
 def vpi(dev_id=0):
@@ -501,7 +501,7 @@ def vpi(dev_id=0):
     dev : Device
         The created device
     """
-    return Device(9, dev_id)
+    return Device(Device.kDLVPI, dev_id)
 
 
 def vulkan(dev_id=0):
@@ -517,7 +517,7 @@ def vulkan(dev_id=0):
     dev : Device
         The created device
     """
-    return Device(7, dev_id)
+    return Device(Device.kDLVulkan, dev_id)
 
 
 def ext_dev(dev_id=0):
@@ -538,7 +538,7 @@ def ext_dev(dev_id=0):
     This API is reserved for quick testing of new
     device by plugin device API as ext_dev.
     """
-    return Device(12, dev_id)
+    return Device(Device.kDLExtDev, dev_id)
 
 
 def hexagon(dev_id=0):
@@ -554,7 +554,7 @@ def hexagon(dev_id=0):
     dev : Device
         The created device
     """
-    return Device(14, dev_id)
+    return Device(Device.kDLHexagon, dev_id)
 
 
 def webgpu(dev_id=0):
@@ -570,7 +570,7 @@ def webgpu(dev_id=0):
     dev : Device
         The created device
     """
-    return Device(15, dev_id)
+    return Device(Device.kDLWebGPU, dev_id)
 
 
 cl = opencl

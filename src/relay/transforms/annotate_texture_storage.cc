@@ -206,7 +206,9 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
       }
     }
 
-    primitive_supports_texture_ = SupportsTextureStorage(call);
+    if (!primitive_supports_texture_) {
+      primitive_supports_texture_ = SupportsTextureStorage(call);
+    }
 
     for (auto& arg : call->args) {
       Visit(arg);
@@ -362,6 +364,12 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
 
   bool SupportsTextureStorage(const CallNode* call) const {
     bool supports_texture_storage = false;
+    // we need to verify only entry functions since one of entry op defines main schedule
+    for (const auto& arg : call->args) {
+      if (!arg.as<VarNode>()) {
+        return false;
+      }
+    }
     if (auto attrs = call->attrs.as<Conv2DAttrs>()) {
       if (attrs->data_layout == "NCHW4c" && attrs->kernel_layout == "OIHW4o") {
         supports_texture_storage = true;

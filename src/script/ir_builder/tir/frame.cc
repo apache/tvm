@@ -34,7 +34,6 @@ void PrimFuncFrameNode::ExitWithScope() {
       /*body=*/AsStmt(stmts),
       /*ret_type=*/ret_type.value_or(TupleType::Empty()),
       /*buffer_map=*/buffer_map,
-      /*preflattened_buffer_map=*/preflattened_buffer_map,
       /*attrs=*/attrs.defined() ? DictAttrs(attrs.value()) : NullValue<DictAttrs>());
   func = tvm::tir::ScriptComplete(func, root_alloc_buffers);
   IRBuilder builder = IRBuilder::Current();
@@ -117,14 +116,14 @@ void LaunchThreadFrameNode::ExitWithScope() {
 
 void AllocateFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tir::Allocate(buffer->data, buffer->dtype, buffer->shape, condition,
-                                 AsStmt(stmts), annotations));
+  AddToParent(
+      tvm::tir::Allocate(buffer_var, dtype, extents, condition, AsStmt(stmts), annotations));
 }
 
 void AllocateConstFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   AddToParent(
-      tvm::tir::AllocateConst(buffer->data, dtype, extents, data, AsStmt(stmts), annotations));
+      tvm::tir::AllocateConst(buffer_var, dtype, extents, data, AsStmt(stmts), annotations));
 }
 void AttrFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
@@ -182,7 +181,13 @@ void ElseFrameNode::ExitWithScope() {
 
 void DeclBufferFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tir::DeclBuffer(buffer, AsStmt(stmts)));
+  if (allocated) {
+    AddToParent(tvm::tir::DeclBuffer(buffer, AsStmt(stmts)));
+  } else {
+    AddToParent(tvm::tir::Allocate(buffer->data, buffer->dtype, buffer->shape,
+                                   tvm::IntImm(DataType::Bool(), 1),
+                                   tvm::tir::DeclBuffer(buffer, AsStmt(stmts))));
+  }
 }
 
 TVM_REGISTER_NODE_TYPE(TIRFrameNode);

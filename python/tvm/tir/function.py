@@ -49,9 +49,6 @@ class PrimFunc(BaseFunc):
     buffer_map : Map[tvm.tir.Var, tvm.tir.Buffer]
         The buffer binding map.
 
-    preflattened_buffer_map : Optional[Map[tvm.tir.Var, tvm.tir.Buffer]]
-        The buffer binding map, prior to any flattening.
-
     attrs: Optional[tvm.Attrs]
         Attributes of the function, can be None
 
@@ -65,14 +62,12 @@ class PrimFunc(BaseFunc):
         body,
         ret_type=None,
         buffer_map=None,
-        preflattened_buffer_map=None,
         attrs=None,
         span=None,
     ):
 
         param_list = []
         buffer_map = {} if buffer_map is None else buffer_map
-        preflattened_buffer_map = {} if preflattened_buffer_map is None else preflattened_buffer_map
         for x in params:
             x = tvm.runtime.convert(x) if not isinstance(x, Object) else x
             if isinstance(x, Buffer):
@@ -90,7 +85,6 @@ class PrimFunc(BaseFunc):
             body,
             ret_type,
             buffer_map,
-            preflattened_buffer_map,
             attrs,
             span,
         )  # type: ignore
@@ -116,7 +110,6 @@ class PrimFunc(BaseFunc):
             new_body,
             self.ret_type,
             self.buffer_map,
-            self.preflattened_buffer_map,
             self.attrs,
             span,
         )

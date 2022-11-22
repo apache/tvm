@@ -53,11 +53,19 @@ def get_input_data_shape_dict(graph_def, input_data):
         shape_dict = {}
         for i, _ in enumerate(input_data):
             input_names[i] = graph_def.graph.input[i].name
-            if input_data[i] is None or input_data[i].shape == ():
+            input_ = input_data[i]
+
+            if input_ is None or not hasattr(input_, "shape") or input_.shape == ():
                 # Skip adding input shape data when the input data is None;
                 # This is to enable optional arguments for onnx operators.
                 continue
-            shape_dict[input_names[i]] = input_data[i].shape
+
+            elif isinstance(input_, list):
+                shape_dict[input_names[i]] = (len(input_),)
+
+            else:
+                shape_dict[input_names[i]] = input_.shape
+
     else:
         input_names = graph_def.graph.input[0].name
         shape_dict = {input_names: input_data.shape}
@@ -1290,10 +1298,7 @@ def test_matmul(target, dev):
     """test_matmul"""
 
     def test_one_matmul(a_shape, b_shape):
-        if len(a_shape) == 1:
-            out_shape = [b_shape[1]]
-        else:
-            out_shape = [a_shape[0], b_shape[1]]
+        out_shape = np.matmul(np.zeros(a_shape), np.zeros(b_shape)).shape
 
         a_array = np.random.uniform(size=a_shape).astype("float32")
         b_array = np.random.uniform(size=b_shape).astype("float32")
@@ -1315,6 +1320,8 @@ def test_matmul(target, dev):
 
     test_one_matmul((4, 3), (3, 4))
     test_one_matmul((3,), (3, 1))
+    test_one_matmul((1, 3), (3,))
+    test_one_matmul((3,), (3,))
 
 
 @tvm.testing.parametrize_targets
@@ -5238,24 +5245,17 @@ unsupported_onnx_tests = [
     "test_blackmanwindow_expanded",
     "test_blackmanwindow_symmetric",
     "test_blackmanwindow_symmetric_expanded",
-    "test_cast_DOUBLE_to_FLOAT16",
+    # the follow cast and castlike cases have lowering issues
     "test_cast_FLOAT_to_STRING",
     "test_cast_STRING_to_FLOAT",
-    "test_castlike_BFLOAT16_to_FLOAT",
-    "test_castlike_BFLOAT16_to_FLOAT_expanded",
-    "test_castlike_DOUBLE_to_FLOAT",
-    "test_castlike_DOUBLE_to_FLOAT16",
-    "test_castlike_DOUBLE_to_FLOAT16_expanded",
-    "test_castlike_FLOAT16_to_DOUBLE",
-    "test_castlike_FLOAT16_to_FLOAT",
-    "test_castlike_FLOAT_to_BFLOAT16",
-    "test_castlike_FLOAT_to_BFLOAT16_expanded",
-    "test_castlike_FLOAT_to_DOUBLE",
-    "test_castlike_FLOAT_to_FLOAT16",
     "test_castlike_FLOAT_to_STRING",
     "test_castlike_FLOAT_to_STRING_expanded",
     "test_castlike_STRING_to_FLOAT",
     "test_castlike_STRING_to_FLOAT_expanded",
+    # the following cast and castlike cases segfault
+    "test_cast_DOUBLE_to_FLOAT16",
+    "test_castlike_DOUBLE_to_FLOAT16",
+    "test_castlike_DOUBLE_to_FLOAT16_expanded",
     "test_convtranspose_autopad_same",
     "test_convtranspose_dilations",
     "test_cumsum_1d",
@@ -5274,14 +5274,6 @@ unsupported_onnx_tests = [
     "test_dropout_default_mask",
     "test_dropout_default_mask_ratio",
     "test_dropout_default_ratio",
-    "test_gridsample",
-    "test_gridsample_aligncorners_true",
-    "test_gridsample_bicubic",
-    "test_gridsample_bilinear",
-    "test_gridsample_border_padding",
-    "test_gridsample_nearest",
-    "test_gridsample_reflection_padding",
-    "test_gridsample_zeros_padding",
     "test_gru_batchwise",
     "test_hammingwindow",
     "test_hammingwindow_expanded",
@@ -5295,7 +5287,6 @@ unsupported_onnx_tests = [
     "test_identity_sequence",
     "test_if_opt",
     "test_if_seq",
-    "test_loop11",
     "test_loop13_seq",
     "test_loop16_seq_none",
     "test_lstm_batchwise",
@@ -5305,10 +5296,6 @@ unsupported_onnx_tests = [
     "test_melweightmatrix",
     # This test fails llvm with a lowering error:
     "test_nllloss_NCd1d2d3_none_no_weight_negative_ii_expanded",
-    "test_optional_has_element",
-    "test_optional_get_element",
-    "test_optional_get_element_sequence",
-    "test_optional_has_element_empty",
     "test_qlinearmatmul_3D",
     "test_range_float_type_positive_delta_expanded",
     "test_range_int32_type_negative_delta_expanded",
@@ -5379,9 +5366,31 @@ target_skips = {
         "test_range_int32_type_positive_delta_expanded",
         "test_mod_mixed_sign_float16",
         "test_qlinearconv",
+        "test_qlinearmatmul",
         "test_resize_upsample_sizes_nearest",
     ]
 }
+
+
+def _load_proto(proto_filename, target_list, model_type_proto):
+    with open(proto_filename, "rb") as fin:
+        protobuf_content = fin.read()
+        if model_type_proto.HasField("sequence_type"):
+            sequence = onnx.SequenceProto()
+            sequence.ParseFromString(protobuf_content)
+            target_list.append(numpy_helper.to_list(sequence))
+        elif model_type_proto.HasField("tensor_type"):
+            tensor = onnx.TensorProto()
+            tensor.ParseFromString(protobuf_content)
+            target_list.append(numpy_helper.to_array(tensor))
+        elif model_type_proto.HasField("optional_type"):
+            optional = onnx.OptionalProto()
+            optional.ParseFromString(protobuf_content)
+            target_list.append(numpy_helper.to_optional(optional))
+        else:
+            raise ValueError(
+                "Loading proto of that specific type (Map/Sparse Tensor) is currently not supported"
+            )
 
 
 @pytest.mark.parametrize("onnx_test", onnx_test_folders)
@@ -5419,22 +5428,25 @@ def test_onnx_nodes(target, dev, onnx_test):
         # in accuracy depending on implementation
         atol = 1e-4
 
-    onnx_model = onnx.load(test_dir + "/model.onnx")
-    inputs = []
-    outputs = []
-    for dataset in glob.glob(test_dir + "/*/"):
-        tensors = sorted(glob.glob(dataset + "/*.pb"))
-        for tensor in tensors:
-            new_tensor = onnx.TensorProto()
-            with open(tensor, "rb") as f:
-                new_tensor.ParseFromString(f.read())
-            if "input" in tensor.split("/")[-1]:
-                inputs.append(numpy_helper.to_array(new_tensor))
-            elif "output" in tensor.split("/")[-1]:
-                outputs.append(numpy_helper.to_array(new_tensor))
-            else:
-                raise ImportError(str(tensor) + " not labeled as an import or an output")
-    tvm_val = get_tvm_output_with_vm(onnx_model, inputs, target, dev)
+    if "bicubic" in test_dir:
+        # satisfies onnx precision for bicubic interpolation
+        atol = 1e-4
+
+    model = onnx.load(os.path.join(test_dir, "model.onnx"))
+    for test_data_dir in glob.glob(os.path.join(test_dir, "test_data_set*")):
+        inputs = []
+        n_inputs = len(glob.glob(os.path.join(test_data_dir, "input_*.pb")))
+        for i in range(n_inputs):
+            input_file = os.path.join(test_data_dir, f"input_{i}.pb")
+            _load_proto(input_file, inputs, model.graph.input[i].type)
+
+        outputs = []
+        n_outputs = len(glob.glob(os.path.join(test_data_dir, "output_*.pb")))
+        for i in range(n_outputs):
+            output_file = os.path.join(test_data_dir, f"output_{i}.pb")
+            _load_proto(output_file, outputs, model.graph.output[i].type)
+
+    tvm_val = get_tvm_output_with_vm(model, inputs, target, dev)
     if len(outputs) == 1:
         tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=rtol, atol=atol)
     else:
@@ -5618,13 +5630,18 @@ def test_reverse_sequence(target, dev):
     verify_reverse_sequence(x, sequence_lens, 1, 0)
 
 
+@pytest.mark.parametrize("op_name", ["Gelu", "FastGelu"], scope="session")
+@pytest.mark.parametrize("data_type", ["float16", "float32"], scope="session")
 @tvm.testing.parametrize_targets
-def test_gelu(target, dev):
+def test_gelu(target, dev, data_type, op_name):
     """test_gelu"""
+    dtype = np.dtype(data_type)
+    tensor_type = mapping.NP_TYPE_TO_TENSOR_TYPE[dtype]
+    absolute_tolerance = 1e-3 if data_type == "float16" else 1e-5
 
     def verify_gelu(x):
         node = onnx.helper.make_node(
-            "Gelu",
+            op_name,
             inputs=["x"],
             outputs=["y"],
             domain="com.microsoft",
@@ -5632,27 +5649,34 @@ def test_gelu(target, dev):
 
         graph = helper.make_graph(
             [node],
-            "gelu_test",
-            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape))],
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(x.shape))],
+            f"{op_name}_test",
+            inputs=[helper.make_tensor_value_info("x", tensor_type, list(x.shape))],
+            outputs=[helper.make_tensor_value_info("y", tensor_type, list(x.shape))],
         )
 
-        model = helper.make_model(graph, producer_name="gelu_test")
-        verify_with_ort_with_inputs(model, [x], [x.shape], target=target, dev=dev)
+        model = helper.make_model(graph, producer_name=f"{op_name}_test")
+        verify_with_ort_with_inputs(
+            model, [x], [x.shape], atol=absolute_tolerance, dtype=data_type, target=target, dev=dev
+        )
 
-    x = np.array([-1.0, 0, 1.0, 100.0, -100.0, 1000.0, -1000.0], dtype=np.float32)
+    x = np.array([-1.0, 0, 1.0, 100.0, -100.0, 1000.0, -1000.0], dtype=dtype)
     verify_gelu(x)
-    x = np.array([[1, 2], [3, 4]], dtype=np.float32)
+    x = np.array([[1, 2], [3, 4]], dtype=dtype)
     verify_gelu(x)
 
 
+@pytest.mark.parametrize("op_name", ["BiasGelu", "FastGelu"], scope="session")
+@pytest.mark.parametrize("data_type", ["float16", "float32"], scope="session")
 @tvm.testing.parametrize_targets
-def test_biasgelu(target, dev):
+def test_biasgelu(target, dev, data_type, op_name):
     """test_biasgelu"""
+    dtype = np.dtype(data_type)
+    tensor_type = mapping.NP_TYPE_TO_TENSOR_TYPE[dtype]
+    absolute_tolerance = 1e-3 if data_type == "float16" else 1e-5
 
     def verify_biasgelu(x, bias):
         node = onnx.helper.make_node(
-            "BiasGelu",
+            op_name,
             inputs=["x", "bias"],
             outputs=["y"],
             domain="com.microsoft",
@@ -5660,23 +5684,31 @@ def test_biasgelu(target, dev):
 
         graph = helper.make_graph(
             [node],
-            "biasgelu_test",
+            f"{op_name}_test",
             inputs=[
-                helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape)),
-                helper.make_tensor_value_info("bias", TensorProto.FLOAT, list(bias.shape)),
+                helper.make_tensor_value_info("x", tensor_type, list(x.shape)),
+                helper.make_tensor_value_info("bias", tensor_type, list(bias.shape)),
             ],
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(x.shape))],
+            outputs=[helper.make_tensor_value_info("y", tensor_type, list(x.shape))],
         )
 
-        model = helper.make_model(graph, producer_name="biasgelu_test")
-        verify_with_ort_with_inputs(model, [x, bias], [x.shape], target=target, dev=dev)
+        model = helper.make_model(graph, producer_name=f"{op_name}_test")
+        verify_with_ort_with_inputs(
+            model,
+            [x, bias],
+            [x.shape],
+            atol=absolute_tolerance,
+            dtype=data_type,
+            target=target,
+            dev=dev,
+        )
 
-    x = np.array([-1.0, 0, 1.0, 100.0, -100.0, 1000.0, -1000.0], dtype=np.float32)
-    bias = np.repeat(2.0, 7).astype("float32")
+    x = np.array([-1.0, 0, 1.0, 100.0, -100.0, 1000.0, -1000.0], dtype=dtype)
+    bias = np.repeat(2.0, 7).astype(dtype)
     verify_biasgelu(x, bias)
 
-    x = np.array([[1, 2], [3, 4]], dtype=np.float32)
-    bias = np.array([0.3, 4.0], dtype=np.float32)
+    x = np.array([[1, 2], [3, 4]], dtype=dtype)
+    bias = np.array([0.3, 4.0], dtype=dtype)
     verify_biasgelu(x, bias)
 
 
@@ -6117,6 +6149,126 @@ def test_qlinearconv(target, dev):
         repeat(1, dims),
         per_channel_quantization=True,
     )
+
+
+# TODO(vvchernov): fix problem with quantization on cuda
+@tvm.testing.known_failing_targets("cuda")
+@tvm.testing.parametrize_targets
+def test_qlinearmatmul(target, dev):
+    """test_qlinearmatmul"""
+
+    def verify_qlinearmatmul(
+        x_shape,
+        w_shape,
+        y_shape,
+        x_dtype="uint8",
+        w_dtype="uint8",
+    ):
+        def get_randint_numpy_scalar(dtype="uint8"):
+            if dtype == "uint8":
+                return np.random.randint(0, 255)
+            else:  # "int8"
+                return np.random.randint(-128, 127)
+
+        if x_dtype == "uint8":
+            x_array = np.random.randint(low=0, high=255, size=x_shape).astype("uint8")
+        else:  # "int8"
+            x_array = np.random.randint(low=-128, high=127, size=x_shape).astype("int8")
+        if w_dtype == "uint8":
+            w_array = np.random.uniform(low=0, high=255, size=w_shape).astype("uint8")
+        else:  # "int8"
+            w_array = np.random.uniform(low=-128, high=127, size=w_shape).astype("int8")
+
+        x_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(x_dtype)]
+        w_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(w_dtype)]
+
+        y_dtype = "int8"
+        if x_dtype == "uint8" and w_dtype == "uint8":
+            y_dtype = "uint8"
+        y_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(y_dtype)]
+
+        initializer = [
+            helper.make_tensor("x_scale", TensorProto.FLOAT, (), [np.random.rand()]),
+            # TODO: 0 value for int8?
+            helper.make_tensor(
+                "x_zero_point", x_proto_type, (), [get_randint_numpy_scalar(x_dtype)]
+            ),
+            helper.make_tensor("w_scale", TensorProto.FLOAT, (), [np.random.rand()]),
+            # TODO: 0 value for int8?
+            helper.make_tensor(
+                "w_zero_point", w_proto_type, (), [get_randint_numpy_scalar(w_dtype)]
+            ),
+            helper.make_tensor("y_scale", TensorProto.FLOAT, (), [np.random.rand()]),
+            helper.make_tensor(
+                "y_zero_point", y_proto_type, (), [get_randint_numpy_scalar(y_dtype)]
+            ),
+        ]
+
+        input_nodes = [
+            helper.make_tensor_value_info("x", x_proto_type, list(x_shape)),
+            helper.make_tensor_value_info("w", w_proto_type, list(w_shape)),
+        ]
+        input_names = [
+            "x",
+            "x_scale",
+            "x_zero_point",
+            "w",
+            "w_scale",
+            "w_zero_point",
+            "y_scale",
+            "y_zero_point",
+        ]
+        input_values = [x_array, w_array]
+
+        node = helper.make_node(
+            "QLinearMatMul",
+            inputs=input_names,
+            outputs=["y"],
+        )
+
+        y_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype("int8")]
+        if x_dtype == "uint8" and w_dtype == "uint8":
+            y_proto_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype("uint8")]
+
+        graph = helper.make_graph(
+            [node],
+            "qmatmul_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("y", y_proto_type, list(y_shape))],
+            initializer=initializer,
+        )
+        model = helper.make_model(graph, producer_name="qlinearmatmul_test")
+        # opt_level=1 will cause error
+        verify_with_ort_with_inputs(model, input_values, opt_level=2, target=target, dev=dev)
+
+    # Default matmul both ranks = 2 (x_dtype = "uint8", w_dtype = "uint8")
+    verify_qlinearmatmul((2, 3), (3, 2), (2, 2))
+
+    # Default matmul both ranks = 2 (x_dtype = "int8", w_dtype = "int8")
+    verify_qlinearmatmul((2, 3), (3, 2), (2, 2), "int8", "int8")
+
+    # TODO(vvchernov): problems on ONNX Runtime side and type check (onnx.py:L4763) on TVM side
+    # Default matmul both ranks = 2 (x_dtype = "uint8", w_dtype = "int8")
+    # verify_qlinearmatmul((2, 3), (3, 2), (2, 2), "uint8", "int8")
+
+    # TODO(vvchernov): problems on ONNX Runtime side and type check (onnx.py:L4763) on TVM side
+    # Default matmul both ranks = 2 (x_dtype = "int8", w_dtype = "uint8")
+    # verify_qlinearmatmul((2, 3), (3, 2), (2, 2), "int8", "uint8")
+
+    # Reduced matmul: x_ranks = 1, w_rank = 2 (x_dtype = "uint8", w_dtype = "uint8")
+    verify_qlinearmatmul((3,), (3, 2), (2,))
+
+    # Special case matmul: x_ranks = 3, w_rank = 2 (x_dtype = "uint8", w_dtype = "uint8")
+    verify_qlinearmatmul((2, 3, 4), (4, 3), (2, 3, 3))
+
+    # GPT2-style matmul both ranks = 4 (x_dtype = "uint8", w_dtype = "uint8")
+    verify_qlinearmatmul((2, 4, 3, 3), (2, 4, 3, 3), (2, 4, 3, 3))
+
+    # Asymetric matmul: x_ranks = 4, w_rank = 3 (x_dtype = "uint8", w_dtype = "uint8")
+    verify_qlinearmatmul((2, 4, 3, 3), (4, 3, 3), (2, 4, 3, 3))
+
+    # Asymetric matmul: x_ranks = 2, w_rank = 3 (x_dtype = "uint8", w_dtype = "uint8")
+    # verify_qlinearmatmul((3, 3), (4, 3, 3), (4, 3, 3))
 
 
 @tvm.testing.parametrize_targets

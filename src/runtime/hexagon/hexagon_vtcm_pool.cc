@@ -85,7 +85,8 @@ void* HexagonVtcmPool::Allocate(size_t nbytes) {
 
   auto entry_to_allocate = free_.begin();
   for (auto it = free_.begin(); it != free_.end(); it++) {
-    if ((it->second < entry_to_allocate->second) && (it->second >= nbytes)) {
+    if ((entry_to_allocate->second < nbytes || it->second < entry_to_allocate->second) &&
+        it->second >= nbytes) {
       entry_to_allocate = it;
       if (entry_to_allocate->second == nbytes) {
         break;

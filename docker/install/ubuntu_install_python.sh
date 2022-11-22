@@ -89,6 +89,7 @@ pip3 install \
 addgroup tvm-venv
 chgrp -R tvm-venv "${TVM_VENV}"
 setfacl -R -d -m group:tvm-venv:rwx "${TVM_VENV}"
+setfacl -R -m group:tvm-venv:rwx "${TVM_VENV}"
 
 # Prevent further use of pip3 via the system.
 # There may be multiple (i.e. from python3-pip apt package and pip3 install -U).

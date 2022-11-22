@@ -14,10 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test Resnet50 float16 with MetaSchedule"""
+
 import os
-import pytest
 import tempfile
 
+import pytest
 import numpy as np
 
 import tvm.testing
@@ -25,13 +27,8 @@ from tvm import relay
 from tvm import meta_schedule as ms
 from tvm.contrib.hexagon.meta_schedule import get_hexagon_local_builder, get_hexagon_rpc_runner
 from tvm.relay.backend import Executor
+
 from ..infrastructure import get_hexagon_target
-
-
-target = get_hexagon_target("v69")
-target_llvm = tvm.target.Target("llvm")
-model_json = "resnet50_fp16.json"
-model_params = "resnet50_fp16.params"
 
 
 def convert_conv2d_layout(mod, desired_layouts):
@@ -43,14 +40,20 @@ def convert_conv2d_layout(mod, desired_layouts):
 @pytest.mark.skip("End-to-end tuning is skipped on CI.")
 @tvm.testing.requires_hexagon
 def test_resnet50(hexagon_launcher):
+    """Test Resnet50."""
+    model_json = "resnet50_fp16.json"
+    target_llvm = tvm.target.Target("llvm")
+    target_hexagon = get_hexagon_target("v69")
+    model_params = "resnet50_fp16.params"
+
     if not os.path.exists(model_json):
         pytest.skip(msg="Run python export_models.py first.")
 
-    with open(model_json, "r") as fi:
-        mod = tvm.ir.load_json(fi.read())
+    with open(model_json, "r") as file:
+        mod = tvm.ir.load_json(file.read())
 
-    with open(model_params, "rb") as fi:
-        params = relay.load_param_dict(fi.read())
+    with open(model_params, "rb") as file:
+        params = relay.load_param_dict(file.read())
 
     mod = convert_conv2d_layout(mod, {"nn.conv2d": ["NHWC", "HWIO"]})
 
@@ -65,7 +68,7 @@ def test_resnet50(hexagon_launcher):
     with tempfile.TemporaryDirectory() as work_dir:
         database = ms.relay_integration.tune_relay(
             mod=mod,
-            target=target,
+            target=target_hexagon,
             params=params,
             work_dir=work_dir,
             # for faster tuning
@@ -87,7 +90,7 @@ def test_resnet50(hexagon_launcher):
         hexagon_lowered = ms.relay_integration.compile_relay(
             database=database,
             mod=mod,
-            target=target,
+            target=target_hexagon,
             params=params,
         )
 
@@ -103,7 +106,7 @@ def test_resnet50(hexagon_launcher):
         llvm_graph_mod.run()
         ref_result = llvm_graph_mod.get_output(0).numpy()
 
-    with hexagon_launcher.start_session() as session:
+    with hexagon_launcher.create_session() as session:
         graph_mod = session.get_executor_from_factory(hexagon_lowered)
         graph_mod.set_input(input_name, inp.copy())
 
@@ -126,3 +129,7 @@ def test_resnet50(hexagon_launcher):
             hexagon_lowered.get_graph_json(), hexagon_lowered.lib
         )
         print(debug_ex.profile(input_name=inp.copy()))
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

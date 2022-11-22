@@ -30,7 +30,7 @@ dtype = tvm.testing.parameter("float32")
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad(target, dtype):
+def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad(remote, target, dtype):
     input_shape = (1, 32, 42, 42)
     filter_shape = (96, 32, 3, 3)
     bias_shape = (1, 96, 1, 1)
@@ -65,12 +65,14 @@ def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad(target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, [], gpu_preprocess)
+    build_run_compare(
+        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [], gpu_preprocess
+    )
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad_pass(target, dtype):
+def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad_pass(remote, target, dtype):
     input_shape = (1, 32, 40, 40)
     filter_shape = (96, 32, 2, 2)
     bias_shape = (1, 96, 1, 1)
@@ -105,12 +107,14 @@ def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad_pass(target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, [], gpu_preprocess)
+    build_run_compare(
+        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [], gpu_preprocess
+    )
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_inceptionv3_35_35_strides(target, dtype):
+def test_conv2d_inceptionv3_35_35_strides(remote, target, dtype):
     input_shape = (1, 48, 35, 35)
     filter_shape = (64, 48, 5, 5)
     bias_shape = (1, 64, 1, 1)
@@ -145,12 +149,14 @@ def test_conv2d_inceptionv3_35_35_strides(target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, [], gpu_preprocess)
+    build_run_compare(
+        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [], gpu_preprocess
+    )
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_resnet50_v2_nchw_3c(target, dtype):
+def test_conv2d_resnet50_v2_nchw_3c(remote, target, dtype):
     input_shape = (1, 3, 224, 224)
     filter_shape = (64, 3, 7, 7)
     bias_shape = (1, 64, 1, 1)
@@ -186,12 +192,12 @@ def test_conv2d_resnet50_v2_nchw_3c(target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target)
+    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_inceptionv3_nchw_3c(target, dtype):
+def test_conv2d_inceptionv3_nchw_3c(remote, target, dtype):
     input_shape = (1, 3, 299, 299)
     filter_shape = (64, 3, 3, 3)
     bias_shape = (1, 64, 1, 1)
@@ -226,12 +232,12 @@ def test_conv2d_inceptionv3_nchw_3c(target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target)
+    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_1x1_16c16spatial(target, dtype):
+def test_conv2d_1x1_16c16spatial(remote, target, dtype):
     input_shape = (1, 16, 256, 256)
     filter_shape = (32, 16, 4, 4)
     bias_shape = (1, 32, 1, 1)
@@ -266,12 +272,12 @@ def test_conv2d_1x1_16c16spatial(target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target)
+    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_4x4_16c16pad(target, dtype):
+def test_conv2d_4x4_16c16pad(remote, target, dtype):
     input_shape = (1, 32, 256, 256)
     filter_shape = (32, 32, 4, 4)
     bias_shape = (1, 32, 1, 1)
@@ -306,12 +312,12 @@ def test_conv2d_4x4_16c16pad(target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target)
+    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_4x4x4_16c16pad(target, dtype):
+def test_conv2d_4x4x4_16c16pad(remote, target, dtype):
     input_shape = (1, 32, 256, 256)
     filter_shape = (4, 32, 4, 4)
     bias_shape = (1, 4, 1, 1)
@@ -346,12 +352,12 @@ def test_conv2d_4x4x4_16c16pad(target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target)
+    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_yolov3_v2_nchw_3c(target, dtype):
+def test_conv2d_yolov3_v2_nchw_3c(remote, target, dtype):
     input_shape = (1, 1024, 13, 13)
     filter_shape = (255, 1024, 1, 1)
     A = relay.var("data", shape=input_shape, dtype=dtype)
@@ -379,12 +385,12 @@ def test_conv2d_yolov3_v2_nchw_3c(target, dtype):
         "weight": tvm.nd.array(filter_data),
     }
 
-    build_run_compare(mod, params, {"data": input_shape}, dtype, target)
+    build_run_compare(remote, mod, params, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_vgg16_winograd_4d(target, dtype):
+def test_conv2d_vgg16_winograd_4d(remote, target, dtype):
     input_shape = (1, 512, 28, 28)
     filter_shape = (512, 512, 3, 3)
     bias_shape = (1, 512, 1, 1)
@@ -424,7 +430,7 @@ def test_conv2d_vgg16_winograd_4d(target, dtype):
             f'{{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256", "conv2d_nchw_winograd.image2d", [["TENSOR", [1, 512, 28, 28], "{dtype}"], ["TENSOR", [512, 512, 3, 3], "{dtype}"], [1, 1], [1, 1, 1, 1], [1, 1], "{dtype}"], {{}}], "config": {{"index": 1591, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 4], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 2]], ["tile_rc", "sp", [-1, 8]]]}}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}}\n'
         )
     graph = build_run_compare(
-        mod, params1, {"data": input_shape}, dtype, target, stat_file=stat_file
+        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, stat_file=stat_file
     )
     matches = re.findall("winograd", graph)
     assert len(matches) > 0
@@ -432,7 +438,7 @@ def test_conv2d_vgg16_winograd_4d(target, dtype):
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_winograd_conv(target, dtype):
+def test_conv2d_winograd_conv(remote, target, dtype):
     input_shape = (1, 4, 3, 3)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     filter_shape3 = (8, 4, 3, 3)
@@ -471,7 +477,7 @@ def test_conv2d_winograd_conv(target, dtype):
             f'{{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256", "conv2d_nchw_winograd.image2d", [["TENSOR", [1, 4, 3, 3], "{dtype}"], ["TENSOR", [8, 4, 3, 3], "{dtype}"], [1, 1], [1, 1, 1, 1], [1, 1], "{dtype}"], {{}}], "config": {{"index": 1591, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 4], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 2]], ["tile_rc", "sp", [-1, 8]]]}}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}}\n'
         )
     graph = build_run_compare(
-        mod, params1, {"data": input_shape}, dtype, target, stat_file=stat_file
+        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, stat_file=stat_file
     )
     matches = re.findall("winograd", graph)
     assert len(matches) > 0
@@ -479,7 +485,7 @@ def test_conv2d_winograd_conv(target, dtype):
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_residual_block(target, dtype):
+def test_residual_block(remote, target, dtype):
     """
     - some kind of residual block followed by convolution to have texture after residual block
     - scalar data type verification which should be mapped to global memory scope
@@ -596,12 +602,14 @@ def test_residual_block(target, dtype):
             "",
         ]
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
+    build_run_compare(
+        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, static_memory_scope
+    )
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_concat(target, dtype):
+def test_concat(remote, target, dtype):
     """
         layout_transform (NCHW->NCHW4c)
                   |                      <- buffer
@@ -708,12 +716,14 @@ def test_concat(target, dtype):
 
     static_memory_scope = []
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
+    build_run_compare(
+        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, static_memory_scope
+    )
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_pooling_branching_texture_params(target, dtype):
+def test_pooling_branching_texture_params(remote, target, dtype):
     """
     Verification of the pooling and many branches having textures
                 layout_transform (NCHW->NCHW4c)
@@ -834,12 +844,14 @@ def test_pooling_branching_texture_params(target, dtype):
         "",
     ]
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
+    build_run_compare(
+        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, static_memory_scope
+    )
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_branching_texture_params(target, dtype):
+def test_branching_texture_params(remote, target, dtype):
     """
     Verification of passing texture to several consumers markup of relay variables in
     primary functions + on_device
@@ -958,13 +970,15 @@ def test_branching_texture_params(target, dtype):
         "",
     ]
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
+    build_run_compare(
+        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, static_memory_scope
+    )
 
 
 # function repeat, params scope are different in reused functions
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_different_lowering_same_op(target, dtype):
+def test_conv2d_different_lowering_same_op(remote, target, dtype):
     """
     Use case for verification of caching compiled functions
     Three convolutions following by each other in this case should be
@@ -1040,12 +1054,14 @@ def test_conv2d_different_lowering_same_op(target, dtype):
         "",
     ]
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
+    build_run_compare(
+        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, static_memory_scope
+    )
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_winograd_non_rect(target, dtype):
+def test_conv2d_winograd_non_rect(remote, target, dtype):
     input_shape = (1, 771, 36, 64)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     filter_shape = (128, 771, 3, 3)
@@ -1070,7 +1086,208 @@ def test_conv2d_winograd_non_rect(target, dtype):
             f'{{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256 -texture_spatial_limit=16384 -thread_warp_size=1", "conv2d_nchw_winograd.image2d", [["TENSOR", [1, 771, 36, 64], "{dtype}"], ["TENSOR", [128, 771, 3, 3], "{dtype}"], [1, 1], [1, 1, 1, 1], [1, 1], "{dtype}"], {{}}], "config": {{"index": 5399, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 16], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 8]], ["tile_rc", "sp", [-1, 193]]]}}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}}\n'
         )
     graph = build_run_compare(
-        mod, params1, {"data": input_shape}, dtype, target, stat_file=stat_file
+        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, stat_file=stat_file
     )
     matches = re.findall("winograd", graph)
     assert len(matches) > 0
+
+
+# function repeat, params scope are different in reused functions
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_injective_nwo_inputs1(remote, target, dtype):
+    """
+    Use case for verification of stability of annotation primary functions
+    having several ops accepting data outside of Primary function
+    The visiting of ops during traversing of graph inside primary function
+    can depend on order of relay graph creation. Thus the annotation mechanism
+    should be reliable for graph traversal order
+    The current decision if Prim Function support textures or not depend on
+    *any* op accepting input of the function and if op support textures
+                                     Input
+                               /                   \
+                layout_transform (NCHW->NCHW4c)    |
+                         |                        /
+                      conv2d (1)                 /
+                         |                      /
+                      conv2d (2)       mean    /
+                  /         \                 /   <- Primary function several head ops
+             (1)add    (2)layout_transform    |
+                 |        (NCHW4c->NCHW)      |
+                 |           |      \        /
+                 |           |       (3) add
+                 |           |         |
+    layout_transform          \       /
+     (NCHW4c->NCHW)             \    /
+                 \                mul
+                  \            /
+                        add
+
+    This test verifies a case when the latest op which is visited is (3) and does not
+    support textures, but there is (1) supporting textures, thus the whole func will
+    support textures
+    """
+    input_shape = (1, 4, 40, 40)
+    filter_shape1 = (4, 4, 3, 3)
+    filter_shape2 = (4, 4, 3, 3)
+    filter_shape3 = (4, 4, 3, 3)
+    A = relay.var("data", shape=input_shape, dtype=dtype)
+    W1 = relay.var("weight1", shape=filter_shape1, dtype=dtype)
+    W2 = relay.var("weight2", shape=filter_shape2, dtype=dtype)
+    mean = relay.mean(A, axis=1, keepdims=True)
+    conv1 = relay.nn.conv2d(
+        A,
+        W1,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        padding=[1, 1, 1, 1],
+        strides=[1, 1],
+        out_dtype=dtype,
+        channels=4,
+        kernel_size=(3, 3),
+    )
+
+    conv2 = relay.nn.conv2d(
+        conv1,
+        W2,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        padding=[1, 1, 1, 1],
+        strides=[1, 1],
+        out_dtype=dtype,
+        channels=4,
+        kernel_size=(3, 3),
+    )
+
+    ad3 = relay.op.add(conv1, conv2)
+    ad1 = relay.op.add(mean, conv1)
+    ad2 = relay.op.multiply(ad1, conv2)
+    ad4 = relay.op.add(ad3, ad2)
+
+    mod = relay.Function([A, W1, W2], ad4)
+    np.random.seed(0)
+    initializer = relay.testing.init.Xavier()
+    filter_data1 = np.zeros(filter_shape1).astype(dtype)
+    filter_data2 = np.zeros(filter_shape2).astype(dtype)
+    initializer("weight", filter_data1)
+    initializer("weight", filter_data2)
+    params1 = {
+        "weight1": tvm.nd.array(filter_data1),
+        "weight2": tvm.nd.array(filter_data2),
+    }
+
+    static_memory_scope = [
+        "global",
+        "global.texture",
+        "global.texture-nhwc",
+        "global.texture",
+        "global.texture-nhwc",
+        "global.texture",
+        "global",
+        "global",
+    ]
+    build_run_compare(
+        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, static_memory_scope
+    )
+
+
+# function repeat, params scope are different in reused functions
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_injective_nwo_inputs2(remote, target, dtype):
+    """
+    Use case for verification of stability of annotation primary functions
+    having several ops accepting data outside of Primary function
+    The visiting of ops during traversing of graph inside primary function
+    can depend on order of relay graph creation. Thus the annotation mechanism
+    should be reliable for graph traversal order
+    The current decision if Prim Function support textures or not depend on
+    *any* op accepting input of the function and if op support textures
+                                     Input
+                               /                   \
+                layout_transform (NCHW->NCHW4c)    |
+                         |                        /
+                      conv2d (1)                 /
+                         |                      /
+                      conv2d (2)       mean    /
+                  /         \                 /   <- Primary function several head ops
+             (1)add    (2)layout_transform    |
+                 |        (NCHW4c->NCHW)      |
+                 |           |      \        /
+                 |           |       (3) add
+                 |           |         |
+    layout_transform          \       /
+     (NCHW4c->NCHW)             \    /
+                 \                mul
+                  \            /
+                        add
+
+    This test verifies a case when the latest op which is (1), it supports textures
+    an whole prim function is considered as a func working with textures
+    """
+    input_shape = (1, 4, 40, 40)
+    filter_shape1 = (4, 4, 3, 3)
+    filter_shape2 = (4, 4, 3, 3)
+    filter_shape3 = (4, 4, 3, 3)
+    A = relay.var("data", shape=input_shape, dtype=dtype)
+    W1 = relay.var("weight1", shape=filter_shape1, dtype=dtype)
+    W2 = relay.var("weight2", shape=filter_shape2, dtype=dtype)
+    mean = relay.mean(A, axis=1, keepdims=True)
+    conv1 = relay.nn.conv2d(
+        A,
+        W1,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        padding=[1, 1, 1, 1],
+        strides=[1, 1],
+        out_dtype=dtype,
+        channels=4,
+        kernel_size=(3, 3),
+    )
+
+    conv2 = relay.nn.conv2d(
+        conv1,
+        W2,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        padding=[1, 1, 1, 1],
+        strides=[1, 1],
+        out_dtype=dtype,
+        channels=4,
+        kernel_size=(3, 3),
+    )
+
+    ad3 = relay.op.add(conv1, conv2)
+    ad1 = relay.op.add(mean, conv1)
+    ad2 = relay.op.multiply(ad1, conv2)
+    ad4 = relay.op.add(ad2, ad3)
+
+    mod = relay.Function([A, W1, W2], ad4)
+    np.random.seed(0)
+    initializer = relay.testing.init.Xavier()
+    filter_data1 = np.zeros(filter_shape1).astype(dtype)
+    filter_data2 = np.zeros(filter_shape2).astype(dtype)
+    initializer("weight", filter_data1)
+    initializer("weight", filter_data2)
+    params1 = {
+        "weight1": tvm.nd.array(filter_data1),
+        "weight2": tvm.nd.array(filter_data2),
+    }
+
+    static_memory_scope = [
+        "global",
+        "global.texture",
+        "global.texture-nhwc",
+        "global.texture",
+        "global",
+        "global.texture-nhwc",
+        "global.texture",
+        "global",
+    ]
+    build_run_compare(
+        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, static_memory_scope
+    )
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

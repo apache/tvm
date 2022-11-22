@@ -23,6 +23,13 @@ namespace meta_schedule {
 
 String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "llvm") {
+    static const PackedFunc* f_check_vnni =
+        runtime::Registry::Get("tvm.topi.x86.utils.target_has_vnni");
+    ICHECK(f_check_vnni != nullptr) << "The `target_has_vnni` func is not in tvm registry.";
+    if (target->GetAttr<String>("mcpu") &&
+        (*f_check_vnni)(target->GetAttr<String>("mcpu").value())) {
+      return "vnni";
+    }
     return "llvm";
   }
   if (target->kind->name == "hexagon") {
@@ -45,12 +52,11 @@ String GetRuleKindFromTarget(const Target& target) {
     }
     return "cuda";
   }
-  if (target->kind->name == "rocm") {
+
+  if (IsGPUTarget(target->kind->name)) {
     return "cuda";
   }
-  if (target->kind->name == "vulkan") {
-    return "cuda";
-  }
+
   LOG(FATAL) << "Unsupported target: " << target;
   throw;
 }
@@ -80,6 +86,10 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
       default_sch_rules = ScheduleRule::DefaultHexagon();
       default_postprocs = Postproc::DefaultHexagon();
       default_mutator_probs = Mutator::DefaultHexagon();
+    } else if (kind == "vnni") {
+      default_sch_rules = ScheduleRule::DefaultVNNI();
+      default_postprocs = Postproc::DefaultVNNI();
+      default_mutator_probs = Mutator::DefaultVNNI();
     } else {
       LOG(FATAL) << "Unsupported kind: " << kind;
       throw;

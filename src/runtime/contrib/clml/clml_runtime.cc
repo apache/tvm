@@ -1144,28 +1144,38 @@ class CLMLRuntime : public JSONRuntimeBase {
                                              CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
     auto wt_dims = get_tensor_dims(nodes_[node.GetInputs()[1].id_]);
     bool has_bias = node.GetInputs().size() == 3 ? true : false;
-    auto weight = MakeCLMLTensorFromJSONEntry(node.GetInputs()[1], {1, 1, wt_dims.n, wt_dims.c},
+    auto weight = MakeCLMLTensorFromJSONEntry(node.GetInputs()[1], {wt_dims.n, wt_dims.c, 1, 1},
                                               CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
+
     auto bias = std::make_shared<cl_ml_tensor_memory_desc_qcom>();
     if (has_bias) {
       auto bias_dims = get_tensor_dims(nodes_[node.GetInputs()[2].id_]);
-      bias = MakeCLMLTensorFromJSONEntry(node.GetInputs()[2], {1, bias_dims.c, 1, 1},
-                                         CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
-    }
-
-    cl_ml_op_fully_connected_desc_qcom fc_desc = {1, CL_FC_WEIGHT_TRANSFORM_TRANSPOSE_QCOM,
-                                                  cl_arithmetic_mode};
-    auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
-
-    if (has_bias) {
-      result = h_ClmlIntf->clCreateMLOpFullyConnectedQCOM(
-          workspace->context, 0, &fc_desc, input->tensor, weight->tensor, bias->tensor,
-          output->tensor, &op, tuning_cache);
+      bias = MakeCLMLTensorFromJSONEntry(node.GetInputs()[2], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
+                                         cl_dtype);
     } else {
-      result = h_ClmlIntf->clCreateMLOpFullyConnectedQCOM(workspace->context, 0, &fc_desc,
-                                                          input->tensor, weight->tensor, NULL,
-                                                          output->tensor, &op, tuning_cache);
+      cl_ml_tensor_desc_qcom desc = {};
+      desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
+      result =
+          h_ClmlIntf->clCreateMLTensorQCOM(workspace->context, NULL, &desc, &layer_.unusedTensor);
+      ICHECK(layer_.unusedTensor && result == CL_SUCCESS) << "clCreateMLTensorQCOM:" << result;
+      bias->tensor = layer_.unusedTensor;
     }
+    // Output
+    auto output = MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype, nullptr,
+                                             {1, wt_dims.n, 1, 1});
+    cl_ml_op_convolution_desc_qcom conv_desc = {CL_CONVOLUTION_MODE_CONVOLUTION_QCOM,
+                                                1,
+                                                4,
+                                                {0, 0},
+                                                {0, 0},
+                                                {1, 1},
+                                                {1, 1},
+                                                0,
+                                                cl_arithmetic_mode};
+
+    result = h_ClmlIntf->clCreateMLOpConvolutionForwardQCOM(
+        workspace->context, 0, &conv_desc, input->tensor, weight->tensor, bias->tensor,
+        output->tensor, &op, NULL);
     ICHECK(op && result == CL_SUCCESS) << "Fully Connected Error:" << result;
 
     layer->function.push_back(op);

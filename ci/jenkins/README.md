@@ -25,7 +25,7 @@ Jenkins runs all of the linux-based TVM CI-enabled regression tests. This includ
 
 ## GitHub Actions
 
-GitHub Actions is used to run Windows jobs, MacOS jobs, and various on-GitHub automations. These are defined in [`.github/workflows`](../.github/workflows/). These automations include bots to:
+GitHub Actions is used to run Windows jobs, MacOS jobs, and various on-GitHub automations. These are defined in [`.github/workflows`](../../.github/workflows/). These automations include bots to:
 * [cc people based on subscribed teams/topics](https://github.com/apache/tvm/issues/10317)
 * [allow non-committers to merge approved / CI passing PRs](https://discuss.tvm.apache.org/t/rfc-allow-merging-via-pr-comments/12220)
 * [add cc-ed people as reviewers on GitHub](https://discuss.tvm.apache.org/t/rfc-remove-codeowners/12095)
@@ -39,19 +39,19 @@ https://github.com/apache/tvm/actions has the logs for each of these workflows. 
 TVM uses Jenkins for running Linux continuous integration (CI) tests on
 [branches](https://ci.tlcpack.ai/job/tvm/) and
 [pull requests](https://ci.tlcpack.ai/job/tvm/view/change-requests/) through a
-build configuration specified in a [`Jenkinsfile`](../Jenkinsfile).
+build configuration specified in a [`Jenkinsfile`](../../Jenkinsfile).
 Other jobs run in GitHub Actions for Windows and MacOS jobs.
 
 ## `Jenkinsfile`
 
-The template files in this directory are used to generate the [`Jenkinsfile`](../Jenkinsfile) used by Jenkins to run CI jobs for each commit to PRs and branches.
+The template files in this directory are used to generate the [`Jenkinsfile`](../../Jenkinsfile) used by Jenkins to run CI jobs for each commit to PRs and branches.
 
 To regenerate the `Jenkinsfile`, run
 
 ```bash
 python3 -mvenv _venv
-_venv/bin/pip3 install -r jenkins/requirements.txt
-_venv/bin/python3 jenkins/generate.py
+_venv/bin/pip3 install -r ci/jenkins/requirements.txt
+_venv/bin/python3 ci/jenkins/generate.py
 ```
 
 # Infrastructure

@@ -52,6 +52,7 @@ namespace backend {
  * A simple example:
  *
  * Before:
+ * \verbatim
  * def @main(%input: Tensor[(1, 2, 2, 4), int8]) -> Tensor[(1, 2, 2, 4), int8] {
  *   let %x_0 = fn (%x: Tensor[(1, 2, 2, 4), int8], Primitive=1) -> Tensor[(1, 2, 2, 4), int8] {
  *     nn.max_pool2d(%x, pool_size=[1, 1], padding=[0, 0, 0, 0])
@@ -59,8 +60,10 @@ namespace backend {
  *   let %x_1 = %x_0(%input);
  *   %x_1
  * }
+ * \endverbatim
  *
  * After:
+ * \verbatim
  * def @main(%input: Tensor[(1, 2, 2, 4), int8], io_used_memory=32) -> Tensor[(1, 2, 2, 4), int8] {
  *   let %x_0: fn (%x: Tensor[(1, 2, 2, 4), int8], Primitive=1, used_memory=[32]) -> Tensor[(1, 2,
  * 2, 4), int8] {
@@ -69,6 +72,7 @@ namespace backend {
  *   let %x_1: Tensor[(1, 2, 2, 4), int8] = %x_0(%input);
  *   %x_1
  * }
+ * \endverbatim
  *
  * Note that in the simple example above io_used_memory and used_memory are the same since there
  * is only one primitive function.

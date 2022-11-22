@@ -19,6 +19,7 @@
 
 import abc
 import datetime
+import logging
 import multiprocessing as mp
 import os
 import pathlib
@@ -31,13 +32,14 @@ import subprocess
 import tempfile
 from typing import Union
 
-import tvm
+from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
 from ..._ffi import libinfo
 from .session import Session
-
+from .tools import HEXAGON_SIMULATOR_NAME
 
 HEXAGON_RPC_LIB_DIR = os.environ.get("HEXAGON_RPC_LIB_DIR")
 ANDROID_BASH_FILE_NAME = "android_bash.sh"
+HEXAGON_REMOTE_DEVICE_KEY = "hexagon-dev"
 
 
 def _check_call_verbose(cmd, **kwargs) -> None:
@@ -102,14 +104,9 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
     The basic flow of interaction with the launcher is
         launcher = HexagonLauncher(...)
         launcher.start_server()
-        with launcher.start_session() as session:
+        with launcher.create_session() as session:
             # Do something with the session
         launcher.stop_server()
-    """
-
-    HEXAGON_REMOTE_DEVICE_KEY = "hexagon-dev"
-
-    """Configure HexagonLauncherRPC.
 
     Parameters
     ----------
@@ -128,7 +125,9 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         used.
     """
 
-    def __init__(self, rpc_info: dict, workspace: Union[str, pathlib.Path] = None):
+    def __init__(
+        self, rpc_info: dict, workspace: Union[str, pathlib.Path] = None, serial_number: str = None
+    ):
         self._rpc_info = {
             "rpc_tracker_host": "0.0.0.0",
             "rpc_tracker_port": 9190,
@@ -137,7 +136,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         }
         self._rpc_info.update(rpc_info)
         self._workspace = self._create_workspace(workspace)
-        self._device_key = self.HEXAGON_REMOTE_DEVICE_KEY
+        self._serial_number = serial_number
 
     @abc.abstractmethod
     def start_server(self):
@@ -204,28 +203,31 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
             workspace = os.path.join(base_dir, _get_test_directory_name())
         return self._create_remote_directory(workspace)
 
-    def upload(self, local_path: Union[str, pathlib.Path], remote_filename: str) -> pathlib.Path:
-        """Upload a local file to the remote workspace.
+    @abc.abstractmethod
+    def get_profile_output(
+        self,
+        hex_profiler: HexagonProfiler,
+        session: Session,
+    ) -> str:
+        """Extract profile output.
 
         Parameters
         ----------
-        local_path : str or pathlib.Path
-            Path to the local file to be copied.
-        remote_filename : str
-            Name of the file in the remote workspace.
+        hex_profiler : HexagonProfiler
+            HexagonProfiler object that contains the profiling related information.
+        session : Session
+            Remote session. The session must be established (via __enter__)
+            prior to calling this function.
 
         Returns
         -------
-        pathlib.Path :
-            Uploaded file remote path.
+        profile_data : str
+            Path of the profiling data file
         """
-        assert self._workspace
-        remote_file_path = self._workspace / remote_filename
-        self._copy_to_remote(local_path, str(remote_file_path))
-        return remote_file_path
+        ...
 
-    def start_session(self, session_name: str = "hexagon-rpc") -> Session:
-        """Connect to the RPC server.
+    def create_session(self, session_name: str = "hexagon-rpc") -> Session:
+        """Create an RPC session.
 
         Parameters
         ----------
@@ -237,104 +239,17 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         Session :
             The session object.
         """
-        hexagon_remote_kw = {
-            "host": self._rpc_info["rpc_tracker_host"],
-            "port": self._rpc_info["rpc_tracker_port"],
-            "priority": 0,
-            "timeout": 0,
-            "key": self._device_key,
+        hexagon_session_kw = {
+            "remote_workspace": self._workspace,
+            "rpc_tracker": (self._rpc_info["rpc_tracker_host"], self._rpc_info["rpc_tracker_port"]),
+            "rpc_server_key": self._rpc_info["device_key"],
+            "serial_number": self._serial_number,
+            "session_name": session_name,
         }
-        return Session(self, hexagon_remote_kw, session_name=session_name)
+        return Session(**hexagon_session_kw)
 
-    def load_module(self, module: Union[str, pathlib.Path, tvm.runtime.Module], session: Session):
-        """Load TVM module.
-
-        Parameters
-        ----------
-        module : Union[str, pathlib.Path, tvm.runtime.Module]
-
-            The module to load.  If `module` is a
-            `tvm.runtime.Module`, it will be uploaded to the remote
-            session and loaded.
-
-            If the object passed is a string or pathlib.Path, it must
-            be a full path in the remote system.
-
-        session : Session
-
-            Remote session. The session must be established (via __enter__)
-            prior to calling this function.
-
-        Returns
-        -------
-        TVMModule :
-            TVM module object.
-
-        """
-        return session.load_module(module)
-
-    def get_graph_executor(
-        self,
-        graph_json: str,
-        module: Union[str, pathlib.Path, tvm.runtime.Module],
-        session: Session,
-    ):
-        """Create a local GraphModule which consumes a remote libmod.
-
-        Parameters
-        ----------
-        graph_json : str
-            The string with the graph JSON.
-        module : Union[str, pathlib.Path, tvm.runtime.Module]
-
-            The module to load.  If `module` is a
-            `tvm.runtime.Module`, it will be uploaded to the remote
-            session and loaded.
-
-            If the object passed is a string or pathlib.Path, it must
-            be a full path in the remote system.
-        session : Session
-            Remote session. The session must be established (via __enter__)
-            prior to calling this function.
-
-        Returns
-        -------
-        GraphModule :
-            Runtime graph module that can be used to execute the graph.
-        """
-        return session.get_graph_executor(graph_json, module)
-
-    def get_graph_debug_executor(
-        self,
-        graph_json: str,
-        module: Union[str, pathlib.Path, tvm.runtime.Module],
-        session: Session,
-        dump_root: Union[str, pathlib.Path] = None,
-    ):
-        """Create a local GraphModuleDebug which consumes a remote libmod.
-
-        Parameters
-        ----------
-        graph_json : str
-            The string with the graph JSON.
-        module : Union[str, pathlib.Path, tvm.runtime.Module]
-
-            The module to load.  If `module` is a
-            `tvm.runtime.Module`, it will be uploaded to the remote
-            session and loaded.
-
-            If the object passed is a string or pathlib.Path, it must
-            be a full path in the remote system.
-        session : Session
-            Remote session. The session must be established (via __enter__)
-            prior to calling this function.
-
-        Returns
-        -------
-        GraphModuleDebug :
-            Runtime debug graph module that can be used to debug the graph.
-        """
-        return session.get_graph_debug_executor(graph_json, module, dump_root=dump_root)
+    def is_simulator(self):
+        return self._serial_number == HEXAGON_SIMULATOR_NAME
 
 
 class HexagonLauncherAndroid(HexagonLauncherRPC):
@@ -355,6 +270,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         hexagon_debug: bool = False,
         clear_logcat: bool = False,
         sysmon_profile: bool = False,
+        farf_config: str = "0x1e",
     ):
         """Configure a new HexagonLauncherAndroid
 
@@ -374,10 +290,16 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
             Should the server clear logcat before running.
         sysmon_profile: bool, optional
             Should the server run sysmon profiler in the background.
+        farf_config: str, optional
+            Configuration string for runtime log level filtering.
+            Use farf_config_from_python_log_level to generate a bitmask
+            string from a Python logging level (e.g., logging.INFO)
         """
         if not rpc_info.get("workspace_base"):
             rpc_info["workspace_base"] = self.ANDROID_HEXAGON_TEST_BASE_DIR
         self._serial_number = serial_number
+        assert self._serial_number != "", "Android serial number is not set."
+
         adb_socket = rpc_info["adb_server_socket"] if rpc_info["adb_server_socket"] else "tcp:5037"
         self._adb_device_sub_cmd = ["adb", "-L", adb_socket, "-s", self._serial_number]
         self.forwarded_ports_ = []
@@ -385,13 +307,16 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self._clear_logcat = clear_logcat
         self._sysmon_profile = sysmon_profile
         self._sysmon_process = None
+        self._farf_config = farf_config
+        rpc_info["device_key"] = HEXAGON_REMOTE_DEVICE_KEY + "." + self._serial_number
 
-        super(HexagonLauncherAndroid, self).__init__(rpc_info, workspace)
+        super(HexagonLauncherAndroid, self).__init__(rpc_info, workspace, self._serial_number)
 
     def _copy_to_remote(
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
     ):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
+
         _check_call_verbose(self._adb_device_sub_cmd + ["push", str(local_path), str(remote_path)])
 
     def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]) -> pathlib.Path:
@@ -417,11 +342,15 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
                                 "<RPC_TRACKER_PORT>", str(self._rpc_info["rpc_tracker_port"])
                             )
                         if "<HEXAGON_REMOTE_DEVICE_KEY>" in line:
-                            line = line.replace("<HEXAGON_REMOTE_DEVICE_KEY>", self._device_key)
+                            line = line.replace(
+                                "<HEXAGON_REMOTE_DEVICE_KEY>", self._rpc_info["device_key"]
+                            )
                         if "<RPC_SERVER_PORT>" in line:
                             line = line.replace(
                                 "<RPC_SERVER_PORT>", str(self._rpc_info["rpc_server_port"])
                             )
+                        if "<FARF_CONFIG>" in line:
+                            line = line.replace("<FARF_CONFIG>", str(self._farf_config))
                         dest_f.write(line)
 
                 # Make shell script executable
@@ -629,6 +558,32 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         if not self._hexagon_debug:
             self.cleanup_directory()
 
+    def get_profile_output(
+        self,
+        hex_profiler: HexagonProfiler,
+        session: Session,
+    ):
+        """Abstract method implementation. See description in HexagonLauncherRPC."""
+        profile_data = ""
+        if hex_profiler.is_lwp_enabled():
+            temp_dir = hex_profiler.get_temp_dir()
+            remote_path = hex_profiler.get_remote_path()
+            if not temp_dir:
+                raise RuntimeError("tempdir not passed")
+            fname = "lwp.json"
+            out_path = os.path.join(remote_path, fname)
+            profile_data = temp_dir.relpath(fname)
+            ret = session.get_profile_output(hex_profiler.get_mode(), fname)
+            if ret:
+                subprocess.check_call(self._adb_device_sub_cmd + ["pull", out_path, profile_data])
+            else:
+                raise RuntimeError("Error generating profile output")
+        elif hex_profiler.profiling_mode == "etm":
+            hex_profiler.pull_files_for_etm_processing(self._workspace)
+        else:
+            raise RuntimeError("Profiling not enabled")
+        return profile_data
+
 
 class HexagonLauncherSimulator(HexagonLauncherRPC):
     """Hexagon Launcher for Hexagon simulator."""
@@ -640,12 +595,13 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
 
         Parameters are same as for HexagonLauncherRPC.
         """
-        super(HexagonLauncherSimulator, self).__init__(rpc_info, workspace)
 
         self._toolchain = os.environ.get("HEXAGON_TOOLCHAIN")
         if not self._toolchain:
             raise RuntimeError("Please set HEXAGON_TOOLCHAIN env variable")
-        self._serial_number = "simulator"
+        self._serial_number = HEXAGON_SIMULATOR_NAME
+
+        super(HexagonLauncherSimulator, self).__init__(rpc_info, workspace, self._serial_number)
 
     def _copy_to_remote(
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
@@ -689,18 +645,19 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
             self._copy_to_remote(lib_dir / item, self._workspace / item)
         # Copy libc++ from the toolchain to the workspace
         self._copy_libcxx(self._workspace)
-        self._device_key = self.HEXAGON_REMOTE_DEVICE_KEY + "." + str(os.getpid())
+        self._rpc_info["device_key"] = HEXAGON_REMOTE_DEVICE_KEY + "." + str(os.getpid())
 
         rpc_tracker_host = self._rpc_info["rpc_tracker_host"]
         rpc_tracker_port = self._rpc_info["rpc_tracker_port"]
         rpc_server_port = self._rpc_info["rpc_server_port"]
+        device_key = self._rpc_info["device_key"]
         server_exe = os.path.join(".", "tvm_rpc_x86")
 
         args = [
             "server",
             f"--tracker={rpc_tracker_host}:{rpc_tracker_port}",
             f"--port={rpc_server_port}",
-            f"--key={self._device_key}",
+            f"--key={device_key}",
             "--timeout=0",
         ]
 
@@ -735,11 +692,69 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._server_process.terminate()
 
+    def get_profile_output(
+        self,
+        hex_profiler: HexagonProfiler,
+        session: Session,
+    ):
+        """Abstract method implementation. See description in HexagonLauncherRPC."""
+        profile_data = ""
+        if hex_profiler.is_lwp_enabled():
+            fname = "lwp.json"
+            profile_data = f"{self._workspace}/{fname}"
+            ret = session.get_profile_output(hex_profiler.get_mode(), fname)
+            if not ret:
+                raise RuntimeError("Error generating profile output")
+        elif hex_profiler.profiling_mode == "etm":
+            raise RuntimeError("ETM Profiling not supported on the simulator")
+        else:
+            raise RuntimeError("Profiling not enabled")
+
+        return profile_data
+
 
 # https://stackoverflow.com/a/52872579/2689797
 def _is_port_in_use(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(("localhost", port)) == 0
+
+
+def farf_config_from_python_log_level(level) -> str:
+    """Generates a FARF configuration string enabling logging at the specified level
+
+    Parameters
+    ----------
+    level : str or int
+        Minimum level to log at. Must be a known Python logging level or string
+        (e.g., logging.INFO or "INFO")
+    """
+
+    # Runtime log levels can be selectively enabled by computing a bitmask
+    # corresponding to the levels you want to enable. These get forwarded to
+    # logcat by the DSP RPC daemon. The bits for each level are:
+
+    # 0x01 - Hexagon LOW / TVM DEBUG / Python DEBUG
+    # 0x02 - Hexagon MEDIUM / TVM INFO / Python INFO
+    # 0x04 - Hexagon HIGH / TVM WARN / Python WARNING
+    # 0x08 - Hexagon ERROR / TVM ERROR / Python ERROR
+    # 0x10 - Hexagon FATAL / TVM FATAL / Python CRITICAL
+
+    # Runtime logging can also be filtered on filenames by appending a
+    # comma-separated list of filenames. For more information, see
+    # the Hexagon SDK documentation.
+
+    if level in (logging.DEBUG, "DEBUG"):
+        return "0x1F"
+    if level in (logging.INFO, "INFO"):
+        return "0x1E"
+    if level in (logging.WARNING, "WARNING"):
+        return "0x1C"
+    if level in (logging.ERROR, "ERROR"):
+        return "0x18"
+    if level in (logging.CRITICAL, "CRITICAL"):
+        return "0x10"
+
+    raise ValueError("Argument must be a known Python logging level or string")
 
 
 # pylint: disable=invalid-name
@@ -750,10 +765,11 @@ def HexagonLauncher(
     hexagon_debug: bool = False,
     clear_logcat: bool = False,
     sysmon_profile: bool = False,
+    farf_config: str = farf_config_from_python_log_level(logging.INFO),
 ):
     """Creates a HexagonLauncher"""
-    if serial_number == "simulator":
+    if serial_number == HEXAGON_SIMULATOR_NAME:
         return HexagonLauncherSimulator(rpc_info, workspace)
     return HexagonLauncherAndroid(
-        serial_number, rpc_info, workspace, hexagon_debug, clear_logcat, sysmon_profile
+        serial_number, rpc_info, workspace, hexagon_debug, clear_logcat, sysmon_profile, farf_config
     )

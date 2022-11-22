@@ -18,6 +18,7 @@
 # pylint: disable=unused-argument, redefined-builtin
 """GEMM Convolution schedule on ARM"""
 import tvm
+from tvm.target import Target
 from tvm import te
 from tvm.topi import nn
 from tvm.autotvm.task.space import AnnotateEntity, ReorderEntity, OtherOptionEntity
@@ -29,10 +30,9 @@ from .tensor_intrin import (
     gemm_acc_nx16_int8_int8_int32,
     gemm_acc_2x2_int8_int8_int32,
 )
-from .arm_utils import is_aarch64_arm, is_dotprod_available, is_mmla_available
 
 
-def configure_knobs(cfg, M, K):
+def configure_knobs(cfg, M, K, target):
     """Configure auto-tuning knobs for the interleaved strategy"""
 
     x, y = cfg.axis(M // 4), cfg.axis(K // 16)
@@ -48,7 +48,7 @@ def configure_knobs(cfg, M, K):
         cfg["reorder_gemm"] = ReorderEntity([0, 1])
         cfg["A_interleaved_unroll_vec"] = AnnotateEntity(["unroll", "vec"])
 
-    if not is_dotprod_available():
+    if not target.features.has_dotprod:
         cfg.define_knob("gemm_quantized_unroll", [True, False])
         if cfg.is_fallback:
             cfg["gemm_quantized_unroll"] = OtherOptionEntity(False)
@@ -133,12 +133,13 @@ def compute_conv2d_gemm_without_weight_transform(
     # - Conv2DGemmWeightTransformRel in src/relay/op/nn/convolution.h
     # In order to have more information
     #
-    if is_mmla_available():
+    target = Target.current(allow_none=False)
+    if target.features.has_matmul_i8:
         # If smmla/ummla is enabled, we are loading 8 rows from A. Each row
         # will contain 8 elements
         tile_rows_A = 8
         tile_cols_A = 8
-    elif is_dotprod_available() and interleave_A:
+    elif target.features.has_dotprod and interleave_A:
         # If dot product has been enabled, and we are interleaving A
         # tile size should be 8x4
         tile_rows_A = 8
@@ -173,7 +174,7 @@ def compute_conv2d_gemm_without_weight_transform(
 
     if interleave_A:
         # Configuration space
-        configure_knobs(cfg, M_padded, K_padded)
+        configure_knobs(cfg, M_padded, K_padded, target)
 
         # Pack the input data
         A_interleaved = te.compute(
@@ -181,7 +182,8 @@ def compute_conv2d_gemm_without_weight_transform(
             lambda b, x, y, z, w: A[b, z + tile_rows_A * x, w + tile_cols_A * y],
             name="A_interleaved",
         )
-        if is_mmla_available():
+        target = Target.current(allow_none=False)
+        if target.features.has_matmul_i8:
             # Execute GEMM. In the case of mmla, we need to enforce the tiling
             # from the compute. This is because mmla is doing a tiled computation
             # as well. So we have a big 8x12 tile, with small 2x2 sub-tiles
@@ -323,7 +325,8 @@ def schedule_conv2d_gemm_interleaved(cfg, s, out, final_out):
     k = C_interleaved.op.reduce_axis[0]
     _, M, N = C.shape
     if in_type in ["int8", "uint8"]:
-        if is_mmla_available():
+        target = Target.current(allow_none=False)
+        if target.features.has_matmul_i8:
             gemm_acc = gemm_acc_2x2_int8_int8_int32(in_type)
             xi_inner, yi_inner = C_interleaved.op.axis[-2:]
             k_outer, k_inner = s[C_interleaved].split(k, 8)
@@ -333,7 +336,7 @@ def schedule_conv2d_gemm_interleaved(cfg, s, out, final_out):
             s[C_interleaved].tensorize(xi_inner, gemm_acc)
             s[C_interleaved].unroll(xi)
             s[C_interleaved].unroll(yi)
-        elif is_dotprod_available():
+        elif target.features.has_dotprod:
             gemm_acc = gemm_acc_4x4_int8_int8_int32(in_type)
             xi_outer, yi_outer, xi_inner, yi_inner = s[C_interleaved].tile(
                 xi, yi, x_factor=8, y_factor=4
@@ -354,7 +357,7 @@ def schedule_conv2d_gemm_interleaved(cfg, s, out, final_out):
             s[C_interleaved].tensorize(xi_inner_inner, gemm_acc)
             s[C_interleaved].unroll(xi_inner_outer)
 
-        elif is_aarch64_arm():
+        elif target.features.has_asimd:
             s[C_interleaved].reorder(yi, xi)
             K = A_interleaved_input.shape[2]
             assert in_type in ["int8", "uint8"], "Only int8 and uint8 gemm are supported"

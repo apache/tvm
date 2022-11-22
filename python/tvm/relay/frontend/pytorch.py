@@ -2323,8 +2323,19 @@ class PyTorchOpConverter:
 
     def index(self, inputs, input_types):
         data = inputs[0]
-        indices = inputs[1]
-        return _op.adv_index([data] + indices)
+        indices_list = []
+
+        for indices in inputs[1]:
+            if self.infer_type(indices).dtype == "bool":
+                # adv_index does not support a mask as the index tensor (it will treat 0/1 as
+                # an index rather than a flag).
+                # So we use argwhere to turn the mask into indices, which will also take care
+                # of the dynamism in the indexing by mask.
+                indices_list.append(_op.squeeze(_op.transform.argwhere(indices), axis=[1]))
+            else:
+                indices_list.append(indices)
+
+        return _op.adv_index([data] + indices_list)
 
     def meshgrid(self, inputs, input_types):
         data = inputs[0]

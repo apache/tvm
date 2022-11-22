@@ -51,16 +51,16 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 {% import 'ci/jenkins/macros.j2' as m with context -%}
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:20221013-060115-61c9742ea'
-ci_gpu = 'tlcpack/ci-gpu:20221019-060125-0b4836739'
-ci_cpu = 'tlcpack/ci-cpu:20221013-060115-61c9742ea'
-ci_minimal = 'tlcpack/ci-minimal:20221013-060115-61c9742ea'
-ci_wasm = 'tlcpack/ci-wasm:20221013-060115-61c9742ea'
-ci_i386 = 'tlcpack/ci-i386:20221013-060115-61c9742ea'
-ci_cortexm = 'tlcpack/ci-cortexm:20221013-060115-61c9742ea'
-ci_arm = 'tlcpack/ci-arm:20221013-060115-61c9742ea'
-ci_hexagon = 'tlcpack/ci-hexagon:20221013-060115-61c9742ea'
-ci_riscv = 'tlcpack/ci-riscv:20221013-060115-61c9742ea'
+ci_lint = 'tlcpack/ci-lint:20221025-182121-e41d0ed6e'
+ci_gpu = 'tlcpack/ci-gpu:20221025-182121-e41d0ed6e'
+ci_cpu = 'tlcpack/ci-cpu:20221025-182121-e41d0ed6e'
+ci_minimal = 'tlcpack/ci-minimal:20221025-182121-e41d0ed6e'
+ci_wasm = 'tlcpack/ci-wasm:20221025-182121-e41d0ed6e'
+ci_i386 = 'tlcpack/ci-i386:20221025-182121-e41d0ed6e'
+ci_cortexm = 'tlcpack/ci-cortexm:20221025-182121-e41d0ed6e'
+ci_arm = 'tlcpack/ci-arm:20221025-182121-e41d0ed6e'
+ci_hexagon = 'tlcpack/ci-hexagon:20221025-182121-e41d0ed6e'
+ci_riscv = 'tlcpack/ci-riscv:20221025-182121-e41d0ed6e'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -93,13 +93,20 @@ rebuild_docker_images = false
 
 // Filenames for stashing between build and test steps
 {% set tvm_runtime = ['build/libtvm_runtime.so', 'build/config.cmake'] %}
+{% set crttest = ['build/crttest'] %}
+{% set tvm_allvisible = ['build/libtvm_allvisible.so'] %}
+{% set cpptest = ['build/cpptest', 'build/build.ninja', 'build/CMakeFiles/rules.ninja'] %}
 {% set tvm_lib = ['build/libtvm.so'] + tvm_runtime %}
 {% set tvm_multilib = ['build/libtvm.so', 'build/libvta_fsim.so'] + tvm_runtime %}
 {% set tvm_multilib_tsim = ['build/libvta_tsim.so'] + tvm_multilib %}
 {% set microtvm_template_projects = ['build/microtvm_template_projects',] %}
 {% set hexagon_api = ['build/hexagon_api_output',] %}
-s3_prefix = "tvm-jenkins-artifacts-prod/tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"
+{% set standalone_crt = ['build/standalone_crt', 'build/build.ninja'] %}
+s3_bucket = 'tvm-jenkins-artifacts-prod'
+s3_prefix = "tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"
 
+// Jenkins script root directory
+jenkins_scripts_root = "ci/scripts/jenkins"
 {% set aws_default_region = "us-west-2" %}
 {% set aws_ecr_url = "dkr.ecr." + aws_default_region + ".amazonaws.com" %}
 

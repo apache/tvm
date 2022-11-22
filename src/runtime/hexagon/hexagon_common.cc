@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "../library_module.h"
+#include "HAP_debug.h"
 #include "HAP_perf.h"
 #include "hexagon_buffer.h"
 
@@ -69,22 +70,22 @@ std::vector<std::string> SplitString(const std::string& str, char delim) {
   }
   return lines;
 }
-void HexagonLog(const std::string& file, int lineno, const std::string& message) {
-  HEXAGON_PRINT(ALWAYS, "INFO: %s:%d:", file.c_str(), lineno);
+void HexagonLog(const std::string& file, int lineno, int level, const std::string& message) {
   std::vector<std::string> err_lines = SplitString(message, '\n');
   for (auto& line : err_lines) {
-    HEXAGON_PRINT(ALWAYS, "INFO: %s", line.c_str());
+    // TVM log levels roughly map to HAP log levels
+    HAP_debug_runtime(level, file.c_str(), lineno, line.c_str());
   }
 }
 }  // namespace
 
 namespace detail {
 [[noreturn]] void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
-  HexagonLog(file, lineno, message);
+  HexagonLog(file, lineno, TVM_LOG_LEVEL_FATAL, message);
   throw InternalError(file, lineno, message);
 }
-void LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
-  HexagonLog(file, lineno, message);
+void LogMessageImpl(const std::string& file, int lineno, int level, const std::string& message) {
+  HexagonLog(file, lineno, level, message);
 }
 }  // namespace detail
 

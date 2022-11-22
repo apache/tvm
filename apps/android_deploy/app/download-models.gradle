@@ -31,7 +31,7 @@ def models = ['extraction.zip']
 def MODEL_URL = 'https://github.com/PariksheetPinjari909/TVM_models/blob/master/extraction_model'
 buildscript {
     repositories {
-        jcenter()
+        mavenCentral()
     }
     dependencies {
         classpath 'de.undercouch:gradle-download-task:5.0.4'

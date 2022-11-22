@@ -152,7 +152,7 @@ if(MSVC)
   set(CMAKE_SUPPRESS_REGENERATION ON)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /bigobj")
+  add_compile_options(/bigobj)
 
   # MSVC already errors on undefined symbols, no additional flag needed.
   set(TVM_NO_UNDEFINED_SYMBOLS "")
@@ -165,6 +165,8 @@ if(MSVC)
         string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
       endif(${flag_var} MATCHES "/MD")
     endforeach(flag_var)
+    # Static linking. cmake behavior changed in 3.15 making this necessary.
+    add_compile_options(/MT)
   endif()
   # Disable common MSVC warnings
   # Integer conversion warnings(e.g. int64 to int)
@@ -463,6 +465,11 @@ if(USE_PIPELINE_EXECUTOR)
   list(APPEND RUNTIME_SRCS ${RUNTIME_PIPELINE_SRCS})
 endif(USE_PIPELINE_EXECUTOR)
 
+if(USE_KALLOC_ALIGNMENT)
+  message(STATUS "Build Alloc alignment set to ${USE_KALLOC_ALIGNMENT}")
+  add_definitions(-DTVM_KALLOC_ALIGNMENT=${USE_KALLOC_ALIGNMENT})
+endif(USE_KALLOC_ALIGNMENT)
+
 # Caches the build.
 # Note that ccache-3.x doesn't support nvcc well, so CUDA kernels may never hit the cache and still
 # need to be re-compiled every time. Using ccache 4.0+ can resolve this issue.
@@ -682,6 +689,9 @@ if(GTEST_FOUND)
   target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main GTest::gmock pthread dl)
   if(DEFINED LLVM_LIBS)
     target_link_libraries(cpptest PRIVATE ${LLVM_LIBS})
+  endif()
+  if(DEFINED ETHOSN_RUNTIME_LIBRARY)
+    target_link_libraries(cpptest PRIVATE ${ETHOSN_RUNTIME_LIBRARY})
   endif()
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)

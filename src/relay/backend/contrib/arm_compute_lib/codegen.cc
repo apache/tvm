@@ -292,7 +292,7 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
   /*!
    * \brief Create a JSON representation of a composite (global) average pooling operator.
    *
-   * A composite function is only created when using the uint8 datatype for these operators.
+   * A composite function is only created when using the int8/uint8 datatype for these operators.
    *
    * \param cn The call to be represented.
    * \return A JSON representation of a specific operator.

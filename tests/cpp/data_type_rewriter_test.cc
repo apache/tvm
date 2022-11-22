@@ -19,8 +19,8 @@
 
 #include <gtest/gtest.h>
 #include <tvm/tir/builtin.h>
+#include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
 
 using namespace tvm;
 using namespace tvm::tir;

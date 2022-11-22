@@ -90,9 +90,9 @@ def opt_gemm_lower():
         def mmult(A: T.handle, B: T.handle, C: T.handle) -> None:
             # function attr dict
             T.func_attr({"global_symbol": "mmult", "tir.noalias": True})
-            A_1 = T.match_buffer(A, [1024 * 1024], elem_offset=0, align=64, offset_factor=1)
+            A_1 = T.match_buffer(A, [16384], elem_offset=0, align=64, offset_factor=1)
             B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
-            C_1 = T.match_buffer(C, [1024 * 1024], elem_offset=0, align=64, offset_factor=1)
+            C_1 = T.match_buffer(C, [16384], elem_offset=0, align=64, offset_factor=1)
             # body
             packedB_data = T.allocate([32768], "float32", "global")
             packedB = T.buffer_decl(
@@ -3008,7 +3008,7 @@ def comm_reducer_single_reduce_group():
     def comm_reducer_single_reduce_group(a: T.handle, b: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         threadIdx_x = T.env_thread("threadIdx.x")
-        A = T.match_buffer(a, [128 * 128], dtype="float32")
+        A = T.match_buffer(a, [16384], dtype="float32")
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
             reduce_temp0_data = T.allocate([1], "float32", "local")
@@ -3024,7 +3024,7 @@ def comm_reducer_multiple_reduce_groups():
     def comm_reducer_multiple_reduce_groups(a: T.handle, b: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         threadIdx_x = T.env_thread("threadIdx.x")
-        A = T.match_buffer(a, [128 * 128], dtype="float32")
+        A = T.match_buffer(a, [16384], dtype="float32")
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
             reduce_temp0_data = T.allocate([1], "float32", "local")
@@ -3434,6 +3434,14 @@ def bool_variable_annotation():
     return func
 
 
+def return_none():
+    @T.prim_func
+    def func():
+        T.evaluate(0)
+
+    return func
+
+
 def bool_primitive():
     @T.prim_func
     def func() -> None:
@@ -3446,6 +3454,54 @@ def bool_cast():
     @T.prim_func
     def func() -> None:
         T.evaluate(T.bool(T.int32(0)))
+
+    return func
+
+
+def implicit_evaluate():
+    @T.prim_func
+    def func(A: T.Buffer[1, "int32"]):
+        T.evaluate(T.assume(A[0] == 5))
+        A[0] = 10
+
+    return func
+
+
+def if_true_else():
+    @T.prim_func
+    def func() -> None:
+        if True:
+            T.evaluate(0)
+        else:
+            T.evaluate(1)
+
+    return func
+
+
+def elif_chain_without_else():
+    @T.prim_func
+    def func(i: T.int32) -> None:
+        if i == 0:
+            T.evaluate(0)
+        elif i == 1:
+            T.evaluate(1)
+        elif i == 2:
+            T.evaluate(2)
+
+    return func
+
+
+def elif_chain_with_else():
+    @T.prim_func
+    def func(i: T.int32) -> None:
+        if i == 0:
+            T.evaluate(0)
+        elif i == 1:
+            T.evaluate(1)
+        elif i == 2:
+            T.evaluate(2)
+        else:
+            T.evaluate(3)
 
     return func
 
@@ -3500,6 +3556,11 @@ ir_generator = tvm.testing.parameter(
     bool_variable_annotation,
     bool_primitive,
     bool_cast,
+    return_none,
+    implicit_evaluate,
+    if_true_else,
+    elif_chain_without_else,
+    elif_chain_with_else,
 )
 
 
@@ -3507,6 +3568,12 @@ def test_roundtrip(ir_generator):
     original = ir_generator()
     after_roundtrip = tvm.script.from_source(original.script(show_meta=True))
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)
+
+
+def test_return_none_no_trailing_type():
+    func = return_none()
+    script = func.script()
+    assert "-> None" not in script
 
 
 if __name__ == "__main__":

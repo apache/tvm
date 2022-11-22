@@ -22,8 +22,9 @@ input channels divided by the number of groups."""
 
 import random
 import string
-from typing import Union, Tuple
+from typing import Callable, Tuple, Union
 
+import tvm
 from tvm import te
 from tvm.tir import indexdiv, indexmod
 from tvm.topi.utils import traverse_inline
@@ -88,13 +89,35 @@ def _compute_output_dim(
     return (data_dim + pad_before + pad_after - kernel_dim) // stride + 1
 
 
+def _wrap_te_compute(
+    shape: Tuple,
+    fcompute: Callable[[int, int, int, int], tvm.ir.PrimExpr],
+    desired_out_layout: str,
+    current_out_layout: str = "NHWC",
+    **kwargs,
+) -> te.tensor.Tensor:
+    """Wrapper over te.compute that allows the output layout to be easily changed."""
+    assert current_out_layout.isalpha() and desired_out_layout.isalpha()
+    assert sorted(current_out_layout) == sorted(desired_out_layout)
+    forward_order = (current_out_layout.index(c) for c in desired_out_layout)
+    reverse_order = (desired_out_layout.index(c) for c in current_out_layout)
+
+    return te.compute(
+        tuple(shape[i] for i in forward_order),
+        lambda *args: fcompute(*(args[i] for i in reverse_order)),
+        **kwargs,
+    )
+
+
 def _get_suffix() -> str:
     """Returns a random eight-character string to append to C function names. Prevents accidental
     re-definition of functions if the same operator appears twice in a Relay graph."""
     return "".join(random.choices(string.ascii_uppercase, k=8))
 
 
-def conv2d_nhwc_ohwi_dsp_compute(_cfg, data, kernel, strides, padding, dilation, out_dtype):
+def conv2d_nhwc_ohwi_dsp_compute(
+    _cfg, data, kernel, strides, padding, dilation, out_layout, out_dtype
+):
     """Standard conv2d schedule that can be tensorized using tensordot."""
 
     stride_h, stride_w = _unpack_2d_argument(strides)
@@ -113,13 +136,14 @@ def conv2d_nhwc_ohwi_dsp_compute(_cfg, data, kernel, strides, padding, dilation,
     kc_i = te.reduce_axis((0, in_channels), name="rc")
 
     padded_data = _pad_if_needed(data, "NHWC", (pad_up, pad_left, pad_down, pad_right))
-    return te.compute(
+    return _wrap_te_compute(
         (batch_size, output_h, output_w, output_channels),
         lambda n, y, x, c: te.sum(
             padded_data[n, y * stride_h + kh_i, x * stride_w + kw_i, kc_i].astype(out_dtype)
             * kernel[c, kh_i, kw_i, kc_i].astype(out_dtype),
             axis=(kh_i, kw_i, kc_i),
         ),
+        out_layout,
         name="conv2d",
         tag="conv2d_nhwc_ohwi_dsp",
     )
@@ -165,7 +189,7 @@ def _make_conv2d_tensorization(padded_data, kernel):
 
 
 def depthwise_conv2d_nchw_oihw_dsp_compute(
-    _cfg, data, kernel, strides, padding, dilation, out_dtype
+    _cfg, data, kernel, strides, padding, dilation, out_layout, out_dtype
 ):
     """Depthwise conv2d schedule that can be tensorized using tensordot."""
 
@@ -185,9 +209,9 @@ def depthwise_conv2d_nchw_oihw_dsp_compute(
     kw_i = te.reduce_axis((0, kernel_w), name="kw_i")
 
     padded_data = _pad_if_needed(data, "NCHW", (pad_up, pad_left, pad_down, pad_right))
-    return te.compute(
-        (batch_size, output_channels, output_h, output_w),
-        lambda n, c, y, x: te.sum(
+    return _wrap_te_compute(
+        (batch_size, output_h, output_w, output_channels),
+        lambda n, y, x, c: te.sum(
             padded_data[
                 n,
                 indexdiv(c, c_mul),
@@ -197,6 +221,7 @@ def depthwise_conv2d_nchw_oihw_dsp_compute(
             * kernel[indexdiv(c, c_mul), indexmod(c, c_mul), kh_i, kw_i].astype(out_dtype),
             axis=(kh_i, kw_i),
         ),
+        out_layout,
         name="depthwise_conv2d",
         tag="depthwise_conv2d_nchw_oihw_dsp",
     )

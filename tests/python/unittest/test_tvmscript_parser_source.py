@@ -18,8 +18,8 @@
 import pytest
 import inspect
 import tvm.testing
-from tvm.script._parser.core.diagnostics import Source
-from tvm.script._parser.core import doc_core as doc
+from tvm.script.parser.core.diagnostics import Source
+from tvm.script.parser.core import doc_core as doc
 from tvm.script import tir as T
 
 

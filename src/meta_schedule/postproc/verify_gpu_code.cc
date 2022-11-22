@@ -175,10 +175,12 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tir::transform::InjectDoubleBuffer());
           pass_list.push_back(tir::transform::StorageRewrite());
           pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
+          pass_list.push_back(tir::transform::LowerIntrin());
           // Convert Function to IRModule
           transform::PassContext pass_ctx = transform::PassContext::Current();
           tir::PrimFunc f = WithAttr(GetRef<tir::PrimFunc>(prim_func), "global_symbol",
                                      runtime::String(g_var->name_hint));
+          f = WithAttr(f, tvm::attr::kTarget, Target("cuda"));  // Required for LowerIntrin
           bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
           if (noalias) {
             f = WithAttr(std::move(f), "tir.noalias", Bool(true));

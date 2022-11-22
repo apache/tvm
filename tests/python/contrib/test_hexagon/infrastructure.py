@@ -23,44 +23,6 @@ import tvm
 from tvm import te
 
 
-def allocate_hexagon_array(
-    dev, tensor_shape=None, dtype=None, data=None, axis_separators=None, mem_scope=None
-):
-    """
-    Allocate a hexagon array which could be a 2D array
-    on physical memory defined by axis_separators
-    """
-    if tensor_shape is None:
-        assert data is not None, "Must provide either tensor shape or numpy data array"
-        tensor_shape = data.shape
-    elif data is not None:
-        assert (
-            tensor_shape == data.shape
-        ), "Mismatch between provided tensor shape and numpy data array shape"
-
-    if dtype is None:
-        assert data is not None, "Must provide either dtype or numpy data array"
-        dtype = data.dtype.name
-    elif data is not None:
-        assert dtype == data.dtype, "Mismatch between provided dtype and numpy data array dtype"
-
-    if axis_separators is None:
-        axis_separators = []
-
-    boundaries = [0, *axis_separators, len(tensor_shape)]
-    physical_shape = [
-        numpy.prod(tensor_shape[dim_i:dim_f])
-        for dim_i, dim_f in zip(boundaries[:-1], boundaries[1:])
-    ]
-
-    arr = tvm.nd.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)
-
-    if data is not None:
-        arr.copyfrom(data.reshape(physical_shape))
-
-    return arr._create_view(tensor_shape)
-
-
 def ceildiv(o, d):
     assert o >= 0
     assert d >= 0
@@ -303,6 +265,15 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
         if new_layout in ["nhw-32h16w-2d"]:
             n, h, w = arr_np.shape
             return arr_np.reshape([n, h // 32, 32, w // 16, 16]).transpose(0, 1, 3, 2, 4)
+
+        raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
+
+    if current_layout == "ncw":
+        if new_layout == "ncw":
+            return arr_np
+        if new_layout in ["ncw-32c64w-2d"]:
+            n, c, w = arr_np.shape
+            return arr_np.reshape([n, c // 32, 32, w // 64, 64]).transpose(0, 1, 3, 2, 4)
 
         raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
 

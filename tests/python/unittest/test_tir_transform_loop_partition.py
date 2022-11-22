@@ -544,9 +544,6 @@ def partitioned_concat(
     A: T.Buffer[(16,), "float32"], B: T.Buffer[(16,), "float32"], C: T.Buffer[(32,), "float32"]
 ) -> None:
     T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-    T.preflattened_buffer(A, [16], data=A.data)
-    T.preflattened_buffer(B, [16], data=B.data)
-    T.preflattened_buffer(C, [32], data=C.data)
     for i in T.serial(0, 16):
         C[i] = A[i]
     for i in T.serial(0, 16):
@@ -568,62 +565,75 @@ def test_explicit_partition_hint():
     assert tvm.ir.structural_equal(mod["main"], partitioned_concat)
 
 
-@T.prim_func
-def partitioned_concat_3(
-    placeholder: T.Buffer[(50176,), "int8"],
-    placeholder_1: T.Buffer[(25088,), "int8"],
-    placeholder_2: T.Buffer[(25088,), "int8"],
-    T_concat: T.Buffer[(100352,), "int8"],
-) -> None:
-    T.preflattened_buffer(placeholder, [1, 64, 28, 28], "int8", data=placeholder.data)
-    T.preflattened_buffer(placeholder_1, [1, 32, 28, 28], "int8", data=placeholder_1.data)
-    T.preflattened_buffer(placeholder_2, [1, 32, 28, 28], "int8", data=placeholder_2.data)
-    T.preflattened_buffer(T_concat, [1, 128, 28, 28], "int8", data=T_concat.data)
-    for i1, i2, i3 in T.grid(64, 28, 28):
-        T_concat[i1 * 784 + i2 * 28 + i3] = placeholder[i1 * 784 + i2 * 28 + i3]
-    for i1, i2, i3 in T.grid(32, 28, 28):
-        T_concat[i1 * 784 + i2 * 28 + i3 + 50176] = placeholder_1[i1 * 784 + i2 * 28 + i3]
-    for i1, i2, i3 in T.grid(32, 28, 28):
-        T_concat[i1 * 784 + i2 * 28 + i3 + 75264] = placeholder_2[i1 * 784 + i2 * 28 + i3]
-
-
-@T.prim_func
-def concat_func_3(
-    placeholder: T.Buffer[(50176,), "int8"],
-    placeholder_1: T.Buffer[(25088,), "int8"],
-    placeholder_2: T.Buffer[(25088,), "int8"],
-    T_concat: T.Buffer[(100352,), "int8"],
-) -> None:
-    T.preflattened_buffer(placeholder, (1, 64, 28, 28), "int8", data=placeholder.data)
-    T.preflattened_buffer(placeholder_1, (1, 32, 28, 28), "int8", data=placeholder_1.data)
-    T.preflattened_buffer(placeholder_2, (1, 32, 28, 28), "int8", data=placeholder_2.data)
-    T.preflattened_buffer(T_concat, (1, 128, 28, 28), "int8", data=T_concat.data)
-    for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
-        for i2, i3 in T.grid(28, 28):
-            if 96 <= i1:
-                T_concat[i1 * 784 + i2 * 28 + i3] = placeholder_2[i1 * 784 + i2 * 28 + i3 - 75264]
-            if 64 <= i1 and i1 < 96:
-                T_concat[i1 * 784 + i2 * 28 + i3] = placeholder_1[i1 * 784 + i2 * 28 + i3 - 50176]
-            if i1 < 64:
-                T_concat[i1 * 784 + i2 * 28 + i3] = placeholder[i1 * 784 + i2 * 28 + i3]
-
-
-def test_condition_mutually_exclusive():
-    mod = IRModule.from_expr(concat_func_3)
-    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
+def partition_from_scheduled_tir(prim_func, pass_cfg):
+    with tvm.transform.PassContext(config=pass_cfg):
+        mod = IRModule.from_expr(prim_func)
         mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
         mod = tvm.tir.transform.FlattenBuffer()(mod)
         mod = tvm.tir.transform.LoopPartition()(mod)
         mod = tvm.tir.transform.Simplify()(mod)
         mod = tvm.tir.transform.RemoveNoOp()(mod)
+        return mod
+
+
+@T.prim_func
+def partitioned_concat_3(
+    placeholder: T.Buffer[(1, 64, 28, 28), "int8"],
+    placeholder_1: T.Buffer[(1, 32, 28, 28), "int8"],
+    placeholder_2: T.Buffer[(1, 32, 28, 28), "int8"],
+    T_concat: T.Buffer[(1, 128, 28, 28), "int8"],
+) -> None:
+    placeholder_flat = T.buffer_decl([50176], "int8", data=placeholder.data)
+    placeholder_1_flat = T.buffer_decl([25088], "int8", data=placeholder_1.data)
+    placeholder_2_flat = T.buffer_decl([25088], "int8", data=placeholder_2.data)
+    T_concat_flat = T.buffer_decl([100352], "int8", data=T_concat.data)
+    for i1, i2, i3 in T.grid(64, 28, 28):
+        T_concat_flat[i1 * 784 + i2 * 28 + i3] = placeholder_flat[i1 * 784 + i2 * 28 + i3]
+    for i1, i2, i3 in T.grid(32, 28, 28):
+        T_concat_flat[i1 * 784 + i2 * 28 + i3 + 50176] = placeholder_1_flat[i1 * 784 + i2 * 28 + i3]
+    for i1, i2, i3 in T.grid(32, 28, 28):
+        T_concat_flat[i1 * 784 + i2 * 28 + i3 + 75264] = placeholder_2_flat[i1 * 784 + i2 * 28 + i3]
+
+
+@T.prim_func
+def concat_func_3(
+    placeholder: T.Buffer[(1, 64, 28, 28), "int8"],
+    placeholder_1: T.Buffer[(1, 32, 28, 28), "int8"],
+    placeholder_2: T.Buffer[(1, 32, 28, 28), "int8"],
+    T_concat: T.Buffer[(1, 128, 28, 28), "int8"],
+) -> None:
+    placeholder_flat = T.buffer_decl([50176], "int8", data=placeholder.data)
+    placeholder_1_flat = T.buffer_decl([25088], "int8", data=placeholder_1.data)
+    placeholder_2_flat = T.buffer_decl([25088], "int8", data=placeholder_2.data)
+    T_concat_flat = T.buffer_decl([100352], "int8", data=T_concat.data)
+    for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
+        for i2, i3 in T.grid(28, 28):
+            if 96 <= i1:
+                T_concat_flat[i1 * 784 + i2 * 28 + i3] = placeholder_2_flat[
+                    i1 * 784 + i2 * 28 + i3 - 75264
+                ]
+            if 64 <= i1 and i1 < 96:
+                T_concat_flat[i1 * 784 + i2 * 28 + i3] = placeholder_1_flat[
+                    i1 * 784 + i2 * 28 + i3 - 50176
+                ]
+            if i1 < 64:
+                T_concat_flat[i1 * 784 + i2 * 28 + i3] = placeholder_flat[i1 * 784 + i2 * 28 + i3]
+
+
+def test_condition_mutually_exclusive():
+    mod = partition_from_scheduled_tir(
+        concat_func_3, {"tir.LoopPartition": {"partition_const_loop": True}}
+    )
     assert tvm.ir.structural_equal(mod["main"], partitioned_concat_3)
 
 
 def test_loop_partition_unroll_hint():
     @T.prim_func
-    def main(A: T.Buffer[150528, "int8"], B: T.Buffer[25088, "int8"]) -> None:
-        T.preflattened_buffer(A, [1, 3, 224, 224], "int8", data=A.data)
-        T.preflattened_buffer(B, [1, 224, 7, 16], "int8", data=B.data)
+    def main(
+        A_arg: T.Buffer[(1, 3, 224, 224), "int8"], B_arg: T.Buffer[(1, 224, 7, 16), "int8"]
+    ) -> None:
+        A = T.buffer_decl(150528, "int8", data=A_arg.data)
+        B = T.buffer_decl(25088, "int8", data=B_arg.data)
         for ax0 in T.serial(
             112,
             annotations={"pragma_loop_partition_hint": True},
@@ -633,9 +643,11 @@ def test_loop_partition_unroll_hint():
                     B[ax1 * 112 + ax2 * 16 + ax3] = A[ax3 * 50176 + ax1 * 224 + ax0 * 2 + ax2 - 3]
 
     @T.prim_func
-    def partitioned_main(A: T.Buffer[150528, "int8"], B: T.Buffer[25088, "int8"]) -> None:
-        T.preflattened_buffer(A, [1, 3, 224, 224], dtype="int8", data=A.data)
-        T.preflattened_buffer(B, [1, 224, 7, 16], dtype="int8", data=B.data)
+    def partitioned_main(
+        A_arg: T.Buffer[(1, 3, 224, 224), "int8"], B_arg: T.Buffer[(1, 224, 7, 16), "int8"]
+    ) -> None:
+        A = T.buffer_decl(150528, dtype="int8", data=A_arg.data)
+        B = T.buffer_decl(25088, dtype="int8", data=B_arg.data)
         # body
         for ax1, ax2, ax3 in T.grid(224, 7, 16):
             if 3 <= ax2 and ax3 < 3:
@@ -650,22 +662,101 @@ def test_loop_partition_unroll_hint():
             if ax2 < 5 and ax3 < 3:
                 B[ax1 * 112 + ax2 * 16 + ax3] = A[ax3 * 50176 + ax1 * 224 + ax2 + 219]
 
-    mod = tvm.ir.module.IRModule.from_expr(main)
-    with tvm.transform.PassContext(
-        config={
+    mod = partition_from_scheduled_tir(
+        main,
+        {
             "tir.LoopPartition": {
                 "partition_const_loop": True,
                 "unroll_loop_with_partition_hint_no_interval": True,
             }
-        }
-    ):
-        mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
-        mod = tvm.tir.transform.FlattenBuffer()(mod)
-        mod = tvm.tir.transform.LoopPartition()(mod)
-        mod = tvm.tir.transform.UnrollLoop()(mod)
-        mod = tvm.tir.transform.RemoveNoOp()(mod)
-        mod = tvm.tir.transform.Simplify()(mod)
+        },
+    )
+    mod = tvm.tir.transform.UnrollLoop()(mod)
+    mod = tvm.tir.transform.RemoveNoOp()(mod)
+    mod = tvm.tir.transform.Simplify()(mod)
     assert tvm.ir.structural_equal(mod["main"], partitioned_main)
+
+
+def test_loop_partition_keep_loop_annotations():
+    @T.prim_func
+    def before(A: T.Buffer[160, "int32"], B: T.Buffer[160, "int32"]) -> None:
+        for i in T.serial(
+            160,
+            annotations={"pragma_loop_partition_hint": True, "key": "value"},
+        ):
+            if i < 10:
+                B[i] = A[i] + 1
+            elif 10 <= i and i < 150:
+                B[i] = A[i] + 2
+            else:
+                B[i] = A[i] + 3
+
+    @T.prim_func
+    def after(A: T.Buffer[160, "int32"], B: T.Buffer[160, "int32"]) -> None:
+        for i in T.serial(10, annotations={"key": "value"}):
+            B[i] = A[i] + 1
+        for i in T.serial(140, annotations={"key": "value"}):
+            B[i + 10] = A[i + 10] + 2
+        for i in T.serial(10, annotations={"key": "value"}):
+            B[i + 150] = A[i + 150] + 3
+
+    mod = partition_from_scheduled_tir(
+        before,
+        {
+            "tir.LoopPartition": {
+                "partition_const_loop": True,
+            }
+        },
+    )
+    assert tvm.ir.structural_equal(mod["main"], after)
+
+
+def test_loop_partition_with_unit_loop_in_condition():
+    @T.prim_func
+    def before(
+        placeholder: T.Buffer[(50176,), "int8"],
+        placeholder_1: T.Buffer[(25088,), "int8"],
+        placeholder_2: T.Buffer[(25088,), "int8"],
+        T_concat: T.Buffer[(100352,), "int8"],
+    ) -> None:
+        for k in range(1, annotations={"preserve_unit_loop": True}):
+            for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
+                for i2, i3 in T.grid(28, 28):
+                    if 96 <= k * 128 + i1:
+                        T_concat[k * i1 * 784 + i2 * 28 + i3] = placeholder_2[
+                            i1 * 784 + i2 * 28 + i3 - 75264
+                        ]
+                    if 64 <= k * 128 + i1 and k * 128 + i1 < 96:
+                        T_concat[i1 * 784 + i2 * 28 + i3] = placeholder_1[
+                            i1 * 784 + i2 * 28 + i3 - 50176
+                        ]
+                    if k * 128 + i1 < 64:
+                        T_concat[i1 * 784 + i2 * 28 + i3] = placeholder[i1 * 784 + i2 * 28 + i3]
+
+    @T.prim_func
+    def after(
+        placeholder: T.Buffer[50176, "int8"],
+        placeholder_1: T.Buffer[25088, "int8"],
+        placeholder_2: T.Buffer[25088, "int8"],
+        T_concat: T.Buffer[100352, "int8"],
+    ) -> None:
+        for _ in T.serial(1, annotations={"preserve_unit_loop": True}):
+            for i1, i2, i3 in T.grid(64, 28, 28):
+                T_concat[i1 * 784 + i2 * 28 + i3] = placeholder[i1 * 784 + i2 * 28 + i3]
+            for i1, i2, i3 in T.grid(32, 28, 28):
+                T_concat[i1 * 784 + i2 * 28 + i3 + 50176] = placeholder_1[i1 * 784 + i2 * 28 + i3]
+            for i1, i2, i3 in T.grid(32, 28, 28):
+                T_concat[i2 * 28 + i3] = placeholder_2[i1 * 784 + i2 * 28 + i3]
+
+    mod = partition_from_scheduled_tir(
+        before,
+        {
+            "tir.LoopPartition": {
+                "partition_const_loop": True,
+            }
+        },
+    )
+    assert tvm.ir.structural_equal(mod["main"], after)
 
 
 if __name__ == "__main__":

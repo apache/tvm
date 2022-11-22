@@ -82,6 +82,29 @@ bool ParseWarpExecutionAnn(const Schedule& sch, const Instruction& inst) {
   return ann_key == attr::warp_execution;
 }
 
+size_t GetMaxUsedDtypeBytes(Block block) {
+  size_t max_bytes = 1;
+  static auto q_multiply_shift_per_axis = Op::Get("tir.q_multiply_shift_per_axis");
+  static auto q_multiply_shift = Op::Get("tir.q_multiply_shift");
+
+  tir::PostOrderVisit(block->body, [&](const ObjectRef& obj) {
+    if (const auto* store = obj.as<tir::BufferStoreNode>()) {
+      max_bytes = std::max(max_bytes, static_cast<size_t>(store->value->dtype.bytes()));
+    } else if (const auto* load = obj.as<tir::BufferLoadNode>()) {
+      max_bytes = std::max(max_bytes, static_cast<size_t>(load->dtype.bytes()));
+    } else if (const auto* call = obj.as<tir::CallNode>()) {
+      if (call->op.same_as(q_multiply_shift_per_axis) || call->op.same_as(q_multiply_shift)) {
+        // q_multiply_shift uses 64 bit multiply
+        max_bytes = std::max<size_t>(max_bytes, 8);
+      }
+    } else if (const auto* cast = obj.as<tir::CastNode>()) {
+      max_bytes = std::max<size_t>(max_bytes, cast->dtype.bytes());
+    }
+  });
+
+  return max_bytes;
+}
+
 }  // namespace tir
 
 namespace meta_schedule {
@@ -152,6 +175,13 @@ bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
         return;
       }
       if (fused_extent % vector_lane != 0) {
+        vector_lane = 1;
+      }
+      // If the block involves 64 bit values, disable vectorization for now since
+      // vectorization of 64 bit values does not work well on CUDA.
+      // TODO(masahi, vinx13): Decouple epilogue fusion computation and shared to global store, so
+      // that we can always vectorize the latter.
+      if (tir::GetMaxUsedDtypeBytes(sch->Get(block)) > 4) {
         vector_lane = 1;
       }
       if (thread_extent_y != -1) {

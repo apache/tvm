@@ -485,57 +485,6 @@ bool ContainsNode(const Stmt& stmt) {
   return visitor.contains_node;
 }
 
-/*!
- * \brief Legalize the data types of expressions to make sure they are consistent with other
- * parts of the program.
- *
- * It enforces the following rules:
- * - The data type of the index variable in a loop must be consistent with the data type of the loop
- *  bounds.
- * - The data type of the binary and ternary expressions must be consistent with the data types of
- * each of their operands.
- * - The data type of the bounds and binding values of block iter vars must be consistent with the
- * data type of the block iter vars.
- *
- * Usually we enforce the consistency of data types when constructing the IR nodes. However, such
- * inconsistency may happen as a result of IR mutation in some passes. This class can be used as
- * base class of such passes to ensure the consistency of data types.
- */
-class DataTypeLegalizer : public StmtExprMutator {
- public:
-  Stmt VisitStmt_(const ForNode* op) override;
-
-  Stmt VisitStmt_(const AttrStmtNode* op) override;
-  Stmt VisitStmt_(const BlockRealizeNode* op) override;
-  Stmt VisitStmt_(const BlockNode* op) override;
-  PrimExpr VisitExpr_(const SelectNode* op) override;
-  PrimExpr VisitExpr_(const RampNode* op) override;
-  PrimExpr VisitExpr_(const AddNode* op) override;
-  PrimExpr VisitExpr_(const SubNode* op) override;
-  PrimExpr VisitExpr_(const MulNode* op) override;
-  PrimExpr VisitExpr_(const DivNode* op) override;
-  PrimExpr VisitExpr_(const ModNode* op) override;
-  PrimExpr VisitExpr_(const FloorDivNode* op) override;
-  PrimExpr VisitExpr_(const FloorModNode* op) override;
-  PrimExpr VisitExpr_(const MinNode* op) override;
-  PrimExpr VisitExpr_(const MaxNode* op) override;
-  PrimExpr VisitExpr_(const EQNode* op) override;
-  PrimExpr VisitExpr_(const NENode* op) override;
-  PrimExpr VisitExpr_(const LTNode* op) override;
-  PrimExpr VisitExpr_(const LENode* op) override;
-  PrimExpr VisitExpr_(const GTNode* op) override;
-  PrimExpr VisitExpr_(const GENode* op) override;
-  PrimExpr VisitExpr_(const CallNode* op) override;
-
-  using StmtExprMutator::VisitExpr_;
-  using StmtExprMutator::VisitStmt_;
-
- protected:
-  // a map from IterVar before rewrite to that after rewrite,
-  // ensures one old IterVar maps to exactly one new IterVar
-  std::unordered_map<const IterVarNode*, IterVar> ivmap_;
-};
-
 }  // namespace tir
 }  // namespace tvm
 

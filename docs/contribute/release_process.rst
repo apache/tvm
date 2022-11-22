@@ -67,7 +67,7 @@ You can skip this section if you have already uploaded your key.
 
 After generating the gpg key, you need to upload your key to a public key server. Please refer to https://www.apache.org/dev/openpgp.html#generate-key for details.
 
-If you want to do the release on another machine, you can transfer your gpg key to that machine via the :code:`gpg --export` and :code:`gpg --import` commands.
+If you want to do the release on another machine, you can transfer your gpg key to that machine via the ``gpg --export`` and ``gpg --import`` commands.
 
 The last step is to update the KEYS file with your code signing key https://www.apache.org/dev/openpgp.html#export-public-key. Check in the changes to the TVM main branch, as well as ASF SVN,
 
@@ -96,17 +96,17 @@ To cut a release candidate, one needs to first cut a branch using selected versi
 	git branch v0.6.0
 	git push --set-upstream origin v0.6.0
 
-(*Make sure the version numbers in the source code are correct.* Run :code:`python3 version.py` to update the version.)
+(*Make sure the version numbers in the source code are correct.* Run ``python3 version.py`` to update the version.)
 
 Go to the GitHub repositories "releases" tab and click "Draft a new release",
 
-- Provide the release tag in the form of “v1.0.0.rc0” where 0 means it’s the first release candidate
+- Provide the release tag in the form of ``v1.0.0.rc0`` where 0 means it's the first release candidate. The tag must match this pattern ``v[0-9]+\.[0-9]+\.[0-9]+\.rc[0-9]`` exactly!
 - Select the commit by clicking Target: branch > Recent commits > $commit_hash
 - Copy and paste release note draft into the description box
 - Select "This is a pre-release"
 - Click "Publish release"
 
-Notice that one can still apply changes to the BRANCH after the cut, while the TAG is fixed. If any change is required for this release, a new TAG has to be created.
+Notice that one can still apply changes to the branch after the cut, while the tag is fixed. If any change is required for this release, a new tag has to be created.
 
 Remove previous release candidate (if applied),
 
@@ -145,12 +145,15 @@ Create GPG signature as well as the hash of the file,
 	shasum -a 512 apache-tvm-src-v0.6.0.rc0.tar.gz > apache-tvm-src-v0.6.0.rc0.tar.gz.sha512
 
 
-Update TVM Version on Main
---------------------------
+Update TVM Version on ``main``
+------------------------------
 
-After cutting a release candidate, make sure to update the version numbers throughout `main`. For example if we are
-releasing `v0.10.0` we want to bump the version numbers throughout the codebase from `v0.10.dev0` to `v0.11.dev0`. An
+After cutting a release candidate, make sure to update the version numbers throughout ``main``. For example if we are
+releasing ``v0.10.0`` we want to bump the version numbers throughout the codebase from ``v0.10.dev0`` to ``v0.11.dev0``. An
 example of how to do this can be found here: `https://github.com/apache/tvm/pull/12190 <https://github.com/apache/tvm/pull/12190>`_.
+Tag the commit on ``main`` immediately after the last one included in the release branch with the dev tag (e.g. ``v0.11.dev0``)
+for the next release. This tag is necessary so that the nightly packages built from ``main`` have the correct version
+number.
 
 Upload the Release Candidate
 ----------------------------
@@ -173,7 +176,7 @@ The release manager also needs to upload the artifacts to ASF SVN,
 Call a Vote on the Release Candidate
 ------------------------------------
 
-The first voting takes place on the Apache TVM developers list (dev@tvm.apache.org). To get more attention, one can create a github issue start with "[VOTE]" instead, it will be mirrored to dev@ automatically. Look at past voting threads to see how this proceeds. The email should follow this format.
+The first voting takes place on the Apache TVM developers list (dev@tvm.apache.org). To get more attention, one can create a GitHub issue start with "[VOTE]" instead, it will be mirrored to dev@ automatically. Look at past voting threads to see how this proceeds. The email should follow this format.
 
 - Provide the link to the draft of the release notes in the email
 - Provide the link to the release candidate artifacts
@@ -181,9 +184,9 @@ The first voting takes place on the Apache TVM developers list (dev@tvm.apache.o
 
 For the dev@ vote, there must be at least 3 binding +1 votes and more +1 votes than -1 votes. Once the vote is done, you should also send out a summary email with the totals, with a subject that looks something like [VOTE][RESULT] ....
 
-In ASF, votes are open "at least" 72hrs (3 days). If you don't get enough number of binding votes within that time, you cannot close the voting deadline. You need to extend it.
+In ASF, votes are open at least 72 hours (3 days). If you don't get enough number of binding votes within that time, you cannot close the voting deadline. You need to extend it.
 
-If the voting fails, the community needs to modified the release accordingly, create a new release candidate and re-run the voting process.
+If the vote fails, the community needs to modify the release accordingly: create a new release candidate and re-run the voting process.
 
 
 Post the Release
@@ -212,7 +215,7 @@ Remember to create a new release TAG (v0.6.0 in this case) on Github and remove 
 Update the TVM Website
 ----------------------
 
-The website repository is located at `https://github.com/apache/tvm-site <https://github.com/apache/tvm-site>`_. Modify the download page to include the release artifacts as well as the GPG signature and SHA hash. Since TVM's docs are continually updated, upload a fixed version of the release docs. If CI has deleted the docs from the release by the time you go to update the website, you can restart the CI build for the release branch on Jenkins. See the example code below for a starting point
+The website repository is located at `https://github.com/apache/tvm-site <https://github.com/apache/tvm-site>`_. Modify the download page to include the release artifacts as well as the GPG signature and SHA hash. Since TVM's docs are continually updated, upload a fixed version of the release docs. If CI has deleted the docs from the release by the time you go to update the website, you can restart the CI build for the release branch on Jenkins. See the example code below for a starting point.
 
 .. code-block:: bash
 

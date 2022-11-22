@@ -824,7 +824,7 @@ class IfThenElseNode : public StmtNode {
   /*! \brief The branch to be executed when condition is true. */
   Stmt then_case;
   /*! \brief The branch to be executed when condition is false, can be null. */
-  Stmt else_case;
+  Optional<Stmt> else_case;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("condition", &condition);
@@ -854,10 +854,11 @@ class IfThenElseNode : public StmtNode {
  */
 class IfThenElse : public Stmt {
  public:
-  TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case, Stmt else_case = Stmt(),
+  TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case, Optional<Stmt> else_case = NullOpt,
                      Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(IfThenElse, Stmt, IfThenElseNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IfThenElseNode);
 };
 
 /*!

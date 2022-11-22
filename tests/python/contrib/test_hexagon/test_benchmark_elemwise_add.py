@@ -26,13 +26,13 @@ import pytest
 
 import tvm.script
 import tvm.testing
-from tvm.contrib.hexagon.build import HexagonLauncherRPC
+from tvm.contrib.hexagon.session import Session
 from tvm.script import tir as T
 
 from . import benchmark_util as bu
 from .infrastructure import get_hexagon_target
 
-_SHOULD_SKIP_BENCHMARKS, _SKIP_BENCHMARKS_REASON = bu.skip_bencharks_flag_and_reason()
+_SHOULD_SKIP_BENCHMARKS, _SKIP_BENCHMARKS_REASON = bu.skip_benchmarks_flag_and_reason()
 
 # This is a fixed detail of the v68 architecture.
 HVX_VECTOR_BYTES = 128
@@ -160,7 +160,7 @@ def _get_irmod_elemwise_add(shape: list, dtype: str, mem_scope: str) -> tvm.ir.m
 
 
 def _benchmark_hexagon_elementwise_add_kernel(
-    hexagon_launcher: HexagonLauncherRPC, shape: list, dtype: str, mem_scope: str
+    hexagon_session: Session, shape: list, dtype: str, mem_scope: str
 ):
     """
     Generate and benchmark a single elementwise-add kernel for Hexagon.
@@ -230,7 +230,7 @@ def _benchmark_hexagon_elementwise_add_kernel(
             # Upload the .so to the Android device's file system (or wherever is appropriate
             # when using the Hexagon simulator)...
             target_dso_binary_filename = "test_binary.so"
-            target_dso_binary_pathname = hexagon_launcher.upload(
+            target_dso_binary_pathname = hexagon_session.upload(
                 host_dso_binary_path, target_dso_binary_filename
             )
 
@@ -241,58 +241,57 @@ def _benchmark_hexagon_elementwise_add_kernel(
                 host_numpy_output_data_expected,
             ) = _get_elemwise_add_reference_value_tensors(shape, dtype)
 
-            with hexagon_launcher.start_session() as sess:
-                # On the target device / simulator, make our Hexagon-native shared object
-                # available for use...
-                loaded_hexagon_module: tvm.runtime.module.Module = hexagon_launcher.load_module(
-                    target_dso_binary_pathname, sess
+            # On the target device / simulator, make our Hexagon-native shared object
+            # available for use...
+            loaded_hexagon_module: tvm.runtime.module.Module = hexagon_session.load_module(
+                target_dso_binary_pathname
+            )
+
+            # Create the target-side tensors to hold the primfunc's inputs and outputs...
+            input1_data = tvm.nd.empty(shape, dtype, hexagon_session.device, mem_scope)
+            input2_data = tvm.nd.empty(shape, dtype, hexagon_session.device, mem_scope)
+            output_data = tvm.nd.empty(shape, dtype, hexagon_session.device, mem_scope)
+
+            # Populate the primfunc's input tensors...
+            input1_data.copyfrom(host_numpy_input1_data)
+            input2_data.copyfrom(host_numpy_input2_data)
+
+            # Actually benchmark the primfunc...
+            timer = loaded_hexagon_module.time_evaluator(
+                "main", hexagon_session.device, number=10, repeat=1
+            )
+            timing_result = timer(input1_data, input2_data, output_data)
+
+            print(f"TIMING RESULT: {timing_result}")
+            log_file.write(f"TIMING RESULT: {timing_result}\n")
+
+            # Verify that the computation actually happened, and produced the correct result.
+            result = output_data.numpy()
+
+            if dtype == "float16":
+                # These are the closest tolerance we currently expect / require for these
+                # kernels.  They may be changed in the future.
+                rel_tolerance = 0.005
+                abs_tolerance = 2.0
+            elif dtype == "int8":
+                rel_tolerance = 0
+                abs_tolerance = 0
+            else:
+                raise Exception(f"Unexpected dtype: {dtype}")
+
+            # TODO: We're assuming that *any* assertion thrown by 'assert_allclose' is because
+            # the numerical differences were too large.  But ideally this code would
+            # differentiate between (a) numerical difference errors, which should simply be
+            # recorded as a failed benchmark run, vs. (b) more serious errors that should
+            # kill the overall script.
+            try:
+                tvm.testing.assert_allclose(
+                    result, host_numpy_output_data_expected, rel_tolerance, abs_tolerance
                 )
+            except AssertionError as err:
+                raise bu.NumericalAccuracyException(str(err))
 
-                # Create the target-side tensors to hold the primfunc's inputs and outputs...
-                input1_data = tvm.nd.empty(shape, dtype, sess.device, mem_scope)
-                input2_data = tvm.nd.empty(shape, dtype, sess.device, mem_scope)
-                output_data = tvm.nd.empty(shape, dtype, sess.device, mem_scope)
-
-                # Populate the primfunc's input tensors...
-                input1_data.copyfrom(host_numpy_input1_data)
-                input2_data.copyfrom(host_numpy_input2_data)
-
-                # Actually benchmark the primfunc...
-                timer = loaded_hexagon_module.time_evaluator(
-                    "main", sess.device, number=10, repeat=1
-                )
-                timing_result = timer(input1_data, input2_data, output_data)
-
-                print(f"TIMING RESULT: {timing_result}")
-                log_file.write(f"TIMING RESULT: {timing_result}\n")
-
-                # Verify that the computation actually happened, and produced the correct result.
-                result = output_data.numpy()
-
-                if dtype == "float16":
-                    # These are the closest tolerance we currently expect / require for these
-                    # kernels.  They may be changed in the future.
-                    rel_tolerance = 0.005
-                    abs_tolerance = 2.0
-                elif dtype == "int8":
-                    rel_tolerance = 0
-                    abs_tolerance = 0
-                else:
-                    raise Exception(f"Unexpected dtype: {dtype}")
-
-                # TODO: We're assuming that *any* assertion thrown by 'assert_allclose' is because
-                # the numerical differences were too large.  But ideally this code would
-                # differentiate between (a) numerical difference errors, which should simply be
-                # recorded as a failed benchmark run, vs. (b) more serious errors that should
-                # kill the overall script.
-                try:
-                    tvm.testing.assert_allclose(
-                        result, host_numpy_output_data_expected, rel_tolerance, abs_tolerance
-                    )
-                except AssertionError as err:
-                    raise bu.NumericalAccuracyException(str(err))
-
-                _BT.record_success(timing_result, **keys_dict)
+            _BT.record_success(timing_result, **keys_dict)
 
         except bu.NumericalAccuracyException as err:
             print()
@@ -377,7 +376,7 @@ def _get_elemwise_add_reference_value_tensors(shape: list, dtype: str):
 
 @pytest.mark.skipif(_SHOULD_SKIP_BENCHMARKS, reason=_SKIP_BENCHMARKS_REASON)
 @tvm.testing.requires_hexagon
-def test_elemwise_add(hexagon_launcher: HexagonLauncherRPC):
+def test_elemwise_add(hexagon_session: Session):
     """Main elementwise add test function"""
     for dtype in [
         "int8",
@@ -411,7 +410,7 @@ def test_elemwise_add(hexagon_launcher: HexagonLauncherRPC):
                 ]
 
                 print()
-                _benchmark_hexagon_elementwise_add_kernel(hexagon_launcher, shape, dtype, mem_scope)
+                _benchmark_hexagon_elementwise_add_kernel(hexagon_session, shape, dtype, mem_scope)
 
     print("-" * 80)
     print(f"OUTPUT DIRECTORY: {_HOST_OUTPUT_DIR}")

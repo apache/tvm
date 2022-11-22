@@ -36,37 +36,15 @@ namespace runtime {
 namespace hexagon {
 
 HexagonHtp::HexagonHtp() {
-  PowerOn();
   Acquire();
+  // TODO(HWE): Perform HTP lock/unlock in thread instead of HexagonHtp
+  Lock();
 }
 
 HexagonHtp::~HexagonHtp() {
+  // TODO(HWE): Perform HTP lock/unlock in thread instead of HexagonHtp
+  Unlock();
   Release();
-  PowerOff();
-}
-
-void HexagonHtp::PowerOn() {
-  HAP_power_request_t pwr_req;
-  int nErr;
-
-  hap_pwr_ctx_ = HAP_utils_create_context();
-  pwr_req.type = HAP_power_set_HMX;
-  pwr_req.hmx.power_up = true;
-  if ((nErr = HAP_power_set(hap_pwr_ctx_, &pwr_req))) {
-    LOG(FATAL) << "InternalError: HAP_power_set failed\n";
-  }
-}
-
-void HexagonHtp::PowerOff() {
-  HAP_power_request_t pwr_req;
-  int nErr;
-
-  pwr_req.type = HAP_power_set_HMX;
-  pwr_req.hmx.power_up = false;
-  if ((nErr = HAP_power_set(hap_pwr_ctx_, &pwr_req))) {
-    LOG(FATAL) << "InternalError: HAP_power_set failed\n";
-  }
-  HAP_utils_destroy_context(hap_pwr_ctx_);
 }
 
 void HexagonHtp::Acquire() {
@@ -84,15 +62,19 @@ void HexagonHtp::Acquire() {
   if (!context_id_) {
     LOG(FATAL) << "InternalError: HAP_compute_res_acquire failed\n";
   }
+}
+
+void HexagonHtp::Release() { HAP_compute_res_release((unsigned int)context_id_); }
+
+void HexagonHtp::Lock() {
+  int nErr;
+
   if ((nErr = HAP_compute_res_hmx_lock(context_id_))) {
     LOG(FATAL) << "InternalError: Unable to lock HTP!";
   }
 }
 
-void HexagonHtp::Release() {
-  HAP_compute_res_hmx_unlock((unsigned int)context_id_);
-  HAP_compute_res_release((unsigned int)context_id_);
-}
+void HexagonHtp::Unlock() { HAP_compute_res_hmx_unlock((unsigned int)context_id_); }
 
 }  // namespace hexagon
 }  // namespace runtime

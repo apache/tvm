@@ -76,7 +76,16 @@ def test_concatenate(dtype, shapes, axis):
     for npu in [False, True]:
         model = _get_model(shapes, dtype, axis)
         mod = tei.make_module(model, {})
-        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                1,
+                {},
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
+        )
 
         tei.verify(outputs, dtype, 0)
 

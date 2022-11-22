@@ -40,6 +40,10 @@ class JSONDatabase(Database):
           - "structural": Use StructuralEqual/Hash
           - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
                               equality testing and hashing.
+          - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
+                            given module. The "ignore-ndarray" varint is used for the extracted
+                            blocks or in case no anchor block is found.
+                            For the definition of the anchor block, see tir/analysis/analysis.py.
     """
 
     path_workload: str

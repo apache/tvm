@@ -53,6 +53,10 @@ class HexagonUserDMATest : public ::testing::Test {
   char* src_char = nullptr;
   char* dst_char = nullptr;
   uint32_t length = 0x4000;  // 16KB
+  const bool ENABLE_BYPASS = true;
+  const bool DISABLE_BYPASS = false;
+  Optional<String> global_scope{"global"};
+  Optional<String> global_vtcm_scope{"global.vtcm"};
 };
 
 TEST_F(HexagonUserDMATest, wait) {
@@ -67,14 +71,14 @@ TEST_F(HexagonUserDMATest, bad_copy) {
   void* src64 = reinterpret_cast<void*>(bigaddr);
   void* dst64 = reinterpret_cast<void*>(bigaddr);
   uint32_t biglength = 0x1000000;
-  ASSERT_NE(user_dma->Copy(queue_id, dst64, src, length), DMA_SUCCESS);
-  ASSERT_NE(user_dma->Copy(queue_id, dst, src64, length), DMA_SUCCESS);
-  ASSERT_NE(user_dma->Copy(queue_id, dst, src, biglength), DMA_SUCCESS);
+  ASSERT_NE(user_dma->Copy(queue_id, dst64, src, length, DISABLE_BYPASS), DMA_SUCCESS);
+  ASSERT_NE(user_dma->Copy(queue_id, dst, src64, length, DISABLE_BYPASS), DMA_SUCCESS);
+  ASSERT_NE(user_dma->Copy(queue_id, dst, src, biglength, DISABLE_BYPASS), DMA_SUCCESS);
 }
 
 TEST_F(HexagonUserDMATest, sync_dma) {
   // kick off 1 DMA
-  ret = user_dma->Copy(queue_id, dst, src, length);
+  ret = user_dma->Copy(queue_id, dst, src, length, DISABLE_BYPASS);
   ASSERT_EQ(ret, DMA_SUCCESS);
 
   // wait for DMA to complete
@@ -89,7 +93,7 @@ TEST_F(HexagonUserDMATest, sync_dma) {
 TEST_F(HexagonUserDMATest, async_dma_wait) {
   // kick off 10x duplicate DMAs
   for (uint32_t i = 0; i < 10; ++i) {
-    ret = user_dma->Copy(queue_id, dst, src, length);
+    ret = user_dma->Copy(queue_id, dst, src, length, DISABLE_BYPASS);
     ASSERT_EQ(ret, DMA_SUCCESS);
   }
 
@@ -108,7 +112,7 @@ TEST_F(HexagonUserDMATest, async_dma_wait) {
 TEST_F(HexagonUserDMATest, async_dma_poll) {
   // kick off 10x duplicate DMAs
   for (uint32_t i = 0; i < 10; ++i) {
-    ret = user_dma->Copy(queue_id, dst, src, length);
+    ret = user_dma->Copy(queue_id, dst, src, length, DISABLE_BYPASS);
     ASSERT_EQ(ret, DMA_SUCCESS);
   }
 
@@ -131,7 +135,7 @@ TEST_F(HexagonUserDMATest, pipeline) {
 
   for (uint32_t i = 0; i < pipeline_depth; ++i) {
     ret |= user_dma->Copy(queue_id, dst_char + i * pipeline_length, src_char + i * pipeline_length,
-                          pipeline_length);
+                          pipeline_length, DISABLE_BYPASS);
   }
 
   user_dma->Wait(queue_id, 3);
@@ -168,35 +172,35 @@ TEST_F(HexagonUserDMATest, pipeline_write_queue) {
 
   for (uint32_t i = 0; i < pipeline_depth; ++i) {
     ret |= user_dma->Copy(queue_id, dst_char + i * pipeline_length, src_char + i * pipeline_length,
-                          pipeline_length);
+                          pipeline_length, DISABLE_BYPASS);
   }
 
   user_dma->Wait(queue_id, 3);
   for (uint32_t i = 0; i < pipeline_length; ++i) {
     dst_char[i]++;
   }
-  ret |= user_dma->Copy(write_queue, src_char, dst_char, pipeline_length);
+  ret |= user_dma->Copy(write_queue, src_char, dst_char, pipeline_length, DISABLE_BYPASS);
 
   user_dma->Wait(queue_id, 2);
   for (uint32_t i = pipeline_length; i < 2 * pipeline_length; ++i) {
     dst_char[i]++;
   }
   ret |= user_dma->Copy(write_queue, src_char + pipeline_length, dst_char + pipeline_length,
-                        pipeline_length);
+                        pipeline_length, DISABLE_BYPASS);
 
   user_dma->Wait(queue_id, 1);
   for (uint32_t i = 2 * pipeline_length; i < 3 * pipeline_length; ++i) {
     dst_char[i]++;
   }
   ret |= user_dma->Copy(write_queue, src_char + 2 * pipeline_length, dst_char + 2 * pipeline_length,
-                        pipeline_length);
+                        pipeline_length, DISABLE_BYPASS);
 
   user_dma->Wait(queue_id, 0);
   for (uint32_t i = 3 * pipeline_length; i < 4 * pipeline_length; ++i) {
     dst_char[i]++;
   }
   ret |= user_dma->Copy(write_queue, src_char + 3 * pipeline_length, dst_char + 3 * pipeline_length,
-                        pipeline_length);
+                        pipeline_length, DISABLE_BYPASS);
   user_dma->Wait(write_queue, 0);
 
   // verify
@@ -214,10 +218,131 @@ TEST_F(HexagonUserDMATest, overflow_ring_buffer) {
   for (uint32_t i = 0; i < number_of_dmas; ++i) {
     do {
       ret = user_dma->Copy(queue_id, dst_char + i * length_of_each_dma,
-                           src_char + i * length_of_each_dma, length_of_each_dma);
+                           src_char + i * length_of_each_dma, length_of_each_dma, DISABLE_BYPASS);
     } while (ret == DMA_RETRY);
     ASSERT_EQ(ret, DMA_SUCCESS);
   }
+
+  // verify
+  for (uint32_t i = 0; i < length; ++i) {
+    ASSERT_EQ(src_char[i], dst_char[i]);
+  }
+}
+
+TEST_F(HexagonUserDMATest, sync_dma_bypass) {
+  HexagonBuffer srchb(length, kHexagonAllocAlignment, global_scope);
+  HexagonBuffer dsthb(length, kHexagonAllocAlignment, global_scope);
+  HexagonBuffer vtcmhb(length, kHexagonAllocAlignment, global_vtcm_scope);
+
+  // init src, dst HexagonBuffers
+  srchb.CopyFrom(src, length);
+  dsthb.CopyFrom(dst, length);
+
+  // DDR src -> VTCM
+  ret = user_dma->Copy(queue_id, vtcmhb.GetPointer(), srchb.GetPointer(), length, ENABLE_BYPASS);
+  ASSERT_EQ(ret, DMA_SUCCESS);
+
+  // VTCM -> DDR dst
+  ret = user_dma->Copy(queue_id, dsthb.GetPointer(), vtcmhb.GetPointer(), length, ENABLE_BYPASS);
+  ASSERT_EQ(ret, DMA_SUCCESS);
+
+  // wait for DMAs to complete
+  user_dma->Wait(queue_id, 0);
+
+  // copy answer from dst HexagonBuffer
+  dsthb.CopyTo(dst, length);
+
+  // verify
+  for (uint32_t i = 0; i < length; ++i) {
+    ASSERT_EQ(src_char[i], dst_char[i]);
+  }
+}
+
+TEST_F(HexagonUserDMATest, sync_dma_bypass_vtcm_to_vtcm) {
+  HexagonBuffer srchb(length, kHexagonAllocAlignment, global_scope);
+  HexagonBuffer dsthb(length, kHexagonAllocAlignment, global_scope);
+  HexagonBuffer vtcm1hb(length, kHexagonAllocAlignment, global_vtcm_scope);
+  HexagonBuffer vtcm2hb(length, kHexagonAllocAlignment, global_vtcm_scope);
+
+  // init src, dst HexagonBuffers
+  srchb.CopyFrom(src, length);
+  dsthb.CopyFrom(dst, length);
+
+  // DDR src -> VTCM
+  ret = user_dma->Copy(queue_id, vtcm1hb.GetPointer(), srchb.GetPointer(), length, ENABLE_BYPASS);
+  ASSERT_EQ(ret, DMA_SUCCESS);
+
+  // VTCM -> VTCM
+  // NOTE: Cache bypass is disabled for VTCM -> VTCM transfers
+  ret =
+      user_dma->Copy(queue_id, vtcm2hb.GetPointer(), vtcm1hb.GetPointer(), length, DISABLE_BYPASS);
+  ASSERT_EQ(ret, DMA_SUCCESS);
+
+  // VTCM -> DDR dst
+  ret = user_dma->Copy(queue_id, dsthb.GetPointer(), vtcm2hb.GetPointer(), length, ENABLE_BYPASS);
+  ASSERT_EQ(ret, DMA_SUCCESS);
+
+  // wait for DMAs to complete
+  user_dma->Wait(queue_id, 0);
+
+  // copy answer from dst HexagonBuffer
+  dsthb.CopyTo(dst, length);
+
+  // verify
+  for (uint32_t i = 0; i < length; ++i) {
+    ASSERT_EQ(src_char[i], dst_char[i]);
+  }
+}
+
+TEST_F(HexagonUserDMATest, sync_dma_bypass_) {
+  HexagonBuffer srchb(length, kHexagonAllocAlignment, global_scope);
+  HexagonBuffer dsthb(length, kHexagonAllocAlignment, global_scope);
+  HexagonBuffer vtcmhb(length, kHexagonAllocAlignment, global_vtcm_scope);
+
+  // init src, dst HexagonBuffers
+  srchb.CopyFrom(src, length);
+  dsthb.CopyFrom(dst, length);
+
+  // DDR src -> VTCM
+  ret = user_dma->Copy(queue_id, vtcmhb.GetPointer(), srchb.GetPointer(), length, ENABLE_BYPASS);
+  ASSERT_EQ(ret, DMA_SUCCESS);
+
+  // VTCM -> DDR dst
+  ret = user_dma->Copy(queue_id, dsthb.GetPointer(), vtcmhb.GetPointer(), length, ENABLE_BYPASS);
+  ASSERT_EQ(ret, DMA_SUCCESS);
+
+  // wait for DMAs to complete
+  user_dma->Wait(queue_id, 0);
+
+  // copy answer from dst HexagonBuffer
+  dsthb.CopyTo(dst, length);
+
+  // verify
+  for (uint32_t i = 0; i < length; ++i) {
+    ASSERT_EQ(src_char[i], dst_char[i]);
+  }
+
+  // change src data
+  for (uint32_t i = 0; i < length; ++i) {
+    src_char[i] = 2;
+  }
+
+  // copy new src data to HexagonBuffer
+  srchb.CopyFrom(src, length);
+
+  // DDR src -> VTCM
+  ret = user_dma->Copy(queue_id, vtcmhb.GetPointer(), srchb.GetPointer(), length, ENABLE_BYPASS);
+  ASSERT_EQ(ret, DMA_SUCCESS);
+
+  // VTCM -> DDR dst
+  ret = user_dma->Copy(queue_id, dsthb.GetPointer(), vtcmhb.GetPointer(), length, ENABLE_BYPASS);
+  ASSERT_EQ(ret, DMA_SUCCESS);
+
+  // wait for DMAs to complete
+  user_dma->Wait(queue_id, 0);
+
+  // copy answer from dst HexagonBuffer
+  dsthb.CopyTo(dst, length);
 
   // verify
   for (uint32_t i = 0; i < length; ++i) {

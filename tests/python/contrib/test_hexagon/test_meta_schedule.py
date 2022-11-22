@@ -44,25 +44,31 @@ MATMUL_M = 32
 
 @tvm.script.ir_module
 class MatmulModule:
+    """Matmultest class"""
+
+    # pylint: disable=no-self-argument
     @T.prim_func
-    def main(  # type: ignore  # pylint: disable=no-self-argument
-        a: T.handle, b: T.handle, c: T.handle
-    ) -> None:
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # type: ignore
+        # pylint: disable=missing-function-docstring
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = T.match_buffer(a, (16, 16), "float32")
-        B = T.match_buffer(b, (16, 16), "float32")
-        C = T.match_buffer(c, (16, 16), "float32")
+        a_buffer = T.match_buffer(a, (16, 16), "float32")
+        b_buffer = T.match_buffer(b, (16, 16), "float32")
+        c_buffer = T.match_buffer(c, (16, 16), "float32")
         for i, j, k in T.grid(16, 16, 16):
             with T.block("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                vi_axis, vj_axis, vk_axis = T.axis.remap("SSR", [i, j, k])
                 with T.init():
-                    C[vi, vj] = 0.0  # type: ignore
-                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+                    c_buffer[vi_axis, vj_axis] = 0.0  # type: ignore
+                c_buffer[vi_axis, vj_axis] = (
+                    c_buffer[vi_axis, vj_axis]
+                    + a_buffer[vi_axis, vk_axis] * b_buffer[vk_axis, vj_axis]
+                )
 
 
 @tvm.testing.requires_hexagon
 def test_builder_runner(hexagon_launcher):
-    if hexagon_launcher._serial_number == "simulator":
+    """Test builder and runner."""
+    if hexagon_launcher.is_simulator():
         pytest.skip(msg="Tuning on simulator not supported.")
 
     mod = MatmulModule
@@ -96,33 +102,35 @@ def test_builder_runner(hexagon_launcher):
         assert result >= 0.0
 
 
-def dense(m, n, k):
+def dense_compute(m, n, k):
+    """dense compute"""
     X = te.placeholder((m, k), name="X", dtype="uint8")
-    packedW = te.placeholder((n // 32, k // 4, 32, 4), name="packedW", dtype="uint8")
+    packed_width = te.placeholder((n // 32, k // 4, 32, 4), name="packed_width", dtype="uint8")
 
-    ak = te.reduce_axis((0, k), name="k")
+    axis_k = te.reduce_axis((0, k), name="k")
     out = te.compute(
         (m, n),
         lambda i, j: te.sum(
-            X[i, ak].astype("int32")
-            * packedW[tvm.tir.indexdiv(j, 32), tvm.tir.indexdiv(ak, 4), j % 32, ak % 4].astype(
-                "int32"
-            ),
-            axis=ak,
+            X[i, axis_k].astype("int32")
+            * packed_width[
+                tvm.tir.indexdiv(j, 32), tvm.tir.indexdiv(axis_k, 4), j % 32, axis_k % 4
+            ].astype("int32"),
+            axis=axis_k,
         ),
         name="compute",
     )
-    return [X, packedW, out]
+    return [X, packed_width, out]
 
 
-def schedule_dense(sch, block, M, do_tune):
+def schedule_dense(sch, block, m_size, do_tune):
+    """dense schedule"""
     a_y, a_x, _ = sch.get_loops(block)[-3:]
 
     if do_tune:
         y_factors = sch.sample_perfect_tile(a_y, n=2, max_innermost_factor=128)
         a_yo, a_yi = sch.split(a_y, factors=y_factors)
     else:
-        a_yo, a_yi = sch.split(a_y, factors=[None, min(M, 32)])
+        a_yo, a_yi = sch.split(a_y, factors=[None, min(m_size, 32)])
 
     a_xo, a_xi = sch.split(a_x, factors=[None, 32])
     sch.reorder(a_yo, a_xo, a_yi, a_xi)
@@ -143,51 +151,55 @@ def schedule_dense(sch, block, M, do_tune):
     sch.tensorize(a_xi, VRMPY_u8u8i32_INTRIN)
 
 
-def verify_dense(sch, target, M, N, K, hexagon_session):
+def verify_dense(sch, target, m_size, n_size, k_size, hexagon_session):
+    """Verify dense operator."""
     f = tvm.build(sch.mod["main"], target=target, name="dense")
     mod = hexagon_session.load_module(f)
     dev = hexagon_session.device
 
-    a_np = np.random.uniform(1, 10, size=(M, K)).astype("uint8")
-    b_np = np.random.uniform(1, 10, size=(N, K)).astype("uint8")
+    a_np = np.random.uniform(1, 10, size=(m_size, k_size)).astype("uint8")
+    b_np = np.random.uniform(1, 10, size=(n_size, k_size)).astype("uint8")
     c_np = np.dot(a_np.astype("int32"), b_np.transpose().astype("int32"))
 
-    packW = np.random.uniform(1, 10, size=(N // 32, (K // 4), 32, 4)).astype("uint8")
+    pack_width = np.random.uniform(1, 10, size=(n_size // 32, (k_size // 4), 32, 4)).astype("uint8")
 
-    for r_idx in range(N // 32):
-        for ko in range(K // 4):
+    for r_idx in range(n_size // 32):
+        for k_output in range(k_size // 4):
             for s_idx in range(32):
                 for t_idx in range(4):
-                    packW[r_idx][ko][s_idx][t_idx] = b_np[r_idx * 32 + s_idx][ko * 4 + t_idx]
+                    pack_width[r_idx][k_output][s_idx][t_idx] = b_np[r_idx * 32 + s_idx][
+                        k_output * 4 + t_idx
+                    ]
 
     a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(packW, dev)
-    c = tvm.nd.array(np.zeros((M, N), dtype="int32"), dev)
+    b = tvm.nd.array(pack_width, dev)
+    c = tvm.nd.array(np.zeros((m_size, n_size), dtype="int32"), dev)
 
     mod(a, b, c)
     np.testing.assert_equal(c.numpy(), c_np)
 
     evaluator = mod.time_evaluator(mod.entry_name, dev, number=10)
-    gflops = (N * M * K) * 2 / 1e9
+    gflops = (n_size * m_size * k_size) * 2 / 1e9
     time_ms = evaluator(a, b, c).mean * 1e3
     print("%f ms, %f GOPS" % (time_ms, gflops / (time_ms / 1e3)))
 
 
 @tvm.testing.requires_hexagon
 def test_vrmpy_dense(hexagon_launcher):
-    if hexagon_launcher._serial_number == "simulator":
+    """Test vector reduce muliply dense."""
+    if hexagon_launcher.is_simulator():
         pytest.skip(msg="Tuning on simulator not supported.")
 
     do_tune = True
 
-    M, N, K = 128, 768, 768
-    workload = te.create_prim_func(dense(M, N, K))
+    m_size, n_size, k_size = 128, 768, 768
+    workload = te.create_prim_func(dense_compute(m_size, n_size, k_size))
 
     if not do_tune:
         ir_module = tvm.IRModule({"main": workload})
         sch = tvm.tir.Schedule(ir_module)
         block = sch.get_block("compute")
-        schedule_dense(sch, block, M, do_tune)
+        schedule_dense(sch, block, m_size, do_tune)
     else:
         with tempfile.TemporaryDirectory() as work_dir:
 
@@ -213,20 +225,24 @@ def test_vrmpy_dense(hexagon_launcher):
             )
             sch = ms.tir_integration.compile_tir(database, workload, target)
 
-    with hexagon_launcher.start_session() as session:
-        verify_dense(sch, get_hexagon_target("v68"), M, N, K, session)
+    with hexagon_launcher.create_session() as session:
+        verify_dense(sch, get_hexagon_target("v68"), m_size, n_size, k_size, session)
 
 
 # This is an example of a schedule found by vrmpy auto tensorization.
 # It gets 440 GFLOPS on SD888.
 @tvm.script.ir_module
-class Module_vrmpy_auto_tensorize:
+class ModuleVRMPYAutoTensorize:
+    """Vector Reduce Multimply auto tensorize test class."""
+
+    # pylint: disable=no-self-argument
     @T.prim_func
     def main(  # type: ignore
         X: T.Buffer[(128, 768), "uint8"],  # type: ignore
-        packedW: T.Buffer[(24, 192, 32, 4), "uint8"],  # type: ignore
+        packed_width: T.Buffer[(24, 192, 32, 4), "uint8"],  # type: ignore
         compute: T.Buffer[(128, 768), "int32"],  # type: ignore
     ) -> None:
+        # pylint: disable=missing-function-docstring
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i0_0_i1_0_0_fused in T.parallel(
             512, annotations={"pragma_auto_unroll_max_step": 64, "pragma_unroll_explicit": 1}
@@ -251,33 +267,42 @@ class Module_vrmpy_auto_tensorize:
                     T.reads(
                         compute[i, j_o * 32 : j_o * 32 + 32],  # type: ignore
                         X[i, k_o * 4 : k_o * 4 + 4],  # type: ignore
-                        packedW[j_o, k_o, 0:32, 0:4],  # type: ignore
+                        packed_width[j_o, k_o, 0:32, 0:4],  # type: ignore
                     )
                     T.writes(compute[i, j_o * 32 : j_o * 32 + 32])  # type: ignore
-                    A = T.match_buffer(
-                        X[i, k_o * 4 : k_o * 4 + 4], [4], dtype="uint8", offset_factor=1  # type: ignore
+                    a_buffer = T.match_buffer(
+                        X[i, k_o * 4 : k_o * 4 + 4],
+                        [4],
+                        dtype="uint8",
+                        offset_factor=1,  # type: ignore
                     )
-                    B = T.match_buffer(
-                        packedW[j_o, k_o, 0:32, 0:4], [32, 4], dtype="uint8", offset_factor=1
+                    b_buffer = T.match_buffer(
+                        packed_width[j_o, k_o, 0:32, 0:4], [32, 4], dtype="uint8", offset_factor=1
                     )
-                    C = T.match_buffer(
-                        compute[i, j_o * 32 : j_o * 32 + 32], [32], dtype="int32", offset_factor=1  # type: ignore
+                    c_buffer = T.match_buffer(
+                        compute[i, j_o * 32 : j_o * 32 + 32],
+                        [32],
+                        dtype="int32",
+                        offset_factor=1,  # type: ignore
                     )
-                    A_u8x4: T.uint8x4 = A[0:4]  # type: ignore
-                    A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")  # type: ignore
-                    B_i32x32: T.int32x32 = T.reinterpret(B[0, 0:128], dtype="int32x32")  # type: ignore
-                    C[0:32] = T.call_llvm_pure_intrin(  # type: ignore
-                        4390, T.uint32(3), C[0:32], B_i32x32, A_i32, dtype="int32x32"
+                    a_u8x4: T.uint8x4 = a_buffer[0:4]  # type: ignore
+                    a_i32: T.int32 = T.reinterpret(a_u8x4, dtype="int32")  # type: ignore
+                    b_i32x32: T.int32x32 = T.reinterpret(
+                        b_buffer[0, 0:128], dtype="int32x32"
+                    )  # type: ignore
+                    c_buffer[0:32] = T.call_llvm_pure_intrin(  # type: ignore
+                        4390, T.uint32(3), c_buffer[0:32], b_i32x32, a_i32, dtype="int32x32"
                     )
 
 
 @tvm.testing.requires_hexagon
 def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
-    if hexagon_launcher._serial_number == "simulator":
+    """Test VRMPY dense operator."""
+    if hexagon_launcher.is_simulator():
         pytest.skip(msg="Tuning on simulator not supported.")
 
-    M, N, K = 128, 768, 768
-    workload = te.create_prim_func(dense(M, N, K))
+    m_size, n_size, k_size = 128, 768, 768
+    workload = te.create_prim_func(dense_compute(m_size, n_size, k_size))
 
     sch_rules = [
         schedule_rule.MultiLevelTilingWithIntrin(
@@ -308,7 +333,8 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
     ]
 
     # Make this to False to compile and run the best tuned schedule
-    if True:
+    run_tuning = True
+    if run_tuning:
         with tempfile.TemporaryDirectory() as work_dir:
             target = get_hexagon_target("v68")
             database = ms.tir_integration.tune_tir(
@@ -328,25 +354,26 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
             )
             sch = ms.tir_integration.compile_tir(database, workload, target)
     else:
-        sch = tvm.tir.Schedule(Module_vrmpy_auto_tensorize, debug_mask="all")
+        sch = tvm.tir.Schedule(ModuleVRMPYAutoTensorize, debug_mask="all")
 
-    with hexagon_launcher.start_session() as session:
-        verify_dense(sch, get_hexagon_target("v68"), M, N, K, session)
+    with hexagon_launcher.create_session() as session:
+        verify_dense(sch, get_hexagon_target("v68"), m_size, n_size, k_size, session)
 
 
 @tvm.testing.requires_hexagon
 def test_conv2d_relay_auto_schedule(hexagon_launcher):
-    if hexagon_launcher._serial_number == "simulator":
+    """Test conv2d using auto schedule."""
+    if hexagon_launcher.is_simulator():
         pytest.skip(msg="Tuning on simulator not supported.")
 
-    I, O, H, W = 64, 64, 56, 56
-    kH = kW = 3
+    i_size, o_size, h_size, w_size = 64, 64, 56, 56
+    k_height_size = k_width_size = 3
 
     strides = (1, 1)
     padding = (1, 1)
 
-    d_shape = (1, H, W, I)
-    w_shape = (kH, kW, I, O)
+    d_shape = (1, h_size, w_size, i_size)
+    w_shape = (k_height_size, k_width_size, i_size, o_size)
     bias_shape = (1, 1, 1, w_shape[3])
     out_channel = w_shape[3]
 
@@ -356,7 +383,7 @@ def test_conv2d_relay_auto_schedule(hexagon_launcher):
     conv2d = relay.nn.conv2d(
         data=data,
         weight=weight,
-        kernel_size=(kH, kW),
+        kernel_size=(k_height_size, k_width_size),
         channels=out_channel,
         padding=padding,
         strides=strides,
@@ -397,7 +424,7 @@ def test_conv2d_relay_auto_schedule(hexagon_launcher):
             target=target,
         )
 
-    with hexagon_launcher.start_session() as session:
+    with hexagon_launcher.create_session() as session:
         rt_mod = session.get_executor_from_factory(lib)
 
         rt_mod.set_input("data", data_np)
@@ -416,7 +443,7 @@ def test_dense_relay_auto_schedule(hexagon_launcher):
     This is for testing RewriteLayout postproc. Without this postproc,
     dense on Hexagon is extremely slow.
     """
-    if hexagon_launcher._serial_number == "simulator":
+    if hexagon_launcher.is_simulator():
         pytest.skip(msg="Tuning on simulator not supported.")
 
     target_hexagon = tvm.target.hexagon("v69")
@@ -456,7 +483,7 @@ def test_dense_relay_auto_schedule(hexagon_launcher):
             target=target,
         )
 
-    with hexagon_launcher.start_session() as session:
+    with hexagon_launcher.create_session() as session:
         rt_mod = session.get_executor_from_factory(lib)
 
         rt_mod.set_input("data", data_np)
@@ -467,3 +494,7 @@ def test_dense_relay_auto_schedule(hexagon_launcher):
         # Fairly loose check since fp16 results between x86 and Hexagon have
         # non-trivial difference.
         assert np.mean(np.abs(ref - out)) < 0.1
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

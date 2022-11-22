@@ -28,7 +28,7 @@ Current limitations:
     - Testing parameters (input shapes, dtypes, etc.) currently
       support only one value for each parameter.
 
-    - H, W, C must be integer multiples of 8, 8, and 32,
+    - height, width, channel must be integer multiples of 8, 8, and 32,
       respectively.  I.e., partial blocks aren't currently
       supported by this script.
 
@@ -42,50 +42,52 @@ Current limitations:
       primfuncs and demonstrate more coding strategies.
 """
 
-import pytest
-import numpy as np
+from typing import List
 import copy
 import os
+
+import pytest
+import numpy as np
 
 import tvm.testing
 from tvm import te, topi, tir
 from tvm.topi import testing
 from tvm.contrib.hexagon.session import Session
-from typing import List
+from tvm.contrib.hexagon import allocate_hexagon_array
 
-from .infrastructure import allocate_hexagon_array, get_hexagon_target
+from .infrastructure import get_hexagon_target
 from . import benchmark_util as bu
 
 # Pytest seems to require that fixture names exist in the current module.
 # E.g., it doesn't allow: @pytest.mark.usefixtures("bu.benchmark_group")
-benchmark_group = bu.benchmark_group
+BENCHMARK_GROUP = bu.benchmark_group
 
-_SHOULD_SKIP_BENCHMARKS, _SKIP_BENCHMARKS_REASON = bu.skip_bencharks_flag_and_reason()
+_SHOULD_SKIP_BENCHMARKS, _SKIP_BENCHMARKS_REASON = bu.skip_benchmarks_flag_and_reason()
 
 
 def _ceil_div(numerator, denominator):
     return (numerator + (denominator - 1)) // denominator
 
 
-def _int8_nhwc_8h8w32c_map(n, h, w, c):
+def _int8_nhwc_8h8w32c_map(n_batch, height, width, channel):
     return [
-        n,
-        h // 8,
-        w // 8,
-        c // 32,
+        n_batch,
+        height // 8,
+        width // 8,
+        channel // 32,
         te.AXIS_SEPARATOR,
-        h % 8,
-        w % 8,
-        c % 32,
+        height % 8,
+        width % 8,
+        channel % 32,
     ]
 
 
-def _int8_nhwc_8h8w32c_shape(n, h, w, c) -> List[int]:
+def _int8_nhwc_8h8w32c_shape(n_batch, height, width, channel) -> List[int]:
     return [
-        n,
-        _ceil_div(h, 8),
-        _ceil_div(w, 8),
-        _ceil_div(c, 32),
+        n_batch,
+        _ceil_div(height, 8),
+        _ceil_div(width, 8),
+        _ceil_div(channel, 32),
         8,
         8,
         32,
@@ -100,10 +102,10 @@ def _int8_nhwc_8h8w32c_xform_immediate(arr_in: np.ndarray) -> np.ndarray:
     stage1 = copy.copy(arr_in)
 
     (
-        n,
-        h,
-        w,
-        c,
+        n_batch,
+        height,
+        width,
+        channel,
     ) = stage1.shape
 
     (
@@ -112,9 +114,9 @@ def _int8_nhwc_8h8w32c_xform_immediate(arr_in: np.ndarray) -> np.ndarray:
         c_minor,
     ) = [8, 8, 32]
 
-    h_major = _ceil_div(h, h_minor)
-    w_major = _ceil_div(w, w_minor)
-    c_major = _ceil_div(c, c_minor)
+    h_major = _ceil_div(height, h_minor)
+    w_major = _ceil_div(width, w_minor)
+    c_major = _ceil_div(channel, c_minor)
 
     # This handles cases where the dimensions of arr_in are not cleanly divided
     # by the minor block size, i.e. [8, 8, 32].
@@ -122,10 +124,12 @@ def _int8_nhwc_8h8w32c_xform_immediate(arr_in: np.ndarray) -> np.ndarray:
     # Any additional array elements that this creates will ahve value 0.
     # We shouldn't actually care what value is used for those elements, because they
     # shouldn't be treated as meaningful by any of our algorithms.
-    if (h % h_minor) or (w % w_minor) or (c % c_minor):
-        stage1.resize((n, h_major * h_minor, w_major * w_minor, c_major * c_minor), refcheck=False)
+    if (height % h_minor) or (width % w_minor) or (channel % c_minor):
+        stage1.resize(
+            (n_batch, h_major * h_minor, w_major * w_minor, c_major * c_minor), refcheck=False
+        )
 
-    stage2 = stage1.reshape(n, h_major, h_minor, w_major, w_minor, c_major, c_minor)
+    stage2 = stage1.reshape(n_batch, h_major, h_minor, w_major, w_minor, c_major, c_minor)
     stage3 = stage2.transpose(0, 1, 3, 5, 2, 4, 6)
     return stage3
 
@@ -137,8 +141,10 @@ def _create_test_input(shape, dtype: str) -> np.ndarray:
     return np.random.randint(low=min_value, high=max_value, size=tuple(shape), dtype=np.int8)
 
 
-@pytest.mark.usefixtures("benchmark_group")
+@pytest.mark.usefixtures("BENCHMARK_GROUP")
 class TestMaxPool2D:
+    """maxpool2D base test class"""
+
     csv_column_order = [
         # Identifies which TE-compute / TIRScript is used as the basis for the
         # benchmarked primfunc. Only needs to be meaningful to humans.
@@ -150,12 +156,12 @@ class TestMaxPool2D:
         # Values directly based on test parameters...
         "input_shape_4d",
         "block_shape",
-        "DTYPE",
-        "KERNEL",
-        "STRIDE",
-        "DILATION",
-        "PADDING",
-        "IO_TENSOR_MEM_SCOPE",
+        "dtype",
+        "kernel",
+        "stride",
+        "dilation",
+        "padding",
+        "io_tensor_mem_scope",
         # Reserved columns defined by the BenchmarksTable class.
         "row_status",
         "timings_min_usecs",
@@ -170,48 +176,50 @@ class TestMaxPool2D:
         "comments",
     ]
 
-    DTYPE = tvm.testing.parameter("int8")
+    dtype = tvm.testing.parameter("int8")
 
-    # FIXME(cconvey): The script currently fails when H, W, or C is not an
+    # FIXME(cconvey): The script currently fails when height, width, or channel is not an
     # integer multiple of 8, 8, or 32, respectively.
-    N = tvm.testing.parameter(1)
-    H = tvm.testing.parameter(*[x * 8 for x in [1, 4, 16]])
-    W = tvm.testing.parameter(*[x * 8 for x in [1, 4, 16]])
-    C = tvm.testing.parameter(*[x * 32 for x in [1, 2]])
+    n_batch = tvm.testing.parameter(1)
+    height = tvm.testing.parameter(*[x * 8 for x in [1, 4, 16]])
+    width = tvm.testing.parameter(*[x * 8 for x in [1, 4, 16]])
+    channel = tvm.testing.parameter(*[x * 32 for x in [1, 2]])
 
-    KERNEL = tvm.testing.parameter((1, 1), (3, 3))
-    STRIDE = tvm.testing.parameter((1, 1))
-    DILATION = tvm.testing.parameter((1, 1))
-    PADDING = tvm.testing.parameter((0, 0, 0, 0))
-    IO_TENSOR_MEM_SCOPE = tvm.testing.parameter("global.vtcm")
+    kernel = tvm.testing.parameter((1, 1), (3, 3))
+    stride = tvm.testing.parameter((1, 1))
+    dilation = tvm.testing.parameter((1, 1))
+    padding = tvm.testing.parameter((0, 0, 0, 0))
+    io_tensor_mem_scope = tvm.testing.parameter("global.vtcm")
 
     @pytest.mark.skipif(_SHOULD_SKIP_BENCHMARKS, reason=_SKIP_BENCHMARKS_REASON)
     @tvm.testing.requires_hexagon
     def test_maxpool2d_nhwc(
         self,
-        N,
-        H,
-        W,
-        C,
-        DTYPE,
-        KERNEL,
-        STRIDE,
-        DILATION,
-        PADDING,
-        IO_TENSOR_MEM_SCOPE,
+        n_batch,
+        height,
+        width,
+        channel,
+        dtype,
+        kernel,
+        stride,
+        dilation,
+        padding,
+        io_tensor_mem_scope,
         hexagon_session: Session,
     ):
+        """Test maxpool2d NHWC"""
+
         keys_dict = {
             "basic_kernel": "max_pool2d",
             "sched_type": 1,
-            "input_shape_4d": [N, H, W, C],
+            "input_shape_4d": [n_batch, height, width, channel],
             "block_shape": [8, 8, 32],
-            "DTYPE": DTYPE,
-            "KERNEL": KERNEL,
-            "STRIDE": STRIDE,
-            "DILATION": DILATION,
-            "PADDING": PADDING,
-            "IO_TENSOR_MEM_SCOPE": IO_TENSOR_MEM_SCOPE,
+            "dtype": dtype,
+            "kernel": kernel,
+            "stride": stride,
+            "dilation": dilation,
+            "padding": padding,
+            "io_tensor_mem_scope": io_tensor_mem_scope,
         }
 
         desc = bu.get_benchmark_decription(keys_dict)
@@ -229,13 +237,13 @@ class TestMaxPool2D:
             log_file.write(f"CONFIGURATION: {desc}\n")
 
             try:
-                input_tensor_shape_4d = [N, H, W, C]
-                input_tensor_shape_7d = _int8_nhwc_8h8w32c_shape(N, H, W, C)
+                input_tensor_shape_4d = [n_batch, height, width, channel]
+                input_tensor_shape_7d = _int8_nhwc_8h8w32c_shape(n_batch, height, width, channel)
 
-                data = te.placeholder(tuple(input_tensor_shape_4d), dtype=DTYPE)
+                data = te.placeholder(tuple(input_tensor_shape_4d), dtype=dtype)
 
                 output = topi.nn.pool2d(
-                    data, KERNEL, STRIDE, DILATION, PADDING, "max", layout="NHWC"
+                    data, kernel, stride, dilation, padding, "max", layout="NHWC"
                 )
                 primfunc = te.create_prim_func([data, output])
 
@@ -262,20 +270,21 @@ class TestMaxPool2D:
                 # Note that we'll eventually need it in two different layouts:
                 # (1) NHWC as an argument to testing.poolnd_python.
                 # (2) NHWC_8h8w32c for as an argument to our Hexagon primfunc.
-                # a_numpy_4d = np.random.randint(low=-128, high=127, size=input_tensor_shape_4d, dtype=np.int8)
-                a_numpy_4d = _create_test_input(input_tensor_shape_4d, DTYPE)
+                # a_numpy_4d = np.random.randint(low=-128, high=127,
+                #   size=input_tensor_shape_4d, dtype=np.int8)
+                a_numpy_4d = _create_test_input(input_tensor_shape_4d, dtype)
 
                 ref_output_4d = testing.poolnd_python(
                     a_numpy_4d.astype("int32"),
-                    KERNEL,
-                    STRIDE,
-                    DILATION,
-                    PADDING[0:2],
-                    PADDING[2:],
+                    kernel,
+                    stride,
+                    dilation,
+                    padding[0:2],
+                    padding[2:],
                     pool_type="max",
                     dtype="int32",
                     layout="NHWC",
-                ).astype(DTYPE)
+                ).astype(dtype)
 
                 output_tensor_shape_4d = ref_output_4d.shape
 
@@ -285,28 +294,25 @@ class TestMaxPool2D:
                     hexagon_session.device,
                     tensor_shape=input_tensor_shape_7d,
                     axis_separators=[4],
-                    dtype=DTYPE,
-                    mem_scope=IO_TENSOR_MEM_SCOPE,
+                    dtype=dtype,
+                    mem_scope=io_tensor_mem_scope,
                 )
 
                 c_hexagon_4d = allocate_hexagon_array(
                     hexagon_session.device,
                     tensor_shape=output_tensor_shape_4d,
                     axis_separators=[],
-                    dtype=DTYPE,
-                    mem_scope=IO_TENSOR_MEM_SCOPE,
+                    dtype=dtype,
+                    mem_scope=io_tensor_mem_scope,
                 )
 
                 a_hexagon_7d.copyfrom(a_numpy_7d)
 
-                if DTYPE == "int8":
+                if dtype == "int8":
                     rel_tolerance = 0
                     abs_tolerance = 0
                 else:
-                    assert False, f"TODO: decide acceptable tolerances for DTYPE {DTYPE}"
-
-                # hexagon_mod(a_hexagon_7d, c_hexagon_4d)
-                # tvm.testing.assert_allclose(ref_output_4d, c_hexagon_4d.numpy(), rtol=rel_tolerance, atol=abs_tolerance)
+                    assert False, f"TODO: decide acceptable tolerances for dtype {dtype}"
 
                 timer = hexagon_mod.time_evaluator(
                     "main", hexagon_session.device, number=10, repeat=1
@@ -317,29 +323,29 @@ class TestMaxPool2D:
                     tvm.testing.assert_allclose(
                         ref_output_4d, c_hexagon_4d.numpy(), rtol=rel_tolerance, atol=abs_tolerance
                     )
-                except AssertionError as e:
-                    raise bu.NumericalAccuracyException(str(e))
+                except AssertionError as exception:
+                    raise bu.NumericalAccuracyException(str(exception))
 
-            except bu.NumericalAccuracyException as e:
+            except bu.NumericalAccuracyException as exception:
                 print()
                 print(f"FAIL: Numerical accuracy error. See log file.")
 
                 log_file.write("\n")
-                log_file.write(f"FAIL: {e}\n")
+                log_file.write(f"FAIL: {exception}\n")
 
                 self.benchmark_table.record_fail(
                     **keys_dict, comments=f"Numerical accuracy error. See log file."
                 )
 
-            except bu.UnsupportedException as e:
+            except bu.UnsupportedException as exception:
                 print()
-                print(f"SKIP: {e}")
+                print(f"SKIP: {exception}")
 
                 log_file.write("\n")
-                log_file.write(f"SKIP: {e}\n")
+                log_file.write(f"SKIP: {exception}\n")
 
                 self.benchmark_table.record_skip(
-                    **keys_dict, comments=f"Unsupported configuration: {e}"
+                    **keys_dict, comments=f"Unsupported configuration: {exception}"
                 )
 
             self.benchmark_table.record_success(timing_result, **keys_dict)

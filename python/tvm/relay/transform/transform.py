@@ -27,8 +27,8 @@ import tvm.ir
 from tvm import relay, te
 from tvm.runtime import ndarray as _nd
 
-from . import _ffi_api
 from ..backend.utils import mangle_module_name
+from . import _ffi_api
 
 
 def build_config(opt_level=2, required_pass=None, disabled_pass=None, trace=None):
@@ -1349,6 +1349,13 @@ def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):
         1: Allow missing ops but emit warnings.
         2: Allow missing ops and silently ignore them.
 
+    relay.ToMixedPrecision.keep_orig_output_dtype: boolean
+      Defines if outputs should be retained in original data type or convert to
+      mixed_precision_type. By default this parameter is False and transformation
+      modifies the data types of outputs to mixed_precision_type.
+      This parameter is not part of explicit arguments of the transformation, but should
+      be passed through tvm.transform.PassContext.
+
     Returns
     -------
     ret : tvm.transform.Pass
@@ -1484,3 +1491,8 @@ def CollagePartition(config, cost_estimator=None):
         cost_estimator = relay.collage.CostEstimator()
 
     return _ffi_api.CollagePartition(config, cost_estimator)
+
+
+def DivToMul():
+    """Transform division by a constant to multiplication by the inverse of the constant"""
+    return _ffi_api.DivToMul()

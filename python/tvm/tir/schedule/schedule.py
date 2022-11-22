@@ -1279,6 +1279,92 @@ class Schedule(Object):
         )
 
     @type_checked
+    def cache_index(
+        self, block: Union[BlockRV, str], buffer_index: Union[int, str, Buffer]
+    ) -> List[BlockRV]:
+        """Create a block to cache precomputed index for later use.
+        if there is no index computation, keep unchanged.
+
+        Parameters
+        ----------
+        block : Union[BlockRV, str]
+            The target block operates on the target buffer.
+
+        buffer_index: int
+            The index of the target buffer in block's read region
+
+
+        Returns
+        -------
+        cached_blocks : List[BlockRV]
+            The blocks of the stage writing the cache buffers
+
+        Examples
+        --------
+        Before cache_inplace, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def resize(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (1, 3, 40, 40))
+                B = T.match_buffer(b, (1, 3, 80, 80))
+                for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
+                    with T.block("A"):
+                        n, c, vi, vj = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                        B[n, c, vi, vj] = A[n, c, vi//4 + vj//4, vj//2]
+
+        Create the schedule and cache_index:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(resize)
+            block_a = sch.get_block("A")
+            sch.cache_index(block_a, 0)
+            print(sch.mod["main"].script())
+
+        After applying cache_index, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def resize_cache_index(
+                A: T.Buffer[(1, 3, 40, 40), "float32"], B: T.Buffer[(1, 3, 80, 80), "float32"]
+            ) -> None:
+                index_var_0 = T.alloc_buffer([80, 80], dtype="int32", strides=[1])
+                index_var_1 = T.alloc_buffer([80], dtype="int32", strides=[1])
+                for ax0, ax1 in T.grid(80, 80):
+                    with T.block("index_0"):
+                        v0 = T.axis.spatial(80, ax0)
+                        v1 = T.axis.spatial(80, ax1)
+                        T.reads()
+                        T.writes(index_var_0[v0, v1])
+                        index_var_0[v0, v1] = v0 // 4 + v1 // 4
+                for ax0 in T.serial(80):
+                    with T.block("index_1"):
+                        v0 = T.axis.spatial(80, ax0)
+                        T.reads()
+                        T.writes(index_var_1[v0])
+                        index_var_1[v0] = v0 // 2
+                for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
+                    with T.block("A"):
+                        n, c, vi, vj = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                        T.reads(A[n, c, vi // 4 + vj // 4, vj // 2])
+                        T.writes(B[n, c, vi, vj])
+                        B[n, c, vi, vj] = A[n, c, index_var_0[vi, vj], index_var_1[vj]]
+
+        """
+        block = self._normalize_block_arg(block)
+
+        if not isinstance(buffer_index, int):
+            _, buffer_index, _ = self._normalize_buffer_arg(
+                block, buffer_index, required_buffer_type="read"
+            )
+        return _ffi_api.ScheduleCacheIndex(  # type: ignore # pylint: disable=no-member
+            self, block, buffer_index
+        )
+
+    @type_checked
     def reindex(
         self,
         block: Union[BlockRV, str],
@@ -1746,7 +1832,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
+            @T.prim_func
             def before_decompose(a: ty.handle, c: ty.handle) -> None:
                 A = tir.match_buffer(a, [128, 128])
                 B = tir.match_buffer(b, [128, 128])
@@ -1765,13 +1851,13 @@ class Schedule(Object):
             C = sch.get_block("C")
             i, j, k = sch.get_loops(C)
             sch.decompose_reduction(C, i)
-            print(tvm.script.asscript(sch.mod["main"]))
+            print(sch.mod["main"].script())
 
         After applying decompose-reduction, the IR becomes:
 
         .. code-block:: python
 
-            @tvm.script.tir
+            @T.prim_func
             def after_decompose(a: ty.handle, c: ty.handle) -> None:
                 A = tir.match_buffer(a, [128, 128])
                 B = tir.match_buffer(b, [128, 128])
@@ -3041,6 +3127,114 @@ class Schedule(Object):
         return _ffi_api.SchedulePadEinsum(  # type: ignore # pylint: disable=no-member
             self, block, padding
         )
+
+    ######## Schedule: Buffer transformation ########
+
+    @type_checked
+    def rolling_buffer(
+        self,
+        block: Union[BlockRV, str],
+        write_buffer_index: int,
+    ) -> None:
+        """Compute the target buffer via rolling buffering, select the outermost rollable
+        axis with a positive bound overlap that appears in the block's ancestor loops
+        as `rolling axis`, fold and circularize the buffer along the rolling dimension,
+        append block predicate to avoid recomputing overlapping elements. It requires:
+
+        1) The block is not an output block and has only RAW dependencies.
+
+        2) The buffer to be an intermediate buffer defined via `alloc_buffer`.
+
+        3) The LCA of the producer and consumer of the buffer is a for loop, typically,
+        the producer and consumer of the buffer are cascaded through compute_at.
+
+        4) The access region of the buffer has at least one dimension that contains
+        a positive bound overlap.
+
+        Parameters
+        ----------
+        block : Union[BlockRV, str]
+            The producer block of the buffer.
+        write_buffer_index : int
+            The index of the buffer in block's write region.
+
+        Examples
+        --------
+
+        Before rolling_buffer, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_rolling_buffer(
+                A: T.Buffer[(12, 12), "int8"], C: T.Buffer[(8, 8), "int8"]
+            ) -> None:
+                # body
+                # with T.block("root")
+                B = T.alloc_buffer([10, 10], dtype="int8")
+                for i0, i1 in T.grid(2, 2):
+                    for ax0, ax1, ax2, ax3 in T.grid(6, 6, 3, 3):
+                        with T.block("B"):
+                            ax0_1 = T.axis.spatial(10, i0 * 4 + ax0)
+                            ax1_1 = T.axis.spatial(10, i1 * 4 + ax1)
+                            rv0, rv1 = T.axis.remap("RR", [ax2, ax3])
+                            B[ax0_1, ax1_1] = T.max(
+                                B[ax0_1, ax1_1], A[ax0_1 + rv0, ax1_1 + rv1]
+                            )
+                    for ax0, ax1, ax2, ax3 in T.grid(4, 4, 3, 3):
+                        with T.block("C"):
+                            ax0_1 = T.axis.spatial(8, i0 * 4 + ax0)
+                            ax1_1 = T.axis.spatial(8, i1 * 4 + ax1)
+                            rv0, rv1 = T.axis.remap("RR", [ax2, ax3])
+                            C[ax0_1, ax1_1] = T.max(
+                                C[ax0_1, ax1_1], B[ax0_1 + rv0, ax1_1 + rv1]
+                            )
+
+        Create the schedule and do rolling_buffer:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_rolling_buffer)
+            sch.rolling_buffer(sch.get_block("B"), write_buffer_index=0)
+            print(sch.mod["main"].script())
+
+        After applying rolling_buffer, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_rolling_buffer(
+                A: T.Buffer[(12, 12), "int8"],
+                C: T.Buffer[(8, 8), "int8"]
+            ) -> None:
+                # body
+                # with T.block("root")
+                B = T.alloc_buffer([6, 10], dtype="int8")
+                for i0, i1 in T.grid(2, 2):
+                    for ax0, ax1, ax2, ax3 in T.grid(6, 6, 3, 3):
+                        with T.block("B"):
+                            T.where((i0 < 1 or 2 <= ax0) and (i1 < 1 or 2 <= ax1))
+                            ax0_1 = T.axis.spatial(10, i0 * 4 + ax0)
+                            ax1_1 = T.axis.spatial(10, i1 * 4 + ax1)
+                            rv0, rv1 = T.axis.remap("RR", [ax2, ax3])
+                            B[ax0_1 % 6, ax1_1] = T.max(
+                                B[ax0_1 % 6, ax1_1], A[ax0_1 + rv0, ax1_1 + rv1]
+                            )
+                    for ax0, ax1, ax2, ax3 in T.grid(4, 4, 3, 3):
+                        with T.block("C"):
+                            ax0_1 = T.axis.spatial(8, i0 * 4 + ax0)
+                            ax1_1 = T.axis.spatial(8, i1 * 4 + ax1)
+                            rv0, rv1 = T.axis.remap("RR", [ax2, ax3])
+                            C[ax0_1, ax1_1] = T.max(
+                                C[ax0_1, ax1_1], B[ax0_1 % 6 + rv0, ax1_1 + rv1]
+                            )
+
+        Note
+        ----
+        The region_cover property of the consumer block of the target buffer will become false.
+        """
+        block = self._normalize_block_arg(block)
+        return _ffi_api.ScheduleRollingBuffer(self, block, write_buffer_index)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: Misc ##########
 

@@ -41,12 +41,11 @@
     int result = api_call;                                                        \
     if (result != 0) {                                                            \
       HEXAGON_PRINT(ERROR, "ERROR: " #api_call " failed with error %d.", result); \
+      abort();                                                                    \
     }                                                                             \
   } while (0)
 
-inline bool IsHexagonDevice(DLDevice dev) {
-  return TVMDeviceExtType(dev.device_type) == kDLHexagon;
-}
+inline bool IsHexagonDevice(DLDevice dev) { return dev.device_type == kDLHexagon; }
 
 constexpr int kHexagonAllocAlignment = 2048;
 

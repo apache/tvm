@@ -459,7 +459,7 @@ def convert_conv3d(attrs, inputs, tinfos, desired_layouts):
 # conv3d_winograd related operators
 reg.register_strategy(
     "nn.contrib_conv3d_winograd_without_weight_transform",
-    strategy.conv3d_winograd_without_weight_transfrom_strategy,
+    strategy.conv3d_winograd_without_weight_transform_strategy,
 )
 
 
@@ -733,7 +733,7 @@ def mirror_pad_func(attrs, inputs, _):
 # conv2d_winograd related operators
 reg.register_strategy(
     "nn.contrib_conv2d_winograd_without_weight_transform",
-    strategy.conv2d_winograd_without_weight_transfrom_strategy,
+    strategy.conv2d_winograd_without_weight_transform_strategy,
 )
 
 

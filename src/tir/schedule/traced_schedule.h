@@ -80,6 +80,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
                               const String& storage_scope) final;
   BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
                   BufferIndexType buffer_index_type) final;
+  Array<BlockRV> CacheIndex(const BlockRV& block_rv, int buffer_index) final;
   /******** Schedule: Compute location ********/
   void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
                  int index = -1) final;
@@ -113,6 +114,8 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   /******** Schedule: Padding ********/
   BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) final;
   void PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) final;
+  /******** Schedule: Buffer transformation ********/
+  void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) final;
   /******** Schedule: Misc ********/
   void EnterPostproc() final;
 };

@@ -31,8 +31,9 @@ import tvm.testing
 from tvm import te
 from tvm.contrib.hexagon.pytest_plugin import requires_hexagon_toolchain
 from tvm.tir.stmt_functor import post_order_visit
+from tvm.contrib.hexagon import allocate_hexagon_array
 
-from .infrastructure import allocate_hexagon_array, get_hexagon_target
+from .infrastructure import get_hexagon_target
 
 # Disabling invalid name as pylint assumes global variables as constants and
 # expects them to be all upper-case. Since these are used as
@@ -303,7 +304,7 @@ class TestElementWise:
     def test_param_shapes(self, ir_module, transformed_input_shape, transformed_output_shape):
         func = ir_module["main"]
         primfunc_input_shape, primfunc_output_shape = [
-            list(func.preflattened_buffer_map[param].shape) for param in func.params
+            list(func.buffer_map[param].shape) for param in func.params
         ]
         assert primfunc_input_shape == transformed_input_shape
         assert primfunc_output_shape == transformed_output_shape

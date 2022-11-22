@@ -32,6 +32,7 @@ extern "C" {
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
+#include <fstream>
 #include <memory>
 #include <string>
 
@@ -39,6 +40,7 @@ extern "C" {
 #include "../../../minrpc/minrpc_server.h"
 #include "../../hexagon/hexagon_common.h"
 #include "../../hexagon/hexagon_device_api.h"
+#include "../../profiler/prof_utils.h"
 #include "hexagon_rpc.h"
 
 namespace tvm {
@@ -62,7 +64,7 @@ class HexagonIOHandler {
   void MessageStart(size_t message_size_bytes) {}
 
   ssize_t PosixWrite(const uint8_t* buf, size_t write_len_bytes) {
-    LOG(INFO) << "HexagonIOHandler PosixWrite called, write_len_bytes(" << write_len_bytes << ")";
+    LOG(DEBUG) << "HexagonIOHandler PosixWrite called, write_len_bytes(" << write_len_bytes << ")";
     int32_t written_size = write_buffer_.sputn(reinterpret_cast<const char*>(buf), write_len_bytes);
     if (written_size != write_len_bytes) {
       LOG(ERROR) << "written_size(" << written_size << ") != write_len_bytes(" << write_len_bytes
@@ -72,11 +74,11 @@ class HexagonIOHandler {
     return (ssize_t)written_size;
   }
 
-  void MessageDone() { LOG(INFO) << "Message Done."; }
+  void MessageDone() { LOG(DEBUG) << "Message Done."; }
 
   ssize_t PosixRead(uint8_t* buf, size_t read_len_bytes) {
-    LOG(INFO) << "HexagonIOHandler PosixRead called, read_len_bytes(" << read_len_bytes
-              << "), read_buffer_index_(" << read_buffer_index_ << ")";
+    LOG(DEBUG) << "HexagonIOHandler PosixRead called, read_len_bytes(" << read_len_bytes
+               << "), read_buffer_index_(" << read_buffer_index_ << ")";
 
     uint32_t bytes_to_read = 0;
     if (read_buffer_index_ < read_len_bytes) {
@@ -99,9 +101,9 @@ class HexagonIOHandler {
    * \return The status
    */
   AEEResult SetReadBuffer(const uint8_t* data, size_t data_size_bytes) {
-    LOG(INFO) << "HexagonIOHandler SetReadBuffer: data_size_bytes(" << data_size_bytes
-              << "), read_buffer_index_(" << read_buffer_index_ << "), read_buffer_size_bytes_("
-              << read_buffer_size_bytes_ << ")";
+    LOG(DEBUG) << "HexagonIOHandler SetReadBuffer: data_size_bytes(" << data_size_bytes
+               << "), read_buffer_index_(" << read_buffer_index_ << "), read_buffer_size_bytes_("
+               << read_buffer_size_bytes_ << ")";
     if (data_size_bytes > read_buffer_size_bytes_) {
       LOG(ERROR) << "ERROR: data_size_bytes(" << data_size_bytes << ") > read_buffer_size_bytes_("
                  << read_buffer_size_bytes_ << ")";
@@ -121,8 +123,8 @@ class HexagonIOHandler {
    * \return The size of data that is read in bytes.
    */
   int64_t ReadFromWriteBuffer(uint8_t* buf, size_t read_size_bytes) {
-    LOG(INFO) << "HexagonIOHandler ReadFromWriteBuffer called, read_size_bytes: "
-              << read_size_bytes;
+    LOG(DEBUG) << "HexagonIOHandler ReadFromWriteBuffer called, read_size_bytes: "
+               << read_size_bytes;
     int64_t size = (int64_t)write_buffer_.sgetn(reinterpret_cast<char*>(buf), read_size_bytes);
     write_buffer_available_length_ -= size;
 
@@ -133,7 +135,7 @@ class HexagonIOHandler {
     return size;
   }
 
-  void Close() { LOG(INFO) << "HexagonIOHandler Close called"; }
+  void Close() { LOG(DEBUG) << "HexagonIOHandler Close called"; }
 
   void Exit(int code) { exit(code); }
 
@@ -262,7 +264,7 @@ int __QAIC_HEADER(hexagon_rpc_open)(const char* uri, remote_handle64* handle) {
 }
 
 int __QAIC_HEADER(hexagon_rpc_close)(remote_handle64 handle) {
-  LOG(INFO) << __func__;
+  LOG(DEBUG) << __func__;
   if (handle) {
     free(reinterpret_cast<void*>(static_cast<uintptr_t>(handle)));
   }
@@ -328,4 +330,29 @@ TVM_REGISTER_GLOBAL("tvm.hexagon.load_module")
       std::string soname = args[0];
       tvm::ObjectPtr<tvm::runtime::Library> n = tvm::runtime::CreateDSOLibraryObject(soname);
       *rv = CreateModuleFromLibrary(n);
+    });
+
+TVM_REGISTER_GLOBAL("tvm.hexagon.get_profile_output")
+    .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
+      std::string profiling_mode = args[0];
+      std::string out_file = args[1];
+      if (profiling_mode.compare("lwp") == 0) {
+        *rv = WriteLWPOutput(out_file);
+      } else {
+        HEXAGON_PRINT(ERROR, "ERROR: Unsupported profiling mode: %s", profiling_mode.c_str());
+        *rv = false;
+      }
+    });
+
+void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
+  std::ofstream fs(file_name, std::ios::out | std::ios::binary);
+  ICHECK(!fs.fail()) << "Cannot open " << file_name;
+  fs.write(&data[0], data.length());
+}
+
+TVM_REGISTER_GLOBAL("tvm.rpc.server.upload")
+    .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
+      std::string file_name = args[0];
+      std::string data = args[1];
+      SaveBinaryToFile(file_name, data);
     });

@@ -32,6 +32,8 @@
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/packed_func.h>
 
+#include <ostream>
+
 namespace tvm {
 namespace tir {
 /*!
@@ -91,6 +93,35 @@ enum class CallEffectKind : int {
    */
   kControlJump = 6,
 };
+
+inline std::ostream& operator<<(std::ostream& os, CallEffectKind side_effect) {
+  switch (side_effect) {
+    case CallEffectKind::kExprAnnotation:
+      return os << "kExprAnnotation";
+
+    case CallEffectKind::kPure:
+      return os << "kPure";
+
+    case CallEffectKind::kReadState:
+      return os << "kReadState";
+
+    case CallEffectKind::kUpdateState:
+      return os << "kUpdateState";
+
+    case CallEffectKind::kSpecialCallArg:
+      return os << "kSpecialCallArg";
+
+    case CallEffectKind::kEmbedInfo:
+      return os << "kEmbedInfo";
+
+    case CallEffectKind::kControlJump:
+      return os << "kControlJump";
+
+    default:
+      LOG(FATAL) << "Unknown CallEffectKind: " << static_cast<int>(side_effect);
+      return os;
+  }
+}
 
 /*! \brief Use integer to record the kind. */
 using TCallEffectKind = Integer;

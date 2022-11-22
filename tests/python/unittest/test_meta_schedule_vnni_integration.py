@@ -20,12 +20,13 @@ import tempfile
 from typing import Optional
 
 import numpy as np  # type: ignore
-import pytest
 import tvm
+import tvm.testing
 from tvm import meta_schedule as ms
 from tvm import relay
 from tvm._ffi import register_func
 from tvm.tir.schedule import BlockRV, Schedule
+from tvm.tir.schedule.analysis import has_block
 from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 logging.basicConfig(
@@ -44,6 +45,7 @@ def _schedule_dense(m: Optional[int], do_tune: bool):
         if sch.mod.attrs is not None and "dense" not in sch.mod.attrs["task_name"]:
             return False
         if dense_block is None:
+            assert has_block(sch, "compute")
             dense_block = sch.get_block("compute")
             assert "dense_vnni" in sch.get(dense_block).annotations["schedule_rule"]
 
@@ -174,29 +176,29 @@ def test_vnni_schedule_fn_tune():
 
     C = te.compute(
         ...
-        attrs={"schedule_rule": "meta_schedule.dense_vnni"},
+        attrs={"schedule_rule": "meta_schedule.x86.dense_vnni"},
     )
 
     When the MetaSchedule encounters a TensorIR block with the "schedule_rule" annotation,
     it looks up the packed func registry for a function that is associated with the given schedule
-    rule key ("meta_schedule.dense_vnni" in this example). The signature of such custom schedule
-    functions must be
+    rule key ("meta_schedule.x86.dense_vnni" in this example). The signature of such custom
+    schedule functions must be
 
        (tir.schedule.Schedule, tir.schedule.BlockRV) -> [tir.schedule.Schedule].
 
     The BlockRV argument corresponds to the TE compute annotated with "schedule_rule".
 
-    The relevant code is in meta_schedule/space_generator/post_order_apply.cc.
+    The relevant code is in `src/meta_schedule/space_generator/apply_custom_rule.cc`.
     """
 
     def schedule_rule_dense_vnni(sch: Schedule, dense_block: BlockRV):
         _schedule_dense(m=None, do_tune=True)(sch, dense_block)
         return [sch]
 
-    register_func("meta_schedule.dense_vnni", schedule_rule_dense_vnni)
+    register_func("meta_schedule.x86.dense_vnni", schedule_rule_dense_vnni)
 
     m, n, k = 1024, 1024, 1024
-    target = tvm.target.Target("llvm -mcpu=cascadelake -num-cores 4")
+    target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=cascadelake -num-cores=4")
     dev = tvm.cpu(0)
     relay_mod, params, f_check = _relay_dense(m, n, k)
 
