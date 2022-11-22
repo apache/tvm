@@ -96,9 +96,6 @@ set(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT OFF)
 # Whether enable OpenGL runtime
 set(USE_OPENGL OFF)
 
-# Whether enable MicroTVM runtime
-set(USE_MICRO OFF)
-
 # Whether enable RPC runtime
 set(USE_RPC ON)
 
