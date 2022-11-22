@@ -101,18 +101,6 @@ def is_inline_non_compute_intensive_partitions_enabled() -> bool:
     return compiler_attrs.inline_non_compute_intensive_partitions
 
 
-def is_experimental_compiler_enabled() -> bool:
-    """
-    Determine whether the experimental compiler option is enabled.
-
-    Returns
-    -------
-    True if the experimental compiler is enabled, False if not.
-    """
-    compiler_attrs = tvm.get_global_func("relay.ext.ethos-n.get_compiler_attrs")()
-    return compiler_attrs.experimental_compiler
-
-
 def partition_for_ethosn(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
     operators to Arm Ethos-N NPU.
