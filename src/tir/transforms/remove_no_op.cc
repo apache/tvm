@@ -140,12 +140,12 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     }
   }
   Stmt VisitStmt_(const ForNode* op) final {
-    var_range_map_[op->loop_var.get()] = arith::IntSet::FromMinExtent(op->min, op->extent);
     auto extent_range = arith::EvalSet(op->extent, var_range_map_);
     if (!arith::is_neg_inf(extent_range.max()) && !arith::is_pos_inf(extent_range.max()) &&
         analyzer_->CanProve(extent_range.max() <= 0)) {
       return Evaluate(0);
     }
+    var_range_map_[op->loop_var.get()] = arith::IntSet::FromMinExtent(op->min, op->extent);
     Stmt stmt = Parent::VisitStmt_(op);
     var_range_map_.erase(op->loop_var.get());
     op = stmt.as<ForNode>();
