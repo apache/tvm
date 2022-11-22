@@ -25,7 +25,7 @@ String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "llvm") {
     static const PackedFunc* f_check_vnni =
         runtime::Registry::Get("tvm.topi.x86.utils.target_has_vnni");
-    ICHECK(*f_check_vnni != nullptr) << "The `target_has_vnni` func is not in tvm registry.";
+    ICHECK(f_check_vnni != nullptr) << "The `target_has_vnni` func is not in tvm registry.";
     if (target->GetAttr<String>("mcpu") &&
         (*f_check_vnni)(target->GetAttr<String>("mcpu").value())) {
       return "vnni";
