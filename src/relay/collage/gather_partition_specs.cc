@@ -121,7 +121,7 @@ BYOCStyle BYOCFusionStyleForCompiler(const String& compiler) {
     std::string byoc_str = static_cast<std::string>(config_);
     std::string byoc_compiler = byoc_str.substr(0, byoc_str.find(".", 0));
     if (byoc_compiler == compiler) {
-      std::string fusion_name = byoc_str.substr(byoc_str.find(".", 0)+1, byoc_str.size());
+      std::string fusion_name = byoc_str.substr(byoc_str.find(".", 0) + 1, byoc_str.size());
       if (fusion_name == "NoFusion") {
         byoc_fusion_style = kNoFusionBYOCStyle;
       } else if (fusion_name == "TVMFusion") {
@@ -129,8 +129,7 @@ BYOCStyle BYOCFusionStyleForCompiler(const String& compiler) {
       } else if (fusion_name == "MaxDepthFusion") {
         byoc_fusion_style = kArbitraryFusionBYOCStyle;
       } else {
-        ICHECK(false) << "Invalid fusion name for compiler "
-                      << byoc_compiler << " in pass context";
+        ICHECK(false) << "Invalid fusion name for compiler " << byoc_compiler << " in pass context";
       }
       break;
     }
