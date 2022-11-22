@@ -1058,7 +1058,7 @@ class TransformationIntroducesPaddingError : public ScheduleError {
 // Make the dtypes of indices in IndexMap be the same as the dtype of the buffer shape, to avoid
 // dtype-mismatch issues later.
 IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const Buffer& buf) {
-  auto initial_indices_orig = index_map->initial_indices;
+  const auto& initial_indices_orig = index_map->initial_indices;
   ICHECK(buf->shape.size() == initial_indices_orig.size());
 
   Array<Var> initial_indices;
@@ -1069,6 +1069,8 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const Buffer& buf) {
       auto new_idx = Var(initial_indices_orig[i]->name_hint, buf->shape[i]->dtype);
       initial_indices.push_back(new_idx);
       var_map.Set(initial_indices_orig[i], new_idx);
+    } else {
+      initial_indices.push_back(initial_indices_orig[i]);
     }
   }
 
