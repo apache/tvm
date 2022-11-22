@@ -199,46 +199,20 @@ class OriginalModule:
 
 
 def initializer() -> None:
-    """Initializer function to register the functions on PopenWorker and locally."""
-
-    @register_func("tvm.meta_schedule.testing.default_input_generator")
-    def default_input_generator(  # pylint: disable=unused-variable
-        mod: IRModule,
-    ) -> List[tvm.nd.NDArray]:
-        """Default input generator function
-
-        Parameters
-        ----------
-        mod : IRModule
-            The IRModule to generate the input data for.
-
-        Returns
-        -------
-        inputs : List[tvm.nd.NDArray]
-            The generated input data.
-        """
-
-        args_info = ms.arg_info.TensorInfo.from_prim_func(mod["main"])
-        inputs = [
-            tvm.nd.array(
-                generate_input_data(input_shape=arg_info.shape, input_dtype=arg_info.dtype)
-            )
-            for arg_info in args_info
-        ]
-        return inputs
+    """Initializer function to register the functions on PopenWorker."""
 
     @register_func("tvm.meta_schedule.testing.default_check_metric")
     def default_check_metric(  # pylint: disable=unused-variable,unreachable-code
-        a: List[tvm.nd.NDArray], b: List[tvm.nd.NDArray]
+        lhs: List[tvm.nd.NDArray], rhs: List[tvm.nd.NDArray]
     ) -> bool:
         """Check if the outputs are equal
 
         Parameters
         ----------
-        a : List[tvm.nd.NDArray]
+        lhs : List[tvm.nd.NDArray]
             The first list of NDArrays to compare.
 
-        b : List[tvm.nd.NDArray]
+        rhs : List[tvm.nd.NDArray]
             The second list of NDArrays to compare.
 
         Returns
@@ -246,11 +220,36 @@ def initializer() -> None:
         is_equal : bool
             Whether the two lists of NDArrays are equal.
         """
-        assert len(a) == len(b), "Different number of outputs from two modules"
-        for i, _ in enumerate(a):
-            if not np.allclose(a[i].numpy(), b[i].numpy(), rtol=1e-3, atol=2e-3):
+        assert len(lhs) == len(rhs), "Different number of outputs from two modules"
+        for i in range(len(lhs)):  # pylint: disable=consider-using-enumerate
+            if not np.allclose(lhs[i].numpy(), rhs[i].numpy(), rtol=1e-3, atol=2e-3):
                 return False
         return True
+
+
+@register_func("tvm.meta_schedule.testing.default_input_generator")
+def default_input_generator(  # pylint: disable=unused-variable
+    mod: IRModule,
+) -> List[tvm.nd.NDArray]:
+    """Default input generator function
+
+    Parameters
+    ----------
+    mod : IRModule
+        The IRModule to generate the input data for.
+
+    Returns
+    -------
+    inputs : List[tvm.nd.NDArray]
+        The generated input data.
+    """
+
+    args_info = ms.arg_info.TensorInfo.from_prim_func(mod["main"])
+    inputs = [
+        tvm.nd.array(generate_input_data(input_shape=arg_info.shape, input_dtype=arg_info.dtype))
+        for arg_info in args_info
+    ]
+    return inputs
 
 
 def to_numpy(a: List[tvm.nd.NDArray]) -> List[np.ndarray]:
@@ -639,7 +638,6 @@ def _run_single_mod(
 def main():
     """Main function"""
     describe()
-    initializer()  # for local input generation
     with ms.Profiler() as profiler:
         # initialize
         target = ARGS.target
