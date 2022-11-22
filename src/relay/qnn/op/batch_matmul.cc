@@ -102,6 +102,7 @@ Expr BatchMatmulSecondTerm(const Expr& x_quantized_data, const Expr& y_zero_poin
                     Sum(Cast(x_quantized_data, DataType::Int(32)), axes, true, false));
   } else {
     // TODO(vvchernov): implement when one of zero points or both are tensors
+    LOG(FATAL) << "Tensor zero point (non-scalar) is not supported";
     return Expr();
   }
 }
@@ -119,6 +120,7 @@ Expr BatchMatmulThirdTerm(const Expr& y_quantized_data, const Expr& x_zero_point
     return Reshape(reducemult, newshape);
   } else {
     // TODO(vvchernov): implement when one of zero points or both are tensors
+    LOG(FATAL) << "Tensor zero point (non-scalar) is not supported";
     return Expr();
   }
 }
@@ -130,6 +132,7 @@ Expr BatchMatmulFourthTerm(Expr x_zero_point, Expr y_zero_point, int reduction_d
     return Multiply(zero_point_mul, const_scale);
   } else {
     // TODO(vvchernov): implement when one of zero points or both are tensors
+    LOG(FATAL) << "Tensor zero point (non-scalar) is not supported";
     return Expr();
   }
 }
