@@ -58,7 +58,7 @@ tvm_option(USE_OPENMP "Build with OpenMP thread pool implementation" OFF)
 tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
-tvm_option(USE_MICRO "Build with Micro TVM support" OFF)
+tvm_option(USE_MICRO "Build with Micro TVM support" ON)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
 tvm_option(USE_TF_TVMDSOOP "Build with TensorFlow TVMDSOOp" OFF)
@@ -117,6 +117,11 @@ tvm_option(SUMMARIZE "Print CMake option summary after configuring" OFF)
 tvm_option(USE_CLML "Build with CLML Codegen support" OFF)
 tvm_option(USE_CLML_GRAPH_EXECUTOR "Build with CLML graph runtime" OFF)
 tvm_option(USE_UMA "Build with UMA support" OFF)
+
+# disable microTVM for iOS and hexagon builds
+if(${CMAKE_SYSTEM_NAME} MATCHES "iOS" OR USE_HEXAGON)
+  set(USE_MICRO OFF)
+endif()
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
