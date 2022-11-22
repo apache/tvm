@@ -470,36 +470,26 @@ def test_export_byoc_c_module():
         with tf.extractfile("./metadata.json") as f:
             metadata = json.load(f)
         main_md = metadata["modules"][factory.libmod_name]["memory"]["functions"]["main"]
-        if platform.architecture()[0] == "64bit":
-            assert main_md == [
-                {
-                    "constants_size_bytes": 0,
-                    "device": 1,
-                    "inputs": {
-                        "w0": {"dtype": "float32", "size": 400},
-                        "w1": {"dtype": "float32", "size": 400},
-                        "w2": {"dtype": "float32", "size": 400},
-                        "w3": {"dtype": "float32", "size": 400},
-                        "w4": {"dtype": "float32", "size": 400},
-                        "w5": {"dtype": "float32", "size": 400},
-                        "w6": {"dtype": "float32", "size": 400},
-                        "w7": {"dtype": "float32", "size": 400},
-                        "x": {"dtype": "float32", "size": 400},
-                    },
-                    "io_size_bytes": 4800,
-                    "outputs": {"output": {"dtype": "float32", "size": 1200}},
-                    "workspace_size_bytes": 1200,
-                }
-            ]
-        else:
-            assert main_md == [
-                {
-                    "constants_size_bytes": 0,
-                    "device": 1,
-                    "io_size_bytes": 4800,
-                    "workspace_size_bytes": 1200,
-                }
-            ]
+        assert main_md == [
+            {
+                "constants_size_bytes": 0,
+                "device": 1,
+                "inputs": {
+                    "w0": {"dtype": "float32", "size": 400},
+                    "w1": {"dtype": "float32", "size": 400},
+                    "w2": {"dtype": "float32", "size": 400},
+                    "w3": {"dtype": "float32", "size": 400},
+                    "w4": {"dtype": "float32", "size": 400},
+                    "w5": {"dtype": "float32", "size": 400},
+                    "w6": {"dtype": "float32", "size": 400},
+                    "w7": {"dtype": "float32", "size": 400},
+                    "x": {"dtype": "float32", "size": 400},
+                },
+                "io_size_bytes": 4800,
+                "outputs": {"output": {"dtype": "float32", "size": 1200}},
+                "workspace_size_bytes": 1200,
+            }
+        ]
 
 
 @tvm.testing.requires_micro
