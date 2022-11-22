@@ -965,6 +965,9 @@ def test_index_map_dtype_legalize():
     conv2d_block = sch.get_block("conv2d_NCHWc_int8")
     sch.cache_read(conv2d_block, 0, "global.vtcm")
 
+    # The following error is raised from the IterVar constructor without the dtype legalization.
+    # TVMError: Check failed: dom->extent.dtype() == var.dtype() (int64 vs. int32) :
+    # The dtype of the extent of an IterVar (int64) must match its associated Var's dtype (int32)
     sch.transform_layout(
         conv2d_block, ("read", 0), index_map=index_map_nchw32c_nchw8h8w32c, pad_value=0
     )

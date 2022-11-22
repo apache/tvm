@@ -1055,6 +1055,8 @@ class TransformationIntroducesPaddingError : public ScheduleError {
   PrimExpr padding_predicate_;
 };
 
+// Make the dtypes of indices in IndexMap be the same as the dtype of the buffer shape, to avoid
+// dtype-mismatch issues later.
 IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const Buffer& buf) {
   auto initial_indices_orig = index_map->initial_indices;
   ICHECK(buf->shape.size() == initial_indices_orig.size());
