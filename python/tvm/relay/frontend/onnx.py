@@ -4771,8 +4771,6 @@ class MatMulInteger(OnnxOpConverter):
         assert a_dtype in ("int8", "uint8"), "MatMulInteger: invalid dtype for first input"
         assert b_dtype in ("int8", "uint8"), "MatMulInteger: invalid dtype for second input"
 
-        assert a_dtype == b_dtype, "MatMulInteger: input dtypes must match"
-
         a_scale = _op.const(1.0, dtype="float32")
         b_scale = _op.const(1.0, dtype="float32")
         out_scale = _op.const(1.0, dtype="float32")
