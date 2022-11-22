@@ -98,7 +98,8 @@ Expr BatchMatmulFirstTerm(const Expr& quantized_x, const Expr& quantized_y,
 Expr BatchMatmulSecondTerm(const Expr& x_quantized_data, const Expr& y_zero_point) {
   if (IsScalar(y_zero_point)) {
     Array<Integer> axes = {2};
-    return Multiply(y_zero_point, Sum(Cast(x_quantized_data, DataType::Int(32)), axes, true, false));
+    return Multiply(y_zero_point,
+                    Sum(Cast(x_quantized_data, DataType::Int(32)), axes, true, false));
   } else {
     // TODO(vvchernov): implement when one of zero points or both are tensors
     return Expr();
@@ -203,7 +204,7 @@ Expr QnnBatchMatmulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 
   // TODO(vvchernov): how do additional checs (equal) influence on performance?
   if (IsConstScalar(x_zero_point) && IsConstScalar(y_zero_point)) {
-      // Extract the integer zero points.
+    // Extract the integer zero points.
     auto y_zero_point_int = GetScalarFromConstant<int>(y_zero_point);
     auto x_zero_point_int = GetScalarFromConstant<int>(x_zero_point);
     auto term4 = BatchMatmulFourthTerm(x_zero_point_int, y_zero_point_int, reduction_dim_size);
