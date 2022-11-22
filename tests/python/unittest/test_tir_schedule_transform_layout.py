@@ -173,35 +173,6 @@ def two_elementwise_unit_dim(A: T.Buffer[(1, 128), "float32"], C: T.Buffer[(1, 1
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
-
-
-@tvm.script.ir_module
-class Conv2dNCHW32c:
-    @T.prim_func
-    def main(p0: T.Buffer[(T.int64(1), T.int64(2), T.int64(56), T.int64(56), T.int64(32)), "uint8"], p1: T.Buffer[(T.int64(2), T.int64(2), T.int64(3),
-T.int64(3), T.int64(8), T.int64(32), T.int64(4)), "uint8"], conv2d_NCHWc_int8: T.Buffer[(T.int64(1), T.int64(2), T.int64(56), T.int64(56), T.int64(32)), "int32"]):
-        # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        # body
-        # with T.block("root")
-        data_pad = T.alloc_buffer([T.int64(1), T.int64(2), T.int64(58), T.int64(58), T.int64(32)], dtype="uint8")
-        for i0, i1, i2, i3, i4 in T.grid(T.int64(1), T.int64(2), T.int64(58), T.int64(58), T.int64(32)):
-            with T.block("data_pad"):
-                i0_1, i1_1, i2_1, i3_1, i4_1 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(p0[i0_1, i1_1, i2_1 - T.int64(1), i3_1 - T.int64(1), i4_1])
-                T.writes(data_pad[i0_1, i1_1, i2_1, i3_1, i4_1])
-                data_pad[i0_1, i1_1, i2_1, i3_1, i4_1] = T.if_then_else(T.int64(1) <= i2_1 and i2_1 < T.int64(57) and T.int64(1) <= i3_1 and i3_1 < T.int64(57), p0[i0_1, i1_1, i2_1 - T.int64(1), i3_1 - T.int64(1), i4_1], T.uint8(0), dtype="uint8")
-        for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(T.int64(1), T.int64(2), T.int64(56), T.int64(56), T.int64(32), T.int64(3), T.int64(3), T.int64(2), T.int64(8), T.int64(4)):
-            with T.block("conv2d_NCHWc_int8"):
-                n, oc_chunk, oh, ow, oc_block, kh, kw, ic_outer, ic_f_inner, ic_s_inner = T.axis.remap("SSSSSRRRRR", [i0, i1, i2, i3, i4, i5, i6, i7, i8, i9])
-                T.reads(data_pad[n, ic_outer, oh + kh, ow + kw, ic_f_inner * T.int64(4) + ic_s_inner], p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner])
-                T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block])
-                T.block_attr({"schedule_rule":"conv2d_NCHWc_int8"})
-                with T.init():
-                    conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = 0
-                conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] + T.Cast("int32", data_pad[n, ic_outer, oh + kh, ow + kw, ic_f_inner * T.int64(4) + ic_s_inner]) * T.Cast("int32", p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner])
-
-
 # pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 # fmt: on
 
@@ -957,19 +928,21 @@ class TestTransformWithAxisSeparatorsOpaqueBlock(BasePaddingCompare):
 def test_index_map_dtype_legalize():
     """Test dtype legalization of the index map indices."""
 
-    def index_map_nchw32c_nchw8h8w32c(n_batch, channel, height, width, channel_32):
-        return [n_batch, channel, height // 8, width // 8, height % 8, width % 8, channel_32]
+    @T.prim_func
+    def func(A: T.Buffer[T.int64(58), "int32"]):
+        for i in T.serial(T.int64(58)):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                T.writes(A[vi])
+                A[vi] = 0
 
-    sch = tir.Schedule(Conv2dNCHW32c)
+    sch = tir.Schedule(func)
 
-    conv2d_block = sch.get_block("conv2d_NCHWc_int8")
-    sch.cache_read(conv2d_block, 0, "global.vtcm")
-
-    # The following error is raised from the IterVar constructor without the dtype legalization.
-    # TVMError: Check failed: dom->extent.dtype() == var.dtype() (int64 vs. int32) :
-    # The dtype of the extent of an IterVar (int64) must match its associated Var's dtype (int32)
+    # # The following error is raised from the IterVar constructor without the dtype legalization.
+    # # TVMError: Check failed: dom->extent.dtype() == var.dtype() (int64 vs. int32) :
+    # # The dtype of the extent of an IterVar (int64) must match its associated Var's dtype (int32)
     sch.transform_layout(
-        conv2d_block, ("read", 0), index_map=index_map_nchw32c_nchw8h8w32c, pad_value=0
+        sch.get_block("block"), buffer="A", index_map=lambda h: [h // 8, h % 8], pad_value=0
     )
 
 
