@@ -265,6 +265,7 @@ def run_unittest_minimal() {
     ) %}
       {{ m.download_artifacts(tag='cpu-minimal') }}
       cpp_unittest(ci_minimal)
+      micro_cpp_unittest(ci_minimal)
       python_unittest(ci_minimal)
   {% endcall %}
 }
