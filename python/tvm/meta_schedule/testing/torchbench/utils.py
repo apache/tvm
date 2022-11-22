@@ -106,16 +106,16 @@ def _disallow_operators(disallowed_ops: Set[DisallowedOperator]):
     if DisallowedOperator.AS_STRIDE in disallowed_ops:
         disallowed_tensor_methods.add("as_stride")
 
-    TensorVariable = torchdynamo.variables.tensor.TensorVariable
-    old_call_method = TensorVariable.call_method
+    tensor_variable_cls = torchdynamo.variables.tensor.TensorVariable
+    old_call_method = tensor_variable_cls.call_method
 
     @functools.wraps(old_call_method)
-    def call_method(self, tx, name, args, kwargs):
+    def call_method(self, translator, name, args, kwargs):
         if name in disallowed_tensor_methods:
             raise torchdynamo.exc.Unsupported(f"Tensor.{name} not supported by TVM.")
-        return old_call_method(self, tx, name, args, kwargs)
+        return old_call_method(self, translator, name, args, kwargs)
 
-    TensorVariable.call_method = call_method
+    tensor_variable_cls.call_method = call_method
 
 
 def load_torchdynamo_benchmark_runner(
