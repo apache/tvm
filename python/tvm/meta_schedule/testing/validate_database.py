@@ -69,17 +69,14 @@ def _parse_args():
     args.add_argument(
         "--rpc-host",
         type=str,
-        required=True,
     )
     args.add_argument(
         "--rpc-port",
         type=int,
-        required=True,
     )
     args.add_argument(
         "--rpc-key",
         type=str,
-        required=True,
     )
     args.add_argument(
         "--number",
@@ -114,12 +111,16 @@ def _parse_args():
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
-    parsed.rpc_config = ms.runner.RPCConfig(
-        tracker_host=parsed.rpc_host,
-        tracker_port=parsed.rpc_port,
-        tracker_key=parsed.rpc_key,
-        session_timeout_sec=600,
-    )
+    if parsed.rpc_host is not None and parsed.rpc_port is not None and parsed.rpc_key is not None:
+        parsed.rpc_config = ms.runner.RPCConfig(
+            tracker_host=parsed.rpc_host,
+            tracker_port=parsed.rpc_port,
+            tracker_key=parsed.rpc_key,
+            session_timeout_sec=600,
+        )
+    else:
+        parsed.rpc_config = None
+        warnings.warn("RPC config is not provided, will use local runner.")
     if parsed.cpu_flush and parsed.target.kind.name != "llvm":
         warnings.warn("cpu_flush is only supported on llvm target")
     return parsed
@@ -133,7 +134,7 @@ logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
 )
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
-logging.getLogger("tvm.meta_schedule.runner.rpc_runner").setLevel(logging.WARN)
+logging.getLogger("tvm.meta_schedule.runner").setLevel(logging.WARN)
 
 
 def get_device_type(target: Target) -> str:
@@ -411,13 +412,10 @@ def make_alloc_arg_and_check(
         The function to run evaluator.
     """
 
-    def f_with_args_alloc_argument(
-        # pylint: disable=unused-argument
-        session: tvm.rpc.RPCSession,
+    def f_with_args_alloc_argument_common(
         device: tvm.runtime.Device,
-        args_info: ms.runner.rpc_runner.T_ARG_INFO_JSON_OBJ_LIST,
+        args_info: ms.runner.rpc_runner.T_ARG_INFO_JSON_OBJ_LIST,  # pylint: disable=unused-argument
         alloc_repeat: int,
-        # pylint: enable=unused-argument
     ) -> List[ms.runner.rpc_runner.T_ARGUMENT_LIST]:
         """Allocate arguments using the given inputs.
 
@@ -439,8 +437,7 @@ def make_alloc_arg_and_check(
         """
         return [[tvm.nd.array(arg, device=device) for arg in inputs] for _ in range(alloc_repeat)]
 
-    def f_with_args_run_evaluator(
-        session: tvm.rpc.RPCSession,  # pylint: disable=unused-argument
+    def f_with_args_run_evaluator_common(
         rt_mod: tvm.runtime.Module,
         device: tvm.runtime.Device,
         evaluator_config: ms.runner.EvaluatorConfig,
@@ -507,7 +504,27 @@ def make_alloc_arg_and_check(
 
         return costs
 
-    return f_with_args_alloc_argument, f_with_args_run_evaluator
+    def f_with_args_alloc_argument_rpc(
+        rpc_session: ms.runner.rpc_runner.RPCSession,  # pylint: disable=unused-argument
+        device: tvm.runtime.Device,
+        args_info: ms.runner.rpc_runner.T_ARG_INFO_JSON_OBJ_LIST,
+        alloc_repeat: int,
+    ) -> List[ms.runner.rpc_runner.T_ARGUMENT_LIST]:
+        return f_with_args_alloc_argument_common(device, args_info, alloc_repeat)
+
+    def f_with_args_run_evaluator_rpc(
+        rpc_session: ms.runner.rpc_runner.RPCSession,  # pylint: disable=unused-argument
+        rt_mod: tvm.runtime.Module,
+        device: tvm.runtime.Device,
+        evaluator_config: ms.runner.EvaluatorConfig,
+        repeated_args: List[ms.runner.rpc_runner.T_ARGUMENT_LIST],
+    ) -> List[float]:
+        return f_with_args_run_evaluator_common(rt_mod, device, evaluator_config, repeated_args)
+
+    if ARGS.rpc_config is None:
+        return f_with_args_alloc_argument_common, f_with_args_run_evaluator_common
+    else:
+        return f_with_args_alloc_argument_rpc, f_with_args_run_evaluator_rpc
 
 
 def local_build_and_run(
@@ -713,20 +730,31 @@ def main():
                         original_run_secs=original_run_secs,
                         print_result=print_result,
                     )
-                    # create rpc runner
-                    runner = ms.runner.RPCRunner(
-                        rpc_config=ARGS.rpc_config,
-                        evaluator_config=ms.runner.EvaluatorConfig(
-                            number=ARGS.number,
-                            repeat=ARGS.repeat,
-                            min_repeat_ms=ARGS.min_repeat_ms,
-                            enable_cpu_cache_flush=ARGS.cpu_flush,
-                        ),
-                        alloc_repeat=1,
-                        f_alloc_argument=f_with_args_alloc_argument,
-                        f_run_evaluator=f_with_args_run_evaluator,
-                        initializer=initializer,
+                    # create runner
+                    evaluator_config = ms.runner.EvaluatorConfig(
+                        number=ARGS.number,
+                        repeat=ARGS.repeat,
+                        min_repeat_ms=ARGS.min_repeat_ms,
+                        enable_cpu_cache_flush=ARGS.cpu_flush,
                     )
+                    if ARGS.rpc_config is not None:
+                        runner: ms.Runner = ms.runner.RPCRunner(  # type: ignore
+                            ARGS.rpc_config,
+                            evaluator_config=evaluator_config,
+                            alloc_repeat=1,
+                            f_alloc_argument=f_with_args_alloc_argument,
+                            f_run_evaluator=f_with_args_run_evaluator,
+                            initializer=initializer,
+                        )
+                    else:
+                        runner: ms.Runner = ms.runner.LocalRunner(  # type: ignore
+                            evaluator_config=evaluator_config,
+                            alloc_repeat=1,
+                            f_alloc_argument=f_with_args_alloc_argument,
+                            f_run_evaluator=f_with_args_run_evaluator,
+                            initializer=initializer,
+                        )
+
                     # run and validate
                     _run_single_mod(builder_result, runner, dev_type)  # type: ignore
                 except Exception as e:  # pylint: disable=broad-except, invalid-name
