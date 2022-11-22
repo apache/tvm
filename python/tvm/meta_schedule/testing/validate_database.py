@@ -34,7 +34,7 @@ from tvm.tir import Schedule
 from tvm.tir.schedule import Trace
 from tvm.meta_schedule.utils import remove_build_dir
 from tvm.meta_schedule.testing.tune_utils import generate_input_data
-from tvm.tir.tensor_intrin import *  # type: ignore # pylint: disable=unused-import
+from tvm.tir.tensor_intrin import *  # type: ignore # pylint: disable=unused-import,wildcard-import
 
 DELIMITOR = "\n" + "-" * 30 + "\n"
 
@@ -687,9 +687,7 @@ def main():
                 device=get_runtime_device(ARGS.baseline_target),
             )
             scheduled_mods = [_apply_trace(original_mod, record.trace) for record in records]
-            builder_results = _build_all_mods(
-                [scheduled_mod for scheduled_mod in scheduled_mods], builder, target  # type: ignore
-            )
+            builder_results = _build_all_mods(scheduled_mods, builder, target)  # type: ignore
             for i, record in enumerate(records):
                 counter += 1
                 print_result = print_with_counter_func(counter=counter, total=total)
