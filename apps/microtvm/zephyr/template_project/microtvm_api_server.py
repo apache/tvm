@@ -737,7 +737,7 @@ class Handler(server.ProjectAPIHandler):
 
     def flash(self, options):
         serial_number = options.get("serial_number")
-        west_cmd = get_west_cmd(options)
+        west_cmd_list = get_west_cmd(options).split(" ")
 
         if _find_platform_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME):
             return  # NOTE: qemu requires no flash step--it is launched from open_transport.
@@ -758,7 +758,7 @@ class Handler(server.ProjectAPIHandler):
             flash_extra_args = ["--cmd-pre-init", f"""hla_serial {serial_number}"""]
 
         check_call(
-            [west_cmd, "flash", "-r", _get_flash_runner()] + flash_extra_args,
+            west_cmd_list + ["flash", "-r", _get_flash_runner()] + flash_extra_args,
             cwd=API_SERVER_DIR / "build",
         )
 
