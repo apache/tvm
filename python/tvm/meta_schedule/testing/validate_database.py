@@ -34,7 +34,7 @@ from tvm.tir import Schedule
 from tvm.tir.schedule import Trace
 from tvm.meta_schedule.utils import remove_build_dir
 from tvm.meta_schedule.testing.tune_utils import generate_input_data
-from tvm.tir.tensor_intrin import *  # type: ignore # pylint: disable=unused-import,wildcard-import
+from tvm.tir.tensor_intrin import *  # type: ignore # pylint: disable=wildcard-import,unused-wildcard-import
 
 DELIMITOR = "\n" + "-" * 30 + "\n"
 
