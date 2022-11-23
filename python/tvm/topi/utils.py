@@ -534,3 +534,8 @@ def is_target(names):
     names = [names] if isinstance(names, str) else names
     target = tvm.target.Target.current(allow_none=False)
     return any(name in target.keys for name in names)
+
+
+def is_dynamic_shape(shape):
+    """Checks if any part of a shape is dynamic"""
+    return any([isinstance(x, (tir.Any, tir.SizeVar)) for x in shape])
