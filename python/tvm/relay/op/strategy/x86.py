@@ -507,10 +507,6 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
     return strategy
 
 
-def is_dynamic_shape(shape):
-    return any([isinstance(x, (tir.Any, tir.SizeVar)) for x in shape])
-
-
 @dense_strategy.register("cpu")
 def dense_strategy_cpu(attrs, inputs, out_type, target):
     """dense x86 strategy"""
@@ -520,7 +516,10 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
     if (
         isinstance(inputs[0].shape[0], (int, tir.IntImm))
         and inputs[0].shape[0] == 1
-        and (is_dynamic_shape(inputs[0].shape) or is_dynamic_shape(inputs[1].shape))
+        and (
+            topi.utils.is_dynamic_shape(inputs[0].shape)
+            or topi.utils.is_dynamic_shape(inputs[1].shape)
+        )
     ):
         strategy.add_implementation(
             wrap_compute_dense(topi.x86.dense_dynamic),
