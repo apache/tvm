@@ -32,8 +32,8 @@ def test_key_is_not_present():
     assert not attrs.has_attr("b")
 
 
-def test_set_span():
-    def _verify_env_var_switch():
+class TestSetSpan:
+    def test_env_var_switch(self):
         def _res(should_fill):
             if should_fill:
                 with testing.enable_span_filling():
@@ -45,11 +45,11 @@ def test_set_span():
         disable = relay.var("x", shape=(1, 64, 56, 56))
         enable = relay.var("x", shape=(1, 64, 56, 56), span=_create_span("x_var"))
 
-        assert _verify_structural_equal_with_span(_res(False), disable)
-        assert _verify_structural_equal_with_span(_res(True), enable)
+        _verify_structural_equal_with_span(_res(False), disable)
+        _verify_structural_equal_with_span(_res(True), enable)
 
     # Should tag all exprs without span, and stop when expr is span-tagged
-    def _verify_builtin_tuple():
+    def test_builtin_tuple(self):
         def _res():
             a = relay.const(np.ones([1, 1, 1]), dtype="int64", span=_create_span("a"))
             b = relay.const(np.zeros([1, 1, 1]), dtype="int64")
@@ -63,9 +63,9 @@ def test_set_span():
         res_tuple, golden_tuple = _res(), _golden()
         assert len(res_tuple) == len(golden_tuple)
         for i in range(len(res_tuple)):
-            assert _verify_structural_equal_with_span(res_tuple[i], golden_tuple[i])
+            _verify_structural_equal_with_span(res_tuple[i], golden_tuple[i])
 
-    def _verify_builtin_list():
+    def test_builtin_list(self):
         def _res():
             a = relay.const(np.ones([1, 1, 1]), dtype="int64", span=_create_span("a"))
             b = relay.const(np.zeros([1, 1, 1]), dtype="int64")
@@ -85,21 +85,21 @@ def test_set_span():
         res_list, golden_list = _res(), _golden()
         assert len(res_list) == len(golden_list)
         for i in range(len(res_list)):
-            assert _verify_structural_equal_with_span(res_list[i], golden_list[i])
+            _verify_structural_equal_with_span(res_list[i], golden_list[i])
 
-    def _verify_var():
+    def test_var(self):
         x = set_span(relay.var("x", shape=(1, 64, 56, 56)), "x_var")
         x_expected = relay.var("x", shape=(1, 64, 56, 56), span=_create_span("x_var"))
-        assert _verify_structural_equal_with_span(x, x_expected)
+        _verify_structural_equal_with_span(x, x_expected)
 
-    def _verify_constant():
+    def test_constant(self):
         c = set_span(relay.const(np.ones([64, 64, 3, 3]), dtype="int64"), "const_c")
         c_expected = relay.const(
             np.ones([64, 64, 3, 3]), dtype="int64", span=_create_span("const_c")
         )
-        assert _verify_structural_equal_with_span(c, c_expected)
+        _verify_structural_equal_with_span(c, c_expected)
 
-    def _verify_call():
+    def test_call(self):
         def _res():
             x = set_span(relay.var("x", shape=(1, 64, 56, 56)), "x_var")
             w = relay.const(np.ones([64, 64, 3, 3]), dtype="int64")
@@ -116,9 +116,9 @@ def test_set_span():
             )
             return relay.Function([x], y)
 
-        assert _verify_structural_equal_with_span(_res(), _golden())
+        _verify_structural_equal_with_span(_res(), _golden())
 
-    def _verify_tuple():
+    def test_tuple(self):
         def _res():
             a = set_span(relay.const(np.ones([1, 1, 1]), dtype="int64"), "a")
             b = relay.const(np.ones([1, 1, 1]), dtype="int64")
@@ -131,9 +131,9 @@ def test_set_span():
             t = relay.Tuple([a, b], span=_create_span("t"))
             return relay.Function([], t)
 
-        assert _verify_structural_equal_with_span(_res(), _golden())
+        _verify_structural_equal_with_span(_res(), _golden())
 
-    def _verify_tuple_getitem():
+    def test_tuple_getitem(self):
         def _res():
             a = set_span(relay.const(np.ones([1, 1, 1]), dtype="int64"), "a")
             b = relay.const(np.ones([1, 1, 1]), dtype="int64")
@@ -148,9 +148,9 @@ def test_set_span():
             i = relay.TupleGetItem(t, 0, span=_create_span("i"))
             return relay.Function([], i)
 
-        assert _verify_structural_equal_with_span(_res(), _golden())
+        _verify_structural_equal_with_span(_res(), _golden())
 
-    def _verify_let():
+    def test_let(self):
         def _res():
             x = set_span(relay.Var("x"), "x_var")
             c_1 = relay.const(np.ones(10))
@@ -171,9 +171,9 @@ def test_set_span():
             y = _set_span(relay.add(body, c_2), "add_2")
             return relay.Function([x], y)
 
-        assert _verify_structural_equal_with_span(_res(), _golden())
+        _verify_structural_equal_with_span(_res(), _golden())
 
-    def _verify_if():
+    def test_if(self):
         def _res():
             x = set_span(relay.var("x", shape=[], dtype="float32"), "x_var")
             y = set_span(relay.var("y", shape=[], dtype="float32"), "y_var")
@@ -194,9 +194,9 @@ def test_set_span():
             ife = relay.If(eq, true_branch, false_branch, span=_create_span("if"))
             return relay.Function([x, y], ife)
 
-        assert _verify_structural_equal_with_span(_res(), _golden())
+        _verify_structural_equal_with_span(_res(), _golden())
 
-    def _verify_fn():
+    def test_fn(self):
         def _res():
             x = set_span(relay.var("x", shape=(1, 64, 56, 56)), "x_var")
             w = relay.const(np.ones([64, 64, 3, 3]), dtype="int64")
@@ -213,22 +213,8 @@ def test_set_span():
             f = relay.Function([x], y, span=_create_span("func"))
             return f
 
-        assert _verify_structural_equal_with_span(_res(), _golden())
-
-    _verify_env_var_switch()
-    _verify_builtin_tuple()
-    _verify_builtin_list()
-    _verify_var()
-    _verify_constant()
-    _verify_call()
-    _verify_tuple()
-    _verify_tuple_getitem()
-    _verify_let()
-    _verify_if()
-    _verify_fn()
+        _verify_structural_equal_with_span(_res(), _golden())
 
 
 if __name__ == "__main__":
-    test_key_is_present()
-    test_key_is_present()
-    test_set_span()
+    testing.main()

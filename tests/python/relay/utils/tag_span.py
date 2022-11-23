@@ -85,22 +85,21 @@ def _collect_spans(objref):
 def _verify_span(lhs, rhs):
     lhs_spans, rhs_spans = _collect_spans(lhs), _collect_spans(rhs)
 
-    if len(lhs_spans) != len(rhs_spans):
-        return False
+    assert len(lhs_spans) == len(rhs_spans)
 
     for i in range(len(lhs_spans)):
-        if not tvm.ir.structural_equal(lhs_spans[i], rhs_spans[i]):
-            return False
-    return True
+        assert tvm.ir.structural_equal(lhs_spans[i], rhs_spans[i])
 
 
 def _verify_structural_equal_with_span(lhs, rhs, assert_mode=False, map_free_vars=False):
     if isinstance(lhs, relay.Var) and isinstance(rhs, relay.Var):
-        return _verify_span(lhs, rhs)
+        # SEqualReduce compares the vid of Var type. Threrfore we only compare span here.
+        _verify_span(lhs, rhs)
+        return
 
     if assert_mode:
         tvm.ir.assert_structural_equal(lhs, rhs, map_free_vars)
-    elif not tvm.ir.structural_equal(lhs, rhs, map_free_vars):
-        return False
+    else:
+        assert tvm.ir.structural_equal(lhs, rhs, map_free_vars)
 
-    return _verify_span(lhs, rhs)
+    _verify_span(lhs, rhs)
