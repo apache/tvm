@@ -31,10 +31,12 @@ The Adreno GPU accelerates the rendering of complex geometries to
 deliver high-performance graphics and a rich user experience with low
 power consumption.
 
-This guide will demonstrate :ref:`the benefits of using textures with Adreno<Advantages of the Textures>`,
-how to :ref:`build TVM with OpenCL<Building TVM for Adreno>` (needed by Adreno devices) and TVM RPC
-enabled. It will also provide :ref:`example code<Build and deploy model for Adreno>` to better understand the differences in compiling and deploying models
+This guide will demonstrate :ref:`the benefits of using textures with Adreno<advantages_of_the_textures>`,
+how to :ref:`build TVM with OpenCL<building_tvm_for_adreno>` (needed by Adreno devices) and TVM RPC
+enabled. It will also provide :ref:`example code<build_and_deploy_model_for_adreno>` to better understand the differences in compiling and deploying models
 for Adreno devices.
+
+.. _advantages_of_the_textures:
 
 Advantages of the Textures
 --------------------------
@@ -62,6 +64,8 @@ Reasons of using textures:
 
 Overall, with textures, it is possible to achieve a significant performance boost
 compared to OpenCL buffer based solutions.
+
+.. _building_tvm_for_adreno:
 
 Building TVM for Adreno
 -----------------------
@@ -96,6 +100,8 @@ folder of TVM:
 where **N** is the number of cores available on your *CPU*.
 
 At this stage you have built TVM for Adreno.
+
+.. _build_and_deploy_model_for_adreno:
 
 Build and deploy model for Adreno
 ---------------------------------
