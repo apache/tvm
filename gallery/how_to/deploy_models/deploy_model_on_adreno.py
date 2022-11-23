@@ -254,8 +254,8 @@ with tvm.transform.PassContext(opt_level=3):
 # Using RPC you can deploy the model from host
 # machine to the remote Adreno device
 
-rpc_tracker_host = os.environ.get("TVM_TRACKER_HOST")
-rpc_tracker_port = int(os.environ.get("TVM_TRACKER_PORT"))
+rpc_tracker_host = os.environ.get("TVM_TRACKER_HOST", "127.0.0.1")
+rpc_tracker_port = int(os.environ.get("TVM_TRACKER_PORT", 9190))
 key = "android"
 
 tracker = rpc.connect_tracker(rpc_tracker_host, rpc_tracker_port)
