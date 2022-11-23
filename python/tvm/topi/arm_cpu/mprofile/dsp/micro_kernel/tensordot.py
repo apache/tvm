@@ -22,9 +22,12 @@ layout HHWC and kernel layout OHWI. For depthwise convolution, use data layout d
 and kernel layout OIHW.
 """
 
+from collections import namedtuple
 from itertools import chain
 import textwrap
 from typing import Iterator, Tuple
+
+SMLAInstruction = namedtuple("SMLAInstruction", ["instruction", "tensor_var", "kernel_var"])
 
 
 def _get_c_function_name(split_size, dimensions, offsets, x_strides):
@@ -106,18 +109,20 @@ def _load_kernel_vars(halfwords) -> Iterator[str]:
         yield f"int kernel__{var_name} = kernel[{i // 2}];"
 
 
-def _get_draft_macs(kernel_dims, tensor_halfwords, kernel_halfwords, offset) -> Iterator[Tuple]:
-    """Generates an un-optimized list of multiply-accumulate instructions.
+def _get_draft_macs(
+    kernel_dims, tensor_halfwords, kernel_halfwords, offset
+) -> Iterator[SMLAInstruction]:
+    """Generates unrolled MAC instructions to compute one tensordot sum.
 
-    We will optimize these into SIMD instructions later. The tuples in the returned iterator are
-    organized as:
+    Unrolling these loops increases code size a tiny bit (< 0.02 KB), but makes the generated code
+    much faster. The generated code does not use SIMD instructions - they are added later by
+    _apply_simd_optimizations.
 
-    (instruction, (arg1_y, arg1_x), (arg2_y, arg2_x))
-
-    We return an iterator so that optimizations may be done by iterator chaining.
+    We return an iterator of SMLAInstruction named tuples. Returning an iterator lets us do
+    optimizations by iterator chaining.
     """
 
-    def get_var(y, x, halfwords):
+    def get_var(y, x, halfwords) -> Tuple[str, str]:
         i = halfwords.index((y, x))
         if i % 2 == 0:
             return f"{_get_int16_alias((y, x))}__{_get_int16_alias(halfwords[i + 1])}", "b"
@@ -129,15 +134,15 @@ def _get_draft_macs(kernel_dims, tensor_halfwords, kernel_halfwords, offset) -> 
             tensor_var, tensor_half = get_var(y, x + offset, tensor_halfwords)
             kernel_var, kernel_half = get_var(y, x, kernel_halfwords)
             instruction = f"smla{tensor_half}{kernel_half}"
-            yield instruction, f"tensor__{tensor_var}", f"kernel__{kernel_var}"
+            yield SMLAInstruction(instruction, f"tensor__{tensor_var}", f"kernel__{kernel_var}")
 
 
-def _apply_simd_optimizations(instruction_tuples) -> Iterator[Tuple]:
+def _apply_simd_optimizations(instruction_tuples) -> Iterator[SMLAInstruction]:
     """When possible, fuses single MACs into SIMD MAC instructions.
 
-    The compiler cannot do this automatically, as calling __builtin_arm_smlaxy forces the SMLAxy
-    instruction to be used. This function takes as input an iterator of (instruction, var1, var2)
-    tuples, and returns an iterator of (instruction, var1, var2) tuples.
+    The compiler cannot do this automatically, as calling __smlaxy forces the SMLAxy instruction to
+    be used. This function takes as input an iterator of SMLAInstructions and returns an iterator of
+    SMLAInstructions (possibly of different length).
     """
     curr_tuple = next(instruction_tuples, None)
     while curr_tuple:
@@ -148,10 +153,10 @@ def _apply_simd_optimizations(instruction_tuples) -> Iterator[Tuple]:
 
         if curr_tuple[1:] == next_tuple[1:]:
             if set([curr_tuple[0], next_tuple[0]]) == set(["smlatt", "smlabb"]):
-                yield ("smlad", *curr_tuple[1:])
+                yield SMLAInstruction("smlad", *curr_tuple[1:])
                 next_tuple = next(instruction_tuples, None)
             elif set([curr_tuple[0], next_tuple[0]]) == set(["smlatb", "smlabt"]):
-                yield ("smladx", *curr_tuple[1:])
+                yield SMLAInstruction("smladx", *curr_tuple[1:])
                 next_tuple = next(instruction_tuples, None)
             else:
                 yield curr_tuple
@@ -162,7 +167,7 @@ def _apply_simd_optimizations(instruction_tuples) -> Iterator[Tuple]:
 
 
 def _expand_instruction_tuples(instruction_tuples, index) -> Iterator[str]:
-    """Converts a series of (instruction, var1, var2) tuples into lines of C code.
+    """Converts an iterator of SMLAInstructions into lines of C code.
 
     We want the compiler to re-order these with the memory loads, so we generate them as a series of
     calls to instruction aliases instead of as a single `asm` block.
@@ -171,14 +176,9 @@ def _expand_instruction_tuples(instruction_tuples, index) -> Iterator[str]:
     for instruction, op1, op2 in instruction_tuples:
         assert "smla" in instruction
 
-        # Arm GCC does not have `__builtin_arm_smlabt`, even though `__builtin_arm_smlatt`,
-        # `__builtin_arm_smlatb`, `__builtin_arm_smlad` and so on all exist. Perhaps this is a
-        # choice, since we can just use `smlabt` with the argument order swapped instead? Note that
-        # `__builtin_arm_smlabt` exists on most compilers (e.g. Clang) - this is just a GCC thing.
-        if instruction == "smlabt":
-            yield f"sum_{index} = __builtin_arm_smlatb({op2}, {op1}, sum_{index});"
-        else:
-            yield f"sum_{index} = __builtin_arm_{instruction}({op1}, {op2}, sum_{index});"
+        # We call the instruction using the Arm C Language Extensions. Using ACLE gives better
+        # cross-compiler compatibility than using __builtin functions.
+        yield f"sum_{index} = __{instruction}({op1}, {op2}, sum_{index});"
 
 
 def _requantize_sums(num_sums, requantize_shift, output_zero_point) -> Iterator[str]:
@@ -197,16 +197,16 @@ def _requantize_sums(num_sums, requantize_shift, output_zero_point) -> Iterator[
     halfwords in a word, and rearrainging it would take at least one cycle. Two SSAT operations is
     just as good.
 
-    Calling __builtin_arm_ssat directly is a little bit gross, but GCC and Clang are unreliable
-    about compiling other ways of writing this. Both the multiply + shift and shift + saturation
-    combine to one instruction each.
+    Calling __ssat directly is a little bit gross, but GCC and Clang are unreliable about compiling
+    other ways of writing this. Both the multiply + shift and shift + saturation combine to one
+    instruction each.
     """
 
     yield "int scale_val = *scale;"
     for i in range(num_sums):
         yield f"int requant_{i} = (sum_{i} * (long long) scale_val) >> {requantize_shift - 1};"
         yield f"requant_{i} = (requant_{i} + 1) >> 1;"
-        yield f"requant_{i} = __builtin_arm_ssat(requant_{i} + {output_zero_point}, 8);"
+        yield f"requant_{i} = __ssat(requant_{i} + {output_zero_point}, 8);"
 
 
 def _write_sums_to_memory(num_sums, offset, stride) -> Iterator[str]:
@@ -324,6 +324,7 @@ def tensordot_int16_impl(
         f"""
         #ifndef {function_name.upper()}_EXISTS
         #define {function_name.upper()}_EXISTS
+        #include <arm_acle.h>
         __attribute__((always_inline)) static inline int {function_name}(
             int *output, int *tensor, int *kernel, int *bias, int *scale
         ) {{

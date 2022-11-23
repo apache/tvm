@@ -292,8 +292,11 @@ def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer):
     Loads the input, kernel, bias, expected output, and quantization parameters from the specified
     layer in a TFLite Interpreter. That information is used to construct a Relay Function with the
     same structure. The Function is run using microTVM and AOTTestModel, and we verify microTVM's
-    output is the same as the TFLite ground truth. Only works for 2D convolutions (depthwise and
-    regular).
+    output is the same as the TFLite ground truth.
+
+    This function only cross-checks the first 23 layers in MobileNetV1, which are regular and
+    depthwise 2D convolutions (this function only works for 2D convolutions). We do not test the
+    average pool, dense, or softmax layers at the end of the model.
 
     Note that we disable the QNN Legalization pass. This allows TVM to use its QNN compute
     definitions, fuse the three operations together, and perform other optimizations.

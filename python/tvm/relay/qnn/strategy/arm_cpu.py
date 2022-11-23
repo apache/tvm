@@ -28,7 +28,16 @@ from ...op.strategy.generic import is_depthwise_conv2d
 
 @qnn_conv2d_strategy.register("arm_cpu")
 def qnn_conv2d_strategy_arm_cpu(attrs, inputs, _out_type, target):
-    """qnn.conv2d strategy for Arm Cortex-M CPUs with DSP."""
+    """qnn.conv2d strategy for Arm Cortex-M CPUs with DSP.
+
+    When computing convolutions, we want data that will be used to compute the same output values to
+    be adjacent in memory, as this lets us reuse memory loads and use more SIMD instructions.
+
+    For depthwise convolutions, channels do not interact with each other, so the NCHW and IOHW
+    layouts to the best job of keeping "related" data close. In contrast, computing one output of a
+    regular convolution requires reading all input channels, so NHWC and OHWI are best. Hence, these
+    are the layouts we support.
+    """
 
     if not (target.features.has_dsp and "cortex-m" in target.mcpu):
         raise TVMError(
