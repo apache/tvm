@@ -18,12 +18,10 @@ def Dprint(message, DEBUG=False):
 def visit_stmts(primfn, DEBUG):
     g = nx.DiGraph()
     g = generate_nodes(primfn.body, g, DEPTH=0, WS="", DEBUG=DEBUG)
-    try:
-        nx.is_directed_acyclic_graph(g)
-    except:
+    if not nx.is_directed_acyclic_graph(g):
         print("Currenlty Not Supported: Graph must be DAG!!")
         print(nx.find_cycle(g, orientation="original"))
-        assert 0
+        # assert 0
     return g
 
 def generate_nodes(stmt, G, DEPTH, WS="", DEBUG=False): # tir.stmt.___
@@ -48,31 +46,99 @@ def generate_nodes(stmt, G, DEPTH, WS="", DEBUG=False): # tir.stmt.___
     elif isinstance(stmt, _stmt.SeqStmt):
         Dprint(WS+" "+str(type(stmt)), DEBUG)
         glist = []
-        acc_node_cnt = [0] # accumulated node counts of graph in glist
+        seq_group = list(range(0, len(stmt.seq)))
+
         for idx, st in enumerate(stmt.seq):
             g = nx.DiGraph()
             g = generate_nodes(st, g, DEPTH, WS+str(idx), DEBUG)
-
-            if DEBUG:
-                ## SEQ_DEBUG
-                global SEQ_DEBUG
-                save_graph_viz(g, 'typeNum', 'graph%d.png'%(SEQ_DEBUG))
-                SEQ_DEBUG=SEQ_DEBUG+1
-                ## SEQ_DEBUG
-
             glist.append(g)
-            acc_node_cnt.append(len(glist[-1].nodes)+acc_node_cnt[idx])
-        g_union = nx.disjoint_union_all(glist)
+            # acc_node_cnt.append(len(glist[-1].nodes)+acc_node_cnt[idx])
+            if (type(st)==_stmt.For): seq_group[idx] = [seq_group[idx]]
 
-        ##Connect glist[N]::sink <-> Seq <-> glist[N+1]::src
-        sinks, srces = [], []
-        for idx in range(0, len(acc_node_cnt)-2):
-            sinks = [node for node in list(g_union.nodes)[acc_node_cnt[idx]:acc_node_cnt[idx+1]] if g_union.out_degree(node)==0]
-            srces = [node for node in list(g_union.nodes)[acc_node_cnt[idx+1]:acc_node_cnt[idx+2]] if g_union.in_degree(node)==0]
+        # seq_group is a double nested list: e.g., [[1, 2], [3], [4, 5, 6]]
+        # Dependency between depth-0 lists in seq_group: e.g., [1, 2] <-> [3] <-> [4, 5, 6]
+        # NO dependency betwen elements in depth-1 list: e.g., [1, 2] == [2, 1]
+        seq_group = group_seqstmts(seq_group)
+
+        g_union_list = []
+        acc_node_cnt = [0] # accumulated node counts
+        for idx, group in enumerate(seq_group):
+            ## Add RAW dependency within a seq_group
+            sub_acc_node_cnt = [0]
+            sub_g_union_list = []
+            for gidx, g in enumerate(group):
+                sub_g_union_list.append(glist[g])
+                sub_acc_node_cnt.append(len(sub_g_union_list[-1].nodes)+sub_acc_node_cnt[gidx])
+            sub_g_union = nx.disjoint_union_all(sub_g_union_list)
+            for sidx0 in range(0, len(group)-1): # sub index
+                store_nodes0 = [node for node in list(sub_g_union)[sub_acc_node_cnt[sidx0]:sub_acc_node_cnt[sidx0+1]] if sub_g_union.nodes[node]['type']=='Store']
+                for store_node in store_nodes0:
+                    store_name = sub_g_union.nodes[store_node]['name']
+                    next_store_nodes = [node for node in list(sub_g_union)[sub_acc_node_cnt[sidx0+1]:] if sub_g_union.nodes[node]['type']=='Store' and sub_g_union.nodes[node]['name']==store_name]
+                    for sidx1 in range(sidx0+1, len(group)): # sub index
+                        load_nodes = [node for node in list(sub_g_union)[sub_acc_node_cnt[sidx1]:sub_acc_node_cnt[sidx1+1]]
+                                        if sub_g_union.nodes[node]['type']=='Load' and sub_g_union.nodes[node]['name']==store_name]
+                        for load_node in load_nodes:
+                            reaching_def = not any(nx.has_path(sub_g_union, store_node, next_store_node) for next_store_node in next_store_nodes)
+                            # print(store_node, store_name, load_node, reaching_def, next_store_nodes)
+                            if reaching_def:
+                                sub_g_union.add_edge(store_node, load_node)
+                            else:
+                                pass
+            ##
+            g_union_list.append(sub_g_union)
+            acc_node_cnt.append(len(g_union_list[-1].nodes)+acc_node_cnt[idx])
+        g_union = nx.disjoint_union_all(g_union_list)
+
+        ## Connect neighboring seq_group with Seq node; n-th group sinks --> Seq --> (n+1)-th group srces (n=0,...,N-1)
+        for idx in range(1, len(acc_node_cnt)-1):
             node_num = len(g_union.nodes)
             g_union.add_node(node_num, name='Seq', type='Seq')
+            # Connect N-th group sinks --> Seq --> (N+1)-th group srces
+            sinks = [node for node in list(g_union.nodes)[acc_node_cnt[idx-1]:acc_node_cnt[idx]] if g_union.out_degree(node)==0]
             [g_union.add_edge(sink, node_num) for sink in sinks]
+            srces = [node for node in list(g_union.nodes)[acc_node_cnt[idx]:acc_node_cnt[idx+1]] if g_union.in_degree(node)==0]
             [g_union.add_edge(node_num, src) for src in srces]
+
+        # Connect Store --> Load (Reaching Definition)
+        # for idx in range(0, len(acc_node_cnt)-2):
+        #     store_nodes = [node for node in list(g_union.nodes)[acc_node_cnt[idx]:acc_node_cnt[idx+1]] if g_union.nodes[node]['type']=='Store']
+        #     for store_node in store_nodes:
+        #         store_name = g_union.nodes[store_node]['name']
+        #         load_nodes = [node for node in list(g_union.nodes)[acc_node_cnt[idx]:acc_node_cnt[idx+1]]
+        #                         if g_union.nodes[node]['type']=='Load' and g_union.nodes[node]['name']==store_name]
+        #         for load_node in load_nodes:
+        #             paths = list(nx.all_simple_paths(g_union, source=store_node, target=load_node))
+        #             if all(any((g_union.nodes[node]['name']==store_name and g_union.nodes[node]['type']=='Store') for node in path[1:]) for path in paths): # path[1:] to exclude store_node itself
+        #                 pass # Pass for NOT reaching definition
+        #             else:
+        #                 g_union.add_edge(store_node, load_node) # Connect for reaching definition
+        # print("G_UNION")
+        # save_graph_viz(g_union, 'typeNum', 'GRAPH.png')
+        # for idx0 in range(0, len(acc_node_cnt)-1):
+        #     store_nodes0 = [node for node in list(g_union.nodes)[acc_node_cnt[idx0]:acc_node_cnt[idx0+1]] if g_union.nodes[node]['type']=='Store']
+        #     print(store_nodes0)
+        #     for store_node in store_nodes0:
+        #         store_name = g_union.nodes[store_node]['name']
+        #         # idx1==idx0
+        #         load_nodes1 = [node for node in list(g_union.nodes)[acc_node_cnt[idx1]:acc_node_cnt[idx1+1]]
+        #                         if g_union.nodes[node]['type']=='Load' and g_union.nodes[node]['name']==store_name]
+        #         for load_node in load_nodes1:
+        #             if not nx.has_path(g_union, load_node, store_node):
+        #                 g_union.add_edge(store_node, load_node)
+
+        #         for idx1 in range(idx0+1, len(acc_node_cnt)-1):
+        #             load_nodes1 = [node for node in list(g_union.nodes)[acc_node_cnt[idx1]:acc_node_cnt[idx1+1]]
+        #                             if g_union.nodes[node]['type']=='Load' and g_union.nodes[node]['name']==store_name]
+        #             RD_FLAG = False
+        #             for load_node in load_nodes1:
+        #                 paths = list(nx.all_simple_paths(g_union, source=store_node, target=load_node))
+        #                 if all(any((g_union.nodes[node]['name']==store_name and g_union.nodes[node]['type']=='Store') for node in path [1:]) for path in paths): # path[1:] to exclude store_node itself
+        #                     RD_FLAG = True # Update RD_FLAG
+        #                     pass # Pass for NOT reaching definition
+        #                 else:
+        #                     g_union.add_edge(store_node, load_node) # Connect for reaching definition
+        #             if RD_FLAG==True: break # No need to check further sequences, given that reaching definintion ends in a previous sequence
         return g_union
 
     elif isinstance(stmt, _stmt.Allocate):
@@ -120,10 +186,10 @@ def visit_LET(stmt, g, parent, WS, DEBUG):
     ## Make temporary DiGraph to merge w/ the original one
     g_ = nx.DiGraph()
     g_ = generate_nodes(stmt.body, g_, 0, WS, DEBUG) # pad_temp[cse_var_1] = placeholder[cse_var_1]
-    seq_nodes = [node for node in g_.nodes if g_.nodes[node]['type']=='Seq']
-    for seq_node in seq_nodes: # remove edge: seq_node --> cse_var
-        children = list(g_.successors(seq_node))
-        [g_.remove_edge(seq_node, child) for child in children if g_.nodes[child]['name']==g.nodes[var_num]['name']]
+    # seq_nodes = [node for node in g_.nodes if g_.nodes[node]['type']=='Seq']
+    # for seq_node in seq_nodes: # remove edge: seq_node --> cse_var
+    #     children = list(g_.successors(seq_node))
+    #     [g_.remove_edge(seq_node, child) for child in children if g_.nodes[child]['name']==g.nodes[var_num]['name']]
 
     ## Merge two graphs with new node_num
     u = nx.disjoint_union(g, g_)
@@ -195,22 +261,16 @@ def visit_EXPR(expr, g, parent, WS, DEBUG): # tir.expr.__
         assert 0
     return g
 
-def merge_redundant_nodes(g):
-    nodes = g.nodes
-    names = [g.nodes[node]['name'] for node in nodes]
-    redundant_names = set([n for n in names if names.count(n)>1])
-    if len(redundant_names)==0:
-        return g, False
-
-    print("########## Removing Redundant Nodes ##########")
-    [print(rdd_name) for rdd_name in redundant_names]
-
-    rdd_groups = [] # [[nodes with name 'A'], [nodes with name 'B'], ...]
-    for rdd_name in redundant_names:
-        rdd_groups.append([node for node in g.nodes if g.nodes[node]['name']==rdd_name])
- 
-    for rdd_group in rdd_groups:
-        for rdd in rdd_group[1:]: # Merge all redundant nodes to a single node
-            g = nx.contracted_nodes(g, rdd_group[0], rdd)
-
-    return g, True
+def group_seqstmts(seq_group):
+    # Group SeqStmts; No bypassing across For-loop
+    seq_group_ = []
+    seq_temp = []
+    for idx in range(0, len(seq_group)):
+        if isinstance(seq_group[idx], list):
+            if not seq_temp==[]: seq_group_.append(seq_temp)
+            seq_group_.append(seq_group[idx])
+            seq_temp = []
+        else:
+            seq_temp.append(seq_group[idx])
+    if not seq_temp==[]: seq_group_.append(seq_temp)
+    return seq_group_
