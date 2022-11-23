@@ -98,7 +98,7 @@ CMAKE_BOOL_MAP = dict(
 )
 
 CMSIS_PATH_ERROR = (
-    "cmsis_path is not defined! Please pass it as" "an option or set the `CMSIS_PATH` env variable."
+    "cmsis_path is not defined! Please pass it as an option or set the `CMSIS_PATH` env variable."
 )
 
 
@@ -315,7 +315,7 @@ PROJECT_OPTIONS = server.default_project_options(
     ),
     server.ProjectOption(
         "serial_number",
-        optional=["open_transport"],
+        optional=["open_transport", "flash"],
         type="str",
         default=None,
         help=("Board serial number."),
