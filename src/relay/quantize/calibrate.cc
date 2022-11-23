@@ -894,6 +894,113 @@ class QCheckPointAddPsumCollector : private ExprMutator {
   }
 };
 
+class QCheckPointAddPsummCollector : private ExprMutator {
+ public:
+  QCheckPointAddPsummCollector() : conv_op_(Op::Get("annotation.checkpointaddpsumm")) {}
+
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& conv_op_;
+
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op == conv_op_ ) {       
+      profile_data_.push_back(new_e);
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
+
+class QCheckPointConvPsumCollector : private ExprMutator {
+ public:
+  QCheckPointConvPsumCollector() : conv_op_(Op::Get("annotation.checkpointconvpsum")) {}
+
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& conv_op_;
+
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op == conv_op_ ) {       
+      profile_data_.push_back(new_e);
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
+
+class QCheckPointConvAddCollector : private ExprMutator {
+ public:
+  QCheckPointConvAddCollector() : conv_op_(Op::Get("annotation.checkpointconvadd")) {}
+
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& conv_op_;
+
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op == conv_op_ ) {       
+      profile_data_.push_back(new_e);
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
 /*
  * \brief Given an annotated graph, create a profile graph to collect profile data from the
  * calibration dataset.
@@ -926,7 +1033,9 @@ Expr CreateQCheckPointSiCollector(const Expr& expr) { return QCheckPointSiCollec
 Expr CreateQCheckPointSwCollector(const Expr& expr) { return QCheckPointSwCollector().Collect(expr);}
 
 Expr CreateAddPsumCollector(const Expr& expr) { return QCheckPointAddPsumCollector().Collect(expr);}
-
+Expr CreateAddPsummCollector(const Expr& expr) { return QCheckPointAddPsummCollector().Collect(expr);}
+Expr CreateConvPsumCollector(const Expr& expr) { return QCheckPointConvPsumCollector().Collect(expr);}
+Expr CreateConvAddCollector(const Expr& expr) { return QCheckPointConvAddCollector().Collect(expr);}
 TVM_REGISTER_GLOBAL("relay._quantize.CreateStatsCollector").set_body_typed(CreateStatsCollector);
 TVM_REGISTER_GLOBAL("relay._quantize.CreateQWeightCollector").set_body_typed(CreateQWeightCollector);
 TVM_REGISTER_GLOBAL("relay._quantize.CreateQActCollector").set_body_typed(CreateQActCollector);
@@ -936,7 +1045,9 @@ TVM_REGISTER_GLOBAL("relay._quantize.CreateQAddCollector").set_body_typed(Create
 TVM_REGISTER_GLOBAL("relay._quantize.CreateQConvCollector").set_body_typed(CreateQConvCollector);
 TVM_REGISTER_GLOBAL("relay._quantize.CreateReluCollector").set_body_typed(CreateReluCollector);
 TVM_REGISTER_GLOBAL("relay._quantize.CreateAddPsumCollector").set_body_typed(CreateAddPsumCollector);
-
+TVM_REGISTER_GLOBAL("relay._quantize.CreateAddPsummCollector").set_body_typed(CreateAddPsummCollector);
+TVM_REGISTER_GLOBAL("relay._quantize.CreateConvPsumCollector").set_body_typed(CreateConvPsumCollector);
+TVM_REGISTER_GLOBAL("relay._quantize.CreateConvAddCollector").set_body_typed(CreateConvAddCollector);
 
 TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointSiSoCollector").set_body_typed(CreateQCheckPointSiSoCollector);
 TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointBiasSCollector").set_body_typed(CreateQCheckPointBiasSCollector);

@@ -182,6 +182,60 @@ def checkpointsi(data):
 
 reg.register_injective_schedule("annotation.checkpointsi")
 
+def checkpointaddpsumm(data):
+    """Annotate an expression to be a checkpoint for the checkpointing memory optimization.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.checkpointaddpsumm(data)
+
+
+reg.register_injective_schedule("annotation.checkpointaddpsumm")
+
+
+def checkpointconvadd(data):
+    """Annotate an expression to be a checkpoint for the checkpointing memory optimization.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.checkpointconvadd(data)
+
+
+reg.register_injective_schedule("annotation.checkpointconvadd")
+
+def checkpointconvpsum(data):
+    """Annotate an expression to be a checkpoint for the checkpointing memory optimization.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.checkpointconvpsum(data)
+
+
+reg.register_injective_schedule("annotation.checkpointconvpsum")
 
 def checkpointsw(data):
     """Annotate an expression to be a checkpoint for the checkpointing memory optimization.

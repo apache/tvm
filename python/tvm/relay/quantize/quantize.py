@@ -152,6 +152,7 @@ def calculate_consine_similar(original_mod, quantized_mod, target, params, datas
     cos_similar_result = 0
     batch_cos_list = []
     print("6")
+    #for batch in tqdm.tqdm(dataset):
     for batch in tqdm.tqdm(dataset):
         original_module.set_input(**batch)
         original_module.run()

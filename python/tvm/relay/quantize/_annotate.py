@@ -500,7 +500,7 @@ def concatenate_rewrite(ref_call, new_args, ctx):
             qnode_name = get_layer_name(expr_list[i])
             expr_list[i] = attach_simulated_quantize(expr_list[i], QAnnotateKind.INPUT, qnode_name)
     expr = _forward_op(ref_call, [_expr.Tuple(expr_list)])
-    return QAnnotateExpr(expr, QAnnotateKind.INPUT)
+    return QAnnotateExpr(expr, QAnnotateKind.INPUT).realize()
 register_annotate_inference_function_dict("concatenate", concatenate_rewrite)
 
 

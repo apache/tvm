@@ -337,13 +337,14 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
       if(cfg->per_channel && si_s.size() > 1){
         //printf("3\n");
         
-         /*
+         
         //printf("si.size = %ld\n",si_s.size());
         data = Cast(data, DataType::Float(32));
         data = Multiply(data, CheckPointSiso(Divide(Cast(n->dom_scale, DataType::Float(32)), dom_scale)));
         data = Cast(Round(data), cfg->dtype_activation); //newchange
-        */
+          
       
+      /*
         auto si_s = tvm::relay::qnn::GetFloatVectorFromConstant(n->dom_scale);
         //printf("si.size = %ld\n",si_s.size());
         auto so_s = tvm::relay::qnn::GetFloatVectorFromConstant(dom_scale);
@@ -353,15 +354,15 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
           s.push_back(si_so);
         }
         if(cfg->fixed_point_is16){
-          data = qnn::FixedPointMultiplyPerChannel_16bit(data, s, ref_call->type_as<TensorTypeNode>()->shape, 1, "TONEAREST");
+          data = CheckPointconvpsum(qnn::FixedPointMultiplyPerChannel_16bit(data, s, ref_call->type_as<TensorTypeNode>()->shape, 1, "TONEAREST"));
           //data = MulAndDiv_perchannel_upward_16(data, s, cfg->dtype_activation); //newchange
         }
         else{
-          data = qnn::FixedPointMultiplyPerChannel_12bit(data, s, ref_call->type_as<TensorTypeNode>()->shape, 1, "TONEAREST");
+          data = CheckPointconvpsum(qnn::FixedPointMultiplyPerChannel_12bit(data, s, ref_call->type_as<TensorTypeNode>()->shape, 1, "TONEAREST"));
           //data = MulAndDiv_perchannel_upward_12(data, s, cfg->dtype_activation); //newchange
         }
         //printf("MulAndDiv_perchannel_upward done\n");
-        
+      */
       }
       else{
         //if (cfg->rounding == "UPWARD") {
@@ -373,17 +374,20 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
         //  data = qnn::FixedPointMultiplyToNearest(data, idom_scale_imm / odom_scale_imm,
         //                                        ref_call->type_as<TensorTypeNode>()->shape);
         //}
+        //Op opp = Downcast<Op>(ref_call->args[1].as<CallNode>()->op);
+        //if(opp->name == "relay.op.annotation.simulated_quantize")
         if(cfg->fixed_point_is16){
-          data = qnn::FixedPointMultiplyToNearest_16bit(data, idom_scale_imm / odom_scale_imm, ref_call->type_as<TensorTypeNode>()->shape);
+          data = CheckPointaddpsumm(qnn::FixedPointMultiplyToNearest_16bit(data, idom_scale_imm / odom_scale_imm, ref_call->type_as<TensorTypeNode>()->shape));
         }
         else{
-          data = qnn::FixedPointMultiplyToNearest_12bit(data, idom_scale_imm / odom_scale_imm, ref_call->type_as<TensorTypeNode>()->shape);
+          data = CheckPointaddpsumm(qnn::FixedPointMultiplyToNearest_12bit(data, idom_scale_imm / odom_scale_imm, ref_call->type_as<TensorTypeNode>()->shape));
 
         }
-      }
+      }   
       data = Add(data, (MakeConstantScalar(cfg->dtype_activation, zero_point_imm)));  //newchange
       //printf("Add done\n");
-      data = CheckPoint(Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype));
+      //data = CheckPoint(Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype));
+      data = (Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype));
       //printf("Clip done\n");
       //data = Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype);
       //printf("int32->int8 done\n");
@@ -414,7 +418,9 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
   
 
   if(ref_call->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput){
-    round_data = CheckPoint(Clip(Round(zp_added), clip_min_imm, clip_max_imm));
+    //round_data = CheckPoint(Clip(Round(zp_added), clip_min_imm, clip_max_imm));
+    round_data = (Clip(Round(zp_added), clip_min_imm, clip_max_imm));
+
     //round_data = Clip(Round(zp_added), clip_min_imm, clip_max_imm);
     }
 
@@ -662,13 +668,13 @@ float ChooseDomScale(const Array<Expr>& ref_args, const std::vector<const QReali
     // x = a * s1, y = b * s2
     // x + y = (a * s1 / s2 + b) * s2, if s1 > s2
     //       = (a + b * s2 / s1) * s1, if s2 > s1
-    
+
     auto scale1 = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[0]->dom_scale);
     auto scale2 = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[1]->dom_scale);
     float s1 = static_cast<float>(scale1[0]);
     float s2 = static_cast<float>(scale2[0]);
     float s;
-    
+
     s = s1 > s2 ? s2 : s1;
     return s;
     //float s1 = GetScalarFromConstant<float>(nptrs[0]->dom_scale);
@@ -676,10 +682,21 @@ float ChooseDomScale(const Array<Expr>& ref_args, const std::vector<const QReali
     //printf("ChooseDomScale done\n");
     
   } else {
-    const QConfig& cfg = QConfig::Current();
-    float scale = cfg->global_scale;
-    //printf("ChooseDomScale done\n");
-    return scale / std::pow(2.0, cfg->nbit_activation - 1);
+    float s;
+    s = 0;
+    for (size_t i = 0; i < nptrs.size(); ++i) {
+      auto scale_temp = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[i]->dom_scale);
+      float s_temp = static_cast<float>(scale_temp[0]);
+      if(s_temp > s){
+        s = s_temp;
+      }
+    }
+    return s;
+    //printf("concate ChooseDomScale done\n");
+    // const QConfig& cfg = QConfig::Current();
+    // float scale = cfg->global_scale;
+    // //printf("ChooseDomScale done\n");
+    // return scale / std::pow(2.0, cfg->nbit_activation - 1);
   }
 }
 template <typename ValueType = int64_t>
@@ -693,8 +710,81 @@ std::vector<ValueType> GetConcrete(const Array<PrimExpr>& vals) {
   return concrete;
 }
 
+Array<Expr> ConcateUnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args,
+                            DataType* dtype_ptr, Expr* scale_ptr,
+                            DataType dtype = DataType::Void()) {
+  //printf("UnifyDTypeScale\n");
+  static const Op& simulated_quantize = Op::Get("relay.op.annotation.simulated_quantize");
+  const QConfig& cfg = QConfig::Current();
+  std::vector<const QRealizeIntExprNode*> nptrs;
+  Array<Expr> ret;
+  for (auto arg : args) {
+    const auto* nptr = arg.as<QRealizeIntExprNode>();
+    ICHECK(nptr);
+    nptrs.push_back(nptr);
+    ret.push_back(nptr->data);
+  }
+  Array<Expr> zp;
+  std::vector<float> zps_imm;
+  for (size_t i = 0; i < ret.size(); ++i) {
+    auto zps_data = tvm::relay::qnn::GetFloatVectorFromConstant(args[i].as<QRealizeIntExprNode>()->zero_point);
+    float zps_data_imm = static_cast<float>(zps_data[0]);
+    zps_imm.push_back(zps_data_imm);
+  }
+  for (size_t i = 0; i < ret.size(); ++i) {
+    zp.push_back(MakeConstantScalar(cfg->dtype_weight, zps_imm[i]));
+  }
 
+  // unify the data type
+  ICHECK_EQ(ref_args.size(), args.size());
 
+  if (dtype.is_void()) {
+    if (ret.size() == 2 && nptrs[1]->dtype == cfg->dtype_input) {
+      dtype = cfg->dtype_input;
+    } else {
+      dtype = cfg->dtype_activation;
+    }
+  }
+  //printf("add unify type\n");
+  Op opp = Downcast<Op>(ref_args[1].as<CallNode>()->op);
+  if(opp->name == "relay.op.annotation.simulated_quantize"){
+    //printf("add unify type into\n");
+    zp.Set(0,Cast(zp[0],dtype));
+    zp.Set(1,Cast(zp[1],DataType::Float(32)));
+    ret.Set(0,Cast(ret[0],dtype));
+    ret.Set(1,Cast(ret[1],DataType::Float(32)));
+    //printf("add unify type into done\n");
+  }
+  else{
+    for (size_t i = 0; i < ret.size(); ++i) {
+    auto ref_arg = ref_args[i].as<CallNode>();
+    zp.Set(i,Cast(zp[i], dtype));
+    if (nptrs[i]->dtype != dtype) {
+      ret.Set(i, Cast(ret[i], dtype));
+    } else if (ref_arg && ref_arg->op.same_as(simulated_quantize) &&
+               ref_arg->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput) {
+      auto new_arg = Cast(ret[i], cfg->dtype_input);
+      new_arg = StopFusion(new_arg);
+      ret.Set(i, Cast(new_arg, dtype));
+    }
+  }
+  }
+  Expr dom_scale;
+  std::vector<float> scales;
+
+  for (size_t i = 0; i < ret.size(); ++i) {
+    auto cur_ss = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[i]->dom_scale);
+    float cur_s = static_cast<float>(cur_ss[0]);
+    ret.Set(i,Subtract(ret[i], zp[i]));
+    ret.Set(i, Cast(Round(ret[i]), dtype));
+    scales.push_back(cur_s);
+  }
+  dom_scale = MakeConstantTensor(DataType::Float(32), {(int64_t)ret.size(),1,1}, scales);
+  *dtype_ptr = dtype;
+  *scale_ptr = dom_scale;
+  //printf("UnifyDTypeScale done\n");
+  return ret;
+                            }
 /* \brief Unify the dom scale of arguments */
 Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args,
                             DataType* dtype_ptr, Expr* scale_ptr,
@@ -835,6 +925,7 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
       for (size_t i = 0; i < ret.size(); ++i) {
         auto cur_ss = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[i]->dom_scale);
         float cur_s = static_cast<float>(cur_ss[0]);
+        printf("s1/s2= %f\n",cur_s/s);
         ret.Set(i,Subtract(ret[i], zp[i]));
         ret.Set(i, MulAndDiv_nobias(ret[i], cur_s, s, dtype, ref_args[i]->type_as<TensorTypeNode>()->shape));
         ret.Set(i, Cast(Round(ret[i]), dtype));
@@ -894,12 +985,12 @@ Expr AddRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectR
     Expr ret;
     Op opp = Downcast<Op>(ref_call->args[1].as<CallNode>()->op);
     if(opp->name == "relay.op.annotation.simulated_quantize"){
-        printf("add bias\n");
-        ret = ForwardOp(ref_call, ret_args);
+        //printf("add bias\n");
+        ret = CheckPointconvadd(ForwardOp(ref_call, ret_args));
         
     }
     else{
-        printf("addoutput\n");
+        //printf("addoutput\n");
         ret =CheckPointAddoutput(ForwardOp(ref_call, ret_args));
     }
     
@@ -970,7 +1061,7 @@ Expr ConcatenateRealize(const Call& ref_call, const Array<Expr>& new_args, const
     DataType dtype;
     Expr dom_scale;
     Array<Expr> ret_args = UnifyDTypeScale(ref_arr, arr, &dtype, &dom_scale);
-    Expr ret = ForwardOp(ref_call, {Tuple(ret_args)});
+    Expr ret = CheckPoint(ForwardOp(ref_call, {Tuple(ret_args)}));
     //printf("ConcatenateRealize done\n");
     Expr zero_point = MakeConstantScalar(DataType::Float(32), 0);//其实没必要存在，为了保证输入参数的统一。
     return QRealizeIntExpr(ret, dom_scale, zero_point, dtype);

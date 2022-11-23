@@ -28,3 +28,5 @@ from ._annotate import register_annotate_inference_function_dict
 from ._collectwj_3 import collect_wj_3
 from .model_output import print_model
 from ._collectwj_4 import collect_wj_4
+from ._collectwj_5 import collect_wj_5
+from ._collectwj_6 import collect_wj_6

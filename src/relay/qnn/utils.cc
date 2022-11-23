@@ -176,11 +176,15 @@ Expr FixedPointMultiplyToNearest_12bit(Expr tensor, double multiplier,
 
   int left_shift = shift > 0 ? shift : 0;
   int right_shift = shift > 0 ? 0 : -shift;
-
+  //  printf("pertensor\n");
+  //  if(left_shift!=0){
+  //      printf("left_shift:%d\n",left_shift);
+  //      printf("total_right_shift:%d\n",right_shift+11);
+  //  }
   // 2) Multiply the integer multiplier
-  if (left_shift != 0) {
-    tensor = LeftShift(tensor, MakeConstantScalar(hp_dtype, left_shift));
-  }
+  // if (left_shift != 0) {
+  //   tensor = LeftShift(tensor, MakeConstantScalar(hp_dtype, left_shift));
+  // }
 
   // 3) Perform the multiplication in higher precision.
   // The scalar is a fixed point value of int32 where the decimal point is
@@ -194,7 +198,10 @@ Expr FixedPointMultiplyToNearest_12bit(Expr tensor, double multiplier,
   // 4) Find the rounding scalar. This depends on where the final decimal
   // point sits. As we will be right shifting the multiplied_t, we need to
   // first calculate the total_right_shift.
-  int total_right_shift = right_shift + 11;
+  int total_right_shift = right_shift + 11 - left_shift;
+  if(total_right_shift<0){
+    total_right_shift = 0;
+  }
   int64_t pos_rounding_value = (1ll << (total_right_shift - 1));
 
   Expr round_scalar;
@@ -288,7 +295,7 @@ Expr FixedPointMultiplyPerChannel_12bit(Expr tensor, std::vector<double> multipl
   // channel.
   std::vector<int32_t> fixed_pt_multipliers, lshifts, rshifts;
   bool is_lshift_required = false;
-  //printf("one point:\n");
+  //printf("one point perchannel:\n");
   for (auto multiplier : multipliers) {
     int32_t fixed_pt_multiplier, shift;
     std::tie(fixed_pt_multiplier, shift) = GetFixedPointMultiplierShift_12(multiplier);
@@ -299,14 +306,19 @@ Expr FixedPointMultiplyPerChannel_12bit(Expr tensor, std::vector<double> multipl
     lshifts.push_back(lshift);
     rshifts.push_back(rshift);
     is_lshift_required = is_lshift_required | (lshift != 0);
+    // if(lshift!=0){
+    //   printf("left_shift:%d\n",lshift);
+    //   printf("total_right_shift:%d\n",rshift+11);
+    // }
+
   }
 
   // 2) Multiply the integer multiplier. Convert lefts shifts into expr and multiply.
-  if (is_lshift_required) {
-    auto lshift_expr = MakeConstantTensor(hp_dtype, {n_channels}, lshifts);
-    auto exp_lshift_expr = ExpandBiasToMatchAxis(lshift_expr, n_dim, {channel_axis});
-    tensor = LeftShift(tensor, exp_lshift_expr);
-  }
+  // if (is_lshift_required) {
+  //   auto lshift_expr = MakeConstantTensor(hp_dtype, {n_channels}, lshifts);
+  //   auto exp_lshift_expr = ExpandBiasToMatchAxis(lshift_expr, n_dim, {channel_axis});
+  //   tensor = LeftShift(tensor, exp_lshift_expr);
+  // }
 
   // 3) Perform the multiplication in higher precision.
   // The scalar is a fixed point value of int32 where the decimal point is
@@ -323,8 +335,12 @@ Expr FixedPointMultiplyPerChannel_12bit(Expr tensor, std::vector<double> multipl
   // right shifting the multiplied_t, we need to first calculate the total_rshift. Further, we can
   // calculate the pos and neg rounding offset.
   std::vector<int64_t> pos_rounding_values, neg_rounding_values, total_rshifts;
-  for (auto rshift : rshifts) {
-    int total_rshift = rshift + 11;
+  //for (auto rshift : rshifts) {
+  for (size_t i = 0; i < rshifts.size(); i++){
+    int total_rshift = rshifts[i] + 11 - lshifts[i];
+    if(total_rshift < 0){
+      total_rshift = 0;
+    }
     total_rshifts.push_back(total_rshift);
     pos_rounding_values.push_back((1ll << (total_rshift - 1)));
     neg_rounding_values.push_back((1ll << (total_rshift - 1)) - 1);
@@ -380,7 +396,7 @@ Expr FixedPointMultiplyPerChannel_16bit(Expr tensor, std::vector<double> multipl
   // channel.
   std::vector<int32_t> fixed_pt_multipliers, lshifts, rshifts;
   bool is_lshift_required = false;
-  printf("one point:\n");
+  //printf("one point:\n");
   for (auto multiplier : multipliers) {
     int32_t fixed_pt_multiplier, shift;
     std::tie(fixed_pt_multiplier, shift) = GetFixedPointMultiplierShift_16(multiplier);

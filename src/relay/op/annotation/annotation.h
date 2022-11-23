@@ -51,6 +51,9 @@ Expr CheckPointInput(Expr data);
 Expr CheckPointWeight(Expr data);
 Expr CheckPointZpi(Expr data);
 Expr CheckPointZpw(Expr data);
+Expr CheckPointconvpsum(Expr data);
+Expr CheckPointaddpsumm(Expr data);
+Expr CheckPointconvadd(Expr data);
 
 /*! \brief Wraps \p data in a "cast_hint" annotation for \p dtype. */
 Expr CastHint(Expr data, DataType dtype);
