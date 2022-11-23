@@ -242,8 +242,28 @@ print(mod)
 # ----------------------------
 # Specify Adreno target before compiling to generate texture
 # leveraging kernels and get all the benefits of textures
+# Note: This generated example running on our x86 server for demonstration.
+# If running it on the Android device, we need to
+# specify its instruction set. Set :code:`local_demo` to False if you want
+# to run this tutorial with a real device.
 
-target = tvm.target.Target("opencl -device=adreno", host="llvm -mtriple=arm64-linux-android")
+local_demo = True
+
+# by default on CPU target will execute.
+# select 'cpu', 'opencl' and 'vulkan'
+test_target = 'cpu'
+
+# Change target configuration.
+# Run `adb shell cat /proc/cpuinfo` to find the arch.
+arch = "arm64"
+target = tvm.target.Target("llvm -mtriple=%s-linux-android" % arch)
+
+if local_demo:
+    target = tvm.target.Target("llvm")
+elif test_target == "opencl":
+    target = tvm.target.Target("opencl", host=target)
+elif test_target == "vulkan":
+    target = tvm.target.Target("vulkan", host=target)
 
 with tvm.transform.PassContext(opt_level=3):
     lib = relay.build(mod, target=target, params=params)
@@ -258,18 +278,31 @@ rpc_tracker_host = os.environ.get("TVM_TRACKER_HOST", "127.0.0.1")
 rpc_tracker_port = int(os.environ.get("TVM_TRACKER_PORT", 9190))
 key = "android"
 
-tracker = rpc.connect_tracker(rpc_tracker_host, rpc_tracker_port)
-remote = tracker.request(key, priority=0, session_timeout=6000)
+if local_demo:
+    remote = rpc.LocalSession()
+else:
+    tracker = rpc.connect_tracker(rpc_tracker_host, rpc_tracker_port)
+    # When running a heavy model, we should increase the `session_timeout`
+    remote = tracker.request(key, priority=0, session_timeout=60)
+
+if local_demo:
+    dev = remote.cpu(0)
+elif test_target == "opencl":
+    dev = remote.cl(0)
+elif test_target == "vulkan":
+    dev = remote.vulkan(0)
+else:
+    dev = remote.cpu(0)
 
 temp = utils.tempdir()
 dso_binary = "dev_lib_cl.so"
 dso_binary_path = temp.relpath(dso_binary)
-lib.export_library(dso_binary_path, ndk.create_shared)
+fcompile = ndk.create_shared if not local_demo else None
+lib.export_library(dso_binary_path, fcompile)
 remote_path = "/data/local/tmp/" + dso_binary
 remote.upload(dso_binary_path)
 rlib = remote.load_module(dso_binary)
-ctx = remote.cl(0)
-m = graph_executor.GraphModule(rlib["default"](ctx))
+m = graph_executor.GraphModule(rlib["default"](dev))
 
 #################################################################
 # Run inference
