@@ -315,16 +315,10 @@ def _build_function_memory_map(function_metadata):
                 main_func_metadata.relay_primfuncs[target].ret_type
             )
             for i, output_type in enumerate(output_list):
-                if hasattr(output_type, "shape"):
-                    output_dict[f"output{i}"] = _create_type_metadata(output_type)
-                else:
-                    output_dict[f"output{i}"] = {"size": 0, "dtype": ""}
+                output_dict[f"output{i}"] = _create_type_metadata(output_type)
         else:
             output_type = main_func_metadata.relay_primfuncs[target].ret_type
-            if hasattr(output_type, "shape"):
-                output_dict["output"] = _create_type_metadata(output_type)
-            else:
-                output_dict["output"] = {"size": 0, "dtype": ""}
+            output_dict["output"] = _create_type_metadata(output_type)
         target_main_entries[int(target.get_target_device_type())]["outputs"] = output_dict
 
     ret = {
