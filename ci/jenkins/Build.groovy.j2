@@ -116,8 +116,9 @@ stage('Build') {
       label: 'Create CPU minimal cmake config',
     )
     cmake_build(ci_minimal, 'build', '-j2')
+    make_standalone_crt(ci_minimal, 'build')
     make_cpp_tests(ci_minimal, 'build')
-    {{ m.upload_artifacts(tag='cpu-minimal', filenames=tvm_lib + tvm_allvisible + cpptest) }}
+    {{ m.upload_artifacts(tag='cpu-minimal', filenames=tvm_lib + tvm_allvisible + crttest + cpptest + standalone_crt) }}
   {% endcall %}
 
   {% call m.build_step(
