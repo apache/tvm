@@ -3,8 +3,6 @@ from tvm import relay
 from tvm.relay.testing import init
 
 def gen_module(model, layer, layout, data, kernel, stride):
-    if layout != 'NCHW':
-        raise NotImplementedError("Currently NOT implemented layout: %s"%(layout))
     # Pre-defined layers (tvm.nn.**)
     ## Padding Reference: https://github.com/tensorflow/tensorflow/blob/r1.8/tensorflow/core/kernels/conv_ops.cc#L571
     if layer == 'relu':
@@ -53,7 +51,7 @@ def gen_module(model, layer, layout, data, kernel, stride):
         module = get_module_from_Trelay(Trelay)
         module = lower_module(model, module)
     elif layer == 'dwconv_3x3':
-        module = dwconv_3x3(data, kernel, stride)
+        module = dwconv_3x3(data, kernel, stride, layout)
     elif layer == 'dense':
         data = relay.var("data", shape=[5, 10], dtype="float32") #(d_1, d_2, ..., units_in)
         weight = relay.var("weight", shape=[7,10], dtype="float32") #(units, units_in)
@@ -70,6 +68,10 @@ def gen_module(model, layer, layout, data, kernel, stride):
     # User-defined layers
     elif layer == 'eadd':
         module = eadd(data)
+    elif layer == 'upsample':
+        module = upsample(data, kernel, layout, method='nearest_neighbor') # TODO: bilinear upsampling
+    elif layer == 'upsample_2x2':
+        module = upsample_2x2(data, (2, 2), layout, method='nearest_neighbor') # TODO: bilinear upsampling
     else:
         raise NotImplementedError("Currently NOT implemented: %s" %(layer))
 
@@ -154,157 +156,248 @@ def maxpool_3x3(data, kernel, stride):
     (b, cw, h, w) = data
     (kh, kw) = kernel
     (sh, sw) = stride
-    # pad = get_padding_tuple(data, kernel, padding='same')
-    # (oh, ow) = ((h - kh + (pad[1]+pad[3])) // sh + 1), ((w - kw + (pad[0]+pad[2])) // sw + 1)
 
     data = tvm.te.placeholder((b, cw, h, w), name="data")
-    data00 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+0], name="data")
-    data01 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+0], name="data")
-    data02 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+0], name="data")
-    data10 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+1], name="data")
-    data11 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+1], name="data")
-    data12 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+1], name="data")
-    data20 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+2], name="data")
-    data21 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+2], name="data")
-    data22 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+2], name="data")
+
+    Reg00 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+0], name="Reg00")
+    Reg01 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+0], name="Reg01")
+    Reg02 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+0], name="Reg02")
+    Reg10 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+1], name="Reg10")
+    Reg11 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+1], name="Reg11")
+    Reg12 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+1], name="Reg12")
+    Reg20 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+2], name="Reg20")
+    Reg21 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+2], name="Reg21")
+    Reg22 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+2], name="Reg22")
+
     output = tvm.te.compute((b, cw, h, w),
         lambda b, c, i, j:
             tvm.te.max(tvm.te.max(tvm.te.max(tvm.te.max(tvm.te.max(tvm.te.max(tvm.te.max(tvm.te.max(
-                data00[b, c, i, j], data01[b, c, i, j]), data02[b, c, i, j]), 
-                data10[b, c, i, j]), data11[b, c, i, j]), data12[b, c, i, j]),
-                data20[b, c, i, j]), data21[b, c, i, j]), data22[b, c, i, j])
+                Reg00[b, c, i, j],  Reg01[b, c, i, j]), Reg02[b, c, i, j]),
+                Reg10[b, c, i, j]), Reg11[b, c, i, j]), Reg12[b, c, i, j]),
+                Reg20[b, c, i, j]), Reg21[b, c, i, j]), Reg22[b, c, i, j])
         , name="output"
     )
     s = tvm.te.create_schedule([output.op])
-    s[data00].compute_inline()
-    s[data01].compute_inline()
-    s[data02].compute_inline()
-    s[data10].compute_inline()
-    s[data11].compute_inline()
-    s[data12].compute_inline()
-    s[data20].compute_inline()
-    s[data21].compute_inline()
-    s[data22].compute_inline()
+    (N, C, H, W) = s[output].op.axis
+    s[Reg00].compute_at(s[output], C)
+    s[Reg01].compute_at(s[output], C)
+    s[Reg02].compute_at(s[output], C)
+    s[Reg10].compute_at(s[output], C)
+    s[Reg11].compute_at(s[output], C)
+    s[Reg12].compute_at(s[output], C)
+    s[Reg20].compute_at(s[output], C)
+    s[Reg21].compute_at(s[output], C)
+    s[Reg22].compute_at(s[output], C)
+    s[output].reorder(N, H, W, C)
     module = tvm.lower(s, [data, output])
     return module
 
-def dwconv_3x3(data, kernel, stride):
+def dwconv_3x3(data, kernel, stride, layout):
     if kernel!=(3, 3): raise ValueError("Dwconv_3x3 only supports kernel size with 3x3: %s"%(kernel))
-    (b, cw, h, w) = data
-    (kh, kw) = kernel
-    (sh, sw) = stride
-    pad = get_padding_tuple(data, kernel, padding='same')
-    (oh, ow) = ((h - kh + (pad[1]+pad[3])) // sh + 1), ((w - kw + (pad[0]+pad[2])) // sw + 1)
 
-    data = tvm.te.placeholder((b, cw, h, w), name="data")
-    # data00, data01, data02, data10, data11, data12, data20, data21, data22 = tvm.te.compute((b, cw, oh, ow),
-    #     lambda b, c, i, j: (
-    #         data[b, c, i*sh+0, j*sw+0], data[b, c, i*sh+1, j*sw+0], data[b, c, i*sh+2, j*sw+0], 
-    #         data[b, c, i*sh+0, j*sw+1], data[b, c, i*sh+1, j*sw+1], data[b, c, i*sh+2, j*sw+1], 
-    #         data[b, c, i*sh+0, j*sw+2], data[b, c, i*sh+1, j*sw+2], data[b, c, i*sh+2, j*sw+2], 
-    #     ), name="data"
-    # )
-    # data00 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+0], name="data")
-    # data01 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+0], name="data")
-    # data02 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+0], name="data")
-    # data10 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+1], name="data")
-    # data11 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+1], name="data")
-    # data12 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+1], name="data")
-    # data20 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+2], name="data")
-    # data21 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+2], name="data")
-    # data22 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+2], name="data")
-    Reg00 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+0], name="Reg")
-    Reg01 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+0], name="Reg")
-    Reg02 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+0], name="Reg")
-    Reg10 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+1], name="Reg")
-    Reg11 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+1], name="Reg")
-    Reg12 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+1], name="Reg")
-    Reg20 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+2], name="Reg")
-    Reg21 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+2], name="Reg")
-    Reg22 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+2], name="Reg")
-    # Reg00 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data00[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
-    # Reg01 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data01[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
-    # Reg02 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data02[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
-    # Reg10 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data10[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
-    # Reg11 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data11[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
-    # Reg12 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data12[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
-    # Reg20 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data20[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
-    # Reg21 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data21[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
-    # Reg22 = tvm.te.compute((b, cw, oh, ow), lambda b, c, i, j: data22[b, c, i, j] + Reg__[b, c, i, j], name="Reg")
-    # Reg = tvm.te.compute((b, cw, oh, ow),
-    #     lambda b, c, i, j:
-    #         data00[b, c, i, j] + data01[b, c, i, j] + data02[b, c, i, j] + 
-    #         data10[b, c, i, j] + data11[b, c, i, j] + data12[b, c, i, j] + 
-    #         data20[b, c, i, j] + data21[b, c, i, j] + data22[b, c, i, j]
-    #     , name="Reg"
-    # )
-    output = tvm.te.compute((b, cw, oh, ow),
-        lambda b, c, i, j: (
-            Reg00[b, c, i, j] + Reg01[b, c, i, j] + Reg02[b, c, i, j] +
-            Reg10[b, c, i, j] + Reg11[b, c, i, j] + Reg12[b, c, i, j] +
-            Reg20[b, c, i, j] + Reg21[b, c, i, j] + Reg22[b, c, i, j]
-        ), name = "output"
-    )
-    s = tvm.te.create_schedule([output.op])
-    # s[data00].compute_inline()
-    # s[data01].compute_inline()
-    # s[data02].compute_inline()
-    # s[data10].compute_inline()
-    # s[data11].compute_inline()
-    # s[data12].compute_inline()
-    # s[data20].compute_inline()
-    # s[data21].compute_inline()
-    # s[data22].compute_inline()
-    s[Reg00].compute_at(s[output], s[output].op.axis[-1])
-    s[Reg01].compute_at(s[output], s[output].op.axis[-1])
-    s[Reg02].compute_at(s[output], s[output].op.axis[-1])
-    s[Reg10].compute_at(s[output], s[output].op.axis[-1])
-    s[Reg11].compute_at(s[output], s[output].op.axis[-1])
-    s[Reg12].compute_at(s[output], s[output].op.axis[-1])
-    s[Reg20].compute_at(s[output], s[output].op.axis[-1])
-    s[Reg21].compute_at(s[output], s[output].op.axis[-1])
-    s[Reg22].compute_at(s[output], s[output].op.axis[-1])
+    if layout == 'NCHW':
+        (b, cw, h, w) = data
+        (kh, kw) = kernel
+        (sh, sw) = stride
+        pad = get_padding_tuple(data, kernel, padding='same')
+        (oh, ow) = ((h - kh + (pad[1]+pad[3])) // sh + 1), ((w - kw + (pad[0]+pad[2])) // sw + 1)
 
-    # s[data00].compute_at(s[Reg], s[Reg].op.axis[-1])
-    # s[data01].compute_at(s[Reg], s[Reg].op.axis[-1])
-    # s[data02].compute_at(s[Reg], s[Reg].op.axis[-1])
-    # s[data10].compute_at(s[Reg], s[Reg].op.axis[-1])
-    # s[data11].compute_at(s[Reg], s[Reg].op.axis[-1])
-    # s[data12].compute_at(s[Reg], s[Reg].op.axis[-1])
-    # s[data20].compute_at(s[Reg], s[Reg].op.axis[-1])
-    # s[data21].compute_at(s[Reg], s[Reg].op.axis[-1])
-    # s[data22].compute_at(s[Reg], s[Reg].op.axis[-1])
+        data = tvm.te.placeholder((b, cw, h, w), name="data")
+        filter = tvm.te.placeholder((b, 1, kh, kw), name='Filter')
 
-    # s[Reg].compute_at(s[output], s[output].op.axis[3])
-    module = tvm.lower(s, [data, output])
+        FReg00, FReg01, FReg02, FReg10, FReg11, FReg12, FReg20, FReg21, FReg22 = tvm.te.compute(
+            (b, cw), lambda b, c: (
+                filter[b, 0, 0, 0], filter[b, 0, 0, 1], filter[b, 0, 0, 2],
+                filter[b, 0, 1, 0], filter[b, 0, 1, 1], filter[b, 0, 1, 2],
+                filter[b, 0, 2, 0], filter[b, 0, 2, 1], filter[b, 0, 2, 2],
+            ), name="FReg"
+        )
+
+        Reg00, Reg01, Reg02, Reg10, Reg11, Reg12, Reg20, Reg21, Reg22 = tvm.te.compute(
+            (b, cw, oh, ow), lambda b, c, i, j: (
+                data[b, c, i*sh+0, j*sw+0]*FReg00[b, c],
+                data[b, c, i*sh+0, j*sw+1]*FReg01[b, c],
+                data[b, c, i*sh+0, j*sw+2]*FReg02[b, c],
+                data[b, c, i*sh+1, j*sw+0]*FReg10[b, c],
+                data[b, c, i*sh+1, j*sw+1]*FReg11[b, c],
+                data[b, c, i*sh+1, j*sw+2]*FReg12[b, c],
+                data[b, c, i*sh+2, j*sw+0]*FReg20[b, c],
+                data[b, c, i*sh+2, j*sw+1]*FReg21[b, c],
+                data[b, c, i*sh+2, j*sw+2]*FReg22[b, c],
+            ), name="Reg"
+        )
+
+        output = tvm.te.compute(
+            (b, cw, oh, ow), lambda b, c, i, j: (
+                Reg00[b, c, i, j] + Reg01[b, c, i, j] + Reg02[b, c, i, j]
+                + Reg10[b, c, i, j] + Reg11[b, c, i, j] + Reg12[b, c, i, j]
+                + Reg20[b, c, i, j] + Reg21[b, c, i, j] + Reg22[b, c, i, j]
+            ), name = "output"
+        )
+        s = tvm.te.create_schedule([output.op])
+        (N, C, H, W) = s[output].op.axis
+        s[FReg00].compute_at(s[output], C)
+        s[FReg01].compute_at(s[output], C)
+        s[FReg02].compute_at(s[output], C)
+        s[FReg10].compute_at(s[output], C)
+        s[FReg11].compute_at(s[output], C)
+        s[FReg12].compute_at(s[output], C)
+        s[FReg20].compute_at(s[output], C)
+        s[FReg21].compute_at(s[output], C)
+        s[FReg22].compute_at(s[output], C)
+
+        s[Reg00].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg01].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg02].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg10].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg11].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg12].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg20].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg21].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg22].compute_at(s[output], s[output].op.axis[-1])
+        module = tvm.lower(s, [data, filter, output])
+    elif layout=='NHWC':
+        (b, h, w, cw) = data
+        (kh, kw) = kernel
+        (sh, sw) = stride
+        pad = get_padding_tuple(data, kernel, padding='same')
+        (oh, ow) = ((h - kh + (pad[1]+pad[3])) // sh + 1), ((w - kw + (pad[0]+pad[2])) // sw + 1)
+
+        data = tvm.te.placeholder((b, h, w, cw), name="data")
+        filter = tvm.te.placeholder((b, kh, kw, 1), name='Filter')
+
+        FReg00, FReg01, FReg02, FReg10, FReg11, FReg12, FReg20, FReg21, FReg22, = tvm.te.compute(
+            (b, cw), lambda b, c: (
+                filter[b, 0, 0, 0],
+                filter[b, 0, 0, 1],
+                filter[b, 0, 0, 2],
+                filter[b, 0, 1, 0],
+                filter[b, 0, 1, 1],
+                filter[b, 0, 1, 2],
+                filter[b, 0, 2, 0],
+                filter[b, 0, 2, 1],
+                filter[b, 0, 2, 2],
+            ), name="FReg"
+        )
+        Reg00, Reg01, Reg02, Reg10, Reg11, Reg12, Reg20, Reg21, Reg22 = tvm.te.compute(
+            (b, oh, ow, cw), lambda b, i, j, c: (
+                data[b, i*sh+0, j*sw+0, c]*FReg00[b, c],
+                data[b, i*sh+0, j*sw+1, c]*FReg01[b, c],
+                data[b, i*sh+0, j*sw+2, c]*FReg02[b, c],
+                data[b, i*sh+1, j*sw+0, c]*FReg10[b, c],
+                data[b, i*sh+1, j*sw+1, c]*FReg11[b, c],
+                data[b, i*sh+1, j*sw+2, c]*FReg12[b, c],
+                data[b, i*sh+2, j*sw+0, c]*FReg20[b, c],
+                data[b, i*sh+2, j*sw+1, c]*FReg21[b, c],
+                data[b, i*sh+2, j*sw+2, c]*FReg22[b, c],
+            ), name="Reg"
+        )
+        output = tvm.te.compute(
+            (b, oh, ow, cw), lambda b, i, j, c: (
+                Reg00[b, i, j, c] + Reg01[b, i, j, c] + Reg02[b, i, j, c]
+                + Reg10[b, i, j, c] + Reg11[b, i, j, c] + Reg12[b, i, j, c]
+                + Reg20[b, i, j, c] + Reg21[b, i, j, c] + Reg22[b, i, j, c]
+            ), name = "output"
+        )
+        s = tvm.te.create_schedule([output.op])
+        (N, H, W, C) = s[output].op.axis
+        s[FReg00].compute_at(s[output], C)
+        s[FReg01].compute_at(s[output], C)
+        s[FReg02].compute_at(s[output], C)
+        s[FReg10].compute_at(s[output], C)
+        s[FReg11].compute_at(s[output], C)
+        s[FReg12].compute_at(s[output], C)
+        s[FReg20].compute_at(s[output], C)
+        s[FReg21].compute_at(s[output], C)
+        s[FReg22].compute_at(s[output], C)
+
+        s[Reg00].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg01].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg02].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg10].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg11].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg12].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg20].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg21].compute_at(s[output], s[output].op.axis[-1])
+        s[Reg22].compute_at(s[output], s[output].op.axis[-1])
+        module = tvm.lower(s, [data, filter, output])
+    else:
+        raise NotImplementedError("Currently Not supported data layout: %s"%(layout))
     return module
 
 def eadd(data):
-    if len(data)==4: (vlength, vcount) = (data[0]*data[2]*data[3], data[1])
-    elif len(data)==2: (vlength, vcount) = data # vlength: b*h*w, vcount: cw
+    if len(data) == 4: (vlength, vcount) = (data[0]*data[2]*data[3], data[1])
+    elif len(data) == 2: (vlength, vcount) = data # vlength: b*h*w, vcount: cw
     else: raise NotImplementedError("Currently NOT supported data format for elemwise-add: %s"%(data))
 
-    data0 = tvm.te.placeholder((vlength, vcount), name="input0")
-    data1 = tvm.te.placeholder((vlength, vcount), name="input1")
-    weight0 = tvm.te.const(2, "float")
-    weight1 = tvm.te.const(2, "float")
-    output = tvm.te.compute((vlength, vcount), lambda i, j: data0[i, j]*weight0 + data1[i, j]*weight1, name="output")
+    data0 = tvm.te.placeholder((vcount, vlength), name="input0")
+    data1 = tvm.te.placeholder((vcount, vlength), name="input1")
+    weight0 = tvm.te.placeholder((1, ), name="Reg0")
+    weight1 = tvm.te.placeholder((1, ), name="Reg1")
+    output = tvm.te.compute((vcount, vlength), lambda i, j: data0[i, j]*weight0[0] + data1[i, j]*weight1[0], name="output")
     s = tvm.te.create_schedule([output.op])
-    module = tvm.lower(s, [data0, data1, output], simple_mode=True)
+    if vlength==8: s[output].unroll(s[output].op.axis[-1]) # fast-path
+    module = tvm.lower(s, [data0, data1, weight0, weight1, output], simple_mode=True)
 
-    """Implementation using tvm.relay functions"""
-    # module = tvm.lower(s, [data0, data1, weight0, weight1, output], simple_mode=True)
-    # if len(data)==4: (vlength, vcount) = (data[0]*data[2]*data[3], data[1])
-    # elif len(data)==2: (vlength, vcount) = data # vlength: b*h*w, vcount: cw
-    # else: raise NotImplementedError("Currently NOT supported data format for elemwise-add: %s"%(data))
-    # data0 = tvm.relay.var("data", tvm.relay.TensorType([vlength, vcount], dtype="float32"))
-    # data1 = tvm.relay.var("data", tvm.relay.TensorType([vlength, vcount], dtype="float32"))
-    # import numpy as np
-    # weight0 = tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32")))
-    # weight1 = tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32")))
-    # A = tvm.relay.multiply(data0, weight0)
-    # B = tvm.relay.multiply(data1, weight1)
-    # Trelay = tvm.relay.add(A, B)
-    # module = get_module_from_Trelay(Trelay)
-    # module = lower_module(model, module)
+def upsample(data, kernel, method):
+    if method == 'nearest_neighbor':
+        (b, cw, h, w) = data
+        (kh, kw) = kernel
+        data = tvm.te.placeholder((b, cw, h, w), name="data")
+        Reg = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i, j], name="Reg")
+        output = tvm.te.compute((b, cw, h*kh, w*kw),
+            lambda b, c, i, j:
+                Reg[b, c, i//kh, j//kw]
+            , name="output"
+        )
+        s = tvm.te.create_schedule([output.op])
+        ho, wo, hi, wi = s[output].tile(x_parent=output.op.axis[-2], y_parent=output.op.axis[-1],
+                                        x_factor=kh, y_factor=kw)
+        s[Reg].compute_at(s[output], wo)
+        module = tvm.lower(s, [data, output])
+    else:
+        raise NotImplementedError("Currently NOT supported upsampling method: %s"%(method))
+    return module
+
+def upsample_2x2(data, kernel, layout, method):
+    if method == 'nearest_neighbor':
+        if layout == "NCHW":
+            (b, cw, h, w) = data
+            (kh, kw) = kernel
+            data = tvm.te.placeholder((b, cw, h, w), name="data")
+            Reg = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i, j], name="Reg")
+            output = tvm.te.compute((b, cw, h*kh, w*kw),
+                lambda b, c, i, j:
+                    Reg[b, c, i//kh, j//kw]
+                , name="output"
+            )
+            s = tvm.te.create_schedule([output.op])
+            (N, C, H, W) = s[output].op.axis
+            ho, wo, hi, wi = s[output].tile(x_parent=H, y_parent=W, x_factor=kh, y_factor=kw)
+            s[Reg].compute_at(s[output], wo)
+            s[output].unroll(hi)
+            s[output].unroll(wi)
+            module = tvm.lower(s, [data, output])
+        elif layout == "NHWC":
+            (b, h, w, cw) = data
+            (kh, kw) = kernel
+            data = tvm.te.placeholder((b, h, w, cw), name="data")
+            Reg = tvm.te.compute((b, h, w, cw), lambda b, i, j, c: data[b, i, j, c], name="Reg")
+            output = tvm.te.compute((b, h*kh, w*kw, cw),
+                lambda b, i, j, c:
+                    Reg[b, i//kh, j//kw, c]
+                , name="output"
+            )
+            s = tvm.te.create_schedule([output.op])
+            (N, H, W, C) = s[output].op.axis
+            ho, wo, hi, wi = s[output].tile(x_parent=H, y_parent=W, x_factor=kh, y_factor=kw)
+            s[output].reorder(N, ho, wo, C, hi, wi)
+            s[output].unroll(hi)
+            s[output].unroll(wi)
+            s[Reg].compute_at(s[output], C)
+            module = tvm.lower(s, [data, output])
+        else:
+            raise NotImplementedError("Currently NOT supported upsampling layout: %s"%(layout))
+    else:
+        raise NotImplementedError("Currently NOT supported upsampling method: %s"%(method))
     return module

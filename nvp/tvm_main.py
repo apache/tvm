@@ -3,13 +3,6 @@ import os, glob
 from tvm_model import *
 from tvm_visualize import *
 
-"""
-  TODO
-    1. Message print part
-    2. Eadd - vlength=8 --> unroll
-    # 3. tvm_parse.py --> Acc
-    4. tvm_parse.py --> Seq --> Delete consecutive max, load
-"""
  
 def main():
     parser = argparse.ArgumentParser(description='Running TVM to predict NVP latency')
@@ -35,7 +28,7 @@ def main():
 
     Model = VectorProcessor(args.model, args.debug)
     Model.generate_graph(args.layer, args.layout, args.data, args.kernel, args.stride)
-    Model.optimize_graph()
+    Model.optimize_graph(args.viz)
     if args.viz: save_graph_viz(Model.graph, args.viz)
     Model.run(args.swp)
 

@@ -38,7 +38,7 @@ class VectorProcessor():
         self.graph = visit_stmts(nestedTIR, self.debug) # empty graph
         self.color_graph()
     
-    def optimize_graph(self):
+    def optimize_graph(self, viz):
         """
         Optimize Graph
           1. loop_hoisting(): hoist loop variables & remove scalar nodes
@@ -48,7 +48,7 @@ class VectorProcessor():
         """
         if self.debug: print('> Optimize Graph')
         self.loop_hoisting() 
-        if self.debug: save_graph_viz(self.graph, "typeNum", 'graph_raw.png')
+        if viz: save_graph_viz(self.graph, viz, 'graph_raw.png')
         self.remove_tensor_init_nodes(['Input', 'Filter', 'Multiplier', 'Shifter'])
         self.remove_nodes(attr='type', str='Seq')
         self.remove_nodes(attr='name', str='Multiplier')
@@ -58,7 +58,6 @@ class VectorProcessor():
         self.optimize('vstore')
         self.optimize('filter load') # For kernels that use filter; e.g, Dwconv
         self.optimize('consecutive max')
-        # self.optimize('consecutive load')
 
     def run(self, swp):
         """
@@ -254,8 +253,9 @@ class VectorProcessor():
                 node_num = nodes[lm]
                 innermost_iter = (self.graph.nodes[node_num]['extent']-CI+1)*extent[lm-1]
 
-                print("SWP loop: %s"%(name[lm]))
-                print("SI: %s, II: %s, CI: %s, innermost_iter: %s"%(SI, II, CI, innermost_iter))
+                if self.debug:
+                    print("SWP loop: %s"%(name[lm]))
+                    print("SI: %s, II: %s, CI: %s, innermost_iter: %s"%(SI, II, CI, innermost_iter))
 
                 prologue = math.floor((SI-1)/II)*II
                 epilogue = (SI+(CI-2)*II) - prologue
@@ -287,7 +287,43 @@ class VectorProcessor():
 
     ### Tertiary Functions
     def get_nodes(self, attr, str):
-        return [node for node in self.graph.nodes if self.graph.nodes[node][attr]==str]
+        """Search node with certain attribute.
+
+        Parameters
+        ----------
+        attr : string (e.g., 'type', 'name', 'slot', ...)
+        str : string or list of string (e.g., 'Store' or ['Store', 'Load'] ...)
+
+        Returns
+        -------
+        nodes : list of node_num
+
+        """
+        if not isinstance(str, list): str = [str]
+        return [node for node in self.graph.nodes if self.graph.nodes[node][attr] in str]
+
+    def get_nodes_with_name(self, attr, str, name):
+        """Search node with certain attribute and pattern in name.
+
+        Parameters
+        ----------
+        attr : string
+        str : string or list of string
+        name : string
+
+        Returns
+        -------
+        nodes : list of node_num
+
+        """
+        if not isinstance(str, list): str = [str]
+        nodes = [node for node in self.graph.nodes if self.graph.nodes[node][attr] in str]
+        nodes = [node for node in nodes if name in self.graph.nodes[node]['name']]
+        names = sorted(list(dict.fromkeys([self.graph.nodes[node]['name'] for node in nodes])))
+        node_groups = []
+        for name in names: # Group nodes with identical name
+            node_groups.append([node for node in nodes if self.graph.nodes[node]['name']==name])
+        return node_groups
 
     def get_subgraph(self, sorted_nodes):
         # get subgraph of depth=0
@@ -318,10 +354,12 @@ class VectorProcessor():
         #1. Free slot w/ finished op & Add finished op to 'free_nodes'
         for s in self.slot.keys():
             if not self.slot[s]==[]:
+                remove_nodes = []
                 for node in self.slot[s]:
                     if node['end']==clk:
                         free_nodes.append(node['node'])
-                        self.slot[s].remove(node)
+                        remove_nodes.append(node)
+                [self.slot[s].remove(rm_node) for rm_node in remove_nodes]
 
         #2. Remove duplicates in list (; All three slots are occupied by 'Control')
         free_nodes = list(dict.fromkeys(free_nodes))
@@ -398,14 +436,34 @@ class VectorProcessor():
     def optimize_register(self):
         """ Register is used to save temporary data, ommiting cache access """
         FLAG = False
-        register_nodes = self.get_nodes(attr='name', str='Reg')
+        register_nodes = self.get_nodes_with_name(attr='type', str=['Store', 'Load'], name='Reg')
         if len(register_nodes) > 0: FLAG=True
-        for node in register_nodes:
-            parents = self.graph.predecessors(node)
-            children = self.graph.successors(node)
-            for t in ((p, c) for p in parents for c in children):
-                self.graph.add_edge(*t)
-            self.graph.remove_node(node)
+        for register in register_nodes:
+            for node in register:
+                parents = list(self.graph.predecessors(node))
+                children = list(self.graph.successors(node))
+                for t in ((p, c) for p in parents for c in children):
+                    self.graph.add_edge(*t)
+                self.graph.remove_node(node)
+        # for register in register_nodes:
+        #     store_nodes = [node for node in register if self.graph.nodes[node]['type']=='Store']
+        #     load_nodes = [node for node in register if self.graph.nodes[node]['type']=='Load']
+        #     CONNECTED = False
+        #     for t in ((s, l) for s in store_nodes for l in load_nodes):
+        #         if self.graph.has_edge(*t): # t[0]: store_node, t[1]: load_node
+        #             CONNECTED = True
+        #             self.graph.remove_edge(t[0], t[1])
+        #             # Connect store_node's parent --> store_node's children
+        #             grand_parents = [node for node in self.graph.predecessors(t[0])]
+        #             children = [node for node in self.graph.successors(t[0])]
+        #             for t in ((gp, c) for gp in grand_parents for c in children):
+        #                 self.graph.add_edge(*t)
+        #             # Connect load_node's parent --> load_node's children
+        #             parents = [node for node in self.graph.predecessors(t[1])]
+        #             grand_children = [node for node in self.graph.successors(t[1])]
+        #             for t in ((p, gc) for p in parents for gc in grand_children):
+        #                 self.graph.add_edge(*t)
+        #     if CONNECTED==True: [self.graph.remove_node(node) for node in register]
         return FLAG
 
     def optimize_vstore(self):
@@ -428,10 +486,12 @@ class VectorProcessor():
         # (Child)               (Vector Ch-wise Concat)
         #                                  |  1 cycle
         #                               (Child)
+        FLAG = False
         load_nodes = [node for node in self.graph.nodes if self.graph.nodes[node]['type']=='Load' and \
                                                             self.graph.nodes[node]['name']=='Filter']
-        if len(load_nodes)==0: return False
+        if len(load_nodes)==0: return FLAG
         else:
+            FLAG = True
             for node in load_nodes:
                 parents = list(self.graph.predecessors(node))
                 children= list(self.graph.successors(node))
@@ -461,7 +521,7 @@ class VectorProcessor():
                     self.graph.add_edge(new_node, child)
 
                 self.graph.remove_node(node)
-            return True
+            return FLAG
 
     def optimize_consecutive_max(self):
         """ Consecutive MAX can be bypassed (MAXP_3x3) """
