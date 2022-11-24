@@ -348,4 +348,4 @@ for k in top_categories[-5:]:
 assert ImageNetClassifier, "Failed ImageNet classifier validation check"
 
 print("Evaluate inference time cost...")
-print(m.benchmark(ctx, number=1, repeat=10))
+print(m.benchmark(dev, number=1, repeat=10))
