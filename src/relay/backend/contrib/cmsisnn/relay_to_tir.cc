@@ -309,6 +309,12 @@ class RelayToTIRVisitor : public MixedModeMutator {
       fc_call = requantize_input;
     }
 
+    int32_t dtype_bits = fc_call->args[0]->type_as<TensorTypeNode>()->dtype.bits();
+    int32_t input_bits = dtype_bits;
+    int32_t filter_bits = 8;
+    int32_t bias_bits = dtype_bits * 4U;
+    int32_t output_bits = dtype_bits;
+
     // TIR variables are created in the order they appear in the Relay partitioned function
     // %1 = qnn.dense(%input, %weight_const_0, input_zero_point_scalar, kernel_zero_point_scalar,
     //                 %input_scale_scalar, %kernel_scale_scalar)
@@ -317,12 +323,12 @@ class RelayToTIRVisitor : public MixedModeMutator {
     //                     %output_scale_scalar, %output_zero_point_scalar)
     // clip(%3, a_min=%min_scalar, a_max=%max_scalar)
     BufferCreator buffer_creator;
-    tir::Var input = buffer_creator.CreateBufferVar("input", DataType::Handle(8));
-    tir::Var filter = buffer_creator.CreateBufferVar("filter", DataType::Handle(8));
+    tir::Var input = buffer_creator.CreateBufferVar("input", DataType::Handle(input_bits));
+    tir::Var filter = buffer_creator.CreateBufferVar("filter", DataType::Handle(filter_bits));
     if (bias_add_call) {
-      buffer_creator.CreateBufferVar("bias", DataType::Handle(32));
+      buffer_creator.CreateBufferVar("bias", DataType::Handle(bias_bits));
     }
-    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
+    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(output_bits));
 
     // Individual arguments to the structs arguments of the CMSIS-NN API are filled into call_extern
     // https://github.com/ARM-software/CMSIS_5/blob/def6f800f95661eb3451d317f7d0dde504f6020d/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_wrapper_s8.c#L50
@@ -341,8 +347,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
       clip_min = clip_attrs->a_min;
       clip_max = clip_attrs->a_max;
     } else {
-      clip_min = -128;
-      clip_max = 127;
+      clip_min = -static_cast<int>(1 << dtype_bits);
+      clip_max = (1 << dtype_bits) - 1;
     }
 
     double quantized_multiplier =
@@ -366,7 +372,10 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     Array<PrimExpr> cmsisnn_output_shape{batch_size, 1, 1, out_channels};
 
-    tvm::Array<PrimExpr> call_ext_args = {tir::StringImm("arm_fully_connected_s8"), input, filter};
+    std::string cmsisnn_api =
+        dtype_bits == 16 ? "arm_fully_connected_s16" : "arm_fully_connected_s8";
+
+    tvm::Array<PrimExpr> call_ext_args = {tir::StringImm(cmsisnn_api), input, filter};
     if (bias_add_call) {
       call_ext_args.push_back(buffer_creator.GetBufferVar("bias"));
     }
