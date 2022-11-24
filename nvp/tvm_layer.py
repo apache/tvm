@@ -338,6 +338,7 @@ def eadd(data):
     s = tvm.te.create_schedule([output.op])
     if vlength==8: s[output].unroll(s[output].op.axis[-1]) # fast-path
     module = tvm.lower(s, [data0, data1, weight0, weight1, output], simple_mode=True)
+    return module
 
 def upsample(data, kernel, method):
     if method == 'nearest_neighbor':
