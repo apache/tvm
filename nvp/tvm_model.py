@@ -38,7 +38,7 @@ class VectorProcessor():
         self.graph = visit_stmts(nestedTIR, self.debug) # empty graph
         self.color_graph()
     
-    def optimize_graph(self, viz):
+    def optimize_graph(self):
         """
         Optimize Graph
           1. loop_hoisting(): hoist loop variables & remove scalar nodes
@@ -47,8 +47,7 @@ class VectorProcessor():
           4. optimize()
         """
         if self.debug: print('> Optimize Graph')
-        self.loop_hoisting() 
-        if viz: save_graph_viz(self.graph, viz, 'graph_raw.png')
+        self.loop_hoisting() # raw_graph
         self.remove_tensor_init_nodes(['Input', 'Filter', 'Multiplier', 'Shifter'])
         self.remove_nodes(attr='type', str='Seq')
         self.remove_nodes(attr='name', str='Multiplier')
@@ -210,7 +209,6 @@ class VectorProcessor():
 
     def estimate_cycles(self, SWP=True):
         if self.debug: print('>> Estimate Cycles w/ SWP %s'%('ON' if SWP==True else 'OFF'))
-        max_depth = max([self.graph.nodes[value['loop']]['depth'] for value in self.time_stamp.values()])
         name = ['NO LOOP']
         nodes = ['']
         extent = [1]
@@ -219,20 +217,23 @@ class VectorProcessor():
         depth = [0]
         for time in self.time_stamp.keys():
             node_num = self.time_stamp[time]['loop']
-            node = self.graph.nodes[node_num]
-            if (node['type']=='For Start'):
-                if depth[-1] != node['depth']:
-                    duration.append(0)
-                    name.append(node['name'])
-                    nodes.append(node_num)
-                    if node['depth']==depth[-1]+1: extent.append(extent[-1]*node['extent'])
-                    elif node['depth']==depth[-1]-1: extent.append(extent[name.index(node['name'])])
-                    else: raise NotImplementedError("Currently Not Supported case!")
-                    scalar_time.append(node['scalar_time'])
-                    depth.append(node['depth']) # update depth
+            if node_num == 'NO LOOP': # depth = 0
                 duration[-1] += 1
-            else:
-                raise RuntimeError("Currently Not Supported control node type: %s"%(node['type']))
+            else: # depth > 0
+                node = self.graph.nodes[node_num]
+                if (node['type']=='For Start'):
+                    if depth[-1] != node['depth']:
+                        duration.append(0)
+                        name.append(node['name'])
+                        nodes.append(node_num)
+                        if node['depth']==depth[-1]+1: extent.append(extent[-1]*node['extent'])
+                        elif node['depth']==depth[-1]-1: extent.append(extent[name.index(node['name'])])
+                        else: raise NotImplementedError("Currently Not Supported case!")
+                        scalar_time.append(node['scalar_time'])
+                        depth.append(node['depth']) # update depth
+                    duration[-1] += 1
+                else:
+                    raise RuntimeError("Currently Not Supported control node type: %s"%(node['type']))
 
         name.append('NO LOOP')
         nodes.append('')
@@ -551,7 +552,8 @@ class VectorProcessor():
         """
         if self.debug:
             for time in self.time_stamp.keys():
-                print("#(%d): %s --> %s"%(time, self.time_stamp[time], self.graph.nodes[self.time_stamp[time]['loop']]))
+                node_num = self.time_stamp[time]['loop']
+                print("#(%d): %s --> %s"%(time, self.time_stamp[time], 'X' if node_num=='NO LOOP' else self.graph.nodes[node_num]))
                 # node_num, info = self.time_stamp[time]['loop'], self.graph.nodes[self.time_stamp[time]['loop']]
                 # print("#(%d): %d, %s"%(time, node_num, info))
 

@@ -28,7 +28,7 @@ def main():
 
     Model = VectorProcessor(args.model, args.debug)
     Model.generate_graph(args.layer, args.layout, args.data, args.kernel, args.stride)
-    Model.optimize_graph(args.viz)
+    Model.optimize_graph()
     if args.viz: save_graph_viz(Model.graph, args.viz)
     Model.run(args.swp)
 
