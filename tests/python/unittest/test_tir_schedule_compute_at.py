@@ -1505,5 +1505,56 @@ def test_reverse_compute_at_to_index():
     tvm.ir.assert_structural_equal(main_reverse_compute_at, sch.mod["main"])
 
 
+def test_reverse_compute_at_with_unit_loop():
+    @T.prim_func
+    def main(A: T.Buffer[(128, 128), "float32"], D: T.Buffer[(1, 2, 1), "float32"]) -> None:
+        B = T.alloc_buffer([128, 128], dtype="float32")
+        C = T.alloc_buffer([128, 128], dtype="float32")
+        for i_0, j_0, i_1 in T.grid(8, 8, 16):
+            for j_1 in T.serial(16):
+                with T.block("B"):
+                    vi = T.axis.spatial(128, i_0 * 16 + i_1)
+                    vj = T.axis.spatial(128, j_0 * 16 + j_1)
+                    T.reads(A[vi, vj])
+                    T.writes(B[vi, vj])
+                    B[vi, vj] = A[vi, vj] * T.float32(2)
+        for ax0, ax1, ax2 in T.grid(1, 2, 1):
+            with T.block("D"):
+                v0, v1, v2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                T.reads(B[v0, v1])
+                T.writes(D[v0, v1, v2])
+                D[v0, v1, v2] = B[v0, v1] + T.float32(1)
+
+    @T.prim_func
+    def main_reverse_compute_at(
+        A: T.Buffer[(128, 128), "float32"], D: T.Buffer[(1, 2, 1), "float32"]
+    ):
+        B = T.alloc_buffer([128, 128], dtype="float32")
+        C = T.alloc_buffer([128, 128], dtype="float32")
+        for i_0, j_0, i_1 in T.grid(8, 8, 16):
+            for j_1 in T.serial(16):
+                with T.block("B"):
+                    vi = T.axis.spatial(128, i_0 * 16 + i_1)
+                    vj = T.axis.spatial(128, j_0 * 16 + j_1)
+                    T.reads(A[vi, vj])
+                    T.writes(B[vi, vj])
+                    B[vi, vj] = A[vi, vj] * T.float32(2)
+            for ax0, ax1, ax2 in T.grid(1, 16, 1):
+                with T.block("D"):
+                    T.where(i_0 * 16 + i_1 < 1 and j_0 * 16 + ax1 < 2)
+                    v0 = T.axis.spatial(1, i_0 * 16 + i_1 + ax0)
+                    v1 = T.axis.spatial(2, j_0 * 16 + ax1)
+                    v2 = T.axis.spatial(1, ax2)
+                    T.reads(B[v0, v1])
+                    T.writes(D[v0, v1, v2])
+                    D[v0, v1, v2] = B[v0, v1] + T.float32(1)
+
+    sch = tir.Schedule(main, debug_mask="all")
+    block_d = sch.get_block("D")
+    axis = sch.get_loops("B")[2]
+    sch.reverse_compute_at(block_d, axis, preserve_unit_loops=True, index=1)
+    tvm.ir.assert_structural_equal(main_reverse_compute_at, sch.mod["main"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

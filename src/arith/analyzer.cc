@@ -36,6 +36,7 @@ Analyzer::Analyzer()
       int_set(this) {}
 
 void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
+  ICHECK_EQ(var.dtype(), expr.dtype());
   PrimExpr new_expr = expr;
   new_expr = this->canonical_simplify(new_expr);
   new_expr = this->rewrite_simplify(new_expr);

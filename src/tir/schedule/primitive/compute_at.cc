@@ -265,7 +265,7 @@ class ScopeReconstructor : private StmtMutator {
         loop_vars.push_back(var);
         loop_extents.push_back(analyzer->Simplify(iter_dom->extent));
         iter_values.push_back(iter_dom->min + var);
-        analyzer->Bind(var, Range::FromMinExtent(0, iter_dom->extent));
+        analyzer->Bind(var, Range::FromMinExtent(IntImm(var.dtype(), 0), iter_dom->extent));
       } else {
         iter_values.push_back(iter_dom->min);
       }
