@@ -251,7 +251,7 @@ local_demo = True
 
 # by default on CPU target will execute.
 # select 'cpu', 'opencl' and 'vulkan'
-test_target = 'cpu'
+test_target = "cpu"
 
 # Change target configuration.
 # Run `adb shell cat /proc/cpuinfo` to find the arch.
