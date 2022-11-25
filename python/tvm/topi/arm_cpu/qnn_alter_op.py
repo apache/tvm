@@ -79,7 +79,7 @@ def alter_add_layout(_attrs, inputs, _tinfos, _out_type):
     optimization means we must pad tensors with the input zero point, and NOT with zero.
     """
 
-    prev_op, biases = inputs
+    prev_op, biases_data_op = inputs
     if not hasattr(prev_op, "op"):
         return None
     if prev_op.op.name != "qnn.conv2d":
@@ -108,6 +108,13 @@ def alter_add_layout(_attrs, inputs, _tinfos, _out_type):
     # The zero point is subtracted from the input elements, so we need a "-" sign here
     zp_shifted_sums = element_sums * (-conv_input_zp)
 
+    # The bias values may or may not be wrapped in an expand_dims op
+    if isinstance(biases_data_op, relay.expr.Call):
+        biases = biases_data_op.args[0]
+    else:
+        biases = biases_data_op
+    assert isinstance(biases, relay.expr.Constant)
+
     # We want to make sure new_biases is representable as an int32. It's tempting to just check
     # whether arr.dtype == "int32" (since Numpy will automatically increase dtype in some cases)
     # but this leads to weird wrapping behavior and doesn't work. We must do it manually.
@@ -119,4 +126,11 @@ def alter_add_layout(_attrs, inputs, _tinfos, _out_type):
     new_conv_args = (*prev_op.args[:2], new_input_zp, *prev_op.args[3:])
     new_conv_op = relay.qnn.op.conv2d(*new_conv_args, **prev_op.attrs)
     bias_constant = relay.Constant(nd.array(new_biases.astype("int32")))
-    return relay.add(new_conv_op, bias_constant)
+
+    # If biases was wrapped in an expand_dims op, we must re-wrap it
+    if isinstance(biases_data_op, relay.expr.Call):
+        new_biases_op = relay.expand_dims(bias_constant, **biases_data_op.attrs)
+    else:
+        new_biases_op = bias_constant
+
+    return relay.add(new_conv_op, new_biases_op)

@@ -20,7 +20,7 @@ Currently, the only ops with compute functions are fused regular and depthwise c
 Arm Cortex-M with DSP.
 """
 
-from typing import Tuple
+from typing import Callable, Tuple
 
 import tvm
 from tvm import te
@@ -123,27 +123,44 @@ def _make_tscript_call(func_name, *args):
 
 
 def _make_conv2d_primfunc(
-    call_dimensions: Tuple,
+    output_dimensions: Tuple[int, int, int, int],
     buffer_shapes: Tuple[Tuple, Tuple, Tuple, Tuple, Tuple],
     aligned_func: Tuple[str, str],
     offset_func: Tuple[str, str],
-    ptr_gens: Tuple,
+    ptr_gens: Tuple[Callable, Callable],
+    output_layout="NHWC",
 ):
-    height, width, out_channels = call_dimensions
+    out_height, out_width, out_channels, num_sums = output_dimensions
     data_shape, kernel_shape, bias_shape, scale_shape, output_shape = buffer_shapes
     aligned_func_name, aligned_func_code = aligned_func
     offset_func_name, offset_func_code = offset_func
-    output_ptr, data_ptr, kernel_ptr = ptr_gens
+    data_ptr, kernel_ptr = ptr_gens
 
     # If the functions are identical, we can skip the second loop
     if aligned_func_name == offset_func_name:
         aligned_channels = out_channels
-        offset_channels = tvm.tir.const(0)
-        c_step = tvm.tir.const(1)
+        offset_channels = 0
+        c_step = const(1)
     else:
         aligned_channels = out_channels // 2
         offset_channels = out_channels // 2
-        c_step = tvm.tir.const(2)
+        c_step = const(2)
+
+    def output_ptr(output, y, x, c):
+        if output_layout == "NHWC":
+            return _make_tscript_ptr(
+                output,
+                y * const(out_width * out_channels) + x * const(out_channels * num_sums) + c,
+                1,
+            )
+        elif output_layout == "NCHW":
+            return _make_tscript_ptr(
+                output,
+                c * const(out_height * out_width) + y * const(out_width) + x * const(num_sums),
+                1,
+            )
+        else:
+            raise TVMError(f"Unsupported out_layout '{output_layout}'!")
 
     def bias_ptr(bias, c):
         return _make_tscript_ptr(bias, c, 1, dtype="int32")
@@ -181,7 +198,9 @@ def _make_conv2d_primfunc(
         __4 = scale[0]
         # pylint: enable=unused-variable
 
-        for c_ax, y_ax, x_ax in T.grid(aligned_channels, height, width):
+        for c_ax, y_ax, x_ax in T.grid(
+            const(aligned_channels), const(out_height), const(out_width // num_sums)
+        ):
             with T.block("conv2d_aligned"):
                 T.block_attr({"pragma_import_c": aligned_func_code})
                 y, x, c = T.axis.remap("SSS", [y_ax, x_ax, c_ax])
@@ -194,7 +213,9 @@ def _make_conv2d_primfunc(
                     scale_ptr(scale, c * c_step),
                 )
 
-        for c_ax, y_ax, x_ax in T.grid(offset_channels, height, width):
+        for c_ax, y_ax, x_ax in T.grid(
+            const(offset_channels), const(out_height), const(out_width // num_sums)
+        ):
             with T.block("conv2d_offset"):
                 T.block_attr({"pragma_import_c": offset_func_code})
                 y, x, c = T.axis.remap("SSS", [y_ax, x_ax, c_ax])
@@ -222,8 +243,6 @@ def qnn_conv2d(attrs, inputs, out_type):
     # arguments. Note that unlike most schedules, qnn_conv2d does not use a wrapper.
     assert len(inputs) == 11
     data, kernel, _izp, _kzp, _iscale, _kscale, bias, scale = inputs[0:8]
-    output_layout = attrs.out_layout
-    assert output_layout == "NHWC"
 
     _, height, width, in_channels = get_const_tuple(data.shape)
     out_channels, kernel_h, kernel_w, _ = get_const_tuple(kernel.shape)
@@ -253,14 +272,6 @@ def qnn_conv2d(attrs, inputs, out_type):
 
     aligned_func, offset_func = _pick_tensordot_impl(attrs, inputs, num_outputs, False)
 
-    # Helper functions to make pointers
-    def output_ptr(buffer, y, x, c):
-        return _make_tscript_ptr(
-            buffer,
-            y * const(out_width * out_channels) + x * const(out_channels * num_outputs) + c,
-            1,
-        )
-
     # We need to disable pylint's unused argument checker, as the kwarg offset is unused but must
     # be present for compatibility. We cannot add an underscore as we normally would, as this makes
     # the keyword not match.
@@ -284,11 +295,12 @@ def qnn_conv2d(attrs, inputs, out_type):
         )
 
     prim_func = _make_conv2d_primfunc(
-        (const(out_height), const(out_width // num_outputs), const(out_channels)),
+        (out_height, out_width, out_channels, num_sums),
         (data.shape, kernel.shape, bias.shape, scale.shape, out_type.shape),
         aligned_func,
         offset_func,
-        (output_ptr, data_ptr, kernel_ptr),
+        (data_ptr, kernel_ptr),
+        output_layout=attrs.out_layout,
     )
 
     output = te.extern_primfunc([data, kernel, bias, scale], prim_func, name="tir", dtype="int16")
@@ -308,12 +320,9 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
 
     assert len(inputs) == 11
     data, kernel, _izp, _kzp, _iscale, _kscale, bias, scale = inputs[0:8]
-    output_layout = attrs.out_layout
-    assert output_layout == "NHWC"
 
     _, _, height, width = get_const_tuple(data.shape)
     _, out_channels, kernel_h, kernel_w = get_const_tuple(kernel.shape)
-    _, out_height, out_width, _ = get_const_tuple(out_type.shape)
     y_stride, x_stride = get_const_tuple(attrs.strides)
 
     out_height = _compute_output_dim(height, kernel_h, y_stride)
@@ -322,14 +331,6 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
     num_outputs = 2
 
     aligned_func, offset_func = _pick_tensordot_impl(attrs, inputs, num_outputs, True)
-
-    # Helper functions for making pointers.
-    def output_ptr(buffer, y, x, c):
-        return _make_tscript_ptr(
-            buffer,
-            y * const(out_width * out_channels) + x * const(out_channels * num_outputs) + c,
-            1,
-        )
 
     def data_ptr(buffer, y, x, c, offset=0):
         if height * width % 2 == 1:
@@ -354,11 +355,12 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
         )
 
     prim_func = _make_conv2d_primfunc(
-        (const(out_height), const(out_width // num_outputs), const(out_channels)),
+        (out_height, out_width, out_channels, num_sums),
         (data.shape, kernel.shape, bias.shape, scale.shape, out_type.shape),
         aligned_func,
         offset_func,
-        (output_ptr, data_ptr, kernel_ptr),
+        (data_ptr, kernel_ptr),
+        output_layout=attrs.out_layout,
     )
 
     output = te.extern_primfunc([data, kernel, bias, scale], prim_func, name="tir", dtype="int16")

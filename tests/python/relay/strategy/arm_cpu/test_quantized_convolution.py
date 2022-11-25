@@ -284,9 +284,10 @@ def _make_executor():
     )
 
 
+@pytest.mark.parametrize("output_layout", ["NHWC", "NCHW"])
 @pytest.mark.parametrize("layer", range(23))
 @tvm.testing.requires_corstone300
-def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer):
+def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer, output_layout):
     """Checks microTVM output against TFLite for one MobileNetV1 layer.
 
     Loads the input, kernel, bias, expected output, and quantization parameters from the specified
@@ -309,6 +310,9 @@ def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer):
 
     layer: int
         The index of the layer to check against TensorFlow's ground truth values.
+
+    output_layout: str
+        The output_layout for microTVM to use. Does not have to match the TensorFlow layout.
     """
     dtype = "int16"
 
@@ -316,9 +320,9 @@ def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer):
 
     padding, strides, is_depthwise = _get_mobilenet_v1_layer_attributes(layer)
     if is_depthwise:
-        data_layout, kernel_layout, output_layout = "NCHW", "OIHW", "NHWC"
+        data_layout, kernel_layout = "NCHW", "OIHW"
     else:
-        data_layout, kernel_layout, output_layout = "NHWC", "OHWI", "NHWC"
+        data_layout, kernel_layout = "NHWC", "OHWI"
 
     test_model = _make_aot_model(
         (tensor, kernel, bias, output),
