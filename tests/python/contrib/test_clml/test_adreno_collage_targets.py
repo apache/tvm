@@ -34,7 +34,7 @@ from tvm.contrib import utils, ndk
 # The following are necessary to force global functions or pattern tables to be registered
 from tvm.relay.collage.collage import *
 from tvm.relay.op.contrib import clml
-
+import pytest
 logging.basicConfig(level=logging.INFO)
 
 
@@ -77,7 +77,7 @@ MEASURE_REPEAT = tvm.relay.collage.MEASURE_REPEAT
 WARMUP_MIN_REPEAT_MS = tvm.relay.collage.WARMUP_MIN_REPEAT_MS
 
 HOST = tvm.target.Target("llvm -mtriple=arm64-linux-android")
-OPENCL = tvm.target.Target("opencl -device=adreno", HOST)
+OPENCL = tvm.target.Target("opencl", HOST)
 RPC_TRACKER_HOST = os.environ["TVM_TRACKER_HOST"]
 RPC_TRACKER_PORT = int(os.environ["TVM_TRACKER_PORT"])
 RPC_KEY = "android"
@@ -247,29 +247,10 @@ def compile_and_benchmark(label, model, targets, tmp_dir):
     os.system(f"python3 {runner_path}")
 
 
-# Preprocessing pass to alter the layouts for CLML compiler target
-def clml_preprocessing(mod):
-    for _var in mod.get_global_vars():
-        if _var.name_hint == "main":
-            continue
-        new_fn = mod[_var.name_hint]
-        if "Compiler" in new_fn.attrs.keys() and new_fn.attrs["Compiler"] != "clml":
-            new_params = [self.visit(x) for x in fn.params]
-            new_fn = fn.body
-            mod = tvm.IRModule.from_expr(new_fn)
-            with tvm.transform.PassContext(opt_level=3):
-                clml_mod = clml.preprocess_module(mod)
-            new_body = clml_mod["main"].body
-            mod[_var.name_hint] = _function.Function(
-                list(new_params), new_body, fn.ret_type, fn.type_params, fn.attrs
-            )
-    return mod
-
-
 # Custom cost function for Opencl RPC targets.
 @register_func("tvm.relay.collage.opencl_cost_estimator")
 def opencl_cost_estimator(mod, target):
-    mod = clml_preprocessing(mod) if ("clml" == target.kind.name) else mod
+
     try:
         # Build the module.
         logging.info("Compiling module to estimate")
@@ -289,7 +270,7 @@ def opencl_cost_estimator(mod, target):
     dso_binary_path = temp.relpath(dso_binary)
     ctx = remote.cl(0)
     lib.export_library(dso_binary_path, cc=NDK_CROSS_COMPILER)
-    remote_path = "/data/local/tmp/" + dso_binary
+    remote_path = dso_binary
     remote.upload(dso_binary_path, target=remote_path)
     lib = remote.load_module(remote_path)
 
@@ -381,32 +362,33 @@ def just_tvm(model):
 
 
 ########### Runners ###########
-def run_all():
-    """Run the whole test suite."""
-    make_models = []
-    make_models.append(menangerie.resnet50)
-    if ALL_MODELS:
-        make_models.append(menangerie.resnet50_16)
-        make_models.append(menangerie.mobilenet_16)
-        make_models.append(menangerie.mobilenet)
-    run_models = []
-    if ALL_CONFIGS:
-        run_models.append(just_clml)
-        run_models.append(just_tvm)
-    run_models.append(collage)
-    for make_model in make_models:
-        model = make_model()
-        for run_model in run_models:
-            run_model(model)
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def run_resnet50(dtype):
+    if dtype == "float32":
+        just_clml(menangerie.resnet50())
+        just_tvm(menangerie.resnet50())
+        """Run Collage on a resnet50."""
+        collage(menangerie.resnet50())
+
+    elif dtype == "float16":
+        just_clml(menangerie.resnet50_16())
+        just_tvm(menangerie.resnet50_16())
+        """Run Collage on a resnet50."""
+        collage(menangerie.resnet50_16())
 
 
-def run_mini():
-    """Run Collage on a resnet50."""
-    just_clml(menangerie.resnet50())
-    just_tvm(menangerie.resnet50())
-    collage(menangerie.resnet50())
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def run_mobilenetv1(dtype):
+    if dtype == "float32":
+        just_clml(menangerie.mobilenet())
+        just_tvm(menangerie.mobilenet())
+        """Run Collage on a mobilenetV1."""
+        collage(menangerie.mobilenet())
 
-
-if __name__ == "__main__":
-    # run_all()
-    run_mini()
+    elif dtype == "float16":
+        just_clml(menangerie.mobilenet_16())
+        just_tvm(menangerie.mobilenet_16())
+        """Run Collage on a mobilenetV1."""
+        collage(menangerie.mobilenet_16())
