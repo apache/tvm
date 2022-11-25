@@ -28,6 +28,19 @@ common_includes = """
 
 #include <tvm/runtime/crt/error_codes.h>
 
+
+#ifndef ARM_CPU_ROR_EXISTS
+#define ARM_CPU_ROR_EXISTS
+__attribute__((always_inline)) uint32_t __ror(uint32_t op1, uint32_t op2)
+{
+  op2 %= 32U;
+  if (op2 == 0U)
+  {
+    return op1;
+  }
+  return (op1 >> op2) | (op1 << (32U - op2));
+}
+#endif
 """
 
 MICRO_WORD_LENGTH_BITS = 32

@@ -129,7 +129,7 @@ __attribute__((always_inline)) static inline int32_t sum16_{N}_{uniq_id}(
   }}
 
   for ( int i = 0; i < n / 2; ++ i ) {{
-    res = __SMLAD(*p32, 0x00010001, res);
+    res = __smlad(*p32, 0x00010001, res);
     ++ p32;
   }}
 
