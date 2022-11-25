@@ -872,13 +872,11 @@ class TestTransformLayoutWithVar(tvm.testing.CompareBeforeAfter):
                 B[vi, vj] = T.if_then_else(
                     # Checks if the transform introduced padding
                     -16 % n != 0
-                    and (
-                        # If so, is vi in the last group (which may
-                        # include padding).
-                        (vj + vi * n) // n == 16 // n
-                        # And is vj within the padding
-                        and 16 % n <= (vj + vi * n) % n
-                    ),
+                    # If so, is vi in the last group (which may
+                    # include padding).
+                    and (vj + vi * n) // n == 16 // n
+                    # And is vj within the padding
+                    and 16 % n <= (vj + vi * n) % n,
                     0,
                     A[vj + vi * n],
                     dtype="int32",

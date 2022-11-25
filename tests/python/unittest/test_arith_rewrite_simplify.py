@@ -992,6 +992,15 @@ def test_logical_simplify():
     ck.verify(tvm.tir.Or(2 <= x, x <= 1), tvm.tir.const(True, "bool"))
     ck.verify(tvm.tir.Or(x != 1, x == 2), x != 1)
 
+    ck.verify(
+        tvm.tir.Or(x == 1, tvm.tir.Or(y == 1, z == 1)),
+        tvm.tir.Or(tvm.tir.Or(x == 1, y == 1), z == 1),
+    )
+    ck.verify(
+        tvm.tir.And(x == 1, tvm.tir.And(y == 1, z == 1)),
+        tvm.tir.And(tvm.tir.And(x == 1, y == 1), z == 1),
+    )
+
 
 def test_let_simplify():
     ck = RewriteChecker()
