@@ -78,8 +78,8 @@ process of building TVM for Android, please refer to these instructions:
 `TVM RPC
 Server <https://github.com/apache/tvm/tree/main/apps/cpp_rpc>`_.
 
-Alternatively, to build a TVM via docker using OpenCL-Headers and set-up
-with Android TVM RPC, refer to this guide: `Deploy the Pretrained Model on Android <https://tvm.apache.org/docs/how_to/deploy_models/deploy_model_on_android.html>`_.
+Since there are many required packages for Android, you can use the official Docker Image to build TVM.
+For more information refer to this guide: `Deploy the Pretrained Model on Android <https://tvm.apache.org/docs/how_to/deploy_models/deploy_model_on_android.html>`_.
 
 **Prerequisites**: Android NDK and Android Debug Bridge must
 be installed, the desired device must have OpenCL support and Android part of TVM must be built:
@@ -94,7 +94,7 @@ folder of TVM:
 
    mkdir build_android
    cd build_android
-   cmake .. -DUSE_OPENCL=ON -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a -DANDROID_NATIVE_API_LEVEL=android-28 -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ON -DANDROID_STL=c++_static -DUSE_CPP_RPC=ON
+   cmake .. -DUSE_OPENCL=ON -DUSE_MICRO=OFF -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a -DANDROID_NATIVE_API_LEVEL=android-28 -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ON -DANDROID_STL=c++_static -DUSE_CPP_RPC=ON
    make -jN tvm_runtime tvm_rpc
 
 where **N** is the number of cores available on your *CPU*.
