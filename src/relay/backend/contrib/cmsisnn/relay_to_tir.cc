@@ -194,8 +194,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
     int32_t clip_max = std::numeric_limits<int8_t>::max();
 
     if (dtype_bits == 16) {
-        clip_min = std::numeric_limits<int16_t>::min();
-        clip_max = std::numeric_limits<int16_t>::max();
+      clip_min = std::numeric_limits<int16_t>::min();
+      clip_max = std::numeric_limits<int16_t>::max();
     }
     if (clip_call) {
       const ClipAttrs* clip_attrs = clip_call->attrs.as<ClipAttrs>();
@@ -314,7 +314,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
       fc_call = requantize_input;
     }
 
-    // Extract the size of the input parameter from the call arguments. Other params are based off the input size
+    // Extract the size of the input parameter from the call arguments. Other params are based off
+    // the input size
     int32_t dtype_bits = fc_call->args[0]->type_as<TensorTypeNode>()->dtype.bits();
     int32_t input_bits = dtype_bits;
     int32_t filter_bits = 8;
