@@ -823,13 +823,15 @@ bool WillPrintConstScalar(const PrimExpr& expr) {
     ICHECK(rhs_precedence != ExprPrecedence::kUnknown);                                           \
     /* Update out_precedence of current node. */                                                  \
     *out_precedence = OpPrecedence;                                                               \
-    if (lhs_precedence > OpPrecedence) {                                                          \
+    if (lhs_precedence > OpPrecedence ||                                                          \
+        (lhs_precedence == ExprPrecedence::kAnd && OpPrecedence == ExprPrecedence::kOr)) {        \
       doc << "(" << lhs_doc << ")";                                                               \
     } else {                                                                                      \
       doc << lhs_doc;                                                                             \
     }                                                                                             \
     doc << OpString;                                                                              \
-    if (rhs_precedence >= OpPrecedence) {                                                         \
+    if (rhs_precedence >= OpPrecedence ||                                                         \
+        (rhs_precedence == ExprPrecedence::kAnd && OpPrecedence == ExprPrecedence::kOr)) {        \
       doc << "(" << rhs_doc << ")";                                                               \
     } else {                                                                                      \
       doc << rhs_doc;                                                                             \

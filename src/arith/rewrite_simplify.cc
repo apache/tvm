@@ -1737,7 +1737,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
   }
 
   // Pattern var to match any expression
-  PVar<PrimExpr> x, y;
+  PVar<PrimExpr> x, y, z;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2, c3;
   PVar<int> lanes;
@@ -1815,6 +1815,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
                             c1 * c2 + c3 < x && x < (c1 + 1) * c2);
   TVM_TRY_RECURSIVE_REWRITE(c3 < floormod(x, c2) && floordiv(x, c2) == c1,
                             c1 * c2 + c3 < x && x < (c1 + 1) * c2);
+
+  TVM_TRY_RECURSIVE_REWRITE(x && (y && z), (x && y) && z);
+
   return ret;
 }
 
@@ -1874,7 +1877,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
   }
 
   // Pattern var to match any expression
-  PVar<PrimExpr> x, y;
+  PVar<PrimExpr> x, y, z;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
   PVar<int> lanes;
@@ -1911,6 +1914,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
   TVM_TRY_RECURSIVE_REWRITE(x < y || y == x, x <= y);
   TVM_TRY_RECURSIVE_REWRITE(x == y || x < y, x <= y);
   TVM_TRY_RECURSIVE_REWRITE(y == x || x < y, x <= y);
+
+  TVM_TRY_RECURSIVE_REWRITE(x || (y || z), (x || y) || z);
 
   return ret;
 }
