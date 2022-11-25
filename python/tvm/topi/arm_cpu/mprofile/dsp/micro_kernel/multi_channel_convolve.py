@@ -23,7 +23,7 @@ repeated four times giving four int32 outputs - one per channel."""
 import textwrap
 
 from tvm import te, tir
-from .common import num_simd_lanes_per_word
+from .common import num_simd_lanes_per_word, common_includes
 
 
 def _get_func_name(in_dtype, tensor_w, channels, kernel_h, kernel_w, suffix):
@@ -107,10 +107,8 @@ def multi_channel_convolve_impl(in_dtype, *args) -> str:
 def _quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix):
     return textwrap.dedent(
         (
-            f"""
-        #include <stdint.h>
-        #include <arm_acle.h>
-
+            common_includes
+            + f"""
         // __SXTB16(_ROR(X, Y)) is combined into one assembly instruction
 
         #define TVMGEN_QUAD_INT8_CHANNEL_REARRANGE_SUM_DSP( \
@@ -172,7 +170,8 @@ def _quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, ke
 def _dual_int16_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix):
     return textwrap.dedent(
         (
-            f"""
+            common_includes
+            + f"""
         #include <stdint.h>
 
         /* We do four channels at once to get this speed boost. */
