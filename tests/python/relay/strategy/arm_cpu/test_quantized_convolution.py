@@ -284,8 +284,16 @@ def _make_executor():
     )
 
 
+def _make_parameterization(layer_num):
+    if layer_num == 25:
+        mark = pytest.mark.xfail(reason="unaligned input data ptr", run=False)
+        return pytest.param(layer_num, marks=mark)
+    else:
+        return layer_num
+
+
 @pytest.mark.parametrize("output_layout", ["NHWC", "NCHW"])
-@pytest.mark.parametrize("layer", range(23))
+@pytest.mark.parametrize("layer", (_make_parameterization(n) for n in range(27)))
 @tvm.testing.requires_corstone300
 def test_qnn_conv2d_mobilenetv1_layer(interpreter, layer, output_layout):
     """Checks microTVM output against TFLite for one MobileNetV1 layer.

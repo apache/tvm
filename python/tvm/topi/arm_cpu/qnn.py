@@ -23,7 +23,7 @@ Arm Cortex-M with DSP.
 from typing import Callable, Tuple
 
 import tvm
-from tvm import te
+from tvm import te, TVMError
 from tvm.tir import const
 from tvm.script import tir as T
 from ..utils import get_const_tuple
@@ -36,6 +36,19 @@ def int_ceil_division(x, y):
 
 def _compute_output_dim(data_length, kernel_length, stride):
     return int_ceil_division(data_length + 1 - kernel_length, stride)
+
+
+def _pick_num_outputs(out_width):
+    """Guess a good value for num_outputs."""
+
+    assert out_width > 1
+
+    # num_outputs is capped at 8
+    for i in range(2, min(out_width + 1, 8)):
+        if out_width % i == 0:
+            return i
+
+    raise TVMError(f"Cannot pick a good num_outputs value for out_width = {out_width}!")
 
 
 def _pick_tensordot_impl(attrs, inputs, num_outputs=2, is_depthwise=False):
@@ -130,7 +143,7 @@ def _make_conv2d_primfunc(
     ptr_gens: Tuple[Callable, Callable],
     output_layout="NHWC",
 ):
-    out_height, out_width, out_channels, num_sums = output_dimensions
+    out_height, out_width, out_channels, num_outputs = output_dimensions
     data_shape, kernel_shape, bias_shape, scale_shape, output_shape = buffer_shapes
     aligned_func_name, aligned_func_code = aligned_func
     offset_func_name, offset_func_code = offset_func
@@ -150,13 +163,13 @@ def _make_conv2d_primfunc(
         if output_layout == "NHWC":
             return _make_tscript_ptr(
                 output,
-                y * const(out_width * out_channels) + x * const(out_channels * num_sums) + c,
+                y * const(out_width * out_channels) + x * const(out_channels * num_outputs) + c,
                 1,
             )
         elif output_layout == "NCHW":
             return _make_tscript_ptr(
                 output,
-                c * const(out_height * out_width) + y * const(out_width) + x * const(num_sums),
+                c * const(out_height * out_width) + y * const(out_width) + x * const(num_outputs),
                 1,
             )
         else:
@@ -199,7 +212,7 @@ def _make_conv2d_primfunc(
         # pylint: enable=unused-variable
 
         for c_ax, y_ax, x_ax in T.grid(
-            const(aligned_channels), const(out_height), const(out_width // num_sums)
+            const(aligned_channels), const(out_height), const(out_width // num_outputs)
         ):
             with T.block("conv2d_aligned"):
                 T.block_attr({"pragma_import_c": aligned_func_code})
@@ -214,7 +227,7 @@ def _make_conv2d_primfunc(
                 )
 
         for c_ax, y_ax, x_ax in T.grid(
-            const(offset_channels), const(out_height), const(out_width // num_sums)
+            const(offset_channels), const(out_height), const(out_width // num_outputs)
         ):
             with T.block("conv2d_offset"):
                 T.block_attr({"pragma_import_c": offset_func_code})
@@ -254,9 +267,8 @@ def qnn_conv2d(attrs, inputs, out_type):
     # Decide how many sums our function should have running at the same time. Doing
     # this lets us do "more work" for each memory load, but doing too many of them causes us to run
     # out of registers. Currently this is set to either 1 or 2, but autotuning this value would
-    # improve performance a lot. Tracked by https://github.com/apache/tvm/issues/13528.
-
-    num_outputs = 2
+    # improve performance a lot.
+    num_outputs = _pick_num_outputs(out_width)
 
     # Next, decide whether whether we need "parity alternation". For example, if we have an
     # 8x3x3x3 kernel (8 output channels, height 3, width 3, input channels 3) in the OHWI layout,
@@ -295,7 +307,7 @@ def qnn_conv2d(attrs, inputs, out_type):
         )
 
     prim_func = _make_conv2d_primfunc(
-        (out_height, out_width, out_channels, num_sums),
+        (out_height, out_width, out_channels, num_outputs),
         (data.shape, kernel.shape, bias.shape, scale.shape, out_type.shape),
         aligned_func,
         offset_func,
@@ -328,7 +340,7 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
     out_height = _compute_output_dim(height, kernel_h, y_stride)
     out_width = _compute_output_dim(width, kernel_w, x_stride)
 
-    num_outputs = 2
+    num_outputs = _pick_num_outputs(out_width)
 
     aligned_func, offset_func = _pick_tensordot_impl(attrs, inputs, num_outputs, True)
 
@@ -355,7 +367,7 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
         )
 
     prim_func = _make_conv2d_primfunc(
-        (out_height, out_width, out_channels, num_sums),
+        (out_height, out_width, out_channels, num_outputs),
         (data.shape, kernel.shape, bias.shape, scale.shape, out_type.shape),
         aligned_func,
         offset_func,
