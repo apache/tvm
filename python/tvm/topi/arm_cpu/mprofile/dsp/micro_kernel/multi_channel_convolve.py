@@ -122,13 +122,13 @@ def _quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, ke
           \
           uint32_t tensor_c20 = __sxtb16(tensor_c3210); \
           uint32_t kernel_c20 = __sxtb16(kernel_c3210); \
-          sum_c0 = __smlabb(tensor_c20, kernel_c20, sum_c0); \
-          sum_c2 = __smlatt(tensor_c20, kernel_c20, sum_c2); \
+          sum_c0 = __builtin_arm_smlabb(tensor_c20, kernel_c20, sum_c0); \
+          sum_c2 = __builtin_arm_smlatt(tensor_c20, kernel_c20, sum_c2); \
           \
           uint32_t tensor_c31 = __sxtb16(__ror(tensor_c3210, 8)); \
           uint32_t kernel_c31 = __sxtb16(__ror(kernel_c3210, 8)); \
-          sum_c1 = __smlabb(tensor_c31, kernel_c31, sum_c1); \
-          sum_c3 = __smlatt(tensor_c31, kernel_c31, sum_c3); \
+          sum_c1 = __builtin_arm_smlabb(tensor_c31, kernel_c31, sum_c1); \
+          sum_c3 = __builtin_arm_smlatt(tensor_c31, kernel_c31, sum_c3); \
         }}
 
         /* We do four channels at once to get this speed boost. */
@@ -194,8 +194,8 @@ def _dual_int16_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, k
               uint32_t tensor_c10 = *(tensor + j * {channels // 2}
                 + i * {tensor_w * (channels // 2)});
               uint32_t kernel_c10 = *kernel++;
-              sum_c0 = __smlabb(tensor_c10, kernel_c10, sum_c0);
-              sum_c1 = __smlatt(tensor_c10, kernel_c10, sum_c1);
+              sum_c0 = __builtin_arm_smlabb(tensor_c10, kernel_c10, sum_c0);
+              sum_c1 = __builtin_arm_smlatt(tensor_c10, kernel_c10, sum_c1);
             }}
           }}
 
