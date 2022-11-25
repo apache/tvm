@@ -1267,6 +1267,7 @@ class TestSimplifyUsingPartiallyKnownBufferConditional(BaseBeforeAfter):
     """An assumption about buffer contents may apply to only part of a buffer"""
 
     propagate_knowns_to_prove_conditional = True
+    apply_constraints_to_boolean_branches = True
 
     def before(A: T.Buffer[16, "int32"]):
         for i in T.serial(16):
