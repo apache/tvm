@@ -463,7 +463,7 @@ class Module(object):
         is_system_lib = False
         has_c_module = False
         llvm_target_string = None
-        global_object_format = None
+        global_object_format = "o"
         for index, module in enumerate(modules):
             if fcompile is not None and hasattr(fcompile, "object_format"):
                 if module.type_key == "c":
