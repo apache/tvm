@@ -207,7 +207,7 @@ def test_mod_export():
         work_dir = temp.relpath("work_dir")
         os.mkdir(work_dir)
         synthetic_cpu_lib.export_library(path_lib, fcompile=False, workspace_dir=work_dir, **kwargs)
-        assert(os.path.exists(work_dir+"/devc.o"))
+        assert os.path.exists(work_dir + "/devc.o")
         loaded_lib = tvm.runtime.load_module(path_lib)
         assert loaded_lib.type_key == "library"
         # dso modules are merged
