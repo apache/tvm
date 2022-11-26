@@ -49,9 +49,14 @@ and usage is welcome and encouraged. If you want to discuss design issues check 
 
 ## Install
 
-Please follow the TVM [install](https://tvm.apache.org/docs/install/index.html) instructions, `export TVM_HOME=/path/to/tvm` and add `libtvm_runtime` to your `LD_LIBRARY_PATH`.
+Please follow the TVM [install](https://tvm.apache.org/docs/install/index.html) instructions. If building
+from source, configure TVM with LLVM enabled and install the 3rd party libraries dlpack and dmlc-core.
+Once installed, `export TVM_HOME=/path/to/tvm` and add `libtvm_runtime` to your `LD_LIBRARY_PATH`.
 
-*Note:* To run the end-to-end examples and tests, `tvm` and `topi` need to be added to your `PYTHONPATH` or it's automatic via an Anaconda environment when it is installed individually.
+*Note:* To run the end-to-end examples and tests, the Python package needs to be
+[installed](https://tvm.apache.org/docs/install/from_source.html#python-package-installation), and `tvm` and
+`topi` need to be added to your `PYTHONPATH` or it's automatic via an Anaconda environment when it is installed
+individually.
 
 ### Disclaimers
 
