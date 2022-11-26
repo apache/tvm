@@ -463,7 +463,7 @@ class Module(object):
         is_system_lib = False
         has_c_module = False
         llvm_target_string = None
-        object_format = None
+        global_object_format = None
         for index, module in enumerate(modules):
             if fcompile is not None and hasattr(fcompile, "object_format"):
                 if module.type_key == "c":
@@ -473,31 +473,30 @@ class Module(object):
                         "cpp",
                         "cu",
                     ], "The module.format needs to be either c, cc, cpp or cu."
-                    if object_format is None:
-                        object_format = module.format
+                    object_format = module.format
                     has_c_module = True
                 else:
-                    object_format = fcompile.object_format
+                    global_object_format = object_format = fcompile.object_format
             else:
                 if module.type_key == "c":
-                    if object_format is None:
-                        if len(module.format) > 0:
-                            assert module.format in [
-                                "c",
-                                "cc",
-                                "cpp",
-                                "cu",
-                            ], "The module.format needs to be either c, cc, cpp, or cu."
-                            object_format = module.format
-                        else:
-                            object_format = "c"
-                        if "cc" in kwargs:
-                            if kwargs["cc"] == "nvcc":
-                                object_format = "cu"
+                    if len(module.format) > 0:
+                        assert module.format in [
+                            "c",
+                            "cc",
+                            "cpp",
+                            "cu",
+                        ], "The module.format needs to be either c, cc, cpp, or cu."
+                        object_format = module.format
+                    else:
+                        object_format = "c"
+                    if "cc" in kwargs:
+                        if kwargs["cc"] == "nvcc":
+                            object_format = "cu"
                     has_c_module = True
                 else:
                     assert module.type_key == "llvm" or module.type_key == "static_library"
-                    object_format = "o"
+                    global_object_format = object_format = "o"
+
             path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
             module.save(path_obj)
             files.append(path_obj)
@@ -520,7 +519,7 @@ class Module(object):
 
         if self.imported_modules:
             if enabled("llvm") and llvm_target_string:
-                path_obj = os.path.join(workspace_dir, f"devc.{object_format}")
+                path_obj = os.path.join(workspace_dir, f"devc.{global_object_format}")
                 m = _ffi_api.ModulePackImportsToLLVM(self, is_system_lib, llvm_target_string)
                 m.save(path_obj)
                 files.append(path_obj)
