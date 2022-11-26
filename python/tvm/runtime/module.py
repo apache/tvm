@@ -463,6 +463,7 @@ class Module(object):
         is_system_lib = False
         has_c_module = False
         llvm_target_string = None
+        object_format = None
         for index, module in enumerate(modules):
             if fcompile is not None and hasattr(fcompile, "object_format"):
                 if module.type_key == "c":
@@ -472,25 +473,27 @@ class Module(object):
                         "cpp",
                         "cu",
                     ], "The module.format needs to be either c, cc, cpp or cu."
-                    object_format = module.format
+                    if object_format is None:
+                        object_format = module.format
                     has_c_module = True
                 else:
                     object_format = fcompile.object_format
             else:
                 if module.type_key == "c":
-                    if len(module.format) > 0:
-                        assert module.format in [
-                            "c",
-                            "cc",
-                            "cpp",
-                            "cu",
-                        ], "The module.format needs to be either c, cc, cpp, or cu."
-                        object_format = module.format
-                    else:
-                        object_format = "c"
-                    if "cc" in kwargs:
-                        if kwargs["cc"] == "nvcc":
-                            object_format = "cu"
+                    if object_format is None:
+                        if len(module.format) > 0:
+                            assert module.format in [
+                                "c",
+                                "cc",
+                                "cpp",
+                                "cu",
+                            ], "The module.format needs to be either c, cc, cpp, or cu."
+                            object_format = module.format
+                        else:
+                            object_format = "c"
+                        if "cc" in kwargs:
+                            if kwargs["cc"] == "nvcc":
+                                object_format = "cu"
                     has_c_module = True
                 else:
                     assert module.type_key == "llvm" or module.type_key == "static_library"
@@ -498,12 +501,9 @@ class Module(object):
             path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
             module.save(path_obj)
             files.append(path_obj)
-            is_system_lib = (
-                module.type_key == "llvm" and module.get_function("__tvm_is_system_module")()
-            )
-            llvm_target_string = (
-                module.type_key == "llvm" and module.get_function("_get_target_string")()
-            )
+            if module.type_key == "llvm":
+                is_system_lib = module.get_function("__tvm_is_system_module")()
+                llvm_target_string = module.get_function("_get_target_string")()
         if not fcompile:
             if file_name.endswith(".tar"):
                 fcompile = _tar.tar
