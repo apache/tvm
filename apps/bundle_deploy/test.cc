@@ -18,20 +18,31 @@
  */
 
 #include <assert.h>
+#ifdef _WIN32
+#define NOMINMAX      // for limits
+#include <Windows.h>  // LoadLibrary
+#else
 #include <dlfcn.h>  //dlopen
 #include <sys/stat.h>
-#include <sys/time.h>
+#endif
 #include <tvm/runtime/c_runtime_api.h>
 
+#include <chrono>
 #include <iostream>
 #include <random>
 #include <vector>
 
 template <typename F>
 auto getFunc(void* bundle, const char* name) {
+#ifdef _WIN32
+  auto* f =
+      reinterpret_cast<typename std::add_pointer<F>::type>(GetProcAddress((HMODULE)bundle, name));
+  assert(f != nullptr);
+#else
   dlerror();
   auto* f = reinterpret_cast<typename std::add_pointer<F>::type>(dlsym(bundle, name));
   assert(!dlerror());
+#endif
   return f;
 }
 
@@ -78,9 +89,19 @@ char* read_all_or_die(const char* name, const char* file_path, size_t* out_size)
   return data;
 }
 
+template <class T>
+float delta_time(T t1, T t0) {
+  auto us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
+  return static_cast<float>(us) / 1000.f;
+}
+
 int main(int argc, char** argv) {
   assert(argc == 6 && "Usage: test <bundle.so> <data.bin> <output.bin> <graph.json> <params.bin>");
+#ifdef _WIN32
+  auto* bundle = LoadLibraryA(argv[1]);
+#else
   auto* bundle = dlopen(argv[1], RTLD_LAZY | RTLD_LOCAL);
+#endif
   assert(bundle);
 
   char* json_data;
@@ -90,12 +111,11 @@ int main(int argc, char** argv) {
   json_data = read_all_or_die("json_data", argv[4], nullptr);
   params_data = read_all_or_die("params_data", argv[5], &params_size);
 
-  struct timeval t0, t1, t2, t3, t4, t5;
-  gettimeofday(&t0, 0);
+  auto t0 = std::chrono::steady_clock::now();
 
   auto* handle = getFunc<void*(char*, char*, int)>(bundle, "tvm_runtime_create")(
       json_data, params_data, params_size);
-  gettimeofday(&t1, 0);
+  auto t1 = std::chrono::steady_clock::now();
 
   size_t input_storage_size;
   float* input_storage =
@@ -122,12 +142,18 @@ int main(int argc, char** argv) {
   input.byte_offset = 0;
 
   getFunc<void(void*, const char*, void*)>(bundle, "tvm_runtime_set_input")(handle, "x", &input);
-  gettimeofday(&t2, 0);
+  auto t2 = std::chrono::steady_clock::now();
 
+#ifdef _WIN32
+  auto* ftvm_runtime_run =
+      (auto (*)(void*)->void)GetProcAddress((HMODULE)bundle, "tvm_runtime_run");
+  assert(ftvm_runtime_run != nullptr);
+#else
   auto* ftvm_runtime_run = (auto (*)(void*)->void)dlsym(bundle, "tvm_runtime_run");
   assert(!dlerror());
+#endif
   ftvm_runtime_run(handle);
-  gettimeofday(&t3, 0);
+  auto t3 = std::chrono::steady_clock::now();
 
   float output_storage[10 * 5];
   std::vector<int64_t> output_shape = {10, 5};
@@ -141,7 +167,7 @@ int main(int argc, char** argv) {
   output.byte_offset = 0;
 
   getFunc<void(void*, int, void*)>(bundle, "tvm_runtime_get_output")(handle, 0, &output);
-  gettimeofday(&t4, 0);
+  auto t4 = std::chrono::steady_clock::now();
 
   for (auto i = 0; i < 10 * 5; ++i) {
     assert(fabs(output_storage[i] - result_storage[i]) < 1e-5f);
@@ -151,20 +177,21 @@ int main(int argc, char** argv) {
   }
 
   getFunc<void(void*)>(bundle, "tvm_runtime_destroy")(handle);
-  gettimeofday(&t5, 0);
+  auto t5 = std::chrono::steady_clock::now();
 
   printf(
       "timing: %.2f ms (create), %.2f ms (set_input), %.2f ms (run), "
       "%.2f ms (get_output), %.2f ms (destroy)\n",
-      (t1.tv_sec - t0.tv_sec) * 1000.0f + (t1.tv_usec - t0.tv_usec) / 1000.f,
-      (t2.tv_sec - t1.tv_sec) * 1000.0f + (t2.tv_usec - t1.tv_usec) / 1000.f,
-      (t3.tv_sec - t2.tv_sec) * 1000.0f + (t3.tv_usec - t2.tv_usec) / 1000.f,
-      (t4.tv_sec - t3.tv_sec) * 1000.0f + (t4.tv_usec - t3.tv_usec) / 1000.f,
-      (t5.tv_sec - t4.tv_sec) * 1000.0f + (t5.tv_usec - t4.tv_usec) / 1000.f);
+      delta_time(t1, t0), delta_time(t2, t1), delta_time(t3, t2), delta_time(t4, t3),
+      delta_time(t5, t4));
 
   free(json_data);
   free(params_data);
+#ifdef _WIN32
+  FreeLibrary(bundle);
+#else
   dlclose(bundle);
+#endif
 
   return 0;
 }

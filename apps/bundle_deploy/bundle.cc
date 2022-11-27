@@ -22,7 +22,15 @@
 
 #include <memory>
 
+#ifdef _WIN32
+#ifdef TVM_EXPORTS
+#define TVM_BUNDLE_FUNCTION __declspec(dllexport)
+#else
+#define TVM_BUNDLE_FUNCTION __declspec(dllimport)
+#endif
+#else
 #define TVM_BUNDLE_FUNCTION __attribute__((visibility("default")))
+#endif
 
 extern "C" {
 
