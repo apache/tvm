@@ -267,7 +267,7 @@ def arm_compute_lib_pattern_table(disabled_ops=["concatenate"]):
 
     def check_avg_pool2d(extract):
         """Check average pool2d pattern is supported by ACL."""
-        if extract.attrs.dtype != "uint8":
+        if extract.attrs.dtype not in ("uint8", "int8"):
             return False
         pool = extract.args[0]
         if pool.args[0].attrs.dtype != "int32":
@@ -440,7 +440,7 @@ def max_pool2d(expr):
     if attrs.layout != "NHWC":
         return False
     typ = args[0].checked_type
-    if typ.dtype not in ["float32", "uint8"]:
+    if typ.dtype not in ["float32", "uint8", "int8"]:
         return False
     return check_dilation(attrs)
 
@@ -468,7 +468,7 @@ def global_max_pool2d(expr):
     """Check if the external ACL codegen for gloval_maxpool2d should be used."""
     attrs, args = expr.attrs, expr.args
     typ = args[0].checked_type
-    if typ.dtype not in ["float32", "uint8"]:
+    if typ.dtype not in ["float32", "uint8", "int8"]:
         return False
     if attrs.layout != "NHWC":
         return False
