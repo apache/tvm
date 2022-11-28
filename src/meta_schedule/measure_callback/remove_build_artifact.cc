@@ -28,7 +28,7 @@ class RemoveBuildArtifactNode : public MeasureCallbackNode {
              const Array<BuilderResult>& builder_results,
              const Array<RunnerResult>& runner_results) final {
     static const PackedFunc* f_rm = runtime::Registry::Get("meta_schedule.remove_build_dir");
-    ICHECK(*f_rm != nullptr) << "The `remove_build_dir` func is not in tvm registry.";
+    ICHECK(f_rm != nullptr) << "The `remove_build_dir` func is not in tvm registry.";
     auto _ = Profiler::TimedScope("MeasureCallback/RemoveBuildArtifact");
     for (const BuilderResult& build_result : builder_results) {
       if (Optional<String> path = build_result->artifact_path) {
