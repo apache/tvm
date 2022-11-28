@@ -23,7 +23,7 @@ from numbers import Integral
 import numpy as np
 import tvm
 from tvm import te
-from tvm.tir import bijective_layout, layout
+from tvm.tir import Any, SizeVar, bijective_layout, layout
 
 from . import cpp, tag
 
@@ -538,4 +538,4 @@ def is_target(names):
 
 def is_dynamic_shape(shape):
     """Checks if any part of a shape is dynamic"""
-    return any([isinstance(x, (tir.Any, tir.SizeVar)) for x in shape])
+    return any([isinstance(x, (Any, SizeVar)) for x in shape])
