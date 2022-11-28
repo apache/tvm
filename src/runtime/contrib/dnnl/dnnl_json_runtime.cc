@@ -210,6 +210,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Parsing post-ops.
     dnnl::post_ops ops;
     if (std::regex_match(op_name, sum_pat)) {
+      // ops.append_sum(1.f, 0, dnnl::memory::data_type::f32);
       ops.append_sum(1.f);
     }
     if (std::regex_match(op_name, relu_pat)) {
@@ -266,6 +267,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       if (node.GetOpType() == "kernel") {
         ICHECK_EQ(node.GetOpType(), "kernel");
         auto op_name = node.GetOpName();
+        // std::cout << "hebi-dbg: op_name: " << op_name << "\n";
         if (std::regex_match(op_name, deconv_pat) ||
             std::regex_match(op_name, conv_transpose_pat)) {
           Deconvolution(nid);
@@ -291,12 +293,80 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
           LayerNorm(nid);
         } else if ("nn.batch_matmul" == op_name) {
           BatchMatMul(nid);
+        } else if ("concatenate" == op_name) {
+          Concat(nid);
+        } else if ("cast" == op_name ||
+                   "layout_transform" == op_name) {
+          Reorder(nid, engine_);
         } else {
           LOG(FATAL) << "Unsupported op: " << op_name;
         }
       }
     }
   }
+
+  void Reorder(const size_t& nid, dnnl::engine engine_) {
+    auto node = nodes_[nid];
+    auto op_name = node.GetOpName();
+
+    // Setup attributes.
+    auto src_tr = GetInput(nid, 0);
+    auto dst_tr = GetOutput(nid, 0);
+    
+    if (op_name.find("layout_transform") != std::string::npos) {
+      ICHECK_EQ(node.HasAttr("src_layout"), true);
+      ICHECK_EQ(node.HasAttr("dst_layout"), true);
+      auto src_layout = GetNodeAttr<std::string>(node, "src_layout");
+      auto dst_layout = GetNodeAttr<std::string>(node, "dst_layout");
+      // Take into account provided layout strings
+      src_tr = src_tr.TreatAs(src_layout);
+      dst_tr = dst_tr.TreatAs(dst_layout);
+    }
+
+    auto reorder_prim_desc = dnnl::reorder::primitive_desc(
+      engine_, src_tr.desc(), engine_, dst_tr.desc());
+
+    Submit(dnnl::reorder(reorder_prim_desc),
+          {{DNNL_ARG_FROM, src_tr}, {DNNL_ARG_TO, dst_tr}});
+  }
+
+  void Concat(const size_t& nid) {
+    auto node = nodes_[nid];
+
+    int num_inputs = node.GetInputs().size();
+    std::vector<TensorRequisite> src_trs;
+    for (int i = 0; i < num_inputs; i++) {
+      src_trs.emplace_back(GetInput(nid, i));
+    }
+    auto dst_tr = GetOutput(nid, 0);
+
+    int axis = std::stoi(node.GetAttr<std::vector<std::string>>("axis")[0]);
+    if (axis < 0) {
+        axis = dst_tr.dims().size() + axis;
+    }
+    ICHECK_LT(axis, dst_tr.dims().size());
+
+    std::vector<dnnl::memory::desc> src_mds;
+    for(const auto& src_tr:src_trs){
+      src_mds.emplace_back(src_tr.desc());
+    }
+
+    auto concat_prim_desc = dnnl::concat::primitive_desc(axis, src_mds, engine_);
+    for (int i = 0; i < num_inputs;i++){
+      src_trs[i] = src_trs[i].RequestLayout(concat_prim_desc.src_desc(i));
+    }
+    dst_tr = dst_tr.RequestLayout(concat_prim_desc.dst_desc());
+    auto scratchpad_tr = TensorRequisite::AsIs(concat_prim_desc.scratchpad_desc());
+
+    std::unordered_map<int, TensorRequisite> args;
+    for (int i = 0; i < num_inputs; i++) {
+      args.insert({DNNL_ARG_MULTIPLE_SRC + i, src_trs[i]});
+    }
+    args.insert({DNNL_ARG_SCRATCHPAD, scratchpad_tr});
+    args.insert({DNNL_ARG_DST, dst_tr});
+    Submit(dnnl::concat(concat_prim_desc), args);
+  }
+
 
   void Convolution(const size_t& nid) {
     auto node = nodes_[nid];
