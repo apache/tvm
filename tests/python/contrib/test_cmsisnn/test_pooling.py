@@ -105,7 +105,7 @@ def test_ops(
     compiler_cpu,
     cpu_flags,
 ):
-    """Tests QNN pooling op for int8 and int16 inputs"""
+    """Tests QNN pooling op for int8 and int16 pooling"""
     interface_api = "c"
     use_unpacked_api = True
 
@@ -212,7 +212,6 @@ def test_int8_pool_with_float32_input(
 def test_invalid_datatype(op):
     """Checks CMSIS-NN partitioning for non int8 dtype"""
     model = make_model(pool_op=op, dtype="int64")
-
     orig_mod = make_module(model)
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod)
     assert_no_external_function(cmsisnn_mod)

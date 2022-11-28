@@ -449,10 +449,11 @@ class RelayToTIRVisitor : public MixedModeMutator {
       pool_size_h = qnn::get_const_int(attrs->pool_size[0]);
       pool_size_w = qnn::get_const_int(attrs->pool_size[1]);
     } else {
-      if (dtype_bits == 8)
+      if (dtype_bits == 8) {
         cmsisnn_api = "arm_max_pool_s8";
-      else
+      } else {
         cmsisnn_api = "arm_max_pool_s16";
+      }
 
       const MaxPool2DAttrs* attrs = pool->attrs.as<MaxPool2DAttrs>();
       stride_h = qnn::get_const_int(attrs->strides[0]);
