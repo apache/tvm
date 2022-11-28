@@ -74,6 +74,8 @@ def gen_module(model, layer, layout, data, kernel, stride):
         module = upsample(data, kernel, layout, method='nearest_neighbor') # TODO: bilinear upsampling
     elif layer == 'upsample_k2':
         module = upsample_k2(data, (2, 2), layout, method='nearest_neighbor') # TODO: bilinear upsampling
+    elif layer == 'gap':
+        module = global_average_pooling(data)
     else:
         raise NotImplementedError("Currently NOT implemented: %s" %(layer))
 
@@ -368,6 +370,115 @@ def upsample_k2(data, kernel, layout, method):
         return module
     else:
         raise NotImplementedError("Currently NOT supported upsampling method: %s"%(method))
+
+def global_average_pooling(data):
+    (b, cw, bh, w) = data
+    cluster = 7
+
+    ## Phase 0) Initialize
+    data = tvm.te.placeholder((b, cw, bh, w), name="data")
+    multiplier = tvm.te.const(16, "float")
+    # multiplier = tvm.te.compute((b, ), lambda b: multiplier, name="multiplier")
+    # multiplier = tvm.te.placeholder((1, ), name='multiplier')
+    shifter = tvm.te.const(16, "int32")
+
+    ## Phase 1) Intra-lane reduction
+    dh = tvm.te.reduce_axis((0, bh), name="dh")
+    dw = tvm.te.reduce_axis((0, w), name="dw")
+    Reg0 = tvm.te.compute((b, cw), lambda b, c: tvm.te.sum(data[b, c, dh, dw]*multiplier, axis=[dh, dw]), name="Reg0")
+    # output0 = tvm.te.compute((b, cw), lambda b, c: Reg0[b, c], name="output0")
+    vReg0, vReg1, vReg2 = tvm.te.compute((b, cw),
+        lambda b, c: (
+            (Reg0[b, c].astype("int")>>16).astype("float"),
+            (Reg0[b, c].astype("int")>>8).astype("float"),
+            (Reg0[b, c].astype("int")>>1).astype("float"),
+        ), name="vReg"
+    )
+    output0, output1, output2 = tvm.te.compute((b, cw), lambda b, c: (vReg0[b, c], vReg1[b, c], vReg2[b, c]), name="output0")
+
+    ## Phase 2) Inter-lane reduction
+    vReg3, vReg4, vReg5 = tvm.te.compute((b, cw), lambda b, c: (output0[b, c], output1[b, c], output2[b, c]), name="vReg")
+    output3, output4, output5 = tvm.te.compute((b, cw), lambda b, c: (vReg3[b, c], vReg4[b, c], vReg5[b, c]), name="output1")
+
+    hReg0, hReg1, hReg2 = tvm.te.compute((b, cw, cluster-1), lambda b, c, cs: (output3[b, c], output4[b, c], output5[b, c]), name="hReg")
+    Reg1 = tvm.te.compute((b, cw, cluster-1),
+        lambda b, c, cs: (
+            hReg0[b, c, cs] + hReg1[b, c, cs] + hReg2[b, c, cs]
+            # (hReg0[b, c, cs].astype("int")<<16).astype("float") +
+            # (hReg1[b, c, cs].astype("int")<<8).astype("float") +
+            # (hReg2[b, c, cs].astype("int")<<1).astype("float")
+        ), name="Reg1"
+    )
+    Reg2 = tvm.te.compute((b, cw, cluster-1),
+        lambda b, c, cs: (
+            output0[b, c] + output1[b, c] + output2[b, c]
+            # (output0[b, c].astype("int")<<16).astype("float") +
+            # (output1[b, c].astype("int")<<8).astype("float") +
+            # (output2[b, c].astype("int")<<1).astype("float")
+        ), name="Reg2"
+    )
+    Reg3 = tvm.te.compute((b, cw, cluster-1), lambda b, c, cs: Reg1[b, c, cs] + Reg2[b, c, cs], name="Reg3")
+
+    vReg6, vReg7, vReg8 = tvm.te.compute((b, cw, cluster-1),
+        lambda b, c, cs: (
+            (Reg3[b, c, cs].astype("int")>>16).astype("float"),
+            (Reg3[b, c, cs].astype("int")>>8).astype("float"),
+            (Reg3[b, c, cs].astype("int")>>1).astype("float"),
+        ), name="vReg"
+    )
+    output6, output7, output8 = tvm.te.compute((b, cw, cluster-1), lambda b, c, cs: (vReg6[b, c, cs], vReg7[b, c, cs], vReg8[b, c, cs]), name="output2")
+
+    vReg9, vReg10, vReg11 = tvm.te.compute((b, cw), lambda b, c: (output6[b, c, 0], output7[b, c, 0], output8[b, c, 0]), name="vReg")
+    Reg4 = tvm.te.compute((b, cw),
+        lambda b, c: (
+            vReg9[b, c] + vReg10[b, c] + vReg11[b, c]
+            # (vReg9[b, c].astype("int")<<16).astype("float") +
+            # (vReg10[b, c].astype("int")<<8).astype("float") +
+            # (vReg11[b, c].astype("int")<<1).astype("float")
+        ), name="Reg4"
+    )
+    output = tvm.te.compute((b, cw), lambda b, c: (Reg4[b, c].astype("int")>>shifter).astype("float"), name="output")
+
+    s = tvm.te.create_schedule([output0.op, output1.op, output2.op, output6.op, output7.op, output8.op, output.op])
+
+    s[Reg0].compute_at(s[vReg0], s[vReg0].op.axis[-1])
+    s[Reg0].compute_at(s[vReg1], s[vReg1].op.axis[-1])
+    s[Reg0].compute_at(s[vReg2], s[vReg2].op.axis[-1])
+
+    s[vReg0].compute_at(s[output0], s[output0].op.axis[-1])
+    s[vReg1].compute_at(s[output1], s[output1].op.axis[-1])
+    s[vReg2].compute_at(s[output2], s[output2].op.axis[-1])
+
+    s[vReg3].compute_at(s[output3], s[output3].op.axis[-1])
+    s[vReg4].compute_at(s[output4], s[output4].op.axis[-1])
+    s[vReg5].compute_at(s[output5], s[output5].op.axis[-1])
+
+    s[output3].compute_at(s[hReg0], s[hReg0].op.axis[1])
+    s[output4].compute_at(s[hReg1], s[hReg1].op.axis[1])
+    s[output5].compute_at(s[hReg2], s[hReg2].op.axis[1])
+
+    s[hReg0].compute_at(s[Reg1], s[Reg1].op.axis[-1])
+    s[hReg1].compute_at(s[Reg1], s[Reg1].op.axis[-1])
+    s[hReg2].compute_at(s[Reg1], s[Reg1].op.axis[-1])
+
+    s[Reg1].compute_at(s[Reg3], s[Reg3].op.axis[-1])
+    s[Reg2].compute_at(s[Reg3], s[Reg3].op.axis[-1])
+
+    s[Reg3].compute_at(s[vReg6], s[vReg6].op.axis[-1])
+    s[Reg3].compute_at(s[vReg7], s[vReg7].op.axis[-1])
+    s[Reg3].compute_at(s[vReg8], s[vReg8].op.axis[-1])
+
+    s[vReg6].compute_at(s[output6], s[output6].op.axis[-1])
+    s[vReg7].compute_at(s[output7], s[output7].op.axis[-1])
+    s[vReg8].compute_at(s[output8], s[output8].op.axis[-1])
+
+    s[vReg9].compute_at(s[Reg4], s[Reg4].op.axis[-1])
+    s[vReg10].compute_at(s[Reg4], s[Reg4].op.axis[-1])
+    s[vReg11].compute_at(s[Reg4], s[Reg4].op.axis[-1])
+
+    s[Reg4].compute_at(s[output], s[output].op.axis[-1])
+
+    module = tvm.lower(s, [data, output0, output1, output2, output])
     return module
 
 def sort_axis(axes):

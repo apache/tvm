@@ -54,9 +54,11 @@ class VectorProcessor():
         self.remove_nodes(attr='name', str='Shifter')
 
         self.optimize('register')
-        self.optimize('vstore')
         self.optimize('filter load') # For kernels that use filter; e.g, Dwconv
+        self.optimize('mac')
         self.optimize('consecutive max')
+        self.optimize('consecutive mac')
+        self.optimize('loop end')
 
     def run(self, swp):
         """
@@ -152,12 +154,16 @@ class VectorProcessor():
         FLAG = False
         if option == 'register':
             FLAG = self.optimize_register()
-        elif option == 'vstore':
-            FLAG = self.optimize_vstore()
+        elif option == 'loop end':
+            FLAG = self.optimize_loop_end()
         elif option == 'filter load':
             FLAG = self.optimize_filter_load()
+        elif option == 'mac':
+            FLAG = self.optimize_mac()
         elif option == 'consecutive max':
             FLAG = self.optimize_consecutive_max()
+        elif option == 'consecutive mac':
+            FLAG = self.optimize_consecutive_mac()
         elif option == 'consecutive load':
             FLAG = self.optimize_consecutive_load()
         else:
@@ -215,6 +221,7 @@ class VectorProcessor():
         scalar_time = [0]
         duration = [0]
         depth = [0]
+        extent_stack = [1]
         for time in self.time_stamp.keys():
             node_num = self.time_stamp[time]['loop']
             if node_num == 'NO LOOP': # depth = 0
@@ -222,12 +229,20 @@ class VectorProcessor():
             else: # depth > 0
                 node = self.graph.nodes[node_num]
                 if (node['type']=='For Start'):
-                    if depth[-1] != node['depth']:
+                    if node_num != nodes[-1]:
                         duration.append(0)
                         name.append(node['name'])
                         nodes.append(node_num)
-                        if node['depth']==depth[-1]+1: extent.append(extent[-1]*node['extent'])
-                        elif node['depth']==depth[-1]-1: extent.append(extent[name.index(node['name'])])
+                        if node['depth']==depth[-1]+1:
+                            extent_stack.append(node['extent'])
+                            extent.append(cumprod(extent_stack[:]))
+                        elif node['depth']==depth[-1]-1:
+                            extent_stack.pop()
+                            extent.append(cumprod(extent_stack[:]))
+                        elif node['depth']==depth[-1]:
+                            extent_stack.pop()
+                            extent_stack.append(node['extent'])
+                            extent.append(cumprod(extent_stack[:]))
                         else: raise NotImplementedError("Currently Not Supported case!")
                         scalar_time.append(node['scalar_time'])
                         depth.append(node['depth']) # update depth
@@ -467,15 +482,15 @@ class VectorProcessor():
         #     if CONNECTED==True: [self.graph.remove_node(node) for node in register]
         return FLAG
 
-    def optimize_vstore(self):
-        """ Vstore at the end of loop can be bypassed """
+    def optimize_loop_end(self):
+        """ Operations at the end of loop can be bypassed """
         FLAG = False
-        store_nodes = self.get_nodes(attr='type', str='Store')
-        for node in store_nodes:
-            children = self.graph.successors(node)
-            if all(self.graph.nodes[child]['type']=='For End' for child in children):
+        for_end_nodes = self.get_nodes(attr='type', str='For End')
+        for node in for_end_nodes:
+            parents = [parent for parent in list(self.graph.predecessors(node)) if self.graph.nodes[parent]['slot']!='Control']
+            for parent in parents:
                 FLAG = True
-                self.graph.nodes[node]['optimize'] = 1
+                self.graph.nodes[parent]['optimize'] = 1
         return FLAG
 
     def optimize_filter_load(self):
@@ -524,6 +539,53 @@ class VectorProcessor():
                 self.graph.remove_node(node)
             return FLAG
 
+    def optimize_mac(self):
+        """ Multiply-Add is substituted with MAC"""
+        # output = MAC(data0, data1, bias) = data0 * data1 + bias
+        #############################################################
+        #     [data0] [data1] [bias]    #   [data0] [data1] [bias]  #
+        #          \     /     /        #       \      \      /     #
+        #  3 cycle  (Mul)     /         #        (### MAC ###)      #
+        #              \     /          #              |            #
+        #      1 cycle  (Add)           #          [output]         #
+        #                 |             #                           #
+        #              [output]         #                           #
+        #############################################################
+        FLAG = False
+        mul_nodes = [node for node in self.graph.nodes if self.graph.nodes[node]['type']=='Mul' and \
+                                                            self.graph.nodes[node]['slot']=='Vector']
+        mac_nodes = [] # [[Mul_node, Add_node], [Mul_node, Add_node], ...]
+        for mul_node in mul_nodes: # choose mul_node with single child node, that is 'Add' op & 'Vector' slot
+            children = list(self.graph.successors(mul_node))
+            SINGLE_CHILDREN = (len(children)==1)
+            if SINGLE_CHILDREN:
+                child = children[0]
+                ADD_VECTOR_CHILD = self.graph.nodes[child]['type']=='Add' and self.graph.nodes[child]['slot']=='Vector'
+                EXCLUSIVE_CHILD = all(child!=mac_node[1] for mac_node in mac_nodes)
+                if ADD_VECTOR_CHILD and EXCLUSIVE_CHILD: mac_nodes.append([mul_node, children[0]])
+
+        if len(mac_nodes) > 0: FLAG = True
+        for mac_node in mac_nodes:
+            mul_node, add_node = mac_node
+            node_num = max(self.graph.nodes)+1
+
+            self.graph.add_node(node_num)
+            self.graph.nodes[node_num]['name'] = self.graph.nodes[add_node]['name']
+            self.graph.nodes[node_num]['type'] = 'Mac'
+            self.graph.nodes[node_num]['slot'] = 'Vector'
+
+            parents0 = list(self.graph.predecessors(mul_node))
+            parents1 = list(self.graph.predecessors(add_node))
+            parents1.remove(mul_node)
+            parents = list(dict.fromkeys(parents0 + parents1))
+            children = list(self.graph.successors(add_node))
+            [self.graph.add_edge(parent, node_num) for parent in parents]
+            [self.graph.add_edge(node_num, child) for child in children]
+
+            self.graph.remove_node(mul_node)
+            self.graph.remove_node(add_node)
+        return FLAG
+
     def optimize_consecutive_max(self):
         """ Consecutive MAX can be bypassed (MAXP_3x3) """
         FLAG = False
@@ -534,6 +596,18 @@ class VectorProcessor():
                 FLAG = True
                 self.graph.nodes[node]['optimize'] = 1
         return FLAG
+
+    def optimize_consecutive_mac(self):
+        """ Consecutive MAX can be bypassed (MAXP_3x3) """
+        FLAG = False
+        max_nodes = self.get_nodes(attr='type', str='Mac')
+        for node in max_nodes:
+            children = self.graph.successors(node)
+            if all(self.graph.nodes[child]['type']=='Mac' for child in children):
+                FLAG = True
+                self.graph.nodes[node]['optimize'] = 1
+        return FLAG
+
 
     def print_node_status(self, clk, in_nodes, rdy_nodes, out_nodes):
         if self.debug:
@@ -587,3 +661,9 @@ class VectorProcessor():
             print("    max_instr_latency: %s"%(max_instr_latency))
         initiation_interval = max(min_length, max_instr_latency)
         return initiation_interval
+
+def cumprod(list):
+    prod = 1
+    for e in list:
+        prod *= e
+    return prod

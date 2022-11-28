@@ -26,6 +26,7 @@ Config = {
                 'Div': [1], # Shifting
                 'LT': [3],
                 'Ch Concat': [1],
+                'Mac': [5, 1],
             },
             'Control':
             {
