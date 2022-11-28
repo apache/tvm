@@ -938,5 +938,26 @@ class TestTransformWithAxisSeparatorsOpaqueBlock(BasePaddingCompare):
                 A[i, j] = T.if_then_else(i == 3 and 2 <= j, 0, 42, dtype="int32")
 
 
+def test_index_map_dtype_legalize():
+    """Test dtype legalization of the index map indices."""
+
+    @T.prim_func
+    def func(A: T.Buffer[T.int64(58), "int32"]):
+        for i in T.serial(T.int64(58)):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                T.writes(A[vi])
+                A[vi] = 0
+
+    sch = tir.Schedule(func)
+
+    # # The following error is raised from the IterVar constructor without the dtype legalization.
+    # # TVMError: Check failed: dom->extent.dtype() == var.dtype() (int64 vs. int32) :
+    # # The dtype of the extent of an IterVar (int64) must match its associated Var's dtype (int32)
+    sch.transform_layout(
+        sch.get_block("block"), buffer="A", index_map=lambda h: [h // 8, h % 8], pad_value=0
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
