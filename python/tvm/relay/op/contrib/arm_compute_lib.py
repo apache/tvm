@@ -285,7 +285,7 @@ def arm_compute_lib_pattern_table(disabled_ops=["concatenate"]):
             return False
         attrs, type_args = expr.attrs, expr.type_args
         for idx in range(len(type_args[0].fields)):
-            if type_args[0].fields[idx].dtype not in ["float32", "uint8"]:
+            if type_args[0].fields[idx].dtype not in ["float32", "uint8", "int8"]:
                 return False
         # ACL concatenate only supports maximum 4 dimensions input tensor
         if attrs.axis not in [-4, -3, -2, -1, 0, 1, 2, 3]:
