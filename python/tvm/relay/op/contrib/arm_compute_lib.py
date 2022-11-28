@@ -242,7 +242,7 @@ def arm_compute_lib_pattern_table(disabled_ops=["concatenate"]):
 
     def check_qnn_conv(extract):
         """Check qnn conv pattern is supported by ACL."""
-        if extract.attrs.out_dtype != "uint8":
+        if extract.attrs.out_dtype not in ("uint8", "int8"):
             return False
         call = extract
         while call.op.name != "qnn.conv2d":
@@ -347,16 +347,17 @@ def conv2d(expr):
 def qnn_conv2d(expr):
     """Check if the external ACL codegen for qnn.conv2d should be used."""
     attrs, args = expr.attrs, expr.args
+    qnn_dtypes = ("uint8", "int8")
 
     if attrs.data_layout != "NHWC":
         return False
     if attrs.out_dtype != "int32" and attrs.out_dtype != "":
         return False
     data_typ = args[0].checked_type
-    if len(data_typ.shape) != 4 or data_typ.shape[0] != 1 or data_typ.dtype != "uint8":
+    if len(data_typ.shape) != 4 or data_typ.shape[0] != 1 or data_typ.dtype not in qnn_dtypes:
         return False
     kernel_typ = args[1].checked_type
-    if len(kernel_typ.shape) != 4 or kernel_typ.dtype != "uint8":
+    if len(kernel_typ.shape) != 4 or kernel_typ.dtype not in qnn_dtypes:
         return False
     is_depthwise = is_depthwise_conv2d(
         data_typ.shape,
