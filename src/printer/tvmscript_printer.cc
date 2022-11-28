@@ -823,13 +823,15 @@ bool WillPrintConstScalar(const PrimExpr& expr) {
     ICHECK(rhs_precedence != ExprPrecedence::kUnknown);                                           \
     /* Update out_precedence of current node. */                                                  \
     *out_precedence = OpPrecedence;                                                               \
-    if (lhs_precedence > OpPrecedence) {                                                          \
+    if (lhs_precedence > OpPrecedence ||                                                          \
+        (lhs_precedence == ExprPrecedence::kAnd && OpPrecedence == ExprPrecedence::kOr)) {        \
       doc << "(" << lhs_doc << ")";                                                               \
     } else {                                                                                      \
       doc << lhs_doc;                                                                             \
     }                                                                                             \
     doc << OpString;                                                                              \
-    if (rhs_precedence >= OpPrecedence) {                                                         \
+    if (rhs_precedence >= OpPrecedence ||                                                         \
+        (rhs_precedence == ExprPrecedence::kAnd && OpPrecedence == ExprPrecedence::kOr)) {        \
       doc << "(" << rhs_doc << ")";                                                               \
     } else {                                                                                      \
       doc << rhs_doc;                                                                             \
@@ -1259,10 +1261,22 @@ Doc TVMScriptPrinter::VisitStmt_(const IfThenElseNode* op) {
   Doc doc;
   doc << "if " << Print(op->condition) << ":";
   doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->then_case));
-  if (!is_one(op->condition) && op->else_case) {
-    doc << Doc::NewLine();
-    doc << "else:" << Doc::Indent(4, Doc::NewLine() << PrintBody(op->else_case.value()));
+
+  Optional<Stmt> else_case = op->else_case;
+  while (else_case) {
+    if (auto* else_if = else_case.value().as<IfThenElseNode>()) {
+      doc << Doc::NewLine();
+      doc << "elif " << Print(else_if->condition) << ":";
+      doc << Doc::Indent(4, Doc::NewLine() << PrintBody(else_if->then_case));
+
+      else_case = else_if->else_case;
+    } else {
+      doc << Doc::NewLine();
+      doc << "else:" << Doc::Indent(4, Doc::NewLine() << PrintBody(else_case.value()));
+      break;
+    }
   }
+
   return doc;
 }
 

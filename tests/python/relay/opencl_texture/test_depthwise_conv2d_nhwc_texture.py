@@ -27,7 +27,7 @@ dtype = tvm.testing.parameter("float32")
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_depthwise_conv2d_deeplabv3_1_129_129_144x3_3_144_1(target, dtype):
+def test_depthwise_conv2d_deeplabv3_1_129_129_144x3_3_144_1(remote, target, dtype):
     input_shape = (1, 129, 129, 144)
     filter_shape = (3, 3, 144, 1)
     kernel_size = (filter_shape[0], filter_shape[1])
@@ -62,12 +62,12 @@ def test_depthwise_conv2d_deeplabv3_1_129_129_144x3_3_144_1(target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target)
+    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_depthwise_conv2d_deeplabv3_4_35_35_576x3_3_576_1(target, dtype):
+def test_depthwise_conv2d_deeplabv3_4_35_35_576x3_3_576_1(remote, target, dtype):
     input_shape = (4, 35, 35, 576)
     filter_shape = (3, 3, 576, 1)
     kernel_size = (filter_shape[0], filter_shape[1])
@@ -102,12 +102,12 @@ def test_depthwise_conv2d_deeplabv3_4_35_35_576x3_3_576_1(target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target)
+    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_depthwise_conv2d_deeplabv3_1_129_129_144x3_3_144_1_with_padding(target, dtype):
+def test_depthwise_conv2d_deeplabv3_1_129_129_144x3_3_144_1_with_padding(remote, target, dtype):
     input_shape = (1, 129, 129, 144)
     filter_shape = (3, 3, 144, 1)
     kernel_size = (filter_shape[0], filter_shape[1])
@@ -144,12 +144,12 @@ def test_depthwise_conv2d_deeplabv3_1_129_129_144x3_3_144_1_with_padding(target,
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target)
+    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_depthwise_conv2d_1_513_513_7x3_3_7_1(target, dtype):
+def test_depthwise_conv2d_1_513_513_7x3_3_7_1(remote, target, dtype):
     input_shape = (1, 513, 513, 7)
     filter_shape = (3, 3, 7, 1)
     bias_shape = (filter_shape[2],)
@@ -183,12 +183,12 @@ def test_depthwise_conv2d_1_513_513_7x3_3_7_1(target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target)
+    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_depthwise_conv2d_1_513_513_3x3_3_3_1(target, dtype):
+def test_depthwise_conv2d_1_513_513_3x3_3_3_1(remote, target, dtype):
     input_shape = (1, 513, 513, 3)
     filter_shape = (3, 3, 3, 1)
     bias_shape = (filter_shape[2],)
@@ -222,4 +222,8 @@ def test_depthwise_conv2d_1_513_513_3x3_3_3_1(target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target)
+    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

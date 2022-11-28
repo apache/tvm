@@ -29,23 +29,27 @@ dtype = tvm.testing.parameter("float32")
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_mean(target, dtype):
+def test_mean(remote, target, dtype):
     # NCHW
     input_shape = (1, 3, 720, 1280)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     mean = relay.mean(A, axis=1, keepdims=True)
     mod = relay.Function([A], mean)
 
-    build_run_compare(mod, {}, {"data": input_shape}, dtype, target)
+    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_argmax(target, dtype):
+def test_argmax(remote, target, dtype):
     # NCHW
     input_shape = (1, 3, 720, 1280)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     argmax = relay.op.argmax(A, axis=[1])
     mod = relay.Function([A], argmax)
 
-    build_run_compare(mod, {}, {"data": input_shape}, dtype, target)
+    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

@@ -45,6 +45,7 @@ requirements:
   host:
     - zlib
     - llvmdev >=11
+    - cctools # [not win]
 
 outputs:
   - name: {{ pkg_name }}-libs
@@ -62,10 +63,12 @@ outputs:
         - llvmdev >=11
         - {{ pin_compatible('cudatoolkit', lower_bound=cuda_version, max_pin='x.x') }}  # [cuda]
         - cudnn >=7.6.0  # [cuda]
+        - cctools # [not win]
       run:
         - llvmdev >=11
         - {{ pin_compatible('cudatoolkit', lower_bound=cuda_version, max_pin='x.x') }}  # [cuda]
         - cudnn >=7.6.0  # [cuda]
+        - cctools # [not win]
 
   - name: {{ pkg_name }}
     script: install_tvm_python.sh  # [not win]

@@ -259,16 +259,22 @@ class Trace(Object):
         """
         _ffi_api.TraceApplyJSONToSchedule(json_obj, sch)  # type: ignore # pylint: disable=no-member
 
-    def show(self, style: Optional[str] = None) -> None:
-        """A sugar for print highlighted trace.
+    def show(self, style: Optional[str] = None, black_format: bool = True) -> None:
+        """A sugar for print highlighted TVM script.
 
         Parameters
         ----------
         style : str, optional
-            Pygments styles extended by "light" (default) and "dark", by default "light"
+
+            Pygmentize printing style, auto-detected if None.  See
+            `tvm.script.highlight.cprint` for more details.
+
+        black_format: bool
+
+            If true (default), use the formatter Black to format the TVMScript
         """
         from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
             cprint,
         )
 
-        cprint(str(self), style=style)
+        cprint(str(self), style=style, black_format=black_format)

@@ -136,18 +136,6 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
 
   void VisitExpr_(const ConstantNode* cn) final { ApplyConsumerScopeToInputs(cn); }
 
-  void DeviceAwareVisitExpr_(const FunctionNode* function_node) final {
-    if (!function_node->HasNonzeroAttr(attr::kPrimitive)) {
-      for (auto&& param : function_node->params) {
-        auto virtual_device = GetVirtualDevice(param);
-        param->virtual_device_ =
-            VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
-                          virtual_device->target, "global");
-      }
-    }
-    transform::DeviceAwareExprVisitor::DeviceAwareVisitExpr_(function_node);
-  }
-
   void DeviceAwareVisitExpr_(const CallNode* call) final {
     // Check the contents of this primitive function
     if (const auto* fn = call->op.as<FunctionNode>()) {

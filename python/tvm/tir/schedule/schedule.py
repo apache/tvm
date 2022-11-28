@@ -1875,7 +1875,7 @@ class Schedule(Object):
         return _ffi_api.ScheduleDecomposeReduction(self, block, loop)  # type: ignore # pylint: disable=no-member
 
     @type_checked
-    def rfactor(self, loop: LoopRV, factor_axis: int) -> LoopRV:
+    def rfactor(self, loop: LoopRV, factor_axis: int) -> BlockRV:
         """Factorize an associative reduction block by the specified loop.
 
         An associative reduction cannot be parallelized directly,

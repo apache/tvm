@@ -94,7 +94,7 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
     } else if (name == "clml.concat") {
       json_node = CreateConcatJSONNode(cn);
     } else {
-      LOG(FATAL) << "Unrecognized CLML  pattern: " << name;
+      json_node = CreateGenericJSONNode(cn);
     }
     return AddNode(json_node, GetRef<Expr>(cn));
   }
@@ -164,7 +164,7 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
       nodes.bn = current_call;
       current_call = current_call->args[0].as<CallNode>();
     }
-    if (backend::IsOp(current_call, "add")) {
+    if (backend::IsOp(current_call, "add") || backend::IsOp(current_call, "nn.bias_add")) {
       nodes.bias = current_call;
       current_call = current_call->args[0].as<CallNode>();
     }
@@ -385,6 +385,28 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
     pad_mode_attr.emplace_back(pad_mode);
     json_node->SetAttr("pad_mode", pad_mode_attr);
 
+    return json_node;
+  }
+
+  std::shared_ptr<JSONGraphNode> CreateGenericJSONNode(const CallNode* cn) {
+    const auto* fn = cn->op.as<FunctionNode>();
+    ICHECK(fn);
+    const auto* node = fn->body.as<CallNode>();
+
+    const auto* node_op = node->op.as<OpNode>();
+    ICHECK(node_op);
+    const std::string name = node_op->name;
+
+    std::vector<JSONGraphNodeEntry> inputs;
+    unsigned int i = 0;
+    for (i = 0; i < cn->args.size(); i++) {
+      inputs.push_back(VisitExpr(cn->args[i])[0]);
+    }
+    for (unsigned int j = i; j < node->args.size(); j++) {
+      inputs.push_back(VisitExpr(node->args[j])[0]);
+    }
+    auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
+    SetCallNodeAttribute(json_node, node);
     return json_node;
   }
 };

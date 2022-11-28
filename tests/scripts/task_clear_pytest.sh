@@ -18,23 +18,6 @@
 
 set -euxo pipefail
 
-# Script to setup additional python env.
-#
-# Use the following command to install the
-# package to /workspace/.local, these additional
-# packages will have precedence over the system packages.
-#
-# command: python3 -m pip install --user <package>==<version>
-#
-echo "Additional setup in ${CI_IMAGE_NAME}"
-
-# Rebuild standalone_crt in build/ tree. This file is not currently archived by pack_lib() in
-# Jenkinsfile. We expect config.cmake to be present from pack_lib().
-# TODO(areusch): Make pack_lib() pack all the data dependencies of TVM.
-python3 tests/scripts/task_build.py \
-    --sccache-bucket tvm-sccache-prod \
-    --cmake-target standalone_crt
-
 # Ensure no stale pytest-results remain from a previous test run.
 pushd build
 rm -rf pytest-results

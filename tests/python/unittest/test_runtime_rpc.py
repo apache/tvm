@@ -448,10 +448,10 @@ def test_local_func():
 
 
 @tvm.testing.requires_rpc
-def test_rpc_tracker_register():
+@pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
+def test_rpc_tracker_register(device_key):
     # test registration
     tracker = Tracker(port=9000, port_end=10000)
-    device_key = "test_device"
     server1 = rpc.Server(
         host="127.0.0.1",
         port=9000,
@@ -521,10 +521,10 @@ def _target(host, port, device_key, timeout):
 
 
 @tvm.testing.requires_rpc
-def test_rpc_tracker_request():
+@pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
+def test_rpc_tracker_request(device_key):
     # test concurrent request
     tracker = Tracker(port=9000, port_end=10000)
-    device_key = "test_device"
     server = rpc.Server(
         port=9000,
         port_end=10000,
@@ -562,14 +562,13 @@ def test_rpc_tracker_request():
 
 
 @tvm.testing.requires_rpc
-def test_rpc_tracker_via_proxy():
+@pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
+def test_rpc_tracker_via_proxy(device_key):
     """
          tracker
          /     \
     Host   --   Proxy -- RPC server
     """
-
-    device_key = "test_device"
 
     tracker_server = Tracker(port=9000, port_end=9100)
     proxy_server = Proxy(

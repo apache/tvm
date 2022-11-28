@@ -154,16 +154,91 @@ def estimate_peak_flops_tensorcore(
         if remote is None:
             raise RuntimeError("A RPCSession must be provided when using a remote device.")
         temp = utils.tempdir()
-        path = temp.relpath("peak_fma_flops.tar")
+        path = temp.relpath("peak_mma_flops.tar")
         f.export_library(path)
         remote.upload(path)
-        f = remote.load_module("peak_fma_flops.tar")
+        f = remote.load_module("peak_mma_flops.tar")
 
     x = nd.empty((16, 16), dtype=mat_dtype, device=dev)
     y = nd.empty((16, 16), dtype=acc_dtype, device=dev)
     times = f.time_evaluator(f.entry_name, dev, repeat=10, number=1)(x, y)
     # each mma operation computes 16 x 16 x 16 FLOPs
     return n * 16 * 16 * 16 * 2 * sms * 8 / times.min
+
+
+@functools.lru_cache(maxsize=None)
+def estimate_peak_flops_fma(
+    target: Target,
+    dev: Device,
+    remote: Optional[RPCSession],
+    dtype: str,
+) -> Tuple[float, float, str]:
+    """Estimate the peak FLOP/s of a cuda device with fma operations (not using tensor cores).
+
+    References
+    ----------
+    https://www.nvidia.com/content/PDF/nvidia-ampere-ga-102-gpu-architecture-whitepaper-v2.1.pdf
+
+    Parameters
+    ----------
+    target : Target
+        Target to run on. This should be as specific to the actual hardware as
+        possible.
+    dev : Device
+        Device to run on.
+    remote : Optional[RPCSession]
+      Remote session used to upload artifacts for runtime evaluation. Must be
+      the same session used to create `dev`.
+    dtype : str
+        Dtype of fma operation
+
+    Returns
+    -------
+    peak_flops : float
+        Approximate sustained FLOP/s of this target/device combo assuming
+        fma instructions. Addition and multiplications are each counted as
+        separate FLOPs.
+    """
+
+    vec_width = 32
+    warps = 16  # need 16 warps to get enough in-SM parallelism
+    sms = dev.multi_processor_count
+    n = 100000
+
+    @T.prim_func
+    def peak_flops_fma_tir(
+        A: T.Buffer((sms, warps, vec_width), dtype),
+        B: T.Buffer((sms, warps, vec_width), dtype),
+    ):
+        # pylint: disable=invalid-name, missing-function-docstring
+        shared = T.alloc_buffer((sms, warps, vec_width), dtype=dtype, scope="shared")
+        for sm in T.thread_binding(sms, thread="blockIdx.x"):
+            for warp in T.thread_binding(warps, thread="threadIdx.y"):
+                for t in T.thread_binding(vec_width, thread="threadIdx.x"):
+                    shared[sm, warp, t] = A[sm, warp, t]
+                    for _ in range(n):
+                        shared[sm, warp, t] = (
+                            shared[sm, warp, t] * shared[sm, warp, t] + shared[sm, warp, t]
+                        )
+                    B[sm, warp, t] = shared[sm, warp, t]
+
+    with transform.PassContext(opt_level=3):
+        f = build(peak_flops_fma_tir, target=target)
+
+    # upload to remote if running over rpc
+    if dev.device_type >= RPC_SESS_MASK:
+        if remote is None:
+            raise RuntimeError("A RPCSession must be provided when using a remote device.")
+        temp = utils.tempdir()
+        path = temp.relpath("peak_fma_flops.tar")
+        f.export_library(path)
+        remote.upload(path)
+        f = remote.load_module("peak_fma_flops.tar")
+
+    x = nd.empty((sms, warps, vec_width), dtype=dtype, device=dev)
+    y = nd.empty((sms, warps, vec_width), dtype=dtype, device=dev)
+    times = f.time_evaluator(f.entry_name, dev, repeat=10, number=1)(x, y)
+    return n * warps * sms * vec_width * 2 / times.min
 
 
 @registry.estimate_peak_flops.register("cuda")
@@ -203,17 +278,22 @@ def estimate_peak_flops(
     name : str
         Dtype/intrinsic used by `func` to achieve peak flops.
     """
-    assert nvcc.have_tensorcore(
-        dev.compute_version
-    ), "CUDA roofline only works with devices that have tensorcores"
+    has_tensorcore = nvcc.have_tensorcore(dev.compute_version)
+    # assume that the first argument dtype is the same as all the others
+    dtype = list(func.buffer_map.values())[0].dtype
+    if dtype == "float16" and has_tensorcore:
+        peak_flops = estimate_peak_flops_tensorcore(target, dev, remote)
+        name = "float16 tensorcore"
+    else:
+        peak_flops = estimate_peak_flops_fma(target, dev, remote, dtype)
+        name = f"{dtype} fma"
     flops = np.sum(
         features["float_addsub"]
         + features["float_mul"]
         + features["float_mad"] * 2
         + features["float_divmod"]
     )
-    peak_flops = estimate_peak_flops_tensorcore(target, dev, remote)
-    return flops, peak_flops, "float16 tensorcore"
+    return flops, peak_flops, name
 
 
 @T.prim_func

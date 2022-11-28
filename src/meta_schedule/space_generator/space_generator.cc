@@ -25,7 +25,7 @@ String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "llvm") {
     static const PackedFunc* f_check_vnni =
         runtime::Registry::Get("tvm.topi.x86.utils.target_has_vnni");
-    ICHECK(*f_check_vnni != nullptr) << "The `target_has_vnni` func is not in tvm registry.";
+    ICHECK(f_check_vnni != nullptr) << "The `target_has_vnni` func is not in tvm registry.";
     if (target->GetAttr<String>("mcpu") &&
         (*f_check_vnni)(target->GetAttr<String>("mcpu").value())) {
       return "vnni";
@@ -42,7 +42,7 @@ String GetRuleKindFromTarget(const Target& target) {
         sm = sm.substr(3);
         try {
           if (std::stoi(sm) >= 75) {
-            return "cuda_tensorcore";
+            return "cuda-tensorcore";
           }
         } catch (const std::invalid_argument& e) {
           LOG(WARNING) << "ValueError: Unable to parse `target.arch`: " << sm
@@ -78,7 +78,7 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
       default_sch_rules = ScheduleRule::DefaultCUDA();
       default_postprocs = Postproc::DefaultCUDA();
       default_mutator_probs = Mutator::DefaultCUDA();
-    } else if (kind == "cuda_tensorcore") {
+    } else if (kind == "cuda-tensorcore") {
       default_sch_rules = ScheduleRule::DefaultCUDATensorCore();
       default_postprocs = Postproc::DefaultCUDATensorCore();
       default_mutator_probs = Mutator::DefaultCUDATensorCore();

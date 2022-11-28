@@ -358,8 +358,19 @@ def matmul_out_dtype(inputs, out_dtype):
         )
         return _op.reshape(output, fold_constant(final_shape))
 
-    if a_rank == 1:
-        return _op.squeeze(_op.nn.matmul(_op.expand_dims(inputs[0], axis=0), inputs[1]), axis=[0])
+    if a_rank == 1 or b_rank == 1:
+        axis = []
+        if a_rank == 1:
+            lhs = _op.expand_dims(inputs[0], axis=0)
+            axis.append(0)
+        else:
+            lhs = inputs[0]
+        if b_rank == 1:
+            rhs = _op.expand_dims(inputs[1], axis=1)
+            axis.append(-1)
+        else:
+            rhs = inputs[1]
+        return _op.squeeze(_op.nn.matmul(lhs, rhs), axis=axis)
 
     # Otherwise a simple dense op will get the job done.
     input_1_t = _op.transpose(inputs[1], axes=(1, 0))

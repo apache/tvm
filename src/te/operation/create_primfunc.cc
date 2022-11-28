@@ -156,8 +156,8 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
       Var new_var(iter_var->var->name_hint, iter_var->var->dtype);
       var_map[iter_var->var.get()] = new_var;
 
-      const PrimExpr& dom_min = analyzer->Simplify(iter_var->dom->min);
-      const PrimExpr& dom_extent = analyzer->Simplify(iter_var->dom->extent);
+      PrimExpr dom_min = analyzer->Simplify(iter_var->dom->min);
+      PrimExpr dom_extent = analyzer->Simplify(iter_var->dom->extent);
       iter_vars.push_back(IterVar(Range::FromMinExtent(dom_min, dom_extent), new_var,
                                   iter_var->iter_type, iter_var->thread_tag, iter_var->span));
     }
@@ -496,7 +496,7 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
 PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
                                      const Array<runtime::NDArray>& constants,
                                      std::optional<DataType> index_dtype_override) {
-  // Infomations used in CreatePrimFunc and its sub-functions.
+  // Information used in CreatePrimFunc and its sub-functions.
   CreateFuncInfo info(arg_list);
   // Root body stmts.
   Array<Stmt> root_stmts;

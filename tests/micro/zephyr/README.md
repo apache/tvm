@@ -40,3 +40,9 @@ To see the list of supported values for `--board`, run:
 ```
 $ pytest test_zephyr.py --help
 ```
+
+If you like to test with a real hardware, you have the option to pass the serial number
+for your development board.
+```
+$ pytest test_zephyr.py --board=nrf5340dk_nrf5340_cpuapp --serial="0672FF5"
+```

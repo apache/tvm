@@ -76,7 +76,7 @@ def has_fpu(board: str):
 
 
 def build_project(
-    temp_dir, zephyr_board, west_cmd, mod, build_config, simd=False, extra_files_tar=None
+    temp_dir, zephyr_board, mod, build_config, serial_number, simd=False, extra_files_tar=None
 ):
     project_dir = temp_dir / "project"
 
@@ -88,9 +88,9 @@ def build_project(
         project_options = {
             "extra_files_tar": extra_files_tar,
             "project_type": "aot_standalone_demo",
-            "west_cmd": west_cmd,
             "verbose": bool(build_config.get("debug")),
             "board": zephyr_board,
+            "serial_number": serial_number,
             "compile_definitions": [
                 # TODO(mehrdadh): It fails without offset.
                 f"-DWORKSPACE_SIZE={workspace_size + 128}",
@@ -197,7 +197,15 @@ def run_model(project):
 
 
 def generate_project(
-    temp_dir, board, west_cmd, lowered, build_config, sample, output_shape, output_type, load_cmsis
+    temp_dir,
+    board,
+    lowered,
+    build_config,
+    sample,
+    output_shape,
+    output_type,
+    load_cmsis,
+    serial_number,
 ):
     with tempfile.NamedTemporaryFile() as tar_temp_file:
         with tarfile.open(tar_temp_file.name, "w:gz") as tf:
@@ -222,9 +230,9 @@ def generate_project(
         project, project_dir = build_project(
             temp_dir,
             board,
-            west_cmd,
             lowered,
             build_config,
+            serial_number,
             simd=load_cmsis,
             extra_files_tar=tar_temp_file.name,
         )

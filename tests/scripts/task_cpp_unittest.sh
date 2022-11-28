@@ -28,38 +28,16 @@ else
     BUILD_DIR=build
 fi
 
-# Python is required by apps/bundle_deploy
-source tests/scripts/setup-pytest-env.sh
 
-export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
 # NOTE: important to use abspath, when VTA is enabled.
-export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
+VTA_HW_PATH=$(pwd)/3rdparty/vta-hw
+export VTA_HW_PATH
 
 # to avoid CI thread throttling.
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
-# Build cpptest suite
-python3 tests/scripts/task_build.py \
-    --sccache-bucket tvm-sccache-prod \
-    --cmake-target cpptest \
-    --build-dir "${BUILD_DIR}"
-
-# crttest requries USE_MICRO to be enabled.
-if grep -Fq "USE_MICRO ON" ${BUILD_DIR}/TVMBuildOptions.txt; then
-  pushd "${BUILD_DIR}"
-  ninja crttest
-  popd
-fi
-
 pushd "${BUILD_DIR}"
-ctest --gtest_death_test_style=threadsafe
+# run cpp test executable
+./cpptest
 popd
-
-# Test MISRA-C runtime. It requires USE_MICRO to be enabled.
-if grep -Fq "USE_MICRO ON" ${BUILD_DIR}/TVMBuildOptions.txt; then
-  pushd apps/bundle_deploy
-  rm -rf build
-  make test_dynamic test_static
-  popd
-fi
