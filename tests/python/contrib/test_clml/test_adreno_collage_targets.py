@@ -27,7 +27,7 @@ import tempfile
 import os
 import shutil
 import numpy as np
-import menangerie
+from test_clml import menangerie
 from tvm import rpc
 from tvm.contrib import utils, ndk
 
