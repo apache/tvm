@@ -225,7 +225,7 @@ if use_physical_hw:
             "west_cmd": "west",
             "verbose": False,
             "project_type": "host_driven",
-            "serial_number": SERIAL
+            "serial_number": SERIAL,
         },
     )
 
@@ -269,7 +269,7 @@ if use_physical_hw:
             "west_cmd": "west",
             "verbose": False,
             "project_type": "host_driven",
-            "serial_number": SERIAL
+            "serial_number": SERIAL,
         },
     )
 
