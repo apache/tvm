@@ -308,7 +308,10 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   Array<IterVar> axes = compute_op->axis;
   axes.insert(axes.end(), compute_op->reduce_axis.begin(), compute_op->reduce_axis.end());
 
-  Array<PrimExpr> bindings = axes.Map([&](IterVar iter_var) -> PrimExpr { return iter_var->var; });
+  Array<PrimExpr> bindings = axes.Map([&](IterVar iter_var) -> PrimExpr {
+    int bits = std::max(iter_var->dom->min.dtype().bits(), iter_var->dom->extent.dtype().bits());
+    return Var(iter_var->var->name_hint, runtime::DataType::Int(bits));
+  });
 
   // Step 2. Generate block bodies.
   Array<Stmt> seq_stmt;
@@ -351,7 +354,8 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     const IterVar& axis = axes[i - 1];
     PrimExpr dom_min = analyzer->Simplify(axis->dom->min);
     PrimExpr dom_extent = analyzer->Simplify(axis->dom->extent);
-    body = For(axis->var, dom_min, dom_extent, ForKind::kSerial, body);
+    const Var& loop_var = Downcast<Var>(bindings[i - 1]);
+    body = For(loop_var, dom_min, dom_extent, ForKind::kSerial, body);
   }
 
   return body;
