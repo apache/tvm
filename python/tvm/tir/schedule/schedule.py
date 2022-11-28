@@ -2751,9 +2751,9 @@ class Schedule(Object):
             # buffer's type.  If the default `tvm.runtime.convert`
             # behavior is applied, these would be converted to
             # int32/float32, which may not match the buffer's type.
-            if isinstance(pad_value, int):
+            if "int" in buffer_obj.dtype and isinstance(pad_value, int):
                 pad_value = IntImm(buffer_obj.dtype, pad_value)
-            elif isinstance(pad_value, float):
+            elif "float" in buffer_obj.dtype and isinstance(pad_value, float):
                 pad_value = FloatImm(buffer_obj.dtype, pad_value)
             pad_value = IndexMap.from_func(
                 lambda *indices: pad_value, ndim=len(index_map.final_indices)

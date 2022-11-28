@@ -533,6 +533,21 @@ class TestErrorOnWrongPaddingType(BasePaddingCompare):
     expected = tvm.tir.schedule.schedule.ScheduleError
 
 
+class TestErrorOnNonMatchingTypes(BasePaddingCompare):
+    """The padding must have the same dtype as the buffer"""
+
+    pad_value = tvm.testing.parameter(0)
+
+    def before():
+        A = T.alloc_buffer(14, "float32")
+        for i in T.serial(14):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                A[vi] = 0
+
+    expected = tvm.tir.schedule.schedule.ScheduleError
+
+
 class TestPaddedTransformIfThenElse(BasePaddingCompare):
     """Use if_then_else to represent padding, if possible.
 
