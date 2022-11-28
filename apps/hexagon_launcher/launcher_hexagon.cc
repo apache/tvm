@@ -47,11 +47,17 @@ static AEEResult error_too_small(const std::string& func_name, const std::string
 int __QAIC_HEADER(launcher_rpc_open)(const char* uri, remote_handle64* handle) {
   *handle = 0;  // Just use any value.
   reset_device_api();
+  static const tvm::runtime::PackedFunc acq_res =
+      get_runtime_func("device_api.hexagon.acquire_resources");
+  acq_res();
   return AEE_SUCCESS;
 }
 
 int __QAIC_HEADER(launcher_rpc_close)(remote_handle64 handle) {
   // Comment to stop clang-format from single-lining this function.
+  static const tvm::runtime::PackedFunc rel_res =
+      get_runtime_func("device_api.hexagon.release_resources");
+  rel_res();
   return AEE_SUCCESS;
 }
 
