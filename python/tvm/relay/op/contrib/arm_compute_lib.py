@@ -258,7 +258,7 @@ def arm_compute_lib_pattern_table(disabled_ops=["concatenate"]):
 
     def check_qnn_dense(extract):
         """Check qnn conv pattern is supported by ACL."""
-        if extract.attrs.out_dtype != "uint8":
+        if extract.attrs.out_dtype not in ("uint8", "int8"):
             return False
         call = extract
         while call.op.name != "qnn.dense":
@@ -414,10 +414,10 @@ def qnn_dense(expr):
     """Check if the external ACL codegen for qnn.dense should be used."""
     attrs, args = expr.attrs, expr.args
     data_typ = args[0].checked_type
-    if data_typ.dtype != "uint8":
+    if data_typ.dtype not in ("uint8", "int8"):
         return False
     kernel_typ = args[1].checked_type
-    if len(kernel_typ.shape) != 2 or kernel_typ.dtype != "uint8":
+    if len(kernel_typ.shape) != 2 or kernel_typ.dtype not in ("uint8", "int8"):
         return False
     if attrs.out_dtype != "int32":
         return False
