@@ -291,9 +291,9 @@ def test_pooling(
         ["nn.global_avg_pool2d", "float32", (8, 8, 16)],
         ["nn.global_avg_pool2d", "float32", (9, 9, 16)],
         ["nn.global_avg_pool2d", "uint8", (8, 8, 16)],
-        ["nn.global_avg_pool2d", "uint8", (8, 8, 16)],
+        ["nn.global_avg_pool2d", "uint8", (9, 9, 16)],
         ["nn.global_avg_pool2d", "int8", (8, 8, 16)],
-        ["nn.global_avg_pool2d", "int8", (8, 8, 16)],
+        ["nn.global_avg_pool2d", "int8", (9, 9, 16)],
     ],
 )
 def test_global_pooling(typef, dtype, input_shape):
