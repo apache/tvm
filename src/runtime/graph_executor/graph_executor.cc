@@ -481,7 +481,7 @@ void GraphExecutor::SetupOpExecs() {
   // setup the array and requirements.
   for (uint32_t nid = 0; nid < this->GetNumOfNodes(); ++nid) {
     const auto& inode = nodes_[nid];
-    if (inode.op_type == "null") continue;
+    if (inode.op_type == "null" || inode.param.func_name == "__nop") continue;
     std::vector<DLTensor> args;
     for (const auto& e : inode.inputs) {
       uint32_t eid = this->entry_id(e);
@@ -543,9 +543,7 @@ std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs>> GraphEx
     }
   }
 
-  if (param.func_name == "__nop") {
-    return {[]() {}, arg_ptr};
-  } else if (param.func_name == "__copy") {
+  if (param.func_name == "__copy") {
     // Perform cross device data copy.
     // Directly copy data from the input to the output.
     // TODO(mbs): device_copy cleanup.
