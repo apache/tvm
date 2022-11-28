@@ -2755,10 +2755,6 @@ class Schedule(Object):
                 pad_value = IntImm(buffer_obj.dtype, pad_value)
             elif "float" in buffer_obj.dtype and isinstance(pad_value, float):
                 pad_value = FloatImm(buffer_obj.dtype, pad_value)
-            else:
-                raise TypeError(
-                    f"Buffer type: {buffer_obj.dtype} and pad_value: {type(pad_value)} mismatch"
-                )
             pad_value = IndexMap.from_func(
                 lambda *indices: pad_value, ndim=len(index_map.final_indices)
             )

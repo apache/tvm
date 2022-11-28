@@ -545,7 +545,7 @@ class TestErrorOnNonMatchingTypes(BasePaddingCompare):
                 vi = T.axis.remap("S", [i])
                 A[vi] = 0
 
-    expected = TypeError
+    expected = tvm.tir.schedule.schedule.ScheduleError
 
 
 class TestPaddedTransformIfThenElse(BasePaddingCompare):
