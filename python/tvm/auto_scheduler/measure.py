@@ -1096,73 +1096,73 @@ def _rpc_run(
     tic = time.time()
     error_no = 0
     error_msg = None
-    try:
-        # upload built module
-        remote = request_remote(key, host, port, priority, timeout)
-        remote.upload(build_res.filename)
-        func = remote.load_module(os.path.split(build_res.filename)[1])
-        dev = remote.device(str(inp.task.target), device)
-        # Limitation:
-        # We can not get PackFunction directly in the remote mode as it is wrapped
-        # under the std::function. We could lift the restriction later once we fold
-        # the PackedFunc as an object. Currently, we pass function name to work
-        # around it.
-        f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
-        time_f = func.time_evaluator(
-            func.entry_name,
-            dev,
-            number=number,
-            repeat=repeat,
-            min_repeat_ms=min_repeat_ms,
-            f_preproc=f_prepare,
-        )
-    # pylint: disable=broad-except
-    except Exception:
-        costs = (MAX_FLOAT,)
-        error_no = MeasureErrorNo.COMPILE_DEVICE
-        error_msg = make_traceback_info()
-
-    if error_no == 0:
+    with request_remote(key, host, port, priority, timeout) as remote:
         try:
-            stream = dev.create_raw_stream()
-            dev.set_raw_stream(stream)
-            random_fill = remote.get_function("tvm.contrib.random.random_fill")
-            assert (
-                random_fill
-            ), "Please make sure USE_RANDOM is ON in the config.cmake on the remote devices"
-
-            assert len(args) == len(build_res.args)
-            loc_args = []
-            # pylint: disable=consider-using-enumerate
-            for idx in range(len(args)):
-                if args[idx] is None:
-                    build_res_arg = build_res.args[idx]
-                    empty_array = ndarray.empty(
-                        get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
-                    )
-                    random_fill(empty_array)
-                    loc_args.append(empty_array)
-                else:
-                    loc_args.append(ndarray.array(args[idx], dev))
-            dev.sync()
-
-            # First run for check that the kernel is correct
-            func.entry_func(*loc_args)
-            dev.sync()
-
-            costs = time_f(*loc_args).results
-
-            # clean up remote files
-            remote.remove(build_res.filename)
-            remote.remove(os.path.splitext(build_res.filename)[0] + ".so")
-            remote.remove("")
-            dev.free_raw_stream(stream)
+            # upload built module
+            remote.upload(build_res.filename)
+            func = remote.load_module(os.path.split(build_res.filename)[1])
+            dev = remote.device(str(inp.task.target), device)
+            # Limitation:
+            # We can not get PackFunction directly in the remote mode as it is wrapped
+            # under the std::function. We could lift the restriction later once we fold
+            # the PackedFunc as an object. Currently, we pass function name to work
+            # around it.
+            f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
+            time_f = func.time_evaluator(
+                func.entry_name,
+                dev,
+                number=number,
+                repeat=repeat,
+                min_repeat_ms=min_repeat_ms,
+                f_preproc=f_prepare,
+            )
         # pylint: disable=broad-except
         except Exception:
-            dev.free_raw_stream(stream)
             costs = (MAX_FLOAT,)
-            error_no = MeasureErrorNo.RUNTIME_DEVICE
+            error_no = MeasureErrorNo.COMPILE_DEVICE
             error_msg = make_traceback_info()
+
+        if error_no == 0:
+            try:
+                stream = dev.create_raw_stream()
+                dev.set_raw_stream(stream)
+                random_fill = remote.get_function("tvm.contrib.random.random_fill")
+                assert (
+                    random_fill
+                ), "Please make sure USE_RANDOM is ON in the config.cmake on the remote devices"
+
+                assert len(args) == len(build_res.args)
+                loc_args = []
+                # pylint: disable=consider-using-enumerate
+                for idx in range(len(args)):
+                    if args[idx] is None:
+                        build_res_arg = build_res.args[idx]
+                        empty_array = ndarray.empty(
+                            get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
+                        )
+                        random_fill(empty_array)
+                        loc_args.append(empty_array)
+                    else:
+                        loc_args.append(ndarray.array(args[idx], dev))
+                dev.sync()
+
+                # First run for check that the kernel is correct
+                func.entry_func(*loc_args)
+                dev.sync()
+
+                costs = time_f(*loc_args).results
+
+                # clean up remote files
+                remote.remove(build_res.filename)
+                remote.remove(os.path.splitext(build_res.filename)[0] + ".so")
+                remote.remove("")
+                dev.free_raw_stream(stream)
+            # pylint: disable=broad-except
+            except Exception:
+                dev.free_raw_stream(stream)
+                costs = (MAX_FLOAT,)
+                error_no = MeasureErrorNo.RUNTIME_DEVICE
+                error_msg = make_traceback_info()
 
     shutil.rmtree(os.path.dirname(build_res.filename))
     toc = time.time()

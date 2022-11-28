@@ -566,6 +566,7 @@ def run_module(
             else:
                 logger.debug("Running on remote RPC with no key.")
                 session = rpc.connect(hostname, port)
+            stack.enter_context(session)
         elif device == "micro":
             # Remote RPC (running on a micro target)
             logger.debug("Running on remote RPC (micro target).")
@@ -578,6 +579,7 @@ def run_module(
             # Local
             logger.debug("Running a local session.")
             session = rpc.LocalSession()
+            stack.enter_context(session)
 
         # Micro targets don't support uploading a model. The model to be run
         # must be already flashed into the micro target before one tries

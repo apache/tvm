@@ -337,16 +337,16 @@ class RPCRunner(Runner):
             or "rocm" in self.task.target.keys
             or "vulkan" in self.task.target.keys
         ):
-            remote = request_remote(self.key, self.host, self.port)
-            dev = remote.device(str(self.task.target), 0)
-            max_dims = dev.max_thread_dimensions
-            kwargs["checks"]["gpu"] = {
-                "max_shared_memory_per_block": dev.max_shared_memory_per_block,
-                "max_threads_per_block": dev.max_threads_per_block,
-                "max_thread_x": max_dims[0],
-                "max_thread_y": max_dims[1],
-                "max_thread_z": max_dims[2],
-            }
+            with request_remote(self.key, self.host, self.port) as remote:
+                dev = remote.device(str(self.task.target), 0)
+                max_dims = dev.max_thread_dimensions
+                kwargs["checks"]["gpu"] = {
+                    "max_shared_memory_per_block": dev.max_shared_memory_per_block,
+                    "max_threads_per_block": dev.max_threads_per_block,
+                    "max_thread_x": max_dims[0],
+                    "max_thread_y": max_dims[1],
+                    "max_thread_z": max_dims[2],
+                }
         if "hexagon" in self.task.target.keys:
             kwargs["checks"]["hexagon"] = {"vtcm_capacity": self.task.target.vtcm_capacity}
 
@@ -733,19 +733,19 @@ class DefaultModuleLoader:
 
     @contextlib.contextmanager
     def __call__(self, remote_kwargs, build_result):
-        remote = request_remote(**remote_kwargs)
-        if self.pre_load_function is not None:
-            self.pre_load_function(remote, build_result)
+        with request_remote(**remote_kwargs) as remote:
+            if self.pre_load_function is not None:
+                self.pre_load_function(remote, build_result)
 
-        remote.upload(build_result.filename)
-        try:
-            yield remote, remote.load_module(os.path.split(build_result.filename)[1])
+            remote.upload(build_result.filename)
+            try:
+                yield remote, remote.load_module(os.path.split(build_result.filename)[1])
 
-        finally:
-            # clean up remote files
-            remote.remove(build_result.filename)
-            remote.remove(os.path.splitext(build_result.filename)[0] + ".so")
-            remote.remove("")
+            finally:
+                # clean up remote files
+                remote.remove(build_result.filename)
+                remote.remove(os.path.splitext(build_result.filename)[0] + ".so")
+                remote.remove("")
 
 
 def default_module_loader(pre_load_function=None):
@@ -828,11 +828,11 @@ def check_remote(target, device_key, host=None, port=None, priority=100, timeout
 
     def _check():
         logger.debug("waiting for device...")
-        remote = request_remote(device_key, host, port, priority)
-        dev = remote.device(str(target))
-        while not dev.exist:  # wait until we get an available device
-            pass
-        logger.debug("device available")
+        with request_remote(device_key, host, port, priority) as remote:
+            dev = remote.device(str(target))
+            while not dev.exist:  # wait until we get an available device
+                pass
+            logger.debug("device available")
 
     t = threading.Thread(
         target=_check,
@@ -840,9 +840,9 @@ def check_remote(target, device_key, host=None, port=None, priority=100, timeout
     t.start()
     t.join(timeout)
 
-    remote = request_remote(device_key, host, port, priority)
-    dev = remote.device(str(target))
-    return dev.exist
+    with request_remote(device_key, host, port, priority) as remote:
+        dev = remote.device(str(target))
+        return dev.exist
 
 
 def set_cuda_target_arch(arch):
