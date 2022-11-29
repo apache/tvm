@@ -18,48 +18,8 @@
 """A collection of Relay models for exercising Collage."""
 
 import tvm
-import onnx
 import numpy as np
 import logging
-import tvm.contrib.target.onnx
-
-MODEL_PREFIX = "/home/mbs/gauntlet/models/"
-MNIST = {
-    "name": "mnist",
-    "filename": "mnist-8.onnx",
-    "input_shapes": {"Input3": [1, 1, 28, 28]},
-    "input_dtypes": {"Input3": "float32"},
-    "main_dtype": "float32",
-}
-GPT2 = {
-    "name": "gpt2",
-    "filename": "gpt2.onnx",
-    "input_shapes": {"input1": [1, 50, 32]},
-    "input_dtypes": {"input1": "int64"},
-    "main_dtype": "float32",
-}
-RESNET50V2 = {
-    "name": "resnet50",
-    "filename": "resnet50-v2-7.onnx",
-    "input_shapes": {"data": [1, 3, 224, 224]},
-    "input_dtypes": {"data": "float32"},
-    "main_dtype": "float32",
-}
-MOBILENETV2 = {
-    "name": "mobilenet",
-    "filename": "mobilenetv2-1.0.onnx",
-    "input_shapes": {"data": [1, 3, 224, 224]},
-    "input_dtypes": {"data": "float32"},
-    "main_dtype": "float32",
-}
-# Note that resnext50_32_4d below was extracted directly from the pytorch model and not from any onnx file.
-RESNEXT50_32_4d = {
-    "name": "resnext50_32_4d",
-    "filename": "resnext50_32x4d.onnx",
-    "input_shapes": {"x": [1, 64, 56, 56]},
-    "input_dtypes": {"x": "float32"},
-    "main_dtype": "float32",
-}
 
 
 def make_const(dtype, shape):
@@ -4216,73 +4176,4 @@ def resnext50_32x4d_16():
         "mod": mod,
         "params": None,
         "main_dtype": "float16",
-    }
-
-
-def describe_onnx(name, filename):
-    """Returns the description of the ONNX model at filename, which can be passed to from_onnx to actually load
-    the model. Note that ? (ie unknown) shape dimensions must be manually changed to concrete dimensions
-    which are consistent with the overall model."""
-    onnx_model = onnx.load(MODEL_PREFIX + filename)
-    input_shapes = {}
-    input_dtypes = {}
-    initializer_names = [n.name for n in onnx_model.graph.initializer]
-    for input_info in onnx_model.graph.input:
-        if input_info.name not in initializer_names:
-            _, shape, dtype, _ = tvm.relay.frontend.onnx.get_info(input_info)
-            if dtype is None:
-                raise ValueError(f"Unknown dtype on input '{input_info.name}' is not supported.")
-            input_shapes.update({input_info.name: shape})
-            input_dtypes.update({input_info.name: dtype})
-    print(
-        f"{{'name': '{name}', 'filename': '{filename}', 'input_shapes': {input_shapes}, 'input_dtypes': {input_dtypes}, 'main_dtype': 'float32'}}"
-    )
-
-
-def from_onnx(model):
-    logging.info("-------------------- BEGIN ONNX IMPORT --------------------")
-
-    filename = MODEL_PREFIX + model["filename"]
-    logging.info(f"Loading ONNX model from {filename}")
-
-    onnx_model = onnx.load(filename)
-    logging.info(f"Loaded model from {filename}")
-
-    mod, params = tvm.relay.frontend.from_onnx(
-        onnx_model, model["input_shapes"], freeze_params=True
-    )
-    mod = tvm.relay.transform.InferType()(mod)
-    logging.info("-------------------- END ONNX IMPORT --------------------")
-
-    logging.info(f"Imported model:\n{mod}")
-    logging.info(f"Params:\n{params}")
-
-    return {
-        "name": model["name"],
-        "input_shapes": model["input_shapes"],
-        "input_dtypes": model["input_dtypes"],
-        "mod": mod,
-        "params": params,
-        "main_dtype": model["main_dtype"],
-    }
-
-
-def to_onnx(model):
-    logging.info("-------------------- BEGIN ONNX EXPORT --------------------")
-    short_filename = model["name"] + ".onnx"
-    filename = MODEL_PREFIX + short_filename
-    logging.info(f"Saving ONNX model to {filename}")
-
-    params = model["params"]
-    if params is None:
-        params = {}
-    tvm.contrib.target.onnx.to_onnx(model["mod"], params, model["name"], path=filename)
-    logging.info("-------------------- END ONNX EXPORT --------------------")
-
-    return {
-        "name": model["name"],
-        "filename": short_filename,
-        "input_shapes": model["input_shapes"],
-        "input_dtypes": model["input_dtypes"],
-        "main_dtype": model["main_dtype"],
     }

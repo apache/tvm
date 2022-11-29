@@ -79,10 +79,11 @@ WARMUP_MIN_REPEAT_MS = tvm.relay.collage.WARMUP_MIN_REPEAT_MS
 
 HOST = tvm.target.Target("llvm -mtriple=arm64-linux-android")
 OPENCL = tvm.target.Target("opencl", HOST)
-RPC_TRACKER_HOST = os.environ["TVM_TRACKER_HOST"]
-RPC_TRACKER_PORT = int(os.environ["TVM_TRACKER_PORT"])
-RPC_KEY = "android"
-NDK_CROSS_COMPILER = os.environ["TVM_NDK_CC"]
+RPC_TRACKER_HOST = os.getenv("TVM_TRACKER_HOST", "localhost")
+RPC_TRACKER_PORT = int(os.getenv("TVM_TRACKER_PORT", 9090))
+RPC_KEY = os.getenv("RPC_DEVICE_KEY", "android")
+NDK_CROSS_COMPILER = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
+
 ########### Runtime ###########
 
 # Code to run a model. The actual call to 'run' is appended at compile time.
