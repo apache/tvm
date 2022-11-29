@@ -101,6 +101,7 @@ if use_physical_hw:
         boards = json.load(f)
 
     BOARD = os.getenv("TVM_MICRO_BOARD", default="nucleo_l4r5zi")
+    SERIAL = os.getenv("TVM_MICRO_SERIAL", default=None)
     TARGET = tvm.target.target.micro(boards[BOARD]["model"])
 
 
@@ -156,6 +157,7 @@ if use_physical_hw:
             "west_cmd": "west",
             "verbose": False,
             "project_type": "host_driven",
+            "serial_number": SERIAL,
         },
     )
     builder = tvm.autotvm.LocalBuilder(
@@ -223,6 +225,7 @@ if use_physical_hw:
             "west_cmd": "west",
             "verbose": False,
             "project_type": "host_driven",
+            "serial_number": SERIAL,
         },
     )
 
@@ -266,6 +269,7 @@ if use_physical_hw:
             "west_cmd": "west",
             "verbose": False,
             "project_type": "host_driven",
+            "serial_number": SERIAL,
         },
     )
 
