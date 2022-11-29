@@ -77,42 +77,49 @@ inline void* to_ptr(uintptr_t v) { return reinterpret_cast<void*>(v); }
 
 inline uintptr_t to_uint(void* ptr) { return reinterpret_cast<uintptr_t>(ptr); }
 
-inline constexpr int yxc_to_sm_16b(int y, int x, int c) {
+constexpr int yxc_to_sm_16b(int y, int x, int c) {
   // Map y,x,c coordinates within a block to the offset (in 16-bit elements)
   // from the beginning of the block in spatial-major layout.
   // 10-bit spatial mask: yyyxcccccx
   assert(y >= 0 && x >= 0 && c >= 0);
+  assert(y < 8 && x < 4 && c < 32);
   return y << 7 | (x & 2) << 5 | c << 1 | (x & 1);
 }
 
-inline constexpr int yxc_to_sm_8b(int y, int x, int c) {
+constexpr int yxc_to_sm_8b(int y, int x, int c) {
   // Map y,x,c coordinates within a block to the offset (in 8-bit elements)
   // from the beginning of the block in spatial-major layout.
   // 10-bit spatial mask: yyyxxxccccc
+  assert(y >= 0 && x >= 0 && c >= 0);
+  assert(y < 8 && x < 8 && c < 32);
   return y << 8 | x << 5 | c;
 }
 
-inline constexpr int hwio_to_sm_8b(int width, int y, int x, int i, int o) {
+constexpr int hwio_to_sm_8b(int width, int y, int x, int i, int o) {
   // Map y,x,i,o coordinates within a chunk (assuming the origin at the
   // top-left spatial corner) to the offset (in 8-bit elements) from the
   // beginning of the chunk in spatial-major layout.
   // Spatial mask: p..piiioooooii, where p..p are position bits.
+  assert(width >= 1);
+  assert(y >= 0 && x >= 0 && i >= 0 && o >= 0);
+  assert(i < 32 && o < 32);
   int p = y * width + (width - 1 - x);
   return p << 10 | (i & 0x1c) << 5 | o << 2 | (i & 3);
 }
 
-inline constexpr int hwio_to_sm_16b(int width, int y, int x, int i, int o) {
+constexpr int hwio_to_sm_16b(int width, int y, int x, int i, int o) {
   // Map y,x,i,o coordinates within a chunk (assuming the origin at the
   // top-left spatial corner) to the offset (in 16-bit elements) from the
   // beginning of the chunk in spatial-major layout.
   // Spatial mask: p..piiiioooooi, where p..p are position bits.
   assert(width >= 1);
   assert(y >= 0 && x >= 0 && i >= 0 && o >= 0);
+  assert(i < 32 && o < 32);
   int p = y * width + (width - 1 - x);
   return p << 10 | (i & 0x1e) << 5 | o << 1 | (i & 1);
 }
 
-inline constexpr int round_up(int v, int p2) { return (v + p2 - 1) & -p2; }
+constexpr int round_up(int v, int p2) { return (v + p2 - 1) & -p2; }
 
 // Returns the block address at the given index
 // Assumptions
