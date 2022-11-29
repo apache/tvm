@@ -552,10 +552,17 @@ BlockRV ConcreteScheduleNode::CacheRead(const BlockRV& block_rv, int read_buffer
 }
 
 BlockRV ConcreteScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                                         const String& storage_scope) {
+                                         const String& storage_scope,
+                                         const Array<BlockRV> consumer_blocks) {
   StmtSRef result{nullptr};
+  // Create a new array of SRefs from the consumer block list.
+  Array<StmtSRef> consumer_block_refs = {};
+  for (BlockRV block : consumer_blocks) {
+    consumer_block_refs.push_back(this->GetSRef(block));
+  }
   TVM_TIR_SCHEDULE_BEGIN();
-  result = tir::CacheWrite(state_, this->GetSRef(block_rv), write_buffer_index, storage_scope);
+  result = tir::CacheWrite(state_, this->GetSRef(block_rv), write_buffer_index, storage_scope,
+                           consumer_block_refs);
   TVM_TIR_SCHEDULE_END("cache-write", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<BlockRV>(result);
