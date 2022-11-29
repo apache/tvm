@@ -154,7 +154,6 @@ if use_physical_hw:
         template_project_dir=pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")),
         project_options={
             "board": BOARD,
-            "west_cmd": "west",
             "verbose": False,
             "project_type": "host_driven",
             "serial_number": SERIAL,
@@ -222,10 +221,10 @@ if use_physical_hw:
         temp_dir / "project",
         {
             "board": BOARD,
-            "west_cmd": "west",
             "verbose": False,
             "project_type": "host_driven",
             "serial_number": SERIAL,
+            "config_main_stack_size": 4096,
         },
     )
 
@@ -266,10 +265,10 @@ if use_physical_hw:
         temp_dir / "project",
         {
             "board": BOARD,
-            "west_cmd": "west",
             "verbose": False,
             "project_type": "host_driven",
             "serial_number": SERIAL,
+            "config_main_stack_size": 4096,
         },
     )
 
