@@ -77,6 +77,9 @@ MEASURE_NUMBER = tvm.relay.collage.MEASURE_NUMBER
 MEASURE_REPEAT = tvm.relay.collage.MEASURE_REPEAT
 WARMUP_MIN_REPEAT_MS = tvm.relay.collage.WARMUP_MIN_REPEAT_MS
 
+##
+## RPC Build configuration
+##
 HOST = tvm.target.Target("llvm -mtriple=arm64-linux-android")
 OPENCL = tvm.target.Target("opencl", HOST)
 RPC_TRACKER_HOST = os.getenv("TVM_TRACKER_HOST", "localhost")
