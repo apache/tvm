@@ -122,15 +122,6 @@ class DebugInfoInstaller : public StmtExprMutator {
   std::unordered_map<const PrimExprNode*, size_t> expr_lines_;
   std::string filename_;
 
-  template <typename TypeName, typename ObjectName>
-  Stmt add_span(const ObjectName* op) {
-    Stmt new_stmt = StmtExprMutator::VisitStmt_(op);
-    auto new_type = Downcast<TypeName>(new_stmt);
-    auto new_node = new_type.CopyOnWrite();
-    new_node->span = MaybeSpan(op);
-    return new_type;
-  }
-
   Span MaybeSpan(const StmtNode* op);
   Span MaybeSpan(const PrimExprNode* op);
 };
