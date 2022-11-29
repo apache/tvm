@@ -118,7 +118,8 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     } else if (cmsis_func_name == "arm_fully_connected_s8" ||
                cmsis_func_name == "arm_fully_connected_s16") {
       EmitFullyConnected(op);
-    } else if (cmsis_func_name == "arm_avgpool_s8" || cmsis_func_name == "arm_max_pool_s8") {
+    } else if (cmsis_func_name == "arm_avgpool_s8" || cmsis_func_name == "arm_avgpool_s16" ||
+               cmsis_func_name == "arm_max_pool_s8" || cmsis_func_name == "arm_max_pool_s16") {
       EmitPool2D(op);
     }
     return;

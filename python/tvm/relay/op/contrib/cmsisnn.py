@@ -287,8 +287,10 @@ def pattern_table():
         return (
             pooling.attrs.layout == "NHWC"
             and int(input_op.checked_type.shape[0]) == 1
-            and input_op.checked_type.dtype == "int8"
-            and output.checked_type.dtype == "int8"
+            and (
+                (input_op.checked_type.dtype == "int8" and output.checked_type.dtype == "int8")
+                or (input_op.checked_type.dtype == "int16" and output.checked_type.dtype == "int16")
+            )
         )
 
     def qnn_max_pool2d_pattern():
@@ -310,8 +312,10 @@ def pattern_table():
         return (
             pooling.attrs.layout == "NHWC"
             and int(input_op.checked_type.shape[0]) == 1
-            and input_op.checked_type.dtype == "int8"
-            and output.checked_type.dtype == "int8"
+            and (
+                (input_op.checked_type.dtype == "int8" and output.checked_type.dtype == "int8")
+                or (input_op.checked_type.dtype == "int16" and output.checked_type.dtype == "int16")
+            )
         )
 
     def binary_op_pattern(op):

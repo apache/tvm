@@ -21,7 +21,7 @@ import logging
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 import re
 
-from tvm import relay, topi
+from tvm import relay, topi, tir
 
 from ....auto_scheduler import is_auto_scheduler_enabled
 from ....meta_schedule import is_meta_schedule_enabled
@@ -558,6 +558,22 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
             name="dense_dsp.arm_cpu",
         )
     else:
+        # For dynamic matrix-vector multiply we use a hand written kernel.
+        if (
+            isinstance(inputs[0].shape[0], (int, tir.IntImm))
+            and inputs[0].shape[0] == 1
+            and (
+                topi.utils.is_dynamic_shape(inputs[0].shape)
+                or topi.utils.is_dynamic_shape(inputs[1].shape)
+            )
+        ):
+            strategy.add_implementation(
+                wrap_compute_dense(topi.x86.dense_dynamic),
+                wrap_topi_schedule(topi.x86.schedule_dense_dynamic),
+                name="dense_dynamic.x86",
+                plevel=20,
+            )
+            return strategy
         logger.warning("dense is not optimized for arm cpu.")
         strategy.add_implementation(
             wrap_compute_dense(

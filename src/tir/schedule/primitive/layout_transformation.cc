@@ -1055,13 +1055,45 @@ class TransformationIntroducesPaddingError : public ScheduleError {
   PrimExpr padding_predicate_;
 };
 
+// Make the dtypes of indices in IndexMap be the same as the dtype of the buffer shape, to avoid
+// dtype-mismatch issues later.
+IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const Buffer& buf) {
+  const auto& initial_indices_orig = index_map->initial_indices;
+  ICHECK(buf->shape.size() == initial_indices_orig.size());
+
+  Array<Var> initial_indices;
+  Map<Var, PrimExpr> var_map;
+
+  for (size_t i = 0; i < buf->shape.size(); ++i) {
+    if (buf->shape[i]->dtype != initial_indices_orig[i].dtype()) {
+      auto new_idx = Var(initial_indices_orig[i]->name_hint, buf->shape[i]->dtype);
+      initial_indices.push_back(new_idx);
+      var_map.Set(initial_indices_orig[i], new_idx);
+    } else {
+      initial_indices.push_back(initial_indices_orig[i]);
+    }
+  }
+
+  if (!var_map.empty()) {
+    auto final_indices = index_map->final_indices.Map([&](PrimExpr index) {
+      return SubstituteWithDataTypeLegalization(index,
+                                                [&](const Var& var) { return var_map.Get(var); });
+    });
+    return IndexMap(initial_indices, final_indices);
+  }
+  return index_map;
+}
+
 void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-                     BufferIndexType buffer_index_type, const IndexMap& index_map,
+                     BufferIndexType buffer_index_type, const IndexMap& index_map_orig,
                      const Optional<IndexMap>& pad_value) {
   // Step 1: Input handling and error checking
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   Buffer old_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, buffer_index_type);
+
+  auto index_map = LegalizeIndexMapDType(index_map_orig, old_buffer);
+
   auto [defining_site_sref, is_alloc] = GetBufferDefiningSite(block_sref, old_buffer);
   if (defining_site_sref.defined() && !is_alloc) {
     throw BufferIsSubregionError(self->mod, old_buffer);
