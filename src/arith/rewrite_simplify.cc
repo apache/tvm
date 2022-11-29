@@ -754,7 +754,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
                        c1.Eval()->value == -c2.Eval()->value);
 
     // canonicalization
-    TVM_TRY_RECURSIVE_REWRITE(x * (c1 * y), (x * y) * c1);
+    TVM_TRY_RECURSIVE_REWRITE(x * (y * c1), (x * y) * c1);
+    TVM_TRY_RECURSIVE_REWRITE((x * c1) * y, (x * y) * c1);
+    TVM_TRY_RECURSIVE_REWRITE(x * (y * z), (x * y) * z);
     TVM_TRY_RECURSIVE_REWRITE(c1 * x, x * c1);
     TVM_TRY_RECURSIVE_REWRITE_IF((x - y) * c1, (y - x) * (0 - c1), c1.Eval()->value < 0);
   }
@@ -2314,6 +2316,13 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
         }
       }
       LOG(FATAL) << "Should not reach here";
+    }
+  } else if (op->op.same_as(Op::Get("tir.floor"))) {
+    PrimExpr floor_arg = op->args[0];
+    if (auto arg_int = floor_arg.as<IntImmNode>()) {
+      return cast(op->dtype, IntImm(arg_int->dtype, arg_int->value));
+    } else if (auto arg_float = floor_arg.as<FloatImmNode>()) {
+      return cast(op->dtype, FloatImm(arg_float->dtype, std::floor(arg_float->value)));
     }
   }
 

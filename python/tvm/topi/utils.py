@@ -18,7 +18,10 @@
 """Common topi utilities"""
 from __future__ import absolute_import as _abs
 
+import fractions
+import math
 from numbers import Integral
+from typing import Union, Optional, Tuple
 
 import numpy as np
 import tvm
@@ -526,3 +529,365 @@ def is_target(names):
 def is_dynamic_shape(shape):
     """Checks if any part of a shape is dynamic"""
     return any([isinstance(x, (Any, SizeVar)) for x in shape])
+
+
+class Fraction:
+    """Utility class for representing integer ratios
+
+    TVM's simplifier has specific handling for integer expressions,
+    especially as they appear in indexing.  As the simplifier is used
+    to check if an optimization is permissible (e.g. vectorized
+    computations require linear buffer access), use of integer
+    expressions may provide significant performance benefits.
+    However, writing the simplified form
+
+    The `Fraction` class is intended to allow for easier writing of
+    integer expressions.  The operator overloads will attempt to
+    generate the resulting `Fraction` (e.g. `Fraction(Var('x')+2, 3) *
+    0.75` evaluates to `Fraction((Var('x')+2)*3, 12)`).  If the result
+    cannot be expressed as a fraction, the `Fraction` will be
+    converted to the appropriate `PrimExpr` type for us.
+    (e.g. `Fraction(3,4) * Var('pi')` evaluates to `tir.Mul(0.75,
+    Var('pi'))`).  This allows integer arguments to be converted into
+    fractions where possible, and maintained as integer fractions
+    while generating a TIR expression.
+
+
+    Example
+    -------
+
+    When resizing an image from `original_width` to `output_width`,
+    determining the location in the original space for a given output
+    pixel.
+
+    .. code-block::
+
+        resized_x = Fraction.OrPrimExpr(resized_x)
+        original_width = Fraction.OrPrimExpr(original_width)
+        resized_width = Fraction.OrPrimExpr(resized_width)
+        original_x = original_width / resized_width * (resized_x + 0.5) - 0.5
+
+    If `original_width`, `resized_width`, and `resized_x` are all integer
+    parameters, this will result in a `Fraction` equivalent to
+    `Fraction(numerator = original_width * (2*resized_x + 1) - resized_width,
+    denominator = 2*resized_width)`.  If any of the parameters cannot be
+    represented as an integer fraction, the expression will instead use
+    floating-point arithmetic.
+
+    To return a `PrimExpr` after using a `Fraction`, use the
+    `.astype(out_dtype)` method.  This method is implemented for both
+    `PrimExpr` and `Fraction`, so the type coercion can be applied for both
+    usages.
+
+    .. code-block::
+
+        output = original_x.astype('float32')
+
+    To extract integer/fractional components of the expression, use the
+    utility method `Fraction.split_whole_and_fractional_parts`.
+
+    .. code-block::
+
+        int_part, remainder = Fraction.split_whole_and_fractional_parts(original_x)
+
+    """
+
+    def __init__(
+        self,
+        numerator: Union[int, float, "Fraction", tvm.tir.PrimExpr],
+        denominator: Optional[Union[int, float, "Fraction", tvm.tir.PrimExpr]] = None,
+    ):
+        """Initialize the Fraction
+
+        Parameters
+        ----------
+        numerator: Union[int, float, Fraction, PrimExpr]
+
+            The numerator of the fraction.  If a `float` or `tir.FloatImm` is
+            passed, will attempt to convert to a ratio of integers.  If an exact
+            representation is not found, will raise a `ValueError`.  Any other
+            `tir.PrimExpr` with a floating-point data-type will also result in a
+            `ValueError`.
+
+        denominator: Optional[Union[int, float, Fraction, PrimExpr]]
+
+            The denominator of the fraction.
+
+            If a `float` or `tir.FloatImm` is passed, will attempt to convert to
+            a ratio of integers.  If an exact representation is not found, will
+            raise a `ValueError`.  Any other `tir.PrimExpr` with a floating-point
+            data-type will also result in a `ValueError`.
+
+            If `None`, set equal to 1.
+        """
+
+        def _normalize(value):
+            if isinstance(value, Fraction):
+                return value
+
+            elif isinstance(value, int):
+                return tvm.runtime.convert(value)
+
+            elif isinstance(value, tvm.tir.PrimExpr) and "int" in value.dtype:
+                return value
+
+            elif isinstance(value, (float, tvm.tir.FloatImm)):
+                # A floating-point number may result from previous division
+                # of integers.  Use python's `fractions.Fraction` class to
+                # unpack into a rational number, so long it reproduces
+                # identically the same floating-point number.
+                as_float = float(value)
+                as_fraction = fractions.Fraction(as_float).limit_denominator(1024)
+                if as_fraction.numerator / as_fraction.denominator == as_float:
+                    return Fraction(as_fraction.numerator, as_fraction.denominator)
+                else:
+                    raise ValueError(f"Could not represent value {value} as a ratio of integers")
+
+            elif isinstance(value, tvm.tir.PrimExpr) and "float" in value.dtype:
+                # Any other floating-point expressions are forbidden.
+                raise ValueError(f"Could not represent value {value} as a ratio of integers")
+
+            else:
+                raise TypeError(
+                    f"Could not represent type {type(value)} (value = {value}) "
+                    "as a ratio of integers"
+                )
+
+        numerator = _normalize(numerator)
+        denominator = 1 if denominator is None else _normalize(denominator)
+
+        if isinstance(numerator, Fraction) and isinstance(denominator, Fraction):
+            self.numerator, self.denominator = (
+                numerator.numerator * denominator * denominator,
+                denominator.numerator * numerator.denominator,
+            )
+        elif isinstance(numerator, Fraction):
+            self.numerator, self.denominator = (
+                numerator.numerator,
+                denominator * numerator.denominator,
+            )
+        elif isinstance(denominator, Fraction):
+            self.numerator, self.denominator = (
+                numerator * denominator.denominator,
+                denominator.numerator,
+            )
+        else:
+            self.numerator, self.denominator = (numerator, denominator)
+
+        if not isinstance(self.denominator, tvm.tir.PrimExpr):
+            self.denominator = tvm.tir.IntImm(self.numerator.dtype, self.denominator)
+
+        if isinstance(self.denominator, tvm.tir.IntImm):
+            assert self.denominator.value != 0
+
+    def __repr__(self):
+        return f"Fraction({self.numerator}, {self.denominator})"
+
+    @classmethod
+    def OrPrimExpr(
+        cls, value: Union[int, float, "Fraction", tvm.tir.PrimExpr]
+    ) -> Union[tvm.tir.PrimExpr, "Fraction"]:
+        """Attempt to generate an integer fraction, with fallback to PrimExpr
+
+        Parameters
+        ----------
+        value: Union[int, float, Fraction, PrimExpr]
+
+            The value to be expressed as a fraction, if possible.
+
+        Returns
+        -------
+        fraction_or_primexpr: Union[PrimExpr, Fraction]
+
+            The resulting fraction if the value can be expressed as an
+            integer fraction, otherwise the original value.  See
+            docstring of `Fraction` for the allowed conversions.
+        """
+
+        try:
+            return cls(value)
+        except ValueError:
+            return tvm.runtime.convert(value)
+
+    @classmethod
+    def split_whole_and_fractional_parts(
+        cls, expr: Union["Fraction", tvm.tir.PrimExpr]
+    ) -> Tuple[tvm.tir.PrimExpr, Union["Fraction", tvm.tir.PrimExpr]]:
+        """Split the fraction into integer and fractional components
+
+        Parameters
+        ----------
+
+        expr: Union[Fraction, PrimExpr]
+
+            The expression to be split
+
+        Returns
+        -------
+        int_part: PrimExpr
+
+            The integer part of the fraction.  This is determined
+            either with integer `tir.floordiv` for a `Fraction`, or
+            with `tir.floor` for a `PrimExpr`.
+
+        fractional_part: Union[PrimExpr, Fraction]
+
+            The remaining fractional part of the initial fraction.
+            This is determined either with integer `tir.floormod` for
+            a `Fraction`, or by subtracting `int_part` for a
+            `PrimExpr`.
+        """
+        if isinstance(expr, cls):
+            return (expr.int_part(), expr.fractional_part())
+        else:
+            int_part = tvm.tir.floor(expr).astype("int32")
+            return int_part, expr - int_part
+
+    def simplify(self, analyzer: Optional["tvm.arith.Analyzer"] = None) -> "Fraction":
+        """Simplify the fraction
+
+        Parameters
+        ----------
+        analyzer: Optional[arith.Analyzer]
+
+            The analyzer to use for simplification.  If None,
+            construct a temporary analyzer.
+
+        Returns
+        -------
+        simplified: Fraction
+
+            The simplified fraction
+        """
+        if analyzer is None:
+            analyzer = tvm.arith.Analyzer()
+        numerator = analyzer.simplify(self.numerator)
+        denominator = analyzer.simplify(self.denominator)
+        if numerator == 0:
+            return Fraction(0, 1)
+
+        def _extract_coef(val):
+            if isinstance(val, (int, tvm.tir.IntImm)):
+                return int(val)
+            elif isinstance(val, tvm.tir.Mul) and isinstance(val.b, tvm.tir.IntImm):
+                return int(val.b)
+            else:
+                return 1
+
+        gcd = math.gcd(_extract_coef(numerator), _extract_coef(denominator))
+        if gcd != 1:
+            numerator = analyzer.simplify(numerator // gcd)
+            denominator = analyzer.simplify(denominator // gcd)
+
+        return Fraction(numerator, denominator)
+
+    def astype(self, dtype: str) -> tvm.tir.PrimExpr:
+        """Convert to a tvm.tir.PrimExpr of the specified type
+
+        The name is deliberately the same as `PrimExpr.astype`, to
+        allow `expr.astype(out_dtype)` to be valid for both
+        `tvm.tir.PrimExpr` and `Fraction` expressions.
+
+        Parameters
+        ----------
+        dtype: str
+
+            The TVM datatype to return.
+
+        Returns
+        -------
+        value: PrimExpr
+
+            The resulting PrimExpr
+
+        """
+        if "int" in dtype:
+            return self.int_part().astype(dtype)
+        else:
+            frac = self.simplify()
+            return frac.numerator.astype(dtype) / frac.denominator.astype(dtype)
+
+    def int_part(self) -> tvm.tir.PrimExpr:
+        """The integer part of the fraction
+
+        Returns
+        -------
+        int_part: PrimExpr
+
+            The integer part of the fraction
+        """
+        return tvm.tir.floordiv(self.numerator, self.denominator)
+
+    def fractional_part(self) -> "Fraction":
+        """The remainder of the fraction
+
+        Returns
+        -------
+        fractional_part: Fraction
+
+            The remainder of the fraction
+        """
+        return Fraction(tvm.tir.floormod(self.numerator, self.denominator), self.denominator)
+
+    def __neg__(self):
+        # Disabling the pylint check, since pylint doesn't track the
+        # __init__ type annotations to determine that self.numerator
+        # may not be None.
+
+        return Fraction(
+            -self.numerator,  # pylint: disable=invalid-unary-operand-type
+            self.denominator,
+        )
+
+    def __mul__(self, other):
+        try:
+            other = Fraction(other)
+        except ValueError:
+            return self.astype(other.dtype) * other
+        else:
+            return Fraction(self.numerator * other.numerator, self.denominator * other.denominator)
+
+    def __rmul__(self, other):
+        return self * other
+
+    def __truediv__(self, other):
+        other = Fraction(other)
+        return Fraction(self.numerator * other.denominator, self.denominator * other.numerator)
+
+    @staticmethod
+    def _with_common_denominator(lhs, rhs):
+        if not isinstance(lhs.denominator, (int, tvm.tir.IntImm)) or not isinstance(
+            rhs.denominator, (int, tvm.tir.IntImm)
+        ):
+            denom = lhs.denominator * rhs.denominator
+            return Fraction(lhs.numerator * rhs.denominator, denom), Fraction(
+                rhs.numerator * lhs.denominator, denom
+            )
+
+        gcd = math.gcd(int(lhs.denominator), int(rhs.denominator))
+        lcm = (int(lhs.denominator) * int(rhs.denominator)) // gcd
+        return Fraction(lhs.numerator * (lcm // lhs.denominator), lcm), Fraction(
+            rhs.numerator * (lcm // rhs.denominator), lcm
+        )
+
+    def __add__(self, other):
+        other = Fraction(other)
+        self, other = Fraction._with_common_denominator(self, other)
+        return Fraction(
+            self.numerator + other.numerator,
+            self.denominator,
+        )
+
+    def __radd__(self, other):
+        return self + other
+
+    def __sub__(self, other):
+        other = Fraction(other)
+        self, other = Fraction._with_common_denominator(self, other)
+        return Fraction(
+            self.numerator - other.numerator,
+            self.denominator,
+        )
+
+    def __rsub__(self, other):
+        return Fraction(other) - self

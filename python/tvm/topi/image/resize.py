@@ -16,27 +16,14 @@
 # under the License.
 # pylint: disable=invalid-name
 """TVM operator input resize compute."""
+
 from __future__ import absolute_import
+
 import tvm
 from tvm import te
-from tvm.topi.utils import nchw_pack_layout, nchw_xc_layout
+from tvm.topi.utils import nchw_pack_layout, nchw_xc_layout, Fraction
+
 from .. import tag
-
-
-def can_convert_multiply_to_intdiv(origin_size, scaled_size):
-    """Check whether can convert multiplication to division"""
-    # Only support IntImm type
-    if not isinstance(scaled_size, tvm.tir.expr.IntImm):
-        return False
-
-    div = scaled_size / origin_size.astype("float")
-    if div.value % 1 != 0:
-        return False
-    epsilon = 1e-5
-    check = 1 / (epsilon * origin_size + epsilon)
-    if div > check:
-        return False
-    return True
 
 
 def get_1d_indices(indices, layout="NCW"):
@@ -136,71 +123,96 @@ def get_3d_pixel(data, layout, image_depth, image_height, image_width, n, c, z, 
 
 
 def get_inx(
-    x,
+    target_x,
     image_width,
     target_width,
     coordinate_transformation_mode,
     start_x=0,
     end_x=-1,
-    use_int_div=False,
 ):
     """Infer input x from output x with various coordinate transformation methods"""
-    scale_x = te.div(image_width.astype("float"), target_width.astype("float"))
+
+    non_trivial_target_width = target_width > 1
+
+    def _as_fraction_or_float(expr):
+        try:
+            return Fraction(expr)
+        except ValueError:
+            return expr.astype("float")
+
+    image_width = _as_fraction_or_float(image_width)
+    target_width = _as_fraction_or_float(target_width)
+    target_x = _as_fraction_or_float(target_x)
+
+    scale_x = image_width / target_width
+
     if coordinate_transformation_mode == "half_pixel":
-        in_x = (x + 0.5) * scale_x - 0.5
+        return (target_x + 0.5) * scale_x - 0.5
     elif coordinate_transformation_mode == "align_corners":
-        in_x = (image_width - 1).astype("float") / (target_width - 1) * x
+        return (image_width - 1) / (target_width - 1) * target_x
     elif coordinate_transformation_mode == "asymmetric":
-        if use_int_div:
-            in_x = te.div(x, te.div(target_width, image_width))
-        else:
-            in_x = scale_x * x
+        return scale_x * target_x
     elif coordinate_transformation_mode == "pytorch_half_pixel":
-        in_x = te.if_then_else(target_width > 1, (x + 0.5) * scale_x - 0.5, 0.0)
+        return te.if_then_else(non_trivial_target_width, (target_x + 0.5) * scale_x - 0.5, 0.0)
     elif coordinate_transformation_mode == "tf_half_pixel_for_nn":
-        in_x = (x + 0.5) * scale_x
+        return (target_x + 0.5) * scale_x
     elif coordinate_transformation_mode == "tf_crop_and_resize":
-        in_x = te.if_then_else(
-            target_width > 1,
+        start_x = _as_fraction_or_float(start_x)
+        end_x = _as_fraction_or_float(end_x)
+        return te.if_then_else(
+            non_trivial_target_width,
             start_x * (image_width - 1)
-            + x * (end_x - start_x) * (image_width - 1).astype("float") / (target_width - 1),
+            + target_x * (end_x - start_x) * (image_width - 1) / (target_width - 1),
             0.5 * (start_x + end_x) * (image_width - 1),
         )
     else:
         raise ValueError(
             f"Unsupported coordinate_transformation_mode: {coordinate_transformation_mode}"
         )
-    return in_x
 
 
-def get_closest_index(in_x, rounding_method, boxes, use_int_div=False):
+def get_closest_index(in_x, rounding_method, boxes):
     """get the closest index to a value based on a certain rounding method"""
-    if use_int_div:
-        closest_x_index = in_x.astype("int32")
-        return closest_x_index
+    if isinstance(in_x, Fraction):
+        # Preferred path, if the initial sizes were an integer ratio.
 
-    if rounding_method == "round" or boxes is not None:
-        closest_x_index = te.round(in_x).astype("int32")
-    elif rounding_method == "round_prefer_floor":
-        closest_x_index = te.ceil(in_x - 0.5).astype("int32")
-    elif rounding_method == "round_prefer_ceil":
-        closest_x_index = te.floor(in_x + 0.5).astype("int32")
-    elif rounding_method == "floor":
-        # Add epsilon to floor to prevent gpu rounding errors.
-        epsilon = 1e-5
-        closest_x_index = te.floor(in_x + epsilon).astype("int32")
-    elif rounding_method == "ceil":
-        # Subract epsilon from ceil to prevent gpu rounding errors.
-        epsilon = 1e-5
-        closest_x_index = te.ceil(in_x - epsilon).astype("int32")
+        numerator = in_x.numerator
+        denominator = in_x.denominator
+        if rounding_method in ("round", "round_prefer_floor") or boxes is not None:
+            return (numerator + denominator // 2) // denominator
+        elif rounding_method == "round_prefer_ceil":
+            return (numerator + (denominator + 1) // 2) // denominator
+        elif rounding_method == "floor":
+            return numerator // denominator
+        elif rounding_method == "ceil":
+            return (numerator + denominator - 1) // denominator
+        else:
+            raise ValueError("Uknown rounding method: {}".format(rounding_method))
+
     else:
-        raise ValueError(f"Unknown rounding method: {rounding_method}")
-    return closest_x_index
+        # Preferred path, using floating-point values
+
+        if rounding_method == "round" or boxes is not None:
+            return te.round(in_x).astype("int32")
+        elif rounding_method == "round_prefer_floor":
+            return te.ceil(in_x - 0.5).astype("int32")
+        elif rounding_method == "round_prefer_ceil":
+            return te.floor(in_x + 0.5).astype("int32")
+        elif rounding_method == "floor":
+            # Add epsilon to floor to prevent gpu rounding errors.
+            epsilon = 1e-5
+            return te.floor(in_x + epsilon).astype("int32")
+        elif rounding_method == "ceil":
+            # Subract epsilon from ceil to prevent gpu rounding errors.
+            epsilon = 1e-5
+            return te.ceil(in_x - epsilon).astype("int32")
+        else:
+            raise ValueError(f"Unknown rounding method: {rounding_method}")
 
 
 def _lerp(A, B, t):
     """Perform Linear interpolation in 1D"""
-    return A * (1.0 - t) + B * t
+    return (1.0 - t) * A + t * B
 
 
 def _cubic_spline_weights(t, alpha):
@@ -214,9 +226,9 @@ def _cubic_spline_weights(t, alpha):
     return [w1, w2, w3, w4]
 
 
-def _cubic_kernel(inputs, w):
+def _sum_products(a, b):
     """perform cubic interpolation in 1D"""
-    return sum([a_i * w_i for a_i, w_i in zip(inputs, w)])
+    return sum([a_i * b_i for a_i, b_i in zip(a, b)])
 
 
 def _resize_1d(
@@ -236,7 +248,6 @@ def _resize_1d(
     exclude_outside=0,
     out_dtype=None,
 ):
-
     """Perform resize operation on the data with selected method and options.
 
     Parameters
@@ -302,12 +313,8 @@ def _resize_1d(
         The computed result with type out_dtype
     """
 
-    def _cast_output(value, data_dtype="float32", out_dtype=None):
-        if out_dtype:
-            dtype = out_dtype
-        else:
-            dtype = data_dtype
-        return value.astype(dtype)
+    if out_dtype is None:
+        out_dtype = data.dtype
 
     n, c, x, cc, inum, ic = get_1d_indices(indices, layout)
     box_idx = box_indices(n) if box_indices is not None else n
@@ -327,9 +334,7 @@ def _resize_1d(
 
         value = get_1d_pixel(data, layout, image_width, box_idx, c, closest_x_index, cc, inum, ic)
     elif method == "linear":
-        x_int = te.floor(in_x).astype("int32")
-
-        x_lerp = in_x - x_int
+        x_int, x_lerp = Fraction.split_whole_and_fractional_parts(in_x)
 
         p = [0 for i in range(2)]
         for i in range(2):
@@ -338,8 +343,7 @@ def _resize_1d(
         value = _lerp(*p, x_lerp)
 
     elif method == "cubic":
-        xint = te.floor(in_x).astype("int32")
-        xfract = in_x - te.floor(in_x)
+        xint, xfract = Fraction.split_whole_and_fractional_parts(in_x)
 
         # Get the surrounding values
         p = [0 for i in range(4)]
@@ -354,7 +358,7 @@ def _resize_1d(
                 )
             sum_wx = sum(wx)
             wx = [w / sum_wx for w in wx]
-        value = _cubic_kernel(p, wx)
+        value = _sum_products(wx, p)
 
     else:
         raise ValueError("Unknown resize method:", method)
@@ -366,7 +370,8 @@ def _resize_1d(
             extrapolation_value,
             tvm.tir.if_then_else(in_x > image_width - 1, extrapolation_value, value),
         )
-    return _cast_output(value, data.dtype, out_dtype=out_dtype)
+
+    return value.astype(out_dtype)
 
 
 def resize1d(
@@ -510,7 +515,6 @@ def _resize_2d(
     exclude_outside=0,
     out_dtype=None,
 ):
-
     """Perform resize operation on the data with selected method and options.
 
     Parameters
@@ -582,18 +586,8 @@ def _resize_2d(
         The computed result with type out_dtype
     """
 
-    def _cast_output(value, data_dtype="float32", out_dtype=None):
-        if out_dtype:
-            dtype = out_dtype
-        else:
-            dtype = data_dtype
-        return value.astype(dtype)
-
-    height_use_int_div = False
-    width_use_int_div = False
-    if method == "nearest_neighbor" and coordinate_transformation_mode == "asymmetric":
-        height_use_int_div = can_convert_multiply_to_intdiv(image_height, target_height)
-        width_use_int_div = can_convert_multiply_to_intdiv(image_width, target_width)
+    if out_dtype is None:
+        out_dtype = data.dtype
 
     n, c, y, x, cc, inum, ic = get_2d_indices(indices, layout)
     box_idx = box_indices(n) if box_indices is not None else n
@@ -601,13 +595,15 @@ def _resize_2d(
         y1, x1 = boxes(n, 0), boxes(n, 1)
         y2, x2 = boxes(n, 2), boxes(n, 3)
 
-        in_h = (image_height - 1) * (y2 - y1)
-        in_w = (image_width - 1) * (x2 - x1)
-        h_scale = in_h.astype("float") / (target_height - 1)
-        w_scale = in_w.astype("float") / (target_width - 1)
+        in_h = Fraction.OrPrimExpr((image_height - 1) * (y2 - y1))
+        in_w = Fraction.OrPrimExpr((image_width - 1) * (x2 - x1))
 
-        in_y = y1 * (image_height - 1) + h_scale * y
-        in_x = x1 * (image_width - 1) + w_scale * x
+        h_scale = in_h / (target_height - 1)
+        w_scale = in_w / (target_width - 1)
+
+        in_y = h_scale * y + y1 * (image_height - 1)
+        in_x = w_scale * x + x1 * (image_width - 1)
+
     else:
         in_x = get_inx(
             x,
@@ -616,7 +612,6 @@ def _resize_2d(
             coordinate_transformation_mode,
             roi[1],
             roi[3],
-            width_use_int_div,
         )
         in_y = get_inx(
             y,
@@ -625,7 +620,6 @@ def _resize_2d(
             coordinate_transformation_mode,
             roi[0],
             roi[2],
-            height_use_int_div,
         )
 
     if method == "nearest_neighbor":
@@ -635,8 +629,8 @@ def _resize_2d(
             else:
                 rounding_method = "floor"
 
-        closest_x_index = get_closest_index(in_x, rounding_method, boxes, width_use_int_div)
-        closest_y_index = get_closest_index(in_y, rounding_method, boxes, height_use_int_div)
+        closest_x_index = get_closest_index(in_x, rounding_method, boxes)
+        closest_y_index = get_closest_index(in_y, rounding_method, boxes)
 
         value = get_2d_pixel(
             data,
@@ -652,11 +646,8 @@ def _resize_2d(
             ic,
         )
     elif method == "linear":
-        y_int = te.floor(in_y).astype("int32")
-        x_int = te.floor(in_x).astype("int32")
-
-        y_lerp = in_y - y_int
-        x_lerp = in_x - x_int
+        x_int, x_lerp = Fraction.split_whole_and_fractional_parts(in_x)
+        y_int, y_lerp = Fraction.split_whole_and_fractional_parts(in_y)
 
         p = [[0 for i in range(2)] for j in range(2)]
         for j in range(2):
@@ -680,11 +671,11 @@ def _resize_2d(
         value = _lerp(top, bottom, y_lerp)
 
     elif method == "cubic":
-        xint = te.floor(in_x).astype("int32")
-        xfract = in_x - te.floor(in_x)
+        xint, xfract = Fraction.split_whole_and_fractional_parts(in_x)
+        yint, yfract = Fraction.split_whole_and_fractional_parts(in_y)
 
-        yint = te.floor(in_y).astype("int32")
-        yfract = in_y - te.floor(in_y)
+        wx = _cubic_spline_weights(xfract, alpha)
+        wy = _cubic_spline_weights(yfract, alpha)
 
         # Get the surrounding values
         p = [[0 for i in range(4)] for j in range(4)]
@@ -704,8 +695,6 @@ def _resize_2d(
                     ic,
                 )
 
-        wx = _cubic_spline_weights(xfract, alpha)
-        wy = _cubic_spline_weights(yfract, alpha)
         if exclude_outside:
             for i in range(4):
                 wx[i] = te.if_then_else(
@@ -718,11 +707,12 @@ def _resize_2d(
             sum_wy = sum(wy)
             wx = [w / sum_wx for w in wx]
             wy = [w / sum_wy for w in wy]
-        col0 = _cubic_kernel(p[0], wx)
-        col1 = _cubic_kernel(p[1], wx)
-        col2 = _cubic_kernel(p[2], wx)
-        col3 = _cubic_kernel(p[3], wx)
-        value = _cubic_kernel([col0, col1, col2, col3], wy)
+
+        col0 = _sum_products(wx, p[0])
+        col1 = _sum_products(wx, p[1])
+        col2 = _sum_products(wx, p[2])
+        col3 = _sum_products(wx, p[3])
+        value = _sum_products(wy, [col0, col1, col2, col3])
 
     else:
         raise ValueError("Unknown resize method:", method)
@@ -739,7 +729,8 @@ def _resize_2d(
             extrapolation_value,
             tvm.tir.if_then_else(in_x > image_width - 1, extrapolation_value, out),
         )
-    return _cast_output(value, data.dtype, out_dtype=out_dtype)
+
+    return value.astype(out_dtype)
 
 
 def resize2d(
@@ -976,7 +967,6 @@ def _resize_3d(
     exclude_outside=0,
     out_dtype=None,
 ):
-
     """Perform resize operation on the data with selected method and options.
 
     Parameters
@@ -1054,12 +1044,8 @@ def _resize_3d(
         The computed result with type out_dtype
     """
 
-    def _cast_output(value, data_dtype="float32", out_dtype=None):
-        if out_dtype:
-            dtype = out_dtype
-        else:
-            dtype = data_dtype
-        return value.astype(dtype)
+    if out_dtype is None:
+        out_dtype = data.dtype
 
     n, c, z, y, x, cc = get_3d_indices(indices, layout)
     box_idx = box_indices(n) if box_indices is not None else n
@@ -1095,13 +1081,9 @@ def _resize_3d(
             cc,
         )
     elif method == "linear":
-        z_int = te.floor(in_z).astype("int32")
-        y_int = te.floor(in_y).astype("int32")
-        x_int = te.floor(in_x).astype("int32")
-
-        z_lerp = in_z - z_int
-        y_lerp = in_y - y_int
-        x_lerp = in_x - x_int
+        x_int, x_lerp = Fraction.split_whole_and_fractional_parts(in_x)
+        y_int, y_lerp = Fraction.split_whole_and_fractional_parts(in_y)
+        z_int, z_lerp = Fraction.split_whole_and_fractional_parts(in_z)
 
         p = [[[0 for i in range(2)] for j in range(2)] for k in range(2)]
         for k in range(2):
@@ -1130,14 +1112,13 @@ def _resize_3d(
         value = _lerp(top, bottom, z_lerp)
 
     elif method == "cubic":
-        zint = te.floor(in_z).astype("int32")
-        zfract = in_z - te.floor(in_z)
+        xint, xfract = Fraction.split_whole_and_fractional_parts(in_x)
+        yint, yfract = Fraction.split_whole_and_fractional_parts(in_y)
+        zint, zfract = Fraction.split_whole_and_fractional_parts(in_z)
 
-        yint = te.floor(in_y).astype("int32")
-        yfract = in_y - te.floor(in_y)
-
-        xint = te.floor(in_x).astype("int32")
-        xfract = in_x - te.floor(in_x)
+        wz = _cubic_spline_weights(zfract, alpha)
+        wy = _cubic_spline_weights(yfract, alpha)
+        wx = _cubic_spline_weights(xfract, alpha)
 
         # Get the surrounding values
         p = [[[0 for i in range(4)] for j in range(4)] for k in range(4)]
@@ -1158,36 +1139,33 @@ def _resize_3d(
                         cc,
                     )
 
-            wz = _cubic_spline_weights(zfract, alpha)
-            wy = _cubic_spline_weights(yfract, alpha)
-            wx = _cubic_spline_weights(xfract, alpha)
-            if exclude_outside:
-                for i in range(4):
-                    wz[i] = te.if_then_else(
-                        te.any(xint - 1 + i < 0, xint + i > image_height), 0.0, wx[i]
-                    )
-                    wy[i] = te.if_then_else(
-                        te.any(yint - 1 + i < 0, yint + i > image_height), 0.0, wy[i]
-                    )
-                    wx[i] = te.if_then_else(
-                        te.any(xint - 1 + i < 0, xint + i > image_width), 0.0, wx[i]
-                    )
-                sum_wz = sum(wz)
-                sum_wy = sum(wy)
-                sum_wx = sum(wx)
-                wz = [w / sum_wz for w in wz]
-                wy = [w / sum_wy for w in wy]
-                wx = [w / sum_wx for w in wx]
+        if exclude_outside:
+            for i in range(4):
+                wz[i] = te.if_then_else(
+                    te.any(xint - 1 + i < 0, xint + i > image_height), 0.0, wx[i]
+                )
+                wy[i] = te.if_then_else(
+                    te.any(yint - 1 + i < 0, yint + i > image_height), 0.0, wy[i]
+                )
+                wx[i] = te.if_then_else(
+                    te.any(xint - 1 + i < 0, xint + i > image_width), 0.0, wx[i]
+                )
+            sum_wz = sum(wz)
+            sum_wy = sum(wy)
+            sum_wx = sum(wx)
+            wz = [w / sum_wz for w in wz]
+            wy = [w / sum_wy for w in wy]
+            wx = [w / sum_wx for w in wx]
 
-            l = [[0 for i in range(4)] for j in range(4)]
-            for j in range(4):
-                for i in range(4):
-                    l[j][i] = _cubic_kernel(p[j][i], wx)
-            col0 = _cubic_kernel(l[0], wy)
-            col1 = _cubic_kernel(l[1], wy)
-            col2 = _cubic_kernel(l[2], wy)
-            col3 = _cubic_kernel(l[3], wy)
-            value = _cubic_kernel([col0, col1, col2, col3], wz)
+        l = [[0 for i in range(4)] for j in range(4)]
+        for j in range(4):
+            for i in range(4):
+                l[j][i] = _sum_products(p[j][i], wx)
+        col0 = _sum_products(wy, l[0])
+        col1 = _sum_products(wy, l[1])
+        col2 = _sum_products(wy, l[2])
+        col3 = _sum_products(wy, l[3])
+        value = _sum_products(wz, [col0, col1, col2, col3])
 
     else:
         raise ValueError("Unknown resize method:", method)
@@ -1209,7 +1187,8 @@ def _resize_3d(
             extrapolation_value,
             tvm.tir.if_then_else(in_x > image_width - 1, extrapolation_value, out),
         )
-    return _cast_output(value, data.dtype, out_dtype=out_dtype)
+
+    return value.astype(out_dtype)
 
 
 def resize3d(
