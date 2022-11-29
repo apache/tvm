@@ -27,13 +27,15 @@ using namespace tvm::runtime::hexagon;
 class HexagonVtcmPoolTest : public ::testing::Test {
   void SetUp() override {
     vtcm_pool = HexagonDeviceAPI::Global()->VtcmPool();
-    max_bytes = vtcm_pool->TotalBytes();
+    max_bytes = vtcm_pool->VtcmAllocatedBytes();
+    device_bytes = vtcm_pool->VtcmDeviceBytes();
   }
   void TearDown() override {}
 
  public:
   HexagonVtcmPool* vtcm_pool;
   size_t max_bytes;
+  size_t device_bytes;
   size_t four_k_block = 4096;
   size_t two_k_block = 2048;
   size_t one_k_block = 1024;
@@ -43,6 +45,9 @@ class HexagonVtcmPoolTest : public ::testing::Test {
 TEST_F(HexagonVtcmPoolTest, basic) {
   void* ptr;
   void* ptr2;
+
+  CHECK(device_bytes >= max_bytes) << "VTCM device size " << device_bytes
+                                   << " not greater than or equal to allocated size " << max_bytes;
 
   ptr = vtcm_pool->Allocate(max_bytes);
   CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
@@ -123,7 +128,7 @@ TEST_F(HexagonVtcmPoolTest, free_alloc_combinations) {
   void* ptr3;
   void* ptr4;
   void* new_ptr;
-  size_t max_less_3_blocks = vtcm_pool->TotalBytes() - (3 * two_k_block);
+  size_t max_less_3_blocks = max_bytes - (3 * two_k_block);
   ptr1 = vtcm_pool->Allocate(two_k_block);
   ptr2 = vtcm_pool->Allocate(two_k_block);
   ptr3 = vtcm_pool->Allocate(two_k_block);

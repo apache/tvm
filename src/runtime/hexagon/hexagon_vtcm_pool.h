@@ -68,7 +68,10 @@ class HexagonVtcmPool {
   void Free(void* ptr, size_t nbytes);
 
   //! \brief Returns the total number of bytes in this pool
-  size_t TotalBytes() { return reinterpret_cast<size_t>(vtcm_size_); }
+  size_t VtcmDeviceBytes() { return reinterpret_cast<size_t>(vtcm_device_size_); }
+
+  //! \brief Returns the total number of bytes in this pool
+  size_t VtcmAllocatedBytes() { return reinterpret_cast<size_t>(vtcm_allocated_size_); }
 
   bool IsVtcm(void* ptr, unsigned size) {
     auto char_ptr = static_cast<char*>(ptr);
@@ -76,15 +79,18 @@ class HexagonVtcmPool {
     auto char_vtcm = static_cast<char*>(vtcm_data_);
     CHECK(vtcm_data_ != nullptr);
 
-    if (char_ptr >= char_vtcm && (char_ptr + size) <= (char_vtcm + vtcm_size_)) {
+    if (char_ptr >= char_vtcm && (char_ptr + size) <= (char_vtcm + vtcm_allocated_size_)) {
       return true;
     }
     return false;
   }
 
  private:
-  //! \brief Total size of VTCM pool
-  unsigned int vtcm_size_;
+  //! \brief Total size of VTCM memory on device
+  unsigned int vtcm_device_size_;
+
+  //! \brief Total size of VTCM pool allocated on device
+  unsigned int vtcm_allocated_size_;
 
   //! \brief Pointer to the beginning of the pool
   void* vtcm_data_;
