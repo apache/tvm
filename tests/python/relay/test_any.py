@@ -446,6 +446,15 @@ def test_any_layout_transform():
     verify_any_layout_transform((16, 1), "CH", "C4cH", (16, 1), (4, 4, 1))
 
 
+def test_bilayout_with_any():
+    bilayout = tvm.tir.bijective_layout("NCHW", "NHWC")
+    assert isinstance(bilayout, tvm.tir.BijectiveLayout)
+    dst_shape = bilayout.forward_shape((relay.Any(), 32, 7, relay.Any()))
+    assert dst_shape[3] == 32
+    src_shape = bilayout.backward_shape(dst_shape)
+    assert src_shape[1] == 32
+
+
 def verify_any_expand_dims(data_shape, axis, num_newaxis, static_data_shape, ref_out_shape):
     mod = tvm.IRModule()
     dtype = "float32"
