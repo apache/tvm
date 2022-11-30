@@ -186,7 +186,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
             // adding info about arguments if they can be converted to texture
             for (const auto& ttype : FlattenTupleType(fn->params[i]->checked_type())) {
               std::string scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(call)));
-              if (expr_attrib[Expr()].as<Conv2DAttrs>() || expr_attrib[Expr()].as<Conv2DWinogradAttrs>())
+              if (expr_attrib.as<Conv2DAttrs>() || expr_attrib.as<Conv2DWinogradAttrs>()) 
               {
                 if ((i == 1) && CanUseBuffers(call->args[i], ttype->shape, fn->attrs))
                 {
@@ -224,7 +224,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
       }
     }
     if (!primitive_supports_texture_) {
-      expr_attrib.Set(Expr(), call->attrs);
+      expr_attrib = call->attrs;
       primitive_supports_texture_ = SupportsTextureStorage(call);
     }
 
@@ -465,7 +465,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
   /*! \brief mapping of arguments that can be converted to texture*/
   Map<Expr, Map<Expr, Array<String>>> accept_textures_;
 
-  Map<Expr, tvm::Attrs> expr_attrib;
+  tvm::Attrs expr_attrib;
   std::vector<Expr> const_to_buffers;
   std::vector<Expr> const_to_buffers_args;
 };
