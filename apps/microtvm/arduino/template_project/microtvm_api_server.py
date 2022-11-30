@@ -28,9 +28,6 @@ import time
 from string import Template
 from packaging import version
 
-import serial
-import serial.tools.list_ports
-
 from tvm.micro.project_api import server
 
 _LOG = logging.getLogger(__name__)
@@ -583,6 +580,8 @@ class Handler(server.ProjectAPIHandler):
     FLASH_MAX_RETRIES = 5
 
     def flash(self, options):
+        import serial.tools.list_ports
+
         # List all used project options
         arduino_cli_cmd = options.get("arduino_cli_cmd")
         warning_as_error = options.get("warning_as_error")
@@ -619,6 +618,9 @@ class Handler(server.ProjectAPIHandler):
             )
 
     def open_transport(self, options):
+        import serial
+        import serial.tools.list_ports
+
         # List all used project options
         arduino_cli_cmd = options.get("arduino_cli_cmd")
         port = options.get("port")
