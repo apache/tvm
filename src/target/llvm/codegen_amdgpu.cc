@@ -202,9 +202,12 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     }
   }
 
+#if TVM_LLVM_VERSION < 160
+  // This function only works with the legacy pass manager.
   void InitPassManagerBuilder(llvm::PassManagerBuilder* builder) final {
     // Additional optimization hook to tweak the builder.
   }
+#endif
 
   unsigned GetGlobalAddressSpace() const final { return 1; }
 
