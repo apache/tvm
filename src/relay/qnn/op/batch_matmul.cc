@@ -101,7 +101,6 @@ Expr BatchMatmulSecondTerm(const Expr& x_quantized_data, const Expr& y_zero_poin
     return Multiply(y_zero_point,
                     Sum(Cast(x_quantized_data, DataType::Int(32)), axes, true, false));
   } else {
-    // TODO(vvchernov): implement when one of zero points or both are tensors
     LOG(FATAL) << "Tensor zero point (non-scalar) is not supported";
     return Expr();
   }
@@ -119,7 +118,6 @@ Expr BatchMatmulThirdTerm(const Expr& y_quantized_data, const Expr& x_zero_point
     newshape = {0, 1, broadcast_dim_size};
     return Reshape(reducemult, newshape);
   } else {
-    // TODO(vvchernov): implement when one of zero points or both are tensors
     LOG(FATAL) << "Tensor zero point (non-scalar) is not supported";
     return Expr();
   }
@@ -131,7 +129,6 @@ Expr BatchMatmulFourthTerm(Expr x_zero_point, Expr y_zero_point, int reduction_d
     auto const_scale = MakeConstantScalar(DataType::Int(32), reduction_dim_size);
     return Multiply(zero_point_mul, const_scale);
   } else {
-    // TODO(vvchernov): implement when one of zero points or both are tensors
     LOG(FATAL) << "Tensor zero point (non-scalar) is not supported";
     return Expr();
   }
@@ -205,7 +202,6 @@ Expr QnnBatchMatmulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto term2 = BatchMatmulSecondTerm(quantized_x, y_zero_point);
   auto term3 = BatchMatmulThirdTerm(quantized_y, x_zero_point, broadcast_dim_size);
 
-  // TODO(vvchernov): how do additional checs (equal) influence on performance?
   if (IsConstScalar(x_zero_point) && IsConstScalar(y_zero_point)) {
     // Extract the integer zero points.
     auto y_zero_point_int = GetScalarFromConstant<int>(y_zero_point);
