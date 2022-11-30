@@ -212,7 +212,7 @@ Expr QnnBatchMatmulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
     auto x_zero_point_int = GetScalarFromConstant<int>(x_zero_point);
     auto term4 = BatchMatmulFourthTerm(x_zero_point_int, y_zero_point_int, reduction_dim_size);
     // Combine those 4 terms depending on the zero points to get the best lowering.
-    if (x_zero_point_int == 0 && y_zero_point_int != 0) {
+    if (x_zero_point_int == 0 && y_zero_point_int == 0) {
       // term 2, 3 and 4 become zero.
       return term1;
     } else if (x_zero_point_int == 0 && y_zero_point_int != 0) {
