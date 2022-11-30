@@ -60,6 +60,11 @@ def pytest_addoption(parser):
             "Also, it will enable debug level logging in project generation."
         ),
     )
+    parser.addoption(
+        "--serial",
+        default=None,
+        help="If set true, use the FVP emulator to run the test",
+    )
 
 
 def pytest_generate_tests(metafunc):
@@ -130,3 +135,8 @@ def pytest_configure(config):
         "markers",
         "skip_boards(board): skip test for the given board",
     )
+
+
+@pytest.fixture
+def serial_number(request):
+    return request.config.getoption("--serial")

@@ -28,6 +28,9 @@ import time
 from string import Template
 from packaging import version
 
+import serial
+import serial.tools.list_ports
+
 from tvm.micro.project_api import server
 
 _LOG = logging.getLogger(__name__)
@@ -92,6 +95,13 @@ PROJECT_OPTIONS = server.default_project_options(
         type="int",
         default=None,
         help="Port to use for connecting to hardware.",
+    ),
+    server.ProjectOption(
+        "serial_number",
+        optional=["open_transport", "flash"],
+        type="str",
+        default=None,
+        help=("Board serial number."),
     ),
 ]
 
@@ -524,26 +534,39 @@ class Handler(server.ProjectAPIHandler):
                 device[col_name] = str_row[column.start() : column.end()].strip()
             yield device
 
-    def _auto_detect_port(self, arduino_cli_cmd: str, board: str) -> str:
-        list_cmd = [self._get_arduino_cli_cmd(arduino_cli_cmd), "board", "list"]
-        list_cmd_output = subprocess.run(
-            list_cmd, check=True, stdout=subprocess.PIPE
-        ).stdout.decode("utf-8")
+    def _auto_detect_port(self, arduino_cli_cmd: str, board: str, serial_number) -> str:
+        if not serial_number:
+            # If serial_number is not set, it is assumed only one board
+            # with this type is connected to this host machine.
+            list_cmd = [self._get_arduino_cli_cmd(arduino_cli_cmd), "board", "list"]
+            list_cmd_output = subprocess.run(
+                list_cmd, check=True, stdout=subprocess.PIPE
+            ).stdout.decode("utf-8")
 
-        desired_fqbn = self._get_fqbn(board)
-        for device in self._parse_connected_boards(list_cmd_output):
-            if device["fqbn"] == desired_fqbn:
-                return device["port"]
+            desired_fqbn = self._get_fqbn(board)
+            for device in self._parse_connected_boards(list_cmd_output):
+                if device["fqbn"] == desired_fqbn:
+                    device_port = device["port"]
+                    break
+        else:
+            com_ports = serial.tools.list_ports.comports()
+            for port in com_ports:
+                if port.serial_number == serial_number:
+                    device_port = port.device
 
+        if device_port:
+            return device_port
         # If no compatible boards, raise an error
         raise BoardAutodetectFailed()
 
-    def _get_arduino_port(self, arduino_cli_cmd: str, board: str, port: int):
+    def _get_arduino_port(self, arduino_cli_cmd: str, board: str, port: int, serial_number: str):
         if not self._port:
             if port:
                 self._port = port
             else:
-                self._port = self._auto_detect_port(arduino_cli_cmd, board)
+                self._port = self._auto_detect_port(
+                    arduino_cli_cmd, board, serial_number=serial_number
+                )
 
         return self._port
 
@@ -565,12 +588,14 @@ class Handler(server.ProjectAPIHandler):
         warning_as_error = options.get("warning_as_error")
         port = options.get("port")
         board = options.get("board")
+        serial_number = options.get("serial_number")
+
         if not board:
             board = self._get_board_from_makefile(API_SERVER_DIR / MAKEFILE_FILENAME)
 
         cli_command = self._get_arduino_cli_cmd(arduino_cli_cmd)
         self._check_platform_version(cli_command, warning_as_error)
-        port = self._get_arduino_port(cli_command, board, port)
+        port = self._get_arduino_port(cli_command, board, port, serial_number)
 
         upload_cmd = ["make", "flash", f"PORT={port}"]
         for _ in range(self.FLASH_MAX_RETRIES):
@@ -594,13 +619,12 @@ class Handler(server.ProjectAPIHandler):
             )
 
     def open_transport(self, options):
-        import serial
-        import serial.tools.list_ports
-
         # List all used project options
         arduino_cli_cmd = options.get("arduino_cli_cmd")
         port = options.get("port")
         board = options.get("board")
+        serial_number = options.get("serial_number")
+
         if not board:
             board = self._get_board_from_makefile(API_SERVER_DIR / MAKEFILE_FILENAME)
 
@@ -608,7 +632,7 @@ class Handler(server.ProjectAPIHandler):
         if self._serial is not None:
             return
 
-        port = self._get_arduino_port(arduino_cli_cmd, board, port)
+        port = self._get_arduino_port(arduino_cli_cmd, board, port, serial_number)
 
         # It takes a moment for the Arduino code to finish initializing
         # and start communicating over serial
