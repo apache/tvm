@@ -558,7 +558,8 @@ class OperatorConverter(object):
         if fused_activation_fn == ActivationFunctionType.RELU_N1_TO_1:
             return _op.clip(expr, a_min=max(qmin, quantize(-1.0)), a_max=min(qmax, quantize(1.0)))
         if fused_activation_fn == ActivationFunctionType.RELU:
-            return _op.clip(expr, a_min=max(qmin, quantize(0.0)), a_max=qmax)
+            return expr
+            #return _op.clip(expr, a_min=max(qmin, quantize(0.0)), a_max=qmax)
 
         fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
         raise tvm.error.OpNotImplemented(

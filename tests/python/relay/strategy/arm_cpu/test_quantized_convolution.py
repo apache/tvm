@@ -95,6 +95,63 @@ def _get_mobilenet_v1_layer_attributes(layer_num):
     return ((1, 1, 1, 1), (1, 1), True)
 
 
+@pytest.mark.parametrize("layer", range(2, 27, 2))
+def test_infinite_bias_detection(interpreter, layer):
+    """Some models (mainly MobileNetV1) have kernels with many output channels full entirely of
+    zeroes. The VWW mdoel is one of these. This test confirms that the outputs of these channels,
+    as computed by TensorFlow, are indeed not dependent upon the input values.
+    """
+
+    _, kernel, bias, output = _load_tflite_layer(interpreter, layer)
+    kernel_data, kernel_quant = kernel
+    bias_data, bias_quant = bias
+    output_data, output_quant = output
+    is_depthwise = _get_mobilenet_v1_layer_attributes(layer)[2]
+    assert not is_depthwise
+    assert kernel_data.shape[1] == kernel_data.shape[2] == 1
+
+    out_channels = kernel_data.shape[3]
+    fixed_channels = {}
+
+    out_zero_point = output_quant["zero_points"][0]
+    assert out_zero_point == -128
+
+    for i in range(out_channels):
+        # Skip over output channels with data
+        if np.any(kernel_data[i, 0, 0, :]):
+            continue
+
+        scale = bias_quant["scales"][i] / output_quant["scales"][0]
+        channel_constant = round(bias_data[i] * scale + out_zero_point)
+        clipped = min(127, max(-128, channel_constant))
+
+        out_channel_values = output_data[0, :, :, i].flatten()
+        assert all(x == clipped for x in out_channel_values)
+        fixed_channels[i] = clipped
+    print(f"Layer {layer} had {len(fixed_channels)}/{out_channels} empty!")
+
+    # We now need to compute values for the following depthwise layer
+    if layer == 26:
+        return
+
+    _, kernel, bias, output = _load_tflite_layer(interpreter, layer + 1)
+    kernel_data, kernel_quant = kernel
+    bias_data, bias_quant = bias
+    output_data, output_quant = output
+    is_depthwise = _get_mobilenet_v1_layer_attributes(layer + 1)[2]
+    assert is_depthwise
+
+    for i, value in fixed_channels.items():
+        print(i)
+        assert np.all(output_data[:, :, :, i] == output_data[0, 0, 0, i])
+        print(output_data[0, 0, 0, i])
+
+    for i in range(out_channels):
+        print(kernel_data.shape)
+        # Skip over output channels with data
+        assert np.any(kernel_data[:, :, :, i])
+
+
 def _get_relu_activation_prefix(layer_num):
     if layer_num == 0:
         return "model/activation/Relu;"
@@ -206,7 +263,7 @@ def _make_conv2d_op(kernel, data_quant, kernel_quant, hyperparams, is_depthwise=
         kernel_layout="IOHW" if is_depthwise else kernel_layout,
         dilation=(1, 1),
         strides=strides,
-        padding=padding,
+        padding=(0, 0, 0, 0),
         groups=groups,
         channels=channels,
         out_dtype="int32",

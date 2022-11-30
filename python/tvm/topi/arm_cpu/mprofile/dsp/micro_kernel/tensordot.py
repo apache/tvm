@@ -291,7 +291,7 @@ def _write_sums_to_memory(num_outputs, offset, stride) -> Iterator[str]:
             # Arm GCC 12 with -O3 does not compile these efficiently.
             yield f"int packed_res_{i};"
             yield (
-                f'asm inline ("pkhbt %0, %1, %2, lsl #16" : "=r" (packed_res_{i}) : '
+                f'__asm__ ("pkhbt %0, %1, %2, lsl #16" : "=r" (packed_res_{i}) : '
                 f'"r" (requant_{index}), "r" (requant_{index + 1}));'
             )
 

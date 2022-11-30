@@ -878,6 +878,28 @@ def convert_deformable_conv2d(attrs, inputs, tinfos, desired_layouts):
 
 
 # QNN ops
+@reg.register_legalize("nn.bias_add")
+def legalize_bias_add(attrs, inputs, tinfos):
+    """Legalize a bias add operator.
+
+    May be used to "fold in" unused channels from quantized convolution operators. This should
+    be done before layout rewrites occur to minimize the amount of "extra" overhead operators
+    like "cast" and "layout_transform".
+    """
+    return topi.nn.qnn.qnn_bias_add_legalize(attrs, inputs, tinfos)
+
+
+@reg.register_alter_op_layout("qnn.conv2d")
+def alter_op_layout_qnn_conv2d(attrs, inputs, tinfos, out_type):
+    """Alter the layout of a qnn conv2d op.
+
+    May be used to alter the current QNN Conv2D op, but can also be used to alter previous ops to
+    better match the current op. For example, Arm Cortex-M uses this to set the out_layout of
+    previous ops to the input layout preferred by future layouts.
+    """
+    return topi.nn.qnn.qnn_conv2d_alter_layout(attrs, inputs, tinfos, out_type)
+
+
 @reg.register_alter_op_layout("add")
 def alter_op_layout_add(attrs, inputs, tinfos, out_type):
     """Alter the layout of a add op.

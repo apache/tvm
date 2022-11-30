@@ -28,6 +28,7 @@ from tvm.tir import const
 from tvm.script import tir as T
 from ..utils import get_const_tuple
 from .mprofile.dsp.micro_kernel import tensordot
+from tvm.topi.nn.pad import pad
 
 
 def int_ceil_division(x, y):
@@ -255,12 +256,30 @@ def qnn_conv2d(attrs, inputs, out_type):
     # Make a few checks to unpack the function arguments and ensure it was called with the right
     # arguments. Note that unlike most schedules, qnn_conv2d does not use a wrapper.
     assert len(inputs) == 11
+    assert attrs
+    import pdb
+
     data, kernel, _izp, _kzp, _iscale, _kscale, bias, scale = inputs[0:8]
 
-    _, height, width, in_channels = get_const_tuple(data.shape)
     out_channels, kernel_h, kernel_w, _ = get_const_tuple(kernel.shape)
     y_stride, x_stride = get_const_tuple(attrs.strides)
 
+    # rq_input_zero_point_const = inputs[8].op.body[0]
+    rq_input_zero_point_const = -128
+
+    padding = get_const_tuple(attrs.padding)
+    if any(padding):
+        pad_up, pad_left, pad_down, pad_right = padding
+        padded_data = pad(
+            data,
+            [0, pad_up, pad_left, 0],
+            [0, pad_down, pad_right, 0],
+            rq_input_zero_point_const,
+        )
+    else:
+        padded_data = data
+
+    _, height, width, in_channels = get_const_tuple(padded_data.shape)
     out_height = _compute_output_dim(height, kernel_h, y_stride)
     out_width = _compute_output_dim(width, kernel_w, x_stride)
 
@@ -333,10 +352,24 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
     assert len(inputs) == 11
     data, kernel, _izp, _kzp, _iscale, _kscale, bias, scale = inputs[0:8]
 
-    _, _, height, width = get_const_tuple(data.shape)
     _, out_channels, kernel_h, kernel_w = get_const_tuple(kernel.shape)
     y_stride, x_stride = get_const_tuple(attrs.strides)
 
+    # rq_input_zero_point_const = inputs[8].op.body[0]
+    rq_input_zero_point_const = -128
+    padding = get_const_tuple(attrs.padding)
+    if any(padding):
+        pad_up, pad_left, pad_down, pad_right = padding
+        padded_data = pad(
+            data,
+            [0, 0, pad_up, pad_left],
+            [0, 0, pad_down, pad_right],
+            rq_input_zero_point_const,
+        )
+    else:
+        padded_data = data
+
+    _, _, height, width = get_const_tuple(padded_data.shape)
     out_height = _compute_output_dim(height, kernel_h, y_stride)
     out_width = _compute_output_dim(width, kernel_w, x_stride)
 
