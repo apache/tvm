@@ -334,13 +334,9 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
   // for minor-axis, simply bind it as 0, so that we can reuse forward/backward_rule,
   // e.g., (C * 16 + c) / 32
   std::unordered_map<const tir::VarNode*, PrimExpr> bind_map;
-  std::unordered_set<size_t> symbolic_var_set;
   for (size_t i = 0; i < src_shape.size(); ++i) {
     PrimExpr orig_shape = src_shape[i];
     IterVar orig_axis = src_axis[i];
-    if (orig_shape.as<tir::AnyNode>()) {
-      symbolic_var_set.insert(i);
-    }
     if (!LayoutAxis::Get(orig_axis).IsPrimal()) {
       if (orig_shape.defined()) {
         const auto* orig_shape_const = orig_shape.as<IntImmNode>();
@@ -369,11 +365,7 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
     if (!LayoutAxis::Get(axis).IsPrimal()) {
       result.push_back(axis->dom->extent);
     } else {
-      if (symbolic_var_set.count(i)) {
-        result.push_back(tir::Any());
-      } else {
-        result.push_back(ana.Simplify(tir::Substitute(rule, bind_map)));
-      }
+      result.push_back(ana.Simplify(tir::Substitute(rule, bind_map)));
     }
   }
 
