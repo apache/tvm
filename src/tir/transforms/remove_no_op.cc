@@ -306,10 +306,6 @@ Pass RemoveNoOp() {
     }
 
     arith::Analyzer analyzer;
-    analyzer.rewrite_simplify.SetEnabledExtensions(arith::RewriteSimplifier::Extension(
-        arith::RewriteSimplifier::kTransitivelyProveInequalities |
-        arith::RewriteSimplifier::kConvertBooleanToAndOfOrs |
-        arith::RewriteSimplifier::kApplyConstraintsToBooleanBranches));
 
     auto* n = f.CopyOnWrite();
     n->body = NoOpRemover::Apply(std::move(n->body), &analyzer, std::move(touch_pattern), nullptr);
