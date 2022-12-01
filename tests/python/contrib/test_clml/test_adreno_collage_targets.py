@@ -236,6 +236,7 @@ def autotvm_tune_module(mod, target, log_filename):
 def compile_and_benchmark(label, model, targets, tmp_dir):
     """Compile model for target and run it with profiling."""
     logging.info(f"Compiling {model['name']} using {label} with {targets}...")
+    model["mod"] = clml.preprocess_for_clml(model["mod"])
     exe = tvm.relay.vm.compile(model["mod"], target=targets, params=model["params"])
     lib = exe.mod
     lib_path = os.path.join(tmp_dir, "lib.so")
@@ -255,7 +256,7 @@ def compile_and_benchmark(label, model, targets, tmp_dir):
 # Custom cost function for Opencl RPC targets.
 @register_func("tvm.relay.collage.opencl_cost_estimator")
 def opencl_cost_estimator(mod, target):
-
+    mod = clml.preprocess_for_clml(mod) if "clml" == target.kind.name else mod
     try:
         # Build the module.
         logging.info("Compiling module to estimate")
