@@ -38,7 +38,7 @@ def _compute_output_dim(data_length, kernel_length, stride):
     return int_ceil_division(data_length + 1 - kernel_length, stride)
 
 
-def _pick_tensordot_impl(attrs, inputs, num_sums=2, is_depthwise=False):
+def _pick_tensordot_impl(attrs, inputs, num_outputs=2, is_depthwise=False):
     """Helper function that chooses the right implementation of micro_kernel.tensordot.
 
     Takes as input the parameters of the conv2d, and returns a tuple of TWO (function_name,
@@ -86,7 +86,7 @@ def _pick_tensordot_impl(attrs, inputs, num_sums=2, is_depthwise=False):
 
     x_strides = (in_stride, out_stride)
     aligned_func = tensordot.tensordot_int16_impl(
-        num_sums,
+        num_outputs,
         dimensions,
         (0, 0, 0),
         x_strides,
@@ -97,7 +97,7 @@ def _pick_tensordot_impl(attrs, inputs, num_sums=2, is_depthwise=False):
 
     offsets = (data_per_oc_size % 2, kernel_per_oc_size % 2, 0)
     offset_func = tensordot.tensordot_int16_impl(
-        num_sums,
+        num_outputs,
         dimensions,
         offsets,
         x_strides,
@@ -236,7 +236,7 @@ def qnn_conv2d(attrs, inputs, out_type):
     # this lets us do "more work" for each memory load, but doing too many of them causes us to run
     # out of registers. Currently this is set to either 1 or 2, but autotuning this value would
     # improve performance a lot.
-    num_sums = 2
+    num_outputs = 2
 
     # Next, decide whether whether we need "parity alternation". For example, if we have an
     # 8x3x3x3 kernel (8 output channels, height 3, width 3, input channels 3) in the OHWI layout,
@@ -250,13 +250,13 @@ def qnn_conv2d(attrs, inputs, out_type):
     # _pick_tensordot_impl decides whether this is the case. If not, we only want to generate one
     # function (to save flash), so offset_func is a tuple of empty strings.
 
-    aligned_func, offset_func = _pick_tensordot_impl(attrs, inputs, num_sums, False)
+    aligned_func, offset_func = _pick_tensordot_impl(attrs, inputs, num_outputs, False)
 
     # Helper functions to make pointers
     def output_ptr(buffer, y, x, c):
         return _make_tscript_ptr(
             buffer,
-            y * const(out_width * out_channels) + x * const(out_channels * num_sums) + c,
+            y * const(out_width * out_channels) + x * const(out_channels * num_outputs) + c,
             1,
         )
 
@@ -269,7 +269,7 @@ def qnn_conv2d(attrs, inputs, out_type):
         return _make_tscript_ptr(
             buffer,
             y * const(y_stride * width * in_channels)
-            + x * const(x_stride * num_sums * in_channels),
+            + x * const(x_stride * num_outputs * in_channels),
             1,
         )
 
@@ -283,7 +283,7 @@ def qnn_conv2d(attrs, inputs, out_type):
         )
 
     prim_func = _make_conv2d_primfunc(
-        (const(out_height), const(out_width // num_sums), const(out_channels)),
+        (const(out_height), const(out_width // num_outputs), const(out_channels)),
         (data.shape, kernel.shape, bias.shape, scale.shape, out_type.shape),
         aligned_func,
         offset_func,
@@ -318,15 +318,15 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
     out_height = _compute_output_dim(height, kernel_h, y_stride)
     out_width = _compute_output_dim(width, kernel_w, x_stride)
 
-    num_sums = 2
+    num_outputs = 2
 
-    aligned_func, offset_func = _pick_tensordot_impl(attrs, inputs, num_sums, True)
+    aligned_func, offset_func = _pick_tensordot_impl(attrs, inputs, num_outputs, True)
 
     # Helper functions for making pointers.
     def output_ptr(buffer, y, x, c):
         return _make_tscript_ptr(
             buffer,
-            y * const(out_width * out_channels) + x * const(out_channels * num_sums) + c,
+            y * const(out_width * out_channels) + x * const(out_channels * num_outputs) + c,
             1,
         )
 
@@ -340,7 +340,7 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
             buffer,
             c * const(width * height)
             + y * const(y_stride * width)
-            + x * const(x_stride * num_sums)
+            + x * const(x_stride * num_outputs)
             + offset * x_ptr_offset,
             1,
         )
@@ -353,7 +353,7 @@ def qnn_depthwise_conv2d(attrs, inputs, out_type):
         )
 
     prim_func = _make_conv2d_primfunc(
-        (const(out_height), const(out_width // num_sums), const(out_channels)),
+        (const(out_height), const(out_width // num_outputs), const(out_channels)),
         (data.shape, kernel.shape, bias.shape, scale.shape, out_type.shape),
         aligned_func,
         offset_func,

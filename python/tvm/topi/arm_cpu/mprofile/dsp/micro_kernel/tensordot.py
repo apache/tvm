@@ -22,15 +22,31 @@ layout HHWC and kernel layout OHWI. For depthwise convolution, use data layout d
 and kernel layout OIHW.
 """
 
-from collections import namedtuple
+from dataclasses import dataclass
 from itertools import chain
 import textwrap
-from typing import Iterator, Tuple
-
-SMLAInstruction = namedtuple("SMLAInstruction", ["instruction", "tensor_var", "kernel_var"])
+from typing import Iterator, Optional, Tuple
 
 
-def _get_c_function_name(split_size, dimensions, offsets, x_strides):
+@dataclass
+class SMLAInstruction:
+    """Class for keeping track of an item in inventory."""
+
+    instruction: str
+    tensor_var: str
+    kernel_var: str
+
+    def call_with_acle(self, accumulator_var: str) -> str:
+        return (
+            f"{accumulator_var} = __{self.instruction}"
+            f"({self.tensor_var}, {self.kernel_var}, {accumulator_var});"
+        )
+
+    def has_same_operands(self, other: "SMLAInstruction") -> bool:
+        return self.tensor_var == other.tensor_var and self.kernel_var == other.kernel_var
+
+
+def _get_c_function_name(num_outputs, dimensions, offsets, x_strides):
     """Generates a C function name for tensordot.
 
     We do not need a suffix, as the generated function will have an #include guard. Unlike other
@@ -38,14 +54,14 @@ def _get_c_function_name(split_size, dimensions, offsets, x_strides):
     """
     tensor_w, kernel_h, kernel_w = dimensions
     return (
-        f"tensordot_opt_x{split_size}_int16_w{tensor_w}_"
+        f"tensordot_opt_x{num_outputs}_int16_w{tensor_w}_"
         + f"{kernel_h}x{kernel_w}_"
         + "".join(map(str, offsets))
-        + (f"_{x_strides[0]}_{x_strides[1]}" if split_size > 1 else "")
+        + (f"_{x_strides[0]}_{x_strides[1]}" if num_outputs > 1 else "")
     )
 
 
-def _init_biased_accumulators(split_size):
+def _init_biased_accumulators(num_outputs):
     """Generates code to load the bias into the accumulators.
 
     Addition is commutative, so we could add the bias before, during, or after performing our
@@ -55,37 +71,102 @@ def _init_biased_accumulators(split_size):
     trick to set sum_i to zero for "free"). However, doing it at the beginning frees up a register,
     so we'll do it first.
     """
-    assignments = map(lambda x: f"sum_{x:x} = *bias", range(split_size))
+    assignments = map(lambda x: f"sum_{x:x} = *bias", range(num_outputs))
     joined_assignments = ", ".join(assignments)
-    return f"int {joined_assignments};"
+    return f"int32_t {joined_assignments};"
 
 
-def _get_tensor_halfwords(dimensions, offset, split_size, in_stride) -> Iterator:
+def _get_tensor_halfwords(dimensions, offset, num_outputs, in_stride) -> Iterator[Optional[Tuple]]:
+    """Gets the data that will be stored in memory at the tensor pointer.
+
+    Returns an Iterator of Optional[Tuple], while skipping over word-aligned pairs of unrelated
+    halfwords. The returned iterator is as short as possible while having even length and containing
+    all relevant tensor data. Tuples in the returned Iterator represent an (y, x) offset from the
+    top-left tensor position being used in this convolution. We need to be aware of the None values
+    so our code is correctly word-aligned.
+
+    One consequence of these requirements - each row in the tensor is broken into word-aligned pairs
+    of halfwords (which are later combined into full words). See the examples below:
+
+    A simple 3x3 depthwise convolution computing one output and with in_stride = 1. Note that each
+    row is padded with None at the end to make the rows word-aligned.
+        >>> _get_tensor_halfwords((48, 3, 3), 0, 1, 1)  # doctest: +NORMALIZE_WHITESPACE
+        [(0, 0), (0, 1), (0, 2), None,
+         (1, 0), (1, 1), (1, 2), None,
+         (2, 0), (2, 1), (2, 2), None]
+
+    If the tensor width is odd, padding alternates before/after every row.
+        >>> _get_tensor_halfwords((49, 3, 3), 0, 1, 1)  # doctest: +NORMALIZE_WHITESPACE
+        [(0, 0), (0, 1), (0, 2), None,
+         None, (1, 0), (1, 1), (1, 2),
+         (2, 0), (2, 1), (2, 2), None]
+
+    If we are computing multiple outputs, more tensor data becomes relevant.
+        >>> _get_tensor_halfwords((48, 3, 3), 0, 2, 1)  # doctest: +NORMALIZE_WHITESPACE
+        [(0, 0), (0, 1), (0, 2), (0, 3),
+         (1, 0), (1, 1), (1, 2), (1, 3),
+         (2, 0), (2, 1), (2, 2), (2, 3)]
+
+    Setting in_stride > 1 also makes more tensor data relevant, and setting offset=1 means tensor
+    data starts one position after the tensor pointer.
+
+        >>> _get_tensor_halfwords((49, 3, 3), 1, 2, 2)  # doctest: +NORMALIZE_WHITESPACE
+        [None, (0, 0), (0, 1), (0, 2), (0, 3), (0, 4),
+         (1, 0), (1, 1), (1, 2), (1, 3), (1, 4), None,
+         None, (2, 0), (2, 1), (2, 2), (2, 3), (2, 4)]
+    """
+
     tensor_w, kernel_h, kernel_w = dimensions
+    max_x_val = (num_outputs - 1) * in_stride + kernel_w
+    halfwords = []
 
-    split_max = (split_size - 1) * in_stride
     for y in range(kernel_h):
-        if y * tensor_w % 2 + offset == 1:
-            yield None
-        for x in range(kernel_w + split_max):
-            yield (y, x)
-        if (y * tensor_w + kernel_w + split_max + offset) % 2 == 1:
-            yield None
+        # If needed, pad so the beginning of the row is word-aligned
+        if (y * tensor_w + offset) % 2 == 1:
+            halfwords.append(None)
+
+        for x in range(max_x_val):
+            halfwords.append((y, x))
+
+        # If needed, pad so the row length is word aligned
+        if (y * tensor_w + offset + max_x_val) % 2 == 1:
+            halfwords.append(None)
+    return halfwords
 
 
-def _get_kernel_halfwords(dimensions, offset) -> Iterator:
+def _get_kernel_halfwords(dimensions, offset) -> Iterator[Optional[Tuple]]:
+    """Gets the data that will be stored in memory at the kernel pointer.
+
+    Returns an Iterator of Optional[Tuple]. The returned iterator is as short as possible while
+    having even length and containing all kernel data. Tuples in the returned Iterator represent
+    an (y, x) position in the kernel, while None values represent other, irrelevant data. We need
+    to be aware of the None values so our code is correctly word-aligned.
+
+    >>> _get_kernel_halfwords((96, 3, 3), 0)
+    [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2), None]
+    >>> _get_kernel_halfwords((48, 1, 4), 1)
+    [None, (0, 0), (0, 1), (0, 2), (0, 3), None]
+    """
     _, kernel_h, kernel_w = dimensions
+    halfwords = []
+
+    # Kernel data starts `offset` places after the pointer value
     if offset == 1:
-        yield None
+        halfwords.append(None)
+
     for y in range(kernel_h):
         for x in range(kernel_w):
-            yield (y, x)
+            halfwords.append((y, x))
+
+    # Make sure the returned iterator has even length by padding with an "unknown" value. We want
+    # even length as this corresponds to an integer number of int32 words.
     if (kernel_h * kernel_w + offset) % 2 == 1:
-        yield None
+        halfwords.append(None)
+    return halfwords
 
 
 def _get_int16_alias(position) -> str:
-    if not position:
+    if position is None:
         return "unknown"
     y, x = position
     return f"y{y:0>2x}_x{x:0>2x}"
@@ -96,17 +177,17 @@ def _load_tensor_vars(halfwords, tensor_w) -> Iterator[str]:
     offset = int(not bool(halfwords[0]))
 
     for i in range(0, len(halfwords), 2):
-        var_name = "__".join(map(_get_int16_alias, halfwords[i : i + 2]))
+        var_name = f"{_get_int16_alias(halfwords[i])}__{_get_int16_alias(halfwords[i+1])}"
         y, x = halfwords[i + 1] or halfwords[i]
         tensor_index = (y * tensor_w + x + offset) // 2
-        yield f"int tensor__{var_name} = tensor[{tensor_index}];"
+        yield f"int32_t tensor__{var_name} = tensor[{tensor_index}];"
 
 
 def _load_kernel_vars(halfwords) -> Iterator[str]:
     assert len(halfwords) % 2 == 0
     for i in range(0, len(halfwords), 2):
-        var_name = "__".join(map(_get_int16_alias, halfwords[i : i + 2]))
-        yield f"int kernel__{var_name} = kernel[{i // 2}];"
+        var_name = f"{_get_int16_alias(halfwords[i])}__{_get_int16_alias(halfwords[i+1])}"
+        yield f"int32_t kernel__{var_name} = kernel[{i // 2}];"
 
 
 def _get_draft_macs(
@@ -147,16 +228,17 @@ def _apply_simd_optimizations(instruction_tuples) -> Iterator[SMLAInstruction]:
     curr_tuple = next(instruction_tuples, None)
     while curr_tuple:
         next_tuple = next(instruction_tuples, None)
-        if not next_tuple:
+        if next_tuple is None:
             yield curr_tuple
             break
 
-        if curr_tuple[1:] == next_tuple[1:]:
-            if set([curr_tuple[0], next_tuple[0]]) == set(["smlatt", "smlabb"]):
-                yield SMLAInstruction("smlad", *curr_tuple[1:])
+        if curr_tuple.has_same_operands(next_tuple):
+            instructions = sorted([curr_tuple.instruction, next_tuple.instruction])
+            if instructions == ["smlabb", "smlatt"]:
+                yield SMLAInstruction("smlad", curr_tuple.tensor_var, curr_tuple.kernel_var)
                 next_tuple = next(instruction_tuples, None)
-            elif set([curr_tuple[0], next_tuple[0]]) == set(["smlatb", "smlabt"]):
-                yield SMLAInstruction("smladx", *curr_tuple[1:])
+            elif instructions == ["smlabt", "smlatb"]:
+                yield SMLAInstruction("smladx", curr_tuple.tensor_var, curr_tuple.kernel_var)
                 next_tuple = next(instruction_tuples, None)
             else:
                 yield curr_tuple
@@ -173,15 +255,15 @@ def _expand_instruction_tuples(instruction_tuples, index) -> Iterator[str]:
     calls to instruction aliases instead of as a single `asm` block.
     """
 
-    for instruction, op1, op2 in instruction_tuples:
-        assert "smla" in instruction
+    for smla_instruction in instruction_tuples:
+        assert "smla" in smla_instruction.instruction
 
         # We call the instruction using the Arm C Language Extensions. Using ACLE gives better
         # cross-compiler compatibility than using __builtin functions.
-        yield f"sum_{index} = __{instruction}({op1}, {op2}, sum_{index});"
+        yield smla_instruction.call_with_acle(f"sum_{index}")
 
 
-def _requantize_sums(num_sums, requantize_shift, output_zero_point) -> Iterator[str]:
+def _requantize_sums(num_outputs, requantize_shift, output_zero_point) -> Iterator[str]:
     """Generates code to requantize the accumulator values.
 
     The generated code does not use floating point instructions, as it simulates floating point
@@ -202,14 +284,14 @@ def _requantize_sums(num_sums, requantize_shift, output_zero_point) -> Iterator[
     instruction each.
     """
 
-    yield "int scale_val = *scale;"
-    for i in range(num_sums):
-        yield f"int requant_{i} = (sum_{i} * (long long) scale_val) >> {requantize_shift - 1};"
+    yield "int32_t scale_val = *scale;"
+    for i in range(num_outputs):
+        yield f"int32_t requant_{i} = (sum_{i} * (int64_t) scale_val) >> {requantize_shift - 1};"
         yield f"requant_{i} = (requant_{i} + 1) >> 1;"
         yield f"requant_{i} = __ssat(requant_{i} + {output_zero_point}, 8);"
 
 
-def _write_sums_to_memory(num_sums, offset, stride) -> Iterator[str]:
+def _write_sums_to_memory(num_outputs, offset, stride) -> Iterator[str]:
     """Generates code to write the requantized sums to memory.
 
     Note - halfword packing here *does* help. It seems
@@ -222,27 +304,27 @@ def _write_sums_to_memory(num_sums, offset, stride) -> Iterator[str]:
     """
 
     if stride > 1:
-        for i in range(num_sums):
-            yield f"((short*) output)[{i * stride + offset}] = (short) requant_{i};"
+        for i in range(num_outputs):
+            yield f"((int16_t*) output)[{i * stride + offset}] = (int16_t) requant_{i};"
 
     else:
-        num_halfwords = (num_sums - offset) // 2
-        for i in range(num_halfwords):
+        num_packed = (num_outputs - offset) // 2
+        for i in range(num_packed):
             index = 2 * i + offset
-            yield f"int packed_res_{i} = requant_{index} + (requant_{index + 1} << 16);"
+            yield f"int32_t packed_res_{i} = requant_{index} + (requant_{index + 1} << 16);"
 
         if offset == 1:
-            yield "((short*) output)[1] = (short) requant_0;"
+            yield "((int16_t*) output)[1] = (int16_t) requant_0;"
 
-        for i in range(num_halfwords):
+        for i in range(num_packed):
             yield f"output[{offset + i}] = packed_res_{i};"
 
-        if (offset + num_sums) % 2 == 1:
-            yield f"((short*) output)[{num_halfwords * 2}] = (short) requant_{num_halfwords * 2};"
+        if (offset + num_outputs) % 2 == 1:
+            yield f"((int16_t*) output)[{num_packed * 2}] = (int16_t) requant_{num_packed * 2};"
 
 
 def tensordot_int16_impl(
-    split_size: int,
+    num_outputs: int,
     dimensions: Tuple[int, int, int],
     offsets: Tuple[int, int, int],
     x_strides: Tuple[int, int],
@@ -257,11 +339,11 @@ def tensordot_int16_impl(
 
     Parameters
     ----------
-    split_size: int
-        The number of tensordot values to compute in this function. Computing more than one at once
-        makes us much faster by reducing how often overlapping data is loaded. However, setting this
-        too high causes us to run out of registers and need to store data on the stack. We should
-        autotune this, but split_size=2 is usually OK.
+    num_outputs: int
+        The number of tensordot outputs to compute per function call. Computing more than one at
+        once makes us much faster by reducing how often overlapping data is loaded. However, setting
+        this too high causes us to run out of registers and need to store data on the stack. We
+        should autotune this, but num_outputs=2 is usually OK.
 
     dimensions: Tuple[int, int, int]
         The dimensions of each tensordot operation. dimensions[1] and dimensions[2] are the height
@@ -275,7 +357,7 @@ def tensordot_int16_impl(
 
     x_strides: Tuple[int, int]
         The distance (in halfwords) between the start of each input tensor, and where to write each
-        output result respectively. Only used when split_size > 1.
+        output result respectively. Only used when num_outputs > 1.
 
     requantize_shift: int
         The distance to right shift after multiplying by the requantization scale. Defaults to 33,
@@ -290,14 +372,14 @@ def tensordot_int16_impl(
     func_name, func_code: Tuple[str, str]
         The name and source code of the generated function.
     """
-    function_name = _get_c_function_name(split_size, dimensions, offsets, x_strides)
+    function_name = _get_c_function_name(num_outputs, dimensions, offsets, x_strides)
     tensor_w, kernel_h, kernel_w = dimensions
     tensor_offset, kernel_offset, output_offset = offsets
     assert tensor_offset < 2 and kernel_offset < 2 and output_offset < 2
     in_stride, out_stride = x_strides
 
-    tensor_halfwords = list(_get_tensor_halfwords(dimensions, tensor_offset, split_size, in_stride))
-    kernel_halfwords = list(_get_kernel_halfwords(dimensions, kernel_offset))
+    tensor_halfwords = _get_tensor_halfwords(dimensions, tensor_offset, num_outputs, in_stride)
+    kernel_halfwords = _get_kernel_halfwords(dimensions, kernel_offset)
     load_tensor_lines = _load_tensor_vars(tensor_halfwords, tensor_w)
     load_kernel_lines = _load_kernel_vars(kernel_halfwords)
 
@@ -308,11 +390,11 @@ def tensordot_int16_impl(
         draft_macs_iter = _apply_simd_optimizations(draft_macs_iter)
         return _expand_instruction_tuples(draft_macs_iter, index)
 
-    multiply_acc_lines = chain.from_iterable(gen_single_loop_macs(i) for i in range(split_size))
+    multiply_acc_lines = chain.from_iterable(gen_single_loop_macs(i) for i in range(num_outputs))
     requantize_lines = _requantize_sums(
-        split_size, requantize_shift=requantize_shift, output_zero_point=output_zero_point
+        num_outputs, requantize_shift=requantize_shift, output_zero_point=output_zero_point
     )
-    write_out_lines = _write_sums_to_memory(split_size, output_offset, out_stride)
+    write_out_lines = _write_sums_to_memory(num_outputs, output_offset, out_stride)
 
     def insert_lines(lines):
         return ("\n" + " " * 10).join(lines)
@@ -325,10 +407,10 @@ def tensordot_int16_impl(
         #ifndef {function_name.upper()}_EXISTS
         #define {function_name.upper()}_EXISTS
         #include <arm_acle.h>
-        __attribute__((always_inline)) static inline int {function_name}(
-            int *output, int *tensor, int *kernel, int *bias, int *scale
+        __attribute__((always_inline)) static inline int32_t {function_name}(
+            int32_t *output, int32_t *tensor, int32_t *kernel, int32_t *bias, int32_t *scale
         ) {{
-          {_init_biased_accumulators(split_size)}
+          {_init_biased_accumulators(num_outputs)}
 
           {insert_lines(load_tensor_lines)}
 

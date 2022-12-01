@@ -61,23 +61,23 @@ def test_write_3x3_depthwise_code():
     #ifndef TENSORDOT_OPT_X1_INT16_W48_3X3_000_EXISTS
     #define TENSORDOT_OPT_X1_INT16_W48_3X3_000_EXISTS
     #include <arm_acle.h>
-    __attribute__((always_inline)) static inline int tensordot_opt_x1_int16_w48_3x3_000(
-        int *output, int *tensor, int *kernel, int *bias, int *scale
+    __attribute__((always_inline)) static inline int32_t tensordot_opt_x1_int16_w48_3x3_000(
+        int32_t *output, int32_t *tensor, int32_t *kernel, int32_t *bias, int32_t *scale
     ) {
-      int sum_0 = *bias;
+      int32_t sum_0 = *bias;
 
-      int tensor__y00_x00__y00_x01 = tensor[0];
-      int tensor__y00_x02__unknown = tensor[1];
-      int tensor__y01_x00__y01_x01 = tensor[24];
-      int tensor__y01_x02__unknown = tensor[25];
-      int tensor__y02_x00__y02_x01 = tensor[48];
-      int tensor__y02_x02__unknown = tensor[49];
+      int32_t tensor__y00_x00__y00_x01 = tensor[0];
+      int32_t tensor__y00_x02__unknown = tensor[1];
+      int32_t tensor__y01_x00__y01_x01 = tensor[24];
+      int32_t tensor__y01_x02__unknown = tensor[25];
+      int32_t tensor__y02_x00__y02_x01 = tensor[48];
+      int32_t tensor__y02_x02__unknown = tensor[49];
 
-      int kernel__y00_x00__y00_x01 = kernel[0];
-      int kernel__y00_x02__y01_x00 = kernel[1];
-      int kernel__y01_x01__y01_x02 = kernel[2];
-      int kernel__y02_x00__y02_x01 = kernel[3];
-      int kernel__y02_x02__unknown = kernel[4];
+      int32_t kernel__y00_x00__y00_x01 = kernel[0];
+      int32_t kernel__y00_x02__y01_x00 = kernel[1];
+      int32_t kernel__y01_x01__y01_x02 = kernel[2];
+      int32_t kernel__y02_x00__y02_x01 = kernel[3];
+      int32_t kernel__y02_x02__unknown = kernel[4];
 
       sum_0 = __smlad(tensor__y00_x00__y00_x01, kernel__y00_x00__y00_x01, sum_0);
       sum_0 = __smlabb(tensor__y00_x02__unknown, kernel__y00_x02__y01_x00, sum_0);
@@ -87,12 +87,12 @@ def test_write_3x3_depthwise_code():
       sum_0 = __smlad(tensor__y02_x00__y02_x01, kernel__y02_x00__y02_x01, sum_0);
       sum_0 = __smlabb(tensor__y02_x02__unknown, kernel__y02_x02__unknown, sum_0);
 
-      int scale_val = *scale;
-      int requant_0 = (sum_0 * (long long) scale_val) >> 32;
+      int32_t scale_val = *scale;
+      int32_t requant_0 = (sum_0 * (int64_t) scale_val) >> 32;
       requant_0 = (requant_0 + 1) >> 1;
       requant_0 = __ssat(requant_0 + -128, 8);
 
-      ((short*) output)[0] = (short) requant_0;
+      ((int16_t*) output)[0] = (int16_t) requant_0;
       return 0;
     }
     #endif
@@ -114,26 +114,26 @@ def test_odd_width_3x3_depthwise_strides_code():
     #ifndef TENSORDOT_OPT_X2_INT16_W49_3X3_000_2_4_EXISTS
     #define TENSORDOT_OPT_X2_INT16_W49_3X3_000_2_4_EXISTS
     #include <arm_acle.h>
-    __attribute__((always_inline)) static inline int tensordot_opt_x2_int16_w49_3x3_000_2_4(
-        int *output, int *tensor, int *kernel, int *bias, int *scale
+    __attribute__((always_inline)) static inline int32_t tensordot_opt_x2_int16_w49_3x3_000_2_4(
+        int32_t *output, int32_t *tensor, int32_t *kernel, int32_t *bias, int32_t *scale
     ) {
-      int sum_0 = *bias, sum_1 = *bias;
+      int32_t sum_0 = *bias, sum_1 = *bias;
 
-      int tensor__y00_x00__y00_x01 = tensor[0];
-      int tensor__y00_x02__y00_x03 = tensor[1];
-      int tensor__y00_x04__unknown = tensor[2];
-      int tensor__unknown__y01_x00 = tensor[24];
-      int tensor__y01_x01__y01_x02 = tensor[25];
-      int tensor__y01_x03__y01_x04 = tensor[26];
-      int tensor__y02_x00__y02_x01 = tensor[49];
-      int tensor__y02_x02__y02_x03 = tensor[50];
-      int tensor__y02_x04__unknown = tensor[51];
+      int32_t tensor__y00_x00__y00_x01 = tensor[0];
+      int32_t tensor__y00_x02__y00_x03 = tensor[1];
+      int32_t tensor__y00_x04__unknown = tensor[2];
+      int32_t tensor__unknown__y01_x00 = tensor[24];
+      int32_t tensor__y01_x01__y01_x02 = tensor[25];
+      int32_t tensor__y01_x03__y01_x04 = tensor[26];
+      int32_t tensor__y02_x00__y02_x01 = tensor[49];
+      int32_t tensor__y02_x02__y02_x03 = tensor[50];
+      int32_t tensor__y02_x04__unknown = tensor[51];
 
-      int kernel__y00_x00__y00_x01 = kernel[0];
-      int kernel__y00_x02__y01_x00 = kernel[1];
-      int kernel__y01_x01__y01_x02 = kernel[2];
-      int kernel__y02_x00__y02_x01 = kernel[3];
-      int kernel__y02_x02__unknown = kernel[4];
+      int32_t kernel__y00_x00__y00_x01 = kernel[0];
+      int32_t kernel__y00_x02__y01_x00 = kernel[1];
+      int32_t kernel__y01_x01__y01_x02 = kernel[2];
+      int32_t kernel__y02_x00__y02_x01 = kernel[3];
+      int32_t kernel__y02_x02__unknown = kernel[4];
 
       sum_0 = __smlad(tensor__y00_x00__y00_x01, kernel__y00_x00__y00_x01, sum_0);
       sum_0 = __smlabb(tensor__y00_x02__y00_x03, kernel__y00_x02__y01_x00, sum_0);
@@ -148,16 +148,16 @@ def test_odd_width_3x3_depthwise_strides_code():
       sum_1 = __smlad(tensor__y02_x02__y02_x03, kernel__y02_x00__y02_x01, sum_1);
       sum_1 = __smlabb(tensor__y02_x04__unknown, kernel__y02_x02__unknown, sum_1);
 
-      int scale_val = *scale;
-      int requant_0 = (sum_0 * (long long) scale_val) >> 32;
+      int32_t scale_val = *scale;
+      int32_t requant_0 = (sum_0 * (int64_t) scale_val) >> 32;
       requant_0 = (requant_0 + 1) >> 1;
       requant_0 = __ssat(requant_0 + -128, 8);
-      int requant_1 = (sum_1 * (long long) scale_val) >> 32;
+      int32_t requant_1 = (sum_1 * (int64_t) scale_val) >> 32;
       requant_1 = (requant_1 + 1) >> 1;
       requant_1 = __ssat(requant_1 + -128, 8);
 
-      ((short*) output)[0] = (short) requant_0;
-      ((short*) output)[4] = (short) requant_1;
+      ((int16_t*) output)[0] = (int16_t) requant_0;
+      ((int16_t*) output)[4] = (int16_t) requant_1;
       return 0;
     }
     #endif
@@ -177,32 +177,32 @@ def test_1x1x8_convolution_code():
     #ifndef TENSORDOT_OPT_X4_INT16_W384_1X8_000_8_1_EXISTS
     #define TENSORDOT_OPT_X4_INT16_W384_1X8_000_8_1_EXISTS
     #include <arm_acle.h>
-    __attribute__((always_inline)) static inline int tensordot_opt_x4_int16_w384_1x8_000_8_1(
-        int *output, int *tensor, int *kernel, int *bias, int *scale
+    __attribute__((always_inline)) static inline int32_t tensordot_opt_x4_int16_w384_1x8_000_8_1(
+        int32_t *output, int32_t *tensor, int32_t *kernel, int32_t *bias, int32_t *scale
     ) {
-      int sum_0 = *bias, sum_1 = *bias, sum_2 = *bias, sum_3 = *bias;
+      int32_t sum_0 = *bias, sum_1 = *bias, sum_2 = *bias, sum_3 = *bias;
 
-      int tensor__y00_x00__y00_x01 = tensor[0];
-      int tensor__y00_x02__y00_x03 = tensor[1];
-      int tensor__y00_x04__y00_x05 = tensor[2];
-      int tensor__y00_x06__y00_x07 = tensor[3];
-      int tensor__y00_x08__y00_x09 = tensor[4];
-      int tensor__y00_x0a__y00_x0b = tensor[5];
-      int tensor__y00_x0c__y00_x0d = tensor[6];
-      int tensor__y00_x0e__y00_x0f = tensor[7];
-      int tensor__y00_x10__y00_x11 = tensor[8];
-      int tensor__y00_x12__y00_x13 = tensor[9];
-      int tensor__y00_x14__y00_x15 = tensor[10];
-      int tensor__y00_x16__y00_x17 = tensor[11];
-      int tensor__y00_x18__y00_x19 = tensor[12];
-      int tensor__y00_x1a__y00_x1b = tensor[13];
-      int tensor__y00_x1c__y00_x1d = tensor[14];
-      int tensor__y00_x1e__y00_x1f = tensor[15];
+      int32_t tensor__y00_x00__y00_x01 = tensor[0];
+      int32_t tensor__y00_x02__y00_x03 = tensor[1];
+      int32_t tensor__y00_x04__y00_x05 = tensor[2];
+      int32_t tensor__y00_x06__y00_x07 = tensor[3];
+      int32_t tensor__y00_x08__y00_x09 = tensor[4];
+      int32_t tensor__y00_x0a__y00_x0b = tensor[5];
+      int32_t tensor__y00_x0c__y00_x0d = tensor[6];
+      int32_t tensor__y00_x0e__y00_x0f = tensor[7];
+      int32_t tensor__y00_x10__y00_x11 = tensor[8];
+      int32_t tensor__y00_x12__y00_x13 = tensor[9];
+      int32_t tensor__y00_x14__y00_x15 = tensor[10];
+      int32_t tensor__y00_x16__y00_x17 = tensor[11];
+      int32_t tensor__y00_x18__y00_x19 = tensor[12];
+      int32_t tensor__y00_x1a__y00_x1b = tensor[13];
+      int32_t tensor__y00_x1c__y00_x1d = tensor[14];
+      int32_t tensor__y00_x1e__y00_x1f = tensor[15];
 
-      int kernel__y00_x00__y00_x01 = kernel[0];
-      int kernel__y00_x02__y00_x03 = kernel[1];
-      int kernel__y00_x04__y00_x05 = kernel[2];
-      int kernel__y00_x06__y00_x07 = kernel[3];
+      int32_t kernel__y00_x00__y00_x01 = kernel[0];
+      int32_t kernel__y00_x02__y00_x03 = kernel[1];
+      int32_t kernel__y00_x04__y00_x05 = kernel[2];
+      int32_t kernel__y00_x06__y00_x07 = kernel[3];
 
       sum_0 = __smlad(tensor__y00_x00__y00_x01, kernel__y00_x00__y00_x01, sum_0);
       sum_0 = __smlad(tensor__y00_x02__y00_x03, kernel__y00_x02__y00_x03, sum_0);
@@ -221,22 +221,22 @@ def test_1x1x8_convolution_code():
       sum_3 = __smlad(tensor__y00_x1c__y00_x1d, kernel__y00_x04__y00_x05, sum_3);
       sum_3 = __smlad(tensor__y00_x1e__y00_x1f, kernel__y00_x06__y00_x07, sum_3);
 
-      int scale_val = *scale;
-      int requant_0 = (sum_0 * (long long) scale_val) >> 32;
+      int32_t scale_val = *scale;
+      int32_t requant_0 = (sum_0 * (int64_t) scale_val) >> 32;
       requant_0 = (requant_0 + 1) >> 1;
       requant_0 = __ssat(requant_0 + -128, 8);
-      int requant_1 = (sum_1 * (long long) scale_val) >> 32;
+      int32_t requant_1 = (sum_1 * (int64_t) scale_val) >> 32;
       requant_1 = (requant_1 + 1) >> 1;
       requant_1 = __ssat(requant_1 + -128, 8);
-      int requant_2 = (sum_2 * (long long) scale_val) >> 32;
+      int32_t requant_2 = (sum_2 * (int64_t) scale_val) >> 32;
       requant_2 = (requant_2 + 1) >> 1;
       requant_2 = __ssat(requant_2 + -128, 8);
-      int requant_3 = (sum_3 * (long long) scale_val) >> 32;
+      int32_t requant_3 = (sum_3 * (int64_t) scale_val) >> 32;
       requant_3 = (requant_3 + 1) >> 1;
       requant_3 = __ssat(requant_3 + -128, 8);
 
-      int packed_res_0 = requant_0 + (requant_1 << 16);
-      int packed_res_1 = requant_2 + (requant_3 << 16);
+      int32_t packed_res_0 = requant_0 + (requant_1 << 16);
+      int32_t packed_res_1 = requant_2 + (requant_3 << 16);
       output[0] = packed_res_0;
       output[1] = packed_res_1;
       return 0;
@@ -273,41 +273,41 @@ def test_3x3x3_offset_convolution_code():
     #ifndef TENSORDOT_OPT_X1_INT16_W288_3X9_111_EXISTS
     #define TENSORDOT_OPT_X1_INT16_W288_3X9_111_EXISTS
     #include <arm_acle.h>
-    __attribute__((always_inline)) static inline int tensordot_opt_x1_int16_w288_3x9_111(
-        int *output, int *tensor, int *kernel, int *bias, int *scale
+    __attribute__((always_inline)) static inline int32_t tensordot_opt_x1_int16_w288_3x9_111(
+        int32_t *output, int32_t *tensor, int32_t *kernel, int32_t *bias, int32_t *scale
     ) {
-      int sum_0 = *bias;
+      int32_t sum_0 = *bias;
 
-      int tensor__unknown__y00_x00 = tensor[0];
-      int tensor__y00_x01__y00_x02 = tensor[1];
-      int tensor__y00_x03__y00_x04 = tensor[2];
-      int tensor__y00_x05__y00_x06 = tensor[3];
-      int tensor__y00_x07__y00_x08 = tensor[4];
-      int tensor__unknown__y01_x00 = tensor[144];
-      int tensor__y01_x01__y01_x02 = tensor[145];
-      int tensor__y01_x03__y01_x04 = tensor[146];
-      int tensor__y01_x05__y01_x06 = tensor[147];
-      int tensor__y01_x07__y01_x08 = tensor[148];
-      int tensor__unknown__y02_x00 = tensor[288];
-      int tensor__y02_x01__y02_x02 = tensor[289];
-      int tensor__y02_x03__y02_x04 = tensor[290];
-      int tensor__y02_x05__y02_x06 = tensor[291];
-      int tensor__y02_x07__y02_x08 = tensor[292];
+      int32_t tensor__unknown__y00_x00 = tensor[0];
+      int32_t tensor__y00_x01__y00_x02 = tensor[1];
+      int32_t tensor__y00_x03__y00_x04 = tensor[2];
+      int32_t tensor__y00_x05__y00_x06 = tensor[3];
+      int32_t tensor__y00_x07__y00_x08 = tensor[4];
+      int32_t tensor__unknown__y01_x00 = tensor[144];
+      int32_t tensor__y01_x01__y01_x02 = tensor[145];
+      int32_t tensor__y01_x03__y01_x04 = tensor[146];
+      int32_t tensor__y01_x05__y01_x06 = tensor[147];
+      int32_t tensor__y01_x07__y01_x08 = tensor[148];
+      int32_t tensor__unknown__y02_x00 = tensor[288];
+      int32_t tensor__y02_x01__y02_x02 = tensor[289];
+      int32_t tensor__y02_x03__y02_x04 = tensor[290];
+      int32_t tensor__y02_x05__y02_x06 = tensor[291];
+      int32_t tensor__y02_x07__y02_x08 = tensor[292];
 
-      int kernel__unknown__y00_x00 = kernel[0];
-      int kernel__y00_x01__y00_x02 = kernel[1];
-      int kernel__y00_x03__y00_x04 = kernel[2];
-      int kernel__y00_x05__y00_x06 = kernel[3];
-      int kernel__y00_x07__y00_x08 = kernel[4];
-      int kernel__y01_x00__y01_x01 = kernel[5];
-      int kernel__y01_x02__y01_x03 = kernel[6];
-      int kernel__y01_x04__y01_x05 = kernel[7];
-      int kernel__y01_x06__y01_x07 = kernel[8];
-      int kernel__y01_x08__y02_x00 = kernel[9];
-      int kernel__y02_x01__y02_x02 = kernel[10];
-      int kernel__y02_x03__y02_x04 = kernel[11];
-      int kernel__y02_x05__y02_x06 = kernel[12];
-      int kernel__y02_x07__y02_x08 = kernel[13];
+      int32_t kernel__unknown__y00_x00 = kernel[0];
+      int32_t kernel__y00_x01__y00_x02 = kernel[1];
+      int32_t kernel__y00_x03__y00_x04 = kernel[2];
+      int32_t kernel__y00_x05__y00_x06 = kernel[3];
+      int32_t kernel__y00_x07__y00_x08 = kernel[4];
+      int32_t kernel__y01_x00__y01_x01 = kernel[5];
+      int32_t kernel__y01_x02__y01_x03 = kernel[6];
+      int32_t kernel__y01_x04__y01_x05 = kernel[7];
+      int32_t kernel__y01_x06__y01_x07 = kernel[8];
+      int32_t kernel__y01_x08__y02_x00 = kernel[9];
+      int32_t kernel__y02_x01__y02_x02 = kernel[10];
+      int32_t kernel__y02_x03__y02_x04 = kernel[11];
+      int32_t kernel__y02_x05__y02_x06 = kernel[12];
+      int32_t kernel__y02_x07__y02_x08 = kernel[13];
 
       sum_0 = __smlatt(tensor__unknown__y00_x00, kernel__unknown__y00_x00, sum_0);
       sum_0 = __smlad(tensor__y00_x01__y00_x02, kernel__y00_x01__y00_x02, sum_0);
@@ -329,12 +329,12 @@ def test_3x3x3_offset_convolution_code():
       sum_0 = __smlad(tensor__y02_x05__y02_x06, kernel__y02_x05__y02_x06, sum_0);
       sum_0 = __smlad(tensor__y02_x07__y02_x08, kernel__y02_x07__y02_x08, sum_0);
 
-      int scale_val = *scale;
-      int requant_0 = (sum_0 * (long long) scale_val) >> 39;
+      int32_t scale_val = *scale;
+      int32_t requant_0 = (sum_0 * (int64_t) scale_val) >> 39;
       requant_0 = (requant_0 + 1) >> 1;
       requant_0 = __ssat(requant_0 + 4, 8);
 
-      ((short*) output)[1] = (short) requant_0;
+      ((int16_t*) output)[1] = (int16_t) requant_0;
       return 0;
     }
     #endif
