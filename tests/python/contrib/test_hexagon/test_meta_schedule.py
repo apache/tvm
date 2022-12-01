@@ -36,7 +36,7 @@ from tvm.script import tir as T
 from tvm.tir import FloatImm
 from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 
-from .infrastructure import get_hexagon_target
+# from .infrastructure import get_hexagon_target
 
 MATMUL_N = 16
 MATMUL_M = 32
@@ -496,5 +496,80 @@ def test_dense_relay_auto_schedule(hexagon_launcher):
         assert np.mean(np.abs(ref - out)) < 0.1
 
 
+def max_pool_blocked_compute(height, width, channel):
+    ishape = (1, channel // 32, height // 8, width // 8, 8, 8, 32)
+    oshape = (1, channel // 32, height // 8 // 2, width // 8 // 2, 8, 8, 32)
+    X = te.placeholder(ishape, name="X", dtype="uint8")
+
+    window_h = te.reduce_axis((0, 2), name="wh")
+    window_w = te.reduce_axis((0, 2), name="ww")
+
+    out = te.compute(
+        oshape,
+        lambda b, c_o, h_o, w_o, h_i, w_i, c_i: te.max(
+            X[b, c_o, (h_o * 8 + h_i) // 8 * 2, (w_o * 8 + w_i) // 8 * 2, (h_o * 8 + h_i) % 4 * 2 + window_h, (w_o * 8 + w_i) % 4 * 2 + window_w, c_i],
+            axis=[window_h, window_w]
+        ),
+        name="compute",
+    )
+    return [X, out]
+
+
+def max_pool_compute(height, width, channel):
+    ishape = (1, channel, height, width)
+    oshape = (1, channel, height // 2, width // 2)
+    X = te.placeholder(ishape, name="X", dtype="uint8")
+
+    window_h = te.reduce_axis((0, 2), name="wh")
+    window_w = te.reduce_axis((0, 2), name="ww")
+
+    out = te.compute(
+        oshape,
+        lambda b, c, h, w: te.max(
+            X[b, c, h * 2 + window_h, w * 2 + window_w],
+            axis=[window_h, window_w]
+        ),
+        name="compute",
+    )
+    return [X, out]
+
+
+def test_max_pool():
+    height = width = 64
+    channel = 64
+
+    workload = te.create_prim_func(max_pool_compute(height, width, channel))
+    mod = tvm.IRModule({"main": workload})
+    sch = tvm.tir.Schedule(mod)
+
+    block = sch.get_block("compute")
+    sch.cache_read(block, 0, "global")
+    sch.cache_write(block, 0, "global")
+
+    def index_map_nchw_nchw8h8w32c(n, c, h, w):
+        return [n, c // 32, h // 8, w // 8, h % 8, w % 8, c % 32]
+
+    sch.transform_layout(block, ("read", 0), index_map=index_map_nchw_nchw8h8w32c)
+    sch.transform_layout(block, ("write", 0), index_map=index_map_nchw_nchw8h8w32c)
+
+    print(sch.mod.script())
+
+
+def test_max_pool_blocked():
+    height = width = 64
+    channel = 64
+
+    workload = te.create_prim_func(max_pool_blocked_compute(height, width, channel))
+    mod = tvm.IRModule({"main": workload})
+    sch = tvm.tir.Schedule(mod)
+
+    block = sch.get_block("compute")
+    sch.cache_read(block, 0, "global.vtcm")
+    sch.cache_write(block, 0, "global.vtcm")
+
+    print(sch.mod.script())
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_max_pool_blocked()
