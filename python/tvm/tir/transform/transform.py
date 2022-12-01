@@ -611,6 +611,17 @@ def VerifyMemory():
     return _ffi_api.VerifyMemory()  # type: ignore
 
 
+def VerifyVTCMLimit(limit: int):
+    """Verify if the size of the allocated vtcm memory satisfies the limit.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.VerifyVTCMLimit(limit)  # type: ignore
+
+
 # pylint: disable=no-else-return,inconsistent-return-statements
 def HoistIfThenElse(variant: Optional[str] = None):
     """Hoist loop-invariant IfThenElse nodes to outside the eligible loops.

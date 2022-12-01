@@ -1401,6 +1401,13 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
       const auto& optimize = tir::transform::Sequential(pass_list);
       optimize(mod);
     }
+    if (IsHexagonTask(task)) {
+      Target target = task->target;
+      const auto vtcm_capacity = target->GetAttr<Integer>("vtcm-capacity").value().IntValue();
+      const auto& optimize =
+          tir::transform::Sequential({tir::transform::VerifyVTCMLimit(vtcm_capacity)});
+      optimize(mod);
+    }
     const auto& optimize =
         tir::transform::Sequential(Array<tvm::transform::Pass>{tir::transform::Simplify()});
     mod = optimize(std::move(mod));
