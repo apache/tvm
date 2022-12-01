@@ -324,7 +324,7 @@ def quantize_np(arr_np: numpy.ndarray, dtype: str):
     return quant_np, scale, zero_point
 
 
-def get_hexagon_target(cpu_ver: str) -> tvm.target.Target:
+def get_hexagon_target(cpu_ver: str, **kwargs) -> tvm.target.Target:
     """Creates a Hexagon target"""
-    target = tvm.target.hexagon(cpu_ver)
+    target = tvm.target.hexagon(cpu_ver, **kwargs)
     return tvm.target.Target(target, host=target)
