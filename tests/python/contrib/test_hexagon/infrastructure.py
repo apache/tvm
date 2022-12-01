@@ -320,7 +320,7 @@ def quantize_np(arr_np: numpy.ndarray, dtype: str):
 
     scale = (fmax - fmin) / (qmax - qmin)
     zero_point = numpy.rint((fmax * qmin - fmin * qmax) / (fmax - fmin)).astype("int32")
-    quant_np = (arr_np / scale + zero_point).astype(dtype)
+    quant_np = numpy.clip(((arr_np / scale).round() + zero_point), qmin, qmax).astype(dtype)
     return quant_np, scale, zero_point
 
 
