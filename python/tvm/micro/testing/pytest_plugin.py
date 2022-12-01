@@ -63,7 +63,10 @@ def pytest_addoption(parser):
     parser.addoption(
         "--serial-number",
         default=None,
-        help="Board serial number. This is used to run test on a specific board when multiple boards with the same type exist.",
+        help=(
+            "Board serial number. This is used to run test on a ",
+            "specific board when multiple boards with the same type exist.",
+        ),
     )
 
 
