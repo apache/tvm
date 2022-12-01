@@ -210,7 +210,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Parsing post-ops.
     dnnl::post_ops ops;
     if (std::regex_match(op_name, sum_pat)) {
-      // ops.append_sum(1.f, 0, dnnl::memory::data_type::f32);
       ops.append_sum(1.f);
     }
     if (std::regex_match(op_name, relu_pat)) {
@@ -267,7 +266,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       if (node.GetOpType() == "kernel") {
         ICHECK_EQ(node.GetOpType(), "kernel");
         auto op_name = node.GetOpName();
-        // std::cout << "hebi-dbg: op_name: " << op_name << "\n";
         if (std::regex_match(op_name, deconv_pat) ||
             std::regex_match(op_name, conv_transpose_pat)) {
           Deconvolution(nid);
@@ -303,31 +301,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
         }
       }
     }
-  }
-
-  void Reorder(const size_t& nid, dnnl::engine engine_) {
-    auto node = nodes_[nid];
-    auto op_name = node.GetOpName();
-
-    // Setup attributes.
-    auto src_tr = GetInput(nid, 0);
-    auto dst_tr = GetOutput(nid, 0);
-    
-    if (op_name.find("layout_transform") != std::string::npos) {
-      ICHECK_EQ(node.HasAttr("src_layout"), true);
-      ICHECK_EQ(node.HasAttr("dst_layout"), true);
-      auto src_layout = GetNodeAttr<std::string>(node, "src_layout");
-      auto dst_layout = GetNodeAttr<std::string>(node, "dst_layout");
-      // Take into account provided layout strings
-      src_tr = src_tr.TreatAs(src_layout);
-      dst_tr = dst_tr.TreatAs(dst_layout);
-    }
-
-    auto reorder_prim_desc = dnnl::reorder::primitive_desc(
-      engine_, src_tr.desc(), engine_, dst_tr.desc());
-
-    Submit(dnnl::reorder(reorder_prim_desc),
-          {{DNNL_ARG_FROM, src_tr}, {DNNL_ARG_TO, dst_tr}});
   }
 
 
@@ -804,6 +777,33 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     Submit(dnnl::binary(binary_prim_desc),
            {{DNNL_ARG_SRC_0, lhs_tr}, {DNNL_ARG_SRC_1, rhs_tr}, {DNNL_ARG_DST, dst_tr}});
   }
+
+
+  void Reorder(const size_t& nid, dnnl::engine engine_) {
+    auto node = nodes_[nid];
+    auto op_name = node.GetOpName();
+
+    // Setup attributes.
+    auto src_tr = GetInput(nid, 0);
+    auto dst_tr = GetOutput(nid, 0);
+
+    if (op_name.find("layout_transform") != std::string::npos) {
+      ICHECK_EQ(node.HasAttr("src_layout"), true);
+      ICHECK_EQ(node.HasAttr("dst_layout"), true);
+      auto src_layout = GetNodeAttr<std::string>(node, "src_layout");
+      auto dst_layout = GetNodeAttr<std::string>(node, "dst_layout");
+      // Take into account provided layout strings
+      src_tr = src_tr.TreatAs(src_layout);
+      dst_tr = dst_tr.TreatAs(dst_layout);
+    }
+
+    auto reorder_prim_desc = dnnl::reorder::primitive_desc(
+      engine_, src_tr.desc(), engine_, dst_tr.desc());
+
+    Submit(dnnl::reorder(reorder_prim_desc),
+          {{DNNL_ARG_FROM, src_tr}, {DNNL_ARG_TO, dst_tr}});
+  }
+
 
   void Concat(const size_t& nid) {
     auto node = nodes_[nid];
