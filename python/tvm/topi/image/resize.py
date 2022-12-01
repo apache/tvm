@@ -586,7 +586,7 @@ def _resize_2d(
         The computed result with type out_dtype
     """
 
-    if out_dtype is None:
+    if not out_dtype:
         out_dtype = data.dtype
 
     n, c, y, x, cc, inum, ic = get_2d_indices(indices, layout)
