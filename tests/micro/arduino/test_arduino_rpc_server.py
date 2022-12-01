@@ -39,7 +39,13 @@ import test_utils
 
 
 def _make_session(
-    model, arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config, serial_number: str
+    model,
+    arduino_board,
+    arduino_cli_cmd,
+    workspace_dir,
+    mod,
+    build_config,
+    serial_number: str = None,
 ):
     project = tvm.micro.generate_project(
         str(test_utils.TEMPLATE_PROJECT_DIR),
@@ -67,7 +73,7 @@ def _make_sess_from_op(
     sched,
     arg_bufs,
     build_config,
-    serial_number: str,
+    serial_number: str = None,
 ):
     target = tvm.target.target.micro(model)
     runtime = Runtime("crt", {"system-lib": True})
@@ -80,7 +86,7 @@ def _make_sess_from_op(
 
 
 def _make_add_sess(
-    model, arduino_board, arduino_cli_cmd, workspace_dir, build_config, serial_number: str
+    model, arduino_board, arduino_cli_cmd, workspace_dir, build_config, serial_number: str = None
 ):
     A = tvm.te.placeholder((2,), dtype="int8")
     B = tvm.te.placeholder((1,), dtype="int8")
@@ -353,7 +359,13 @@ def test_byoc_microtvm(board, arduino_cli_cmd, microtvm_debug, workspace_dir, se
 
 
 def _make_add_sess_with_shape(
-    model, arduino_board, arduino_cli_cmd, workspace_dir, shape, build_config, serial_number: str
+    model,
+    arduino_board,
+    arduino_cli_cmd,
+    workspace_dir,
+    shape,
+    build_config,
+    serial_number: str = None,
 ):
     A = tvm.te.placeholder(shape, dtype="int8")
     C = tvm.te.compute(A.shape, lambda i: A[i] + A[i], name="C")

@@ -33,3 +33,9 @@ To see the list of supported values for `--board`, run:
 ```
 $ pytest --help
 ```
+
+If you like to test with a real hardware, you have the option to pass the serial number
+for your development board.
+```
+$ pytest --board=due --serial-number="4873ce"
+```

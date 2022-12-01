@@ -91,14 +91,17 @@ PROJECT_OPTIONS = server.default_project_options(
         optional=["flash", "open_transport"],
         type="int",
         default=None,
-        help="Port to use for connecting to hardware.",
+        help=(
+            "Port to use for connecting to hardware. "
+            "If port and serial_number options are not set it will try to autodetect the port."
+        ),
     ),
     server.ProjectOption(
         "serial_number",
         optional=["open_transport", "flash"],
         type="str",
         default=None,
-        help=("Board serial number."),
+        help=("Board serial number. If serial_number option is set, port option is ignored."),
     ),
 ]
 
@@ -531,7 +534,10 @@ class Handler(server.ProjectAPIHandler):
                 device[col_name] = str_row[column.start() : column.end()].strip()
             yield device
 
-    def _auto_detect_port(self, arduino_cli_cmd: str, board: str, serial_number) -> str:
+    def _auto_detect_port(self, arduino_cli_cmd: str, board: str, serial_number: str) -> str:
+        # TODO: This is to avoid breaking GPU docker on running the tutorials.
+        import serial.tools.list_ports
+
         if not serial_number:
             # If serial_number is not set, it is assumed only one board
             # with this type is connected to this host machine.
@@ -556,14 +562,14 @@ class Handler(server.ProjectAPIHandler):
         # If no compatible boards, raise an error
         raise BoardAutodetectFailed()
 
-    def _get_arduino_port(self, arduino_cli_cmd: str, board: str, port: int, serial_number: str):
+    def _get_arduino_port(
+        self, arduino_cli_cmd: str, board: str, port: int = None, serial_number: str = None
+    ):
         if not self._port:
             if port:
                 self._port = port
             else:
-                self._port = self._auto_detect_port(
-                    arduino_cli_cmd, board, serial_number=serial_number
-                )
+                self._port = self._auto_detect_port(arduino_cli_cmd, board, serial_number)
 
         return self._port
 
@@ -580,8 +586,6 @@ class Handler(server.ProjectAPIHandler):
     FLASH_MAX_RETRIES = 5
 
     def flash(self, options):
-        import serial.tools.list_ports
-
         # List all used project options
         arduino_cli_cmd = options.get("arduino_cli_cmd")
         warning_as_error = options.get("warning_as_error")
@@ -618,6 +622,7 @@ class Handler(server.ProjectAPIHandler):
             )
 
     def open_transport(self, options):
+        # TODO: This is to avoid breaking GPU docker on running the tutorials.
         import serial
         import serial.tools.list_ports
 
