@@ -1043,6 +1043,37 @@ def test_global_avg_pooling2d(run_module, dtype="float32"):
     run_and_verify_func(config, run_module=run_module)
 
 
+def test_concat(run_module, dtype="float32"):
+    x1_shape = (1, 80, 64)
+    x2_shape = (1, 80, 16)
+    x3_shape = (1, 80,  4)
+    x1 = relay.var("x1", shape=(x1_shape), dtype=dtype)
+    x2 = relay.var("x2", shape=(x2_shape), dtype=dtype)
+    x3 = relay.var("x3", shape=(x3_shape), dtype=dtype)
+    out = relay.concatenate((x1, x2, x3), axis=-1)
+    out = tvm.IRModule.from_expr(out)
+    config = out, {"x1": x1_shape, "x2": x2_shape, "x3": x3_shape}, []
+    run_and_verify_func(config, run_module=run_module)
+
+
+def test_layout_transform(run_module, dtype="float32"):
+    x_shape = (1, 224, 224, 3)
+    x = relay.var("x", shape=(x_shape), dtype=dtype)
+    out = relay.layout_transform(x, src_layout="NHWC", dst_layout="NCHW")
+    out = tvm.IRModule.from_expr(out)
+    config = out, {"x": x_shape}, []
+    run_and_verify_func(config, run_module=run_module)
+
+
+def test_cast(run_module, dtype="float32"):
+    x_shape = (1, 80, 64)
+    x = relay.var("x", shape=(x_shape), dtype=dtype)
+    out = relay.cast(x, dtype="bfloat16")
+    out = tvm.IRModule.from_expr(out)
+    config = out, {"x": x_shape}, []
+    run_and_verify_func(config, run_module=run_module)
+
+
 def test_pool3d(run_module, dtype="float32"):
     def get_graph(
         op,
