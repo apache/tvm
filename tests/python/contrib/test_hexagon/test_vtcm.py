@@ -44,6 +44,7 @@ def get_scale_by_two_schedule():
     return sch
 
 
+@tvm.testing.requires_hexagon
 def test_vtcm_building():
     """Test building with vtcm mem scope"""
     sch = get_scale_by_two_schedule()
@@ -52,6 +53,7 @@ def test_vtcm_building():
     assert "global.vtcm" in built.get_source("asm")
 
 
+@tvm.testing.requires_hexagon
 @pytest.mark.parametrize("vtcm_capacity,limited", [(8192, False), (1024, False), (128, True)])
 def test_vtcm_limit(vtcm_capacity, limited):
     """Test building with vtcm mem scope limit"""
