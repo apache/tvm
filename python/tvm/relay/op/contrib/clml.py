@@ -127,8 +127,9 @@ def preprocess_module(mod):
     return preprocessed_mod
 
 
-# Preprocessing pass to alter the layouts for CLML compiler target
 def preprocess_for_clml(mod):
+    """ Preprocessing pass to alter the layouts for CLML compiler target """
+
     for _var in mod.get_global_vars():
         if _var.name_hint == "main":
             continue
