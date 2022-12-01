@@ -73,13 +73,19 @@ def _register_external_op_helper(op_name, supported=True):
 
     @tvm.ir.register_op_attr(op_name, "target.dnnl")
     def _func_wrapper(expr):
-        if "concatenate" in op_name or "cast" in op_name:
-            return supported
+        msg = "DNNL does not support int64."
         args = expr.args
-        # todo: fix check for concatenate with truple inputs
-        # if any([x.checked_type.dtype == "int64" for x in args]):
-        #     logger.info("DNNL does not support int64.")
-        #     return False
+        for arg in args:
+            # handle tuple case
+            if isinstance(arg.checked_type, tvm.ir.type.TupleType):
+                for tuple_type in arg.checked_type.fields:
+                    if tuple_type.dtype == "int64":
+                        logger.info(msg)
+                        return False
+            elif arg.checked_type.dtype == "int64":
+                logger.info(msg)
+                return False
+
         # DNNL does not support pooling with ceil_mode = True.
         if "pool" in op_name:
             attrs = dict(get_attrs(expr))
@@ -90,7 +96,7 @@ def _register_external_op_helper(op_name, supported=True):
     return _func_wrapper
 
 
-# _register_external_op_helper("nn.batch_norm")
+_register_external_op_helper("nn.batch_norm")
 _register_external_op_helper("nn.conv1d")
 _register_external_op_helper("nn.conv2d")
 _register_external_op_helper("nn.conv3d")
@@ -102,24 +108,24 @@ _register_external_op_helper("nn.avg_pool2d")
 _register_external_op_helper("nn.global_avg_pool2d")
 _register_external_op_helper("nn.max_pool3d")
 _register_external_op_helper("nn.avg_pool3d")
-# _register_external_op_helper("abs")
-# _register_external_op_helper("clip")
-# _register_external_op_helper("exp")
-# _register_external_op_helper("log")
-# _register_external_op_helper("sqrt")
-# _register_external_op_helper("round")
-# _register_external_op_helper("nn.relu")
+_register_external_op_helper("abs")
+_register_external_op_helper("clip")
+_register_external_op_helper("exp")
+_register_external_op_helper("log")
+_register_external_op_helper("sqrt")
+_register_external_op_helper("round")
+_register_external_op_helper("nn.relu")
 _register_external_op_helper("nn.leaky_relu")
-# _register_external_op_helper("tanh")
-# _register_external_op_helper("sigmoid")
+_register_external_op_helper("tanh")
+_register_external_op_helper("sigmoid")
 _register_external_op_helper("nn.softmax")
-# _register_external_op_helper("add")
-_register_external_op_helper("concatenate")
-_register_external_op_helper("layout_transform")
-_register_external_op_helper("cast")
-# _register_external_op_helper("multiply")
+_register_external_op_helper("add")
+_register_external_op_helper("multiply")
 _register_external_op_helper("nn.layer_norm")
 _register_external_op_helper("nn.batch_matmul")
+_register_external_op_helper("cast")
+_register_external_op_helper("concatenate")
+_register_external_op_helper("layout_transform")
 
 
 def append_eltwise_ops(op, eltwise):
