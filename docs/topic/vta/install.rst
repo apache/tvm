@@ -486,4 +486,3 @@ If you would like to run the full hardware compilation for the ``de10nano`` boar
 This process might be a bit lengthy, and might take up to half an hour to complete depending on the performance of your PC. The Quartus Prime software would automatically detect the number of cores available on your PC and try to utilize all of them to perform such process.
 
 Once the compilation completes, the generated bistream can be found under ``<tvm root>/3rdparty/vta-hw/build/hardware/intel/quartus/<configuration>/export/vta.rbf``. You can also open the Quartus project file (.qpf) available at ``<tvm root>/3rdparty/vta-hw/build/hardware/intel/quartus/<configuration>/de10_nano_top.qpf`` to look around the generated reports.
-

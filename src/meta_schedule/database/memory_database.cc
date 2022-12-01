@@ -71,7 +71,8 @@ class MemoryDatabaseNode : public DatabaseNode {
       if (run_secs.empty()) {
         continue;
       }
-      if (record->workload.same_as(workload)) {
+      if (record->workload.same_as(workload) ||
+          WorkloadEqual(GetModuleEquality())(record->workload, workload)) {
         double sum = 0.0;
         for (const FloatImm& i : run_secs) {
           sum += i->value;

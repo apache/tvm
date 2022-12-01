@@ -21,6 +21,8 @@ import tvm
 import numpy as np
 from tvm import relay
 from tvm import autotvm
+from tvm import rpc
+from tvm.contrib import utils, ndk
 from tvm.relay import testing
 from tvm.relay.transform import recast
 from tvm.contrib import graph_runtime
@@ -47,25 +49,20 @@ def get_cpu_reference(mod, params1, input_shape, inputs):
 
 # build module run with opencl and cpu, compare results
 def build_run_compare(
+    remote,
     tvm_mod,
     params1,
     input_shape,
-    dtype="float32",
+    dtypes,
     target="llvm",
     static_mem_scopes=[],
     gpu_preprocess=None,
     stat_file=None,
 ):
-
-    if "TVM_TRACKER_HOST" in os.environ and "TVM_TRACKER_PORT" in os.environ:
-        rpc_tracker_host = os.environ["TVM_TRACKER_HOST"]
-        rpc_tracker_port = os.environ["TVM_TRACKER_PORT"]
-        run_on_host = 0
-        target_host = "llvm -mtriple=arm64-linux-android"
-        rpc_tracker_port = int(rpc_tracker_port)
-    else:
-        run_on_host = 1
+    if remote is None:
         target_host = "llvm"
+    else:
+        target_host = "llvm -mtriple=arm64-linux-android"
 
     if gpu_preprocess:
         tvm_mod_nchwc = gpu_preprocess(tvm_mod)
@@ -97,16 +94,10 @@ def build_run_compare(
     for i in range(0, len(static_mem_scopes)):
         assert static_mem_scopes[i] == graph_json["attrs"]["storage_scope"][1][i]
 
-    if run_on_host:
+    if remote is None:
         ctx = tvm.opencl()
         m = graph_runtime.create(graph, lib, ctx)
     else:
-        from tvm import rpc
-        from tvm.contrib import utils, ndk
-
-        rpc_key = "android"
-        tracker = rpc.connect_tracker(rpc_tracker_host, rpc_tracker_port)
-        remote = tracker.request(rpc_key, priority=0, session_timeout=600)
         temp = utils.tempdir()
         dso_binary = "dev_lib_cl.so"
         dso_binary_path = temp.relpath(dso_binary)
@@ -117,22 +108,15 @@ def build_run_compare(
         m = graph_runtime.create(graph, rlib, ctx)
     m.set_input(**params)
     inputs = []
-    if isinstance(input_shape, dict):
-        for key in input_shape:
-            inputs.append(np.random.normal(size=input_shape[key]).astype(dtype))
-            m.set_input(key, inputs[-1])
-    else:
-        inputs.append(np.random.normal(size=input_shape).astype(dtype))
-        m.set_input("data", inputs[-1])
+    for key in input_shape:
+        inputs.append(np.random.normal(size=input_shape[key]).astype(dtypes[key]))
+        m.set_input(key, inputs[-1])
     m.run()
 
     ref_outputs = get_cpu_reference(tvm_mod, params1, input_shape, inputs)
     for i, ref_output in enumerate(ref_outputs):
         tvm_output = m.get_output(i)
         output = tvm_output.asnumpy()
-        # for index, x in np.ndenumerate(ref_output):
-        #     if abs(output[index] - x) > 0.01:
-        #         print(index, output[index], x)
 
         np.testing.assert_allclose(output, ref_output, rtol=1e-1, atol=1e-1)
     return graph
@@ -147,3 +131,95 @@ def gpu_preprocess(tvm_mod):
             mod = tvm.IRModule.from_expr(tvm_mod)
             tvm_mod_nchwc = seq(mod)
             return tvm_mod_nchwc
+
+
+def get_model(url, local_file, module):
+    def get_tensor_type_str(tensor_type):
+        """Get tensor type string representation when given TFLite tensor type"""
+        try:
+            from tflite.TensorType import TensorType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        if tensor_type == TensorType.INT8:
+            return "int8"
+        if tensor_type == TensorType.INT16:
+            return "int16"
+        if tensor_type == TensorType.UINT8:
+            return "uint8"
+        if tensor_type == TensorType.FLOAT16:
+            return "float16"
+        if tensor_type == TensorType.FLOAT32:
+            return "float32"
+        if tensor_type == TensorType.INT32:
+            return "int32"
+        if tensor_type == TensorType.INT64:
+            return "int64"
+        if tensor_type == TensorType.BOOL:
+            return "bool"
+        raise NotImplementedError(
+            "Tensor type {} is currently not supported".format(str(tensor_type))
+        )
+
+    if url is None:
+        model_path = local_file
+    else:
+        model_path = tvm.contrib.download.download_testdata(url, local_file, module=module)
+
+    with open(model_path, "rb") as f:
+        tflite_model_buf = f.read()
+
+    try:
+        import tflite.Model
+
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+    except AttributeError:
+        import tflite
+
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+    except ImportError:
+        raise ImportError("The tflite package must be installed")
+
+    # keep the same as tflite
+    assert tflite_model.SubgraphsLength() == 1, "only support one subgraph (main subgraph)"
+    subgraph = tflite_model.Subgraphs(0)
+
+    # model inputs
+    model_inputs = subgraph.InputsAsNumpy()
+    shape_dict = {}
+    dtype_dict = {}
+    for model_input in model_inputs:
+        model_input_name = subgraph.Tensors(model_input).Name().decode("utf-8")
+        model_shape_length = subgraph.Tensors(model_input).ShapeLength()
+        model_input_shape = [
+            subgraph.Tensors(model_input).Shape(i) for i in range(model_shape_length)
+        ]
+        shape_dict[model_input_name] = model_input_shape
+        dtype_dict[model_input_name] = get_tensor_type_str(subgraph.Tensors(model_input).Type())
+
+    # model Outputs
+    model_outputs = subgraph.OutputsAsNumpy()
+    shape_dict_out = {}
+    dtype_dict_out = {}
+    for model_output in model_outputs:
+        model_output_name = subgraph.Tensors(model_output).Name().decode("utf-8")
+        model_shape_length = subgraph.Tensors(model_output).ShapeLength()
+        model_output_shape = [
+            subgraph.Tensors(model_output).Shape(i) for i in range(model_shape_length)
+        ]
+        shape_dict_out[model_output_name] = model_output_shape
+        dtype_dict_out[model_output_name] = get_tensor_type_str(
+            subgraph.Tensors(model_input).Type()
+        )
+
+    mod, params = relay.frontend.from_tflite(
+        tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict
+    )
+
+    layout_config = relay.transform.LayoutConfig(skip_layers=[])
+    desired_layouts = {"nn.conv2d": ["NCHW", "default"]}
+    seq = tvm.transform.Sequential([relay.transform.ConvertLayout(desired_layouts)])
+    with tvm.transform.PassContext(opt_level=3):
+        mod = seq(mod)
+
+    return mod, params, shape_dict, dtype_dict

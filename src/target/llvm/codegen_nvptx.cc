@@ -183,9 +183,12 @@ class CodeGenNVPTX : public CodeGenLLVM {
     }
   }
 
+#if TVM_LLVM_VERSION < 160
+  // This function only works with the legacy pass manager.
   void InitPassManagerBuilder(llvm::PassManagerBuilder* builder) final {
     // Additional optimization hook to tweak the builder.
   }
+#endif
 
   void Optimize() final {
     for (auto& f : *module_) {

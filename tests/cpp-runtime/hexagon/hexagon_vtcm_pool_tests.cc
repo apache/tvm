@@ -27,13 +27,16 @@ using namespace tvm::runtime::hexagon;
 class HexagonVtcmPoolTest : public ::testing::Test {
   void SetUp() override {
     vtcm_pool = HexagonDeviceAPI::Global()->VtcmPool();
-    max_bytes = vtcm_pool->TotalBytes();
+    max_bytes = vtcm_pool->VtcmAllocatedBytes();
+    device_bytes = vtcm_pool->VtcmDeviceBytes();
   }
   void TearDown() override {}
 
  public:
   HexagonVtcmPool* vtcm_pool;
   size_t max_bytes;
+  size_t device_bytes;
+  size_t four_k_block = 4096;
   size_t two_k_block = 2048;
   size_t one_k_block = 1024;
   size_t min_bytes = 128;
@@ -42,6 +45,9 @@ class HexagonVtcmPoolTest : public ::testing::Test {
 TEST_F(HexagonVtcmPoolTest, basic) {
   void* ptr;
   void* ptr2;
+
+  CHECK(device_bytes >= max_bytes) << "VTCM device size " << device_bytes
+                                   << " not greater than or equal to allocated size " << max_bytes;
 
   ptr = vtcm_pool->Allocate(max_bytes);
   CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
@@ -71,6 +77,33 @@ TEST_F(HexagonVtcmPoolTest, basic) {
   EXPECT_THROW(ptr = vtcm_pool->Allocate(1), InternalError);
 }
 
+TEST_F(HexagonVtcmPoolTest, small_allocations) {
+  void* ptr1;
+  void* ptr2;
+  void* ptr3;
+  void* ptr4;
+
+  // Allocate small chunk from the back
+  ptr1 = vtcm_pool->Allocate(min_bytes);
+
+  // Allocate from the front
+  ptr2 = vtcm_pool->Allocate(two_k_block);
+
+  // Allocate the rest
+  ptr3 = vtcm_pool->Allocate(max_bytes - min_bytes - two_k_block);
+
+  // Should be no more memory left
+  EXPECT_THROW(ptr4 = vtcm_pool->Allocate(min_bytes), InternalError);
+
+  vtcm_pool->Free(ptr1, min_bytes);
+  vtcm_pool->Free(ptr2, two_k_block);
+  vtcm_pool->Free(ptr3, max_bytes - min_bytes - two_k_block);
+
+  // Make sure at the end we have the full amount available again
+  ptr4 = vtcm_pool->Allocate(max_bytes);
+  vtcm_pool->Free(ptr4, max_bytes);
+}
+
 TEST_F(HexagonVtcmPoolTest, no_free_vtcm) {
   void* ptr = vtcm_pool->Allocate(max_bytes);
   EXPECT_THROW(vtcm_pool->Allocate(min_bytes), InternalError);
@@ -95,7 +128,7 @@ TEST_F(HexagonVtcmPoolTest, free_alloc_combinations) {
   void* ptr3;
   void* ptr4;
   void* new_ptr;
-  size_t max_less_3_blocks = vtcm_pool->TotalBytes() - (3 * two_k_block);
+  size_t max_less_3_blocks = max_bytes - (3 * two_k_block);
   ptr1 = vtcm_pool->Allocate(two_k_block);
   ptr2 = vtcm_pool->Allocate(two_k_block);
   ptr3 = vtcm_pool->Allocate(two_k_block);
@@ -132,8 +165,86 @@ TEST_F(HexagonVtcmPoolTest, free_alloc_combinations) {
   vtcm_pool->Free(ptr3, two_k_block);
   vtcm_pool->Free(ptr2, two_k_block);
 
-  // Make sure at the end we have the full amount
-  // available again
+  // Make sure at the end we have the full amount available again
+  ptr4 = vtcm_pool->Allocate(max_bytes);
+  vtcm_pool->Free(ptr4, max_bytes);
+}
+
+TEST_F(HexagonVtcmPoolTest, find_allocation) {
+  void* ptr1;
+  void* ptr2;
+  void* ptr3;
+
+  ptr1 = vtcm_pool->Allocate(two_k_block);
+  ptr2 = vtcm_pool->Allocate(two_k_block);
+
+  // Free the first allocation
+  vtcm_pool->Free(ptr1, two_k_block);
+
+  // Allocate a new larger block to initiate search and ensure
+  // it succeeds despite there not being a match in the first free block.
+  ptr3 = vtcm_pool->Allocate(four_k_block);
+
+  // Clean up the ptrs
+  vtcm_pool->Free(ptr2, two_k_block);
+  vtcm_pool->Free(ptr3, four_k_block);
+
+  // Make sure at the end we have the full amount available again
+  ptr1 = vtcm_pool->Allocate(max_bytes);
+  vtcm_pool->Free(ptr1, max_bytes);
+}
+
+TEST_F(HexagonVtcmPoolTest, find_smallest_allocation_combinations) {
+  void* ptr1;
+  void* ptr2;
+  void* ptr3;
+  void* ptr4;
+  void* new_ptr;
+
+  ptr1 = vtcm_pool->Allocate(two_k_block);
+  ptr2 = vtcm_pool->Allocate(two_k_block);
+  ptr3 = vtcm_pool->Allocate(four_k_block);
+  ptr4 = vtcm_pool->Allocate(four_k_block);
+
+  // Fragment memory allocations.
+  vtcm_pool->Free(ptr2, two_k_block);
+  vtcm_pool->Free(ptr3, four_k_block);
+
+  // Reallocate memory allocations and ensure that the smallest free allocations are used.
+  new_ptr = vtcm_pool->Allocate(two_k_block);
+  CHECK(new_ptr == ptr2);
+
+  new_ptr = vtcm_pool->Allocate(two_k_block);
+  CHECK(new_ptr == ptr3);
+
+  vtcm_pool->Free(ptr1, two_k_block);
+  vtcm_pool->Free(ptr2, two_k_block);
+  vtcm_pool->Free(ptr3, two_k_block);
+  vtcm_pool->Free(ptr4, four_k_block);
+
+  // Rerun the same test for non 2k aligned allocations.
+  ptr1 = vtcm_pool->Allocate(min_bytes);
+  ptr2 = vtcm_pool->Allocate(min_bytes);
+  ptr3 = vtcm_pool->Allocate(one_k_block);
+  ptr4 = vtcm_pool->Allocate(one_k_block);
+
+  // Fragment memory allocations.
+  vtcm_pool->Free(ptr2, min_bytes);
+  vtcm_pool->Free(ptr3, one_k_block);
+
+  // Reallocate memory allocations and ensure that the smallest free allocations are used.
+  new_ptr = vtcm_pool->Allocate(min_bytes);
+  CHECK(new_ptr == ptr2);
+
+  new_ptr = vtcm_pool->Allocate(one_k_block);
+  CHECK(new_ptr == ptr3);
+
+  vtcm_pool->Free(ptr1, min_bytes);
+  vtcm_pool->Free(ptr2, min_bytes);
+  vtcm_pool->Free(ptr3, one_k_block);
+  vtcm_pool->Free(ptr4, one_k_block);
+
+  // Make sure at the end we have the full amount available again
   ptr4 = vtcm_pool->Allocate(max_bytes);
   vtcm_pool->Free(ptr4, max_bytes);
 }
@@ -170,8 +281,7 @@ TEST_F(HexagonVtcmPoolTest, vtcm_alignment) {
 
   test_hexbuffs.reset();
 
-  // Make sure at the end we have the full amount
-  // available again
+  // Make sure at the end we have the full amount available again
   ptr = vtcm_pool->Allocate(max_bytes);
   vtcm_pool->Free(ptr, max_bytes);
 }

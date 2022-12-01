@@ -29,45 +29,12 @@ from ..infrastructure import get_hexagon_target
 
 # TODO Should add kernal to tvm.testing.fixture
 
-random_seed = tvm.testing.parameter(0)
-
-
-@tvm.testing.fixture
-def shift_shape(batch):
-    return batch
-
-
-@tvm.testing.fixture
-def shift_shape(in_channel):
-    return in_channel
-
-
-@tvm.testing.fixture
-def shift_shape(in_size):
-    return in_size
-
-
-@tvm.testing.fixture
-def shift_shape(num_filter):
-    return num_filter
-
-
-@tvm.testing.fixture
-def shift_shape(stride):
-    return stride
-
-
-@tvm.testing.fixture
-def shift_shape(padding):
-    return padding
-
-
-@tvm.testing.fixture
-def shift_shape(output_padding):
-    return output_padding
-
 
 class BaseConv2DTransposeTests:
+    """Conv2D transpose base class."""
+
+    random_seed = tvm.testing.parameter(0)
+
     @tvm.testing.requires_hexagon
     def test_conv2d(
         self,
@@ -81,17 +48,20 @@ class BaseConv2DTransposeTests:
         output_padding,
         random_seed,
     ):
+        """Test conv2D."""
         in_height, in_width = in_size
         kernel_height, kernel_width = (1, 1)
         stride_height, stride_width = stride
         pad_top, pad_left, pad_bottom, pad_right = padding
 
-        A = te.placeholder((batch, in_channel, in_height, in_width), name="A")
-        W = te.placeholder((in_channel, num_filter, kernel_height, kernel_width), name="W")
+        a_tensor = te.placeholder((batch, in_channel, in_height, in_width), name="a_tensor")
+        w_tensor = te.placeholder(
+            (in_channel, num_filter, kernel_height, kernel_width), name="w_tensor"
+        )
 
-        a_shape = get_const_tuple(A.shape)
-        w_shape = get_const_tuple(W.shape)
-        dtype = A.dtype
+        a_shape = get_const_tuple(a_tensor.shape)
+        w_shape = get_const_tuple(w_tensor.shape)
+        dtype = a_tensor.dtype
 
         def get_ref_data():
 
@@ -107,42 +77,43 @@ class BaseConv2DTransposeTests:
         a_np, w_np, b_np, c_np = get_ref_data()
 
         fcompute_args = (
-            A,
-            W,
+            a_tensor,
+            w_tensor,
             [stride_height, stride_width],
             [pad_top, pad_left, pad_bottom, pad_right],
-            A.dtype,
+            a_tensor.dtype,
             output_padding,
         )
 
         with tvm.target.Target(get_hexagon_target("v68")):
             fcompute = topi.nn.conv2d_transpose_nchw
             fschedule = topi.hexagon.schedule_conv2d_transpose_nchw
-            B = fcompute(*fcompute_args)
-            C = topi.nn.relu(B)
-            s1 = fschedule([B])
-            s2 = fschedule([C])
+            b_tensor = fcompute(*fcompute_args)
+            c_tensor = topi.nn.relu(b_tensor)
+            schedule_1 = fschedule([b_tensor])
+            schedule_2 = fschedule([c_tensor])
 
             dev = hexagon_session.device
 
-            a = tvm.nd.array(a_np, dev)
-            w = tvm.nd.array(w_np, dev)
-            b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
-            c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
+            a_data = tvm.nd.array(a_np, dev)
+            weight = tvm.nd.array(w_np, dev)
+            b = tvm.nd.array(np.zeros(get_const_tuple(b_tensor.shape), dtype=b_tensor.dtype), dev)
+            c = tvm.nd.array(np.zeros(get_const_tuple(c_tensor.shape), dtype=c_tensor.dtype), dev)
 
-            func1 = tvm.build(s1, [A, W, B], get_hexagon_target("v68"))
-            func2 = tvm.build(s2, [A, W, C], get_hexagon_target("v68"))
+            func1 = tvm.build(schedule_1, [a_tensor, w_tensor, b_tensor], get_hexagon_target("v68"))
+            func2 = tvm.build(schedule_2, [a_tensor, w_tensor, c_tensor], get_hexagon_target("v68"))
 
             mod1 = hexagon_session.load_module(func1)
             mod2 = hexagon_session.load_module(func2)
 
-            mod1(a, w, b)
-            mod2(a, w, c)
+            mod1(a_data, weight, b)
+            mod2(a_data, weight, c)
             tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
             tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
 
 class TestConv2DTranspose(BaseConv2DTransposeTests):
+    """Test Conv2D transpose class."""
 
     (batch, in_channel, in_size, num_filter, stride) = tvm.testing.parameters(
         (1, 3, (224, 224), 1, (1, 1)),

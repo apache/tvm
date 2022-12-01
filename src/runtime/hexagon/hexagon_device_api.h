@@ -31,6 +31,7 @@
 
 #include "hexagon_buffer.h"
 #include "hexagon_buffer_manager.h"
+#include "hexagon_power_manager.h"
 #include "hexagon_thread_manager.h"
 #include "hexagon_user_dma.h"
 #include "hexagon_vtcm_pool.h"
@@ -55,15 +56,18 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Ensures resource managers are in a good state for the runtime
   void AcquireResources() {
+    CHECK_EQ(runtime_power_manager, nullptr);
+    runtime_power_manager = std::make_unique<HexagonPowerManager>();
+
     CHECK_EQ(runtime_vtcm, nullptr);
     runtime_vtcm = std::make_unique<HexagonVtcmPool>();
 
     CHECK_EQ(runtime_hexbuffs, nullptr);
     runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
-    released_runtime_buffers.clear();
 
     CHECK_EQ(runtime_threads, nullptr);
-    runtime_threads = std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size);
+    runtime_threads =
+        std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size, hw_resources);
 
     CHECK_EQ(runtime_dma, nullptr);
     runtime_dma = std::make_unique<HexagonUserDMA>();
@@ -78,14 +82,13 @@ class HexagonDeviceAPI final : public DeviceAPI {
     runtime_threads.reset();
 
     CHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
-    if (!runtime_hexbuffs->empty()) {
-      DLOG(INFO) << "runtime_hexbuffs was not empty in ReleaseResources";
-      released_runtime_buffers = runtime_hexbuffs->current_allocations();
-    }
     runtime_hexbuffs.reset();
 
     CHECK(runtime_vtcm) << "runtime_vtcm was not created in AcquireResources";
     runtime_vtcm.reset();
+
+    CHECK(runtime_power_manager) << "runtime_power_manager was not created in AcquireResources";
+    runtime_power_manager.reset();
   }
 
   /*! \brief Currently unimplemented interface to specify the active
@@ -105,12 +108,6 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Free the allocated HexagonBuffer.
   void FreeDataSpace(Device dev, void* ptr) final;
-
-  //! \brief Hexagon-only interface to allocate buffers used for the RPC server
-  void* AllocRpcBuffer(size_t nbytes, size_t alignment);
-
-  //! \brief Hexagon-only interface to free buffers used for the RPC server
-  void FreeRpcBuffer(void* ptr);
 
   /*! \brief Request a dynamically allocated HexagonBuffer from a workspace pool.
    *  \returns The underlying allocation pointer.
@@ -192,37 +189,30 @@ class HexagonDeviceAPI final : public DeviceAPI {
    */
   bool IsValidDevice(DLDevice dev) {
     // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU
-    return (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
-           (DLDeviceType(dev.device_type) == kDLCPU);
+    return (dev.device_type == kDLHexagon) || (dev.device_type == kDLCPU);
   }
 
-  //! \brief Manages RPC HexagonBuffer allocations
-  // rpc_hexbuffs is used only in Alloc/FreeRpcBuffer.  It is static because it lives for the
-  // lifetime of the static Device API.
-  HexagonBufferManager rpc_hexbuffs;
-
   //! \brief Manages runtime HexagonBuffer allocations
-  // runtime_hexbuffs is used for runtime allocations, separate from rpc_hexbuffs.  It is created
-  // with a call to AcquireResources, and destroyed on ReleaseResources.  The buffers in this
-  // manager are scoped to the lifetime of a user application session.
+  // runtime_hexbuffs is used for runtime allocations.  It is created with a call to
+  // AcquireResources, and destroyed on ReleaseResources.  The buffers in this manager are scoped
+  // to the lifetime of a user application session.
   std::unique_ptr<HexagonBufferManager> runtime_hexbuffs;
-
-  //! \brief Keeps a list of released runtime HexagonBuffer allocations
-  // ReleaseResources can be called when there are still buffers in runtime_hexbuffs.  This list
-  // stores the buffers that were released.
-  std::vector<void*> released_runtime_buffers;
 
   //! \brief Thread manager
   std::unique_ptr<HexagonThreadManager> runtime_threads;
   const unsigned threads{6};
   const unsigned pipe_size{1000};
   const unsigned stack_size{0x4000};  // 16KB
+  const std::vector<HardwareResourceType> hw_resources{DMA_0, HTP_0, HVX_0, HVX_1, HVX_2, HVX_3};
 
   //! \brief User DMA manager
   std::unique_ptr<HexagonUserDMA> runtime_dma;
 
   //! \brief VTCM memory manager
   std::unique_ptr<HexagonVtcmPool> runtime_vtcm;
+
+  //! \brief Hexagon power manager
+  std::unique_ptr<HexagonPowerManager> runtime_power_manager;
 };
 }  // namespace hexagon
 }  // namespace runtime

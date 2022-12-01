@@ -37,4 +37,3 @@ echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(BACKTRACE_ON_SEGFAULT ON\) >> config.cmake
 echo set\(USE_UMA OFF\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake
-

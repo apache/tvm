@@ -25,12 +25,6 @@ This tutorial is an introduction to working with microTVM and a TFLite
 model with Relay.
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
-
 ######################################################################
 # .. note::
 #     If you want to run this tutorial on the microTVM Reference VM, download the Jupyter
@@ -128,6 +122,12 @@ testing.utils.install_request_hook(depth=3)
 # Load the pretrained TFLite model from a file in your current
 # directory into a buffer
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 import os
 import json
 import tarfile
@@ -209,6 +209,7 @@ if use_physical_hw:
         boards = json.load(f)
 
     BOARD = os.getenv("TVM_MICRO_BOARD", default="nucleo_f746zg")
+    SERIAL = os.getenv("TVM_MICRO_SERIAL", default=None)
     TARGET = tvm.target.target.micro(boards[BOARD]["model"])
 
 #
@@ -291,7 +292,7 @@ project_options = {}  # You can use options to provide platform-specific options
 
 if use_physical_hw:
     template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr"))
-    project_options = {"project_type": "host_driven", "board": BOARD}
+    project_options = {"project_type": "host_driven", "board": BOARD, "serial_number": SERIAL}
 
 # Create a temporary directory
 

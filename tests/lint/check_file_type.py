@@ -151,12 +151,15 @@ ALLOW_SPECIFIC_FILE = {
     "apps/microtvm/zephyr/template_project/app-overlay/nucleo_l4r5zi.overlay",
     # microTVM Arduino runtime
     "apps/microtvm/arduino/template_project/Makefile.template",
+    # microTVM CRT
+    "src/runtime/crt/host/Makefile.template",
     # microTVM Virtual Machines
     "apps/microtvm/poetry.lock",
     "apps/microtvm/reference-vm/Vagrantfile",
     "apps/microtvm/reference-vm/base-box/Vagrantfile.packer-template",
     # Hexagon
     "src/runtime/hexagon/rpc/android_bash.sh.template",
+    "src/runtime/hexagon/profiler/lwp_handler.S",
 }
 
 

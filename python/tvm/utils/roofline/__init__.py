@@ -54,11 +54,18 @@ class SaveLoweredTIR:
     """Save TIR functions from right before final lowering. Right now this
     means right before tir.MakePackedAPI."""
 
-    def __init__(self):
+    def __init__(self, before_pass: str = "tir.MakePackedAPI"):
+        """
+        Parameters
+        ----------
+        before_pass: str
+            Pass before which the TIR is saved.
+        """
         self.functions = {}
+        self.before_pass = before_pass
 
     def run_before_pass(self, mod, info):
-        if info.name == "tir.MakePackedAPI":
+        if info.name == self.before_pass:
             for v, func in mod.functions.items():
                 if isinstance(func, tir.PrimFunc):
                     self.functions[v] = func
@@ -142,6 +149,8 @@ def roofline_from_existing(
     for call in report.calls:
         if "Hash" in call.keys() and call["Hash"] in all_features:
             _, prim, features = all_features[call["Hash"]]
+            if features is None:
+                continue
 
             with target:
                 flops, peak_flops, flops_name = registry.estimate_peak_flops(

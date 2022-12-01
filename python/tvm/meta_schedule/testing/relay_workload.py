@@ -232,7 +232,6 @@ def get_network(
     inputs : Tuple[str, List[int], str]
         The name, shape and dtype of the input tensor.
     """
-
     mod: IRModule
     params: Dict[str, NDArray]
     inputs: Tuple[str, List[int], str]

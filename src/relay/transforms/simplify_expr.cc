@@ -37,6 +37,7 @@
 #include <utility>
 
 #include "../op/tensor/transform.h"
+#include "fold_constant.h"
 #include "pattern_utils.h"
 
 namespace tvm {
@@ -157,6 +158,106 @@ class SimplifyConsecutiveCast : public DFPatternRewrite {
  protected:
   DFPattern data_;
   DFPattern cast1_;
+};
+
+bool CheckDataTypeMaxMinValue(DataType dtype, double min_value, double max_value) {
+  if (dtype.is_int() || dtype.is_uint()) {
+    double ubound = static_cast<double>(Downcast<IntImm>(tvm::max_value(dtype))->value);
+    double lbound = static_cast<double>(Downcast<IntImm>(tvm::min_value(dtype))->value);
+    return ubound == max_value && lbound == min_value;
+  } else if (dtype.is_float()) {
+    double ubound = Downcast<FloatImm>(tvm::max_value(dtype))->value;
+    double lbound = Downcast<FloatImm>(tvm::min_value(dtype))->value;
+    return ubound == max_value && lbound == min_value;
+  }
+
+  return false;
+}
+
+/*!
+ * \brief SimplifyClipAndConsecutiveCast matches the pattern clip->cast->cast and remove redundant
+ *   casts.
+ * Analysis of "redundancy" is done based on clip min/max values and min/max values of casted data
+ * type.
+ */
+class SimplifyClipAndConsecutiveCast : public DFPatternRewrite {
+ public:
+  SimplifyClipAndConsecutiveCast() {
+    clip_ = IsOp("clip")({IsWildcard()});
+    cast1_ = IsOp("cast")({clip_});
+    pattern_ = IsOp("cast")({cast1_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto clip = Downcast<Call>(node_map[clip_][0]);
+    const CallNode* clip_node = clip.as<CallNode>();
+    const ClipAttrs* clip_attrs = clip_node->attrs.as<ClipAttrs>();
+    DataType clip_dtype = Downcast<TensorType>(clip->checked_type())->dtype;
+
+    auto cast1 = Downcast<Call>(node_map[cast1_][0]);
+    DataType cast1_dtype = Downcast<TensorType>(cast1->checked_type())->dtype;
+
+    auto cast2 = Downcast<Call>(post);
+    DataType cast2_dtype = Downcast<TensorType>(cast2->checked_type())->dtype;
+
+    if (clip_dtype == cast2_dtype &&
+        CheckDataTypeMaxMinValue(cast1_dtype, clip_attrs->a_min, clip_attrs->a_max)) {
+      // Case 1:
+      // Data type of Clip == target data type of second Cast and min/max value of Clip == min/max
+      // value of first Clip target data type. In this case both Clip ops can be removed.
+      // Example:
+      //   %0 == [type=int32]
+      //   %1 = clip(%0, a_min=0f, a_max=255f) [type=int32]
+      //   %2 = cast(%1, dtype="uint8") [type=uint8]
+      //   %3 = cast(%2, dtype="int32") [type=int32]
+      //
+      // Optimized to (both casts can be removed):
+      //   %1 = clip(%0, a_min=0f, a_max=255f) [type=int32]
+      return node_map[clip_][0];
+    }
+    return post;
+  }
+
+ protected:
+  DFPattern clip_, cast1_;
+};
+
+/*!
+ * \brief SimplifyCastClip matches the pattern cast->clip and remove redundant Cast based on Clip
+ *    min/max values and min/max values of Cast target data type.
+ *
+ * Example:
+ *   %1 = cast(%0, dtype="uint8") [type=uint8]
+ *   %2 = clip(%1, a_min=0f, a_max=255f) [type=int8]
+ *
+ * Optimized to (remove Clip):
+ *   %1 = cast(%0, dtype="uint8") [type=uint8]
+ */
+class SimplifyCastClip : public DFPatternRewrite {
+ public:
+  SimplifyCastClip() {
+    cast_ = IsOp("cast")({IsWildcard()});
+    pattern_ = IsOp("clip")({cast_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto cast = Downcast<Call>(node_map[cast_][0]);
+    DataType cast_dtype = Downcast<TensorType>(cast->checked_type())->dtype;
+
+    auto clip = Downcast<Call>(post);
+    const CallNode* clip_node = clip.as<CallNode>();
+    const ClipAttrs* clip_attrs = clip_node->attrs.as<ClipAttrs>();
+
+    if (CheckDataTypeMaxMinValue(cast_dtype, clip_attrs->a_min, clip_attrs->a_max)) {
+      return node_map[cast_][0];
+    }
+    return post;
+  }
+
+ protected:
+  DFPattern clip_, cast_;
 };
 
 /*!
@@ -672,47 +773,104 @@ class EliminateIdentityRewrite : public DFPatternRewrite {
   DFPattern const_;
 };
 
-/*! \brief Make two consecutive add able to be constant_folded.
- * This pattern matching supports commutative property for addition.
+/*! \brief Switch adjacent add-mul with constants to mul-add.
+ * As mul-add pattern is more friendly to FoldScaleAxis.
  */
-class SimplifyConsecutiveAdd : public DFPatternRewrite {
+class SwitchAddMultiply : public DFPatternRewrite {
  public:
-  SimplifyConsecutiveAdd() {
+  SwitchAddMultiply() {
     x_ = IsWildcard();
-    const1_ = IsConstant();
-    const2_ = IsConstant();
-    DFPattern add_op = IsOp("add");
-    pattern_ = add_op({add_op({x_, const1_}), const2_});
+    c1_ = IsConstant();
+    c2_ = IsConstant();
+    pattern_ = (x_ + c1_) * c2_;
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto x = node_map[x_][0];
+    auto c1 = node_map[c1_][0];
+    auto c2 = node_map[c2_][0];
+
+    if (x.as<ConstantNode>()) {
+      return post;
+    }
+
+    Expr const_expr = Call(Op::Get("multiply"), {c1, c2});
+    Expr const_val = transform::FoldConstantExpr(const_expr);
+
+    return Call(Op::Get("add"), {Call(Op::Get("multiply"), {x, c2}), const_val});
+  }
+
+ private:
+  DFPattern x_;
+  DFPattern c1_;
+  DFPattern c2_;
+};
+
+/*! \brief Simplify two adjacent multiply or add with constants for further constant folding.
+ * The pattern matching supports commutative property.
+ */
+class SimplifyAdjacentMultiplyOrAdd : public DFPatternRewrite {
+ public:
+  SimplifyAdjacentMultiplyOrAdd() {
+    x_ = IsWildcard();
+    c1_ = IsConstant();
+    c2_ = IsConstant();
+    pattern_ = (x_ * c1_ * c2_) || (x_ + c1_ + c2_);
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
     const CallNode* call = pre.as<CallNode>();
     auto x = node_map[x_][0];
-    auto c1 = node_map[const1_][0];
-    auto c2 = node_map[const2_][0];
+    auto c1 = node_map[c1_][0];
+    auto c2 = node_map[c2_][0];
 
-    auto pre_call = call;
-    // Find the next add call.
-    if (pre_call->args[1].as<ConstantNode>()) {
-      pre_call = pre_call->args[0].as<CallNode>();
-    } else {
-      pre_call = pre_call->args[1].as<CallNode>();
-    }
-    // Do nothing if both inputs are not constants as they will be constant folded already.
-    if (pre_call->args[0].as<ConstantNode>() && pre_call->args[1].as<ConstantNode>()) {
+    if (x.as<ConstantNode>()) {
       return post;
-    } else {
-      auto add_res = Call(call->op, {c1, c2});
-      return Call(call->op, {x, add_res});
+    }
+
+    Expr const_expr = Call(call->op, {c1, c2});
+    Expr const_val = transform::FoldConstantExpr(const_expr);
+
+    return Call(call->op, {x, const_val});
+  }
+
+ private:
+  DFPattern x_;
+  DFPattern c1_;
+  DFPattern c2_;
+};
+
+/*! \brief Simplifying x+x to x*2 */
+class SimplifyAdd : public DFPatternRewrite {
+ public:
+  SimplifyAdd() {
+    x_ = IsWildcard();
+    y_ = IsWildcard();
+    pattern_ = IsOp("add")({x_, y_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    Type pre_type = pre->checked_type_;
+    auto dtype = pre_type.as<TensorTypeNode>()->dtype;
+    auto x = node_map[x_][0];
+    auto y = node_map[y_][0];
+    auto data_type = Downcast<TensorType>(x->checked_type());
+
+    if (x == y) {
+      Expr value;
+      value = MakeConstantScalar(dtype, 2);
+      return InferType(Call(Op::Get("multiply"), {x, value}));
     }
     return post;
   }
 
  private:
+  /*! \brief Pattern input */
   DFPattern x_;
-  DFPattern const1_;
-  DFPattern const2_;
+  DFPattern y_;
 };
 
 /*! \brief Simplifying x/sqrt to x*sqrt */
@@ -793,6 +951,7 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<ConcretizeCollapseSumLikeRewrite>();
   composer.AddRewrite<ConcretizeBroadcastToLikeRewrite>();
   composer.AddRewrite<ConcretizeCastLikeRewrite>();
+  composer.AddRewrite<SimplifyAdd>();
   composer.AddRewrite<SimplifyRSqrt>();
   composer.AddRewrite<EliminateIdentityRewrite>();
   composer.AddRewrite<SimplifyReshape>();
@@ -800,10 +959,13 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifySameCast>();
   composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<FullElementwise>();
-  composer.AddRewrite<SimplifyConsecutiveAdd>();
+  composer.AddRewrite<SwitchAddMultiply>();
+  composer.AddRewrite<SimplifyAdjacentMultiplyOrAdd>();
   composer.AddRewrite<SimplifyDQArgMax>();
   composer.AddRewrite<SimplifyDQArgMin>();
   composer.AddRewrite<SimplifyDQArgSort>();
+  composer.AddRewrite<SimplifyClipAndConsecutiveCast>();
+  composer.AddRewrite<SimplifyCastClip>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
 

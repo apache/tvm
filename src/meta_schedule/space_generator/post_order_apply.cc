@@ -118,20 +118,11 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
 
     std::vector<ScheduleAndUnvisitedBlocks> stack;
     Array<tir::Schedule> result{sch};
-    // Enumerate the schedule rules first because you can
-    // always concat multiple schedule rules as one
     Array<tir::BlockRV> all_blocks = BlockCollector::Collect(sch, f_block_filter_);
-    Array<Optional<ScheduleRule>> rules{NullOpt};
-    rules.insert(rules.end(), sch_rules.value().begin(), sch_rules.value().end());
-    for (Optional<ScheduleRule> sch_rule : rules) {
-      if (sch_rule.defined()) {
-        for (const tir::Schedule& sch : result) {
-          stack.emplace_back(sch, all_blocks);
-        }
-      } else {
-        for (const tir::Schedule& sch : result) {
-          stack.emplace_back(sch, Array<tir::BlockRV>{all_blocks.rbegin(), all_blocks.rend()});
-        }
+
+    for (ScheduleRule sch_rule : sch_rules.value()) {
+      for (const tir::Schedule& sch : result) {
+        stack.emplace_back(sch, all_blocks);
       }
       result.clear();
       while (!stack.empty()) {
@@ -150,33 +141,13 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
           stack.emplace_back(sch, blocks);
           continue;
         }
-
-        Optional<String> ann = tir::GetAnn<String>(sch->GetSRef(block_rv), "schedule_rule");
-        const runtime::PackedFunc* custom_schedule_fn =
-            ann.defined() ? runtime::Registry::Get(ann.value()) : nullptr;
-        const bool has_schedule_rule = custom_schedule_fn != nullptr;
-
-        if (ann.defined() && ann.value() != "None" && !has_schedule_rule) {
-          LOG(WARNING) << "Custom schedule rule not found, ignoring schedule_rule annotation: "
-                       << ann.value();
+        if (!ScheduleRule::IsApplyCustomRule(sch_rule)) {
+          if (tir::GetAnn<String>(sch->GetSRef(block_rv), "schedule_rule").defined()) {
+            stack.emplace_back(sch, blocks);
+            continue;
+          }
         }
-
-        if ((has_schedule_rule && sch_rule.defined()) ||
-            (!has_schedule_rule && !sch_rule.defined()) ||
-            (ann.defined() && ann.value() == "None")) {
-          stack.emplace_back(sch, blocks);
-          continue;
-        }
-
-        Array<tir::Schedule> applied{nullptr};
-        if (sch_rule.defined()) {
-          applied = sch_rule.value()->Apply(sch, /*block=*/block_rv);
-        } else {
-          ICHECK(custom_schedule_fn)
-              << "ValueError: Custom schedule rule not found: " << ann.value();
-          applied = (*custom_schedule_fn)(sch, block_rv);
-        }
-
+        Array<tir::Schedule> applied = sch_rule->Apply(sch, /*block=*/block_rv);
         for (const tir::Schedule& sch : applied) {
           stack.emplace_back(sch, blocks);
         }

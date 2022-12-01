@@ -21,6 +21,7 @@ import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.tir import IndexMap, IntImm, floordiv, floormod
+from tvm.runtime import const
 
 
 def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
@@ -41,6 +42,9 @@ def test_index_mapping():
     assert_structural_equal(index_map.map_indices([3]), [0, 3])
     assert_structural_equal(index_map.map_indices([4]), [1, 0])
     assert_structural_equal(index_map.map_indices([42]), [10, 2])
+    assert_structural_equal(
+        index_map.map_indices([const(42, "int64")]), [const(10, "int64"), const(2, "int64")]
+    )
 
 
 def test_shape_mapping():
@@ -50,6 +54,12 @@ def test_shape_mapping():
     assert_structural_equal(index_map.map_shape([16]), [4, 4])
 
     assert_structural_equal(index_map.map_shape([14]), [4, 4])
+    assert_structural_equal(
+        index_map.map_shape([const(16, "int64")]), [const(4, "int64"), const(4, "int64")]
+    )
+    assert_structural_equal(
+        index_map.map_shape([const(14, "int64")]), [const(4, "int64"), const(4, "int64")]
+    )
 
 
 def test_inverse():
@@ -81,7 +91,7 @@ padding_test_case = tvm.testing.parameter(
             inverse=lambda i, j: [4 * i + j],
             pre_shape=[15],
             post_shape=[4, 4],
-            padding=lambda i, j: tvm.tir.And(i == 3, j >= 3),
+            padding=lambda i, j: tvm.tir.And(i == 3, tvm.runtime.convert(3) == j),
         ),
         "left_padding": dict(
             forward=lambda i: [(i + 1) // 4, (i + 1) % 4],
@@ -97,7 +107,7 @@ padding_test_case = tvm.testing.parameter(
             post_shape=[4, 4],
             padding=lambda i, j: tvm.tir.Or(
                 tvm.tir.And(i == 0, j < 1),
-                tvm.tir.And(i == 3, j >= 3),
+                tvm.tir.And(i == 3, tvm.runtime.convert(3) == j),
             ),
         ),
         "dynamic_size": dict(
@@ -126,7 +136,7 @@ padding_test_case = tvm.testing.parameter(
             padding=lambda i_outer, j_outer, i_inner, j_inner: tvm.tir.Or(
                 tvm.tir.Or(
                     tvm.tir.And(i_outer == 0, i_inner < 1),
-                    tvm.tir.And(i_outer == 3, i_inner >= 3),
+                    tvm.tir.And(i_outer == 3, tvm.runtime.convert(3) == i_inner),
                 ),
                 tvm.tir.Or(
                     tvm.tir.And(j_outer == 0, j_inner < 5),
@@ -167,7 +177,7 @@ padding_test_case = tvm.testing.parameter(
             inverse=lambda i, j: [i * 4 + j],
             pre_shape=[3],
             post_shape=[1, 4],
-            padding=lambda i, j: 3 <= j,
+            padding=lambda i, j: tvm.runtime.convert(3) == j,
         ),
     }
 )

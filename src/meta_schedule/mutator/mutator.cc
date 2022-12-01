@@ -59,6 +59,8 @@ Map<Mutator, FloatImm> Mutator::DefaultLLVM() {
       {Mutator::MutateParallel(/*max_jobs_per_core=*/16), FloatImm(DataType::Float(64), 0.02)}};
 }
 
+Map<Mutator, FloatImm> Mutator::DefaultVNNI() { return Mutator::DefaultLLVM(); }
+
 Map<Mutator, FloatImm> Mutator::DefaultCUDA() {
   return Map<Mutator, FloatImm>{
       {Mutator::MutateTileSize(), FloatImm(DataType::Float(64), 0.9)},

@@ -81,6 +81,15 @@ linux operating systems, execute (in a terminal):
 
 Note that the version of CMake on apt may not be sufficiently up to date; it may be necessary to install it directly from `Kitware's third-party APT repository <https://apt.kitware.com/>`_.
 
+
+On Fedora/CentOS and related operating systems use:
+
+.. code:: bash
+
+    sudo dnf update
+    sudo dnf groupinstall -y "Development Tools"
+    sudo dnf install -y python-devel ncurses-compat-libs zlib-devel cmake libedit-devel libxml2-devel
+
 Use Homebrew to install the required dependencies for macOS running either the Intel or M1 processors. You must follow the post-installation steps specified by
 Homebrew to ensure the dependencies are correctly installed and configured:
 
@@ -90,7 +99,7 @@ Homebrew to ensure the dependencies are correctly installed and configured:
     brew install llvm
     brew install python@3.8
 
-If you are on macOS with an M1 Processor you may need to use conda to manage dependencies while building. Specifically you may need, `Miniforge <https://github.com/conda-forge/miniforge>`_ to ensure that the dependencies obtained using pip are compatible with M1. 
+If you are on macOS with an M1 Processor you may need to use conda to manage dependencies while building. Specifically you may need, `Miniforge <https://github.com/conda-forge/miniforge>`_ to ensure that the dependencies obtained using pip are compatible with M1.
 
 .. code:: bash
 
@@ -240,7 +249,7 @@ If you are already using conda as your package manager and wish to directly buil
 
 Building on Windows
 ~~~~~~~~~~~~~~~~~~~
-TVM support build via MSVC using cmake. You will need to ontain a visual studio compiler.
+TVM support build via MSVC using cmake. You will need to obtain a visual studio compiler.
 The minimum required VS version is **Visual Studio Enterprise 2019** (NOTE: we test
 against GitHub Actions' `Windows 2019 Runner <https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md>`_, so see that page for full details.
 We recommend following :ref:`build-with-conda` to obtain necessary dependencies and

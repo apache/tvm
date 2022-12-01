@@ -29,6 +29,7 @@ import tvm
 import tvm.rpc.tracker
 from tvm.contrib.hexagon.build import HexagonLauncher, HexagonLauncherRPC
 from tvm.contrib.hexagon.session import Session
+from tvm.contrib.hexagon.tools import HEXAGON_SIMULATOR_NAME
 
 HEXAGON_TOOLCHAIN = "HEXAGON_TOOLCHAIN"
 TVM_TRACKER_HOST = "TVM_TRACKER_HOST"
@@ -36,6 +37,13 @@ TVM_TRACKER_PORT = "TVM_TRACKER_PORT"
 ANDROID_REMOTE_DIR = "ANDROID_REMOTE_DIR"
 ANDROID_SERIAL_NUMBER = "ANDROID_SERIAL_NUMBER"
 ADB_SERVER_SOCKET = "ADB_SERVER_SOCKET"
+RNG_SEEDED = False
+
+HEXAGON_AOT_LLVM_TARGET = (
+    "llvm -keys=hexagon "
+    "-mattr=+hvxv68,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp "
+    "-mcpu=hexagonv68 -mtriple=hexagon"
+)
 
 
 @tvm.testing.fixture
@@ -75,7 +83,7 @@ def android_serial_number() -> Optional[str]:
 # triggering TIME_WAIT state on the server socket. This prevents another
 # server to bind to the same port until the wait time elapses.
 
-LISTEN_PORT_MIN = 2000  # Well above the privileged ports (1024 or lower)
+LISTEN_PORT_MIN = 6000  # Avoid hitting well-known Android debug ports
 LISTEN_PORT_MAX = 9000  # Below the search range end (port_end=9199) of RPC server
 PREVIOUS_PORT = None
 
@@ -83,10 +91,18 @@ PREVIOUS_PORT = None
 def get_free_port() -> int:
     """Return the next port that is available to listen on"""
     global PREVIOUS_PORT
+    global RNG_SEEDED
+
+    if tvm.testing.utils.IS_IN_CI and not RNG_SEEDED:
+        random.seed(0)
+        RNG_SEEDED = True
+
     if PREVIOUS_PORT is None:
         port = random.randint(LISTEN_PORT_MIN, LISTEN_PORT_MAX)
     else:
         port = PREVIOUS_PORT + 1
+        if port > LISTEN_PORT_MAX:
+            port = LISTEN_PORT_MIN
 
     while tvm.contrib.hexagon.build._is_port_in_use(port):
         port = port + 1 if port < LISTEN_PORT_MAX else LISTEN_PORT_MIN
@@ -158,7 +174,13 @@ def adb_server_socket() -> str:
 
 @pytest.fixture(scope="session")
 def hexagon_server_process(
-    request, rpc_server_port_for_session, adb_server_socket, skip_rpc, hexagon_debug
+    request,
+    rpc_server_port_for_session,
+    adb_server_socket,
+    skip_rpc,
+    hexagon_debug,
+    sysmon_profile,
+    clear_logcat,
 ) -> HexagonLauncherRPC:
     """Initials and returns hexagon launcher if ANDROID_SERIAL_NUMBER is defined.
     This launcher is started only once per test session.
@@ -167,7 +189,7 @@ def hexagon_server_process(
 
     if android_serial_num is None:
         pytest.skip("ANDROID_SERIAL_NUMBER is not set.")
-    if android_serial_num == ["simulator"]:
+    if android_serial_num == [HEXAGON_SIMULATOR_NAME]:
         yield None
     else:
         # Requesting these fixtures sets up a local tracker, if one
@@ -187,14 +209,20 @@ def hexagon_server_process(
             device_adr = read_device_list()[0]
         else:  # running in a subprocess here
             device_adr = workerinput["device_adr"]
-        launcher = HexagonLauncher(serial_number=device_adr, rpc_info=rpc_info)
+        launcher = HexagonLauncher(
+            serial_number=device_adr,
+            rpc_info=rpc_info,
+            hexagon_debug=hexagon_debug,
+            sysmon_profile=sysmon_profile,
+            clear_logcat=clear_logcat,
+        )
         try:
             if not skip_rpc:
                 launcher.start_server()
             yield {"launcher": launcher, "device_adr": device_adr}
         finally:
             if not skip_rpc:
-                launcher.stop_server(cleanup=(not hexagon_debug))
+                launcher.stop_server()
 
 
 def read_device_list():
@@ -208,7 +236,7 @@ def pytest_configure(config):
 
 
 def pytest_configure_node(node):
-    # the master for each node fills slaveinput dictionary
+    # the master for each node fills node input dictionary
     # which pytest-xdist will transfer to the subprocess
     if node.config.iplist is not None:
         node.workerinput["device_adr"] = node.config.iplist.pop()
@@ -222,11 +250,13 @@ def hexagon_launcher(
     tvm_tracker_port,
     adb_server_socket,
     hexagon_debug,
+    sysmon_profile,
+    clear_logcat,
 ) -> HexagonLauncherRPC:
     """Initials and returns hexagon launcher which reuses RPC info and Android serial number."""
     android_serial_num = android_serial_number()
 
-    if android_serial_num != ["simulator"]:
+    if android_serial_num != [HEXAGON_SIMULATOR_NAME]:
         rpc_info = hexagon_server_process["launcher"]._rpc_info
     else:
         rpc_info = {
@@ -235,19 +265,22 @@ def hexagon_launcher(
             "rpc_server_port": rpc_server_port,
             "adb_server_socket": adb_server_socket,
         }
-
     try:
-        if android_serial_num == ["simulator"]:
+        if android_serial_num == [HEXAGON_SIMULATOR_NAME]:
             launcher = HexagonLauncher(serial_number=android_serial_num[0], rpc_info=rpc_info)
             launcher.start_server()
         else:
             launcher = HexagonLauncher(
-                serial_number=hexagon_server_process["device_adr"], rpc_info=rpc_info
+                serial_number=hexagon_server_process["device_adr"],
+                rpc_info=rpc_info,
+                hexagon_debug=hexagon_debug,
+                sysmon_profile=sysmon_profile,
+                clear_logcat=clear_logcat,
             )
         yield launcher
     finally:
-        if android_serial_num == ["simulator"]:
-            launcher.stop_server(cleanup=(not hexagon_debug))
+        if android_serial_num == [HEXAGON_SIMULATOR_NAME]:
+            launcher.stop_server()
         elif not hexagon_debug:
             launcher.cleanup_directory()
 
@@ -257,7 +290,7 @@ def hexagon_session(hexagon_launcher: HexagonLauncherRPC) -> Session:
     if hexagon_launcher is None:
         yield None
     else:
-        with hexagon_launcher.start_session() as session:
+        with hexagon_launcher.create_session() as session:
             yield session
 
 
@@ -272,16 +305,11 @@ def terminate_rpc_servers():
     # yield happens every time.
     serial = os.environ.get(ANDROID_SERIAL_NUMBER)
     yield []
-    if serial == ["simulator"]:
+    if serial == [HEXAGON_SIMULATOR_NAME]:
         os.system("ps ax | grep tvm_rpc_x86 | awk '{print $1}' | xargs kill")
 
 
-aot_host_target = tvm.testing.parameter(
-    "c",
-    "llvm -keys=hexagon "
-    "-mattr=+hvxv68,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp "
-    "-mcpu=hexagonv68 -mtriple=hexagon",
-)
+aot_host_target = tvm.testing.parameter("c", HEXAGON_AOT_LLVM_TARGET)
 
 
 @tvm.testing.fixture
@@ -304,8 +332,18 @@ def hexagon_debug(request) -> bool:
     return request.config.getoption("--hexagon-debug")
 
 
+@pytest.fixture(scope="session")
+def sysmon_profile(request) -> bool:
+    return request.config.getoption("--sysmon-profile")
+
+
+@pytest.fixture(scope="session")
+def clear_logcat(request) -> bool:
+    return request.config.getoption("--clear-logcat")
+
+
 def pytest_addoption(parser):
-    parser.addoption("--gtest_args", action="store", default="")
+    """Add pytest options."""
 
     parser.addoption(
         "--skip-rpc",
@@ -317,11 +355,18 @@ def pytest_addoption(parser):
         "--hexagon-debug",
         action="store_true",
         default=False,
-        help="If set true, it will keep the hexagon test directories on the target.",
+        help="If set true, it will keep the hexagon test directories on the target. "
+        + "Additionally logcat logs will be copied from device and cdsp errors printed out.",
     )
-
-
-def pytest_generate_tests(metafunc):
-    option_value = metafunc.config.option.gtest_args
-    if "gtest_args" in metafunc.fixturenames and option_value is not None:
-        metafunc.parametrize("gtest_args", [option_value])
+    parser.addoption(
+        "--sysmon-profile",
+        action="store_true",
+        default=False,
+        help="If set true, it will run sysmon profiler during the tests.",
+    )
+    parser.addoption(
+        "--clear-logcat",
+        action="store_true",
+        default=False,
+        help="If set true, it will clear logcat before execution.",
+    )

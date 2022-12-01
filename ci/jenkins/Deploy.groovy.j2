@@ -30,7 +30,7 @@ def update_docker(ecr_image, hub_image) {
   sh(
     script: """
     set -eux
-    . ci/scripts/retry.sh
+    . ${jenkins_scripts_root}/retry.sh
     docker tag \
       ${ecr_image} \
       ${hub_image}
@@ -91,7 +91,10 @@ def deploy() {
           ws="tvm/deploy-docs",
         ) %}
           init_git()
-          {{ m.download_artifacts(tag='docs', filenames=["docs.tgz"]) }}
+          sh(
+            script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/docs --items docs.tgz",
+            label: 'Download docs folder from S3',
+          )
           deploy_docs()
         {% endcall %}
         {% call m.deploy_step(
@@ -148,7 +151,7 @@ def deploy() {
                 sh(
                   script: """
                     set -eux
-                    . ci/scripts/retry.sh
+                    . ${jenkins_scripts_root}/retry.sh
                     docker pull tlcpackstaging/{{ image.name }}:${tag}
                     docker tag tlcpackstaging/{{ image.name }}:${tag} tlcpack/{{ image.name.replace("_", "-") }}:${tag}
                     retry 5 docker push tlcpack/{{ image.name.replace("_", "-") }}:${tag}

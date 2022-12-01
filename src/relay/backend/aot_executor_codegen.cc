@@ -29,6 +29,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/runtime.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/name_transforms.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
@@ -534,7 +535,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         return;
       }
       if (target_attr_map[target_kind.value()]) {
-        std::string context_name = SanitizeName(device_context_name);
+        std::string context_name = tvm::runtime::SanitizeName(device_context_name);
         tir::Var device_context_var("device_context_" + context_name, DataType::Handle());
 
         auto pair = target_contexts.find(target_kind.value());
@@ -802,7 +803,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     tir::Stmt final_body = tir::SeqStmt({device_activations, body, device_deactivations});
 
     // Make the PrimFunc
-    return tir::PrimFunc(main_signature_, final_body, VoidType(), main_buffer_map_, {},
+    return tir::PrimFunc(main_signature_, final_body, VoidType(), main_buffer_map_,
                          DictAttrs(dict_attrs));
   }
 

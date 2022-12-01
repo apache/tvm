@@ -135,10 +135,9 @@ TVM_REGISTER_OBJECT_TYPE(TECompilerNode);
 
 class TECompilerImpl : public TECompilerNode {
  public:
-  explicit TECompilerImpl(Optional<IRModule> opt_mod, Optional<String> opt_mod_name) {
-    String mod_name = opt_mod_name.value_or("");
-    NameSupply name_supply = NameSupply(mod_name /* prefix */);
-    global_var_supply_ = GlobalVarSupply(name_supply);
+  explicit TECompilerImpl(Optional<IRModule> opt_mod, Optional<String> opt_mod_name)
+      : global_var_supply_(GlobalVarSupply(NameSupply(opt_mod_name.value_or("")))),
+        constant_name_supply_(NameSupply("")) {
     // Make sure we don't collide with any existing globals in the module.
     if (opt_mod) {
       for (const auto& kv : opt_mod.value()->functions) {
@@ -392,7 +391,8 @@ class TECompilerImpl : public TECompilerNode {
     With<Target> target_scope(key->target);
 
     ICHECK(!value->cached_func.defined());
-    value->cached_func = PrimFuncFor(key->source_func, key->target, global_var_supply);
+    value->cached_func =
+        PrimFuncFor(key->source_func, key->target, global_var_supply, constant_name_supply_);
 
     if (value->cached_func->prim_func.defined()) {
       VLOG(1) << "Lowering PrimFunc";
@@ -523,6 +523,9 @@ class TECompilerImpl : public TECompilerNode {
   std::mutex mutex_;
   /*! \brief internal GlobalVarSupply to get unique GlobalVars  */
   GlobalVarSupply global_var_supply_;
+  /*! \brief A NameSupply object for assigning unique names to constants, across different
+   * invocations of PrimFuncFor. */
+  NameSupply constant_name_supply_;
   /*! \brief internal compiler cache */
   std::unordered_map<CCacheKey, CCacheValue> cache_;
   /*! \brief internal compiler cache for shape funcs */

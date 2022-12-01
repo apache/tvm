@@ -232,7 +232,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
       cl_int err;
       cl_device_id dev = w->devices[device_id];
       programs_[func_name][device_id] =
-          clCreateProgramWithBinary(w->context, 1, &dev, &len, &s, NULL, &err);
+          clCreateProgramWithBinary(w->context, 1, &dev, &len, &s, nullptr, &err);
       OPENCL_CHECK_ERROR(err);
     } else {
       LOG(FATAL) << "Unknown OpenCL format " << fmt_;

@@ -26,6 +26,7 @@ from tvm.tir import trunc, abs, round, nearbyint, power, popcount, fmod, if_then
 from tvm.tir import isnan, isfinite, isinf
 from tvm.tir import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
 from tvm.tir import comm_reducer, min, max, sum
+from tvm.tir import add, subtract, multiply
 
 from .schedule import (
     Schedule,

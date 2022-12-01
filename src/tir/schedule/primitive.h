@@ -280,6 +280,15 @@ TVM_DLL StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int 
 TVM_DLL Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref,
                                      int read_buffer_index, const String& storage_scope);
 /*!
+ * \brief Create a block to cache precomputed index for later use.
+ * if there is no index computation, keep unchanged.
+ * \param block_sref The target block
+ * \param buffer_index The index of the target buffer in block's read region,
+ * \return The cache stage block.
+ */
+TVM_DLL Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
+                                   int buffer_index);
+/*!
  *!
  * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
  * The layout of the cache will be the same as by the iterators of the block that reads/writes the
@@ -524,6 +533,22 @@ TVM_DLL StmtSRef DecomposePadding(ScheduleState self, const StmtSRef& block_sref
 TVM_DLL void PadEinsum(ScheduleState self, const StmtSRef& block_sref,
                        const Array<Integer>& padding);
 
+/******** Schedule: Buffer transformation ********/
+/*!
+ * \brief Compute the target buffer via rolling buffering.
+ * \details This primitive selects the outermost rollable axis with a positive bound overlap that
+ * appears in the block's ancestor loops as `rolling axis`, fold and circularize the buffer along
+ * the rolling dimension, append block predicate to avoid recomputing overlapping elements.
+ * It requires:
+ * 1) The buffer to be an intermediate buffer defined via `alloc_buffer`.
+ * 2) The LCA of the producer and consumer of the buffer is a for loop, typically,
+ *    the producer and consumer of the buffer are cascaded through compute_at.
+ * 3) The access region of the buffer has at least one dimension that contains
+ *    a positive bound overlap.
+ * \param block_rv The producer block of the buffer.
+ * \param write_buffer_index The index of the buffer in block's write region.
+ */
+TVM_DLL void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buffer_index);
 /******** Schedule: Misc ********/
 
 }  // namespace tir

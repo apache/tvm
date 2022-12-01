@@ -58,7 +58,6 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/MDBuilder.h>
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
@@ -66,6 +65,14 @@
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Linker/Linker.h>
 #include <llvm/Pass.h>
+#if TVM_LLVM_VERSION >= 160
+#include <llvm/IR/Verifier.h>  // For VerifierPass
+#include <llvm/Passes/PassBuilder.h>
+#include <llvm/Passes/StandardInstrumentations.h>
+#else
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#endif
 #if TVM_LLVM_VERSION >= 100
 #include <llvm/Support/Alignment.h>
 #include <llvm/Support/TypeSize.h>
@@ -75,7 +82,6 @@
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/IPO.h>
-#include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/error_codes.h>
@@ -351,6 +357,64 @@ llvm::Value* CodeGenLLVM::CreateStorageSync(const CallNode* op) {
   return nullptr;
 }
 
+#if TVM_LLVM_VERSION >= 160
+
+// Use new pass manager
+
+void CodeGenLLVM::Optimize() {
+  llvm::TargetMachine* tm = llvm_target_->GetOrCreateTargetMachine();
+
+  bool debug_logging = false;
+  bool verify_each = false;
+
+  llvm::PipelineTuningOptions pto = llvm::PipelineTuningOptions();
+  llvm::PassInstrumentationCallbacks pic;
+  llvm::PassBuilder builder(tm, pto, llvm::None, &pic);
+
+  llvm::LoopAnalysisManager lam;
+  llvm::FunctionAnalysisManager fam;
+  llvm::CGSCCAnalysisManager cgam;
+  llvm::ModuleAnalysisManager mam;
+  builder.registerLoopAnalyses(lam);
+  builder.registerFunctionAnalyses(fam);
+  builder.registerCGSCCAnalyses(cgam);
+  builder.registerModuleAnalyses(mam);
+  builder.crossRegisterProxies(lam, fam, cgam, mam);
+
+  // Construct the default pass pipeline depending on the opt level.
+  std::string pipeline;
+  switch (llvm_target_->GetOptLevel()) {
+    case llvm::CodeGenOpt::Level::None:
+      pipeline = "default<O0>";
+      break;
+    case llvm::CodeGenOpt::Level::Less:
+      pipeline = "default<O1>";
+      break;
+    case llvm::CodeGenOpt::Level::Default:
+      pipeline = "default<O2>";
+      break;
+    default:
+      // CodeGenOpt::Level::Aggressive
+      pipeline = "default<O3>";
+      break;
+  }
+
+  llvm::StandardInstrumentations si(*llvm_target_->GetContext(), debug_logging, verify_each);
+  si.registerCallbacks(pic, &fam);
+  llvm::ModulePassManager mpass;
+  if (verify_each) {
+    mpass.addPass(llvm::VerifierPass());
+  }
+  if (auto err = builder.parsePassPipeline(mpass, pipeline)) {
+    LOG(FATAL) << "error parsing pass pipeline '" << pipeline
+               << "':" << llvm::toString(std::move(err)) << '\n';
+  }
+
+  mpass.run(*module_, mam);
+}
+
+#else  // TVM_LLVM_VERSION
+
 class FPassManager : public llvm::legacy::FunctionPassManager {
  public:
   explicit FPassManager(llvm::Module* m) : llvm::legacy::FunctionPassManager(m) {}
@@ -420,6 +484,7 @@ void CodeGenLLVM::Optimize() {
   fpass.doFinalization();
   mpass.run(*module_);
 }
+#endif  // TVM_LLVM_VERSION
 
 int CodeGenLLVM::NativeVectorBits(const runtime::StorageScope& storage_scope) const {
   return native_vector_bits_;
@@ -1318,6 +1383,10 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     // TODO(masahi): Support atomic for CPU backend
     LOG(FATAL) << "CPU backend does not support atomic add yet.";
     return nullptr;
+  } else if (op->op.same_as(builtin::start_profile_intrinsic()) ||
+             op->op.same_as(builtin::end_profile_intrinsic())) {
+    LOG(INFO) << "Ignoring profile_intrinsic ... " << op->op;
+    return nullptr;
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->op;
     return nullptr;
@@ -1755,14 +1824,14 @@ void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   auto* then_block = llvm::BasicBlock::Create(*ctx, "if_then", function_);
   auto* end_block = llvm::BasicBlock::Create(*ctx, "if_end", function_);
-  if (op->else_case.defined()) {
+  if (op->else_case) {
     auto* else_block = llvm::BasicBlock::Create(*ctx, "if_else", function_);
     builder_->CreateCondBr(cond, then_block, else_block);
     builder_->SetInsertPoint(then_block);
     this->VisitStmt(op->then_case);
     builder_->CreateBr(end_block);
     builder_->SetInsertPoint(else_block);
-    this->VisitStmt(op->else_case);
+    this->VisitStmt(op->else_case.value());
     builder_->CreateBr(end_block);
   } else {
     builder_->CreateCondBr(cond, then_block, end_block, md_very_likely_branch_);

@@ -16,12 +16,12 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import re
+import tempfile
 from typing import List
 
 import pytest
 import tvm
 from tvm import meta_schedule as ms
-from tvm.meta_schedule.testing.dummy_object import DummyBuilder, DummyRunner
 from tvm.script import tir as T
 from tvm.tir.schedule import Schedule
 
@@ -123,7 +123,59 @@ def test_meta_schedule_measure_callback_as_string():
     assert pattern.match(str(measure_callback))
 
 
+def test_meta_schedule_measure_callback_update_cost_model_with_zero():
+    @ms.derived_object
+    class AllZeroRunnerFuture(ms.runner.PyRunnerFuture):
+        def done(self) -> bool:
+            return True
+
+        def result(self) -> ms.runner.RunnerResult:
+            return ms.runner.RunnerResult([0.0, 0.0], None)
+
+    @ms.derived_object
+    class AllZeroRunner(ms.runner.PyRunner):
+        def run(self, runner_inputs: List[ms.runner.RunnerInput]) -> List[ms.runner.RunnerResult]:
+            return [AllZeroRunnerFuture() for _ in runner_inputs]
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        ms.tune_tir(
+            mod=Matmul,
+            target="llvm -num-cores=1",
+            work_dir=work_dir,
+            max_trials_global=10,
+            runner=AllZeroRunner(),
+            measure_callbacks=[ms.measure_callback.UpdateCostModel()],
+        )
+
+
+def test_meta_schedule_measure_callback_update_cost_model_with_runtime_error():
+    @ms.derived_object
+    class EmptyRunnerFuture(ms.runner.PyRunnerFuture):
+        def done(self) -> bool:
+            return True
+
+        def result(self) -> ms.runner.RunnerResult:
+            return ms.runner.RunnerResult(None, "error")
+
+    @ms.derived_object
+    class EmptyRunner(ms.runner.PyRunner):
+        def run(self, runner_inputs: List[ms.runner.RunnerInput]) -> List[ms.runner.RunnerResult]:
+            return [EmptyRunnerFuture() for _ in runner_inputs]
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        ms.tune_tir(
+            mod=Matmul,
+            target="llvm -num-cores=1",
+            work_dir=work_dir,
+            max_trials_global=10,
+            runner=EmptyRunner(),
+            measure_callbacks=[ms.measure_callback.UpdateCostModel()],
+        )
+
+
 if __name__ == "__main__":
     test_meta_schedule_measure_callback()
     test_meta_schedule_measure_callback_fail()
     test_meta_schedule_measure_callback_as_string()
+    test_meta_schedule_measure_callback_update_cost_model_with_zero()
+    test_meta_schedule_measure_callback_update_cost_model_with_runtime_error()

@@ -2557,6 +2557,7 @@ RELAY_REGISTER_OP("broadcast_to")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(4)
     .add_type_rel("BroadCastTo", BroadCastToRel)
+    .set_attrs_type<InitOpAttrs>()
     .set_attr<FTVMCompute>("FTVMCompute", BroadCastToCompute)
     .set_attr<TOpPattern>("TOpPattern", kBroadcast);
 
@@ -4301,6 +4302,135 @@ RELAY_REGISTER_OP("trilu")
     .add_type_rel("trilu", TriluRel)
     .set_support_level(3)
     .set_attr<TOpPattern>("TOpPattern", kElemWise);
+
+// FixedPointMultiplyPerAxis
+
+TVM_REGISTER_NODE_TYPE(FixedPointMultiplyPerAxisAttrs);
+
+bool FixedPointMultiplyPerAxisRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                                  const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 5) << "FixedPointMultiplyPerAxis: expect 5 types but " << types.size()
+                             << " provided";
+  ICHECK_EQ(num_inputs, 4) << "FixedPointMultiplyPerAxis: expect 4 inputs but " << num_inputs
+                           << " provided";
+
+  for (int i = 0; i < num_inputs; i++) {
+    auto data = types[i].as<TensorTypeNode>();
+    if (data == nullptr) {
+      ICHECK(types[i].as<IncompleteTypeNode>())
+          << "FixedPointMultiplyPerAxis: expect input type to be TensorType but get " << types[i];
+      return false;
+    }
+  }
+
+  return IdentityRel({types[0], types[4]}, 1, attrs, reporter);
+}
+
+InferCorrectLayoutOutput FixedPointMultiplyPerAxisInferCorrectLayout(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<FixedPointMultiplyPerAxisAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<FixedPointMultiplyPerAxisAttrs> param =
+      make_object<FixedPointMultiplyPerAxisAttrs>(*attrs_ptr);
+
+  Array<Array<IndexExpr>> old_in_shapes;
+  for (auto old_in_t : old_in_types) {
+    ICHECK(old_in_t.as<TensorTypeNode>());
+    old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
+  }
+
+  Array<Layout> input_layouts, output_layouts;
+
+  if (new_in_layouts.defined()) {
+    const Layout& new_layout = new_in_layouts[0];
+    const Layout& old_layout = old_in_layouts[0];
+
+    std::unordered_set<std::string> old_dims;
+    for (auto axis : param->axes) {
+      ICHECK_GE(axis->value, 0) << "Axis out of bounds in FixedPointMultiplyPerAxis operator.";
+      ICHECK_LT(axis->value, old_in_shapes[0].size())
+          << "Axis out of bounds in FixedPointMultiplyPerAxis operator.";
+      old_dims.emplace(old_layout[axis->value].name());
+    }
+
+    Array<tvm::Integer> new_axes;
+    std::string new_layout_string = "";
+    for (size_t axis_index = 0; axis_index < new_layout->axes.size(); ++axis_index) {
+      const auto& layout_axis = LayoutAxis::Get(new_layout->axes[axis_index]);
+      const std::string& layout_dim = layout_axis.name();
+      if (layout_axis.IsPrimal()) {
+        if (old_dims.count(layout_dim)) {
+          new_axes.push_back(tvm::Integer(axis_index));
+          new_layout_string += layout_dim;
+        }
+      } else {
+        auto primal_dim = layout_axis.ToPrimal().name();
+        if (old_dims.count(primal_dim)) {
+          new_axes.push_back(tvm::Integer(axis_index));
+          new_layout_string += std::to_string(new_layout.FactorOf(layout_axis)) + layout_dim;
+        }
+      }
+    }
+
+    Layout channel_layout = Layout(new_layout_string);
+
+    input_layouts = {new_layout, channel_layout, channel_layout, channel_layout};
+    output_layouts = {new_layout};
+    param->axes = std::move(new_axes);
+  } else if (old_in_layouts.defined()) {
+    ICHECK_EQ(old_in_layouts.size(), 4);
+    ICHECK_EQ(param->axes.size(), 1);  // Not tested other cases
+    const Layout& old_layout = old_in_layouts[0];
+    if (old_layout.defined()) {
+      std::string layout_string = old_layout[param->axes[0]->value].name();
+      Layout channel_layout = Layout(layout_string);
+
+      input_layouts = {old_layout, channel_layout, channel_layout, channel_layout};
+      output_layouts = {old_layout};
+    } else {
+      // Set the layouts to undef.
+      Layout undef = Layout::Undef();
+      input_layouts = Array<Layout>(4, undef);
+      output_layouts = {undef};
+    }
+  } else {
+    // Set the layouts to undef.
+    Layout undef = Layout::Undef();
+    input_layouts = Array<Layout>(4, undef);
+    output_layouts = {undef};
+  }
+
+  return InferCorrectLayoutOutput(input_layouts, output_layouts, Attrs(param));
+}
+
+Expr MakeFixedPointMultiplyPerAxis(Expr x, Expr m, Expr lshift, Expr rshift,
+                                   bool is_lshift_required, bool is_rshift_required,
+                                   Array<Integer> axes) {
+  auto attrs = make_object<FixedPointMultiplyPerAxisAttrs>();
+  attrs->is_lshift_required = is_lshift_required;
+  attrs->is_rshift_required = is_rshift_required;
+  attrs->axes = std::move(axes);
+  static const Op& op = Op::Get("fixed_point_multiply_per_axis");
+  return Call(op, {x, m, lshift, rshift}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.fixed_point_multiply_per_axis")
+    .set_body_typed(MakeFixedPointMultiplyPerAxis);
+
+RELAY_REGISTER_OP("fixed_point_multiply_per_axis")
+    .describe(R"code(per channel fixed point multiplication)code" TVM_ADD_FILELINE)
+    .set_num_inputs(4)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("fp_multiplier", "Tensor", "The multipliers tensor.")
+    .add_argument("left_shift", "Tensor", "The left shifts tensor.")
+    .add_argument("right_shift", "Tensor", "The right shifts tensor.")
+    .add_type_rel("FixedPointMultiplyPerAxis", FixedPointMultiplyPerAxisRel)
+    .set_attr<TOpPattern>("TOpPattern", kBroadcast)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                   FixedPointMultiplyPerAxisInferCorrectLayout)
+    .set_attrs_type<FixedPointMultiplyPerAxisAttrs>()
+    .set_support_level(10);
 
 }  // namespace relay
 }  // namespace tvm

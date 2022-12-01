@@ -34,15 +34,6 @@ namespace relay {
 namespace contrib {
 
 /*!
- * \brief Apply constant folding on an expression.
- *
- * \param expr The expression to fold.
- * \param fold_qnn Whether to fold constants for QNN operations.
- * \returns The new folded expression.
- */
-Expr FoldConstantExpr(const Expr& expr, bool fold_qnn = true);
-
-/*!
  *\brief Transpose weights from `source_layout` to `target_layout`
  *
  * \param data The constant expression to transpose.

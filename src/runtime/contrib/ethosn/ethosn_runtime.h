@@ -107,6 +107,39 @@ class EthosnModule : public ModuleNode {
   std::map<std::string, OrderedCompiledNetwork> network_map_;
 };
 
+/*!
+ * \brief Error codes for evaluating the result of inference on the NPU.
+ */
+enum class InferenceWaitErrorCode { kSuccess = 0, kTimeout = 1, kError = 2 };
+
+/*!
+ * \brief A helper class holding the status of inference on the NPU and
+ * associated error message(s) if any occurred.
+ *
+ * Similar to the implementation of 'WaitStatus' in the driver stack:
+ * https://github.com/ARM-software/ethos-n-driver-stack/blob/22.08/armnn-ethos-n-backend/workloads/EthosNPreCompiledWorkload.cpp#L48
+ */
+class InferenceWaitStatus {
+ public:
+  InferenceWaitStatus() : error_code_(InferenceWaitErrorCode::kSuccess), error_description_("") {}
+
+  explicit InferenceWaitStatus(InferenceWaitErrorCode errorCode, std::string errorDescription = "")
+      : error_code_(errorCode), error_description_(errorDescription) {}
+
+  InferenceWaitStatus(const InferenceWaitStatus&) = default;
+  InferenceWaitStatus(InferenceWaitStatus&&) = default;
+  InferenceWaitStatus& operator=(const InferenceWaitStatus&) = default;
+  InferenceWaitStatus& operator=(InferenceWaitStatus&&) = default;
+
+  explicit operator bool() const { return error_code_ == InferenceWaitErrorCode::kSuccess; }
+  InferenceWaitErrorCode GetErrorCode() const { return error_code_; }
+  std::string GetErrorDescription() const { return error_description_; }
+
+ private:
+  InferenceWaitErrorCode error_code_;
+  std::string error_description_;
+};
+
 }  // namespace ethosn
 }  // namespace runtime
 }  // namespace tvm

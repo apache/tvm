@@ -427,16 +427,6 @@ bool DFPatternMatcher::VisitDFPattern_(const LetPatternNode* op, const Expr& exp
   return false;
 }
 
-Expr InferType(const Expr& expr) {
-  auto mod = IRModule::FromExpr(expr);
-  mod = transform::InferType()(mod);
-  if (expr.as<FunctionNode>()) {
-    return mod->Lookup("main");
-  } else {
-    return mod->Lookup("main").as<FunctionNode>()->body;
-  }
-}
-
 Expr InferTypeWithModule(const Expr& expr, const IRModule& m) {
   IRModule mod(m->functions, m->type_definitions, m->Imports());
   GlobalVarSupply global_var_supply = GlobalVarSupply(mod);
@@ -622,12 +612,14 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
     }
     // Don't treat Function params or body as input variables for partition
     if (node->ref().as<FunctionPatternNode>()) {
-      auto matches = node_map[node->ref()];
-      for (auto match : matches) {
-        auto sub_graph = CreateIndexedGraph(match.as<FunctionNode>()->body);
-        for (PostDfsIndex sub_index = 0; sub_index < sub_graph->size(); ++sub_index) {
-          auto sub_node = sub_graph->index_to_node(sub_index);
-          fuzzy_matches.insert(sub_node->ref());
+      if (node_map.count(node->ref())) {
+        auto matches = node_map[node->ref()];
+        for (auto match : matches) {
+          auto sub_graph = CreateIndexedGraph(match.as<FunctionNode>()->body);
+          for (PostDfsIndex sub_index = 0; sub_index < sub_graph->size(); ++sub_index) {
+            auto sub_node = sub_graph->index_to_node(sub_index);
+            fuzzy_matches.insert(sub_node->ref());
+          }
         }
       }
     }

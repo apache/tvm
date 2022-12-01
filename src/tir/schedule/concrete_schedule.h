@@ -118,6 +118,7 @@ class ConcreteScheduleNode : public ScheduleNode {
                      const String& storage_scope) override;
   Array<BlockRV> CacheInplace(const BlockRV& block_rv, int read_buffer_index,
                               const String& storage_scope) override;
+  Array<BlockRV> CacheIndex(const BlockRV& block_rv, int write_buffer_index) override;
   BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
                   BufferIndexType buffer_index_type) override;
   /******** Schedule: Compute location ********/
@@ -153,6 +154,8 @@ class ConcreteScheduleNode : public ScheduleNode {
                         const Array<IntImm>& axis_separators) override;
   /******** Schedule: Padding decomposition ********/
   BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) override;
+  /******** Schedule: Buffer transformation ********/
+  void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) override;
   /******** Schedule: Misc ********/
   void EnterPostproc() override {}
 

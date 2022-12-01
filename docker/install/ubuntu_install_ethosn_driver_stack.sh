@@ -50,10 +50,7 @@ apt-install-and-clear -y \
     wget
 
 cd "$tmpdir"
-git clone "$repo_url" "$repo_dir"
+git clone --branch "$repo_revision" "$repo_url" "$repo_dir"
 
-cd "$repo_dir"
-git checkout "$repo_revision"
-
-cd "driver"
+cd "$repo_dir"/driver
 scons install_prefix="$install_path" install

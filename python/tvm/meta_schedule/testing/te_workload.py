@@ -19,6 +19,7 @@
 from typing import Tuple
 
 from tvm import te, tir, topi
+from tvm.target import Target
 
 
 def batch_matmul_nkkm(  # pylint: disable=invalid-name,missing-docstring
@@ -519,93 +520,68 @@ def conv2d_winograd_nhwc(  # pylint: disable=invalid-name,missing-docstring
     stride: int = 1,
     padding: int = 0,
     dilation: int = 1,
+    tile_size: int = 4,
 ) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    tile_size = 4  # _infer_tile_size(data, kernel)
-    inputs = te.placeholder((N, H, W, CI), name="inputs")
-    N, H, W, CI = topi.utils.get_const_tuple(inputs.shape)
-    if isinstance(dilation, int):
-        dilation_h = dilation_w = dilation
+    from tvm.topi.nn.conv2d import (  # pylint: disable=import-outside-toplevel
+        _conv2d_winograd_nhwc_impl,
+    )
+
+    target = Target.current(allow_none=True)
+    if target is not None and target.kind.name == "cuda":
+        write_cache_level = 3
     else:
-        dilation_h, dilation_w = dilation
+        write_cache_level = 2
+    data = te.placeholder((N, H, W, CI), "float32", name="data")
+    weight = te.placeholder((kernel_size, kernel_size, CO, CI), "float32", name="weight")
+    out = _conv2d_winograd_nhwc_impl(
+        data,
+        weight,
+        stride,
+        padding,
+        dilation,
+        "float32",
+        pre_computed=True,
+        auto_scheduler_rewritten_layout="",
+        meta_schedule_original_shape=None,
+        tile_size=tile_size,
+        write_cache_level=write_cache_level,
+    )
+    return (data, weight, out)
 
-    assert (dilation_h, dilation_w) == (1, 1), "Does not support dilation"
 
-    KH = KW = kernel_size
-    HPAD, WPAD, _, _ = topi.nn.get_pad_tuple(padding, (KH, KW))
-    HSTR, WSTR = (stride, stride) if isinstance(stride, int) else stride
-    assert HSTR == 1 and WSTR == 1 and KH == KW
-
-    data_pad = topi.nn.pad(inputs, (0, HPAD, WPAD, 0), (0, HPAD, WPAD, 0), name="data_pad")
-
-    r = KW
-    m = tile_size
-    alpha = m + r - 1
-    A, B, _G = topi.nn.winograd_util.winograd_transform_matrices(m, r, "float32")
-
-    H = (H + 2 * HPAD - KH) // HSTR + 1
-    W = (W + 2 * WPAD - KW) // WSTR + 1
-    nH, nW = (H + m - 1) // m, (W + m - 1) // m
-    P = N * nH * nW
-    _rkh = te.reduce_axis((0, KH), name="r_kh")
-    _rkw = te.reduce_axis((0, KW), name="r_kw")
-    kshape = (alpha, alpha, CI, CO)
-    kernel_pack = te.placeholder(kshape, inputs.dtype, name="weight")
-
-    idxdiv = te.indexdiv
-    idxmod = te.indexmod
-    # pack input tile
-    input_tile = te.compute(
-        (alpha, alpha, P, CI),
-        lambda eps, nu, p, ci: data_pad[idxdiv(p, (nH * nW))][idxmod(idxdiv(p, nW), nH) * m + eps][
-            idxmod(p, nW) * m + nu
-        ][ci],
-        name="input_tile",
+def conv2d_winograd_nchw(  # pylint: disable=invalid-name,missing-docstring
+    N: int,
+    H: int,
+    W: int,
+    CI: int,
+    CO: int,
+    kernel_size: int,
+    stride: int = 1,
+    padding: int = 1,
+    dilation: int = 1,
+) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+    from tvm.topi.cuda.conv2d_winograd import (  # pylint: disable=import-outside-toplevel
+        _infer_tile_size,
+    )
+    from tvm.topi.nn.conv2d import (  # pylint: disable=import-outside-toplevel
+        _conv2d_winograd_nchw_impl,
     )
 
-    # transform data
-    r_a = te.reduce_axis((0, alpha), "r_a")
-    r_b = te.reduce_axis((0, alpha), "r_b")
-    data_pack = te.compute(
-        (alpha, alpha, P, CI),
-        lambda eps, nu, p, ci: te.sum(
-            input_tile[r_a][r_b][p][ci] * B[r_a][eps] * B[r_b][nu], axis=[r_a, r_b]
-        ),
-        name="data_pack",
-        attrs={"auto_scheduler_simplify_const_tensor_indices": ["eps", "nu", "r_a", "r_b"]},
+    data = te.placeholder((N, CI, H, W), "float32", name="data")
+    weight = te.placeholder((kernel_size, kernel_size, CI, CO), "float32", name="weight")
+    out = _conv2d_winograd_nchw_impl(
+        data,
+        weight,
+        stride,
+        padding,
+        dilation,
+        "float32",
+        pre_computed=True,
+        auto_scheduler_rewritten_layout="",
+        meta_schedule_original_shape=None,
+        tile_size=_infer_tile_size(data, weight),
     )
-
-    # do batch gemm
-    ci = te.reduce_axis((0, CI), name="ci")
-    bgemm = te.compute(
-        (alpha, alpha, P, CO),
-        lambda eps, nu, p, co: te.sum(
-            data_pack[eps][nu][p][ci] * kernel_pack[eps][nu][ci][co], axis=[ci]
-        ),
-        name="bgemm",
-    )
-
-    # inverse transform
-    r_a = te.reduce_axis((0, alpha), "r_a")
-    r_b = te.reduce_axis((0, alpha), "r_b")
-    inverse = te.compute(
-        (m, m, P, CO),
-        lambda vh, vw, p, co: te.sum(
-            bgemm[r_a][r_b][p][co] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]
-        ),
-        name="inverse",
-        attrs={"auto_scheduler_simplify_const_tensor_indices": ["vh", "vw", "r_a", "r_b"]},
-    )
-
-    # output
-    output = te.compute(
-        (N, H, W, CO),
-        lambda n, h, w, co: inverse[
-            idxmod(h, m), idxmod(w, m), n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m), co
-        ],
-        name="conv2d_winograd",
-    )
-
-    return (inputs, kernel_pack, output)
+    return (data, weight, out)
 
 
 def matmul(
@@ -833,7 +809,7 @@ CONFIGS = {
     "T2D": (
         conv2d_transpose_nhwc,
         [
-            # all conv2d tranpose layers in DCGAN
+            # all conv2d transpose layers in DCGAN
             (1, 4, 4, 512, 256, 4, 2, 1),
             (1, 8, 8, 256, 128, 4, 2, 1),
             (1, 16, 16, 128, 64, 4, 2, 1),
@@ -884,6 +860,18 @@ CONFIGS = {
             (1, 128, 16, 64),
             (1, 64, 12, 128),
             (1, 128, 12, 128),
+        ],
+    ),
+    "C2D_WIN_NHWC": (
+        conv2d_winograd_nhwc,
+        [
+            (1, 14, 14, 128, 128, 6),
+        ],
+    ),
+    "C2D_WIN_NCHW": (
+        conv2d_winograd_nchw,
+        [
+            (1, 56, 56, 64, 64, 6),
         ],
     ),
 }

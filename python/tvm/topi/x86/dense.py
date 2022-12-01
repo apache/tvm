@@ -18,18 +18,16 @@
 # pylint: disable=no-value-for-parameter
 """x86 dense operators"""
 from __future__ import absolute_import as _abs
-import tvm
-from tvm import te
-from tvm import autotvm
-from tvm.autotvm.task.space import SplitEntity
-from tvm.contrib import cblas
-from tvm.contrib import mkl
-from tvm.contrib import dnnl
 
-from .utils import get_simd_32bit_lanes
+import tvm
+from tvm import autotvm, te
+from tvm.autotvm.task.space import SplitEntity
+from tvm.contrib import cblas, dnnl, mkl
+
 from .. import generic, tag
-from ..utils import traverse_inline, get_const_tuple
+from ..utils import get_const_tuple, traverse_inline
 from .tensor_intrin import dot_16x1x16_uint8_int8_int32_cascadelake
+from .utils import get_simd_32bit_lanes
 
 
 def _schedule_dense_pack_template(cfg, s, C, O):
@@ -296,7 +294,7 @@ def dense_vnni_compute(cfg, X, packed_w, bias=None):
             axis=ak,
         ),
         tag="dense_vnni",
-        attrs={"schedule_rule": "meta_schedule.dense_vnni"},
+        attrs={"schedule_rule": "dense_vnni"},
     )
 
     if bias is not None:
@@ -481,4 +479,64 @@ def matmul_dnnl(
 @autotvm.register_topi_schedule("matmul_dnnl.x86")
 def schedule_matmul_dnnl(_, outs):
     """Create schedule for matmul_dnnl."""
+    return generic.schedule_extern(outs)
+
+
+def dense_dynamic(A, B, bias, dtype):
+    """Compute for dense with dynamic shape"""
+
+    assert A.shape[0] == 1, "Only dynamic matrix vector multiplication with vector LHS is supported"
+
+    # Right now we only support matrix-vector multiplication with lhs as the
+    # vector. We don't need to do much optimization here because the access
+    # pattern and parallelization are straight forward.
+    def gen_ir(a, b, c):
+        ib = tvm.tir.ir_builder.create()
+        A = ib.buffer_ptr(a)
+        B = ib.buffer_ptr(b)
+        C = ib.buffer_ptr(c)
+        with ib.for_range(0, b.shape[0], name="j", kind="parallel") as j:
+            C[0, j] = 0.0
+            with ib.for_range(0, b.shape[1], name="k") as k:
+                C[0, j] += A[0, k] * B[j, k]
+        return ib.get()
+
+    def gen_ir_bias(a, b, bias, c):
+        ib = tvm.tir.ir_builder.create()
+        A = ib.buffer_ptr(a)
+        B = ib.buffer_ptr(b)
+        C = ib.buffer_ptr(c)
+        with ib.for_range(0, b.shape[0], name="j", kind="parallel") as j:
+            C[0, j] = bias[j]
+            with ib.for_range(0, b.shape[1], name="k") as k:
+                C[0, j] += A[0, k] * B[j, k]
+        return ib.get()
+
+    out_shape = (A.shape[0], B.shape[0])
+    out_buf = tvm.tir.decl_buffer(out_shape, dtype, "out_buf")
+    if bias is None:
+        out = te.extern(
+            [out_shape],
+            [A, B],
+            lambda ins, outs: gen_ir(*ins, *outs),
+            dtype=dtype,
+            out_buffers=[out_buf],
+            name="dense_dynamic_cpu",
+            tag="dense_dynamic_cpu",
+        )
+    else:
+        out = te.extern(
+            [out_shape],
+            [A, B, bias],
+            lambda ins, outs: gen_ir_bias(*ins, *outs),
+            dtype=dtype,
+            out_buffers=[out_buf],
+            name="dense_dynamic_cpu",
+            tag="dense_dynamic_cpu",
+        )
+    return out
+
+
+def schedule_dense_dynamic(outs):
+    """Create schedule for dense_dynamic."""
     return generic.schedule_extern(outs)

@@ -20,6 +20,7 @@ from typing import Optional, List
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
+from tvm.runtime import NDArray
 from . import _ffi_api
 
 
@@ -98,6 +99,34 @@ class PoolInfoProperties(Object):
             read_latency_cycles,
             write_latency_cycles,
             target_burst_bytes,
+        )
+
+
+@register_object("ir.ConstantInfo")
+class ConstantInfo(Object):
+    """ConstantInfo object hold information on a constant pool.
+
+    Parameters
+    ----------
+    name_hint : str
+        Name of the constant.
+    byte_offset : int
+        The byte_offset of the constant.
+    data : NDArray
+        The data of the constant.
+    """
+
+    def __init__(
+        self,
+        name_hint: str,
+        byte_offset: int,
+        data: NDArray,
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.ConstantInfo,  # type: ignore # pylint: disable=no-member
+            name_hint,
+            byte_offset,
+            data,
         )
 
 
@@ -213,4 +242,27 @@ class ConstantMemoryPools(Object):
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.ConstantMemoryPools, pools  # type: ignore # pylint: disable=no-member
+        )
+
+
+@register_object("ir.ConstantMemoryPools")
+class AllocatedPoolInfo(Object):
+    """Allocate memory in a given pool.
+
+    Parameters
+    ----------
+    pool : PoolInfo
+        The pool in which to allocate memory.
+    allocated_size : int
+        The size of memory to allocate.
+    """
+
+    def __init__(
+        self,
+        pool: PoolInfo,
+        allocated_size: int,
+        pool_var_idx: int = 0,
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.AllocatedPoolInfo, pool, allocated_size, pool_var_idx  # type: ignore # pylint: disable=no-member
         )

@@ -20,4 +20,4 @@ set -e
 set -u
 set -o pipefail
 
-pip3 install ethos-u-vela==3.4.0
+pip3 install ethos-u-vela==3.5.0

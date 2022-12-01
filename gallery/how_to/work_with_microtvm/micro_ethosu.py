@@ -87,7 +87,7 @@ testing.utils.install_request_hook(depth=3)
 #     attrs==21.2.0
 #     cloudpickle==2.0.0
 #     decorator==5.1.0
-#     ethos-u-vela==3.2.0
+#     ethos-u-vela==3.5.0
 #     flatbuffers==1.12
 #     lxml==4.6.3
 #     nose==1.3.7
@@ -95,7 +95,7 @@ testing.utils.install_request_hook(depth=3)
 #     Pillow==8.3.2
 #     psutil==5.8.0
 #     scipy==1.5.4
-#     synr==0.4
+#     synr==0.6
 #     tflite==2.4.0
 #     tornado==6.1
 #

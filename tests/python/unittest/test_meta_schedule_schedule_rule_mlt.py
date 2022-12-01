@@ -623,6 +623,29 @@ def test_multi_level_tiling_hexagon():
     )
 
 
+def test_cache_read_specify_consumer():
+    A, B, C = te_workload.matmul(512, 512, 512)
+    mod = te.create_prim_func([A, B, C + A])
+
+    space = generate_design_space(
+        kind="cuda",
+        mod=mod,
+        target=Target("nvidia/geforce-rtx-3080"),
+        types=ms.schedule_rule.MultiLevelTiling,
+    )
+
+    residual_block = """
+        for ax0, ax1 in T.grid(512, 512):
+            with T.block("T_add"):
+                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                T.reads(C[v_ax0, v_ax1], A[v_ax0, v_ax1])
+                T.writes(T_add[v_ax0, v_ax1])
+                T_add[v_ax0, v_ax1] = C[v_ax0, v_ax1] + A[v_ax0, v_ax1]
+    """
+
+    assert residual_block in space[0].mod.script()
+
+
 if __name__ == "__main__":
     test_cpu_matmul()
     test_cpu_matmul_relu()

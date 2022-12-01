@@ -125,6 +125,16 @@ class DataType {
    */
   DataType element_of() const { return with_lanes(1); }
   /*!
+   * \brief Assignment operator.
+   */
+  DataType& operator=(const DataType& rhs) {
+    if (this == &rhs) {
+      return *this;
+    }
+    data_ = rhs.data_;
+    return *this;
+  }
+  /*!
    * \brief Equal comparator.
    * \param other The data type to compare against.
    * \return The comparison result.

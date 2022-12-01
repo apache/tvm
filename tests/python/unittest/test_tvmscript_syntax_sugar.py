@@ -20,9 +20,8 @@ import sys
 import pytest
 import tvm.testing
 from tvm.ir import assert_structural_equal
+from tvm.script import from_source
 from tvm.script import tir as T
-from tvm.script.parser import from_source
-from tvm.testing import check_error
 
 
 @T.prim_func
@@ -89,18 +88,8 @@ def loop_syntax_sugar(a: T.handle) -> None:
                             A[i, j, k, x] = A[i, j, k, x] * 2.0
 
 
-def loop_syntax_sugar_fail(a: T.handle) -> None:
-    A = T.match_buffer(a, (128,))
-    for i in T.thread_binding(128, 128):
-        A[i] = A[i] * 2.0
-
-
 def test_loop_syntax_sugar():
     assert_structural_equal(loop_no_syntax_sugar, loop_syntax_sugar)
-
-
-def test_syntax_sugar_fail():
-    check_error(loop_syntax_sugar_fail, 3)
 
 
 # match buffer - use kwargs
@@ -198,23 +187,6 @@ def test_dynamic_shape_gemm():
 
 
 @T.prim_func
-def preflattened_buffer_map(A: T.handle, B: T.handle):
-    A_1 = T.match_buffer(A, [1])
-    T.preflattened_buffer(A_1, [1], align=1, offset_factor=2)
-    B_1 = T.match_buffer(B, [1])
-    T.preflattened_buffer(B_1, [1])
-    B_1[0] = A_1[0]
-
-
-def test_preflattened_buffer_map():
-    A_var = [
-        k for k, _ in preflattened_buffer_map.preflattened_buffer_map.items() if k.name == "A"
-    ][0]
-    assert preflattened_buffer_map.preflattened_buffer_map[A_var].data_alignment == 1
-    assert preflattened_buffer_map.preflattened_buffer_map[A_var].offset_factor == 2
-
-
-@T.prim_func
 def match_buffer_int64(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (T.int64(128), T.int64(128)), dtype="float32")
     B = T.alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
@@ -299,8 +271,8 @@ def test_letstmt_bind_with_constant():
 
     @T.prim_func
     def constant_binds_wrapped():
-        x = T.int32(1)
-        y = T.float32(42.0)
+        x = T.meta_var(T.int32(1))
+        y = T.meta_var(T.float32(42.0))
         T.evaluate(T.cast(x, "float32") + y)
 
     assert_structural_equal(constant_binds, constant_binds_wrapped)
@@ -309,7 +281,7 @@ def test_letstmt_bind_with_constant():
 def test_func_call():
     def shared_16x16_to_ldmatrix_32x8_layout(i, j):
         thread_id = (i % 8) * 4 + (j % 8) // 2
-        return thread_id, (j // 8) * 4 + (i // 8) * 2 + (j % 2)
+        return T.meta_var((thread_id, (j // 8) * 4 + (i // 8) * 2 + (j % 2)))
 
     @T.prim_func
     def mma_sync_m16n16k16_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
@@ -411,6 +383,32 @@ def test_int64_loop():
                     B[vi, vj] = A[vi, vj] + 1.0
 
     assert_structural_equal(int64_grid, int64_grid_expanded)
+
+
+def test_implicit_evaluate_assume():
+    @T.prim_func
+    def explicit(A: T.Buffer[1, "int32"]):
+        T.evaluate(T.assume(A[0] == 5))
+        A[0] = 10
+
+    @T.prim_func
+    def implicit(A: T.Buffer[1, "int32"]):
+        T.assume(A[0] == 5)
+        A[0] = 10
+
+    assert_structural_equal(implicit, explicit)
+
+
+def test_implicit_evaluate_call_extern():
+    @T.prim_func
+    def explicit(A: T.Buffer[1, "int32"]):
+        T.evaluate(T.call_extern("extern_func", A.data, dtype="int32"))
+
+    @T.prim_func
+    def implicit(A: T.Buffer[1, "int32"]):
+        T.call_extern("extern_func", A.data, dtype="int32")
+
+    assert_structural_equal(implicit, explicit)
 
 
 if __name__ == "__main__":

@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 import tvm.testing
+from tvm import te
+from tvm.script import tir as T
 
 
-def run_passes(inputs, stmt):
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc(inputs, stmt, None)
+def run_passes(func: tvm.tir.PrimFunc):
     mod = tvm.IRModule.from_expr(func)
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
@@ -53,7 +53,8 @@ def test_thread_storage_sync():
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    mod = run_passes([A, A2], stmt)
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A2], stmt, None)
+    mod = run_passes(func)
     f = mod["test_kernel0"]
     body_list = tvm.tir.stmt_list(f.body.body.body)
     assert body_list[1].value.op.same_as(tvm.ir.Op.get("tir.tvm_storage_sync"))
@@ -89,10 +90,35 @@ def test_sync_else_branch():
     A = tvm.tir.decl_buffer((8,), "float32")
     B = tvm.tir.decl_buffer((8,), "float32")
     stmt = ir(A, B)
-    mod = run_passes([A, B], stmt)
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B], stmt, None)
+    mod = run_passes(func)
+    assert "@tir.tvm_storage_sync" in str(mod)
+
+
+@tvm.testing.requires_cuda
+def test_sync_read_thread_id_independent_location():
+    @T.prim_func
+    def func(p0_arg: T.Buffer[(1, 2, 1, 1), "float32"], p1: T.Buffer[2, "float32"]) -> None:
+        threadIdx_x = T.env_thread("threadIdx.x")
+        blockIdx_x = T.env_thread("blockIdx.x")
+        p0 = T.buffer_decl([2], dtype="float32", data=p0_arg.data)
+        result_local = T.alloc_buffer([1], dtype="float32", scope="local")
+        temp_shared = T.alloc_buffer([1], dtype="float32", scope="shared")
+        T.launch_thread(blockIdx_x, 8)
+        T.launch_thread(threadIdx_x, 4)
+        result_local[0] = T.float32(0)
+        if threadIdx_x < 1:
+            temp_shared[0] = p0[0]
+        result_local[0] = result_local[0] + temp_shared[0] * p1[0]
+        if threadIdx_x < 1:
+            temp_shared[0] = p0[1]
+        result_local[0] = result_local[0] + temp_shared[0] * p1[1]
+
+    mod = run_passes(func)
     assert "@tir.tvm_storage_sync" in str(mod)
 
 
 if __name__ == "__main__":
     test_thread_storage_sync()
     test_sync_else_branch()
+    test_sync_read_thread_id_independent_location()

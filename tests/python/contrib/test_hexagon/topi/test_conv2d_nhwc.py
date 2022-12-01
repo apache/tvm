@@ -27,23 +27,27 @@ from tvm.topi.utils import get_const_tuple
 
 from ..infrastructure import get_hexagon_target
 
-dtype = tvm.testing.parameter("float32")
-
-
-@tvm.testing.fixture(cache_return_value=True)
-def ref_data(dtype, batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation):
-    in_height = in_width = in_size
-    a_shape = (batch, in_height, in_width, in_channel)
-    w_shape = (kernel, kernel, in_channel, num_filter)
-
-    a_np = np.random.uniform(size=a_shape).astype(dtype)
-    w_np = np.random.uniform(size=w_shape).astype(dtype)
-    dw_np = tvm.topi.testing.dilate_python(w_np, (dilation, dilation, 1, 1))
-    b_np = tvm.topi.testing.conv2d_nhwc_python(a_np, dw_np, stride, padding)
-    return a_np, w_np, b_np
-
 
 class BaseConv2DTests:
+    """Test Conv2D base class."""
+
+    dtype = tvm.testing.parameter("float32")
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def ref_data(
+        self, dtype, batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation
+    ):
+        """Generate reference data."""
+        in_height = in_width = in_size
+        a_shape = (batch, in_height, in_width, in_channel)
+        w_shape = (kernel, kernel, in_channel, num_filter)
+
+        a_np = np.random.uniform(size=a_shape).astype(dtype)
+        w_np = np.random.uniform(size=w_shape).astype(dtype)
+        dw_np = tvm.topi.testing.dilate_python(w_np, (dilation, dilation, 1, 1))
+        b_np = tvm.topi.testing.conv2d_nhwc_python(a_np, dw_np, stride, padding)
+        return a_np, w_np, b_np
+
     @tvm.testing.requires_hexagon
     def test_conv2d_nhwc(
         self,
@@ -59,16 +63,17 @@ class BaseConv2DTests:
         padding,
         dilation,
     ):
+        """Test Conv2D NHWC."""
         a_np, w_np, b_np = ref_data
 
-        A = te.placeholder(a_np.shape, name="A", dtype=dtype)
-        W = te.placeholder(w_np.shape, name="W", dtype=dtype)
+        a_tensor = te.placeholder(a_np.shape, name="a_tensor", dtype=dtype)
+        w_tensor = te.placeholder(w_np.shape, name="w_tensor", dtype=dtype)
 
         with tvm.target.Target(get_hexagon_target("v68")):
             fcompute = topi.nn.conv2d_nhwc
             fschedule = topi.hexagon.schedule_conv2d_nhwc
-            B = fcompute(A, W, stride, padding, dilation, dtype)
-            s = fschedule([B])
+            b_tensor = fcompute(a_tensor, w_tensor, stride, padding, dilation, dtype)
+            s = fschedule([b_tensor])
 
         func_name = "conv2d_{}_{}_{}_{}_{}_{}_{}_{}_{}".format(
             dtype,
@@ -81,15 +86,17 @@ class BaseConv2DTests:
             padding,
             dilation,
         )
-        func = tvm.build(s, [A, W, B], get_hexagon_target("v68"), name=func_name)
+        func = tvm.build(
+            s, [a_tensor, w_tensor, b_tensor], get_hexagon_target("v68"), name=func_name
+        )
         mod = hexagon_session.load_module(func)
 
         dev = hexagon_session.device
-        a = tvm.nd.array(a_np, dev)
-        w = tvm.nd.array(w_np, dev)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+        a_data = tvm.nd.array(a_np, dev)
+        weight = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(b_tensor.shape), dtype=b_tensor.dtype), dev)
 
-        mod[func_name](a, w, b)
+        mod[func_name](a_data, weight, b)
         tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
 
