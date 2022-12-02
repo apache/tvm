@@ -173,15 +173,15 @@ class KernelInfoCollector : public StmtMutator {
  * \param start_pos The start position of the kernels to be fused.
  * \param end_pos The end position of the kernels to be fused. (the `end_pos` is exclusive)
  */
-void FuseKernel(std::vector<KernelInfo>& kernel_info, size_t start_pos, size_t end_pos) {
+void FuseKernel(std::vector<KernelInfo>* kernel_info, size_t start_pos, size_t end_pos) {
   // Use the first kernels thread vars as the fused kernel's thread vars.
   std::vector<Stmt> bodies;
-  const KernelInfo& major_kernel = kernel_info[start_pos];
+  const KernelInfo& major_kernel = (*kernel_info)[start_pos];
   bodies.push_back(major_kernel.body);
 
   // Step 2. Replace the rest kernels iter_vars
   for (size_t i = start_pos + 1; i < end_pos; ++i) {
-    const KernelInfo& current_kernel = kernel_info[i];
+    const KernelInfo& current_kernel = (*kernel_info)[i];
     // Step 2.1. Create var maps
     Map<Var, PrimExpr> var_map;
     for (const auto& kv : major_kernel.thread_vars) {
@@ -193,15 +193,15 @@ void FuseKernel(std::vector<KernelInfo>& kernel_info, size_t start_pos, size_t e
     }
 
     // Step 2.2. Create the var map for the thread vars
-    bodies.push_back(Substitute(kernel_info[i].body, var_map));
+    bodies.push_back(Substitute((*kernel_info)[i].body, var_map));
   }
 
   // Step 3. Replace the major kernel body.
-  kernel_info[start_pos].body = SeqStmt::Flatten(bodies);
+  (*kernel_info)[start_pos].body = SeqStmt::Flatten(bodies);
 
   // Step 4. Set all other kernels' body to nop
   for (size_t i = start_pos + 1; i < end_pos; ++i) {
-    kernel_info[i].body = Evaluate(0);
+    (*kernel_info)[i].body = Evaluate(0);
   }
 }
 
@@ -210,13 +210,13 @@ void FuseKernel(std::vector<KernelInfo>& kernel_info, size_t start_pos, size_t e
  * \param kernel_info The kernel info.
  * \note The result will write back to the `kernel_info` list.
  */
-void UnifyKernels(std::vector<KernelInfo>& kernel_info) {
+void UnifyKernels(std::vector<KernelInfo>* kernel_info) {
   arith::Analyzer analyzer;
-  for (size_t start_pos = 0; start_pos < kernel_info.size();) {
-    for (size_t end_pos = start_pos + 1; end_pos <= kernel_info.size(); ++end_pos) {
-      if (end_pos == kernel_info.size() ||           //
-          kernel_info[end_pos].use_shared_memory ||  //
-          !kernel_info[start_pos].same_thread_config_as(kernel_info[end_pos], &analyzer)) {
+  for (size_t start_pos = 0; start_pos < kernel_info->size();) {
+    for (size_t end_pos = start_pos + 1; end_pos <= kernel_info->size(); ++end_pos) {
+      if (end_pos == kernel_info->size() ||             //
+          (*kernel_info)[end_pos].use_shared_memory ||  //
+          !(*kernel_info)[start_pos].same_thread_config_as((*kernel_info)[end_pos], &analyzer)) {
         // We do not allowed to fuse kernels using shared memory or with different thread config.
         // But it's fine that only the first kernel uses shared memory.
         FuseKernel(kernel_info, start_pos, end_pos);
@@ -297,7 +297,7 @@ PrimFunc UnifyKernelLaunch(PrimFunc f) {
     return f;
   }
   // Step 2. Try fuse nearby kernels with same thread bindings
-  UnifyKernels(kernel_infos);
+  UnifyKernels(&kernel_infos);
   // Step 3. Replace the IR
   PrimFuncNode* fptr = f.CopyOnWrite();
   fptr->body = UnifyKernelRewriter::Rewrite(std::move(f->body), kernel_infos);
