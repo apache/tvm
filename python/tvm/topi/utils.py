@@ -630,7 +630,10 @@ class Fraction:
             elif isinstance(value, int):
                 return tvm.runtime.convert(value)
 
-            elif isinstance(value, tvm.tir.PrimExpr) and "int" in value.dtype:
+            elif (
+                isinstance(value, (tvm.tir.PrimExpr, tvm.te.Tensor, tvm.te.TensorSlice))
+                and "int" in value.dtype
+            ):
                 return value
 
             elif isinstance(value, (float, tvm.tir.FloatImm)):
@@ -645,7 +648,10 @@ class Fraction:
                 else:
                     raise ValueError(f"Could not represent value {value} as a ratio of integers")
 
-            elif isinstance(value, tvm.tir.PrimExpr) and "float" in value.dtype:
+            elif (
+                isinstance(value, (tvm.tir.PrimExpr, tvm.te.Tensor, tvm.te.TensorSlice))
+                and "float" in value.dtype
+            ):
                 # Any other floating-point expressions are forbidden.
                 raise ValueError(f"Could not represent value {value} as a ratio of integers")
 
