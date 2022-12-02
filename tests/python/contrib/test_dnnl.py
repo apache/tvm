@@ -1046,7 +1046,7 @@ def test_global_avg_pooling2d(run_module, dtype="float32"):
 def test_concat(run_module, dtype="float32"):
     x1_shape = (1, 80, 64)
     x2_shape = (1, 80, 16)
-    x3_shape = (1, 80,  4)
+    x3_shape = (1, 80, 4)
     x1 = relay.var("x1", shape=(x1_shape), dtype=dtype)
     x2 = relay.var("x2", shape=(x2_shape), dtype=dtype)
     x3 = relay.var("x3", shape=(x3_shape), dtype=dtype)

@@ -293,8 +293,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
           BatchMatMul(nid);
         } else if ("concatenate" == op_name) {
           Concat(nid);
-        } else if ("cast" == op_name ||
-                   "layout_transform" == op_name) {
+        } else if ("cast" == op_name || "layout_transform" == op_name) {
           Reorder(nid, engine_);
         } else {
           LOG(FATAL) << "Unsupported op: " << op_name;
@@ -302,7 +301,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       }
     }
   }
-
 
   void Convolution(const size_t& nid) {
     auto node = nodes_[nid];
@@ -778,7 +776,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
            {{DNNL_ARG_SRC_0, lhs_tr}, {DNNL_ARG_SRC_1, rhs_tr}, {DNNL_ARG_DST, dst_tr}});
   }
 
-
   void Reorder(const size_t& nid, dnnl::engine engine_) {
     auto node = nodes_[nid];
     auto op_name = node.GetOpName();
@@ -797,13 +794,11 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       dst_tr = dst_tr.TreatAs(dst_layout);
     }
 
-    auto reorder_prim_desc = dnnl::reorder::primitive_desc(
-      engine_, src_tr.desc(), engine_, dst_tr.desc());
+    auto reorder_prim_desc =
+        dnnl::reorder::primitive_desc(engine_, src_tr.desc(), engine_, dst_tr.desc());
 
-    Submit(dnnl::reorder(reorder_prim_desc),
-          {{DNNL_ARG_FROM, src_tr}, {DNNL_ARG_TO, dst_tr}});
+    Submit(dnnl::reorder(reorder_prim_desc), {{DNNL_ARG_FROM, src_tr}, {DNNL_ARG_TO, dst_tr}});
   }
-
 
   void Concat(const size_t& nid) {
     auto node = nodes_[nid];
@@ -817,17 +812,17 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     int axis = std::stoi(node.GetAttr<std::vector<std::string>>("axis")[0]);
     if (axis < 0) {
-        axis = dst_tr.dims().size() + axis;
+      axis = dst_tr.dims().size() + axis;
     }
     ICHECK_LT(axis, dst_tr.dims().size());
 
     std::vector<dnnl::memory::desc> src_mds;
-    for(const auto& src_tr:src_trs){
+    for (const auto& src_tr : src_trs) {
       src_mds.emplace_back(src_tr.desc());
     }
 
     auto concat_prim_desc = dnnl::concat::primitive_desc(axis, src_mds, engine_);
-    for (int i = 0; i < num_inputs;i++){
+    for (int i = 0; i < num_inputs; i++) {
       src_trs[i] = src_trs[i].RequestLayout(concat_prim_desc.src_desc(i));
     }
     dst_tr = dst_tr.RequestLayout(concat_prim_desc.dst_desc());
