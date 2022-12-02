@@ -1330,7 +1330,6 @@ IterSumExpr IterMapRewriter::PreprocessDividend(IterMapExpr dividend, PrimExpr o
     return fused;
   } else {
     LOG(FATAL) << "Unsupported subclass of IterMarkExpr";
-    return IterSumExpr();
   }
 }
 
@@ -1855,7 +1854,6 @@ class SubspaceDivider {
         return IterSplitExpr(IterMark(GetRef<IterSumExpr>(op), extent));
       } else {
         LOG(FATAL) << "Unknown IterMapExpr type";
-        return NullValue<IterSplitExpr>();
       }
     }
   };

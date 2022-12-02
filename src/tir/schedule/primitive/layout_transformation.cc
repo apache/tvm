@@ -587,7 +587,6 @@ class TransformLayoutPlanner : private StmtExprVisitor {
         return info.innermost_block_realize.value();
       } else {
         LOG(FATAL) << "Write occured outside of any block/loop";
-        return Stmt();
       }
     }();
     return EpiloguePlan{insert_after, stmt};

@@ -192,7 +192,6 @@ class ExpressionNarrower : public tir::ExprMutator {
 
       default:
         LOG(FATAL) << "Unhandled Context, all legal values should be handled";
-        return Context::Maximize;
     }
   }
 

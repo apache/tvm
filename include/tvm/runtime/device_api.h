@@ -289,7 +289,6 @@ inline const char* DeviceName(int type) {
       return "microdev";
     default:
       LOG(FATAL) << "unknown type =" << type;
-      return "Unknown";
   }
 }
 

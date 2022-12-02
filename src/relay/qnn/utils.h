@@ -57,7 +57,6 @@ static inline int32_t GetQmin(const DataType& dtype) {
     return static_cast<int32_t>(min_value[0]);
   } else {
     LOG(FATAL) << "Type not supported " << dtype;
-    return -1;  // To hide the warning
   }
 }
 
@@ -70,7 +69,6 @@ static inline int32_t GetQmax(const DataType& dtype) {
     return static_cast<int32_t>(max_value[0]);
   } else {
     LOG(FATAL) << "Type not supported " << dtype;
-    return -1;  // To hide the warning
   }
 }
 

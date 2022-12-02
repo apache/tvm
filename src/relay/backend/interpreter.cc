@@ -707,7 +707,6 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
     if (device_copy_props.body.defined()) {
       // TODO(mbs): device_copy cleanup
       LOG(FATAL) << "The interpreter does not support device_copy";
-      return {};
     } else if (call_lowered_props.lowered_func.defined()) {
       // Special case: Call a lowered TIR function.
 
@@ -837,7 +836,6 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       }
     } else {
       LOG(FATAL) << "type error, type system should have caught this";
-      return ObjectRef();
     }
   }
 
@@ -848,7 +846,6 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       return ADT::Tuple(std::vector<ObjectRef>());
     } else {
       LOG(FATAL) << "type error, type system should have caught this";
-      return ObjectRef();
     }
   }
 
@@ -860,7 +857,6 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       return rv->value;
     } else {
       LOG(FATAL) << "type error, type system should have caught this";
-      return ObjectRef();
     }
   }
 
@@ -872,7 +868,6 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       }
     }
     LOG(FATAL) << "did not find any match";
-    return ObjectRef();
   }
 
   bool VisitPattern_(const PatternConstructorNode* op, const ObjectRef& v) final {
@@ -1099,7 +1094,6 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
     });
   } else {
     LOG(FATAL) << "expecting expression to have function type and evaluate to a closure";
-    return nullptr;
   }
 }
 

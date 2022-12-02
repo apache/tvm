@@ -32,10 +32,8 @@ namespace tvm {
 namespace runtime {
 
 PackedFunc CreateEventDrivenServer(PackedFunc fsend, std::string name, std::string remote_key) {
-  static PackedFunc frecv([](TVMArgs args, TVMRetValue* rv) {
-    LOG(FATAL) << "Do not allow explicit receive";
-    return 0;
-  });
+  static PackedFunc frecv(
+      [](TVMArgs args, TVMRetValue* rv) { LOG(FATAL) << "Do not allow explicit receive"; });
 
   auto ch = std::make_unique<CallbackChannel>(fsend, frecv);
   std::shared_ptr<RPCEndpoint> sess = RPCEndpoint::Create(std::move(ch), name, remote_key);

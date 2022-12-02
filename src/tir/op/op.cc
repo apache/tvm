@@ -57,7 +57,6 @@ runtime::DataType GetRuntimeDataType(const Type& type) {
     return DataType::Void();
   } else {
     LOG(FATAL) << "Type " << type << " does not have a corresponding runtime::DataType";
-    return DataType::Handle();
   }
 }
 
@@ -206,7 +205,6 @@ PrimExpr max_value(const DataType& dtype, Span span) {
     return FloatImm(dtype, std::numeric_limits<float>::max(), span);
   }
   LOG(FATAL) << "Cannot decide max_value for type" << dtype;
-  return PrimExpr();
 }
 
 PrimExpr min_value(const DataType& dtype, Span span) {
@@ -241,7 +239,6 @@ PrimExpr min_value(const DataType& dtype, Span span) {
     return FloatImm(dtype, std::numeric_limits<float>::lowest(), span);
   }
   LOG(FATAL) << "Cannot decide min_value for type" << dtype;
-  return PrimExpr();
 }
 
 // infinity
@@ -256,7 +253,6 @@ PrimExpr infinity(const DataType& dtype, Span span) {
     }
   }
   LOG(FATAL) << "Cannot decide infinity for type " << dtype;
-  return PrimExpr();
 }
 
 namespace tir {
@@ -710,7 +706,6 @@ PrimExpr isnan(PrimExpr x, Span span) {
     }
   } else {
     LOG(FATAL) << "Data type " << x.dtype() << " not supported for isnan op. Skipping isnan op...";
-    return x;
   }
 }
 
@@ -724,7 +719,6 @@ PrimExpr isinf(PrimExpr x, Span span) {
     return abs(x, span) == infX && !isnan(x, span);
   } else {
     LOG(FATAL) << "Data type " << x.dtype() << " not supported for finiteness ops. Skipping it...";
-    return x;
   }
 }
 

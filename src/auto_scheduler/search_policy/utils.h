@@ -89,7 +89,6 @@ inline int OperationToStage(const te::Operation& op, const State& state) {
     }
   }
   LOG(FATAL) << "Cannot find op: " << op;
-  return -1;
 }
 
 /********** Get Parameters **********/
@@ -531,7 +530,6 @@ inline Iterator GetLastReduceIteratorInOutermostReduceTile(const Stage& stage) {
   }
 
   LOG(FATAL) << "Cannot find the iterator.";
-  return stage->iters[0];
 }
 
 /*! \brief Get the target stage id of a history step in the new state.
