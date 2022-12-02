@@ -859,6 +859,18 @@ def UnifyThreadBinding():
     return _ffi_api.UnifyThreadBinding()  # type: ignore
 
 
+def UnifyKernelLaunch():
+    """Fuse the nearby kernels with the same thread config.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    """
+    return _ffi_api.UnifyKernelLaunch()  # type: ignore
+
+
 def MergeDynamicSharedMemoryAllocations():
     """This pass merges multiple TIR-level dynamic shared memory allocations
     into one allocation.

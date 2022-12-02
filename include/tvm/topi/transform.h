@@ -614,6 +614,8 @@ inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int a
   }
 
   Array<Tensor> result;
+  Map<String, ObjectRef> attrs;
+  attrs.Set("schedule_rule", runtime::String("split"));
   for (size_t i = 0; i < begin_ids.size(); ++i) {
     result.push_back(compute(
         out_shapes[i],
@@ -630,7 +632,7 @@ inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int a
 
           return x(real_indices);
         },
-        name, tag));
+        name, tag, attrs));
   }
 
   return result;

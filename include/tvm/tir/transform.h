@@ -509,7 +509,14 @@ TVM_DLL Pass CommonSubexprElimTIR(bool enable_cse_tir = true, bool identify_equi
 TVM_DLL Pass UnifyThreadBinding();
 
 /*!
- *  A pass to merge multiple TIR-level dynamic shared memory allocations into one
+ * \brief Fuse the nearby kernels with the same thread config.
+ * \return The pass.
+ */
+TVM_DLL Pass UnifyKernelLaunch();
+
+/*!
+ * \brief A pass to merge multiple TIR-level dynamic shared memory allocations into one
+ * \return The pass.
  */
 TVM_DLL Pass MergeDynamicSharedMemoryAllocations();
 

@@ -164,7 +164,7 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
           /*unroll_explicit=*/true),
       ScheduleRule::AutoBind(
           /*max_threadblocks=*/256,
-          /*thread_extents*/ Array<Integer>{32, 64, 128, 256, 512, 1024}),
+          /*thread_extents=*/Array<Integer>{32, 64, 128, 256, 512, 1024}),
   };
 }
 
