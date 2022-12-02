@@ -539,7 +539,9 @@ class Fraction:
     to check if an optimization is permissible (e.g. vectorized
     computations require linear buffer access), use of integer
     expressions may provide significant performance benefits.
-    However, writing the simplified form
+    However, directly writing the resulting integer expression would
+    be tedious in many cases, or may depend on a user-specified
+    fractional value.
 
     The `Fraction` class is intended to allow for easier writing of
     integer expressions.  The operator overloads will attempt to
