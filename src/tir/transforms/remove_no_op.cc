@@ -220,16 +220,21 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
         touch_pattern_->RemoveStore(store);
         return only_side_effects();
       }
+    }
 
-      // A write whose destination is known to already contain the
-      // values to be written is a no-op.
-      PrimExpr stores_existing_value = store->value == BufferLoad(store->buffer, store->indices);
-
-      PrimExpr simplified =
-          touch_pattern_->SimplifyInContext(stores_existing_value, context, analyzer_);
-      if (auto* as_int = as_const_int(simplified); as_int && *as_int) {
-        return only_side_effects();
-      }
+    // A write whose destination is known to already contain the
+    // values to be written is a no-op.
+    // PrimExpr stores_existing_value = store->value == BufferLoad(store->buffer, store->indices);
+    PrimExpr stores_existing_value = store->value - BufferLoad(store->buffer, store->indices) == 0;
+    if (touch_pattern_.has_value()) {
+      Stmt context_arg = context_ ? GetRef<Stmt>(context_) : Stmt(store);
+      stores_existing_value =
+          touch_pattern_->SimplifyInContext(stores_existing_value, context_arg, analyzer_);
+    } else {
+      stores_existing_value = analyzer_->Simplify(stores_existing_value);
+    }
+    if (is_one(stores_existing_value)) {
+      return only_side_effects();
     }
 
     // If the stored value is a load from the same location, the
@@ -292,6 +297,11 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   std::optional<ControlFlowGraph> touch_pattern_;
   const StmtNode* context_;
 };
+
+Stmt RemoveNoOp(Stmt stmt, arith::Analyzer* analyzer, std::optional<ControlFlowGraph> touch_pattern,
+                const StmtNode* context) {
+  return NoOpRemover::Apply(std::move(stmt), analyzer, std::move(touch_pattern), context);
+}
 
 namespace transform {
 

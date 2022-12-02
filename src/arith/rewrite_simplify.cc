@@ -1388,8 +1388,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const EQNode* op) {
   EQ ret = Downcast<EQ>(IRMutatorWithAnalyzer::VisitExpr_(op));
   op = ret.get();
 
-  if (auto const_res = TryConstFold<EQ>(op->a, op->b)) return const_res.value();
-  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+  if (auto const_res = TryConstFold<EQ>(op->a, op->b)) {
+    return const_res.value();
+  }
+  if (auto match = TryMatchLiteralConstraint(ret)) {
+    return match.value();
+  }
 
   return ApplyRewriteRules(ret);
 }
@@ -1419,7 +1423,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
     TVM_TRY_REWRITE(x - c1 == 0, x == c1);
     TVM_TRY_REWRITE(c1 - x == 0, x == c1);
     TVM_TRY_REWRITE(x + c1 == 0, x == 0 - c1);
-    TVM_TRY_REWRITE(x * y == 0, x == 0 || y == 0);
+    TVM_TRY_RECURSIVE_REWRITE(x * y == 0, x == 0 || y == 0);
   }
   return std::move(ret);
 }

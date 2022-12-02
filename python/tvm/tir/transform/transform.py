@@ -242,6 +242,17 @@ def UnrollLoop():
     return _ffi_api.UnrollLoop()  # type: ignore
 
 
+def ReduceBranchingThroughOvercompute():
+    """Reduce branching by introducing overcompute
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ReduceBranchingThroughOvercompute()  # type: ignore
+
+
 def RemoveNoOp():
     """Remove No Op from the Stmt.
 
