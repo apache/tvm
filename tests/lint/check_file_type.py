@@ -89,6 +89,8 @@ ALLOW_EXTENSION = {
     "ld",
     # Jinja2 templates
     "j2",
+    # Jenkinsfiles
+    "groovy",
 }
 
 # List of file names allowed

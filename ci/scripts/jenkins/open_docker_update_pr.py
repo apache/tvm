@@ -22,15 +22,16 @@ import datetime
 import os
 import json
 import re
+import shlex
 from urllib import error
 from typing import List, Dict, Any, Optional, Callable
 from git_utils import git, parse_remote, GitHubRepo
 from cmd_utils import REPO_ROOT, init_log
 from should_rebuild_docker import docker_api
 
-JENKINSFILE = REPO_ROOT / "ci" / "jenkins" / "Jenkinsfile.j2"
-GENERATED_JENKINSFILE = REPO_ROOT / "Jenkinsfile"
-GENERATE_SCRIPT = REPO_ROOT / "ci" / "jenkins" / "generate.py"
+JENKINS_DIR = REPO_ROOT / "ci" / "jenkins"
+IMAGES_FILE = JENKINS_DIR / "data.py"
+GENERATE_SCRIPT = JENKINS_DIR / "generate.py"
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 BRANCH = "nightly-docker-update"
 
@@ -125,51 +126,41 @@ if __name__ == "__main__":
     user, repo = parse_remote(remote)
 
     # Read the existing images from the Jenkinsfile
-    logging.info(f"Reading {JENKINSFILE}")
-    with open(JENKINSFILE) as f:
+    logging.info(f"Reading {IMAGES_FILE}")
+    with open(IMAGES_FILE) as f:
         content = f.readlines()
 
     # Build a new Jenkinsfile with the latest images from tlcpack or tlcpackstaging
-    new_content = []
     replacements = {}
+
     for line in content:
-        m = re.match(r"^(ci_[a-zA-Z0-9]+) = \'(.*)\'", line.strip())
+        m = re.match(r"^(ci_[a-zA-Z0-9]+) = \"(.*)\"", line.strip())
         if m is not None:
             logging.info(f"Found match on line {line.strip()}")
             groups = m.groups()
             new_image = latest_tlcpackstaging_image(groups[1])
             if new_image is None:
                 logging.info(f"No new image found")
-                new_content.append(line)
             else:
                 logging.info(f"Using new image {new_image}")
                 new_line = f"{groups[0]} = '{new_image}'\n"
-                new_content.append(new_line)
                 replacements[line] = new_line
-        else:
-            new_content.append(line)
 
-    # Write out the new content
-    if args.dry_run:
-        logging.info(f"Dry run, would have written new content to {JENKINSFILE}")
-    else:
-        logging.info(f"Writing new content to {JENKINSFILE}")
-        with open(JENKINSFILE, "w") as f:
-            f.write("".join(new_content))
+    # Re-generate the Jenkinsfiles
+    command = f"python3 {shlex.quote(str(GENERATE_SCRIPT))}"
 
-    # Re-generate the Jenkinsfile
-    logging.info(f"Editing {GENERATED_JENKINSFILE}")
-    with open(GENERATED_JENKINSFILE) as f:
-        generated_content = f.read()
+    content = "\n".join(content)
+    for old_line, new_line in replacements.items():
+        content = content.replace(old_line, new_line)
 
-    for original_line, new_line in replacements.items():
-        generated_content = generated_content.replace(original_line, new_line)
+    print(f"Updated to:\n{content}")
 
     if args.dry_run:
-        print(f"Would have written:\n{generated_content}")
+        print(f"Would have run:\n{command}")
     else:
-        with open(GENERATED_JENKINSFILE, "w") as f:
-            f.write(generated_content)
+        with open(IMAGES_FILE, "w") as f:
+            f.write(content)
+        Sh().run(command)
 
     # Publish the PR
     title = "[ci][docker] Nightly Docker image update"
@@ -177,12 +168,11 @@ if __name__ == "__main__":
     message = f"{title}\n\n\n{body}"
 
     if args.dry_run:
-        logging.info("Dry run, would have committed Jenkinsfile")
+        logging.info("Dry run, would have committed Jenkinsfiles")
     else:
         logging.info(f"Creating git commit")
         git(["checkout", "-B", BRANCH])
-        git(["add", str(JENKINSFILE.relative_to(REPO_ROOT))])
-        git(["add", str(GENERATED_JENKINSFILE.relative_to(REPO_ROOT))])
+        git(["add", str(JENKINS_DIR.relative_to(REPO_ROOT))])
         git(["config", "user.name", "tvm-bot"])
         git(["config", "user.email", "95660001+tvm-bot@users.noreply.github.com"])
         git(["commit", "-m", message])
