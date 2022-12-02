@@ -20,6 +20,8 @@ from tvm._ffi.base import string_types
 from tvm.runtime import ObjectGeneric, convert, const
 from tvm.ir import container as _container
 
+from typing import Union
+
 from . import stmt as _stmt
 from . import expr as _expr
 from . import buffer as _buffer
@@ -72,10 +74,10 @@ class BufferVar(ObjectGeneric):
 
     """
 
-    def __init__(self, builder, buffer, content_type):
+    def __init__(self, builder, buffer, content_type: Union[str, tvm.DataType]):
         self._builder = builder
         self._buffer = buffer
-        self._content_type = content_type
+        self._content_type = tvm.DataType(content_type)
 
     def asobject(self):
         return self._buffer
@@ -108,8 +110,8 @@ class BufferVar(ObjectGeneric):
         index = self._normalize_index(index)
 
         value = convert(value)
-        value_element = value.dtype.split("x", maxsplit=1)[0]
-        content_element = self._content_type.split("x", maxsplit=1)[0]
+        value_element = value.dtype.with_lanes(1)
+        content_element = self._content_type.with_lanes(1)
         if value_element != content_element:
             raise ValueError(
                 "data type does not match content type %s vs %s" % (value.dtype, self._content_type)
@@ -244,7 +246,7 @@ class IRBuilder(object):
         # auto infer dtype when it's not specified
         def get_dtype(expr):
             if isinstance(expr, _expr.PrimExpr):
-                if not expr.dtype.startswith("int"):
+                if not expr.dtype.type_code == tvm.DataTypeCode.INT:
                     raise NotImplementedError(
                         f"Infer loop_var dtype failed:"
                         f" unsupported dtype in loop begin or end {expr.dtype}"

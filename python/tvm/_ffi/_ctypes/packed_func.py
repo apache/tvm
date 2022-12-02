@@ -75,7 +75,7 @@ def convert_to_tvm_func(pyfunc):
     def cfun(args, type_codes, num_args, ret, _):
         """ctypes function"""
         num_args = num_args.value if isinstance(num_args, ctypes.c_int) else num_args
-        pyargs = (C_TO_PY_ARG_SWITCH[type_codes[i]](args[i]) for i in range(num_args))
+        pyargs = (C_TO_PY_ARG_SWITCH[ArgTypeCode(type_codes[i])](args[i]) for i in range(num_args))
         # pylint: disable=broad-except
         try:
             rv = local_pyfunc(*pyargs)
@@ -117,33 +117,33 @@ def _make_tvm_args(args, temp_args):
     for i, arg in enumerate(args):
         if isinstance(arg, ObjectBase):
             values[i].v_handle = arg.handle
-            type_codes[i] = ArgTypeCode.OBJECT_HANDLE
+            type_codes[i] = ArgTypeCode.OBJECT_HANDLE.value
         elif arg is None:
             values[i].v_handle = None
-            type_codes[i] = ArgTypeCode.NULL
+            type_codes[i] = ArgTypeCode.NULL.value
         elif isinstance(arg, NDArrayBase):
             values[i].v_handle = ctypes.cast(arg.handle, ctypes.c_void_p)
             type_codes[i] = (
-                ArgTypeCode.NDARRAY_HANDLE if not arg.is_view else ArgTypeCode.DLTENSOR_HANDLE
+                ArgTypeCode.NDARRAY_HANDLE.value if not arg.is_view else ArgTypeCode.DLTENSOR_HANDLE.value
             )
         elif isinstance(arg, PyNativeObject):
             values[i].v_handle = arg.__tvm_object__.handle
-            type_codes[i] = ArgTypeCode.OBJECT_HANDLE
+            type_codes[i] = ArgTypeCode.OBJECT_HANDLE.value
         elif isinstance(arg, _nd._TVM_COMPATS):
             values[i].v_handle = ctypes.c_void_p(arg._tvm_handle)
             type_codes[i] = arg.__class__._tvm_tcode
         elif isinstance(arg, Integral):
             values[i].v_int64 = arg
-            type_codes[i] = ArgTypeCode.INT
+            type_codes[i] = ArgTypeCode.INT.value
         elif isinstance(arg, Number):
             values[i].v_float64 = arg
-            type_codes[i] = ArgTypeCode.FLOAT
+            type_codes[i] = ArgTypeCode.FLOAT.value
         elif isinstance(arg, DataType):
-            values[i].v_str = c_str(str(arg))
-            type_codes[i] = ArgTypeCode.STR
+            values[i].v_type = arg
+            type_codes[i] = ArgTypeCode.TVM_TYPE.value
         elif isinstance(arg, Device):
             values[i].v_int64 = _device_to_int64(arg)
-            type_codes[i] = ArgTypeCode.DLDEVICE
+            type_codes[i] = ArgTypeCode.DLDEVICE.value
         elif isinstance(arg, (bytearray, bytes)):
             # from_buffer only taeks in bytearray.
             if isinstance(arg, bytes):
@@ -158,31 +158,31 @@ def _make_tvm_args(args, temp_args):
             arr.size = len(arg)
             values[i].v_handle = ctypes.c_void_p(ctypes.addressof(arr))
             temp_args.append(arr)
-            type_codes[i] = ArgTypeCode.BYTES
+            type_codes[i] = ArgTypeCode.BYTES.value
         elif isinstance(arg, string_types):
             values[i].v_str = c_str(arg)
-            type_codes[i] = ArgTypeCode.STR
+            type_codes[i] = ArgTypeCode.STR.value
         elif isinstance(arg, (list, tuple, dict, _CLASS_OBJECT_GENERIC)):
             arg = _FUNC_CONVERT_TO_OBJECT(arg)
             values[i].v_handle = arg.handle
-            type_codes[i] = ArgTypeCode.OBJECT_HANDLE
+            type_codes[i] = ArgTypeCode.OBJECT_HANDLE.value
             temp_args.append(arg)
         elif isinstance(arg, _CLASS_MODULE):
             values[i].v_handle = arg.handle
-            type_codes[i] = ArgTypeCode.MODULE_HANDLE
+            type_codes[i] = ArgTypeCode.MODULE_HANDLE.value
         elif isinstance(arg, PackedFuncBase):
             values[i].v_handle = arg.handle
-            type_codes[i] = ArgTypeCode.PACKED_FUNC_HANDLE
+            type_codes[i] = ArgTypeCode.PACKED_FUNC_HANDLE.value
         elif isinstance(arg, ctypes.c_void_p):
             values[i].v_handle = arg
-            type_codes[i] = ArgTypeCode.HANDLE
+            type_codes[i] = ArgTypeCode.HANDLE.value
         elif isinstance(arg, ObjectRValueRef):
             values[i].v_handle = ctypes.cast(ctypes.byref(arg.obj.handle), ctypes.c_void_p)
-            type_codes[i] = ArgTypeCode.OBJECT_RVALUE_REF_ARG
+            type_codes[i] = ArgTypeCode.OBJECT_RVALUE_REF_ARG.value
         elif callable(arg):
             arg = convert_to_tvm_func(arg)
             values[i].v_handle = arg.handle
-            type_codes[i] = ArgTypeCode.PACKED_FUNC_HANDLE
+            type_codes[i] = ArgTypeCode.PACKED_FUNC_HANDLE.value
             temp_args.append(arg)
         else:
             raise TypeError("Don't know how to handle type %s" % type(arg))
@@ -237,7 +237,7 @@ class PackedFuncBase(object):
             raise get_last_ffi_error()
         _ = temp_args
         _ = args
-        return RETURN_SWITCH[ret_tcode.value](ret_val)
+        return RETURN_SWITCH[ArgTypeCode(ret_tcode.value)](ret_val)
 
 
 def __init_handle_by_constructor__(fconstructor, args):
@@ -260,7 +260,7 @@ def __init_handle_by_constructor__(fconstructor, args):
         raise get_last_ffi_error()
     _ = temp_args
     _ = args
-    assert ret_tcode.value == ArgTypeCode.OBJECT_HANDLE
+    assert ArgTypeCode(ret_tcode.value) == ArgTypeCode.OBJECT_HANDLE
     handle = ret_val.v_handle
     return handle
 
@@ -292,6 +292,7 @@ def _get_global_func(name, allow_missing=False):
         return None
 
     raise ValueError("Cannot find global function %s" % name)
+
 
 
 # setup return handle for function type

@@ -19,7 +19,7 @@
 import ctypes
 import struct
 from ..base import py_str, check_call, _LIB
-from ..runtime_ctypes import TVMByteArray, ArgTypeCode, Device
+from ..runtime_ctypes import TVMByteArray, ArgTypeCode, Device,DataType
 
 
 class TVMValue(ctypes.Union):
@@ -30,6 +30,7 @@ class TVMValue(ctypes.Union):
         ("v_float64", ctypes.c_double),
         ("v_handle", ctypes.c_void_p),
         ("v_str", ctypes.c_char_p),
+        ('v_type', DataType),
     ]
 
 
@@ -77,9 +78,9 @@ def _return_device(value):
     return Device(arr[0], arr[1])
 
 
-def _wrap_arg_func(return_f, type_code):
+def _wrap_arg_func(return_f, type_code: ArgTypeCode):
     def _wrap_func(x):
-        tcode = ctypes.c_int(type_code)
+        tcode = ctypes.c_int(type_code.value)
         check_call(_LIB.TVMCbArgToReturn(ctypes.byref(x), ctypes.byref(tcode)))
         return return_f(x)
 
@@ -97,6 +98,7 @@ RETURN_SWITCH = {
     ArgTypeCode.FLOAT: lambda x: x.v_float64,
     ArgTypeCode.HANDLE: _return_handle,
     ArgTypeCode.NULL: lambda x: None,
+    ArgTypeCode.TVM_TYPE: lambda x: x.v_type,
     ArgTypeCode.STR: lambda x: py_str(x.v_str),
     ArgTypeCode.BYTES: _return_bytes,
     ArgTypeCode.DLDEVICE: _return_device,
@@ -107,6 +109,7 @@ C_TO_PY_ARG_SWITCH = {
     ArgTypeCode.FLOAT: lambda x: x.v_float64,
     ArgTypeCode.HANDLE: _return_handle,
     ArgTypeCode.NULL: lambda x: None,
+    ArgTypeCode.TVM_TYPE: lambda x: x.v_type,
     ArgTypeCode.STR: lambda x: py_str(x.v_str),
     ArgTypeCode.BYTES: _return_bytes,
     ArgTypeCode.DLDEVICE: _return_device,

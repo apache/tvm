@@ -16,15 +16,21 @@
 # under the License.
 """Common runtime ctypes."""
 # pylint: disable=invalid-name
+
 import ctypes
+import enum
+import functools
 import json
 import numpy as np
+from typing import Union, Optional
+
 from .base import _LIB, check_call
+import tvm
 
 tvm_shape_index_t = ctypes.c_int64
 
 
-class ArgTypeCode(object):
+class ArgTypeCode(enum.Enum):
     """Type code used in API calls"""
 
     INT = 0
@@ -51,7 +57,7 @@ class TVMByteArray(ctypes.Structure):
     _fields_ = [("data", ctypes.POINTER(ctypes.c_byte)), ("size", ctypes.c_size_t)]
 
 
-class DataTypeCode(object):
+class DataTypeCode(enum.Enum):
     """DataType code in DLTensor."""
 
     INT = 0
@@ -64,14 +70,11 @@ class DataTypeCode(object):
 class DataType(ctypes.Structure):
     """TVM datatype structure"""
 
-    _fields_ = [("type_code", ctypes.c_uint8), ("bits", ctypes.c_uint8), ("lanes", ctypes.c_uint16)]
-    CODE2STR = {
-        DataTypeCode.INT: "int",
-        DataTypeCode.UINT: "uint",
-        DataTypeCode.FLOAT: "float",
-        DataTypeCode.HANDLE: "handle",
-        DataTypeCode.BFLOAT: "bfloat",
-    }
+    _fields_ = [
+        ("_type_code", ctypes.c_uint8),
+        ("bits", ctypes.c_uint8),
+        ("lanes", ctypes.c_uint16),
+    ]
     NUMPY2STR = {
         np.dtype(np.bool_): "bool",
         np.dtype(np.int8): "int8",
@@ -87,23 +90,82 @@ class DataType(ctypes.Structure):
         np.dtype(np.float64): "float64",
         np.dtype(np.float_): "float64",
     }
-    STR2DTYPE = {
-        "bool": {"type_code": DataTypeCode.UINT, "bits": 1, "lanes": 1},
-        "int8": {"type_code": DataTypeCode.INT, "bits": 8, "lanes": 1},
-        "int16": {"type_code": DataTypeCode.INT, "bits": 16, "lanes": 1},
-        "int32": {"type_code": DataTypeCode.INT, "bits": 32, "lanes": 1},
-        "int64": {"type_code": DataTypeCode.INT, "bits": 64, "lanes": 1},
-        "uint8": {"type_code": DataTypeCode.UINT, "bits": 8, "lanes": 1},
-        "uint16": {"type_code": DataTypeCode.UINT, "bits": 16, "lanes": 1},
-        "uint32": {"type_code": DataTypeCode.UINT, "bits": 32, "lanes": 1},
-        "uint64": {"type_code": DataTypeCode.UINT, "bits": 64, "lanes": 1},
-        "float16": {"type_code": DataTypeCode.FLOAT, "bits": 16, "lanes": 1},
-        "float32": {"type_code": DataTypeCode.FLOAT, "bits": 32, "lanes": 1},
-        "float64": {"type_code": DataTypeCode.FLOAT, "bits": 64, "lanes": 1},
-    }
 
-    def __init__(self, type_str):
+    def __init__(
+        self,
+        value: Union[int, str, np.dtype, "DataType"],
+        bits: Optional[int] = None,
+        lanes: Optional[int] = None,
+    ):
         super(DataType, self).__init__()
+
+        if isinstance(value, (str, np.dtype)):
+            value = self._unpack_str(value)
+
+        if isinstance(value, DataType):
+            assert bits is None
+            assert lanes is None
+            self.type_code = value.type_code
+            self.bits = value.bits
+            self.lanes = value.lanes
+        else:
+            assert bits is not None
+            assert lanes is not None
+            self.type_code = value
+            self.bits = bits
+            self.lanes = lanes
+
+    @property
+    def type_code(self) -> DataTypeCode:
+        """The type code of the datatype
+
+        This internal field must be a `ctypes.c_uint8` to match the
+        struct definition.  This wrapper allows the Python API to
+        present the `enum.Enum` subclass.
+        """
+        return DataTypeCode(self._type_code)
+
+    @type_code.setter
+    def type_code(self, val: Union[DataTypeCode, int]):
+        # Round trip through DataTypeCode ensures that the integer
+        # provided is valid.
+        if isinstance(val, int):
+            val = DataTypeCode(val)
+
+        self._type_code = val.value
+
+    def with_lanes(self, lanes: int) -> "DataType":
+        """Return the current datatype with the specified lanes"""
+        return DataType(self.type_code, self.bits, lanes)
+
+    @classmethod
+    def _ffi_string_to_data_type_func(cls):
+        func = getattr(cls, "_string_to_data_type_func", None)
+        if func:
+            return func
+
+        import tvm  # pylint: disable=import-outside-toplevel
+
+        cls._string_to_data_type = func = tvm._ffi.registry.get_global_func(
+            "runtime.String2DLDataType"
+        )
+        return func
+
+    @classmethod
+    def _ffi_data_type_to_string_func(cls):
+        func = getattr(cls, "_data_type_to_string_func", None)
+        if func:
+            return func
+
+        import tvm  # pylint: disable=import-outside-toplevel
+
+        cls._data_type_to_string = func = tvm._ffi.registry.get_global_func(
+            "runtime.DLDataType2String"
+        )
+        return func
+
+    @classmethod
+    def _unpack_str(cls, type_str):
         numpy_str_map = DataType.NUMPY2STR
         if type_str in numpy_str_map:
             type_str = numpy_str_map[type_str]
@@ -112,66 +174,18 @@ class DataType(ctypes.Structure):
 
         assert isinstance(type_str, str)
 
-        str_dtype_map = DataType.STR2DTYPE
-        if type_str in str_dtype_map:
-            dtype_map = str_dtype_map[type_str]
-            self.bits = dtype_map["bits"]
-            self.type_code = dtype_map["type_code"]
-            self.lanes = dtype_map["lanes"]
-            return
+        return cls._ffi_string_to_data_type_func()(type_str)
 
-        arr = type_str.split("x")
-        head = arr[0]
-        self.lanes = int(arr[1]) if len(arr) > 1 else 1
-        bits = 32
-
-        if head.startswith("int"):
-            self.type_code = DataTypeCode.INT
-            head = head[3:]
-        elif head.startswith("uint"):
-            self.type_code = DataTypeCode.UINT
-            head = head[4:]
-        elif head.startswith("float"):
-            self.type_code = DataTypeCode.FLOAT
-            head = head[5:]
-        elif head.startswith("handle"):
-            self.type_code = DataTypeCode.HANDLE
-            bits = 64
-            head = ""
-        elif head.startswith("bfloat"):
-            self.type_code = DataTypeCode.BFLOAT
-            head = head[6:]
-        elif head.startswith("custom"):
-            # pylint: disable=import-outside-toplevel
-            import tvm.runtime._ffi_api
-
-            low, high = head.find("["), head.find("]")
-            if not low or not high or low >= high:
-                raise ValueError("Badly formatted custom type string %s" % type_str)
-            type_name = head[low + 1 : high]
-            self.type_code = tvm.runtime._ffi_api._datatype_get_type_code(type_name)
-            head = head[high + 1 :]
-        else:
-            raise ValueError("Do not know how to handle type %s" % type_str)
-        bits = int(head) if head else bits
-        self.bits = bits
+    def __str__(self):
+        return self._ffi_data_type_to_string_func()(self)
 
     def __repr__(self):
-        # pylint: disable=import-outside-toplevel
-        if self.bits == 1 and self.lanes == 1:
-            return "bool"
-        if self.type_code in DataType.CODE2STR:
-            type_name = DataType.CODE2STR[self.type_code]
-        else:
-            import tvm.runtime._ffi_api
-
-            type_name = "custom[%s]" % tvm.runtime._ffi_api._datatype_get_type_name(self.type_code)
-        x = "%s%d" % (type_name, self.bits)
-        if self.lanes != 1:
-            x += "x%d" % self.lanes
-        return x
+        return f'DataType("{str(self)}")'
 
     def __eq__(self, other):
+        if isinstance(other, (str, np.dtype)):
+            other = DataType(other)
+
         return (
             self.bits == other.bits
             and self.type_code == other.type_code
@@ -180,6 +194,56 @@ class DataType(ctypes.Structure):
 
     def __ne__(self, other):
         return not self.__eq__(other)
+
+    def __hash__(self):
+        return (self.type_code, self.bits, self.lanes).__hash__()
+
+    def __contains__(self, search):
+        """Backwards compatibility wrapper
+
+        To support use of the datatype as a string.  Use should be
+        avoided in the future.
+
+        Example
+        -------
+
+        .. code-block:: python
+
+            # Old method, supported by this wrapper
+            is_floating_point = "float" in dtype
+
+            # New method, preferred
+            is_floating_point = dtype.type_code == DataTypeCode.FLOAT
+        """
+        return search in str(self)
+
+    def __getitem__(self, index):
+        """Backwards compatibility wrapper
+
+        To support use of the datatype as a string.  Use should be
+        avoided in the future.
+
+        Example
+        -------
+
+        .. code-block:: python
+
+            # Old method, supported by this wrapper
+            bits = int(dtype[-2:])
+
+            # New method, preferred
+            bits = dtype.bits
+        """
+        return str(self)[index]
+
+    @property
+    def dtype(self):
+        """Converter attribute to allow use as a np.dtype
+
+        See https://numpy.org/doc/stable/reference/arrays.dtypes.html,
+        under section "Types with .dtype"
+        """
+        return str(self)
 
 
 RPC_SESS_MASK = 128
