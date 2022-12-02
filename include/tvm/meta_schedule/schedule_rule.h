@@ -148,6 +148,10 @@ class ScheduleRule : public runtime::ObjectRef {
    * NullOpt means disable vectorization
    * \param reuse_read Data reuse configuration for reading. NullOpt means no reuse.
    * \param reuse_write Data reuse configuration for writing. NullOpt means no reuse.
+   * \param filter_fn A function that can be passed to overwrite the default condition for applying
+   * MultiLevelTiling to a block. Its signature must be (Schedule, BlockRV) -> bool.
+   * This is useful if there is a need to apply MultiLevelTiling to an operation / block which is
+   * ignored  by default. This function should return True for a block that should be tiled.
    * \return The schedule rule created
    */
   TVM_DLL static ScheduleRule MultiLevelTiling(String structure,                             //
@@ -156,7 +160,7 @@ class ScheduleRule : public runtime::ObjectRef {
                                                Optional<Array<Integer>> vector_load_lens,    //
                                                Optional<Map<String, ObjectRef>> reuse_read,  //
                                                Optional<Map<String, ObjectRef>> reuse_write,
-					       Optional<runtime::PackedFunc> filter_fn=NullOpt);
+                                               Optional<runtime::PackedFunc> filter_fn = NullOpt);
 
   /*!
    * \brief Extension of MultiLevelTiling for auto-tensorization with a single intrinsic.
