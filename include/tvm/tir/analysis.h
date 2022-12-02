@@ -169,6 +169,7 @@ TVM_DLL bool VerifyMemory(const PrimFunc& func);
  */
 TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints);
 
+TVM_DLL bool VerifyVTCMLimit(const PrimFunc& func, Integer limit);
 /*!
  * \brief Auto detect the block access region according to its body stmt
  *        It will detect the access region as an array in order of appearance in AST
