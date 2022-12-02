@@ -31,6 +31,7 @@ class VerifyVTCMLimitNode : public PostprocNode {
     ICHECK(context->target.defined());
     Target target = context->target.value();
     ICHECK(target->kind->name == "hexagon");
+    // The value of 0 will disable VTCM verification.
     vtcm_capacity = target->GetAttr<Integer>("vtcm-capacity").value_or(0);
   }
 
@@ -63,16 +64,10 @@ class VerifyVTCMLimitNode : public PostprocNode {
           pass_list.push_back(tir::transform::LowerOpaqueBlock());
           pass_list.push_back(tir::transform::FlattenBuffer());
           pass_list.push_back(tir::transform::Simplify());
-          pass_list.push_back(tir::transform::VectorizeLoop(true));
           pass_list.push_back(tir::transform::StorageRewrite());
-          // Convert Function to IRModule
           transform::PassContext pass_ctx = transform::PassContext::Current();
           tir::PrimFunc f = WithAttr(GetRef<tir::PrimFunc>(prim_func), "global_symbol",
                                      runtime::String(g_var->name_hint));
-          bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
-          if (noalias) {
-            f = WithAttr(std::move(f), "tir.noalias", Bool(true));
-          }
           IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
           lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
         } catch (const dmlc::Error& e) {

@@ -145,7 +145,7 @@ class Postproc : public runtime::ObjectRef {
    */
   TVM_DLL static Postproc VerifyGPUCode();
   /*!
-   * \brief TODO
+   * \brief Verifies that the VTCM usage of a given schedule is within the provided limit.
    * \return The postprocessor created
    */
   TVM_DLL static Postproc VerifyVTCMLimit();
