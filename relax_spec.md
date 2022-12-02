@@ -56,6 +56,7 @@ Type ::=   DynTensorType(ndim: int, dtype: DataType)
          | ObjectType()
          | TupleType(fields: [Type])
          | FuncType(arg_types: [Type], ret_type: Type, «pure: bool»)
+         | PackedFuncType()
 
 DataType ::=
            Int(bitwidth: int)
@@ -159,7 +160,8 @@ The types in Relax correspond to the broad categories of the values given above:
 2. `TupleType` corresponds to tuple values, giving the type of each member of the tuple.
 3. `ShapeType` corresponds to shape values.
 4. `FunctionType` corresponds to function values (closures), giving the types of the parameters, the return type, «and whether the function is pure.»
-5. `ObjectType` is the parent type of all Relax types and corresponds to all the values above as well as any values returned by `PackedFunc` calls that do not fit in the above categories.
+5. `PackedFuncType` is the type given to arbitrary packed functions (external functions). Since packed functions are not first-class values (`ExternFunc` can appear only in the `op` position of a `Call` node), these do not actually correspond to any value in Relax, but can be used to assign a type to `ExternFunc` nodes.
+6. `ObjectType` is the parent type of all Relax types and corresponds to all the values above as well as any values returned by `PackedFunc` calls that do not fit in the above categories.
 
 The type checking rules assign types to every variable in scope and every type of expression based on the values it returns, making use of subtyping to assign more general types when a more specific one cannot be determined. «Relax is strongly typed, meaning that if a type encountered is less specific than the one expected, an error will be issued and an explicit cast (via the `cast` operator) will be required.»
 
@@ -342,7 +344,7 @@ def find_lub(T1 : Type, T2 : Type) -> Type:
         return T1
     if T1 or T2 is ObjectType:
         return Object
-    if T1 or T2 are not both DynTensorType, or both TupleType, or both FuncType, or both ShapeType:
+    if T1 or T2 are not both DynTensorType, or both TupleType, or both FuncType, or both ShapeType, or both PackedFuncType:
         return ObjectType
     if T1 and T2 are both DynTensorType:
         res_ndim = T1.ndim
@@ -393,13 +395,14 @@ Let us consider a typing context `Γ`, which is a map of variables to types.
 4. Given a shape expression `ShapeExpr(dims)`, its type is `ShapeType`.
 5. The type of a `RuntimeDepShape` expression is `ShapeType`.
 6. Given a tuple literal `Tuple([e1, e2, ..., en])`, suppose that `e1` has the type `T1`, `e2` has the type `T2`, …, and `en` has the type `Tn`. Then the type is `TupleType([T1, T2, .., Tn])`.
-7. Given a call node `Call(op=op, args=[a1, a2, ..., an], type_args=[aT])`:
+7. Given an `ExternFunc` expression, assign it the type `PackedFuncType()`.
+8. Given a call node `Call(op=op, args=[a1, a2, ..., an], type_args=[aT])`:
     1. If `op` is a Relax `Op` node, then we look up its registered `FInferType` property. `FInferType` is a macro that takes in the `Call` node and produces a type. We return the type `op.FInferType(Call(op, [a1, ..., an], type_args=[aT]))`. The implementation of `FInferType` is free to throw errors.
     2. If `op` is `ExternFunc`, then use the sole member of `type_args` (calls to `ExternFunc`s are required to have exactly one `type_args` member) `aT` as the return type. Packed functions may be passed any combination of values and return any value; it is the responsibility of the packed function itself to do any validation.
     3. Otherwise, check the types of the subexpressions, left to right. Suppose `op` has the type `Tf`, `a1` has type `T1`, …, and `an` has type `Tn`. If `Tf` is not a function type with exactly `n` arguments, we consider it a type error and require an explicit cast. Suppose `Tf` has argument types `T1'`, `T2'`, …, `Tn'`. Consider it a type error if any of the following does not hold: `T1 <: T1'`, `T2 <: T2'`, …, or `Tn <: Tn'`. Then the return type is `Tf.ret_type`.
-8. Given a conditional expression `If(cond, true_branch, false_branch)`, we first assert that the type of `cond` is `DynTensorType(ndim=0, dtype=bool)`, giving an error otherwise. Next, we recursively check the types of `true_branch` and `false_branch`; suppose they yield types `Tt` and `Tf`, respectively. The return type will be `T = LUB(Tt, Tf)`.
-9. For a `TupleGetItem(t, i)` expression, suppose that the type of `t` is `T`. If `T` is a tuple type with at least `i` members, then return the `i`th type in `T`. «Give a type-checking error and require an explicit cast if `T` is not a tuple type with at least `i` members.»
-10. Let us consider a sequence expression `SeqExpr(blocks = [b0, b1, ..., bn], body)`.
+9. Given a conditional expression `If(cond, true_branch, false_branch)`, we first assert that the type of `cond` is `DynTensorType(ndim=0, dtype=bool)`, giving an error otherwise. Next, we recursively check the types of `true_branch` and `false_branch`; suppose they yield types `Tt` and `Tf`, respectively. The return type will be `T = LUB(Tt, Tf)`.
+10. For a `TupleGetItem(t, i)` expression, suppose that the type of `t` is `T`. If `T` is a tuple type with at least `i` members, then return the `i`th type in `T`. «Give a type-checking error and require an explicit cast if `T` is not a tuple type with at least `i` members.»
+11. Let us consider a sequence expression `SeqExpr(blocks = [b0, b1, ..., bn], body)`.
     1. We type check the binding blocks `b0`, `b1`, …, `bn` in order. For each block, we go through the bindings in order.
         1. «If the current block is a `DataflowBlock`, consider it an error if any binding contains a call to an expression with a function type that is not pure, a call to an `ExternFunc` that does not have the `pure` attribute, or a call to an `Op` that does not have a `pure` attribute.»
         2. For each binding `VarBinding(v : T, e)` in the current block, where `T` is the optional annotation on `v`, check the type of `e` and suppose it is `T'`. If `T` has been omitted, then add `v` to `Γ` with type `T'`. If `T` has been defined, then emit an error if `T'` is not a subtype of `T` and add `v` to `Γ` with type `T`. «If `T'` is a supertype of `T`, emit an error and require a cast.» Note that this means that annotated types can be *less specific* than the inferred type and that a user annotation forces the type system to consider the variable as having a less specific type than it does.
@@ -413,7 +416,7 @@ Let us consider a typing context `Γ`, which is a map of variables to types.
             4. If `T'` is `TupleType` or `FuncType`, emit a type error.
     2. If the current block is a `DataflowBlock`, remove any `DataflowVar`s from `Γ` after we have finished processing the bindings in that block.
     3. Finally, the type of the `SeqExpr` is the type of `body` checked under the current `Γ`. Afterwards, remove all bindings added from the `b0`, `b1`, …, `bn` from `Γ`.
-11. Let us consider a function `Function(v1 : T1, v2 : T2, ..., vn : Tn, attrs=a) -> Tr: body`.
+12. Let us consider a function `Function(v1 : T1, v2 : T2, ..., vn : Tn, attrs=a) -> Tr: body`.
     1. For handling recursive calls: If the function has been bound to a name `fv` (which may be a `Var` or a `GlobalVar`), then add `fv` to `Γ` with the type `FuncType([T1, T2, ..., Tn], Tr, pure=p)` and proceed as below, where `p` is `True` if a `pure` attribute is included and `False` otherwise. Remove `fv` from `Γ` before returning.
     2. Add `v1` to `Γ` with type `T1`, `v2` with type `T2`, …, and `tn` with type `Tn`. Recursively type check `body` in this new context:
         1. «Determining purity: If `body` contains any call to a function whose return type does not specify that it is pure, a call to an `ExternFunc` that does not have the `pure` attribute, or a call to an `Op` that does not specify the `pure` attribute, then we consider the function to be (potentially) impure. If all calls are to functions whose return type specifies purity or that include the `pure` attribute on the call or `Op`, then the function is treated as pure.»
