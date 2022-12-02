@@ -29,7 +29,6 @@
 
 #include <algorithm>
 #include <array>
-#include <optional>
 #include <vector>
 
 namespace tvm {
@@ -72,15 +71,6 @@ std::vector<Plan> ParetoCullPlans(std::vector<Plan> plans, size_t max_plans,
 
 std::vector<Proposal> ParetoCullProposals(std::vector<Proposal> proposals, size_t max_proposals,
                                           bool disable_pareto_metric);
-
-/*!
- * \brief Compare shapes of plan stripes.
- * \param plan_a The first plan.
- * \param plan_b The second plan.
- * \return std::nullopt if stripe shapes are equals, true if plan_a stripe shape is bigger otherwise
- * false.
- */
-std::optional<bool> CompareStripeShapes(const Plan& plan_a, const Plan& plan_b);
 
 }  // namespace cascader
 }  // namespace ethosu
