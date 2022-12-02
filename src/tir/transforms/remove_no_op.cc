@@ -29,7 +29,6 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include <cstdlib>
 #include <optional>
 #include <unordered_map>
 
