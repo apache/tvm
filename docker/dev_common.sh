@@ -29,9 +29,8 @@ GIT_TOPLEVEL=$(cd $(dirname ${BASH_SOURCE[0]}) && git rev-parse --show-toplevel)
 
 
 function lookup_image_spec() {
-    img_line=$(python3 "${GIT_TOPLEVEL}/ci/jenkins/data.py" "$1")
-    if [ -n "${img_line}" ]; then
-        img_spec=$(echo "${img_line}" | sed -E "s/${1} = \"([^\"]*)\"/\1/")
+    img_spec=$(python3 "${GIT_TOPLEVEL}/ci/jenkins/data.py" "$1")
+    if [ -n "${img_spec}" ]; then
         has_similar_docker_image=1
         docker inspect "${1}" &>/dev/null || has_similar_docker_image=0
         if [ ${has_similar_docker_image} -ne 0 ]; then
