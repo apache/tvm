@@ -547,11 +547,8 @@ class Handler(server.ProjectAPIHandler):
         desired_fqbn = self._get_fqbn(board)
         for device in self._parse_connected_boards(list_cmd_output):
             if device["fqbn"] == desired_fqbn:
-                device_port = device["port"]
-                break
+                return device["port"]
 
-        if device_port:
-            return device_port
         # If no compatible boards, raise an error
         raise BoardAutodetectFailed()
 
