@@ -64,7 +64,7 @@ class VerifyVTCMLimitNode : public PostprocNode {
           pass_list.push_back(tir::transform::LowerOpaqueBlock());
           pass_list.push_back(tir::transform::FlattenBuffer());
           pass_list.push_back(tir::transform::Simplify());
-	  pass_list.push_back(tir::transform::VectorizeLoop(true));
+          pass_list.push_back(tir::transform::VectorizeLoop(true));
           pass_list.push_back(tir::transform::StorageRewrite());
           transform::PassContext pass_ctx = transform::PassContext::Current();
           tir::PrimFunc f = WithAttr(GetRef<tir::PrimFunc>(prim_func), "global_symbol",
