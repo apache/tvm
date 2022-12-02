@@ -54,25 +54,17 @@ class VerifyVTCMLimitNode : public PostprocNode {
         IRModule lowered{nullptr};
         try {
           auto pass_list = Array<tvm::transform::Pass>();
-          pass_list.push_back(tir::transform::LowerCrossThreadReduction());
           pass_list.push_back(tir::transform::LowerInitBlock());
           pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
           pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
-          pass_list.push_back(tir::transform::UnifyThreadBinding());
           pass_list.push_back(tir::transform::CompactBufferAllocation());
           pass_list.push_back(tir::transform::LowerMatchBuffer());
           pass_list.push_back(tir::transform::InjectSoftwarePipeline());
           pass_list.push_back(tir::transform::LowerOpaqueBlock());
           pass_list.push_back(tir::transform::FlattenBuffer());
-          pass_list.push_back(tir::transform::BF16Legalize());
-          pass_list.push_back(tir::transform::NarrowDataType(32));
           pass_list.push_back(tir::transform::Simplify());
           pass_list.push_back(tir::transform::VectorizeLoop(true));
-          pass_list.push_back(tir::transform::InjectVirtualThread());
-          pass_list.push_back(tir::transform::InjectDoubleBuffer());
           pass_list.push_back(tir::transform::StorageRewrite());
-          pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
-          pass_list.push_back(tir::transform::LowerIntrin());
           // Convert Function to IRModule
           transform::PassContext pass_ctx = transform::PassContext::Current();
           tir::PrimFunc f = WithAttr(GetRef<tir::PrimFunc>(prim_func), "global_symbol",
