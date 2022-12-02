@@ -35,12 +35,8 @@ from tvm.meta_schedule.runner import RunnerInput
 from tvm.script import tir as T
 from tvm.tir import FloatImm
 from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
-from tvm.meta_schedule.testing.space_generation import (
-    generate_design_space,
-)
-from tvm.target import Target
 
-# from .infrastructure import get_hexagon_target
+from .infrastructure import get_hexagon_target
 
 MATMUL_N = 16
 MATMUL_M = 32
@@ -500,71 +496,5 @@ def test_dense_relay_auto_schedule(hexagon_launcher):
         assert np.mean(np.abs(ref - out)) < 0.1
 
 
-def max_pool_blocked_compute(height, width, channel):
-    ishape = (1, channel // 32, height // 8, width // 8, 8, 8, 32)
-    oshape = (1, channel // 32, height // 8 // 2, width // 8 // 2, 8, 8, 32)
-    X = te.placeholder(ishape, name="X", dtype="uint8")
-
-    window_h = te.reduce_axis((0, 2), name="wh")
-    window_w = te.reduce_axis((0, 2), name="ww")
-
-    out = te.compute(
-        oshape,
-        lambda b, c_o, h_o, w_o, h_i, w_i, c_i: te.max(
-            X[
-                b,
-                c_o,
-                (h_o * 8 + h_i) // 8 * 2,
-                (w_o * 8 + w_i) // 8 * 2,
-                (h_o * 8 + h_i) % 4 * 2 + window_h,
-                (w_o * 8 + w_i) % 4 * 2 + window_w,
-                c_i,
-            ],
-            axis=[window_h, window_w],
-        ),
-        name="pool",
-    )
-    return [X, out]
-
-
-def test_max_pool_blocked():
-    height = width = 64
-    channel = 64
-
-    workload = te.create_prim_func(max_pool_blocked_compute(height, width, channel))
-    mod = tvm.IRModule({"main": workload})
-
-    def filter_fn(sch, block_rv):
-        print(sch.get(block_rv).name_hint)
-        if sch.get(block_rv).name_hint == "pool":
-            return True
-        return False
-
-    tiling_rule = ms.schedule_rule.MultiLevelTiling(
-        structure="SRS",
-        tile_binds=None,
-        max_innermost_factor=64,
-        vector_load_lens=None,
-        reuse_read=ms.schedule_rule.ReuseType(
-            req="must",
-            levels=[1],
-            scope="global",
-        ),
-        reuse_write=ms.schedule_rule.ReuseType(req="must", levels=[1], scope="global"),
-        filter_fn=filter_fn
-    )
-
-    actual = generate_design_space(
-        kind="llvm",
-        mod=mod,
-        target=Target("llvm"),
-        types=None,
-        sch_rules=[tiling_rule],
-    )
-
-    print(actual[0].mod.script())
-
-
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_max_pool_blocked()
+    tvm.testing.main()

@@ -72,7 +72,7 @@ class MultiLevelTiling(ScheduleRule):
         vector_load_lens: Optional[List[int]] = None,
         reuse_read: Optional[ReuseType] = None,
         reuse_write: Optional[ReuseType] = None,
-        filter_fn = None,
+        filter_fn=None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ScheduleRuleMultiLevelTiling,  # type: ignore # pylint: disable=no-member
