@@ -101,7 +101,10 @@ PROJECT_OPTIONS = server.default_project_options(
         optional=["open_transport", "flash"],
         type="str",
         default=None,
-        help=("Board serial number. If serial_number option is set, port option is ignored."),
+        help=(
+            "Board serial number. If both serial_number and port options are set,"
+            " it will throw exception."
+        ),
     ),
 ]
 
@@ -534,28 +537,18 @@ class Handler(server.ProjectAPIHandler):
                 device[col_name] = str_row[column.start() : column.end()].strip()
             yield device
 
-    def _auto_detect_port(self, arduino_cli_cmd: str, board: str, serial_number: str) -> str:
-        # TODO: This is to avoid breaking GPU docker on running the tutorials.
-        import serial.tools.list_ports
+    def _auto_detect_port(self, arduino_cli_cmd: str, board: str) -> str:
+        # It is assumed only one board with this type is connected to this host machine.
+        list_cmd = [self._get_arduino_cli_cmd(arduino_cli_cmd), "board", "list"]
+        list_cmd_output = subprocess.run(
+            list_cmd, check=True, stdout=subprocess.PIPE
+        ).stdout.decode("utf-8")
 
-        if not serial_number:
-            # If serial_number is not set, it is assumed only one board
-            # with this type is connected to this host machine.
-            list_cmd = [self._get_arduino_cli_cmd(arduino_cli_cmd), "board", "list"]
-            list_cmd_output = subprocess.run(
-                list_cmd, check=True, stdout=subprocess.PIPE
-            ).stdout.decode("utf-8")
-
-            desired_fqbn = self._get_fqbn(board)
-            for device in self._parse_connected_boards(list_cmd_output):
-                if device["fqbn"] == desired_fqbn:
-                    device_port = device["port"]
-                    break
-        else:
-            com_ports = serial.tools.list_ports.comports()
-            for port in com_ports:
-                if port.serial_number == serial_number:
-                    device_port = port.device
+        desired_fqbn = self._get_fqbn(board)
+        for device in self._parse_connected_boards(list_cmd_output):
+            if device["fqbn"] == desired_fqbn:
+                device_port = device["port"]
+                break
 
         if device_port:
             return device_port
@@ -565,11 +558,33 @@ class Handler(server.ProjectAPIHandler):
     def _get_arduino_port(
         self, arduino_cli_cmd: str, board: str, port: int = None, serial_number: str = None
     ):
+        """Returns Arduino serial port.
+        If both port and serial_number are set, it throw Runtime exception.
+        If none of those options are set, it tries to autodetect the serial port.
+        """
+        # TODO: This is to avoid breaking GPU docker on running the tutorials.
+        import serial.tools.list_ports
+
+        if serial_number and port:
+            raise RuntimeError(
+                "port and serial_number cannot be set together. Please set only one."
+            )
+
         if not self._port:
             if port:
                 self._port = port
+            elif serial_number:
+                com_ports = serial.tools.list_ports.comports()
+                for port in com_ports:
+                    if port.serial_number == serial_number:
+                        self._port = port.device
+                        break
+                if not self._port:
+                    raise BoardAutodetectFailed(
+                        f"Detecting port with board serial_number {serial_number} failed."
+                    )
             else:
-                self._port = self._auto_detect_port(arduino_cli_cmd, board, serial_number)
+                self._port = self._auto_detect_port(arduino_cli_cmd, board)
 
         return self._port
 

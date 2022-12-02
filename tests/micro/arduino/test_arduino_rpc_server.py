@@ -387,8 +387,8 @@ def _make_add_sess_with_shape(
     "shape,",
     [
         pytest.param((1 * 1024,), id="(1*1024)"),
-        # pytest.param((4 * 1024,), id="(4*1024)"),
-        # pytest.param((16 * 1024,), id="(16*1024)"),
+        pytest.param((4 * 1024,), id="(4*1024)"),
+        pytest.param((16 * 1024,), id="(16*1024)"),
     ],
 )
 @tvm.testing.requires_micro
