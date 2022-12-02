@@ -99,9 +99,9 @@ jenkins_scripts_root = "ci/scripts/jenkins"
 // General note: Jenkins has limits on the size of a method (or top level code)
 // that are pretty strict, so most usage of groovy methods in these templates
 // are purely to satisfy the JVM
-{% include "ci/jenkins/Prepare.groovy.j2" %}
-{% include "ci/jenkins/Build.groovy.j2" %}
-{% include "ci/jenkins/Test.groovy.j2" %}
+{% include "utils/Prepare.groovy.j2" %}
+{% include "utils/Build.groovy.j2" %}
+{% include "utils/Test.groovy.j2" %}
 
 cancel_previous_build()
 

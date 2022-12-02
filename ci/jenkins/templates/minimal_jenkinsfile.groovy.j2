@@ -1,0 +1,38 @@
+{% include "utils/base.groovy.j2" with context %}
+{% import 'utils/macros.j2' as m with context -%}
+
+{% call m.invoke_build(
+  name='BUILD: CPU MINIMAL',
+  node='CPU-SMALL',
+  condition='!skip_ci && is_docs_only_build != 1',
+  ws='tvm/build-cpu-minimal',
+  docker_image='ci_minimal',
+) %}
+  sh (
+    script: "${docker_run} ${ci_minimal} ./tests/scripts/task_config_build_minimal.sh build",
+    label: 'Create CPU minimal cmake config',
+  )
+  cmake_build(ci_minimal, 'build', '-j2')
+  make_cpp_tests(ci_minimal, 'build')
+  {{ m.upload_artifacts(tag='cpu-minimal', filenames=tvm_lib + tvm_allvisible + cpptest) }}
+{% endcall %}
+
+
+{% set test_method_names = [] %}
+
+{% call(shard_index, num_shards) m.sharded_test_step(
+  name="unittest: CPU MINIMAL",
+  node="CPU-SMALL",
+  num_shards=1,
+  ws="tvm/ut-python-cpu-minimal",
+  platform="minimal",
+  docker_image="ci_minimal",
+  test_method_names=test_method_names,
+) %}
+  {{ m.download_artifacts(tag='cpu-minimal') }}
+  cpp_unittest(ci_minimal)
+  python_unittest(ci_minimal)
+{% endcall %}
+
+
+{{ m.invoke_tests(test_method_names) -}}
