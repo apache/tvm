@@ -272,8 +272,8 @@ std::vector<State> MultiLevelTilingHexagonNode::AddSoftwarePipeline(HexagonState
   sch->Annotate(cache_read_loops[cache_read_loops.size() - 2],
                 tir::attr::software_pipeline_async_stages, software_pipeline_async_stages);
 
-  // TODO: Add support for nested async pipelines.
-  // TODO: Add support for async cache writes.
+  // TODO(nverke): Add support for nested async pipelines.
+  // TODO(nverke): Add support for async cache writes.
   return {state};
 }
 
