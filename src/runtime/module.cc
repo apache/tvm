@@ -103,7 +103,6 @@ void ModuleNode::SaveToBinary(dmlc::Stream* stream) {
 
 std::string ModuleNode::GetSource(const std::string& format) {
   LOG(FATAL) << "Module[" << type_key() << "] does not support GetSource";
-  return "";
 }
 
 const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
@@ -131,7 +130,6 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
 
 std::string ModuleNode::GetFormat() {
   LOG(FATAL) << "Module[" << type_key() << "] does not support GetFormat";
-  return "";
 }
 
 bool ModuleNode::IsDSOExportable() const { return false; }

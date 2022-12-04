@@ -199,7 +199,6 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const FloatImmNode* op) {
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const StringImmNode* op) {
   LOG(FATAL) << "StringImm is not supported in Device code";
-  return spirv::Value();
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const CastNode* op) {
@@ -398,7 +397,6 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     return spirv::Value();
   } else {
     LOG(FATAL) << "Unresolved call  " << op->op;
-    return spirv::Value();
   }
 }
 

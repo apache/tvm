@@ -353,7 +353,7 @@ class LogFatal {
 #pragma disagnostic push
 #pragma warning(disable : 4722)
 #endif
-  ~LogFatal() TVM_THROW_EXCEPTION { GetEntry().Finalize(); }
+  [[noreturn]] ~LogFatal() TVM_THROW_EXCEPTION { GetEntry().Finalize(); }
 #ifdef _MSC_VER
 #pragma disagnostic pop
 #endif
@@ -366,7 +366,9 @@ class LogFatal {
       this->file_ = file;
       this->lineno_ = lineno;
     }
-    TVM_NO_INLINE dmlc::Error Finalize() { throw InternalError(file_, lineno_, stream_.str()); }
+    [[noreturn]] TVM_NO_INLINE dmlc::Error Finalize() {
+      throw InternalError(file_, lineno_, stream_.str());
+    }
     std::ostringstream stream_;
     std::string file_;
     int lineno_;

@@ -179,7 +179,6 @@ class CodeGenNVPTX : public CodeGenLLVM {
       return builder_->CreateCall(f, {});
     } else {
       LOG(FATAL) << "Do not support sync " << sync;
-      return nullptr;
     }
   }
 

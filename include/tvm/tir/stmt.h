@@ -1649,7 +1649,6 @@ inline const char* ForKind2String(ForKind t) {
       return "thread_binding";
   }
   LOG(FATAL) << "Unknown ForKind" << t;
-  return "Unknown";
 }
 
 }  // namespace tir

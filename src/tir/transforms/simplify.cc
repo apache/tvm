@@ -209,7 +209,6 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const StoreNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
   }
 
   // eliminate useless stores
