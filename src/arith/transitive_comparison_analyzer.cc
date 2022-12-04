@@ -321,7 +321,6 @@ CompareResult Reverse(CompareResult res) {
       return CompareResult::kUnknown;
     default:
       LOG(FATAL) << "Invalid CompareResult: " << static_cast<int>(res);
-      return CompareResult::kInconsistent;
   }
 }
 
@@ -864,11 +863,9 @@ CompareResult TransitiveComparisonAnalyzer::Impl::MergeComparisons(
       case CompareResult::kGT:
       case CompareResult::kLT:
         LOG(FATAL) << "Internal error, normalized comparisons should only include <= and >=";
-        return CompareResult::kInconsistent;
 
       default:
         LOG(FATAL) << "Invalid CompareResult: " << static_cast<int>(cmp.result_);
-        return CompareResult::kInconsistent;
     }
   }
 

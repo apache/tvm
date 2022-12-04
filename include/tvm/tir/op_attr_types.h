@@ -119,7 +119,6 @@ inline std::ostream& operator<<(std::ostream& os, CallEffectKind side_effect) {
 
     default:
       LOG(FATAL) << "Unknown CallEffectKind: " << static_cast<int>(side_effect);
-      return os;
   }
 }
 
