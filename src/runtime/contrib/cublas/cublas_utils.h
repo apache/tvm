@@ -103,7 +103,6 @@ inline cudaDataType_t GetCudaDataType(DLDataType type) {
     }
   }
   LOG(FATAL) << "Unsupported cuda type";
-  return CUDA_R_16F;
 }
 }  // namespace contrib
 }  // namespace tvm

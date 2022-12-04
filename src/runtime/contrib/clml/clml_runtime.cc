@@ -574,7 +574,6 @@ class CLMLRuntime : public JSONRuntimeBase {
       return CL_HALF_FLOAT;
     } else {
       LOG(FATAL) << "Datatype " << data_type << " unsupported by CLML runtime";
-      return -1;
     }
   }
 
@@ -588,7 +587,6 @@ class CLMLRuntime : public JSONRuntimeBase {
       return CL_ARITHMETIC_MODE_FP16_QCOM;
     } else {
       LOG(FATAL) << "Datatype " << data_type << " unsupported by CLML runtime";
-      return CL_ARITHMETIC_MODE_FP32_QCOM;
     }
   }
 

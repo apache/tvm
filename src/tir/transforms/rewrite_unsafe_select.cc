@@ -69,7 +69,6 @@ class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
   }
   bool VisitExpr_(const LoadNode* op) {
     LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return true;
   }
   bool VisitExpr_(const AddNode* op) final { return BinaryOp(op); }
   bool VisitExpr_(const SubNode* op) final { return BinaryOp(op); }

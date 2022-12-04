@@ -504,7 +504,6 @@ std::string TargetInternal::StringifyAtomicType(const ObjectRef& obj) {
     return u;
   }
   LOG(FATAL) << "Cannot stringify this object";
-  return "";  // unreachable
 }
 
 std::string TargetInternal::StringifyArray(const ArrayNode& array) {

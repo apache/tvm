@@ -87,7 +87,6 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetExecutionCount(); });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
-    return PackedFunc();
   }
 }
 /*!

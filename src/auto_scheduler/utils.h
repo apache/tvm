@@ -89,7 +89,6 @@ inline int GetIndex(const Array<T>& array, const T& to_locate) {
     }
   }
   LOG(FATAL) << "Cannot find the item";
-  return -1;
 }
 
 /*! \brief Delete the item in a std::vector if it exists. */
