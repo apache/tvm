@@ -90,7 +90,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
     for (const auto& a : storage_info.args_to_vars_) {
       if (storage_map.count(a.first)) {
         for (const auto& v : a.second) {
-          if (std::find(storage_info.const_to_buffers.begin(), storage_info.const_to_buffers.end(), v) != storage_info.const_to_buffers.end())
+          if (std::find(storage_info.buffers_params.begin(), storage_info.buffers_params.end(), v) != storage_info.buffers_params.end())
           {
             Map<Expr, Array<String>> ent;
             ent.Set(Expr(), Array<String>{"global"});
@@ -188,10 +188,12 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
               std::string scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(call)));
               if (expr_attrib.as<Conv2DAttrs>() || expr_attrib.as<Conv2DWinogradAttrs>()) 
               {
-                if ((i == 1) && CanUseBuffers(call->args[i], ttype->shape, fn->attrs))
+                if ((i == 1) &&
+                    !ttype->dtype.is_float16() &&
+                    CanUseBuffers(call->args[i], ttype->shape, fn->attrs))
                 {
-                  const_to_buffers.push_back(fn->params[i]);
-                  const_to_buffers_args.push_back(call->args[i]);
+                  buffers_params.push_back(fn->params[i]);
+                  buffers_args.push_back(call->args[i]);
                   scope = "global";
                 }
               }
@@ -229,7 +231,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
     }
 
     for (auto& arg : call->args) {
-      if (std::find(const_to_buffers_args.begin(), const_to_buffers_args.end(), arg) == const_to_buffers_args.end())
+      if (std::find(buffers_args.begin(), buffers_args.end(), arg) == buffers_args.end())
         Visit(arg);
     }
     // We have all callees filled into storage_scope_ if they support textures
@@ -464,10 +466,12 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
   std::unordered_map<Expr, std::vector<Var>, ObjectPtrHash, ObjectPtrEqual> args_to_vars_;
   /*! \brief mapping of arguments that can be converted to texture*/
   Map<Expr, Map<Expr, Array<String>>> accept_textures_;
-
+  /*! \brief main attribute for expression*/
   tvm::Attrs expr_attrib;
-  std::vector<Expr> const_to_buffers;
-  std::vector<Expr> const_to_buffers_args;
+  /*! \brief parameters that filter out from storage_map to use buffers*/
+  std::vector<Expr> buffers_params;
+  /*! \brief arguments in expression that will use buffers*/
+  std::vector<Expr> buffers_args;
 };
 
 }  // namespace
