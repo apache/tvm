@@ -257,10 +257,10 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, kernel_layou
     # shape of dilated kernel
     if kernel_layout == "HWOI":
         filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
-        kernel_permutaiton = [0, 1, 2, 3]
+        kernel_permutation = [0, 1, 2, 3]
     elif kernel_layout == "HWIO":
         filter_height, filter_width, channel_multiplier, filter_channel = Filter.shape
-        kernel_permutaiton = [0, 1, 3, 2]
+        kernel_permutation = [0, 1, 3, 2]
     else:
         raise ValueError(f"Unsupported kernel layout: {kernel_layout}")
 
@@ -297,7 +297,7 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, kernel_layou
                     tuple(
                         np.array(
                             [di, dj, idxdiv(c, channel_multiplier), idxmod(c, channel_multiplier)]
-                        )[kernel_permutaiton]
+                        )[kernel_permutation]
                     )
                 ].astype(out_dtype)
             ),
