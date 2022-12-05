@@ -25,13 +25,14 @@ Config = {
                 'Mul': [3],
                 'Div': [1], # Shifting
                 'LT': [3],
+                'Bit Shift': [5],
                 'Ch Concat': [1],
                 'Mac': [5, 1],
             },
             'Control':
             {
                 'For Start': [1],
-                'For End': [1],
+                'For End': [3], # iter++, cmpr(iter, extent), jump SP
                 'Seq': [1],
             }
         },
@@ -39,7 +40,7 @@ Config = {
         {
             'Scalar' : ['Int Var', 'Int Imm'],
             'Memory' : ['Store', 'Load'],
-            'Vector' : ['Float Var', 'Float Imm'],
+            'Vector' : ['Float Var', 'Float Imm', 'Bit Shift'],
             'Control': ['For Start', 'For End', 'Seq'],
         }
     }
