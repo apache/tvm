@@ -91,6 +91,9 @@ std::vector<Plan> ParetoCullPlans(std::vector<Plan> plans, size_t max_plans,
   }
 
   std::sort(plans.begin(), plans.end(), [](const Plan& a, const Plan& b) -> bool {
+    if (a->GetMemoryUsage() == b->GetMemoryUsage()) {
+      return a->GetCycles() < b->GetCycles();
+    }
     return a->GetMemoryUsage() < b->GetMemoryUsage();
   });
   std::vector<std::array<float, 2>> costs;
@@ -122,6 +125,9 @@ std::vector<Proposal> ParetoCullProposals(std::vector<Proposal> proposals, size_
   }
 
   std::sort(proposals.begin(), proposals.end(), [](const Proposal& a, const Proposal& b) -> bool {
+    if (a->GetMemoryUsage() == b->GetMemoryUsage()) {
+      return a->GetCycles() < b->GetCycles();
+    }
     return a->GetMemoryUsage() < b->GetMemoryUsage();
   });
   std::vector<std::array<float, 2>> costs;
