@@ -26,73 +26,14 @@
 #include <string>
 #include <tuple>
 
-#include "tvm/runtime/hexagon/ops/conv2d.h"
+#include "conv2d.h"
+#include "hexagon_conv_utils_test.h"
 
 using namespace tvm::runtime::hexagon;
 
-class HexagonUtilsTest : public ::testing::Test {
- public:
-  void SetUp() override {
-    vtcm_scope = "global.vtcm";
-    device_api = tvm::runtime::DeviceAPI::Get(hexagon_device, false);
-    float16.code = kDLFloat;
-    float16.bits = 16;
-    float16.lanes = 1;
-  }
-
-  void setupTensor(std::tuple<int64_t, int64_t, int64_t, int64_t> shape) {
-    auto [s1, s2, s3, s4] = shape;
-    tensor_shape[0] = s1;
-    tensor_shape[1] = s2;
-    tensor_shape[2] = s3;
-    tensor_shape[3] = s4;
-    int64_t shape_1d[1] = {s1 * s2 * s3 * s4};
-
-    flat_mem = device_api->AllocDataSpace(hexagon_device, 1, shape_1d, float16, vtcm_scope);
-    flat_mem_data = static_cast<uint16_t*>(flat_mem);
-    fill_vals(flat_mem_data, shape_1d[0]);
-
-    flat_tensor.data = flat_mem;
-    flat_tensor.device = hexagon_device;
-    flat_tensor.ndim = 4;
-    flat_tensor.dtype = float16;
-    flat_tensor.shape = tensor_shape;
-    flat_tensor.strides = nullptr;
-    flat_tensor.byte_offset = 0;
-  }
-
-  void TearDownTensor() {
-    if (flat_tensor.data) device_api->FreeDataSpace(hexagon_device, flat_mem);
-  }
-
-  static void fill_vals(uint16_t* arr, int size) {
-    // Testing with uint16 instead of float16 as generating random float16 is not easy within c++
-    uint16_t max = UINT16_MAX;
-    srand(std::time(0));
-    for (int i = 0; i < size; ++i) {
-      arr[i] = static_cast<uint16_t>(std::rand() % max);
-    }
-  }
-
-  static int flattened_idx(int nn, int hh, int ww, int cc, int64_t* shape) {
-    int h = shape[1];
-    int w = shape[2];
-    int c = shape[3];
-    return cc + c * (ww + w * (hh + h * (nn)));
-  }
-
-  DLTensor flat_tensor;
-  void* flat_mem;
-  uint16_t* flat_mem_data;
-  tvm::runtime::DeviceAPI* device_api;
-  tvm::runtime::String vtcm_scope;
-  DLDataType float16;
-  int64_t tensor_shape[4];
-};
-
 // Parameterized test fixture with 4 params representing n, h, w, c
 class HexagonUtilsActivationsBlockizeTest
-    : public HexagonUtilsTest,
+    : public HexagonUtilsTest<uint16_t>,
       public ::testing::WithParamInterface<std::tuple<
           std::tuple<int64_t, int64_t, int64_t, int64_t>, std::tuple<int, int, int, int>>> {};
 
@@ -122,11 +63,12 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_F(HexagonUtilsActivationsBlockizeTest, prepare_nhwc) {
   auto shape = std::make_tuple(1, 14, 7, 60);
   auto [n, h, w, c] = shape;
-  setupTensor(shape);
+  setupTensor(shape, float16);
 
   // // copy_data is set to false here as there's a separate test for blockize when copy_data
   // becomes true
-  auto blocked_tensor = prepare_nhwc(device_api, &flat_tensor, /*copy_data=*/false);
+  auto blocked_tensor =
+      prepare_nhwc<uint16_t, 8, 4, 32>(device_api, &flat_tensor, /*copy_data=*/false);
 
   EXPECT_EQ(blocked_tensor.shape[0], n);
   EXPECT_EQ(blocked_tensor.shape[1], round_up(h, 8) / 8);
@@ -139,7 +81,7 @@ TEST_F(HexagonUtilsActivationsBlockizeTest, prepare_nhwc) {
 
 TEST_P(HexagonUtilsActivationsBlockizeTest, blockize_hwc_16b) {
   auto shape_tuple = std::get<0>(GetParam());
-  setupTensor(shape_tuple);
+  setupTensor(shape_tuple, float16);
   auto [n, h, w, c] = shape_tuple;
   int64_t shape[] = {n, h, w, c};
 
@@ -150,7 +92,7 @@ TEST_P(HexagonUtilsActivationsBlockizeTest, blockize_hwc_16b) {
 
   void* blocked_mem = device_api->AllocDataSpace(hexagon_device, 2, shape_2d, float16, vtcm_scope);
   int64_t blocked_shape[] = {n, h_rounded / 8, w_rounded / 4, c_rounded / 32};
-  blockize_hwc_16b(blocked_mem, flat_mem, h, w, c);
+  blockize_hwc<uint16_t, 8, 4, 32>(blocked_mem, flat_mem, h, w, c);
 
   std::function<int(int, int, int, int, int64_t*)> flatten =
       HexagonUtilsActivationsBlockizeTest::flattened_idx;
@@ -159,7 +101,7 @@ TEST_P(HexagonUtilsActivationsBlockizeTest, blockize_hwc_16b) {
     auto* blocks = static_cast<uintptr_t*>(blocked_mem);
     int blockIdx = flatten(nn, hh / 8, ww / 4, cc / 32, blocked_shape);
     uint16_t* block = reinterpret_cast<uint16_t*>(blocks[blockIdx]);
-    return block[xyc_to_sm_16b(hh % 8, ww % 4, cc % 32)];
+    return block[yxc_to_sm_16b(hh % 8, ww % 4, cc % 32)];
   };
 
   auto [nn, hh, ww, cc] = std::get<1>(GetParam());
@@ -172,7 +114,7 @@ TEST_P(HexagonUtilsActivationsBlockizeTest, blockize_hwc_16b) {
 
 TEST_P(HexagonUtilsActivationsBlockizeTest, deblockize_hwc_16b) {
   auto shape_tuple = std::get<0>(GetParam());
-  setupTensor(shape_tuple);
+  setupTensor(shape_tuple, float16);
   auto [n, h, w, c] = shape_tuple;
   int64_t shape[] = {n, h, w, c};
   int64_t shape_1d[1] = {n * h * w * c};
@@ -183,11 +125,11 @@ TEST_P(HexagonUtilsActivationsBlockizeTest, deblockize_hwc_16b) {
   int64_t shape_2d[2] = {(n * h_rounded * w_rounded * c_rounded) / (8 * 4 * 32), 8 * 4 * 32};
 
   void* blocked_mem = device_api->AllocDataSpace(hexagon_device, 2, shape_2d, float16, vtcm_scope);
-  blockize_hwc_16b(blocked_mem, flat_mem, h, w, c);
+  blockize_hwc<uint16_t, 8, 4, 32>(blocked_mem, flat_mem, h, w, c);
 
   void* deblocked_flat_mem =
       device_api->AllocDataSpace(hexagon_device, 1, shape_1d, float16, vtcm_scope);
-  deblockize_hwc_16b(deblocked_flat_mem, blocked_mem, h, w, c);
+  deblockize_hwc<uint16_t, 8, 4, 32>(deblocked_flat_mem, blocked_mem, h, w, c);
   auto* deblocked_flat_mem_data = static_cast<uint16_t*>(deblocked_flat_mem);
 
   auto [nn, hh, ww, cc] = std::get<1>(GetParam());
@@ -201,7 +143,7 @@ TEST_P(HexagonUtilsActivationsBlockizeTest, deblockize_hwc_16b) {
 }
 
 class HexagonUtilsWeightsChunkifyTest
-    : public HexagonUtilsTest,
+    : public HexagonUtilsTest<uint16_t>,
       public ::testing::WithParamInterface<std::tuple<
           std::tuple<int64_t, int64_t, int64_t, int64_t>, std::tuple<int, int, int, int>>> {};
 
@@ -231,7 +173,9 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST_F(HexagonUtilsWeightsChunkifyTest, calculate_num_weight_chunks) {
   int64_t shape[] = {3, 3, 40, 40};
-  int num_wgt_chunks = calculate_num_weight_chunks(shape);
+  int num_wgt_chunks =
+      calculate_num_weight_chunks(shape, /* chunk_height */ 8, /* chunk_width */ 4,
+                                  /* chunk_in_channel */ 32, /* chunk_out_channel */ 32);
   EXPECT_EQ(num_wgt_chunks, 4);
 }
 
@@ -239,11 +183,11 @@ TEST_F(HexagonUtilsWeightsChunkifyTest, prepare_hwio) {
   int64_t shape[] = {3, 3, 40, 40};
   auto [h, w, i, o] = shape;
   auto shape_tuple = std::make_tuple(h, w, i, o);
-  setupTensor(shape_tuple);
+  setupTensor(shape_tuple, float16);
 
   // copy_data is set to false here as there's a separate test for blockize when copy_data becomes
   // true
-  auto num_wgt_chunks = calculate_num_weight_chunks(shape);
+  auto num_wgt_chunks = calculate_num_weight_chunks(shape, 8, 4, 32, 32);
   auto wgt_ptr_table =
       reinterpret_cast<void**>(__builtin_alloca(num_wgt_chunks * sizeof(uintptr_t)));
   auto chunked_tensor = prepare_hwio(device_api, &flat_tensor, num_wgt_chunks, wgt_ptr_table);
@@ -260,10 +204,10 @@ TEST_F(HexagonUtilsWeightsChunkifyTest, prepare_hwio) {
 TEST_P(HexagonUtilsWeightsChunkifyTest, chunkify_hwio_16b) {
   auto [shape_tuple, indices] = GetParam();
   auto [h, w, i, o] = shape_tuple;
-  setupTensor(shape_tuple);
+  setupTensor(shape_tuple, float16);
   int64_t shape[] = {h, w, i, o};
 
-  auto num_wgt_chunks = calculate_num_weight_chunks(shape);
+  auto num_wgt_chunks = calculate_num_weight_chunks(shape, 8, 4, 32, 32);
   auto wgt_ptr_table =
       reinterpret_cast<void**>(__builtin_alloca(num_wgt_chunks * sizeof(uintptr_t)));
   auto chunked_tensor = prepare_hwio(device_api, &flat_tensor, num_wgt_chunks, wgt_ptr_table);
