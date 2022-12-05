@@ -103,6 +103,7 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       oshape.Set(oshape.size() - 1, tensor_b_elements / dshape[dshape.size() - 1]);
       // Otherwise just pull it out of the tensor_b shape directly.
     } else {
+      ICHECK(static_cast<int>(tensor_b->shape.size()) == 2);
       if (param->auto_scheduler_rewritten_layout.size() == 0 &&
           param->meta_schedule_original_shape.size() == 0) {
         // ensure inner dimension matches between data and weight. If one inner

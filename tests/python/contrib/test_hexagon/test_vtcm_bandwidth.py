@@ -61,7 +61,7 @@ def single_dma_operator(size):
         a_global_vtcm = T.match_buffer(a_v, size, dtype="int8", align=128, scope="global.vtcm")
         T.evaluate(
             T.tvm_call_packed(
-                "device_api.hexagon.mem_copy_DLTensor",
+                "device_api.hexagon.dma_copy_dltensor",
                 T.tvm_stack_make_array(
                     a_global_vtcm.data,
                     T.tvm_stack_make_shape(size, dtype="handle"),
@@ -81,6 +81,7 @@ def single_dma_operator(size):
                     dtype="handle",
                 ),
                 T.cast(size, dtype="int"),
+                True,  # bypass cache
                 dtype="int32",
             )
         )

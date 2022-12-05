@@ -39,7 +39,7 @@ COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source
 RUN bash /install/ubuntu_install_cmake_source.sh
 
 COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
-RUN bash /install/ubuntu_install_googletest.sh
+RUN bash /install/ubuntu_install_googletest.sh /googletest
 
 ENV TVM_VENV /venv/apache-tvm-py3.7
 COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles

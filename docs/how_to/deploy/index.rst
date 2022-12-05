@@ -169,6 +169,7 @@ target device without relying on RPC. See the following resources on how to do s
 
    cpp_deploy
    android
+   adreno
    integrate
    hls
    arm_compute_lib

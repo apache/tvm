@@ -152,9 +152,8 @@ class HoistAllocatesMutator : public StmtExprMutator {
                    current_alloc->span);
     }
 
-    PrimFunc new_main_func =
-        PrimFunc(main_func->params, new_main_func_body, main_func->ret_type, main_func->buffer_map,
-                 main_func->preflattened_buffer_map, main_func->attrs);
+    PrimFunc new_main_func = PrimFunc(main_func->params, new_main_func_body, main_func->ret_type,
+                                      main_func->buffer_map, main_func->attrs);
     return new_main_func;
   }
 
@@ -523,7 +522,6 @@ class MergeConstantsMutator : public StmtExprMutator {
     prim_func_node->body = std::move(new_body);
     prim_func_node->buffer_map = std::move(new_buffer_map);
     prim_func_node->params = std::move(new_params);
-    prim_func_node->preflattened_buffer_map = {};
     PrimFunc f{GetRef<PrimFunc>(prim_func_node)};
 
     // Add the new const dict as an attribute

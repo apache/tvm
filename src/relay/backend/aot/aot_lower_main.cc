@@ -303,7 +303,6 @@ class AOTMainLowerer : public MixedModeVisitor {
       // TODO(mbs): device_copy cleaunp
       // Suspect treating as no-op is better since already built into the StorageInfo?
       LOG(FATAL) << "The AOT executor does not currently support device_copy";
-      return;
     }
 
     // At this point we should only see calls of the form call_lowered(@callee, (args...)),
@@ -504,7 +503,7 @@ class AOTMainLowerer : public MixedModeVisitor {
     tir::Stmt final_body = tir::SeqStmt({device_activations, body, device_deactivations});
 
     // Make the PrimFunc
-    return tir::PrimFunc(main_signature_, final_body, VoidType(), main_buffer_map_, {},
+    return tir::PrimFunc(main_signature_, final_body, VoidType(), main_buffer_map_,
                          DictAttrs(dict_attrs));
   }
 

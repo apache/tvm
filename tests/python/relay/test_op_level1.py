@@ -602,6 +602,11 @@ def test_matmul_type_check():
     y = relay.nn.matmul(x, w)
     yy = run_infer_type(y)
 
+    i0 = relay.var("i0", shape=(1, 1), dtype="float32")
+    i1 = relay.var("i1", shape=(1,), dtype="float32")
+    with pytest.raises(tvm.TVMError):
+        run_infer_type(relay.nn.matmul(i0, i1))
+
 
 @tvm.testing.uses_gpu
 def test_matmul(executor_kind):
@@ -753,9 +758,10 @@ def test_bitserial_dense():
 
 
 @tvm.testing.requires_cascadelake
-def test_dense_vnni():
-    data_shape = (32, 96)
-    weight_shape = (128, 96)
+@pytest.mark.parametrize("m,n,k", [(32, 128, 96), (32, 128, 97)])
+def test_dense_vnni(m, n, k):
+    data_shape = (m, k)
+    weight_shape = (n, k)
 
     for data_dtype in ["uint8", "int8"]:
         data = relay.var("data", shape=data_shape, dtype=data_dtype)

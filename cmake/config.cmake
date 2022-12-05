@@ -65,7 +65,8 @@ set(USE_AOCL OFF)
 # Whether enable OpenCL runtime
 #
 # Possible values:
-# - ON: enable OpenCL with cmake's auto search
+# - ON: enable OpenCL with OpenCL wrapper to remove dependency during build
+#       time and trigger dynamic search and loading of OpenCL in runtime
 # - OFF: disable OpenCL
 # - /path/to/opencl-sdk: use specific path to opencl-sdk
 set(USE_OPENCL OFF)
@@ -401,3 +402,6 @@ set(USE_LIBTORCH OFF)
 
 # Whether to use the Universal Modular Accelerator Interface
 set(USE_UMA OFF)
+
+# Set custom Alloc Alignment for device allocated memory ndarray points to
+set(USE_KALLOC_ALIGNMENT 64)

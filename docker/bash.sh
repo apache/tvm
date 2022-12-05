@@ -22,7 +22,7 @@
 #
 # Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
 #          [--mount MOUNT_DIR] [--repo-mount-point REPO_MOUNT_POINT]
-#          [--dry-run] [--name NAME]
+#          [--dry-run] [--name NAME] [--privileged]
 #          <DOCKER_IMAGE_NAME> [--] [COMMAND]
 #
 # Usage: docker/bash.sh <CONTAINER_NAME>
@@ -96,6 +96,10 @@ Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
 
     Set the name of the docker container, and the hostname that will
     appear inside the container.
+
+--privileged
+
+    Give extended privileges to this container.
 
 DOCKER_IMAGE_NAME
 
@@ -211,6 +215,11 @@ while (( $# )); do
             else
                 parse_error 'ERROR: --name requires a non empty argument'
             fi
+            ;;
+
+        --privileged)
+            DOCKER_FLAGS+=( "--privileged" )
+            shift 1
             ;;
 
         --env)

@@ -756,18 +756,15 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
     return PrintTarget(node.as<TargetNode>());
   } else {
     LOG(FATAL) << "Do not know how to print " << node->GetTypeKey();
-    return Doc();
   }
 }
 
 Doc TVMScriptPrinter::VisitExprDefault_(const Object* op, ExprPrecedence* out_precedence) {
   LOG(FATAL) << "Do not know how to print " << op->GetTypeKey();
-  return Doc();
 }
 
 Doc TVMScriptPrinter::VisitStmtDefault_(const Object* op) {
   LOG(FATAL) << "Do not know how to print " << op->GetTypeKey();
-  return Doc();
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const IntImmNode* op, ExprPrecedence* out_precedence) {
@@ -823,13 +820,15 @@ bool WillPrintConstScalar(const PrimExpr& expr) {
     ICHECK(rhs_precedence != ExprPrecedence::kUnknown);                                           \
     /* Update out_precedence of current node. */                                                  \
     *out_precedence = OpPrecedence;                                                               \
-    if (lhs_precedence > OpPrecedence) {                                                          \
+    if (lhs_precedence > OpPrecedence ||                                                          \
+        (lhs_precedence == ExprPrecedence::kAnd && OpPrecedence == ExprPrecedence::kOr)) {        \
       doc << "(" << lhs_doc << ")";                                                               \
     } else {                                                                                      \
       doc << lhs_doc;                                                                             \
     }                                                                                             \
     doc << OpString;                                                                              \
-    if (rhs_precedence >= OpPrecedence) {                                                         \
+    if (rhs_precedence >= OpPrecedence ||                                                         \
+        (rhs_precedence == ExprPrecedence::kAnd && OpPrecedence == ExprPrecedence::kOr)) {        \
       doc << "(" << rhs_doc << ")";                                                               \
     } else {                                                                                      \
       doc << rhs_doc;                                                                             \
@@ -1259,10 +1258,22 @@ Doc TVMScriptPrinter::VisitStmt_(const IfThenElseNode* op) {
   Doc doc;
   doc << "if " << Print(op->condition) << ":";
   doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->then_case));
-  if (!is_one(op->condition) && op->else_case) {
-    doc << Doc::NewLine();
-    doc << "else:" << Doc::Indent(4, Doc::NewLine() << PrintBody(op->else_case.value()));
+
+  Optional<Stmt> else_case = op->else_case;
+  while (else_case) {
+    if (auto* else_if = else_case.value().as<IfThenElseNode>()) {
+      doc << Doc::NewLine();
+      doc << "elif " << Print(else_if->condition) << ":";
+      doc << Doc::Indent(4, Doc::NewLine() << PrintBody(else_if->then_case));
+
+      else_case = else_if->else_case;
+    } else {
+      doc << Doc::NewLine();
+      doc << "else:" << Doc::Indent(4, Doc::NewLine() << PrintBody(else_case.value()));
+      break;
+    }
   }
+
   return doc;
 }
 
@@ -1275,16 +1286,17 @@ Doc TVMScriptPrinter::VisitStmt_(const SeqStmtNode* op) {
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const EvaluateNode* op) {
-  if (auto* call = op->value.as<CallNode>()) {
-    if (call->op.same_as(builtin::assume())) {
-      Doc doc;
-      doc << tir_prefix_ << ".assume(" << Print(call->args[0]) << ")";
-      return doc;
-    }
-  }
-
+  // When parsing TVMScript, a PrimExpr that occurs as a statement is
+  // automatically wrapped in `tir::Evaluate`.  Therefore, when
+  // printing, it's only necessary to print the value.  For
+  // readability, though, we still print T.evaluate() when the
+  // expression is something other than a call node.
   Doc doc;
-  doc << tir_prefix_ << ".evaluate(" << Print(op->value) << ")";
+  if (op->value.as<CallNode>()) {
+    doc << Print(op->value);
+  } else {
+    doc << tir_prefix_ << ".evaluate(" << Print(op->value) << ")";
+  }
   return doc;
 }
 
@@ -1670,26 +1682,6 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     ICHECK(memo_buf_decl_.count(buf));
     body << Print((*it).first) << ", " << memo_buf_decl_[buf];
     body << ")" << Doc::NewLine();
-  }
-  // print preflattened buffer map
-  for (const auto& param : op->params) {
-    auto pf_buf_it = op->preflattened_buffer_map.find(param);
-    if (pf_buf_it != op->preflattened_buffer_map.end()) {
-      const Buffer& preflattened = (*pf_buf_it).second;
-
-      auto buf_it = op->buffer_map.find(param);
-      ICHECK(buf_it != op->buffer_map.end()) << "Found pre-flattened buffer " << preflattened->name
-                                             << " with no corresponding post-flatten buffer.";
-      const Buffer& postflattened = (*buf_it).second;
-
-      // Call Print() without assigning in order to fill memo_buf_decl_.
-      Print(preflattened);
-      buf_not_in_headers_.insert(preflattened.get());
-      ICHECK(memo_buf_decl_.count(preflattened));
-
-      body << tir_prefix_ << ".preflattened_buffer(" << Print(postflattened) << ", "
-           << memo_buf_decl_.at(preflattened) << ")" << Doc::NewLine();
-    }
   }
   // print body
   body << "# body" << Doc::NewLine();

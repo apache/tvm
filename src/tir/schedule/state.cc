@@ -662,10 +662,11 @@ class SRefTreePruner : public StmtVisitor {
         << GetRef<Block>(op);
     StmtSRef& sref = it->second;
     // Detect reuse
-    auto reuse_it = reuse_info_.block_sref_reuse.find(op);
-    if (reuse_it != reuse_info_.block_sref_reuse.end()) {
+    const auto& sref_reuse = reuse_info_.block_sref_reuse;
+    if (auto reuse_it = sref_reuse.find(op); reuse_it != sref_reuse.end()) {
+      const BlockNode* to_reuse = reuse_it->second;
       // sref can be reused
-      reused_srefs_.emplace(reuse_it->second, std::move(sref));
+      reused_srefs_.emplace(to_reuse, std::move(sref));
     } else {
       sref->Reset();
       self_->block_info.erase(sref);

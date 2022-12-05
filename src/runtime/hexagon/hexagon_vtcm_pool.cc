@@ -29,20 +29,19 @@ HexagonVtcmPool::HexagonVtcmPool() {
   compute_res_attr_t res_info;
   HEXAGON_SAFE_CALL(HAP_compute_res_attr_init(&res_info));
 
-  unsigned int total_block_size;
   unsigned int avail_block_size;
   compute_res_vtcm_page_t total_block_layout;
   compute_res_vtcm_page_t avail_block_layout;
 
-  HEXAGON_SAFE_CALL(compute_resource_query_VTCM(/* application_id = */ 0, &total_block_size,
+  HEXAGON_SAFE_CALL(compute_resource_query_VTCM(/* application_id = */ 0, &vtcm_device_size_,
                                                 &total_block_layout, &avail_block_size,
                                                 &avail_block_layout));
-  DLOG(INFO) << "HexagonVtcmPool total " << total_block_size << " avail " << avail_block_size;
+  DLOG(INFO) << "HexagonVtcmPool total " << vtcm_device_size_ << " avail " << avail_block_size;
   CHECK(avail_block_size >= (1024 * 1024)) << "Less than 1MB VTCM available";
 
   // allocate nbytes of vtcm on a single page
   HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param_v2(&res_info,
-                                                           /*vtcm_size = */ total_block_size,
+                                                           /*vtcm_size = */ vtcm_device_size_,
                                                            /*min_page_size = */ 1,
                                                            /*min_vtcm_size = */ avail_block_size));
 
@@ -50,11 +49,13 @@ HexagonVtcmPool::HexagonVtcmPool() {
   // hanging, both in the simulator and on hardware.
   context_id_ = HAP_compute_res_acquire(&res_info, /*timeout = */ 0);
   CHECK(context_id_) << "HAP_compute_res_acquire failed to acquire requested VTCM resource.";
-  HEXAGON_SAFE_CALL(HAP_compute_res_attr_get_vtcm_ptr_v2(&res_info, &vtcm_data_, &vtcm_size_));
+  HEXAGON_SAFE_CALL(
+      HAP_compute_res_attr_get_vtcm_ptr_v2(&res_info, &vtcm_data_, &vtcm_allocated_size_));
   CHECK(vtcm_data_ != nullptr) << "HAP_compute_res_acquire returned nullptr when allocating VTCM.";
-  CHECK(vtcm_size_ >= avail_block_size)
+  CHECK(vtcm_allocated_size_ >= avail_block_size)
       << "HAP_compute_res_acquire failed to allocate minimum amount of VTCM";
-  free_.emplace_back(std::pair<char*, size_t>(static_cast<char*>(vtcm_data_), vtcm_size_));
+  free_.emplace_back(
+      std::pair<char*, size_t>(static_cast<char*>(vtcm_data_), vtcm_allocated_size_));
   // DebugDump();
 }
 

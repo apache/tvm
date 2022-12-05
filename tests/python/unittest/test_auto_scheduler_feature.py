@@ -203,20 +203,20 @@ def test_gpu_feature():
 
 @T.prim_func
 def tir_matmul(
-    A: T.Buffer[(16384,), "float32"],
-    B: T.Buffer[(16384,), "float32"],
-    C: T.Buffer[(16384,), "float32"],
+    A: T.Buffer[(256, 256), "float32"],
+    B: T.Buffer[(256, 256), "float32"],
+    C: T.Buffer[(256, 256), "float32"],
 ) -> None:
     # function attr dict
     T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-    T.preflattened_buffer(A, [128, 128], dtype="float32", data=A.data)
-    T.preflattened_buffer(B, [128, 128], dtype="float32", data=B.data)
-    T.preflattened_buffer(C, [128, 128], dtype="float32", data=C.data)
+    A_flat = T.buffer_decl([16384], dtype="float32", data=A.data)
+    B_flat = T.buffer_decl([16384], dtype="float32", data=B.data)
+    C_flat = T.buffer_decl([16384], dtype="float32", data=C.data)
     # body
     for x, y in T.grid(128, 128):
-        C[x * 128 + y] = T.float32(0)
+        C_flat[x * 128 + y] = T.float32(0)
         for k in T.serial(128):
-            C[x * 128 + y] = C[x * 128 + y] + A[x * 128 + k] * B[y * 128 + k]
+            C_flat[x * 128 + y] = C_flat[x * 128 + y] + A_flat[x * 128 + k] * B_flat[y * 128 + k]
 
 
 def test_primfunc_without_lowering():

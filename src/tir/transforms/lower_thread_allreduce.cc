@@ -111,12 +111,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const LoadNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {

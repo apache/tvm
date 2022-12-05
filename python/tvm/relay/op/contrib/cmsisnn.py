@@ -231,27 +231,40 @@ def pattern_table():
             requantize = pattern
         requantize_input = requantize.args[0]
         bias_add = None
-        bias_dtype = "int32"
         if str(requantize_input.op.name) == "nn.bias_add":
             bias_add = requantize_input
             fc = bias_add.args[0]
-            bias_dtype = bias_add.args[1].checked_type.dtype
         else:
             fc = requantize_input
         fc_input = fc.args[0]
         fc_weight = fc.args[1]
 
+        are_dtypes_valid = False
+        fc_input_dtype = fc_input.checked_type.dtype
+        if bias_add:
+            bias_dtype = bias_add.args[1].checked_type.dtype
+        else:
+            bias_dtype = "int32" if fc_input_dtype == "int8" else "int64"
+
+        valid_dtypes = None
+        if fc_input_dtype == "int8":
+            valid_dtypes = ("int8", "int8", "int32", "int32", "int8")
+        elif fc_input_dtype == "int16":
+            valid_dtypes = ("int16", "int8", "int64", "int64", "int16")
+
+        if (
+            fc_input_dtype,
+            fc_weight.checked_type.dtype,
+            bias_dtype,
+            fc.attrs.out_dtype,
+            pattern.checked_type.dtype,
+        ) == valid_dtypes:
+            are_dtypes_valid = True
+
         # kernel zero_point should be 0
         kernel_zp = fc.args[3].data.numpy().item(0)
 
-        return (
-            fc.attrs.out_dtype == "int32"
-            and fc_input.checked_type.dtype == "int8"
-            and fc_weight.checked_type.dtype == "int8"
-            and pattern.checked_type.dtype == "int8"
-            and bias_dtype == "int32"
-            and kernel_zp == 0
-        )
+        return are_dtypes_valid and kernel_zp == 0
 
     def qnn_avg_pool2d_pattern():
         """Matches average pooling with optional Relu"""
@@ -274,8 +287,10 @@ def pattern_table():
         return (
             pooling.attrs.layout == "NHWC"
             and int(input_op.checked_type.shape[0]) == 1
-            and input_op.checked_type.dtype == "int8"
-            and output.checked_type.dtype == "int8"
+            and (
+                (input_op.checked_type.dtype == "int8" and output.checked_type.dtype == "int8")
+                or (input_op.checked_type.dtype == "int16" and output.checked_type.dtype == "int16")
+            )
         )
 
     def qnn_max_pool2d_pattern():
@@ -297,8 +312,10 @@ def pattern_table():
         return (
             pooling.attrs.layout == "NHWC"
             and int(input_op.checked_type.shape[0]) == 1
-            and input_op.checked_type.dtype == "int8"
-            and output.checked_type.dtype == "int8"
+            and (
+                (input_op.checked_type.dtype == "int8" and output.checked_type.dtype == "int8")
+                or (input_op.checked_type.dtype == "int16" and output.checked_type.dtype == "int16")
+            )
         )
 
     def binary_op_pattern(op):

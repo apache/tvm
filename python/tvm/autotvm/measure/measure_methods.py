@@ -330,7 +330,7 @@ class RPCRunner(Runner):
             )
 
     def get_build_kwargs(self):
-        kwargs = {}
+        kwargs = {"checks": {}}
         if (
             "cuda" in self.task.target.keys
             or "opencl" in self.task.target.keys
@@ -340,13 +340,15 @@ class RPCRunner(Runner):
             remote = request_remote(self.key, self.host, self.port)
             dev = remote.device(str(self.task.target), 0)
             max_dims = dev.max_thread_dimensions
-            kwargs["check_gpu"] = {
+            kwargs["checks"]["gpu"] = {
                 "max_shared_memory_per_block": dev.max_shared_memory_per_block,
                 "max_threads_per_block": dev.max_threads_per_block,
                 "max_thread_x": max_dims[0],
                 "max_thread_y": max_dims[1],
                 "max_thread_z": max_dims[2],
             }
+        if "hexagon" in self.task.target.keys:
+            kwargs["checks"]["hexagon"] = {"vtcm_capacity": self.task.target.vtcm_capacity}
 
         return kwargs
 
@@ -493,11 +495,11 @@ class LocalRunner(RPCRunner):
         return server, tracker
 
 
-def _build_func_common(measure_input, runtime=None, check_gpu=None, build_option=None):
+def _build_func_common(measure_input, runtime=None, checks=None, build_option=None):
     """Common part for building a configuration"""
     target, task, config = measure_input
     target, task.target_host = Target.canon_target_and_host(target, task.target_host)
-
+    checks = checks or {}
     with target:
         s, args = task.instantiate(config)
 
@@ -526,8 +528,10 @@ def _build_func_common(measure_input, runtime=None, check_gpu=None, build_option
                 current_add_lower_pass = list(current_config["tir.add_lower_pass"])
             else:
                 current_add_lower_pass = []
-            if check_gpu:
-                current_add_lower_pass.append((2, gpu_verify_pass(**check_gpu)))
+            if checks.get("gpu"):
+                current_add_lower_pass.append((2, gpu_verify_pass(**checks.get("gpu"))))
+            if checks.get("hexagon"):
+                current_add_lower_pass.append((2, vtcm_verify_pass(**checks.get("hexagon"))))
             current_config["tir.add_lower_pass"] = current_add_lower_pass
 
             with tvm.ir.transform.PassContext(
@@ -869,6 +873,23 @@ def gpu_verify_pass(**kwargs):
         valid = tvm.tir.analysis.verify_gpu_code(f, kwargs)
         if not valid:
             raise InstantiationError("Skipped because of invalid gpu kernel")
+        return f
+
+    return tvm.tir.transform.prim_func_pass(verify_pass, opt_level=0)
+
+
+def vtcm_verify_pass(**kwargs):
+    """Verify the validity of a hexagon kernel.
+    This pass will check vtcm memory usage.
+    """
+
+    def verify_pass(f, *_):
+        sizes = tvm.tir.analysis.calculate_allocated_bytes(f)
+        vtcm_capacity = kwargs.get("vtcm_capacity", 0)
+        vtcm_allocated = sizes.get("global.vtcm", 0)
+        if 0 < vtcm_capacity < vtcm_allocated:
+            raise InstantiationError("Skipped because of invalid vtcm memory usage limit")
+
         return f
 
     return tvm.tir.transform.prim_func_pass(verify_pass, opt_level=0)

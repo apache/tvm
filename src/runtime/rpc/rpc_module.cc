@@ -191,7 +191,6 @@ class RPCModuleNode final : public ModuleNode {
 
   std::string GetSource(const std::string& format) final {
     LOG(FATAL) << "GetSource for rpc Module is not supported";
-    return "";
   }
 
   PackedFunc GetTimeEvaluator(const std::string& name, Device dev, int number, int repeat,

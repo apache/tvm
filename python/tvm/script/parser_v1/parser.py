@@ -501,7 +501,6 @@ class TVMScriptParser(Transformer):
             body,
             ret_type,
             buffer_map=self.context.func_buffer_map,
-            preflattened_buffer_map=self.context.func_preflattened_buffer_map,
             attrs=tvm.ir.make_node("DictAttrs", **dict_attr) if dict_attr else None,
             span=tvm_span_from_synr(node.span),
         )

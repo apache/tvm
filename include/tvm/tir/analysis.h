@@ -218,6 +218,12 @@ TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func,
                                        const Integer& workspace_byte_alignment);
 
 /*!
+ * \brief Calculate the allocated memory per scope in bytes needed inside the TIR PrimFunc
+ * \param func The TIR PrimFunc for which the the allocated memory size to be calculated
+ */
+TVM_DLL tvm::Map<String, Integer> CalculateAllocatedBytes(const PrimFunc& func);
+
+/*!
  * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
  *        access(BufferLoad, BufferStore) and low-level access(Load, Store and opaque access).
  *        The LCA may be a For loop or a Block.
@@ -293,6 +299,16 @@ TVM_DLL Pass VerifyMemory();
  * \sa tvm::tir::VerifyGPUCode
  */
 TVM_DLL Pass VerifyGPUCode(Map<String, PrimExpr> constraints);
+
+/*!
+ * \brief Pass to checks if the size of the allocated vtcm memory satisfies the limit
+ *
+ * \param limit The limit to check.
+ *
+ * \returns The pass.
+ * \sa tvm::tir::CalculateAllocatedBytes
+ */
+TVM_DLL Pass VerifyVTCMLimit(const Integer& limit);
 
 /*!
  * \brief Statically check TIR code for out of bounds array access.

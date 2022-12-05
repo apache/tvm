@@ -195,7 +195,7 @@ class MatchBufferLower : public StmtExprMutator {
         // Non-zero elem_offset is ill-defined for non-flat memory.
         // If needed in the future, will require `Array<PrimExpr>
         // elem_offsets`, with one offset for each flattened index.
-        Bind(buffer->elem_offset, 0);
+        Bind(buffer->elem_offset, make_const(buffer->elem_offset.dtype(), 0));
       }
     }
 
@@ -206,7 +206,7 @@ class MatchBufferLower : public StmtExprMutator {
     if (!buffer->strides.empty()) {
       ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
       if (source_buffer->strides.empty()) {
-        PrimExpr stride = make_const(DataType::Int(32), 1);
+        PrimExpr stride = make_const(buffer->strides.back().dtype(), 1);
         for (size_t i = buffer->shape.size(); i > 0; --i) {
           const PrimExpr& shape = source_buffer->shape[i - 1 + offset];
           Bind(buffer->strides[i - 1], stride, buffer->name + ".strides_" + std::to_string(i - 1));

@@ -415,13 +415,13 @@ class BasePaddingCompare(tvm.testing.CompareBeforeAfter):
 
     transformed_buffer = tvm.testing.parameter("A")
 
+    index_map = tvm.testing.parameter(lambda i: [i // 4, i % 4])
+
     @pytest.fixture
-    def transform(self, pad_value, transformed_buffer):
+    def transform(self, pad_value, transformed_buffer, index_map):
         def transform(mod):
             sch = tir.Schedule(mod)
-            sch.transform_layout(
-                "block", transformed_buffer, lambda i: [i // 4, i % 4], pad_value=pad_value
-            )
+            sch.transform_layout("block", transformed_buffer, index_map, pad_value=pad_value)
             return sch.mod
 
         return transform
@@ -525,6 +525,21 @@ class TestErrorOnWrongPaddingType(BasePaddingCompare):
 
     def before():
         A = T.alloc_buffer(14, "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                A[vi] = 0
+
+    expected = tvm.tir.schedule.schedule.ScheduleError
+
+
+class TestErrorOnNonMatchingTypes(BasePaddingCompare):
+    """The padding must have the same dtype as the buffer"""
+
+    pad_value = tvm.testing.parameter(0)
+
+    def before():
+        A = T.alloc_buffer(14, "float32")
         for i in T.serial(14):
             with T.block("block"):
                 vi = T.axis.remap("S", [i])
@@ -872,17 +887,76 @@ class TestTransformLayoutWithVar(tvm.testing.CompareBeforeAfter):
                 B[vi, vj] = T.if_then_else(
                     # Checks if the transform introduced padding
                     -16 % n != 0
-                    and (
-                        # If so, is vi in the last group (which may
-                        # include padding).
-                        (vj + vi * n) // n == 16 // n
-                        # And is vj within the padding
-                        and 16 % n <= (vj + vi * n) % n
-                    ),
+                    # If so, is vi in the last group (which may
+                    # include padding).
+                    and (vj + vi * n) // n == 16 // n
+                    # And is vj within the padding
+                    and 16 % n <= (vj + vi * n) % n,
                     0,
                     A[vj + vi * n],
                     dtype="int32",
                 )
+
+
+class TestTransformWithAxisSeparators(BasePaddingCompare):
+    """Axis separators may be specified in a transform"""
+
+    index_map = tvm.testing.parameter(lambda i: [i // 4, tvm.tir.IndexMap.AXIS_SEPARATOR, i % 4])
+    pad_value = tvm.testing.parameter(0)
+
+    def before(a: T.handle):
+        A = T.match_buffer(a, [14], "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                A[vi] = 42
+
+    def expected(a: T.handle):
+        A = T.match_buffer(a, [4, 4], "int32", axis_separators=[1])
+        for i, j in T.grid(4, 4):
+            with T.block("block"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                A[vi, vj] = T.if_then_else(vi == 3 and 2 <= vj, 0, 42, dtype="int32")
+
+
+class TestTransformWithAxisSeparatorsOpaqueBlock(BasePaddingCompare):
+    """Axis separators may be specified in a transform of opaque block"""
+
+    index_map = tvm.testing.parameter(lambda i: [i // 4, tvm.tir.IndexMap.AXIS_SEPARATOR, i % 4])
+    pad_value = tvm.testing.parameter(0)
+
+    def before(a: T.handle):
+        A = T.match_buffer(a, [14], "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                A[i] = 42
+
+    def expected(a: T.handle):
+        A = T.match_buffer(a, [4, 4], "int32", axis_separators=[1])
+        for i, j in T.grid(4, 4):
+            with T.block("block"):
+                A[i, j] = T.if_then_else(i == 3 and 2 <= j, 0, 42, dtype="int32")
+
+
+def test_index_map_dtype_legalize():
+    """Test dtype legalization of the index map indices."""
+
+    @T.prim_func
+    def func(A: T.Buffer[T.int64(58), "int32"]):
+        for i in T.serial(T.int64(58)):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                T.writes(A[vi])
+                A[vi] = 0
+
+    sch = tir.Schedule(func)
+
+    # # The following error is raised from the IterVar constructor without the dtype legalization.
+    # # TVMError: Check failed: dom->extent.dtype() == var.dtype() (int64 vs. int32) :
+    # # The dtype of the extent of an IterVar (int64) must match its associated Var's dtype (int32)
+    sch.transform_layout(
+        sch.get_block("block"), buffer="A", index_map=lambda h: [h // 8, h % 8], pad_value=0
+    )
 
 
 if __name__ == "__main__":

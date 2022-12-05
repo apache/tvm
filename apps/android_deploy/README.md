@@ -21,7 +21,7 @@ This folder contains Android Demo app that allows us to show how to deploy model
 
 You will need [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html), [Android SDK](https://developer.android.com/studio/index.html), [Android NDK](https://developer.android.com/ndk) and an Android device to use this. Make sure the `ANDROID_HOME` variable already points to your Android SDK folder or set it using `export ANDROID_HOME=[Path to your Android SDK, e.g., ~/Android/sdk]`. We use [Gradle](https://gradle.org) to build. Please follow [the installation instruction](https://gradle.org/install) for your operating system.
 
-Alternatively, you may execute Docker image we provide which contains the required packages. Use the command below to build the image and enter interactive session. Note, that building with OpenCL was not tested from Docker.
+Alternatively, you may execute Docker image we provide which contains the required packages. Use the command below to build the image and enter interactive session.
 
 ```bash
 ./docker/build.sh demo_android -it bash
@@ -50,7 +50,7 @@ dependencies {
 }
 ```
 
-Application default has CPU version TVM runtime flavor and follow below instruction to setup.
+Application default has CPU and GPU (OpenCL) versions TVM runtime flavor and follow below instruction to setup.
 In `app/src/main/jni/make` you will find JNI Makefile config `config.mk` and copy it to `app/src/main/jni` and modify it.
 
 ```bash
@@ -64,9 +64,6 @@ Here's a piece of example for `config.mk`.
 APP_ABI = arm64-v8a
 
 APP_PLATFORM = android-17
-
-# whether enable OpenCL during compile
-USE_OPENCL = 0
 ```
 
 Now use Gradle to compile JNI, resolve Java dependencies and build the Android application together with tvm4j. Run following script to generate the apk file.
@@ -82,28 +79,11 @@ Upload `tvmdemo-release.apk` to your Android device and install it.
 
 ### Build with OpenCL
 
-Application does not link with OpenCL library unless you configure it to. Modify JNI Makefile config `app/src/main/jni` with proper target OpenCL configuration.
-
-Here's a piece of example for `config.mk`.
-
-```makefile
-APP_ABI = arm64-v8a
-
-APP_PLATFORM = android-17
-
-# whether enable OpenCL during compile
-USE_OPENCL = 1
-
-# the additional include headers you want to add, e.g., SDK_PATH/adrenosdk/Development/Inc
-ADD_C_INCLUDES = /opt/adrenosdk-osx/Development/Inc
-
-# the additional link libs you want to add, e.g., ANDROID_LIB_PATH/libOpenCL.so
-ADD_LDLIBS = libOpenCL.so
-```
-
-Note that you should specify the correct GPU development headers for your android device. Run `adb shell dumpsys | grep GLES` to find out what GPU your android device uses. It is very likely the library (libOpenCL.so) is already present on the mobile device. For instance, I found it under `/system/vendor/lib64`. You can do `adb pull /system/vendor/lib64/libOpenCL.so ./` to get the file to your desktop.
-
-After you setup the `config.mk`, follow the instructions in [Build APK](#buildapk) to build the Android package with OpenCL flavor.
+Application is building with OpenCL support by default.
+[OpenCL-wrapper](../../src/runtime/opencl/opencl_wrapper) is used and will dynamically load OpenCL library on the device.
+If the device doesn't have OpenCL library on it, then you'll see in the runtime that OpenCL library cannot be opened.
+If you want to build this application without OpenCL then set `USE_OPENCL = 0`
+in [config.mk](./app/src/main/jni/make/config.mk)
 
 ## Cross Compile and Run on Android Devices
 

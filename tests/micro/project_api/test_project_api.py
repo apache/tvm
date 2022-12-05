@@ -24,6 +24,8 @@ from tvm.micro.project_api import server
 from tvm.relay.backend import Runtime
 from tvm.micro.testing import get_target
 
+from .utils import build_project_api
+
 API_GENERATE_PROJECT = "generate_project"
 API_BUILD = "build"
 API_FLASH = "flash"
@@ -55,37 +57,7 @@ def test_default_options_exist(platform):
 @tvm.testing.requires_micro
 def test_project_minimal_options(platform):
     """Test template project with minimum projectOptions"""
-    shape = (10,)
-    dtype = "int8"
-    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
-    xx = relay.multiply(x, x)
-    z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
-    func = relay.Function([x], z)
-    ir_mod = tvm.IRModule.from_expr(func)
-
-    if platform == "arduino":
-        board = "due"
-    elif platform == "zephyr":
-        board = "qemu_x86"
-
-    runtime = Runtime("crt", {"system-lib": True})
-    target = get_target(platform, board)
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(ir_mod, target=target, runtime=runtime)
-
-    project_options = {
-        "project_type": "host_driven",
-        "board": board,
-    }
-
-    temp_dir = tvm.contrib.utils.tempdir()
-    project = tvm.micro.generate_project(
-        tvm.micro.get_microtvm_template_projects(platform),
-        mod,
-        temp_dir / "project",
-        project_options,
-    )
-    project.build()
+    build_project_api(platform)
 
 
 if __name__ == "__main__":

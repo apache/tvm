@@ -509,7 +509,25 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
 @dense_strategy.register("cpu")
 def dense_strategy_cpu(attrs, inputs, out_type, target):
     """dense x86 strategy"""
+
     strategy = _op.OpStrategy()
+    # For dynamic matrix-vector multiply we use a hand written kernel.
+    if (
+        isinstance(inputs[0].shape[0], (int, tir.IntImm))
+        and inputs[0].shape[0] == 1
+        and (
+            topi.utils.is_dynamic_shape(inputs[0].shape)
+            or topi.utils.is_dynamic_shape(inputs[1].shape)
+        )
+    ):
+        strategy.add_implementation(
+            wrap_compute_dense(topi.x86.dense_dynamic),
+            wrap_topi_schedule(topi.x86.schedule_dense_dynamic),
+            name="dense_dynamic.x86",
+            plevel=20,
+        )
+        return strategy
+
     same_type = inputs[0].dtype == inputs[1].dtype == out_type.dtype
     dtype = inputs[0].dtype
     u8s8s32 = dtype == "uint8" and inputs[1].dtype == "int8" and out_type.dtype == "int32"

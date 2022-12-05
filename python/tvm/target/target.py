@@ -183,6 +183,10 @@ class Target(Object):
         return int(self.attrs.get("max_function_args", -1))
 
     @property
+    def vtcm_capacity(self):
+        return int(self.attrs.get("vtcm-capacity", 0))
+
+    @property
     def device_name(self):
         return str(self.attrs.get("device", ""))
 
@@ -642,6 +646,8 @@ def hexagon(cpu_ver="v66", **kwargs):
         Whether to use IEEE HVX instructions
     num_cores : int (default: 4)
         The number of HVX threads. This attribute is required by meta scheduler.
+    vtcm_capacity: int (default: 0)
+        Hexagon VTCM capacity limitation. If the value is 0, the capacity is treated as unbounded.
 
     Note: Floating point support in HVX requires LLVM 14+.
     """
@@ -675,6 +681,7 @@ def hexagon(cpu_ver="v66", **kwargs):
         "llvm_options": None,
         "use_qfloat": arch_version >= 68,
         "use_ieee_fp": False,
+        "vtcm_capacity": 0,
     }
     config.update(kwargs)
 
@@ -748,6 +755,7 @@ def hexagon(cpu_ver="v66", **kwargs):
 
     num_cores = config["num_cores"] if "num_cores" in kwargs else 4
     args_list.append("--num-cores=%d" % num_cores)
+    args_list.append("--vtcm-capacity=%d" % config["vtcm_capacity"])
 
     return Target(" ".join(["hexagon"] + args_list))
 

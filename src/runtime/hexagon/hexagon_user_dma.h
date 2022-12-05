@@ -52,7 +52,7 @@ class HexagonUserDMA {
    * \param length Length in bytes to copy
    * \returns Status: DMA_SUCCESS or DMA_FAILURE
    */
-  int Copy(int queue_id, void* dst, void* src, uint32_t length);
+  int Copy(int queue_id, void* dst, void* src, uint32_t length, bool bypass_cache);
 
   /*!
    * \brief Wait until the number of DMAs in flight is less than or equal to some maximum

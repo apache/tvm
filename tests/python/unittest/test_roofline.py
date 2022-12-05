@@ -62,6 +62,13 @@ def test_estimate_peak_flops_gpu():
         flops > 10**12 and flops < 10**14
     ), f"FLOP/s should be between 10^12 and 10^14, but it is {flops}"
 
+    # this test should run on all gpus
+    flops = tvm.utils.roofline.cuda.estimate_peak_flops_fma(target, dev, remote, "float32")
+    # most gpus since 2016 should be able to hit a TFLOP/s with fma instructions
+    assert (
+        flops > 10**12 and flops < 10**14
+    ), f"FLOP/s should be between 10^12 and 10^14, but it is {flops}"
+
 
 @tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
 @tvm.testing.requires_llvm

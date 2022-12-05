@@ -526,6 +526,7 @@ class IntImm : public PrimExpr {
   TVM_DLL IntImm(DataType dtype, int64_t value, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(IntImm, PrimExpr, IntImmNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IntImmNode);
 };
 
 /*!
@@ -572,6 +573,7 @@ class FloatImm : public PrimExpr {
   TVM_DLL FloatImm(DataType dtype, double value, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(FloatImm, PrimExpr, FloatImmNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(FloatImmNode);
 };
 
 /*!

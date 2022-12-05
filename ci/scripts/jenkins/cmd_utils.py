@@ -20,6 +20,7 @@ import os
 import logging
 import sys
 import re
+import tempfile
 from pathlib import Path
 from typing import List
 
@@ -52,6 +53,16 @@ class Sh:
         if env is not None:
             self.env.update(env)
         self.cwd = cwd
+
+    def tee(self, cmd: str, **kwargs):
+        """
+        Run 'cmd' in a shell then return the (process, stdout) as a tuple
+        """
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            proc = self.run(f"{cmd} | tee {f.name}", **kwargs)
+            with open(f.name, "r") as f:
+                output = f.read()
+            return proc, output
 
     def run(self, cmd: str, **kwargs):
         logging.info(f"+ {cmd}")

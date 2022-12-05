@@ -178,6 +178,15 @@ if(BUILD_FOR_HEXAGON)
     "${TVMRT_SOURCE_DIR}/hexagon/ops/*.cc"
   )
 
+  include_directories(
+    "${TVMRT_SOURCE_DIR}/hexagon/ops"
+  )
+
+  set_source_files_properties(
+    "${TVMRT_SOURCE_DIR}/hexagon/ops/conv2d_quant_hvx.cc"
+    PROPERTIES COMPILE_FLAGS "-mhvx"
+  )
+
   set_source_files_properties(
     "${TVMRT_SOURCE_DIR}/hexagon/ops/conv2d_fp16_hvx.cc"
     PROPERTIES COMPILE_FLAGS "-mhvx"

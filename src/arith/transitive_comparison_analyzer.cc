@@ -321,7 +321,6 @@ CompareResult Reverse(CompareResult res) {
       return CompareResult::kUnknown;
     default:
       LOG(FATAL) << "Invalid CompareResult: " << static_cast<int>(res);
-      return CompareResult::kInconsistent;
   }
 }
 
@@ -547,7 +546,7 @@ std::function<void()> TransitiveComparisonAnalyzer::EnterConstraint(const PrimEx
 
 void TransitiveComparisonAnalyzer::Impl::AddKnown(const PrimExpr& expr,
                                                   std::vector<Comparison>* vec) {
-  for (const auto& subexpr : ExtractConstraints(expr)) {
+  for (const auto& subexpr : ExtractConstraints(expr, false)) {
     if (tir::SideEffect(expr) <= tir::CallEffectKind::kPure) {
       if (auto cmp = FromExpr(subexpr)) {
         vec->push_back(cmp.value());
@@ -864,11 +863,9 @@ CompareResult TransitiveComparisonAnalyzer::Impl::MergeComparisons(
       case CompareResult::kGT:
       case CompareResult::kLT:
         LOG(FATAL) << "Internal error, normalized comparisons should only include <= and >=";
-        return CompareResult::kInconsistent;
 
       default:
         LOG(FATAL) << "Invalid CompareResult: " << static_cast<int>(cmp.result_);
-        return CompareResult::kInconsistent;
     }
   }
 

@@ -118,7 +118,6 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
-    return PackedFunc();
   }
 }
 
@@ -1012,7 +1011,6 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     }
     default:
       LOG(FATAL) << "Invalid opcode" << instr.opcode;
-      return Instruction();
   }
 }
 

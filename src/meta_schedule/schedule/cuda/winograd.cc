@@ -117,7 +117,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.cuda.conv2d_nchw_winograd_data_pack")
         sch->Unroll(loops[4]);
         sch->Unroll(loops[5]);
         outer = BindSpatialLoop(sch, sch->Fuse({loops[2], loops[3]}), max_threadblocks,
-                                max_threads_per_block)[1];
+                                max_threads_per_block, /*get_factor=*/nullptr)
+                    .back();
       }
       {
         BlockRV data_pack_local = sch->CacheWrite(data_pack, 0, "local");

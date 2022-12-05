@@ -170,7 +170,6 @@ IntImm ValueToIntImm(int64_t value, int width) {
     return IntImm(kInt64, value);
   } else {
     LOG(FATAL) << "Unrecognized int scalar width: " << width;
-    return {};
   }
 }
 
@@ -190,7 +189,6 @@ FloatImm ValueToFloatImm(double value, int width) {
     return FloatImm(kFloat64, value);
   } else {
     LOG(FATAL) << "Unrecognized float scalar width: " << width;
-    return {};
   }
 }
 

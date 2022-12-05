@@ -327,4 +327,6 @@ def named_features_from_primfunc(
     """
     features = features_from_primfunc(func, cache_line_bytes, max_n_bufs, log_scale)
     names = get_per_store_feature_names(max_n_bufs)
+    if features.shape[0] == 0:
+        return None
     return {name: features[:, i] for i, name in enumerate(names)}

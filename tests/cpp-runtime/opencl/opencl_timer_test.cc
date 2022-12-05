@@ -44,11 +44,11 @@ TEST(OpenCLTimerNode, nested_timers) {
     cl_event ev = clCreateUserEvent(workspace->context, &err);
     OPENCL_CHECK_ERROR(err);
     cl_mem cl_buf = clCreateBuffer(workspace->context, CL_MEM_READ_ONLY, BUFF_SIZE * sizeof(cl_int),
-                                   NULL, &err);
+                                   nullptr, &err);
     OPENCL_CHECK_ERROR(err);
     queue = workspace->GetQueue(thr->device);
     OPENCL_CALL(clEnqueueWriteBuffer(queue, cl_buf, false, 0, BUFF_SIZE * sizeof(cl_int), tmp_buf,
-                                     0, NULL, &ev));
+                                     0, nullptr, &ev));
     OPENCL_CALL(clReleaseMemObject(cl_buf));
     workspace->events[thr->device.device_id].push_back(ev);
     nested_timer->Stop();

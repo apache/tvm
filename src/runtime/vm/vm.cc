@@ -243,7 +243,6 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
-    return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
   }
 }
 

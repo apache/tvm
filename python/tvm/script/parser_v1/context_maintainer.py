@@ -129,8 +129,6 @@ class ContextMaintainer:
     """List[Var]: The function parameters"""
     func_buffer_map: Mapping[Var, Buffer] = {}
     """Mapping[Var, Buffer]: The function buffer map"""
-    func_preflattened_buffer_map: Mapping[Var, Buffer] = {}
-    """Mapping[Var, Buffer]: The function buffer map, prior to any flattening."""
     func_dict_attr: Mapping[str, Object] = {}
     """Mapping[str, Object]: The function attrs"""
     func_var_env_dict: Mapping[Var, str] = {}
@@ -160,7 +158,6 @@ class ContextMaintainer:
         # function context
         self.func_params = []
         self.func_buffer_map = {}
-        self.func_preflattened_buffer_map = {}
         self.func_dict_attr = {}
         self.func_var_env_dict = {}
         # parser and analyzer

@@ -59,6 +59,14 @@ Array<Postproc> Postproc::DefaultLLVM() {
   };
 }
 
+Array<Postproc> Postproc::DefaultVNNI() {
+  return Array<Postproc>{
+      Postproc::DisallowDynamicLoop(),   Postproc::RewriteParallelVectorizeUnroll(),
+      Postproc::RewriteReductionBlock(), Postproc::RewriteTensorize(/*vectorize_init_loop=*/true),
+      Postproc::RewriteLayout(),
+  };
+}
+
 Array<Postproc> Postproc::DefaultCUDA() {
   return Array<Postproc>{
       Postproc::DisallowDynamicLoop(),
