@@ -20,6 +20,10 @@ This function can be used to tensorize many common operators including regular c
 conv2d, and grouped conv2d for some data and kernel layouts. When for regular convolution, use data
 layout HHWC and kernel layout OHWI. For depthwise convolution, use data layout data layout is NCHW
 and kernel layout OIHW.
+
+The generated code will also work on v8-M chips that have the DSP instructions (unlike v7E-M, they
+are optional in v8-M). Note that the generated code does not use the (potentially very useful) MVE
+instructions present on some v8-M chips.
 """
 
 from dataclasses import dataclass
@@ -71,13 +75,13 @@ def _init_biased_accumulators(num_outputs):
     trick to set sum_i to zero for "free"). However, doing it at the beginning frees up a register,
     so we'll do it first.
     """
-    assignments = map(lambda x: f"sum_{x:x} = *bias", range(num_outputs))
+    assignments = [f"sum_{x:x} = *bias" for x in range(num_outputs)]
     joined_assignments = ", ".join(assignments)
     return f"int32_t {joined_assignments};"
 
 
 def _get_tensor_halfwords(dimensions, offset, num_outputs, in_stride) -> Iterator[Optional[Tuple]]:
-    """Gets the data that will be stored in memory at the tensor pointer.
+    """Gets the logical indices of the data that will be stored in memory at the tensor pointer.
 
     Returns an Iterator of Optional[Tuple], while skipping over word-aligned pairs of unrelated
     halfwords. The returned iterator is as short as possible while having even length and containing
@@ -86,34 +90,8 @@ def _get_tensor_halfwords(dimensions, offset, num_outputs, in_stride) -> Iterato
     so our code is correctly word-aligned.
 
     One consequence of these requirements - each row in the tensor is broken into word-aligned pairs
-    of halfwords (which are later combined into full words). See the examples below:
-
-    A simple 3x3 depthwise convolution computing one output and with in_stride = 1. Note that each
-    row is padded with None at the end to make the rows word-aligned.
-        >>> _get_tensor_halfwords((48, 3, 3), 0, 1, 1)  # doctest: +NORMALIZE_WHITESPACE
-        [(0, 0), (0, 1), (0, 2), None,
-         (1, 0), (1, 1), (1, 2), None,
-         (2, 0), (2, 1), (2, 2), None]
-
-    If the tensor width is odd, padding alternates before/after every row.
-        >>> _get_tensor_halfwords((49, 3, 3), 0, 1, 1)  # doctest: +NORMALIZE_WHITESPACE
-        [(0, 0), (0, 1), (0, 2), None,
-         None, (1, 0), (1, 1), (1, 2),
-         (2, 0), (2, 1), (2, 2), None]
-
-    If we are computing multiple outputs, more tensor data becomes relevant.
-        >>> _get_tensor_halfwords((48, 3, 3), 0, 2, 1)  # doctest: +NORMALIZE_WHITESPACE
-        [(0, 0), (0, 1), (0, 2), (0, 3),
-         (1, 0), (1, 1), (1, 2), (1, 3),
-         (2, 0), (2, 1), (2, 2), (2, 3)]
-
-    Setting in_stride > 1 also makes more tensor data relevant, and setting offset=1 means tensor
-    data starts one position after the tensor pointer.
-
-        >>> _get_tensor_halfwords((49, 3, 3), 1, 2, 2)  # doctest: +NORMALIZE_WHITESPACE
-        [None, (0, 0), (0, 1), (0, 2), (0, 3), (0, 4),
-         (1, 0), (1, 1), (1, 2), (1, 3), (1, 4), None,
-         None, (2, 0), (2, 1), (2, 2), (2, 3), (2, 4)]
+    of halfwords (which are later combined into full words). See the test cases (located in
+    tests/python/topi/python/test_topi_conv2d_tensordot_opts.py) for usage examples.
     """
 
     tensor_w, kernel_h, kernel_w = dimensions
@@ -135,17 +113,14 @@ def _get_tensor_halfwords(dimensions, offset, num_outputs, in_stride) -> Iterato
 
 
 def _get_kernel_halfwords(dimensions, offset) -> Iterator[Optional[Tuple]]:
-    """Gets the data that will be stored in memory at the kernel pointer.
+    """Gets the logical indices of the data that will be stored in memory at the kernel pointer.
 
     Returns an Iterator of Optional[Tuple]. The returned iterator is as short as possible while
     having even length and containing all kernel data. Tuples in the returned Iterator represent
     an (y, x) position in the kernel, while None values represent other, irrelevant data. We need
     to be aware of the None values so our code is correctly word-aligned.
 
-    >>> _get_kernel_halfwords((96, 3, 3), 0)
-    [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2), None]
-    >>> _get_kernel_halfwords((48, 1, 4), 1)
-    [None, (0, 0), (0, 1), (0, 2), (0, 3), None]
+    See test cases in tests/python/topi/python/test_topi_conv2d_tensordot_opts.py for examples.
     """
     _, kernel_h, kernel_w = dimensions
     halfwords = []

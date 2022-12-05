@@ -235,7 +235,8 @@ def qnn_conv2d(attrs, inputs, out_type):
     # Decide how many sums our function should have running at the same time. Doing
     # this lets us do "more work" for each memory load, but doing too many of them causes us to run
     # out of registers. Currently this is set to either 1 or 2, but autotuning this value would
-    # improve performance a lot.
+    # improve performance a lot. Tracked by https://github.com/apache/tvm/issues/13528.
+
     num_outputs = 2
 
     # Next, decide whether whether we need "parity alternation". For example, if we have an

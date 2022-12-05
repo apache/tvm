@@ -14,10 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Test code for tvm.topi.arm_cpu.mprofile.dsp.micro_kernel.tensordot.tensordot_int16_impl. We do
-not run the code in this test - we only check that for a few common parameter configurations (like
-those found in the regular and depthwise convolutions of MobileNetV1) the function emits the code it
-is supposed to.
+"""Tests for functions in tvm.topi.arm_cpu.mprofile.dsp.micro_kernel.tensordot.
+
+Contains a few unit tests, followed by integration tests for common use cases. Note that we do not
+run the generated code - we just make sure the strings match exactly.
 
 Note that a *lot* of instruction reordering happens during compilation from C to assembly (by GCC or
 Clang). I've verified that this instruction reordering happens correctly for all the functions here.
@@ -25,7 +25,80 @@ For more details on why the generated code is the way it is, see `tensordot_int1
 
 import textwrap
 
-from tvm.topi.arm_cpu.mprofile.dsp.micro_kernel.tensordot import tensordot_int16_impl
+from tvm.topi.arm_cpu.mprofile.dsp.micro_kernel.tensordot import (
+    _get_tensor_halfwords,
+    _get_kernel_halfwords,
+    tensordot_int16_impl,
+)
+
+
+def test_get_tensor_halfwords():
+    """Tests the _get_tensor_halfwords helper function in tensordot.py.
+
+    This function loads the logical indices of the data that will be stored in memory at the tensor
+    pointer. See the function docstring for more details.
+    """
+
+    # fmt: off
+    # A simple 3x3 depthwise convolution computing one output and with in_stride = 1. Note that each
+    # row is padded with None at the end to make the rows word-aligned.
+    assert _get_tensor_halfwords((48, 3, 3), 0, 1, 1) == [
+        (0, 0), (0, 1), (0, 2), None,
+        (1, 0), (1, 1), (1, 2), None,
+        (2, 0), (2, 1), (2, 2), None
+    ]
+
+    # If the tensor width is odd, padding alternates before/after every row.
+    assert _get_tensor_halfwords((49, 3, 3), 0, 1, 1) == [
+        (0, 0), (0, 1), (0, 2), None,
+        None, (1, 0), (1, 1), (1, 2),
+        (2, 0), (2, 1), (2, 2), None
+    ]
+
+    # If we are computing multiple outputs, more tensor data becomes relevant.
+    assert _get_tensor_halfwords((48, 3, 3), 0, 2, 1) == [
+        (0, 0), (0, 1), (0, 2), (0, 3),
+        (1, 0), (1, 1), (1, 2), (1, 3),
+        (2, 0), (2, 1), (2, 2), (2, 3)
+    ]
+
+    # If offset=1, relevant data starts one halfword after the kernel pointer.
+    assert _get_tensor_halfwords((48, 3, 3), 1, 1, 1) == [
+        None, (0, 0), (0, 1), (0, 2),
+        None, (1, 0), (1, 1), (1, 2),
+        None, (2, 0), (2, 1), (2, 2)
+    ]
+
+    # These adjustments can be (and often are) used together.
+    assert _get_tensor_halfwords((49, 3, 3), 1, 2, 2) == [
+        None, (0, 0), (0, 1), (0, 2), (0, 3), (0, 4),
+        (1, 0), (1, 1), (1, 2), (1, 3), (1, 4), None,
+        None, (2, 0), (2, 1), (2, 2), (2, 3), (2, 4)
+    ]
+    # fmt: on
+
+
+def test_get_kernel_halfwords():
+    """Tests the _get_kernel_halfwords helper function in tensordot.py.
+
+    This function loads the logical indices of the data that will be stored in memory at the kernel
+    pointer. See the function docstring for more details.
+    """
+
+    # fmt: off
+    # Example of a kernel for a 3x3 depthwise convolution channel
+    assert _get_kernel_halfwords((96, 3, 3), 0) == [
+        (0, 0), (0, 1), (0, 2),
+        (1, 0), (1, 1), (1, 2),
+        (2, 0), (2, 1), (2, 2),
+        None,
+    ]
+
+    # Example of a kernel for a 1x1 regular convolution with 4 channels
+    assert _get_kernel_halfwords((48, 1, 4), 1) == [
+        None, (0, 0), (0, 1), (0, 2), (0, 3), None,
+    ]
+    # fmt: on
 
 
 def test_write_3x3_depthwise_code():
