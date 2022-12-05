@@ -2,7 +2,7 @@ import tvm
 from tvm import relay
 from tvm.relay.testing import init
 
-def gen_module(model, layer, layout, data, kernel, stride):
+def gen_module(model, layer, data, layout=None, kernel=None, stride=None, cluster=None):
     # Pre-defined layers (tvm.nn.**)
     ## Padding Reference: https://github.com/tensorflow/tensorflow/blob/r1.8/tensorflow/core/kernels/conv_ops.cc#L571
     if layer == 'relu':
@@ -25,7 +25,7 @@ def gen_module(model, layer, layout, data, kernel, stride):
         (b, cw, h, w) = data
         (kh, kw) = kernel
         (sh, sw) = stride
-        pad = get_padding_tuple(data, kernel, padding='same')
+        pad = get_padding_tuple(data, kernel, padding='same', stride=stride)
         data = relay.var("data", shape=[b, cw, h, w], dtype="float32") #NCHW
         Trelay = tvm.relay.nn.max_pool2d(data, pool_size=(kh, kw), padding=pad)
         module = get_module_from_Trelay(Trelay)
@@ -37,7 +37,7 @@ def gen_module(model, layer, layout, data, kernel, stride):
     elif layer == 'avgpool':
         (b, cw, h, w) = data
         (kh, kw) = kernel
-        pad = get_padding_tuple(data, kernel, padding='same')
+        pad = get_padding_tuple(data, kernel, padding='same', stride=stride)
         data = relay.var("data", shape=[b, cw, h, w], dtype="float32") #NCHW
         Trelay = tvm.relay.nn.avg_pool2d(data, pool_size=(kh, kw), padding=pad)
         module = get_module_from_Trelay(Trelay)
@@ -75,7 +75,7 @@ def gen_module(model, layer, layout, data, kernel, stride):
     elif layer == 'upsample_k2':
         module = upsample_k2(data, (2, 2), layout, method='nearest_neighbor') # TODO: bilinear upsampling
     elif layer == 'gap':
-        module = global_average_pooling(data)
+        module = global_average_pooling(data, cluster)
     else:
         raise NotImplementedError("Currently NOT implemented: %s" %(layer))
 
@@ -133,7 +133,7 @@ def lower_module(model, module):
     return module
 
 
-def get_padding_tuple(data, kernel, padding, stride=1, dilation=(1, 1)):
+def get_padding_tuple(data, kernel, padding, stride, dilation=(1, 1)):
     """Get padding tuple
 
       Returns
@@ -143,12 +143,13 @@ def get_padding_tuple(data, kernel, padding, stride=1, dilation=(1, 1)):
     (b, cw, h, w) = data
     (kh, kw) = kernel
     (dh, dw) = dilation
+    (sh, sw) = stride
     if padding == 'valid':
         pad = (0, 0)
     elif padding == 'same':
         (oh, ow) = (h, w)
-        pad_row = (oh-1)*stride + (kh-1)*dh + 1 - h
-        pad_col = (ow-1)*stride + (kw-1)*dw + 1 - w
+        pad_row = (oh-1)*sh + (kh-1)*dh + 1 - h
+        pad_col = (ow-1)*sw + (kw-1)*dw + 1 - w
         pad_l, pad_t = int(pad_row/2), int(pad_col/2)
         pad_r, pad_b = int(pad_row-pad_l), int(pad_col-pad_t)
         pad = (pad_l, pad_t, pad_r, pad_b)
@@ -247,7 +248,7 @@ def dwconv_k3(data, kernel, stride):
     (b, cw, h, w) = data
     (kh, kw) = kernel
     (sh, sw) = stride
-    pad = get_padding_tuple(data, kernel, padding='same')
+    pad = get_padding_tuple(data, kernel, padding='same', stride=stride)
     (oh, ow) = ((h - kh + (pad[1]+pad[3])) // sh + 1), ((w - kw + (pad[0]+pad[2])) // sw + 1)
 
     data = tvm.te.placeholder((b, cw, h, w), name="data")
@@ -324,7 +325,7 @@ def eadd(data):
     module = tvm.lower(s, [data0, data1, weight0, weight1, output], simple_mode=True)
     return module
 
-def upsample(data, kernel, method):
+def upsample(data, kernel, layout, method):
     if method == 'nearest_neighbor':
         (b, cw, h, w) = data
         (kh, kw) = kernel
@@ -363,7 +364,7 @@ def upsample_k2(data, kernel, layout, method):
             s[Reg].compute_at(s[output], wo)
         else: # NHWC
             s[output].reorder(N, ho, wo, C, hi, wi)
-            s[Reg].compute_at(s[output], wo)
+            s[Reg].compute_at(s[output], C)
         s[output].unroll(hi)
         s[output].unroll(wi)
         module = tvm.lower(s, [data, output])
@@ -371,9 +372,8 @@ def upsample_k2(data, kernel, layout, method):
     else:
         raise NotImplementedError("Currently NOT supported upsampling method: %s"%(method))
 
-def global_average_pooling(data):
+def global_average_pooling(data, cluster):
     (b, cw, bh, w) = data
-    cluster = 7
 
     ## Phase 0) Initialize
     data = tvm.te.placeholder((b, cw, bh, w), name="data")
@@ -453,9 +453,9 @@ def global_average_pooling(data):
     s[vReg4].compute_at(s[output4], s[output4].op.axis[-1])
     s[vReg5].compute_at(s[output5], s[output5].op.axis[-1])
 
-    s[output3].compute_at(s[hReg0], s[hReg0].op.axis[1])
-    s[output4].compute_at(s[hReg1], s[hReg1].op.axis[1])
-    s[output5].compute_at(s[hReg2], s[hReg2].op.axis[1])
+    # s[output3].compute_at(s[hReg0], s[hReg0].op.axis[1])
+    # s[output4].compute_at(s[hReg1], s[hReg1].op.axis[1])
+    # s[output5].compute_at(s[hReg2], s[hReg2].op.axis[1])
 
     s[hReg0].compute_at(s[Reg1], s[Reg1].op.axis[-1])
     s[hReg1].compute_at(s[Reg1], s[Reg1].op.axis[-1])

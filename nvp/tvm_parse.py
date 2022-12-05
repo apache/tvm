@@ -3,6 +3,7 @@ from inspect import Attribute
 import tvm
 from tvm.tir import expr as _expr
 from tvm.tir import stmt as _stmt
+from tvm.ir.op import Op as _Op
 
 import networkx as nx
 import re
@@ -226,9 +227,18 @@ def visit_EXPR(expr, g, parent, WS, DEBUG): # tir.expr.__
         Dprint(WS+" "+str(type(expr))+" --> "+str(expr), DEBUG)
         g = visit_EXPR(expr.value, g, parent, WS+"*", DEBUG)
     elif isinstance(expr, _expr.Call): # Call
+        node_num = len(g.nodes)
         Dprint(WS+" "+str(type(expr.op))+" --> "+str(expr.op), DEBUG)
+        if hasattr(expr, "op"):
+            if expr.op in [_Op.get("tir.shift_left"), _Op.get("tir.shift_right")]:
+                g.add_node(node_num, name=str(expr), type='Bit Shift')
+                g.add_edge(node_num, parent)
+            else:
+                NotImplementedError("Currently NOT supported expr.Call.op type: %s"%(expr.op))
+        else:
+            raise NotImplementedError("Currently NOT supported expr.Call type: %s"%(expr))
         for idx in range(0, len(expr.args)):
-            g = visit_EXPR(expr.args[idx], g, parent, WS+str(idx), DEBUG)
+            g = visit_EXPR(expr.args[idx], g, node_num, WS+str(idx), DEBUG)
     elif isinstance(expr, (_expr.Var)): # Var
         node_num = len(g.nodes)
         if node_num == parent: assert 0, str(expr)

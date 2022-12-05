@@ -25,7 +25,7 @@ class VectorProcessor():
         return Config[model]['Type']
 
     ### Primary Functions
-    def generate_graph(self, layer, layout, data, kernel, stride):
+    def generate_graph(self, layer, data, layout, kernel, stride, cluster):
         """
         Generate Graph
           1. gen_module(): layer configurations --> Relay IR module --> nested TIR
@@ -33,7 +33,7 @@ class VectorProcessor():
           3. color_graph(): empty graph --> colored graph
         """
         if self.debug: print('> Generate Graph')
-        nestedTIR = gen_module(self.model, layer, layout, data, kernel, stride) # Relay IR module
+        nestedTIR = gen_module(self.model, layer, data, layout, kernel, stride, cluster) # Relay IR module
         if self.debug: print(nestedTIR)
         self.graph = visit_stmts(nestedTIR, self.debug) # empty graph
         self.color_graph()
@@ -64,7 +64,7 @@ class VectorProcessor():
         """
         Run
           1. analyze_graph(): analyze graph to geneate time_stamp
-          2. get_estimated_cycles(): cycle = sum(duration*extent)
+          2. estimate_cycles(): cycle = sum(duration*extent)
         """
         if self.debug: print('> Run')
         self.analyze_graph()
@@ -99,7 +99,7 @@ class VectorProcessor():
                     elif all(s in ['Memory', 'Vector'] for s in parent_slots): # (M, M), (M, V), (V, V) --> (V)
                         self.graph.nodes[misc]['slot'] = 'Vector'
                     else:
-                        raise RuntimeError("Currently Not Supported MISC node's parent type: %s"%(parent_slots))
+                        raise RuntimeError("Currently Not Supported MISC node's parent type: %s, %s"%(misc, parent_slots))
                     misc_nodes.remove(misc)
                     break
 
@@ -111,9 +111,21 @@ class VectorProcessor():
         int_var_nodes = self.get_nodes(attr='type', str='Int Var')
         int_var_names = [self.graph.nodes[node]['var'] for node in int_var_nodes]
 
-        for int_var_name in int_var_names:
+        sorted_nodes = list(nx.topological_sort(self.graph))
+        subgraph_list = self.get_subgraph(sorted_nodes)
+        for int_var_node, int_var_name in zip(int_var_nodes, int_var_names):
             if int_var_name.rsplit('_', 1)[0] == 'cse_var': continue
-            loop_var_node = loop_var_nodes[loop_var_names.index(int_var_name)]
+
+            subgraph = [sg for sg in subgraph_list if int_var_node in sg]
+            if len(subgraph)>1: raise RuntimeError("A node must be mapped to a single sub-graph")
+            else: subgraph = subgraph[0]
+
+            loop_var_node = [node for node in subgraph if node in loop_var_nodes]
+            loop_var_node = [node for node in loop_var_node if self.graph.nodes[node]['var']==int_var_name]
+            if len(loop_var_node)>1: raise RuntimeError("Currently NOT supported loop: %s"%(loop_var_node))
+            else: loop_var_node = loop_var_node[0]
+
+            # loop_var_node = loop_var_nodes[loop_var_names.index(int_var_name)]
             self.graph.nodes[loop_var_node]['scalar_time'] += 1
 
         self.remove_nodes(attr='slot', str='Scalar')
@@ -259,7 +271,8 @@ class VectorProcessor():
 
         if SWP == True:
             local_maxima = [] # SWP-able loops
-            for idx, node in enumerate(depth[1:-1]):
+            # for idx, node in enumerate(depth[1:-1]):
+            for idx, node in enumerate(depth):
                 if depth[idx] > depth[idx-1] and depth[idx] > depth[idx+1]:
                     local_maxima.append(idx)
             for lm in local_maxima:
@@ -435,11 +448,13 @@ class VectorProcessor():
         occupied_nodes = self.get_occupied_nodes()
         if len(occupied_nodes)==1 and self.graph.nodes[occupied_nodes[0]]['slot']=='Control':
             if self.graph.nodes[occupied_nodes[0]]['type']=='For Start':
-                loop_stack.append(occupied_nodes[0])
+                if all(clk==(self.slot[s][0]['start']) for s in self.slot.keys()):
+                    loop_stack.append(occupied_nodes[0])
                 self.time_stamp_update(clk, 'loop', loop_stack[-1])
             elif self.graph.nodes[occupied_nodes[0]]['type']=='For End':
                 self.time_stamp_update(clk, 'loop', loop_stack[-1])
-                loop_stack.pop()
+                if all(clk==(self.slot[s][0]['end']-1) for s in self.slot.keys()):
+                    loop_stack.pop()
         else:
             self.time_stamp_update(clk, 'loop', loop_stack[-1])
 
