@@ -255,14 +255,12 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, kernel_layou
     batch, in_height, in_width, in_channel = Input.shape
 
     # shape of dilated kernel
-    if kernel_layout == "HWOI":
-        filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
-        kernel_permutation = [0, 1, 2, 3]
-    elif kernel_layout == "HWIO":
+    if kernel_layout == "HWIO":
         filter_height, filter_width, channel_multiplier, filter_channel = Filter.shape
         kernel_permutation = [0, 1, 3, 2]
     else:
-        raise ValueError(f"Unsupported kernel layout: {kernel_layout}")
+        filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
+        kernel_permutation = [0, 1, 2, 3]
 
     dilated_kernel_h = (filter_height - 1) * dilation_h + 1
     dilated_kernel_w = (filter_width - 1) * dilation_w + 1
