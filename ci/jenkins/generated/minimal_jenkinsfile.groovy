@@ -14,7 +14,6 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#!groovy
 // -*- mode: groovy -*-
 
 // Licensed to the Apache Software Foundation (ASF) under one
@@ -61,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-12-02T14:16:27.468739
+// Generated at 2022-12-05T23:21:03.010229
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 ci_lint = 'tlcpack/ci-lint:20221013-060115-61c9742ea'
@@ -512,9 +511,10 @@ def build() {
           label: 'Create CPU minimal cmake config',
         )
         cmake_build(ci_minimal, 'build', '-j2')
+        make_standalone_crt(ci_minimal, 'build')
         make_cpp_tests(ci_minimal, 'build')
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu-minimal --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/cpptest build/build.ninja build/CMakeFiles/rules.ninja",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu-minimal --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/crttest build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/standalone_crt build/build.ninja",
             label: 'Upload artifacts to S3',
           )
           }

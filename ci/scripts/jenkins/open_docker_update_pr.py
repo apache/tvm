@@ -134,16 +134,16 @@ if __name__ == "__main__":
     replacements = {}
 
     for line in content:
-        m = re.match(r"^(ci_[a-zA-Z0-9]+) = \"(.*)\"", line.strip())
+        m = re.match(r'"tag": "(.*)",', line.strip())
         if m is not None:
+            image_spec = m.groups()[0]
             logging.info(f"Found match on line {line.strip()}")
-            groups = m.groups()
-            new_image = latest_tlcpackstaging_image(groups[1])
+            new_image = latest_tlcpackstaging_image(image_spec)
             if new_image is None:
                 logging.info(f"No new image found")
             else:
                 logging.info(f"Using new image {new_image}")
-                new_line = f"{groups[0]} = '{new_image}'\n"
+                new_line = f'        "tag": "{new_image}",'
                 replacements[line] = new_line
 
     # Re-generate the Jenkinsfiles

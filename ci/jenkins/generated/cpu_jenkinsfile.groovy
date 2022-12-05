@@ -14,7 +14,6 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#!groovy
 // -*- mode: groovy -*-
 
 // Licensed to the Apache Software Foundation (ASF) under one
@@ -61,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-12-02T14:16:27.519764
+// Generated at 2022-12-05T14:48:42.120032
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 ci_lint = 'tlcpack/ci-lint:20221013-060115-61c9742ea'
