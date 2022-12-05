@@ -84,6 +84,9 @@ def test_tir_debug_info():
 
 
 def test_llvm_ir_debug_info():
+    """
+    Check that the right amount of debug locations are present
+    """
     MyModule = _module()
     with tvm.transform.PassContext(opt_level=3, config={"tir.enable_debug": True}):
         runtime_module = tvm.build(MyModule, target="llvm")
@@ -92,6 +95,29 @@ def test_llvm_ir_debug_info():
 
     locations = find_di_locations(source)
     assert len(locations) == 34
+
+
+def test_llvm_ir_debug_accuracy():
+    """
+    Check that the debug location on an assert is correct
+    """
+    MyModule = _module()
+    with tvm.transform.PassContext(opt_level=3, config={"tir.enable_debug": True}):
+        runtime_module = tvm.build(MyModule, target="llvm")
+    source = runtime_module.get_source()
+    locations = find_di_locations(source)
+
+    # Find the 'assert' from MyModule
+    debug_dir_match = re.search(
+        r"tail call void %0\(i8\* getelementptr inbounds .* !dbg !(\d+)\n", source
+    )
+
+    # Extract out the debug directive line
+    directive_idx = debug_dir_match.groups()[0]
+
+    # Check that it matches the expected line number (in main.tir)
+    debug_line_no = int(locations[directive_idx])
+    assert debug_line_no == 42
 
 
 if __name__ == "__main__":
