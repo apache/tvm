@@ -91,7 +91,20 @@ PROJECT_OPTIONS = server.default_project_options(
         optional=["flash", "open_transport"],
         type="int",
         default=None,
-        help="Port to use for connecting to hardware.",
+        help=(
+            "Port to use for connecting to hardware. "
+            "If port and serial_number options are not set it will try to autodetect the port."
+        ),
+    ),
+    server.ProjectOption(
+        "serial_number",
+        optional=["open_transport", "flash"],
+        type="str",
+        default=None,
+        help=(
+            "Board serial number. If both serial_number and port options are set,"
+            " it will throw exception."
+        ),
     ),
 ]
 
@@ -525,6 +538,7 @@ class Handler(server.ProjectAPIHandler):
             yield device
 
     def _auto_detect_port(self, arduino_cli_cmd: str, board: str) -> str:
+        # It is assumed only one board with this type is connected to this host machine.
         list_cmd = [self._get_arduino_cli_cmd(arduino_cli_cmd), "board", "list"]
         list_cmd_output = subprocess.run(
             list_cmd, check=True, stdout=subprocess.PIPE
@@ -538,10 +552,34 @@ class Handler(server.ProjectAPIHandler):
         # If no compatible boards, raise an error
         raise BoardAutodetectFailed()
 
-    def _get_arduino_port(self, arduino_cli_cmd: str, board: str, port: int):
+    def _get_arduino_port(
+        self, arduino_cli_cmd: str, board: str, port: int = None, serial_number: str = None
+    ):
+        """Returns Arduino serial port.
+        If both port and serial_number are set, it throw Runtime exception.
+        If none of those options are set, it tries to autodetect the serial port.
+        """
+        # TODO: This is to avoid breaking GPU docker on running the tutorials.
+        import serial.tools.list_ports
+
+        if serial_number and port:
+            raise RuntimeError(
+                "port and serial_number cannot be set together. Please set only one."
+            )
+
         if not self._port:
             if port:
                 self._port = port
+            elif serial_number:
+                com_ports = serial.tools.list_ports.comports()
+                for port in com_ports:
+                    if port.serial_number == serial_number:
+                        self._port = port.device
+                        break
+                if not self._port:
+                    raise BoardAutodetectFailed(
+                        f"Detecting port with board serial_number {serial_number} failed."
+                    )
             else:
                 self._port = self._auto_detect_port(arduino_cli_cmd, board)
 
@@ -565,12 +603,14 @@ class Handler(server.ProjectAPIHandler):
         warning_as_error = options.get("warning_as_error")
         port = options.get("port")
         board = options.get("board")
+        serial_number = options.get("serial_number")
+
         if not board:
             board = self._get_board_from_makefile(API_SERVER_DIR / MAKEFILE_FILENAME)
 
         cli_command = self._get_arduino_cli_cmd(arduino_cli_cmd)
         self._check_platform_version(cli_command, warning_as_error)
-        port = self._get_arduino_port(cli_command, board, port)
+        port = self._get_arduino_port(cli_command, board, port, serial_number)
 
         upload_cmd = ["make", "flash", f"PORT={port}"]
         for _ in range(self.FLASH_MAX_RETRIES):
@@ -594,6 +634,7 @@ class Handler(server.ProjectAPIHandler):
             )
 
     def open_transport(self, options):
+        # TODO: This is to avoid breaking GPU docker on running the tutorials.
         import serial
         import serial.tools.list_ports
 
@@ -601,6 +642,8 @@ class Handler(server.ProjectAPIHandler):
         arduino_cli_cmd = options.get("arduino_cli_cmd")
         port = options.get("port")
         board = options.get("board")
+        serial_number = options.get("serial_number")
+
         if not board:
             board = self._get_board_from_makefile(API_SERVER_DIR / MAKEFILE_FILENAME)
 
@@ -608,7 +651,7 @@ class Handler(server.ProjectAPIHandler):
         if self._serial is not None:
             return
 
-        port = self._get_arduino_port(arduino_cli_cmd, board, port)
+        port = self._get_arduino_port(arduino_cli_cmd, board, port, serial_number)
 
         # It takes a moment for the Arduino code to finish initializing
         # and start communicating over serial
