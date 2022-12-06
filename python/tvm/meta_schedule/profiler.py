@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """A context manager that profiles tuning time cost for different parts."""
-
-import logging
 from contextlib import contextmanager
 from typing import Dict, Optional
 
@@ -24,8 +22,6 @@ from tvm._ffi import register_object
 from tvm.runtime import Object
 
 from . import _ffi_api
-
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 @register_object("meta_schedule.Profiler")
@@ -38,7 +34,7 @@ class Profiler(Object):
         )
 
     def get(self) -> Dict[str, float]:
-        """Get the profiling results in minutes"""
+        """Get the profiling results in seconds"""
         return _ffi_api.ProfilerGet(self)  # type: ignore # pylint: disable=no-member
 
     def table(self) -> str:

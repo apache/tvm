@@ -250,7 +250,6 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
 
   std::vector<JSONGraphNodeEntry> VisitExprDefault_(const Object* op) {
     LOG(FATAL) << "JSON runtime currently doesn't support " << op->GetTypeKey();
-    return {};
   }
 
   std::vector<JSONGraphNodeEntry> VisitExpr_(const VarNode* vn) {

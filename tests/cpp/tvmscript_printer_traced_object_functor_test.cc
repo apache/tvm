@@ -33,7 +33,7 @@ class FooObjectNode : public Object {
  public:
   void VisitAttrs(AttrVisitor* v) {}
 
-  static constexpr const char* _type_key = "test.FooObject";
+  static constexpr const char* _type_key = "test.TracedObjectFunctor.FooObject";
   TVM_DECLARE_FINAL_OBJECT_INFO(FooObjectNode, Object);
 };
 
@@ -49,7 +49,7 @@ class BarObjectNode : public Object {
  public:
   void VisitAttrs(AttrVisitor* v) {}
 
-  static constexpr const char* _type_key = "test.BarObject";
+  static constexpr const char* _type_key = "test.TracedObjectFunctor.BarObject";
   TVM_DECLARE_FINAL_OBJECT_INFO(BarObjectNode, Object);
 };
 
@@ -69,8 +69,8 @@ TEST(TracedObjectFunctorTest, NormalRegistration) {
   TracedObjectFunctor<String> functor;
   ObjectPath path = ObjectPath::Root();
 
-  functor.set_dispatch([](TracedObject<FooObject> o) -> String { return "Foo"; });
-  functor.set_dispatch([](TracedObject<BarObject> o) -> String { return "Bar"; });
+  functor.set_dispatch<FooObject>([](TracedObject<FooObject> o) -> String { return "Foo"; });
+  functor.set_dispatch<BarObject>([](TracedObject<BarObject> o) -> String { return "Bar"; });
 
   ICHECK_EQ(functor("", MakeTraced(FooObject(), path)), "Foo");
   ICHECK_EQ(functor("", MakeTraced(BarObject(), path)), "Bar");
@@ -80,8 +80,8 @@ TEST(TracedObjectFunctorTest, RegistrationWithFunction) {
   TracedObjectFunctor<String> functor;
   ObjectPath path = ObjectPath::Root();
 
-  functor.set_dispatch([](TracedObject<FooObject> o) -> String { return "FooLambda"; });
-  functor.set_dispatch("tir", ComputeFoo);
+  functor.set_dispatch<FooObject>([](TracedObject<FooObject> o) -> String { return "FooLambda"; });
+  functor.set_dispatch<FooObject>("tir", ComputeFoo);
 
   ICHECK_EQ(functor("", MakeTraced(FooObject(), path)), "FooLambda");
   ICHECK_EQ(functor("tir", MakeTraced(FooObject(), path)), "Foo");
@@ -91,9 +91,11 @@ TEST(TracedObjectFunctorTest, RegistrationWithDispatchToken) {
   TracedObjectFunctor<String> functor;
   ObjectPath path = ObjectPath::Root();
 
-  functor.set_dispatch([](TracedObject<FooObject> o) -> String { return "Foo"; });
-  functor.set_dispatch("tir", [](TracedObject<FooObject> o) -> String { return "Foo tir"; });
-  functor.set_dispatch("relax", [](TracedObject<FooObject> o) -> String { return "Foo relax"; });
+  functor.set_dispatch<FooObject>([](TracedObject<FooObject> o) -> String { return "Foo"; });
+  functor.set_dispatch<FooObject>("tir",
+                                  [](TracedObject<FooObject> o) -> String { return "Foo tir"; });
+  functor.set_dispatch<FooObject>("relax",
+                                  [](TracedObject<FooObject> o) -> String { return "Foo relax"; });
 
   ICHECK_EQ(functor("", MakeTraced(FooObject(), path)), "Foo");
   ICHECK_EQ(functor("tir", MakeTraced(FooObject(), path)), "Foo tir");
@@ -119,8 +121,8 @@ TEST(TracedObjectFunctorTest, ExtraArg) {
   TracedObjectFunctor<int, int> functor;
   ObjectPath path = ObjectPath::Root();
 
-  functor.set_dispatch([](TracedObject<FooObject> o, int x) { return x; });
-  functor.set_dispatch([](TracedObject<BarObject> o, int x) { return x + 1; });
+  functor.set_dispatch<FooObject>([](TracedObject<FooObject> o, int x) { return x; });
+  functor.set_dispatch<BarObject>([](TracedObject<BarObject> o, int x) { return x + 1; });
 
   ICHECK_EQ(functor("", MakeTraced(FooObject(), path), 2), 2);
   ICHECK_EQ(functor("", MakeTraced(BarObject(), path), 2), 3);
@@ -131,8 +133,9 @@ TEST(TracedObjectFunctorTest, RemoveDispatchFunction) {
   TracedObjectFunctor<String> functor;
   ObjectPath path = ObjectPath::Root();
 
-  functor.set_dispatch([](TracedObject<FooObject> o) -> String { return "Foo"; });
-  functor.set_dispatch("tir", [](TracedObject<FooObject> o) -> String { return "Foo tir"; });
+  functor.set_dispatch<FooObject>([](TracedObject<FooObject> o) -> String { return "Foo"; });
+  functor.set_dispatch<FooObject>("tir",
+                                  [](TracedObject<FooObject> o) -> String { return "Foo tir"; });
 
   ICHECK_EQ(functor("", MakeTraced(FooObject(), path)), "Foo");
   ICHECK_EQ(functor("tir", MakeTraced(FooObject(), path)), "Foo tir");
@@ -158,11 +161,11 @@ TEST(TracedObjectFunctorTest, DuplicateRegistration_WithoutToken) {
   TracedObjectFunctor<int, int> functor;
   ObjectPath path = ObjectPath::Root();
 
-  functor.set_dispatch([](TracedObject<FooObject> o, int x) { return x; });
+  functor.set_dispatch<FooObject>([](TracedObject<FooObject> o, int x) { return x; });
 
   bool failed = false;
   try {
-    functor.set_dispatch([](TracedObject<FooObject> o, int x) { return x; });
+    functor.set_dispatch<FooObject>([](TracedObject<FooObject> o, int x) { return x; });
   } catch (...) {
     failed = true;
   }
@@ -173,11 +176,11 @@ TEST(TracedObjectFunctorTest, DuplicateRegistration_WithToken) {
   TracedObjectFunctor<int, int> functor;
   ObjectPath path = ObjectPath::Root();
 
-  functor.set_dispatch("tir", [](TracedObject<FooObject> o, int x) { return x; });
+  functor.set_dispatch<FooObject>("tir", [](TracedObject<FooObject> o, int x) { return x; });
 
   bool failed = false;
   try {
-    functor.set_dispatch("tir", [](TracedObject<FooObject> o, int x) { return x; });
+    functor.set_dispatch<FooObject>("tir", [](TracedObject<FooObject> o, int x) { return x; });
   } catch (...) {
     failed = true;
   }

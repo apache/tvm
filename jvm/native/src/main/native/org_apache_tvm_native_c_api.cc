@@ -42,8 +42,8 @@ struct TVMFuncArgsThreadLocalEntry {
   std::vector<TVMValue> tvmFuncArgValues;
   std::vector<int> tvmFuncArgTypes;
   // for later release
-  std::vector<std::pair<jstring, const char*> > tvmFuncArgPushedStrs;
-  std::vector<std::pair<jbyteArray, TVMByteArray*> > tvmFuncArgPushedBytes;
+  std::vector<std::pair<jstring, const char*>> tvmFuncArgPushedStrs;
+  std::vector<std::pair<jbyteArray, TVMByteArray*>> tvmFuncArgPushedBytes;
 };
 typedef dmlc::ThreadLocalStore<TVMFuncArgsThreadLocalEntry> TVMFuncArgsThreadLocalStore;
 

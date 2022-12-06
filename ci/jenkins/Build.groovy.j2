@@ -1,7 +1,7 @@
 def ci_setup(image) {
   sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_ci_setup.sh",
-    label: 'Set up CI environment',
+    script: "${docker_run} ${image} ./tests/scripts/task_clear_pytest.sh",
+    label: 'Clean up old workspace',
   )
 }
 
@@ -19,6 +19,36 @@ def fsim_test(image) {
   )
 }
 
+def make_standalone_crt(image, build_dir) {
+  sh (
+    script: """
+      set -eux
+      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
+        --sccache-bucket tvm-sccache-prod \
+        --cmake-target standalone_crt \
+        --build-dir build
+      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
+        --sccache-bucket tvm-sccache-prod \
+        --cmake-target crttest \
+        --build-dir build
+      """,
+    label: 'Make standalone CRT',
+  )
+}
+
+def make_cpp_tests(image, build_dir) {
+  sh (
+    script: """
+      set -eux
+      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
+        --sccache-bucket tvm-sccache-prod \
+        --cmake-target cpptest \
+        --build-dir ${build_dir}
+      """,
+    label: 'Make C++ tests',
+  )
+}
+
 def cmake_build(image, path, make_flag) {
   sh (
     script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod",
@@ -26,239 +56,181 @@ def cmake_build(image, path, make_flag) {
   )
 }
 
-def cpp_unittest(image) {
-  sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_cpp_unittest.sh",
-    label: 'Build and run C++ tests',
-  )
-}
-
-def add_microtvm_permissions() {
-  {% for folder in microtvm_template_projects %}
-  sh(
-    script: 'find {{ folder }} -type f | grep qemu-hack | xargs chmod +x',
-    label: 'Add execute permissions for microTVM files',
-  )
-  {% endfor %}
-}
-
-def add_hexagon_permissions() {
-  {% for folder in hexagon_api %}
-  sh(
-    script: 'find {{ folder }} -type f | xargs chmod +x',
-    label: 'Add execute permissions for hexagon files',
-  )
-  {% endfor %}
-}
-
-// Run make. First try to do an incremental make from a previous workspace in hope to
-// accelerate the compilation. If something is wrong, clean the workspace and then
-// build from scratch.
-def make(docker_type, path, make_flag) {
-  timeout(time: max_time, unit: 'MINUTES') {
-    try {
-      cmake_build(docker_type, path, make_flag)
-    } catch (hudson.AbortException ae) {
-      // script exited due to user abort, directly throw instead of retry
-      if (ae.getMessage().contains('script returned exit code 143')) {
-        throw ae
-      }
-      echo 'Incremental compilation failed. Fall back to build from scratch'
-      sh (
-        script: "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}",
-        label: 'Clear old cmake workspace',
-      )
-      cmake_build(docker_type, path, make_flag)
-    }
-  }
-}
-
-
 def build() {
 stage('Build') {
   environment {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
   }
   parallel(
-    'BUILD: GPU': {
-    if (!skip_ci) {
-      node('CPU-SMALL') {
-        ws({{ m.per_exec_ws('tvm/build-gpu') }}) {
-          docker_init(ci_gpu)
-          init_git()
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
-          make("${ci_gpu} --no-gpu", 'build', '-j2')
-          {{ m.upload_artifacts(tag='gpu', filenames=tvm_multilib, folders=microtvm_template_projects) }}
 
-          // compiler test
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
-          make("${ci_gpu} --no-gpu", 'build2', '-j2')
-          {{ m.upload_artifacts(tag='gpu2', filenames=tvm_multilib) }}
-        }
-      }
-    }
-  },
-  'BUILD: CPU': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU-SMALL') {
-        ws({{ m.per_exec_ws('tvm/build-cpu') }}) {
-          docker_init(ci_cpu)
-          init_git()
-          sh (
-            script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
-            label: 'Create CPU cmake config',
-          )
-          make(ci_cpu, 'build', '-j2')
-          {{ m.upload_artifacts(tag='cpu', filenames=tvm_multilib_tsim) }}
-          timeout(time: max_time, unit: 'MINUTES') {
-            ci_setup(ci_cpu)
-            // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
-            // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-            sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
-          }
-        }
-      }
-    } else {
-      Utils.markStageSkippedForConditional('BUILD: CPU')
-    }
-  },
-  'BUILD: CPU MINIMAL': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU-SMALL') {
-        ws({{ m.per_exec_ws('tvm/build-cpu-minimal') }}) {
-          docker_init(ci_minimal)
-          init_git()
-          sh (
-            script: "${docker_run} ${ci_minimal} ./tests/scripts/task_config_build_minimal.sh build",
-            label: 'Create CPU minimal cmake config',
-          )
-          make(ci_minimal, 'build', '-j2')
-          {{ m.upload_artifacts(tag='cpu-minimal', filenames=tvm_lib) }}
-        }
-      }
-    } else {
-      Utils.markStageSkippedForConditional('BUILD: CPU MINIMAL')
-    }
-  },
-  'BUILD: WASM': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU-SMALL') {
-        ws({{ m.per_exec_ws('tvm/build-wasm') }}) {
-          docker_init(ci_wasm)
-          init_git()
-          sh (
-            script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
-            label: 'Create WASM cmake config',
-          )
-          make(ci_wasm, 'build', '-j2')
-          cpp_unittest(ci_wasm)
-          timeout(time: max_time, unit: 'MINUTES') {
-            ci_setup(ci_wasm)
-            sh (
-              script: "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh",
-              label: 'Run WASM lint and tests',
-            )
-          }
-        }
-      }
-    } else {
-      Utils.markStageSkippedForConditional('BUILD: WASM')
-    }
-  },
-  'BUILD: i386': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU-SMALL') {
-        ws({{ m.per_exec_ws('tvm/build-i386') }}) {
-          docker_init(ci_i386)
-          init_git()
-          sh (
-            script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build",
-            label: 'Create i386 cmake config',
-          )
-          make(ci_i386, 'build', '-j2')
-          {{ m.upload_artifacts(tag='i386', filenames=tvm_multilib_tsim) }}
-        }
-      }
-    } else {
-      Utils.markStageSkippedForConditional('BUILD: i386')
-    }
-  },
-  'BUILD: arm': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('ARM-SMALL') {
-        ws({{ m.per_exec_ws('tvm/build-arm') }}) {
-          docker_init(ci_arm)
-          init_git()
-          sh (
-            script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",
-            label: 'Create ARM cmake config',
-          )
-          make(ci_arm, 'build', '-j4')
-          {{ m.upload_artifacts(tag='arm', filenames=tvm_multilib) }}
-        }
-      }
-     } else {
-      Utils.markStageSkippedForConditional('BUILD: arm')
-    }
-  },
-  'BUILD: Cortex-M': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU-SMALL') {
-        ws({{ m.per_exec_ws('tvm/build-cortexm') }}) {
-          docker_init(ci_cortexm)
-          init_git()
-          sh (
-            script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_config_build_cortexm.sh build",
-            label: 'Create Cortex-M cmake config',
-          )
-          make(ci_cortexm, 'build', '-j2')
-          {{ m.upload_artifacts(tag='cortexm', filenames=tvm_lib, folders=microtvm_template_projects) }}
-        }
-      }
-     } else {
-      Utils.markStageSkippedForConditional('BUILD: Cortex-M')
-    }
-  },
-  'BUILD: Hexagon': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU-SMALL') {
-        ws({{ m.per_exec_ws('tvm/build-hexagon') }}) {
-          docker_init(ci_hexagon)
-          init_git()
-          sh (
-            script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
-            label: 'Create Hexagon cmake config',
-          )
-          make(ci_hexagon, 'build', '-j2')
-          sh (
-            script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
-            label: 'Build Hexagon API',
-          )
-          {{ m.upload_artifacts(tag='hexagon', filenames=tvm_lib, folders=hexagon_api) }}
-        }
-      }
-     } else {
-      Utils.markStageSkippedForConditional('BUILD: Hexagon')
-    }
-  },
-  'BUILD: RISC-V': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU-SMALL') {
-        ws({{ m.per_exec_ws('tvm/build-riscv') }}) {
-          docker_init(ci_riscv)
-          init_git()
-          sh (
-            script: "${docker_run} ${ci_riscv} ./tests/scripts/task_config_build_riscv.sh build",
-            label: 'Create RISC-V cmake config',
-          )
-          make(ci_riscv, 'build', '-j2')
-          {{ m.upload_artifacts(tag='riscv', filenames=tvm_lib, folders=microtvm_template_projects) }}
-        }
-      }
-     } else {
-      Utils.markStageSkippedForConditional('BUILD: RISC-V')
-    }
-  },
+  {% call m.build_step(
+      name='BUILD: GPU',
+      node='CPU-SMALL',
+      condition='!skip_ci',
+      ws='tvm/build-gpu',
+      docker_image='ci_gpu',
+    ) %}
+    sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
+    cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
+    make_standalone_crt("${ci_gpu} --no-gpu", 'build')
+    {{ m.upload_artifacts(tag='gpu', filenames=tvm_multilib + tvm_allvisible + microtvm_template_projects + crttest + standalone_crt) }}
+
+    // compiler test
+    sh "rm -rf build"
+    sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
+    cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
+    make_standalone_crt("${ci_gpu} --no-gpu", 'build')
+    {{ m.upload_artifacts(tag='gpu2', filenames=tvm_lib + crttest + standalone_crt) }}
+  {% endcall %}
+
+  {% call m.build_step(
+      name='BUILD: CPU',
+      node='CPU-SMALL',
+      condition='!skip_ci && is_docs_only_build != 1',
+      ws='tvm/build-cpu',
+      docker_image='ci_cpu',
+    ) %}
+    sh (
+      script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
+      label: 'Create CPU cmake config',
+    )
+    cmake_build(ci_cpu, 'build', '-j2')
+    make_standalone_crt(ci_cpu, 'build')
+    make_cpp_tests(ci_cpu, 'build')
+    {{ m.upload_artifacts(tag='cpu', filenames=tvm_multilib_tsim + tvm_allvisible + crttest + cpptest + standalone_crt) }}
+    ci_setup(ci_cpu)
+    // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
+    // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
+    sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
+  {% endcall %}
+
+  {% call m.build_step(
+      name='BUILD: CPU MINIMAL',
+      node='CPU-SMALL',
+      condition='!skip_ci && is_docs_only_build != 1',
+      ws='tvm/build-cpu-minimal',
+      docker_image='ci_minimal',
+    ) %}
+    sh (
+      script: "${docker_run} ${ci_minimal} ./tests/scripts/task_config_build_minimal.sh build",
+      label: 'Create CPU minimal cmake config',
+    )
+    cmake_build(ci_minimal, 'build', '-j2')
+    make_standalone_crt(ci_minimal, 'build')
+    make_cpp_tests(ci_minimal, 'build')
+    {{ m.upload_artifacts(tag='cpu-minimal', filenames=tvm_lib + tvm_allvisible + crttest + cpptest + standalone_crt) }}
+  {% endcall %}
+
+  {% call m.build_step(
+      name='BUILD: WASM',
+      node='CPU-SMALL',
+      condition='!skip_ci && is_docs_only_build != 1',
+      ws='tvm/build-wasm',
+      docker_image='ci_wasm',
+    ) %}
+    sh (
+      script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
+      label: 'Create WASM cmake config',
+    )
+    cmake_build(ci_wasm, 'build', '-j2')
+    make_standalone_crt(ci_wasm, 'build')
+    make_cpp_tests(ci_wasm, 'build')
+    cpp_unittest(ci_wasm)
+    ci_setup(ci_wasm)
+    sh (
+      script: "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh",
+      label: 'Run WASM lint and tests',
+    )
+  {% endcall %}
+
+  {% call m.build_step(
+      name='BUILD: i386',
+      node='CPU-SMALL',
+      condition='!skip_ci && is_docs_only_build != 1',
+      ws='tvm/build-i386',
+      docker_image='ci_i386',
+    ) %}
+    sh (
+      script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build",
+      label: 'Create i386 cmake config',
+    )
+    cmake_build(ci_i386, 'build', '-j2')
+    make_standalone_crt(ci_i386, 'build')
+    make_cpp_tests(ci_i386, 'build')
+    {{ m.upload_artifacts(tag='i386', filenames=tvm_multilib_tsim + standalone_crt + crttest + cpptest) }}
+  {% endcall %}
+
+  {% call m.build_step(
+      name='BUILD: arm',
+      node='ARM-SMALL',
+      condition='!skip_ci && is_docs_only_build != 1',
+      ws='tvm/build-arm',
+      docker_image='ci_arm',
+    ) %}
+    sh (
+      script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",
+      label: 'Create ARM cmake config',
+    )
+    cmake_build(ci_arm, 'build', '-j4')
+    make_standalone_crt(ci_arm, 'build')
+    make_cpp_tests(ci_arm, 'build')
+    {{ m.upload_artifacts(tag='arm', filenames=tvm_multilib + cpptest + crttest + standalone_crt) }}
+  {% endcall %}
+
+  {% call m.build_step(
+      name='BUILD: Cortex-M',
+      node='CPU-SMALL',
+      condition='!skip_ci && is_docs_only_build != 1',
+      ws='tvm/build-cortexm',
+      docker_image='ci_cortexm',
+    ) %}
+    sh (
+      script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_config_build_cortexm.sh build",
+      label: 'Create Cortex-M cmake config',
+    )
+    cmake_build(ci_cortexm, 'build', '-j2')
+    make_standalone_crt(ci_cortexm, 'build')
+    make_cpp_tests(ci_cortexm, 'build')
+    {{ m.upload_artifacts(tag='cortexm', filenames=tvm_lib + tvm_allvisible + crttest + standalone_crt + cpptest + microtvm_template_projects) }}
+  {% endcall %}
+
+  {% call m.build_step(
+      name='BUILD: Hexagon',
+      node='CPU-SMALL',
+      condition='!skip_ci && is_docs_only_build != 1',
+      ws='tvm/build-hexagon',
+      docker_image='ci_hexagon',
+    ) %}
+    sh (
+      script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
+      label: 'Create Hexagon cmake config',
+    )
+    cmake_build(ci_hexagon, 'build', '-j2')
+    make_cpp_tests(ci_hexagon, 'build')
+    sh (
+      script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
+      label: 'Build Hexagon API',
+    )
+    {{ m.upload_artifacts(tag='hexagon', filenames=tvm_lib + cpptest + hexagon_api) }}
+  {% endcall %}
+
+  {% call m.build_step(
+      name='BUILD: RISC-V',
+      node='CPU-SMALL',
+      condition='!skip_ci && is_docs_only_build != 1',
+      ws='tvm/build-riscv',
+      docker_image='ci_riscv',
+    ) %}
+    sh (
+      script: "${docker_run} ${ci_riscv} ./tests/scripts/task_config_build_riscv.sh build",
+      label: 'Create RISC-V cmake config',
+    )
+    cmake_build(ci_riscv, 'build', '-j2')
+    make_standalone_crt(ci_riscv, 'build')
+    make_cpp_tests(ci_riscv, 'build')
+    {{ m.upload_artifacts(tag='riscv', filenames=tvm_lib + tvm_allvisible + standalone_crt + crttest + cpptest + microtvm_template_projects) }}
+  {% endcall %}
+
   )
 }
 }

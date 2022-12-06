@@ -103,6 +103,24 @@ namespace relay {
   }
 
 /*!
+ * \brief Try to do the type inference over expr:
+ *
+ * Do the infer_type over each node in expr
+ *
+ * \param expr The IR expression
+ * \return infered expr if succeed.
+ */
+inline Expr InferType(const Expr& expr) {
+  auto mod = IRModule::FromExpr(expr);
+  mod = transform::InferType()(mod);
+  if (expr.as<FunctionNode>()) {
+    return mod->Lookup("main");
+  } else {
+    return mod->Lookup("main").as<FunctionNode>()->body;
+  }
+}
+
+/*!
  * \brief Try to match lhs and rhs via broadcasting rule, such that:
  *
  * rhs matches the dimension of lhs specified by lhs_axes
@@ -120,6 +138,17 @@ inline bool MatchBroadcastToLeftAxes(const TensorTypeNode* tlhs, const TensorTyp
   StructuralEqual equal;
   size_t base = tlhs->shape.size() - trhs->shape.size();
   size_t j = 0;
+
+  // handle case trhs is simple constant
+  if (trhs->shape.size() == 0 && rhs_value != nullptr && lhs_axes.size() > 0) {
+    *rhs_value = MakeExpandDims(*rhs_value, 0, lhs_axes.size());
+    for (size_t i = 0; i < lhs_axes.size(); i++) {
+      int repeat_value =
+          tlhs->shape[static_cast<size_t>(lhs_axes[j]->value)].as<IntImmNode>()->value;
+      *rhs_value = MakeRepeat(*rhs_value, repeat_value, i);
+    }
+    return true;
+  }
 
   ObjectPtr<SqueezeAttrs> squeeze_attrs;
   if (rhs_value != nullptr) {
@@ -338,6 +367,40 @@ static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> s
                 static_cast<float>(value[i]));
       } else {
         *(static_cast<DType*>(arr->data) + i) = value[i];
+      }
+    }
+  })
+  return Constant(arr);
+}
+
+/*!
+ * \brief Create a Constant tensor of zeros.
+ *
+ * \param dtype The data type.
+ * \param shape The shape of the output constant tensor.
+ * \return A Constant.
+ */
+static inline Constant MakeConstantZeros(DataType dtype, std::vector<int64_t> shape) {
+  runtime::NDArray arr = runtime::NDArray::Empty(shape, dtype, {kDLCPU, 0});
+  int64_t data_size = 1;
+  for (int64_t dim : shape) {
+    data_size *= dim;
+  }
+  TVM_DTYPE_DISPATCH(dtype, DType, {
+    for (int64_t i = 0; i < data_size; i++) {
+      if (dtype == DataType::Float(16)) {
+        // convert to float16
+        // storage is uint16_t
+        // Similar handling as that in MakeConstantScalar
+        *(static_cast<DType*>(arr->data) + i) =
+            __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(static_cast<float>(0));
+      } else if (dtype == DataType::BFloat(16)) {
+        // convert to bfloat16
+        // storage is uint16_t
+        *(static_cast<DType*>(arr->data) + i) =
+            __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(static_cast<float>(0));
+      } else {
+        *(static_cast<DType*>(arr->data) + i) = 0;
       }
     }
   })
@@ -625,6 +688,13 @@ inline Expr FixedPointMultiply(Expr x, int32_t multiplier, int32_t shift) {
   attrs->multiplier = multiplier;
   attrs->shift = shift;
   return Call(op, {x}, Attrs(attrs), {});
+}
+
+inline Expr FixedPointMultiplyPerAxis(Expr x, Expr m, Expr lshift, Expr rshift,
+                                      bool is_lshift_required, bool is_rshift_required,
+                                      Array<Integer> axes) {
+  return MakeFixedPointMultiplyPerAxis(x, m, lshift, rshift, is_lshift_required, is_rshift_required,
+                                       axes);
 }
 
 inline Expr Add(Expr lhs, Expr rhs) {

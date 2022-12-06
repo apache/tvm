@@ -234,7 +234,7 @@ def test_buffer_storage_scope():
 
     buffer_local_0 = tvm.tir.decl_buffer((10, 10), "float32", scope="local")
     buffer_local_1 = tvm.tir.decl_buffer((10, 10), "float32", scope="local")
-    buffer_global = tvm.tir.decl_buffer((10, 10), "float32", scope="global")
+    buffer_global = tvm.tir.decl_buffer((10, 10), "float32")
     buffer_empty = tvm.tir.decl_buffer((10, 10), "float32", scope="")
 
     func0 = tvm.tir.PrimFunc([x], tvm.tir.Evaluate(x), buffer_map={x: buffer_local_0})

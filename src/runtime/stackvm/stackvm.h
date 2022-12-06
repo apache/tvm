@@ -379,10 +379,8 @@ class StackVM {
         return LE_F64;
       case MOD_I64:
         LOG(FATAL) << "cannot handle mod for float";
-        return ADD_F64;
       default:
         LOG(FATAL) << "cannot handle op " << code;
-        return ADD_F64;
     }
   }
   /*!
@@ -412,7 +410,6 @@ class StackVM {
       }
     }
     LOG(FATAL) << "Cannot load type " << t;
-    return ARRAY_LOAD_FP64;
   }
   /*!
    * \brief Get store opcode for type t
@@ -441,7 +438,6 @@ class StackVM {
       }
     }
     LOG(FATAL) << "Cannot store type " << t;
-    return ARRAY_STORE_FP64;
   }
   friend std::ostream& operator<<(std::ostream& os, const StackVM& vm);  // NOLINT(*)
 

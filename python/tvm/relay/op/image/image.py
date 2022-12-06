@@ -477,7 +477,7 @@ def grid_sample(
 
     The left-top corner (-1, -1) and right-bottom corner (1, 1) in grid will be map to
     (0, 0) and (h - 1, w - 1) of data if align_corners is "True", or
-    (-0.5, -0.5) and (h + 0.5, w + 0.5) of data if align_corners is "False".
+    (-0.5, -0.5) and (h - 0.5, w - 0.5) of data if align_corners is "False".
 
     The shape of the output will be
     4-D (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3]), or

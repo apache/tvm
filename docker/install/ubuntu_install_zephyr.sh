@@ -21,17 +21,13 @@ set -u
 set -o pipefail
 set -x
 
-export DEBIAN_FRONTEND=noninteractive
-export TZ=Etc/UTC
-sudo ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
-echo $TZ > /etc/timezone
-
 sudo apt-install-and-clear -y --no-install-recommends \
      libsdl2-dev ca-certificates gnupg software-properties-common wget \
      git cmake ninja-build gperf \
      ccache dfu-util device-tree-compiler wget \
      python3-dev python3-pip python3-setuptools python3-tk python3-wheel python3-venv \
-     xz-utils file make gcc gcc-multilib g++-multilib apt-transport-https
+     xz-utils file make gcc gcc-multilib g++-multilib apt-transport-https libudev-dev \
+     libmagic1
 
 wget --no-verbose https://apt.kitware.com/keys/kitware-archive-latest.asc
 sudo apt-key add kitware-archive-latest.asc

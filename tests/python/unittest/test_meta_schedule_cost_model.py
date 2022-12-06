@@ -18,15 +18,16 @@
 import os
 import re
 import shutil
-import sys
 import tempfile
+import unittest
+from functools import partial
 from typing import List
 
 import numpy as np
-import pytest
 import tvm
 import tvm.testing
 from tvm.meta_schedule.cost_model import PyCostModel, RandomModel, XGBModel
+from tvm.meta_schedule.cost_model.xgb_model import PackSum, _get_custom_call_back
 from tvm.meta_schedule.feature_extractor import RandomFeatureExtractor
 from tvm.meta_schedule.runner import RunnerResult
 from tvm.meta_schedule.search_strategy import MeasureCandidate
@@ -195,13 +196,15 @@ def test_meta_schedule_xgb_model_reload():
     assert (res1 == res2).all()
     assert old_data_size == new_data_size
     assert len(old_data) == len(new_data)
-    for (k1, g1), (k2, g2) in zip(old_data.items(), new_data.items()):
+    for (k1, g1), (k2, g2) in zip(  # pylint: disable=invalid-name
+        old_data.items(), new_data.items()
+    ):
         assert k1 == k2
         assert k1 == g1.group_hash
         assert k2 == g2.group_hash
         assert (g1.costs == g2.costs).all()
         assert len(g1.features) == len(g2.features)
-        for f1, f2 in zip(g1.features, g2.features):
+        for f1, f2 in zip(g1.features, g2.features):  # pylint: disable=invalid-name
             assert (f1 == f2).all()
 
 
@@ -226,6 +229,104 @@ def test_meta_schedule_xgb_model_reupdate():
         [_dummy_result() for i in range(update_sample_count)],
     )
     model.predict(TuneContext(), [_dummy_candidate() for i in range(predict_sample_count)])
+
+
+def xgb_version_check():
+
+    # pylint: disable=import-outside-toplevel
+    import xgboost as xgb
+    from packaging import version
+
+    # pylint: enable=import-outside-toplevel
+    return version.parse(xgb.__version__) >= version.parse("1.6.0")
+
+
+@unittest.skipIf(xgb_version_check(), "test not supported for xgboost version after 1.6.0")
+def test_meta_schedule_xgb_model_callback_as_function():
+    # pylint: disable=import-outside-toplevel
+    from itertools import chain as itertools_chain
+
+    import xgboost as xgb
+
+    # pylint: enable=import-outside-toplevel
+
+    extractor = RandomFeatureExtractor()
+    model = XGBModel(extractor=extractor, num_warmup_samples=10)
+    update_sample_count = 20
+    predict_sample_count = 30
+
+    model.update(
+        TuneContext(),
+        [_dummy_candidate() for i in range(update_sample_count)],
+        [_dummy_result() for i in range(update_sample_count)],
+    )
+    model.predict(TuneContext(), [_dummy_candidate() for i in range(predict_sample_count)])
+    with tempfile.NamedTemporaryFile() as path:
+        # Backup and train on new TrainingCallBack api
+        random_state = model.extractor.random_state  # save feature extractor's random state
+
+        model.save(path.name)
+
+        old_booster = model.booster
+        xs = [  # pylint: disable=invalid-name
+            x.numpy().astype("float32")
+            for x in extractor.extract_from(
+                TuneContext(),
+                [_dummy_candidate() for i in range(predict_sample_count)],
+            )
+        ]
+        d_test = PackSum(xs=xs, ys=None)
+        pred1 = old_booster.predict(d_test.dmatrix)
+
+        # Load and train on deprecated TrainingCallBack api
+        model.extractor.random_state = random_state  # load feature extractor's random state
+        model.load(path.name)
+        d_train = PackSum(
+            xs=list(itertools_chain.from_iterable([g.features for g in model.data.values()])),
+            ys=np.concatenate(
+                [g.min_cost / g.costs for g in model.data.values()],
+                axis=0,
+            ),
+        )
+
+        def obj(ys_pred: np.ndarray, d_train1: "xgb.DMatrix"):  # type: ignore # pylint: disable = unused-argument
+            return d_train.obj_square_error(ys_pred)
+
+        def rmse(ys_pred: np.ndarray, d_train1: "xgb.DMatrix"):  # type: ignore # pylint: disable = unused-argument
+            return d_train.rmse(ys_pred)
+
+        def avg_peak_score(ys_pred: np.ndarray, d_train1: "xgb.DMatrix"):  # type: ignore # pylint: disable = unused-argument
+            return d_train.average_peak_score(ys_pred, model.average_peak_n)
+
+        new_booster = xgb.train(
+            model.config.to_dict(),
+            d_train.dmatrix,
+            num_boost_round=10000,
+            obj=obj,
+            callbacks=[
+                partial(
+                    _get_custom_call_back(
+                        early_stopping_rounds=model.early_stopping_rounds,
+                        verbose_eval=model.verbose_eval,
+                        fevals=[rmse, avg_peak_score],
+                        evals=[(d_train.dmatrix, "tr")],
+                        cvfolds=None,
+                    )
+                )
+            ],
+        )
+
+        xs = [  # pylint: disable=invalid-name
+            x.numpy().astype("float32")
+            for x in extractor.extract_from(
+                TuneContext(),
+                [_dummy_candidate() for i in range(predict_sample_count)],
+            )
+        ]
+        d_test = PackSum(xs=xs, ys=None)
+        pred2 = new_booster.predict(d_test.dmatrix)
+
+    assert np.allclose(pred1, pred2, rtol=1e-3, atol=1e-3)
 
 
 if __name__ == "__main__":

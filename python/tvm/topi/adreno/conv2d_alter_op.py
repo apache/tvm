@@ -143,8 +143,11 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         CO, _, KH, KW = get_const_tuple(kernel_tensor.shape)
 
         # pre-compute weight transformation in winograd
+        # alpha, alpha, CO, CI
         weight = relay.nn.contrib_conv2d_winograd_weight_transform(inputs[1], tile_size=tile_size)
         weight = relay.transpose(weight, axes=[2, 3, 0, 1])  # HWOI -> OIHW
+        # (oc, ic, h, w) -> (h, w, ic, oc)
+        new_attrs["kernel_layout"] = "HWIO"
         new_attrs["tile_size"] = tile_size
         new_attrs["channels"] = CO
 
@@ -304,7 +307,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
                 num_filter_block = 4
 
             # no support yet for tensors that cannot be divisible by factor 4
-            if in_channel_block != 4 or num_filter_block != 4:
+            if num_filter_block != 4:
                 return None
 
             batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
@@ -312,16 +315,22 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
             # update new attrs
             new_attrs["channels"] = out_channel
-            new_attrs["data_layout"] = "NCHW%dc" % in_channel_block
+            if in_channel_block == 4:
+                new_attrs["data_layout"] = "NCHW%dc" % in_channel_block
+            else:
+                new_attrs["data_layout"] = "NCHW"
             # (oc, ic, h, w) -> (OC, ic, h, w, oc)
             new_attrs["kernel_layout"] = "OIHW%do" % num_filter_block
             new_attrs["out_layout"] = "NCHW%dc" % num_filter_block
 
             # Store altered operator's config for applying of tuned AutoTVM statistics
-            new_data = te.placeholder(
-                (batch_size, in_channel // in_channel_block, height, width, in_channel_block),
-                dtype=data_dtype,
-            )
+            if in_channel_block == 4:
+                new_data = te.placeholder(
+                    (batch_size, in_channel // in_channel_block, height, width, in_channel_block),
+                    dtype=data_dtype,
+                )
+            else:
+                new_data = data_tensor
             new_kernel = te.placeholder(
                 (out_channel // num_filter_block, in_filter_channel, kh, kw, num_filter_block),
                 dtype=kernel_tensor.dtype,
@@ -361,12 +370,15 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
                 num_filter_block = 4
 
             # no support yet for tensors cannot be divisible by factor 4
-            if in_channel_block != 4 or num_filter_block != 4:
+            if num_filter_block != 4:
                 return None
 
             # update new attrs
             new_attrs["channels"] = out_channles
-            new_attrs["data_layout"] = "NHWC%dc" % in_channel_block
+            if in_channel_block == 4:
+                new_attrs["data_layout"] = "NHWC%dc" % in_channel_block
+            else:
+                new_attrs["data_layout"] = "NHWC"
             # (h, w, ic, oc) -> (h, w, ic, OC, oc)
             if kernel_layout == "HWIO":
                 new_attrs["kernel_layout"] = "HWIO%do" % num_filter_block
@@ -375,16 +387,19 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
             new_attrs["out_layout"] = "NHWC%dc" % num_filter_block
 
             # Store altered operator's config for applying of tuned AutoTVM statistics
-            new_data = te.placeholder(
-                (
-                    batch_size,
-                    in_height,
-                    in_width,
-                    in_channels // in_channel_block,
-                    in_channel_block,
-                ),
-                dtype=data_dtype,
-            )
+            if in_channel_block == 4:
+                new_data = te.placeholder(
+                    (
+                        batch_size,
+                        in_height,
+                        in_width,
+                        in_channels // in_channel_block,
+                        in_channel_block,
+                    ),
+                    dtype=data_dtype,
+                )
+            else:
+                new_data = data_tensor
             if kernel_layout == "HWIO":
                 new_kernel = te.placeholder(
                     (

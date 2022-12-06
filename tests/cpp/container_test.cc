@@ -173,6 +173,141 @@ TEST(Array, Mutate) {
   ICHECK(list2[1].same_as(z));
 }
 
+TEST(Array, MutateInPlaceForUniqueReference) {
+  using namespace tvm;
+  Var x("x");
+  Array<Var> arr{x, x};
+  ICHECK(arr.unique());
+  auto* before = arr.get();
+
+  arr.MutateByApply([](Var) { return Var("y"); });
+  auto* after = arr.get();
+  ICHECK_EQ(before, after);
+}
+
+TEST(Array, CopyWhenMutatingNonUniqueReference) {
+  using namespace tvm;
+  Var x("x");
+  Array<Var> arr{x, x};
+  Array<Var> arr2 = arr;
+
+  ICHECK(!arr.unique());
+  auto* before = arr.get();
+
+  arr.MutateByApply([](Var) { return Var("y"); });
+  auto* after = arr.get();
+  ICHECK_NE(before, after);
+}
+
+TEST(Array, Map) {
+  // Basic functionality
+  using namespace tvm;
+  Var x("x");
+  Var y("y");
+  Array<Var> var_arr{x, y};
+  Array<PrimExpr> expr_arr = var_arr.Map([](Var var) -> PrimExpr { return var + 1; });
+
+  ICHECK_NE(var_arr.get(), expr_arr.get());
+  ICHECK(expr_arr[0]->IsInstance<AddNode>());
+  ICHECK(expr_arr[1]->IsInstance<AddNode>());
+  ICHECK(expr_arr[0].as<AddNode>()->a.same_as(x));
+  ICHECK(expr_arr[1].as<AddNode>()->a.same_as(y));
+}
+
+TEST(Array, MapToSameTypeWithoutCopy) {
+  // If the applied map doesn't alter the contents, we can avoid a
+  // copy.
+  using namespace tvm;
+  Var x("x");
+  Var y("y");
+  Array<Var> var_arr{x, y};
+  Array<Var> var_arr2 = var_arr.Map([](Var var) { return var; });
+
+  ICHECK_EQ(var_arr.get(), var_arr2.get());
+}
+
+TEST(Array, MapToSameTypeWithCopy) {
+  // If the applied map does alter the contents, we need to make a
+  // copy.  The loop in this test is to validate correct behavior
+  // regardless of where the first discrepancy occurs.
+  using namespace tvm;
+  Var x("x");
+  Var y("y");
+  Var z("z");
+  Var replacement("replacement");
+  for (size_t i = 0; i < 2; i++) {
+    Array<Var> var_arr{x, y, z};
+    Var to_replace = var_arr[i];
+    Array<Var> var_arr2 =
+        var_arr.Map([&](Var var) { return var.same_as(to_replace) ? replacement : var; });
+
+    ICHECK_NE(var_arr.get(), var_arr2.get());
+
+    // The original array is unchanged
+    ICHECK_EQ(var_arr.size(), 3);
+    ICHECK(var_arr[0].same_as(x));
+    ICHECK(var_arr[1].same_as(y));
+
+    // The returned array has one of the elements replaced.
+    ICHECK_EQ(var_arr2.size(), 3);
+    ICHECK(var_arr2[i].same_as(replacement));
+    ICHECK(i == 0 || var_arr2[0].same_as(x));
+    ICHECK(i == 1 || var_arr2[1].same_as(y));
+    ICHECK(i == 2 || var_arr2[2].same_as(z));
+  }
+}
+
+TEST(Array, MapToSuperclassWithoutCopy) {
+  // If a map is converting to a superclass, and the mapping function
+  // array doesn't change the value other than a cast, we can avoid a
+  // copy.
+  using namespace tvm;
+  Var x("x");
+  Var y("y");
+  Array<Var> var_arr{x, y};
+  Array<PrimExpr> expr_arr = var_arr.Map([](Var var) { return PrimExpr(var); });
+
+  ICHECK_EQ(var_arr.get(), expr_arr.get());
+}
+
+TEST(Array, MapToSubclassWithoutCopy) {
+  // If a map is converting to a subclass, and the mapped array
+  // happens to only contain instances of that subclass, we can
+  // able to avoid a copy.
+  using namespace tvm;
+  Var x("x");
+  Var y("y");
+  Array<PrimExpr> expr_arr{x, y};
+  Array<Var> var_arr = expr_arr.Map([](PrimExpr expr) -> Var { return Downcast<Var>(expr); });
+
+  ICHECK_EQ(var_arr.get(), expr_arr.get());
+}
+
+TEST(Array, MapToOptionalWithoutCopy) {
+  // Optional<T> and T both have the same T::ContainerType, just with
+  // different interfaces for handling `T::data_ == nullptr`.
+  using namespace tvm;
+  Var x("x");
+  Var y("y");
+  Array<Var> var_arr{x, y};
+  Array<Optional<Var>> opt_arr = var_arr.Map([](Var var) { return Optional<Var>(var); });
+
+  ICHECK_EQ(var_arr.get(), opt_arr.get());
+}
+
+TEST(Array, MapFromOptionalWithoutCopy) {
+  // Optional<T> and T both have the same T::ContainerType, just with
+  // different interfaces for handling `T::data_ == nullptr`.
+  using namespace tvm;
+  Var x("x");
+  Var y("y");
+  Array<Optional<Var>> opt_arr{x, y};
+  Array<Var> var_arr =
+      opt_arr.Map([](Optional<Var> var) { return var.value_or(Var("undefined")); });
+
+  ICHECK_EQ(var_arr.get(), opt_arr.get());
+}
+
 TEST(Array, Iterator) {
   using namespace tvm;
   Array<PrimExpr> array{1, 2, 3};

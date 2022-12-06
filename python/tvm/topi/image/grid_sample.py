@@ -81,7 +81,7 @@ def _grid_sample_2d(
 
     The left-top corner (-1, -1) and right-bottom corner (1, 1) in grid will be map to
     (0, 0) and (h - 1, w - 1) of data if align_corners is "True", or
-    (-0.5, -0.5) and (h + 0.5, w + 0.5) of data if align_corners is "False".
+    (-0.5, -0.5) and (h - 0.5, w - 0.5) of data if align_corners is "False".
 
     The shape of the output will be (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3]).
 
@@ -200,13 +200,13 @@ def _grid_sample_2d(
 
     def _nearest_sample(n, c, h, w):
         y, x = _compute_source_index(n, h, w)
-        y_new = te.round(y).astype("int32")
-        x_new = te.round(x).astype("int32")
+        y_new = te.nearbyint(y).astype("int32")
+        x_new = te.nearbyint(x).astype("int32")
 
         return _get_pixel_value(n, c, y_new, x_new)
 
     def _bicubic_sample(n, c, h, w):
-        A = -0.75  # 0.75 is used in pytorch, it maybe different in other frameworks
+        A = -0.75  # -0.75 is used in pytorch, it maybe different in other frameworks
 
         def cubic_weight_1(fraction):
             return ((A + 2) * fraction - (A + 3)) * fraction * fraction + 1
@@ -310,7 +310,7 @@ def _grid_sample_3d(
 
     The left-top corner (-1, -1, -1) and right-bottom corner (1, 1, 1) in grid will be map to
     (0, 0, 0) and (d - 1, h - 1, w - 1) of data if align_corners is "True", or
-    (-0.5, -0.5, -0.5) and (d + 0.5, h + 0.5, w + 0.5) of data if align_corners is "False".
+    (-0.5, -0.5, -0.5) and (d - 0.5, h - 0.5, w - 0.5) of data if align_corners is "False".
 
     The shape of the output will be
     (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3], grid.shape[4]).
@@ -437,9 +437,9 @@ def _grid_sample_3d(
 
     def _nearest_sample(n, c, d, h, w):
         z, y, x = _compute_source_index(n, d, h, w)
-        z_new = te.round(z).astype("int32")
-        y_new = te.round(y).astype("int32")
-        x_new = te.round(x).astype("int32")
+        z_new = te.nearbyint(z).astype("int32")
+        y_new = te.nearbyint(y).astype("int32")
+        x_new = te.nearbyint(x).astype("int32")
         return _get_pixel_value(n, c, z_new, y_new, x_new)
 
     if method == "bilinear":
@@ -474,7 +474,7 @@ def grid_sample(
 
     The left-top corner (-1, -1) and right-bottom corner (1, 1) in grid will be map to
     (0, 0) and (h - 1, w - 1) of data if align_corners is "True", or
-    (-0.5, -0.5) and (h + 0.5, w + 0.5) of data if align_corners is "False".
+    (-0.5, -0.5) and (h - 0.5, w - 0.5) of data if align_corners is "False".
 
     The shape of the output will be
     4-D (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3]), or

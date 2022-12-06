@@ -125,7 +125,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
    */
   StorageScope GetScope(Var buffer_var) const;
   // access scope
-  std::vector<std::vector<StmtEntry> > scope_;
+  std::vector<std::vector<StmtEntry>> scope_;
 
  private:
   // whether access appending is enabled.

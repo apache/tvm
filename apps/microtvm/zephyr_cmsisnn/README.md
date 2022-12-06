@@ -30,7 +30,7 @@ Download the keyword spotting model to the `model` directory:
 wget \
     https://github.com/ARM-software/ML-zoo/blob/ee35139af86bdace5e502b09fe8b9da9cb1f06bb/models/keyword_spotting/cnn_small/tflite_int8/cnn_s_quantized.tflite \
     -O model/cnn_s_quantized.tflite
-``` 
+```
 
 Checkout [CMSIS_5](https://github.com/ARM-software/CMSIS_5.git) (default is `/opt/arm/ethosu/cmsis` to reflect `tlcpack/ci_cortexm`):
 ```

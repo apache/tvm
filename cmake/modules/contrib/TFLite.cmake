@@ -38,8 +38,10 @@ if(NOT USE_TFLITE STREQUAL "OFF")
     set(USE_TFLITE ${USE_TENSORFLOW_PATH}/tensorflow/lite/tools/make/gen/*/lib)
   endif()
   find_library(TFLITE_CONTRIB_LIB libtensorflow-lite.a ${USE_TFLITE})
+  file(GLOB_RECURSE TFLITE_DEPS "${USE_TFLITE}/*.a")
 
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${TFLITE_CONTRIB_LIB})
+  list(APPEND TVM_RUNTIME_LINKER_LIBS ${TFLITE_DEPS})
 
   if (NOT USE_FLATBUFFERS_PATH STREQUAL "none")
     include_directories(${USE_FLATBUFFERS_PATH}/include)

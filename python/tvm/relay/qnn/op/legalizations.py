@@ -405,18 +405,6 @@ def is_fast_int8_on_intel():
     return target_has_sse42(target.mcpu)
 
 
-def is_fast_int8_on_arm():
-    """Checks whether the hardware has support for fast Int8 arithmetic operations."""
-    target = tvm.target.Target.current(allow_none=False)
-    return "+v8.2a" in target.mattr and "+dotprod" in target.mattr
-
-
-def is_aarch64_arm():
-    """Checks whether we are compiling for an AArch64 target."""
-    target = tvm.target.Target.current(allow_none=False)
-    return "aarch64" in target.attrs.get("mtriple", "")
-
-
 ########################
 # ARM CPU legalizations.
 ########################
@@ -424,7 +412,7 @@ def is_aarch64_arm():
 
 @qnn_conv2d_legalize.register("arm_cpu")
 def _qnn_conv2d_legalize_arm_cpu(attrs, inputs, types):
-    # ARM prefers the dtypes to be same.
+    target = tvm.target.Target.current(allow_none=False)
     is_depthwise = relay.op.strategy.is_depthwise_conv2d(
         types[0].shape,
         attrs["data_layout"],
@@ -432,18 +420,21 @@ def _qnn_conv2d_legalize_arm_cpu(attrs, inputs, types):
         attrs["kernel_layout"],
         attrs["groups"],
     )
-    use_int8_on_arm = (not is_depthwise) and is_aarch64_arm() and attrs["data_layout"] == "NHWC"
-    if use_int8_on_arm or is_fast_int8_on_arm():
-        return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
-    return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.conv2d)
+    use_int8_on_arm = (not is_depthwise) and attrs["data_layout"] == "NHWC"
+    other_options = use_int8_on_arm or target.features.has_dotprod
+    if target.features.has_asimd and not other_options:
+        return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.conv2d)
+    # ARM prefers the dtypes to be same.
+    return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
 
 
 @qnn_dense_legalize.register("arm_cpu")
 def _qnn_dense_legalize_arm_cpu(attrs, inputs, types):
+    target = tvm.target.Target.current(allow_none=False)
+    if target.features.has_asimd and not target.features.has_dotprod:
+        return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.dense)
     # ARM prefers the dtypes to be same.
-    if is_fast_int8_on_arm():
-        return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.dense)
-    return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.dense)
+    return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.dense)
 
 
 ##########################

@@ -38,6 +38,7 @@
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <numeric>
 #include <unordered_map>
@@ -880,6 +881,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
         ComputeRegion(acc.indices, &local_analyzer, &tmp_region);
         int64_t touched_size = ElementProduct(tmp_region);
+        touched_size = std::max<int64_t>(0, touched_size);
         buffer_regions_map[t].push_back(
             std::make_tuple(acc.acc_type, touched_size, buffer_dtypes.at(t).bytes()));
         mem_bytes += touched_size * buffer_dtypes.at(t).bytes();
@@ -917,8 +919,9 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
         lines = 1.0f;
         unique_lines = 1.0f;
       } else {
-        unique_bytes =
-            std::get<1>(for_touch_regions_[for_loop_stack_.front()][t].front()) * ele_bytes;
+        unique_bytes = static_cast<float>(
+                           std::get<1>(for_touch_regions_[for_loop_stack_.front()][t].front())) *
+                       ele_bytes;
 
         stride = 0;
         int64_t reduce_ratio = 1;
@@ -952,9 +955,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
         unique_lines = std::max(unique_lines, 1.0f);
       }
 
-      ReuseType reuse_type;
-      float reuse_dis_iter, reuse_dis_bytes, reuse_ct;
-      std::tie(reuse_type, reuse_dis_iter, reuse_dis_bytes, reuse_ct) =
+      auto [reuse_type, reuse_dis_iter, reuse_dis_bytes, reuse_ct] =
           ComputeReuse(t, acc.indices, for_loop_stack_, for_touch_regions_, ana_);
 
       acc_feas.emplace_back();
@@ -1356,10 +1357,7 @@ void GetPerStoreFeatureName(int max_n_bufs, std::vector<std::string>* ret) {
 
 void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, int max_n_bufs,
                                    std::vector<float>* feature, std::atomic<int>* error_ct) {
-  te::Schedule sch;
-  Array<te::Tensor> tensors;
-
-  std::tie(sch, tensors) = task->compute_dag.ApplySteps(state->transform_steps);
+  auto [sch, tensors] = task->compute_dag.ApplySteps(state->transform_steps);
 
   // When inlining, replace const matrices with const values.
   // Produces wrong IR, but good enough for feature extraction, and
@@ -1401,6 +1399,13 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
       };
       pass_list.push_back(tir::transform::VerifyGPUCode(gpu_params));
       const auto& optimize = tir::transform::Sequential(pass_list);
+      optimize(mod);
+    }
+    if (IsHexagonTask(task)) {
+      Target target = task->target;
+      const auto vtcm_capacity = target->GetAttr<Integer>("vtcm-capacity").value().IntValue();
+      const auto& optimize =
+          tir::transform::Sequential({tir::transform::VerifyVTCMLimit(vtcm_capacity)});
       optimize(mod);
     }
     const auto& optimize =
@@ -1739,7 +1744,10 @@ TVM_REGISTER_GLOBAL("auto_scheduler.FeaturesFromPrimFunc")
       std::vector<float> vec;
       GetPerStoreFeature(func, cache_line_size, max_n_bufs, &vec, log_scale);
       int64_t num_feature_rows = vec[0];  // first element is number of rows
-      int64_t row_length = (vec.size() - 1) / num_feature_rows;
+      int64_t row_length = 0;
+      if (num_feature_rows != 0) {
+        row_length = (vec.size() - 1) / num_feature_rows;
+      }
       auto ary =
           runtime::NDArray::Empty({num_feature_rows, row_length}, {kDLFloat, 32, 1}, {kDLCPU, 0});
       // NDArray is row major by default

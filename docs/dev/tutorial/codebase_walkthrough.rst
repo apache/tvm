@@ -93,11 +93,14 @@ This function is mapped to the C++ function in ``include/tvm/schedule.h``.
 
 ``Schedule`` and ``Stage`` are defined in ``tvm/python/te/schedule.py``, ``include/tvm/te/schedule.h``, and ``src/te/schedule/schedule_ops.cc``.
 
-To keep it simple, we call ``tvm.build(...)`` on the default schedule created by ``create_schedule()`` function above.
+To keep it simple, we call ``tvm.build(...)`` on the default schedule created by ``create_schedule()`` function above, and we must add necessary thread bindings to make it runnable on GPU.
 
 ::
 
    target = "cuda"
+   bx, tx = s[C].split(C.op.axis[0], factor=64)
+   s[C].bind(bx, tvm.te.thread_axis("blockIdx.x"))
+   s[C].bind(tx, tvm.te.thread_axis("threadIdx.x"))
    fadd = tvm.build(s, [A, B, C], target)
 
 ``tvm.build()``, defined in ``python/tvm/driver/build_module.py``, takes a schedule, input and output ``Tensor``, and a target, and returns a :py:class:`tvm.runtime.Module` object. A :py:class:`tvm.runtime.Module` object contains a compiled function which can be invoked with function call syntax.

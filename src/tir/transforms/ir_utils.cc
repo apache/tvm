@@ -56,7 +56,7 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
     } else if (const auto* ite = s.as<IfThenElseNode>()) {
       auto n = make_object<IfThenElseNode>(*ite);
       ICHECK(is_no_op(n->then_case));
-      ICHECK(!n->else_case.defined());
+      ICHECK(!n->else_case);
       n->then_case = body;
       body = Stmt(n);
     } else if (const auto* seq = s.as<SeqStmtNode>()) {
@@ -112,12 +112,10 @@ class IRConvertSSA final : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const LoadNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -130,6 +128,15 @@ class IRConvertSSA final : public StmtExprMutator {
     auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
     auto output = VisitBufferAccess(std::move(node));
     return std::move(output);
+  }
+
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    DeclBuffer decl = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    Buffer new_buffer = GetRemappedBuffer(decl->buffer);
+    if (!new_buffer.same_as(decl->buffer)) {
+      decl.CopyOnWrite()->buffer = std::move(new_buffer);
+    }
+    return std::move(decl);
   }
 
   template <typename Node>

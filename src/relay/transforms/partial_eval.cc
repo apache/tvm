@@ -772,7 +772,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     if (func->HasNonzeroAttr(attr::kPrimitive)) {
       return ConstEvaluateFunc(func);
     }
-    std::vector<std::pair<Var, PStatic> > free_vars;
+    std::vector<std::pair<Var, PStatic>> free_vars;
     for (const auto& v : FreeVars(func)) {
       if (v != var) {
         free_vars.push_back(std::pair<Var, PStatic>(v, env_.Lookup(v)));

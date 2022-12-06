@@ -67,6 +67,11 @@ class DisallowDynamicLoopNode : public PostprocNode {
   void InitializeWithTuneContext(const TuneContext& context) final {}
   // Inherited from PostprocNode
   bool Apply(const tir::Schedule& sch) final { return !tir::DynamicExtentFinder::Find(sch->mod()); }
+  // Inherited from PostprocNode
+  Postproc Clone() const {
+    ObjectPtr<DisallowDynamicLoopNode> n = make_object<DisallowDynamicLoopNode>(*this);
+    return Postproc(n);
+  }
 
   static constexpr const char* _type_key = "meta_schedule.DisallowDynamicLoop";
   TVM_DECLARE_FINAL_OBJECT_INFO(DisallowDynamicLoopNode, PostprocNode);

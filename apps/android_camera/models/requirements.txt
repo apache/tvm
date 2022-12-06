@@ -1,4 +1,4 @@
-keras
+keras==2.9
 mxnet
 scipy
-tensorflow
+tensorflow==2.9.3

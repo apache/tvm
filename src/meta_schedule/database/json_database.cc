@@ -20,32 +20,11 @@
 #include <thread>
 #include <unordered_map>
 
+#include "../module_equality.h"
 #include "../utils.h"
 
 namespace tvm {
 namespace meta_schedule {
-
-/*! \brief The struct defining comparison function of sorting by mean run seconds. */
-struct SortTuningRecordByMeanRunSecs {
-  static const constexpr double kMaxMeanTime = 1e10;
-
-  static double Mean(const Array<FloatImm>& a) {
-    if (a.empty()) {
-      return kMaxMeanTime;
-    }
-    double sum = 0.0;
-    for (const FloatImm& i : a) {
-      sum += i->value;
-    }
-    return sum / a.size();
-  }
-
-  bool operator()(const TuningRecord& a, const TuningRecord& b) const {
-    double a_time = Mean(a->run_secs.value_or({}));
-    double b_time = Mean(b->run_secs.value_or({}));
-    return a_time < b_time;
-  }
-};
 
 /*!
  * \brief Read lines from a json file.
@@ -89,6 +68,10 @@ void JSONFileAppendLine(const String& path, const std::string& line) {
 /*! \brief The default database implementation, which mimics two database tables with two files. */
 class JSONDatabaseNode : public DatabaseNode {
  public:
+  explicit JSONDatabaseNode(String mod_eq_name = "structural")
+      : DatabaseNode(mod_eq_name),
+        workloads2idx_(/*bucket_count*/ 0, WorkloadHash(), WorkloadEqual(GetModuleEquality())) {}
+
   /*! \brief The path to the workload table */
   String path_workload;
   /*! \brief The path to the tuning record table */
@@ -110,15 +93,14 @@ class JSONDatabaseNode : public DatabaseNode {
 
  public:
   bool HasWorkload(const IRModule& mod) {
-    return workloads2idx_.find(Workload(mod, tvm::StructuralHash()(mod))) != workloads2idx_.end();
+    return workloads2idx_.find(Workload(mod, GetModuleEquality().Hash(mod))) !=
+           workloads2idx_.end();
   }
 
   Workload CommitWorkload(const IRModule& mod) {
     // Try to insert `mod` into `workloads_`
-    decltype(this->workloads2idx_)::iterator it;
-    bool inserted = false;
-    std::tie(it, inserted) =
-        this->workloads2idx_.emplace(Workload(mod, tvm::StructuralHash()(mod)), -1);
+    auto [it, inserted] =
+        this->workloads2idx_.emplace(Workload(mod, GetModuleEquality().Hash(mod)), -1);
     Workload workload = it->first;
     // If `mod` is new in `workloads2idx_`, append it to the workload file
     if (inserted) {
@@ -146,7 +128,8 @@ class JSONDatabaseNode : public DatabaseNode {
     results.reserve(top_k);
     int counter = 0;
     for (const TuningRecord& record : this->tuning_records_) {
-      if (WorkloadEqual()(record->workload, workload)) {
+      if (record->workload.same_as(workload) ||
+          WorkloadEqual(GetModuleEquality())(record->workload, workload)) {
         results.push_back(record);
         if (++counter == top_k) {
           break;
@@ -168,10 +151,10 @@ class JSONDatabaseNode : public DatabaseNode {
   int64_t Size() { return tuning_records_.size(); }
 };
 
-Database Database::JSONDatabase(String path_workload, String path_tuning_record,
-                                bool allow_missing) {
+Database Database::JSONDatabase(String path_workload, String path_tuning_record, bool allow_missing,
+                                String mod_eq_name) {
   int num_threads = std::thread::hardware_concurrency();
-  ObjectPtr<JSONDatabaseNode> n = make_object<JSONDatabaseNode>();
+  ObjectPtr<JSONDatabaseNode> n = make_object<JSONDatabaseNode>(mod_eq_name);
   // Load `n->workloads2idx_` from `path_workload`
   std::vector<Workload> workloads;
   {
@@ -181,6 +164,10 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
     workloads.reserve(n_objs);
     for (int i = 0; i < n_objs; ++i) {
       Workload workload = Workload::FromJSON(json_objs[i]);
+      auto recalc_hash = n->GetModuleEquality().Hash(workload->mod);
+      CHECK_EQ(recalc_hash, workload->shash)
+          << "ValueError: Module hash changed. Given: " << workload->shash
+          << "; Recalculated: " << recalc_hash;
       n->workloads2idx_.emplace(workload, i);
       workloads.push_back(workload);
     }

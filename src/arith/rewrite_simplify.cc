@@ -29,8 +29,10 @@
 #include <tvm/tir/op.h>
 
 #include <algorithm>
+#include <utility>
 
 #include "../target/datatype/registry.h"
+#include "conjunctive_normal_form.h"
 #include "const_fold.h"
 #include "constraint_extract.h"
 #include "pattern_match.h"
@@ -71,42 +73,103 @@ using namespace tir;
 // handled by CanonicalSimplifier.
 //
 
+/* Utility for rewriting only boolean portions of an expression
+ *
+ * Performs a subset of simplifications done by RewriteSimplifier,
+ * sufficient to negate a simplified expression.  Intended for
+ * application on an expression that has previously been simplified.
+ *
+ * \param expr The boolean expression to be normalized
+ *
+ * \returns The normalized boolean expression
+ */
+PrimExpr NormalizeBooleanOperators(PrimExpr expr) {
+  PVar<PrimExpr> x, y;
+
+  while (true) {
+    if ((!!x).Match(expr)) {
+      expr = x.Eval();
+    } else if ((!(x || y)).Match(expr)) {
+      return NormalizeBooleanOperators(!x.Eval()) && NormalizeBooleanOperators(!y.Eval());
+    } else if ((!(x && y)).Match(expr)) {
+      return NormalizeBooleanOperators(!x.Eval()) || NormalizeBooleanOperators(!y.Eval());
+    } else if ((x >= y).Match(expr) || (!(x < y)).Match(expr) || (!(y > x)).Match(expr)) {
+      return y.Eval() <= x.Eval();
+    } else if ((x > y).Match(expr) || (!(x <= y)).Match(expr) || (!(y >= x)).Match(expr)) {
+      return y.Eval() < x.Eval();
+    } else if ((!(x == y)).Match(expr)) {
+      return x.Eval() != y.Eval();
+    } else if ((!(x != y)).Match(expr)) {
+      return x.Eval() == y.Eval();
+    } else {
+      return expr;
+    }
+  }
+}
+
+CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, const PrimExpr& y) {
+  CompareResult output = CompareResult::kUnknown;
+
+  auto is_finished = [&output]() {
+    return output == CompareResult::kEQ || output == CompareResult::kLT ||
+           output == CompareResult::kGT;
+  };
+
+  output = CompareResult(output & TryCompareUsingConstIntBounds(x, y));
+
+  if (is_finished()) return output;
+
+  output = CompareResult(output & TryCompareUsingKnownInequalities(x, y));
+
+  return output;
+}
+
+CompareResult RewriteSimplifier::Impl::TryCompareUsingConstIntBounds(const PrimExpr& x,
+                                                                     const PrimExpr y) {
+  return TryCompare(x - y, 0);
+}
+
+CompareResult RewriteSimplifier::Impl::TryCompareUsingKnownInequalities(const PrimExpr& x,
+                                                                        const PrimExpr& y) {
+  bool propagate_inequalities = enabled_extensions_ & kTransitivelyProveInequalities;
+  return analyzer_->transitive_comparisons.TryCompare(x, y, propagate_inequalities);
+}
+
 // try to prove x equals val
-RewriteSimplifier::Impl::CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x,
-                                                                           int64_t val) {
+CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, int64_t val) {
   PrimExpr diff = this->VisitExpr(x);
   if (const auto* ptr = diff.as<IntImmNode>()) {
     if (ptr->value == val) {
-      return kEQ;
+      return CompareResult::kEQ;
     } else if (ptr->value > val) {
-      return kGT;
+      return CompareResult::kGT;
     } else if (ptr->value < val) {
-      return kLT;
+      return CompareResult::kLT;
     }
   }
   ConstIntBound dbound = analyzer_->const_int_bound(diff);
   if (dbound->min_value == val && dbound->max_value == val) {
-    return kEQ;
+    return CompareResult::kEQ;
   }
   if (dbound->min_value > val) {
-    return kGT;
+    return CompareResult::kGT;
   }
   if (dbound->max_value < val) {
-    return kLT;
+    return CompareResult::kLT;
   }
   if (dbound->min_value >= val) {
-    return kGE;
+    return CompareResult::kGE;
   }
   if (dbound->max_value <= val) {
-    return kLE;
+    return CompareResult::kLE;
   }
   if (val == 0) {
     ModularSet dmod = analyzer_->modular_set(diff);
     if (dmod->base != 0) {
-      return kNE;
+      return CompareResult::kNE;
     }
   }
-  return kUnknown;
+  return CompareResult::kUnknown;
 }
 
 void RewriteSimplifier::Impl::Update(const Var& var, const PrimExpr& info, bool can_override) {
@@ -124,8 +187,7 @@ void RewriteSimplifier::Impl::Update(const Var& var, const PrimExpr& info, bool 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<AddNode>();
-  PrimExpr const_res = TryConstFold<Add>(op->a, op->b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<Add>(op->a, op->b)) return const_res.value();
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
@@ -230,20 +292,20 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
   // we will compare the already simplified result with the constraint,
   // so simplify the constraint as well
   PrimExpr new_constraint = operator()(constraint);
-  for (const PrimExpr& subconstraint : ExtractConstraints(new_constraint)) {
+  for (const PrimExpr& subconstraint : ExtractConstraints(new_constraint, false)) {
     if (SideEffect(subconstraint) <= CallEffectKind::kPure) {
       literal_constraints_.push_back(subconstraint);
-      // We could apply this during TryMatchLiteralConstraint, but
-      // that would require performing a rewrite of each expression
-      // being checked.  This way, we only apply a rewrite for each
-      // constraint being applied.
       PrimExpr negation;
       if (subconstraint.dtype().is_bool()) {
-        negation = Not(subconstraint);
+        // We could apply NormalizeBooleanOperators during
+        // TryMatchLiteralConstraint, but that would require
+        // performing a rewrite of each expression being checked.
+        // This way, we only apply a rewrite for each constraint being
+        // applied.
+        negation = NormalizeBooleanOperators(Not(subconstraint));
       } else {
         negation = subconstraint == make_zero(subconstraint.dtype());
       }
-      negation = operator()(negation);
       literal_constraints_.push_back(Not(negation));
     }
   }
@@ -255,11 +317,16 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
   return frecover;
 }
 
+void RewriteSimplifier::Impl::SetEnabledExtensions(Extension flags) { enabled_extensions_ = flags; }
+
+RewriteSimplifier::Extension RewriteSimplifier::Impl::GetEnabledExtensions() const {
+  return enabled_extensions_;
+}
+
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<SubNode>();
-  PrimExpr const_res = TryConstFold<Sub>(op->a, op->b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<Sub>(op->a, op->b)) return const_res.value();
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
@@ -450,8 +517,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<MulNode>();
-  PrimExpr const_res = TryConstFold<Mul>(op->a, op->b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<Mul>(op->a, op->b)) return const_res.value();
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
@@ -490,8 +556,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<DivNode>();
-  PrimExpr const_res = TryConstFold<Div>(op->a, op->b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<Div>(op->a, op->b)) return const_res.value();
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
@@ -666,8 +731,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<ModNode>();
-  PrimExpr const_res = TryConstFold<Mod>(op->a, op->b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<Mod>(op->a, op->b)) return const_res.value();
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
@@ -748,8 +812,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<FloorDivNode>();
-  PrimExpr const_res = TryConstFold<FloorDiv>(op->a, op->b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<FloorDiv>(op->a, op->b)) return const_res.value();
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
@@ -895,8 +958,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<FloorModNode>();
-  PrimExpr const_res = TryConstFold<FloorMod>(op->a, op->b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<FloorMod>(op->a, op->b)) return const_res.value();
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
@@ -977,8 +1039,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<MinNode>();
-  PrimExpr const_res = TryConstFold<Min>(op->a, op->b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<Min>(op->a, op->b)) return const_res.value();
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
@@ -1149,8 +1210,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<MaxNode>();
-  PrimExpr const_res = TryConstFold<Max>(op->a, op->b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<Max>(op->a, op->b)) return const_res.value();
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
@@ -1325,12 +1385,20 @@ Optional<PrimExpr> RewriteSimplifier::Impl::TryMatchLiteralConstraint(const Prim
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const EQNode* op) {
-  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<EQNode>();
-  PrimExpr const_res = TryConstFold<EQ>(op->a, op->b);
-  if (const_res.defined()) return const_res;
-  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+  EQ ret = Downcast<EQ>(IRMutatorWithAnalyzer::VisitExpr_(op));
+  op = ret.get();
 
+  if (auto const_res = TryConstFold<EQ>(op->a, op->b)) {
+    return const_res.value();
+  }
+  if (auto match = TryMatchLiteralConstraint(ret)) {
+    return match.value();
+  }
+
+  return ApplyRewriteRules(ret);
+}
+
+PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
   // Pattern var match IntImm
@@ -1338,31 +1406,106 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const EQNode* op) {
   PVar<int> lanes;
 
   // vector rule
-  if (op->dtype.lanes() != 1) {
+  if (ret->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(broadcast(x, lanes) == broadcast(y, lanes), broadcast(x == y, lanes));
   }
 
-  if (IsIndexType(op->a.dtype())) {
-    CompareResult result = TryCompare(op->a - op->b, 0);
-    if (result == kEQ) {
-      return make_const(op->dtype, true);
-    } else if (result == kNE || result == kGT || result == kLT) {
-      return make_const(op->dtype, false);
+  if (IsIndexType(ret->a.dtype())) {
+    CompareResult result = TryCompare(ret->a, ret->b);
+    if (result == CompareResult::kEQ) {
+      return make_const(ret->dtype, true);
+    } else if (result == CompareResult::kNE || result == CompareResult::kGT ||
+               result == CompareResult::kLT) {
+      return make_const(ret->dtype, false);
     }
+    TVM_TRY_REWRITE(c1 == x, x == c1);
+
     TVM_TRY_REWRITE(x - c1 == 0, x == c1);
     TVM_TRY_REWRITE(c1 - x == 0, x == c1);
     TVM_TRY_REWRITE(x + c1 == 0, x == 0 - c1);
-    TVM_TRY_REWRITE(x * y == 0, x == 0 || y == 0);
+    TVM_TRY_RECURSIVE_REWRITE(x * y == 0, x == 0 || y == 0);
   }
-  return ret;
+  return std::move(ret);
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NENode* op) {
-  return this->VisitExpr(Not(op->a == op->b));
+  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
+  op = ret.as<NENode>();
+
+  if (auto const_res = TryConstFold<NE>(op->a, op->b)) return const_res.value();
+  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+
+  if (IsIndexType(op->a.dtype())) {
+    CompareResult result = TryCompare(op->a, op->b);
+    if (result == CompareResult::kNE || result == CompareResult::kGT ||
+        result == CompareResult::kLT) {
+      return make_const(op->dtype, true);
+    } else if (result == CompareResult::kEQ) {
+      return make_const(op->dtype, false);
+    } else if (result == CompareResult::kGE) {
+      // Known: a >= b
+      //
+      // a != b
+      // (a < b) or (b < a)
+      // False or (b < a)
+      // b < a
+      return ApplyRewriteRules(LT(op->b, op->a));
+    } else if (result == CompareResult::kLE) {
+      // Known: a <= b
+      //
+      // a != b
+      // (a < b) or (b < a)
+      // (a < b) or False
+      // a < b
+      return ApplyRewriteRules(LT(op->a, op->b));
+    }
+  }
+
+  return ApplyRewriteRules(Not(ApplyRewriteRules(EQ(op->a, op->b))));
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LENode* op) {
-  return this->VisitExpr(Not(op->b < op->a));
+  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
+  op = ret.as<LENode>();
+  ICHECK(op);
+
+  if (auto const_res = TryConstFold<LE>(op->a, op->b)) return const_res.value();
+  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+
+  // Check for applicable rewrites before attempting to prove/disprove
+  // the inequality.  This preserves earlier behavior, where (A<=B*x)
+  // simplifies to (ceildiv(A,B)<=x) when (A%B!=0).  Performing the
+  // TryCompare first would simplify to the equivalent
+  // (floordiv(A,B)<x) in these cases instead.
+  ret = ApplyRewriteRules(Not(ApplyRewriteRules(LT(op->b, op->a))));
+
+  if (auto op = ret.as<LENode>(); op && IsIndexType(op->a.dtype())) {
+    CompareResult result = TryCompare(op->a, op->b);
+    if (result == CompareResult::kLE || result == CompareResult::kLT ||
+        result == CompareResult::kEQ) {
+      return make_const(op->dtype, true);
+    } else if (result == CompareResult::kGT) {
+      return make_const(op->dtype, false);
+    } else if (result == CompareResult::kNE) {
+      // Known: a != b
+      //
+      // a <= b
+      // (a < b) or (a == b)
+      // (a < b) or False
+      // a < b
+      return ApplyRewriteRules(LT(op->a, op->b));
+    } else if (result == CompareResult::kGE) {
+      // Known: a >= b
+      //
+      // a <= b
+      // (a < b) or (a == b)
+      // False or (a == b)
+      // a == b
+      return ApplyRewriteRules(EQ(op->a, op->b));
+    }
+  }
+
+  return ret;
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const GTNode* op) {
@@ -1370,16 +1513,20 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const GTNode* op) {
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const GENode* op) {
-  return this->VisitExpr(Not(op->a < op->b));
+  return this->VisitExpr(op->b <= op->a);
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LTNode* op) {
-  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<LTNode>();
-  PrimExpr const_res = TryConstFold<LT>(op->a, op->b);
-  if (const_res.defined()) return const_res;
-  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+  LT node = Downcast<LT>(IRMutatorWithAnalyzer::VisitExpr_(op));
+  op = node.get();
 
+  if (auto const_res = TryConstFold<LT>(op->a, op->b)) return const_res.value();
+  if (auto match = TryMatchLiteralConstraint(node)) return match.value();
+
+  return ApplyRewriteRules(node);
+}
+
+PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
@@ -1387,18 +1534,19 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LTNode* op) {
   PVar<int> lanes;
 
   // vector rule
-  if (op->dtype.lanes() != 1) {
+  if (ret->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(broadcast(x, lanes) < broadcast(y, lanes), broadcast(x < y, lanes));
     TVM_TRY_REWRITE(ramp(x, s1, lanes) < ramp(y, s1, lanes), broadcast(x < y, lanes));
   }
 
-  if (IsIndexType(op->a.dtype())) {
-    CompareResult result = TryCompare(op->a - op->b, 0);
-    if (result == kLT) {
-      return make_const(op->dtype, true);
+  if (IsIndexType(ret->a.dtype())) {
+    CompareResult result = TryCompare(ret->a, ret->b);
+    if (result == CompareResult::kLT) {
+      return make_const(ret->dtype, true);
     }
-    if (result == kEQ || result == kGT || result == kGE) {
-      return make_const(op->dtype, false);
+    if (result == CompareResult::kEQ || result == CompareResult::kGT ||
+        result == CompareResult::kGE) {
+      return make_const(ret->dtype, false);
     }
 
     // clang-format off
@@ -1500,22 +1648,29 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LTNode* op) {
     TVM_TRY_RECURSIVE_REWRITE(x + c1 < c2, x < c2 - c1);
     TVM_TRY_RECURSIVE_REWRITE(x - c1 < c2, x < c2 + c1);
     TVM_TRY_REWRITE(x - c1 < 0, x < c1);
+
+    TVM_TRY_RECURSIVE_REWRITE(x - 1 < y, x <= y);
+    TVM_TRY_RECURSIVE_REWRITE(x < y + 1, x <= y);
+    TVM_TRY_RECURSIVE_REWRITE(x + (-1) < y, x <= y);
+    TVM_TRY_RECURSIVE_REWRITE(x < y - (-1), x <= y);
     // clang-format on
   }
-  return ret;
+  return std::move(ret);
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NotNode* op) {
-  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<NotNode>();
-  PrimExpr const_res = TryConstFold<Not>(op->a);
-  if (const_res.defined()) return const_res;
+  Not ret = Downcast<Not>(IRMutatorWithAnalyzer::VisitExpr_(op));
+  if (auto const_res = TryConstFold<Not>(ret->a)) return const_res.value();
   if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
 
+  return ApplyRewriteRules(ret);
+}
+
+PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(Not ret) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
   PVar<int> lanes;
-  if (op->dtype.lanes() != 1) {
+  if (ret->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(!broadcast(x, lanes), broadcast(!x, lanes));
   }
 
@@ -1528,20 +1683,67 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NotNode* op) {
   TVM_TRY_REWRITE(!(x != y), x == y);
   TVM_TRY_RECURSIVE_REWRITE(!(x || y), (!x) && (!y));
   TVM_TRY_RECURSIVE_REWRITE(!(x && y), (!x) || (!y));
-  return ret;
+  return std::move(ret);
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
-  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
+  PrimExpr ret = [&]() -> PrimExpr {
+    // If this extension isn't enabled, just delegate out.
+    if (!(enabled_extensions_ & kApplyConstraintsToBooleanBranches)) {
+      return IRMutatorWithAnalyzer::VisitExpr_(op);
+    }
+
+    PrimExpr a = op->a;
+    PrimExpr b = op->b;
+
+    // Alternate which branch is used as the constraint, and which is
+    // being simplified.  Because some sub-analyzers expect their
+    // constraints to already be simplified, each branch may require
+    // more than one update.  The loop condition allows each branch to
+    // be visited up to twice, but only performs the second visit if
+    // necessary.
+    size_t iterations_since_update = 0;
+    for (size_t i = 0; i < 4; i++) {
+      PrimExpr& to_update = (i % 2 == 0) ? a : b;
+      const PrimExpr& constraint = (i % 2 == 0) ? b : a;
+
+      With<ConstraintContext> context(analyzer_, constraint);
+      PrimExpr updated = VisitExpr(to_update);
+
+      if (!to_update.same_as(updated)) {
+        to_update = updated;
+        iterations_since_update = 0;
+      } else {
+        iterations_since_update++;
+        if (iterations_since_update >= 2) {
+          break;
+        }
+      }
+    }
+
+    // Only construct a new object if a change has been made.
+    // Otherwise, follow ExprMutator's convention of returning the
+    // original object.
+    if (a.same_as(op->a) && b.same_as(op->b)) {
+      return GetRef<PrimExpr>(op);
+    } else {
+      return And(a, b);
+    }
+  }();
+
   op = ret.as<AndNode>();
-  PrimExpr const_res = TryConstFold<And>(op->a, op->b);
-  if (const_res.defined()) return const_res;
+
+  if (auto const_res = TryConstFold<And>(op->a, op->b)) return const_res.value();
   if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+  if ((enabled_extensions_ & RewriteSimplifier::kConvertBooleanToAndOfOrs) &&
+      !recursively_visiting_boolean_) {
+    return SimplifyAsAndOfOrs(ret, analyzer_);
+  }
 
   // Pattern var to match any expression
-  PVar<PrimExpr> x, y;
+  PVar<PrimExpr> x, y, z;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVar<IntImm> c1, c2, c3;
   PVar<int> lanes;
 
   if (op->dtype.lanes() != 1) {
@@ -1568,18 +1770,118 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
 
   TVM_TRY_REWRITE(x == c1 && x != c2, x == c1 && c1 != c2);
   TVM_TRY_REWRITE(x != c2 && x == c1, x == c1 && c1 != c2);
+
+  TVM_TRY_RECURSIVE_REWRITE(floordiv(x, c2) == c1 && floormod(x, c2) == c3, x == c1 * c2 + c3);
+  TVM_TRY_RECURSIVE_REWRITE(floormod(x, c2) == c3 && floordiv(x, c2) == c1, x == c1 * c2 + c3);
+
+  TVM_TRY_RECURSIVE_REWRITE_IF(0 <= x - y * c1 &&
+                               x - y * c1<c1, y == floordiv(x, c1), c1.Eval()->value> 0);
+  TVM_TRY_RECURSIVE_REWRITE_IF(x - y * c1 < c1 && 0 <= x - y * c1, y == floordiv(x, c1),
+                               c1.Eval()->value > 0);
+
+  TVM_TRY_RECURSIVE_REWRITE(c1 < x - y * c1 && x - y * c1 <= 0, y == floordiv(x, c1));
+  TVM_TRY_RECURSIVE_REWRITE(x - y * c1 < c1 && 0 <= x - y * c1, y == floordiv(x, c1));
+  TVM_TRY_RECURSIVE_REWRITE_IF(0 <= x + y * c2 && x + y * c2 < c1, y == floordiv(x, c1),
+                               c2.Eval()->value == -c1.Eval()->value);
+  TVM_TRY_RECURSIVE_REWRITE_IF(x + y * c2 < c1 && 0 <= x + y * c2, y == floordiv(x, c1),
+                               c2.Eval()->value == -c1.Eval()->value);
+
+  TVM_TRY_RECURSIVE_REWRITE_IF(x < c1 && floormod(x, c2) < c3,
+                               x < c1 - c2 + c3 && floormod(x, c2) < c3,
+                               c1.Eval()->value % c2.Eval()->value == 0);
+  TVM_TRY_RECURSIVE_REWRITE_IF(
+      x < c1 && floormod(x, c2) < c3, x < c1 - floormod(c1, c2) + c3 && floormod(x, c2) < c3,
+      (c1.Eval()->value % c2.Eval()->value + c2.Eval()->value) % c2.Eval()->value >
+          c3.Eval()->value);
+
+  TVM_TRY_RECURSIVE_REWRITE_IF(x <= c1 && floormod(x, c2) < c3,
+                               x < c1 + 1 - c2 + c3 && floormod(x, c2) < c3,
+                               (c1.Eval()->value + 1) % c2.Eval()->value == 0);
+  TVM_TRY_RECURSIVE_REWRITE_IF(
+      x <= c1 && floormod(x, c2) < c3, x < c1 + 1 - floormod(c1, c2) + c3 && floormod(x, c2) < c3,
+      (((c1.Eval()->value + 1) % c2.Eval()->value) + c2.Eval()->value) % c2.Eval()->value >
+          c3.Eval()->value);
+
+  TVM_TRY_RECURSIVE_REWRITE(floordiv(x, c2) == c1 && floormod(x, c2) < c3,
+                            c1 * c2 <= x && x < c1 * c2 + c3);
+  TVM_TRY_RECURSIVE_REWRITE(floormod(x, c2) < c3 && floordiv(x, c2) == c1,
+                            c1 * c2 <= x && x < c1 * c2 + c3);
+  TVM_TRY_RECURSIVE_REWRITE(floordiv(x, c2) == c1 && floormod(x, c2) <= c3,
+                            c1 * c2 <= x && x <= c1 * c2 + c3);
+  TVM_TRY_RECURSIVE_REWRITE(floormod(x, c2) <= c3 && floordiv(x, c2) == c1,
+                            c1 * c2 <= x && x <= c1 * c2 + c3);
+
+  TVM_TRY_RECURSIVE_REWRITE(floordiv(x, c2) == c1 && c3 <= floormod(x, c2),
+                            c1 * c2 + c3 <= x && x < (c1 + 1) * c2);
+  TVM_TRY_RECURSIVE_REWRITE(c3 <= floormod(x, c2) && floordiv(x, c2) == c1,
+                            c1 * c2 + c3 <= x && x < (c1 + 1) * c2);
+  TVM_TRY_RECURSIVE_REWRITE(floordiv(x, c2) == c1 && c3 < floormod(x, c2),
+                            c1 * c2 + c3 < x && x < (c1 + 1) * c2);
+  TVM_TRY_RECURSIVE_REWRITE(c3 < floormod(x, c2) && floordiv(x, c2) == c1,
+                            c1 * c2 + c3 < x && x < (c1 + 1) * c2);
+
+  TVM_TRY_RECURSIVE_REWRITE(x && (y && z), (x && y) && z);
+
   return ret;
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
-  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
+  PrimExpr orig = GetRef<PrimExpr>(op);
+
+  PrimExpr ret = [&]() -> PrimExpr {
+    // If this extension isn't enabled, just delegate out.
+    if (!(enabled_extensions_ & kApplyConstraintsToBooleanBranches)) {
+      return IRMutatorWithAnalyzer::VisitExpr_(op);
+    }
+
+    PrimExpr a = op->a;
+    PrimExpr b = op->b;
+
+    // Alternate which branch is used as the constraint, and which
+    // is being simplified.  Because some sub-analyzers expect their
+    // constraints to already be simplified, each branch may require
+    // more than update.  The loop condition allows each branch to be
+    // visited up to twice, but only if performs the second visit if
+    // necessary.
+    size_t iterations_since_update = 0;
+    for (size_t i = 0; i < 4; i++) {
+      PrimExpr& to_update = (i % 2 == 0) ? a : b;
+      const PrimExpr& constraint = (i % 2 == 0) ? b : a;
+
+      With<ConstraintContext> context(analyzer_, NormalizeBooleanOperators(Not(constraint)));
+      PrimExpr updated = VisitExpr(to_update);
+
+      if (!to_update.same_as(updated)) {
+        to_update = updated;
+        iterations_since_update = 0;
+      } else {
+        iterations_since_update++;
+        if (iterations_since_update >= 2) {
+          break;
+        }
+      }
+    }
+
+    // Only construct a new object if a change has been made.
+    // Otherwise, follow ExprMutator's convention of returning the
+    // original object.
+    if (a.same_as(op->a) && b.same_as(op->b)) {
+      return GetRef<PrimExpr>(op);
+    } else {
+      return Or(a, b);
+    }
+  }();
+
   op = ret.as<OrNode>();
-  PrimExpr const_res = TryConstFold<Or>(op->a, op->b);
-  if (const_res.defined()) return const_res;
+  if (auto const_res = TryConstFold<Or>(op->a, op->b)) return const_res.value();
   if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+  if ((enabled_extensions_ & RewriteSimplifier::kConvertBooleanToAndOfOrs) &&
+      !recursively_visiting_boolean_) {
+    return SimplifyAsAndOfOrs(ret, analyzer_);
+  }
 
   // Pattern var to match any expression
-  PVar<PrimExpr> x, y;
+  PVar<PrimExpr> x, y, z;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
   PVar<int> lanes;
@@ -1596,6 +1898,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
   TVM_TRY_REWRITE(x <= y || y < x, ctrue);
   TVM_TRY_REWRITE(y < x || x <= y, ctrue);
 
+  TVM_TRY_REWRITE(x < y || y < x, x != y);
+
   TVM_TRY_REWRITE_IF(x < c1 || c2 < x, ctrue, c2.Eval()->value < c1.Eval()->value);
   TVM_TRY_REWRITE_IF(c2 < x || x < c1, ctrue, c2.Eval()->value < c1.Eval()->value);
 
@@ -1609,6 +1913,14 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
 
   TVM_TRY_REWRITE(x != c1 || x == c2, x != c1 || c1 == c2);
   TVM_TRY_REWRITE(x == c2 || x != c1, x != c1 || c1 == c2);
+
+  TVM_TRY_RECURSIVE_REWRITE(x < y || x == y, x <= y);
+  TVM_TRY_RECURSIVE_REWRITE(x < y || y == x, x <= y);
+  TVM_TRY_RECURSIVE_REWRITE(x == y || x < y, x <= y);
+  TVM_TRY_RECURSIVE_REWRITE(y == x || x < y, x <= y);
+
+  TVM_TRY_RECURSIVE_REWRITE(x || (y || z), (x || y) || z);
+
   return ret;
 }
 
@@ -1665,6 +1977,26 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
     // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
     if (auto match = TryMatchLiteralConstraint(op->args[0])) {
       return match.value();
+    }
+  }
+
+  if (op->op.same_as(tir::builtin::if_then_else())) {
+    // Simplify nested if_then_else
+    // if (cond) { if (inner_cond) { inner_then_expr } else { inner_else_expr } } else { else_expr }
+    // => if (cond && inner_cond) { inner_then_expr } else { else_expr }
+    const PrimExpr& cond = op->args[0];
+    const PrimExpr& then_expr = op->args[1];
+    const PrimExpr& else_expr = op->args[2];
+    const CallNode* inner_call = then_expr.as<CallNode>();
+    if (inner_call != nullptr && inner_call->op.same_as(tir::builtin::if_then_else())) {
+      const PrimExpr& inner_cond = inner_call->args[0];
+      const PrimExpr& inner_then_expr = inner_call->args[1];
+      const PrimExpr& inner_else_expr = inner_call->args[2];
+      // Only check constant cases to avoid recursion
+      if (is_const_number(inner_else_expr) && is_const_number(else_expr) &&
+          analyzer_->CanProve(inner_else_expr == else_expr)) {
+        return if_then_else(cond && inner_cond, inner_then_expr, else_expr);
+      }
     }
   }
 
@@ -1734,6 +2066,13 @@ void RewriteSimplifier::Update(const Var& var, const PrimExpr& info, bool allow_
 
 std::function<void()> RewriteSimplifier::EnterConstraint(const PrimExpr& constraint) {
   return impl_->EnterConstraint(constraint);
+}
+
+void RewriteSimplifier::SetEnabledExtensions(Extension flags) {
+  impl_->SetEnabledExtensions(flags);
+}
+RewriteSimplifier::Extension RewriteSimplifier::GetEnabledExtensions() const {
+  return impl_->GetEnabledExtensions();
 }
 
 RewriteSimplifier::RewriteSimplifier(Analyzer* parent) : impl_(new Impl(parent)) {}

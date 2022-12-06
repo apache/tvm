@@ -19,6 +19,7 @@ from tvm import relay, te
 from tvm.driver.build_module import schedule_to_module
 from tvm.script import tir as T
 from tvm.tir import const
+import tvm.testing
 
 
 def lower_stmt(params, stmt, target_bits):
@@ -67,8 +68,6 @@ def test_basic():
     # const shape
     # i32 -> i32
     check(2, 2, 32, "int32")
-    # i32 + i32 is not promoted to i64 even if overflow
-    check(2**16, 2**16, 32, "int32")
     # i64 -> i32
     check(const(2, dtype="int64"), const(2, dtype="int64"), 32, "int32")
     check(const(2**16, dtype="int64"), const(2**16, dtype="int64"), 32, "int64")
@@ -100,12 +99,6 @@ def test_thread_axis():
 
     # i32 -> i32
     check(2, 32, target_bits=32, target_dtype="int32")
-    check(
-        2**30,
-        32,  # i32 + i32 is not promoted to i64 even in the case of overflow
-        target_bits=32,
-        target_dtype="int32",
-    )
     # i64 -> i32
     check(const(2, dtype="int64"), const(32, dtype="int64"), target_bits=32, target_dtype="int32")
     check(
@@ -162,7 +155,6 @@ def test_multilanes():
 
     # i32 -> i32
     check(const(2**10, dtype="int32"), 2, target_bits=32, target_dtype="int32")
-    check(const(2**32, dtype="int32"), 2, target_bits=32, target_dtype="int32")
     # i64 -> i32
     check(const(2**10, dtype="int64"), 2, target_bits=32, target_dtype="int32")
     check(const(2**32, dtype="int64"), 2, target_bits=32, target_dtype="int64")
@@ -333,14 +325,26 @@ def test_condition():
     tvm.ir.assert_structural_equal(after, expected_after)
 
 
+def test_block():
+    @T.prim_func
+    def before(A: T.Buffer[(128,), "float32"], B: T.Buffer[(128,), "float32"]):
+        for i in T.serial(0, T.int64(16)):
+            for j in T.serial(0, T.int64(8)):
+                with T.block():
+                    vi = T.axis.spatial(T.int64(128), i * T.int64(8) + j)
+                    B[vi] = A[vi] + T.float32(1)
+
+    @T.prim_func
+    def expected_after(A: T.Buffer[(128,), "float32"], B: T.Buffer[(128,), "float32"]):
+        for i in T.serial(0, T.int32(16)):
+            for j in T.serial(0, T.int32(8)):
+                with T.block():
+                    vi = T.axis.spatial(T.int32(128), i * T.int32(8) + j)
+                    B[vi] = A[vi] + T.float32(1)
+
+    after = tvm.tir.transform.NarrowDataType(32)(tvm.IRModule.from_expr(before))["main"]
+    tvm.ir.assert_structural_equal(after, expected_after)
+
+
 if __name__ == "__main__":
-    test_basic()
-    test_thread_axis()
-    test_thread_axis_2()
-    test_multilanes()
-    test_reduce()
-    test_slice()
-    test_relay_basic()
-    test_relay_take()
-    test_ramp_dtype_consistency()
-    test_condition()
+    tvm.testing.main()

@@ -135,7 +135,8 @@ def test_undefined_buffer():
     @T.prim_func
     def access_alloc():
         # Buffer A should be remapped
-        A = T.allocate([128], "float16", "global")
+        A_data = T.allocate([128], "float16", "global")
+        A = T.buffer_decl(shape=[128], dtype="float16", data=A_data)
         # check if buffer var also get remapped
         T.evaluate(A.data)
         for i in range(128):

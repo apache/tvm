@@ -21,7 +21,9 @@ from tvm.tir.schedule import Schedule, BlockRV, LoopRV
 from . import _ffi_api
 
 
-def tile_with_tensor_intrin(sch: Schedule, block: BlockRV, intrin_name: str) -> Optional[LoopRV]:
+def tile_with_tensor_intrin(
+    sch: Schedule, block: BlockRV, intrin_name: str, allow_padding: bool = False
+) -> Optional[LoopRV]:
     """Tile a subset of loops in the block according to the given tensor intrinsic.
 
     Parameters
@@ -32,6 +34,8 @@ def tile_with_tensor_intrin(sch: Schedule, block: BlockRV, intrin_name: str) -> 
         The block whose subset of loops will be tiled
     intrin_name : str
         The name of a tensor intrinsic, must be registerd via TensorIntrin.register(...) beforehand
+    allow_padding : bool
+        Whether to allow padding when tiling
 
     Returns
     -------
@@ -39,4 +43,4 @@ def tile_with_tensor_intrin(sch: Schedule, block: BlockRV, intrin_name: str) -> 
         LoopRV corresponding to the outermost loop of a block tiled according to the given intrin
         NullOpt if no valid loop mapping is found
     """
-    return _ffi_api.TileWithTensorIntrin(sch, block, intrin_name)  # type: ignore
+    return _ffi_api.TileWithTensorIntrin(sch, block, intrin_name, allow_padding)  # type: ignore

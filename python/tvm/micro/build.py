@@ -20,7 +20,6 @@
 import json
 import logging
 import os
-import pathlib
 import contextlib
 import enum
 
@@ -115,22 +114,39 @@ class AutoTvmModuleLoader:
 
     Parameters
     ----------
-    template_project_dir : Union[pathlib.Path, str]
+    template_project_dir : Union[os.PathLike, str]
         project template path
 
     project_options : dict
         project generation option
+
+    project_dir: str
+        if use_existing is False: The path to save the generated microTVM Project.
+        if use_existing is True: The path to a generated microTVM Project for debugging.
+
+    use_existing: bool
+        skips the project generation and opens transport to the project at the project_dir address.
     """
 
     def __init__(
-        self, template_project_dir: Union[pathlib.Path, str], project_options: dict = None
+        self,
+        template_project_dir: Union[os.PathLike, str],
+        project_options: dict = None,
+        project_dir: Union[os.PathLike, str] = None,
+        use_existing: bool = False,
     ):
         self._project_options = project_options
+        self._use_existing = use_existing
 
-        if isinstance(template_project_dir, (pathlib.Path, str)):
+        if isinstance(template_project_dir, (os.PathLike, str)):
             self._template_project_dir = str(template_project_dir)
         elif not isinstance(template_project_dir, str):
             raise TypeError(f"Incorrect type {type(template_project_dir)}.")
+
+        if isinstance(project_dir, (os.PathLike, str)):
+            self._project_dir = str(project_dir)
+        else:
+            self._project_dir = None
 
     @contextlib.contextmanager
     def __call__(self, remote_kw, build_result):
@@ -147,6 +163,8 @@ class AutoTvmModuleLoader:
                 build_result_bin,
                 self._template_project_dir,
                 json.dumps(self._project_options),
+                self._project_dir,
+                self._use_existing,
             ],
         )
         system_lib = remote.get_function("runtime.SystemLib")()

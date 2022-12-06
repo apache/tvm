@@ -676,7 +676,7 @@ Again, we first define a customized runtime class as follows. The class has to b
 	  /* \brief The subgraph that being processed. */
 	  std::string curr_subgraph_;
 	  /*! \brief A simple graph from subgraph id to node entries. */
-	  std::map<std::string, std::vector<NodeEntry> > graph_;
+	  std::map<std::string, std::vector<NodeEntry>> graph_;
 	  /* \brief A simple pool to contain the tensor for each node in the graph. */
 	  std::vector<NDArray> data_entry_;
 	  /* \brief A mapping from node id to op name. */

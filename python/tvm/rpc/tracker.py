@@ -348,7 +348,7 @@ class TrackerServerHandler(object):
         if "key" in conn._info:
             for value in conn.put_values:
                 _, _, _, key = value
-                rpc_key = key.split(":")[0]
+                rpc_key, _ = base.split_random_key(key)
                 self._scheduler_map[rpc_key].remove(value)
 
     def stop(self):

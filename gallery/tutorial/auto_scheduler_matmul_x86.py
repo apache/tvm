@@ -44,8 +44,6 @@ from tvm import testing
 testing.utils.install_request_hook(depth=3)
 # sphinx_gallery_end_ignore
 
-import os
-
 import numpy as np
 import tvm
 from tvm import te, auto_scheduler

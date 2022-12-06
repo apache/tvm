@@ -22,6 +22,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -30,6 +31,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include "../../tir/ir/functor_common.h"
 #include "../../tir/transforms/ir_utils.h"
@@ -107,15 +109,28 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
 
   Stmt VisitStmt_(const BlockNode* _block) final {
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(_block));
-    if (Optional<ObjectRef> ann = block->annotations.Get(topi_attr)) {
-      Array<Buffer> buffers = Downcast<Array<Buffer>>(ann);
-      for (Buffer buffer : buffers) {
+    BlockNode* n = block.CopyOnWrite();
+    if (Optional<ObjectRef> ann = n->annotations.Get(topi_attr)) {
+      Array<Buffer> new_buffers;
+      for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
         auto it = buffer2index_.find(buffer);
         if (it != buffer2index_.end()) {
           layout_free_buffer_indices_.insert(it->second);
+        } else {
+          new_buffers.push_back(buffer);
         }
       }
-      block.CopyOnWrite()->annotations.erase(topi_attr);
+      if (new_buffers.empty()) {
+        n->annotations.erase(topi_attr);
+      } else {
+        n->annotations.Set(topi_attr, new_buffers);
+      }
+    }
+    for (const String& attr : this->blocklist) {
+      auto it = n->annotations.find(attr);
+      if (it != n->annotations.end()) {
+        n->annotations.erase(attr);
+      }
     }
     return std::move(block);
   }
@@ -123,6 +138,8 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
   std::unordered_map<tir::Buffer, int, ObjectPtrHash, ObjectPtrEqual> buffer2index_;
   std::set<int> layout_free_buffer_indices_;
   String topi_attr = "layout_free_placeholders";
+  std::vector<String> blocklist = {"const_matrix", "auto_scheduler_simplify_const_tensor_indices",
+                                   "workload"};
 };
 
 BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
@@ -136,11 +153,11 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
   auto f_push_block_vars = [&iter_vars, &var_map, &analyzer](const Array<IterVar>& iters) {
     for (IterVar iter_var : iters) {
       // Create new var
-      Var new_var(iter_var->var->name_hint, iter_var->var->dtype);
+      Var new_var("v_" + iter_var->var->name_hint, iter_var->var->dtype);
       var_map[iter_var->var.get()] = new_var;
 
-      const PrimExpr& dom_min = analyzer->Simplify(iter_var->dom->min);
-      const PrimExpr& dom_extent = analyzer->Simplify(iter_var->dom->extent);
+      PrimExpr dom_min = analyzer->Simplify(iter_var->dom->min);
+      PrimExpr dom_extent = analyzer->Simplify(iter_var->dom->extent);
       iter_vars.push_back(IterVar(Range::FromMinExtent(dom_min, dom_extent), new_var,
                                   iter_var->iter_type, iter_var->thread_tag, iter_var->span));
     }
@@ -256,7 +273,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     // TensorIR will not allow Tensor data structure
     if (value->IsInstance<ArrayNode>()) {
       const auto array_value = Downcast<Array<ObjectRef>>(value);
-      annotations.Set(key, MutateArray(array_value, mutate_attr));
+      annotations.Set(key, array_value.Map(mutate_attr));
     } else {
       annotations.Set(key, mutate_attr(value));
     }
@@ -290,12 +307,12 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   // Step 1. Creating loop vars for block bindings.
   Array<IterVar> axes = compute_op->axis;
   axes.insert(axes.end(), compute_op->reduce_axis.begin(), compute_op->reduce_axis.end());
-  Array<PrimExpr> bindings;
-  for (size_t i = 0; i < axes.size(); ++i) {
-    const IterVar& axis = axes[i];
-    int bits = std::max(axis->dom->min.dtype().bits(), axis->dom->extent.dtype().bits());
-    bindings.push_back(Var("i" + std::to_string(i), runtime::DataType::Int(bits)));
-  }
+
+  Array<PrimExpr> bindings = axes.Map([&](IterVar iter_var) -> PrimExpr {
+    int bits = std::max(iter_var->dom->min.dtype().bits(), iter_var->dom->extent.dtype().bits());
+    return Var(iter_var->var->name_hint, runtime::DataType::Int(bits));
+  });
+
   // Step 2. Generate block bodies.
   Array<Stmt> seq_stmt;
   if (compute_op->body[0]->IsInstance<ReduceNode>()) {
@@ -473,11 +490,13 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
   const auto* complete = runtime::Registry::Get("script.Complete");
   ICHECK(complete);
   func = (*complete)(std::move(func), info->root_alloc);
-  return LayoutFreePlaceholdersNormalizer().Process(std::move(func));
+  return func;
 }
 
-PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
-  // Infomations used in CreatePrimFunc and its sub-functions.
+PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
+                                     const Array<runtime::NDArray>& constants,
+                                     std::optional<DataType> index_dtype_override) {
+  // Information used in CreatePrimFunc and its sub-functions.
   CreateFuncInfo info(arg_list);
   // Root body stmts.
   Array<Stmt> root_stmts;
@@ -494,17 +513,31 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
   for (const te::Operation& op : order) {
     RewriteStageToBlock(op, &info, &root_stmts, &analyzer);
   }
+
   // Step 4. Create func and complete prim func.
-  return GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
+  auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
+  func = tir::BindParams(func, constants);
+  if (index_dtype_override.has_value()) {
+    func = IndexDataTypeNormalizer(index_dtype_override.value()).Rewrite(std::move(func));
+  }
+  auto result = LayoutFreePlaceholdersNormalizer().Process(std::move(func));
+  return result;
 }
 
-PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
-                                     const Array<runtime::NDArray>& constants) {
-  PrimFunc func = CreatePrimFunc(arg_list);
-  return tir::BindParams(func, constants);
+PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
+                        std::optional<DataType> index_dtype_override) {
+  return CreatePrimFuncWithConstants(arg_list, {}, index_dtype_override);
 }
 
-TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_typed(CreatePrimFunc);
+TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body([](TVMArgs args, TVMRetValue* ret) {
+  Array<te::Tensor> arg_list = args[0];
+  std::optional<DataType> index_dtype_override{std::nullopt};
+  // Add conversion to make std::optional compatible with FFI.
+  if (args[1].type_code() != kTVMNullptr) {
+    index_dtype_override = args[1].operator DataType();
+  }
+  *ret = CreatePrimFunc(arg_list, index_dtype_override);
+});
 
 }  // namespace tir
 }  // namespace tvm

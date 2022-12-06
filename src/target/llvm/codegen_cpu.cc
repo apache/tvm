@@ -178,9 +178,9 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, b
         llvm::Function::Create(ftype_tvm_parallel_barrier_, llvm::Function::ExternalLinkage,
                                "TVMBackendParallelBarrier", module_.get());
   }
-  InitGlobalContext(dynamic_lookup);
   target_c_runtime_ = target_c_runtime;
   is_system_lib_ = system_lib;
+  InitGlobalContext(dynamic_lookup);
 }
 
 void CodeGenCPU::AddFunction(const PrimFunc& f) {
@@ -423,7 +423,6 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
     }
     default:
       LOG(FATAL) << "unknown field code";
-      return TypedPointer();
   }
 }
 
@@ -1440,7 +1439,6 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
         return builder_->CreateAlloca(t_tvm_array_, num);
       } else {
         LOG(FATAL) << "Unknown stack alloca type " << type;
-        return nullptr;
       }
     });
   } else {

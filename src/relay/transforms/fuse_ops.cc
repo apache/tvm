@@ -180,7 +180,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
       graph_.node_map[key] = current;
     }
     if (parent != nullptr) {
-      auto* link = arena_->make<LinkNode<IndexedForwardGraph::Edge> >();
+      auto* link = arena_->make<LinkNode<IndexedForwardGraph::Edge>>();
       link->value.node = parent;
       link->value.pattern = pattern;
       current->outputs.Push(link);
@@ -885,8 +885,10 @@ class FuseMutator : private MixedModeMutator {
   Expr Rewrite_(const CallNode* call, const Expr& post) {
     if (call->op.as<OpNode>()) {
       static auto fnoncomputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
+      static auto fqnncanonicalize = Op::GetAttrMap<FTVMLegalize>("FTVMQnnCanonicalize");
 
-      if (fnoncomputational.get(Downcast<Op>(call->op), false)) {
+      Op op = Downcast<Op>(call->op);
+      if (fnoncomputational.get(op, false) && !fqnncanonicalize.count(op)) {
         return ExprMutator::VisitExpr_(call);
       }
 

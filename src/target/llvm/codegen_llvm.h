@@ -302,8 +302,11 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   virtual llvm::Value* GetThreadIndex(const IterVar& iv);
   // Get the corresponding thread index
   virtual llvm::Value* CreateStorageSync(const CallNode* op);
+#if TVM_LLVM_VERSION < 160
+  // This function only works with the legacy pass manager.
   // apply optimization on the module.
   virtual void InitPassManagerBuilder(llvm::PassManagerBuilder* builder);
+#endif
   // Scalarize by iterating elements of e.
   // f is a callback that takes index and v.
   void Scalarize(const PrimExpr& e, std::function<void(int i, llvm::Value* v)> f);
@@ -395,6 +398,14 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param func The function to set attributes on.
    */
   void SetTargetAttributes(llvm::Function* func);
+  /*!
+   * \brief Emit LLVM IR for conversion functions __extendhfsf2 and __truncsfhf2
+   *        into the current llvm::Module.
+   *
+   * \param use_float16_abi Whether to use floating-point or integer ABI.
+   */
+  void EmitFloat16ConversionBuiltins(bool use_float16_abi);
+
   /*!
    * \brief Get the number of elements in the given vector value.
    * \param vec The value, must be of a vector type.

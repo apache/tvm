@@ -19,9 +19,14 @@ import argparse
 import shutil
 import os
 import logging
+import sys
 import multiprocessing
 
 from pathlib import Path
+
+# Hackery to enable importing of utils from ci/scripts/jenkins
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 from cmd_utils import Sh, init_log, REPO_ROOT
 
 

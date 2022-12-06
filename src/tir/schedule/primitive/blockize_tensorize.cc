@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/tir/data_type_rewriter.h>
+
 #include <functional>
 
 #include "../ir_comparator.h"
@@ -426,7 +428,7 @@ Stmt MakeLoopNest(Stmt stmt, const std::vector<const ForNode*>& loops) {
 
 BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
                           Map<Block, Block>* block_sref_reuse, arith::Analyzer* analyzer) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  TVM_SREF_TO_FOR(loop_sref);
   // Step 1: Check and get the only block under `loop`.
   BlockRealize block_realize = CheckGetSingleChildBlockRealizeOnSRefTree(self, loop_sref);
   Block block = block_realize->block;
@@ -523,6 +525,19 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   }
   PrimFunc intrin_desc = intrin->desc;
   PrimFunc intrin_impl = DeepCopy(intrin->impl);
+
+  int index_dtype_bits = -1;
+  auto f_update_max_dtype_bits_from_region = [&](const Array<BufferRegion>& buffer_regions) {
+    for (const BufferRegion& buffer_region : buffer_regions) {
+      for (const auto& range : buffer_region->region) {
+        index_dtype_bits = std::max(index_dtype_bits, range->min.dtype().bits());
+      }
+    }
+  };
+  f_update_max_dtype_bits_from_region(block_realize->block->reads);
+  f_update_max_dtype_bits_from_region(block_realize->block->writes);
+  ICHECK(index_dtype_bits > 0);
+  intrin_impl = IndexDataTypeNormalizer(DataType::Int(index_dtype_bits)).Rewrite(intrin_impl);
   // Step 2: Structural pattern matching
   TensorizeComparator comparator(self->mod, /*assert_mode=*/true);
   comparator.VisitStmt(block_realize, intrin_desc->body);
@@ -572,7 +587,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     }
     for (int i = 0; i < static_cast<int>(old_region.size()); i++) {
       PrimExpr min = indices_base[i + offset];
-      PrimExpr extent = old_region[i]->extent;
+      PrimExpr extent = cast(min.dtype(), old_region[i]->extent);
       new_region.push_back(Range::FromMinExtent(min, extent));
     }
     match_buffer_regions.push_back(MatchBufferRegion(impl, BufferRegion(cur, new_region)));

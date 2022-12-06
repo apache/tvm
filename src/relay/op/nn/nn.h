@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <utility>
+#include <vector>
 
 #include "../op_common.h"
 
@@ -70,6 +71,7 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     reduce = dshape[dshape.size() - 2];
     oshape.Set((oshape.size() - 2), dshape[oshape.size() - 1]);
   }
+  auto tensor_b_dtype = (tensor_b == nullptr ? tensor_a->dtype : tensor_b->dtype);
   if (param->units.defined()) {
     // validate the tensor_b shape is proper if defined
     // Assign tensor_b type
@@ -78,7 +80,6 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     // It is possible for tensor_b to be nullptr in which case we will use
     // data dtype as the tensor_b dtype. However if tensor_b dtype is explicitly
     // present we will use that.
-    auto tensor_b_dtype = (tensor_b == nullptr ? tensor_a->dtype : tensor_b->dtype);
     if (param->auto_scheduler_rewritten_layout.size() != 0) {
       // If the layout is rewritten by auto-scheduler or meta-schedule,
       // we just forcefully apply the layout provided by auto-scheduler and
@@ -103,11 +104,34 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       // Otherwise just pull it out of the tensor_b shape directly.
     } else {
       ICHECK(static_cast<int>(tensor_b->shape.size()) == 2);
-      if (!tensor_a->shape.back().as<tir::AnyNode>()) {
-        ICHECK((transpose_b && reporter->AssertEQ(reduce, tensor_b->shape[1])) ||
-               (!transpose_b && reporter->AssertEQ(reduce, tensor_b->shape[0])))
-            << "MatmulRel: input dimension doesn't match,"
-            << " tensor_a shape=" << tensor_a->shape << ", tensor_b shape=" << tensor_b->shape;
+      if (param->auto_scheduler_rewritten_layout.size() == 0 &&
+          param->meta_schedule_original_shape.size() == 0) {
+        // ensure inner dimension matches between data and weight. If one inner
+        // dimension is dynamic then it is inferred to match the other inner
+        // dimension.
+        std::vector<PrimExpr> A_shape(tensor_a->shape.begin(), tensor_a->shape.end());
+        std::vector<PrimExpr> B_shape(tensor_b->shape.begin(), tensor_b->shape.end());
+        auto sa = A_shape.size();
+        auto sb = B_shape.size();
+        if (transpose_a && transpose_b) {
+          auto tmp = A_shape[sa - 2];
+          A_shape[sa - 2] = B_shape[sb - 1];
+          B_shape[sb - 1] = tmp;
+        } else if (transpose_a) {
+          auto tmp = A_shape[sa - 2];
+          A_shape[sa - 2] = B_shape[sb - 2];
+          B_shape[sb - 2] = tmp;
+        } else if (transpose_b) {
+          auto tmp = A_shape[sa - 1];
+          A_shape[sa - 1] = B_shape[sb - 1];
+          B_shape[sb - 1] = tmp;
+        } else {
+          auto tmp = A_shape[sa - 1];
+          A_shape[sa - 1] = B_shape[sb - 2];
+          B_shape[sb - 2] = tmp;
+        }
+        reporter->Assign(types[0], TensorType(A_shape, tensor_a->dtype));
+        reporter->Assign(types[1], TensorType(B_shape, tensor_b_dtype));
       }
       oshape.Set(oshape.size() - 1, transpose_b ? wshape[0] : wshape[1]);
     }

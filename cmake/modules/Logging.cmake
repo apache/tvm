@@ -53,3 +53,8 @@ else()
   target_compile_definitions(tvm_objs PRIVATE TVM_USE_LIBBACKTRACE=0)
   target_compile_definitions(tvm_runtime_objs PRIVATE TVM_USE_LIBBACKTRACE=0)
 endif()
+
+if(BACKTRACE_ON_SEGFAULT)
+  target_compile_definitions(tvm_objs PRIVATE TVM_BACKTRACE_ON_SEGFAULT)
+  target_compile_definitions(tvm_runtime_objs PRIVATE TVM_BACKTRACE_ON_SEGFAULT)
+endif()

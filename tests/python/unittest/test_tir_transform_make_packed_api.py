@@ -39,9 +39,8 @@ def test_makeapi():
         )
     )(mod)
 
-    num_unpacked_args = 2
-    f = tvm.tir.transform.MakePackedAPI(num_unpacked_args)(mod)["main"]
-    assert len(f.params) == 8
+    f = tvm.tir.transform.MakePackedAPI()(mod)["main"]
+    assert len(f.params) == 6
 
 
 def _find_assignment(stmt, var_name):

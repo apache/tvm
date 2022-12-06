@@ -145,7 +145,6 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
     kernel_layout = attrs.kernel_layout
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
-
     if groups == 1:
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -166,9 +165,34 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw),
                     name="conv2d_nchw.cuda",
                 )
-            _, _, kh, kw = get_const_tuple(kernel.shape)
-            if (
-                (2 < kh < 8 and 2 < kw < 8 and kh == kw)
+            N, _, H, W = get_const_tuple(data.shape)
+            CO, CI, KH, KW = get_const_tuple(kernel.shape)
+            (_, _, judge_winograd_auto_scheduler) = judge_winograd(
+                N,
+                H,
+                W,
+                KH,
+                KW,
+                CI,
+                CO,
+                padding,
+                stride_h,
+                stride_w,
+                dilation_h,
+                dilation_w,
+                data.dtype,
+                kernel.dtype,
+                pre_flag=False,
+            )
+            if is_meta_schedule_enabled() and judge_winograd_auto_scheduler:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.nn.conv2d_winograd_nchw),
+                    naive_schedule,  # this implementation should never be picked by autotvm
+                    name="conv2d_nchw_winograd.cuda",
+                    plevel=15,
+                )
+            elif (
+                (2 < KH < 8 and 2 < KW < 8 and KH == KW)
                 and (stride_h == 1 and stride_w == 1)
                 and (dilation_h == 1 and dilation_w == 1)
             ):
@@ -490,9 +514,9 @@ def judge_winograd(
     return judge_winograd_tensorcore, judge_winograd_autotvm, judge_winograd_auto_scheduler
 
 
-@conv2d_winograd_without_weight_transfrom_strategy.register(["cuda", "gpu"])
-def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_type, target):
-    """conv2d_winograd_without_weight_transfrom cuda strategy"""
+@conv2d_winograd_without_weight_transform_strategy.register(["cuda", "gpu"])
+def conv2d_winograd_without_weight_transform_strategy_cuda(attrs, inputs, out_type, target):
+    """conv2d_winograd_without_weight_transform cuda strategy"""
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
     layout = attrs.data_layout
@@ -500,14 +524,24 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
     stride_h, stride_w = attrs.get_int_tuple("strides")
     padding = attrs.get_int_tuple("padding")
     assert dilation == (1, 1), "Do not support dilate now"
-    assert groups == 1, "Do not supoort arbitrary group number"
+    assert groups == 1, "Do not support arbitrary group number"
     strategy = _op.OpStrategy()
     if layout == "NCHW":
-        strategy.add_implementation(
-            wrap_compute_conv2d(topi.cuda.conv2d_nchw_winograd_without_weight_transform),
-            wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw_winograd_without_weight_transform),
-            name="conv2d_nchw_winograd_without_weight_transform.cuda",
-        )
+        if is_meta_schedule_enabled():
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.nn.conv2d_winograd_nchw_without_weight_transform),
+                naive_schedule,  # this implementation should never be picked by autotvm
+                name="conv2d_nchw_winograd_without_weight_transform",
+                plevel=15,
+            )
+        else:
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.cuda.conv2d_nchw_winograd_without_weight_transform),
+                wrap_topi_schedule(
+                    topi.cuda.schedule_conv2d_nchw_winograd_without_weight_transform
+                ),
+                name="conv2d_nchw_winograd_without_weight_transform.cuda",
+            )
     elif layout == "NHWC":
         N, H, W, _ = get_const_tuple(data.shape)
         alpha, _, CI, CO = get_const_tuple(kernel.shape)
@@ -568,7 +602,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
             )
     else:
         raise RuntimeError(
-            "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)
+            "Unsupported conv2d_winograd_without_weight_transform layout {}".format(layout)
         )
     return strategy
 
@@ -744,14 +778,14 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
-@conv3d_winograd_without_weight_transfrom_strategy.register(["cuda", "gpu"])
-def conv3d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_type, target):
-    """conv3d_winograd_without_weight_transfrom cuda strategy"""
+@conv3d_winograd_without_weight_transform_strategy.register(["cuda", "gpu"])
+def conv3d_winograd_without_weight_transform_strategy_cuda(attrs, inputs, out_type, target):
+    """conv3d_winograd_without_weight_transform cuda strategy"""
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
     layout = attrs.data_layout
     assert dilation == (1, 1, 1), "Do not support dilate now"
-    assert groups == 1, "Do not supoort arbitrary group number"
+    assert groups == 1, "Do not support arbitrary group number"
     strategy = _op.OpStrategy()
     if layout == "NCDHW":
         strategy.add_implementation(
@@ -761,7 +795,7 @@ def conv3d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
         )
     else:
         raise RuntimeError(
-            "Unsupported conv3d_winograd_without_weight_transfrom layout {}".format(layout)
+            "Unsupported conv3d_winograd_without_weight_transform layout {}".format(layout)
         )
     return strategy
 

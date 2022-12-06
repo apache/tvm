@@ -202,7 +202,7 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
   ComputeLoopNest n = ComputeLoopNest::Create(this, stage, dom_map, debug_keep_trivial_loop);
 
   if (this->reduce_axis.size() == 0) {
-    std::vector<std::vector<Stmt> > nest(n.main_nest.begin(), n.main_nest.begin() + tloc + 1);
+    std::vector<std::vector<Stmt>> nest(n.main_nest.begin(), n.main_nest.begin() + tloc + 1);
     nest.emplace_back(MakeIfNest(n.main_predicates));
     ICHECK_EQ(n.init_predicates.size(), 0U);
     ICHECK(this->intrin->body.defined())
@@ -219,16 +219,15 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
     ICHECK(this->intrin->reduce_update.defined()) << "Reduction update op is not defined";
     // Need init and update steps
     ICHECK_NE(this->reduce_axis.size(), 0U);
-    std::vector<std::vector<Stmt> > common(n.main_nest.begin(),
-                                           n.main_nest.begin() + n.num_common_loop + 1);
-    std::vector<std::vector<Stmt> > update_nest(n.main_nest.begin() + n.num_common_loop + 1,
-                                                n.main_nest.begin() + tloc + 1);
+    std::vector<std::vector<Stmt>> common(n.main_nest.begin(),
+                                          n.main_nest.begin() + n.num_common_loop + 1);
+    std::vector<std::vector<Stmt>> update_nest(n.main_nest.begin() + n.num_common_loop + 1,
+                                               n.main_nest.begin() + tloc + 1);
     update_nest.emplace_back(MakeIfNest(n.main_predicates));
 
     if (this->intrin->reduce_init.defined()) {
       // init nest
-      std::vector<std::vector<Stmt> > init_nest(n.init_nest.begin(),
-                                                n.init_nest.begin() + tloc + 1);
+      std::vector<std::vector<Stmt>> init_nest(n.init_nest.begin(), n.init_nest.begin() + tloc + 1);
       init_nest.emplace_back(MakeIfNest(n.init_predicates));
       Stmt init = MergeNest(output_bind_nest, this->intrin->reduce_init);
       init = te::Substitute(init, n.init_vmap);

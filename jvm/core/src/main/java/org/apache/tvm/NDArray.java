@@ -35,7 +35,8 @@ public class NDArray extends NDArrayBase {
     this.device = dev;
   }
 
-  @Override protected void finalize() throws Throwable {
+  @Override
+  protected void finalize() throws Throwable {
     super.finalize();
   }
 
@@ -169,8 +170,8 @@ public class NDArray extends NDArrayBase {
   private void checkCopySize(int sourceLength) {
     long arrSize = size();
     if (arrSize != sourceLength) {
-      throw new IllegalArgumentException(String.format("Array shape size not match: %d v.s. %d",
-        sourceLength, size()));
+      throw new IllegalArgumentException(
+          String.format("Array shape size not match: %d v.s. %d", sourceLength, size()));
     }
   }
 
@@ -219,7 +220,7 @@ public class NDArray extends NDArrayBase {
   public double[] asDoubleArray() {
     if (dtype.typeCode != TVMType.FLOAT || dtype.bits != 64) {
       throw new IllegalArgumentException(
-        "Cannot set convert to double[] for " + dtype.toString() + " array");
+          "Cannot set convert to double[] for " + dtype.toString() + " array");
     }
     byte[][] units = groupInternalBytes();
     double[] array = new double[units.length];
@@ -237,7 +238,7 @@ public class NDArray extends NDArrayBase {
   public float[] asFloatArray() {
     if (dtype.typeCode != TVMType.FLOAT || dtype.bits != 32) {
       throw new IllegalArgumentException(
-        "Cannot set convert to float[] for " + dtype.toString() + " array");
+          "Cannot set convert to float[] for " + dtype.toString() + " array");
     }
     byte[][] units = groupInternalBytes();
     float[] array = new float[units.length];
@@ -255,7 +256,7 @@ public class NDArray extends NDArrayBase {
   public long[] asLongArray() {
     if (dtype.typeCode != TVMType.INT || dtype.bits != 64) {
       throw new IllegalArgumentException(
-        "Cannot set convert to long[] for " + dtype.toString() + " array");
+          "Cannot set convert to long[] for " + dtype.toString() + " array");
     }
     byte[][] units = groupInternalBytes();
     long[] array = new long[units.length];
@@ -273,7 +274,7 @@ public class NDArray extends NDArrayBase {
   public int[] asIntArray() {
     if (dtype.typeCode != TVMType.INT || dtype.bits != 32) {
       throw new IllegalArgumentException(
-        "Cannot set convert to int[] for " + dtype.toString() + " array");
+          "Cannot set convert to int[] for " + dtype.toString() + " array");
     }
     byte[][] units = groupInternalBytes();
     int[] array = new int[units.length];
@@ -291,7 +292,7 @@ public class NDArray extends NDArrayBase {
   public short[] asShortArray() {
     if (dtype.typeCode != TVMType.INT || dtype.bits != 16) {
       throw new IllegalArgumentException(
-        "Cannot set convert to short[] for " + dtype.toString() + " array");
+          "Cannot set convert to short[] for " + dtype.toString() + " array");
     }
     byte[][] units = groupInternalBytes();
     short[] array = new short[units.length];
@@ -309,7 +310,7 @@ public class NDArray extends NDArrayBase {
   public char[] asCharArray() {
     if (dtype.typeCode != TVMType.UINT || dtype.bits != 16) {
       throw new IllegalArgumentException(
-        "Cannot set convert to char[] for " + dtype.toString() + " array");
+          "Cannot set convert to char[] for " + dtype.toString() + " array");
     }
     byte[][] units = groupInternalBytes();
     char[] array = new char[units.length];
@@ -327,7 +328,7 @@ public class NDArray extends NDArrayBase {
   public byte[] asByteArray() {
     if (dtype.typeCode != TVMType.INT || dtype.bits != 8) {
       throw new IllegalArgumentException(
-        "Cannot set convert to byte[] for " + dtype.toString() + " array");
+          "Cannot set convert to byte[] for " + dtype.toString() + " array");
     }
     return internal();
   }
@@ -351,8 +352,7 @@ public class NDArray extends NDArrayBase {
     int unitSize = dtype.numOfBytes;
     if (raw.length <= 0 || raw.length % unitSize != 0) {
       throw new IllegalArgumentException(String.format(
-        "%s size %d cannot divide byte array size %d",
-        dtype.toString(), unitSize, raw.length));
+          "%s size %d cannot divide byte array size %d", dtype.toString(), unitSize, raw.length));
     }
 
     int numOfUnits = raw.length / unitSize;
@@ -381,8 +381,7 @@ public class NDArray extends NDArrayBase {
   public static NDArray empty(long[] shape, TVMType dtype, Device dev) {
     Base.RefLong refHandle = new Base.RefLong();
     Base.checkCall(Base._LIB.tvmArrayAlloc(
-        shape, dtype.typeCode, dtype.bits, dtype.lanes,
-        dev.deviceType, dev.deviceId, refHandle));
+        shape, dtype.typeCode, dtype.bits, dtype.lanes, dev.deviceType, dev.deviceId, refHandle));
     return new NDArray(refHandle.value, false, dtype, dev);
   }
 
@@ -393,7 +392,7 @@ public class NDArray extends NDArrayBase {
    * @return The array tvm supported.
    */
   public static NDArray empty(long[] shape, TVMType dtype) {
-    return empty(shape, dtype, new Device(1, 0));
+    return empty(shape, dtype, Device.cpu(0));
   }
 
   /**
@@ -402,7 +401,7 @@ public class NDArray extends NDArrayBase {
    * @return The array tvm supported.
    */
   public static NDArray empty(long[] shape) {
-    return empty(shape, new TVMType("float32", 1), new Device(1, 0));
+    return empty(shape, new TVMType("float32", 1), Device.cpu(0));
   }
 
   /**

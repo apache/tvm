@@ -170,6 +170,15 @@ Map<Var, IntSet> ConvertDomMap(const std::unordered_map<const VarNode*, IntSet>&
  */
 IntSet EvalSet(PrimExpr e, const Map<IterVar, IntSet>& dom_map);
 /*!
+ * \brief Find an symbolic integer set that contains all possible values of
+ *  e given the domain of each variables.
+ *
+ * \param e The expression to be evaluated.
+ * \param dom_map The domain of each variable.
+ * \return An integer set that can cover all the possible values of e.
+ */
+IntSet EvalSet(PrimExpr e, const Map<Var, IntSet>& dom_map);
+/*!
  * \brief Same as EvalSet, but takes unordered_map
  *
  * \param e The expression to be evaluated.
@@ -261,7 +270,29 @@ Array<IntSet> UnionRegionLowerBound(const Array<Array<IntSet>>& nd_int_sets);
 IntSet Intersect(const Array<IntSet>& sets);
 
 /*!
- * \brief Analyze the region with affine map, given the domain of variables and their predicate
+ * \brief Converts the Ranges to IntSets
+ * \param var_dom The ranges of variables
+ * \return The integer sets of the variables
+ */
+Map<Var, arith::IntSet> AsIntSet(const Map<Var, Range>& var_dom);
+
+/*!
+ * \brief Analyze the region with affine map, given the domain of variables and their predicate.
+ * The result should be strict, i.e. no region is discarded or relaxed.
+ * \param region The region to be analyzed
+ * \param var_dom The ranges of the variables
+ * \param predicate The predicate for the affine map
+ * \param analyzer The analyzer used
+ * \return NullOpt if the detection fails, or an array of arith::IntSet as the result of analysis
+ */
+TVM_DLL Optional<Array<IntSet>> EstimateRegionStrictBound(const Array<Range>& region,
+                                                          const Map<Var, Range>& var_dom,
+                                                          const PrimExpr& predicate,
+                                                          arith::Analyzer* analyzer);
+
+/*!
+ * \brief Analyze the region with affine map, given the domain of variables and their predicate.
+ * Some subregion may be discarded during the lower-bound analysis.
  * \param region The region to be analyzed
  * \param var_dom The ranges of the variables
  * \param predicate The predicate for the affine map
@@ -272,6 +303,21 @@ TVM_DLL Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& reg
                                                          const Map<Var, Range>& var_dom,
                                                          const PrimExpr& predicate,
                                                          arith::Analyzer* analyzer);
+
+/*!
+ * \brief Analyze the region with affine map, given the domain of variables and their predicate
+ * Relaxation of the region may be used in upper-bound analysis, i.e. some extra region may be added
+ * to the result.
+ * \param region The region to be analyzed
+ * \param var_dom The ranges of the variables
+ * \param predicate The predicate for the affine map
+ * \param analyzer The analyzer used
+ * \return an array of arith::IntSet as the result of analysis
+ */
+TVM_DLL Array<IntSet> EstimateRegionUpperBound(const Array<Range>& region,
+                                               const Map<Var, Range>& var_dom,
+                                               const PrimExpr& predicate,
+                                               arith::Analyzer* analyzer);
 
 }  // namespace arith
 }  // namespace tvm

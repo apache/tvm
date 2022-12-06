@@ -23,19 +23,21 @@ install_path="/opt/csi-nn2"
 # Clone CSI-NN2 Compute Library source code
 git clone --depth 1 --branch 1.12.2 https://github.com/T-head-Semi/csi-nn2.git ${install_path}
 
-# download cross-compiler when not building natively.
-# riscv gcc toolchain will be downloaded to "/path/csi-nn2/tools/gcc-toolchain".
+# The toolchain is downloaded in: ubuntu_download_xuantie_gcc_linux.sh
 cd ${install_path}
-./script/download_toolchain.sh
-
-# download custom QEMU to "/path/csi-nn2/tools/qemu".
-./script/download_qemu.sh
 
 # build csinn2 lib for x86 and c906
 # lib will be installed in /path/csi-nn2/install
+
 # for x86
-make -j4; cd x86_build; make install; cd -
+make -j4
+cd x86_build
+make install
+cd -
+
 # for c906
 mkdir -p riscv_build; cd riscv_build
-cmake ../ -DBUILD_RISCV=ON; make -j4; make install; cd -
-
+export RISCV_GNU_GCC_PATH=/opt/riscv/riscv64-unknown-linux-gnu/bin
+cmake ../ -DBUILD_RISCV=ON
+make -j4
+make install; cd -

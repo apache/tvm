@@ -459,7 +459,6 @@ Tensor Schedule::cache_write(const Tensor& tensor, const std::string& scope) {
     return (CacheWriteWithReLayoutTensor(*this, {tensor}, scope))[0];
   } else {
     LOG(FATAL) << "cache write only take ComputeOp or TensorComputeOp as writers";
-    return Tensor();
   }
 }
 
@@ -507,7 +506,7 @@ void RebaseNonZeroMinLoop(ScheduleNode* sch) {
 void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
   sch->InvalidateCache();
 
-  std::vector<Array<PrimExpr> > new_body(sch->stages.size());
+  std::vector<Array<PrimExpr>> new_body(sch->stages.size());
   std::vector<bool> changed(sch->stages.size(), false);
   std::vector<Stmt> new_hybrid_body(sch->stages.size());
   std::vector<bool> hybrid_changed(sch->stages.size(), false);

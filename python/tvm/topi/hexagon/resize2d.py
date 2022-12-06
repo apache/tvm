@@ -58,24 +58,59 @@ def resize2d_compute(
     )
 
 
-def tir_broadcast_schedule(
+def tir_resize2d_schedule(
     out_m,
     input_a,
     input_layout: str,
     output_layout: str,
 ):
-    """Schedule for input and output layout nhwc-8h2w32c2w-2d"""
+    """Schedule for input and output layout nhwc-8h2w32c2w-2d and nhwc-8h8w32c-2d"""
     func = te.create_prim_func([input_a, out_m])
 
     s = tir.Schedule(func)
 
     block = s.get_block("resize")
 
-    if input_layout == "nhwc-8h2w32c2w-2d":
+    if input_layout in (
+        "nhwc-8h2w32c2w-2d",
+        "nhwc-8h8w32c-2d",
+    ):
         input_transformed_layout = get_layout_transform_fn(input_layout)
         s.transform_layout(block, buffer=("read", 0), index_map=input_transformed_layout)
 
     output_transformed_layout = get_layout_transform_fn(output_layout)
     s.transform_layout(block, buffer=("write", 0), index_map=output_transformed_layout)
+
+    if output_layout == "nhwc-8h2w32c2w-2d":
+        # Fixed chunk size is 2048 byte
+        # For fp16 the layout for fixed chunk is 8x4x32
+        # where each element is 2 bytes
+        # Split and reorder is done to iterate over the fixed chunk
+        # Channel is split by a factor of 32
+        # Width is split by a factor of 4
+        # Height is split by a factor of 8
+        n, h, w, c = s.get_loops(block)
+
+        ho, hi = s.split(h, [None, 8])
+        wo, wi = s.split(w, [None, 4])
+        co, ci = s.split(c, [None, 32])
+
+        s.reorder(n, ho, wo, co, hi, wi, ci)
+
+    elif output_layout == "nhwc-8h8w32c-2d":
+        # Fixed chunk size is 2048 byte
+        # For uint8 the layout for fixed chunk is 8x8x32
+        # where each element is 1 bytes
+        # Split and reorder is done to iterate over the fixed chunk
+        # Channel is split by a factor of 32
+        # Width is split by a factor of 8
+        # Height is split by a factor of 8
+        n, h, w, c = s.get_loops(block)
+
+        ho, hi = s.split(h, [None, 8])
+        wo, wi = s.split(w, [None, 8])
+        co, ci = s.split(c, [None, 32])
+
+        s.reorder(n, ho, wo, co, hi, wi, ci)
 
     return s

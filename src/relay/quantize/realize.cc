@@ -33,6 +33,7 @@
 
 #include "../op/annotation/annotation.h"
 #include "../qnn/utils.h"
+#include "../transforms/fold_constant.h"
 #include "./quantize.h"
 
 namespace tvm {
@@ -77,8 +78,7 @@ inline Expr MulAndDiv(Expr data, float s1, float s2, DataType dtype,
     return Multiply(data, MakeConstantScalar(dtype, factor));
   } else {
     if (cfg->rounding == "UPWARD") {
-      int32_t fixed_point_multiplier, shift;
-      std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift(factor);
+      auto [fixed_point_multiplier, shift] = qnn::GetFixedPointMultiplierShift(factor);
       data = relay::FixedPointMultiply(data, fixed_point_multiplier, shift);
     } else {
       data = qnn::FixedPointMultiplyToNearest(data, factor, data_shape);
@@ -135,8 +135,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
     } else {
       data = Cast(data, DataType::Int(64));
       if (cfg->rounding == "UPWARD") {
-        int32_t fixed_point_multiplier, shift;
-        std::tie(fixed_point_multiplier, shift) =
+        auto [fixed_point_multiplier, shift] =
             qnn::GetFixedPointMultiplierShift(idom_scale_imm / odom_scale_imm);
         data = relay::FixedPointMultiply(data, fixed_point_multiplier, shift);
       } else {
@@ -154,13 +153,6 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
   Expr scaled_data = Multiply(data, MakeConstantScalar(DataType::Float(32), 1 / dom_scale_imm));
   Expr round_data = Clip(Round(scaled_data), clip_min_imm, clip_max_imm);
   return QRealizeIntExpr(round_data, dom_scale, DataType::Float(32));
-}
-
-Expr FoldConstantOpt(const Expr& expr) {
-  auto mod = IRModule::FromExpr(expr);
-  mod = transform::FoldConstant()(mod);
-  auto entry_func = Downcast<Function>(mod->Lookup("main"));
-  return expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
 }
 
 RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
@@ -186,7 +178,7 @@ Expr Conv2dRealize(const Call& ref_call, const Array<Expr>& new_args, const Obje
 
     Expr ret = Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args);
     Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
-    Expr dom_scale = FoldConstantOpt(mul);
+    Expr dom_scale = FoldConstantExpr(mul);
     return QRealizeIntExpr(ret, dom_scale, out_dtype);
   }
   ICHECK(!new_args[0]->IsInstance<TempExprNode>() || !new_args[1]->IsInstance<TempExprNode>());
@@ -220,7 +212,7 @@ Expr Conv1dRealize(const Call& ref_call, const Array<Expr>& new_args, const Obje
 
   Expr ret = Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args);
   Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
-  Expr dom_scale = FoldConstantOpt(mul);
+  Expr dom_scale = FoldConstantExpr(mul);
   return QRealizeIntExpr(ret, dom_scale, out_dtype);
 }
 
@@ -249,7 +241,7 @@ Expr DenseRealize(const Call& ref_call, const Array<Expr>& new_args, const Objec
 
   Expr ret = Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args);
   Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
-  Expr dom_scale = FoldConstantOpt(mul);
+  Expr dom_scale = FoldConstantExpr(mul);
   return QRealizeIntExpr(ret, dom_scale, out_dtype);
 }
 
@@ -275,7 +267,7 @@ Expr MulRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectR
 
     Expr ret = ForwardOp(ref_call, {ldata, rdata});
     Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
-    Expr dom_scale = FoldConstantOpt(mul);
+    Expr dom_scale = FoldConstantExpr(mul);
     return QRealizeIntExpr(ret, dom_scale, dtype);
   }
   ICHECK(!new_args[0]->IsInstance<TempExprNode>() || !new_args[1]->IsInstance<TempExprNode>());
@@ -529,7 +521,7 @@ Expr BatchMatmulRealize(const Call& ref_call, const Array<Expr>& new_args, const
 
   Expr ret = Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args);
   Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
-  Expr dom_scale = FoldConstantOpt(mul);
+  Expr dom_scale = FoldConstantExpr(mul);
   return QRealizeIntExpr(ret, dom_scale, out_dtype);
 }
 

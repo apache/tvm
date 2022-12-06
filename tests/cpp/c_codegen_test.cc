@@ -33,7 +33,7 @@ TEST(CCodegen, MainFunctionOrder) {
 
   std::string tvm_module_main = std::string(runtime::symbol::tvm_module_main);
 
-  tvm::Target target_c = tvm::Target("c -keys=cpu -link-params=0");
+  tvm::Target target_c = tvm::Target("c -keys=cpu");
 
   const int n = 4;
   Array<PrimExpr> shape{n};
@@ -104,16 +104,16 @@ TEST(CCodegen, FunctionOrder) {
   using namespace tvm;
   using namespace tvm::te;
 
-  Target target = Target("c -keys=cpu -link-params=0");
+  Target target = Target("c -keys=cpu");
 
   // add schedules in reverse order
   Map<tvm::Target, IRModule> inputs;
-  inputs.Set(Target("c -keys=cpu -link-params=0"), BuildLowered("op_2", target));
-  inputs.Set(Target("c -keys=cpu -link-params=0"), BuildLowered("op_1", target));
+  inputs.Set(Target("c -keys=cpu"), BuildLowered("op_2", target));
+  inputs.Set(Target("c -keys=cpu"), BuildLowered("op_1", target));
 
   for (uint32_t counter = 99; IsSorted(inputs) && counter > 0; counter--) {
     std::string op_name = "op_" + std::to_string(counter);
-    inputs.Set(Target("c -keys=cpu -link-params=0"), BuildLowered(op_name, target));
+    inputs.Set(Target("c -keys=cpu"), BuildLowered(op_name, target));
   }
 
   EXPECT_FALSE(IsSorted(inputs));

@@ -16,19 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 /*!
  * \file random_engine.h
  * \brief Random number generator. It provides a generic interface consistent with
  * `std::uniform_random_bit_generator`
  */
-
 #ifndef TVM_SUPPORT_RANDOM_ENGINE_H_
 #define TVM_SUPPORT_RANDOM_ENGINE_H_
-
 #include <tvm/runtime/logging.h>
 
-#include <cstdint>  // for uint64_t
+#include <cstdint>
 #include <random>
 
 namespace tvm {
@@ -46,32 +43,18 @@ namespace support {
 
 class LinearCongruentialEngine {
  public:
-  /*!
-   * \brief The result type is defined as uint64_t here to avoid overflow.
-   * \note The type name is not in Google style because it is used in STL's distribution inferface.
-   */
-  using result_type = uint64_t;
   using TRandState = int64_t;
-
+  /*! \brief The result type. */
+  using result_type = uint64_t;
   /*! \brief The multiplier */
   static constexpr TRandState multiplier = 48271;
-
   /*! \brief The increment */
   static constexpr TRandState increment = 0;
-
   /*! \brief The modulus */
   static constexpr TRandState modulus = 2147483647;
-
-  /*!
-   * \brief The minimum possible value of random state here.
-   * \note The function name is uncapilized because it is used in STL's distribution inferface.
-   */
+  /*! \brief The minimum possible value of random state here. */
   static constexpr result_type min() { return 0; }
-
-  /*!
-   * \brief The maximum possible value of random state here.
-   * \note The function name is uncapilized because it is used in STL's distribution inferface.
-   */
+  /*! \brief The maximum possible value of random state here. */
   static constexpr result_type max() { return modulus - 1; }
 
   /*!
@@ -94,20 +77,32 @@ class LinearCongruentialEngine {
     (*rand_state_ptr_) = ((*rand_state_ptr_) * multiplier + increment) % modulus;
     return *rand_state_ptr_;
   }
-
+  /*!
+   * \brief Normalize the random seed to the range of [1, modulus - 1].
+   * \param rand_state The random seed.
+   * \return The normalized random seed.
+   */
+  static TRandState NormalizeSeed(TRandState rand_state) {
+    if (rand_state == -1) {
+      rand_state = DeviceRandom();
+    } else {
+      rand_state %= modulus;
+    }
+    if (rand_state == 0) {
+      rand_state = 1;
+    }
+    if (rand_state < 0) {
+      LOG(FATAL) << "ValueError: Random seed must be non-negative";
+    }
+    return rand_state;
+  }
   /*!
    * \brief Change the start random state of RNG with the seed of a new random state value.
    * \param rand_state The random state given in result_type.
    */
   void Seed(TRandState rand_state) {
-    if (rand_state == -1) {
-      rand_state = DeviceRandom();
-    } else if (rand_state == 0) {
-      rand_state = 1;
-    }
-    ICHECK(rand_state >= 0) << "The random state should be nonnegative";
     ICHECK(rand_state_ptr_ != nullptr);
-    *rand_state_ptr_ = rand_state % modulus;
+    *rand_state_ptr_ = NormalizeSeed(rand_state);
   }
 
   /*!

@@ -36,7 +36,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("relay.remove_standalone_reshapes.enable", Bool)
  */
 class RemoveStandaloneReshapesMutator : public MixedModeMutator {
  public:
-  explicit RemoveStandaloneReshapesMutator(IRModule& mod) : ir_module_(mod) {}
+  explicit RemoveStandaloneReshapesMutator(IRModule& mod) {}  // NOLINT(runtime/references)
 
   using MixedModeMutator::VisitExpr_;
 
@@ -85,8 +85,6 @@ class RemoveStandaloneReshapesMutator : public MixedModeMutator {
  private:
   /*! \brief Map of LetNode's var to previous call_lowered. */
   Map<Var, Call> let_var_to_call_lowered_;
-  /*! \brief Module that contains global reshape functions. */
-  IRModule& ir_module_;
 };
 
 namespace transform {

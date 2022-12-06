@@ -352,7 +352,7 @@ def _schedule_batch_matmul_int8(cfg, s, output):
     cfg.define_split("tile_k", K // k_factor, num_outputs=2)
     cfg.define_knob("auto_unroll_max_step", [0, 256, 512, 1024])
 
-    batch_matmul_op = s.outputs[0]
+    batch_matmul_op = s[output].op
     s[input_x].compute_inline()
     s[input_y].compute_inline()
 
@@ -372,6 +372,10 @@ def _schedule_batch_matmul_int8(cfg, s, output):
     if do_tensorize:
         dtypes = (input_x.dtype, input_y.dtype)
         s[batch_matmul_cache].tensorize(ki, dp4a("shared", "shared", "local", dtypes))
+
+    if batch_matmul_op not in s.outputs:
+        s[output].compute_inline()
+        batch_matmul_op = s.outputs[0]
 
     # tile axis
     f, m, n = batch_matmul_op.axis

@@ -111,12 +111,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const LoadNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -301,9 +299,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // sort according to dim_index
     std::sort(block_threads.begin(), block_threads.end());
     for (auto&& thr_attr : block_threads) {
-      int dim_index, extent;
-      bool is_reduce;
-      std::tie(dim_index, extent, is_reduce) = thr_attr;
+      auto [dim_index, extent, is_reduce] = thr_attr;
+      (void)dim_index;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
       if (is_reduce) {
         contiguous_reduce_extent *= extent;
       } else {

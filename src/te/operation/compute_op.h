@@ -41,13 +41,13 @@ struct ComputeLoopNest {
   // predicates for the initialize loop
   std::vector<PrimExpr> init_predicates;
   // Initialization nest involved.
-  std::vector<std::vector<Stmt> > init_nest;
+  std::vector<std::vector<Stmt>> init_nest;
   // Value map for the init code
   std::unordered_map<IterVar, PrimExpr> init_vmap;
   // Predicates for the main update loop
   std::vector<PrimExpr> main_predicates;
   // The general loop nest
-  std::vector<std::vector<Stmt> > main_nest;
+  std::vector<std::vector<Stmt>> main_nest;
   // Value map for the IterVar.
   std::unordered_map<IterVar, PrimExpr> main_vmap;
 

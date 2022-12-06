@@ -104,7 +104,7 @@ int TVMDeviceAllocDataSpaceWithScope(DLDevice dev, int ndim, const int64_t* shap
   }
   nbytes *= (dtype.bits * dtype.lanes + 7) / 8;
 
-  int kAllocAlignment = 128;
+  int kAllocAlignment = 64;
   size_t align = (dtype.bits / 8) * dtype.lanes;
   if (align < kAllocAlignment) align = kAllocAlignment;
   return TVMDeviceAllocDataSpace(dev, nbytes, align, dtype, out_data);

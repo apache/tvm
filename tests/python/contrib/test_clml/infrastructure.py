@@ -29,6 +29,7 @@ from tvm import rpc
 from tvm.contrib import graph_executor
 from tvm.relay.op.contrib import clml
 from tvm.contrib import utils
+from tvm import autotvm
 from tvm.autotvm.measure import request_remote
 from tvm.relay.expr_functor import ExprMutator, Call
 
@@ -72,12 +73,12 @@ class Device:
     """
 
     connection_type = "tracker"
-    host = "localhost"
-    port = 9090
+    host = os.getenv("TVM_TRACKER_HOST", "localhost")
+    port = int(os.getenv("TVM_TRACKER_PORT", 9090))
     target = "opencl"
     target_host = "llvm -mtriple=aarch64-linux-gnu"
-    device_key = ""
-    cross_compile = ""
+    device_key = os.getenv("RPC_DEVICE_KEY", "android")
+    cross_compile = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
 
     def __init__(self):
         """Keep remote device for lifetime of object."""
@@ -99,43 +100,6 @@ class Device:
 
         return device
 
-    @classmethod
-    def load(cls, file_name):
-        """Load test config
-
-        Load the test configuration by looking for file_name relative
-        to the test_clml directory.
-        """
-        location = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
-        config_file = os.path.join(location, file_name)
-        if not os.path.exists(config_file):
-            warnings.warn("Config file doesn't exist, resuming CLML tests with default config.")
-            return
-        with open(config_file, mode="r") as config:
-            test_config = json.load(config)
-
-        cls.connection_type = test_config["connection_type"]
-        cls.host = test_config["host"]
-        cls.port = test_config["port"]
-        cls.target = test_config["target"]
-        cls.target_host = test_config["target_host"]
-        cls.device_key = test_config.get("device_key") or ""
-        cls.cross_compile = test_config.get("cross_compile") or ""
-
-
-def skip_runtime_test():
-    """Skip test if it requires the runtime and it's not present."""
-    # CLML codegen not present.
-    if not tvm.get_global_func("relay.ext.clml", True):
-        print("Skip because CLML codegen is not available.")
-        return True
-
-    # Remote device is in use or CLML runtime not present
-    # Note: Ensure that the device config has been loaded before this check
-    if not Device.connection_type != "local" and not clml.is_clml_runtime_enabled():
-        print("Skip because runtime isn't present or a remote device isn't being used.")
-        return True
-
 
 def skip_codegen_test():
     """Skip test if it requires the CLML codegen and it's not present."""
@@ -144,35 +108,28 @@ def skip_codegen_test():
         return True
 
 
-def build_module(mod, target, target_host, params=None, enable_clml=True):
+def build_module(mod, target, target_host, params=None, enable_clml=True, tune_log=""):
     """Build module with option to build for CLML."""
     if isinstance(mod, tvm.relay.expr.Call):
         mod = tvm.IRModule.from_expr(mod)
 
-    with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-        if enable_clml:
-            mod = clml.partition_for_clml(mod, params)
-        relay.backend.te_compiler.get().clear()
-        # print("Build  Mod:", mod)
-        return relay.build(mod, target=target, target_host=target_host, params=params)
+    with autotvm.apply_history_best(tune_log):
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            if enable_clml:
+                mod = clml.partition_for_clml(mod, params)
+            relay.backend.te_compiler.get().clear()
+            return relay.build(mod, target=target, target_host=target_host, params=params)
 
 
 def build_and_run(
-    mod,
-    inputs,
-    outputs,
-    params,
-    device,
-    enable_clml=True,
-    no_runs=1,
-    config=None,
+    mod, inputs, outputs, params, device, enable_clml=True, no_runs=1, config=None, tune_log=""
 ):
     """Build and run the relay module."""
     if config is None:
         config = {}
 
     try:
-        libm = build_module(mod, device.target, device.target_host, params, enable_clml)
+        libm = build_module(mod, device.target, device.target_host, params, enable_clml, tune_log)
 
         clml_modules = extract_clml_modules(libm)
         for mod in clml_modules:
@@ -198,7 +155,7 @@ def build_and_run(
     for _ in range(no_runs):
         gen_module.run()
         out.append([gen_module.get_output(i) for i in range(outputs)])
-    time_f = gen_module.module.time_evaluator("run", device.device.cl(0), number=50)
+    time_f = gen_module.module.time_evaluator("run", device.device.cl(0), number=1)
     cost = time_f().mean
     print("%g secs/iteration\n" % cost)
     return out

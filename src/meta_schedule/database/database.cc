@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "../module_equality.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -25,8 +26,8 @@ namespace meta_schedule {
 
 Workload::Workload(IRModule mod) {
   ObjectPtr<WorkloadNode> n = runtime::make_object<WorkloadNode>();
-  n->shash = tvm::StructuralHash()(mod);
   n->mod = mod;
+  n->shash = ModuleEquality::Create("structural")->Hash(mod);
   data_ = std::move(n);
 }
 
@@ -59,12 +60,8 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
       String b64_mod = Downcast<String>(json_array->at(1));
       std::string json_mod = Base64Decode(b64_mod);
       mod = Downcast<IRModule>(LoadJSON(json_mod));
+      std::stringstream(str_shash) >> shash;
     }
-    // Verify SHash(mod) == shash
-    shash = tvm::StructuralHash()(mod);
-    String recalc_shash = SHash2Str(shash);
-    CHECK_EQ(recalc_shash, str_shash) << "ValueError: Structural hash changed. Given: " << str_shash
-                                      << "; Recalculated: " << recalc_shash;
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                << "\nThe error is: " << e.what();
@@ -83,6 +80,10 @@ TuningRecord::TuningRecord(tir::Trace trace, Workload workload, Optional<Array<F
   n->target = target;
   n->args_info = args_info;
   this->data_ = n;
+}
+
+bool WorkloadEqual::operator()(const Workload& a, const Workload& b) const {
+  return a->shash == b->shash && mod_eq_.Equal(a->mod, b->mod);
 }
 
 MeasureCandidate TuningRecordNode::AsMeasureCandidate() const {
@@ -154,20 +155,85 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
   return TuningRecord(trace, workload, run_secs, target, args_info);
 }
 
+/******** Database ********/
+DatabaseNode::DatabaseNode(String mod_eq_name) { mod_eq_ = ModuleEquality::Create(mod_eq_name); }
+DatabaseNode::~DatabaseNode() = default;
+
+Optional<TuningRecord> DatabaseNode::QueryTuningRecord(const IRModule& mod, const Target& target,
+                                                       const String& workload_name) {
+  if (!this->HasWorkload(mod)) {
+    return NullOpt;
+  }
+  Array<TuningRecord> records = this->GetTopK(this->CommitWorkload(mod), 1);
+  if (records.empty()) {
+    return NullOpt;
+  }
+  ICHECK_EQ(records.size(), 1);
+  return records[0];
+}
+
+Optional<tir::Schedule> DatabaseNode::QuerySchedule(const IRModule& mod, const Target& target,
+                                                    const String& workload_name) {
+  if (Optional<TuningRecord> opt_record = this->QueryTuningRecord(mod, target, workload_name)) {
+    TuningRecord record = opt_record.value();
+    tir::Schedule sch =
+        tir::Schedule::Traced(record->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
+                              /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
+    record->trace->ApplyToSchedule(sch, false);
+    return sch;
+  } else {
+    return NullOpt;
+  }
+}
+
+Optional<IRModule> DatabaseNode::QueryIRModule(const IRModule& mod, const Target& target,
+                                               const String& workload_name) {
+  if (Optional<tir::Schedule> opt_sch = this->QuerySchedule(mod, target, workload_name)) {
+    return opt_sch.value()->mod();
+  } else {
+    return NullOpt;
+  }
+}
+
+std::vector<Database>* ThreadLocalDatabases() {
+  static thread_local std::vector<Database> tls;
+  return &tls;
+}
+
+void Database::EnterWithScope() { ThreadLocalDatabases()->push_back(*this); }
+
+void Database::ExitWithScope() { ThreadLocalDatabases()->pop_back(); }
+
+Optional<Database> Database::Current() {
+  std::vector<Database>* tls = ThreadLocalDatabases();
+  if (tls->empty()) {
+    return NullOpt;
+  } else {
+    return tls->back();
+  }
+}
+
 /******** PyDatabase ********/
+PyDatabaseNode::PyDatabaseNode(String mod_eq_name) : DatabaseNode(mod_eq_name) {}
 
 Database Database::PyDatabase(PyDatabaseNode::FHasWorkload f_has_workload,
                               PyDatabaseNode::FCommitWorkload f_commit_workload,
                               PyDatabaseNode::FCommitTuningRecord f_commit_tuning_record,
                               PyDatabaseNode::FGetTopK f_get_top_k,
                               PyDatabaseNode::FGetAllTuningRecords f_get_all_tuning_records,
-                              PyDatabaseNode::FSize f_size) {
-  ObjectPtr<PyDatabaseNode> n = make_object<PyDatabaseNode>();
+                              PyDatabaseNode::FQueryTuningRecord f_query_tuning_record,
+                              PyDatabaseNode::FQuerySchedule f_query_schedule,
+                              PyDatabaseNode::FQueryIRModule f_query_ir_module,
+                              PyDatabaseNode::FSize f_size, String mod_eq_name) {
+  ObjectPtr<PyDatabaseNode> n = make_object<PyDatabaseNode>(mod_eq_name);
   n->f_has_workload = f_has_workload;
   n->f_commit_workload = f_commit_workload;
   n->f_commit_tuning_record = f_commit_tuning_record;
   n->f_get_top_k = f_get_top_k;
   n->f_get_all_tuning_records = f_get_all_tuning_records;
+  n->f_query_tuning_record = f_query_tuning_record;
+  n->f_query_schedule = f_query_schedule;
+  n->f_query_ir_module = f_query_ir_module;
   n->f_size = f_size;
   return Database(n);
 }
@@ -194,6 +260,11 @@ TVM_REGISTER_GLOBAL("meta_schedule.TuningRecordAsMeasureCandidate")
 TVM_REGISTER_GLOBAL("meta_schedule.TuningRecordAsJSON")
     .set_body_method<TuningRecord>(&TuningRecordNode::AsJSON);
 TVM_REGISTER_GLOBAL("meta_schedule.TuningRecordFromJSON").set_body_typed(TuningRecord::FromJSON);
+TVM_REGISTER_GLOBAL("meta_schedule.DatabaseEnterWithScope")
+    .set_body_method(&Database::EnterWithScope);
+TVM_REGISTER_GLOBAL("meta_schedule.DatabaseExitWithScope")
+    .set_body_method(&Database::ExitWithScope);
+TVM_REGISTER_GLOBAL("meta_schedule.DatabaseCurrent").set_body_typed(Database::Current);
 TVM_REGISTER_GLOBAL("meta_schedule.DatabaseHasWorkload")
     .set_body_method<Database>(&DatabaseNode::HasWorkload);
 TVM_REGISTER_GLOBAL("meta_schedule.DatabaseCommitWorkload")
@@ -205,6 +276,12 @@ TVM_REGISTER_GLOBAL("meta_schedule.DatabaseGetTopK")
 TVM_REGISTER_GLOBAL("meta_schedule.DatabaseGetAllTuningRecords")
     .set_body_method<Database>(&DatabaseNode::GetAllTuningRecords);
 TVM_REGISTER_GLOBAL("meta_schedule.DatabaseSize").set_body_method<Database>(&DatabaseNode::Size);
+TVM_REGISTER_GLOBAL("meta_schedule.DatabaseQueryTuningRecord")
+    .set_body_method<Database>(&DatabaseNode::QueryTuningRecord);
+TVM_REGISTER_GLOBAL("meta_schedule.DatabaseQuerySchedule")
+    .set_body_method<Database>(&DatabaseNode::QuerySchedule);
+TVM_REGISTER_GLOBAL("meta_schedule.DatabaseQueryIRModule")
+    .set_body_method<Database>(&DatabaseNode::QueryIRModule);
 TVM_REGISTER_GLOBAL("meta_schedule.DatabasePyDatabase").set_body_typed(Database::PyDatabase);
 
 }  // namespace meta_schedule

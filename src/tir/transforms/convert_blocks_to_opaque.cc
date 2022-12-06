@@ -45,6 +45,10 @@ class OpaqueBlockConverter : public StmtExprMutator {
   OpaqueBlockConverter() = default;
 
   PrimExpr VisitExpr_(const VarNode* var) final {
+    CHECK(!forbidden_iter_vars_.count(var))
+        << "Variable " << var->name_hint << " occurs in the predicate or iter_values of a block, "
+        << "but isn't defined until the body of the block";
+
     auto it = var_substitutes_.find(var);
     if (it != var_substitutes_.end()) {
       return it->second;
@@ -65,23 +69,42 @@ class OpaqueBlockConverter : public StmtExprMutator {
   Stmt VisitStmt_(const BlockRealizeNode* realize) final {
     const auto* block_op = realize->block.get();
     ICHECK(!block_op->init.defined());
-    // Step 1. Update "block vars => binding values" for substitution.
-    ICHECK_EQ(block_op->iter_vars.size(), realize->iter_values.size());
+
+    // Step 1. Visit the predicate and iter_values, without any variable bindings
+    for (const auto& iter : block_op->iter_vars) forbidden_iter_vars_.insert(iter->var.get());
+    PrimExpr predicate = VisitExpr(realize->predicate);
+    Array<PrimExpr> iter_values = realize->iter_values;
+    iter_values.MutateByApply([this](PrimExpr expr) { return VisitExpr(std::move(expr)); });
+    for (const auto& iter : block_op->iter_vars) forbidden_iter_vars_.erase(iter->var.get());
+
+    // Step 2. Update "block vars => binding values" for substitution.
+    ICHECK_EQ(block_op->iter_vars.size(), iter_values.size());
     for (int i = 0, n = block_op->iter_vars.size(); i < n; ++i) {
       IterVar block_var = block_op->iter_vars[i];
-      PrimExpr v = this->VisitExpr(realize->iter_values[i]);
+      PrimExpr v = this->VisitExpr(iter_values[i]);
       var_substitutes_.emplace(block_var->var.get(), v);
     }
-    // Step 2. Visit recursively.
-    BlockRealize new_realize = Downcast<BlockRealize>(StmtExprMutator::VisitStmt_(realize));
-    if (!new_realize->iter_values.empty()) {
-      new_realize.CopyOnWrite()->iter_values.clear();
+    // Step 3. Visit recursively.
+    Block new_block = Downcast<Block>(VisitStmt(realize->block));
+
+    // Step 4. Clear the variable bindings
+    for (const auto& block_var : block_op->iter_vars) {
+      var_substitutes_.erase(block_var->var.get());
     }
-    return std::move(new_realize);
+
+    // Step 5. Return
+    if (predicate.same_as(realize->predicate) && iter_values.same_as(realize->iter_values) &&
+        new_block.same_as(realize->block) && realize->iter_values.size() == 0) {
+      return GetRef<BlockRealize>(realize);
+    } else {
+      return BlockRealize({}, predicate, new_block);
+    }
   }
 
   /*! \brief The map from block vars to their binding values. */
   std::unordered_map<const VarNode*, PrimExpr> var_substitutes_;
+  /* \brief Variables that may not occur in the current context */
+  std::unordered_set<const VarNode*> forbidden_iter_vars_;
 };
 
 PrimFunc ConvertBlocksToOpaque(PrimFunc f) {

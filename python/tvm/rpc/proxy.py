@@ -319,10 +319,10 @@ class ProxyServerHandler(object):
         new_keys = []
         # re-generate the server match key, so old information is invalidated.
         for key in keys:
-            rpc_key, _ = key.split(":")
+            rpc_key, _ = base.split_random_key(key)
             handle = self._server_pool[key]
             del self._server_pool[key]
-            new_key = base.random_key(rpc_key + ":", keyset)
+            new_key = base.random_key(rpc_key, keyset)
             self._server_pool[new_key] = handle
             keyset.add(new_key)
             new_keys.append(new_key)
@@ -368,7 +368,7 @@ class ProxyServerHandler(object):
             need_update_info = False
             # report new connections
             for key in self._tracker_pending_puts:
-                rpc_key = key.split(":")[0]
+                rpc_key, _ = base.split_random_key(key)
                 base.sendjson(
                     self._tracker_conn, [TrackerCode.PUT, rpc_key, (self._listen_port, key), None]
                 )
@@ -403,7 +403,7 @@ class ProxyServerHandler(object):
     def _handler_ready_tracker_mode(self, handler):
         """tracker mode to handle handler ready."""
         if handler.rpc_key.startswith("server:"):
-            key = base.random_key(handler.match_key + ":", self._server_pool)
+            key = base.random_key(handler.match_key, cmap=self._server_pool)
             handler.match_key = key
             self._server_pool[key] = handler
             self._tracker_pending_puts.append(key)

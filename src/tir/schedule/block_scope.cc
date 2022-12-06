@@ -76,7 +76,7 @@ BlockScope::BlockScope(const Array<StmtSRef>& child_block_srefs) {
   SMap<Buffer, Array<StmtSRef>> buffer_readers;
   SMap<Buffer, Array<StmtSRef>>& buffer_writers = n->buffer_writers;
   for (const StmtSRef& child_block_sref : child_block_srefs) {
-    const BlockNode* child_block = TVM_SREF_TO_BLOCK(child_block, child_block_sref);
+    const BlockNode* child_block = TVM_SREF_TO_BLOCK(child_block_sref);
     // Step 1. Update `buffer_readers` and `buffer_writers` for each buffer
     for (const BufferRegion& region : child_block->reads) {
       buffer_readers[region->buffer].push_back(child_block_sref);

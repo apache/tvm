@@ -74,9 +74,9 @@ class PackedCallLegalizer : public StmtExprMutator {
             tvm::runtime::Map<tvm::tir::Var, tvm::tir::Buffer>::iterator param_buf_it;
             if (prim_func != nullptr) {
               auto param_var = prim_func->params[i - 1];
-              param_buf_it = prim_func->preflattened_buffer_map.find(param_var);
+              param_buf_it = prim_func->buffer_map.find(param_var);
             }
-            if (prim_func != nullptr && param_buf_it != prim_func->preflattened_buffer_map.end()) {
+            if (prim_func != nullptr && param_buf_it != prim_func->buffer_map.end()) {
               Buffer param = (*param_buf_it).second;
               PrimExpr shape = tvm::tir::Call(
                   DataType::Handle(), tvm::tir::builtin::tvm_stack_make_shape(), param->shape);

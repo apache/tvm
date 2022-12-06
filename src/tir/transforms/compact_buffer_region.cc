@@ -88,7 +88,7 @@ NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
     var_dom[GetRef<Var>(it.first)] = it.second.CoverRange(Range::FromMinExtent(0, 0));
   }
   Optional<Array<arith::IntSet>> eval_res =
-      arith::EstimateRegionLowerBound(region, var_dom, predicate, analyzer);
+      arith::EstimateRegionUpperBound(region, var_dom, predicate, analyzer);
   if (eval_res.defined()) {
     return NDIntSet(eval_res.value().begin(), eval_res.value().end());
   }
@@ -184,10 +184,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, true);
       StmtExprVisitor::VisitStmt(op->then_case);
     }
-    if (op->else_case.defined()) {
+    if (op->else_case) {
       // Visit else branch
       With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, false);
-      StmtExprVisitor::VisitStmt(op->else_case);
+      StmtExprVisitor::VisitStmt(op->else_case.value());
     }
   }
 

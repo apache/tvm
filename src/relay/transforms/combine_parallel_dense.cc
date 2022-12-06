@@ -116,10 +116,8 @@ class ParallelDenseToDenseCombiner : public ParallelOpCombiner {
   Call MakeCombinedOp(const Group& branches) {
     const Op& dense_op = Op::Get("nn.dense");
     Expr input = branches[0][0]->args[0];
-    Expr new_weight;
-    IndexExpr new_output_dims;
     // concat all weights into one
-    std::tie(new_weight, new_output_dims) = TransformWeight(branches);
+    auto [new_weight, new_output_dims] = TransformWeight(branches);
     const auto* origin_attrs = branches[0][0]->attrs.as<DenseAttrs>();
     ICHECK(origin_attrs);
     const auto dense_attrs = make_object<DenseAttrs>();

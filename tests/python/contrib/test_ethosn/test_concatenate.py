@@ -56,41 +56,58 @@ def _get_model(shapes, dtype, axis):
 
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
-def test_concatenate(dtype):
-    trials = [
+@pytest.mark.parametrize(
+    "shapes,axis",
+    [
         ([(1, 4), (1, 6)], 1),
         ([(1, 16, 4), (1, 16, 4)], 1),
         ([(1, 25, 4, 16)] * 3, 3),
         ([(1, 25, 4, 16), (1, 25, 5, 16), (1, 25, 6, 16)], 2),
-    ]
-
+        ([(1, 4), (1, 6)], -1),
+        ([(1, 16, 4), (1, 16, 4)], -2),
+    ],
+)
+def test_concatenate(dtype, shapes, axis):
+    """Compare Concatenate output with TVM."""
     np.random.seed(0)
-    for shapes, axis in trials:
-        outputs = []
-        inputs = _get_inputs(shapes, dtype)
-        for npu in [False, True]:
-            model = _get_model(shapes, dtype, axis)
-            mod = tei.make_module(model, {})
-            outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+
+    outputs = []
+    inputs = _get_inputs(shapes, dtype)
+    for npu in [False, True]:
+        model = _get_model(shapes, dtype, axis)
+        mod = tei.make_module(model, {})
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                1,
+                {},
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
+        )
 
         tei.verify(outputs, dtype, 0)
 
 
 @requires_ethosn
-def test_concatenate_failure():
-    trials = [
+@pytest.mark.parametrize(
+    "shapes,dtype,axis,err_msg",
+    [
         ([(1, 4, 4, 4, 4), (1, 4, 4, 4, 4)], "uint8", 1, "dimensions=5, dimensions must be <= 4;"),
         (
             [(1, 4, 4, 4), (1, 4, 4, 4)],
             "uint8",
             3,
-            "Concatenation along the channels dimension (axis 3) requires input tensors with a multiple of 16 channels;",
+            "Concatenation along the channels dimension (axis 3) "
+            "requires input tensors with a multiple of 16 channels;",
         ),
         (
             [(1, 4, 4, 4), (1, 4, 4, 4)],
             "int16",
             2,
-            "dtype='int16', dtype must be either uint8, int8 or int32; dtype='int16', dtype must be either uint8, int8 or int32;",
+            "dtype='int16', dtype must be either uint8, int8 or int32; dtype='int16', "
+            "dtype must be either uint8, int8 or int32;",
         ),
         (
             [(2, 4, 4, 4), (2, 4, 4, 4)],
@@ -104,9 +121,10 @@ def test_concatenate_failure():
             0,
             "Concatenation cannot be performed along batch axis (axis 0);",
         ),
-    ]
-
-    for shapes, dtype, axis, err_msg in trials:
-        model = _get_model(shapes, dtype, axis)
-        mod = tei.make_ethosn_partition(model)
-        tei.test_error(mod, {}, err_msg)
+    ],
+)
+def test_concatenate_failure(shapes, dtype, axis, err_msg):
+    """Check Concatenate error messages."""
+    model = _get_model(shapes, dtype, axis)
+    mod = tei.make_ethosn_partition(model)
+    tei.test_error(mod, {}, err_msg)

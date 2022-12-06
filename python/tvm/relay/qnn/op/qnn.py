@@ -29,8 +29,6 @@ from tvm.target import Target
 from tvm.topi.nn.qnn import SQNN_DTYPE_TO_CODE
 from tvm.topi.x86.utils import target_has_sse41
 
-from ... import op as reg
-from ...op import OpPattern
 from . import _make, _requantize
 
 
@@ -1210,11 +1208,6 @@ def batch_matmul(x, y, x_zero_point, y_zero_point, x_scale, y_scale, out_dtype="
         The computed result.
     """
     return _make.batch_matmul(x, y, x_zero_point, y_zero_point, x_scale, y_scale, out_dtype)
-
-
-# register fuse pattern for qnn ops
-reg.register_pattern("qnn.quantize", OpPattern.OPAQUE)
-reg.register_pattern("qnn.dequantize", OpPattern.OPAQUE)
 
 
 def leaky_relu(x, alpha, input_scale, input_zero_point, output_scale, output_zero_point):

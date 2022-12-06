@@ -49,33 +49,35 @@ def validate_out_shape(out_shape, in_shape, kernel, stride, dilation):
         raise RuntimeError("Output width is too large")
 
 
-def avg_pool2d_compute(A, out_shape, kernel, stride, dilation):
+def avg_pool2d_compute(A, kernel, stride, dilation, oshape, odtype="float16"):
     """avg_pool2d compute"""
+    if odtype != "float16":
+        RuntimeError(f"Unsupported output dtype '{odtype}'")
     kh, kw = kernel
     rh = te.reduce_axis((0, kh), name="rh")
     rw = te.reduce_axis((0, kw), name="rw")
-    ob, oh, ow, oc = out_shape
+    ob, oh, ow, oc = oshape
     if isinstance(ob, int):
-        validate_out_shape(out_shape, A.shape, kernel, stride, dilation)
+        validate_out_shape(oshape, A.shape, kernel, stride, dilation)
 
     sh, sw = stride
     dh, dw = dilation
     InvArea = float(1) / (kh * kw)
 
     Sum = te.compute(
-        out_shape,
+        oshape,
         lambda b, h, w, c: te.sum(
             A[b, h * sh + dh * rh, w * sw + dw * rw, c].astype("float32"), axis=[rh, rw]
         ),
         name="sum",
     )
     Avg = te.compute(
-        out_shape, lambda b, h, w, c: (Sum[b, h, w, c] * InvArea).astype(A.dtype), name="avg"
+        oshape, lambda b, h, w, c: (Sum[b, h, w, c] * InvArea).astype(A.dtype), name="avg"
     )
     return Avg
 
 
-def STIR_schedule_nhwc_8h2w32c2w(outs, ins, output_layout: str, input_layout: str):
+def schedule_nhwc_8h2w32c2w(outs, ins, output_layout: str, input_layout: str):
     """Schedule for input and output layout nhwc-8h2w32c2w"""
     func = te.create_prim_func([ins, outs])
     s = tir.Schedule(func)
@@ -106,7 +108,7 @@ def STIR_schedule_nhwc_8h2w32c2w(outs, ins, output_layout: str, input_layout: st
     return s
 
 
-def STIR_schedule_n11c_1024c(outs, ins, output_layout: str, input_layout: str):
+def schedule_n11c_1024c(outs, ins, output_layout: str, input_layout: str):
     """Schedule for output layout: n11c-1024c, input layout: nhwc-8h2w32c2w"""
     func = te.create_prim_func([ins, outs])
     s = tir.Schedule(func)
@@ -132,10 +134,10 @@ def STIR_schedule_n11c_1024c(outs, ins, output_layout: str, input_layout: str):
     return s
 
 
-def avg_pool2d_STIR_schedule(outs, ins, output_layout: str, input_layout: str):
-    """STIR based schedule"""
+def avg_pool2d_schedule(outs, ins, output_layout: str, input_layout: str):
+    """avg_pool2d schedule"""
     if output_layout == "nhwc-8h2w32c2w-2d":
-        return STIR_schedule_nhwc_8h2w32c2w(outs, ins, output_layout, input_layout)
+        return schedule_nhwc_8h2w32c2w(outs, ins, output_layout, input_layout)
     if output_layout == "n11c-1024c-2d":
-        return STIR_schedule_n11c_1024c(outs, ins, output_layout, input_layout)
+        return schedule_n11c_1024c(outs, ins, output_layout, input_layout)
     raise RuntimeError(f"Unexpected layout '{output_layout}'")

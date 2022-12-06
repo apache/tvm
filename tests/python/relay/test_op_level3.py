@@ -1344,7 +1344,7 @@ def test_gather_nd(target, dev, executor_kind):
     verify_gather_nd((2, 2, 2), (2, 2, 1), [[[1], [0]], [[0], [1]]], 1, indices_dtype="uint32")
 
 
-def _verify_infiniteness_ops(relay_op, ref_op):
+def _verify_infiniteness_ops(relay_op, ref_op, target="llvm", dev=None):
     for dtype in ["float32", "float16", "float16", "int32", "int16"]:
         shape = (2, 8, 8)
         x = relay.var("x", relay.TensorType(shape, dtype))
@@ -1359,17 +1359,25 @@ def _verify_infiniteness_ops(relay_op, ref_op):
             ] = np.infty
             data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.nan
 
-        op_res = create_executor().evaluate(y, {x: data})
+        op_res = create_executor(target=target, device=dev).evaluate(y, {x: data})
         ref_res = ref_op(data)
         np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
 
+@tvm.testing.requires_gpu
 def test_isfinite():
-    _verify_infiniteness_ops(relay.isfinite, np.isfinite)
+    for target, dev in tvm.testing.enabled_targets():
+        if target not in ["llvm", "cuda"]:
+            continue
+        _verify_infiniteness_ops(relay.isfinite, np.isfinite, target=target, dev=dev)
 
 
+@tvm.testing.requires_gpu
 def test_isinf():
-    _verify_infiniteness_ops(relay.isinf, np.isinf)
+    for target, dev in tvm.testing.enabled_targets():
+        if target not in ["llvm", "cuda"]:
+            continue
+        _verify_infiniteness_ops(relay.isinf, np.isinf, target=target, dev=dev)
 
 
 def test_unravel_index(target, dev, executor_kind):
@@ -2254,6 +2262,45 @@ def test_trilu(target="llvm", dev=tvm.cpu()):
     verify_trilu((6, 6), False, -2)
     # Test batch size
     verify_trilu((8, 6, 6), False, -2)
+
+
+def test_trilu_shape_i64():
+    data_x = np.ones((2, 1), dtype="int32")
+
+    x = relay.var("x", shape=[2, 1], dtype="float32")
+    v0 = relay.broadcast_to(x, shape=relay.const([2, 1], dtype="int64"))
+    v2 = relay.add(relay.const([[1.0]]), v0)
+    v3 = relay.trilu(v0, k=0)
+
+    f = relay.Function([x], relay.Tuple([v2, v3]))
+    tvm_res = relay.create_executor("graph", device=tvm.cpu(), target="llvm").evaluate(f)(data_x)
+
+    np_res = (
+        np.array([[2.0], [2.0]], dtype=np.float32),
+        np.array([[1.0], [0.0]], dtype=np.float32),
+    )
+
+    tvm.testing.assert_allclose(tvm_res[0].numpy(), np_res[0])
+    tvm.testing.assert_allclose(tvm_res[1].numpy(), np_res[1])
+
+
+def test_trilu_reduce():
+    data_i0 = np.ones((2, 2), dtype="int32")
+    k = 0
+
+    i0 = relay.var("i0", shape=[2, 2], dtype="int32")
+    i1 = relay.var("i1", shape=(), dtype="int64")
+    v0 = relay.trilu(i0, i1)
+    v1 = relay.argmin(v0, axis=[0])
+    f = relay.Function([i0, i1], v1)
+    tvm_res = (
+        relay.create_executor("graph", device=tvm.cpu(), target="llvm")
+        .evaluate(f)(data_i0, k)
+        .numpy()
+    )
+
+    np_res = np.triu(data_i0, k).argmin(axis=0)
+    tvm.testing.assert_allclose(tvm_res, np_res)
 
 
 if __name__ == "__main__":

@@ -269,13 +269,34 @@ TVM_DLL StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int 
                             const String& storage_scope);
 /*!
  *!
+ * \brief Create 2 blocks that read&write a buffer region into a read/write cache.
+ * It requires the the target block both read & write the target buffer.
+ * \param self The state of the schedule
+ * \param block_sref The target block operates on the target buffer.
+ * \param read_buffer_index The index of the buffer in block's read region.
+ * \param storage_scope The target storage scope
+ * \return The cache stage blocks, cache read block together with cache write block.
+ */
+TVM_DLL Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref,
+                                     int read_buffer_index, const String& storage_scope);
+/*!
+ * \brief Create a block to cache precomputed index for later use.
+ * if there is no index computation, keep unchanged.
+ * \param block_sref The target block
+ * \param buffer_index The index of the target buffer in block's read region,
+ * \return The cache stage block.
+ */
+TVM_DLL Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
+                                   int buffer_index);
+/*!
+ *!
  * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
  * The layout of the cache will be the same as by the iterators of the block that reads/writes the
  * buffer. It requires:
  * 1) There is only one block who reads/writes the target buffer
  * 2) There is only one buffer load/store of this buffer in the block
  * \param self The state of the schedule
- * \param block_rv The block operates on the target buffer.
+ * \param block_sref The block operates on the target buffer.
  * \param buffer_index The index of the buffer in block's read or write region.
  * \param buffer_index_type The type of the buffer index, kRead or kWrite.
  * \return The reindex stage block.
@@ -299,10 +320,13 @@ TVM_DLL StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buf
  * \param self The schedule state
  * \param block_sref The block to be moved
  * \param loop_sref The loop where the block to be moved to
- * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ * \param index The block index of the loop body subtree blocks:
+ * - `index = -1` means inserted into the last possible insertion point;
+ * - `index = -2` means inserted into the first possible insertion point;
+ * - Otherwise, `index` is a nonnegative number that indicates the insertion point
  */
 TVM_DLL void ComputeAt(ScheduleState self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
-                       bool preserve_unit_loops);
+                       bool preserve_unit_loops, int index = -1);
 /*!
  * \brief Move a consumer block under the specific loop, and regenerate the
  * loops induced by the block so that the buffer region consumed by the consumer block could
@@ -318,9 +342,13 @@ TVM_DLL void ComputeAt(ScheduleState self, const StmtSRef& block_sref, const Stm
  * \param block_sref The block to be moved
  * \param loop_sref The loop where the block to be moved to
  * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ * \param index The block index of the loop body subtree blocks:
+ * - `index = -1` means inserted into the last possible insertion point;
+ * - `index = -2` means inserted into the first possible insertion point;
+ * - Otherwise, `index` is a nonnegative number that indicates the insertion point
  */
 TVM_DLL void ReverseComputeAt(ScheduleState self, const StmtSRef& block_sref,
-                              const StmtSRef& loop_sref, bool preserve_unit_loops);
+                              const StmtSRef& loop_sref, bool preserve_unit_loops, int index = -1);
 /*!
  * \brief Inline a block into its consumer(s). It requires:
  * 1) The block is a complete non-root block, which only produces one buffer
@@ -467,9 +495,11 @@ TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const String& 
  * \param buffer_index The index of the buffer in block's read or write region.
  * \param buffer_index_type The type of the buffer index, kRead or kWrite.
  * \param index_map The transformation to apply.
+ * \param pad_value The value to write into padding introduced by the transformation.
  */
 TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-                             BufferIndexType buffer_index_type, const IndexMap& index_map);
+                             BufferIndexType buffer_index_type, const IndexMap& index_map,
+                             const Optional<IndexMap>& pad_value);
 
 /*!
  * \brief Apply a transformation represented by IndexMap to block
@@ -483,7 +513,7 @@ TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int
 TVM_DLL void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
                                   const IndexMap& index_map);
 
-/******** Schedule: Padding decomposition ********/
+/******** Schedule: Padding ********/
 /*!
  * \brief Decompose a padding block into a block filling const pad values and a block
  * writing in-bound values.
@@ -494,6 +524,31 @@ TVM_DLL void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref
 TVM_DLL StmtSRef DecomposePadding(ScheduleState self, const StmtSRef& block_sref,
                                   const StmtSRef& loop_sref);
 
+/*!
+ * \brief Pad the computation of Einsum.
+ * \param self The state of the schedule
+ * \param block_sref The block sref that matches the Einsum pattern.
+ * \param padding The padding for each block iter.
+ */
+TVM_DLL void PadEinsum(ScheduleState self, const StmtSRef& block_sref,
+                       const Array<Integer>& padding);
+
+/******** Schedule: Buffer transformation ********/
+/*!
+ * \brief Compute the target buffer via rolling buffering.
+ * \details This primitive selects the outermost rollable axis with a positive bound overlap that
+ * appears in the block's ancestor loops as `rolling axis`, fold and circularize the buffer along
+ * the rolling dimension, append block predicate to avoid recomputing overlapping elements.
+ * It requires:
+ * 1) The buffer to be an intermediate buffer defined via `alloc_buffer`.
+ * 2) The LCA of the producer and consumer of the buffer is a for loop, typically,
+ *    the producer and consumer of the buffer are cascaded through compute_at.
+ * 3) The access region of the buffer has at least one dimension that contains
+ *    a positive bound overlap.
+ * \param block_rv The producer block of the buffer.
+ * \param write_buffer_index The index of the buffer in block's write region.
+ */
+TVM_DLL void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buffer_index);
 /******** Schedule: Misc ********/
 
 }  // namespace tir

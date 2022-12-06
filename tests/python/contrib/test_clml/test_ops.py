@@ -16,21 +16,14 @@
 # under the License.
 """CLML integration conv2d tests."""
 
-import numpy as np
-
-np.random.seed(0)
-
 import tvm
-from tvm import testing
+import numpy as np
 from tvm import relay
+from tvm.relay import testing
 from tvm.ir import IRModule
-
-from test_clml.infrastructure import (
-    skip_runtime_test,
-    skip_codegen_test,
-    build_and_run,
-    Device,
-)
+from tvm.contrib import utils
+from test_clml.infrastructure import build_and_run, Device, skip_codegen_test
+import pytest
 
 
 def _get_conv_model(
@@ -98,17 +91,9 @@ def _get_conv_model(
     return out, params
 
 
-def test_conv2d():
-    Device.load("test_config.json")
-
-    if skip_runtime_test():
-        return
-
-    device = Device()
-    np.random.seed(0)
-
-    dtype = "float32"
-
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def test_conv2d(device, dtype):
     trials = [
         # Normal convolution
         [3, 3, (1, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, False, False)],
@@ -168,17 +153,9 @@ def test_conv2d():
         )
 
 
-def test_batchnorm():
-    Device.load("test_config.json")
-
-    if skip_runtime_test():
-        return
-
-    device = Device()
-    np.random.seed(0)
-
-    dtype = "float32"
-
+@pytest.mark.parametrize("dtype", ["float16"])
+@tvm.testing.requires_openclml
+def _test_batchnorm(device, dtype):
     in_shape = (1, 8, 64, 64)
     channels = 8
 
@@ -211,6 +188,70 @@ def test_batchnorm():
     )
 
 
-if __name__ == "__main__":
-    # test_conv2d()
-    test_batchnorm()
+@pytest.mark.parametrize("dtype", ["float16"])
+@tvm.testing.requires_openclml
+def test_concat(device, dtype):
+    in_shape_1 = (1, 16, 16, 16)
+    in_shape_2 = (1, 16, 16, 16)
+    a = relay.var("input_1", shape=in_shape_1, dtype=dtype)
+    b = relay.var("input_2", shape=in_shape_2, dtype=dtype)
+    low, high = -1, 1
+    inputs = {
+        "input_1": tvm.nd.array(np.random.uniform(-1, 1, in_shape_1).astype(dtype)),
+        "input_2": tvm.nd.array(np.random.uniform(-1, 1, in_shape_2).astype(dtype)),
+    }
+
+    params = {}
+    func = relay.concatenate((a, b), axis=1)
+    mod = IRModule.from_expr(func)
+
+    opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+    clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+
+    tvm.testing.assert_allclose(
+        clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+    )
+
+
+@pytest.mark.parametrize("dtype", ["float16"])
+@tvm.testing.requires_openclml
+def test_avgpool(device, dtype):
+    trials = [
+        # input size         pool_size stride  paading
+        [(1, 64, 147, 147), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
+        [(1, 192, 71, 71), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
+        [(1, 288, 35, 35), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
+        [(1, 768, 17, 17), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
+        [(1, 2048, 17, 17), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
+        [(1, 192, 35, 35), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
+        [(1, 256, 35, 35), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
+        [(1, 288, 35, 35), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
+        [(1, 768, 17, 17), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
+        [(1, 1280, 8, 8), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
+    ]
+    params = {}
+    for (
+        input_shape,
+        pool_size,
+        stride,
+        padding,
+        pooling_type,
+    ) in trials:
+        a = relay.var("input_1", shape=input_shape, dtype=dtype)
+        input_arr = tvm.nd.array(np.random.uniform(-1, 1, input_shape).astype(dtype))
+        inputs = {
+            "input_1": input_arr,
+        }
+
+        if pooling_type == "max":
+            func = relay.nn.max_pool2d(a, pool_size=pool_size, strides=stride, padding=padding)
+        else:
+            func = relay.nn.avg_pool2d(a, pool_size=pool_size, strides=stride, padding=padding)
+        mod = IRModule.from_expr(func)
+
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )

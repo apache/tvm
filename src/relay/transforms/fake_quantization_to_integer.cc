@@ -542,7 +542,7 @@ Pass FakeQuantizationToInteger(bool hard_fail, bool use_qat) {
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(FakeQuantizationToInteger(f, m, hard_fail, use_qat));
       };
-  return CreateFunctionPass(pass_func, 0, "FakeQuantizationToInteger", {"InferType"});
+  return CreateFunctionPass(pass_func, 0, "FakeQuantizationToInteger", {"InferType", "DivToMul"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FakeQuantizationToInteger")
