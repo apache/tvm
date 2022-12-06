@@ -519,7 +519,7 @@ def _export_operator_model_library_format(mod: build_module.OperatorModule, temp
     """
     targets = []
     for target in mod.ir_module_by_target.keys():
-        if str(target.kind) not in ("llvm", "c"):
+        if str(target.kind) not in ("llvm", "c", "gemmini"):
             raise UnsupportedInModelLibraryFormatError(
                 f"Operator has non-DSO-exportable target {target!s}, which is not yet supported in "
                 "Model Library Format"

@@ -39,7 +39,8 @@ LetStmt::LetStmt(Var var, PrimExpr value, Stmt body, Span span) {
   // It is still valid to bind a pointer type
   // var to a value that is of type handle.
   if (var->type_annotation.as<PointerTypeNode>()) {
-    ICHECK(vdtype.is_handle());
+    // TODO (FP): Is this check really necessary?
+    // ICHECK(vdtype.is_handle());
   } else {
     ICHECK_EQ(value.dtype(), var.dtype());
   }

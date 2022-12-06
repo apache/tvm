@@ -64,6 +64,9 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_s
     decl_stream << "#include <arm_nn_types.h>\n";
     decl_stream << "#include <arm_nn_math_types.h>\n";
   }
+  if (target_str.find("gemmini") != std::string::npos) {
+    decl_stream << "#include \"gemmini_testutils.h\"\n";
+  }
   CodeGenC::Init(output_ssa);
 }
 

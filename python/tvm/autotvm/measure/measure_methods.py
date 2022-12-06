@@ -500,8 +500,20 @@ def _build_func_common(measure_input, runtime=None, checks=None, build_option=No
     target, task, config = measure_input
     target, task.target_host = Target.canon_target_and_host(target, task.target_host)
     checks = checks or {}
+
     with target:
         s, args = task.instantiate(config)
+
+        # if target is gemmini, we need to use gemmini build
+        if (
+            hasattr(measure_input.target, "device_name")
+            and measure_input.target.device_name == "gemmini"
+        ):
+            # pylint: disable=import-outside-toplevel
+            import tvm.contrib.gemmini as gemmini
+
+            func = gemmini.build(s, args, target=measure_input.target, runtime=runtime)
+            return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
         # check invalidity of template and code hash consistency
         if not config.valid():
