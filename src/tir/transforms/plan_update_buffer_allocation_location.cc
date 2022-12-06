@@ -48,10 +48,53 @@ class CollectUnmanagedAllocations : public StmtExprVisitor {
   std::unordered_set<const VarNode*> unmanaged_allocations;
 };
 
+/*! \brief Collect the allocate buffer order. */
+class BufferAllocateOrderCollector : public StmtExprVisitor {
+ public:
+  static Array<Buffer> Collect(const PrimFunc& func) {
+    BufferAllocateOrderCollector collector;
+    for (const auto& kv : func->buffer_map) {
+      collector.buffer_alloc_recorder_.push_back(kv.second);
+    }
+    collector(func->body);
+    return std::move(collector.buffer_alloc_recorder_);
+  }
+
+ private:
+  void VisitStmt_(const BlockNode* op) final {
+    for (const Buffer& buffer : op->alloc_buffers) {
+      buffer_alloc_recorder_.push_back(buffer);
+    }
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitExpr_(const BufferLoadNode* op) final {
+    if (std::find(buffer_alloc_recorder_.begin(), buffer_alloc_recorder_.end(), op->buffer) ==
+        buffer_alloc_recorder_.end()) {
+      buffer_alloc_recorder_.push_back(op->buffer);
+    }
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitStmt_(const BufferStoreNode* op) final {
+    if (std::find(buffer_alloc_recorder_.begin(), buffer_alloc_recorder_.end(), op->buffer) ==
+        buffer_alloc_recorder_.end()) {
+      buffer_alloc_recorder_.push_back(op->buffer);
+    }
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
+  /*! \brief The buffer allocated order recorder. */
+  Array<Buffer> buffer_alloc_recorder_;
+};
+
 class BufferAllocationLocator : public StmtExprMutator {
  public:
   explicit BufferAllocationLocator(const PrimFunc& func) {
     Map<Buffer, Optional<Stmt>> buffer_lca = DetectBufferAccessLCA(func);
+    // The buffer_alloc_recorder Array is used to keep the buffer allocation order
+    // since the buffer_lca Map is unordered.
+    Array<Buffer> buffer_alloc_recorder = BufferAllocateOrderCollector::Collect(func);
     std::unordered_set<const VarNode*> arg_buffer_vars;
     CollectUnmanagedAllocations collector;
     collector(func->body);
@@ -63,16 +106,18 @@ class BufferAllocationLocator : public StmtExprMutator {
       buffer_data_to_buffer_.Set(buffer->data, buffer);
     }
     // create buffers to be allocated at each stmts
-    for (const auto& kv : buffer_lca) {
-      const Buffer& buffer = kv.first;
-      const StmtNode* stmt = kv.second.get();
-      if (arg_buffer_vars.count(buffer->data.get())) {
-        continue;
+    for (const auto& buffer : buffer_alloc_recorder) {
+      auto it = buffer_lca.find(buffer);
+      if (it != buffer_lca.end()) {
+        const StmtNode* stmt = (*it).second.get();
+        if (arg_buffer_vars.count(buffer->data.get())) {
+          continue;
+        }
+        if (!unmanaged_allocations_.count(buffer->data.get())) {
+          alloc_buffers_[stmt].push_back(buffer);
+        }
+        buffer_data_to_buffer_.Set(buffer->data, buffer);
       }
-      if (!unmanaged_allocations_.count(buffer->data.get())) {
-        alloc_buffers_[stmt].push_back(buffer);
-      }
-      buffer_data_to_buffer_.Set(buffer->data, buffer);
     }
   }
 
