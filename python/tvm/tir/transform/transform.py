@@ -214,6 +214,17 @@ def InjectRollingBuffer():
     return _ffi_api.InjectRollingBuffer()  # type: ignore
 
 
+def CorrectGemminisScratchpadAndAccumulatorPointers():
+    """Corrects the pointer addresses of buffers inside Gemmini's scratchpad and accumulator
+
+    Returns:
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.CorrectGemminisScratchpadAndAccumulatorPointers()
+
+
 def StorageRewrite():
     """Rewrite storage allocation pattern.
 

@@ -19,3 +19,6 @@
 [submodule "3rdparty/OpenCL-Headers"]
 	path = 3rdparty/OpenCL-Headers
 	url = https://github.com/KhronosGroup/OpenCL-Headers.git
+[submodule "3rdparty/gemmini"]
+	path = 3rdparty/gemmini
+	url = https://github.com/ucb-bar/gemmini
