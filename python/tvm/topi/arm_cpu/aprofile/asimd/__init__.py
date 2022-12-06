@@ -14,12 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable
-"""Schedule for pooling operators"""
 
-from .mprofile.dsp.pool import pool_dsp_schedule
-
-
-def schedule_pool(outs, layout):
-    """Create schedule for avgpool/maxpool with dsp"""
-    return pool_dsp_schedule(outs, layout)
+from .bitserial_conv2d import *
+from .bitserial_dense import *
+from .dotprod import *
+from .gemm import *
+from .mul import *
+from .popcount import *

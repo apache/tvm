@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,unused-variable,no-else-return
+
 """Conv2D spatial pack implementation for ARM CPU"""
 from __future__ import absolute_import as _abs
 import tvm

@@ -67,7 +67,7 @@ def schedule_pool_arm_cpu(attrs, outs, target):
             and target.features.has_dsp
             and layout in ("NWC", "NHWC")
         ):
-            return topi.arm_cpu.schedule_pool(outs, layout)
+            return topi.arm_cpu.mprofile.dsp.pool.schedule_pool(outs, layout)
         logger.warning("pool is not optimized for arm cpu.")
         return topi.generic.schedule_pool(outs, layout)
 

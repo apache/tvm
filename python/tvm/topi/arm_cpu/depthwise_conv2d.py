@@ -26,7 +26,7 @@ from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from .. import nn
 from ..utils import traverse_inline, get_const_tuple, get_const_int
 from ..nn.utils import get_pad_tuple
-from .tensor_intrin import smlal_int16_int32
+from .aprofile.asimd.mul import smlal_int16_int32
 from .mprofile.dsp.depthwise_conv2d import (
     depthwise_conv2d_nhwc_dsp_compute,
     depthwise_conv2d_nhwc_dsp_schedule,

@@ -28,7 +28,10 @@ from tvm.contrib.pickle_memoize import memoize
 _bitserial_dense_implement = {
     "generic": (topi.nn.bitserial_dense, topi.generic.schedule_bitserial_dense),
     "cpu": (topi.x86.bitserial_dense, topi.x86.schedule_bitserial_dense),
-    "arm_cpu": (topi.arm_cpu.bitserial_dense, topi.arm_cpu.schedule_bitserial_dense),
+    "arm_cpu": (
+        topi.arm_cpu.aprofile.asimd.bitserial_dense,
+        topi.arm_cpu.aprofile.asimd.schedule_bitserial_dense,
+    ),
 }
 
 

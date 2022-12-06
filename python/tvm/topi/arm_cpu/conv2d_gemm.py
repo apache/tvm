@@ -24,10 +24,14 @@ from tvm.topi import nn
 from tvm.autotvm.task.space import AnnotateEntity, ReorderEntity, OtherOptionEntity
 from ..utils import get_const_tuple, get_const_int
 from ..nn.utils import get_pad_tuple
-from .tensor_intrin import (
+from .aprofile.asimd.gemm import (
     gemm_4x4_int8_int8_int32,
+)
+from .aprofile.dotprod.gemm import (
     gemm_acc_4x4_int8_int8_int32,
     gemm_acc_nx16_int8_int8_int32,
+)
+from .aprofile.matmul.gemm import (
     gemm_acc_2x2_int8_int8_int32,
 )
 
@@ -320,7 +324,6 @@ def schedule_conv2d_gemm_interleaved(cfg, s, out, final_out):
     )
 
     in_type = A_interleaved.dtype
-    out_type = C.dtype
 
     k = C_interleaved.op.reduce_axis[0]
     _, M, N = C.shape

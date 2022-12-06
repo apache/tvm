@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
+
 """Arm target utility functions"""
 
 from tvm.target import Target

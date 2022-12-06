@@ -24,13 +24,21 @@ from ...target import codegen
 from ..nn.conv2d import _get_workload as _get_conv2d_workload, unpack_NCHWc_to_nchw
 from ..x86.conv2d_int8 import _pack_data
 from ..nn.utils import get_pad_tuple
-from .tensor_intrin import dot_int8_int8_int32_neon_82, dot_int8_int8_int32_neon
+
+
+from .aprofile.asimd.dotprod import (
+    dot_int8_int8_int32_neon,
+)
+from .aprofile.dotprod.dotprod import (
+    dot_int8_int8_int32_neon_82,
+)
+
 from .conv2d_gemm import (
     compute_conv2d_gemm_without_weight_transform,
     schedule_conv2d_gemm_interleaved,
     schedule_conv2d_gemm_native,
 )
-from .arm_utils import get_tiling_B_interleaved_t
+from .interleave import get_tiling_B_interleaved_t
 
 
 def _get_default_config(cfg, data, kernel, strides, padding, dilation, out_dtype):
@@ -136,7 +144,6 @@ def is_int8_hw_support(data_dtype, kernel_dtype):
 def schedule_conv2d_NCHWc_int8(cfg, outs):
     """Create schedule for tensors"""
     s = te.create_schedule([x.op for x in outs])
-    scheduled_ops = []
 
     def _callback(op):
         if "conv2d_NCHWc_int8" in op.tag:

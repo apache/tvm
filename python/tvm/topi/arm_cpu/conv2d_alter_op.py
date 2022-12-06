@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Conv2D alter op and legalize functions for arm cpu"""
 
 import logging
@@ -31,7 +30,7 @@ from ..utils import get_const_tuple
 from ..x86.conv2d import _get_default_config as _get_x86_default_config
 from ..x86.conv2d_int8 import _get_default_config_int8
 from .conv2d_int8 import is_int8_hw_support
-from .arm_utils import get_tiling_B_interleaved_t
+from .interleave import get_tiling_B_interleaved_t
 from ..generic.conv2d import conv2d_alter_int8_common
 from .mprofile.dsp.micro_kernel.common import num_simd_lanes_per_word
 
