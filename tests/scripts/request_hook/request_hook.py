@@ -25,7 +25,8 @@ from urllib.parse import quote
 LOGGER = None
 
 
-# To update this list, run the workflow <HERE> with the URL to download and the SHA512 of the file
+# To update this list, run https://github.com/apache/tvm/actions/workflows/upload_ci_resource.yml
+# with the URL to download and the SHA-256 hash of the file.
 BASE = "https://tvm-ci-resources.s3.us-west-2.amazonaws.com"
 URL_MAP = {
     "http://data.mxnet.io.s3-website-us-west-1.amazonaws.com/data/val_256_q90.rec": f"{BASE}/mxnet-val_256_q90.rec",
@@ -218,8 +219,8 @@ class TvmRequestHook(urllib.request.Request):
             # Dis-allow any accesses that aren't going through S3
             msg = (
                 f"Uncaught URL found in CI: {url}. "
-                "A committer must upload the relevant file to S3 via"
-                "https://github.com/apache/tvm/actions/workflows/upload_ci_resource.yml"
+                "A committer must upload the relevant file to S3 via "
+                "https://github.com/apache/tvm/actions/workflows/upload_ci_resource.yml "
                 "and add it to the mapping in tests/scripts/request_hook/request_hook.py"
             )
             raise RuntimeError(msg)
