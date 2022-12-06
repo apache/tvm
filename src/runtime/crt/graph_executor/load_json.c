@@ -177,7 +177,7 @@ char JSONReader_PeekNextNonSpace(JSONReader* reader) {
  */
 int JSONReader_ReadString(JSONReader* reader, char* out_str, size_t out_str_size) {
   int status = 0;
-  char ch = reader->NextNonSpace(reader);
+  int ch = reader->NextNonSpace(reader);
   size_t output_counter = 0;
   while (output_counter < out_str_size || out_str == NULL) {
     ch = reader->NextChar(reader);

@@ -1183,21 +1183,19 @@ PrimExpr RemoveJacobianAndLiftNonzeroCondImpl(const PrimExpr& expr_orig, const A
         return RemoveJacobianAndLiftNonzeroCondImpl(new_red, axis, vranges);
       }
 
-      PrimExpr new_outer_cond, new_reduce_cond;
       Array<PrimExpr> new_source = red->source;
 
       // Partially lift conditions from the reduce condition
-      std::tie(new_outer_cond, new_reduce_cond) =
+      auto [new_outer_cond, new_reduce_cond] =
           LiftConditionsThroughReduction(red->condition, red->axis, axis);
 
       // If it's not sum then we haven't yet lifted nonzeroness cond from the source
       if (!is_sum) {
-        PrimExpr outer_nz_cond, nz_cond, nz_source;
         auto nz = NonzeronessCondition(red->source[red->value_index]);
         // Append conditions from the reduction
-        nz_cond = new_reduce_cond && nz.cond;
-        nz_source = nz.value;
-        std::tie(outer_nz_cond, nz_cond) = LiftConditionsThroughReduction(nz_cond, red->axis, axis);
+        PrimExpr nz_source = nz.value;
+        auto [outer_nz_cond, nz_cond] =
+            LiftConditionsThroughReduction(new_reduce_cond && nz.cond, red->axis, axis);
         new_outer_cond = new_outer_cond && outer_nz_cond;
         new_source.Set(red->value_index, Select(nz_cond, nz_source, make_zero(nz_source.dtype())));
       }

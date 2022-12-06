@@ -57,10 +57,16 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
     return {res};
   }
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<RandomComputeLocationNode> n = make_object<RandomComputeLocationNode>(*this);
+    return ScheduleRule(n);
+  }
+
  private:
   bool CheckConditions(const tir::Schedule sch, const tir::BlockRV& block_rv) const {
     tir::StmtSRef block_sref = sch->GetSRef(block_rv);
-    const tir::BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+    TVM_SREF_TO_BLOCK(block_sref);
 
     // Cond 1. The block is not the root block.
     if (block_sref->parent == nullptr) {

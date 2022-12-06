@@ -205,6 +205,14 @@ def schedule_lrn(attrs, outs, target):
         return topi.generic.schedule_lrn(outs)
 
 
+# pad
+@generic_func
+def schedule_pad(attrs, outs, target):
+    """Schedule PAD op"""
+    with target:
+        return schedule_injective(attrs, outs, target)
+
+
 # bitpack
 @generic_func
 def schedule_bitpack(attrs, outs, target):
@@ -378,15 +386,15 @@ def depthwise_conv2d_NCHWc_strategy(attrs, inputs, out_type, target):
 
 # conv2d_winograd_without_weight_transform
 @override_native_generic_func("conv2d_winograd_without_weight_transform_strategy")
-def conv2d_winograd_without_weight_transfrom_strategy(attrs, inputs, out_type, target):
-    """conv2d_winograd_without_weight_transfrom generic strategy"""
+def conv2d_winograd_without_weight_transform_strategy(attrs, inputs, out_type, target):
+    """conv2d_winograd_without_weight_transform generic strategy"""
     raise ValueError("No generic implemenation for conv2d_winograd_without_weight_transform")
 
 
 # conv2d_gemm_without_weight_transform
 @override_native_generic_func("conv2d_gemm_without_weight_transform_strategy")
 def conv2d_gemm_without_weight_transform_strategy(attrs, inputs, out_type, target):
-    """conv2d_gemm_without_weight_transfrom generic strategy"""
+    """conv2d_gemm_without_weight_transform generic strategy"""
     raise ValueError("No generic implemenation for conv2d_gemm_without_weight_transform")
 
 
@@ -611,8 +619,8 @@ def conv3d_strategy(attrs, inputs, out_type, target):
 
 # conv3d_winograd_without_weight_transform
 @override_native_generic_func("conv3d_winograd_without_weight_transform_strategy")
-def conv3d_winograd_without_weight_transfrom_strategy(attrs, inputs, out_type, target):
-    """conv3d_winograd_without_weight_transfrom generic strategy"""
+def conv3d_winograd_without_weight_transform_strategy(attrs, inputs, out_type, target):
+    """conv3d_winograd_without_weight_transform generic strategy"""
     raise ValueError("No generic implemenation for conv3d_winograd_without_weight_transform")
 
 

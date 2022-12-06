@@ -118,7 +118,7 @@ mod, params = relay.frontend.from_tflite(
     tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict
 )
 
-target = tvm.target.hexagon('v68', link_params=True)
+target = tvm.target.hexagon('v68')
 with tvm.transform.PassContext(opt_level=3):
     lib = relay.build(mod, tvm.target.Target(target, host=target), params=params, mod_name="default")
 
@@ -172,7 +172,7 @@ A sample output JSON from running the Inception V3 model may look like
 
 When using AoT, the `target` needs to be `llvm`:
 ```
-aot_target = "llvm -keys=hexagon -link-params=0 -mattr=+hvxv69,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp -mcpu=hexagonv69 -mtriple=hexagon"
+aot_target = "llvm -keys=hexagon -mattr=+hvxv69,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp -mcpu=hexagonv69 -mtriple=hexagon"
 aot_host_target = aot_target
 ```
 
@@ -188,6 +188,46 @@ lowered = tvm.relay.build(
 
 lowered.export_library("model-aot.so", tvm.contrib.hexagon.link_shared)
 ```
+
+
+## Profiling using hexagon launcher
+
+### Enabling lightweight profiling (LWP) instrumentation
+
+This profiling option can be used to get function and loop level processor cycles.
+This needs to be enabled explicitly while compiling a model. For example:
+
+```
+with tvm.transform.PassContext(config={'tir.instrument_lwp':True} ):
+    lib = relay.build(...)
+```
+
+Here, `instrument_lwp` is used to enable the tir pass which instruments the code with the builtin calls.
+
+During codegen, profiling builtin calls can be replaced with a target specific handler to record runtime
+information into a buffer. This buffer is written into a JSON file which is processed to construct
+function and loop level profiling information.
+
+To generate LWP JSON file, add `--gen_lwp_json` flag to launcher_android:
+
+```
+./launcher_android --in_config input.json --out_config output.json --gen_lwp_json
+```
+
+Please note that `--gen_lwp_json` flag by itself doesn't enable profiling and is only used to dump
+the profiling data into a json file called lwp.json. This file will be created at the same location
+on the device where launcher_android is executed from. To generate the data, profiling instrumentation
+must be enabled while compiling a model as mentioned above.
+
+Use this command to pull `lwp.json` from the device:
+
+```
+adb -s <DEVICE-ID> pull /path/to/lwp.json
+```
+
+**Note:** Please refer to src/runtime/hexagon/profiler/README.md for information on how
+to enable profiling using Hexagon RPC launcher and also to learn about additional profiling related
+config options.
 
 # Disclaimer
 

@@ -92,9 +92,7 @@ std::vector<CandidatePartition> DFPatternPartitionRuleNode::AllCandidates(
       continue;
     }
     IndexSet inside = MatcherToIndexSet(matcher);
-    OpPatternKind kind;
-    String label;
-    std::tie(kind, label) = SubGraphKindAndLabel(dataflow_graph, inside);
+    auto [kind, label] = SubGraphKindAndLabel(dataflow_graph, inside);
     SubGraph sub_graph(dataflow_graph, std::move(inside), kind, std::move(label));
     String rule_name = rule_name_.empty() ? sub_graph->label_ : rule_name_;
     CandidatePartition candidate(std::move(rule_name), std::move(sub_graph), spec);
@@ -256,9 +254,7 @@ std::vector<CandidatePartition> OpCallByKindPartitionRuleNode::AllCandidates(
     auto node = dataflow_graph.index_to_node(index);
     Expr sub_expr = node->ref();
     if (sub_expr->IsInstance<CallNode>()) {
-      OpPatternKind kind;
-      String label;
-      std::tie(kind, label) = SubExprKindAndLabel(sub_expr);
+      auto [kind, label] = SubExprKindAndLabel(sub_expr);
       if (kind <= kOutEWiseFusable) {
         IndexSet inside(dataflow_graph.size(), {index});
         SubGraph sub_graph(dataflow_graph, std::move(inside), kind, std::move(label));
@@ -404,9 +400,7 @@ std::vector<CandidatePartition> HostPartitionRuleNode::AllCandidates(
       continue;
     }
     IndexSet inside(dataflow_graph.size(), {index});
-    OpPatternKind kind;
-    String label;
-    std::tie(kind, label) = SubGraphKindAndLabel(dataflow_graph, inside);
+    auto [kind, label] = SubGraphKindAndLabel(dataflow_graph, inside);
     SubGraph sub_graph(dataflow_graph, std::move(inside), kind, label);
     String rule_name = NestLabels(rule_name_, sub_graph->label_);
     // We'll a zero cost for the candidate since we'll never want to actually estimate the cost

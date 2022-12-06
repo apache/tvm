@@ -16,6 +16,7 @@
 # under the License.
 
 import os
+from posixpath import split
 import random
 import re
 import threading
@@ -91,6 +92,8 @@ def test_array_copy(dev, dtype, fuzz_seed):
 def test_array_vectorize_add(target, dev, dtype):
     arr_size = 64
     lanes = 2
+    if "opencl" in target and dtype == "float16":
+        pytest.xfail("Opencl target does not support float16")
 
     num_thread = 8
 

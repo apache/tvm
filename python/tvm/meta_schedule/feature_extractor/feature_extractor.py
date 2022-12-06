@@ -15,21 +15,28 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule FeatureExtractor."""
-from typing import Callable, List
+from typing import Callable, List, Union
+
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
 from tvm.runtime.ndarray import NDArray
 
 from .. import _ffi_api
-from ..utils import _get_default_str
-from ..tune_context import TuneContext
 from ..search_strategy import MeasureCandidate
+from ..tune_context import TuneContext
+from ..utils import _get_default_str
 
 
 @register_object("meta_schedule.FeatureExtractor")
 class FeatureExtractor(Object):
     """Extractor for features from measure candidates for use in cost model."""
+
+    FeatureExtractorType = Union[Literal["per-store-feature"], "FeatureExtractor"]
 
     def extract_from(
         self, context: TuneContext, candidates: List[MeasureCandidate]
@@ -52,6 +59,19 @@ class FeatureExtractor(Object):
             self, context, candidates
         )
         return result
+
+    @staticmethod
+    def create(
+        kind: Literal["per-store-feature"],
+        *args,
+        **kwargs,
+    ) -> "FeatureExtractor":
+        """Create a CostModel."""
+        from . import PerStoreFeature  # pylint: disable=import-outside-toplevel
+
+        if kind == "per-store-feature":
+            return PerStoreFeature(*args, **kwargs)  # type: ignore
+        raise ValueError(f"Unknown CostModel: {kind}")
 
 
 @register_object("meta_schedule.PyFeatureExtractor")

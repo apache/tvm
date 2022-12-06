@@ -29,6 +29,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -42,11 +43,15 @@ namespace tir {
 struct LoopPartitionConfigNode : public tvm::AttrsNode<LoopPartitionConfigNode> {
   bool partition_const_loop;
   bool no_unroll_loop_with_extent_one;
+  bool unroll_loop_with_partition_hint_no_interval;
 
   TVM_DECLARE_ATTRS(LoopPartitionConfigNode, "tir.transform.LoopPartitionConfig") {
     TVM_ATTR_FIELD(partition_const_loop).describe("Split constant loop").set_default(false);
     TVM_ATTR_FIELD(no_unroll_loop_with_extent_one)
         .describe("Don't unroll loops with extent 1")
+        .set_default(false);
+    TVM_ATTR_FIELD(unroll_loop_with_partition_hint_no_interval)
+        .describe("Unroll loops with pragma_loop_partition_hint and no interval")
         .set_default(false);
   }
 };
@@ -138,14 +143,16 @@ class CandidateSelector final : public StmtExprVisitor {
         return;
       }
     } else if (op->attr_key == attr::pragma_loop_partition_hint) {
-      const VarNode* var = nullptr;
-      if (op->node->IsInstance<VarNode>()) {
-        var = op->node.as<VarNode>();
-      } else if (op->node->IsInstance<IterVarNode>()) {
-        var = op->node.as<IterVarNode>()->var.get();
+      if (analyzer_.CanProve(op->value)) {
+        const VarNode* var = nullptr;
+        if (op->node->IsInstance<VarNode>()) {
+          var = op->node.as<VarNode>();
+        } else if (op->node->IsInstance<IterVarNode>()) {
+          var = op->node.as<IterVarNode>()->var.get();
+        }
+        ICHECK(var);
+        partition_hint_vars.insert(var);
       }
-      ICHECK(var);
-      partition_hint_vars.insert(var);
     }
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -190,6 +197,7 @@ class CandidateSelector final : public StmtExprVisitor {
   bool no_split_{false};
   bool partition_const_loop_{false};
   std::unordered_map<const VarNode*, VarIsUsed> record_;
+  arith::Analyzer analyzer_;
 };
 
 // Finder try best to find partitions for hinted vars
@@ -373,9 +381,11 @@ class ThreadPartitionInserter : public StmtMutator {
 // likely conditions
 class LoopPartitioner : public StmtMutator {
  public:
-  explicit LoopPartitioner(bool partition_const_loop, bool no_unroll_loop_with_extent_one)
+  explicit LoopPartitioner(bool partition_const_loop, bool no_unroll_loop_with_extent_one,
+                           bool unroll_loop_with_partition_hint_no_interval)
       : selector(CandidateSelector(partition_const_loop)),
-        no_unroll_loop_with_extent_one_(no_unroll_loop_with_extent_one) {}
+        no_unroll_loop_with_extent_one_(no_unroll_loop_with_extent_one),
+        unroll_loop_with_partition_hint_no_interval_(unroll_loop_with_partition_hint_no_interval) {}
 
   Stmt VisitAndMutate(Stmt stmt) {
     selector(stmt);
@@ -383,6 +393,7 @@ class LoopPartitioner : public StmtMutator {
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
+    analyzer_.Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent), true);
     auto fs = GetRef<Stmt>(op);
     if (selector.candidates.count(fs)) {
       Stmt s = TryPartition(fs, op->loop_var, op->min, op->min + op->extent - 1, op->body, false);
@@ -443,6 +454,7 @@ class LoopPartitioner : public StmtMutator {
   arith::Analyzer analyzer_;
   CandidateSelector selector;
   bool no_unroll_loop_with_extent_one_;
+  bool unroll_loop_with_partition_hint_no_interval_;
 };
 
 // Returns an interval (in the first component) in which all the conditions
@@ -553,25 +565,44 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
   if (finder.partitions.empty()) return Stmt();
 
   arith::IntervalSet for_interval(min, max);
-  bool cond_value;
-  IntSet middle_interval;
-  ExpressionSet cond_set;
-  // find an interval in which all conditions on var are true
-  std::tie(middle_interval, cond_set) =
-      GetIntervalAndCondset(finder.partitions, for_interval, true, has_partition_hint_);
-  if (middle_interval.IsNothing()) {
-    // if such interval doesn't exist, find an interval in which all
-    // conditions on var are false
-    std::tie(middle_interval, cond_set) =
-        GetIntervalAndCondset(finder.partitions, for_interval, false, has_partition_hint_);
-    if (middle_interval.IsNothing())
-      // we couldn't find an interval in which the conditions are provably true or false
-      // Therefore, we can't partition the loop based on those conds
-      return Stmt();
-    cond_value = false;
-  } else {
-    cond_value = true;
+
+  auto [middle_interval, cond_set,
+        opt_cond_value] = [&]() -> std::tuple<IntSet, ExpressionSet, std::optional<bool>> {
+    {
+      // find an interval in which all conditions on var are true
+      auto [middle_interval, cond_set] =
+          GetIntervalAndCondset(finder.partitions, for_interval, true, has_partition_hint_);
+      if (!middle_interval.IsNothing()) {
+        return {middle_interval, cond_set, true};
+      }
+    }
+
+    {
+      // if such interval doesn't exist, find an interval in which all
+      // conditions on var are false
+      auto [middle_interval, cond_set] =
+          GetIntervalAndCondset(finder.partitions, for_interval, false, has_partition_hint_);
+
+      if (!middle_interval.IsNothing()) {
+        return {middle_interval, cond_set, false};
+      }
+    }
+
+    // we couldn't find an interval in which the conditions are
+    // provably true or false.  Therefore, we can't partition the loop
+    // based on those conds
+    return {{}, {}, std::nullopt};
+  }();
+
+  if (!opt_cond_value.has_value()) {
+    if (has_partition_hint_ && unroll_loop_with_partition_hint_no_interval_ &&
+        analyzer_.CanProve(max - min > 0)) {
+      auto new_body = VisitAndMutate(body);
+      return For(var, min, max - min + 1, ForKind::kUnrolled, new_body);
+    }
+    return Stmt();
   }
+  bool cond_value = opt_cond_value.value();
 
   IntervalSet middle_interval_i = Downcast<IntervalSet>(middle_interval);
   // middle_interval is the subrange of the loop variable range for which a
@@ -640,11 +671,11 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
       Stmt simplified_body = ConditionEliminator(cond_set, cond_value)(body);
       Stmt new_body = Substitute(simplified_body, {{Var{var}, var + body_begin}});
       mid_stmt = MakeFor(stmt.get(), post_doubt_begin - body_begin, new_body);
-
+      // Recurse until partitions is empty
+      mid_stmt = VisitAndMutate(mid_stmt);
       // Recurse for each non-empty subrange only if there are at least
       // two non-empty subranges
       if (pre_stmt.defined() || post_stmt.defined()) {
-        mid_stmt = VisitAndMutate(mid_stmt);
         if (pre_stmt.defined() && pre_stmt_recurse) {
           pre_stmt = VisitAndMutate(pre_stmt);
         }
@@ -668,12 +699,13 @@ inline Stmt LoopPartitioner::MakeFor(const Object* node, PrimExpr extent, Stmt b
   const ForNode* for_node = static_cast<const ForNode*>(node);
   ICHECK(for_node);
   if (analyzer_.CanProve(extent == make_const(DataType::Int(32), 1)) &&
-      !no_unroll_loop_with_extent_one_) {
+      !no_unroll_loop_with_extent_one_ && for_node->annotations.empty()) {
     // If the loop extent is 1, do not create the loop anymore
     return Substitute(body, {{Var{for_node->loop_var}, make_const(DataType::Int(32), 0)}});
   } else {
     ICHECK(for_node->kind != ForKind::kThreadBinding);
-    return For(for_node->loop_var, IntImm(for_node->min.dtype(), 0), extent, for_node->kind, body);
+    return For(for_node->loop_var, IntImm(for_node->min.dtype(), 0), extent, for_node->kind, body,
+               for_node->thread_binding, for_node->annotations);
   }
 }
 
@@ -696,8 +728,10 @@ class RemoveLikelyTagsAndHints : public StmtExprMutator {
   }
 };
 
-Stmt LoopPartition(Stmt stmt, bool partition_const_loop, bool no_unroll_loop_with_extent_one) {
-  stmt = LoopPartitioner(partition_const_loop, no_unroll_loop_with_extent_one)
+Stmt LoopPartition(Stmt stmt, bool partition_const_loop, bool no_unroll_loop_with_extent_one,
+                   bool unroll_loop_with_partition_hint_no_interval) {
+  stmt = LoopPartitioner(partition_const_loop, no_unroll_loop_with_extent_one,
+                         unroll_loop_with_partition_hint_no_interval)
              .VisitAndMutate(std::move(stmt));
   stmt = RemoveLikelyTagsAndHints()(std::move(stmt));
   return stmt;
@@ -713,7 +747,8 @@ Pass LoopPartition() {
       cfg = AttrsWithDefaultValues<LoopPartitionConfig>();
     }
     n->body = LoopPartition(std::move(n->body), cfg.value()->partition_const_loop,
-                            cfg.value()->no_unroll_loop_with_extent_one);
+                            cfg.value()->no_unroll_loop_with_extent_one,
+                            cfg.value()->unroll_loop_with_partition_hint_no_interval);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LoopPartition", {});

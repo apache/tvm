@@ -34,35 +34,6 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-namespace {
-
-namespace detail {
-/*!
- * \brief Helper template class to extract the type of first argument of a function
- * \tparam FType The function type.
- */
-template <typename FType>
-struct FirstArgTypeGetter;
-
-template <typename R, typename ArgOne, typename... OtherArgs>
-struct FirstArgTypeGetter<R(ArgOne, OtherArgs...)> {
-  using T = ArgOne;
-};
-
-/*!
- * \brief Template alias for the type of first argument of a function
- * \tparam FType The function type.
- *
- * The name of public functions are in snake case to be consistent with
- * tvm/node/functor.h
- */
-template <typename FType>
-using FirstArgType = typename detail::FirstArgTypeGetter<
-    typename tvm::runtime::detail::function_signature<FType>::FType>::T;
-}  // namespace detail
-
-}  // namespace
-
 /*
  * This type alias and the following free functions are created to reduce the binary bloat
  * from template and also hide implementation details from this header
@@ -156,8 +127,7 @@ class TracedObjectFunctor {
    *
    * The diaptch function should have signature `R(TracedObject<TObjectRef>, Args...)`.
    */
-  template <typename TCallable,
-            typename TObjectRef = typename detail::FirstArgType<TCallable>::ObjectRefType,
+  template <typename TObjectRef, typename TCallable,
             typename = std::enable_if_t<IsDispatchFunction<TObjectRef, TCallable>::value>>
   TSelf& set_dispatch(String token, TCallable f) {
     return set_dispatch(
@@ -177,9 +147,10 @@ class TracedObjectFunctor {
    *
    * Default dispatch function has an empty string as dispatch token.
    */
-  template <typename TCallable>
+  template <typename TObjectRef, typename TCallable,
+            typename = std::enable_if_t<IsDispatchFunction<TObjectRef, TCallable>::value>>
   TSelf& set_dispatch(TCallable&& f) {
-    return set_dispatch(kDefaultDispatchToken, std::forward<TCallable>(f));
+    return set_dispatch<TObjectRef>(kDefaultDispatchToken, std::forward<TCallable>(f));
   }
 
   /*!

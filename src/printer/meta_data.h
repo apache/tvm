@@ -136,7 +136,7 @@ class TextMetaDataContext {
 
  private:
   /*! \brief additional metadata stored in TVM json format */
-  std::unordered_map<String, Array<ObjectRef> > meta_data_;
+  std::unordered_map<String, Array<ObjectRef>> meta_data_;
   /*! \brief map from meta data into its string representation */
   std::unordered_map<ObjectRef, Doc, ObjectPtrHash, ObjectPtrEqual> meta_repr_;
 };

@@ -295,12 +295,10 @@ class WarpAccessRewriter : protected StmtExprMutator {
 
   Stmt VisitStmt_(const StoreNode* op) override {
     LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
   }
 
   PrimExpr VisitExpr_(const LoadNode* op) override {
     LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) override {
@@ -311,8 +309,8 @@ class WarpAccessRewriter : protected StmtExprMutator {
                                           << "Has StorageFlatten (TE-based schedule) or "
                                           << "FlattenBuffer (TIR-based schedules) been run?";
 
-      PrimExpr local_index, group;
-      std::tie(local_index, group) = SplitIndexByGroup(store->indices[0]);
+      auto [local_index, group] = SplitIndexByGroup(store->indices[0]);
+      (void)group;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
 
       auto writer = store.CopyOnWrite();
       writer->indices = {local_index};
@@ -332,8 +330,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
                                      << "Has StorageFlatten (TE-based schedule) or "
                                      << "FlattenBuffer (TIR-based schedules) been run?";
 
-    PrimExpr local_index, group;
-    std::tie(local_index, group) = SplitIndexByGroup(op->indices[0]);
+    auto [local_index, group] = SplitIndexByGroup(op->indices[0]);
     // invariance: local index must do not contain warp id
     ICHECK(!UsesVar(local_index, [this](const VarNode* var) { return var == warp_index_.get(); }))
         << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->indices[0]
@@ -357,12 +354,10 @@ class WarpAccessRewriter : protected StmtExprMutator {
   // in this access pattern.
   std::pair<PrimExpr, PrimExpr> SplitIndexByGroup(const PrimExpr& index) {
     if (index.dtype().lanes() != 1) {
-      PrimExpr local_index, group;
-
       arith::PVar<PrimExpr> base;
       ICHECK(arith::ramp(base, 1, index.dtype().lanes()).Match(index));
 
-      std::tie(local_index, group) = SplitIndexByGroup(base.Eval());
+      auto [local_index, group] = SplitIndexByGroup(base.Eval());
       local_index = Ramp(local_index, make_const(local_index.dtype(), 1), index.dtype().lanes());
       return std::make_pair(local_index, group);
     }

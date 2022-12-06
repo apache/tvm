@@ -493,9 +493,8 @@ TEST(TargetCreation, DeduplicateKeys) {
   ICHECK_EQ(target->keys.size(), 2U);
   ICHECK_EQ(target->keys[0], "cpu");
   ICHECK_EQ(target->keys[1], "arm_cpu");
-  ICHECK_EQ(target->attrs.size(), 2U);
+  ICHECK_EQ(target->attrs.size(), 1U);
   ICHECK_EQ(target->GetAttr<String>("device"), "arm_cpu");
-  ICHECK_EQ(target->GetAttr<Bool>("link-params"), false);
 }
 
 TEST(TargetKindRegistry, ListTargetKinds) {
@@ -511,5 +510,4 @@ TEST(TargetKindRegistry, ListTargetOptions) {
 
   ICHECK_EQ(attrs["mattr"], "Array");
   ICHECK_EQ(attrs["mcpu"], "runtime.String");
-  ICHECK_EQ(attrs["system-lib"], "IntImm");
 }

@@ -343,8 +343,7 @@ SketchGenerationRule::ConditionKind RuleCrossThreadReduction::MeetCondition(
   const auto& op = state->stages[stage_id]->op;
   if (op->IsInstance<te::ComputeOpNode>()) {
     // Compute the product of lengths of all space iters and all reduce iters
-    int cum_space_len, cum_reduce_len;
-    std::tie(cum_space_len, cum_reduce_len) =
+    auto [cum_space_len, cum_reduce_len] =
         GetCumulativeSpaceAndReductionLength(state->stages[stage_id]);
 
     if (NeedsMultilevelTiling(policy.search_task, state, stage_id)) {

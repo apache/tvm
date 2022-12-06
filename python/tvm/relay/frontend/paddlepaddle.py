@@ -778,7 +778,7 @@ def convert_interpolate(g, op, block):
         for name in input_size_tensor:
             size = g.get_node(name)
             if len(infer_shape(size)) == 0:
-                shape = _op.reshape(shape, [-1])
+                size = _op.reshape(size, [-1])
             out_size.append(size)
         out_size = _op.concatenate(out_size, axis=0)
         out_size, infered = try_infer_value(out_size, parameters=g.get_params())
@@ -1193,6 +1193,7 @@ def convert_pool2d(g, op, block):
     paddings = op.attr("paddings")
     padding_algorithm = op.attr("padding_algorithm")
     pooling_type = op.attr("pooling_type")
+    data_format = op.attr("data_format")
 
     if global_pooling:
         adaptive = True
@@ -1260,7 +1261,9 @@ def convert_pool2d(g, op, block):
                 input_x, pool_size=ksize, strides=strides, padding=paddings, ceil_mode=ceil_mode
             )
     else:
-        out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(input_x, output_size=ksize)
+        out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(
+            input_x, output_size=ksize, layout=data_format
+        )
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2039,6 +2042,7 @@ _convert_map = {
     "cosh": convert_unary_op,
     "cumsum": convert_cumsum,
     "depthwise_conv2d": convert_conv2d,
+    "depthwise_conv2d_transpose": convert_conv2d_transpose,
     "dot": convert_dot,
     "dropout": convert_dropout,
     "elementwise_add": convert_elementwise_op,

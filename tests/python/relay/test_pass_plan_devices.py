@@ -1804,13 +1804,13 @@ def test_primitive():
           %3 = %0(%data2);
           %5 = fn (%a {virtual_device=meta[VirtualDevice][0]},  // global
                    %b {virtual_device=meta[VirtualDevice][0]},  // global
-                   virtual_device=meta[VirtualDevice][1],       // texture 
+                   virtual_device=meta[VirtualDevice][1],       // texture
                    Primitive=1) {
             add(%a, %b)
           };
           %6 = %5(%1, %3);
-          %10 = fn (%a, 
-                    virtual_device=meta[VirtualDevice][0],      // global 
+          %10 = fn (%a,
+                    virtual_device=meta[VirtualDevice][0],      // global
                     Primitive=1) {
             layout_transform(%a, src_layout="NCHW4c", dst_layout="NCHW")
           };

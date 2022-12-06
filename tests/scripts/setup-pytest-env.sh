@@ -39,7 +39,7 @@ function cleanup() {
     set +x
     if [ "${#pytest_errors[@]}" -gt 0 ]; then
         echo "These pytest invocations failed, the results can be found in the Jenkins 'Tests' tab or by scrolling up through the raw logs here."
-        python3 tests/scripts/pytest_wrapper.py "${pytest_errors[@]}"
+        python3 ci/scripts/jenkins/pytest_wrapper.py "${pytest_errors[@]}"
         exit 1
     fi
     set -x
@@ -47,6 +47,7 @@ function cleanup() {
 trap cleanup 0
 
 function run_pytest() {
+    set -e
     local ffi_type="$1"
     shift
     local test_suite_name="$1"
@@ -74,11 +75,14 @@ function run_pytest() {
 
     suite_name="${test_suite_name}-${current_shard}-${ffi_type}"
 
-    if [[ ! "${extra_args[@]}" == *" -n"* ]]; then
-        extra_args+=("-n=1")
+    DEFAULT_PARALLELISM=1
+
+    if [[ ! "${extra_args[*]}" == *" -n"* ]] && [[ ! "${extra_args[*]}" == *" -dist"* ]]; then
+        extra_args+=("-n=$DEFAULT_PARALLELISM")
     fi
 
     exit_code=0
+    set +e
     TVM_FFI=${ffi_type} python3 -m pytest \
            -o "junit_suite_name=${suite_name}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${suite_name}.xml" \

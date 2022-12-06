@@ -531,7 +531,6 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
 
   std::vector<Output> VisitExprDefault_(const Object* op) final {
     LOG(FATAL) << "Cutlass codegen doesn't support: " << op->GetTypeKey();
-    return {};
   }
 
   std::vector<Output> VisitExpr_(const VarNode* node) final {
@@ -730,7 +729,6 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
     }
 
     LOG(FATAL) << "Unknown composite function: " << pattern_name;
-    return {};
   }
 
   GenerateBodyOutput GenerateBody(const CallNode* root_call, const std::string& func_name,

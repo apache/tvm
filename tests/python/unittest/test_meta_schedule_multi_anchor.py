@@ -19,7 +19,6 @@ import tvm
 import tvm.testing
 from tvm import meta_schedule as ms
 from tvm import relay
-from tvm.meta_schedule.testing.utils import apply_fixed_schedules
 
 
 def get_dense_dense(data_shape, weight_shape):
@@ -63,14 +62,13 @@ def test_dense_dense():
     target = "llvm"
     params = {"weight1": weight1_np, "weight2": weight2_np}
 
-    def schedule_fn(task, sch):
-        if "nn_dense_nn_dense" in task.task_name:
+    def schedule_fn(sch):
+        if "nn_dense_nn_dense" in sch.mod.attrs["task_name"]:
             schedule_dense_dense(sch)
             return True
         return False
 
-    database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
-    with ms.ApplyHistoryBest(database):
+    with ms.database.ScheduleFnDatabase(schedule_fn):
         with tvm.transform.PassContext(
             opt_level=3,
             config={"relay.backend.use_meta_schedule": True},

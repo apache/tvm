@@ -64,7 +64,7 @@ const BlockRVNode* GetInstGetBlockOutput(const Instruction& inst) {
     return nullptr;
   }
   ICHECK_EQ(inst->outputs.size(), 1);
-  const BlockRVNode* block = TVM_TYPE_AS(block, inst->outputs[0], BlockRVNode);
+  const BlockRVNode* block = TVM_TYPE_AS(inst->outputs[0], BlockRVNode);
   return block;
 }
 
@@ -82,7 +82,7 @@ std::vector<std::vector<int64_t>> AnalyzeParallel(const ScheduleState& self,
   Array<StmtSRef> block_srefs =
       tir::GetBlocks(self, block_name, self->mod->GetGlobalVar(func_name));
   ICHECK_EQ(block_srefs.size(), 1);
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_srefs[0]);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_srefs[0]);
   ScopeBlockLoopInfo info = GetScopeBlockLoopInfo(GetRef<Block>(block));
   std::vector<std::vector<int64_t>> results;
   results.reserve(info.realizes.size());
@@ -188,6 +188,11 @@ class MutateParallelNode : public MutatorNode {
   }
   // Inherit from `MutatorNode`
   Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
+  // Inherit from `MutatorNode`
+  Mutator Clone() const final {
+    ObjectPtr<MutateParallelNode> n = make_object<MutateParallelNode>(*this);
+    return Mutator(n);
+  }
 };
 
 /*! \brief The candidate to be mutated */

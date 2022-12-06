@@ -117,6 +117,8 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
   }
 
  private:
+  using transform::DeviceAwareExprVisitor::VisitExpr_;
+
   void Visit(const Expr& expr) {
     // Pre-order traversal to enable upward propagation
     // of consumer storage scopes to producers when desirable.
@@ -133,18 +135,6 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
   void VisitExpr_(const VarNode* vn) final { ApplyConsumerScopeToInputs(vn); }
 
   void VisitExpr_(const ConstantNode* cn) final { ApplyConsumerScopeToInputs(cn); }
-
-  void DeviceAwareVisitExpr_(const FunctionNode* function_node) final {
-    if (!function_node->HasNonzeroAttr(attr::kPrimitive)) {
-      for (auto&& param : function_node->params) {
-        auto virtual_device = GetVirtualDevice(param);
-        param->virtual_device_ =
-            VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
-                          virtual_device->target, "global");
-      }
-    }
-    transform::DeviceAwareExprVisitor::DeviceAwareVisitExpr_(function_node);
-  }
 
   void DeviceAwareVisitExpr_(const CallNode* call) final {
     // Check the contents of this primitive function
@@ -204,7 +194,9 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
       }
     }
 
-    primitive_supports_texture_ = SupportsTextureStorage(call);
+    if (!primitive_supports_texture_) {
+      primitive_supports_texture_ = SupportsTextureStorage(call);
+    }
 
     for (auto& arg : call->args) {
       Visit(arg);
@@ -360,6 +352,12 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
 
   bool SupportsTextureStorage(const CallNode* call) const {
     bool supports_texture_storage = false;
+    // we need to verify only entry functions since one of entry op defines main schedule
+    for (const auto& arg : call->args) {
+      if (!arg.as<VarNode>()) {
+        return false;
+      }
+    }
     if (auto attrs = call->attrs.as<Conv2DAttrs>()) {
       if (attrs->data_layout == "NCHW4c" && attrs->kernel_layout == "OIHW4o") {
         supports_texture_storage = true;
@@ -426,6 +424,8 @@ class RewriteVDStorageScopes : public transform::DeviceAwareExprMutator {
   using VarMap = std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual>;
 
  public:
+  using transform::DeviceAwareExprMutator::VisitExpr_;
+
   explicit RewriteVDStorageScopes(const Map<Expr, Map<Expr, Array<String>>>& storage_scope)
       : transform::DeviceAwareExprMutator(Optional<IRModule>()), storage_scope_(storage_scope) {}
 
@@ -440,7 +440,7 @@ class RewriteVDStorageScopes : public transform::DeviceAwareExprMutator {
       c->virtual_device_ =
           VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
                         virtual_device->target, storage_scope_[GetRef<Expr>(vn)][Expr()][0]);
-      return c;
+      return std::move(c);
     }
     return GetRef<Var>(vn);
   }
@@ -516,7 +516,7 @@ class RewriteVDStorageScopes : public transform::DeviceAwareExprMutator {
                                  virtual_device->target, memory_scope),
                    true);
     }
-    return new_call;
+    return std::move(new_call);
   }
 
  private:

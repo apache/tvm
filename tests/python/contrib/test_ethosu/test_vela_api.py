@@ -50,16 +50,16 @@ class Module1:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         placeholder_3 = T.match_buffer(
-            placeholder, [192], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder, [192], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         placeholder_4 = T.match_buffer(
-            placeholder_1, [48], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder_1, [48], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         placeholder_5 = T.match_buffer(
-            placeholder_2, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1
+            placeholder_2, [16], dtype="int32", elem_offset=0, align=64, offset_factor=1
         )
         ethosu_conv2d_1 = T.match_buffer(
-            ethosu_conv2d, [1024], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            ethosu_conv2d, [1024], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         # body
         T.evaluate(
@@ -142,20 +142,20 @@ class Module2:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         placeholder_3 = T.match_buffer(
-            placeholder, [192], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder, [192], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         placeholder_4 = T.match_buffer(
-            placeholder_1, [48], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder_1, [48], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         placeholder_5 = T.match_buffer(
-            placeholder_2, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1
+            placeholder_2, [16], dtype="int32", elem_offset=0, align=64, offset_factor=1
         )
         # Per-channel weight scales
         placeholder_7 = T.match_buffer(
-            placeholder_6, [16], dtype="float32", elem_offset=0, align=128, offset_factor=1
+            placeholder_6, [16], dtype="float32", elem_offset=0, align=64, offset_factor=1
         )
         ethosu_conv2d_1 = T.match_buffer(
-            ethosu_conv2d, [1024], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            ethosu_conv2d, [1024], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         # body
         T.evaluate(

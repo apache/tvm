@@ -60,6 +60,12 @@ class AutoInlineNode : public ScheduleRuleNode {
     return {sch};
   }
 
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<AutoInlineNode> n = make_object<AutoInlineNode>(*this);
+    return ScheduleRule(n);
+  }
+
  public:
   /*! \brief If allows to inline a block into its producer */
   bool into_producer;
@@ -96,7 +102,7 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
   StmtSRef block_sref = sch->GetSRef(block_rv);
   bool is_pure_sptial = IsInSpatialPrimFunc(sch, block_sref);
   ScheduleState state = sch->state();
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   BlockRealize realize = GetBlockRealize(state, block_sref);
   // Cond 1. The block has only one write buffer
   if (block->writes.size() != 1) {
@@ -104,7 +110,10 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
   }
   // Cond 2. For a block that generates a constant tensor, ignore all other conditions
   if (inline_const_tensor && block->reads.empty()) {
-    return InlineType::kInlineIntoConsumer;
+    Array<tir::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
+    if (!consumer_srefs.empty() && CanComputeInline(state, block_sref)) {
+      return InlineType::kInlineIntoConsumer;
+    }
   }
   // Cond 3. The block doesn't contain any disallowed operators
   if (!is_pure_sptial && !disallow_op.empty() && HasOp(realize, disallow_op)) {
@@ -180,5 +189,42 @@ TVM_REGISTER_NODE_TYPE(AutoInlineNode);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAutoInline")
     .set_body_typed(ScheduleRule::AutoInline);
 
+/*! \brief Inline blocks that produce a constant scalar. */
+class InlineConstantScalarsNode : public ScheduleRuleNode {
+ public:
+  void InitializeWithTuneContext(const TuneContext& context) final {}
+
+  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
+    // Look for a block of the form
+    // block compile_engine_const(iter_var(vi, range(min=0, ext=1))) {
+    //   reads([])
+    //   writes([compile_engine_const[]])
+    //   compile_engine_const[] = 59
+    // }
+    auto block = sch->Get(block_rv);
+    if (block->reads.size() == 0 && block->writes.size() == 1 &&
+        block->writes[0]->buffer->shape.size() == 0) {
+      sch->ComputeInline(block_rv);
+    }
+    return {sch};
+  }
+
+  ScheduleRule Clone() const final {
+    ObjectPtr<InlineConstantScalarsNode> n = make_object<InlineConstantScalarsNode>(*this);
+    return ScheduleRule(n);
+  }
+
+  static constexpr const char* _type_key = "meta_schedule.InlineConstantScalars";
+  TVM_DECLARE_FINAL_OBJECT_INFO(InlineConstantScalarsNode, ScheduleRuleNode);
+};
+
+ScheduleRule ScheduleRule::InlineConstantScalars() {
+  ObjectPtr<InlineConstantScalarsNode> n = make_object<InlineConstantScalarsNode>();
+  return ScheduleRule(n);
+}
+
+TVM_REGISTER_NODE_TYPE(InlineConstantScalarsNode);
+TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleInlineConstantScalars")
+    .set_body_typed(ScheduleRule::InlineConstantScalars);
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -61,11 +61,11 @@ class IRBuilderFrame(_Object):
     """
 
     def __enter__(self) -> "IRBuilderFrame":
-        _ffi_api.IRBuilderFrameEnter(self)  # pylint: disable=no-member # type: ignore
+        _ffi_api.IRBuilderFrameEnter(self)  # type: ignore[attr-defined] # pylint: disable=no-member
         return self
 
     def __exit__(self, ptype, value, trace) -> None:  # pylint: disable=unused-argument
-        _ffi_api.IRBuilderFrameExit(self)  # pylint: disable=no-member # type: ignore
+        _ffi_api.IRBuilderFrameExit(self)  # type: ignore[attr-defined] # pylint: disable=no-member
 
     def add_callback(self, callback: Callable[[], None]) -> None:
         """Add a callback method invoked when exiting the with-scope.
@@ -75,7 +75,7 @@ class IRBuilderFrame(_Object):
         callback : Callable[[], None]
             The callback method to be invoked.
         """
-        _ffi_api.IRBuilderFrameAddCallback(  # pylint: disable=no-member # type: ignore
+        _ffi_api.IRBuilderFrameAddCallback(  # type: ignore[attr-defined] # pylint: disable=no-member
             self, callback
         )
 
@@ -104,7 +104,7 @@ class IRBuilder(_Object):
     def __init__(self) -> None:
         """Construct an IRBuilder."""
         self.__init_handle_by_constructor__(
-            _ffi_api.IRBuilder  # pylint: disable=no-member # type: ignore
+            _ffi_api.IRBuilder  # type: ignore[attr-defined] # pylint: disable=no-member
         )
 
     def __enter__(self) -> "IRBuilder":
@@ -119,11 +119,11 @@ class IRBuilder(_Object):
         with IRBuilder() as builder:
             assert IRBuilder.current() == builder
         """
-        _ffi_api.IRBuilderEnter(self)  # pylint: disable=no-member # type: ignore
+        _ffi_api.IRBuilderEnter(self)  # type: ignore[attr-defined] # pylint: disable=no-member
         return self
 
     def __exit__(self, ptype, value, trace) -> None:  # pylint: disable=unused-argument
-        _ffi_api.IRBuilderExit(self)  # pylint: disable=no-member # type: ignore
+        _ffi_api.IRBuilderExit(self)  # type: ignore[attr-defined] # pylint: disable=no-member
 
     @staticmethod
     def current() -> "IRBuilder":
@@ -134,11 +134,11 @@ class IRBuilder(_Object):
         builder : IRBuilder
             The current IRBuilder.
         """
-        return _ffi_api.IRBuilderCurrent()  # pylint: disable=no-member # type: ignore
+        return _ffi_api.IRBuilderCurrent()  # type: ignore[attr-defined] # pylint: disable=no-member
 
     def get(self) -> _Object:
         """Get the constructed IR."""
-        return _ffi_api.IRBuilderGet(self)  # pylint: disable=no-member # type: ignore
+        return _ffi_api.IRBuilderGet(self)  # type: ignore[attr-defined] # pylint: disable=no-member
 
     @staticmethod
     def name(s: str, v: Any) -> Any:
@@ -156,7 +156,7 @@ class IRBuilder(_Object):
         v : Any
             The same object with the name set.
         """
-        return _ffi_api.IRBuilderName(s, v)  # pylint: disable=no-member # type: ignore
+        return _ffi_api.IRBuilderName(s, v)  # type: ignore[attr-defined] # pylint: disable=no-member
 
     @staticmethod
     def name_many(  # pylint: disable=invalid-name

@@ -49,6 +49,7 @@ def _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype, alpha):
 @pytest.mark.parametrize("alpha", [0.001, 0.5678])
 def test_leaky_relu(dtype, shape, alpha):
     """Compare Leaky ReLU output with TVM."""
+
     np.random.seed(0)
 
     iinfo = np.iinfo(dtype)
@@ -64,7 +65,16 @@ def test_leaky_relu(dtype, shape, alpha):
     for npu in [False, True]:
         model = _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype, alpha)
         mod = tei.make_module(model, [])
-        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                1,
+                {},
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
+        )
 
     tei.verify(outputs, dtype, 1)
 
@@ -75,6 +85,7 @@ def test_leaky_relu(dtype, shape, alpha):
 @pytest.mark.parametrize("alpha", [-1.34, 2.32, 1, 0])
 def test_leaky_relu_unsupported_alpha(dtype, shape, alpha):
     """Test unsupported values of alpha (<= 0, >= 1) in Leaky ReLU."""
+
     iinfo = np.iinfo(dtype)
     zp_min = iinfo.min
 

@@ -99,7 +99,7 @@ wget https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/e
 #
 # bash
 tvmc compile magic_wand.tflite \
-    --target='c -keys=cpu -link-params=0 -model=host' \
+    --target='c -keys=cpu -model=host' \
     --runtime=crt \
     --runtime-crt-system-lib 1 \
     --executor='graph' \
@@ -111,7 +111,7 @@ tvmc compile magic_wand.tflite \
 # bash
 # This will generate a ``model.tar`` file which contains TVM compiler output files. To run this command for
 # a different Zephyr device, you need to update ``target``. For instance, for ``nrf5340dk_nrf5340_cpuapp`` board
-# the target is ``--target='c -keys=cpu -link-params=0 -model=nrf5340dk'``.
+# the target is ``--target='c -keys=cpu -model=nrf5340dk'``.
 #
 
 

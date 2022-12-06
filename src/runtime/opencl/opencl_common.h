@@ -196,7 +196,6 @@ inline cl_channel_type DTypeToOpenCLChannelType(DLDataType data_type) {
     return CL_UNSIGNED_INT32;
   }
   LOG(FATAL) << "data type is not supported in OpenCL runtime yet: " << dtype;
-  return CL_FLOAT;
 }
 
 /*!
@@ -263,7 +262,7 @@ class OpenCLWorkspace : public DeviceAPI {
     ICHECK(IsOpenCLDevice(dev));
     this->Init();
     ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
-        << "Invalid OpenCL device_id=" << dev.device_id;
+        << "Invalid OpenCL device_id=" << dev.device_id << ". " << GetError();
     return queues[dev.device_id];
   }
   // get the event queue of the context
@@ -271,7 +270,7 @@ class OpenCLWorkspace : public DeviceAPI {
     ICHECK(IsOpenCLDevice(dev));
     this->Init();
     ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
-        << "Invalid OpenCL device_id=" << dev.device_id;
+        << "Invalid OpenCL device_id=" << dev.device_id << ". " << GetError();
     return events[dev.device_id];
   }
   // is current clCommandQueue in profiling mode
@@ -310,6 +309,13 @@ class OpenCLWorkspace : public DeviceAPI {
   static OpenCLWorkspace* Global();
 
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
+
+ private:
+  std::string GetError() {
+    if (this->devices.size() == 0) return noDevicesErrorMsg;
+    return "";
+  }
+  std::string noDevicesErrorMsg = "";
 };
 
 /*! \brief Thread local workspace */
@@ -439,9 +445,9 @@ class OpenCLTimerNode : public TimerNode {
  public:
   // Timer start
   virtual void Start() {
+    this->duration = 0;
     if (count_timer_execs == 0) {
       cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).clear();
-      this->duration = 0;
       // Very first call of Start() leads to the recreation of
       // OpenCL command queue in profiling mode. This allows to run profile after inference.
       recreateCommandQueue();

@@ -87,7 +87,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
                               bool preserve_unit_iters) {
     Map<Var, Range> loop_var2extent;
     for (const StmtSRef& sref : loop_srefs) {
-      const ForNode* loop = TVM_SREF_TO_FOR(loop, sref);
+      const ForNode* loop = TVM_SREF_TO_FOR(sref);
       loop_var2extent.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     }
     return Downcast<For>(IterMapSimplifyBlockBinding(opaque_blocks, std::move(loop_var2extent),
@@ -389,7 +389,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array
   // - The execution order has not changed. (The block executes with the same args and the same
   // order with before.
   // Step 1. Check correctness
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   if (!loop->annotations.empty() || loop->thread_binding.defined()) {
     throw HasAnnotationOrThreadBindingError(self->mod, GetRef<For>(loop));
   }
@@ -445,7 +445,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array
   result_srefs.reserve(n);
   for (int i = 0; i < n; i++) {
     result_srefs.push_back(self->stmt2ref.at(new_stmt.get()));
-    const ForNode* outer_loop = TVM_TYPE_AS(outer_loop, new_stmt, ForNode);
+    const ForNode* outer_loop = TVM_TYPE_AS(new_stmt, ForNode);
     new_stmt = outer_loop->body;
   }
   return result_srefs;
@@ -464,7 +464,7 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs, bool preser
   std::unordered_set<const VarNode*> outer_loop_vars;
   // Step 1. check correctness
   for (const StmtSRef& sref : loop_srefs) {
-    const ForNode* loop = TVM_SREF_TO_FOR(loop, sref);
+    const ForNode* loop = TVM_SREF_TO_FOR(sref);
     if (!loop->annotations.empty() || loop->thread_binding.defined()) {
       throw HasAnnotationOrThreadBindingError(self->mod, GetRef<For>(loop));
     }
@@ -554,7 +554,7 @@ std::unordered_set<const StmtSRefNode*> CollectLoopsIntoSet(
   for (const StmtSRef& loop_sref : ordered_loop_srefs) {
     auto inserted = loop_srefs.insert(loop_sref.get());
     if (!inserted.second) {
-      const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+      const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
       throw LoopMultiAppearanceError(self->mod, GetRef<For>(loop));
     }
   }
@@ -704,9 +704,7 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
   //   the input array
   // - the bottom of the reorder range is the last loop in the input array which is not visited in
   // the previous traversals
-  const StmtSRefNode* top = nullptr;
-  const StmtSRefNode* bottom = nullptr;
-  std::tie(top, bottom) = GetBoundaryOfReorderRange(self, loop_srefs);
+  auto [top, bottom] = GetBoundaryOfReorderRange(self, loop_srefs);
   // Step 3. Collect all loops in the chain and check the loops are single-branch
   std::vector<const StmtSRefNode*> chain = GetLoopsInReorderRange(self, top, bottom);
   // Step 4. Check the block below has all its block_var to be data-parallel or reduction,

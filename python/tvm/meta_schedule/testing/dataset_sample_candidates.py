@@ -22,8 +22,8 @@ import json
 import os
 from typing import List
 
-from tqdm import tqdm  # type: ignore
 import tvm
+from tqdm import tqdm  # type: ignore
 from tvm import meta_schedule as ms
 from tvm.ir import load_json
 from tvm.target import Target
@@ -117,25 +117,20 @@ def sample_candidates(task, task_name, model_name):
     evolve_with_cost_model = tvm.get_global_func(
         "meta_schedule.SearchStrategyEvolutionarySearchEvolveWithCostModel"
     )
-    strategy = ms.search_strategy.EvolutionarySearch(
-        num_trials_per_iter=args.num_trials_per_iter,
-        max_trials_per_task=args.max_trials_per_task,
-        init_measured_ratio=0.0,
-    )
+    strategy = ms.search_strategy.EvolutionarySearch(init_measured_ratio=0.0)
     target = Target(args.target)
     context = ms.TuneContext(
         mod=task,
         target=target,
-        space_generator=ms.space_generator.PostOrderApply(),
+        space_generator="post-order-apply",
         search_strategy=strategy,
-        sch_rules=ms.default_config.schedule_rules(None, target),
-        postprocs=ms.default_config.postproc(None, target),
-        mutator_probs=ms.default_config.mutator_probs(None, target),
         task_name=task_name,
     )
     context.initialize()
     context.pre_tuning(
-        context.generate_design_space(),
+        max_trials=args.max_trials_per_task,
+        num_trials_per_iter=args.num_trials_per_iter,
+        design_spaces=context.generate_design_space(),
         database=database,
         cost_model=ms.cost_model.RandomModel(),  # type: ignore
     )

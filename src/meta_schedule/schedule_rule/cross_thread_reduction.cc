@@ -32,12 +32,12 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     Optional<Integer> opt_warp_size = target->GetAttr<Integer>("thread_warp_size");
 
     if (!opt_max_threads_per_block.defined()) {
-      TVM_PY_LOG(WARNING, context->logging_func)
+      TVM_PY_LOG(WARNING, context->logger)
           << "Target does not have attribute \"max_threads_per_block\", therefore the "
              "rule CrossThreadReduction will not be applied";
     }
     if (!opt_warp_size.defined()) {
-      TVM_PY_LOG(WARNING, context->logging_func)
+      TVM_PY_LOG(WARNING, context->logger)
           << "Target does not have attribute \"thread_warp_size\", therefore the rule "
              "CrossThreadReduction will not be applied";
     }
@@ -64,15 +64,11 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     // Step 2. Check the opportunity for block fusion. We say "fusible", if we can compute-at the
     // block to its consumers. We want to fuse as much as possible because it results in
     // significantly faster schedule.
-    bool fusible = false;
     // `target_loop` is the loop position where the input block will be computed at.
-    tir::LoopRV target_loop{nullptr};
     // `target_block` is the consumer block that we want to compute-at the input block to.
-    tir::BlockRV target_block{nullptr};
     // `tgt_block_innermost_loop` is the innermost loop outside the target block.
-    tir::LoopRV tgt_block_innermost_loop{nullptr};
 
-    std::tie(fusible, target_loop, target_block, tgt_block_innermost_loop) =
+    auto [fusible, target_loop, target_block, tgt_block_innermost_loop] =
         GetComputeTargetLoopAndBlock(tmp_sch, block_rv);
 
     // Step 3. Try block fusion.
@@ -115,6 +111,12 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     tmp_sch->Bind(split_res[1], "threadIdx.x");
 
     return {tmp_sch, sch};
+  }
+
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<CrossThreadReductionNode> n = make_object<CrossThreadReductionNode>(*this);
+    return ScheduleRule(n);
   }
 
  private:
@@ -188,6 +190,13 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
    */
   std::tuple<bool, tir::LoopRV, tir::BlockRV, tir::LoopRV> GetComputeTargetLoopAndBlock(
       const tir::Schedule& sch, const tir::BlockRV& block_rv) {
+    // Step 0. Due to technical reason of some primitives (e.g., compute-at), if the block is doing
+    // a tuple reduction, fusion is temporarily not supported.
+    if (sch->Get(block_rv)->writes.size() != 1) {
+      return std::make_tuple(false, tir::LoopRV{nullptr}, tir::BlockRV{nullptr},
+                             tir::LoopRV{nullptr});
+    }
+
     // Step 1. Get all the consumers of the input block.
     Array<tir::BlockRV> consumers = sch->GetConsumers(block_rv);
 

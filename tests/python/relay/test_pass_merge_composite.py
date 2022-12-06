@@ -915,14 +915,13 @@ def test_type_check():
         b = relay.var("b", shape=(8,))
 
         x0 = relay.var("x")
-        y0 = relay.var("y")
 
-        add = relay.op.add(y0, y0)
+        add = relay.op.add(x0, x0)
         relu = relay.nn.relu(add)
-        func = relay.Function([x0, y0], relu)
+        func = relay.Function([x0], relu)
         func = func.with_attr("PartitionedFromPattern", "add_nn.relu_")
         func = func.with_attr("Composite", "add_relu")
-        call = relay.Call(func, [x, x])
+        call = relay.Call(func, [x])
 
         conv = relay.nn.conv2d(
             call, w, kernel_size=(3, 3), kernel_layout="OIHW", data_layout="NHWC"
@@ -937,14 +936,13 @@ def test_type_check():
         b = relay.var("b", shape=(8,))
 
         x0 = relay.var("x")
-        y0 = relay.var("y")
 
-        add = relay.op.add(y0, y0)
+        add = relay.op.add(x0, x0)
         relu = relay.nn.relu(add)
-        func = relay.Function([x0, y0], relu)
+        func = relay.Function([x0], relu)
         func = func.with_attr("PartitionedFromPattern", "add_nn.relu_")
         func = func.with_attr("Composite", "add_relu")
-        call = relay.Call(func, [x, x])
+        call = relay.Call(func, [x])
 
         x2 = relay.var("x")
         w1 = relay.var("w")

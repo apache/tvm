@@ -54,6 +54,8 @@ const FunctionNode* AsFunctionNode(const Expr& expr, const std::string& compiler
  */
 class Outliner : public MixedModeMutator {
  public:
+  using MixedModeMutator::VisitExpr_;
+
   Outliner(GlobalSymbolCache* cache, std::string compiler_filter, IRModule mod)
       : cache_(cache), compiler_filter_(std::move(compiler_filter)), mod_(std::move(mod)) {}
 

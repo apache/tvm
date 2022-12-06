@@ -125,13 +125,11 @@ Expr QnnLeakyReluCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                                              output_zero_point, input_shape);
 
   // alpha * Q_i'
-  int32_t fixed_point_multiplier, shift;
-  std::tie(fixed_point_multiplier, shift) = GetFixedPointMultiplierShift(alpha);
+  auto [fixed_point_multiplier, shift] = GetFixedPointMultiplierShift(alpha);
   auto prod = FixedPointMultiply(requantized_expr, fixed_point_multiplier, shift);
 
   // (1 - alpha) * zp_o
-  int32_t fixed_point_multiplier_z, shift_z;
-  std::tie(fixed_point_multiplier_z, shift_z) = GetFixedPointMultiplierShift(1 - alpha);
+  auto [fixed_point_multiplier_z, shift_z] = GetFixedPointMultiplierShift(1 - alpha);
   auto scaled_z = FixedPointMultiply(output_zero_point, fixed_point_multiplier_z, shift_z);
 
   // alpha * Q_i' + (1 - alpha) * zp_o

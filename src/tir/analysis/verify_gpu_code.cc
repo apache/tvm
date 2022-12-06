@@ -209,6 +209,19 @@ class GPUCodeVerifier : public StmtExprVisitor {
     }
   }
 
+  void VisitExpr_(const CastNode* op) {
+    if (op->dtype.lanes() > 1) {
+      if (static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {
+        std::stringstream s;
+        s << "Number of lanes (" << op->dtype.lanes() << ") times number of bytes ("
+          << op->dtype.bytes() << ") for dtype " << op->dtype
+          << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
+        errors_.push_back(s.str());
+      }
+    }
+    ExprVisitor::VisitExpr_(op);
+  }
+
   void VisitExpr_(const BufferLoadNode* op) {
     if (op->dtype.lanes() > 1) {
       if (static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {

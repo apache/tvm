@@ -140,7 +140,7 @@ def test_classic_conv2d_add_relu():
                 %0 = nn.conv2d(%x, %y);
                 %1 = add(%0, %z);
                 nn.relu(%1)
-              })(%a, %b, %c);           
+              })(%a, %b, %c);
               subtract(%2, %d)
             }
         """
@@ -160,7 +160,7 @@ def test_diamond_single_output():
               %2 = nn.relu(%1);                             // node 7
               %3 = nn.leaky_relu(%0, alpha=0f);             // node 9
               add(%2, %3)                                   // node 10
-            }   
+            }
         """
         )
 
@@ -194,7 +194,7 @@ def test_diamond_multi_output():
               %2 = nn.relu(%1);                             // node 7
               %3 = nn.leaky_relu(%0, alpha=0f);             // node 9
               add(%2, %3)
-            }   
+            }
         """
         )
 
@@ -229,7 +229,7 @@ def test_with_tap():
               %0 = nn.conv2d(%a, %b, padding=[0, 0, 0, 0]); // node 5
               %1 = nn.relu(%0);                             // node 6
               add(%1, %0)
-            }            
+            }
         """
         )
 
@@ -244,9 +244,9 @@ def test_with_tap():
                 (%0, %1)
               })(%a, %b);
               %3 = %2.1;
-              %4 = %2.0; 
+              %4 = %2.0;
               add(%3, %4)
-            }            
+            }
         """
         )
 
@@ -262,10 +262,10 @@ def test_no_cycles():
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32]) {
-              %0 = add(%a, %b); // node 3 
+              %0 = add(%a, %b); // node 3
               %1 = add(%0, %b);
               add(%1, %b)       // node 5
-            }            
+            }
         """
         )
 
@@ -278,8 +278,8 @@ def test_no_cycles():
                 %0 = add(%x, %y);
                 %1 = add(%0, %y);
                 add(%1, %y)
-              })(%a, %b) 
-            }            
+              })(%a, %b)
+            }
         """
         )
 
@@ -303,8 +303,8 @@ def test_labels_direct_connection():
               %5 = nn.relu(%4);  // node 8
               %6 = nn.relu(%4);  // node 9
               %7 = add(%5, %6);  // node 10
-              nn.relu(%7)        // node 11  
-            }            
+              nn.relu(%7)        // node 11
+            }
         """
         )
 
@@ -315,7 +315,7 @@ def test_labels_direct_connection():
             def @main(%a: Tensor[(5, 7), float32]) {
               (fn(%aa: Tensor[(5, 7), float32], Compiler="foo") {
                 %0 = nn.relu(%aa);
-                %4 = (fn(%y, Composite="a") { 
+                %4 = (fn(%y, Composite="a") {
                   %1 = nn.relu(%y);
                   %2 = nn.relu(%1);
                   %3 = nn.relu(%1);
@@ -327,7 +327,7 @@ def test_labels_direct_connection():
                   add(%5, %6)
                 })(%4);
                 nn.relu(%7)
-              })(%a)  
+              })(%a)
             }
         """
         )
@@ -349,8 +349,8 @@ def test_labels_nested_tap():
               %5 = nn.relu(%4);  // node 8
               %6 = nn.relu(%4);  // node 9
               %7 = add(%5, %6);  // node 10
-              add(%2, %7)        // node 11  
-            }            
+              add(%2, %7)        // node 11
+            }
         """
         )
 
@@ -361,7 +361,7 @@ def test_labels_nested_tap():
             def @main(%a: Tensor[(5, 7), float32]) {
               %0 = nn.relu(%a);
               %9 = (fn(%x: Tensor[(5, 7), float32], Compiler="foo") {
-                %5 = (fn(%y, Composite="a") { 
+                %5 = (fn(%y, Composite="a") {
                   %1 = nn.relu(%y);
                   %2 = nn.relu(%1);
                   %3 = nn.relu(%1);
@@ -375,7 +375,7 @@ def test_labels_nested_tap():
                 })(%5.1);
                 (%5.0, %8)
               })(%0);
-              add(%9.0, %9.1)  
+              add(%9.0, %9.1)
             }
         """
         )

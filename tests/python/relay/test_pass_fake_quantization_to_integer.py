@@ -192,26 +192,33 @@ def test_fake_transpose_quantize_conv():
     compare_fq_to_int(op, [x_np, w_np])
 
 
-def test_fake_transpose_quantize_conv_bias_add():
+@pytest.mark.parametrize("const_bias", [False, True])
+def test_fake_transpose_quantize_conv_bias_add(const_bias):
     x = relay.var("x", shape=[1, 224, 224, 3], dtype="int8")
     w = relay.var("w", shape=[16, 3, 5, 5], dtype="int8")
-    bias = relay.var("bias", shape=[16], dtype="int32")
     one = relay.const(1.0)
     zero = relay.const(0)
+    if const_bias:
+        bias = relay.const(np.random.random(16).astype("float32"))
+    else:
+        bias = relay.qnn.op.dequantize(relay.var("bias", shape=[16], dtype="int32"), one, zero)
 
     x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
     x = relay.transpose(x, [0, 3, 1, 2])
     op = relay.op.nn.conv2d(
         x, relay.qnn.op.dequantize(w, relay.const(0.5), zero), kernel_size=[5, 5]
     )
-    op = relay.op.nn.bias_add(op, relay.qnn.op.dequantize(bias, one, zero))
+    op = relay.op.nn.bias_add(op, bias)
     op = relay.qnn.op.quantize(op, one, zero)
 
     x_np = np.random.randint(-128, 127, size=[1, 224, 224, 3], dtype="int8")
     w_np = np.random.randint(-128, 127, size=[16, 3, 5, 5], dtype="int8")
     bias_np = np.random.randint(-32768, 32767, size=[16], dtype="int32")
+    args = [x_np, w_np]
 
-    compare_fq_to_int(op, [x_np, w_np, bias_np])
+    if not const_bias:
+        args.append(bias_np)
+    compare_fq_to_int(op, args)
 
 
 def test_fake_transpose_quantize_conv_bias_add_per_channel():
@@ -281,10 +288,9 @@ def test_fake_quantize_maxpool():
 def test_fake_quantize_adaptive_avgpool1d(output_size):
     x = relay.var("x", shape=[1, 128, 768], dtype="int8")
 
-    zero = relay.const(0)
-    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(-12))
     op = relay.op.nn.adaptive_avg_pool1d(x, output_size)
-    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+    op = relay.qnn.op.quantize(op, relay.const(0.5), relay.const(10))
 
     x_np = np.random.randint(-128, 127, size=[1, 128, 768], dtype="int8")
 
@@ -294,10 +300,9 @@ def test_fake_quantize_adaptive_avgpool1d(output_size):
 def test_fake_quantize_avgpool():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 
-    zero = relay.const(0)
-    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(-12))
     op = relay.op.nn.avg_pool2d(x, [3, 3])
-    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+    op = relay.qnn.op.quantize(op, relay.const(0.5), relay.const(10))
 
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
@@ -307,10 +312,9 @@ def test_fake_quantize_avgpool():
 def test_fake_quantize_global_avg_pool():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 
-    zero = relay.const(0)
-    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(-12))
     op = relay.op.nn.global_avg_pool2d(x)
-    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+    op = relay.qnn.op.quantize(op, relay.const(0.5), relay.const(10))
 
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
@@ -808,6 +812,27 @@ def test_fake_quantize_max_min():
     # Test forwarding kwargs works
     run_test_case(lambda x: relay.op.max(x, axis=1))
     run_test_case(lambda x: relay.op.min(x, axis=1))
+
+
+def test_fq_avg_pool_conv2d():
+    dtype = "uint8"
+    shape_x = [1, 4, 24, 24]
+    shape_w = [8, 4, 1, 1]
+    x = relay.var("x", shape=shape_x, dtype=dtype)
+    w = relay.var("w", shape=shape_w, dtype=dtype)
+    zero = relay.const(0)
+    one = relay.const(1.0)
+
+    # Tested expression.
+    op0 = relay.qnn.op.dequantize(x, relay.const(0.64), relay.const(2))
+    op1 = relay.op.nn.avg_pool2d(op0, [3, 3])
+    op2 = relay.qnn.op.dequantize(w, relay.const(0.5), relay.const(10))
+    op3 = relay.op.nn.conv2d(op1, op2, kernel_size=[1, 1])
+    expr = relay.qnn.op.quantize(op3, one, zero, out_dtype="uint8")
+
+    x_np = np.random.randint(0, 255, size=shape_x, dtype=dtype)
+    w_np = np.random.randint(0, 255, size=shape_w, dtype=dtype)
+    compare_fq_to_int(expr, [x_np, w_np])
 
 
 def test_fq_hard_fail():

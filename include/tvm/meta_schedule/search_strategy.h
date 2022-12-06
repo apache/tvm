@@ -36,6 +36,7 @@ namespace meta_schedule {
 
 // Forward declaration
 class TuneContext;
+class SearchStrategy;
 
 /*!
  * \brief The search strategy for measure candidates generation.
@@ -87,6 +88,8 @@ class SearchStrategyNode : public runtime::Object {
 
   /*!
    * \brief Pre-tuning for the search strategy.
+   * \param max_trials The maximum number of trials.
+   * \param num_trials_per_iter The number of trials per iteration.
    * \param design_spaces The design spaces used during tuning process.
    * \param database The database used during tuning process.
    * \param cost_model The cost model used during tuning process.
@@ -94,7 +97,8 @@ class SearchStrategyNode : public runtime::Object {
    *  initialization. Because the search strategy is stateful, we can always call pretuning
    *  and reset the search strategy.
    */
-  virtual void PreTuning(const Array<tir::Schedule>& design_spaces,
+  virtual void PreTuning(int max_trials, int num_trials_per_iter,
+                         const Array<tir::Schedule>& design_spaces,
                          const Optional<Database>& database,
                          const Optional<CostModel>& cost_model) = 0;
 
@@ -119,12 +123,21 @@ class SearchStrategyNode : public runtime::Object {
   virtual void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                                    const Array<RunnerResult>& results) = 0;
 
+  /*!
+   * \brief Clone the search strategy.
+   * \return The cloned search strategy.
+   */
+  virtual SearchStrategy Clone() const = 0;
+
   static constexpr const char* _type_key = "meta_schedule.SearchStrategy";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchStrategyNode, Object);
 };
 
-/*! \brief The python side customizable class for measure candidate generation */
-class PySearchStrategyNode : public SearchStrategyNode {
+/*!
+ * \brief Managed reference to SearchStrategyNode.
+ * \sa SearchStrategyNode
+ */
+class SearchStrategy : public runtime::ObjectRef {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
@@ -133,10 +146,10 @@ class PySearchStrategyNode : public SearchStrategyNode {
   using FInitializeWithTuneContext = runtime::TypedPackedFunc<void(const TuneContext&)>;
   /*!
    * \brief The function type of `PreTuning` method.
-   * \param design_spaces The design spaces for pre-tuning.
    */
   using FPreTuning = runtime::TypedPackedFunc<void(
-      const Array<tir::Schedule>&, const Optional<Database>&, const Optional<CostModel>&)>;
+      int max_trials, int num_trials_per_iter, const Array<tir::Schedule>&,
+      const Optional<Database>&, const Optional<CostModel>&)>;
   /*! \brief The function type of `PostTuning` method. */
   using FPostTuning = runtime::TypedPackedFunc<void()>;
   /*!
@@ -150,6 +163,70 @@ class PySearchStrategyNode : public SearchStrategyNode {
    */
   using FNotifyRunnerResults =
       runtime::TypedPackedFunc<void(const Array<MeasureCandidate>&, const Array<RunnerResult>&)>;
+  /*!
+   * \brief The function type of `Clone` method.
+   * \return The cloned search strategy.
+   */
+  using FClone = runtime::TypedPackedFunc<SearchStrategy()>;
+  /*!
+   * \brief Create a search strategy with customized methods on the python-side.
+   * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
+   * \param f_pre_tuning The packed function of `PreTuning`.
+   * \param f_post_tuning The packed function of `PostTuning`.
+   * \param f_generate_measure_candidates The packed function of `GenerateMeasureCandidates`.
+   * \param f_notify_runner_results The packed function of `NotifyRunnerResults`.
+   * \param f_clone The packed function of `Clone`.
+   * \return The search strategy created.
+   */
+  TVM_DLL static SearchStrategy PySearchStrategy(
+      FInitializeWithTuneContext f_initialize_with_tune_context,  //
+      FPreTuning f_pre_tuning,                                    //
+      FPostTuning f_post_tuning,                                  //
+      FGenerateMeasureCandidates f_generate_measure_candidates,   //
+      FNotifyRunnerResults f_notify_runner_results,               //
+      FClone f_clone);
+
+  /*!
+   * \brief Constructor of replay trace search strategy.
+   * \param max_fail_count The max number of failures during trace replaying.
+   */
+  TVM_DLL static SearchStrategy ReplayTrace(int max_fail_count);
+
+  /*! \brief Constructor of replay func search strategy. */
+  TVM_DLL static SearchStrategy ReplayFunc();
+
+  /*!
+   * \brief Constructor of evolutionary search strategy.
+   * \param population_size The initial sample population.
+   * \param init_measured_ratio The ratio of measures samples in initial population.
+   * \param init_min_unmeasured The minimal size of unmeasured population in the initial sampling.
+   * \param max_fail_count The max number of failure during initial sampling.
+   * \param genetic_num_iters The iterations to run the genetic algorithm.
+   * \param genetic_mutate_prob The probability of mutation.
+   * \param genetic_max_fail_count The maximum number to try evolving the given trace.
+   * \param eps_greedy The ratio to select samples in a greedy fashion via their predicted score.
+   */
+  TVM_DLL static SearchStrategy EvolutionarySearch(int population_size,         //
+                                                   double init_measured_ratio,  //
+                                                   int init_min_unmeasured,     //
+                                                   int max_fail_count,          //
+                                                   int genetic_num_iters,       //
+                                                   double genetic_mutate_prob,  //
+                                                   int genetic_max_fail_count,  //
+                                                   double eps_greedy);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SearchStrategy, ObjectRef, SearchStrategyNode);
+};
+
+/*! \brief The python side customizable class for measure candidate generation */
+class PySearchStrategyNode : public SearchStrategyNode {
+ public:
+  using FInitializeWithTuneContext = SearchStrategy::FInitializeWithTuneContext;
+  using FPreTuning = SearchStrategy::FPreTuning;
+  using FPostTuning = SearchStrategy::FPostTuning;
+  using FGenerateMeasureCandidates = SearchStrategy::FGenerateMeasureCandidates;
+  using FNotifyRunnerResults = SearchStrategy::FNotifyRunnerResults;
+  using FClone = SearchStrategy::FClone;
 
   /*! \brief The packed function to the `InitializeWithTuneContext` method. */
   FInitializeWithTuneContext f_initialize_with_tune_context;
@@ -161,6 +238,8 @@ class PySearchStrategyNode : public SearchStrategyNode {
   FGenerateMeasureCandidates f_generate_measure_candidates;
   /*! \brief The packed function to the `NotifyRunnerResults` method. */
   FNotifyRunnerResults f_notify_runner_results;
+  /*! \brief The packed function to the `Clone` method. */
+  FClone f_clone;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `f_initialize_with_tune_context` is not visited
@@ -168,81 +247,20 @@ class PySearchStrategyNode : public SearchStrategyNode {
     // `f_post_tuning` is not visited
     // `f_generate_measure_candidates` is not visited
     // `f_notify_runner_results` is not visited
+    // `f_clone` is not visited
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;
-  void PreTuning(const Array<tir::Schedule>& design_spaces, const Optional<Database>& database,
-                 const Optional<CostModel>& cost_model) final;
+  void PreTuning(int max_trials, int num_trials_per_iter, const Array<tir::Schedule>& design_spaces,
+                 const Optional<Database>& database, const Optional<CostModel>& cost_model) final;
   void PostTuning() final;
   Optional<Array<MeasureCandidate>> GenerateMeasureCandidates() final;
   void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                            const Array<RunnerResult>& results);
+  SearchStrategy Clone() const final;
 
   static constexpr const char* _type_key = "meta_schedule.PySearchStrategy";
   TVM_DECLARE_FINAL_OBJECT_INFO(PySearchStrategyNode, SearchStrategyNode);
-};
-
-/*!
- * \brief Managed reference to SearchStrategyNode.
- * \sa SearchStrategyNode
- */
-class SearchStrategy : public runtime::ObjectRef {
- public:
-  /*!
-   * \brief Create a search strategy with customized methods on the python-side.
-   * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
-   * \param f_pre_tuning The packed function of `PreTuning`.
-   * \param f_post_tuning The packed function of `PostTuning`.
-   * \param f_generate_measure_candidates The packed function of `GenerateMeasureCandidates`.
-   * \param f_notify_runner_results The packed function of `NotifyRunnerResults`.
-   * \return The search strategy created.
-   */
-  TVM_DLL static SearchStrategy PySearchStrategy(
-      PySearchStrategyNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
-      PySearchStrategyNode::FPreTuning f_pre_tuning,                                    //
-      PySearchStrategyNode::FPostTuning f_post_tuning,                                  //
-      PySearchStrategyNode::FGenerateMeasureCandidates f_generate_measure_candidates,   //
-      PySearchStrategyNode::FNotifyRunnerResults f_notify_runner_results);
-
-  /*!
-   * \brief Constructor of replay trace search strategy.
-   * \param num_trials_per_iter The number of trials per iteration, i.e., the batch size.
-   * \param max_trials_per_task The total number of trials for trace replaying.
-   * \param max_fail_count The max number of failures during trace replaying.
-   */
-  TVM_DLL static SearchStrategy ReplayTrace(int num_trials_per_iter, int max_trials_per_task,
-                                            int max_fail_count);
-
-  /*!
-   * \brief Constructor of replay func search strategy.
-   * \param num_trials_per_iter The number of trials per iteration, i.e., the batch size.
-   * \param max_trials_per_task The total number of trials for func replaying.
-   */
-  TVM_DLL static SearchStrategy ReplayFunc(int num_trials_per_iter, int max_trials_per_task);
-
-  /*!
-   * \brief Constructor of evolutionary search strategy.
-   * \param num_trials_per_iter The number of trials per iteration, i.e., the batch size.
-   * \param max_trials_per_task The total number of trials for evolutionary search.
-   * \param population_size The initial sample population.
-   * \param init_measured_ratio The ratio of measures samples in initial population.
-   * \param init_min_unmeasured The minimal size of unmeasured population in the initial sampling.
-   * \param genetic_num_iters The iterations to run the genetic algorithm.
-   * \param genetic_mutate_prob The probability of mutation.
-   * \param genetic_max_fail_count The maximum number to try evolving the given trace.
-   * \param eps_greedy The ratio to select samples in a greedy fashion via their predicted score.
-   */
-  TVM_DLL static SearchStrategy EvolutionarySearch(int num_trials_per_iter,     //
-                                                   int max_trials_per_task,     //
-                                                   int population_size,         //
-                                                   double init_measured_ratio,  //
-                                                   int init_min_unmeasured,     //
-                                                   int genetic_num_iters,       //
-                                                   double genetic_mutate_prob,  //
-                                                   int genetic_max_fail_count,  //
-                                                   double eps_greedy);
-
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SearchStrategy, ObjectRef, SearchStrategyNode);
 };
 
 }  // namespace meta_schedule

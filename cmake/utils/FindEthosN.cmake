@@ -85,7 +85,7 @@ macro(find_ethosn use_ethosn)
     else()
       set(ETHOSN_DEFINITIONS -DETHOSN_API_VERSION=${USE_ETHOSN_API_VERSION})
     endif()
-  
+
     if(ETHOSN_COMPILER_LIBRARY)
       set(ETHOSN_FOUND TRUE)
     endif()

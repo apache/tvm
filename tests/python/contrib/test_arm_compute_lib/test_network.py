@@ -16,13 +16,13 @@
 # under the License.
 """Arm Compute Library network tests."""
 
+from distutils.version import LooseVersion
+
 import numpy as np
 import pytest
-from tvm import testing
 from tvm import relay
 
-from test_arm_compute_lib.infrastructure import skip_runtime_test, build_and_run, verify
-from test_arm_compute_lib.infrastructure import Device
+from test_arm_compute_lib.infrastructure import Device, skip_runtime_test, build_and_run, verify
 
 
 def _build_and_run_network(mod, params, inputs, device, tvm_ops, acl_partitions, atol, rtol):
@@ -106,11 +106,17 @@ def test_vgg16():
         return mod, params, inputs
 
     _build_and_run_network(
-        *get_model(), device=device, tvm_ops=4, acl_partitions=21, atol=0.002, rtol=0.01
+        *get_model(),
+        device=device,
+        tvm_ops=4,
+        acl_partitions=21,
+        atol=0.002,
+        rtol=0.01,
     )
 
 
 def test_mobilenet():
+    keras = pytest.importorskip("keras")
     Device.load("test_config.json")
 
     if skip_runtime_test():
@@ -131,8 +137,25 @@ def test_mobilenet():
         mod, params = _get_keras_model(mobilenet, inputs)
         return mod, params, inputs
 
+    if keras.__version__ < LooseVersion("2.9"):
+        # This can be removed after we migrate to TF/Keras >= 2.9
+        expected_tvm_ops = 56
+        expected_acl_partitions = 31
+    else:
+        # In Keras >= 2.7, one reshape operator was removed
+        # from the MobileNet model, so it impacted this test
+        # which now needs to be reduce in by 1
+        # The change in Keras is `b6abfaed1326e3c`
+        expected_tvm_ops = 55
+        expected_acl_partitions = 30
+
     _build_and_run_network(
-        *get_model(), device=device, tvm_ops=56, acl_partitions=31, atol=0.002, rtol=0.01
+        *get_model(),
+        device=device,
+        tvm_ops=expected_tvm_ops,
+        acl_partitions=expected_acl_partitions,
+        atol=0.002,
+        rtol=0.01,
     )
 
 
@@ -160,7 +183,12 @@ def test_quantized_mobilenet():
         return mod, params, inputs
 
     _build_and_run_network(
-        *get_model(), device=device, tvm_ops=3, acl_partitions=30, atol=9, rtol=0
+        *get_model(),
+        device=device,
+        tvm_ops=3,
+        acl_partitions=30,
+        atol=10,
+        rtol=0,
     )
 
 
@@ -187,7 +215,12 @@ def test_squeezenet():
         return mod, params, inputs
 
     _build_and_run_network(
-        *get_model(), device=device, tvm_ops=9, acl_partitions=31, atol=8, rtol=0
+        *get_model(),
+        device=device,
+        tvm_ops=9,
+        acl_partitions=31,
+        atol=8,
+        rtol=0,
     )
 
 

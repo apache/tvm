@@ -19,14 +19,14 @@
 
 import contextlib
 import os
-import sys
-
 import pytest
 
 import tvm
 import tvm.testing
 from tvm import autotvm, te
 from tvm.autotvm.tuner import GATuner, XGBTuner
+
+from .infrastructure import get_hexagon_target
 
 
 @autotvm.template("demo_template")
@@ -143,12 +143,13 @@ def test_autotvm(hexagon_session):
             ),
         ),
     }
-    target_hexagon = tvm.target.hexagon("v68")
     task = autotvm.task.create(
-        "demo_template", args=[], target=target_hexagon, target_host=target_hexagon
+        "demo_template",
+        args=[],
+        target=get_hexagon_target("v68"),
     )
     tune_tasks([task], **options)
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

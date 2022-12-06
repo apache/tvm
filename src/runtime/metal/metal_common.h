@@ -133,7 +133,7 @@ class Stream {
 class MetalWorkspace final : public DeviceAPI {
  public:
   // the devices
-  std::vector<id<MTLDevice> > devices;
+  std::vector<id<MTLDevice>> devices;
   // Warp size constant
   std::vector<int> warp_size;
   // Whether it is initialized.
@@ -186,7 +186,7 @@ class MetalThreadEntry {
   /*! \brief The current stream */
   std::vector<Stream*> stream;
   /*! \brief The shared buffer used for copy. */
-  std::vector<id<MTLBuffer> > temp_buffer_;
+  std::vector<id<MTLBuffer>> temp_buffer_;
   /*! \brief workspace pool */
   WorkspacePool pool;
   // constructor

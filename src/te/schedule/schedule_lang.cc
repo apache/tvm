@@ -200,7 +200,7 @@ Stage& Stage::env_threads(Array<IterVar> threads) {
   ICHECK_EQ(self->env_threads.size(), 0U) << "Already set env_threads";
   Array<IterVar>& leaf_vars = self->leaf_iter_vars;
   Array<IterVar>& all_vars = self->all_iter_vars;
-  std::vector<ObjectRef> temp;
+  std::vector<IterVar> temp;
   for (IterVar iv : threads) {
     temp.push_back(iv);
   }

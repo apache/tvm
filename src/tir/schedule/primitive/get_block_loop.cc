@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "../analysis.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -40,7 +41,7 @@ Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const G
   };
 
   BaseFunc func = self->mod->Lookup(gv);
-  const auto* prim_func = TVM_TYPE_AS(prim_func, func, PrimFuncNode);
+  const auto* prim_func = TVM_TYPE_AS(func, PrimFuncNode);
   Finder finder(self, name);
   finder(prim_func->body);
   return std::move(finder.results_);
@@ -79,28 +80,12 @@ Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent
 
 Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sref) {
   StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
-  Array<Dependency> edges = self->GetBlockScope(scope_root)->GetDepsByDst(block_sref);
-  Array<StmtSRef> results;
-  results.reserve(edges.size());
-  for (const Dependency& edge : edges) {
-    if (edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) {
-      results.push_back(edge->src);
-    }
-  }
-  return results;
+  return tir::GetProducers(block_sref, self->GetBlockScope(scope_root));
 }
 
 Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sref) {
   StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
-  Array<Dependency> edges = self->GetBlockScope(scope_root)->GetDepsBySrc(block_sref);
-  Array<StmtSRef> results;
-  results.reserve(edges.size());
-  for (const Dependency& edge : edges) {
-    if (edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) {
-      results.push_back(edge->dst);
-    }
-  }
-  return results;
+  return tir::GetConsumers(block_sref, self->GetBlockScope(scope_root));
 }
 
 /******** InstructionKind Registration ********/

@@ -26,7 +26,6 @@ set -o pipefail
 apt-get update && apt-install-and-clear -y --no-install-recommends \
     apt-transport-https \
     ca-certificates \
-    cmake \
     curl \
     g++ \
     gdb \

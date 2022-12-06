@@ -78,9 +78,7 @@ TVM_REGISTER_GLOBAL("auto_scheduler.TuningOptions")
 
 TVM_REGISTER_GLOBAL("auto_scheduler.AutoSchedule")
     .set_body_typed([](SearchPolicy search_policy, TuningOptions tuning_options) {
-      te::Schedule sch;
-      Array<te::Tensor> return_tensors;
-      std::tie(sch, return_tensors) = AutoSchedule(search_policy, tuning_options);
+      auto [sch, return_tensors] = AutoSchedule(search_policy, tuning_options);
       return Array<ObjectRef>{sch, return_tensors};
     });
 }  // namespace auto_scheduler

@@ -865,7 +865,6 @@ PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Obje
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
-    return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
   }
 }
 
@@ -1067,7 +1066,7 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   if (backend::IsAutoSchedulerEnabled() && config_->optional_homogeneous_target.defined()) {
     Pass major_pass = transform::AutoSchedulerLayoutRewrite();
     bool enable_layout_rewrite_targets =
-        config_->optional_homogeneous_target->kind->device_type == kDLCPU ||
+        config_->optional_homogeneous_target->GetTargetDeviceType() == kDLCPU ||
         config_->optional_homogeneous_target->GetAttr<String>("device", "") == "mali";
     if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
       With<Target> tctx(config_->optional_homogeneous_target);
@@ -1081,7 +1080,7 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   if (backend::IsMetaScheduleEnabled() && config_->optional_homogeneous_target.defined()) {
     Pass major_pass = transform::MetaScheduleLayoutRewrite();
     bool enable_layout_rewrite_targets =
-        config_->optional_homogeneous_target->kind->device_type == kDLCPU ||
+        config_->optional_homogeneous_target->GetTargetDeviceType() == kDLCPU ||
         config_->optional_homogeneous_target->GetAttr<String>("device", "") == "mali";
     if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
       With<Target> tctx(config_->optional_homogeneous_target);
@@ -1164,7 +1163,7 @@ void VMCompiler::Codegen() {
   // Only the PrimFuncs will appear in per_target_modules, and there may legitimately be none.
   Map<Target, IRModule> per_tvm_target_modules = tec::GetPerTargetModules(context_.module);
   for (const auto& kv : per_tvm_target_modules) {
-    ICHECK(kv.first->kind->device_type != kDLExtDev);
+    ICHECK(kv.first->GetTargetDeviceType() != kDLExtDev);
   }
 
   // Retrieve all external runtime modules accumulated by external codegen (both function-at-a-time

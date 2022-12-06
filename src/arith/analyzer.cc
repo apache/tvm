@@ -45,6 +45,7 @@ void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
   this->rewrite_simplify.Update(var, new_expr, allow_override);
   this->canonical_simplify.Update(var, new_expr, allow_override);
   this->int_set.Update(var, this->int_set(new_expr), allow_override);
+  this->transitive_comparisons.Bind(var, expr, allow_override);
 }
 
 void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
@@ -54,6 +55,7 @@ void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
   } else {
     this->const_int_bound.Bind(var, range, allow_override);
     this->int_set.Bind(var, range, allow_override);
+    this->transitive_comparisons.Bind(var, range, allow_override);
   }
   // skip modular_set
   // skip rewrite simplify
@@ -72,6 +74,7 @@ void ConstraintContext::EnterWithScope() {
   recovery_functions_.push_back(analyzer_->modular_set.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->rewrite_simplify.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->int_set.EnterConstraint(constraint_));
+  recovery_functions_.push_back(analyzer_->transitive_comparisons.EnterConstraint(constraint_));
 }
 
 void ConstraintContext::ExitWithScope() {
@@ -186,7 +189,7 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
       return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
         // can't use make_shared due to noexcept(false) decl in destructor,
         // see https://stackoverflow.com/a/43907314
-        auto ctx = std::shared_ptr<With<ConstraintContext> >(
+        auto ctx = std::shared_ptr<With<ConstraintContext>>(
             new With<ConstraintContext>(self.get(), args[0]));
         auto fexit = [ctx](TVMArgs, TVMRetValue*) mutable { ctx.reset(); };
         *ret = PackedFunc(fexit);

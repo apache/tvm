@@ -150,10 +150,10 @@ First example is for layout agnostic operators. These operators do not have any 
     // 		.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
     // Take arbitrary input layouts and copy to outputs.
-    inline Array<Array<Layout> > ElemwiseArbitraryLayout(const Attrs& attrs,
-                                                         const Array<Layout>& new_in_layouts,
-                                                         const Array<Layout>& old_in_layouts,
-                                                         const Array<Array<IndexExpr>> &old_in_shapes) {
+    inline Array<Array<Layout>> ElemwiseArbitraryLayout(const Attrs& attrs,
+                                                        const Array<Layout>& new_in_layouts,
+                                                        const Array<Layout>& old_in_layouts,
+                                                        const Array<Array<IndexExpr>> &old_in_shapes) {
       Layout ret;
 
       if (new_in_layouts.defined()) {
@@ -168,7 +168,7 @@ First example is for layout agnostic operators. These operators do not have any 
         }
       }
 
-      return Array<Array<Layout> >{Array<Layout>(old_in_layouts.size(), ret), {ret}};
+      return Array<Array<Layout>>{Array<Layout>(old_in_layouts.size(), ret), {ret}};
     }
 
 

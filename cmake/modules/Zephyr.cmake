@@ -29,6 +29,7 @@ if(USE_MICRO)
       "apps/microtvm/zephyr/template_project/src/host_driven *.h -> zephyr/src/host_driven"
       "apps/microtvm/zephyr/template_project/fvp-hack * -> zephyr/fvp-hack"
       "apps/microtvm/zephyr/template_project/qemu-hack * -> zephyr/qemu-hack"
+      "apps/microtvm/zephyr/template_project/app-overlay * -> zephyr/app-overlay"
       "apps/microtvm/zephyr/template_project/crt_config *.h -> zephyr/crt_config"
     )
 

@@ -19,5 +19,5 @@ The tvm.meta_schedule.builder package.
 Meta Schedule builders that translate IRModule to runtime.Module,
 and then export
 """
-from .builder import Builder, BuilderInput, BuilderResult, PyBuilder
+from .builder import Builder, BuilderInput, BuilderResult, PyBuilder, create
 from .local_builder import LocalBuilder

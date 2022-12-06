@@ -25,6 +25,7 @@ import tvm._ffi
 from tvm._ffi.base import TVMError
 from tvm.contrib import utils
 from tvm.runtime import ndarray as nd
+from tvm._ffi.runtime_ctypes import Device
 
 from . import _ffi_api, base, server
 
@@ -32,7 +33,7 @@ from . import _ffi_api, base, server
 class RPCSession(object):
     """RPC Client session module
 
-    Do not directly create the obhect, call connect
+    Do not directly create the object, call connect
     """
 
     # pylint: disable=invalid-name
@@ -197,39 +198,39 @@ class RPCSession(object):
 
     def cpu(self, dev_id=0):
         """Construct CPU device."""
-        return self.device(1, dev_id)
+        return self.device(Device.kDLCPU, dev_id)
 
     def cuda(self, dev_id=0):
         """Construct CUDA GPU device."""
-        return self.device(2, dev_id)
+        return self.device(Device.kDLCUDA, dev_id)
 
     def cl(self, dev_id=0):
         """Construct OpenCL device."""
-        return self.device(4, dev_id)
+        return self.device(Device.kDLOpenCL, dev_id)
 
     def vulkan(self, dev_id=0):
         """Construct Vulkan device."""
-        return self.device(7, dev_id)
+        return self.device(Device.kDLVulkan, dev_id)
 
     def metal(self, dev_id=0):
         """Construct Metal device."""
-        return self.device(8, dev_id)
+        return self.device(Device.kDLMetal, dev_id)
 
     def rocm(self, dev_id=0):
         """Construct ROCm device."""
-        return self.device(10, dev_id)
+        return self.device(Device.kDLROCM, dev_id)
 
     def ext_dev(self, dev_id=0):
         """Construct extension device."""
-        return self.device(12, dev_id)
+        return self.device(Device.kDLExtDev, dev_id)
 
     def hexagon(self, dev_id=0):
         """Construct Hexagon device."""
-        return self.device(14, dev_id)
+        return self.device(Device.kDLHexagon, dev_id)
 
     def webgpu(self, dev_id=0):
         """Construct WebGPU device."""
-        return self.device(15, dev_id)
+        return self.device(Device.kDLWebGPU, dev_id)
 
 
 class LocalSession(RPCSession):

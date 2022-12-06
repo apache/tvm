@@ -106,9 +106,7 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyRunCallbacks")
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyContinueSearchOneRound")
     .set_body_typed([](SearchPolicy policy, int num_measure, ProgramMeasurer measurer) {
-      Array<MeasureInput> inputs;
-      Array<MeasureResult> results;
-      std::tie(inputs, results) = policy->ContinueSearchOneRound(num_measure, measurer);
+      auto [inputs, results] = policy->ContinueSearchOneRound(num_measure, measurer);
       return Array<ObjectRef>{inputs, results};
     });
 

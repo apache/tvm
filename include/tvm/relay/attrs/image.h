@@ -46,9 +46,9 @@ struct Resize1DAttrs : public tvm::AttrsNode<Resize1DAttrs> {
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Resize1DAttrs, "relay.attrs.Resize1DAttrs") {
-    TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >()).describe("Output Size.");
+    TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr>>()).describe("Output Size.");
     TVM_ATTR_FIELD(roi)
-        .set_default(NullValue<Array<FloatImm> >())
+        .set_default(NullValue<Array<FloatImm>>())
         .describe("Region of Interest for coordinate transformation mode 'tf_crop_and_resize'");
     TVM_ATTR_FIELD(layout).set_default("NCW").describe(
         "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
@@ -99,9 +99,9 @@ struct Resize2DAttrs : public tvm::AttrsNode<Resize2DAttrs> {
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Resize2DAttrs, "relay.attrs.Resize2DAttrs") {
-    TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >()).describe("Output Size.");
+    TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr>>()).describe("Output Size.");
     TVM_ATTR_FIELD(roi)
-        .set_default(NullValue<Array<FloatImm> >())
+        .set_default(NullValue<Array<FloatImm>>())
         .describe("Region of Interest for coordinate transformation mode 'tf_crop_and_resize'");
     TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
         "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
@@ -152,9 +152,9 @@ struct Resize3DAttrs : public tvm::AttrsNode<Resize3DAttrs> {
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Resize3DAttrs, "relay.attrs.Resize3DAttrs") {
-    TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >()).describe("Output Size.");
+    TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr>>()).describe("Output Size.");
     TVM_ATTR_FIELD(roi)
-        .set_default(NullValue<Array<FloatImm> >())
+        .set_default(NullValue<Array<FloatImm>>())
         .describe("Region of Interest for coordinate transformation mode 'tf_crop_and_resize'");
     TVM_ATTR_FIELD(layout).set_default("NCDHW").describe(
         "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
@@ -200,7 +200,7 @@ struct CropAndResizeAttrs : public tvm::AttrsNode<CropAndResizeAttrs> {
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(CropAndResizeAttrs, "relay.attrs.CropAndResizeAttrs") {
-    TVM_ATTR_FIELD(crop_size).set_default(NullValue<Array<IndexExpr> >()).describe("Target Size.");
+    TVM_ATTR_FIELD(crop_size).set_default(NullValue<Array<IndexExpr>>()).describe("Target Size.");
     TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
         "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
         "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"

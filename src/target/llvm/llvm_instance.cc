@@ -242,6 +242,8 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target) {
     opt_level_ = defaults::opt_level;
   }
 
+  target_options_.UseInitArray = true;
+
   // Fast math options
 
   auto GetBoolFlag = [&target](llvm::StringRef flag) -> bool {

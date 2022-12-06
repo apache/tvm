@@ -22,14 +22,21 @@ all of the appropriate TVM dependencies installed. You can run the test with:
 
 ```
 $ cd tvm/tests/micro/arduino
-$ pytest --arduino-board=spresense
+$ pytest --board=spresense
 ```
 
 Most of these tests require a supported Arduino board to be connected.
 If you don't want to run these tests, you can pass the flag
 `--test-build-only` to only test project generation and compilation.
 
-To see the list of supported values for `--arduino-board`, run:
+To see the list of supported values for `--board`, run:
 ```
 $ pytest --help
+```
+
+If you would like to test with a real hardware and need to target one of many
+identical devices, you have the option to pass the serial number for your
+development board.
+```
+$ pytest --board=due --serial-number="4873ce"
 ```

@@ -37,6 +37,13 @@ import _pytest
 import tvm
 from tvm.testing import utils
 
+try:
+    from xdist.scheduler.loadscope import LoadScopeScheduling
+
+    HAVE_XDIST = True
+except ImportError:
+    HAVE_XDIST = False
+
 
 MARKERS = {
     "gpu": "mark a test as requiring a gpu",
@@ -63,11 +70,21 @@ def pytest_configure(config):
     print("pytest marker:", config.option.markexpr)
 
 
+def pytest_addoption(parser):
+    """Add pytest options."""
+    parser.addoption("--gtest_args", action="store", default="")
+
+
 def pytest_generate_tests(metafunc):
     """Called once per unit test, modifies/parametrizes it as needed."""
     _parametrize_correlated_parameters(metafunc)
     _auto_parametrize_target(metafunc)
     _add_target_specific_marks(metafunc)
+
+    # Process gtest arguments
+    option_value = metafunc.config.option.gtest_args
+    if "gtest_args" in metafunc.fixturenames and option_value is not None:
+        metafunc.parametrize("gtest_args", [option_value])
 
 
 def pytest_collection_modifyitems(config, items):
@@ -319,3 +336,38 @@ def _parametrize_correlated_parameters(metafunc):
             names = ",".join(name for name, values in params)
             value_sets = zip(*[values for name, values in params])
             metafunc.parametrize(names, value_sets, indirect=True, ids=ids)
+
+
+# pytest-xdist isn't required but is used in CI, so guard on its presence
+if HAVE_XDIST:
+
+    def pytest_xdist_make_scheduler(config, log):
+        """
+        Serialize certain tests for pytest-xdist that have inter-test
+        dependencies
+        """
+
+        class TvmTestScheduler(LoadScopeScheduling):
+            """
+            Scheduler to serializer tests
+            """
+
+            def _split_scope(self, nodeid):
+                """
+                Returns a specific string for classes of nodeids
+                """
+                # NOTE: these tests contain inter-test dependencies and must be
+                # serialized
+                items = {
+                    "test_tvm_testing_features": "functional-tests",
+                    "tests/python/unittest/test_crt": "crt-tests",
+                    "tests/python/driver/tvmc": "tvmc-tests",
+                }
+
+                for nodeid_pattern, suite_name in items.items():
+                    if nodeid_pattern in nodeid:
+                        return suite_name
+
+                return nodeid
+
+        return TvmTestScheduler(config, log)

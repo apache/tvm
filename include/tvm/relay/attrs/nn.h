@@ -1052,7 +1052,8 @@ struct MatmulAttrs : public tvm::AttrsNode<MatmulAttrs> {
   DataType out_dtype;
   bool transpose_a;
   bool transpose_b;
-  tvm::String auto_scheduler_rewritten_layout;   // The layout after auto-scheduler's layout rewrite
+  // layout of B after auto-scheduler's layout rewrite
+  tvm::String auto_scheduler_rewritten_layout;
   Array<PrimExpr> meta_schedule_original_shape;  // The original shape of the weights
 
   TVM_DECLARE_ATTRS(MatmulAttrs, "relay.attrs.MatmulAttrs") {
@@ -1076,7 +1077,8 @@ struct MatmulAttrs : public tvm::AttrsNode<MatmulAttrs> {
 /*! \brief Attributes for dense operator */
 struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
   IndexExpr units;
-  tvm::String auto_scheduler_rewritten_layout;   // The layout after auto-scheduler's layout rewrite
+  // layout of B after auto-scheduler's layout rewrite
+  tvm::String auto_scheduler_rewritten_layout;
   Array<PrimExpr> meta_schedule_original_shape;  // The original shape of the weights
   DataType out_dtype;
 

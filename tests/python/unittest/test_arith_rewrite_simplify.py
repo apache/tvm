@@ -16,7 +16,7 @@
 # under the License.
 import pytest
 import tvm
-from tvm import te
+from tvm import te, tir
 
 
 class RewriteChecker:
@@ -863,7 +863,7 @@ def test_cmp_simplify():
     ck.verify(fld(x, 2) <= -1, tvm.tir.LE(x, -1))
 
     ck.verify(fld(x, 4) * 4 < x, tvm.tir.LT(0, flm(x, 4)))
-    ck.verify(fld(x, 4) * 4 >= x, tvm.tir.LE(flm(x, 4), 0))
+    ck.verify(fld(x, 4) * 4 >= x, tvm.tir.EQ(flm(x, 4), 0))
 
     ck.verify(fld(x, 4) * 4 < x + y, tvm.tir.LT(0, flm(x, 4) + y))
     ck.verify(fld(x, 4) * 4 < x - y, tvm.tir.LT(y, flm(x, 4)))
@@ -872,6 +872,65 @@ def test_cmp_simplify():
     ck.verify(fld(x + 2, 4) * 4 >= x + y, tvm.tir.LE(flm(x + 2, 4) + y, 2))
     ck.verify(fld(x + 2, 4) * 4 >= x - y, tvm.tir.LE(flm(x + 2, 4) + (-2), y))
     # End DivMod Rules
+
+    # merging flm/fld into known value
+    ck.verify(tir.all(fld(x, 8) == 3, flm(x, 8) == 4), x == 28)
+    ck.verify(tir.all(flm(x, 8) == 4, fld(x, 8) == 3), x == 28)
+    ck.verify(tir.all(fld(x, 8) == -3, flm(x, 8) == 4), x == -20)
+    ck.verify(tir.all(flm(x, 8) == 4, fld(x, 8) == -3), x == -20)
+
+    # Rewrite based on definition of integer division
+    ck.verify(tir.all(tvm.runtime.convert(0) <= x - y * 5, x - y * 5 < 5), y == fld(x, 5))
+    ck.verify(tir.all(x - y * 5 < 5, tvm.runtime.convert(0) <= x - y * 5), y == fld(x, 5))
+
+    # Narrow upper bound using floormod
+    ck.verify(tir.all(x < 20, flm(x, 5) < 2), tir.all(x < 17, flm(x, 5) < 2))
+    ck.verify(tir.all(x < 18, flm(x, 5) < 2), tir.all(x < 17, flm(x, 5) < 2))
+    ck.verify(tir.all(x <= 19, flm(x, 5) < 2), tir.all(x < 17, flm(x, 5) < 2))
+    ck.verify(tir.all(x <= 18, flm(x, 5) < 2), tir.all(x < 17, flm(x, 5) < 2))
+    ck.verify(tir.all(x < -20, flm(x, 5) < 2), tir.all(x < -23, flm(x, 5) < 2))
+    ck.verify(tir.all(x < 18 - 40, flm(x, 5) < 2), tir.all(x < 17 - 40, flm(x, 5) < 2))
+    ck.verify(tir.all(x <= -21, flm(x, 5) < 2), tir.all(x < -23, flm(x, 5) < 2))
+    ck.verify(tir.all(x <= -22, flm(x, 5) < 2), tir.all(x < -23, flm(x, 5) < 2))
+    # No change if the floormod cannot help narrow the upper bound
+    ck.verify(tir.all(x < 16, flm(x, 5) < 2), tir.all(x < 16, flm(x, 5) < 2))
+    ck.verify(tir.all(x <= 15, flm(x, 5) < 2), tir.all(x <= 15, flm(x, 5) < 2))
+
+    # Merge a known floordiv and an upper bound of floormod into a value range
+    ck.verify(
+        tir.all(fld(x, 10) == 5, flm(x, 10) < 7),
+        tir.all(tvm.runtime.convert(50) <= x, x < 57),
+    )
+    ck.verify(
+        tir.all(fld(x, 10) == 5, flm(x, 10) <= 7),
+        tir.all(tvm.runtime.convert(50) <= x, x <= 57),
+    )
+    ck.verify(
+        tir.all(fld(x, 10) == -5, flm(x, 10) < 7),
+        tir.all(tvm.runtime.convert(-50) <= x, x < -43),
+    )
+    ck.verify(
+        tir.all(fld(x, 10) == -5, flm(x, 10) <= 7),
+        tir.all(tvm.runtime.convert(-50) <= x, x <= -43),
+    )
+
+    # Merge a known floordiv and an lower bound of floormod into a value range
+    ck.verify(
+        tir.all(fld(x, 10) == 5, tvm.runtime.convert(7) < flm(x, 10)),
+        tir.all(tvm.runtime.convert(57) < x, x < 60),
+    )
+    ck.verify(
+        tir.all(fld(x, 10) == 5, tvm.runtime.convert(7) <= flm(x, 10)),
+        tir.all(tvm.runtime.convert(57) <= x, x < 60),
+    )
+    ck.verify(
+        tir.all(fld(x, 10) == -5, tvm.runtime.convert(7) < flm(x, 10)),
+        tir.all(tvm.runtime.convert(-43) < x, x < -40),
+    )
+    ck.verify(
+        tir.all(fld(x, 10) == -5, tvm.runtime.convert(7) <= flm(x, 10)),
+        tir.all(tvm.runtime.convert(-43) <= x, x < -40),
+    )
 
     ck.verify(tvm.te.min(x, 11) < 10, x < 10)
     ck.verify(tvm.te.min(x, 8) < 10, tvm.tir.const(1, "bool"))
@@ -933,6 +992,15 @@ def test_logical_simplify():
     ck.verify(tvm.tir.Or(2 <= x, x <= 1), tvm.tir.const(True, "bool"))
     ck.verify(tvm.tir.Or(x != 1, x == 2), x != 1)
 
+    ck.verify(
+        tvm.tir.Or(x == 1, tvm.tir.Or(y == 1, z == 1)),
+        tvm.tir.Or(tvm.tir.Or(x == 1, y == 1), z == 1),
+    )
+    ck.verify(
+        tvm.tir.And(x == 1, tvm.tir.And(y == 1, z == 1)),
+        tvm.tir.And(tvm.tir.And(x == 1, y == 1), z == 1),
+    )
+
 
 def test_let_simplify():
     ck = RewriteChecker()
@@ -951,6 +1019,8 @@ def test_cast_simplify():
         ck.verify(tvm.tir.Cast(dtype1, x == x), tvm.tir.const(1, dtype1))
         for dtype2 in dtypes:
             for i in [0, 1, 2, 3]:
+                if i > 1 and (dtype1 == "bool" or dtype2 == "bool"):
+                    continue
                 ck.verify(tvm.tir.Cast(dtype1, tvm.tir.const(i, dtype2)), tvm.tir.const(i, dtype1))
 
 
@@ -988,6 +1058,16 @@ def test_sub_bufferload():
     load = tvm.tir.BufferLoad(buf, [0])
     expr = load - load
     ck.verify(expr, 0.0)
+
+
+def test_if_then_else_simplify():
+    ck = RewriteChecker()
+    x = te.var("x", "int32")
+    z = tvm.tir.if_then_else(x < 5, tvm.tir.if_then_else(x > 1, 1, 0), 0)
+    ck.verify(z, tvm.tir.if_then_else(tvm.tir.And(tvm.tir.LT(x, 5), tvm.tir.LT(1, x)), 1, 0))
+
+    z = tvm.tir.if_then_else(x > 2, tvm.tir.if_then_else(x > 1, 1, 0), 0)
+    ck.verify(z, tvm.tir.if_then_else(tvm.tir.LT(2, x), 1, 0))
 
 
 if __name__ == "__main__":

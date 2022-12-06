@@ -22,6 +22,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/script/printer/traced_object.h>
 
 namespace tvm {
 namespace script {
@@ -86,6 +87,15 @@ class ExprDocNode : public DocNode {
    * \param attr The attribute to access.
    */
   ExprDoc Attr(String attr) const;
+
+  /*!
+   * \brief Create a doc representing attribute access on the current ExprDoc
+   * \param attr The attribute to access.
+   *
+   * The ObjectPath of attr will be pushed to the source_path of the returned
+   * doc.
+   */
+  ExprDoc Attr(TracedObject<String> attr) const;
 
   /*!
    * \brief Create a doc representing index access on the current ExprDoc
@@ -242,6 +252,7 @@ class LiteralDocNode : public ExprDocNode {
 class LiteralDoc : public ExprDoc {
  protected:
   explicit LiteralDoc(ObjectRef value);
+  LiteralDoc(ObjectRef value, ObjectPath object_path);
 
  public:
   /*!
@@ -250,16 +261,51 @@ class LiteralDoc : public ExprDoc {
   static LiteralDoc None() { return LiteralDoc(ObjectRef(nullptr)); }
 
   /*!
+   * \brief Create a LiteralDoc to represent None/null/empty value.
+   * \param object_path The source path of the returned Doc.
+   */
+  static LiteralDoc None(ObjectPath object_path) {
+    return LiteralDoc(ObjectRef(nullptr), object_path);
+  }
+
+  /*!
    * \brief Create a LiteralDoc to represent integer.
    * \param v The integer value.
    */
   static LiteralDoc Int(int v) { return LiteralDoc(IntImm(DataType::Int(64), v)); }
 
   /*!
+   * \brief Create a LiteralDoc to represent integer.
+   * \param v The integer value.
+   *
+   * The ObjectPath of v will be pushed to the source_path of the returned doc.
+   */
+  static LiteralDoc Int(const TracedObject<IntImm>& v) { return LiteralDoc(v.Get(), v.GetPath()); }
+
+  /*!
+   * \brief Create a LiteralDoc to represent integer.
+   * \param v The integer value.
+   *
+   * The ObjectPath of v will be pushed to the source_path of the returned doc.
+   */
+  static LiteralDoc Int(const TracedBasicValue<int>& v) {
+    return LiteralDoc(IntImm(DataType::Int(64), v.Get()), v.GetPath());
+  }
+  /*!
    * \brief Create a LiteralDoc to represent boolean.
    * \param v The boolean value.
    */
   static LiteralDoc Boolean(bool v) { return LiteralDoc(IntImm(DataType::Bool(), v)); }
+
+  /*!
+   * \brief Create a LiteralDoc to represent boolean.
+   * \param v The boolean value.
+   *
+   * The ObjectPath of v will be pushed to the source_path of the returned doc.
+   */
+  static LiteralDoc Boolean(const TracedBasicValue<bool>& v) {
+    return LiteralDoc(IntImm(DataType::Bool(), v.Get()), v.GetPath());
+  }
 
   /*!
    * \brief Create a LiteralDoc to represent float.
@@ -268,10 +314,28 @@ class LiteralDoc : public ExprDoc {
   static LiteralDoc Float(double v) { return LiteralDoc(FloatImm(DataType::Float(64), v)); }
 
   /*!
+   * \brief Create a LiteralDoc to represent float.
+   * \param v The float value.
+   *
+   * The ObjectPath of v will be pushed to the source_path of the returned doc.
+   */
+  static LiteralDoc Float(const TracedObject<FloatImm>& v) {
+    return LiteralDoc(v.Get(), v.GetPath());
+  }
+
+  /*!
    * \brief Create a LiteralDoc to represent string.
    * \param v The string value.
    */
   static LiteralDoc Str(const String& v) { return LiteralDoc(v); }
+
+  /*!
+   * \brief Create a LiteralDoc to represent string.
+   * \param v The string value.
+   *
+   * The ObjectPath of v will be pushed to the source_path of the returned doc.
+   */
+  static LiteralDoc Str(const TracedObject<String>& v) { return LiteralDoc(v.Get(), v.GetPath()); }
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(LiteralDoc, ExprDoc, LiteralDocNode);
 };

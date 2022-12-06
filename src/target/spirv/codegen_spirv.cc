@@ -199,7 +199,6 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const FloatImmNode* op) {
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const StringImmNode* op) {
   LOG(FATAL) << "StringImm is not supported in Device code";
-  return spirv::Value();
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const CastNode* op) {
@@ -398,7 +397,6 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     return spirv::Value();
   } else {
     LOG(FATAL) << "Unresolved call  " << op->op;
-    return spirv::Value();
   }
 }
 
@@ -628,7 +626,7 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
   spirv::Value cond = MakeValue(op->condition);
   spirv::Label then_label = builder_->NewLabel();
   spirv::Label merge_label = builder_->NewLabel();
-  if (op->else_case.defined()) {
+  if (op->else_case) {
     spirv::Label else_label = builder_->NewLabel();
     builder_->MakeInst(spv::OpSelectionMerge, merge_label, spv::SelectionControlMaskNone);
     builder_->MakeInst(spv::OpBranchConditional, cond, then_label, else_label);
@@ -638,7 +636,7 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
     builder_->MakeInst(spv::OpBranch, merge_label);
     // else block
     builder_->StartLabel(else_label);
-    this->VisitStmt(op->else_case);
+    this->VisitStmt(op->else_case.value());
     builder_->MakeInst(spv::OpBranch, merge_label);
   } else {
     builder_->MakeInst(spv::OpSelectionMerge, merge_label, spv::SelectionControlMaskNone);

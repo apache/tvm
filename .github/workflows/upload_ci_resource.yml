@@ -56,3 +56,5 @@ jobs:
           echo "$SHA256 downloaded_file" | sha256sum --check
           aws s3 cp downloaded_file "s3://tvm-ci-resources/$UPLOAD_PATH"
           echo "The item is available at https://tvm-ci-resources.s3.us-west-2.amazonaws.com/$UPLOAD_PATH"
+          echo "Add this line to tests/scripts/request_hook/request_hook.py"
+          echo "    \"$URL\": f\"{BASE}/$UPLOAD_PATH\","

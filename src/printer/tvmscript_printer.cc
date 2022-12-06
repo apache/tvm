@@ -100,11 +100,20 @@ class BufferUsageFinder : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
+  void VisitStmt_(const DeclBufferNode* op) final {
+    buffers_declared_.insert(op->buffer.get());
+    StmtExprVisitor::VisitStmt_(op);
+    buffers_declared_.erase(op->buffer.get());
+  }
+
  private:
   explicit BufferUsageFinder(Map<Var, Array<Buffer>> usage) : usage_(usage) {}
 
   void VisitBuffer(const Buffer& buffer) {
     if (buffers_visited_.count(buffer.get())) {
+      return;
+    }
+    if (buffers_declared_.count(buffer.get())) {
       return;
     }
     buffers_visited_.insert(buffer.get());
@@ -119,6 +128,9 @@ class BufferUsageFinder : public StmtExprVisitor {
   // The buffers that have been visited so far, to avoid duplicate
   // entries in the search result.
   std::unordered_set<const BufferNode*> buffers_visited_;
+  // The buffers declared via `DeclBuffer`. These buffers are excluded from the result because
+  // T.buffer_decl shouldn't be printed for them.
+  std::unordered_set<const BufferNode*> buffers_declared_;
 };
 
 /*!
@@ -271,6 +283,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc AllocBufferDeclaration(const Buffer& buf);
   Doc PrintBlockVar(const IterVar& iter_var, const PrimExpr& value);
   Doc PrintBlockVarRemaps();
+  Doc PrintBlockPredicate(const BlockRealizeNode* op);
   Doc PrintBlockVars(const BlockRealizeNode* op);
   Doc PrintBlockAttr(const BlockRealizeNode* op);
   Doc PrintExpandedArray(const ArrayNode* op);
@@ -381,18 +394,16 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   }
 
   /*!
-   * \brief special method to print out const scalar
+   * \brief special method to print out const int64_t scalar
    * \param dtype The data type
    * \param data The pointer to hold the data.
    */
-  template <typename T>
-  Doc PrintConstScalar(DataType dtype, const T* data) const {
+  Doc PrintConstScalar(DataType dtype, const int64_t* data) const {
     Doc doc;
     std::ostringstream os;
-    if (dtype.is_float() || dtype.is_float16() || dtype.is_bfloat16()) {
-      os.precision(17);
-    }
+
     os << data[0];
+
     if (dtype == DataType::Int(32)) {
       doc << Doc::Text(os.str());
     } else if (dtype == DataType::Bool()) {
@@ -401,6 +412,29 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
       doc << tir_prefix_ << "." << runtime::DLDataType2String(dtype) << "(" << Doc::Text(os.str())
           << ")";
     }
+    return doc;
+  }
+
+  /*!
+   * \brief special method to print out const double scalar
+   * \param dtype The data type
+   * \param data The pointer to hold the data.
+   * \note this overriden function is created as std::isnan of msvc will complain about int64_t
+   */
+  Doc PrintConstScalar(DataType dtype, const double* data) const {
+    Doc doc;
+    std::ostringstream os;
+
+    os.precision(17);
+    if (std::isinf(data[0]) || std::isnan(data[0])) {
+      os << "\"" << data[0] << "\"";
+    } else {
+      os << data[0];
+    }
+
+    doc << tir_prefix_ << "." << runtime::DLDataType2String(dtype) << "(" << Doc::Text(os.str())
+        << ")";
+
     return doc;
   }
 
@@ -423,6 +457,13 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
  */
 template <typename T>
 void NDArrayToTIR(::tvm::runtime::NDArray arr, std::ostream& os) {
+  if ((arr.DataType().code() == runtime::DataType::kInt ||
+       arr.DataType().code() == runtime::DataType::kUInt) &&
+      arr.DataType().bits() == 8) {
+    // Printing int8 NDArrays causes "UnicodeDecodeError: 'utf-8' codec can't decode byte"
+    // error during MetaSchedule tuning on int8 models.
+    return;
+  }
   int ndim = arr->ndim;
   int tot_dim = 1;
   for (int i = 0; i < ndim; i++) {
@@ -715,28 +756,25 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
     return PrintTarget(node.as<TargetNode>());
   } else {
     LOG(FATAL) << "Do not know how to print " << node->GetTypeKey();
-    return Doc();
   }
 }
 
 Doc TVMScriptPrinter::VisitExprDefault_(const Object* op, ExprPrecedence* out_precedence) {
   LOG(FATAL) << "Do not know how to print " << op->GetTypeKey();
-  return Doc();
 }
 
 Doc TVMScriptPrinter::VisitStmtDefault_(const Object* op) {
   LOG(FATAL) << "Do not know how to print " << op->GetTypeKey();
-  return Doc();
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const IntImmNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
-  return PrintConstScalar<int64_t>(op->dtype, &(op->value));
+  return PrintConstScalar(op->dtype, &(op->value));
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const FloatImmNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
-  return PrintConstScalar<double>(op->dtype, &(op->value));
+  return PrintConstScalar(op->dtype, &(op->value));
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const StringImmNode* op, ExprPrecedence* out_precedence) {
@@ -747,7 +785,7 @@ Doc TVMScriptPrinter::VisitExpr_(const StringImmNode* op, ExprPrecedence* out_pr
 Doc TVMScriptPrinter::VisitExpr_(const CastNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << tir_prefix_ << ".cast(" << Print(op->value) << ", " << PrintDType(op->dtype) << ")";
+  doc << tir_prefix_ << ".Cast(" << PrintDType(op->dtype) << ", " << Print(op->value) << ")";
   return doc;
 }
 
@@ -757,46 +795,63 @@ Doc TVMScriptPrinter::VisitExpr_(const VarNode* op, ExprPrecedence* out_preceden
   return meta_.InMeta(var) ? meta_.GetMetaNode(var) : AllocVar(GetRef<Var>(op));
 }
 
-#define TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OpName, OpString, OpPrecedence)            \
-  Doc TVMScriptPrinter::VisitExpr_(const OpName* op, ExprPrecedence* out_precedence) { \
-    Doc doc;                                                                           \
-    ExprPrecedence lhs_precedence = ExprPrecedence::kUnknown;                          \
-    ExprPrecedence rhs_precedence = ExprPrecedence::kUnknown;                          \
-    /* Get children expr out_precedence */                                             \
-    Doc lhs_doc = VisitExpr(op->a, &lhs_precedence);                                   \
-    Doc rhs_doc = VisitExpr(op->b, &rhs_precedence);                                   \
-    ICHECK(lhs_precedence != ExprPrecedence::kUnknown);                                \
-    ICHECK(rhs_precedence != ExprPrecedence::kUnknown);                                \
-    /* Update out_precedence of current node. */                                       \
-    *out_precedence = OpPrecedence;                                                    \
-    if (lhs_precedence > OpPrecedence) {                                               \
-      doc << "(" << lhs_doc << ")";                                                    \
-    } else {                                                                           \
-      doc << lhs_doc;                                                                  \
-    }                                                                                  \
-    doc << OpString;                                                                   \
-    if (rhs_precedence >= OpPrecedence) {                                              \
-      doc << "(" << rhs_doc << ")";                                                    \
-    } else {                                                                           \
-      doc << rhs_doc;                                                                  \
-    }                                                                                  \
-    return doc;                                                                        \
+bool WillPrintConstScalar(const PrimExpr& expr) {
+  if (const auto* imm = expr.as<IntImmNode>()) {
+    DataType dtype = imm->dtype;
+    return dtype == DataType::Int(32) || dtype == DataType::Bool();
+  }
+  return false;
+}
+
+#define TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OpName, OpString, OpClass, OpPrecedence)              \
+  Doc TVMScriptPrinter::VisitExpr_(const OpName* op, ExprPrecedence* out_precedence) {            \
+    Doc doc;                                                                                      \
+    if (WillPrintConstScalar(op->a) && WillPrintConstScalar(op->b)) {                             \
+      *out_precedence = ExprPrecedence::kIdentity;                                                \
+      doc << tir_prefix_ << "." << OpClass << "(" << Print(op->a) << ", " << Print(op->b) << ")"; \
+      return doc;                                                                                 \
+    }                                                                                             \
+    ExprPrecedence lhs_precedence = ExprPrecedence::kUnknown;                                     \
+    ExprPrecedence rhs_precedence = ExprPrecedence::kUnknown;                                     \
+    /* Get children expr out_precedence */                                                        \
+    Doc lhs_doc = VisitExpr(op->a, &lhs_precedence);                                              \
+    Doc rhs_doc = VisitExpr(op->b, &rhs_precedence);                                              \
+    ICHECK(lhs_precedence != ExprPrecedence::kUnknown);                                           \
+    ICHECK(rhs_precedence != ExprPrecedence::kUnknown);                                           \
+    /* Update out_precedence of current node. */                                                  \
+    *out_precedence = OpPrecedence;                                                               \
+    if (lhs_precedence > OpPrecedence ||                                                          \
+        (lhs_precedence == ExprPrecedence::kAnd && OpPrecedence == ExprPrecedence::kOr)) {        \
+      doc << "(" << lhs_doc << ")";                                                               \
+    } else {                                                                                      \
+      doc << lhs_doc;                                                                             \
+    }                                                                                             \
+    doc << OpString;                                                                              \
+    if (rhs_precedence >= OpPrecedence ||                                                         \
+        (rhs_precedence == ExprPrecedence::kAnd && OpPrecedence == ExprPrecedence::kOr)) {        \
+      doc << "(" << rhs_doc << ")";                                                               \
+    } else {                                                                                      \
+      doc << rhs_doc;                                                                             \
+    }                                                                                             \
+    return doc;                                                                                   \
   }
 
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(MulNode, " * ", ExprPrecedence::kMultiplicationDivision)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(DivNode, " / ", ExprPrecedence::kMultiplicationDivision)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorDivNode, " // ", ExprPrecedence::kMultiplicationDivision)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorModNode, " % ", ExprPrecedence::kMultiplicationDivision)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AddNode, " + ", ExprPrecedence::kAdditionSubtraction)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(SubNode, " - ", ExprPrecedence::kAdditionSubtraction)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LTNode, " < ", ExprPrecedence::kRelational)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LENode, " <= ", ExprPrecedence::kRelational)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GTNode, " > ", ExprPrecedence::kRelational)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GENode, " >= ", ExprPrecedence::kRelational)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(EQNode, " == ", ExprPrecedence::kEquality)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(NENode, " != ", ExprPrecedence::kEquality)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AndNode, " and ", ExprPrecedence::kAnd)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OrNode, " or ", ExprPrecedence::kOr)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(MulNode, " * ", "Mul", ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(DivNode, " / ", "Div", ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorDivNode, " // ", "FloorDiv",
+                                    ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorModNode, " % ", "FloorMod",
+                                    ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AddNode, " + ", "Add", ExprPrecedence::kAdditionSubtraction)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(SubNode, " - ", "Sub", ExprPrecedence::kAdditionSubtraction)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LTNode, " < ", "LT", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LENode, " <= ", "LE", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GTNode, " > ", "GT", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GENode, " >= ", "GE", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(EQNode, " == ", "EQ", ExprPrecedence::kEquality)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(NENode, " != ", "NE", ExprPrecedence::kEquality)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AndNode, " and ", "And", ExprPrecedence::kAnd)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OrNode, " or ", "Or", ExprPrecedence::kOr)
 
 Doc TVMScriptPrinter::VisitExpr_(const ModNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
@@ -1034,58 +1089,57 @@ Doc TVMScriptPrinter::VisitStmt_(const BufferRealizeNode* op) {
 }
 
 namespace {
-struct AllocUsage {
-  Buffer alloc_buffer;
-  Array<Buffer> aliasing_buffers;
-};
 
-template <typename AllocNode>
-AllocUsage FindAllocateUsage(AllocNode* op, Map<Var, Array<Buffer>>* cache_ptr) {
-  Map<Var, Array<Buffer>>& cache = *cache_ptr;
-  if (!cache.count(op->buffer_var)) {
-    cache = BufferUsageFinder::FindUsage(std::move(cache), op->body);
+bool IsAllocateDeclBufferPattern(const AllocateNode* allocate) {
+  const Var& buffer_var = allocate->buffer_var;
+  const DeclBufferNode* decl_buffer = allocate->body.as<DeclBufferNode>();
+  if (!decl_buffer) {
+    return false;
   }
-  Array<Buffer> buffer_usage = cache.Get(op->buffer_var).value_or({});
-
-  auto is_exact_match = [](Buffer a, Buffer b) {
-    if (a->dtype != b->dtype) return false;
-    if (a->shape.size() != b->shape.size()) return false;
-
-    arith::Analyzer analyzer;
-    for (size_t i = 0; i < a->shape.size(); i++) {
-      if (!analyzer.CanProveEqual(a->shape[i], b->shape[i])) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  // If the buffer allocated via T.allocate is an exact match to the
-  // usage of the buffer later on, then that buffer is the return
-  // value of T.allocate, and no T.buffer_decl statement is needed.
-  Buffer alloc_buffer(op->buffer_var, op->dtype, op->extents, {}, 0, op->buffer_var->name_hint, 0,
-                      0, kDefault);
-  bool found_alloc_buf = false;
-  Array<Buffer> aliasing_buffers;
-  for (const auto& buf : buffer_usage) {
-    if (!found_alloc_buf && is_exact_match(buf, alloc_buffer)) {
-      alloc_buffer = buf;
-      found_alloc_buf = true;
-    } else {
-      aliasing_buffers.push_back(buf);
+  const Buffer& buffer = decl_buffer->buffer;
+  if (!buffer_var.same_as(buffer->data)) {
+    return false;
+  }
+  if (allocate->dtype != buffer->dtype) {
+    return false;
+  }
+  if (!is_one(allocate->condition)) {
+    return false;
+  }
+  if (allocate->annotations.size()) {
+    return false;
+  }
+  if (allocate->extents.size() != buffer->shape.size()) {
+    return false;
+  }
+  tir::ExprDeepEqual expr_equal;
+  for (size_t i = 0, n = allocate->extents.size(); i < n; ++i) {
+    if (!expr_equal(allocate->extents[i], buffer->shape[i])) {
+      return false;
     }
   }
-
-  return AllocUsage{alloc_buffer, aliasing_buffers};
+  return true;
 }
+
 }  // namespace
 
 Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
-  auto usage = FindAllocateUsage(op, &buffer_var_usage_);
-  Buffer& alloc_buffer = usage.alloc_buffer;
-  Array<Buffer>& aliasing_buffers = usage.aliasing_buffers;
-  buf_not_in_headers_.insert(alloc_buffer.get());
-  var_not_in_headers_.insert(alloc_buffer->data.get());
+  var_not_in_headers_.insert(op->buffer_var.get());
+
+  if (!buffer_var_usage_.count(op->buffer_var)) {
+    buffer_var_usage_ = BufferUsageFinder::FindUsage(std::move(buffer_var_usage_), op->body);
+  }
+  Array<Buffer> buffer_usage = buffer_var_usage_.Get(op->buffer_var).value_or({});
+
+  if (buffer_usage.empty()) {
+    if (IsAllocateDeclBufferPattern(op)) {
+      // As a syntax sugar, we identify the pattern of Allocate and DeclBuffer and print a single
+      // DeclBuffer statement. It is intentionally to call `Print` instead of `PrintBody` here to
+      // delegate the printing of the current node to `DeclBufferNode` while maintaining the
+      // same value of `current_num_` and `num_child_`.
+      return Print(op->body);
+    }
+  }
 
   auto storage_scope = GetPtrStorageScope(op->buffer_var);
   Doc func_call;
@@ -1103,12 +1157,12 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
 
   Doc doc;
   if (current_num_ != num_child_ - 1) {
-    doc << "with " << func_call << " as " << Print(alloc_buffer) << ":";
-    doc << Doc::Indent(4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(aliasing_buffers)
-                                         << PrintBody(op->body));
+    doc << "with " << func_call << " as " << Print(op->buffer_var) << ":";
+    doc << Doc::Indent(
+        4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(buffer_usage) << PrintBody(op->body));
   } else {
-    doc << Print(alloc_buffer) << " = " << func_call << Doc::NewLine();
-    doc << PrintNonHeaderBufferDeclarations(aliasing_buffers) << PrintBody(op->body);
+    doc << Print(op->buffer_var) << " = " << func_call << Doc::NewLine();
+    doc << PrintNonHeaderBufferDeclarations(buffer_usage) << PrintBody(op->body);
   }
   TryDeallocVar(op->buffer_var);
   return doc;
@@ -1133,7 +1187,7 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
     }
   } else if (alloc->dtype.is_uint()) {
     if (alloc->dtype.bits() == 8) {
-      // NDArrayToTIR<uint8_t>(data, ss);
+      NDArrayToTIR<uint8_t>(data, ss);
     } else if (alloc->dtype.bits() == 16) {
       NDArrayToTIR<uint16_t>(data, ss);
     } else if (alloc->dtype.bits() == 32) {
@@ -1158,11 +1212,12 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
   }
   auto ndarray_str = ss.str();
 
-  auto usage = FindAllocateUsage(alloc, &buffer_var_usage_);
-  Buffer& alloc_buffer = usage.alloc_buffer;
-  Array<Buffer>& aliasing_buffers = usage.aliasing_buffers;
-  buf_not_in_headers_.insert(alloc_buffer.get());
-  var_not_in_headers_.insert(alloc_buffer->data.get());
+  var_not_in_headers_.insert(alloc->buffer_var.get());
+
+  if (!buffer_var_usage_.count(alloc->buffer_var)) {
+    buffer_var_usage_ = BufferUsageFinder::FindUsage(std::move(buffer_var_usage_), alloc->body);
+  }
+  Array<Buffer> buffer_usage = buffer_var_usage_.Get(alloc->buffer_var).value_or({});
 
   Doc func_call;
   func_call << tir_prefix_ << ".allocate_const(" << ndarray_str << ", " << PrintDType(alloc->dtype)
@@ -1171,12 +1226,12 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
   Doc doc;
   var_not_in_headers_.insert(alloc->buffer_var.get());
   if (current_num_ != num_child_ - 1) {
-    doc << "with " << func_call << " as " << Print(alloc_buffer) << ":";
-    doc << Doc::Indent(4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(aliasing_buffers)
+    doc << "with " << func_call << " as " << Print(alloc->buffer_var) << ":";
+    doc << Doc::Indent(4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(buffer_usage)
                                          << PrintBody(alloc->body));
   } else {
-    doc << Print(alloc_buffer) << " = " << func_call << Doc::NewLine();
-    doc << PrintNonHeaderBufferDeclarations(aliasing_buffers) << PrintBody(alloc->body);
+    doc << Print(alloc->buffer_var) << " = " << func_call << Doc::NewLine();
+    doc << PrintNonHeaderBufferDeclarations(buffer_usage) << PrintBody(alloc->body);
   }
   return doc;
 }
@@ -1203,10 +1258,22 @@ Doc TVMScriptPrinter::VisitStmt_(const IfThenElseNode* op) {
   Doc doc;
   doc << "if " << Print(op->condition) << ":";
   doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->then_case));
-  if (!is_one(op->condition) && op->else_case.defined()) {
-    doc << Doc::NewLine();
-    doc << "else:" << Doc::Indent(4, Doc::NewLine() << PrintBody(op->else_case));
+
+  Optional<Stmt> else_case = op->else_case;
+  while (else_case) {
+    if (auto* else_if = else_case.value().as<IfThenElseNode>()) {
+      doc << Doc::NewLine();
+      doc << "elif " << Print(else_if->condition) << ":";
+      doc << Doc::Indent(4, Doc::NewLine() << PrintBody(else_if->then_case));
+
+      else_case = else_if->else_case;
+    } else {
+      doc << Doc::NewLine();
+      doc << "else:" << Doc::Indent(4, Doc::NewLine() << PrintBody(else_case.value()));
+      break;
+    }
   }
+
   return doc;
 }
 
@@ -1219,16 +1286,17 @@ Doc TVMScriptPrinter::VisitStmt_(const SeqStmtNode* op) {
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const EvaluateNode* op) {
-  if (auto* call = op->value.as<CallNode>()) {
-    if (call->op.same_as(builtin::assume())) {
-      Doc doc;
-      doc << tir_prefix_ << ".assume(" << Print(call->args[0]) << ")";
-      return doc;
-    }
-  }
-
+  // When parsing TVMScript, a PrimExpr that occurs as a statement is
+  // automatically wrapped in `tir::Evaluate`.  Therefore, when
+  // printing, it's only necessary to print the value.  For
+  // readability, though, we still print T.evaluate() when the
+  // expression is something other than a call node.
   Doc doc;
-  doc << tir_prefix_ << ".evaluate(" << Print(op->value) << ")";
+  if (op->value.as<CallNode>()) {
+    doc << Print(op->value);
+  } else {
+    doc << tir_prefix_ << ".evaluate(" << Print(op->value) << ")";
+  }
   return doc;
 }
 
@@ -1384,6 +1452,14 @@ Doc TVMScriptPrinter::PrintBlockVarRemaps() {
   return doc;
 }
 
+Doc TVMScriptPrinter::PrintBlockPredicate(const BlockRealizeNode* op) {
+  Doc doc;
+  if (!is_one(op->predicate)) {
+    doc << Doc::NewLine() << tir_prefix_ << ".where(" << Print(op->predicate) << ")";
+  }
+  return doc;
+}
+
 Doc TVMScriptPrinter::PrintBlockVars(const BlockRealizeNode* op) {
   Doc doc;
   const auto* block_op = op->block.as<BlockNode>();
@@ -1424,10 +1500,7 @@ Doc TVMScriptPrinter::PrintBlockVars(const BlockRealizeNode* op) {
 Doc TVMScriptPrinter::PrintBlockAttr(const BlockRealizeNode* op) {
   const auto* block_op = op->block.as<BlockNode>();
   Doc block_attr_doc;
-  // print predicate, binding, read/write tensor region, annotations
-  if (!is_one(op->predicate)) {
-    block_attr_doc << Doc::NewLine() << tir_prefix_ << ".where(" << Print(op->predicate) << ")";
-  }
+  // print binding, read/write tensor region, annotations
   block_attr_doc << Doc::NewLine() << tir_prefix_ << ".reads("
                  << PrintExpandedArray(block_op->reads.as<ArrayNode>()) << ")";
   block_attr_doc << Doc::NewLine() << tir_prefix_ << ".writes("
@@ -1490,14 +1563,18 @@ Doc TVMScriptPrinter::PrintBlockName(const BlockNode* block_op) {
 Doc TVMScriptPrinter::VisitStmt_(const BlockRealizeNode* op) {
   const auto* block_op = op->block.as<BlockNode>();
   Doc doc = PrintOptionalInfo(GetRef<Stmt>(block_op));
-  // print block name and block vars
+  // print block name
   doc << PrintBlockName(block_op);
+  // Print block predicate.
+  Doc block_predicate = PrintBlockPredicate(op);
+  // Print the variable bindings, valid to use in block attributes and
+  // body
   Doc block_var = PrintBlockVars(op);
-  // print predicate, binding, read/write tensor region, annotations
+  // print read/write tensor region, annotations
   Doc block_attr_doc = PrintBlockAttr(op);
   // print body
   Doc body = PrintBlockBody(block_op);
-  doc << Doc::Indent(4, block_var << block_attr_doc << Doc::NewLine() << body);
+  doc << Doc::Indent(4, block_predicate << block_var << block_attr_doc << Doc::NewLine() << body);
   for (const auto& iter_var : block_op->iter_vars) {
     TryDeallocVar(iter_var->var);
   }
@@ -1584,7 +1661,14 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     }
     params.push_back(Print(param) << ": " << Print(GetType(param)));
   }
-  doc << PrintSep(params, Doc::Text(", ")) << ") -> " << Print(primFunc->ret_type) << ":";
+  doc << PrintSep(params, Doc::Text(", ")) << ")";
+  if (primFunc->ret_type.defined()) {
+    auto as_tuple = primFunc->ret_type.as<TupleTypeNode>();
+    if (!as_tuple || as_tuple->fields.size()) {
+      doc << " -> " << Print(primFunc->ret_type);
+    }
+  }
+  doc << ":";
 
   Doc body = Doc::NewLine();
   // print buffer_bind
@@ -1599,41 +1683,55 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     body << Print((*it).first) << ", " << memo_buf_decl_[buf];
     body << ")" << Doc::NewLine();
   }
-  // print preflattened buffer map
-  for (const auto& param : op->params) {
-    auto pf_buf_it = op->preflattened_buffer_map.find(param);
-    if (pf_buf_it != op->preflattened_buffer_map.end()) {
-      const Buffer& preflattened = (*pf_buf_it).second;
-
-      auto buf_it = op->buffer_map.find(param);
-      ICHECK(buf_it != op->buffer_map.end()) << "Found pre-flattened buffer " << preflattened->name
-                                             << " with no corresponding post-flatten buffer.";
-      const Buffer& postflattened = (*buf_it).second;
-
-      // Call Print() without assigning in order to fill memo_buf_decl_.
-      Print(preflattened);
-      buf_not_in_headers_.insert(preflattened.get());
-      ICHECK(memo_buf_decl_.count(preflattened));
-
-      body << tir_prefix_ << ".preflattened_buffer(" << Print(postflattened) << ", "
-           << memo_buf_decl_.at(preflattened) << ")" << Doc::NewLine();
-    }
-  }
   // print body
   body << "# body" << Doc::NewLine();
-  if (op->body->IsInstance<BlockRealizeNode>() &&
-      op->body.as<BlockRealizeNode>()->iter_values.empty()) {
-    const BlockNode* block = op->body.as<BlockRealizeNode>()->block.get();
-    if (block->annotations.empty() && !ContainsOptionalInfo(GetRef<Stmt>(block))) {
-      // Skip print root block
-      body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
-      body << PrintBlockBody(block);
-    } else {
-      body << PrintBody(op->body);
+
+  Optional<Block> elided_root_block_body = [&]() -> Optional<Block> {
+    auto block_realize = op->body.as<BlockRealizeNode>();
+    if (!block_realize || block_realize->iter_values.size()) {
+      return NullOpt;
     }
+
+    const auto& block = block_realize->block;
+    if (block->annotations.size() || ContainsOptionalInfo(block)) {
+      return NullOpt;
+    }
+
+    // The autocomplete might recognize the body itself as being a
+    // root block, and fail to insert it.
+    bool autocomplete_would_insert_root_block = [&]() -> bool {
+      if (block->alloc_buffers.size()) {
+        return true;
+      }
+
+      auto* block_realize = block->body.as<BlockRealizeNode>();
+      if (block_realize && block_realize->block->iter_vars.size()) {
+        return true;
+      }
+      if (!block_realize && ContainsNode<BlockRealizeNode>(block->body)) {
+        return true;
+      }
+      return false;
+    }();
+
+    if (autocomplete_would_insert_root_block) {
+      return block;
+    } else {
+      return NullOpt;
+    }
+  }();
+
+  if (elided_root_block_body) {
+    // Skip printing of root block in cases where tvm::tir::ScriptComplete
+    // would re-insert it.
+    body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
+    body << PrintBlockBody(elided_root_block_body.value().get());
   } else {
+    // If this is a non-root block, or is an unskippable root block,
+    // just print it without skipping.
     body << PrintBody(op->body);
   }
+
   // print func attrs
   Doc header_attr;
   if (primFunc->attrs.defined()) {

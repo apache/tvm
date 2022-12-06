@@ -226,12 +226,12 @@ def _build_function_memory_map(function_metadata):
         for target in dict(finfo.workspace_sizes).keys():
             workspace_size = finfo.workspace_sizes[target]
             target_entry = {
-                "device": int(target.kind.device_type),
+                "device": int(target.get_target_device_type()),
                 "workspace_size_bytes": int(workspace_size),
             }
             target_local_entries[func_name].append(target_entry)
-            if workspace_size >= device_max_workspace.get(int(target.kind.device_type), 0):
-                device_max_workspace[int(target.kind.device_type)] = workspace_size
+            if workspace_size >= device_max_workspace.get(int(target.get_target_device_type()), 0):
+                device_max_workspace[int(target.get_target_device_type())] = workspace_size
 
     for func_name, target_entries_ in target_local_entries.items():
         func_entry = {
@@ -252,28 +252,28 @@ def _build_function_memory_map(function_metadata):
 
     for target in dict(main_func_metadata.workspace_sizes).keys():
         main_func_local_workspace = main_func_metadata.workspace_sizes[target]
-        target_main_entries[int(target.kind.device_type)] = _create_empty_entry(
-            int(target.kind.device_type)
+        target_main_entries[int(target.get_target_device_type())] = _create_empty_entry(
+            int(target.get_target_device_type())
         )
-        target_main_entries[int(target.kind.device_type)]["workspace_size_bytes"] = int(
-            device_max_workspace.get(int(target.kind.device_type), 0)
+        target_main_entries[int(target.get_target_device_type())]["workspace_size_bytes"] = int(
+            device_max_workspace.get(int(target.get_target_device_type()), 0)
         ) + int(main_func_local_workspace)
 
     for target in dict(main_func_metadata.constant_sizes).keys():
-        if int(target.kind.device_type) not in target_main_entries.keys():
-            target_main_entries[int(target.kind.device_type)] = _create_empty_entry(
-                int(target.kind.device_type)
+        if int(target.get_target_device_type()) not in target_main_entries.keys():
+            target_main_entries[int(target.get_target_device_type())] = _create_empty_entry(
+                int(target.get_target_device_type())
             )
-        target_main_entries[int(target.kind.device_type)]["constants_size_bytes"] = int(
+        target_main_entries[int(target.get_target_device_type())]["constants_size_bytes"] = int(
             main_func_metadata.constant_sizes[target]
         )
 
     for target in dict(main_func_metadata.io_sizes).keys():
-        if int(target.kind.device_type) not in target_main_entries.keys():
-            target_main_entries[int(target.kind.device_type)] = _create_empty_entry(
-                int(target.kind.device_type)
+        if int(target.get_target_device_type()) not in target_main_entries.keys():
+            target_main_entries[int(target.get_target_device_type())] = _create_empty_entry(
+                int(target.get_target_device_type())
             )
-        target_main_entries[int(target.kind.device_type)]["io_size_bytes"] = int(
+        target_main_entries[int(target.get_target_device_type())]["io_size_bytes"] = int(
             main_func_metadata.io_sizes[target]
         )
 
@@ -483,7 +483,7 @@ def _write_tir_and_build_operator_memory_map(src_dir, targets, ir_module_by_targ
     memory_map = {}
     for target in targets:
         # TODO(mbs): The device type is not unique, better would be to use target.kind.name
-        target_device_type = target.kind.device_type
+        target_device_type = target.get_target_device_type()
         ir_mod = ir_module_by_target[target]
         printer = get_global_func("tir.ModelLibraryFormatPrinter")(False, None, False)
         with open(src_dir / f"tir-{target_device_type}.txt", "w") as f:

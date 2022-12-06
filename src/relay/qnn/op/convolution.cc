@@ -53,8 +53,9 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   ICHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8) ||
          data->dtype == DataType::Int(16))
       << "Expected qnn conv2d type(int8, uint8, int16) for input but was " << data->dtype;
-  ICHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8))
-      << "Expected qnn conv2d type(int8, uint8) for weight but was " << weight->dtype;
+  ICHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8) ||
+         weight->dtype == DataType::Int(16))
+      << "Expected qnn conv2d type(int8, uint8, int16) for weight but was " << weight->dtype;
   ICHECK(param->out_dtype == DataType::Int(16) || param->out_dtype == DataType::Int(32) ||
          param->out_dtype == DataType::Int(64))
       << "Expected qnn conv2d type(int16, int32, int64) for output but was " << param->out_dtype;
@@ -722,9 +723,9 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
       << "qnn.conv2d supports only OIHW/HWIO/HWOI/OHWI kernel data layout.";
   ICHECK(param->kernel_size.defined()) << "qnn.conv2d requires kernel size to be specified.";
 
-  int batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier;
-  std::tie(batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier) =
+  auto [batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier] =
       GetWorkload(arg_types, param);
+  (void)batch_size;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
 
   // zero points are allowed to be non-scalar. Let's check if that's the case.
   bool dynamic_zp = false;

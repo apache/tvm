@@ -54,7 +54,7 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body);
  * \param body body
  * \return The combined Stmt
  */
-Stmt MergeNest(const std::vector<std::vector<Stmt> >& nest, Stmt body);
+Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body);
 
 /*!
  * \brief update array with an unary function

@@ -30,18 +30,6 @@ def scalar_func(a: T.handle, b: T.handle):
         A[i, j] = B[i - 1, j + 1] + A[i - 1, j - 1]
 
 
-@T.prim_func
-def vector_func(a: T.handle, b: T.handle):
-    n = T.var("int32")
-    m = 128
-    A = T.match_buffer(a, (n, m))
-    B = T.match_buffer(b, (n, m))
-
-    for i in T.serial(n):
-        for j in T.vectorized(m):
-            A[i, j] = A[i, j] + B[i, j]
-
-
 def test_domain_touched():
     func = scalar_func
     a, b = [func.buffer_map[var] for var in func.params]
@@ -81,7 +69,17 @@ def test_domain_touched():
 
 
 def test_domain_touched_vector():
-    func = tvm.lower(vector_func)["main"]
+    m = tvm.runtime.convert(128)
+
+    @T.prim_func
+    def func(a: T.handle, b: T.handle):
+        n = T.var("int32")
+        A = T.match_buffer(a, (n * m,))
+        B = T.match_buffer(b, (n * m,))
+
+        for i in T.serial(n):
+            A[i * m : (i + 1) * m : 1] = A[i * m : (i + 1) * m : 1] + B[i * m : (i + 1) * m : 1]
+
     a, b = [func.buffer_map[var] for var in func.params]
 
     assert tvm.arith._ffi_api.DomainTouched(func.body, a, True, False)[0].extent.value == 128

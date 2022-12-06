@@ -37,7 +37,7 @@ namespace tir {
  * of multi-level tiling, so it's intentionally kept inside this file not in the analysis header
  */
 std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   const BufferNode* write_buffer = block->writes[0]->buffer.get();
   int n = block->reads.size();
   std::vector<int> results(n, -1);
@@ -84,24 +84,31 @@ void MultiLevelTilingNode::InitializeWithTuneContext(const TuneContext& context)
     if (Optional<Integer> v = context->target.value()->GetAttr<Integer>("thread_warp_size")) {
       this->thread_warp_size_ = v.value()->value;
     } else {
-      TVM_PY_LOG(INFO, context->logging_func) << "'thread_warp_size' is not defined in the target";
+      TVM_PY_LOG(INFO, context->logger) << "'thread_warp_size' is not defined in the target";
     }
   }
-  logging_func = context->logging_func;
+  logger = context->logger;
 }
 
 // Entry of the mega rule; Inherited from ScheduleRuleNode
 Array<Schedule> MultiLevelTilingNode::Apply(const Schedule& sch, const BlockRV& block_rv) {
-  if (!NeedsMultiLevelTiling(sch->state(), sch->GetSRef(block_rv))) {
-    return {sch};
-  }
-  sch->Annotate(block_rv, tir::attr::meta_schedule_tiling_structure, structure);
+  if ((filter_fn_ && filter_fn_.value()(sch, sch->GetSRef(block_rv))) ||
+      NeedsMultiLevelTiling(sch->state(), sch->GetSRef(block_rv))) {
+    sch->Annotate(block_rv, tir::attr::meta_schedule_tiling_structure, structure);
 
-  Array<Schedule> results;
-  for (auto&& state : ApplySubRules({State(sch, block_rv)})) {
-    results.push_back(std::move(state->sch));
+    Array<Schedule> results;
+    for (auto&& state : ApplySubRules({State(sch, block_rv)})) {
+      results.push_back(std::move(state->sch));
+    }
+    return results;
   }
-  return results;
+  return {sch};
+}
+
+// Inherited from ScheduleRuleNode
+ScheduleRule MultiLevelTilingNode::Clone() const {
+  ObjectPtr<MultiLevelTilingNode> n = make_object<MultiLevelTilingNode>(*this);
+  return ScheduleRule(n);
 }
 
 std::vector<State> MultiLevelTilingNode::ApplySubRules(std::vector<State> states) {
@@ -160,6 +167,17 @@ std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
   return results;
 }
 
+Array<tir::LoopRV> MultiLevelTilingNode::SplitLoop(const Schedule& sch, BlockRV block, LoopRV loop,
+                                                   int n_tiles) const {
+  Array<tir::ExprRV> factors = sch->SamplePerfectTile(
+      /*loop=*/loop,
+      /*n=*/n_tiles,
+      /*max_innermost_factor=*/max_innermost_factor);
+  Array<tir::LoopRV> splits = sch->Split(/*loop=*/loop,
+                                         /*factors=*/{factors.begin(), factors.end()});
+  return splits;
+}
+
 std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
   Schedule& sch = state->sch;
   const BlockRV& block_rv = state->block_rv;
@@ -173,6 +191,7 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
   for (int i = 0, n = loops.size(); i < n; ++i) {
     LoopRV loop = loops[i];
     const std::vector<int>* idx = nullptr;
+
     if (iter_types[i] == IterVarType::kDataPar) {
       idx = &s_indices_;
       if (spatial_loop_product != -1) {
@@ -187,17 +206,18 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
     } else {
       continue;
     }
-    // Do the split
-    int n_tiles = idx->size();
-    Array<tir::ExprRV> factors = sch->SamplePerfectTile(
-        /*loop=*/loop,
-        /*n=*/n_tiles,
-        /*max_innermost_factor=*/max_innermost_factor);
-    Array<tir::LoopRV> splits = sch->Split(/*loop=*/loop,
-                                           /*factors=*/{factors.begin(), factors.end()});
-    // Put every tile to its slot
-    for (int j = 0; j < n_tiles; ++j) {
-      tiles[idx->at(j)].push_back(splits[j]);
+
+    const int n_tiles = idx->size();
+
+    if (n_tiles == 1) {
+      tiles[idx->at(0)].push_back(loop);
+    } else {
+      auto splits = SplitLoop(sch, block_rv, loop, n_tiles);
+
+      // Put every tile to its slot
+      for (int j = 0; j < n_tiles; ++j) {
+        tiles[idx->at(j)].push_back(splits[j]);
+      }
     }
   }
   // Step 3. Reorder to organize the tiles
@@ -245,13 +265,13 @@ std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const {
         continue;
       }
       // Do cache_read
-      BlockRV cache_read_block = sch->CacheRead(block_rv, i, config.scope);
+      BlockRV cache_read_block = sch->CacheRead(block_rv, i, config.scope, {block_rv});
       // Insert cache_read block to the proper place
       sch->ComputeAt(cache_read_block, loop_rv, true);
       // Fuse the iterators of the cache_read
       Array<LoopRV> buffer_loops = sch->GetLoops(cache_read_block);
-      LoopRV fused = sch->Fuse(Array<LoopRV>{buffer_loops.end() - buffer_ndim,  //
-                                             buffer_loops.end()});
+      sch->Fuse(Array<LoopRV>{buffer_loops.end() - buffer_ndim,  //
+                              buffer_loops.end()});
       AnnotateCooperativeFetching(&sch, cache_read_block);
       new_state->read_reuse.emplace(i, cache_read_block);
     }
@@ -301,9 +321,11 @@ ScheduleRule ScheduleRule::MultiLevelTiling(String structure, Optional<Array<Str
                                             Optional<Integer> max_innermost_factor,
                                             Optional<Array<Integer>> vector_load_lens,
                                             Optional<Map<String, ObjectRef>> reuse_read,
-                                            Optional<Map<String, ObjectRef>> reuse_write) {
+                                            Optional<Map<String, ObjectRef>> reuse_write,
+                                            Optional<runtime::PackedFunc> filter_fn) {
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingNode>(
       structure, tile_binds, max_innermost_factor, vector_load_lens, reuse_read, reuse_write);
+  node->filter_fn_ = filter_fn;
   return ScheduleRule(node);
 }
 

@@ -43,4 +43,11 @@ def argmax_schedule(argmax_func, in_layout_str, out_layout_str):
             argmax_func, fp16_layout_transform, int32_layout_transform
         )
         return tir_s
+    if (in_layout_str == "nhwc-8h8w32c-2d") and (out_layout_str == "nhw-32h16w-2d"):
+        int8_layout_transform = get_layout_transform_fn(in_layout_str)
+        int32_layout_transform = get_layout_transform_fn(out_layout_str)
+        tir_s = argmax_stir_schedule_nhwc(
+            argmax_func, int8_layout_transform, int32_layout_transform
+        )
+        return tir_s
     raise RuntimeError(f"Unexpected input_layout, output_layout '{in_layout_str, out_layout_str}'")

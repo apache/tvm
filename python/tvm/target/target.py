@@ -183,6 +183,10 @@ class Target(Object):
         return int(self.attrs.get("max_function_args", -1))
 
     @property
+    def vtcm_capacity(self):
+        return int(self.attrs.get("vtcm-capacity", 0))
+
+    @property
     def device_name(self):
         return str(self.attrs.get("device", ""))
 
@@ -233,6 +237,10 @@ class Target(Object):
             The attribute value
         """
         return _ffi_api.TargetKindGetAttr(self.kind, attr_name)
+
+    def get_target_device_type(self):
+        """Returns the device_type for this target."""
+        return _ffi_api.TargetGetDeviceType(self)
 
     @staticmethod
     def list_kinds():
@@ -636,8 +644,10 @@ def hexagon(cpu_ver="v66", **kwargs):
         Whether to use QFloat HVX instructions.
     use_ieee_fp : bool (default: False)
         Whether to use IEEE HVX instructions
-    link_params : bool (default: False)
-        Whether to link graph parameters into the LLVM module.
+    num_cores : int (default: 4)
+        The number of HVX threads. This attribute is required by meta scheduler.
+    vtcm_capacity: int (default: 0)
+        Hexagon VTCM capacity limitation. If the value is 0, the capacity is treated as unbounded.
 
     Note: Floating point support in HVX requires LLVM 14+.
     """
@@ -671,7 +681,7 @@ def hexagon(cpu_ver="v66", **kwargs):
         "llvm_options": None,
         "use_qfloat": arch_version >= 68,
         "use_ieee_fp": False,
-        "link_params": False,
+        "vtcm_capacity": 0,
     }
     config.update(kwargs)
 
@@ -738,24 +748,14 @@ def hexagon(cpu_ver="v66", **kwargs):
         args = [s.replace("=", "@") for s in llvm_options.split()]
         return "--llvm-options=" + ",".join(args)
 
-    # TVM target attributes string
-    def create_tvm_options(cpu_ver, config):  # pylint: disable=unused-argument
-        """Create TVM target features string."""
-
-        features = {
-            "link_params": "link-params",
-        }
-        opts = ""
-        for k in config:
-            if k in features:
-                opts += " --" + features[k] + "=" + str(config[k])
-        return opts
-
     target_str = create_llvm_target(cpu_ver, config)
     llvm_str = create_llvm_options(cpu_ver, config)
-    tvm_str = create_tvm_options(cpu_ver, config)
 
-    args_list = target_str.split() + llvm_str.split() + tvm_str.split()
+    args_list = target_str.split() + llvm_str.split()
+
+    num_cores = config["num_cores"] if "num_cores" in kwargs else 4
+    args_list.append("--num-cores=%d" % num_cores)
+    args_list.append("--vtcm-capacity=%d" % config["vtcm_capacity"])
 
     return Target(" ".join(["hexagon"] + args_list))
 

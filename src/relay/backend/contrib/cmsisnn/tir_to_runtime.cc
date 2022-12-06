@@ -111,11 +111,15 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
         cmsis_func_name == "arm_elementwise_add_s8") {
       CodeGenC::VisitExpr_(op, os);
     } else if (cmsis_func_name == "arm_convolve_wrapper_s8" ||
-               cmsis_func_name == "arm_depthwise_conv_wrapper_s8") {
+               cmsis_func_name == "arm_convolve_wrapper_s16" ||
+               cmsis_func_name == "arm_depthwise_conv_wrapper_s8" ||
+               cmsis_func_name == "arm_depthwise_conv_wrapper_s16") {
       EmitConv2D(op);
-    } else if (cmsis_func_name == "arm_fully_connected_s8") {
+    } else if (cmsis_func_name == "arm_fully_connected_s8" ||
+               cmsis_func_name == "arm_fully_connected_s16") {
       EmitFullyConnected(op);
-    } else if (cmsis_func_name == "arm_avgpool_s8" || cmsis_func_name == "arm_max_pool_s8") {
+    } else if (cmsis_func_name == "arm_avgpool_s8" || cmsis_func_name == "arm_avgpool_s16" ||
+               cmsis_func_name == "arm_max_pool_s8" || cmsis_func_name == "arm_max_pool_s16") {
       EmitPool2D(op);
     }
     return;

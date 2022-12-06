@@ -60,7 +60,7 @@ jobs:
                        -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
                        -DCMAKE_BUILD_WITH_INSTALL_NAME_DIR=ON \
                        -DUSE_IOS_RPC=ON"
-          
+
           mkdir build-ios-simulator
           cd build-ios-simulator
           cmake .. ${CMAKE_FLAGS}

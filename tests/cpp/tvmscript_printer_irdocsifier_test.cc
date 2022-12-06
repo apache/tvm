@@ -45,14 +45,19 @@ class TestObject : public ObjectRef {
 TVM_REGISTER_NODE_TYPE(TestObjectNode);
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch([](TracedObject<TestObject> obj, IRDocsifier p) { return IdDoc("x"); });
+    .set_dispatch<TestObject>([](TracedObject<TestObject> obj, IRDocsifier p) {
+      return IdDoc("x");
+    });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch("tir", [](TracedObject<TestObject> obj, IRDocsifier p) { return IdDoc("tir"); });
+    .set_dispatch<TestObject>("tir", [](TracedObject<TestObject> obj, IRDocsifier p) {
+      return IdDoc("tir");
+    });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch("relax",
-                  [](TracedObject<TestObject> obj, IRDocsifier p) { return IdDoc("relax"); });
+    .set_dispatch<TestObject>("relax", [](TracedObject<TestObject> obj, IRDocsifier p) {
+      return IdDoc("relax");
+    });
 
 TEST(PrinterIRDocsifierTest, AsDoc) {
   IRDocsifier p(Map<String, String>{});

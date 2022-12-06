@@ -157,7 +157,7 @@ runtime::Module BuildSDAccel(IRModule mod, Target target) {
   std::string whole_code = cg.Finish();
 
   // Generate source code for compilation.
-  Array<Array<runtime::String> > kernel_info;
+  Array<Array<runtime::String>> kernel_info;
 
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenOpenCL: Can only take PrimFunc";

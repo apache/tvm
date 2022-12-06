@@ -1011,7 +1011,7 @@ def test_init_module_and_metatable():
         + """
             def @f(%y : Tensor[(2, 3), float32]) -> Tensor[(2, 3), float32] {
               negative(%y)
-            }                                       
+            }
         """,
     )
     mod = tvm.parser.parse(

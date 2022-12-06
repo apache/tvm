@@ -17,7 +17,7 @@
 
 .. _debugging-tvm:
 
-Debuggging TVM
+Debugging TVM
 ==============
 
 **NOTE**: This page is a work in-progress. Everyone is welcomed to add suggestions and tips via
@@ -60,7 +60,7 @@ optimization). To enable VLOGging, do the following:
 
 Examples:
 
-.. code-block: shell
+.. code-block:: shell
 
    # enable VLOG(0), VLOG(1), VLOG(2) in all files.
    $ TVM_LOG_DEBUG=DEFAULT=2 python3 -c 'import tvm'
