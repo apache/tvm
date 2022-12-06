@@ -186,7 +186,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
             // adding info about arguments if they can be converted to texture
             for (const auto& ttype : FlattenTupleType(fn->params[i]->checked_type())) {
               std::string scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(call)));
-              if (expr_attrib.as<Conv2DAttrs>() || expr_attrib.as<Conv2DWinogradAttrs>()) 
+              if (expr_attrib.as<Conv2DAttrs>() || expr_attrib.as<Conv2DWinogradAttrs>())
               {
                 if ((i == 1) &&
                     !ttype->dtype.is_float16() &&
@@ -212,7 +212,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
               }
             }
           }
-        } 
+        }
         // Add consumer storage scope information for call arguments
         for (auto& arg : call->args) {
           if (storage_scope_.count(call)) {
@@ -434,7 +434,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
 
   bool CanUseBuffers(const Expr param, const Array<PrimExpr> shape, const tvm::DictAttrs param_attrs) const {
     bool use_buffer = false;
-    if (param.as<ConstantNode>() && shape.size() == 5) { 
+    if (param.as<ConstantNode>() && shape.size() == 5){ 
         auto kernel_layout = param_attrs.GetAttr<String>("kernel_layout");
         if (kernel_layout == "HWOI4o" || kernel_layout == "HWIO4o")
         {
@@ -451,7 +451,6 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
             use_buffer = true;
         }
     }
-    
     return use_buffer;
   }
 
