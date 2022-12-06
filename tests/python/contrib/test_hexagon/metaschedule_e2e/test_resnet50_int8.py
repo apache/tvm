@@ -125,7 +125,7 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
     # task extraction and relay.build(...).
     mod = mod.with_attr("executor", EXECUTOR)
 
-    num_threads = cpu_count(physical=True)
+    num_threads = cpu_count(logical=False)
 
     with tempfile.TemporaryDirectory() as work_dir:
         database = ms.relay_integration.tune_relay(
