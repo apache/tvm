@@ -87,7 +87,7 @@ def tune_tasks(
         The database with all tuning records
     """
     if len(tasks) == 0:
-        raise ValueError("No tasks to tune." )
+        raise ValueError("No tasks to tune.")
 
     if len(tasks) != len(task_weights):
         raise ValueError(

@@ -45,10 +45,24 @@ from tvm.tir.tensor_intrin.hexagon import (
 from ..infrastructure import get_hexagon_target
 
 MODEL_JSON = "resnet50_int8.json"
+MODEL_PARAMS = "resnet50_int8.params"
 EXECUTOR = relay.backend.Executor("graph", {"link-params": True})
 TARGET_LLVM = tvm.target.Target("llvm")
 TARGET_HEXAGON = get_hexagon_target("v68")
-MODEL_PARAMS = "resnet50_int8.params"
+
+
+def load_model():
+    """Load renset50 model."""
+    if not os.path.exists(MODEL_JSON):
+        pytest.skip(msg="Run python export_models.py first.")
+
+    with open(MODEL_JSON, "r") as file:
+        mod = tvm.ir.load_json(file.read())
+
+    with open(MODEL_PARAMS, "rb") as file:
+        params = relay.load_param_dict(file.read())
+
+    return mod, params
 
 
 def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
@@ -160,11 +174,8 @@ def test_resnet50(hexagon_launcher):
     if not os.path.exists(MODEL_JSON):
         pytest.skip(msg="Run python export_models.py first.")
 
-    with open(MODEL_JSON, "r") as file:
-        mod = tvm.ir.load_json(file.read())
+    mod, params = load_model()
 
-    with open(MODEL_PARAMS, "rb") as file:
-        params = relay.load_param_dict(file.read())
     inp = np.random.randn(1, 3, 224, 224).astype("float32")
     input_name = "image"
 
@@ -233,20 +244,6 @@ def evaluate_mod(hexagon_launcher, hexagon_lowered, llvm_lowered, input_name, in
             print(debug_ex.profile(input_name=inp.copy()))
 
         np.testing.assert_allclose(ref_result, output, atol=1e-4, rtol=1e-5)
-
-
-def load_model():
-    """Load renset50 model."""
-    if not os.path.exists(MODEL_JSON):
-        pytest.skip(msg="Run python export_models.py first.")
-
-    with open(MODEL_JSON, "r") as file:
-        mod = tvm.ir.load_json(file.read())
-
-    with open(MODEL_PARAMS, "rb") as file:
-        params = relay.load_param_dict(file.read())
-
-    return mod, params
 
 
 def _schedule_packed_8x8x32_conv2d():

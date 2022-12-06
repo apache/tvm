@@ -128,8 +128,9 @@ def _worker_func(hexagon_launcher, evaluator_config, alloc_repeat, artifact_path
     return costs
 
 
-def get_hexagon_local_builder(pass_context: tvm.transform.PassContext = None,
-                              max_workers: Optional[int] = None):
+def get_hexagon_local_builder(
+    pass_context: tvm.transform.PassContext = None, max_workers: Optional[int] = None
+):
     """Return Hexagon-compatible Builder for meta schedule."""
 
     def export_func(mod):
@@ -144,15 +145,19 @@ def get_hexagon_local_builder(pass_context: tvm.transform.PassContext = None,
             return tvm_build(mod, target=target)
 
     if pass_context is not None:
-        return LocalBuilder(f_build=default_build_with_context, f_export=export_func,
-                            max_workers=max_workers)
+        return LocalBuilder(
+            f_build=default_build_with_context, f_export=export_func, max_workers=max_workers
+        )
     else:
         return LocalBuilder(f_export=export_func, max_workers=max_workers)
 
 
 def get_hexagon_rpc_runner(
-        hexagon_launcher: HexagonLauncherRPC, number=3, repeat=1, min_repeat_ms=100,
-        max_workers: Optional[int] = None
+    hexagon_launcher: HexagonLauncherRPC,
+    number=3,
+    repeat=1,
+    min_repeat_ms=100,
+    max_workers: Optional[int] = None,
 ):
     """Return Hexagon-compatible RPC Runner for meta schedule.
 
@@ -180,8 +185,4 @@ def get_hexagon_rpc_runner(
         enable_cpu_cache_flush=False,
     )
 
-    return HexagonRPCRunner(
-        hexagon_launcher,
-        evaluator_config,
-        max_workers=max_workers
-    )
+    return HexagonRPCRunner(hexagon_launcher, evaluator_config, max_workers=max_workers)
