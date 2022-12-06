@@ -86,10 +86,16 @@ def tune_tasks(
     database : Database
         The database with all tuning records
     """
+    if len(tasks) == 0:
+        raise ValueError("No tasks to tune." )
+
     if len(tasks) != len(task_weights):
         raise ValueError(
             f"Length of tasks ({len(tasks)}) and task_weights ({len(task_weights)}) do not match."
         )
+
+    num_threads = tasks[0].num_threads
+
     if max_trials_per_task is None:
         max_trials_per_task = max_trials_global
     if not isinstance(builder, Builder):
@@ -101,7 +107,7 @@ def tune_tasks(
     elif not isinstance(database, Database):
         database = Database.create(database, module_equality=module_equality)
     if not isinstance(cost_model, CostModel):
-        cost_model = CostModel.create(cost_model)
+        cost_model = CostModel.create(cost_model, num_threads=num_threads)
     if isinstance(measure_callbacks, MeasureCallback):
         measure_callbacks = [measure_callbacks]
     elif measure_callbacks == "default":
