@@ -86,18 +86,23 @@ struct ReductionBlockFinder : private StmtVisitor {
 /*!
  * \brief Find the innermost loop that the `init` of the input block could be decomposed to
  * \param block_sref The StmtSRef of the block to be decomposed
- * \return The index of the innermost loop where the `init` of the input block could be decomposed,
- * or -1 if the `init` does not need to be decomposed.
+ * \return A pair of the loop index and the boolean flag. The index indicates the innermost loop
+ * where the `init` of the input block could be decomposed, or -1 if the `init` does not need to
+ * be decomposed. The boolean flag indicates whether these is a hint of the decompose point in the
+ * loop annotations that need to be unannotated.
  */
-int FindDecomposePoint(const StmtSRef& block_sref) {
+std::pair<int, bool> FindDecomposePoint(const StmtSRef& block_sref) {
   Array<StmtSRef> loop_srefs = GetLoops(block_sref);
   int n = loop_srefs.size();
   for (int i = 0; i < n; ++i) {
+    if (HasAnn(loop_srefs[i], attr::meta_schedule_decompose_point, true)) {
+      return {i, true};
+    }
     if (GetLoopIterType(loop_srefs[i]) != IterVarType::kDataPar) {
-      return i;
+      return {i, false};
     }
   }
-  return -1;
+  return {-1, false};
 }
 
 }  // namespace tir
@@ -133,7 +138,7 @@ bool RewriteReductionBlockNode::Apply(const tir::Schedule& sch) {
     for (const auto& kv : results) {
       const tir::StmtSRef& block_sref = kv.first;
       const String& global_var_name = kv.second;
-      int decompose_point = tir::FindDecomposePoint(block_sref);
+      auto [decompose_point, need_unannotate] = tir::FindDecomposePoint(block_sref);
       if (decompose_point == -1) {
         continue;
       }
@@ -141,6 +146,9 @@ bool RewriteReductionBlockNode::Apply(const tir::Schedule& sch) {
       Array<tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
       tir::BlockRV init_block_rv = sch->DecomposeReduction(block_rv, loop_rvs[decompose_point]);
 
+      if (need_unannotate) {
+        sch->Unannotate(loop_rvs[decompose_point], tir::attr::meta_schedule_decompose_point);
+      }
       // Rewrite auto tensorization related annotations
       if (tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_auto_tensorize).defined()) {
         // Remove tensorization annotation as it shouldn't be propagated to the init block.

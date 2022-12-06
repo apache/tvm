@@ -1597,6 +1597,11 @@ constexpr const char* meta_schedule_unroll_explicit = "meta_schedule.unroll_expl
 /*! \brief Mark auto-unroll setting on the block. */
 constexpr const char* meta_schedule_unroll_implicit = "meta_schedule.unroll_implicit";
 
+/*! \brief Mark the target loop for decompose reduction. This serves as a hint for
+ * RewriteReductionBlock postprocessor.
+ */
+constexpr const char* meta_schedule_decompose_point = "meta_schedule.decompose_point";
+
 /*! \brief Mark that a block should be further rewritten using tensorization. */
 constexpr const char* meta_schedule_auto_tensorize = "meta_schedule.auto_tensorize";
 

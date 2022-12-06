@@ -218,6 +218,48 @@ def test_rewrite_softmax():
     tvm.ir.assert_structural_equal(sch.mod, Softmax_cross_thread_reduction)
 
 
+def test_rewrite_unit_reduction_loop():
+    # fmt: off
+    # pylint: disable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
+    @T.prim_func
+    def before(A: T.Buffer[(16, 16), "float32"], B: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
+        for i0, j0 in T.grid(4, 4):
+            for k0 in T.serial(1, annotations={"meta_schedule.decompose_point": 1}):
+                for i1, j1, k1 in T.grid(4, 4, 16):
+                    with T.block("C"):
+                        i = T.axis.spatial(16, i0 * 4 + i1)
+                        j = T.axis.spatial(16, j0 * 4 + j1)
+                        k = T.axis.reduce(16, k1)
+                        with T.init():
+                            C[i, j] = T.float32(0)
+                        C[i, j] = C[i, j] + A[i, k] * B[k, j]
+
+    @T.prim_func
+    def expected(A: T.Buffer[(16, 16), "float32"], B: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
+        for i0, j0 in T.grid(4, 4):
+            for i1_init, j1_init in T.grid(4, 4):
+                with T.block("C_init"):
+                    i = T.axis.spatial(16, i0 * 4 + i1_init)
+                    j = T.axis.spatial(16, j0 * 4 + j1_init)
+                    C[i, j] = T.float32(0)
+            for k0, i1, j1, k1 in T.grid(1, 4, 4, 16):
+                with T.block("C_update"):
+                    i = T.axis.spatial(16, i0 * 4 + i1)
+                    j = T.axis.spatial(16, j0 * 4 + j1)
+                    k = T.axis.reduce(16, k1)
+                    C[i, j] = C[i, j] + A[i, k] * B[k, j]
+
+    # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
+    # fmt: on
+
+    target = _target()
+    ctx = _create_context(before, target)
+    sch = tir.Schedule(before, debug_mask="all")
+    sch.enter_postproc()
+    print(tvm.ir.base.get_first_structural_mismatch(sch.mod, expected))
+    tvm.ir.assert_structural_equal(sch.mod["main"], expected)
+
+
 if __name__ == "__main__":
     test_rewrite_tiled_matmul()
     test_rewrite_softmax()
