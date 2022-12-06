@@ -256,7 +256,6 @@ def test_rewrite_unit_reduction_loop():
     ctx = _create_context(before, target)
     sch = tir.Schedule(before, debug_mask="all")
     sch.enter_postproc()
-    print(tvm.ir.base.get_first_structural_mismatch(sch.mod, expected))
     tvm.ir.assert_structural_equal(sch.mod["main"], expected)
 
 

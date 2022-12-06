@@ -130,6 +130,8 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
   inline std::vector<State> AddWriteReuseTensorCore(TensorCoreState state) const;
   // Subrule: Add software pipeline
   inline std::vector<State> AddSoftwarePipeline(TensorCoreState state) const;
+  // Subrule: Add annotation of outermost reduction loop
+  inline std::vector<State> AnnotateOutermostReduction(State state) const;
 
   // Override ApplySubRules to apply tensorization-specific sub-rules
   std::vector<State> ApplySubRules(std::vector<State> states) final;
@@ -225,6 +227,8 @@ std::vector<State> MultiLevelTilingTensorCoreNode::ApplySubRules(std::vector<Sta
     return TransformForTensorization(Downcast<TensorCoreState>(state));
   });
   states = SubRule(std::move(states), [&](State state) { return TileLoopNest(state); });
+  states =
+      SubRule(std::move(states), [&](State state) { return AnnotateOutermostReduction(state); });
   states = SubRule(std::move(states), [&](State state) { return AddWriteReuse(state); });
   states = SubRule(std::move(states), [&](State state) {
     return AddWriteReuseTensorCore(Downcast<TensorCoreState>(state));
@@ -553,6 +557,16 @@ inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorizat
   state->sch->Annotate(state->block_rv, tir::attr::meta_schedule_auto_tensorize_init,
                        state->intrin_group.init_intrin);
   state->sch->Annotate(state->block_rv, tir::attr::warp_execution, Integer(1));
+  return {std::move(state)};
+}
+
+inline std::vector<State> MultiLevelTilingTensorCoreNode::AnnotateOutermostReduction(
+    State state) const {
+  Schedule& sch = state->sch;
+  if (r_indices_.size()) {
+    LoopRV outermost_reduction_loop = state->tiles[r_indices_.front()].front();
+    sch->Annotate(outermost_reduction_loop, tir::attr::meta_schedule_decompose_point, Integer(1));
+  }
   return {std::move(state)};
 }
 
