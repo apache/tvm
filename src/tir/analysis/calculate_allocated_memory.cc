@@ -87,6 +87,15 @@ TVM_REGISTER_GLOBAL("tir.analysis.calculate_allocated_bytes").set_body_typed([](
   return CalculateAllocatedBytes(func);
 });
 
+bool VerifyVTCMLimit(const PrimFunc& func, Integer limit) {
+  auto sizes = CalculateAllocatedBytes(func);
+  const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
+  if (limit.IntValue() > 0 && vtcm_allocated.IntValue() > limit.IntValue()) {
+    return false;
+  }
+  return true;
+}
+
 namespace transform {
 
 Pass VerifyVTCMLimit(const Integer& limit) {
