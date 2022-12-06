@@ -249,6 +249,7 @@ def tune_relay(
     strategy: SearchStrategy.SearchStrategyType = "evolutionary",
     seed: Optional[int] = None,
     module_equality: str = "structural",
+    num_threads: Optional[int] = None,
 ) -> Database:
     """Tune a Relay program.
 
@@ -296,6 +297,8 @@ def tune_relay(
                             given module. The "ignore-ndarray" varint is used for the extracted
                             blocks or in case no anchor block is found.
                             For the definition of the anchor block, see tir/analysis/analysis.py.
+    num_threads : Optional[int]
+        The number of threads to use.
 
     Returns
     -------
@@ -308,6 +311,7 @@ def tune_relay(
         space=space,
         strategy=strategy,
         seed=seed,
+        num_threads=num_threads,
     )
     return tune_tasks(
         tasks=tasks,
