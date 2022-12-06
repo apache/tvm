@@ -742,6 +742,7 @@ def _test_anchor_tuning(target):
             max_trials_global=4,
             strategy="replay-trace",
             module_equality=module_equality,
+            num_threads=4,
         )
         lib = ms.relay_integration.compile_relay(database, mod, target, params)
 

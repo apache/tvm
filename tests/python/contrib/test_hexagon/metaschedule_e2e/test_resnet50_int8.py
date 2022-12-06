@@ -33,6 +33,7 @@ from tvm.contrib.hexagon.meta_schedule import (
     get_hexagon_rpc_runner,
 )
 from tvm.meta_schedule import postproc, schedule_rule
+from tvm.meta_schedule.utils import cpu_count
 from tvm.tir.schedule import BlockRV, Schedule
 from tvm.tir.schedule.analysis import has_block
 from tvm.tir.tensor_intrin.hexagon import (
@@ -110,6 +111,8 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
     # task extraction and relay.build(...).
     mod = mod.with_attr("executor", EXECUTOR)
 
+    num_threads = cpu_count(physical=True)
+
     with tempfile.TemporaryDirectory() as work_dir:
         database = ms.relay_integration.tune_relay(
             mod=mod,
@@ -125,8 +128,8 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
             # num_trials_per_iter=32,
             # max_trials_per_task=128,
             # strategy="evolutionary",
-            builder=get_hexagon_local_builder(),
-            runner=get_hexagon_rpc_runner(hexagon_launcher, number=20),
+            builder=get_hexagon_local_builder(max_workers=num_threads),
+            runner=get_hexagon_rpc_runner(hexagon_launcher, number=20, max_workers=num_threads),
             space=ms.space_generator.PostOrderApply(
                 sch_rules=sch_rules,
                 postprocs=postprocs,
@@ -137,6 +140,7 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
             # It reduces the number of conv2d tuning tasks in the int8 resnet50 model
             # from 36 to 23, with negligible performance difference.
             module_equality="anchor-block",
+            num_threads=num_threads,
         )
         return ms.relay_integration.compile_relay(
             database=database,
