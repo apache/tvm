@@ -471,7 +471,7 @@ class ModulePipelined:
                         b_i8x128 = b_buffer[0, 0:128]
                         b_i32x32: T.int32x32 = T.reinterpret(b_i8x128, dtype="int32x32")
                         c_buffer[0:32] = T.call_llvm_pure_intrin(
-                            4217,
+                            T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.acc.128B"),
                             T.uint32(3),
                             c_buffer[0:32],
                             T.broadcast(a_i32, 32),
@@ -626,7 +626,7 @@ class ModuleBase:
                             b_i8x128 = b_buffer[0, 0:128]
                             b_i32x32: T.int32x32 = T.reinterpret(b_i8x128, dtype="int32x32")
                             c_buffer[0:32] = T.call_llvm_pure_intrin(
-                                4217,
+                                T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.acc.128B"),
                                 T.uint32(3),
                                 c_buffer[0:32],
                                 T.broadcast(a_i32, 32),
