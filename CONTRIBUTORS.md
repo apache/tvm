@@ -78,6 +78,7 @@ We do encourage everyone to work anything they are interested in.
 - [Siva Rama Krishna Reddy](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch - topi, compiler, runtime
+- [Gavin Uberti](https://github.com/guberti): @guberti - microtvm, arm
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose - vta, chisel
 - [Leyuan Wang](https://github.com/Laurawly) (PMC): @Laurawly: - topi
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun (PMC): - topi, vision
