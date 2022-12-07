@@ -22,6 +22,41 @@ import tvm
 import numpy as np
 
 
+def sqrt(x, dtype):
+    """Computes square root of value
+
+    x: tensor
+    -----
+    return: tensor
+    """
+
+    if dtype in ("uint8", "int8"):
+        func_str = f"math.sqrt"
+        return tvm.te.compute((x.shape), lambda *i: tvm.tir.sqrt(x[i]), name="sqrt", tag=func_str)
+    else:
+        return tvm.te.compute((x.shape), lambda *i: tvm.tir.sqrt(x[i]), name="sqrt")
+
+
+def negative(x, dtype):
+    """Take negation of input x.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    if dtype in ("uint8", "int8"):
+        func_str = f"lambda x: -x"
+        return tvm.te.compute(x.shape, lambda *i: -x(*i), name="negative", tag=func_str)
+    else:
+        return tvm.te.compute(x.shape, lambda *i: -x(*i), name="negative")
+
+
 def schedule_injective(outs):
     """Schedule for injective op.
 
