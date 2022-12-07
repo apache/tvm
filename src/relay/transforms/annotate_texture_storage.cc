@@ -174,8 +174,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
             for (const auto& ttype : FlattenTupleType(fn->params[i]->checked_type())) {
               std::string scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(call)));
               if (expr_attrib.as<Conv2DAttrs>() || expr_attrib.as<Conv2DWinogradAttrs>()) {
-                if ((i == weights_pos) &&
-                    !ttype->dtype.is_float16() &&
+                if ((i == weights_pos) && !ttype->dtype.is_float16() &&
                     CanUseBuffers(call->args[i], ttype->shape, fn->attrs)) {
                   buffers_params.insert(fn->params[i]);
                   buffers_args.insert(call->args[i]);
@@ -216,8 +215,9 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
     }
 
     for (auto& arg : call->args) {
-      if (buffers_args.find(arg) == buffers_args.end())
+      if (buffers_args.find(arg) == buffers_args.end()) {
         Visit(arg);
+      }
     }
     // We have all callees filled into storage_scope_ if they support textures
     // We need to verify if this call expects texture and if it does not, remove from
@@ -420,18 +420,20 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
                      const tvm::DictAttrs param_attrs) const {
     bool use_buffer = false;
     if (param.as<ConstantNode>() && shape.size() == 5) {
-        auto kernel_layout = param_attrs.GetAttr<String>("kernel_layout");
-        if (kernel_layout == "HWOI4o" || kernel_layout == "HWIO4o") {
-          int a0 = shape[0].as<IntImmNode>()->value;
-          int a1 = shape[1].as<IntImmNode>()->value;
-          if (a0 != 1 && a1 != 1)
-            use_buffer = true;
-        } else if (kernel_layout == "OIHW4o") {
-          int a2 = shape[2].as<IntImmNode>()->value;
-          int a3 = shape[3].as<IntImmNode>()->value;
-          if (a2 != 1 && a3 != 1)
-            use_buffer = true;
+      auto kernel_layout = param_attrs.GetAttr<String>("kernel_layout");
+      if (kernel_layout == "HWOI4o" || kernel_layout == "HWIO4o") {
+        int a0 = shape[0].as<IntImmNode>()->value;
+        int a1 = shape[1].as<IntImmNode>()->value;
+        if (a0 != 1 && a1 != 1) {
+          use_buffer = true;
         }
+      } else if (kernel_layout == "OIHW4o") {
+        int a2 = shape[2].as<IntImmNode>()->value;
+        int a3 = shape[3].as<IntImmNode>()->value;
+        if (a2 != 1 && a3 != 1) {
+          use_buffer = true;
+        }
+      }
     }
     return use_buffer;
   }
