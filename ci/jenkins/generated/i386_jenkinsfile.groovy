@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-12-06T20:56:42.288840
+// Generated at 2022-12-08T16:10:54.393626
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -138,19 +138,32 @@ def init_git() {
     checkout scm
   }
 
-  // Add more info about job node
-  sh (
-    script: './tests/scripts/task_show_node_info.sh',
-    label: 'Show executor node info',
-  )
-
   // Determine merge commit to use for all stages
   if (env.BRANCH_NAME == 'main') {
     // Only set upstream_revision to HEAD and skip merging to avoid a race with another commit merged to main.
     update_upstream_revision("HEAD")
   } else {
-    // This is PR branch so merge with latest main.
-    merge_with_main()
+    // This is PR branch so set the upstream revision to the last 'main' commit
+    def merge_base = sh(
+      script: "git merge-base HEAD origin/main",
+      label: 'Determine base revision',
+      returnStdout: true,
+    ).trim()
+
+    // Check that the merge base is not too old
+    sh(
+      script: """
+      set -eux
+      git fetch origin main
+      NUM_COMMITS_SINCE_BASE=\$(git rev-list --count ${merge_base}..FETCH_HEAD)
+      if [ "\$NUM_COMMITS_SINCE_BASE" -gt 100 ]; then
+        echo "Your merge base is too old. Please rebase your PR branch onto the latest main with 'git fetch origin main && git rebase origin/main'";
+        exit 1
+      fi
+      """,
+      label: 'Ensure merge base is recent',
+    )
+    update_upstream_revision(merge_base)
   }
 
   sh(
@@ -162,6 +175,12 @@ def init_git() {
     label: 'Update git submodules',
   )
   checkout_trusted_files()
+
+  // Add more info about job node
+  sh (
+    script: './tests/scripts/task_show_node_info.sh',
+    label: 'Show executor node info',
+  )
 }
 
 def update_upstream_revision(git_ref) {
@@ -172,18 +191,6 @@ def update_upstream_revision(git_ref) {
       returnStdout: true,
     ).trim()
   }
-}
-
-def merge_with_main() {
-  sh (
-    script: 'git fetch origin main',
-    label: 'Fetch upstream',
-  )
-  update_upstream_revision("FETCH_HEAD")
-  sh (
-    script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
-    label: 'Merge to origin/main'
-  )
 }
 
 def docker_init(image) {

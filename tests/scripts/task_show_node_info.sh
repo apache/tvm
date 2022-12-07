@@ -41,3 +41,6 @@ echo "===== RUNNER INFO ====="
 df --human-readable
 lscpu
 free
+
+echo "===== GIT INFO ====="
+git log -10
