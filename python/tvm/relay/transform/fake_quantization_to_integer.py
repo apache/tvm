@@ -508,6 +508,7 @@ def register_binary_qnn(op_name, op):
             and tvm.ir.structural_equal(left_t.dtype, right_t.dtype)
             and approx_equal(left_t.scale, out_t.scale)
             and approx_equal(left_t.zero_point, out_t.zero_point)
+            and np.all(out_t.zero_point.data.numpy() == 0)
         ):
             return [relay.expr.Call(relay.op.get(op_name), [left, right]), left_t]
 
