@@ -26,13 +26,13 @@ sh(
           )
 {% endmacro %}
 
-{% macro sharded_test_step(name, num_shards, node, ws, docker_image, platform, test_method_names) %}
+{% macro sharded_test_step(name, num_shards, node, ws, docker_image, platform, test_method_names, condition="!skip_ci && is_docs_only_build != 1") %}
 
 {% for shard_index in range(1, num_shards + 1) %}
 {% set method_name = "shard_run_" + name.replace(":", "").replace(" ", "-").replace("-", "_") + "_" + shard_index|string + "_of_" + num_shards|string %}
 {% set test_dir_name = name.replace(":", "").replace(" ", "-").replace("-", "_")|string %}
 def {{ method_name }}() {
-  if (!skip_ci && is_docs_only_build != 1) {
+  if ({{ condition }}) {
     node('{{ node }}') {
       ws({{ per_exec_ws(ws) }}) {
         try {
@@ -67,30 +67,9 @@ def {{ method_name }}() {
 {% endfor %}
 {% endmacro %}
 
-{% macro sharded_lint_step(name, num_shards, docker_image, node, ws) %}
-{% for shard_index in range(1, num_shards + 1) %}
-  '{{ name }} {{ shard_index }} of {{ num_shards }}': {
-    node('{{ node }}') {
-      ws({{ per_exec_ws(ws) }}) {
-        init_git()
-        docker_init({{ docker_image }})
-        timeout(time: max_time, unit: 'MINUTES') {
-          withEnv([
-            'TVM_NUM_SHARDS={{ num_shards }}',
-            'TEST_STEP_NAME={{ name }}',
-            'TVM_SHARD_INDEX={{ shard_index - 1 }}',
-            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-            {{ caller() | trim | indent(width=6) }}
-          })
-        }
-      }
-    }
-  },
-{% endfor %}
-{% endmacro %}
-
-{% macro build_step(name, condition, node, docker_image, ws) %}
-  '{{ name }}': {
+{% macro invoke_build(name, condition, node, docker_image, ws) %}
+def build() {
+  stage('Build') {
     if ({{ condition }}) {
       node('{{ node }}') {
         ws({{ per_exec_ws(ws) }}) {
@@ -104,67 +83,27 @@ def {{ method_name }}() {
     } else {
       Utils.markStageSkippedForConditional('{{ name }}')
     }
-  },
-{% endmacro %}
-
-{% macro test_step_body(name, node, ws, docker_image, platform) %}
-{% set test_dir_name = name.replace(":", "").replace(" ", "-").replace("-", "_")|string %}
-  if (!skip_ci && is_docs_only_build != 1) {
-    node('{{ node }}') {
-      ws({{ per_exec_ws(ws) }}) {
-        timeout(time: max_time, unit: 'MINUTES') {
-          try {
-            init_git()
-            docker_init({{ docker_image }})
-            withEnv(['PLATFORM={{ platform }}'], {
-              {{ caller() | indent(width=8) | trim }}
-            })
-          } finally {
-            try {
-              {{ junit_to_s3(test_dir_name) | indent(width=0) }}
-              junit 'build/pytest-results/*.xml'
-            } catch (Exception e) {
-              echo 'Exception during JUnit upload: ' + e.toString()
-            }
-          }
-        }
-      }
-    }
-  } else {
-    Utils.markStageSkippedForConditional('{{ name }}')
   }
+}
+build()
 {% endmacro %}
 
-{% macro test_step(name, node, ws, docker_image, platform) %}
-{% set test_dir_name = name.replace(":", "").replace(" ", "-").replace("-", "_")|string %}
-  '{{ name }}': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('{{ node }}') {
-        ws({{ per_exec_ws(ws) }}) {
-          timeout(time: max_time, unit: 'MINUTES') {
-            try {
-              init_git()
-              docker_init({{ docker_image }})
-              withEnv(['PLATFORM={{ platform }}',
-              'TEST_STEP_NAME={{ name }}',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-                {{ caller() | indent(width=12) | trim }}
-              })
-            } finally {
-            try {
-              {{ junit_to_s3(test_dir_name) | indent(width=4) }}
-              junit 'build/pytest-results/*.xml'
-            } catch (Exception e) {
-              echo 'Exception during JUnit upload: ' + e.toString()
-            }
-            }
-          }
-        }
-      }
-    } else {
-      Utils.markStageSkippedForConditional('{{ name }}')
+{% macro invoke_tests(test_method_names) %}
+def test() {
+  stage('Test') {
+    environment {
+      SKIP_SLOW_TESTS = "${skip_slow_tests}"
     }
-  },
+    parallel(
+    {% for stage_name, method_name in test_method_names %}
+    '{{ stage_name }}': {
+      {{ method_name }}()
+    },
+    {% endfor %}
+    )
+  }
+}
+test()
 {% endmacro %}
 
 {% macro deploy_step(name, feature_flag, ws) %}

@@ -65,12 +65,10 @@ class VecAllocAccess : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const LoadNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -372,7 +370,6 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   // Load
   PrimExpr VisitExpr_(const LoadNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
   }
   // BufferLoad
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -420,7 +417,6 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   // Store
   Stmt VisitStmt_(const StoreNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return Stmt();
   }
   // BufferStore
   Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -504,7 +500,6 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   // While
   Stmt VisitStmt_(const WhileNode* op) final {
     LOG(FATAL) << "A while loop inside a vectorized loop not supported.";
-    return Stmt();
   }
   // LetStmt
   Stmt VisitStmt_(const LetStmtNode* op) final {
@@ -573,7 +568,6 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   // ProducerStore
   Stmt VisitStmt_(const ProducerStoreNode* op) final {
     LOG(FATAL) << "ProducerProvide cannot appear in a TIR PrimFunc";
-    return Stmt();
   }
 
  private:

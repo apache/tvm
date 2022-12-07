@@ -22,7 +22,7 @@ set -o pipefail
 set -x
 
 NRF_COMMANDLINE_TOOLS_FILE=nRFCommandLineToolsLinuxamd64.tar.gz
-NRF_COMMANDLINE_TOOLS_URL=https://www.nordicsemi.com/-/media/Software-and-other-downloads/Desktop-software/nRF-command-line-tools/sw/Versions-10-x-x/10-12-1/nRFCommandLineTools10121Linuxamd64.tar.gz
+NRF_COMMANDLINE_TOOLS_URL=https://nsscprodmedia.blob.core.windows.net/prod/software-and-other-downloads/desktop-software/nrf-command-line-tools/sw/versions-10-x-x/10-12-1/nrfcommandlinetools10121linuxamd64.tar.gz
 NRF_COMMANDLINE_TOOLS_INSTALLER=nRF-Command-Line-Tools_10_12_1_Linux-amd64.deb
 JLINK_LINUX_INSTALLER=JLink_Linux_V688a_x86_64.deb
 

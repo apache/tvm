@@ -14,14 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""A postprocessor that verifies the VTCM usage of a given schedule."""
 
-_venv: requirements.txt
-	rm -rf _venv
-	python3 -mvenv _venv
-	_venv/bin/pip3 install -r requirements.txt
+from tvm._ffi.registry import register_object
+from .. import _ffi_api
+from .postproc import Postproc
 
-all: _venv
-	_venv/bin/python3 generate.py
 
-.PHONY: all venv
-.DEFAULT_GOAL=all
+@register_object("meta_schedule.VerifyVTCMLimit")
+class VerifyVTCMLimit(Postproc):
+    """Verifies that the VTCM usage of a given schedule is within the provided limit."""
+
+    def __init__(self) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.PostprocVerifyVTCMLimit,  # type: ignore # pylint: disable=no-member
+        )

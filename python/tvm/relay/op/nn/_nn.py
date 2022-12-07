@@ -877,6 +877,23 @@ def convert_deformable_conv2d(attrs, inputs, tinfos, desired_layouts):
     return relay.nn.deformable_conv2d(data, offset, weight, **new_attrs)
 
 
+# QNN ops
+@reg.register_alter_op_layout("add")
+def alter_op_layout_add(attrs, inputs, tinfos, out_type):
+    """Alter the layout of a add op.
+
+    Useful for fusing the bias constant with an input zero point constant in a previous quantized
+    op. Only used when previous op is a quantized op, which is why it lives in topi.nn.qnn.
+    """
+    return topi.nn.qnn.qnn_add_alter_layout(attrs, inputs, tinfos, out_type)
+
+
+@reg.register_alter_op_layout("qnn.requantize")
+def alter_op_layout_qnn_requantize(attrs, inputs, tinfos, out_type):
+    """Alter the layout of a requantization op."""
+    return topi.nn.qnn.qnn_requantize_alter_layout(attrs, inputs, tinfos, out_type)
+
+
 # bitpack
 @reg.register_compute("nn.bitpack")
 def compute_bitpack(attrs, inputs, out_dtype):

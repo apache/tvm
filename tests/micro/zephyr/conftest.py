@@ -29,21 +29,11 @@ def pytest_addoption(parser):
         default=False,
         help="If set true, use the FVP emulator to run the test",
     )
-    parser.addoption(
-        "--serial",
-        default=None,
-        help="If set true, use the FVP emulator to run the test",
-    )
 
 
 @pytest.fixture
 def use_fvp(request):
     return request.config.getoption("--use-fvp")
-
-
-@pytest.fixture
-def serial_number(request):
-    return request.config.getoption("--serial")
 
 
 @pytest.fixture(autouse=True)

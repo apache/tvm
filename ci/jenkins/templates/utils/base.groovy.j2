@@ -1,4 +1,3 @@
-#!groovy
 // -*- mode: groovy -*-
 
 // Licensed to the Apache Software Foundation (ASF) under one
@@ -48,20 +47,18 @@
 // Generated at {{ generated_time }}
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
-{% import 'ci/jenkins/macros.j2' as m with context -%}
+{% import 'utils/macros.j2' as m with context -%}
 
-// NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:20221128-070141-ae4fd7df7'
-ci_gpu = 'tlcpack/ci-gpu:20221128-070141-ae4fd7df7'
-ci_cpu = 'tlcpack/ci-cpu:20221128-070141-ae4fd7df7'
-ci_minimal = 'tlcpack/ci-minimal:20221128-070141-ae4fd7df7'
-ci_wasm = 'tlcpack/ci-wasm:20221128-070141-ae4fd7df7'
-ci_i386 = 'tlcpack/ci-i386:20221128-070141-ae4fd7df7'
-ci_cortexm = 'tlcpack/ci-cortexm:20221128-070141-ae4fd7df7'
-ci_arm = 'tlcpack/ci-arm:20221128-070141-ae4fd7df7'
-ci_hexagon = 'tlcpack/ci-hexagon:20221025-182121-e41d0ed6e'
-ci_riscv = 'tlcpack/ci-riscv:20221128-070141-ae4fd7df7'
-// <--- End of regex-scanned config.
+ci_lint = '{{ ci_lint }}'
+ci_gpu = '{{ ci_gpu }}'
+ci_cpu = '{{ ci_cpu }}'
+ci_minimal = '{{ ci_minimal }}'
+ci_wasm = '{{ ci_wasm }}'
+ci_i386 = '{{ ci_i386 }}'
+ci_cortexm = '{{ ci_cortexm }}'
+ci_arm = '{{ ci_arm }}'
+ci_hexagon = '{{ ci_hexagon }}'
+ci_riscv = '{{ ci_riscv }}'
 
 // Parameters to allow overriding (in Jenkins UI), the images
 // to be used by a given build. When provided, they take precedence
@@ -91,48 +88,20 @@ docker_build = 'docker/build.sh'
 max_time = 180
 rebuild_docker_images = false
 
-// Filenames for stashing between build and test steps
-{% set tvm_runtime = ['build/libtvm_runtime.so', 'build/config.cmake'] %}
-{% set crttest = ['build/crttest'] %}
-{% set tvm_allvisible = ['build/libtvm_allvisible.so'] %}
-{% set cpptest = ['build/cpptest', 'build/build.ninja', 'build/CMakeFiles/rules.ninja'] %}
-{% set tvm_lib = ['build/libtvm.so'] + tvm_runtime %}
-{% set tvm_multilib = ['build/libtvm.so', 'build/libvta_fsim.so'] + tvm_runtime %}
-{% set tvm_multilib_tsim = ['build/libvta_tsim.so'] + tvm_multilib %}
-{% set microtvm_template_projects = ['build/microtvm_template_projects',] %}
-{% set hexagon_api = ['build/hexagon_api_output',] %}
-{% set standalone_crt = ['build/standalone_crt', 'build/build.ninja'] %}
 s3_bucket = 'tvm-jenkins-artifacts-prod'
 s3_prefix = "tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"
 
 // Jenkins script root directory
 jenkins_scripts_root = "ci/scripts/jenkins"
-{% set aws_default_region = "us-west-2" %}
-{% set aws_ecr_url = "dkr.ecr." + aws_default_region + ".amazonaws.com" %}
+
 
 // General note: Jenkins has limits on the size of a method (or top level code)
 // that are pretty strict, so most usage of groovy methods in these templates
 // are purely to satisfy the JVM
-{% include "ci/jenkins/Prepare.groovy.j2" %}
-{% include "ci/jenkins/DockerBuild.groovy.j2" %}
-{% include "ci/jenkins/Lint.groovy.j2" %}
-{% include "ci/jenkins/Build.groovy.j2" %}
-{% include "ci/jenkins/Test.groovy.j2" %}
-{% include "ci/jenkins/Deploy.groovy.j2" %}
-
+{% include "utils/Prepare.groovy.j2" %}
+{% include "utils/Build.groovy.j2" %}
+{% include "utils/Test.groovy.j2" %}
 
 cancel_previous_build()
 
 prepare()
-
-if (rebuild_docker_images) {
-  build_docker_images()
-}
-
-lint()
-
-build()
-
-test()
-
-deploy()

@@ -1330,7 +1330,6 @@ IterSumExpr IterMapRewriter::PreprocessDividend(IterMapExpr dividend, PrimExpr o
     return fused;
   } else {
     LOG(FATAL) << "Unsupported subclass of IterMarkExpr";
-    return IterSumExpr();
   }
 }
 
@@ -1855,7 +1854,6 @@ class SubspaceDivider {
         return IterSplitExpr(IterMark(GetRef<IterSumExpr>(op), extent));
       } else {
         LOG(FATAL) << "Unknown IterMapExpr type";
-        return NullValue<IterSplitExpr>();
       }
     }
   };
@@ -1912,7 +1910,7 @@ class SubspaceDivider {
       return DivisionResult::Failure();
     }
     bool need_predicate = !analyzer_->CanProveEqual(extent, mark_extent);
-    const IterMark& outer_mark = MarkFromArgsAndBase(outer_args, 0);
+    const IterMark& outer_mark = MarkFromArgsAndBase(outer_args, make_const(dtype, 0));
     const IterMark& inner_mark = MarkFromArgsAndBase(inner_args, expr->base);
     IterSumExpr outer_source = Downcast<IterSumExpr>(outer_mark->source);
     IterSumExpr inner_source = Downcast<IterSumExpr>(inner_mark->source);

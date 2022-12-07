@@ -1,0 +1,64 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+{% include "utils/base.groovy.j2" with context %}
+{% import 'utils/macros.j2' as m with context -%}
+
+{% call m.invoke_build(
+  name='BUILD: Cortex-M',
+  node='CPU-SMALL',
+  condition='!skip_ci && is_docs_only_build != 1',
+  ws='tvm/build-cortexm',
+  docker_image='ci_cortexm',
+) %}
+  sh (
+    script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_config_build_cortexm.sh build",
+    label: 'Create Cortex-M cmake config',
+  )
+  cmake_build(ci_cortexm, 'build', '-j2')
+  make_standalone_crt(ci_cortexm, 'build')
+  make_cpp_tests(ci_cortexm, 'build')
+  {{ m.upload_artifacts(tag='cortexm', filenames=tvm_lib + tvm_allvisible + crttest + standalone_crt + cpptest + microtvm_template_projects) }}
+{% endcall %}
+
+{% set test_method_names = [] %}
+
+{% call(shard_index, num_shards) m.sharded_test_step(
+  name="test: Cortex-M",
+  node="CPU-SMALL",
+  ws="tvm/test-cortexm",
+  platform="cortexm",
+  docker_image="ci_cortexm",
+  num_shards=12,
+  test_method_names=test_method_names,
+) %}
+  {{ m.download_artifacts(tag='cortexm') }}
+  ci_setup(ci_cortexm)
+  {% if shard_index == 1%}
+  cpp_unittest(ci_cortexm)
+  micro_cpp_unittest(ci_cortexm)
+  sh (
+    script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_demo_microtvm.sh",
+    label: 'Run microTVM demos',
+  )
+  {% endif %}
+  sh (
+    script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+    label: 'Run microTVM tests',
+  )
+{% endcall %}
+
+{{ m.invoke_tests(test_method_names) -}}

@@ -213,7 +213,6 @@ class MixedPrecisionPass : public MixedModeMutator {
       return true;
     } else {
       LOG(FATAL) << "Unsupported type " << t << " we don't know how to handle";
-      return false;
     }
   }
 

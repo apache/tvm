@@ -459,7 +459,6 @@ Tensor Schedule::cache_write(const Tensor& tensor, const std::string& scope) {
     return (CacheWriteWithReLayoutTensor(*this, {tensor}, scope))[0];
   } else {
     LOG(FATAL) << "cache write only take ComputeOp or TensorComputeOp as writers";
-    return Tensor();
   }
 }
 

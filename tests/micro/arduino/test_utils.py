@@ -61,7 +61,7 @@ def make_workspace_dir(test_name, board):
     return t
 
 
-def make_kws_project(board, arduino_cli_cmd, microtvm_debug, workspace_dir):
+def make_kws_project(board, arduino_cli_cmd, microtvm_debug, workspace_dir, serial_number: str):
     this_dir = pathlib.Path(__file__).parent
     model = ARDUINO_BOARDS[board]
     build_config = {"debug": microtvm_debug}
@@ -88,5 +88,6 @@ def make_kws_project(board, arduino_cli_cmd, microtvm_debug, workspace_dir):
             "arduino_cli_cmd": arduino_cli_cmd,
             "project_type": "example_project",
             "verbose": bool(build_config.get("debug")),
+            "serial_number": serial_number,
         },
     )

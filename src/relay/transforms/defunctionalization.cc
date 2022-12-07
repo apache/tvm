@@ -289,7 +289,6 @@ class DefuncMutator : public ExprMutator {
       return Call(c, call_args);
     }
     LOG(FATAL) << "EncodeArg failed to cast arg into identifier node or function node";
-    return {};
   }
 
   /*!

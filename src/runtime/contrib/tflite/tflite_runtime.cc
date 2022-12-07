@@ -86,7 +86,6 @@ DataType TfLiteDType2TVMDType(TfLiteType dtype) {
       return DataType::Float(16);
     default:
       LOG(FATAL) << "tflite data type not support yet: " << dtype;
-      return DataType::Float(32);
   }
 }
 

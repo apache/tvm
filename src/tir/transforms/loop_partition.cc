@@ -597,7 +597,8 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
   if (!opt_cond_value.has_value()) {
     if (has_partition_hint_ && unroll_loop_with_partition_hint_no_interval_ &&
         analyzer_.CanProve(max - min > 0)) {
-      return For(var, min, max - min + 1, ForKind::kUnrolled, body);
+      auto new_body = VisitAndMutate(body);
+      return For(var, min, max - min + 1, ForKind::kUnrolled, new_body);
     }
     return Stmt();
   }

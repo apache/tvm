@@ -303,7 +303,6 @@ class AOTMainLowerer : public MixedModeVisitor {
       // TODO(mbs): device_copy cleaunp
       // Suspect treating as no-op is better since already built into the StorageInfo?
       LOG(FATAL) << "The AOT executor does not currently support device_copy";
-      return;
     }
 
     // At this point we should only see calls of the form call_lowered(@callee, (args...)),
