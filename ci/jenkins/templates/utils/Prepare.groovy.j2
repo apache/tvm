@@ -194,7 +194,7 @@ def prepare() {
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./${jenkins_scripts_root}/determine_docker_images.py {% for image in images %}{{ image.name }}={% raw %}${{% endraw %}{{ image.name }}{% raw %}}{% endraw %} {% endfor %}",
+            script: "./${jenkins_scripts_root}/determine_docker_images.py {% for image in images %}{{ image.name }} {% endfor %}",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
