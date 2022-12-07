@@ -75,7 +75,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * \brief Finalize the compilation and return the code.
    * \return The code.
    */
-  std::string Finish();
+  virtual std::string Finish();
   /*!
    * \brief Print the Stmt n to CodeGenC->stream
    * \param n The statement to be printed.
@@ -99,10 +99,11 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // The following parts are overloadable print operations.
   /*!
    * \brief Print the function header before the argument list
+   * \param os The output stream
    *
    *  Example: stream << "void";
    */
-  virtual void PrintFuncPrefix();  // NOLINT(*)
+  virtual void PrintFuncPrefix(std::ostream& os);  // NOLINT(*)
   /*!
    * \brief Print extra function attributes
    *
@@ -230,6 +231,14 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    */
   virtual bool IsScopePartOfType() const { return true; }
 
+  /*!
+   * \brief Generate forward function declarations.
+   * \param global_symbol The symbolc of the target function.
+   * \param args The arguments to the function.
+   * \param os The output stream.
+   */
+  virtual void GenerateForwardFunctionDeclarations(String global_symbol,
+                                                   const Array<PrimExpr>& args) {}
   /*!
    * \brief Print external function call.
    * \param ret_type The return type.
