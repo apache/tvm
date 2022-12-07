@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-12-05T14:48:42.065368
+// Generated at 2022-12-07T07:48:30.975250
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 ci_lint = 'tlcpack/ci-lint:20221013-060115-61c9742ea'
@@ -533,7 +533,7 @@ build()
 
 
 
-def shard_run_test_Hexagon_1_of_8() {
+def shard_run_test_Hexagon_1_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
@@ -544,7 +544,7 @@ def shard_run_test_Hexagon_1_of_8() {
             withEnv([
               'PLATFORM=hexagon',
               'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -575,11 +575,11 @@ def shard_run_test_Hexagon_1_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Hexagon 1 of 8')
+    Utils.markStageSkippedForConditional('test: Hexagon 1 of 12')
   }
 }
 
-def shard_run_test_Hexagon_2_of_8() {
+def shard_run_test_Hexagon_2_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
@@ -590,7 +590,7 @@ def shard_run_test_Hexagon_2_of_8() {
             withEnv([
               'PLATFORM=hexagon',
               'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -620,11 +620,11 @@ def shard_run_test_Hexagon_2_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Hexagon 2 of 8')
+    Utils.markStageSkippedForConditional('test: Hexagon 2 of 12')
   }
 }
 
-def shard_run_test_Hexagon_3_of_8() {
+def shard_run_test_Hexagon_3_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
@@ -635,7 +635,7 @@ def shard_run_test_Hexagon_3_of_8() {
             withEnv([
               'PLATFORM=hexagon',
               'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -665,11 +665,11 @@ def shard_run_test_Hexagon_3_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Hexagon 3 of 8')
+    Utils.markStageSkippedForConditional('test: Hexagon 3 of 12')
   }
 }
 
-def shard_run_test_Hexagon_4_of_8() {
+def shard_run_test_Hexagon_4_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
@@ -680,7 +680,7 @@ def shard_run_test_Hexagon_4_of_8() {
             withEnv([
               'PLATFORM=hexagon',
               'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -710,11 +710,11 @@ def shard_run_test_Hexagon_4_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Hexagon 4 of 8')
+    Utils.markStageSkippedForConditional('test: Hexagon 4 of 12')
   }
 }
 
-def shard_run_test_Hexagon_5_of_8() {
+def shard_run_test_Hexagon_5_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
@@ -725,7 +725,7 @@ def shard_run_test_Hexagon_5_of_8() {
             withEnv([
               'PLATFORM=hexagon',
               'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=4',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -755,11 +755,11 @@ def shard_run_test_Hexagon_5_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Hexagon 5 of 8')
+    Utils.markStageSkippedForConditional('test: Hexagon 5 of 12')
   }
 }
 
-def shard_run_test_Hexagon_6_of_8() {
+def shard_run_test_Hexagon_6_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
@@ -770,7 +770,7 @@ def shard_run_test_Hexagon_6_of_8() {
             withEnv([
               'PLATFORM=hexagon',
               'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=5',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -800,11 +800,11 @@ def shard_run_test_Hexagon_6_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Hexagon 6 of 8')
+    Utils.markStageSkippedForConditional('test: Hexagon 6 of 12')
   }
 }
 
-def shard_run_test_Hexagon_7_of_8() {
+def shard_run_test_Hexagon_7_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
@@ -815,7 +815,7 @@ def shard_run_test_Hexagon_7_of_8() {
             withEnv([
               'PLATFORM=hexagon',
               'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=6',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -845,11 +845,11 @@ def shard_run_test_Hexagon_7_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Hexagon 7 of 8')
+    Utils.markStageSkippedForConditional('test: Hexagon 7 of 12')
   }
 }
 
-def shard_run_test_Hexagon_8_of_8() {
+def shard_run_test_Hexagon_8_of_12() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
@@ -860,7 +860,7 @@ def shard_run_test_Hexagon_8_of_8() {
             withEnv([
               'PLATFORM=hexagon',
               'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
+              'TVM_NUM_SHARDS=12',
               'TVM_SHARD_INDEX=7',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -890,7 +890,187 @@ def shard_run_test_Hexagon_8_of_8() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Hexagon 8 of 8')
+    Utils.markStageSkippedForConditional('test: Hexagon 8 of 12')
+  }
+}
+
+def shard_run_test_Hexagon_9_of_12() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
+        try {
+          init_git()
+          docker_init(ci_hexagon)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=hexagon',
+              'TEST_STEP_NAME=test: Hexagon',
+              'TVM_NUM_SHARDS=12',
+              'TVM_SHARD_INDEX=8',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_hexagon)
+              sh (
+                script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+                label: 'Run Hexagon tests',
+              )
+            })
+          }
+        } finally {
+          try {
+            sh(
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Hexagon --items build/pytest-results",
+            label: 'Upload JUnits to S3',
+          )
+
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Hexagon 9 of 12')
+  }
+}
+
+def shard_run_test_Hexagon_10_of_12() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
+        try {
+          init_git()
+          docker_init(ci_hexagon)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=hexagon',
+              'TEST_STEP_NAME=test: Hexagon',
+              'TVM_NUM_SHARDS=12',
+              'TVM_SHARD_INDEX=9',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_hexagon)
+              sh (
+                script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+                label: 'Run Hexagon tests',
+              )
+            })
+          }
+        } finally {
+          try {
+            sh(
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Hexagon --items build/pytest-results",
+            label: 'Upload JUnits to S3',
+          )
+
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Hexagon 10 of 12')
+  }
+}
+
+def shard_run_test_Hexagon_11_of_12() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
+        try {
+          init_git()
+          docker_init(ci_hexagon)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=hexagon',
+              'TEST_STEP_NAME=test: Hexagon',
+              'TVM_NUM_SHARDS=12',
+              'TVM_SHARD_INDEX=10',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_hexagon)
+              sh (
+                script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+                label: 'Run Hexagon tests',
+              )
+            })
+          }
+        } finally {
+          try {
+            sh(
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Hexagon --items build/pytest-results",
+            label: 'Upload JUnits to S3',
+          )
+
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Hexagon 11 of 12')
+  }
+}
+
+def shard_run_test_Hexagon_12_of_12() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
+        try {
+          init_git()
+          docker_init(ci_hexagon)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=hexagon',
+              'TEST_STEP_NAME=test: Hexagon',
+              'TVM_NUM_SHARDS=12',
+              'TVM_SHARD_INDEX=11',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_hexagon)
+              sh (
+                script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+                label: 'Run Hexagon tests',
+              )
+            })
+          }
+        } finally {
+          try {
+            sh(
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Hexagon --items build/pytest-results",
+            label: 'Upload JUnits to S3',
+          )
+
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Hexagon 12 of 12')
   }
 }
 
@@ -901,29 +1081,41 @@ def test() {
       SKIP_SLOW_TESTS = "${skip_slow_tests}"
     }
     parallel(
-    'test: Hexagon 1 of 8': {
-      shard_run_test_Hexagon_1_of_8()
+    'test: Hexagon 1 of 12': {
+      shard_run_test_Hexagon_1_of_12()
     },
-    'test: Hexagon 2 of 8': {
-      shard_run_test_Hexagon_2_of_8()
+    'test: Hexagon 2 of 12': {
+      shard_run_test_Hexagon_2_of_12()
     },
-    'test: Hexagon 3 of 8': {
-      shard_run_test_Hexagon_3_of_8()
+    'test: Hexagon 3 of 12': {
+      shard_run_test_Hexagon_3_of_12()
     },
-    'test: Hexagon 4 of 8': {
-      shard_run_test_Hexagon_4_of_8()
+    'test: Hexagon 4 of 12': {
+      shard_run_test_Hexagon_4_of_12()
     },
-    'test: Hexagon 5 of 8': {
-      shard_run_test_Hexagon_5_of_8()
+    'test: Hexagon 5 of 12': {
+      shard_run_test_Hexagon_5_of_12()
     },
-    'test: Hexagon 6 of 8': {
-      shard_run_test_Hexagon_6_of_8()
+    'test: Hexagon 6 of 12': {
+      shard_run_test_Hexagon_6_of_12()
     },
-    'test: Hexagon 7 of 8': {
-      shard_run_test_Hexagon_7_of_8()
+    'test: Hexagon 7 of 12': {
+      shard_run_test_Hexagon_7_of_12()
     },
-    'test: Hexagon 8 of 8': {
-      shard_run_test_Hexagon_8_of_8()
+    'test: Hexagon 8 of 12': {
+      shard_run_test_Hexagon_8_of_12()
+    },
+    'test: Hexagon 9 of 12': {
+      shard_run_test_Hexagon_9_of_12()
+    },
+    'test: Hexagon 10 of 12': {
+      shard_run_test_Hexagon_10_of_12()
+    },
+    'test: Hexagon 11 of 12': {
+      shard_run_test_Hexagon_11_of_12()
+    },
+    'test: Hexagon 12 of 12': {
+      shard_run_test_Hexagon_12_of_12()
     },
     )
   }

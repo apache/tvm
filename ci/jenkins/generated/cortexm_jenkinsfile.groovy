@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-12-05T14:48:41.929980
+// Generated at 2022-12-07T07:48:30.845954
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 ci_lint = 'tlcpack/ci-lint:20221013-060115-61c9742ea'
@@ -529,7 +529,7 @@ build()
 
 
 
-def shard_run_test_Cortex_M_1_of_12() {
+def shard_run_test_Cortex_M_1_of_20() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -540,7 +540,7 @@ def shard_run_test_Cortex_M_1_of_12() {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=12',
+              'TVM_NUM_SHARDS=20',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -576,11 +576,11 @@ def shard_run_test_Cortex_M_1_of_12() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 1 of 12')
+    Utils.markStageSkippedForConditional('test: Cortex-M 1 of 20')
   }
 }
 
-def shard_run_test_Cortex_M_2_of_12() {
+def shard_run_test_Cortex_M_2_of_20() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -591,7 +591,7 @@ def shard_run_test_Cortex_M_2_of_12() {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=12',
+              'TVM_NUM_SHARDS=20',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -621,11 +621,11 @@ def shard_run_test_Cortex_M_2_of_12() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 2 of 12')
+    Utils.markStageSkippedForConditional('test: Cortex-M 2 of 20')
   }
 }
 
-def shard_run_test_Cortex_M_3_of_12() {
+def shard_run_test_Cortex_M_3_of_20() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -636,7 +636,7 @@ def shard_run_test_Cortex_M_3_of_12() {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=12',
+              'TVM_NUM_SHARDS=20',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -666,11 +666,11 @@ def shard_run_test_Cortex_M_3_of_12() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 3 of 12')
+    Utils.markStageSkippedForConditional('test: Cortex-M 3 of 20')
   }
 }
 
-def shard_run_test_Cortex_M_4_of_12() {
+def shard_run_test_Cortex_M_4_of_20() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -681,7 +681,7 @@ def shard_run_test_Cortex_M_4_of_12() {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=12',
+              'TVM_NUM_SHARDS=20',
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -711,11 +711,11 @@ def shard_run_test_Cortex_M_4_of_12() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 4 of 12')
+    Utils.markStageSkippedForConditional('test: Cortex-M 4 of 20')
   }
 }
 
-def shard_run_test_Cortex_M_5_of_12() {
+def shard_run_test_Cortex_M_5_of_20() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -726,7 +726,7 @@ def shard_run_test_Cortex_M_5_of_12() {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=12',
+              'TVM_NUM_SHARDS=20',
               'TVM_SHARD_INDEX=4',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -756,11 +756,11 @@ def shard_run_test_Cortex_M_5_of_12() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 5 of 12')
+    Utils.markStageSkippedForConditional('test: Cortex-M 5 of 20')
   }
 }
 
-def shard_run_test_Cortex_M_6_of_12() {
+def shard_run_test_Cortex_M_6_of_20() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -771,7 +771,7 @@ def shard_run_test_Cortex_M_6_of_12() {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=12',
+              'TVM_NUM_SHARDS=20',
               'TVM_SHARD_INDEX=5',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -801,11 +801,11 @@ def shard_run_test_Cortex_M_6_of_12() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 6 of 12')
+    Utils.markStageSkippedForConditional('test: Cortex-M 6 of 20')
   }
 }
 
-def shard_run_test_Cortex_M_7_of_12() {
+def shard_run_test_Cortex_M_7_of_20() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -816,7 +816,7 @@ def shard_run_test_Cortex_M_7_of_12() {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=12',
+              'TVM_NUM_SHARDS=20',
               'TVM_SHARD_INDEX=6',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -846,11 +846,11 @@ def shard_run_test_Cortex_M_7_of_12() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 7 of 12')
+    Utils.markStageSkippedForConditional('test: Cortex-M 7 of 20')
   }
 }
 
-def shard_run_test_Cortex_M_8_of_12() {
+def shard_run_test_Cortex_M_8_of_20() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -861,7 +861,7 @@ def shard_run_test_Cortex_M_8_of_12() {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=12',
+              'TVM_NUM_SHARDS=20',
               'TVM_SHARD_INDEX=7',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -891,11 +891,11 @@ def shard_run_test_Cortex_M_8_of_12() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 8 of 12')
+    Utils.markStageSkippedForConditional('test: Cortex-M 8 of 20')
   }
 }
 
-def shard_run_test_Cortex_M_9_of_12() {
+def shard_run_test_Cortex_M_9_of_20() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -906,7 +906,7 @@ def shard_run_test_Cortex_M_9_of_12() {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=12',
+              'TVM_NUM_SHARDS=20',
               'TVM_SHARD_INDEX=8',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -936,11 +936,11 @@ def shard_run_test_Cortex_M_9_of_12() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 9 of 12')
+    Utils.markStageSkippedForConditional('test: Cortex-M 9 of 20')
   }
 }
 
-def shard_run_test_Cortex_M_10_of_12() {
+def shard_run_test_Cortex_M_10_of_20() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -951,7 +951,7 @@ def shard_run_test_Cortex_M_10_of_12() {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=12',
+              'TVM_NUM_SHARDS=20',
               'TVM_SHARD_INDEX=9',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -981,11 +981,11 @@ def shard_run_test_Cortex_M_10_of_12() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 10 of 12')
+    Utils.markStageSkippedForConditional('test: Cortex-M 10 of 20')
   }
 }
 
-def shard_run_test_Cortex_M_11_of_12() {
+def shard_run_test_Cortex_M_11_of_20() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -996,7 +996,7 @@ def shard_run_test_Cortex_M_11_of_12() {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=12',
+              'TVM_NUM_SHARDS=20',
               'TVM_SHARD_INDEX=10',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -1026,11 +1026,11 @@ def shard_run_test_Cortex_M_11_of_12() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 11 of 12')
+    Utils.markStageSkippedForConditional('test: Cortex-M 11 of 20')
   }
 }
 
-def shard_run_test_Cortex_M_12_of_12() {
+def shard_run_test_Cortex_M_12_of_20() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -1041,7 +1041,7 @@ def shard_run_test_Cortex_M_12_of_12() {
             withEnv([
               'PLATFORM=cortexm',
               'TEST_STEP_NAME=test: Cortex-M',
-              'TVM_NUM_SHARDS=12',
+              'TVM_NUM_SHARDS=20',
               'TVM_SHARD_INDEX=11',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -1071,7 +1071,367 @@ def shard_run_test_Cortex_M_12_of_12() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 12 of 12')
+    Utils.markStageSkippedForConditional('test: Cortex-M 12 of 20')
+  }
+}
+
+def shard_run_test_Cortex_M_13_of_20() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          init_git()
+          docker_init(ci_cortexm)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TEST_STEP_NAME=test: Cortex-M',
+              'TVM_NUM_SHARDS=20',
+              'TVM_SHARD_INDEX=12',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          try {
+            sh(
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Cortex_M --items build/pytest-results",
+            label: 'Upload JUnits to S3',
+          )
+
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 13 of 20')
+  }
+}
+
+def shard_run_test_Cortex_M_14_of_20() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          init_git()
+          docker_init(ci_cortexm)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TEST_STEP_NAME=test: Cortex-M',
+              'TVM_NUM_SHARDS=20',
+              'TVM_SHARD_INDEX=13',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          try {
+            sh(
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Cortex_M --items build/pytest-results",
+            label: 'Upload JUnits to S3',
+          )
+
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 14 of 20')
+  }
+}
+
+def shard_run_test_Cortex_M_15_of_20() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          init_git()
+          docker_init(ci_cortexm)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TEST_STEP_NAME=test: Cortex-M',
+              'TVM_NUM_SHARDS=20',
+              'TVM_SHARD_INDEX=14',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          try {
+            sh(
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Cortex_M --items build/pytest-results",
+            label: 'Upload JUnits to S3',
+          )
+
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 15 of 20')
+  }
+}
+
+def shard_run_test_Cortex_M_16_of_20() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          init_git()
+          docker_init(ci_cortexm)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TEST_STEP_NAME=test: Cortex-M',
+              'TVM_NUM_SHARDS=20',
+              'TVM_SHARD_INDEX=15',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          try {
+            sh(
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Cortex_M --items build/pytest-results",
+            label: 'Upload JUnits to S3',
+          )
+
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 16 of 20')
+  }
+}
+
+def shard_run_test_Cortex_M_17_of_20() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          init_git()
+          docker_init(ci_cortexm)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TEST_STEP_NAME=test: Cortex-M',
+              'TVM_NUM_SHARDS=20',
+              'TVM_SHARD_INDEX=16',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          try {
+            sh(
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Cortex_M --items build/pytest-results",
+            label: 'Upload JUnits to S3',
+          )
+
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 17 of 20')
+  }
+}
+
+def shard_run_test_Cortex_M_18_of_20() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          init_git()
+          docker_init(ci_cortexm)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TEST_STEP_NAME=test: Cortex-M',
+              'TVM_NUM_SHARDS=20',
+              'TVM_SHARD_INDEX=17',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          try {
+            sh(
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Cortex_M --items build/pytest-results",
+            label: 'Upload JUnits to S3',
+          )
+
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 18 of 20')
+  }
+}
+
+def shard_run_test_Cortex_M_19_of_20() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          init_git()
+          docker_init(ci_cortexm)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TEST_STEP_NAME=test: Cortex-M',
+              'TVM_NUM_SHARDS=20',
+              'TVM_SHARD_INDEX=18',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          try {
+            sh(
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Cortex_M --items build/pytest-results",
+            label: 'Upload JUnits to S3',
+          )
+
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 19 of 20')
+  }
+}
+
+def shard_run_test_Cortex_M_20_of_20() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          init_git()
+          docker_init(ci_cortexm)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TEST_STEP_NAME=test: Cortex-M',
+              'TVM_NUM_SHARDS=20',
+              'TVM_SHARD_INDEX=19',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          try {
+            sh(
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Cortex_M --items build/pytest-results",
+            label: 'Upload JUnits to S3',
+          )
+
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 20 of 20')
   }
 }
 
@@ -1082,41 +1442,65 @@ def test() {
       SKIP_SLOW_TESTS = "${skip_slow_tests}"
     }
     parallel(
-    'test: Cortex-M 1 of 12': {
-      shard_run_test_Cortex_M_1_of_12()
+    'test: Cortex-M 1 of 20': {
+      shard_run_test_Cortex_M_1_of_20()
     },
-    'test: Cortex-M 2 of 12': {
-      shard_run_test_Cortex_M_2_of_12()
+    'test: Cortex-M 2 of 20': {
+      shard_run_test_Cortex_M_2_of_20()
     },
-    'test: Cortex-M 3 of 12': {
-      shard_run_test_Cortex_M_3_of_12()
+    'test: Cortex-M 3 of 20': {
+      shard_run_test_Cortex_M_3_of_20()
     },
-    'test: Cortex-M 4 of 12': {
-      shard_run_test_Cortex_M_4_of_12()
+    'test: Cortex-M 4 of 20': {
+      shard_run_test_Cortex_M_4_of_20()
     },
-    'test: Cortex-M 5 of 12': {
-      shard_run_test_Cortex_M_5_of_12()
+    'test: Cortex-M 5 of 20': {
+      shard_run_test_Cortex_M_5_of_20()
     },
-    'test: Cortex-M 6 of 12': {
-      shard_run_test_Cortex_M_6_of_12()
+    'test: Cortex-M 6 of 20': {
+      shard_run_test_Cortex_M_6_of_20()
     },
-    'test: Cortex-M 7 of 12': {
-      shard_run_test_Cortex_M_7_of_12()
+    'test: Cortex-M 7 of 20': {
+      shard_run_test_Cortex_M_7_of_20()
     },
-    'test: Cortex-M 8 of 12': {
-      shard_run_test_Cortex_M_8_of_12()
+    'test: Cortex-M 8 of 20': {
+      shard_run_test_Cortex_M_8_of_20()
     },
-    'test: Cortex-M 9 of 12': {
-      shard_run_test_Cortex_M_9_of_12()
+    'test: Cortex-M 9 of 20': {
+      shard_run_test_Cortex_M_9_of_20()
     },
-    'test: Cortex-M 10 of 12': {
-      shard_run_test_Cortex_M_10_of_12()
+    'test: Cortex-M 10 of 20': {
+      shard_run_test_Cortex_M_10_of_20()
     },
-    'test: Cortex-M 11 of 12': {
-      shard_run_test_Cortex_M_11_of_12()
+    'test: Cortex-M 11 of 20': {
+      shard_run_test_Cortex_M_11_of_20()
     },
-    'test: Cortex-M 12 of 12': {
-      shard_run_test_Cortex_M_12_of_12()
+    'test: Cortex-M 12 of 20': {
+      shard_run_test_Cortex_M_12_of_20()
+    },
+    'test: Cortex-M 13 of 20': {
+      shard_run_test_Cortex_M_13_of_20()
+    },
+    'test: Cortex-M 14 of 20': {
+      shard_run_test_Cortex_M_14_of_20()
+    },
+    'test: Cortex-M 15 of 20': {
+      shard_run_test_Cortex_M_15_of_20()
+    },
+    'test: Cortex-M 16 of 20': {
+      shard_run_test_Cortex_M_16_of_20()
+    },
+    'test: Cortex-M 17 of 20': {
+      shard_run_test_Cortex_M_17_of_20()
+    },
+    'test: Cortex-M 18 of 20': {
+      shard_run_test_Cortex_M_18_of_20()
+    },
+    'test: Cortex-M 19 of 20': {
+      shard_run_test_Cortex_M_19_of_20()
+    },
+    'test: Cortex-M 20 of 20': {
+      shard_run_test_Cortex_M_20_of_20()
     },
     )
   }

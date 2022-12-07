@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-12-05T14:48:42.092397
+// Generated at 2022-12-07T07:48:31.003027
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 ci_lint = 'tlcpack/ci-lint:20221013-060115-61c9742ea'
@@ -529,7 +529,7 @@ build()
 
 
 
-def shard_run_integration_aarch64_1_of_4() {
+def shard_run_integration_aarch64_1_of_5() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
@@ -540,7 +540,7 @@ def shard_run_integration_aarch64_1_of_4() {
             withEnv([
               'PLATFORM=arm',
               'TEST_STEP_NAME=integration: aarch64',
-              'TVM_NUM_SHARDS=4',
+              'TVM_NUM_SHARDS=5',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -571,11 +571,11 @@ def shard_run_integration_aarch64_1_of_4() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: aarch64 1 of 4')
+    Utils.markStageSkippedForConditional('integration: aarch64 1 of 5')
   }
 }
 
-def shard_run_integration_aarch64_2_of_4() {
+def shard_run_integration_aarch64_2_of_5() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
@@ -586,7 +586,7 @@ def shard_run_integration_aarch64_2_of_4() {
             withEnv([
               'PLATFORM=arm',
               'TEST_STEP_NAME=integration: aarch64',
-              'TVM_NUM_SHARDS=4',
+              'TVM_NUM_SHARDS=5',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -617,11 +617,11 @@ def shard_run_integration_aarch64_2_of_4() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: aarch64 2 of 4')
+    Utils.markStageSkippedForConditional('integration: aarch64 2 of 5')
   }
 }
 
-def shard_run_integration_aarch64_3_of_4() {
+def shard_run_integration_aarch64_3_of_5() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
@@ -632,7 +632,7 @@ def shard_run_integration_aarch64_3_of_4() {
             withEnv([
               'PLATFORM=arm',
               'TEST_STEP_NAME=integration: aarch64',
-              'TVM_NUM_SHARDS=4',
+              'TVM_NUM_SHARDS=5',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -663,11 +663,11 @@ def shard_run_integration_aarch64_3_of_4() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: aarch64 3 of 4')
+    Utils.markStageSkippedForConditional('integration: aarch64 3 of 5')
   }
 }
 
-def shard_run_integration_aarch64_4_of_4() {
+def shard_run_integration_aarch64_4_of_5() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
@@ -678,7 +678,7 @@ def shard_run_integration_aarch64_4_of_4() {
             withEnv([
               'PLATFORM=arm',
               'TEST_STEP_NAME=integration: aarch64',
-              'TVM_NUM_SHARDS=4',
+              'TVM_NUM_SHARDS=5',
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               sh(
@@ -709,7 +709,53 @@ def shard_run_integration_aarch64_4_of_4() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: aarch64 4 of 4')
+    Utils.markStageSkippedForConditional('integration: aarch64 4 of 5')
+  }
+}
+
+def shard_run_integration_aarch64_5_of_5() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('ARM-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
+        try {
+          init_git()
+          docker_init(ci_arm)
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=arm',
+              'TEST_STEP_NAME=integration: aarch64',
+              'TVM_NUM_SHARDS=5',
+              'TVM_SHARD_INDEX=4',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_arm)
+              python_unittest(ci_arm)
+              sh (
+                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh",
+                label: 'Run CPU integration tests',
+              )
+            })
+          }
+        } finally {
+          try {
+            sh(
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/integration_aarch64 --items build/pytest-results",
+            label: 'Upload JUnits to S3',
+          )
+
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('integration: aarch64 5 of 5')
   }
 }
 
@@ -914,17 +960,20 @@ def test() {
       SKIP_SLOW_TESTS = "${skip_slow_tests}"
     }
     parallel(
-    'integration: aarch64 1 of 4': {
-      shard_run_integration_aarch64_1_of_4()
+    'integration: aarch64 1 of 5': {
+      shard_run_integration_aarch64_1_of_5()
     },
-    'integration: aarch64 2 of 4': {
-      shard_run_integration_aarch64_2_of_4()
+    'integration: aarch64 2 of 5': {
+      shard_run_integration_aarch64_2_of_5()
     },
-    'integration: aarch64 3 of 4': {
-      shard_run_integration_aarch64_3_of_4()
+    'integration: aarch64 3 of 5': {
+      shard_run_integration_aarch64_3_of_5()
     },
-    'integration: aarch64 4 of 4': {
-      shard_run_integration_aarch64_4_of_4()
+    'integration: aarch64 4 of 5': {
+      shard_run_integration_aarch64_4_of_5()
+    },
+    'integration: aarch64 5 of 5': {
+      shard_run_integration_aarch64_5_of_5()
     },
     'topi: aarch64 1 of 2': {
       shard_run_topi_aarch64_1_of_2()
