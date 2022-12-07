@@ -520,12 +520,12 @@ def register_binary_qnn(op_name, op):
 
         assert (
             len(out_t.scale.data.shape) == 0
-        ), "The output scale of QNN binary operators needs to be a scalar, but got a tensor of shape {}".format(
+        ), "The output scale needs to be a scalar, but got a tensor of shape {}".format(
             out_t.scale.data.shape
         )
         assert (
             len(out_t.zero_point.data.shape) == 0
-        ), "The output zero point of QNN binary operators needs to be a scalar, but got a tensor of shape {}".format(
+        ), "The output zero point needs to be a scalar, but got a tensor of shape {}".format(
             out_t.zero_point.data.shape
         )
 
