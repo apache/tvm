@@ -502,6 +502,16 @@ def register_binary_qnn(op_name, op):
 
     def binary(expr, type_map):
         left, right, left_t, right_t, out_t = get_binary_types(expr, type_map)
+
+        if (
+            approx_equal(left_t.scale, right_t.scale)
+            and approx_equal(left_t.zero_point, right_t.zero_point)
+            and tvm.ir.structural_equal(left_t.dtype, right_t.dtype)
+            and approx_equal(left_t.scale, out_t.scale)
+            and approx_equal(left_t.zero_point, out_t.zero_point)
+        ):
+            return [expr, left_t]
+
         out = op(
             left,
             right,
