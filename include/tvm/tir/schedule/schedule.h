@@ -563,21 +563,26 @@ class ScheduleNode : public runtime::Object {
   /*!
    * \brief Convert the subtree rooted at a specific loop into a block.
    * \param loop_rv the root of the subtree
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    * \return the new block
    */
-  virtual BlockRV Blockize(const LoopRV& loop_rv) = 0;
+  virtual BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Tensorize the computation enclosed by loop with the tensor intrin.
    * \param loop_rv The loop to be tensorized
    * \param intrin Name of the tensor intrinsic
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    */
-  virtual void Tensorize(const LoopRV& loop_rv, const String& intrin) = 0;
+  virtual void Tensorize(const LoopRV& loop_rv, const String& intrin,
+                         bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Tensorize the computation enclosed by loop with the tensor intrin.
    * \param block_rv The block to be tensorized
    * \param intrin Name of the tensor intrinsic
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    */
-  virtual void Tensorize(const BlockRV& block_rv, const String& intrin) = 0;
+  virtual void Tensorize(const BlockRV& block_rv, const String& intrin,
+                         bool preserve_unit_iters = true) = 0;
 
   /******** Schedule: Annotation ********/
   /*!

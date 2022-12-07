@@ -690,6 +690,8 @@ def test_meta_schedule_runner_add_test():
         a_before, b_before, c_before = args_before
         a_after, b_after, c_after = args_after
         c_before = a_before + b_before
+        print(a_before)
+        print(a_after)
         assert (a_before == a_after).all()
         assert (b_before == b_after).all()
         assert (c_before == c_after).all()
@@ -786,6 +788,7 @@ def test_meta_schedule_runner_add_test():
         # Run the module
         (runner_future,) = runner.run([runner_input])
         runner_result = runner_future.result()
+    print(runner_result.error_msg)
     assert runner_result.error_msg is None
     for result in runner_result.run_secs:
         if isinstance(result, FloatImm):
