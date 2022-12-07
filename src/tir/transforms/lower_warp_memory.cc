@@ -295,12 +295,10 @@ class WarpAccessRewriter : protected StmtExprMutator {
 
   Stmt VisitStmt_(const StoreNode* op) override {
     LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
   }
 
   PrimExpr VisitExpr_(const LoadNode* op) override {
     LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) override {

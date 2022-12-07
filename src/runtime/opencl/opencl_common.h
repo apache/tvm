@@ -196,7 +196,6 @@ inline cl_channel_type DTypeToOpenCLChannelType(DLDataType data_type) {
     return CL_UNSIGNED_INT32;
   }
   LOG(FATAL) << "data type is not supported in OpenCL runtime yet: " << dtype;
-  return CL_FLOAT;
 }
 
 /*!

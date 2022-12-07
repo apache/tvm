@@ -23,12 +23,16 @@ import re
 import textwrap
 
 from pathlib import Path
-from typing import List
+from typing import List, Optional
+from dataclasses import dataclass
+
+from data import data
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-JENKINSFILE_TEMPLATE = REPO_ROOT / "ci" / "jenkins" / "Jenkinsfile.j2"
-JENKINSFILE = REPO_ROOT / "Jenkinsfile"
+JENKINS_DIR = REPO_ROOT / "ci" / "jenkins"
+TEMPLATES_DIR = JENKINS_DIR / "templates"
+GENERATED_DIR = JENKINS_DIR / "generated"
 
 
 class Change:
@@ -37,50 +41,12 @@ class Change:
     FULL = object()
 
 
-data = {
-    "images": [
-        {
-            "name": "ci_arm",
-            "platform": "ARM",
-        },
-        {
-            "name": "ci_cortexm",
-            "platform": "CPU",
-        },
-        {
-            "name": "ci_cpu",
-            "platform": "CPU",
-        },
-        {
-            "name": "ci_gpu",
-            "platform": "CPU",
-        },
-        {
-            "name": "ci_hexagon",
-            "platform": "CPU",
-        },
-        {
-            "name": "ci_i386",
-            "platform": "CPU",
-        },
-        {
-            "name": "ci_lint",
-            "platform": "CPU",
-        },
-        {
-            "name": "ci_minimal",
-            "platform": "CPU",
-        },
-        {
-            "name": "ci_riscv",
-            "platform": "CPU",
-        },
-        {
-            "name": "ci_wasm",
-            "platform": "CPU",
-        },
-    ]
-}
+@dataclass
+class ChangeData:
+    diff: Optional[str]
+    content: str
+    destination: Path
+    source: Path
 
 
 def lines_without_generated_tag(content):
@@ -133,36 +99,44 @@ def change_type(lines: List[str]) -> Change:
         return Change.FULL
 
 
-if __name__ == "__main__":
-    help = "Regenerate Jenkinsfile from template"
-    parser = argparse.ArgumentParser(description=help)
-    parser.add_argument("--force", action="store_true", help="always overwrite timestamp")
-    parser.add_argument("--check", action="store_true", help="just verify the output didn't change")
-    args = parser.parse_args()
-
-    with open(JENKINSFILE) as f:
-        content = f.read()
+def update_jenkinsfile(source: Path) -> ChangeData:
+    destination = GENERATED_DIR / source.stem
 
     data["generated_time"] = datetime.datetime.now().isoformat()
-    timestamp_match = re.search(r"^// Generated at (.*)$", content, flags=re.MULTILINE)
-    if not timestamp_match:
-        raise RuntimeError("Could not find timestamp in Jenkinsfile")
-    original_timestamp = timestamp_match.groups()[0]
+    if destination.exists():
+        with open(destination) as f:
+            old_generated_content = f.read()
+
+        timestamp_match = re.search(
+            r"^// Generated at (.*)$", old_generated_content, flags=re.MULTILINE
+        )
+        if not timestamp_match:
+            raise RuntimeError(
+                f"Could not find timestamp in Jenkinsfile: {destination.relative_to(TEMPLATES_DIR)}"
+            )
+        original_timestamp = timestamp_match.groups()[0]
 
     environment = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(REPO_ROOT),
+        loader=jinja2.FileSystemLoader(TEMPLATES_DIR),
         undefined=jinja2.StrictUndefined,
         lstrip_blocks=True,
         trim_blocks=True,
         keep_trailing_newline=True,
     )
-    template = environment.get_template(str(JENKINSFILE_TEMPLATE.relative_to(REPO_ROOT)))
+    template = environment.get_template(str(source.relative_to(TEMPLATES_DIR)))
     new_content = template.render(**data)
+
+    if not destination.exists():
+        # New file, create it from scratch
+        return ChangeData(
+            diff=new_content, content=new_content, source=source, destination=destination
+        )
 
     diff = [
         line
         for line in difflib.unified_diff(
-            lines_without_generated_tag(content), lines_without_generated_tag(new_content)
+            lines_without_generated_tag(old_generated_content),
+            lines_without_generated_tag(new_content),
         )
     ]
     change = change_type(diff)
@@ -173,17 +147,30 @@ if __name__ == "__main__":
 
     diff = "".join(diff)
 
+    return ChangeData(diff=diff, content=new_content, source=source, destination=destination)
+
+
+if __name__ == "__main__":
+    help = "Regenerate Jenkinsfile from template"
+    parser = argparse.ArgumentParser(description=help)
+    parser.add_argument("--force", action="store_true", help="always overwrite timestamp")
+    parser.add_argument("--check", action="store_true", help="just verify the output didn't change")
+    args = parser.parse_args()
+
+    sources = TEMPLATES_DIR.glob("*_jenkinsfile.groovy.j2")
+    changes = [update_jenkinsfile(source) for source in sources if source.name != "base.groovy.j2"]
+
     if args.check:
-        if not diff:
-            print("Success, the newly generated Jenkinsfile matched the one on disk")
+        if all(not data.diff for data in changes):
+            print("Success, the newly generated Jenkinsfiles matched the ones on disk")
             exit(0)
         else:
             print(
                 textwrap.dedent(
                     """
-                Newly generated Jenkinsfile did not match the one on disk! If you have made
-                edits to the Jenkinsfile, move them to 'jenkins/Jenkinsfile.j2' and
-                regenerate the Jenkinsfile from the template with
+                Newly generated Jenkinsfiles did not match the ones on disk! If you have made
+                edits to the Jenkinsfiles in generated/, move them to the corresponding source and
+                regenerate the Jenkinsfiles from the templates with
 
                     python3 -m pip install -r jenkins/requirements.txt
                     python3 jenkins/generate.py
@@ -192,13 +179,20 @@ if __name__ == "__main__":
             """
                 ).strip()
             )
-            print(diff)
+            for data in changes:
+                if data.diff:
+                    source = data.source.relative_to(REPO_ROOT)
+                    print(source)
+                    print(data.diff)
+
             exit(1)
     else:
-        with open(JENKINSFILE, "w") as f:
-            f.write(new_content)
-        if not diff:
-            print(f"Wrote output to {JENKINSFILE.relative_to(REPO_ROOT)}, no changes made")
-        else:
-            print(f"Wrote output to {JENKINSFILE.relative_to(REPO_ROOT)}, changes:")
-            print(diff)
+        for data in changes:
+            with open(data.destination, "w") as f:
+                f.write(data.content)
+
+            if not data.diff:
+                print(f"Wrote output to {data.destination.relative_to(REPO_ROOT)}, no changes made")
+            else:
+                print(f"Wrote output to {data.destination.relative_to(REPO_ROOT)}, changes:")
+                print(data.diff)

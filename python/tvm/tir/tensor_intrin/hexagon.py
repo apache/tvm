@@ -104,6 +104,48 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
     return dot_product_32x4_u8i8i32_desc, dot_product_32x4_u8i8i32_vrmpy
 
 
+def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
+    @T.prim_func
+    def dot_product_32x2_i16i16i32_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (2,), "int16", offset_factor=1, scope=mem_scope)
+        B = T.match_buffer(b, (32, 2), "int16", offset_factor=1, scope=mem_scope)
+        C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=mem_scope)
+        with T.block("root"):
+            T.reads(C[0:32], A[0:2], B[0:32, 0:2])
+            T.writes(C[0:32])
+            for i in T.serial(0, 32):
+                for k in T.serial(0, 2):
+                    with T.block("update"):
+                        vi, vk = T.axis.remap("SR", [i, k])
+                        C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
+
+    @T.prim_func
+    def dot_product_32x2_i16i16i32_vdmpy(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (2,), "int16", offset_factor=1, scope=mem_scope)
+        B = T.match_buffer(b, (32, 2), "int16", offset_factor=1, scope=mem_scope)
+        C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=mem_scope)
+        with T.block("root"):
+            T.reads(C[0:32], A[0:2], B[0:32, 0:2])
+            T.writes(C[0:32])
+
+            A_i16x2 = A.vload([0], "int16x2")
+            A_i32 = T.reinterpret(A_i16x2, dtype="int32")
+
+            B_i16x64 = B.vload([0, 0], dtype="int16x64")
+            B_i32x32 = T.reinterpret(B_i16x64, dtype="int32x32")
+
+            C[T.ramp(T.int32(0), 1, 32)] = T.call_llvm_pure_intrin(
+                T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vdmpyhvsat.acc.128B"),
+                T.uint32(3),
+                C[T.ramp(T.int32(0), 1, 32)],
+                T.Broadcast(A_i32, 32),
+                B_i32x32,
+                dtype="int32x32",
+            )
+
+    return dot_product_32x2_i16i16i32_desc, dot_product_32x2_i16i16i32_vdmpy
+
+
 VRMPY_u8u8i32_INTRIN = "dot_32x4_u8u8i32_vrmpy"
 
 TensorIntrin.register(VRMPY_u8u8i32_INTRIN, *generate_dot_product_32x4_u8u8i32())
@@ -111,6 +153,10 @@ TensorIntrin.register(VRMPY_u8u8i32_INTRIN, *generate_dot_product_32x4_u8u8i32()
 VRMPY_u8i8i32_INTRIN = "dot_32x4_u8i8i32_vrmpy"
 
 TensorIntrin.register(VRMPY_u8i8i32_INTRIN, *generate_dot_product_32x4_u8i8i32())
+
+VDMPY_i16i16i32_INTRIN = "dot_product_32x2_i16i16i32_vdmpy"
+
+TensorIntrin.register(VDMPY_i16i16i32_INTRIN, *generate_dot_product_32x2_i16i16i32())
 
 VRMPY_u8u8i32_VTCM_INTRIN = "dot_32x4_u8u8i32_vtcm_vrmpy"
 TensorIntrin.register(VRMPY_u8u8i32_VTCM_INTRIN, *generate_dot_product_32x4_u8u8i32("global.vtcm"))

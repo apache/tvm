@@ -43,7 +43,6 @@ class MyModuleNode : public ModuleNode {
       return TypedPackedFunc<int(int)>([sptr_to_self, this](int value) { return value_ * value; });
     } else {
       LOG(FATAL) << "unknown function " << name;
-      return PackedFunc();
     }
   }
 

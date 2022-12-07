@@ -43,7 +43,6 @@ TVM_REGISTER_NODE_TYPE(MetaRefAttrs);
 bool MetaRefRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                 const TypeReporter& reporter) {
   LOG(FATAL) << "need to expand before type checking";
-  return true;
 }
 
 RELAY_REGISTER_OP("parser.MetaRef")

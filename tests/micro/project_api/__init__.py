@@ -15,13 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 
-_venv: requirements.txt
-	rm -rf _venv
-	python3 -mvenv _venv
-	_venv/bin/pip3 install -r requirements.txt
-
-all: _venv
-	_venv/bin/python3 generate.py
-
-.PHONY: all venv
-.DEFAULT_GOAL=all
+"""Test Project API in different platforms infrastructure."""

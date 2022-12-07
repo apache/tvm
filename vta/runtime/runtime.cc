@@ -955,7 +955,6 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
       return kStoreStage;
     }
     LOG(FATAL) << "not reached";
-    return kNoneStage;
   }
 
   // Get stage of memory and computation

@@ -209,6 +209,7 @@ if use_physical_hw:
         boards = json.load(f)
 
     BOARD = os.getenv("TVM_MICRO_BOARD", default="nucleo_f746zg")
+    SERIAL = os.getenv("TVM_MICRO_SERIAL", default=None)
     TARGET = tvm.target.target.micro(boards[BOARD]["model"])
 
 #
@@ -291,7 +292,7 @@ project_options = {}  # You can use options to provide platform-specific options
 
 if use_physical_hw:
     template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr"))
-    project_options = {"project_type": "host_driven", "board": BOARD}
+    project_options = {"project_type": "host_driven", "board": BOARD, "serial_number": SERIAL}
 
 # Create a temporary directory
 

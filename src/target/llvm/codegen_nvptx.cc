@@ -179,13 +179,15 @@ class CodeGenNVPTX : public CodeGenLLVM {
       return builder_->CreateCall(f, {});
     } else {
       LOG(FATAL) << "Do not support sync " << sync;
-      return nullptr;
     }
   }
 
+#if TVM_LLVM_VERSION < 160
+  // This function only works with the legacy pass manager.
   void InitPassManagerBuilder(llvm::PassManagerBuilder* builder) final {
     // Additional optimization hook to tweak the builder.
   }
+#endif
 
   void Optimize() final {
     for (auto& f : *module_) {

@@ -192,6 +192,11 @@ class RelayToTIRVisitor : public MixedModeMutator {
     std::string kernel_layout = conv2d_attrs->kernel_layout.c_str();
     int32_t clip_min = std::numeric_limits<int8_t>::min();
     int32_t clip_max = std::numeric_limits<int8_t>::max();
+
+    if (dtype_bits == 16) {
+      clip_min = std::numeric_limits<int16_t>::min();
+      clip_max = std::numeric_limits<int16_t>::max();
+    }
     if (clip_call) {
       const ClipAttrs* clip_attrs = clip_call->attrs.as<ClipAttrs>();
       clip_min = clip_attrs->a_min;
@@ -309,6 +314,14 @@ class RelayToTIRVisitor : public MixedModeMutator {
       fc_call = requantize_input;
     }
 
+    // Extract the size of the input parameter from the call arguments. Other params are based off
+    // the input size
+    int32_t dtype_bits = fc_call->args[0]->type_as<TensorTypeNode>()->dtype.bits();
+    int32_t input_bits = dtype_bits;
+    int32_t filter_bits = 8;
+    int32_t bias_bits = dtype_bits * 4U;
+    int32_t output_bits = dtype_bits;
+
     // TIR variables are created in the order they appear in the Relay partitioned function
     // %1 = qnn.dense(%input, %weight_const_0, input_zero_point_scalar, kernel_zero_point_scalar,
     //                 %input_scale_scalar, %kernel_scale_scalar)
@@ -317,12 +330,12 @@ class RelayToTIRVisitor : public MixedModeMutator {
     //                     %output_scale_scalar, %output_zero_point_scalar)
     // clip(%3, a_min=%min_scalar, a_max=%max_scalar)
     BufferCreator buffer_creator;
-    tir::Var input = buffer_creator.CreateBufferVar("input", DataType::Handle(8));
-    tir::Var filter = buffer_creator.CreateBufferVar("filter", DataType::Handle(8));
+    tir::Var input = buffer_creator.CreateBufferVar("input", DataType::Handle(input_bits));
+    tir::Var filter = buffer_creator.CreateBufferVar("filter", DataType::Handle(filter_bits));
     if (bias_add_call) {
-      buffer_creator.CreateBufferVar("bias", DataType::Handle(32));
+      buffer_creator.CreateBufferVar("bias", DataType::Handle(bias_bits));
     }
-    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
+    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(output_bits));
 
     // Individual arguments to the structs arguments of the CMSIS-NN API are filled into call_extern
     // https://github.com/ARM-software/CMSIS_5/blob/def6f800f95661eb3451d317f7d0dde504f6020d/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_wrapper_s8.c#L50
@@ -341,8 +354,13 @@ class RelayToTIRVisitor : public MixedModeMutator {
       clip_min = clip_attrs->a_min;
       clip_max = clip_attrs->a_max;
     } else {
-      clip_min = -128;
-      clip_max = 127;
+      if (dtype_bits == 8) {
+        clip_min = std::numeric_limits<int8_t>::min();
+        clip_max = std::numeric_limits<int8_t>::max();
+      } else {
+        clip_min = std::numeric_limits<int16_t>::min();
+        clip_max = std::numeric_limits<int16_t>::max();
+      }
     }
 
     double quantized_multiplier =
@@ -366,7 +384,10 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     Array<PrimExpr> cmsisnn_output_shape{batch_size, 1, 1, out_channels};
 
-    tvm::Array<PrimExpr> call_ext_args = {tir::StringImm("arm_fully_connected_s8"), input, filter};
+    std::string cmsisnn_api =
+        dtype_bits == 16 ? "arm_fully_connected_s16" : "arm_fully_connected_s8";
+
+    tvm::Array<PrimExpr> call_ext_args = {tir::StringImm(cmsisnn_api), input, filter};
     if (bias_add_call) {
       call_ext_args.push_back(buffer_creator.GetBufferVar("bias"));
     }
@@ -407,12 +428,19 @@ class RelayToTIRVisitor : public MixedModeMutator {
       pool = final_call;
     }
 
+    int32_t dtype_bits = final_call->type_as<TensorTypeNode>()->dtype.bits();
+
     // prepare cmsis_nn_pool_params
     int32_t stride_h, stride_w, padding_h, padding_w, pool_size_h, pool_size_w;
     int32_t clip_min, clip_max;
     std::string cmsisnn_api;
     if (pool_name == "cmsis-nn.qnn_avg_pool2d") {
-      cmsisnn_api = "arm_avgpool_s8";
+      if (dtype_bits == 8) {
+        cmsisnn_api = "arm_avgpool_s8";
+      } else {
+        cmsisnn_api = "arm_avgpool_s16";
+      }
+
       const AvgPool2DAttrs* attrs = pool->attrs.as<AvgPool2DAttrs>();
       stride_h = qnn::get_const_int(attrs->strides[0]);
       stride_w = qnn::get_const_int(attrs->strides[1]);
@@ -421,7 +449,12 @@ class RelayToTIRVisitor : public MixedModeMutator {
       pool_size_h = qnn::get_const_int(attrs->pool_size[0]);
       pool_size_w = qnn::get_const_int(attrs->pool_size[1]);
     } else {
-      cmsisnn_api = "arm_max_pool_s8";
+      if (dtype_bits == 8) {
+        cmsisnn_api = "arm_max_pool_s8";
+      } else {
+        cmsisnn_api = "arm_max_pool_s16";
+      }
+
       const MaxPool2DAttrs* attrs = pool->attrs.as<MaxPool2DAttrs>();
       stride_h = qnn::get_const_int(attrs->strides[0]);
       stride_w = qnn::get_const_int(attrs->strides[1]);
@@ -435,8 +468,13 @@ class RelayToTIRVisitor : public MixedModeMutator {
       clip_min = clip_attrs->a_min;
       clip_max = clip_attrs->a_max;
     } else {
-      clip_min = -128;
-      clip_max = 127;
+      if (dtype_bits == 8) {
+        clip_min = std::numeric_limits<int8_t>::min();
+        clip_max = std::numeric_limits<int8_t>::max();
+      } else {
+        clip_min = std::numeric_limits<int16_t>::min();
+        clip_max = std::numeric_limits<int16_t>::max();
+      }
     }
 
     tvm::Array<PrimExpr> scalar_args = {ToArg(stride_h),  ToArg(stride_w), ToArg(padding_h),
@@ -451,8 +489,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
     Array<PrimExpr> cmsisnn_output_shape{1, output_shape[1], output_shape[2], output_shape[3]};
 
     BufferCreator buffer_creator;
-    tir::Var input = buffer_creator.CreateBufferVar("input", DataType::Handle(8));
-    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
+    tir::Var input = buffer_creator.CreateBufferVar("input", DataType::Handle(dtype_bits));
+    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(dtype_bits));
     tvm::Array<PrimExpr> call_ext_args = {tir::StringImm(cmsisnn_api), input, output};
 
     int context_buffer_size = 0;

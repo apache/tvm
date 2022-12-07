@@ -216,7 +216,6 @@ CompareOp BoundDeducer::ReverseOp(CompareOp comp_op) {
       return kGreater;
     default:
       LOG(FATAL) << "Not a valid compare op";
-      return kGreater;  // return some default value
   }
 }
 

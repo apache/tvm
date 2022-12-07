@@ -463,6 +463,7 @@ class Module(object):
         is_system_lib = False
         has_c_module = False
         llvm_target_string = None
+        global_object_format = "o"
         for index, module in enumerate(modules):
             if fcompile is not None and hasattr(fcompile, "object_format"):
                 if module.type_key == "c":
@@ -475,7 +476,7 @@ class Module(object):
                     object_format = module.format
                     has_c_module = True
                 else:
-                    object_format = fcompile.object_format
+                    global_object_format = object_format = fcompile.object_format
             else:
                 if module.type_key == "c":
                     if len(module.format) > 0:
@@ -494,16 +495,14 @@ class Module(object):
                     has_c_module = True
                 else:
                     assert module.type_key == "llvm" or module.type_key == "static_library"
-                    object_format = "o"
+                    global_object_format = object_format = "o"
+
             path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
             module.save(path_obj)
             files.append(path_obj)
-            is_system_lib = (
-                module.type_key == "llvm" and module.get_function("__tvm_is_system_module")()
-            )
-            llvm_target_string = (
-                module.type_key == "llvm" and module.get_function("_get_target_string")()
-            )
+            if module.type_key == "llvm":
+                is_system_lib = module.get_function("__tvm_is_system_module")()
+                llvm_target_string = module.get_function("_get_target_string")()
         if not fcompile:
             if file_name.endswith(".tar"):
                 fcompile = _tar.tar
@@ -520,7 +519,7 @@ class Module(object):
 
         if self.imported_modules:
             if enabled("llvm") and llvm_target_string:
-                path_obj = os.path.join(workspace_dir, f"devc.{object_format}")
+                path_obj = os.path.join(workspace_dir, f"devc.{global_object_format}")
                 m = _ffi_api.ModulePackImportsToLLVM(self, is_system_lib, llvm_target_string)
                 m.save(path_obj)
                 files.append(path_obj)

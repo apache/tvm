@@ -160,7 +160,6 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 
   std::vector<Output> VisitExprDefault_(const Object* op) final {
     LOG(FATAL) << "DNNL codegen doesn't support: " << op->GetTypeKey();
-    return {};
   }
 
   std::vector<Output> VisitExpr_(const VarNode* node) final {
@@ -262,7 +261,6 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
     }
 
     LOG(FATAL) << "Unsupported op: " << AsText(call->op, false);
-    return {};
   }
 
   GenerateBodyOutput GenerateCompositeFunctionCall(const FunctionNode* callee,
@@ -282,7 +280,6 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
     }
 
     LOG(FATAL) << "Unknown composite function:" << pattern_name;
-    return {};
   }
 
   GenerateBodyOutput GenerateBody(const CallNode* root_call, const std::string& func_name,

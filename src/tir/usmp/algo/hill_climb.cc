@@ -249,7 +249,6 @@ class HillClimbAllocator : public GreedyBase {
         return it->second;
       }
       LOG(FATAL) << "node is not indexed in the _pos_map";
-      return -1;
     };
 
     for (; attempts < _max_attempts; ++attempts) {

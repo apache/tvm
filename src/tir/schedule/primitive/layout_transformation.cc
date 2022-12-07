@@ -587,7 +587,6 @@ class TransformLayoutPlanner : private StmtExprVisitor {
         return info.innermost_block_realize.value();
       } else {
         LOG(FATAL) << "Write occured outside of any block/loop";
-        return Stmt();
       }
     }();
     return EpiloguePlan{insert_after, stmt};
@@ -1055,13 +1054,50 @@ class TransformationIntroducesPaddingError : public ScheduleError {
   PrimExpr padding_predicate_;
 };
 
+// Make the dtypes of indices in IndexMap be the same as the dtype of the buffer shape, to avoid
+// dtype-mismatch issues later.
+IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const Array<PrimExpr>& args) {
+  const auto& initial_indices_orig = index_map->initial_indices;
+  ICHECK(args.size() == initial_indices_orig.size());
+
+  Array<Var> initial_indices;
+  Map<Var, PrimExpr> var_map;
+
+  for (size_t i = 0; i < args.size(); ++i) {
+    if (args[i]->dtype != initial_indices_orig[i].dtype()) {
+      auto new_idx = Var(initial_indices_orig[i]->name_hint, args[i]->dtype);
+      initial_indices.push_back(new_idx);
+      var_map.Set(initial_indices_orig[i], new_idx);
+    } else {
+      initial_indices.push_back(initial_indices_orig[i]);
+    }
+  }
+
+  if (!var_map.empty()) {
+    auto final_indices = index_map->final_indices.Map([&](PrimExpr index) {
+      return SubstituteWithDataTypeLegalization(index,
+                                                [&](const Var& var) { return var_map.Get(var); });
+    });
+    Optional<IndexMap> opt_inverse_index_map =
+        Downcast<Optional<IndexMap>>(index_map->inverse_index_map);
+    if (opt_inverse_index_map.defined()) {
+      opt_inverse_index_map = LegalizeIndexMapDType(opt_inverse_index_map.value(), final_indices);
+    }
+    return IndexMap(initial_indices, final_indices, opt_inverse_index_map);
+  }
+  return index_map;
+}
+
 void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-                     BufferIndexType buffer_index_type, const IndexMap& index_map,
+                     BufferIndexType buffer_index_type, const IndexMap& index_map_orig,
                      const Optional<IndexMap>& pad_value) {
   // Step 1: Input handling and error checking
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   Buffer old_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, buffer_index_type);
+
+  auto index_map = LegalizeIndexMapDType(index_map_orig, old_buffer->shape);
+
   auto [defining_site_sref, is_alloc] = GetBufferDefiningSite(block_sref, old_buffer);
   if (defining_site_sref.defined() && !is_alloc) {
     throw BufferIsSubregionError(self->mod, old_buffer);

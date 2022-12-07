@@ -310,7 +310,6 @@ inline const char* DLDataTypeCode2Str(DLDataTypeCode type_code) {
       return "bfloat";
     default:
       LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
-      return "";
   }
 }
 

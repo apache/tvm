@@ -235,7 +235,6 @@ class GraphExecutorDebug : public GraphExecutor {
       }
     }
     LOG(FATAL) << "cannot find " << name << " among nodex";
-    return -1;
   }
 
   /*!

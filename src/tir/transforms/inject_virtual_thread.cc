@@ -247,12 +247,10 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   // Load
   PrimExpr VisitExpr_(const LoadNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
   }
   // Store
   Stmt VisitStmt_(const StoreNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
   }
   // BufferLoad
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -379,7 +377,6 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const WhileNode* op) final {
     // TODO(masahi): What should we do for While nodes?
     LOG(FATAL) << "WhileNode in InjectVirtualThread not supported yet";
-    return Stmt();
   }
 
   // Seq
@@ -528,7 +525,6 @@ class VirtualThreadInjector : public arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const ProducerStoreNode* op) final {
     LOG(FATAL) << "Need to call StorageFlatten first";
-    return GetRef<Stmt>(op);
   }
 };
 

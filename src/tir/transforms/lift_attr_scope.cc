@@ -160,7 +160,6 @@ class AttrScopeLifter : public StmtMutator {
   Stmt VisitStmt_(const WhileNode* op) final {
     // TODO(masahi): Do we need a special handling for While nodes?
     LOG(FATAL) << "WhileNode not supported in LiftAttrScope.";
-    return Stmt();
   }
 
  private:

@@ -129,7 +129,7 @@ func main() {
     fmt.Printf("Module params loaded\n")
 
     // Set some data in input Array
-    inSlice := make([]float32, (244 * 244 * 3))
+    inSlice := make([]float32, (224 * 224 * 3))
     rand.Seed(10)
     rand.Shuffle(len(inSlice), func(i, j int) {inSlice[i],
                                                inSlice[j] = rand.Float32(),
