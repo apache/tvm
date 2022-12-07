@@ -138,24 +138,6 @@ def update_docker(ecr_image, hub_image) {
   )
 }
 
-stage('Docker Image Build') {
-  parallel(
-  {% for image in images %}
-    '{{ image.name }}': {
-      node('{{ image.platform }}') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          // We're purposefully not setting the built image here since they
-          // are not yet being uploaded to tlcpack
-          // {{ image.name }} = build_image('{{ image.name }}')
-          built_{{ image.name }} = build_image('{{ image.name }}');
-        }
-      }
-    },
-  {% endfor %}
-  )
-}
-
 def deploy() {
   stage('Deploy') {
     if (env.BRANCH_NAME == 'main') {
@@ -236,4 +218,26 @@ def deploy() {
   }
 }
 
-deploy()
+
+
+if (rebuild_docker_images) {
+  stage('Docker Image Build') {
+    parallel(
+    {% for image in images %}
+      '{{ image.name }}': {
+        node('{{ image.platform }}') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // {{ image.name }} = build_image('{{ image.name }}')
+            built_{{ image.name }} = build_image('{{ image.name }}');
+          }
+        }
+      },
+    {% endfor %}
+    )
+  }
+
+  deploy()
+}

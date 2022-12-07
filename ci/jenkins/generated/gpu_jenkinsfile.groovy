@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-12-05T14:48:42.195581
+// Generated at 2022-12-06T20:30:23.035868
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 ci_lint = 'tlcpack/ci-lint:20221013-060115-61c9742ea'
@@ -1274,10 +1274,9 @@ def deploy() {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
                     sh(
-                script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/docs",
-                label: 'Download artifacts from S3',
-              )
-
+                      script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/docs --items docs.tgz",
+                      label: 'Download docs folder from S3',
+                    )
                     deploy_docs()
           }
         }

@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-12-05T14:48:41.987490
+// Generated at 2022-12-06T21:25:49.429894
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 ci_lint = 'tlcpack/ci-lint:20221013-060115-61c9742ea'
@@ -619,121 +619,6 @@ def update_docker(ecr_image, hub_image) {
   )
 }
 
-stage('Docker Image Build') {
-  parallel(
-    'ci_arm': {
-      node('ARM') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          // We're purposefully not setting the built image here since they
-          // are not yet being uploaded to tlcpack
-          // ci_arm = build_image('ci_arm')
-          built_ci_arm = build_image('ci_arm');
-        }
-      }
-    },
-    'ci_cortexm': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          // We're purposefully not setting the built image here since they
-          // are not yet being uploaded to tlcpack
-          // ci_cortexm = build_image('ci_cortexm')
-          built_ci_cortexm = build_image('ci_cortexm');
-        }
-      }
-    },
-    'ci_cpu': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          // We're purposefully not setting the built image here since they
-          // are not yet being uploaded to tlcpack
-          // ci_cpu = build_image('ci_cpu')
-          built_ci_cpu = build_image('ci_cpu');
-        }
-      }
-    },
-    'ci_gpu': {
-      node('GPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          // We're purposefully not setting the built image here since they
-          // are not yet being uploaded to tlcpack
-          // ci_gpu = build_image('ci_gpu')
-          built_ci_gpu = build_image('ci_gpu');
-        }
-      }
-    },
-    'ci_hexagon': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          // We're purposefully not setting the built image here since they
-          // are not yet being uploaded to tlcpack
-          // ci_hexagon = build_image('ci_hexagon')
-          built_ci_hexagon = build_image('ci_hexagon');
-        }
-      }
-    },
-    'ci_i386': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          // We're purposefully not setting the built image here since they
-          // are not yet being uploaded to tlcpack
-          // ci_i386 = build_image('ci_i386')
-          built_ci_i386 = build_image('ci_i386');
-        }
-      }
-    },
-    'ci_lint': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          // We're purposefully not setting the built image here since they
-          // are not yet being uploaded to tlcpack
-          // ci_lint = build_image('ci_lint')
-          built_ci_lint = build_image('ci_lint');
-        }
-      }
-    },
-    'ci_minimal': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          // We're purposefully not setting the built image here since they
-          // are not yet being uploaded to tlcpack
-          // ci_minimal = build_image('ci_minimal')
-          built_ci_minimal = build_image('ci_minimal');
-        }
-      }
-    },
-    'ci_riscv': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          // We're purposefully not setting the built image here since they
-          // are not yet being uploaded to tlcpack
-          // ci_riscv = build_image('ci_riscv')
-          built_ci_riscv = build_image('ci_riscv');
-        }
-      }
-    },
-    'ci_wasm': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          // We're purposefully not setting the built image here since they
-          // are not yet being uploaded to tlcpack
-          // ci_wasm = build_image('ci_wasm')
-          built_ci_wasm = build_image('ci_wasm');
-        }
-      }
-    },
-  )
-}
-
 def deploy() {
   stage('Deploy') {
     if (env.BRANCH_NAME == 'main') {
@@ -957,4 +842,123 @@ def deploy() {
   }
 }
 
-deploy()
+
+
+if (rebuild_docker_images) {
+  stage('Docker Image Build') {
+    parallel(
+      'ci_arm': {
+        node('ARM') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_arm = build_image('ci_arm')
+            built_ci_arm = build_image('ci_arm');
+          }
+        }
+      },
+      'ci_cortexm': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_cortexm = build_image('ci_cortexm')
+            built_ci_cortexm = build_image('ci_cortexm');
+          }
+        }
+      },
+      'ci_cpu': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_cpu = build_image('ci_cpu')
+            built_ci_cpu = build_image('ci_cpu');
+          }
+        }
+      },
+      'ci_gpu': {
+        node('GPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_gpu = build_image('ci_gpu')
+            built_ci_gpu = build_image('ci_gpu');
+          }
+        }
+      },
+      'ci_hexagon': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_hexagon = build_image('ci_hexagon')
+            built_ci_hexagon = build_image('ci_hexagon');
+          }
+        }
+      },
+      'ci_i386': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_i386 = build_image('ci_i386')
+            built_ci_i386 = build_image('ci_i386');
+          }
+        }
+      },
+      'ci_lint': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_lint = build_image('ci_lint')
+            built_ci_lint = build_image('ci_lint');
+          }
+        }
+      },
+      'ci_minimal': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_minimal = build_image('ci_minimal')
+            built_ci_minimal = build_image('ci_minimal');
+          }
+        }
+      },
+      'ci_riscv': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_riscv = build_image('ci_riscv')
+            built_ci_riscv = build_image('ci_riscv');
+          }
+        }
+      },
+      'ci_wasm': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_wasm = build_image('ci_wasm')
+            built_ci_wasm = build_image('ci_wasm');
+          }
+        }
+      },
+    )
+  }
+
+  deploy()
+}
