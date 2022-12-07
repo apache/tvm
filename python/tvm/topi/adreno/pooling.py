@@ -19,10 +19,6 @@
 import tvm
 from tvm import te
 from .. import tag
-from ..utils import traverse_inline
-from .reduction import _schedule_reduce_adreno
-from ..cuda.reduction import _schedule_reduce
-from .injective import schedule_injective_from_existing
 from .utils import get_div
 
 
@@ -61,7 +57,7 @@ def schedule_adaptive_pool(outs, layout="NCHW"):
 
         # detect axis for later reorder and binding of batch/chennel to blocks and
         # spatial to threads
-        if layout == "NCHW" or layout == "NCHW4c":
+        if layout in ("NCHW", "NCHW4c"):
             channel_index = 1
             height_index = 2
             width_index = 3
@@ -94,7 +90,7 @@ def schedule_adaptive_pool(outs, layout="NCHW"):
         haxis = s[Out].op.axis[height_index]
         waxis = s[Out].op.axis[width_index]
 
-        if layout == "NCHW4c" or layout == "NHWC4c":
+        if layout in ("NHWC4c", "NCHW4c"):
             texture_axis = s[Out].op.axis[-1]
             s[Out].reorder(naxis, caxis, haxis, waxis, texture_axis)
             s[Out].vectorize(texture_axis)
