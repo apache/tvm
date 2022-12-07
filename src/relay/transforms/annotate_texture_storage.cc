@@ -91,14 +91,11 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
     for (const auto& a : storage_info.args_to_vars_) {
       if (storage_map.count(a.first)) {
         for (const auto& v : a.second) {
-          if (storage_info.buffers_params.find(v) != storage_info.buffers_params.end())
-          {
+          if (storage_info.buffers_params.find(v) != storage_info.buffers_params.end()) {
             Map<Expr, Array<String>> ent;
             ent.Set(Expr(), Array<String>{"global"});
             storage_map.Set(v, ent);
-          }
-          else
-          {
+          } else {
             storage_map.Set(v, storage_map[a.first]);
             if (storage_map[a.first][Expr()][0] == "global" &&
                 storage_info.accept_textures_.count(v)) {
@@ -176,12 +173,10 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
             // adding info about arguments if they can be converted to texture
             for (const auto& ttype : FlattenTupleType(fn->params[i]->checked_type())) {
               std::string scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(call)));
-              if (expr_attrib.as<Conv2DAttrs>() || expr_attrib.as<Conv2DWinogradAttrs>())
-              {
+              if (expr_attrib.as<Conv2DAttrs>() || expr_attrib.as<Conv2DWinogradAttrs>()) {
                 if ((i == weights_pos) &&
                     !ttype->dtype.is_float16() &&
-                    CanUseBuffers(call->args[i], ttype->shape, fn->attrs))
-                {
+                    CanUseBuffers(call->args[i], ttype->shape, fn->attrs)) {
                   buffers_params.insert(fn->params[i]);
                   buffers_args.insert(call->args[i]);
                   scope = "global";
@@ -374,7 +369,6 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
   }
 
   bool SupportsTextureStorage(const CallNode* call) const {
-
     bool supports_texture_storage = false;
     // we need to verify only entry functions since one of entry op defines main schedule
     for (const auto& arg : call->args) {
@@ -422,19 +416,17 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
     return supports_texture_storage;
   }
 
-  bool CanUseBuffers(const Expr param, const Array<PrimExpr> shape, const tvm::DictAttrs param_attrs) const {
+  bool CanUseBuffers(const Expr param, const Array<PrimExpr> shape,
+                     const tvm::DictAttrs param_attrs) const {
     bool use_buffer = false;
     if (param.as<ConstantNode>() && shape.size() == 5) {
         auto kernel_layout = param_attrs.GetAttr<String>("kernel_layout");
-        if (kernel_layout == "HWOI4o" || kernel_layout == "HWIO4o")
-        {
+        if (kernel_layout == "HWOI4o" || kernel_layout == "HWIO4o") {
           int a0 = shape[0].as<IntImmNode>()->value;
           int a1 = shape[1].as<IntImmNode>()->value;
           if (a0 != 1 && a1 != 1)
             use_buffer = true;
-        }
-        else if (kernel_layout == "OIHW4o")
-        {
+        } else if (kernel_layout == "OIHW4o") {
           int a2 = shape[2].as<IntImmNode>()->value;
           int a3 = shape[3].as<IntImmNode>()->value;
           if (a2 != 1 && a3 != 1)
