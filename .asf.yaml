@@ -60,6 +60,7 @@ github:
           - arm/pr-head
           - cortexm/pr-head
           - cpu/pr-head
+          - docker/pr-head
           - gpu/pr-head
           - hexagon/pr-head
           - i386/pr-head
