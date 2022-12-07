@@ -56,8 +56,17 @@ github:
     main:
       required_status_checks:
         contexts:
-          # Require a passing run from Jenkins
-          - tvm-ci/pr-head
+          # Require passing runs from Jenkins for all platforms
+          - arm/pr-head
+          - cortexm/pr-head
+          - cpu/pr-head
+          - gpu/pr-head
+          - hexagon/pr-head
+          - i386/pr-head
+          - lint/pr-head
+          - minimal/pr-head
+          - riscv/pr-head
+          - wasm/pr-head
 
       required_pull_request_reviews:
         required_approving_review_count: 1
