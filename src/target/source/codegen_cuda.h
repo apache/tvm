@@ -45,7 +45,7 @@ class CodeGenCUDA final : public CodeGenC {
     return (enable_fp16_ || enable_bf16_ || enable_int8_ || need_math_constants_h_ || need_mma_h_);
   }
   // override behavior
-  void PrintFuncPrefix() final;
+  void PrintFuncPrefix(std::ostream& os) final;
   void PrintExtraAttrs(const PrimFunc& f) final;
   void VisitStmt_(const ForNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
