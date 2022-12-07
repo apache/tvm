@@ -120,6 +120,8 @@ class CodeGenSourceBase {
   std::ostringstream decl_stream;
   /*! \brief the stream to be printed */
   std::ostringstream stream;
+  /*! \brief the forward declaration stream */
+  std::ostringstream fwd_decl_stream;
   /*! \brief name of each variable */
   std::unordered_map<const tir::VarNode*, std::string> var_idmap_;
   /*! \brief NameSupply for allocation */
