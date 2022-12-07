@@ -1011,15 +1011,9 @@ def test_fq_qat_positive_nothing_to_do():
     op1 = relay.qnn.op.quantize(
         relay.const(1.0), relay.const(12.0), relay.const(0), out_dtype="int32"
     )
-    op2 = relay.qnn.op.add(
+    op2 = relay.op.add(
         op0,
         op1,
-        relay.const(12.0),
-        relay.const(0),
-        relay.const(12.0),
-        relay.const(0),
-        relay.const(12.0),
-        relay.const(0),
     )
     expected_expr = relay.qnn.op.requantize(
         op2, relay.const(12.0), relay.const(0), relay.const(1.0), relay.const(0), out_dtype="int8"
@@ -1107,6 +1101,4 @@ def test_fq_qat_intermediate_infertype():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_fake_quantize_dense_bias()
-    # test_fake_transpose_quantize_conv_bias_add_per_channel()
+    tvm.testing.main()

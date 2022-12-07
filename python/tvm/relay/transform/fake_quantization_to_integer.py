@@ -27,7 +27,6 @@ from tvm.tir import bijective_layout
 
 from ..op import register_fake_quantization_to_integer
 
-
 def fold_constant(expr):
     return relay.transform.FoldConstantExpr(expr, tvm.IRModule())
 
@@ -510,7 +509,7 @@ def register_binary_qnn(op_name, op):
             and approx_equal(left_t.scale, out_t.scale)
             and approx_equal(left_t.zero_point, out_t.zero_point)
         ):
-            return [expr, left_t]
+            return [relay.expr.Call(relay.op.get(op_name), [left, right]), left_t]
 
         out = op(
             left,
