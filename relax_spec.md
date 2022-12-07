@@ -258,13 +258,14 @@ Prior to type-checking and shape inference, Relax programs must conform to certa
 
 # Types in Relax
 
-Relax presently has five types, defined in the implementation in `python/tvm/relax/ty.py` and `include/tvm/relax/type.h`:
+Relax presently has six types, defined in the implementation in `python/tvm/relax/ty.py` and `include/tvm/relax/type.h`:
 
 1. `DynTensorType`, referring to tensor values (referred to in the front-end as `Tensor`). In Relax, tensor types keep track of the rank (number of dimensions) in the `ndim` field and the data type of the tensor data in the `dtype` field. Both the rank and data type are optional: Using -1 for `ndim` indicates that the tensor is of unknown rank and using `DataType::Void()` for  `dtype` indicates that it's of unknown data type.
 2. `ShapeType`, referring to shape values.
 3. `FuncType`, referring to functions (closures). `FuncType`s specify the types of their parameters, a return type, and whether the function is pure.
 4. `TupleType`, referring to tuple values, giving the types of their fields.
-5. `ObjectType`, referring to any Relax value, including values used and returned by `PackedFunc` or operator calls that do not belong in any of the above categories.
+5. `PackedFuncType`, referring to the type of PackedFunctions.
+6. `ObjectType`, referring to any Relax value, including values used and returned by `PackedFunc` or operator calls that do not belong in any of the above categories.
 
 ## Subtyping
 
@@ -298,7 +299,7 @@ def find_glb(T1 : Type, T2 : Type) -> Type?:
         return T2
     if T2 is ObjectType:
         return T1
-    if T1 and T2 are not both DynTensorType, not both TupleType, not both FuncType, or not both ShapeType:
+    if T1 and T2 are not both DynTensorType, not both TupleType, not both FuncType, or not both ShapeType, or not both PackedFuncType:
         return None
     if T1 and T2 are both DynTensorType:
         ret_ndim = T1.ndim
