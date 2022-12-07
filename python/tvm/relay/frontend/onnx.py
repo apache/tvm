@@ -4434,12 +4434,6 @@ class QuantizeLinear(OnnxOpConverter):
         return _qnn.op.quantize(data, scale, _op.cast(zp, "int32"), axis, out_dtype)
 
 
-def asscalar(v):
-    if len(v.data.shape) == 1 and v.data.shape[0] == 1:
-        v = _op.const(v.data.numpy().item(), v.data.dtype)
-    return v
-
-
 class DequantizeLinear(OnnxOpConverter):
     """Operator converter for QuantizeLinear."""
 
@@ -4451,9 +4445,6 @@ class DequantizeLinear(OnnxOpConverter):
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
         data, scale, zp = inputs
-        scale = asscalar(scale)
-        zp = asscalar(zp)
-
         axis = attr.get("axis", 1)
         if len(infer_shape(data)) <= 1:
             axis = 0

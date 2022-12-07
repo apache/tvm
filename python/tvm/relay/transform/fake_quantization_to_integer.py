@@ -511,6 +511,11 @@ def register_binary_qnn(op_name, op):
             and approx_equal(left_t.zero_point, out_t.zero_point)
             and np.all(out_t.zero_point.data.numpy() == 0)
         ):
+            # If this binary op comes after conv2d or dense, out_t.scale and out_t.zero_point
+            # can be a vector, which is not supported by QNN binary operators.
+            # In particular, the pattern of an `add` op following `dense` can appear often and
+            # hit this code path, where the addition is really a bias addtion.
+            # We identify such patterns and convert them to `qnn.dense` -> `add` etc.
             return [relay.expr.Call(relay.op.get(op_name), [left, right]), left_t]
 
         assert (
