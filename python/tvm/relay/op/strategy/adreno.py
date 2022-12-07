@@ -215,6 +215,13 @@ def schedule_reduce_adreno(attrs, outs, target):
         return topi.adreno.schedule_reduce(outs)
 
 
+@schedule_adaptive_pool.register(["adreno"])
+def schedule_adaptive_pool_cuda(attrs, outs, target):
+    """schedule adaptive pooling ops for cuda"""
+    with target:
+        return topi.adreno.schedule_adaptive_pool(outs, attrs.layout)
+
+
 @concatenate_strategy.register(["adreno"])
 def concatenate_strategy_adreno(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
