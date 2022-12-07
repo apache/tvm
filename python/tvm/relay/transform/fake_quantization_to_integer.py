@@ -27,6 +27,7 @@ from tvm.tir import bijective_layout
 
 from ..op import register_fake_quantization_to_integer
 
+
 def fold_constant(expr):
     return relay.transform.FoldConstantExpr(expr, tvm.IRModule())
 
@@ -511,6 +512,17 @@ def register_binary_qnn(op_name, op):
             and np.all(out_t.zero_point.data.numpy() == 0)
         ):
             return [relay.expr.Call(relay.op.get(op_name), [left, right]), left_t]
+
+        assert (
+            len(out_t.scale.data.shape) == 0
+        ), "The output scale of QNN binary operators needs to be a scalar, but got a tensor of shape {}".format(
+            out_t.scale.data.shape
+        )
+        assert (
+            len(out_t.zero_point.data.shape) == 0
+        ), "The output zero point of QNN binary operators needs to be a scalar, but got a tensor of shape {}".format(
+            out_t.zero_point.data.shape
+        )
 
         out = op(
             left,
