@@ -55,7 +55,7 @@ def schedule_adaptive_pool(outs, layout="NCHW"):
 
         PaddedInput = Pool.op.input_tensors[0]
 
-        # detect axis for later reorder and binding of batch/chennel to blocks and
+        # detect axis for later reorder and binding of batch/channel to blocks and
         # spatial to threads
         if layout in ("NCHW", "NCHW4c"):
             channel_index = 1
@@ -69,11 +69,12 @@ def schedule_adaptive_pool(outs, layout="NCHW"):
         if isinstance(PaddedInput.op, tvm.te.ComputeOp):
             s[PaddedInput].compute_inline()
 
-        fused_reduce = s[OL].fuse(
-            *[s[OL].op.reduce_axis[i] for i in range(len(s[OL].op.reduce_axis))]
-        )
+        fused_reduce = s[OL].fuse(*s[OL].op.reduce_axis)
 
         spatial = PaddedInput.shape[height_index].value * PaddedInput.shape[width_index].value
+        # below values were selected empirically assuming that we should have some work in each
+        # thread (currently from 25-49) and number of threads not exceeding some threshold that
+        # was selected as 256 from performance point of view after experiments on Adreno 660
         max_threads = spatial // 25 if spatial > 25 else 1
         max_threads = 256 if max_threads > 256 else max_threads
         num_thread = get_div(spatial, max_threads)

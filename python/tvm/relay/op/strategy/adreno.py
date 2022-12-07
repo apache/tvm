@@ -216,8 +216,8 @@ def schedule_reduce_adreno(attrs, outs, target):
 
 
 @schedule_adaptive_pool.register(["adreno"])
-def schedule_adaptive_pool_cuda(attrs, outs, target):
-    """schedule adaptive pooling ops for cuda"""
+def schedule_adaptive_pool_adreno(attrs, outs, target):
+    """schedule adaptive pooling ops for adreno"""
     with target:
         return topi.adreno.schedule_adaptive_pool(outs, attrs.layout)
 
