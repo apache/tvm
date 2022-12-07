@@ -41,6 +41,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "../op/memory/device_copy.h"
 #include "../op/memory/memory.h"
@@ -90,7 +91,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
     for (const auto& a : storage_info.args_to_vars_) {
       if (storage_map.count(a.first)) {
         for (const auto& v : a.second) {
-          if (std::find(storage_info.buffers_params.begin(), storage_info.buffers_params.end(), v) != storage_info.buffers_params.end())
+          if (storage_info.buffers_params.find(v) != storage_info.buffers_params.end())
           {
             Map<Expr, Array<String>> ent;
             ent.Set(Expr(), Array<String>{"global"});
@@ -181,6 +182,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
               storage_scope_[call].push_back("global.texture");
             }
           }
+          const int weights_pos = 1;
           for (size_t i = 0; i < fn->params.size(); i++) {
             args_to_vars_[call->args[i]].push_back(fn->params[i]);
             // adding info about arguments if they can be converted to texture
@@ -188,12 +190,12 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
               std::string scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(call)));
               if (expr_attrib.as<Conv2DAttrs>() || expr_attrib.as<Conv2DWinogradAttrs>())
               {
-                if ((i == 1) &&
+                if ((i == weights_pos) &&
                     !ttype->dtype.is_float16() &&
                     CanUseBuffers(call->args[i], ttype->shape, fn->attrs))
                 {
-                  buffers_params.push_back(fn->params[i]);
-                  buffers_args.push_back(call->args[i]);
+                  buffers_params.insert(fn->params[i]);
+                  buffers_args.insert(call->args[i]);
                   scope = "global";
                 }
               }
@@ -231,7 +233,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
     }
 
     for (auto& arg : call->args) {
-      if (std::find(buffers_args.begin(), buffers_args.end(), arg) == buffers_args.end())
+      if (buffers_args.find(arg) == buffers_args.end())
         Visit(arg);
     }
     // We have all callees filled into storage_scope_ if they support textures
@@ -434,7 +436,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
 
   bool CanUseBuffers(const Expr param, const Array<PrimExpr> shape, const tvm::DictAttrs param_attrs) const {
     bool use_buffer = false;
-    if (param.as<ConstantNode>() && shape.size() == 5){ 
+    if (param.as<ConstantNode>() && shape.size() == 5) {
         auto kernel_layout = param_attrs.GetAttr<String>("kernel_layout");
         if (kernel_layout == "HWOI4o" || kernel_layout == "HWIO4o")
         {
@@ -468,9 +470,9 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
   /*! \brief main attribute for expression*/
   tvm::Attrs expr_attrib;
   /*! \brief parameters that filter out from storage_map to use buffers*/
-  std::vector<Expr> buffers_params;
+  std::unordered_set<Expr, ObjectPtrHash> buffers_params;
   /*! \brief arguments in expression that will use buffers*/
-  std::vector<Expr> buffers_args;
+  std::unordered_set<Expr, ObjectPtrHash> buffers_args;
 };
 
 }  // namespace
