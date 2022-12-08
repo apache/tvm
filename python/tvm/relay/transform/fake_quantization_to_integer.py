@@ -515,9 +515,11 @@ def register_binary_qnn(op_name, op):
         ):
             # If this add op comes after conv2d or dense, out_t.scale and out_t.zero_point
             # can be a vector, which is not supported by QNN binary operators.
-            # In particular, the pattern of an `add` op following `dense` can appear often and
-            # hit this code path, where the addition is really a bias addtion.
-            # We identify that pattern and convert it to `qnn.dense` -> `add`.
+            # In particular, the pattern of an `add` op following `dense`, where the addition is
+            # really a bias addtion, can come up often. We identify that pattern and convert it to
+            # `qnn.dense` -> `add`.
+            # To avoid overflow, we do this conversion only when the input data type is 32 bit (bias
+            # addition is typically done in 32 bit).
             return [left + right, left_t]
 
         assert (
