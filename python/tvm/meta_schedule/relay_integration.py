@@ -298,7 +298,7 @@ def tune_relay(
                             blocks or in case no anchor block is found.
                             For the definition of the anchor block, see tir/analysis/analysis.py.
     num_tuning_cores : Union[Literal["physical", "logical"], int]
-        The number of CPU cores to use during Tuning.
+        The number of CPU cores to use during tuning.
 
     Returns
     -------
