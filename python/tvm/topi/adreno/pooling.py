@@ -99,13 +99,10 @@ def schedule_adaptive_pool(outs, layout="NCHW"):
             texture_axis = None
             s[Out].reorder(naxis, caxis, haxis, waxis)
 
-        bx = s[Out].fuse(naxis, caxis)
-        tx = s[Out].fuse(haxis, waxis)
-
+        bx = s[Out].fuse(naxis, caxis, haxis, waxis)
         s[Out].bind(bx, te.thread_axis("blockIdx.x"))
-        s[Out].bind(tx, te.thread_axis("threadIdx.x"))
 
-        s[OL].compute_at(s[Out], tx)
+        s[OL].compute_at(s[Out], bx)
 
     scheduled_ops = []
 
