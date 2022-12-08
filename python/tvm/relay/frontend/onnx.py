@@ -1391,9 +1391,9 @@ class Gemm(OnnxOpConverter):
         dtype = input0_state.checked_type.dtype
         # Y = alpha * A * B + beta * C
         alpha = float(attr.get("alpha", 1.0))
-        beta = float(attr.get("beta"))
         transA = int(attr.get("transA", 0))
         transB = int(attr.get("transB", 0))
+        beta = attr.get("beta")
         # get number of channels
         channels = infer_channels(inputs[1], not transB)
         if transA:
@@ -1409,7 +1409,7 @@ class Gemm(OnnxOpConverter):
             if beta is None:
                 out = out + inputs[2]
             else:
-                out = out + _expr.const(beta, dtype=dtype) * inputs[2]
+                out = out + _expr.const(float(beta), dtype=dtype) * inputs[2]
         return out
 
 
