@@ -20,7 +20,6 @@
 import numpy as np
 import pytest
 import tvm
-from numpy.random import default_rng
 from tvm.script import tir as T
 
 VRMPY_SIZE_B = 128
@@ -184,11 +183,11 @@ class TestAsyncDMAPipeline:
 
     @tvm.testing.fixture
     def input_a(self, size_a):
-        return default_rng().integers(0, 8, (size_a, VRMPY_SIZE_B), dtype="uint8")
+        return np.random.randint(0, 8, (size_a, VRMPY_SIZE_B), dtype="uint8")
 
     @tvm.testing.fixture
     def input_w(self, size_w):
-        return default_rng().integers(0, 8, (size_w, VRMPY_SIZE_B), dtype="uint8")
+        return np.random.randint(0, 8, (size_w, VRMPY_SIZE_B), dtype="uint8")
 
     @tvm.testing.fixture
     def expected_output(self, size_a, size_w, input_a, input_w):
@@ -657,8 +656,8 @@ def test_meta(hexagon_session):
     if tvm.testing.utils.IS_IN_CI:
         pytest.skip("Skipping test since it takes too long in CI.")
 
-    a_data = default_rng().integers(1, 8, (1, 1, 230, 230, 4), dtype="uint8")
-    w_data = default_rng().integers(1, 8, (2, 1, 7, 7, 1, 32, 4), dtype="int8")
+    a_data = np.random.randint(1, 8, (1, 1, 230, 230, 4), dtype="uint8")
+    w_data = np.random.randint(1, 8, (2, 1, 7, 7, 1, 32, 4), dtype="int8")
     c_data = np.zeros((1, 2, 112, 112, 32), dtype="int32")
 
     sch = tvm.tir.Schedule(ModuleBase)
