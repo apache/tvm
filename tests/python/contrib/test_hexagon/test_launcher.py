@@ -449,8 +449,7 @@ def test_conv2d_relay_vrmpy(hexagon_session, data_dtype, weight_dtype):
             out_dtype=out_dtype,
         )
 
-    target_hexagon = tvm.target.hexagon("v68")
-    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+    target = get_hexagon_target("v68")
     I, O, H, W = 64, 256, 56, 56
     kH = kW = 3
     padding = (1, 1)
@@ -515,8 +514,7 @@ def test_dense_relay_vrmpy(hexagon_session, data_dtype, weight_dtype):
     if data_dtype == "int8" and weight_dtype == "uint8":
         pytest.skip("(i8, u8) input pair is not supported")
 
-    target_hexagon = tvm.target.hexagon("v68")
-    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+    target = get_hexagon_target("v68")
 
     M = 128
     N = 1000
