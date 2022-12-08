@@ -94,7 +94,7 @@ def tune_tasks(
             f"Length of tasks ({len(tasks)}) and task_weights ({len(task_weights)}) do not match."
         )
 
-    num_cores = tasks[0].num_cores
+    num_cores = tasks[0].num_threads
 
     if max_trials_per_task is None:
         max_trials_per_task = max_trials_global
