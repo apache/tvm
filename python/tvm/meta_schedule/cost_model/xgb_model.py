@@ -333,7 +333,7 @@ class XGBModel(PyCostModel):
         verbose_eval: int = 25,
         average_peak_n: int = 32,
         adaptive_training: bool = True,
-        num_threads: Optional[int] = None,
+        num_tuning_cores: Optional[int] = None,
     ):
         super().__init__()
         if not isinstance(extractor, FeatureExtractor):
@@ -343,10 +343,10 @@ class XGBModel(PyCostModel):
         # model-related
         if config.nthread is None:
             # use physical core number
-            if num_threads is None:
+            if num_tuning_cores is None:
                 config = config._replace(nthread=cpu_count(logical=False))
             else:
-                config = config._replace(nthread=num_threads)
+                config = config._replace(nthread=num_tuning_cores)
 
         self.config = config
         # behavior of randomness

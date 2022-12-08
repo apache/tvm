@@ -54,7 +54,7 @@ def tune_tir(
     space: SpaceGenerator.SpaceGeneratorType = "post-order-apply",
     strategy: SearchStrategy.SearchStrategyType = "evolutionary",
     task_name: str = "main",
-    num_threads: Union[Literal["physical", "logical"], int] = "physical",
+    num_tuning_cores: Union[Literal["physical", "logical"], int] = "physical",
     seed: Optional[int] = None,
 ) -> Database:
     """Tune a TIR function.
@@ -89,8 +89,8 @@ def tune_tir(
         The search strategy.
     task_name : str
         The name of the task.
-    num_threads : Union[Literal["physical", "logical"], int]
-        The number of threads to use.
+    num_tuning_cores : Union[Literal["physical", "logical"], int]
+        The number of CPU cores to use during tuning.
     seed : Optional[int]
         The seed for the random number generator.
 
@@ -111,7 +111,7 @@ def tune_tir(
                 task_name=task_name,
                 logger=logger,
                 rand_state=seed,
-                num_threads=num_threads,
+                num_threads=num_tuning_cores,
             ).clone()
         ],
         task_weights=[1.0],

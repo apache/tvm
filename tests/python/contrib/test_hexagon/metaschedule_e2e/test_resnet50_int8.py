@@ -125,7 +125,7 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
     # task extraction and relay.build(...).
     mod = mod.with_attr("executor", EXECUTOR)
 
-    num_threads = cpu_count(logical=False)
+    num_cores = cpu_count(logical=False)
 
     with tempfile.TemporaryDirectory() as work_dir:
         database = ms.relay_integration.tune_relay(
@@ -142,8 +142,8 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
             # num_trials_per_iter=32,
             # max_trials_per_task=128,
             # strategy="evolutionary",
-            builder=get_hexagon_local_builder(max_workers=num_threads),
-            runner=get_hexagon_rpc_runner(hexagon_launcher, number=20, max_workers=num_threads),
+            builder=get_hexagon_local_builder(max_workers=num_cores),
+            runner=get_hexagon_rpc_runner(hexagon_launcher, number=20, max_workers=num_cores),
             space=ms.space_generator.PostOrderApply(
                 sch_rules=sch_rules,
                 postprocs=postprocs,
@@ -154,7 +154,7 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
             # It reduces the number of conv2d tuning tasks in the int8 resnet50 model
             # from 36 to 23, with negligible performance difference.
             module_equality="anchor-block",
-            num_threads=num_threads,
+            num_tuning_cores=num_cores,
         )
         return ms.relay_integration.compile_relay(
             database=database,

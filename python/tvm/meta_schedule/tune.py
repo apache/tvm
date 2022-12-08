@@ -94,20 +94,20 @@ def tune_tasks(
             f"Length of tasks ({len(tasks)}) and task_weights ({len(task_weights)}) do not match."
         )
 
-    num_threads = tasks[0].num_threads
+    num_cores = tasks[0].num_cores
 
     if max_trials_per_task is None:
         max_trials_per_task = max_trials_global
     if not isinstance(builder, Builder):
-        builder = Builder.create(builder, max_workers=num_threads)
+        builder = Builder.create(builder, max_workers=num_cores)
     if not isinstance(runner, Runner):
-        runner = Runner.create(runner, max_workers=num_threads)
+        runner = Runner.create(runner, max_workers=num_cores)
     if database == "json":
         database = Database.create(database, work_dir=work_dir, module_equality=module_equality)
     elif not isinstance(database, Database):
         database = Database.create(database, module_equality=module_equality)
     if not isinstance(cost_model, CostModel):
-        cost_model = CostModel.create(cost_model, num_threads=num_threads)
+        cost_model = CostModel.create(cost_model, num_tuning_cores=num_cores)
     if isinstance(measure_callbacks, MeasureCallback):
         measure_callbacks = [measure_callbacks]
     elif measure_callbacks == "default":
