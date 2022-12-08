@@ -430,8 +430,8 @@ Stmt MakeLoopNest(Stmt stmt, const std::vector<const ForNode*>& loops) {
 }
 
 BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
-                          bool preserve_unit_iters, Map<Block, Block>* block_sref_reuse,
-                          arith::Analyzer* analyzer) {
+                          Map<Block, Block>* block_sref_reuse, arith::Analyzer* analyzer,
+                          bool preserve_unit_iters) {
   TVM_SREF_TO_FOR(loop_sref);
   // Step 1: Check and get the only block under `loop`.
   BlockRealize block_realize = CheckGetSingleChildBlockRealizeOnSRefTree(self, loop_sref);
@@ -503,7 +503,7 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref, bool preserve_u
   arith::Analyzer analyzer;
   Map<Block, Block> block_sref_reuse;
   BlockRealize blockized =
-      BlockizeImpl(self, loop_sref, preserve_unit_iters, &block_sref_reuse, &analyzer);
+      BlockizeImpl(self, loop_sref, &block_sref_reuse, &analyzer, preserve_unit_iters);
   self->Replace(loop_sref, blockized, block_sref_reuse);
   StmtSRef result = self->stmt2ref.at(blockized->block.get());
   StmtSRef scope_root = tir::GetScopeRoot(self, result, /*require_stage_pipeline=*/false);
@@ -524,7 +524,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   } else if (sref->stmt->IsInstance<ForNode>()) {
     arith::Analyzer analyzer;
     Map<Block, Block> block_sref_reuse;
-    block_realize = BlockizeImpl(self, sref, preserve_unit_iters, &block_sref_reuse, &analyzer);
+    block_realize = BlockizeImpl(self, sref, &block_sref_reuse, &analyzer, preserve_unit_iters);
   } else {
     LOG(FATAL) << "TypeError: Tensorize only support For or Block, but gets: "
                << GetRef<Stmt>(sref->stmt);
