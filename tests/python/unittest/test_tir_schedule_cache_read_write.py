@@ -60,6 +60,33 @@ def elementwise_shape_int64(a: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
+def func_nested_seq(b: T.handle, c: T.handle) -> None:
+    A = T.alloc_buffer((128, 128))
+    B = T.match_buffer(b, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+
+    for i, j in T.grid(128, 128):
+        with T.block("A"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            A[vi, vj] = 2.0
+    for i, j in T.grid(8, 8):
+        for x, y in T.grid(16, 16):
+            with T.block("B0"):
+                vi = T.axis.S(128, i * 16 + x)
+                vj = T.axis.S(128, j * 16 + y)
+                B[vi, vj] = 1.0
+        for x, y in T.grid(16, 16):
+            with T.block("B1"):
+                vi = T.axis.S(128, i * 16 + x)
+                vj = T.axis.S(128, j * 16 + y)
+                B[vi, vj] = A[vi, vj] + B[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] * 2.0
+
+
+@T.prim_func
 def access_under_scope(b: T.handle, c: T.handle) -> None:
     A = T.alloc_buffer((128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -239,6 +266,56 @@ def inplace_func(data_io: T.Buffer[(64), "int32"]):
         with T.block("copy_out"):
             v0 = T.axis.remap("S", [i0])
             data_io[v0] = data_1d[v0]
+
+
+@T.prim_func
+def inplace_call(data_io: T.Buffer[(64), "int32"]):
+    for i0 in T.serial(1):
+        with T.block("ext_call"):
+            T.reads(data_io[:64])
+            T.writes(data_io[:64])
+            T.evaluate(T.call_extern("call_impl", data_io.data, dtype=""))
+
+
+@T.prim_func
+def cache_read_nested_seq_target(
+    B: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]
+) -> None:
+    A = T.alloc_buffer([128, 128], dtype="float32")
+    A_global = T.alloc_buffer([128, 128], dtype="float32")
+    for i, j in T.grid(128, 128):
+        with T.block("A"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads()
+            T.writes(A[vi, vj])
+            A[vi, vj] = T.float32(2)
+    for i, j in T.grid(8, 8):
+        for x, y in T.grid(16, 16):
+            with T.block("B0"):
+                vi = T.axis.spatial(128, i * 16 + x)
+                vj = T.axis.spatial(128, j * 16 + y)
+                T.reads()
+                T.writes(B[vi, vj])
+                B[vi, vj] = T.float32(1)
+        for x, y in T.grid(16, 16):
+            with T.block("B1"):
+                vi = T.axis.spatial(128, i * 16 + x)
+                vj = T.axis.spatial(128, j * 16 + y)
+                T.reads(A[vi, vj], B[vi, vj])
+                T.writes(B[vi, vj])
+                B[vi, vj] = A[vi, vj] + B[vi, vj]
+    for ax0, ax1 in T.grid(128, 128):
+        with T.block("A_global"):
+            v0, v1 = T.axis.remap("SS", [ax0, ax1])
+            T.reads(A[v0, v1])
+            T.writes(A_global[v0, v1])
+            A_global[v0, v1] = A[v0, v1]
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(A_global[vi, vj])
+            T.writes(C[vi, vj])
+            C[vi, vj] = A_global[vi, vj] * T.float32(2)
 
 
 ########## Expected function after cache_read ##########
@@ -546,6 +623,42 @@ def cache_read_inplace(data_io: T.Buffer[64, "int32"]) -> None:
             T.reads(data_1d[v0])
             T.writes(data_io[v0])
             data_io[v0] = data_1d[v0]
+
+
+@T.prim_func
+def cache_inplace_buffer(data_io: T.Buffer[64, "int32"]) -> None:
+    data_io_local = T.alloc_buffer([64], dtype="int32", scope="local")
+    data_io_global = T.alloc_buffer([64], dtype="int32")
+    data_io_global_1 = T.alloc_buffer([64], dtype="int32")
+    for ax0 in T.serial(64):
+        with T.block("data_io_global"):
+            v0 = T.axis.spatial(64, ax0)
+            T.reads(data_io[v0])
+            T.writes(data_io_global[v0])
+            data_io_global[v0] = data_io[v0]
+    for i0 in T.serial(1):
+        for ax0 in T.serial(64):
+            with T.block("data_io_local"):
+                v0 = T.axis.spatial(64, ax0)
+                T.reads(data_io_global[v0])
+                T.writes(data_io_local[v0])
+                data_io_local[v0] = data_io_global[v0]
+        with T.block("ext_call"):
+            T.reads(data_io_local[0:64])
+            T.writes(data_io_local[0:64])
+            T.evaluate(T.call_extern("call_impl", data_io_local.data, dtype=""))
+        for ax0 in T.serial(64):
+            with T.block("data_io_local"):
+                v0 = T.axis.spatial(64, ax0)
+                T.reads(data_io_local[v0])
+                T.writes(data_io_global_1[v0])
+                data_io_global_1[v0] = data_io_local[v0]
+    for ax0 in T.serial(64):
+        with T.block("data_io_global"):
+            v0 = T.axis.spatial(64, ax0)
+            T.reads(data_io_global_1[v0])
+            T.writes(data_io[v0])
+            data_io[v0] = data_io_global_1[v0]
 
 
 ########## Expected function after cache_write ##########
@@ -929,6 +1042,27 @@ def test_inplace_cache_read():
     sch.cache_read(block, 0, "local", [block])
     tvm.ir.assert_structural_equal(cache_read_inplace, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=inplace_func)
+
+
+def test_cache_inplace():
+    # cache_inplace could introduce WAR, which is expected but stage pipeline property changes
+    debug_mask = tvm.tir.schedule.state.ScheduleDebugMask.VERIFY_SREF_TREE
+    sch = tvm.tir.Schedule(inplace_call, debug_mask=debug_mask)
+    block = sch.get_block("ext_call")
+    blocks = sch.cache_inplace(block, 0, "local")
+    block = sch.cache_read(blocks[0], 0, "global", [blocks[0]])
+    block = sch.cache_write(blocks[1], 0, "global")
+
+    tvm.ir.assert_structural_equal(cache_inplace_buffer, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=inplace_call, debug_mask=debug_mask)
+
+
+def test_cache_read_nested_seq(use_block_name):
+    sch = tir.Schedule(func_nested_seq, debug_mask="all")
+    block_c = "C" if use_block_name else sch.get_block("C")
+    sch.cache_read(block_c, 0, "global", consumer_blocks=[block_c])
+    tvm.ir.assert_structural_equal(cache_read_nested_seq_target, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=func_nested_seq)
 
 
 ########## Testcases for cache_write ##########

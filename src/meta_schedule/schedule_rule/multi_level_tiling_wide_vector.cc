@@ -42,6 +42,12 @@ class MultiLevelTilingWideVectorNode : public MultiLevelTilingNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(MultiLevelTilingWideVectorNode, MultiLevelTilingNode);
 
  protected:
+  ScheduleRule Clone() const final {
+    ObjectPtr<MultiLevelTilingWideVectorNode> n =
+        make_object<MultiLevelTilingWideVectorNode>(*this);
+    return ScheduleRule(n);
+  }
+
   Array<tir::LoopRV> SplitLoop(const Schedule& sch, BlockRV block, LoopRV loop, int n_tiles) const;
 };
 

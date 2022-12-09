@@ -1,0 +1,64 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+FQBN			    ?= <FQBN>
+VERBOSE_FLAG	    ?= <VERBOSE_FLAG>
+BUILD_DIR		    := $(subst :,.,build)
+PORT			    ?=
+ARUINO_CLI_CMD	    ?= <ARUINO_CLI_CMD>
+BOARD			    := <BOARD>
+BUILD_EXTRA_FLAGS   := <BUILD_EXTRA_FLAGS>
+
+SRC        	:= $(wildcard *.ino)
+BIN        	:= $(BUILD_DIR)/$(SRC).bin
+ELF        	:= $(BUILD_DIR)/$(SRC).elf
+
+$(info FQBN                 `fully qualified board name` => [${FQBN}])
+$(info BUILD_DIR            `build directory for this project` => [${BUILD_DIR}])
+$(info SRC                  `Arduino .ino file for this project` => [${SRC}])
+$(info BIN                  `generated binary file path` => [${BIN}])
+$(info PORT                 `board's port` => [${PORT}])
+$(info BOARD                `board name` => [${BOARD}])
+$(info BUILD_EXTRA_FLAGS    `build extra flags including header include directories and other compiler flags` => [${BUILD_EXTRA_FLAGS}])
+
+all: $(ELF) flash
+.PHONY: all
+
+build: $(ELF)
+.PHONY: build
+
+$(ELF): $(SRC)
+	$(ARUINO_CLI_CMD) compile --fqbn $(FQBN) \
+    --build-path $(BUILD_DIR) \
+    --build-properties $(BUILD_EXTRA_FLAGS) \
+    $(VERBOSE_FLAG)
+
+flash:
+	if [ -z $(PORT) ] ; then \
+	echo "---> ERROR: Please set the device port environment variable PORT"; \
+	else $(ARUINO_CLI_CMD) upload --fqbn $(FQBN) --input-dir $(BUILD_DIR) --port $(PORT) $(VERBOSE_FLAG); \
+	fi
+
+info:
+	$(info --------------------------------------INFO--------------------------------------)
+	$(info This makefile is for building and flashing an Arduino project with TVM.)
+	$(info To build run: `make build`)
+	$(info To upload the sketch run: `make flash PORT=<Arduino board port path>`)
+	$(info --------------------------------------INFO--------------------------------------)
+
+clean:
+	rm -rf build

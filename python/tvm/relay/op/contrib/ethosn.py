@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name, unused-argument
 """Arm(R) Ethos(TM)-N NPU supported operators."""
 from enum import Enum
-import warnings
 from distutils.version import LooseVersion
 
 import tvm.ir
@@ -64,12 +63,42 @@ def ConvertEquivalents() -> tvm.ir.IRModule:  # pylint: disable=invalid-name
     """Converts operations into a numerically equivalent form
     that can be understood by the NPU codegen.
 
-    Return
-    ------
+    Returns
+    -------
     Pass
         The module pass.
     """
     return _ethosn.ConvertEquivalents()
+
+
+def InlineNonComputeIntensivePartitions() -> tvm.ir.IRModule:  # pylint: disable=invalid-name
+    """This pass checks whether functions partitioned for the NPU are considered
+    non-compute intensive. If they are not, they will be unpartitioned and passed onto
+    other backends to consider.
+
+    A partitioned function is currently considered non-compute intensive if it contains
+    no multiply accumulate operations.
+
+    Returns
+    -------
+    Pass
+        The module pass.
+    """
+    return _ethosn.InlineNonComputeIntensivePartitions()
+
+
+def is_inline_non_compute_intensive_partitions_enabled() -> bool:
+    """
+    Determine whether to inline none-compute-intensive partitions.
+
+    Returns
+    -------
+    True if inlining should happen, False if not.
+    """
+    compiler_attrs = tvm.get_global_func("relay.ext.ethos-n.get_compiler_attrs")()
+    if not compiler_attrs:
+        return False
+    return compiler_attrs.inline_non_compute_intensive_partitions
 
 
 def partition_for_ethosn(mod, params=None, **opts):
@@ -87,22 +116,8 @@ def partition_for_ethosn(mod, params=None, **opts):
     -------
     ret : annotated and partitioned module.
     """
-    opts = opts or {}
-    if "variant" not in opts:
-        raise ValueError("Please specify a variant in the target string, e.g. -variant=n78.")
-
-    # -variant=ethos-n78 deprecated in favour of -variant=n78
-    if opts["variant"].lower() == "ethos-n78":
-        warnings.warn(
-            "Please use '-variant=n78' instead of the deprecated "
-            "'-variant=ethos-n78', which will be removed in TVM v0.9.",
-            DeprecationWarning,
-        )
-    elif opts["variant"] != "n78":
-        raise ValueError("When targeting Ethos(TM)-N78, -variant=n78 should be set.")
-
     api_version = ethosn_api_version()
-    supported_api_versions = ["3.0.1", "3.1.0"]
+    supported_api_versions = ["3.1.0"]
     if all(api_version != LooseVersion(exp_ver) for exp_ver in supported_api_versions):
         raise ValueError(
             f"Driver stack version {api_version} is unsupported. "
@@ -112,17 +127,18 @@ def partition_for_ethosn(mod, params=None, **opts):
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
 
-    seq = tvm.transform.Sequential(
-        [
-            transform.InferType(),
-            transform.MergeComposite(pattern_table()),
-            transform.AnnotateTarget("ethos-n"),
-            transform.MergeCompilerRegions(),
-            transform.PartitionGraph(),
-            ConvertEquivalents(),
-        ]
-    )
-    return seq(mod)
+    passes = [
+        transform.InferType(),
+        transform.MergeComposite(pattern_table()),
+        transform.AnnotateTarget("ethos-n"),
+        transform.MergeCompilerRegions(),
+        transform.PartitionGraph(),
+        ConvertEquivalents(),
+    ]
+    if is_inline_non_compute_intensive_partitions_enabled():
+        passes.append(InlineNonComputeIntensivePartitions())
+
+    return tvm.transform.Sequential(passes)(mod)
 
 
 @register_pattern_table("ethos-n")
@@ -215,7 +231,7 @@ def pattern_table():
         input_is_right = gen_mul_inputs(is_constant(), wildcard())
         return input_is_left | input_is_right
 
-    def qnn_add_pattern():
+    def qnn_add_pattern(has_constant_input=False):
         add_op = is_op("qnn.add")
         gen_add_inputs = lambda x, y: add_op(
             x,
@@ -227,11 +243,13 @@ def pattern_table():
             is_constant(),
             is_constant(),
         )
-        two_inputs = gen_add_inputs(wildcard(), wildcard())
-        input_is_left = gen_add_inputs(wildcard(), is_constant())
-        input_is_right = gen_add_inputs(is_constant(), wildcard())
 
-        return input_is_left | input_is_right | two_inputs
+        if has_constant_input:
+            input_is_left = gen_add_inputs(wildcard(), is_constant())
+            input_is_right = gen_add_inputs(is_constant(), wildcard())
+            return input_is_left | input_is_right
+        else:
+            return gen_add_inputs(wildcard(), wildcard())
 
     def qnn_conv2d_transpose_pattern():
         pattern = is_op("qnn.conv2d_transpose")(
@@ -299,16 +317,24 @@ def pattern_table():
 
         return _ethosn.leaky_relu(extract)
 
-    def check_mul(extract):
-        """Check if Mul is supported."""
+    def check_mul_to_reinterpret_quantize(extract):
+        """Check if Mul is supported by converting to reinterpret quantize"""
         if not ethosn_available():
             return False
-        # Do not support scalar constants for now
-        check_scalar = lambda i: isinstance(i, tvm.relay.Constant) and len(i.data.shape) == 0
-        if check_scalar(extract.args[0]) or check_scalar(extract.args[1]):
+
+        converted_extract = _ethosn.ConvertQnnMultiplyToReinterpretQuantize(extract)
+        if converted_extract:
+            return _ethosn.reinterpret_quantize(converted_extract)
+        return False
+
+    def check_mul_to_depthwise(extract):
+        """Check if Mul is supported by converting to a depthwise operation."""
+        if not ethosn_available():
             return False
-        extract = _ethosn.ConvertQnnMultiply(extract)
-        return _ethosn.conv2d(extract)
+        converted_extract = _ethosn.ConvertQnnMultiplyToDepthwise(extract)
+        if converted_extract:
+            return _ethosn.conv2d(converted_extract)
+        return False
 
     def check_requantize(extract):
         """Check if requantize is supported."""
@@ -328,19 +354,40 @@ def pattern_table():
         """Check if an addition is supported by Ethos-N."""
         if not ethosn_available():
             return False
-        # Do not support scalar constants for now
-        check_scalar = lambda i: isinstance(i, tvm.relay.Constant) and len(i.data.shape) == 0
-        if check_scalar(extract.args[0]) or check_scalar(extract.args[1]):
-            return False
 
-        inputs = extract.args[0:2]
-        if any([isinstance(i, tvm.relay.Constant) for i in inputs]):
-            extract = _ethosn.ConvertQnnAdd(extract)
-            return _ethosn.conv2d(extract)
         return _ethosn.addition(extract)
 
+    def check_add_to_reinterpret_quantize(extract):
+        """Check if addition can be converted to a reinterpret quantize operation."""
+        if not ethosn_available():
+            return False
+        converted_extract = _ethosn.ConvertQnnAddToReinterpretQuantize(extract)
+        if converted_extract:
+            return _ethosn.reinterpret_quantize(converted_extract)
+        return False
+
+    def check_add_to_depthwise(extract):
+        """Check if addition can be converted to a depthwise operation."""
+        if not ethosn_available():
+            return False
+        converted_extract = _ethosn.ConvertQnnAddToDepthwise(extract)
+        if converted_extract:
+            return _ethosn.conv2d(converted_extract)
+        return False
+
     return [
-        ("ethos-n.qnn_mul", qnn_mul_pattern(), check_mul),
+        (
+            "ethos-n.qnn_mul_to_reinterpret_quantize",
+            qnn_mul_pattern(),
+            check_mul_to_reinterpret_quantize,
+        ),
+        ("ethos-n.qnn_mul_to_depthwise", qnn_mul_pattern(), check_mul_to_depthwise),
+        (
+            "ethos-n.qnn_add_to_reinterpret_quantize",
+            qnn_add_pattern(True),
+            check_add_to_reinterpret_quantize,
+        ),
+        ("ethos-n.qnn_add_to_depthwise", qnn_add_pattern(True), check_add_to_depthwise),
         ("ethos-n.qnn_add", qnn_add_pattern(), check_add),
         ("ethos-n.qnn_conv2d", qnn_conv_pattern(), check_conv2d),
         ("ethos-n.qnn_conv2d_transpose", qnn_conv2d_transpose_pattern(), check_conv2d_transpose),
@@ -353,15 +400,6 @@ def pattern_table():
         ("ethos-n.qnn_resize", qnn_resize_pattern(), check_resize),
         ("ethos-n.qnn_requantize", qnn_requantize_pattern(), check_requantize),
     ]
-
-
-def _is_ethosn_composite(node):
-    if isinstance(node, tvm.relay.expr.Call) and isinstance(node.op, tvm.relay.Function):
-        if "Composite" in node.op.attrs:
-            comp_name = node.op.attrs["Composite"]
-            return comp_name.split(".")[0] == "ethos-n"
-
-    return False
 
 
 @tvm.ir.register_op_attr("nn.max_pool2d", "target.ethos-n")
@@ -390,24 +428,7 @@ def qnn_concatenate(expr):
     if not _ethosn.concatenate(expr):
         return False
 
-    # Support library has some unenforced restrictions on qnn params
-    args = expr.args
-    min_range = 1e9
-    max_range = -1e9
-    qnn_params = []
-    for i in range(len(args[1].fields)):
-        scale = args[1].fields[i].data.numpy()
-        zero_point = args[2].fields[i].data.numpy()
-        min_range = min(-1 * zero_point * scale, min_range)
-        max_range = max((255 - zero_point) * scale, max_range)
-        qnn_params.append((scale, zero_point))
-
-    scale = (max_range - min_range) / 255
-    zero_point = int(-min_range / scale)
-    if (scale, zero_point) in qnn_params:
-        return True
-
-    return False
+    return True
 
 
 @tvm.ir.register_op_attr("split", "target.ethos-n")

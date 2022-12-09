@@ -247,12 +247,10 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   // Load
   PrimExpr VisitExpr_(const LoadNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
   }
   // Store
   Stmt VisitStmt_(const StoreNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
   }
   // BufferLoad
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -360,11 +358,11 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     visit_touched_var_ = false;
     ICHECK_EQ(max_loop_depth_, 0);
     Stmt then_case = this->VisitStmt(op->then_case);
-    Stmt else_case;
-    if (op->else_case.defined()) {
+    Optional<Stmt> else_case = NullOpt;
+    if (op->else_case) {
       int temp = max_loop_depth_;
       max_loop_depth_ = 0;
-      else_case = this->VisitStmt(op->else_case);
+      else_case = this->VisitStmt(op->else_case.value());
       max_loop_depth_ = std::max(temp, max_loop_depth_);
     }
     if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
@@ -379,7 +377,6 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const WhileNode* op) final {
     // TODO(masahi): What should we do for While nodes?
     LOG(FATAL) << "WhileNode in InjectVirtualThread not supported yet";
-    return Stmt();
   }
 
   // Seq
@@ -528,7 +525,6 @@ class VirtualThreadInjector : public arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const ProducerStoreNode* op) final {
     LOG(FATAL) << "Need to call StorageFlatten first";
-    return GetRef<Stmt>(op);
   }
 };
 

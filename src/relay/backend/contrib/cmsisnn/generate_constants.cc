@@ -31,6 +31,7 @@
 #include "../../../op/make_op.h"
 #include "../../../qnn/utils.h"
 #include "../../../transforms/pattern_utils.h"
+#include "../constant_transforms.h"
 #include "convolutions.h"
 
 namespace tvm {
@@ -64,22 +65,9 @@ class GenerateConstantsMutator : public MixedModeMutator {
     attrs->out_dtype = std::move(conv2d_attrs->out_dtype);
     *new_attrs = tvm::Attrs{attrs};
 
-    std::string kernel_layout = conv2d_attrs->kernel_layout.c_str();
-    int pos_o = kernel_layout.find("O");
-    int pos_h = kernel_layout.find("H");
-    int pos_w = kernel_layout.find("W");
-    int pos_i = kernel_layout.find("I");
-
-    IRModule kernel_module;
-    auto func_body = MakeTranspose(
-        kernel_expr, {Integer(pos_o), Integer(pos_h), Integer(pos_w), Integer(pos_i)});
-    auto kernel_func =
-        Function(FreeVars(func_body), func_body, Type(), FreeTypeVars(func_body, kernel_module));
-    GlobalVar kernel_var("main");
-    kernel_module->Add(kernel_var, kernel_func);
-    kernel_module = relay::transform::FoldConstant()(kernel_module);
-    kernel_func = Downcast<Function>(kernel_module->Lookup("main"));
-    return kernel_func->body;
+    Constant conv2d_kernel = Downcast<Constant>(kernel_expr);
+    conv2d_kernel = TransposeWeights(conv2d_kernel, conv2d_attrs->kernel_layout, "OHWI");
+    return conv2d_kernel;
   }
 
   /*!  * \brief Performs weight transpose and substitutes existing constants in the composite

@@ -59,7 +59,16 @@ def test_tanh(dtype, shape):
     for npu in [False, True]:
         model = _get_model(shape, zp_min + 120, 0.0250629, zp_min + 128, 0.0078125, dtype)
         mod = tei.make_module(model, [])
-        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                1,
+                {},
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
+        )
 
     tei.verify(outputs, dtype, 1)
 

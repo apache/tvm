@@ -393,6 +393,7 @@ class LoopPartitioner : public StmtMutator {
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
+    analyzer_.Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent), true);
     auto fs = GetRef<Stmt>(op);
     if (selector.candidates.count(fs)) {
       Stmt s = TryPartition(fs, op->loop_var, op->min, op->min + op->extent - 1, op->body, false);
@@ -596,7 +597,8 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
   if (!opt_cond_value.has_value()) {
     if (has_partition_hint_ && unroll_loop_with_partition_hint_no_interval_ &&
         analyzer_.CanProve(max - min > 0)) {
-      return For(var, min, max - min + 1, ForKind::kUnrolled, body);
+      auto new_body = VisitAndMutate(body);
+      return For(var, min, max - min + 1, ForKind::kUnrolled, new_body);
     }
     return Stmt();
   }
@@ -697,12 +699,13 @@ inline Stmt LoopPartitioner::MakeFor(const Object* node, PrimExpr extent, Stmt b
   const ForNode* for_node = static_cast<const ForNode*>(node);
   ICHECK(for_node);
   if (analyzer_.CanProve(extent == make_const(DataType::Int(32), 1)) &&
-      !no_unroll_loop_with_extent_one_) {
+      !no_unroll_loop_with_extent_one_ && for_node->annotations.empty()) {
     // If the loop extent is 1, do not create the loop anymore
     return Substitute(body, {{Var{for_node->loop_var}, make_const(DataType::Int(32), 0)}});
   } else {
     ICHECK(for_node->kind != ForKind::kThreadBinding);
-    return For(for_node->loop_var, IntImm(for_node->min.dtype(), 0), extent, for_node->kind, body);
+    return For(for_node->loop_var, IntImm(for_node->min.dtype(), 0), extent, for_node->kind, body,
+               for_node->thread_binding, for_node->annotations);
   }
 }
 

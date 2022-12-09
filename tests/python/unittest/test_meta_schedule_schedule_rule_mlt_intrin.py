@@ -18,7 +18,10 @@
 from tvm import meta_schedule as ms
 from tvm import te
 from tvm.ir import assert_structural_equal
-from tvm.meta_schedule.testing.space_generation import check_sketches
+from tvm.meta_schedule.testing.space_generation import (
+    check_sketches,
+    generate_design_space,
+)
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir.tensor_intrin.arm_cpu import DP4A_INTRIN
@@ -71,16 +74,16 @@ def test_vnni_conv2d_nchwc():
         for i0_0, i1_0, i2_0, i3_0, i4_0_0, i0_1, i1_1, i2_1, i3_1, i4_0_1 in T.grid(1, 8, 28, 56, 1, 1, 2, 1, 1, 1):
             for i5_0, i6_0, i7_0, i8_0, i9_0_0, i0_2, i1_2, i2_2, i3_2, i4_0_2, i5_1, i6_1, i7_1, i8_1, i9_0_1, i0_3, i1_3, i2_3, i3_3, i4_0_3 in T.grid(1, 1, 1, 4, 1, 1, 1, 2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1):
                 with T.block("conv2d_NCHWc_int8_o"):
-                    n = T.axis.spatial(1, 0)
+                    n = T.axis.spatial(1, i0_2 + i0_3 + i0_0 + i0_1)
                     oc_chunk = T.axis.spatial(16, i1_0 * 2 + i1_1 + i1_2 + i1_3)
                     oh = T.axis.spatial(56, i2_0 * 2 + i2_1 * 2 + i2_2 + i2_3)
                     ow = T.axis.spatial(56, i3_3 + i3_0 + i3_1 + i3_2)
-                    oc_block_o = T.axis.spatial(1, 0)
-                    kh = T.axis.reduce(1, 0)
-                    kw = T.axis.reduce(1, 0)
+                    oc_block_o = T.axis.spatial(1, i4_0_2 + i4_0_3 + i4_0_0 + i4_0_1)
+                    kh = T.axis.reduce(1, i5_1 + i5_0)
+                    kw = T.axis.reduce(1, i6_0 + i6_1)
                     ic_outer = T.axis.reduce(4, i7_0 * 4 + i7_1)
                     ic_f_inner = T.axis.reduce(4, i8_0 + i8_1)
-                    ic_s_inner_o = T.axis.reduce(1, 0)
+                    ic_s_inner_o = T.axis.reduce(1, i9_0_1 + i9_0_0)
                     T.reads(placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4])
                     T.writes(conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, 0 : 16])
                     T.block_attr({"meta_schedule.auto_tensorize":"dot_16x4_vnni"})
@@ -116,16 +119,16 @@ def test_vnni_conv2d_nchwc():
         for i0_0, i1_0, i2_0, i3_0, i4_0_0 in T.grid(1, 8, 28, 56, 1):
             for i0_1, i1_1, i2_1, i3_1, i4_0_1, i5_0, i6_0, i7_0, i8_0, i9_0_0, i0_2, i1_2, i2_2, i3_2, i4_0_2, i5_1, i6_1, i7_1, i8_1, i9_0_1, i0_3, i1_3, i2_3, i3_3, i4_0_3 in T.grid(1, 2, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1):
                 with T.block("conv2d_NCHWc_int8_o"):
-                    n = T.axis.spatial(1, 0)
+                    n = T.axis.spatial(1, i0_2 + i0_3 + i0_0 + i0_1)
                     oc_chunk = T.axis.spatial(16, i1_0 * 2 + i1_1 + i1_2 + i1_3)
                     oh = T.axis.spatial(56, i2_0 * 2 + i2_1 * 2 + i2_2 + i2_3)
                     ow = T.axis.spatial(56, i3_3 + i3_0 + i3_1 + i3_2)
-                    oc_block_o = T.axis.spatial(1, 0)
-                    kh = T.axis.reduce(1, 0)
-                    kw = T.axis.reduce(1, 0)
+                    oc_block_o = T.axis.spatial(1, i4_0_2 + i4_0_3 + i4_0_0 + i4_0_1)
+                    kh = T.axis.reduce(1, i5_1 + i5_0)
+                    kw = T.axis.reduce(1, i6_0 + i6_1)
                     ic_outer = T.axis.reduce(4, i7_0 * 4 + i7_1)
                     ic_f_inner = T.axis.reduce(4, i8_0 + i8_1)
-                    ic_s_inner_o = T.axis.reduce(1, 0)
+                    ic_s_inner_o = T.axis.reduce(1, i9_0_1 + i9_0_0)
                     T.reads(placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4])
                     T.writes(conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, 0 : 16])
                     T.block_attr({"meta_schedule.auto_tensorize":"dot_16x4_vnni"})
@@ -159,16 +162,16 @@ def test_vnni_conv2d_nchwc():
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i0_0, i1_0, i2_0, i3_0, i4_0_0, i0_1, i1_1, i2_1, i3_1, i4_0_1, i5_0, i6_0, i7_0, i8_0, i9_0_0, i0_2, i1_2, i2_2, i3_2, i4_0_2, i5_1, i6_1, i7_1, i8_1, i9_0_1, i0_3, i1_3, i2_3, i3_3, i4_0_3 in T.grid(1, 8, 28, 56, 1, 1, 2, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1):
             with T.block("conv2d_NCHWc_int8_o"):
-                n = T.axis.spatial(1, 0)
+                n = T.axis.spatial(1, i0_2 + i0_3 + i0_0 + i0_1)
                 oc_chunk = T.axis.spatial(16, i1_0 * 2 + i1_1 + i1_2 + i1_3)
                 oh = T.axis.spatial(56, i2_0 * 2 + i2_1 * 2 + i2_2 + i2_3)
                 ow = T.axis.spatial(56, i3_3 + i3_0 + i3_1 + i3_2)
-                oc_block_o = T.axis.spatial(1, 0)
-                kh = T.axis.reduce(1, 0)
-                kw = T.axis.reduce(1, 0)
+                oc_block_o = T.axis.spatial(1, i4_0_2 + i4_0_3 + i4_0_0 + i4_0_1)
+                kh = T.axis.reduce(1, i5_1 + i5_0)
+                kw = T.axis.reduce(1, i6_0 + i6_1)
                 ic_outer = T.axis.reduce(4, i7_0 * 4 + i7_1)
                 ic_f_inner = T.axis.reduce(4, i8_0 + i8_1)
-                ic_s_inner_o = T.axis.reduce(1, 0)
+                ic_s_inner_o = T.axis.reduce(1, i9_0_1 + i9_0_0)
                 T.reads(placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4])
                 T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16])
                 T.block_attr({"meta_schedule.auto_tensorize":"dot_16x4_vnni"})
@@ -226,10 +229,11 @@ def test_vnni_conv2d_nchwc():
 
     mod = conv2d_nchwc
     target = Target("llvm -mcpu=cascadelake -num-cores=4")
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="llvm",
         mod=mod,
         target=Target(target),
-        space_generator=ms.space_generator.PostOrderApply(),
+        types=None,
         sch_rules=[
             ms.schedule_rule.MultiLevelTilingWithIntrin(
                 VNNI_INTRIN,
@@ -241,7 +245,7 @@ def test_vnni_conv2d_nchwc():
                 reuse_write=ms.schedule_rule.ReuseType(req="may", levels=[1, 2], scope="global"),
             ),
         ],
-    ).generate_design_space()
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -266,10 +270,11 @@ def _check_dp4a_dense(m, n, k, in_dtype, out_dtype, expected_mods, expected_deci
         return te.create_prim_func([X, W, matmul])
 
     mod = _dense(m, n, k, in_dtype, out_dtype)
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=Target("cuda"),
-        space_generator=ms.space_generator.PostOrderApply(),
+        types=None,
         sch_rules=[
             ms.schedule_rule.MultiLevelTilingWithIntrin(
                 DP4A_INTRIN,
@@ -281,7 +286,7 @@ def _check_dp4a_dense(m, n, k, in_dtype, out_dtype, expected_mods, expected_deci
                 reuse_write=ms.schedule_rule.ReuseType(req="must", levels=[3], scope="local"),
             )
         ],
-    ).generate_design_space()
+    )
     if expected_mods is None:
         assert expected_decisions is None
         assert len(actual) == 1

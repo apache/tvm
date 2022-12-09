@@ -245,7 +245,6 @@ class Base64OutStream : public dmlc::Stream {
   }
   virtual size_t Read(void* ptr, size_t size) {
     LOG(FATAL) << "Base64OutStream do not support read";
-    return 0;
   }
   /*!
    * \brief finish writing of all current base64 stream, do some post processing

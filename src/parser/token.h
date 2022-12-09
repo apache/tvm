@@ -216,7 +216,6 @@ std::string ToString(const TokenType& token_type) {
     // Older compilers warn even though the above code is exhaustive.
     default:
       LOG(FATAL) << "unreachable code";
-      return "";
   }
 }
 
@@ -339,7 +338,6 @@ std::string Pretty(const TokenType& token_type) {
     // Older compilers warn even though the above code is exhaustive.
     default:
       LOG(FATAL) << "unreachable code";
-      return "";
   }
 }
 

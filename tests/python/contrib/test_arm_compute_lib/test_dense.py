@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Arm Compute Library integration dense tests."""
-
 import numpy as np
+import pytest
 
 import tvm
 from tvm import relay
@@ -104,14 +104,15 @@ def _get_qnn_model(
         relay.const(0, "int32"),  # input zero point
         relay.const(output_sc, "float32"),  # output scale
         relay.const(output_zp, "int32"),  # output zero point
-        out_dtype="uint8",
+        out_dtype=dtype,
     )
     return out, params
 
 
 def _get_expected_codegen(shape, weight_shape, units, dtype, has_bias=False):
     output_shape = (shape[0], units)
-    out_dtype = "int32" if dtype == "uint8" else "float32"
+    qnn_dtypes = ("uint8", "int8")
+    out_dtype = "int32" if dtype in qnn_dtypes else "float32"
 
     node = {
         "op": "kernel",
@@ -136,7 +137,7 @@ def _get_expected_codegen(shape, weight_shape, units, dtype, has_bias=False):
     ]
 
     # qnn.dense params, input and kernel
-    if dtype == "uint8":
+    if dtype in qnn_dtypes:
         node["name"] = "qnn.dense"
         for param_dtype in ["int32", "float32"]:
             for _ in range(2):
@@ -149,7 +150,7 @@ def _get_expected_codegen(shape, weight_shape, units, dtype, has_bias=False):
                 )
 
     if has_bias:
-        bias_dtype = "int32" if dtype == "uint8" else "float32"
+        bias_dtype = "int32" if dtype in qnn_dtypes else "float32"
         bias_shape = (
             [1, weight_shape[0]]
             if dtype == "float32" and weight_shape[0] != 1
@@ -164,7 +165,7 @@ def _get_expected_codegen(shape, weight_shape, units, dtype, has_bias=False):
         )
 
     # qnn.dense params, output
-    if dtype == "uint8":
+    if dtype in qnn_dtypes:
         for param_dtype in ["float32", "int32"]:
             inputs.append(
                 {"op": "const", "name": "", "attrs": {"shape": [[[]]], "dtype": [[param_dtype]]}}
@@ -251,7 +252,14 @@ def test_codegen_dense():
         verify_codegen(func, exp_codegen)
 
 
-def test_qnn_dense():
+@pytest.mark.parametrize(
+    "dtype,min_range,max_range",
+    [
+        ("uint8", 0, 255),
+        ("int8", -127, 128),
+    ],
+)
+def test_qnn_dense(dtype, min_range, max_range):
     Device.load("test_config.json")
 
     if skip_runtime_test():
@@ -260,7 +268,6 @@ def test_qnn_dense():
     device = Device()
     np.random.seed(0)
 
-    dtype = "uint8"
     trials = [
         [(1, 2), (2, 2), 2, True],
         [(1, 2), (2, 2), 2, False],
@@ -277,7 +284,7 @@ def test_qnn_dense():
     ]
     for shape, weight_shape, units, composite in trials:
         outputs = []
-        inputs = {"a": tvm.nd.array(np.random.uniform(0, 255, shape).astype(dtype))}
+        inputs = {"a": tvm.nd.array(np.random.uniform(min_range, max_range, shape).astype(dtype))}
         input_zp = 100
         input_sc = 0.5
         kernel_zp = 50
@@ -329,13 +336,13 @@ def test_qnn_dense():
         verify(outputs, atol=1, rtol=0, config=config, verify_saturation=True)
 
 
-def test_codegen_qnn_dense():
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_codegen_qnn_dense(dtype):
     if skip_codegen_test():
         return
 
     np.random.seed(0)
 
-    dtype = "uint8"
     trials = [
         [(1, 2), (2, 2), 2, True],
         [(1, 2), (2, 2), 2, False],

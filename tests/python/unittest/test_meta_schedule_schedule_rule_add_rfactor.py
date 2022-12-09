@@ -17,7 +17,10 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing import te_workload
-from tvm.meta_schedule.testing.space_generation import check_sketches
+from tvm.meta_schedule.testing.space_generation import (
+    check_sketches,
+    generate_design_space,
+)
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.te import create_prim_func
@@ -104,13 +107,12 @@ def test_cpu_matmul():
         ("SamplePerfectTile", [4, 128]),
     ]
     mod = create_prim_func(te_workload.matmul(n=4, m=4, k=512))
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="llvm",
         mod=mod,
         target=Target("llvm --num-cores=32"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=[ms.schedule_rule.AddRFactor()],
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.AddRFactor,
+    )
     check_sketches(
         mod,
         sketches=actual,
@@ -269,13 +271,12 @@ def test_cpu_argmax():
         ("SamplePerfectTile", [8, 16]),
     ]
     mod = argmax
-    actual = ms.TuneContext(
+    actual = generate_design_space(
+        kind="llvm",
         mod=mod,
         target=Target("llvm --num-cores=32"),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules=[ms.schedule_rule.AddRFactor()],
-        task_name="test",
-    ).generate_design_space()
+        types=ms.schedule_rule.AddRFactor,
+    )
     check_sketches(
         mod,
         sketches=actual,

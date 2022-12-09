@@ -423,7 +423,6 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
     }
     default:
       LOG(FATAL) << "unknown field code";
-      return TypedPointer();
   }
 }
 
@@ -1440,7 +1439,6 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
         return builder_->CreateAlloca(t_tvm_array_, num);
       } else {
         LOG(FATAL) << "Unknown stack alloca type " << type;
-        return nullptr;
       }
     });
   } else {

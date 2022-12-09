@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name,missing-function-docstring
 """Intrinsics for AMDGPU tensorization."""
 from tvm.script import tir as T
+
 from .. import TensorIntrin
 from .dot_product_common import dp4a_desc
 

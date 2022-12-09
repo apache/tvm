@@ -389,110 +389,115 @@ def tune_model(
     # model is fixed. For now, creating a clone avoids the issue.
     mod = deepcopy(tvmc_model.mod)
     params = tvmc_model.params
-    if tuning_records is None:
-        tuning_records = tvmc_model.default_tuning_records_path()
 
-    for codegen_from_cli in extra_targets:
-        codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])
-        partition_function = codegen["pass_pipeline"]
-        mod = partition_function(mod, params, **codegen_from_cli["opts"])
+    with tvm.transform.PassContext(opt_level=3):
+        if tuning_records is None:
+            tuning_records = tvmc_model.default_tuning_records_path()
 
-    # min_repeat_ms should be:
-    # a. the value provided by the user, if any, or
-    # b. 0ms in case target is "cpu"; otherwise 1000ms
-    if min_repeat_ms is None:
-        min_repeat_ms = 0 if target.keys[0] == "cpu" else 1000
-        logger.info("Default --min-repeat-ms for this target is %s", min_repeat_ms)
+        for codegen_from_cli in extra_targets:
+            codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])
+            partition_function = codegen["pass_pipeline"]
+            mod = partition_function(mod, params, **codegen_from_cli["opts"])
 
-    if rpc_key:
-        if hostname is None or port is None:
-            raise TVMCException(
-                "You must provide a hostname and port to connect to a remote RPC device."
+        # min_repeat_ms should be:
+        # a. the value provided by the user, if any, or
+        # b. 0ms in case target is "cpu"; otherwise 1000ms
+        if min_repeat_ms is None:
+            min_repeat_ms = 0 if target.keys[0] == "cpu" else 1000
+            logger.info("Default --min-repeat-ms for this target is %s", min_repeat_ms)
+
+        if rpc_key:
+            if hostname is None or port is None:
+                raise TVMCException(
+                    "You must provide a hostname and port to connect to a remote RPC device."
+                )
+            if isinstance(port, str):
+                port = int(port)
+
+            logger.info("Tuning will be performed on device %s at %s:%d.", rpc_key, hostname, port)
+
+            runner_ctor = auto_scheduler.RPCRunner if enable_autoscheduler else autotvm.RPCRunner
+            runner = runner_ctor(
+                key=rpc_key,
+                host=hostname,
+                port=port,
+                number=number,
+                repeat=repeat,
+                n_parallel=parallel,
+                timeout=timeout,
+                min_repeat_ms=min_repeat_ms,
             )
-        if isinstance(port, str):
-            port = int(port)
-
-        logger.info("Tuning will be performed on device %s at %s:%d.", rpc_key, hostname, port)
-
-        runner_ctor = auto_scheduler.RPCRunner if enable_autoscheduler else autotvm.RPCRunner
-        runner = runner_ctor(
-            key=rpc_key,
-            host=hostname,
-            port=port,
-            number=number,
-            repeat=repeat,
-            n_parallel=parallel,
-            timeout=timeout,
-            min_repeat_ms=min_repeat_ms,
-        )
-    else:
-        logger.info("Starting localhost tuning.")
-        runner_ctor = (
-            auto_scheduler.LocalRPCMeasureContext if enable_autoscheduler else autotvm.LocalRunner
-        )
-        local_server = runner_ctor(
-            number=number,
-            repeat=repeat,
-            timeout=timeout,
-            min_repeat_ms=min_repeat_ms,
-        )
-
-        # For autoscheduling on some devices, we need to maintain a LocalRPCMeasureContext object.
-        if enable_autoscheduler:
-            runner = local_server.runner
         else:
-            runner = local_server
+            logger.info("Starting localhost tuning.")
+            runner_ctor = (
+                auto_scheduler.LocalRPCMeasureContext
+                if enable_autoscheduler
+                else autotvm.LocalRunner
+            )
+            local_server = runner_ctor(
+                number=number,
+                repeat=repeat,
+                timeout=timeout,
+                min_repeat_ms=min_repeat_ms,
+            )
 
-    if enable_autoscheduler:
+            # For autoscheduling on some devices, we need to maintain a
+            # LocalRPCMeasureContext object.
+            if enable_autoscheduler:
+                runner = local_server.runner
+            else:
+                runner = local_server
 
-        tasks, weights = autoscheduler_get_tuning_tasks(
-            mod=mod,
-            params=params,
-            target=target,
-            alter_layout=desired_layout,
-            hardware_params=hardware_params,
-            include_simple_tasks=include_simple_tasks,
-        )
+        if enable_autoscheduler:
 
-        # Create the autoscheduler tuning options
-        tuning_options = auto_scheduler.TuningOptions(
-            num_measure_trials=trials,
-            measure_callbacks=[auto_scheduler.RecordToFile(tuning_records)],
-            runner=runner,
-            early_stopping=early_stopping,
-        )
+            tasks, weights = autoscheduler_get_tuning_tasks(
+                mod=mod,
+                params=params,
+                target=target,
+                alter_layout=desired_layout,
+                hardware_params=hardware_params,
+                include_simple_tasks=include_simple_tasks,
+            )
 
-        logger.info("Autoscheduling with configuration: %s", tuning_options)
+            # Create the autoscheduler tuning options
+            tuning_options = auto_scheduler.TuningOptions(
+                num_measure_trials=trials,
+                measure_callbacks=[auto_scheduler.RecordToFile(tuning_records)],
+                runner=runner,
+                early_stopping=early_stopping,
+            )
 
-        # Schedule the tasks (i.e., produce a schedule for each task)
-        schedule_tasks(tasks, weights, tuning_options, prior_records, log_estimated_latency)
-    else:
-        tasks = autotvm_get_tuning_tasks(
-            mod=mod,
-            params=params,
-            target=target,
-            alter_layout=desired_layout,
-        )
+            logger.info("Autoscheduling with configuration: %s", tuning_options)
 
-        # In autotvm, trials is specified per task. We can convert the per-model input
-        # provided to per-task trials by dividing by the number of tasks.
-        trials = int(trials / max(len(tasks), 1))
-        logger.info("Autotuning with %d trials per task.", trials)
+            # Schedule the tasks (i.e., produce a schedule for each task)
+            schedule_tasks(tasks, weights, tuning_options, prior_records, log_estimated_latency)
+        else:
+            tasks = autotvm_get_tuning_tasks(
+                mod=mod,
+                params=params,
+                target=target,
+                alter_layout=desired_layout,
+            )
 
-        tuning_options = {
-            "tuner": tuner,
-            "trials": trials,
-            "early_stopping": early_stopping,
-            "measure_option": autotvm.measure_option(
-                builder=autotvm.LocalBuilder(build_func="default"), runner=runner
-            ),
-            "tuning_records": prior_records,
-        }
-        logger.info("Autotuning with configuration: %s", tuning_options)
+            # In autotvm, trials is specified per task. We can convert the per-model input
+            # provided to per-task trials by dividing by the number of tasks.
+            trials = int(trials / max(len(tasks), 1))
+            logger.info("Autotuning with %d trials per task.", trials)
 
-        tune_tasks(tasks, tuning_records, **tuning_options)
+            tuning_options = {
+                "tuner": tuner,
+                "trials": trials,
+                "early_stopping": early_stopping,
+                "measure_option": autotvm.measure_option(
+                    builder=autotvm.LocalBuilder(build_func="default"), runner=runner
+                ),
+                "tuning_records": prior_records,
+            }
+            logger.info("Autotuning with configuration: %s", tuning_options)
 
-    return tuning_records
+            tune_tasks(tasks, tuning_records, **tuning_options)
+
+        return tuning_records
 
 
 def autotvm_get_tuning_tasks(

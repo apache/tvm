@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm
-from tvm.meta_schedule import TuneContext, postproc
+from tvm import meta_schedule as ms
 from tvm.script import tir as T
 from tvm.tir.tensor_intrin import arm_cpu, cuda, rocm, x86
 
@@ -233,10 +233,11 @@ class Conv2dNCHWcVNNIModuleTensorized:
                     A_i32 = T.reinterpret(A_u8x4, dtype="int32")
                     B_i8x64 = B.vload([0, 0], dtype="int8x64")
                     B_i32x16 = T.reinterpret(B_i8x64, dtype="int32x16")
-                    C[T.ramp(0, 1, 16)] = C[T.ramp(0, 1, 16)] + T.call_llvm_pure_intrin(
+                    C_i32x16 = C.vload([0], dtype="int32x16")
+                    C[T.ramp(0, 1, 16)] = T.call_llvm_pure_intrin(
                         T.llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512"),
                         T.uint32(0),
-                        T.broadcast(0, 16),
+                        C_i32x16,
                         T.broadcast(A_i32, 16),
                         B_i32x16,
                         dtype="int32x16",
@@ -450,11 +451,15 @@ class DenseDP4ATensorized:
                             compute[v0, v1] = compute_local[v0, v1]
 
 
-def _create_context(mod, target, postprocs):
-    ctx = TuneContext(
+def _create_context(mod, target, postprocs) -> ms.TuneContext:
+    ctx = ms.TuneContext(
         mod=mod,
         target=target,
-        postprocs=postprocs,
+        space_generator=ms.space_generator.PostOrderApply(
+            sch_rules=[],
+            postprocs=postprocs,
+            mutator_probs={},
+        ),
         task_name="test",
     )
     return ctx
@@ -467,14 +472,14 @@ def test_rewrite_tensorize_conv2d_nchwc_vnni():
         mod,
         target,
         [
-            postproc.RewriteReductionBlock(),
-            postproc.RewriteTensorize(True),
+            ms.postproc.RewriteReductionBlock(),
+            ms.postproc.RewriteTensorize(True),
         ],
     )
     sch = tvm.tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
 
-    for proc in ctx.postprocs:
+    for proc in ctx.space_generator.postprocs:
         proc.apply(sch)
 
     tvm.ir.assert_structural_equal(sch.mod, Conv2dNCHWcVNNIModuleTensorized)
@@ -487,15 +492,15 @@ def test_rewrite_tensorize_dense_dp4a():
         mod,
         target,
         [
-            postproc.RewriteCooperativeFetch(),
-            postproc.RewriteReductionBlock(),
-            postproc.RewriteTensorize(),
+            ms.postproc.RewriteCooperativeFetch(),
+            ms.postproc.RewriteReductionBlock(),
+            ms.postproc.RewriteTensorize(),
         ],
     )
     sch = tvm.tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
 
-    for proc in ctx.postprocs:
+    for proc in ctx.space_generator.postprocs:
         proc.apply(sch)
 
     tvm.ir.assert_structural_equal(sch.mod, DenseDP4ATensorized)

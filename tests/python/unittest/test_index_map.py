@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
 
 import pytest
 import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.tir import IndexMap, IntImm, floordiv, floormod
+from tvm.runtime import const
 
 
 def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
@@ -40,6 +42,9 @@ def test_index_mapping():
     assert_structural_equal(index_map.map_indices([3]), [0, 3])
     assert_structural_equal(index_map.map_indices([4]), [1, 0])
     assert_structural_equal(index_map.map_indices([42]), [10, 2])
+    assert_structural_equal(
+        index_map.map_indices([const(42, "int64")]), [const(10, "int64"), const(2, "int64")]
+    )
 
 
 def test_shape_mapping():
@@ -49,6 +54,12 @@ def test_shape_mapping():
     assert_structural_equal(index_map.map_shape([16]), [4, 4])
 
     assert_structural_equal(index_map.map_shape([14]), [4, 4])
+    assert_structural_equal(
+        index_map.map_shape([const(16, "int64")]), [const(4, "int64"), const(4, "int64")]
+    )
+    assert_structural_equal(
+        index_map.map_shape([const(14, "int64")]), [const(4, "int64"), const(4, "int64")]
+    )
 
 
 def test_inverse():
@@ -80,7 +91,7 @@ padding_test_case = tvm.testing.parameter(
             inverse=lambda i, j: [4 * i + j],
             pre_shape=[15],
             post_shape=[4, 4],
-            padding=lambda i, j: tvm.tir.And(i == 3, j >= 3),
+            padding=lambda i, j: tvm.tir.And(i == 3, tvm.runtime.convert(3) == j),
         ),
         "left_padding": dict(
             forward=lambda i: [(i + 1) // 4, (i + 1) % 4],
@@ -96,14 +107,14 @@ padding_test_case = tvm.testing.parameter(
             post_shape=[4, 4],
             padding=lambda i, j: tvm.tir.Or(
                 tvm.tir.And(i == 0, j < 1),
-                tvm.tir.And(i == 3, j >= 3),
+                tvm.tir.And(i == 3, tvm.runtime.convert(3) == j),
             ),
         ),
         "dynamic_size": dict(
             forward=lambda i: [i // 4, i % 4],
             inverse=lambda i, j: [4 * i + j],
             pre_shape=[dynamic_N],
-            post_shape=[(dynamic_N - 1) // 4 + 1, 4],
+            post_shape=[(dynamic_N - dynamic_N % (-4)) // 4, 4],
             padding=lambda i, j: tvm.tir.And(
                 dynamic_N % (-4) != 0,
                 tvm.tir.And(i == dynamic_N // 4, j >= dynamic_N % 4),
@@ -125,7 +136,7 @@ padding_test_case = tvm.testing.parameter(
             padding=lambda i_outer, j_outer, i_inner, j_inner: tvm.tir.Or(
                 tvm.tir.Or(
                     tvm.tir.And(i_outer == 0, i_inner < 1),
-                    tvm.tir.And(i_outer == 3, i_inner >= 3),
+                    tvm.tir.And(i_outer == 3, tvm.runtime.convert(3) == i_inner),
                 ),
                 tvm.tir.Or(
                     tvm.tir.And(j_outer == 0, j_inner < 5),
@@ -160,6 +171,13 @@ padding_test_case = tvm.testing.parameter(
             pre_shape=[123],
             post_shape=[8, 4, 4],
             padding=lambda j, i, k: tvm.tir.And(i == 0, j * 4 + k < 5),
+        ),
+        "outer_loop_extent_one": dict(
+            forward=lambda i: [i // 4, i % 4],
+            inverse=lambda i, j: [i * 4 + j],
+            pre_shape=[3],
+            post_shape=[1, 4],
+            padding=lambda i, j: tvm.runtime.convert(3) == j,
         ),
     }
 )
@@ -200,6 +218,64 @@ def test_index_map_inverse_no_iter():
     inverse_map = index_map.inverse([1, 1, 64, 64])
     expected_map = IndexMap.from_func(expected_inverse)
     assert expected_map.is_equivalent_to(inverse_map)
+
+
+def test_map_ndarray():
+    index_map = IndexMap.from_func(lambda i: [i // 4, i % 4])
+
+    inp = np.arange(16).astype("int8")
+
+    out = index_map.map_ndarray(tvm.nd.array(inp)).numpy()
+
+    ref = np.zeros(out.shape).astype("int8")
+
+    for i in range(16):
+        ref[i // 4, i % 4] = inp[i]
+
+    np.testing.assert_equal(ref, out)
+
+    index_map = IndexMap.from_func(lambda i0, i1, i2, i3: (i3, i0, i1, i2))
+
+    inp = np.random.randn(10, 10, 10, 10).astype("float16")
+
+    out = index_map.map_ndarray(tvm.nd.array(inp)).numpy()
+
+    ref = np.transpose(inp, (3, 0, 1, 2))
+
+    np.testing.assert_equal(ref, out)
+
+    index_map = IndexMap.from_func(
+        lambda i0, i1, i2, i3: (
+            floordiv(i3, 32),
+            i0,
+            floordiv(i2, 8),
+            floordiv(floormod(i3, 32), 16),
+            i1,
+            floormod(i2, 8),
+            floormod(i3, 16),
+        )
+    )
+
+    kH = kW = 3
+    I = 64
+    O = 64
+    inp = np.random.randn(kH, kW, I, O).astype("float32")
+    arr = tvm.nd.array(inp)
+    out = index_map.map_ndarray(arr).numpy()
+
+    ref = np.zeros(out.shape).astype("float32")
+
+    for i0 in range(kH):
+        for i1 in range(kW):
+            for i2 in range(I):
+                for i3 in range(O):
+                    v = inp[i0, i1, i2, i3]
+                    ref[i3 // 32, i0, i2 // 8, (i3 % 32) // 16, i1, i2 % 8, i3 % 16] = v
+
+    np.testing.assert_equal(ref, out)
+
+    inverse_map = index_map.inverse(inp.shape)
+    np.testing.assert_equal(inverse_map.map_ndarray(index_map.map_ndarray(arr)).numpy(), inp)
 
 
 if __name__ == "__main__":

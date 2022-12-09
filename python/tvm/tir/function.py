@@ -28,6 +28,7 @@ from tvm.ir import BaseFunc, Range
 from .buffer import Buffer
 from .expr import Var, PrimExpr
 from . import _ffi_api
+from ..runtime.ndarray import NDArray
 
 
 @tvm._ffi.register_object("tir.PrimFunc")
@@ -48,9 +49,6 @@ class PrimFunc(BaseFunc):
     buffer_map : Map[tvm.tir.Var, tvm.tir.Buffer]
         The buffer binding map.
 
-    preflattened_buffer_map : Optional[Map[tvm.tir.Var, tvm.tir.Buffer]]
-        The buffer binding map, prior to any flattening.
-
     attrs: Optional[tvm.Attrs]
         Attributes of the function, can be None
 
@@ -64,14 +62,12 @@ class PrimFunc(BaseFunc):
         body,
         ret_type=None,
         buffer_map=None,
-        preflattened_buffer_map=None,
         attrs=None,
         span=None,
     ):
 
         param_list = []
         buffer_map = {} if buffer_map is None else buffer_map
-        preflattened_buffer_map = {} if preflattened_buffer_map is None else preflattened_buffer_map
         for x in params:
             x = tvm.runtime.convert(x) if not isinstance(x, Object) else x
             if isinstance(x, Buffer):
@@ -89,7 +85,6 @@ class PrimFunc(BaseFunc):
             body,
             ret_type,
             buffer_map,
-            preflattened_buffer_map,
             attrs,
             span,
         )  # type: ignore
@@ -115,7 +110,6 @@ class PrimFunc(BaseFunc):
             new_body,
             self.ret_type,
             self.buffer_map,
-            self.preflattened_buffer_map,
             self.attrs,
             span,
         )
@@ -195,18 +189,24 @@ class PrimFunc(BaseFunc):
             self, tir_prefix, show_meta
         )  # type: ignore
 
-    def show(self, style: Optional[str] = None) -> None:
-        """
-        A sugar for print highlighted TVM script.
+    def show(self, style: Optional[str] = None, black_format: bool = True) -> None:
+        """A sugar for print highlighted TVM script.
+
         Parameters
         ----------
         style : str, optional
-            Pygments styles extended by "light" (default) and "dark", by default "light"
+
+            Pygmentize printing style, auto-detected if None.  See
+            `tvm.script.highlight.cprint` for more details.
+
+        black_format: bool
+
+            If true (default), use the formatter Black to format the TVMScript
         """
         from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
 
         # Use deferred import to avoid circular import while keeping cprint under tvm/script
-        cprint(self, style=style)
+        cprint(self, style=style, black_format=black_format)
 
 
 @tvm._ffi.register_object("tir.TensorIntrin")
@@ -514,6 +514,21 @@ class IndexMap(Object):
             The mapped shape
         """
         return _ffi_api.IndexMapMapShape(self, shape)
+
+    def map_ndarray(self, arr_src: NDArray) -> NDArray:
+        """Apply thie index map to transform the layout of the input NDArray
+
+        Parameters
+        ----------
+        arr_src : runtime.NDArray
+            The NDArray to be transformed
+
+        Returns
+        -------
+        arr_dst : runtime.NDArray
+            The transformed NDArray
+        """
+        return _ffi_api.IndexMapMapNDArray(self, arr_src)
 
     def inverse(self, shape: List[Union[Range, PrimExpr]]) -> "IndexMap":
         """Return the inverse of the map

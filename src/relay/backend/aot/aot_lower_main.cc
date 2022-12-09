@@ -23,6 +23,7 @@
  */
 #include "./aot_lower_main.h"
 
+#include <tvm/runtime/name_transforms.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/transform.h>
 
@@ -227,7 +228,7 @@ class AOTMainLowerer : public MixedModeVisitor {
 
     for (auto input : lowered_main_func->params) {
       input_vars_.push_back(input);
-      std::string input_name = SanitizeName(input->name_hint());
+      std::string input_name = tvm::runtime::SanitizeName(input->name_hint());
       // We don't want the compiler changing input names in the
       // event of a sanitization collision. Therefore, enforcing
       // the var created to use the input_name strictly.
@@ -302,7 +303,6 @@ class AOTMainLowerer : public MixedModeVisitor {
       // TODO(mbs): device_copy cleaunp
       // Suspect treating as no-op is better since already built into the StorageInfo?
       LOG(FATAL) << "The AOT executor does not currently support device_copy";
-      return;
     }
 
     // At this point we should only see calls of the form call_lowered(@callee, (args...)),
@@ -492,13 +492,18 @@ class AOTMainLowerer : public MixedModeVisitor {
         Array<tir::Var>(main_signature_.begin() + input_vars_.size(),
                         main_signature_.begin() + input_vars_.size() + return_sid_.size());
     dict_attrs.Set("output_vars", output_vars);
+    Array<String> device_names;
+    for (const auto& it : devices_) {
+      device_names.push_back(it.first);
+    }
+    dict_attrs.Set("devices", device_names);
 
     tir::Stmt device_activations = GenerateAllDeviceHook("Activate");
     tir::Stmt device_deactivations = GenerateAllDeviceHook("Deactivate");
     tir::Stmt final_body = tir::SeqStmt({device_activations, body, device_deactivations});
 
     // Make the PrimFunc
-    return tir::PrimFunc(main_signature_, final_body, VoidType(), main_buffer_map_, {},
+    return tir::PrimFunc(main_signature_, final_body, VoidType(), main_buffer_map_,
                          DictAttrs(dict_attrs));
   }
 
@@ -518,7 +523,7 @@ class AOTMainLowerer : public MixedModeVisitor {
         return;
       }
       if (target_attr_map[target_kind.value()]) {
-        std::string context_name = SanitizeName(device_context_name);
+        std::string context_name = tvm::runtime::SanitizeName(device_context_name);
         tir::Var device_context_var("device_context_" + context_name, DataType::Handle());
 
         auto pair = target_contexts.find(target_kind.value());

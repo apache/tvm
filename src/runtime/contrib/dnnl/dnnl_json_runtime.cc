@@ -470,6 +470,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
   void Dense(const size_t& nid) {
     auto node = nodes_[nid];
+    auto op_name = node.GetOpName();
 
     // Setup attributes.
     auto src_tr = GetInput(nid, 0);
@@ -500,6 +501,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     // TODO(@apeskov): Simulation of inplace primitive. just as PoC.
     auto sum_in_tr = GetInputByName(nid, "sum_idx");
+    if (op_name.find("_sum") != std::string::npos) {
+      sum_in_tr = GetInput(nid, node.GetInputs().size() - 1);
+    }
 
     Submit(dnnl::inner_product_forward(dense_prim_desc),
            {{DNNL_ARG_SRC, src_tr},

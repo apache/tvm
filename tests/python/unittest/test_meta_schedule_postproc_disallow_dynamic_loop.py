@@ -17,9 +17,8 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
 import tvm
+from tvm import meta_schedule as ms
 from tvm import tir
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.postproc import DisallowDynamicLoop
 from tvm.script import tir as T
 from tvm.target import Target
 
@@ -28,13 +27,17 @@ def _target() -> Target:
     return Target("cuda", host="llvm")
 
 
-def _create_context(mod, target) -> TuneContext:
-    ctx = TuneContext(
+def _create_context(mod, target) -> ms.TuneContext:
+    ctx = ms.TuneContext(
         mod=mod,
         target=target,
-        postprocs=[
-            DisallowDynamicLoop(),
-        ],
+        space_generator=ms.space_generator.PostOrderApply(
+            sch_rules=[],
+            postprocs=[
+                ms.postproc.DisallowDynamicLoop(),
+            ],
+            mutator_probs={},
+        ),
         task_name="test",
     )
     return ctx
@@ -83,14 +86,14 @@ def test_postproc_disallow_dynamic_loops():
     mod = Matmul
     ctx = _create_context(mod, target=_target())
     sch = tir.Schedule(mod, debug_mask="all")
-    assert ctx.postprocs[0].apply(sch)
+    assert ctx.space_generator.postprocs[0].apply(sch)
 
 
 def test_postproc_disallow_dynamic_loops_fail():
     mod = DynamicLoop
     ctx = _create_context(mod, target=_target())
     sch = tir.Schedule(mod, debug_mask="all")
-    assert not ctx.postprocs[0].apply(sch)
+    assert not ctx.space_generator.postprocs[0].apply(sch)
 
 
 if __name__ == "__main__":

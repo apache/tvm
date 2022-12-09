@@ -30,7 +30,7 @@ def batch_matmul_strategy_hexagon(attrs, inputs, out_type, target):
     """batch_matmul strategy for Hexagon"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_batch_matmul(topi.nn.batch_matmul),
+        wrap_compute_batch_matmul(topi.nn.batch_matmul, need_out_dtype=True),
         wrap_topi_schedule(topi.hexagon.schedule_batch_matmul),
         name="batch_matmul.hexagon",
     )
@@ -83,14 +83,14 @@ def conv2d_strategy_hexagon(attrs, inputs, out_type, target):
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nchw),
                 wrap_topi_schedule(topi.hexagon.schedule_depthwise_conv2d_nchw),
-                name="depthwise_conv2d_nchw.generic",
+                name="depthwise_conv2d_nchw.hexagon",
             )
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
                 wrap_topi_schedule(topi.hexagon.schedule_depthwise_conv2d_nhwc),
-                name="depthwise_conv2d_nhwc.generic",
+                name="depthwise_conv2d_nhwc.hexagon",
             )
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
@@ -187,3 +187,50 @@ def schedule_reduce_hexagon(attrs, outs, target):
     """Schedule reduction ops for Hexagon"""
     with target:
         return topi.hexagon.schedule_reduce(outs)
+
+
+@conv2d_NCHWc_strategy.register("hexagon")
+def conv2d_NCHWc_strategy_hexagon(attrs, inputs, out_type, target):
+    """conv2d_NCHWc_ hexagon strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_conv2d(
+            topi.hexagon.conv2d_NCHWc_int8, need_data_layout=True, need_out_layout=True
+        ),
+        wrap_topi_schedule(topi.hexagon.schedule_conv2d_NCHWc_int8),
+        name="conv2d_NCHWc_int8.hexagon",
+    )
+    return strategy
+
+
+@dense_pack_strategy.register("hexagon")
+def dense_pack_strategy_hexagon(attrs, inputs, out_type, target):
+    """dense_pack hexagon strategy"""
+    strategy = _op.OpStrategy()
+
+    if (
+        inputs[0].dtype == "uint8"
+        and inputs[1].dtype == "uint8"
+        and out_type.dtype == "int32"
+        and attrs["weight_layout"] == "NC32n4c"
+    ):
+        strategy.add_implementation(
+            wrap_compute_dense(topi.hexagon.dense.dense_u8u8i32_vrmpy_compute),
+            wrap_topi_schedule(topi.hexagon.dense.dense_u8u8i32_vrmpy_schedule),
+            name="dense_uint8.hexagon",
+            plevel=12,
+        )
+
+    return strategy
+
+
+@fast_softmax_strategy.register("hexagon")
+def fast_softmax_strategy_cpu(attrs, inputs, out_type, target):
+    """fast_softmax hexagon strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.fast_softmax),
+        wrap_topi_schedule(topi.hexagon.schedule_softmax),
+        name="fast_softmax.hexagon",
+    )
+    return strategy

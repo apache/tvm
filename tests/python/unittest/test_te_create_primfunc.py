@@ -20,6 +20,7 @@ import tvm
 import tvm.testing
 from tvm import te, tir, topi
 from tvm.script import tir as T
+import pytest
 
 
 def test_unique_name_complete_block():
@@ -44,8 +45,8 @@ def test_unique_name_reduction_block():
     assert isinstance(s.get_sref(s.get_block("sum_1")), tir.schedule.StmtSRef)
 
 
-def _check_workload(te_workload, tir_workload):
-    func = te.create_prim_func(te_workload())
+def _check_workload(te_workload, tir_workload, index_dtype_override=None):
+    func = te.create_prim_func(te_workload(), index_dtype_override)
     tvm.ir.assert_structural_equal(func, tir_workload)
     # make sure that we can create schedule from the func
     s = tir.Schedule(func, debug_mask="all")
@@ -75,8 +76,27 @@ def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[i, j] += A[i, k] * B[j, k]
 
 
+@T.prim_func
+def tir_matmul_int64(
+    A: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+    B: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+    C: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    for i0, j0, k0 in T.grid(T.int64(128), T.int64(128), T.int64(128)):
+        with T.block():
+            i, j, k = T.axis.remap("SSR", [i0, j0, k0])
+            with T.init():
+                C[i, j] = 0.0
+            C[i, j] += A[i, k] * B[j, k]
+
+
 def test_matmul():
     _check_workload(te_matmul, tir_matmul)
+
+
+def test_matmul_int64():
+    _check_workload(te_matmul, tir_matmul_int64, index_dtype_override="int64")
 
 
 def te_element_wise():
@@ -216,9 +236,12 @@ def te_extern():
 @T.prim_func
 def tir_extern(a: T.handle, b: T.handle, c: T.handle) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128, 128))
-    C = T.match_buffer(c, (128, 128))
+    off1 = te.var("elem_offset")
+    off2 = te.var("elem_offset_1")
+    off3 = te.var("elem_offset_2")
+    A = T.match_buffer(a, (128, 128), elem_offset=off1)
+    B = T.match_buffer(b, (128, 128), elem_offset=off2)
+    C = T.match_buffer(c, (128, 128), elem_offset=off3)
     # body
     with T.block("C"):
         T.reads([A[0:128, 0:128], B[0:128, 0:128]])
@@ -232,7 +255,7 @@ def tir_extern(a: T.handle, b: T.handle, c: T.handle) -> None:
                     0,
                     2,
                     0.0,
-                    0,
+                    off1,
                     dtype="handle",
                 ),
                 T.tvm_stack_make_array(
@@ -241,7 +264,7 @@ def tir_extern(a: T.handle, b: T.handle, c: T.handle) -> None:
                     0,
                     2,
                     0.0,
-                    0,
+                    off2,
                     dtype="handle",
                 ),
                 T.tvm_stack_make_array(
@@ -250,7 +273,7 @@ def tir_extern(a: T.handle, b: T.handle, c: T.handle) -> None:
                     0,
                     2,
                     0.0,
-                    0,
+                    off3,
                     dtype="handle",
                 ),
                 0,
@@ -387,11 +410,41 @@ def expected_layout_attr(
             C[x, y] = C[x, y] + A[x, k] * B[y, k]
     for i0, i1 in T.grid(128, 128):
         with T.block("D"):
+            T.block_attr({"layout_free_placeholders": [C]})
             x, y = T.axis.remap("SS", [i0, i1])
             D[x, y] = C[x, y] + T.float32(1)
 
 
-def test_tensor_layout_attr():
+@T.prim_func
+def expected_layout_attr_int64(
+    A: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+    B: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+    D: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+):
+    T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
+    C = T.alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
+    for x, y, k in T.grid(T.int64(128), T.int64(128), T.int64(128)):
+        with T.block("C"):
+            v_x, v_y, v_k = T.axis.remap("SSR", [x, y, k])
+            T.reads(A[v_x, v_k], B[v_y, v_k])
+            T.writes(C[v_x, v_y])
+            with T.init():
+                C[v_x, v_y] = T.float32(0)
+            C[v_x, v_y] = C[v_x, v_y] + A[v_x, v_k] * B[v_y, v_k]
+    for x, y in T.grid(T.int64(128), T.int64(128)):
+        with T.block("D"):
+            T.block_attr({"layout_free_placeholders": [C]})
+            v_x, v_y = T.axis.remap("SS", [x, y])
+            T.reads(C[v_x, v_y])
+            T.writes(D[v_x, v_y])
+            D[v_x, v_y] = C[v_x, v_y] + T.float32(1)
+
+
+@pytest.mark.parametrize(
+    "index_dtype_override, expected",
+    [(None, expected_layout_attr), ("int64", expected_layout_attr_int64)],
+)
+def test_tensor_layout_attr(index_dtype_override, expected):
     k = te.reduce_axis((0, 128), "k")
     A = te.placeholder((128, 128), name="A")
     B = te.placeholder((128, 128), name="B")
@@ -407,8 +460,8 @@ def test_tensor_layout_attr():
         name="D",
         attrs={"layout_free_placeholders": [C]},
     )
-    func = te.create_prim_func([A, B, D])
-    tvm.ir.assert_structural_equal(func, expected_layout_attr)
+    func = te.create_prim_func([A, B, D], index_dtype_override=index_dtype_override)
+    tvm.ir.assert_structural_equal(func, expected)
 
 
 def te_argmax_idx_val():
@@ -550,21 +603,38 @@ def test_zero_dim_add():
     _check_workload(te_func, expected)
 
 
+def te_reshape():
+    # The following is possible to be generated by TOPI. So we test this case.
+    A = te.placeholder((tvm.tir.IntImm("int64", 2), tvm.tir.IntImm("int64", 4)), name="A")
+    B = topi.reshape(A, (4, 2))
+    return [A, B]
+
+
+@T.prim_func
+def tir_reshape(
+    A: T.Buffer[(T.int64(2), T.int64(4)), "float32"],
+    T_reshape: T.Buffer[(T.int64(4), T.int64(2)), "float32"],
+):
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    for i0, i1 in T.grid(T.int64(4), T.int64(2)):
+        with T.block("T_reshape"):
+            ax0, ax1 = T.axis.remap("SS", [i0, i1])
+            T.reads(
+                A[
+                    (ax0 * T.int64(2) + ax1) % T.int64(8) // T.int64(4),
+                    (ax0 * T.int64(2) + ax1) % T.int64(4),
+                ]
+            )
+            T.writes(T_reshape[ax0, ax1])
+            T_reshape[ax0, ax1] = A[
+                (ax0 * T.int64(2) + ax1) % T.int64(8) // T.int64(4),
+                (ax0 * T.int64(2) + ax1) % T.int64(4),
+            ]
+
+
+def test_reshape():
+    _check_workload(te_reshape, tir_reshape, index_dtype_override="int64")
+
+
 if __name__ == "__main__":
-    test_unique_name_complete_block()
-    test_unique_name_reduction_block()
-    test_matmul()
-    test_element_wise()
-    test_conv2d()
-    test_multi_output()
-    test_extern()
-    test_arg_order()
-    test_error_reporting()
-    test_constant()
-    test_select_simplify()
-    test_tensor_attr()
-    test_tensor_layout_attr()
-    test_argmax_idx_val()
-    test_argmax_val_idx()
-    test_int64_indices()
-    test_zero_dim_add()
+    tvm.testing.main()

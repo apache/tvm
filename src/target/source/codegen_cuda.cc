@@ -48,7 +48,7 @@ void CodeGenCUDA::Init(bool output_ssa) {
   ICHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
 }
 
-void CodeGenCUDA::PrintFuncPrefix() { stream << "extern \"C\" __global__ void"; }
+void CodeGenCUDA::PrintFuncPrefix(std::ostream& os) { os << "extern \"C\" __global__ void"; }
 
 class ThreadIdxExtractor : public tir::StmtVisitor {
  private:
@@ -1005,7 +1005,9 @@ void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
 
 void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
   CHECK_LE(op->lanes, 4) << "ValueError: Ramp of more than 4 lanes is not allowed.";
-  os << "(make_int" << op->lanes << "(";
+  os << "(make_";
+  PrintType(op->dtype, os);
+  os << "(";
   for (int i = 0; i < op->lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")"
        << "+(" << PrintExpr(op->stride) << "*" << i << ")";

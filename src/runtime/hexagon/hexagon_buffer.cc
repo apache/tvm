@@ -24,14 +24,13 @@
 #include <string>
 #include <utility>
 
-#include "HAP_compute_res.h"
 #include "hexagon_common.h"
+#include "hexagon_device_api.h"
+#include "qurt_memory.h"
 
 namespace tvm {
 namespace runtime {
 namespace hexagon {
-
-int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length);
 
 struct Allocation {
   Allocation(size_t allocation_nbytes, size_t alignment)
@@ -57,35 +56,32 @@ struct DDRAllocation : public Allocation {
 
 struct VTCMAllocation : public Allocation {
   VTCMAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
-    compute_res_attr_t res_info;
-    HEXAGON_SAFE_CALL(HAP_compute_res_attr_init(&res_info));
+    // For simplicity, the current VTCM dynamic pool supports the following alignments: less than
+    // or equal to 128 (0x80), and 2k (0x800)
+    CHECK((alignment <= 0x80) || (alignment == 0x800))
+        << "VTCMAllocation called for invalid alignment " << alignment;
 
-    // allocate nbytes of vtcm on a single page
-    HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param(&res_info, /*vtcm_size = */ nbytes,
-                                                          /*b_single_page = */ 0));
-
-    // TODO(HWE): Investigate why a non-zero timeout results in
-    // hanging, both in the simulator and on hardware.
-    context_id_ = HAP_compute_res_acquire(&res_info, /*timeout = */ 0);
-
-    if (context_id_) {
-      data_ = HAP_compute_res_attr_get_vtcm_ptr(&res_info);
-      if (!data_) {
-        LOG(ERROR) << "ERROR: HAP_compute_res_acquire returned nullptr when allocating VTCM.";
-        HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
-        return;
-      }
-    } else {
-      LOG(FATAL) << "FATAL: HAP_compute_res_acquire failed to acquire requested VTCM resource.";
-      throw std::runtime_error(
-          "HAP_compute_res_acquire failed to acquire requested VTCM resource.");
+    if (alignment == 0x800) {
+      // Adjust size to be a multiple of 2k so that we will allocate from the front of the pool.
+      nbytes = (nbytes + 0x7ff) & -0x800;
+    } else if (alignment <= 0x80) {
+      // Adjust size to be a multiple of 128 so that we will allocate from the back of the pool
+      // in 128 byte increments.
+      nbytes = (nbytes + 0x7f) & -0x80;
     }
+    if (allocation_nbytes_ != nbytes) {
+      DLOG(INFO) << "VTCMAllocation size adjusted for alignment " << allocation_nbytes_ << " to "
+                 << nbytes;
+      allocation_nbytes_ = nbytes;
+    }
+    data_ = HexagonDeviceAPI::Global()->VtcmPool()->Allocate(allocation_nbytes_);
+    DLOG(INFO) << "VTCMAllocation " << data_ << " " << allocation_nbytes_ << " " << alignment;
   }
   ~VTCMAllocation() {
-    HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
+    DLOG(INFO) << "~VTCMAllocation " << data_ << " " << allocation_nbytes_;
+    HexagonDeviceAPI::Global()->VtcmPool()->Free(data_, allocation_nbytes_);
     data_ = nullptr;
   }
-  unsigned int context_id_{0};
 };
 
 template <HexagonBuffer::StorageScope S>
@@ -155,7 +151,6 @@ void* HexagonBuffer::GetPointer() {
     return allocations_.data();
   } else {
     LOG(FATAL) << "HexagonBuffer should be either 1-d or 2-d, not " << ndim_ << "-d";
-    return nullptr;
   }
 }
 
@@ -240,8 +235,19 @@ void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& 
 
   // Finally, do the memory copies.
   for (const auto& copy : macro_copies) {
-    int error_code = hexagon_user_dma_1d_sync(copy.dest, copy.src, copy.num_bytes);
-    CHECK_EQ(error_code, 0);
+    // clean Hexagon cache before / after memcpy to ensure clean cache state to enable usage of DMA
+    // bypass mode for increased DMA bandwidth
+    // TODO(HWE): Switch to ION Buffer to avoid need for memcpy and potentially lighten or alleviate
+    // the burden of cache invalidation in this code
+    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.dest), copy.num_bytes,
+                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
+    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.src), copy.num_bytes,
+                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
+    memcpy(copy.dest, copy.src, copy.num_bytes);
+    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.dest), copy.num_bytes,
+                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
+    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.src), copy.num_bytes,
+                         QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
   }
 }
 

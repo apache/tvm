@@ -57,7 +57,6 @@ runtime::DataType GetRuntimeDataType(const Type& type) {
     return DataType::Void();
   } else {
     LOG(FATAL) << "Type " << type << " does not have a corresponding runtime::DataType";
-    return DataType::Handle();
   }
 }
 
@@ -206,7 +205,6 @@ PrimExpr max_value(const DataType& dtype, Span span) {
     return FloatImm(dtype, std::numeric_limits<float>::max(), span);
   }
   LOG(FATAL) << "Cannot decide max_value for type" << dtype;
-  return PrimExpr();
 }
 
 PrimExpr min_value(const DataType& dtype, Span span) {
@@ -241,7 +239,6 @@ PrimExpr min_value(const DataType& dtype, Span span) {
     return FloatImm(dtype, std::numeric_limits<float>::lowest(), span);
   }
   LOG(FATAL) << "Cannot decide min_value for type" << dtype;
-  return PrimExpr();
 }
 
 // infinity
@@ -256,7 +253,6 @@ PrimExpr infinity(const DataType& dtype, Span span) {
     }
   }
   LOG(FATAL) << "Cannot decide infinity for type " << dtype;
-  return PrimExpr();
 }
 
 namespace tir {
@@ -296,9 +292,9 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
     ICHECK(!value.dtype().is_handle()) << "Can't cast a handle to other types.";
     return tir::Cast(t, value, span);
   } else {
+    DataType vtype = t.element_of();
     if (value.dtype().lanes() == 1) {
       // manually unroll cast
-      DataType vtype = t.element_of();
       if (value.dtype() != vtype) {
         if (const IntImmNode* op = value.as<IntImmNode>()) {
           value = make_const(vtype, op->value, op->span);
@@ -311,6 +307,15 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
       return tir::Broadcast(value, t.lanes(), span);
     } else {
       ICHECK(value.dtype().lanes() == t.lanes());
+      if (const auto* broadcast = value.as<tir::BroadcastNode>()) {
+        return tir::Broadcast(cast(vtype, broadcast->value, span), t.lanes(), span);
+      } else if (const auto* ramp = value.as<tir::RampNode>()) {
+        if (t.is_int() || t.is_uint()) {
+          // only cast to index data type can be folded to ramp
+          return tir::Ramp(cast(vtype, ramp->base, span), cast(vtype, ramp->stride, span),
+                           ramp->lanes, span);
+        }
+      }
       return tir::Cast(t, value, span);
     }
   }
@@ -701,7 +706,6 @@ PrimExpr isnan(PrimExpr x, Span span) {
     }
   } else {
     LOG(FATAL) << "Data type " << x.dtype() << " not supported for isnan op. Skipping isnan op...";
-    return x;
   }
 }
 
@@ -715,7 +719,6 @@ PrimExpr isinf(PrimExpr x, Span span) {
     return abs(x, span) == infX && !isnan(x, span);
   } else {
     LOG(FATAL) << "Data type " << x.dtype() << " not supported for finiteness ops. Skipping it...";
-    return x;
   }
 }
 
@@ -866,7 +869,7 @@ TIR_REGISTER_PURE_UNARY_OP("tir.erf");
 
 TIR_REGISTER_PURE_UNARY_OP("tir.tanh").set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_REGISTER_PURE_UNARY_OP("tir.sigmoid");
+TIR_REGISTER_PURE_UNARY_OP("tir.sigmoid").set_attr<TVectorizable>("TVectorizable", true);
 
 TIR_REGISTER_PURE_UNARY_OP("tir.sqrt").set_attr<TVectorizable>("TVectorizable", true);
 

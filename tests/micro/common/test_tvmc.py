@@ -101,16 +101,13 @@ def test_tvmc_model_build_only(platform, board, output_dir):
         platform,
         "--project-option",
         "project_type=host_driven",
+        f"board={board}",
     ]
-    if platform == "zephyr":
-        create_project_cmd.append(f"{platform}_board={board}")
 
     cmd_result = _run_tvmc(create_project_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
 
     build_cmd = ["micro", "build", project_dir, platform]
-    if platform == "arduino":
-        build_cmd += ["--project-option", f"{platform}_board={board}"]
     cmd_result = _run_tvmc(build_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: build"
     shutil.rmtree(output_dir)
@@ -168,23 +165,18 @@ def test_tvmc_model_run(platform, board, output_dir):
         platform,
         "--project-option",
         "project_type=host_driven",
+        f"board={board}",
     ]
-    if platform == "zephyr":
-        create_project_cmd.append(f"{platform}_board={board}")
 
     cmd_result = _run_tvmc(create_project_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
 
     build_cmd = ["micro", "build", project_dir, platform]
-    if platform == "arduino":
-        build_cmd += ["--project-option", f"{platform}_board={board}"]
     cmd_result = _run_tvmc(build_cmd)
 
     assert cmd_result == 0, "tvmc micro failed in step: build"
 
     flash_cmd = ["micro", "flash", project_dir, platform]
-    if platform == "arduino":
-        flash_cmd += ["--project-option", f"{platform}_board={board}"]
     cmd_result = _run_tvmc(flash_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: flash"
 
@@ -194,8 +186,6 @@ def test_tvmc_model_run(platform, board, output_dir):
         "micro",
         project_dir,
     ]
-    if platform == "arduino":
-        run_cmd += ["--project-option", f"{platform}_board={board}"]
     run_cmd += ["--fill-mode", "random"]
     cmd_result = _run_tvmc(run_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: run"

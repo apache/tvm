@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/tir/data_type_rewriter.h>
+
 #include <functional>
 
 #include "../ir_comparator.h"
@@ -74,7 +76,7 @@ class SubspaceNotDivisibleError : public ScheduleError {
  *   1. The binding covers no inner loop vars.
  *   2. The binding covers only inner loop vars.
  *
- * The bindings are not required to be quasi-affine.
+ * The bindings are not required to be quasi-affine. Trivial block iters are always preserved.
  *
  * \param iter_vars The input iterators
  * \param bindings The values of iter_vars
@@ -144,12 +146,13 @@ Array<Array<arith::IterMark>> TrivialSubspaceDivision(const Array<IterVar>& iter
  * \param loop_sref The loop that is the root of the second subspace.
  * \param loops The loops that represents the second part of the subspace.
  * \param analyzer The arithmetic analyzer to use.
+ * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  */
 Array<Array<arith::IterMark>> SubspaceDivide(const BlockRealize& realize,
                                              const StmtSRef& block_sref,  //
                                              const StmtSRef& loop_sref,   //
                                              std::vector<const ForNode*>* loops,
-                                             arith::Analyzer* analyzer) {
+                                             arith::Analyzer* analyzer, bool preserve_unit_iters) {
   Array<Var> inner_vars;
   Array<Var> outer_vars;
   Map<Var, Range> loop_var_domain;
@@ -171,7 +174,8 @@ Array<Array<arith::IterMark>> SubspaceDivide(const BlockRealize& realize,
   }
   Array<Array<arith::IterMark>> result =
       arith::SubspaceDivide(realize->iter_values, loop_var_domain, inner_vars, realize->predicate,
-                            arith::IterMapLevel::Surjective, analyzer);
+                            arith::IterMapLevel::Surjective, analyzer,
+                            /*simplify_trivial_iterators=*/!preserve_unit_iters);
   if (!result.empty()) {
     return result;
   }
@@ -189,6 +193,7 @@ Array<Array<arith::IterMark>> SubspaceDivide(const BlockRealize& realize,
  * \param outer_bindings The outer block bindings.
  * \param inner_iter_vars The inner block iterators.
  * \param inner_bindings The inner block bindings.
+ * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  * \return A substitution plan to the iterators in the original inner block.
  */
 Map<Var, PrimExpr> DeriveBlockBinding(const Array<IterVar>& iter_vars,                //
@@ -196,7 +201,7 @@ Map<Var, PrimExpr> DeriveBlockBinding(const Array<IterVar>& iter_vars,          
                                       Array<IterVar>* outer_iter_vars,                //
                                       Array<PrimExpr>* outer_bindings,                //
                                       Array<IterVar>* inner_iter_vars,                //
-                                      Array<PrimExpr>* inner_bindings) {
+                                      Array<PrimExpr>* inner_bindings, bool preserve_unit_iters) {
   using arith::IterMapExpr;
   using arith::IterMapExprNode;
   using arith::NormalizeIterMapToExpr;
@@ -425,7 +430,8 @@ Stmt MakeLoopNest(Stmt stmt, const std::vector<const ForNode*>& loops) {
 }
 
 BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
-                          Map<Block, Block>* block_sref_reuse, arith::Analyzer* analyzer) {
+                          Map<Block, Block>* block_sref_reuse, arith::Analyzer* analyzer,
+                          bool preserve_unit_iters) {
   TVM_SREF_TO_FOR(loop_sref);
   // Step 1: Check and get the only block under `loop`.
   BlockRealize block_realize = CheckGetSingleChildBlockRealizeOnSRefTree(self, loop_sref);
@@ -434,7 +440,7 @@ BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
   // Step 2: Derive subspace division
   std::vector<const ForNode*> loops;
   Array<Array<arith::IterMark>> division =
-      SubspaceDivide(block_realize, block_sref, loop_sref, &loops, analyzer);
+      SubspaceDivide(block_realize, block_sref, loop_sref, &loops, analyzer, preserve_unit_iters);
   if (division.empty()) {
     throw SubspaceNotDivisibleError(self->mod, GetRef<For>(loops.back()), block);
   }
@@ -448,7 +454,8 @@ BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
   Map<Var, PrimExpr> block_var_subst =                       //
       DeriveBlockBinding(block->iter_vars, division,         //
                          &outer_iter_vars, &outer_bindings,  //
-                         &inner_iter_vars, &inner_bindings);
+                         &inner_iter_vars, &inner_bindings,  //
+                         preserve_unit_iters);
   // Step 4: Do var substitution to adjust to the new block bindings
   Map<Var, arith::IntSet> inner_iter_dom;
   for (const IterVar& iter : inner_iter_vars) {
@@ -492,10 +499,11 @@ BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
                 : Optional<Stmt>(NullOpt)));
 }
 
-StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
+StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref, bool preserve_unit_iters) {
   arith::Analyzer analyzer;
   Map<Block, Block> block_sref_reuse;
-  BlockRealize blockized = BlockizeImpl(self, loop_sref, &block_sref_reuse, &analyzer);
+  BlockRealize blockized =
+      BlockizeImpl(self, loop_sref, &block_sref_reuse, &analyzer, preserve_unit_iters);
   self->Replace(loop_sref, blockized, block_sref_reuse);
   StmtSRef result = self->stmt2ref.at(blockized->block.get());
   StmtSRef scope_root = tir::GetScopeRoot(self, result, /*require_stage_pipeline=*/false);
@@ -505,7 +513,8 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
   return result;
 }
 
-void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& intrin) {
+void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& intrin,
+               bool preserve_unit_iters) {
   // Step 1: Blockize the subtree rooted at the given loop if needed
   BlockRealize block_realize{nullptr};
   Optional<Block> old_block = NullOpt;
@@ -515,7 +524,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   } else if (sref->stmt->IsInstance<ForNode>()) {
     arith::Analyzer analyzer;
     Map<Block, Block> block_sref_reuse;
-    block_realize = BlockizeImpl(self, sref, &block_sref_reuse, &analyzer);
+    block_realize = BlockizeImpl(self, sref, &block_sref_reuse, &analyzer, preserve_unit_iters);
   } else {
     LOG(FATAL) << "TypeError: Tensorize only support For or Block, but gets: "
                << GetRef<Stmt>(sref->stmt);
@@ -523,6 +532,19 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   }
   PrimFunc intrin_desc = intrin->desc;
   PrimFunc intrin_impl = DeepCopy(intrin->impl);
+
+  int index_dtype_bits = -1;
+  auto f_update_max_dtype_bits_from_region = [&](const Array<BufferRegion>& buffer_regions) {
+    for (const BufferRegion& buffer_region : buffer_regions) {
+      for (const auto& range : buffer_region->region) {
+        index_dtype_bits = std::max(index_dtype_bits, range->min.dtype().bits());
+      }
+    }
+  };
+  f_update_max_dtype_bits_from_region(block_realize->block->reads);
+  f_update_max_dtype_bits_from_region(block_realize->block->writes);
+  ICHECK(index_dtype_bits > 0);
+  intrin_impl = IndexDataTypeNormalizer(DataType::Int(index_dtype_bits)).Rewrite(intrin_impl);
   // Step 2: Structural pattern matching
   TensorizeComparator comparator(self->mod, /*assert_mode=*/true);
   comparator.VisitStmt(block_realize, intrin_desc->body);
@@ -572,7 +594,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     }
     for (int i = 0; i < static_cast<int>(old_region.size()); i++) {
       PrimExpr min = indices_base[i + offset];
-      PrimExpr extent = old_region[i]->extent;
+      PrimExpr extent = cast(min.dtype(), old_region[i]->extent);
       new_region.push_back(Range::FromMinExtent(min, extent));
     }
     match_buffer_regions.push_back(MatchBufferRegion(impl, BufferRegion(cur, new_region)));
@@ -602,16 +624,17 @@ struct BlockizeTraits : public UnpackedInstTraits<BlockizeTraits> {
 
  private:
   static constexpr size_t kNumInputs = 1;
-  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static BlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv) {
-    return sch->Blockize(loop_rv);
+  static BlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, Bool preserve_unit_iters) {
+    return sch->Blockize(loop_rv, preserve_unit_iters.operator bool());
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String loop_rv) {
+  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Bool preserve_unit_iters) {
     PythonAPICall py("blockize");
     py.Input("loop", loop_rv);
+    py.Input("preserve_unit_iters", preserve_unit_iters.operator bool());
     py.SingleOutput(outputs);
     return py.Str();
   }
@@ -626,24 +649,27 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
 
  private:
   static constexpr size_t kNumInputs = 1;
-  static constexpr size_t kNumAttrs = 1;
+  static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, String intrin) {
+  static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, String intrin,
+                                      Bool preserve_unit_iters) {
     if (const auto* block = block_or_loop_rv.as<BlockRVNode>()) {
-      sch->Tensorize(GetRef<BlockRV>(block), intrin);
+      sch->Tensorize(GetRef<BlockRV>(block), intrin, preserve_unit_iters.operator bool());
     } else if (const auto* loop = block_or_loop_rv.as<LoopRVNode>()) {
-      sch->Tensorize(GetRef<LoopRV>(loop), intrin);
+      sch->Tensorize(GetRef<LoopRV>(loop), intrin, preserve_unit_iters.operator bool());
     } else {
       LOG(FATAL) << "TypeError: Expected Block or Loop, but gets: "
                  << block_or_loop_rv->GetTypeKey();
     }
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block_or_loop_rv, String intrin) {
+  static String UnpackedAsPython(Array<String> outputs, String block_or_loop_rv, String intrin,
+                                 Bool preserve_unit_iters) {
     PythonAPICall py("tensorize");
     py.Input("block_or_loop", block_or_loop_rv);
     py.Input("tensor_intrin", intrin);
+    py.Input("preserve_unit_iters", preserve_unit_iters.operator bool());
     return py.Str();
   }
 

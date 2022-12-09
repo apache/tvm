@@ -209,12 +209,12 @@ Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
   }
   Array<Schedule> results;
   for (auto&& state : ApplySubRules(initial_states)) {
-    TVM_PY_LOG(INFO, logging_func) << "Sketch " << results.size() << ": tensorizing with "
-                                   << state.as<TensorCoreStateNode>()->intrin_group.compute_intrin;
+    TVM_PY_LOG(INFO, logger) << "Sketch " << results.size() << ": tensorizing with "
+                             << state.as<TensorCoreStateNode>()->intrin_group.compute_intrin;
     results.push_back(std::move(state->sch));
   }
   if (results.empty()) {
-    TVM_PY_LOG(INFO, logging_func) << "The workload cannot be tensorized.";
+    TVM_PY_LOG(INFO, logger) << "The workload cannot be tensorized.";
     return {original_sch};
   }
   return results;
@@ -258,6 +258,11 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddWriteReuseTensorCore(
   sch->ReverseComputeAt(cache_write, loop, true);
 
   if (state->write_reuse.count(0)) {
+    // Fuse the iterators of the cache_write
+    Array<LoopRV> buffer_loops = sch->GetLoops(state->write_reuse[0]);
+    ICHECK_GT(buffer_loops.size(), 2);
+    sch->Fuse(Array<LoopRV>{buffer_loops.end() - 2,  // The src shmem is always 2D
+                            buffer_loops.end()});
     AnnotateCooperativeFetching(&sch, state->write_reuse[0]);
   }
   sch->ReverseComputeInline(state->tensor_core_reindex_store);
@@ -293,8 +298,8 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
     } else if (dtype.is_int() && dtype.bits() == 8) {
       sch->StorageAlign(cache_read, 0, -2, 32, 16);
     } else {
-      TVM_PY_LOG(WARNING, logging_func) << "StorageAlign is not applied for data type " << dtype
-                                        << ", shared memory accesses might be inefficient.";
+      TVM_PY_LOG(WARNING, logger) << "StorageAlign is not applied for data type " << dtype
+                                  << ", shared memory accesses might be inefficient.";
     }
   }
   return {state};
@@ -487,6 +492,9 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
 
   std::unordered_set<tir::Buffer, ObjectPtrHash, ObjectPtrEqual> visited_buffers;
 
+  Map<tir::Buffer, tir::IndexMap> buffer_sub_index_map;  // cache of the sub index map associated
+                                                         // with each buffer
+
   auto f_transform_buffer_layout = [&](tir::BufferIndexType index_type, int buffer_index) {
     const tir::Buffer& lhs_buffer = tir::GetNthAccessBuffer(
         state->sch->state(), block_before_reindex, buffer_index, index_type);
@@ -499,6 +507,7 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     const tir::BufferRegion& reindexed_buffer_region = tir::GetNthAccessBufferRegion(
         state->sch->state(), GetRef<tir::Block>(block), buffer_index, index_type);
     auto sub_index_map = f_get_sub_index_map(lhs_buffer, reindexed_buffer_region->region);
+    buffer_sub_index_map.Set(lhs_buffer, sub_index_map);
     state->sch->TransformLayout(state->block_rv, buffer_index, index_type, sub_index_map, NullOpt);
   };
 
@@ -510,11 +519,17 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   }
 
   // Transform the layout of current block and reindex blocks
-  state->sch->TransformBlockLayout(state->tensor_core_reindex_store, index_map);
-  state->sch->TransformBlockLayout(state->tensor_core_reindex_A, index_map);
-  state->sch->TransformBlockLayout(state->tensor_core_reindex_B, index_map);
+  auto f_transform_reindex_block_layout = [&](const BlockRV& block_rv,
+                                              tir::BufferIndexType buffer_type) {
+    tir::Buffer buffer =
+        tir::GetNthAccessBuffer(state->sch->state(), state->sch->Get(block_rv), 0, buffer_type);
+    const auto& sub_index_map = buffer_sub_index_map.at(buffer);
+    state->sch->TransformBlockLayout(block_rv, sub_index_map);
+  };
+  f_transform_reindex_block_layout(state->tensor_core_reindex_store, tir::BufferIndexType::kWrite);
+  f_transform_reindex_block_layout(state->tensor_core_reindex_A, tir::BufferIndexType::kRead);
+  f_transform_reindex_block_layout(state->tensor_core_reindex_B, tir::BufferIndexType::kRead);
   state->sch->TransformBlockLayout(state->block_rv, index_map);
-
   return tir::TileWithTensorIntrin(state->sch, state->block_rv, intrin_name,
                                    /*allow_padding=*/true);
 }
@@ -546,6 +561,11 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
     Optional<Integer> max_innermost_factor, Optional<Array<Integer>> vector_load_lens,
     Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write,
     bool use_software_pipeline) {
+  if (tile_binds.defined()) {
+    for (const String& tile_bind : tile_binds.value()) {
+      CHECK_NE(tile_bind, "threadIdx.x") << "Cannot bind to threadIdx.x when using tensor core.";
+    }
+  }
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingTensorCoreNode>(
       structure, tile_binds, max_innermost_factor, vector_load_lens, reuse_read, reuse_write);
 

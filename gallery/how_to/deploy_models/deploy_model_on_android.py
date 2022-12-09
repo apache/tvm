@@ -137,11 +137,10 @@ from tvm.contrib.download import download_testdata
 #
 #   # the additional include headers you want to add, e.g., SDK_PATH/adrenosdk/Development/Inc
 #   ADD_C_INCLUDES += /work/adrenosdk-linux-5_0/Development/Inc
-#   # downloaded from https://github.com/KhronosGroup/OpenCL-Headers
-#   ADD_C_INCLUDES += /usr/local/OpenCL-Headers/
+#   ADD_C_INCLUDES =
 #
 #   # the additional link libs you want to add, e.g., ANDROID_LIB_PATH/libOpenCL.so
-#   ADD_LDLIBS = /workspace/pull-from-android-device/libOpenCL.so
+#   ADD_LDLIBS =
 #
 # .. note::
 #

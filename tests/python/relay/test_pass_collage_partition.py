@@ -473,7 +473,7 @@ def test_partition_intermediate_tuple(mock_get_pattern_table):
         };
         %4(%FunctionVar_03)
       }
-        
+
       def @main(%x: Tensor[(10, 10), float32]) -> Tensor[(20, 10), float32] {
         %5 = @collage_example_target_hook(%x);
         %6 = %5.0;
@@ -537,7 +537,7 @@ def test_fusion_benefit(mock_get_pattern_table):
         };
         %8(%7)
       }
-        
+
       def @main(%x: Tensor[(10, 10), float32]) -> Tensor[(10, 10), float32] {
         %9 = abs(%x);
         %10 = @collage_example_target_hook_nn_relu_nn_relu_nn_relu_add_nn_relu(%x, %9);
@@ -584,19 +584,19 @@ def test_double_residual(mock_get_pattern_table):
         };
         %2(%FunctionVar_0, %1)
       }
-        
+
       def @collage_example_target_hook_nn_relu(%FunctionVar_03: Tensor[(10, 10), float32], Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu") -> Tensor[(10, 10), float32] {
         %3 = fn (%FunctionVar_04: Tensor[(10, 10), float32], Composite="relu") -> Tensor[(10, 10), float32] {
           nn.relu(%FunctionVar_04)
         };
         %3(%FunctionVar_03)
       }
-        
+
       def @main(%x: Tensor[(10, 10), float32]) -> Tensor[(10, 10), float32] {
         %4 = @collage_example_target_hook_nn_relu(%x);
         %5 = abs(%4);
         @collage_example_target_hook_add_add(%5, %4)
-      } 
+      }
     """
     expected_mod = tvm.parser.fromtext(expected_txt)
 
@@ -640,25 +640,25 @@ def test_pruning_heuristic(mock_get_pattern_table):
         Compiler="example_target_hook",
         global_symbol="collage_example_target_hook_nn_relu_nn_relu_add_add") -> Tensor[(10, 10), float32] {
         %0 = fn (%FunctionVar_03: Tensor[(10, 10), float32] , Composite="relu") -> Tensor[(10, 10), float32] {
-          nn.relu(%FunctionVar_03) 
+          nn.relu(%FunctionVar_03)
         };
         %1 = %0(%FunctionVar_0) ;
         %2 = fn (%FunctionVar_02: Tensor[(10, 10), float32] , Composite="relu") -> Tensor[(10, 10), float32] {
-          nn.relu(%FunctionVar_02) 
+          nn.relu(%FunctionVar_02)
         };
         %3 = %2(%1);
         %4 = fn (%FunctionVar_04: Tensor[(10, 10), float32] , %FunctionVar_11: Tensor[(10, 10), float32] , Composite="add") -> Tensor[(10, 10), float32] {
-          add(%FunctionVar_04, %FunctionVar_11) 
+          add(%FunctionVar_04, %FunctionVar_11)
         };
         %5 = %4(%1, %3);
         %6 = fn (%FunctionVar_01: Tensor[(10, 10), float32] , %FunctionVar_1: Tensor[(10, 10), float32] , Composite="add") -> Tensor[(10, 10), float32] {
-          add(%FunctionVar_01, %FunctionVar_1) 
+          add(%FunctionVar_01, %FunctionVar_1)
         };
-        %6(%3, %5) 
+        %6(%3, %5)
       }
 
       def @main(%x: Tensor[(10, 10), float32] ) -> Tensor[(10, 10), float32] {
-        @collage_example_target_hook_nn_relu_nn_relu_add_add(%x) 
+        @collage_example_target_hook_nn_relu_nn_relu_add_add(%x)
       }
     """
     expected_mod = tvm.parser.fromtext(expected_txt)

@@ -73,8 +73,10 @@ def max_pool2d_compute(A, out_shape, kernel, stride, dilation):
     return Max
 
 
-def STIR_schedule_nhwc_8h2w32c2w(outs, ins, output_layout: str, input_layout: str):
-    """Schedule for input and output layout nhwc-8h2w32c2w"""
+def STIR_schedule_nhwc_8h2w32c2w_nhwc_8h8w32c(
+    outs: te.Tensor, ins: te.Tensor, output_layout: str, input_layout: str
+):
+    """Schedule for input and output layout nhwc-8h2w32c2w and nhwc-8h8w32c"""
     func = te.create_prim_func([ins, outs])
     s = tir.Schedule(func)
 
@@ -93,10 +95,14 @@ def STIR_schedule_nhwc_8h2w32c2w(outs, ins, output_layout: str, input_layout: st
 
     Max = s.get_block("max")
 
-    input_transform_fn = get_layout_transform_fn(input_layout)
-    output_transform_fn = get_layout_transform_fn(output_layout)
+    if input_layout in (
+        "nhwc-8h2w32c2w-2d",
+        "nhwc-8h8w32c-2d",
+    ):
+        input_transform_fn = get_layout_transform_fn(input_layout)
+        s.transform_layout(Max, ("read", 0), input_transform_fn)
 
-    s.transform_layout(Max, ("read", 0), input_transform_fn)
+    output_transform_fn = get_layout_transform_fn(output_layout)
     s.transform_layout(Max, ("write", 0), output_transform_fn)
 
     # pylint: disable=line-too-long
@@ -120,13 +126,21 @@ def STIR_schedule_nhwc_8h2w32c2w(outs, ins, output_layout: str, input_layout: st
         rw,
     ) = s.get_loops(Max)
 
-    # Restructure the loops from NHWC to nhwc_8h2w32c2w, with loops for 'max's reduction
+    # Restructure the loops from NHWC to nhwc_8h2w32c2w or nhwc_8h8w32c, with loops for 'max's reduction
     # axes at the very end.
-    ho, hi = s.split(h, [None, 8])
-    wo, wi = s.split(w, [None, 4])
-    wio, wii = s.split(wi, [None, 2])
-    co, ci = s.split(c, [None, 32])
-    s.reorder(n, ho, wo, co, hi, wio, ci, wii, rh, rw)
+    # nhwc_8h2w32c2w layout is for float16 and nhwc-8h8w32c-2d layout is for uint8/int8
+    if output_layout == "nhwc-8h2w32c2w-2d":
+        ho, hi = s.split(h, [None, 8])
+        wo, wi = s.split(w, [None, 4])
+        wio, wii = s.split(wi, [None, 2])
+        co, ci = s.split(c, [None, 32])
+        s.reorder(n, ho, wo, co, hi, wio, ci, wii, rh, rw)
+    elif output_layout == "nhwc-8h8w32c-2d":
+        ho, hi = s.split(h, [None, 8])
+        wo, wi = s.split(w, [None, 8])
+        co, ci = s.split(c, [None, 32])
+
+        s.reorder(n, ho, wo, co, hi, wi, ci, rh, rw)
 
     # TODO: Enable vectorization.
     # Hexagon v69's HVX units support SIMD operations on 64-element float16 vectors.
@@ -154,10 +168,10 @@ def STIR_schedule_nhwc_8h2w32c2w(outs, ins, output_layout: str, input_layout: st
     return s
 
 
-def STIR_schedule_n11c_1024c(outs, ins, output_layout: str, input_layout: str):
-    """Schedule for output layout: n11c-1024c, input layout: nhwc-8h2w32c2w"""
+def STIR_schedule_n11c(outs, ins, output_layout: str, input_layout: str):
+    """Schedule for output layout: n11c-1024c, n11c-2048c-2d;"""
 
-    # NOTE: This function is a variation of the STIR_schedule_nhwc_8h2w32c2w
+    # NOTE: This function is a variation of the STIR_schedule_maxpool2d
     # functions.  Most of that function's code comments apply to this function
     # as well, but are ommited for brevity.
 
@@ -181,7 +195,10 @@ def STIR_schedule_n11c_1024c(outs, ins, output_layout: str, input_layout: str):
         rh,
         rw,
     ) = s.get_loops(Max)
-    co, ci = s.split(c, [None, 1024])
+    if output_layout == "n11c-1024c-2d":
+        co, ci = s.split(c, [None, 1024])
+    else:
+        co, ci = s.split(c, [None, 2048])
     # s.vectorize(ci)
 
     return s
@@ -189,8 +206,8 @@ def STIR_schedule_n11c_1024c(outs, ins, output_layout: str, input_layout: str):
 
 def max_pool2d_STIR_schedule(outs, ins, output_layout: str, input_layout: str):
     """STIR based schedule"""
-    if output_layout == "nhwc-8h2w32c2w-2d":
-        return STIR_schedule_nhwc_8h2w32c2w(outs, ins, output_layout, input_layout)
-    if output_layout == "n11c-1024c-2d":
-        return STIR_schedule_n11c_1024c(outs, ins, output_layout, input_layout)
+    if output_layout == "nhwc-8h2w32c2w-2d" or "nhwc-8h8w32c-2d":
+        return STIR_schedule_nhwc_8h2w32c2w_nhwc_8h8w32c(outs, ins, output_layout, input_layout)
+    if output_layout == "n11c-1024c-2d" or "n11c-2048c-2d":
+        return STIR_schedule_n11c(outs, ins, output_layout, input_layout)
     raise RuntimeError(f"Unexpected layout '{output_layout}'")

@@ -408,7 +408,6 @@ def nhwc_winograd_cuda(
             input_tile[p][ci][r_a][r_b] * B[r_a][eps] * B[r_b][nu], axis=[r_a, r_b]
         ),
         name="data_pack",
-        attrs={"schedule_rule": "meta_schedule.winograd_data_pack.cuda"},
     )
 
     # Convert data type of input feature maps and weights for tensorcore
@@ -433,14 +432,13 @@ def nhwc_winograd_cuda(
 
     # Inverse transform
     r_a = te.reduce_axis((0, alpha), "r_a")
-    r_b = te.reduce_axis((0, alpha), "r_a")
+    r_b = te.reduce_axis((0, alpha), "r_b")
     inverse = te.compute(
         (P, CO, m, m),
         lambda p, co, vh, vw: te.sum(
             bgemm[r_a][r_b][p][co] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]
         ),
         name="inverse",
-        attrs={"schedule_rule": "meta_schedule.winograd_inverse.cuda"},
     )
 
     # Output

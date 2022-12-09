@@ -20,6 +20,12 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm.relay import transform
+from tvm.relay.testing import create_workload
+from tvm.relay.build_module import bind_params_by_name
+
+
+def initializer(_, param):
+    param = np.zeros(param.shape)
 
 
 def _get_positive_scale(size):
@@ -636,6 +642,50 @@ def test_fold_bwd_dual_path():
     check((2, 2, 10, 10, 2), 4, 8, (2, 2))
 
 
+def test_fold_bwd_simple_constant():
+    def before(data, weight, out_bias, channels):
+        y = relay.nn.conv2d(
+            data=data, weight=weight, kernel_size=(3, 3), channels=16, padding=(1, 1)
+        )
+
+        y = relay.add(y, out_bias)
+        c2 = relay.const(2.0)
+        y = relay.nn.relu(y)
+        y = relay.multiply(y, c2)
+        mod, params = create_workload(y, initializer)
+        mod["main"] = bind_params_by_name(mod["main"], params)
+        return mod
+
+    def expected(data, weight, out_bias, channels):
+        y0 = relay.nn.conv2d(
+            data=data, weight=weight, kernel_size=(3, 3), channels=16, padding=(1, 1)
+        )
+        y0 = relay.add(y0, out_bias)
+        y0 = relay.nn.relu(y0)
+        mod, params = create_workload(y0, initializer)
+        mod["main"] = bind_params_by_name(mod["main"], params)
+        return mod
+
+    def check(shape, channels):
+        x = relay.var("data", relay.TensorType(shape, "float32"))
+        weight = relay.var("weight")
+        out_bias = relay.var("in_bias", shape=(channels, 1, 1))
+
+        y0 = before(x, weight, out_bias, channels)
+        remove_last_multiply = tvm.transform.Sequential(
+            [
+                relay.transform.InferType(),
+                relay.transform.FoldScaleAxis(),
+            ]
+        )
+        with tvm.transform.PassContext(opt_level=3):
+            y0 = remove_last_multiply(y0)
+        _expect = expected(x, weight, out_bias, channels)
+        tvm.ir.assert_structural_equal(y0, _expect)
+
+    check((1, 3, 200, 200), 16)
+
+
 def test_fold_bwd_dual_consumer():
     def before(x, conv_weight, out_bias, out_scale, in_channels, channels, blocking):
         args = [x, conv_weight, out_bias]
@@ -1211,6 +1261,7 @@ if __name__ == "__main__":
     test_fold_fwd_relu_fail()
     test_fold_fwd_negative_scale()
     test_fold_fwd_dense()
+    test_fold_bwd_simple_constant()
     test_fold_bwd_simple()
     test_fold_bwd_dual_path()
     test_fold_bwd_dual_consumer()

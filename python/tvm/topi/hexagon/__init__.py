@@ -29,3 +29,5 @@ from .reduce import *
 from .resize2d import *
 from .tensor_intrin import *
 from .qnn import *
+from .dense_alter_op import *
+from .conv2d_alter_op import *

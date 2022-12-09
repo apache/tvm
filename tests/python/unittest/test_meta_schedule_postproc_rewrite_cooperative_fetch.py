@@ -18,9 +18,8 @@
 
 import tvm
 import tvm.testing
+from tvm import meta_schedule as ms
 from tvm import tir
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.postproc import RewriteCooperativeFetch
 from tvm.meta_schedule.testing import te_workload
 from tvm.script import tir as T
 from tvm.target import Target
@@ -31,13 +30,17 @@ def _target() -> Target:
     return Target("cuda", host="llvm")
 
 
-def _create_context(mod, target) -> TuneContext:
-    ctx = TuneContext(
+def _create_context(mod, target) -> ms.TuneContext:
+    ctx = ms.TuneContext(
         mod=mod,
         target=target,
-        postprocs=[
-            RewriteCooperativeFetch(),
-        ],
+        space_generator=ms.space_generator.PostOrderApply(
+            sch_rules=[],
+            postprocs=[
+                ms.postproc.RewriteCooperativeFetch(),
+            ],
+            mutator_probs={},
+        ),
         task_name="test",
     )
     return ctx
@@ -246,7 +249,7 @@ def test_rewrite_cooperative_fetch():
     # pylint: enable=line-too-long,invalid-name
     # fmt: on
     sch.enter_postproc()
-    assert ctx.postprocs[0].apply(sch)
+    assert ctx.space_generator.postprocs[0].apply(sch)
     tvm.ir.assert_structural_equal(sch.mod, AfterRewrite0)
 
 
@@ -291,8 +294,7 @@ def test_rewrite_warp_execution():
     # pylint: enable=line-too-long,invalid-name
     # fmt: on
     sch.enter_postproc()
-    assert ctx.postprocs[0].apply(sch)
-    print(sch.mod["main"].script())
+    assert ctx.space_generator.postprocs[0].apply(sch)
     tvm.ir.assert_structural_equal(sch.mod, WarpExecutionAfterRewrite)
 
 

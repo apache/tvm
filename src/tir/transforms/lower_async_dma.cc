@@ -32,7 +32,7 @@ namespace tir {
 
 class AsyncDMALowerer : public StmtExprMutator {
  public:
-  AsyncDMALowerer() {}
+  explicit AsyncDMALowerer(bool dma_bypass_cache) : dma_bypass_cache_(dma_bypass_cache) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     // Convert this, for example:
@@ -52,7 +52,7 @@ class AsyncDMALowerer : public StmtExprMutator {
       int queue_id = queue_id_node->value;
 
       // abort if we have not seen this queue ID in `copy` transform
-      if (queue_ids.find(queue_id) == queue_ids.end()) {
+      if (queue_ids_.find(queue_id) == queue_ids_.end()) {
         DLOG(INFO) << "AsyncDMALowerer exiting because the queue ID observed in the "
                       "`async_wait_queue_scope` transform has not been previously observed in the "
                       "`async_commit_queue_scope` transform";
@@ -71,7 +71,7 @@ class AsyncDMALowerer : public StmtExprMutator {
           Evaluate(Call(DataType::Int(32), builtin::dma_wait(), {queue_id, async_wait->value}));
 
       // concatenate the call with the body and return
-      return SeqStmt({call_dma_wait, async_wait->body});
+      return SeqStmt({call_dma_wait, StmtExprMutator::VisitStmt(async_wait->body)});
 
       // Convert this, for example:
       // attr [0] "async_commit_queue_scope" = 0;
@@ -93,9 +93,6 @@ class AsyncDMALowerer : public StmtExprMutator {
       auto queue_id_node = op->value.as<IntImmNode>();
       ICHECK(queue_id_node);
       int queue_id = queue_id_node->value;
-
-      // save queue ID for inspection in `wait` transform
-      queue_ids.insert(queue_id);
 
       // walk the graph to verify this is a mem copy ...
       // 1) async_commit_queue_scope contains async_scope
@@ -161,19 +158,24 @@ class AsyncDMALowerer : public StmtExprMutator {
         return analyzer.Simplify(Substitute(std::move(expr), loop_var_remap));
       });
 
+      // now that we are about to perform the `copy` transform
+      // save queue ID for inspection in `wait` transform
+      queue_ids_.insert(queue_id);
+
       return Evaluate(Call(DataType::Int(32), builtin::dma_copy(),
                            {queue_id,
                             Call(DataType::Handle(), builtin::address_of(),
                                  {BufferLoad(bufferstorenode->buffer, store_index)}),
                             Call(DataType::Handle(), builtin::address_of(),
                                  {BufferLoad(bufferloadnode->buffer, load_index)}),
-                            for_loop->extent * bufferloadnode->dtype.bytes()}));
+                            for_loop->extent * bufferloadnode->dtype.bytes(), dma_bypass_cache_}));
     }
     return StmtExprMutator::VisitStmt_(op);
   }
 
  private:
-  std::set<int> queue_ids;
+  std::set<int> queue_ids_;
+  bool dma_bypass_cache_;
 };
 
 namespace transform {
@@ -181,7 +183,8 @@ namespace transform {
 Pass LowerAsyncDMA() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto fptr = f.CopyOnWrite();
-    fptr->body = AsyncDMALowerer()(std::move(fptr->body));
+    bool dma_bypass_cache = ctx->GetConfig<Bool>("tir.dma_bypass_cache", Bool(false)).value();
+    fptr->body = AsyncDMALowerer(dma_bypass_cache)(std::move(fptr->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerAsyncDMA", {});

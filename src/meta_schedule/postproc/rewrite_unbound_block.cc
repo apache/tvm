@@ -16,7 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../schedule_rule/auto_bind.h"
+#include <tvm/meta_schedule/schedule/cuda/thread_bind.h>
+
 #include "../utils.h"
 
 namespace tvm {

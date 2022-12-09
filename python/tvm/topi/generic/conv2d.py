@@ -139,7 +139,16 @@ def schedule_conv_NCHWc_cpu_common_int8(
     More details - https://software.intel.com/en-us/articles/
     lower-numerical-precision-deep-learning-inference-and-training
     """
-    reg_n, unroll_kw = cfg["tile_ow"].size[-1], cfg["unroll_kw"].val
+    if isinstance(cfg["tile_ow"], int):
+        reg_n = cfg["tile_ow"]
+    else:
+        reg_n = cfg["tile_ow"].size[-1]
+
+    if isinstance(cfg["unroll_kw"], (int, bool)):
+        unroll_kw = cfg["unroll_kw"]
+    else:
+        unroll_kw = cfg["unroll_kw"].val
+
     _, _, _, _, ic_bn = get_const_tuple(data_vec.shape)
     _, _, _, _, oc_bn = get_const_tuple(conv_out.shape)
 

@@ -29,6 +29,7 @@ from tvm.tir import stmt_functor
 from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.backend.contrib.ethosu import vela_api
 from tvm.relay.backend.contrib.ethosu.tir import spec
+from tvm.relay.backend.contrib.ethosu.tir import utils as tir_utils
 
 
 class BufferType(Enum):
@@ -254,26 +255,40 @@ def extract_param_base_addresses(mod, buffer_info, scratch_region_map) -> List[u
     assert len(mod.functions.items()) == 1
     primfunc = mod.functions.items()[0][1]
 
+    buffer_map = tir_utils.collect_buffer_map(primfunc.body)
+
     base_addresses = list()
     idx = 0
+
     for param in primfunc.params:
         # constants are pooled together and handled specially
         # this will change after tir.allocate_const.
         # For now, we are skipping generating buffer addresses here
         if buffer_info[param].btype == BufferType.constant:
             continue
-        buffer = primfunc.buffer_map[param]
-        dtype = buffer.dtype
-        element_size_bytes = np.iinfo(dtype).bits // 8
-        size_bytes = element_size_bytes * np.prod(list(buffer.shape))
-        base_addresses.append(
-            util.BaseAddress(
-                param.name.replace("-", "_"),
-                idx,
-                _get_region(buffer_info[param].btype, param, scratch_region_map),
-                size_bytes,
+
+        if param in buffer_map:
+            buffer = buffer_map[param]
+            dtype = buffer.dtype
+            element_size_bytes = np.iinfo(dtype).bits // 8
+            size_bytes = element_size_bytes * np.prod(list(buffer.shape))
+            base_addresses.append(
+                util.BaseAddress(
+                    param.name.replace("-", "_"),
+                    idx,
+                    _get_region(buffer_info[param].btype, param, scratch_region_map),
+                    size_bytes,
+                )
             )
-        )
+        else:
+            base_addresses.append(
+                util.BaseAddress(
+                    param.name.replace("-", "_"),
+                    idx,
+                    _get_region(buffer_info[param].btype, param, scratch_region_map),
+                    0,
+                )
+            )
         idx += 1
 
     return base_addresses

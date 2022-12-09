@@ -38,4 +38,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eux
-          python ci/scripts/github_tag_teams.py || echo failed
+          python ci/scripts/github/github_tag_teams.py || echo failed

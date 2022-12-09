@@ -225,7 +225,7 @@ Schedule ConcreteScheduleNode::Copy() {
 /******** Schedule: Schedule: Sampling ********/
 
 void ConcreteScheduleNode::Seed(support::LinearCongruentialEngine::TRandState seed) {
-  support::LinearCongruentialEngine(&rand_state_).Seed(seed);
+  this->rand_state_ = support::LinearCongruentialEngine::NormalizeSeed(seed);
 }
 
 support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
@@ -561,6 +561,32 @@ BlockRV ConcreteScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buff
   return CreateRV<BlockRV>(result);
 }
 
+Array<BlockRV> ConcreteScheduleNode::CacheInplace(const BlockRV& block_rv, int write_buffer_index,
+                                                  const String& storage_scope) {
+  Array<StmtSRef> results;
+  TVM_TIR_SCHEDULE_BEGIN();
+  results = tir::CacheInplace(state_, this->GetSRef(block_rv), write_buffer_index, storage_scope);
+  TVM_TIR_SCHEDULE_END("cache-buffer", this->error_render_level_);
+  this->state_->DebugVerify();
+  Array<BlockRV> return_blocks;
+  return_blocks.push_back(CreateRV<BlockRV>(results[0]));
+  return_blocks.push_back(CreateRV<BlockRV>(results[1]));
+  return return_blocks;
+}
+
+Array<BlockRV> ConcreteScheduleNode::CacheIndex(const BlockRV& block_rv, int buffer_index) {
+  Array<StmtSRef> result;
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::CacheIndex(state_, this->GetSRef(block_rv), buffer_index);
+  TVM_TIR_SCHEDULE_END("cache-index", this->error_render_level_);
+  this->state_->DebugVerify();
+  Array<BlockRV> return_blocks;
+  for (const StmtSRef& blockrv : result) {
+    return_blocks.push_back(CreateRV<BlockRV>(blockrv));
+  }
+  return return_blocks;
+}
+
 BlockRV ConcreteScheduleNode::ReIndex(const BlockRV& block_rv, int buffer_index,
                                       BufferIndexType buffer_index_type) {
   StmtSRef result{nullptr};
@@ -664,25 +690,29 @@ BlockRV ConcreteScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
 }
 
 /******** Schedule: Blockize & Tensorize ********/
-BlockRV ConcreteScheduleNode::Blockize(const LoopRV& loop_rv) {
+BlockRV ConcreteScheduleNode::Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) {
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
-  result = tir::Blockize(state_, this->GetSRef(loop_rv));
+  result = tir::Blockize(state_, this->GetSRef(loop_rv), preserve_unit_iters);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("blockize", this->error_render_level_);
   return CreateRV<BlockRV>(result);
 }
 
-void ConcreteScheduleNode::Tensorize(const LoopRV& loop_rv, const String& intrin) {
+void ConcreteScheduleNode::Tensorize(const LoopRV& loop_rv, const String& intrin,
+                                     bool preserve_unit_iters) {
   TVM_TIR_SCHEDULE_BEGIN();
-  tir::Tensorize(state_, this->GetSRef(loop_rv), tir::TensorIntrin::Get(intrin).value());
+  tir::Tensorize(state_, this->GetSRef(loop_rv), tir::TensorIntrin::Get(intrin).value(),
+                 preserve_unit_iters);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("tensorize", this->error_render_level_);
 }
 
-void ConcreteScheduleNode::Tensorize(const BlockRV& block_rv, const String& intrin) {
+void ConcreteScheduleNode::Tensorize(const BlockRV& block_rv, const String& intrin,
+                                     bool preserve_unit_iters) {
   TVM_TIR_SCHEDULE_BEGIN();
-  tir::Tensorize(state_, this->GetSRef(block_rv), tir::TensorIntrin::Get(intrin).value());
+  tir::Tensorize(state_, this->GetSRef(block_rv), tir::TensorIntrin::Get(intrin).value(),
+                 preserve_unit_iters);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("tensorize", this->error_render_level_);
 }
@@ -788,6 +818,8 @@ void ConcreteScheduleNode::SetAxisSeparator(const BlockRV& block_rv, int buffer_
   this->state_->DebugVerify();
 }
 
+/******** Schedule: Padding ********/
+
 BlockRV ConcreteScheduleNode::DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) {
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
@@ -803,6 +835,16 @@ void ConcreteScheduleNode::PadEinsum(const BlockRV& block_rv, const Array<Intege
   TVM_TIR_SCHEDULE_END("pad-einsum", this->error_render_level_);
   this->state_->DebugVerify();
 }
+
+/******** Schedule: Buffer Transformation ********/
+
+void ConcreteScheduleNode::RollingBuffer(const BlockRV& block_rv, int write_buffer_index) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::RollingBuffer(state_, this->GetSRef(block_rv), write_buffer_index);
+  TVM_TIR_SCHEDULE_END("rolling-buffer", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
 /******** Schedule: Misc ********/
 
 }  // namespace tir
