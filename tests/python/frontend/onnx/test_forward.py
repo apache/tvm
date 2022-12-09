@@ -3897,6 +3897,7 @@ def verify_rnn(
     atol=1e-5,
     target=None,
     dev=None,
+    use_sequence_lens=False,
 ):
     """verify_rnn"""
     if rnn_type == "RNN":
@@ -3954,10 +3955,16 @@ def verify_rnn(
             )
             register(b_np, "B")
 
+        if use_sequence_lens:
+            sequence_np = np.random.uniform(0, seq_length, size=(batch_size)).astype("int32")
+            register(sequence_np, "sequence_lens")
+
         if use_initial_state:
             assert use_bias is True, "Initial states must have bias specified."
-            sequence_np = np.repeat(seq_length, batch_size).astype("int32")
-            register(sequence_np, "sequence_lens")
+
+            if not use_sequence_lens:
+                sequence_np = np.repeat(seq_length, batch_size).astype("int32")
+                register(sequence_np, "sequence_lens")
 
             if layout == 1:
                 initial_h_np = np.random.uniform(size=(batch_size, directions, hidden_size)).astype(
@@ -4210,6 +4217,35 @@ def verify_rnn_helper(target, dev, rnn_type):
         #     target=target,
         #     dev=dev,
         # )
+
+        # Testing with initial state
+        if rnn_type == "GRU":
+            verify_rnn(
+                seq_length=2,
+                batch_size=1,
+                input_size=16,
+                hidden_size=32,
+                use_bias=True,
+                use_initial_state=True,
+                rnn_type=rnn_type,
+                directions=directions,
+                target=target,
+                dev=dev,
+                use_sequence_lens=True,
+            )
+            verify_rnn(
+                seq_length=8,
+                batch_size=8,
+                input_size=16,
+                hidden_size=32,
+                use_bias=True,
+                use_initial_state=True,
+                rnn_type=rnn_type,
+                directions=directions,
+                target=target,
+                dev=dev,
+                use_sequence_lens=True,
+            )
 
         # Testing with peepholes
         if rnn_type == "LSTM":

@@ -737,6 +737,7 @@ def gru_cell(
     n_act=_op.tanh,
     backwards=False,
     linear_before_reset=True,
+    sequence_lens=None,
 ):
     """
     Common implementation of GRU cell for all frontends of TVM
@@ -765,7 +766,12 @@ def gru_cell(
         activation function for new gate. it is tanh by default
     backwards : bool
         Flag for reverse pass of GRU
-
+    linear_before_reset : bool
+        Flag for applying the linear transformation before multiplying by the output of the reset
+        gate.
+    sequence_lens : relay.op
+        Tensor specifying lengths of the sequences in a batch.
+        Shape = (batch_size)
     Returns
     -------
     result : List[relay.Expr], relay.Expr, relay.Expr
@@ -773,7 +779,40 @@ def gru_cell(
     """
 
     outputs_list = []
-    for x_t in input_seqs if not backwards else reversed(input_seqs):
+
+    seq_len = len(input_seqs)
+    input_dtype = infer_type(input_seqs[0]).checked_type.dtype
+
+    if sequence_lens is not None:
+        shape = infer_shape(sequence_lens)
+        dtype = infer_type(sequence_lens).checked_type.dtype
+
+        arange = _op.arange(_op.const(0), _op.const(seq_len), dtype=dtype)
+        arange = _op.expand_dims(arange, 1)
+        sequence_lens = _op.broadcast_to(sequence_lens, [seq_len, shape[0]])
+
+        # cast to data dtype
+        mask = _op.less(arange, sequence_lens)
+        mask = _op.cast(mask, dtype=input_dtype)
+        mask = _op.expand_dims(mask, 2)
+        mask_seqs = unbind(mask)
+
+        res_mask = _op.greater_equal(arange, sequence_lens)
+        res_mask = _op.cast(res_mask, dtype=input_dtype)
+        res_mask = _op.expand_dims(res_mask, 2)
+        res_mask_seqs = unbind(res_mask)
+
+        if backwards:
+            # need a mask to keep intial_h_B correct
+            initial_h = hidden_state
+            initial_h_mask = _op.equal(arange, sequence_lens)
+            initial_h_mask = _op.cast(initial_h_mask, dtype=input_dtype)
+            initial_h_mask = _op.expand_dims(initial_h_mask, 2)
+            initial_h_mask_seqs = unbind(initial_h_mask)
+
+    output = _op.zeros(infer_shape(hidden_state), input_dtype)
+    for i in range(seq_len) if not backwards else reversed(range(seq_len)):
+        x_t = input_seqs[i]
         xwt = _op.nn.dense(x_t, w_inp)
         if linear_before_reset:
             hwt = _op.nn.dense(hidden_state, w_hid)
@@ -806,9 +845,21 @@ def gru_cell(
 
         hidden_state = (hidden_state - n_gate) * z_gate + n_gate
 
+        if sequence_lens is not None:
+            hidden_state = hidden_state * mask_seqs[i]
+
         outputs_list.append(hidden_state)  # [seq_num, (batch, hidden_size)]
 
-    return outputs_list, hidden_state
+        if sequence_lens is not None:
+            output = output * res_mask_seqs[i] + hidden_state
+        else:
+            output = hidden_state
+
+        # make sure initial_h_B correct
+        if backwards and sequence_lens is not None:
+            hidden_state = hidden_state + initial_h * initial_h_mask_seqs[i]
+
+    return outputs_list, output
 
 
 def lstm_cell(
