@@ -2186,13 +2186,15 @@ class Schedule(Object):
     ########## Schedule: Blockize & Tensorize ##########
 
     @type_checked
-    def blockize(self, loop: LoopRV) -> BlockRV:
+    def blockize(self, loop: LoopRV, preserve_unit_iters: bool = True) -> BlockRV:
         """Convert the subtree rooted at a specific loop into a block.
 
         Parameters
         ----------
         loop : LoopRV
             The root of the subtree.
+        preserve_unit_iters : bool
+            Whether or not to preserve unit iterators in block bindings
 
         Returns
         -------
@@ -2257,10 +2259,15 @@ class Schedule(Object):
         block are divisible by the subspace represented by the loops starting at the given loop.
         """
 
-        return _ffi_api.ScheduleBlockize(self, loop)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleBlockize(self, loop, preserve_unit_iters)  # type: ignore # pylint: disable=no-member
 
     @type_checked
-    def tensorize(self, block_or_loop: Union[BlockRV, LoopRV], tensor_intrin: str) -> None:
+    def tensorize(
+        self,
+        block_or_loop: Union[BlockRV, LoopRV],
+        tensor_intrin: str,
+        preserve_unit_iters: bool = True,
+    ) -> None:
         """Tensorize the computation enclosed by loop with the tensor intrinsic.
 
         Parameters
@@ -2269,6 +2276,8 @@ class Schedule(Object):
             The loop to be tensorized.
         tensor_intrin : str
             The tensor intrin or the name of the tensor intrin.
+        preserve_unit_iters : bool
+            Whether or not to preserve unit iterators in block bindings
 
         Examples
         --------
@@ -2402,7 +2411,7 @@ class Schedule(Object):
                         )
         """
         _ffi_api.ScheduleTensorize(  # type: ignore # pylint: disable=no-member
-            self, block_or_loop, tensor_intrin
+            self, block_or_loop, tensor_intrin, preserve_unit_iters
         )
 
     ########## Schedule: Annotation ##########

@@ -452,18 +452,20 @@ TVM_DLL void SetAxisSeparator(ScheduleState self, const StmtSRef& block_sref, in
  * \brief Convert the subtree rooted at a specific loop into a block.
  * \param self The state of the schedule
  * \param loop_sref The root of the subtree
+ * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  * \return The new block
  */
-TVM_DLL StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref);
+TVM_DLL StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref, bool preserve_unit_iters);
 
 /*!
  * \brief Tensorize the computation enclosed by loop with the tensor intrinsic.
  * \param self The state of the schedule
  * \param block_or_loop_sref The block or loop to be tensorized.
  * \param intrin The tensor intrinsic.
+ * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  */
 TVM_DLL void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref,
-                       const TensorIntrin& intrin);
+                       const TensorIntrin& intrin, bool preserve_unit_iters);
 
 /******** Schedule: Annotation ********/
 /*!

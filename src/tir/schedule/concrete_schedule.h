@@ -137,9 +137,9 @@ class ConcreteScheduleNode : public ScheduleNode {
                     int offset) override;
   void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) override;
   /******** Schedule: Blockize & Tensorize ********/
-  BlockRV Blockize(const LoopRV& loop_rv) override;
-  void Tensorize(const BlockRV& block_rv, const String& intrin) override;
-  void Tensorize(const LoopRV& loop_rv, const String& intrin) override;
+  BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) override;
+  void Tensorize(const BlockRV& block_rv, const String& intrin, bool preserve_unit_iters) override;
+  void Tensorize(const LoopRV& loop_rv, const String& intrin, bool preserve_unit_iters) override;
   /******** Schedule: Annotation ********/
   void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) override;
   void Unannotate(const LoopRV& loop_rv, const String& ann_key) override;
