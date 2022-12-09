@@ -49,16 +49,19 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 {% import 'utils/macros.j2' as m with context -%}
 
-ci_lint = '{{ ci_lint }}'
-ci_gpu = '{{ ci_gpu }}'
-ci_cpu = '{{ ci_cpu }}'
-ci_minimal = '{{ ci_minimal }}'
-ci_wasm = '{{ ci_wasm }}'
-ci_i386 = '{{ ci_i386 }}'
-ci_cortexm = '{{ ci_cortexm }}'
-ci_arm = '{{ ci_arm }}'
-ci_hexagon = '{{ ci_hexagon }}'
-ci_riscv = '{{ ci_riscv }}'
+
+// These are set at runtime from data in ci/jenkins/docker-images.yml, update
+// image tags in that file
+ci_lint = ''
+ci_gpu = ''
+ci_cpu = ''
+ci_minimal = ''
+ci_wasm = ''
+ci_i386 = ''
+ci_cortexm = ''
+ci_arm = ''
+ci_hexagon = ''
+ci_riscv = ''
 
 // Parameters to allow overriding (in Jenkins UI), the images
 // to be used by a given build. When provided, they take precedence
