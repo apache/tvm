@@ -173,7 +173,12 @@ def normalize_iter_map_to_expr(expr):
 
 
 def subspace_divide(
-    bindings, input_iters, sub_iters, predicate=True, check_level=IterMapLevel.Surjective
+    bindings,
+    input_iters,
+    sub_iters,
+    predicate=True,
+    check_level=IterMapLevel.Surjective,
+    simplify_trivial_iterators=True,
 ):
     """Detect if bindings can be written as
     [a_0*e_0 + b_0 + c_0, a_1*e_1 + b_1, ..., a_n*e_n + b_n]
@@ -206,6 +211,10 @@ def subspace_divide(
     check_level : Union[str, IterMapLevel]
         Checking level of iteration mapping
 
+    simplify_trivial_iterators: bool
+        If true, iterators with extent of 1 will be replaced with a
+        constant value.
+
     Returns
     -------
     results : List[List[PrimExpr]]
@@ -218,7 +227,9 @@ def subspace_divide(
     """
     if isinstance(check_level, str):
         check_level = IterMapLevel.from_str(check_level)
-    return _ffi_api.SubspaceDivide(bindings, input_iters, sub_iters, predicate, check_level)
+    return _ffi_api.SubspaceDivide(
+        bindings, input_iters, sub_iters, predicate, check_level, simplify_trivial_iterators
+    )
 
 
 def inverse_affine_iter_map(iter_map, outputs):
