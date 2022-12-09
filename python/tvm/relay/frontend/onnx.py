@@ -1406,7 +1406,10 @@ class Gemm(OnnxOpConverter):
             inputs[0] *= _expr.const(alpha, dtype=dtype)
         out = _op.nn.dense(inputs[0], inputs[1], units=channels)
         if len(inputs) == 3:
-            out = out + _expr.const(beta, dtype=dtype) * inputs[2]
+            if beta != 1.0:
+                out += _expr.const(float(beta), dtype=dtype) * inputs[2]
+            else:
+                out += inputs[2]
         return out
 
 
