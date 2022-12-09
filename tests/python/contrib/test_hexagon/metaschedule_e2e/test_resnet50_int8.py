@@ -33,6 +33,7 @@ from tvm.contrib.hexagon.meta_schedule import (
     get_hexagon_rpc_runner,
 )
 from tvm.meta_schedule import postproc, schedule_rule
+from tvm.meta_schedule.utils import cpu_count
 from tvm.tir.schedule import BlockRV, Schedule
 from tvm.tir.schedule.analysis import has_block
 from tvm.tir.tensor_intrin.hexagon import (
@@ -44,10 +45,24 @@ from tvm.tir.tensor_intrin.hexagon import (
 from ..infrastructure import get_hexagon_target
 
 MODEL_JSON = "resnet50_int8.json"
+MODEL_PARAMS = "resnet50_int8.params"
 EXECUTOR = relay.backend.Executor("graph", {"link-params": True})
 TARGET_LLVM = tvm.target.Target("llvm")
 TARGET_HEXAGON = get_hexagon_target("v68")
-MODEL_PARAMS = "resnet50_int8.params"
+
+
+def load_model():
+    """Load renset50 model."""
+    if not os.path.exists(MODEL_JSON):
+        pytest.skip(msg="Run python export_models.py first.")
+
+    with open(MODEL_JSON, "r") as file:
+        mod = tvm.ir.load_json(file.read())
+
+    with open(MODEL_PARAMS, "rb") as file:
+        params = relay.load_param_dict(file.read())
+
+    return mod, params
 
 
 def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
@@ -110,6 +125,8 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
     # task extraction and relay.build(...).
     mod = mod.with_attr("executor", EXECUTOR)
 
+    num_cores = cpu_count(logical=False)
+
     with tempfile.TemporaryDirectory() as work_dir:
         database = ms.relay_integration.tune_relay(
             mod=mod,
@@ -125,8 +142,8 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
             # num_trials_per_iter=32,
             # max_trials_per_task=128,
             # strategy="evolutionary",
-            builder=get_hexagon_local_builder(),
-            runner=get_hexagon_rpc_runner(hexagon_launcher, number=20),
+            builder=get_hexagon_local_builder(max_workers=num_cores),
+            runner=get_hexagon_rpc_runner(hexagon_launcher, number=20, max_workers=num_cores),
             space=ms.space_generator.PostOrderApply(
                 sch_rules=sch_rules,
                 postprocs=postprocs,
@@ -137,6 +154,7 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
             # It reduces the number of conv2d tuning tasks in the int8 resnet50 model
             # from 36 to 23, with negligible performance difference.
             module_equality="anchor-block",
+            num_tuning_cores=num_cores,
         )
         return ms.relay_integration.compile_relay(
             database=database,
@@ -156,11 +174,8 @@ def test_resnet50(hexagon_launcher):
     if not os.path.exists(MODEL_JSON):
         pytest.skip(msg="Run python export_models.py first.")
 
-    with open(MODEL_JSON, "r") as file:
-        mod = tvm.ir.load_json(file.read())
+    mod, params = load_model()
 
-    with open(MODEL_PARAMS, "rb") as file:
-        params = relay.load_param_dict(file.read())
     inp = np.random.randn(1, 3, 224, 224).astype("float32")
     input_name = "image"
 
@@ -229,20 +244,6 @@ def evaluate_mod(hexagon_launcher, hexagon_lowered, llvm_lowered, input_name, in
             print(debug_ex.profile(input_name=inp.copy()))
 
         np.testing.assert_allclose(ref_result, output, atol=1e-4, rtol=1e-5)
-
-
-def load_model():
-    """Load renset50 model."""
-    if not os.path.exists(MODEL_JSON):
-        pytest.skip(msg="Run python export_models.py first.")
-
-    with open(MODEL_JSON, "r") as file:
-        mod = tvm.ir.load_json(file.read())
-
-    with open(MODEL_PARAMS, "rb") as file:
-        params = relay.load_param_dict(file.read())
-
-    return mod, params
 
 
 def _schedule_packed_8x8x32_conv2d():
