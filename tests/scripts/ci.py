@@ -588,6 +588,7 @@ generated = [
         help="Run GPU build and test(s)",
         options={
             "cpp": CPP_UNITTEST,
+            "opencl_unittest": ("run opencl unit tests", ["./tests/scripts/task_opencl_cpp_unittest.sh"]),
             "topi": ("run topi tests", ["./tests/scripts/task_python_topi.sh"]),
             "unittest": (
                 "run unit tests",

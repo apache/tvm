@@ -583,6 +583,14 @@ def shard_run_unittest_GPU_1_of_3() {
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
                 label: 'Run Python GPU integration tests',
               )
+              sh (
+                script: "${docker_run} ${ci_gpu} python3 ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --cmake-target opencl-cpptest --build-dir build",
+                label: 'Make OpenCL cpp unit tests',
+              )
+              sh (
+                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_opencl_cpp_unittest.sh",
+                label: 'Run OpenCL cpp unit tests',
+              )
             })
           }
         } finally {
