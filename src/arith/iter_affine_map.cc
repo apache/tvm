@@ -1812,18 +1812,26 @@ class SubspaceDivider {
     // extent of inner
     PrimExpr inner_extent;
 
+    // The kind of the division result.
+    enum class Kind {
+      kInner,  // Indicates the division result is totally in inner subspace.
+      kOuter,  // Indicates the division result is totally in outer subspace.
+      kMixed,  // Indicates the division result is mixed in both subspace.
+    } kind;
+
     DivisionResult(IterMapExpr outer, PrimExpr outer_extent, IterMapExpr inner,
-                   PrimExpr inner_extent)
+                   PrimExpr inner_extent, Kind kind = Kind::kMixed)
         : outer(std::move(outer)),
           inner(std::move(inner)),
           outer_extent(std::move(outer_extent)),
-          inner_extent(std::move(inner_extent)) {}
+          inner_extent(std::move(inner_extent)),
+          kind(kind) {}
 
     // whether the division result is totally in outer subspace
-    bool IsOuter() const { return is_one(inner_extent); }
+    bool IsOuter() const { return kind == Kind::kOuter; }
 
     // whether the division result is totally in inner subspace
-    bool IsInner() const { return is_one(outer_extent); }
+    bool IsInner() const { return kind == Kind::kInner; }
 
     IterSplitExpr GetOuterAsSplit() const { return GetAsSplit(outer, outer_extent); }
 
@@ -1832,13 +1840,13 @@ class SubspaceDivider {
     static DivisionResult Inner(const IterMapExpr& iter, const PrimExpr& extent) {
       auto dtype = iter.dtype();
       return DivisionResult(IterSumExpr({}, make_const(dtype, 0)), make_const(dtype, 1), iter,
-                            extent);
+                            extent, Kind::kInner);
     }
 
     static DivisionResult Outer(const IterMapExpr& iter, const PrimExpr& extent) {
       auto dtype = iter.dtype();
       return DivisionResult(iter, extent, IterSumExpr({}, make_const(dtype, 0)),
-                            make_const(dtype, 1));
+                            make_const(dtype, 1), Kind::kOuter);
     }
 
     // Special value to indicate the division is not possible
@@ -2066,9 +2074,11 @@ class SubspaceDivider {
 Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
                                       const Map<Var, Range>& input_iters,
                                       const Array<Var>& sub_iters, const PrimExpr& predicate,
-                                      IterMapLevel check_level, arith::Analyzer* analyzer) {
+                                      IterMapLevel check_level, arith::Analyzer* analyzer,
+                                      bool simplify_trivial_iterators) {
   if (!IterRangeSanityCheck(input_iters)) return Array<Array<IterMark>>();
-  auto res = DetectIterMap(bindings, input_iters, predicate, check_level, analyzer);
+  auto res = DetectIterMap(bindings, input_iters, predicate, check_level, analyzer,
+                           simplify_trivial_iterators);
   const Array<IterSumExpr>& maps = res->indices;
   if (maps.empty()) return {};
 
@@ -2096,10 +2106,11 @@ Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
 
 TVM_REGISTER_GLOBAL("arith.SubspaceDivide")
     .set_body_typed([](const Array<PrimExpr>& bindings, const Map<Var, Range>& root_iters,
-                       const Array<Var>& sub_iters, const PrimExpr& predicate, int check_level) {
+                       const Array<Var>& sub_iters, const PrimExpr& predicate, int check_level,
+                       bool simplify_trivial_iterators) {
       arith::Analyzer ana;
       return SubspaceDivide(bindings, root_iters, sub_iters, predicate, IterMapLevel(check_level),
-                            &ana);
+                            &ana, simplify_trivial_iterators);
     });
 
 class InverseAffineIterMapTransformer {
