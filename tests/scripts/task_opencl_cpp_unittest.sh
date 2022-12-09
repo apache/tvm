@@ -37,4 +37,3 @@ pushd "${BUILD_DIR}"
 # run cpp test executable
 ./opencl-cpptest
 popd
-
