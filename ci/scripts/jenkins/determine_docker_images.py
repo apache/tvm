@@ -32,6 +32,7 @@ DOCKER_API_BASE = "https://hub.docker.com/v2/"
 PAGE_SIZE = 25
 TEST_DATA = None
 IMAGE_TAGS_FILE = REPO_ROOT / "ci" / "jenkins" / "docker-images.ini"
+TVM_CI_ECR = "477529581014.dkr.ecr.us-west-2.amazonaws.com"
 
 
 def docker_api(url: str, use_pagination: bool = False) -> Dict[str, Any]:
@@ -111,7 +112,10 @@ if __name__ == "__main__":
     name_dir.mkdir(exist_ok=True)
     images_to_use = {}
     for filename, spec in images.items():
-        if image_exists(spec):
+        if spec.startswith(TVM_CI_ECR):
+            logging.info(f"{spec} is from ECR")
+            images_to_use[filename] = spec
+        elif image_exists(spec):
             logging.info(f"{spec} found in tlcpack")
             images_to_use[filename] = spec
         else:

@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-12-06T20:56:42.365592
+// Generated at 2022-12-09T15:39:24.387114
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -205,8 +205,7 @@ def docker_init(image) {
   if (image.contains("amazonaws.com")) {
     // If this string is in the image name it's from ECR and needs to be pulled
     // with the right credentials
-    // ecr_pull(image)
-    sh "echo Pulling from AWS is not implemented && exit 1"
+    ecr_pull(image)
   } else {
     sh(
       script: """
@@ -216,6 +215,47 @@ def docker_init(image) {
       """,
       label: 'Pull docker image',
     )
+  }
+}
+
+def ecr_pull(full_name) {
+  aws_account_id = sh(
+    returnStdout: true,
+    script: 'aws sts get-caller-identity | grep Account | cut -f4 -d\\"',
+    label: 'Get AWS ID'
+  ).trim()
+
+  try {
+    withEnv([
+      "AWS_ACCOUNT_ID=${aws_account_id}",
+      'AWS_DEFAULT_REGION=us-west-2',
+      "AWS_ECR_REPO=${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com"]) {
+      sh(
+        script: '''
+          set -eux
+          aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ECR_REPO
+        ''',
+        label: 'Log in to ECR'
+      )
+      sh(
+        script: """
+          set -eux
+          . ${jenkins_scripts_root}/retry.sh
+          retry 5 docker pull ${full_name}
+        """,
+        label: 'Pull image from ECR'
+      )
+    }
+  } finally {
+    withEnv([
+      "AWS_ACCOUNT_ID=${aws_account_id}",
+      'AWS_DEFAULT_REGION=us-west-2',
+      "AWS_ECR_REPO=${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com"]) {
+      sh(
+        script: 'docker logout $AWS_ECR_REPO',
+        label: 'Clean up login credentials'
+      )
+    }
   }
 }
 
