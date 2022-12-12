@@ -1866,9 +1866,9 @@ class PyTorchOpConverter:
     def baddbmm(self, inputs, _):
         input = inputs[0]
         batch1, batch2 = inputs[1:3]
-        beta = inputs[3]
-        alpha = inputs[4]
-        return _expr.const(beta) * input + _expr.const(alpha) * (_op.nn.batch_matmul(batch1, batch2, transpose_b=False))
+        beta = _expr.const(float(inputs[3]))
+        alpha = _expr.const(float(inputs[4]))
+        return beta * input + alpha * _op.nn.batch_matmul(batch1, batch2, transpose_b=False)
 
     def matmul(self, inputs, input_types):
 
@@ -2572,7 +2572,14 @@ class PyTorchOpConverter:
         return _op.ndarray_size(inputs[0])
 
     def empty(self, inputs, input_types):
-        shape = inputs[0]
+        shape = []
+        for s in inputs[0]:
+            if isinstance(s, _expr.Constant):
+                shape.append(s.data.numpy().item())
+            else:
+                assert isinstance(s, int)
+                shape.append(s)
+
         return _op.zeros(shape, _convert_dtype_value(inputs[1]))
 
     def empty_like(self, inputs, input_types):

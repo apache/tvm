@@ -5041,7 +5041,9 @@ def test_multinomial():
 @tvm.testing.uses_gpu
 def test_baddbmm():
     def test_fn(alpha, beta):
-        return lambda inp, batch1, batch2: torch.baddbmm(inp, batch1, batch2, beta=beta, alpha=alpha)
+        return lambda inp, batch1, batch2: torch.baddbmm(
+            inp, batch1, batch2, beta=beta, alpha=alpha
+        )
 
     M = torch.randn(10, 3, 5)
     batch1 = torch.randn(10, 3, 4)
