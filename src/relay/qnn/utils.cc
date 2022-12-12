@@ -70,10 +70,10 @@ std::pair<int32_t, int32_t> GetFixedPointMultiplierShift_16(double double_multip
   // Convert the double significand to int significand, i.e., convert into a
   // integer where the decimal point is between bit 31 and 30. This is done by
   // multiplying the double value with 2^31 and then casting to int.
-  significand_d = std::round(significand_d * (1ll << 19));
+  significand_d = std::round(significand_d * (1ll << 15));
   auto significand_int64 = static_cast<int64_t>(significand_d);
-  ICHECK_LE(significand_int64, (1ll << 19));
-  if (significand_int64 == (1ll << 19)) {
+  ICHECK_LE(significand_int64, (1ll << 15));
+  if (significand_int64 == (1ll << 15)) {
     significand_int64 /= 2;
     ++exponent;
   }
@@ -253,7 +253,7 @@ Expr FixedPointMultiplyToNearest_16bit(Expr tensor, double multiplier,
   // 4) Find the rounding scalar. This depends on where the final decimal
   // point sits. As we will be right shifting the multiplied_t, we need to
   // first calculate the total_right_shift.
-  int total_right_shift = right_shift + 19;
+  int total_right_shift = right_shift + 15;
   int64_t pos_rounding_value = (1ll << (total_right_shift - 1));
 
   Expr round_scalar;
@@ -762,7 +762,7 @@ Expr FixedPointMultiplyPerChannel_16bit(Expr tensor, std::vector<double> multipl
   // calculate the pos and neg rounding offset.
   std::vector<int64_t> pos_rounding_values, neg_rounding_values, total_rshifts;
   for (auto rshift : rshifts) {
-    int total_rshift = rshift + 19;
+    int total_rshift = rshift + 15;
     total_rshifts.push_back(total_rshift);
     pos_rounding_values.push_back((1ll << (total_rshift - 1)));
     neg_rounding_values.push_back((1ll << (total_rshift - 1)) - 1);
