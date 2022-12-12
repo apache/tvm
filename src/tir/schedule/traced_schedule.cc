@@ -296,12 +296,14 @@ BlockRV TracedScheduleNode::CacheRead(const BlockRV& block_rv, int read_buffer_i
 }
 
 BlockRV TracedScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                                       const String& storage_scope) {
-  BlockRV result = ConcreteScheduleNode::CacheWrite(block_rv, write_buffer_index, storage_scope);
+                                       const String& storage_scope,
+                                       const Array<BlockRV> consumer_blocks) {
+  BlockRV result = ConcreteScheduleNode::CacheWrite(block_rv, write_buffer_index, storage_scope,
+                                                    consumer_blocks);
 
   static const InstructionKind& kind = InstructionKind::Get("CacheWrite");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
-                                      /*inputs=*/{block_rv},
+                                      /*inputs=*/{block_rv, consumer_blocks},
                                       /*attrs=*/{Integer(write_buffer_index), storage_scope},
                                       /*outputs=*/{result}));
   return result;

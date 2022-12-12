@@ -859,6 +859,81 @@ def cache_write_multi_consumer() -> None:
 
 
 @T.prim_func
+def cache_write_multi_consumer_B_consume_cache():
+    A = T.alloc_buffer([128], dtype="float32")
+    B = T.alloc_buffer([128], dtype="float32")
+    C = T.alloc_buffer([128], dtype="float32")
+    A_global = T.alloc_buffer([128], dtype="float32")
+    for i in T.serial(8):
+        for j in T.serial(16):
+            with T.block("A"):
+                vi = T.axis.spatial(128, i * 16 + j)
+                A_global[vi] = 1.0
+        for j in T.serial(16):
+            with T.block("B"):
+                vi = T.axis.spatial(128, i * 16 + j)
+                B[vi] = A_global[vi] + 1.0
+    for ax0 in T.serial(128):
+        with T.block("A_global"):
+            v0 = T.axis.spatial(128, ax0)
+            A[v0] = A_global[v0]
+    for i in T.serial(128):
+        with T.block("C"):
+            vi = T.axis.spatial(128, i)
+            C[vi] = A[vi]
+
+
+@T.prim_func
+def cache_write_multi_consumer_C_consume_cache():
+    A = T.alloc_buffer([128], dtype="float32")
+    B = T.alloc_buffer([128], dtype="float32")
+    C = T.alloc_buffer([128], dtype="float32")
+    A_global = T.alloc_buffer([128], dtype="float32")
+    for i in T.serial(8):
+        for j in T.serial(16):
+            with T.block("A"):
+                vi = T.axis.spatial(128, i * 16 + j)
+                A_global[vi] = T.float32(1)
+        for ax0 in T.serial(16):
+            with T.block("A_global"):
+                v0 = T.axis.spatial(128, i * 16 + ax0)
+                A[v0] = A_global[v0]
+        for j in T.serial(16):
+            with T.block("B"):
+                vi = T.axis.spatial(128, i * 16 + j)
+                B[vi] = A[vi] + T.float32(1)
+    for i in T.serial(128):
+        with T.block("C"):
+            vi = T.axis.spatial(128, i)
+            C[vi] = A_global[vi]
+
+
+@T.prim_func
+def cache_write_multi_consumer_all_consume_cache():
+    A = T.alloc_buffer([128], dtype="float32")
+    B = T.alloc_buffer([128], dtype="float32")
+    C = T.alloc_buffer([128], dtype="float32")
+    A_global = T.alloc_buffer([128], dtype="float32")
+    for i in T.serial(8):
+        for j in T.serial(16):
+            with T.block("A"):
+                vi = T.axis.spatial(128, i * 16 + j)
+                A_global[vi] = T.float32(1)
+        for j in T.serial(16):
+            with T.block("B"):
+                vi = T.axis.spatial(128, i * 16 + j)
+                B[vi] = A_global[vi] + T.float32(1)
+    for i in T.serial(128):
+        with T.block("C"):
+            vi = T.axis.spatial(128, i)
+            C[vi] = A_global[vi]
+    for ax0 in T.serial(128):
+        with T.block("A_global"):
+            v0 = T.axis.spatial(128, ax0)
+            A[v0] = A_global[v0]
+
+
+@T.prim_func
 def continuous_cache_write(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.alloc_buffer((128, 128))
@@ -1111,6 +1186,34 @@ def test_cache_write_location(use_block_name):
     block_a = "A" if use_block_name else sch.get_block("A")
     sch.cache_write(block_a, 0, "global")
     tvm.ir.assert_structural_equal(cache_write_multi_consumer, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
+
+    # Test that specific consumer block targetting works.
+    # B read cache buffer and C read original output buffer
+    sch = tir.Schedule(func_multi_consumer, debug_mask="all")
+    block_a = "A" if use_block_name else sch.get_block("A")
+    block_b = "B" if use_block_name else sch.get_block("B")
+    sch.cache_write(block_a, 0, "global", consumer_blocks=[block_b])
+    tvm.ir.assert_structural_equal(cache_write_multi_consumer_B_consume_cache, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
+
+    # Test that specific consumer block targetting works.
+    # B read original output buffer and C read cache buffer
+    sch = tir.Schedule(func_multi_consumer, debug_mask="all")
+    block_a = "A" if use_block_name else sch.get_block("A")
+    block_c = "C" if use_block_name else sch.get_block("C")
+    sch.cache_write(block_a, 0, "global", consumer_blocks=[block_c])
+    tvm.ir.assert_structural_equal(cache_write_multi_consumer_C_consume_cache, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
+
+    # Test that specific consumer block targetting works.
+    # B and C read cache buffer
+    sch = tir.Schedule(func_multi_consumer, debug_mask="all")
+    block_a = "A" if use_block_name else sch.get_block("A")
+    block_b = "B" if use_block_name else sch.get_block("B")
+    block_c = "C" if use_block_name else sch.get_block("C")
+    sch.cache_write(block_a, 0, "global", consumer_blocks=[block_b, block_c])
+    tvm.ir.assert_structural_equal(cache_write_multi_consumer_all_consume_cache, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
 
 
