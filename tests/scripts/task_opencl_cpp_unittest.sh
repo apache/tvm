@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,15 +16,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# This data file is read during when Jenkins runs job to determine docker images.
-[jenkins]
-ci_arm: tlcpack/ci-arm:20221013-060115-61c9742ea
-ci_cortexm: tlcpack/ci-cortexm:20221013-060115-61c9742ea
-ci_cpu: tlcpack/ci-cpu:20221013-060115-61c9742ea
-ci_gpu: tlcpack/ci-gpu:20221128-070141-ae4fd7df7
-ci_hexagon: tlcpack/ci-hexagon:20221013-060115-61c9742ea
-ci_i386: tlcpack/ci-i386:20221013-060115-61c9742ea
-ci_lint: tlcpack/ci-lint:20221013-060115-61c9742ea
-ci_minimal: tlcpack/ci-minimal:20221013-060115-61c9742ea
-ci_riscv: tlcpack/ci-riscv:20221013-060115-61c9742ea
-ci_wasm: tlcpack/ci-wasm:20221013-060115-61c9742ea
+set -euxo pipefail
+
+if [ $# -gt 0 ]; then
+    BUILD_DIR="$1"
+elif [ -n "${TVM_BUILD_PATH:-}" ]; then
+    # TVM_BUILD_PATH may contain multiple space-separated paths.  If
+    # so, use the first one.
+    BUILD_DIR=$(IFS=" "; set -- $TVM_BUILD_PATH; echo $1)
+else
+    BUILD_DIR=build
+fi
+
+
+# to avoid CI thread throttling.
+export TVM_BIND_THREADS=0
+export OMP_NUM_THREADS=1
+
+pushd "${BUILD_DIR}"
+# run cpp test executable
+./opencl-cpptest
+popd
