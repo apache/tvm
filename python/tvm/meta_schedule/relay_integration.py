@@ -17,7 +17,7 @@
 """MetaSchedule-Relay integration"""
 from contextlib import contextmanager
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 # isort: off
 from typing_extensions import Literal
@@ -29,6 +29,7 @@ from tvm._ffi import get_global_func
 from tvm.ir import IRModule, transform
 from tvm.runtime import NDArray
 from tvm.target import Target
+from tvm import relay
 
 from .builder import Builder
 from .cost_model import CostModel
@@ -44,8 +45,6 @@ from .task_scheduler import TaskScheduler
 from .tune import tune_tasks
 from .tune_context import TuneContext
 from .utils import fork_seed
-
-from tvm import relay
 
 _extract_task = get_global_func(  # pylint: disable=invalid-name
     "relay.backend.MetaScheduleExtractTask",
