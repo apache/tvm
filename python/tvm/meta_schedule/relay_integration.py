@@ -180,7 +180,7 @@ def extracted_tasks_to_tune_contexts(
     work_dir: str,
     space: SpaceGenerator.SpaceGeneratorType = "post-order-apply",
     strategy: SearchStrategy.SearchStrategyType = "evolutionary",
-    num_threads: Union[Literal["physical", "logical"], int] = "physical",
+    num_tuning_cores: Union[Literal["physical", "logical"], int] = "physical",
     seed: Optional[int] = None,
 ) -> Tuple[List[TuneContext], List[float]]:
     """Convert ExtractedTask to TuneContext.
@@ -195,8 +195,8 @@ def extracted_tasks_to_tune_contexts(
         The space generator to use.
     strategy : SearchStrategy.SearchStrategyType
         The search strategy to use.
-    num_threads : Union[Literal["physical", "logical"], int]
-        The number of threads to use in multi-threaded search algorithm.
+    num_tuning_cores : Union[Literal["physical", "logical"], int]
+        The number of CPU cores to use during tuning.
     seed : Optional[int]
         The random seed to use.
 
@@ -223,7 +223,7 @@ def extracted_tasks_to_tune_contexts(
                 task_name=task.task_name,
                 logger=logger,
                 rand_state=rand_state,
-                num_threads=num_threads,
+                num_threads=num_tuning_cores,
             ).clone()
         )
         task_weights.append(task.weight)
@@ -249,6 +249,7 @@ def tune_relay(
     strategy: SearchStrategy.SearchStrategyType = "evolutionary",
     seed: Optional[int] = None,
     module_equality: str = "structural",
+    num_tuning_cores: Union[Literal["physical", "logical"], int] = "physical",
 ) -> Database:
     """Tune a Relay program.
 
@@ -296,6 +297,8 @@ def tune_relay(
                             given module. The "ignore-ndarray" varint is used for the extracted
                             blocks or in case no anchor block is found.
                             For the definition of the anchor block, see tir/analysis/analysis.py.
+    num_tuning_cores : Union[Literal["physical", "logical"], int]
+        The number of CPU cores to use during tuning.
 
     Returns
     -------
@@ -308,6 +311,7 @@ def tune_relay(
         space=space,
         strategy=strategy,
         seed=seed,
+        num_tuning_cores=num_tuning_cores,
     )
     return tune_tasks(
         tasks=tasks,

@@ -35,10 +35,10 @@ namespace cmsisnn {
 
 class CodeGenCMSISNN : public codegen::CodeGenCHost {
  public:
-  void Init(bool output_ssa, bool emit_asserts, std::string target_str) {
+  void Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_decl, std::string target_str) {
     std::unordered_set<std::string> devices;
     devices.insert("cmsis-nn");
-    CodeGenCHost::Init(output_ssa, emit_asserts, target_str, devices);
+    CodeGenCHost::Init(output_ssa, emit_asserts, emit_fwd_func_decl, target_str, devices);
   }
 
   /*!
@@ -491,9 +491,10 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
 runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
+  bool emit_fwd_func_decl = false;
   CodeGenCMSISNN codegen;
   Array<String> function_names;
-  codegen.Init(output_ssa, emit_asserts, target->str());
+  codegen.Init(output_ssa, emit_asserts, emit_fwd_func_decl, target->str());
 
   std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> funcs;
   for (auto kv : mod->functions) {

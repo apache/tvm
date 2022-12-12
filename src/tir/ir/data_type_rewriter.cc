@@ -273,12 +273,14 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BlockNode* op) {
   if (op->init.defined()) {
     new_init = this->VisitStmt(op->init.value());
   }
+  Map<String, ObjectRef> new_annotations = VisitBlockAnnotations(op->annotations);
   Stmt new_body = this->VisitStmt(op->body);
 
   if (!new_init.same_as(op->init) || !new_body.same_as(op->body) ||
       !new_alloc_buffers.same_as(op->alloc_buffers) ||
       !new_match_buffers.same_as(op->match_buffers) || !new_reads.same_as(op->reads) ||
-      !new_writes.same_as(op->writes) || new_iter_vars.same_as(op->iter_vars)) {
+      !new_writes.same_as(op->writes) || new_iter_vars.same_as(op->iter_vars) ||
+      !new_annotations.same_as(op->annotations)) {
     Block new_block = GetRef<Block>(op);
     BlockNode* n = new_block.CopyOnWrite();
     n->alloc_buffers = std::move(new_alloc_buffers);
@@ -287,6 +289,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BlockNode* op) {
     n->writes = std::move(new_writes);
     n->iter_vars = std::move(new_iter_vars);
     n->init = std::move(new_init);
+    n->annotations = std::move(new_annotations);
     n->body = std::move(new_body);
     return std::move(new_block);
   }

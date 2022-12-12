@@ -110,36 +110,5 @@ class TestDepthwiseConv2d_NHWC_HWOI_DSP(DepthwiseConv2dTests):
     schedule_name = parameter("depthwise_conv2d_nhwc_dsp.arm_cpu")
 
 
-class TestDepthwiseConv2d_Tensordot(DepthwiseConv2dTests):
-    """This test is for the depthwise_conv2d schedule tensorized using tensordot."""
-
-    data_shape, kernel_size, num_filter, strides, padding, in_dtype = parameters(
-        # Currently, our schedule requires kernel_w be divisible by the number of simd lanes given
-        # its dtype. This means 3x3 and 5x5 kernels do not work on int16 or int8 for now. If you had
-        # to, you could hack around this by padding the data and kernel.
-        ((1, 48, 48, 8), (3, 3), 8, (1, 1), 1, "int32"),
-        ((1, 48, 48, 16), (3, 3), 16, (2, 2), (1, 1, 0, 0), "int32"),
-        ((1, 24, 24, 32), (3, 3), 32, (1, 1), 1, "int32"),
-        ((1, 24, 24, 32), (3, 3), 32, (2, 2), (1, 1, 0, 0), "int32"),
-        ((1, 12, 12, 64), (3, 3), 64, (1, 1), 1, "int32"),
-        ((1, 12, 12, 64), (3, 3), 64, (2, 2), (1, 1, 0, 0), "int32"),
-        ((1, 6, 6, 128), (3, 3), 128, (1, 1), 1, "int32"),
-        ((1, 6, 6, 128), (3, 3), 128, (2, 2), (1, 1, 0, 0), "int32"),
-        ((1, 3, 3, 256), (3, 3), 256, (1, 1), 1, "int32"),
-        ((1, 25, 5, 64), (3, 3), 64, (1, 1), 1, "int32"),
-        ((1, 24, 24, 8), (5, 5), 8, (1, 1), 1, "int32"),
-        ((1, 24, 24, 8), (3, 5), 8, (1, 1), 1, "int32"),
-        # These "evenly divisible" kernels work on smaller dtypes.
-        ((1, 48, 48, 8), (3, 2), 8, 1, 0, "int16"),
-        ((1, 48, 48, 8), (4, 4), 8, 1, 0, "int8"),
-    )
-    dilation = parameter(1)
-
-    data_layout = parameter("NCHW")
-    kernel_layout = parameter("OIHW")
-    out_layout = parameter("NHWC", "NCHW")
-    schedule_name = parameter("depthwise_conv2d_nchw_oihw_dsp.arm_cpu")
-
-
 if __name__ == "__main__":
     main()

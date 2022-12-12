@@ -170,6 +170,14 @@ TVM_DLL bool VerifyMemory(const PrimFunc& func);
 TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints);
 
 /*!
+ * \brief Verifies that the VTCM usage of the given prim_func is within the provided limit.
+ * \param func The function to be checked.
+ * \param limit The limit to check.
+ * \return true if the VTCM usage is within the provided limit.
+ */
+TVM_DLL bool VerifyVTCMLimit(const PrimFunc& func, Integer limit);
+
+/*!
  * \brief Auto detect the block access region according to its body stmt
  *        It will detect the access region as an array in order of appearance in AST
  * \param block The block to be detected

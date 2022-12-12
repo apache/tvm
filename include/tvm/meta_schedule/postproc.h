@@ -145,6 +145,11 @@ class Postproc : public runtime::ObjectRef {
    */
   TVM_DLL static Postproc VerifyGPUCode();
   /*!
+   * \brief Verifies that the VTCM usage of a given schedule is within the provided limit.
+   * \return The postprocessor created
+   */
+  TVM_DLL static Postproc VerifyVTCMLimit();
+  /*!
    * \brief Creates a postprocessor that rewrites the layout of input tensor
    * \note Weight layout rewrite is supported so far, activation layout rewrite will be added.
    * \return The postprocessor created
