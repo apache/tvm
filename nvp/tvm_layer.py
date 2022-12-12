@@ -76,6 +76,10 @@ def gen_module(model, layer, data, layout=None, kernel=None, stride=None, cluste
         module = upsample_k2(data, (2, 2), layout, method='nearest_neighbor') # TODO: bilinear upsampling
     elif layer == 'gap':
         module = global_average_pooling(data, cluster)
+    elif layer == 'actv':
+        module = actv(data)
+    elif layer == 'silu':
+        module = silu(data)
     else:
         raise NotImplementedError("Currently NOT implemented: %s" %(layer))
 
@@ -248,8 +252,6 @@ def dwconv_k3(data, kernel, stride):
     (b, cw, h, w) = data
     (kh, kw) = kernel
     (sh, sw) = stride
-    pad = get_padding_tuple(data, kernel, padding='same', stride=stride)
-    (oh, ow) = ((h - kh + (pad[1]+pad[3])) // sh + 1), ((w - kw + (pad[0]+pad[2])) // sw + 1)
 
     data = tvm.te.placeholder((b, cw, h, w), name="data")
     filter = tvm.te.placeholder((b, 1, kh, kw), name='Filter')
@@ -263,7 +265,7 @@ def dwconv_k3(data, kernel, stride):
     )
 
     Reg00, Reg01, Reg02, Reg10, Reg11, Reg12, Reg20, Reg21, Reg22 = tvm.te.compute(
-        (b, cw, oh, ow), lambda b, c, i, j: (
+        (b, cw, h, w), lambda b, c, i, j: (
             data[b, c, i*sh+0, j*sw+0]*FReg00[b, c], data[b, c, i*sh+0, j*sw+1]*FReg01[b, c], data[b, c, i*sh+0, j*sw+2]*FReg02[b, c],
             data[b, c, i*sh+1, j*sw+0]*FReg10[b, c], data[b, c, i*sh+1, j*sw+1]*FReg11[b, c], data[b, c, i*sh+1, j*sw+2]*FReg12[b, c],
             data[b, c, i*sh+2, j*sw+0]*FReg20[b, c], data[b, c, i*sh+2, j*sw+1]*FReg21[b, c], data[b, c, i*sh+2, j*sw+2]*FReg22[b, c],
@@ -271,7 +273,7 @@ def dwconv_k3(data, kernel, stride):
     )
 
     output = tvm.te.compute(
-        (b, cw, oh, ow), lambda b, c, i, j: (
+        (b, cw, h, w), lambda b, c, i, j: (
             Reg00[b, c, i, j] + Reg01[b, c, i, j] + Reg02[b, c, i, j]
             + Reg10[b, c, i, j] + Reg11[b, c, i, j] + Reg12[b, c, i, j]
             + Reg20[b, c, i, j] + Reg21[b, c, i, j] + Reg22[b, c, i, j]
@@ -309,20 +311,35 @@ def dwconv_k3(data, kernel, stride):
     return module
 
 def eadd(data):
-    if len(data) == 4: (vlength, vcount) = (data[0]*data[2]*data[3], data[1])
-    elif len(data) == 2: (vlength, vcount) = data # vlength: b*h*w, vcount: cw
+    if len(data) == 4: (vcount, vlength) = (data[0]*data[2]*data[3], data[1])
+    elif len(data) == 2: (vcount, vlength) = data # vcount: cw, vlength: b*h*w
     else: raise NotImplementedError("Currently NOT supported data format for elemwise-add: %s"%(data))
 
     data0 = tvm.te.placeholder((vcount, vlength), name="input0")
     data1 = tvm.te.placeholder((vcount, vlength), name="input1")
-    weight0 = tvm.te.placeholder((1, ), name="Reg0")
-    weight1 = tvm.te.placeholder((1, ), name="Reg1")
-    output = tvm.te.compute((vcount, vlength), lambda i, j: data0[i, j]*weight0[0] + data1[i, j]*weight1[0], name="output")
+    weight0 = tvm.te.placeholder((1, ), name="wReg0")
+    weight1 = tvm.te.placeholder((1, ), name="wReg1")
+    bias = tvm.te.placeholder((1, ), name="bReg")
+
+    Reg0 = tvm.te.compute((vcount, vlength), lambda i, j: data0[i, j]*weight0[0] + bias[0], name="Reg0")
+    Reg1 = tvm.te.compute((vcount, vlength), lambda i, j: data1[i, j]*weight1[0] + Reg0[i, j], name="Reg1")
+    output = tvm.te.compute((vcount, vlength), lambda i, j: Reg1[i, j], name="output")
+    # output = tvm.te.compute((vcount, vlength), lambda i, j: data0[i, j]*weight0[0] + data1[i, j]*weight1[0], name="output")
 
     s = tvm.te.create_schedule([output.op])
+    (d0, d1) = sort_axis(s[output].op.axis)
+
     if vlength==8: # fast-path
+        s[Reg0].compute_at(s[Reg1], s[Reg1].op.axis[-1])
+        s[Reg1].compute_at(s[output], s[output].op.axis[-1])
         s[output].unroll(s[output].op.axis[-1])
-    module = tvm.lower(s, [data0, data1, weight0, weight1, output], simple_mode=True)
+    else:
+        s[Reg1].compute_at(s[output], s[output].op.axis[0])
+        s[Reg0].compute_at(s[output], s[output].op.axis[0])
+        (d0, d1) = sort_axis(s[output].op.axis)
+        s[output].reorder(d0, d1)
+
+    module = tvm.lower(s, [data0, data1, weight0, weight1, bias, output], simple_mode=True)
     return module
 
 def upsample(data, kernel, layout, method):
@@ -479,6 +496,51 @@ def global_average_pooling(data, cluster):
     s[Reg4].compute_at(s[output], s[output].op.axis[-1])
 
     module = tvm.lower(s, [data, output0, output1, output2, output])
+    return module
+
+def actv(data):
+    if len(data) == 4: (vcount, vlength) = (data[0]*data[2]*data[3], data[1])
+    elif len(data) == 2: (vcount, vlength) = data # vcount: cw, vlength: b*h*w
+    else: raise NotImplementedError("Currently NOT supported data format for elemwise-add: %s"%(data))
+
+    data = tvm.te.placeholder((vcount, vlength), name="data")
+
+    vReg = tvm.te.compute((vcount, vlength), lambda i, j: (tvm.te.sigmoid(data[i, j])), name="vReg")
+    output = tvm.te.compute((vcount, vlength), lambda i, j: vReg[i, j], name="output")
+
+    s = tvm.te.create_schedule([output.op])
+    if vlength==8: # fast-path
+        s[output].unroll(s[output].op.axis[-1])
+    s[vReg].compute_at(s[output], s[output].op.axis[-1])
+    module = tvm.lower(s, [data, output])
+    return module
+
+def silu(data):
+    (b, cw, h, w) = data
+    data = tvm.te.placeholder((b, cw, h, w), name="data")
+    weight = tvm.te.placeholder((b, cw), name="weight")
+
+    wReg = tvm.te.compute(
+        (b, cw), lambda b, c: (
+            weight(b, c)
+        ), name='wReg'
+    )
+    vReg = tvm.te.compute(
+        (b, cw, h, w), lambda b, c, i, j: (
+            tvm.te.sigmoid(data[b, c, i, j])
+        ), name="vReg"
+    )
+    output = tvm.te.compute(
+        (b, cw, h, w), lambda b, c, i, j: (
+            wReg[b, c] * vReg[b, c, i, j]
+        ), name="output"
+    )
+
+    s = tvm.te.create_schedule([output.op])
+    (N, C, H, W) = s[output].op.axis
+    s[wReg].compute_at(s[output], C)
+    s[vReg].compute_at(s[output], s[output].op.axis[-1])
+    module = tvm.lower(s, [data, weight, output])
     return module
 
 def sort_axis(axes):

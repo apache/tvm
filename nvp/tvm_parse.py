@@ -71,7 +71,12 @@ def generate_nodes(stmt, G, DEPTH, WS="", DEBUG=False): # tir.stmt.___
                 sub_g_union_list.append(glist[g])
                 sub_acc_node_cnt.append(len(sub_g_union_list[-1].nodes)+sub_acc_node_cnt[gidx])
             sub_g_union = nx.disjoint_union_all(sub_g_union_list)
-            for sidx0 in range(0, len(group)-1): # sub index
+
+            ## Calculate Reaching Definition (Store -> Load)
+            ## > Iterate over sub_g_union 'Backwards'
+            ## > Check if following there exists a path between following store-nodes and the load-node
+            ## > Definition reaches only if paths DON'T exist!!
+            for sidx0 in range(len(group)-1, -1, -1): # sub index
                 store_nodes0 = [node for node in list(sub_g_union)[sub_acc_node_cnt[sidx0]:sub_acc_node_cnt[sidx0+1]] if sub_g_union.nodes[node]['type']=='Store']
                 for store_node in store_nodes0:
                     store_name = sub_g_union.nodes[store_node]['name']
@@ -80,8 +85,10 @@ def generate_nodes(stmt, G, DEPTH, WS="", DEBUG=False): # tir.stmt.___
                         load_nodes = [node for node in list(sub_g_union)[sub_acc_node_cnt[sidx1]:sub_acc_node_cnt[sidx1+1]]
                                         if sub_g_union.nodes[node]['type']=='Load' and sub_g_union.nodes[node]['name']==store_name]
                         for load_node in load_nodes:
-                            reaching_def = not any(nx.has_path(sub_g_union, store_node, next_store_node) for next_store_node in next_store_nodes)
-                            # print(store_node, store_name, load_node, reaching_def, next_store_nodes)
+                            # reaching_def = not any(nx.has_path(sub_g_union, store_node, next_store_node) for next_store_node in next_store_nodes)
+                            reaching_def = not any(nx.has_path(sub_g_union, next_store_node, load_node) for next_store_node in next_store_nodes)
+                            has_path = [nx.has_path(sub_g_union, next_store_node, load_node) for next_store_node in next_store_nodes]
+                            # print(store_node, store_name, load_node, reaching_def, next_store_nodes, has_path)
                             if reaching_def:
                                 sub_g_union.add_edge(store_node, load_node)
                             else:
@@ -101,45 +108,6 @@ def generate_nodes(stmt, G, DEPTH, WS="", DEBUG=False): # tir.stmt.___
             srces = [node for node in list(g_union.nodes)[acc_node_cnt[idx]:acc_node_cnt[idx+1]] if g_union.in_degree(node)==0]
             [g_union.add_edge(node_num, src) for src in srces]
 
-        # Connect Store --> Load (Reaching Definition)
-        # for idx in range(0, len(acc_node_cnt)-2):
-        #     store_nodes = [node for node in list(g_union.nodes)[acc_node_cnt[idx]:acc_node_cnt[idx+1]] if g_union.nodes[node]['type']=='Store']
-        #     for store_node in store_nodes:
-        #         store_name = g_union.nodes[store_node]['name']
-        #         load_nodes = [node for node in list(g_union.nodes)[acc_node_cnt[idx]:acc_node_cnt[idx+1]]
-        #                         if g_union.nodes[node]['type']=='Load' and g_union.nodes[node]['name']==store_name]
-        #         for load_node in load_nodes:
-        #             paths = list(nx.all_simple_paths(g_union, source=store_node, target=load_node))
-        #             if all(any((g_union.nodes[node]['name']==store_name and g_union.nodes[node]['type']=='Store') for node in path[1:]) for path in paths): # path[1:] to exclude store_node itself
-        #                 pass # Pass for NOT reaching definition
-        #             else:
-        #                 g_union.add_edge(store_node, load_node) # Connect for reaching definition
-        # print("G_UNION")
-        # save_graph_viz(g_union, 'typeNum', 'GRAPH.png')
-        # for idx0 in range(0, len(acc_node_cnt)-1):
-        #     store_nodes0 = [node for node in list(g_union.nodes)[acc_node_cnt[idx0]:acc_node_cnt[idx0+1]] if g_union.nodes[node]['type']=='Store']
-        #     print(store_nodes0)
-        #     for store_node in store_nodes0:
-        #         store_name = g_union.nodes[store_node]['name']
-        #         # idx1==idx0
-        #         load_nodes1 = [node for node in list(g_union.nodes)[acc_node_cnt[idx1]:acc_node_cnt[idx1+1]]
-        #                         if g_union.nodes[node]['type']=='Load' and g_union.nodes[node]['name']==store_name]
-        #         for load_node in load_nodes1:
-        #             if not nx.has_path(g_union, load_node, store_node):
-        #                 g_union.add_edge(store_node, load_node)
-
-        #         for idx1 in range(idx0+1, len(acc_node_cnt)-1):
-        #             load_nodes1 = [node for node in list(g_union.nodes)[acc_node_cnt[idx1]:acc_node_cnt[idx1+1]]
-        #                             if g_union.nodes[node]['type']=='Load' and g_union.nodes[node]['name']==store_name]
-        #             RD_FLAG = False
-        #             for load_node in load_nodes1:
-        #                 paths = list(nx.all_simple_paths(g_union, source=store_node, target=load_node))
-        #                 if all(any((g_union.nodes[node]['name']==store_name and g_union.nodes[node]['type']=='Store') for node in path [1:]) for path in paths): # path[1:] to exclude store_node itself
-        #                     RD_FLAG = True # Update RD_FLAG
-        #                     pass # Pass for NOT reaching definition
-        #                 else:
-        #                     g_union.add_edge(store_node, load_node) # Connect for reaching definition
-        #             if RD_FLAG==True: break # No need to check further sequences, given that reaching definintion ends in a previous sequence
         return g_union
 
     elif isinstance(stmt, _stmt.Allocate):
@@ -233,8 +201,11 @@ def visit_EXPR(expr, g, parent, WS, DEBUG): # tir.expr.__
             if expr.op in [_Op.get("tir.shift_left"), _Op.get("tir.shift_right")]:
                 g.add_node(node_num, name=str(expr), type='Bit Shift')
                 g.add_edge(node_num, parent)
+            elif expr.op in [_Op.get("tir.sigmoid")]:
+                g.add_node(node_num, name=str(expr), type='LUT')
+                g.add_edge(node_num, parent)
             else:
-                NotImplementedError("Currently NOT supported expr.Call.op type: %s"%(expr.op))
+                raise NotImplementedError("Currently NOT supported expr.Call.op type: %s"%(expr.op))
         else:
             raise NotImplementedError("Currently NOT supported expr.Call type: %s"%(expr))
         for idx in range(0, len(expr.args)):

@@ -13,7 +13,7 @@ Config = {
             },
             'Memory':
             {
-                'Store': [6, 1],
+                'Store': [6, 3], #
                 'Load': [6, 1],
             },
             'Vector':
@@ -28,6 +28,8 @@ Config = {
                 'Bit Shift': [5],
                 'Ch Concat': [1],
                 'Mac': [5, 1],
+                'LUT': [8],
+                'LUT0': [3], 'LUT1': [1], 'LUT2': [1], 'LUT3': [3],
             },
             'Control':
             {
