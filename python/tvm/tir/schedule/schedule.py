@@ -1110,6 +1110,7 @@ class Schedule(Object):
         block: Union[BlockRV, str],
         write_buffer_index: Union[int, str, Buffer],
         storage_scope: str,
+        consumer_blocks=None,
     ) -> BlockRV:
         """Create a block that reads a buffer region into a write cache. It requires:
 
@@ -1130,6 +1131,9 @@ class Schedule(Object):
         storage_scope: str
             The target storage scope.
 
+        consumer_blocks: Optional[List[Union[BlockRV, str]]]
+            An optional list of consumers that should read directly from the cache.
+            If not specified, all consumers will read from the original buffer.
 
         Returns
         -------
@@ -1179,6 +1183,11 @@ class Schedule(Object):
                         B[vi, vj] = B_local[vi, vj]
 
         """
+        if consumer_blocks is None:
+            consumer_blocks = []
+
+        # Convert any string block names into Block RVs.
+        consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
         block = self._normalize_block_arg(block)
 
         if not isinstance(write_buffer_index, int):
@@ -1186,7 +1195,7 @@ class Schedule(Object):
                 block, write_buffer_index, required_buffer_type="write"
             )
         return _ffi_api.ScheduleCacheWrite(  # type: ignore # pylint: disable=no-member
-            self, block, write_buffer_index, storage_scope
+            self, block, write_buffer_index, storage_scope, consumer_blocks
         )
 
     @type_checked
