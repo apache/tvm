@@ -46,8 +46,6 @@ from .tune_context import TuneContext
 from .utils import fork_seed
 
 from tvm import relay
-if TYPE_CHECKING:
-    from tvm import relay
 
 _extract_task = get_global_func(  # pylint: disable=invalid-name
     "relay.backend.MetaScheduleExtractTask",
