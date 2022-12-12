@@ -1863,6 +1863,13 @@ class PyTorchOpConverter:
 
         return _op.split(data, indeces, axis)
 
+    def baddbmm(self, inputs, _):
+        input = inputs[0]
+        batch1, batch2 = inputs[1:3]
+        beta = inputs[3]
+        alpha = inputs[4]
+        return _expr.const(beta) * input + _expr.const(alpha) * (_op.nn.batch_matmul(batch1, batch2, transpose_b=False))
+
     def matmul(self, inputs, input_types):
 
         inputs_0 = inputs[0]
@@ -3621,6 +3628,7 @@ class PyTorchOpConverter:
             "aten::unsafe_chunk": self.chunk,
             "aten::matmul": self.matmul,
             "aten::bmm": self.matmul,
+            "aten::baddbmm": self.baddbmm,
             "aten::expand": self.expand,
             "aten::Int": self.int,
             "prim::NumToTensor": self.numtotensor,
@@ -4587,6 +4595,7 @@ def from_pytorch(
         if inp.type().kind() == "TupleType" or inp.type().kind() == "ListType":
             enable_lower_all_tuples = False
             break
+
     _run_jit_passes(graph, enable_lower_all_tuples)
 
     if custom_convert_map:
