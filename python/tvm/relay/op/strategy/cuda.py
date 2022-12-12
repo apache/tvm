@@ -136,6 +136,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
     # pylint: disable=import-outside-toplevel
     from tvm.auto_scheduler import is_auto_scheduler_enabled
     from tvm.meta_schedule import is_meta_schedule_enabled
+
     # pylint: enable=import-outside-toplevel
     strategy = _op.OpStrategy()
     data, kernel = inputs
@@ -522,6 +523,7 @@ def conv2d_winograd_without_weight_transform_strategy_cuda(attrs, inputs, out_ty
     # pylint: disable=import-outside-toplevel
     from tvm.auto_scheduler import is_auto_scheduler_enabled
     from tvm.meta_schedule import is_meta_schedule_enabled
+
     # pylint: enable=import-outside-toplevel
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
@@ -871,6 +873,7 @@ def matmul_strategy_cuda(attrs, inputs, out_type, target):
     # pylint: disable=import-outside-toplevel
     from tvm.auto_scheduler import is_auto_scheduler_enabled
     from tvm.meta_schedule import is_meta_schedule_enabled
+
     # pylint: enable=import-outside-toplevel
     strategy = _op.OpStrategy()
 

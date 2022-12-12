@@ -576,6 +576,7 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
         # pylint: disable=import-outside-toplevel
         from tvm.auto_scheduler import is_auto_scheduler_enabled
         from tvm.meta_schedule import is_meta_schedule_enabled
+
         # pylint: enable=import-outside-toplevel
         strategy.add_implementation(
             wrap_compute_dense(
