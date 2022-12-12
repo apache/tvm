@@ -638,18 +638,6 @@ if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTES
   include_directories("${USE_HEXAGON_GTEST}/include")
 endif()
 
-if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND EXISTS ${USE_OPENCL_GTEST})
-  include(FetchContent)
-  FetchContent_Declare(googletest SOURCE_DIR "${USE_OPENCL_GTEST}")
-  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-  FetchContent_MakeAvailable(googletest)
-  target_link_libraries(tvm_runtime PUBLIC gtest)
-  target_link_libraries(tvm PUBLIC gtest)
-  include_directories("${USE_OPENCL_GTEST}/include")
-  include_directories("${USE_OPENCL_GTEST}/googletest/include")
-  message(STATUS "Found OpenCL gtest at ${USE_OPENCL_GTEST}")
-endif()
-
 # Set flags for clang
 include(cmake/modules/ClangFlags.cmake)
 set(CRC16_INCLUDE_PATH "3rdparty/libcrc/include")
@@ -713,9 +701,6 @@ add_custom_target(runtime DEPENDS tvm_runtime)
 install(TARGETS tvm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
-  install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
-endif()
-if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND EXISTS ${USE_OPENCL_GTEST})
   install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 endif()
 
