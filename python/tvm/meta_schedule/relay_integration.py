@@ -78,8 +78,6 @@ def _normalize_params(
     Dict[str, Any],
     Optional["relay.backend.Executor"],
 ]:
-    from tvm import relay  # pylint: disable=import-outside-toplevel
-
     if isinstance(mod, relay.Function):
         mod = IRModule.from_expr(mod)
     if not isinstance(target, Target):
@@ -372,10 +370,6 @@ def compile_relay(
     lib : Union[Module, tvm.runtime.vm.Executable]
         The built runtime module or vm Executable for the given relay workload.
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm import relay
-
-    # pylint: enable=import-outside-toplevel
     mod, target, params, pass_config, executor = _normalize_params(
         mod, target, params, pass_config, executor
     )
