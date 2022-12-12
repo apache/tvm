@@ -14,6 +14,7 @@ class VectorProcessor():
         self.latency = self.import_latency(model)
         self.type = self.import_type(model)
         self.debug = debug
+        self.bias = 56
 
     def import_slot(self, model):
         return Config[model]['Slot']
@@ -56,6 +57,7 @@ class VectorProcessor():
         self.optimize('register')
         self.optimize('filter load') # For kernels that use filter; e.g, Dwconv
         self.optimize('mac')
+        self.optimize('LUT')
         self.optimize('consecutive max')
         self.optimize('consecutive mac')
         self.optimize('loop end')
@@ -172,6 +174,8 @@ class VectorProcessor():
             FLAG = self.optimize_filter_load()
         elif option == 'mac':
             FLAG = self.optimize_mac()
+        elif option == 'LUT':
+            FLAG = self.optimize_LUT()
         elif option == 'consecutive max':
             FLAG = self.optimize_consecutive_max()
         elif option == 'consecutive mac':
@@ -207,8 +211,8 @@ class VectorProcessor():
 
         # Initialize: clk=0
         clk = 0
-        rdy_nodes = [node for node in self.graph.nodes if self.graph.in_degree(node)==0]
-        in_nodes = list(set(self.graph.nodes)-set(rdy_nodes)) # Update in_nodes
+        rdy_nodes = sorted([node for node in self.graph.nodes if self.graph.in_degree(node)==0])
+        in_nodes = sorted(list(set(self.graph.nodes)-set(rdy_nodes))) # Update in_nodes
         loop_stack = ['NO LOOP']
 
         while True:
@@ -222,7 +226,7 @@ class VectorProcessor():
             clk = clk+1
 
         self.print_node_status(clk, in_nodes, rdy_nodes, out_nodes)
-        self.single_iteration = clk+1
+        # self.single_iteration = clk+1
         self.print_time_stamp()
 
     def estimate_cycles(self, SWP=True):
@@ -276,7 +280,8 @@ class VectorProcessor():
                 if depth[idx] > depth[idx-1] and depth[idx] > depth[idx+1]:
                     local_maxima.append(idx)
             for lm in local_maxima:
-                SI = self.single_iteration
+                # SI = self.single_iteration
+                SI = self.get_single_iteration(lm, duration)
                 II = self.get_initiation_interval(lm, nodes, scalar_time, duration)
                 CI = math.ceil(SI/II)
                 node_num = nodes[lm]
@@ -303,7 +308,7 @@ class VectorProcessor():
             raise RuntimeError("Error!!: 'name', 'depth', 'extent', 'scalar_time', 'duration' must have same length!!")
 
         cycles = []
-        self.estimated_cycles = 0
+        self.estimated_cycles = self.bias # bias_cycle=56
         for i in range(0, len(name)):
             cycles.append("%s*max(%s, %s)"%(extent[i], scalar_time[i], duration[i]))
             if isinstance(extent[i], tuple) and isinstance(duration[i], tuple):
@@ -412,6 +417,7 @@ class VectorProcessor():
                 if all([self.slot[s]==[] for s in self.slot.keys()]): # If all slots are IDLE, 'Occupy'!!
                     for s in self.slot.keys():
                         self.slot[s].append({'node': rn, 'start': clk, 'end': clk+dur}) # Occupy
+                        self.graph.nodes[rn]['time'] = (clk, clk+dur)
                         # self.time_stamp_update(clk, 'Control', rn)
                 else: # Else, move to next clk
                     continue
@@ -420,6 +426,7 @@ class VectorProcessor():
                 CHECK_SAME_NODE = all([slot_node['node']!=rn for slot_node in self.slot[slot]])
                 if CHECK_START_TIME and CHECK_SAME_NODE:
                     self.slot[slot].append({'node': rn, 'start': clk, 'end': clk+dur}) # Occupy
+                    self.graph.nodes[rn]['time'] = (clk, clk+dur)
                     self.time_stamp_update(clk, slot, rn)
 
     def node_update(self, free_nodes, in_nodes, rdy_nodes, out_nodes):
@@ -437,6 +444,7 @@ class VectorProcessor():
         tmp = list(dict.fromkeys(tmp)) # remove duplicates
         in_nodes = [n for n in in_nodes if n not in tmp] # remove newly_ready_nodes from in_nodes
         rdy_nodes.extend(tmp) # add newly_ready_nodes to rdy_nodes
+        rdy_nodes = sorted(rdy_nodes)
         return in_nodes, rdy_nodes, out_nodes
 
     def time_stamp_update(self, clk, str, node_num):
@@ -476,25 +484,6 @@ class VectorProcessor():
                 for t in ((p, c) for p in parents for c in children):
                     self.graph.add_edge(*t)
                 self.graph.remove_node(node)
-        # for register in register_nodes:
-        #     store_nodes = [node for node in register if self.graph.nodes[node]['type']=='Store']
-        #     load_nodes = [node for node in register if self.graph.nodes[node]['type']=='Load']
-        #     CONNECTED = False
-        #     for t in ((s, l) for s in store_nodes for l in load_nodes):
-        #         if self.graph.has_edge(*t): # t[0]: store_node, t[1]: load_node
-        #             CONNECTED = True
-        #             self.graph.remove_edge(t[0], t[1])
-        #             # Connect store_node's parent --> store_node's children
-        #             grand_parents = [node for node in self.graph.predecessors(t[0])]
-        #             children = [node for node in self.graph.successors(t[0])]
-        #             for t in ((gp, c) for gp in grand_parents for c in children):
-        #                 self.graph.add_edge(*t)
-        #             # Connect load_node's parent --> load_node's children
-        #             parents = [node for node in self.graph.predecessors(t[1])]
-        #             grand_children = [node for node in self.graph.successors(t[1])]
-        #             for t in ((p, gc) for p in parents for gc in grand_children):
-        #                 self.graph.add_edge(*t)
-        #     if CONNECTED==True: [self.graph.remove_node(node) for node in register]
         return FLAG
 
     def optimize_loop_end(self):
@@ -601,6 +590,61 @@ class VectorProcessor():
             self.graph.remove_node(add_node)
         return FLAG
 
+    def optimize_LUT(self):
+        """ LUT is substituted with several nodes(LUT0, LUT1, LUT2, LUT3) """
+        #############################################################
+        #       [parents]       #             [parents]             #
+        #           |           #                 |                 #
+        #         [LUT]         #   [LUT0 -> LUT1 -> LUT2 -> LUT3]  #
+        #           |           #                 |                 #
+        #       [Children]      #             [Children]            #
+        #############################################################
+        FLAG = False
+        LUT_nodes = [node for node in self.graph.nodes if self.graph.nodes[node]['type']=='LUT' and \
+                                                            self.graph.nodes[node]['slot']=='Vector']
+
+        if len(LUT_nodes) > 0: FLAG = True
+        for LUT_node in LUT_nodes:
+            parents = list(self.graph.predecessors(LUT_node))
+            children = list(self.graph.successors(LUT_node))
+            node_num = max(self.graph.nodes)+1
+
+            # LUT0
+            self.graph.add_node(node_num+0)
+            self.graph.nodes[node_num+0]['name'] = self.graph.nodes[LUT_node]['name']+'0'
+            self.graph.nodes[node_num+0]['type'] = 'LUT0'
+            self.graph.nodes[node_num+0]['slot'] = 'Vector'
+
+            # LUT1
+            self.graph.add_node(node_num+1)
+            self.graph.nodes[node_num+1]['name'] = self.graph.nodes[LUT_node]['name']+'1'
+            self.graph.nodes[node_num+1]['type'] = 'LUT1'
+            self.graph.nodes[node_num+1]['slot'] = 'Vector'
+
+            # LUT2
+            self.graph.add_node(node_num+2)
+            self.graph.nodes[node_num+2]['name'] = self.graph.nodes[LUT_node]['name']+'1'
+            self.graph.nodes[node_num+2]['type'] = 'LUT2'
+            self.graph.nodes[node_num+2]['slot'] = 'Vector'
+
+            # LUT3
+            self.graph.add_node(node_num+3)
+            self.graph.nodes[node_num+3]['name'] = self.graph.nodes[LUT_node]['name']+'1'
+            self.graph.nodes[node_num+3]['type'] = 'LUT3'
+            self.graph.nodes[node_num+3]['slot'] = 'Vector'
+
+            # Connect (Parents -> (LUT0 -> LUT1 -> LUT2 -> LUT3) -> Children)
+            [self.graph.add_edge(parent, node_num+0) for parent in parents]
+            [self.graph.add_edge(parent, node_num+1) for parent in parents]
+            [self.graph.add_edge(parent, node_num+2) for parent in parents]
+            [self.graph.add_edge(parent, node_num+3) for parent in parents]
+            self.graph.add_edge(node_num+0, node_num+1)
+            self.graph.add_edge(node_num+1, node_num+2)
+            self.graph.add_edge(node_num+2, node_num+3)
+            [self.graph.add_edge(node_num+3, child) for child in children]
+            self.graph.remove_node(LUT_node)
+        return FLAG
+
     def optimize_consecutive_max(self):
         """ Consecutive MAX can be bypassed (MAXP_3x3) """
         FLAG = False
@@ -646,35 +690,56 @@ class VectorProcessor():
                 # node_num, info = self.time_stamp[time]['loop'], self.graph.nodes[self.time_stamp[time]['loop']]
                 # print("#(%d): %d, %s"%(time, node_num, info))
 
+    def get_single_iteration(self, idx, duration):
+        if self.debug: print(">>> Get Single Iteration")
+        start_time, end_time = sum(duration[0:idx]), sum(duration[0:idx+1])
+        single_iteration = end_time - start_time
+        for_start_time, for_end_time = self.latency['Control']['For Start'][0], self.latency['Control']['For End'][0]
+        single_iteration -= (for_start_time + for_end_time)
+        return single_iteration
+
     def get_initiation_interval(self, idx, nodes, scalar_time, duration):
+        # Compare following attributes of each slot to calculate II
+        # 1. Number of instructions
+        # 2. Reaching Definition (could be longer than instr_latency)
         if self.debug: print(">>> Get Initiation Interval")
         start_time, end_time = sum(duration[0:idx]), sum(duration[0:idx+1])
         Scalar, Memory, Vector = scalar_time[idx], 0, 0
-        max_instr_latency = 0
         for time in range(start_time, end_time):
-            if 'Memory' in self.time_stamp[time].keys():
-                Memory+=1
-                node_num = self.time_stamp[time]['Memory']
-                type = self.graph.nodes[node_num]['type']
-                optimize = self.graph.nodes[node_num]['optimize'] if 'optimize' in self.graph.nodes[node_num].keys() else 0
-                instr_latency = self.latency['Memory'][type][optimize]
-                if any(self.graph.nodes[child]['type']=='Memory' for child in self.graph.successors(node_num)):
-                    instr_latency+=1
-                max_instr_latency = max(max_instr_latency, instr_latency)
-            if 'Vector' in self.time_stamp[time].keys():
-                Vector+=1
-                node_num = self.time_stamp[time]['Vector']
-                type = self.graph.nodes[node_num]['type']
-                optimize = self.graph.nodes[node_num]['optimize'] if 'optimize' in self.graph.nodes[node_num].keys() else 0
-                instr_latency = self.latency['Vector'][type][optimize]
-                if any(self.graph.nodes[child]['type']=='Vector' for child in self.graph.successors(node_num)):
-                    instr_latency+=1
-                max_instr_latency = max(max_instr_latency, instr_latency)
+            if 'Memory' in self.time_stamp[time].keys(): Memory+=1
+            if 'Vector' in self.time_stamp[time].keys(): Vector+=1
+
+        #Extract SWP graph nodes (without For nodes)
+        for_start_node = nodes[idx]
+        sorted_nodes = list(nx.topological_sort(self.graph))
+        for_start_idx = sorted_nodes.index(for_start_node)
+        for_end_node = [node for node in sorted_nodes[for_start_idx:] if self.graph.nodes[node]['type']=='For End' and \
+                                        self.graph.nodes[node]['name']==self.graph.nodes[for_start_node]['name']]
+        if not len(for_end_node)==1: raise RuntimeError("Error!! For_start(%s)<->For_end(%s)"%(for_start_node, for_end_node))
+        else: for_end_node = for_end_node[0]
+        for_end_idx = sorted_nodes.index(for_end_node)
+        SWP_graph_nodes = sorted_nodes[for_start_idx+1:for_end_idx]
+
+        #Calculate Max Reaching Definition
+        max_RD = 0
+        max_node = -1
+        for node in SWP_graph_nodes:
+            # children = list(self.graph.successors(node))
+            children = [n for n in SWP_graph_nodes if self.graph.has_edge(node, n)]
+            if len(children)==0: continue
+            p_clk = self.graph.nodes[node]['time'][0]
+            c_clk = max([self.graph.nodes[child]['time'][0] for child in children])
+            RD = c_clk - p_clk
+            if RD > max_RD: # Update
+                max_RD = RD
+                max_node = node
+
+        if max_node==-1: raise RuntimeError("Error!! No reaching definition is longer than ZERO")
         min_length = max(Scalar, Memory, Vector)
         if self.debug:
             print("    (Scalar, Memory, Vector): (%s, %s, %s)"%(Scalar, Memory, Vector))
-            print("    max_instr_latency: %s"%(max_instr_latency))
-        initiation_interval = max(min_length, max_instr_latency)
+            print("    Max Reaching Definition [#%s]: %s"%(max_node, max_RD))
+        initiation_interval = max(min_length, max_RD)
         return initiation_interval
 
 def cumprod(list):
