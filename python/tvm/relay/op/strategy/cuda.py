@@ -17,10 +17,8 @@
 """Definition of CUDA/GPU operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 from tvm import topi
-from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.contrib import nvcc
 from tvm.contrib.thrust import can_use_thrust
-from tvm.meta_schedule import is_meta_schedule_enabled
 from tvm.te import SpecializedCondition
 
 from ....target import Target
@@ -135,6 +133,10 @@ def schedule_lrn_cuda(attrs, outs, target):
 @conv2d_strategy.register(["cuda", "gpu"])
 def conv2d_strategy_cuda(attrs, inputs, out_type, target):
     """conv2d cuda strategy"""
+    # pylint: disable=import-outside-toplevel
+    from tvm.auto_scheduler import is_auto_scheduler_enabled
+    from tvm.meta_schedule import is_meta_schedule_enabled
+    # pylint: enable=import-outside-toplevel
     strategy = _op.OpStrategy()
     data, kernel = inputs
     stride_h, stride_w = attrs.get_int_tuple("strides")
@@ -517,6 +519,10 @@ def judge_winograd(
 @conv2d_winograd_without_weight_transform_strategy.register(["cuda", "gpu"])
 def conv2d_winograd_without_weight_transform_strategy_cuda(attrs, inputs, out_type, target):
     """conv2d_winograd_without_weight_transform cuda strategy"""
+    # pylint: disable=import-outside-toplevel
+    from tvm.auto_scheduler import is_auto_scheduler_enabled
+    from tvm.meta_schedule import is_meta_schedule_enabled
+    # pylint: enable=import-outside-toplevel
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
     layout = attrs.data_layout
@@ -862,6 +868,10 @@ def conv1d_transpose_strategy_cuda(attrs, inputs, out_type, target):
 @matmul_strategy.register(["cuda", "gpu"])
 def matmul_strategy_cuda(attrs, inputs, out_type, target):
     """Matmul cuda strategy."""
+    # pylint: disable=import-outside-toplevel
+    from tvm.auto_scheduler import is_auto_scheduler_enabled
+    from tvm.meta_schedule import is_meta_schedule_enabled
+    # pylint: enable=import-outside-toplevel
     strategy = _op.OpStrategy()
 
     if is_auto_scheduler_enabled():

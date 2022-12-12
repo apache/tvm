@@ -19,16 +19,23 @@
 import re
 
 from tvm import topi
-from tvm.auto_scheduler import is_auto_scheduler_enabled
-from tvm.meta_schedule import is_meta_schedule_enabled
 
 from .. import op as _op
 from .generic import *
 
 
+def need_shedule_layout():
+    # pylint: disable=import-outside-toplevel
+    from tvm.auto_scheduler import is_auto_scheduler_enabled
+    from tvm.meta_schedule import is_meta_schedule_enabled
+    # pylint: enable=import-outside-toplevel
+    return is_auto_scheduler_enabled(), is_meta_schedule_enabled()
+
+
 @conv2d_strategy.register("mali")
 def conv2d_strategy_mali(attrs, inputs, out_type, target):
     """conv2d mali strategy"""
+    need_auto_scheduler_layout, need_meta_schedule_layout = need_shedule_layout()
     strategy = _op.OpStrategy()
     data, kernel = inputs
     dilation_h, dilation_w = attrs.get_int_tuple("dilation")
@@ -75,8 +82,6 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
                 )
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
-            need_auto_scheduler_layout = is_auto_scheduler_enabled()
-            need_meta_schedule_layout = is_meta_schedule_enabled()
             if need_auto_scheduler_layout or need_meta_schedule_layout:
                 strategy.add_implementation(
                     wrap_compute_conv2d(
@@ -144,13 +149,13 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
             )
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
-            if is_auto_scheduler_enabled():
+            if need_auto_scheduler_layout:
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
                     naive_schedule,
                     name="depthwise_conv2d_nhwc.mali",
                 )
-            elif is_meta_schedule_enabled():
+            elif need_meta_schedule_layout:
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
                     naive_schedule,
@@ -172,6 +177,7 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
 @conv2d_winograd_without_weight_transform_strategy.register("mali")
 def conv2d_winograd_without_weight_transform_strategy_mali(attrs, inputs, out_type, target):
     """conv2d_winograd_without_weight_transform mali strategy"""
+    need_auto_scheduler_layout, need_meta_schedule_layout = need_shedule_layout()
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
     layout = attrs.data_layout
@@ -189,8 +195,6 @@ def conv2d_winograd_without_weight_transform_strategy_mali(attrs, inputs, out_ty
             name="conv2d_nchw_winograd.mali",
         )
     elif layout == "NHWC":
-        need_auto_scheduler_layout = is_auto_scheduler_enabled()
-        need_meta_schedule_layout = is_meta_schedule_enabled()
         if need_auto_scheduler_layout or need_meta_schedule_layout:
             strategy.add_implementation(
                 wrap_compute_conv2d(
@@ -216,14 +220,15 @@ def conv2d_winograd_without_weight_transform_strategy_mali(attrs, inputs, out_ty
 @dense_strategy.register("mali")
 def dense_strategy_mali(attrs, inputs, out_type, target):
     """dense mali strategy"""
+    need_auto_scheduler_layout, need_meta_schedule_layout = need_shedule_layout()
     strategy = _op.OpStrategy()
-    if is_auto_scheduler_enabled():
+    if need_auto_scheduler_layout:
         strategy.add_implementation(
             wrap_compute_dense(topi.nn.dense, need_auto_scheduler_layout=True),
             naive_schedule,
             name="dense.mali",
         )
-    elif is_meta_schedule_enabled():
+    elif need_meta_schedule_layout:
         strategy.add_implementation(
             wrap_compute_dense(topi.nn.dense, need_meta_schedule_layout=True),
             naive_schedule,

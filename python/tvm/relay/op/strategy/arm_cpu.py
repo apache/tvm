@@ -23,8 +23,6 @@ import re
 
 from tvm import relay, topi, tir
 
-from ....auto_scheduler import is_auto_scheduler_enabled
-from ....meta_schedule import is_meta_schedule_enabled
 from ....topi.generic import conv2d as conv2d_generic
 from .. import op as _op
 from .generic import *
@@ -575,6 +573,10 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
             )
             return strategy
         logger.warning("dense is not optimized for arm cpu.")
+        # pylint: disable=import-outside-toplevel
+        from tvm.auto_scheduler import is_auto_scheduler_enabled
+        from tvm.meta_schedule import is_meta_schedule_enabled
+        # pylint: enable=import-outside-toplevel
         strategy.add_implementation(
             wrap_compute_dense(
                 topi.nn.dense,

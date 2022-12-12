@@ -20,8 +20,6 @@ import logging
 import re
 
 from tvm import tir, topi
-from tvm.auto_scheduler import is_auto_scheduler_enabled
-from tvm.meta_schedule import is_meta_schedule_enabled
 from tvm.relay.ty import is_dynamic
 from tvm.target import Target
 from tvm.te import SpecializedCondition
@@ -34,6 +32,14 @@ logger = logging.getLogger("strategy")
 
 _NCHWc_matcher = re.compile("^NCHW[0-9]+c$")
 _OIHWio_matcher = re.compile("^OIHW[0-9]+i[0-9]+o$")
+
+
+def need_shedule_layout():
+    # pylint: disable=import-outside-toplevel
+    from tvm.auto_scheduler import is_auto_scheduler_enabled
+    from tvm.meta_schedule import is_meta_schedule_enabled
+    # pylint: enable=import-outside-toplevel
+    return is_auto_scheduler_enabled(), is_meta_schedule_enabled()
 
 
 @schedule_injective.register("cpu")
@@ -113,8 +119,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
 
-    need_auto_scheduler_layout = is_auto_scheduler_enabled()
-    need_meta_schedule_layout = is_meta_schedule_enabled()
+    need_auto_scheduler_layout, need_meta_schedule_layout = need_shedule_layout()
 
     if groups == 1:
         if layout == "NCHW":
@@ -345,8 +350,7 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
     """conv3d generic strategy"""
     strategy = _op.OpStrategy()
     layout = attrs.data_layout
-    need_auto_scheduler_layout = is_auto_scheduler_enabled()
-    need_meta_schedule_layout = is_meta_schedule_enabled()
+    need_auto_scheduler_layout, need_meta_schedule_layout = need_shedule_layout()
     if need_auto_scheduler_layout or need_meta_schedule_layout:
         # Use auto-scheduler. We should provide clear compute definition without autotvm templates
         # or packed layouts.
@@ -479,8 +483,7 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
         if length_before == length_after:
             logger.warning("Currently dnnl only support the data type to be float32. Skip.")
 
-    need_auto_scheduler_layout = is_auto_scheduler_enabled()
-    need_meta_schedule_layout = is_meta_schedule_enabled()
+    need_auto_scheduler_layout, need_meta_schedule_layout = need_shedule_layout()
     if need_auto_scheduler_layout or need_meta_schedule_layout:
         strategy.add_implementation(
             wrap_compute_matmul(
@@ -546,8 +549,7 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
         plevel=10,
     )
 
-    need_auto_scheduler_layout = is_auto_scheduler_enabled()
-    need_meta_schedule_layout = is_meta_schedule_enabled()
+    need_auto_scheduler_layout, need_meta_schedule_layout = need_shedule_layout()
 
     if need_auto_scheduler_layout or need_meta_schedule_layout:
         strategy.add_implementation(
@@ -622,8 +624,7 @@ def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     mcpu = Target.current().mcpu
 
-    need_auto_scheduler_layout = is_auto_scheduler_enabled()
-    need_meta_schedule_layout = is_meta_schedule_enabled()
+    need_auto_scheduler_layout, need_meta_schedule_layout = need_shedule_layout()
 
     if (
         not attrs.transpose_a
@@ -793,8 +794,7 @@ def conv2d_winograd_without_weight_transform_strategy_cpu(attrs, inputs, out_typ
     assert strides == (1, 1), "Do not support strides now"
     assert groups == 1, "Do not support arbitrary group number"
     strategy = _op.OpStrategy()
-    need_auto_scheduler_layout = is_auto_scheduler_enabled()
-    need_meta_schedule_layout = is_meta_schedule_enabled()
+    need_auto_scheduler_layout, need_meta_schedule_layout = need_shedule_layout()
     if layout == "NHWC":
         if need_meta_schedule_layout:
             strategy.add_implementation(

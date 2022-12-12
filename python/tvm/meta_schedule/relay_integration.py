@@ -45,6 +45,7 @@ from .tune import tune_tasks
 from .tune_context import TuneContext
 from .utils import fork_seed
 
+from tvm import relay
 if TYPE_CHECKING:
     from tvm import relay
 
