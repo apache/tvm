@@ -5600,11 +5600,13 @@ class SplitToSequence(OnnxOpConverter):
             if keepdims == 0:
                 output = [_op.squeeze(tensor_slice, axis=[axis]) for tensor_slice in output]
             return _expr.Tuple(list(output))
-        
+
         # Otherwise, split based on provided split value.
         else:
             # For now we only support constant valued split.
-            assert isinstance(split, _expr.Constant), "Only constant split supported for SplitToSequence"
+            assert isinstance(
+                split, _expr.Constant
+            ), "Only constant split supported for SplitToSequence"
             split = split.data.numpy()
             if len(split.shape) == 1 and split.shape[0] > 1:
                 # If split is a 1D tensor, it must be converted to indices for relay compatibility.
@@ -5614,15 +5616,15 @@ class SplitToSequence(OnnxOpConverter):
             else:
                 # Otherwise get split as an integer.
                 split = int(split)
-            
+
             output = _op.split(input_tensor, split, axis=axis)
-                
+
             # If keepdims is set to 0 remove split axis. Note that this is
             # an inconsistency with the onnx spec but is needed for pytorch compatibility.
             if keepdims == 0:
                 output = [_op.squeeze(tensor_slice, axis=[axis]) for tensor_slice in output]
             return _expr.Tuple(list(output))
-        
+
 
 class SequenceAt(OnnxOpConverter):
     """Operator converter for sequence at op."""
@@ -5631,7 +5633,9 @@ class SequenceAt(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
         input_sequence = inputs[0]
         position = inputs[1]
-        assert isinstance(position, _expr.Constant), "Only constant position supported for SequenceAt"
+        assert isinstance(
+            position, _expr.Constant
+        ), "Only constant position supported for SequenceAt"
         # Convert position to integer.
         position = int(position.data.numpy())
         return input_sequence[position]

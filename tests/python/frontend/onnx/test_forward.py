@@ -7066,12 +7066,17 @@ def test_sequence(target, dev):
 
         # Test sequence insertion.
         insert_node = helper.make_node(
-            "SequenceInsert", inputs=["sequence", input_tensor_names[0], "position"], outputs=["inserted_sequence"]
+            "SequenceInsert",
+            inputs=["sequence", input_tensor_names[0], "position"],
+            outputs=["inserted_sequence"],
         )
 
         # Test sequence concatenation.
         concat_node = helper.make_node(
-            "ConcatFromSequence", inputs=["inserted_sequence"], outputs=["concat_sequence"], axis=axis
+            "ConcatFromSequence",
+            inputs=["inserted_sequence"],
+            outputs=["concat_sequence"],
+            axis=axis,
         )
 
         # Test splitting a tensor into a sequence.
