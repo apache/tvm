@@ -48,7 +48,7 @@ bool SimulatedQuantizeRel(const Array<Type>& types, int num_inputs, const Attrs&
   if (data == nullptr) {
     return false;
   }
-
+  //printf("%s\n", param->name.c_str());
   ICHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
 
   if(param->kind == QAnnotateKind::kQWeight && param->per_channel){

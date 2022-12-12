@@ -70,10 +70,10 @@ std::pair<int32_t, int32_t> GetFixedPointMultiplierShift_16(double double_multip
   // Convert the double significand to int significand, i.e., convert into a
   // integer where the decimal point is between bit 31 and 30. This is done by
   // multiplying the double value with 2^31 and then casting to int.
-  significand_d = std::round(significand_d * (1ll << 15));
+  significand_d = std::round(significand_d * (1ll << 19));
   auto significand_int64 = static_cast<int64_t>(significand_d);
-  ICHECK_LE(significand_int64, (1ll << 15));
-  if (significand_int64 == (1ll << 15)) {
+  ICHECK_LE(significand_int64, (1ll << 19));
+  if (significand_int64 == (1ll << 19)) {
     significand_int64 /= 2;
     ++exponent;
   }
@@ -89,13 +89,127 @@ std::pair<int32_t, int32_t> GetFixedPointMultiplierShift_12(double double_multip
     exponent = 0;
     return std::make_pair(significand, exponent);
   }
-
+  int32_t shift;
+  
   // Get the significand and exponent.
   double significand_d = std::frexp(double_multiplier, &exponent);
 
   // Convert the double significand to int significand, i.e., convert into a
   // integer where the decimal point is between bit 31 and 30. This is done by
   // multiplying the double value with 2^31 and then casting to int.
+
+  // if (-exponent + 11 >= 8 && -exponent + 11 < 15){
+  //   shift = 8 + exponent;
+  // }
+  // else if (-exponent + 11 >= 15 && -exponent + 11 < 18){
+  //   shift = 15 + exponent;
+  // }
+  // else if (-exponent + 11 >= 18 && -exponent + 11 < 21){
+  //   shift = 18 + exponent;
+  // }
+  // else if(-exponent + 11 >= 21 &&  -exponent + 11 < 25){
+  //   shift = 21 +exponent;
+  // }
+  // else if(-exponent + 11 >= 25 &&  -exponent + 11 < 29){
+  //   shift = 25 + exponent;
+  // }
+  // else if(-exponent + 11 >= 29 &&  -exponent + 11 < 31){
+  //   shift = 29 + exponent;
+  // }
+  // else if(-exponent + 11 >= 31 &&  -exponent + 11 < 39){
+  //   shift = 31 + exponent;
+  // }
+  // else{
+  //   shift = 0;
+  // }
+
+  // if (-exponent + 11 >=8 && -exponent + 11 < 10){
+  //   shift = 8 + exponent;
+  // }
+  // else if (-exponent + 11 >= 10 && -exponent + 11 < 12){
+  //   shift = 10 + exponent;
+  // }
+  // else if (-exponent + 11 >= 12 && -exponent + 11 < 14){
+  //   shift = 12 + exponent;
+  // }
+  // else if (-exponent + 11 >= 14 && -exponent + 11 < 16){
+  //   shift = 14 + exponent;
+  // }
+  // else if (-exponent + 11 >= 16 && -exponent + 11 < 18){
+  //   shift = 16 + exponent;
+  // }
+  // else if(-exponent + 11 >= 18 &&  -exponent + 11 < 20){
+  //   shift = 18 +exponent;
+  // }
+  // else if(-exponent + 11 >= 20 &&  -exponent + 11 < 22){
+  //   shift = 20 + exponent;
+  // }
+  // else if (-exponent + 11 >= 22 && -exponent + 11 < 24){
+  //   shift = 22 + exponent;
+  // }
+  // else if (-exponent + 11 >= 24 && -exponent + 11 < 26){
+  //   shift = 24 + exponent;
+  // }
+  // else if(-exponent + 11 >= 26 &&  -exponent + 11 < 28){
+  //   shift = 26 +exponent;
+  // }
+  // else if(-exponent + 11 >= 28 &&  -exponent + 11 < 30){
+  //   shift = 28 + exponent;
+  // }
+  // else if (-exponent + 11 >= 30 && -exponent + 11 < 32){
+  //   shift = 30 + exponent;
+  // }
+  // else if(-exponent + 11 >= 32 &&  -exponent + 11 < 34){
+  //   shift = 32 +exponent;
+  // }
+  // else if(-exponent + 11 >= 34 &&  -exponent + 11 < 36){
+  //   shift = 34 + exponent;
+  // }
+  // else if (-exponent + 11 >= 36 && -exponent + 11 < 38){
+  //   shift = 36 + exponent;
+  // }
+  // else if(-exponent + 11 >= 38 &&  -exponent + 11 < 40){
+  //   shift = 38 +exponent;
+  // }
+  // else{
+  //   shift = 11;
+  // }
+
+  // if (-exponent + 11 >=8 && -exponent + 11 < 10){
+  //   shift = 8 + exponent;
+  // }
+  // else if (-exponent + 11 >= 10 && -exponent + 11 < 12){
+  //   shift = 10 + exponent;
+  // }
+  // else if (-exponent + 11 >= 12 && -exponent + 11 < 14){
+  //   shift = 12 + exponent;
+  // }
+  // else if (-exponent + 11 >= 14 && -exponent + 11 < 16){
+  //   shift = 14 + exponent;
+  // }
+  // else if(-exponent + 11 >= 32 &&  -exponent + 11 < 34){
+  //   shift = 32 +exponent;
+  // }
+  // else if(-exponent + 11 >= 34 &&  -exponent + 11 < 36){
+  //   shift = 34 + exponent;
+  // }
+  // else if (-exponent + 11 >= 36 && -exponent + 11 < 38){
+  //   shift = 36 + exponent;
+  // }
+  // else if(-exponent + 11 >= 38 &&  -exponent + 11 < 40){
+  //   shift = 38 +exponent;
+  // }
+  // else{
+  //   shift = 11;
+  // }
+  // printf("exponent:%d,-exponent+shift:%d,shift:%d\n", exponent, -exponent+shift, shift);
+  // significand_d = std::round(significand_d * (1ll << shift));
+  // auto significand_int64 = static_cast<int64_t>(significand_d);
+  // ICHECK_LE(significand_int64, (1ll << shift));
+  // if (significand_int64 == (1ll << shift)) {
+  //   significand_int64 /= 2;
+  //   ++exponent;
+  // }
   significand_d = std::round(significand_d * (1ll << 11));
   auto significand_int64 = static_cast<int64_t>(significand_d);
   ICHECK_LE(significand_int64, (1ll << 11));
@@ -139,7 +253,7 @@ Expr FixedPointMultiplyToNearest_16bit(Expr tensor, double multiplier,
   // 4) Find the rounding scalar. This depends on where the final decimal
   // point sits. As we will be right shifting the multiplied_t, we need to
   // first calculate the total_right_shift.
-  int total_right_shift = right_shift + 15;
+  int total_right_shift = right_shift + 19;
   int64_t pos_rounding_value = (1ll << (total_right_shift - 1));
 
   Expr round_scalar;
@@ -172,8 +286,113 @@ Expr FixedPointMultiplyToNearest_12bit(Expr tensor, double multiplier,
   // 1) Calculating the integer multiplier and integer shift
   int32_t fixed_point_multiplier, shift;
   std::tie(fixed_point_multiplier, shift) = GetFixedPointMultiplierShift_12(multiplier);
+  //printf("multiplier:%lf\n",multiplier);
   //printf("12bit_fixed_pertensor:%.10f = %d * 2^%d\n",multiplier, fixed_point_multiplier, shift-11);
+  int32_t real_shift;
+  // if (-shift + 11 >=8 && -shift + 11 < 15){
+  //   real_shift = 8 + shift;
+  // }
+  // else if (-shift + 11 >= 15 && -shift + 11 < 18){
+  //   real_shift = 15 + shift;
+  // }
+  // else if (-shift + 11 >= 18 && -shift + 11 < 21){
+  //   real_shift = 18 + shift;
+  // }
+  // else if (-shift + 11 >= 21 && -shift + 11 < 25){
+  //   real_shift = 21 + shift;
+  // }
+  // else if (-shift + 11 >= 25 && -shift + 11 < 29){
+  //   real_shift = 25 + shift;
+  // }
+  // else if(-shift + 11 >= 29 &&  -shift + 11 < 31){
+  //   real_shift = 29 +shift;
+  // }
+  // else if(-shift + 11 >= 31 &&  -shift + 11 < 39){
+  //   real_shift = 31 + shift;
+  // }
+  // else{
+  //   real_shift = 0;
+  // }
 
+  // if (-shift + 11 >=8 && -shift + 11 < 10){
+  //   real_shift = 8 + shift;
+  // }
+  // else if (-shift + 11 >= 10 && -shift + 11 < 12){
+  //   real_shift = 10 + shift;
+  // }
+  // else if (-shift + 11 >= 12 && -shift + 11 < 14){
+  //   real_shift = 12 + shift;
+  // }
+  // else if (-shift + 11 >= 14 && -shift + 11 < 16){
+  //   real_shift = 14 + shift;
+  // }
+  // else if (-shift + 11 >= 16 && -shift + 11 < 18){
+  //   real_shift = 16 + shift;
+  // }
+  // else if(-shift + 11 >= 18 &&  -shift + 11 < 20){
+  //   real_shift = 18 +shift;
+  // }
+  // else if(-shift + 11 >= 20 &&  -shift + 11 < 22){
+  //   real_shift = 20 + shift;
+  // }
+  // else if (-shift + 11 >= 22 && -shift + 11 < 24){
+  //   real_shift = 22 + shift;
+  // }
+  // else if (-shift + 11 >= 24 && -shift + 11 < 26){
+  //   real_shift = 24 + shift;
+  // }
+  // else if(-shift + 11 >= 26 &&  -shift + 11 < 28){
+  //   real_shift = 26 +shift;
+  // }
+  // else if(-shift + 11 >= 28 &&  -shift + 11 < 30){
+  //   real_shift = 28 + shift;
+  // }
+  // else if (-shift + 11 >= 30 && -shift + 11 < 32){
+  //   real_shift = 30 + shift;
+  // }
+  // else if(-shift + 11 >= 32 &&  -shift + 11 < 34){
+  //   real_shift = 32 +shift;
+  // }
+  // else if(-shift + 11 >= 34 &&  -shift + 11 < 36){
+  //   real_shift = 34 + shift;
+  // }
+  // else if (-shift + 11 >= 36 && -shift + 11 < 38){
+  //   real_shift = 36 + shift;
+  // }
+  // else if(-shift + 11 >= 38 &&  -shift + 11 < 40){
+  //   real_shift = 38 +shift;
+  // }
+  // else{
+  //   real_shift = 11;
+  // }
+
+  // if (-shift + 11 >=8 && -shift + 11 < 10){
+  //   real_shift = 8 + shift;
+  // }
+  // else if (-shift + 11 >= 10 && -shift + 11 < 12){
+  //   real_shift = 10 + shift;
+  // }
+  // else if (-shift + 11 >= 12 && -shift + 11 < 14){
+  //   real_shift = 12 + shift;
+  // }
+  // else if (-shift + 11 >= 14 && -shift + 11 < 16){
+  //   real_shift = 14 + shift;
+  // }
+  // else if(-shift + 11 >= 32 &&  -shift + 11 < 34){
+  //   real_shift = 32 +shift;
+  // }
+  // else if(-shift + 11 >= 34 &&  -shift + 11 < 36){
+  //   real_shift = 34 + shift;
+  // }
+  // else if (-shift + 11 >= 36 && -shift + 11 < 38){
+  //   real_shift = 36 + shift;
+  // }
+  // else if(-shift + 11 >= 38 &&  -shift + 11 < 40){
+  //   real_shift = 38 +shift;
+  // }
+  // else{
+  //   real_shift = 11;
+  // }
   int left_shift = shift > 0 ? shift : 0;
   int right_shift = shift > 0 ? 0 : -shift;
   //  printf("pertensor\n");
@@ -199,6 +418,8 @@ Expr FixedPointMultiplyToNearest_12bit(Expr tensor, double multiplier,
   // point sits. As we will be right shifting the multiplied_t, we need to
   // first calculate the total_right_shift.
   int total_right_shift = right_shift + 11 - left_shift;
+  //int total_right_shift = right_shift + real_shift - left_shift;
+  //printf("total_right_shift:%d\n",total_right_shift);
   if(total_right_shift<0){
     total_right_shift = 0;
   }
@@ -294,11 +515,119 @@ Expr FixedPointMultiplyPerChannel_12bit(Expr tensor, std::vector<double> multipl
   // 1) Calculating the integer multiplier and integer shift. These are calculated per axis/per
   // channel.
   std::vector<int32_t> fixed_pt_multipliers, lshifts, rshifts;
+  int32_t real_shift;
   bool is_lshift_required = false;
   //printf("one point perchannel:\n");
   for (auto multiplier : multipliers) {
     int32_t fixed_pt_multiplier, shift;
+    //printf("multiplier = %lf\n",multiplier);
     std::tie(fixed_pt_multiplier, shift) = GetFixedPointMultiplierShift_12(multiplier);
+    // if (-shift + 11 >=8 && -shift + 11 < 15){
+    //   real_shift = 8 + shift;
+    // }
+    // else if (-shift + 11 >= 15 && -shift + 11 < 18){
+    //   real_shift = 15 + shift;
+    // }
+    // else if (-shift + 11 >= 18 && -shift + 11 < 21){
+    //   real_shift = 18 + shift;
+    // }
+    // else if (-shift + 11 >= 21 && -shift + 11 < 25){
+    //   real_shift = 21 + shift;
+    // }
+    // else if (-shift + 11 >= 25 && -shift + 11 < 29){
+    //   real_shift = 25 + shift;
+    // }
+    // else if(-shift + 11 >= 29 &&  -shift + 11 < 31){
+    //   real_shift = 29 +shift;
+    // }
+    // else if(-shift + 11 >= 31 &&  -shift + 11 < 39){
+    //   real_shift = 31 + shift;
+    // }
+    // else{
+    //   real_shift = 0;
+    // }
+
+    // if (-shift + 11 >=8 && -shift + 11 < 10){
+    //   real_shift = 8 + shift;
+    // }
+    // else if (-shift + 11 >= 10 && -shift + 11 < 12){
+    //   real_shift = 10 + shift;
+    // }
+    // else if (-shift + 11 >= 12 && -shift + 11 < 14){
+    //   real_shift = 12 + shift;
+    // }
+    // else if (-shift + 11 >= 14 && -shift + 11 < 16){
+    //   real_shift = 14 + shift;
+    // }
+    // else if (-shift + 11 >= 16 && -shift + 11 < 18){
+    //   real_shift = 16 + shift;
+    // }
+    // else if(-shift + 11 >= 18 &&  -shift + 11 < 20){
+    //   real_shift = 18 +shift;
+    // }
+    // else if(-shift + 11 >= 20 &&  -shift + 11 < 22){
+    //   real_shift = 20 + shift;
+    // }
+    // else if (-shift + 11 >= 22 && -shift + 11 < 24){
+    //   real_shift = 22 + shift;
+    // }
+    // else if (-shift + 11 >= 24 && -shift + 11 < 26){
+    //   real_shift = 24 + shift;
+    // }
+    // else if(-shift + 11 >= 26 &&  -shift + 11 < 28){
+    //   real_shift = 26 +shift;
+    // }
+    // else if(-shift + 11 >= 28 &&  -shift + 11 < 30){
+    //   real_shift = 28 + shift;
+    // }
+    // else if (-shift + 11 >= 30 && -shift + 11 < 32){
+    //   real_shift = 30 + shift;
+    // }
+    // else if(-shift + 11 >= 32 &&  -shift + 11 < 34){
+    //   real_shift = 32 +shift;
+    // }
+    // else if(-shift + 11 >= 34 &&  -shift + 11 < 36){
+    //   real_shift = 34 + shift;
+    // }
+    // else if (-shift + 11 >= 36 && -shift + 11 < 38){
+    //   real_shift = 36 + shift;
+    // }
+    // else if(-shift + 11 >= 38 &&  -shift + 11 < 40){
+    //   real_shift = 38 +shift;
+    // }
+    // else{
+    //   real_shift = 11;
+    // }
+
+    // if (-shift + 11 >=8 && -shift + 11 < 10){
+    //   real_shift = 8 + shift;
+    // }
+    // else if (-shift + 11 >= 10 && -shift + 11 < 12){
+    //   real_shift = 10 + shift;
+    // }
+    // else if (-shift + 11 >= 12 && -shift + 11 < 14){
+    //   real_shift = 12 + shift;
+    // }
+    // else if (-shift + 11 >= 14 && -shift + 11 < 16){
+    //   real_shift = 14 + shift;
+    // }
+    // else if(-shift + 11 >= 32 &&  -shift + 11 < 34){
+    //   real_shift = 32 +shift;
+    // }
+    // else if(-shift + 11 >= 34 &&  -shift + 11 < 36){
+    //   real_shift = 34 + shift;
+    // }
+    // else if (-shift + 11 >= 36 && -shift + 11 < 38){
+    //   real_shift = 36 + shift;
+    // }
+    // else if(-shift + 11 >= 38 &&  -shift + 11 < 40){
+    //   real_shift = 38 +shift;
+    // }
+    // else{
+    //   real_shift = 11;
+    // }
+    // printf("12bit_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, fixed_pt_multiplier, shift-real_shift);
+    //printf("%d\n",-shift+11);
     //printf("12bit_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, fixed_pt_multiplier, shift-11);
     int lshift = shift > 0 ? shift : 0;
     int rshift = shift > 0 ? 0 : -shift;
@@ -338,6 +667,7 @@ Expr FixedPointMultiplyPerChannel_12bit(Expr tensor, std::vector<double> multipl
   //for (auto rshift : rshifts) {
   for (size_t i = 0; i < rshifts.size(); i++){
     int total_rshift = rshifts[i] + 11 - lshifts[i];
+    //int total_rshift = rshifts[i] + real_shift - lshifts[i];
     if(total_rshift < 0){
       total_rshift = 0;
     }
@@ -432,7 +762,7 @@ Expr FixedPointMultiplyPerChannel_16bit(Expr tensor, std::vector<double> multipl
   // calculate the pos and neg rounding offset.
   std::vector<int64_t> pos_rounding_values, neg_rounding_values, total_rshifts;
   for (auto rshift : rshifts) {
-    int total_rshift = rshift + 15;
+    int total_rshift = rshift + 19;
     total_rshifts.push_back(total_rshift);
     pos_rounding_values.push_back((1ll << (total_rshift - 1)));
     neg_rounding_values.push_back((1ll << (total_rshift - 1)) - 1);

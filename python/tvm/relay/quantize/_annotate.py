@@ -321,7 +321,7 @@ def multiply_rewrite(ref_call, new_args, ctx):
             qnode_name = get_layer_name(lhs_expr)
             lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT, qnode_name)
         if _analysis.check_constant(rhs_expr):
-            if rhs_expr.data.shape == 0:
+            if len(rhs_expr.data.shape) == 0:
                 pass
             else:
                 qnode_name = ref_call.op.name + "_" + "weight" + "_" + str(inference_layer_count) + "_0" + ":in"
@@ -357,7 +357,7 @@ def add_rewrite(ref_call, new_args, ctx):
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
-
+    
     if lhs_kind is None and rhs_kind is None:
         # trivial case
         return None
@@ -365,8 +365,13 @@ def add_rewrite(ref_call, new_args, ctx):
     if lhs_kind is None and rhs_kind is not None:
         # quantize lhs to INPUT field if it is normal expression
         assert rhs_kind in [QAnnotateKind.INPUT, QAnnotateKind.ACTIVATION]
-        qnode_name = get_layer_name(lhs_expr)
-        lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT, qnode_name)
+        qnode_name_lhs = get_layer_name(lhs_expr)
+        qnode_name_rhs = get_layer_name(rhs_expr)
+        
+        lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT, qnode_name_lhs)
+        #rhs_expr = new_args[1].realize()
+        #if rhs_kind is QAnnotateKind.ACTIVATION:
+        #    rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT, qnode_name_rhs)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
         return QAnnotateExpr(expr, QAnnotateKind.INPUT)
 
@@ -388,8 +393,8 @@ def add_rewrite(ref_call, new_args, ctx):
             return QAnnotateExpr(expr, QAnnotateKind.INPUT)
         if lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.ACTIVATION:
             qnode_name = get_layer_name(rhs_expr)
-            rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT, qnode_name)
-            expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+            #rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT, qnode_name)    # To support transformer vit , add the double-add opperator fusing.
+            expr = _forward_op(ref_call, [lhs_expr, rhs_expr]) 
             return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
         if (lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.INPUT) or (
             lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.ACTIVATION
@@ -663,8 +668,11 @@ def calibrate_rewrite(ref_call, new_args, ctx):
                 args_out.append(arg)
         elif(isinstance(arg, _expr.Constant)):
             if(ref_call.op == add_op):
-                qnode_name = ref_call.op.name + "_" + "bias" + "_" + str(layer_count) + "_" + str(weight_count) + ":in"
-                new_arg = attach_simulated_quantize(arg, QAnnotateKind.BIAS, qnode_name)
+                if( len(arg.data.shape) == 0):
+                    new_arg = arg
+                else:
+                    qnode_name = ref_call.op.name + "_" + "bias" + "_" + str(layer_count) + "_" + str(weight_count) + ":in"
+                    new_arg = attach_simulated_quantize(arg, QAnnotateKind.BIAS, qnode_name)
             elif(ref_call.op == pad_op): #pad
                 new_arg = arg
             else:

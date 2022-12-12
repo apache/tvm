@@ -17,6 +17,24 @@ from .. import transform as _transform
 from . import _quantize
 from tvm import relay
 
+
+def _get_mean_runtime(mod):
+    func = mod["main"]
+    func = _quantize.CreateMeanCollector(func)
+
+    if tvm.target.Target.current():
+        target = tvm.target.Target.current()
+        dev = tvm.device(target.kind.name)
+    else:
+        target = "llvm"
+        dev = tvm.device(target)
+
+    with tvm.transform.PassContext(opt_level=3):
+        lib = _build_module.build(func, target=target)
+    runtime = graph_executor.GraphModule(lib["default"](dev))
+
+    return runtime
+
 def _get_relu_runtime(mod):
     func = mod["main"]
     func = _quantize.CreateReluCollector(func)

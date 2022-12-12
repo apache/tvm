@@ -666,7 +666,7 @@ def quantize_inference(mod, params=None):
     ):
         with quantize_context():
             dbg_mod = quantize_seq(mod)
-    
+            
     # dbg_mod does not fold constant for print weight purpose
     mod = _transform.FoldConstant()(dbg_mod)
 

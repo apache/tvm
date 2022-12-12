@@ -278,9 +278,11 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
   Expr zero_point = new_args[4];
 
   //std::vector<float> dom_scale_imm_vector;
-//测试：当没有per layer的时候
+  //测试：当没有per layer的时候
   //float dom_scale_imm = GetScalarFromConstant<float>(dom_scale);
+  //printf("into 1\n");
   auto dom_scales = tvm::relay::qnn::GetFloatVectorFromConstant(dom_scale);
+  //printf("into 2\n");
   float dom_scale_imm = static_cast<float>(dom_scales[0]);
 
   float clip_min_imm = GetScalarFromConstant<float>(clip_min);
@@ -337,14 +339,14 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
       if(cfg->per_channel && si_s.size() > 1){
         //printf("3\n");
         
-         
+         /*
         //printf("si.size = %ld\n",si_s.size());
         data = Cast(data, DataType::Float(32));
         data = Multiply(data, CheckPointSiso(Divide(Cast(n->dom_scale, DataType::Float(32)), dom_scale)));
         data = Cast(Round(data), cfg->dtype_activation); //newchange
-          
+          */
       
-      /*
+      
         auto si_s = tvm::relay::qnn::GetFloatVectorFromConstant(n->dom_scale);
         //printf("si.size = %ld\n",si_s.size());
         auto so_s = tvm::relay::qnn::GetFloatVectorFromConstant(dom_scale);
@@ -352,7 +354,9 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
         for (size_t i = 0; i < si_s.size(); i++) {
           double si_so = static_cast<double>(si_s[i]) / static_cast<double>(so_s[0]);
           s.push_back(si_so);
+          //printf("si/so = %lf\n",si_so);
         }
+        
         if(cfg->fixed_point_is16){
           data = CheckPointconvpsum(qnn::FixedPointMultiplyPerChannel_16bit(data, s, ref_call->type_as<TensorTypeNode>()->shape, 1, "TONEAREST"));
           //data = MulAndDiv_perchannel_upward_16(data, s, cfg->dtype_activation); //newchange
@@ -362,7 +366,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
           //data = MulAndDiv_perchannel_upward_12(data, s, cfg->dtype_activation); //newchange
         }
         //printf("MulAndDiv_perchannel_upward done\n");
-      */
+      
       }
       else{
         //if (cfg->rounding == "UPWARD") {
@@ -925,7 +929,7 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
       for (size_t i = 0; i < ret.size(); ++i) {
         auto cur_ss = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[i]->dom_scale);
         float cur_s = static_cast<float>(cur_ss[0]);
-        printf("s1/s2= %f\n",cur_s/s);
+        //printf("s1/s2= %f\n",cur_s/s);
         ret.Set(i,Subtract(ret[i], zp[i]));
         ret.Set(i, MulAndDiv_nobias(ret[i], cur_s, s, dtype, ref_args[i]->type_as<TensorTypeNode>()->shape));
         ret.Set(i, Cast(Round(ret[i]), dtype));
@@ -1061,7 +1065,7 @@ Expr ConcatenateRealize(const Call& ref_call, const Array<Expr>& new_args, const
     DataType dtype;
     Expr dom_scale;
     Array<Expr> ret_args = UnifyDTypeScale(ref_arr, arr, &dtype, &dom_scale);
-    Expr ret = CheckPoint(ForwardOp(ref_call, {Tuple(ret_args)}));
+    Expr ret = (ForwardOp(ref_call, {Tuple(ret_args)}));
     //printf("ConcatenateRealize done\n");
     Expr zero_point = MakeConstantScalar(DataType::Float(32), 0);//其实没必要存在，为了保证输入参数的统一。
     return QRealizeIntExpr(ret, dom_scale, zero_point, dtype);
@@ -1218,7 +1222,7 @@ Expr BatchMatmulRealize(const Call& ref_call, const Array<Expr>& new_args, const
   ldata = Subtract(ldata, MakeConstantScalar(cfg->dtype_input, zps_data_imm));
   rdata = Subtract(rdata, MakeConstantScalar(cfg->dtype_weight, zps_weight_imm));
 
-  Expr ret = Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args);
+  Expr ret = CheckPoint(Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args));
   Expr mul = Multiply(MakeConstantScalar(DataType::Float(32), lhs_dom_scale_imm), MakeConstantScalar(DataType::Float(32), rhs_dom_scale_imm));
   Expr dom_scale = FoldConstantOpt(mul);
   Expr zero_point = MakeConstantScalar(DataType::Float(32), 0);//其实没必要存在，为了保证输入参数的统一。

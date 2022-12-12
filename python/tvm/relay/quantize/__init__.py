@@ -30,3 +30,4 @@ from .model_output import print_model
 from ._collectwj_4 import collect_wj_4
 from ._collectwj_5 import collect_wj_5
 from ._collectwj_6 import collect_wj_6
+from ._collectwj_7 import collect_wj_7

@@ -106,7 +106,7 @@ bool BroadcastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     if (auto* t1 = types[1].as<TensorTypeNode>()) {
       if (t0->dtype != t1->dtype) {
         reporter->GetDiagCtx().Emit(Diagnostic::Error(t0->span)
-                                    << "data types " << t0->dtype << " and " << t1->dtype
+                                    << "data types " << t0->dtype << " " << t0->shape << " and " << t1->dtype << " " << t1->shape
                                     << " do not match in BroadcastRel");
       }
       reporter->Assign(
