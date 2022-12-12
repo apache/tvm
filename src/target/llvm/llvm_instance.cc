@@ -242,6 +242,8 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target) {
     opt_level_ = defaults::opt_level;
   }
 
+  target_options_.UseInitArray = true;
+
   // Fast math options
 
   auto GetBoolFlag = [&target](llvm::StringRef flag) -> bool {
@@ -295,9 +297,9 @@ llvm::TargetMachine* LLVMTargetInfo::GetOrCreateTargetMachine(bool allow_missing
         llvm_instance->createTargetMachine(triple_, cpu_, GetTargetFeatureString(), target_options_,
                                            reloc_model_, code_model_, opt_level_);
     target_machine_ = std::unique_ptr<llvm::TargetMachine>(tm);
-    if (!allow_missing) {
-      ICHECK(target_machine_ != nullptr) << error;
-    }
+  }
+  if (!allow_missing) {
+    ICHECK(target_machine_ != nullptr) << error;
   }
   return target_machine_.get();
 }

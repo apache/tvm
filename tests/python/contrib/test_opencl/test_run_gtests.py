@@ -28,6 +28,7 @@ from tvm import rpc
 # for example to run all "foo" tests twice and observe gtest output run
 # pytest -sv <this file> --gtests_args="--gtest_filter=*foo* --gtest_repeat=2"
 @tvm.testing.requires_opencl
+@pytest.mark.skipif(tvm.testing.utils.IS_IN_CI, reason="failed due to nvidia libOpencl in the CI")
 def test_run_gtests(gtest_args):
     if (
         "TVM_TRACKER_HOST" in os.environ

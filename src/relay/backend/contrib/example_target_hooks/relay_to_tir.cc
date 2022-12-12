@@ -152,7 +152,7 @@ class ConvertAddToSubtract : public MixedModeMutator {
       };
 
       tir::PrimFunc replacement_func = tir::PrimFunc({x_var, y_var, out_var}, math_loop, VoidType(),
-                                                     buffer_map, {}, DictAttrs(dict_attrs));
+                                                     buffer_map, DictAttrs(dict_attrs));
 
       // Switch to TIRToRuntime hook for testing
       Bool tir_to_runtime = func->GetAttr<Bool>("tir_to_runtime").value_or(Bool(false));

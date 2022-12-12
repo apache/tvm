@@ -188,6 +188,11 @@ class MutateParallelNode : public MutatorNode {
   }
   // Inherit from `MutatorNode`
   Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
+  // Inherit from `MutatorNode`
+  Mutator Clone() const final {
+    ObjectPtr<MutateParallelNode> n = make_object<MutateParallelNode>(*this);
+    return Mutator(n);
+  }
 };
 
 /*! \brief The candidate to be mutated */

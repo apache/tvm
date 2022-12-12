@@ -42,7 +42,7 @@ class RingBufferTest : public ::testing::Test {
   int inflight = 43;
   uint32_t size = 4;
   uint32_t half = size / 2;
-  RingBuffer<int>* ring_buff;
+  RingBuffer<int>* ring_buff = nullptr;
 };
 
 TEST_F(RingBufferTest, zero_size_ring_buffer) {
@@ -187,4 +187,32 @@ TEST_F(RingBufferTest, half_in_flight_blocked) {
   // check that the ring buffer is full
   ASSERT_EQ(ring_buff->Next(), nullptr);
   ASSERT_EQ(ring_buff->InFlight(), size);
+}
+
+class QueuedRingBufferTest : public RingBufferTest {
+  void SetUp() override { queued_ring_buff = new QueuedRingBuffer<int>(size, in_flight); }
+  void TearDown() override { delete queued_ring_buff; }
+
+ public:
+  QueuedRingBuffer<int>* queued_ring_buff = nullptr;
+};
+
+TEST_F(QueuedRingBufferTest, two_queues) {
+  int* q0 = queued_ring_buff->Next(0);
+  *q0 = inflight;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 1);
+  ASSERT_EQ(queued_ring_buff->InFlight(1), 0);
+
+  int* q1 = queued_ring_buff->Next(1);
+  *q1 = inflight;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 1);
+  ASSERT_EQ(queued_ring_buff->InFlight(1), 1);
+
+  *q0 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 0);
+  ASSERT_EQ(queued_ring_buff->InFlight(1), 1);
+
+  *q1 = finished;
+  ASSERT_EQ(queued_ring_buff->InFlight(0), 0);
+  ASSERT_EQ(queued_ring_buff->InFlight(1), 0);
 }

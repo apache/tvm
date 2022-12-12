@@ -78,26 +78,21 @@ def test_split_add_concat(dtype):
         model = get_model(inputs["a"].shape, dtype, iter(inputs))
         mod = tei.make_module(model, [])
 
-        expected_host_ops = 1
-        npu_partitions = 2
+        expected_host_ops = 0
+        npu_partitions = 1
 
-        # Mock inference is only supported when the whole graph is offloaded to the NPU
-        if ethosn_available() == Available.SW_ONLY:
-            tei.build(
-                mod, {}, npu=npu, expected_host_ops=expected_host_ops, npu_partitions=npu_partitions
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                1,
+                {},
+                npu=npu,
+                expected_host_ops=expected_host_ops,
+                npu_partitions=npu_partitions,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
             )
-        else:
-            outputs.append(
-                tei.build_and_run(
-                    mod,
-                    inputs,
-                    1,
-                    {},
-                    npu=npu,
-                    expected_host_ops=expected_host_ops,
-                    npu_partitions=npu_partitions,
-                )
-            )
+        )
 
     if outputs:
         tei.verify(outputs, dtype, 2)
@@ -183,7 +178,16 @@ def test_output_order(dtype):
     for npu in [False, True]:
         model = get_model(inputs["a"].shape, dtype, iter(inputs))
         mod = tei.make_module(model, [])
-        outputs.append(tei.build_and_run(mod, inputs, 8, {}, npu=npu))
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                8,
+                {},
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
+        )
 
     tei.verify(outputs, dtype, 1)
 
@@ -237,8 +241,15 @@ def test_output_order_different_sizes(dtype):
 
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
-def test_split_with_asym_concats(dtype):
+@pytest.mark.parametrize(
+    "shape,splits,axis",
+    [
+        ((1, 16, 16, 32), (2, 7, 10), 2),
+    ],
+)
+def test_split_with_asym_concats(dtype, shape, splits, axis):
     """Test a model with split and contatenates."""
+    np.random.seed(0)
 
     def get_model(shape, dtype, splits, axis):
         a = relay.var("a", shape=shape, dtype=dtype)
@@ -263,54 +274,47 @@ def test_split_with_asym_concats(dtype):
         )
         return relay.Tuple((con2, con1))
 
-    trials = [
-        ((1, 16, 16, 32), (2, 7, 10), 2),
-    ]
+    outputs = []
+    inputs = {
+        "a": tvm.nd.array(
+            np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype)
+        )
+    }
+    for npu in [False, True]:
+        model = get_model(shape, dtype, splits, axis)
+        mod = tei.make_module(model, {})
 
-    np.random.seed(0)
-    for shape, splits, axis in trials:
-        outputs = []
-        inputs = {
-            "a": tvm.nd.array(
-                np.random.randint(
-                    np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype
-                )
+        expected_host_ops = 0
+        npu_partitions = 1
+
+        # Mock inference is only supported when the whole graph is offloaded to the NPU
+        if ethosn_available() == Available.SW_ONLY:
+            tei.build(
+                mod,
+                {},
+                npu=npu,
+                expected_host_ops=expected_host_ops,
+                npu_partitions=npu_partitions,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
             )
-        }
-        for npu in [False, True]:
-            model = get_model(shape, dtype, splits, axis)
-            mod = tei.make_module(model, {})
-
-            expected_host_ops = 1
-            npu_partitions = 2
-
-            # Mock inference is only supported when the whole graph is offloaded to the NPU
-            if ethosn_available() == Available.SW_ONLY:
-                tei.build(
+        else:
+            outputs.append(
+                tei.build_and_run(
                     mod,
+                    inputs,
+                    2,
                     {},
                     npu=npu,
                     expected_host_ops=expected_host_ops,
                     npu_partitions=npu_partitions,
+                    additional_config_args={"inline_non_compute_intensive_partitions": False},
                 )
-            else:
-                outputs.append(
-                    tei.build_and_run(
-                        mod,
-                        inputs,
-                        2,
-                        {},
-                        npu=npu,
-                        expected_host_ops=expected_host_ops,
-                        npu_partitions=npu_partitions,
-                    )
-                )
+            )
 
-        if outputs:
-            tei.verify(outputs, dtype, 0)
+    if outputs:
+        tei.verify(outputs, dtype, 0)
 
 
-@pytest.mark.skip("Split is not supported by the 3.0.1 version of the driver stack.")
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_output_tuple_propagation(dtype):
@@ -334,7 +338,16 @@ def test_output_tuple_propagation(dtype):
     for npu in [False, True]:
         model = get_model(dtype)
         mod = tei.make_module(model, {})
-        outputs.append(tei.build_and_run(mod, inputs, 4, {}, npu=npu))
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                4,
+                {},
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
+        )
 
     tei.verify(outputs, dtype, 0)
 
@@ -383,7 +396,38 @@ def test_input_tuples(dtype):
             mod = tei.make_module(model, {})
         else:
             mod = tei.make_ethosn_partition(model)
-        lib = tei.build(mod, {}, npu=False)
+        lib = tei.build(
+            mod,
+            {},
+            npu=False,
+            additional_config_args={"inline_non_compute_intensive_partitions": False},
+        )
         outputs.append(tei.run(lib, inputs, 1, npu=npu))
+
+    tei.verify(outputs, dtype, 0)
+
+
+@requires_ethosn
+def test_inline_non_compute_intensive_operations():
+    """Tests the case when a subgraph is unpartitioned."""
+    np.random.seed(0)
+    dtype = "int8"
+    shape = (1, 2, 2, 4)
+
+    inp = relay.var("x", shape=shape, dtype=dtype)
+    reshape = relay.reshape(inp, newshape=(1, 1, 4, 4))
+
+    inputs = {
+        "x": tvm.nd.array(
+            np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype)
+        ),
+    }
+    outputs = []
+
+    for npu in [False, True]:
+        mod = tei.make_module(reshape, {})
+        outputs.append(
+            tei.build_and_run(mod, inputs, 1, {}, npu=npu, expected_host_ops=1, npu_partitions=0)
+        )
 
     tei.verify(outputs, dtype, 0)

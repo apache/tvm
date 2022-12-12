@@ -37,7 +37,11 @@
 extern "C" {
 #endif
 
+#if defined(_MSC_VER)
+void TVMLogf(const char* fmt, ...);
+#else
 void __attribute__((format(printf, 1, 2))) TVMLogf(const char* fmt, ...);
+#endif
 
 #define LOG(level, x, ...)          \
   if (TVM_CRT_LOG_LEVEL >= level) { \

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name, unused-argument
+# pylint: disable=import-self, invalid-name, unused-argument, missing-function-docstring
 """Unit tests for various models and operators"""
 import os
 import platform
@@ -699,6 +699,15 @@ def test_forward_relu():
 
 
 @tvm.testing.uses_gpu
+def test_forward_relu6():
+    """test_forward_relu6"""
+    torch.set_grad_enabled(False)
+    input_shape = [10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.ReLU6().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_prelu():
     """test_forward_prelu"""
     torch.set_grad_enabled(False)
@@ -948,6 +957,28 @@ def test_forward_split():
     verify_model(Split(3, 1).float().eval(), input_data=input_data)
     verify_model(Split(4, 1).float().eval(), input_data=input_data)
     verify_model(Split([2, 3, 5], 1).float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_tensor_split():
+    """test_forward_tensor_split"""
+    torch.set_grad_enabled(False)
+    input_shape = [4, 10]
+
+    class Tensor_Split(Module):
+        def __init__(self, split_size_or_sections, dim):
+            super().__init__()
+            self.split_size_or_sections = split_size_or_sections
+            self.dim = dim
+
+        def forward(self, *args):
+            return torch.tensor_split(args[0], self.split_size_or_sections, self.dim)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Tensor_Split(2, 0).float().eval(), input_data=input_data)
+    verify_model(Tensor_Split(torch.tensor(3), 1).float().eval(), input_data=input_data)
+    verify_model(Tensor_Split([2, 3, 5], 1).float().eval(), input_data=input_data)
+    verify_model(Tensor_Split((2, 3, 5), 1).float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -3248,6 +3279,13 @@ def test_forward_zeros():
     verify_model(Zeros1().float().eval(), input_data=[])
 
 
+def test_forward_zero_():
+    def test_func(x):
+        return x.zero_()
+
+    verify_model_with_input(test_func, [torch.rand([1, 3, 10, 10]).float()])
+
+
 @tvm.testing.uses_gpu
 def test_forward_zeros_like():
     """test_forward_zeros_like"""
@@ -3328,6 +3366,16 @@ def test_forward_new_full():
 def test_forward_fill_():
     def test_func(x):
         return x.fill_(3)
+
+    verify_model_with_input(test_func, [torch.rand([1, 3, 10, 10]).float()])
+
+
+def test_forward_fill_with_div():
+    """test_forward_fill_with_div"""
+
+    def test_func(x):
+        y = torch.div(torch.tensor(6.0), torch.tensor(2.0))
+        return x.fill_(y)
 
     verify_model_with_input(test_func, [torch.rand([1, 3, 10, 10]).float()])
 
@@ -3985,6 +4033,14 @@ def test_forward_index():
 
     input_data = torch.rand(input_shape).float()
     verify_model(Index1().eval(), input_data=input_data)
+
+    def test_fn_bool_mask():
+        return lambda data, mask: data[0, mask]
+
+    data = torch.tensor([[1, 2, 3], [4, 5, 6]])
+    mask = torch.tensor([True, True, False])
+
+    verify_trace_model(test_fn_bool_mask(), [data, mask], ["llvm", "cuda"])
 
 
 def test_logsumexp():
@@ -4799,8 +4855,9 @@ def test_grid_sample():
 
     data_2D = torch.rand([4, 4, 8, 8]).float()
     grid_2D = torch.rand([4, 16, 16, 2]).float()
-    data_3D = torch.rand([4, 4, 8, 8, 8]).float()
-    grid_3D = torch.rand([4, 16, 16, 16, 3]).float()
+    # choosing smaller sizes to be testable on weaker GPUs
+    data_3D = torch.rand([4, 4, 4, 4, 4]).float()
+    grid_3D = torch.rand([4, 8, 8, 8, 3]).float()
 
     for _method in methods:
         for _padding in padding_modes:
@@ -4979,6 +5036,20 @@ def test_multinomial():
         cpu_only=True,
         check_correctness=False,
     )
+
+
+@tvm.testing.uses_gpu
+def test_baddbmm():
+    def test_fn(alpha, beta):
+        return lambda inp, batch1, batch2: torch.baddbmm(
+            inp, batch1, batch2, beta=beta, alpha=alpha
+        )
+
+    M = torch.randn(10, 3, 5)
+    batch1 = torch.randn(10, 3, 4)
+    batch2 = torch.randn(10, 4, 5)
+
+    verify_model(test_fn(0.5, 1.0), [M, batch1, batch2])
 
 
 if __name__ == "__main__":

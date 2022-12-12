@@ -16,7 +16,11 @@
 # under the License.
 """Tests for MetaSchedule search space on CPU"""
 from tvm import meta_schedule as ms
-from tvm.meta_schedule.testing.space_generation import check_sketches, print_sketches
+from tvm.meta_schedule.testing.space_generation import (
+    check_sketches,
+    print_sketches,
+    generate_design_space,
+)
 from tvm.meta_schedule.testing.te_workload import create_te_workload
 from tvm.script import tir as T
 from tvm.target import Target
@@ -24,6 +28,15 @@ from tvm.target import Target
 
 def _target():
     return Target("aws/cpu/c5.9xlarge")
+
+
+def _design_space(mod):
+    return generate_design_space(
+        kind="llvm",
+        mod=mod,
+        target=_target(),
+        types=ms.ScheduleRule,
+    )
 
 
 def test_cpu_c1d():
@@ -161,12 +174,7 @@ def test_cpu_c1d():
     ]
 
     mod = create_te_workload("C1D", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -337,12 +345,7 @@ def test_cpu_c2d():
     ]
 
     mod = create_te_workload("C2D", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -534,12 +537,7 @@ def test_cpu_c3d():
     ]
 
     mod = create_te_workload("C3D", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -727,12 +725,7 @@ def test_cpu_cap():
         ("SampleComputeLocation", -1),
     ]
     mod = create_te_workload("CAP", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -887,12 +880,7 @@ def test_cpu_dep():
         ("SampleComputeLocation", 5),
     ]
     mod = create_te_workload("DEP", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -1065,12 +1053,7 @@ def test_cpu_dil():
         ("SampleComputeLocation", 1),
     ]
     mod = create_te_workload("DIL", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -1187,12 +1170,7 @@ def test_cpu_gmm():
         ("SampleCategorical", 1),
     ]
     mod = create_te_workload("GMM", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -1361,12 +1339,7 @@ def test_cpu_grp():
         ("SampleComputeLocation", 9),
     ]
     mod = create_te_workload("GRP", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -1521,12 +1494,7 @@ def test_cpu_t2d():
         ("SampleComputeLocation", -2),
     ]
     mod = create_te_workload("T2D", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -1646,12 +1614,7 @@ def test_cpu_nrm():
         ("SampleComputeLocation", -1),
     ]
     mod = create_te_workload("NRM", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -2220,12 +2183,7 @@ def test_cpu_sfm():
         ("SampleComputeLocation", 0),
     ]
     mod = create_te_workload("SFM", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -2404,12 +2362,7 @@ def test_cpu_cbr():
         ("SampleComputeLocation", 1),
     ]
     mod = create_te_workload("CBR", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,
@@ -2588,12 +2541,7 @@ def test_cpu_tbg():
         ("SampleComputeLocation", -2),
     ]
     mod = create_te_workload("TBG", 0)
-    actual = ms.TuneContext(
-        mod=mod,
-        target=_target(),
-        space_generator=ms.space_generator.PostOrderApply(),
-        sch_rules="default",
-    ).generate_design_space()
+    actual = _design_space(mod)
     check_sketches(
         mod,
         sketches=actual,

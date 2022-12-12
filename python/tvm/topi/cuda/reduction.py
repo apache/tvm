@@ -116,14 +116,22 @@ def _enable_auto_inline(sch):
     return True
 
 
-def schedule_reduce(outs):
+def schedule_reduce_impl(outs, schedule_reduce_stage, schedule_injective_stage):
     """Schedule for inject->reduce->bcast ops.
+    Traverse over the stages in the schedule and schedule separate stages depending
+    on the position of the stage. Injecteve post-ops of reduction will be scheduled using
+    injection schedule, injective pre-ops of reduction will be inlined, reduction stage
+    will be scheduled using reduction schedule
 
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of reduce in the format
           of an array of tensors.
+    schedule_reduce_stage: Function responsible for scheduling the reduction
+          stage
+    schedule_injective_stage: Function responsible for scheduling the
+          standalone injection stage
 
     Returns
     -------
@@ -153,7 +161,7 @@ def schedule_reduce(outs):
         """Internal traverse function"""
         if tag.is_broadcast(operator.tag):
             if operator not in scheduled_ops:
-                schedule_injective_from_existing(sch, operator.output(0))
+                schedule_injective_stage(sch, operator.output(0))
             for tensor in operator.input_tensors:
                 if tensor.op not in scheduled_ops:
                     if enable_auto_inline:
@@ -162,13 +170,13 @@ def schedule_reduce(outs):
                         traverse_after_reduce(tensor.op)
         elif operator.tag == "comm_reduce":
             if operator not in scheduled_ops:
-                _schedule_reduce(operator, sch, is_idx_reduce=False)
+                schedule_reduce_stage(operator, sch, is_idx_reduce=False)
             for tensor in operator.input_tensors:
                 if tensor.op not in scheduled_ops:
                     traverse_before_reduce(tensor.op)
         elif operator.tag == "comm_reduce_idx":
             if operator not in scheduled_ops:
-                _schedule_reduce(operator, sch, is_idx_reduce=True)
+                schedule_reduce_stage(operator, sch, is_idx_reduce=True)
             input_tensors = operator.input_tensors[0].op.input_tensors
             for tensor in input_tensors:
                 if tensor.op not in scheduled_ops:
@@ -183,3 +191,7 @@ def schedule_reduce(outs):
     for out in outs:
         traverse_after_reduce(out.op)
     return sch
+
+
+def schedule_reduce(outs):
+    return schedule_reduce_impl(outs, _schedule_reduce, schedule_injective_from_existing)

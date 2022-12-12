@@ -399,10 +399,30 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The producer of the buffer
    * \param write_buffer_index The index of the buffer in block's write region
    * \param storage_scope The target storage scope
+   * \param consumer_blocks An optional list of consumers to read from cache directly.
    * \return The cache stage block.
    */
   virtual BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                             const String& storage_scope) = 0;
+                             const String& storage_scope,
+                             const Array<BlockRV> consumer_blocks = {}) = 0;
+  /*!
+   * \brief Create 2 blocks that read&write a buffer region into a read/write cache.
+   * It requires the the target block both read & write the target buffer.
+   * \param block_rv The target block operates on the target buffer.
+   * \param read_buffer_index The index of the buffer in block's read region.
+   * \param storage_scope The target storage scope
+   * \return The cache stage blocks, cache read block together with cache write block.
+   */
+  virtual Array<BlockRV> CacheInplace(const BlockRV& block_rv, int read_buffer_index,
+                                      const String& storage_scope) = 0;
+  /*!
+   * \brief Create a block to cache precomputed index for later use.
+   * if there is no index computation, keep unchanged.
+   * \param block_rv The target block
+   * \param buffer_index The index of the target buffer in block's read region
+   * \return The cache stage blocks.
+   */
+  virtual Array<BlockRV> CacheIndex(const BlockRV& block_rv, int buffer_index) = 0;
   /*!
    * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
    * The layout of the cache will be the same as by the iterators of the block that reads/writes the
@@ -545,21 +565,26 @@ class ScheduleNode : public runtime::Object {
   /*!
    * \brief Convert the subtree rooted at a specific loop into a block.
    * \param loop_rv the root of the subtree
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    * \return the new block
    */
-  virtual BlockRV Blockize(const LoopRV& loop_rv) = 0;
+  virtual BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Tensorize the computation enclosed by loop with the tensor intrin.
    * \param loop_rv The loop to be tensorized
    * \param intrin Name of the tensor intrinsic
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    */
-  virtual void Tensorize(const LoopRV& loop_rv, const String& intrin) = 0;
+  virtual void Tensorize(const LoopRV& loop_rv, const String& intrin,
+                         bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Tensorize the computation enclosed by loop with the tensor intrin.
    * \param block_rv The block to be tensorized
    * \param intrin Name of the tensor intrinsic
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    */
-  virtual void Tensorize(const BlockRV& block_rv, const String& intrin) = 0;
+  virtual void Tensorize(const BlockRV& block_rv, const String& intrin,
+                         bool preserve_unit_iters = true) = 0;
 
   /******** Schedule: Annotation ********/
   /*!
@@ -601,9 +626,24 @@ class ScheduleNode : public runtime::Object {
    * \param buffer_index The index of the buffer in block's read or write region.
    * \param buffer_index_type The type of the buffer index, kRead or kWrite.
    * \param index_map The transformation to apply.
+   *
+   * \param pad_value The value to write into padding introduced by
+   *    the transformation.  If the schedule contains a producer block
+   *    for the specified buffer, the pad value will be written as
+   *    part of the producer block if possible, or after the producer
+   *    block otherwise.  Otherwise, if the buffer is an input, will
+   *    insert an annotation block to state that the padding contains
+   *    the known value.
+   *
+   *    Note: If applied to an input buffer, the calling scope is
+   *    responsible for ensuring that the pad_value is present.
+   *    Algebraic symplifications, branch elimination, and other
+   *    optimizations may assume that this precondition is met, and
+   *    may result in incorrect results being returned.
    */
   virtual void TransformLayout(const BlockRV& block_rv, int buffer_index,
-                               BufferIndexType buffer_index_type, const IndexMap& index_map) = 0;
+                               BufferIndexType buffer_index_type, const IndexMap& index_map,
+                               const Optional<IndexMap>& pad_value = NullOpt) = 0;
 
   /*!
    * \brief Apply a transformation represented by IndexMap to block
@@ -627,6 +667,7 @@ class ScheduleNode : public runtime::Object {
                                 BufferIndexType buffer_index_type,
                                 const Array<IntImm>& axis_separators) = 0;
 
+  /******** Schedule: Padding ********/
   /*!
    * \brief Decompose a padding block into a block filling const pad values and a block
    * writing in-bound values.
@@ -635,6 +676,42 @@ class ScheduleNode : public runtime::Object {
    * \return The const pad value filling block.
    */
   virtual BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) = 0;
+
+  /*!
+   * \brief Pad the computation of Einsum.
+   * \param block_rv The block that matches the Einsum pattern.
+   * \param padding The padding for each block iter.
+   * \details This schedule primitives identifies the Einsum pattern in the block body, and find its
+   * producer blocks. It then pads the computation of the Einsum pattern and its producer blocks.
+   * The output buffer and the producer buffer is resized according to the padding size. It requires
+   * the output buffer and the producer buffer to be allocated inside the PrimFunc.
+   *
+   * The padding is a list of non-negative integers, each element corresponds to the padding for
+   * each block iter in the order of block iters. The block and its producer blocks should have
+   * trivial bindings, i.e. each block iter is bound to a single loop variable. After padding, the
+   * block iter extent and the corresponding outer loop is extended by the padding size.
+   *
+   * The size of the producer buffers are infered from the padding size of the Einsum computation.
+   * The producer buffers are padded by the initial value of the corresponding reduction.
+   */
+  virtual void PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) = 0;
+
+  /******** Schedule: Buffer transformation ********/
+  /*!
+   * \brief Compute the target buffer via rolling buffering.
+   * \details This primitive selects the outermost rollable axis with a positive bound overlap that
+   * appears in the block's ancestor loops as `rolling axis`, fold and circularize the buffer along
+   * the rolling dimension, append block predicate to avoid recomputing overlapping elements.
+   * It requires:
+   * 1) The buffer to be an intermediate buffer defined via `alloc_buffer`.
+   * 2) The LCA of the producer and consumer of the buffer is a for loop, typically,
+   *    the producer and consumer of the buffer are cascaded through compute_at.
+   * 3) The access region of the buffer has at least one dimension that contains
+   *    a positive bound overlap.
+   * \param block_rv The producer block of the buffer.
+   * \param write_buffer_index The index of the buffer in block's write region.
+   */
+  virtual void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) = 0;
 
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */

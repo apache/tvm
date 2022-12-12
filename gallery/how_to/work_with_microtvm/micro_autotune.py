@@ -101,6 +101,7 @@ if use_physical_hw:
         boards = json.load(f)
 
     BOARD = os.getenv("TVM_MICRO_BOARD", default="nucleo_l4r5zi")
+    SERIAL = os.getenv("TVM_MICRO_SERIAL", default=None)
     TARGET = tvm.target.target.micro(boards[BOARD]["model"])
 
 
@@ -152,10 +153,10 @@ if use_physical_hw:
     module_loader = tvm.micro.AutoTvmModuleLoader(
         template_project_dir=pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")),
         project_options={
-            "zephyr_board": BOARD,
-            "west_cmd": "west",
+            "board": BOARD,
             "verbose": False,
             "project_type": "host_driven",
+            "serial_number": SERIAL,
         },
     )
     builder = tvm.autotvm.LocalBuilder(
@@ -219,10 +220,11 @@ if use_physical_hw:
         lowered,
         temp_dir / "project",
         {
-            "zephyr_board": BOARD,
-            "west_cmd": "west",
+            "board": BOARD,
             "verbose": False,
             "project_type": "host_driven",
+            "serial_number": SERIAL,
+            "config_main_stack_size": 4096,
         },
     )
 
@@ -262,10 +264,11 @@ if use_physical_hw:
         lowered_tuned,
         temp_dir / "project",
         {
-            "zephyr_board": BOARD,
-            "west_cmd": "west",
+            "board": BOARD,
             "verbose": False,
             "project_type": "host_driven",
+            "serial_number": SERIAL,
+            "config_main_stack_size": 4096,
         },
     )
 

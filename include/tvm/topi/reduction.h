@@ -570,6 +570,29 @@ inline Tensor prod(const Tensor& data, const Array<Integer>& axis, bool keepdims
   return CommReduce(data, axis, ProdOp, keepdims, atleast1d);
 }
 
+/*!
+ * \brief Create communitive reducer summing over tuples
+ */
+inline FCommReduce MakeTupleSumReducer() {
+  auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
+    Array<PrimExpr> result;
+    ICHECK_EQ(lhs.size(), rhs.size());
+    result.reserve(lhs.size());
+    for (size_t i = 0; i < lhs.size(); ++i) {
+      result.push_back(lhs[i] + rhs[i]);
+    }
+    return result;
+  };
+  auto fidentity = [](std::vector<DataType> types) {
+    Array<PrimExpr> result;
+    for (size_t i = 0; i < types.size(); ++i) {
+      result.push_back(tvm::tir::make_const(types[i], 0));
+    }
+    return result;
+  };
+  return MakeCommReducer(fcombine, fidentity, "tuple_sum");
+}
+
 }  // namespace topi
 }  // namespace tvm
 #endif  // TVM_TOPI_REDUCTION_H_

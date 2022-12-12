@@ -45,7 +45,6 @@ HexagonModuleNode::HexagonModuleNode(std::string data, std::string fmt,
 PackedFunc HexagonModuleNode::GetFunction(const std::string& name,
                                           const ObjectPtr<Object>& sptr_to_self) {
   LOG(FATAL) << "HexagonModuleNode::GetFunction is not implemented.";
-  return PackedFunc();
 }
 
 std::string HexagonModuleNode::GetSource(const std::string& format) {

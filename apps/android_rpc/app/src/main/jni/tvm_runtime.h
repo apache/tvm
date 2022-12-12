@@ -64,6 +64,7 @@
 #ifdef TVM_OPENCL_RUNTIME
 #include "../src/runtime/opencl/opencl_device_api.cc"
 #include "../src/runtime/opencl/opencl_module.cc"
+#include "../src/runtime/opencl/opencl_wrapper/opencl_wrapper.cc"
 #include "../src/runtime/opencl/texture_pool.cc"
 #include "../src/runtime/source_utils.cc"
 #endif
@@ -95,12 +96,12 @@ namespace detail {
 // Override logging mechanism
 [[noreturn]] void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
   std::string m = file + ":" + std::to_string(lineno) + ": " + message;
-  __android_log_write(ANDROID_LOG_DEBUG, "TVM_RUNTIME", m.c_str());
+  __android_log_write(ANDROID_LOG_FATAL, "TVM_RUNTIME", m.c_str());
   throw InternalError(file, lineno, message);
 }
-void LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
+void LogMessageImpl(const std::string& file, int lineno, int level, const std::string& message) {
   std::string m = file + ":" + std::to_string(lineno) + ": " + message;
-  __android_log_write(ANDROID_LOG_DEBUG, "TVM_RUNTIME", m.c_str());
+  __android_log_write(ANDROID_LOG_DEBUG + level, "TVM_RUNTIME", m.c_str());
 }
 
 }  // namespace detail

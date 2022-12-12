@@ -54,4 +54,3 @@ test("array copy", () => {
   testArrayCopy("uint8", Uint8Array);
   testArrayCopy("float64", Float64Array);
 });
-

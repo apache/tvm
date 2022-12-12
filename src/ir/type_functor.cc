@@ -97,14 +97,7 @@ Type TypeMutator::VisitType(const Type& t) {
 Array<Type> TypeMutator::MutateArray(Array<Type> arr) {
   // The array will do copy on write
   // If no changes are made, the original array will be returned.
-  for (size_t i = 0; i < arr.size(); ++i) {
-    Type ty = arr[i];
-    Type new_ty = VisitType(ty);
-    if (!ty.same_as(new_ty)) {
-      arr.Set(i, new_ty);
-    }
-  }
-  return arr;
+  return arr.Map([this](const Type& ty) { return VisitType(ty); });
 }
 
 Type TypeMutator::VisitType_(const TypeVarNode* op) { return GetRef<TypeVar>(op); }

@@ -780,7 +780,7 @@ def register_task_input_check_func(func_name, f=None, override=False):
     return register
 
 
-def prepare_input_map(args):
+def prepare_input_map(args, workload_key=None):
     """This function deals with special task inputs. Map the input Tensor of a TVM subgraph
     to a specific buffer name in the global buffer map.
 
@@ -788,6 +788,11 @@ def prepare_input_map(args):
     ----------
     args : List[Tensor]
         Input/output Tensor of a TVM subgraph.
+
+    workload_key: Optional[str]
+        The workload for which these inputs are being prepared.  This
+        is used to identify if an input is being provided by (see
+        `register_task_input_buffer`).
 
     Returns
     -------
@@ -803,13 +808,19 @@ def prepare_input_map(args):
 
     global TASK_INPUT_CHECK_FUNC_REGISTRY
 
+    from .search_task import TASK_INPUT_BUFFER_TABLE
+
     # A dict that maps the input tensor arg to a buffer name
     tensor_input_map = {}
 
     # Case 0: Check placeholder name
     for arg in args:
         if isinstance(arg.op, tvm.te.PlaceholderOp):
-            if arg.op.name != "placeholder":
+            if (
+                workload_key
+                and workload_key in TASK_INPUT_BUFFER_TABLE
+                and arg.op.name in TASK_INPUT_BUFFER_TABLE[workload_key]
+            ):
                 tensor_input_map[arg] = arg.op.name
 
     # Case 1: Check specific tensor inputs
@@ -843,7 +854,7 @@ def prepare_runner_args(inp, build_res):
     from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
 
     task_input_names = inp.task.task_input_names
-    tensor_input_map = prepare_input_map(build_res.args)
+    tensor_input_map = prepare_input_map(build_res.args, inp.task.workload_key)
     if not task_input_names:
         tensor_input_map = {}
     args = []

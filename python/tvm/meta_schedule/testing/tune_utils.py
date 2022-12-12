@@ -86,7 +86,7 @@ def create_timer(backend: str) -> Callable:
 
     def f_timer(
         rt_mod: Union[tvm.runtime.Module, tvm.runtime.vm.Executable],
-        dev: tvm.device,
+        dev: tvm.runtime.Device,
         input_data: Dict[str, NDArray],
     ) -> None:
         """Run and benchmark the given runtime module, print out the result.
@@ -95,7 +95,7 @@ def create_timer(backend: str) -> Callable:
         ----------
         rt_mod : Union[tvm.runtime.Module, tvm.runtime.vm.Executable]
             The runtime module or vm executable.
-        dev : tvm.device
+        dev : tvm.runtime.Device
             The device type to run workload.
         input_data : Dict[str, np.ndarray]
             The input data as a dictionary.
@@ -152,7 +152,7 @@ def create_time_per_layer(graph: str) -> Callable:
 
     def f_time_per_layer(
         rt_mod: tvm.runtime.Module,
-        dev: tvm.device,
+        dev: tvm.runtime.Device,
         input_data: Dict[str, NDArray],
     ) -> None:
         """Run and benchmark the per-layer performance of given runtime module,
@@ -162,7 +162,7 @@ def create_time_per_layer(graph: str) -> Callable:
         ----------
         rt_mod : tvm.runtime.Module
             The runtime module.
-        dev : tvm.device
+        dev : tvm.runtime.Device
             The device type to run workload.
         input_data : Dict[str, np.ndarray]
             The input data as a dictionary.
@@ -192,3 +192,50 @@ def create_time_per_layer(graph: str) -> Callable:
             )
 
     return f_time_per_layer
+
+
+def create_calculator(backend: str) -> Callable:
+    """Create a function to fetch the computing result of running the given runtime module.
+
+    Parameters
+    ----------
+    backend : str
+        The backend to use, only tir is supported for now.
+
+    Returns
+    -------
+    func : Callable
+        The function to fetch the computing result.
+    """
+
+    def f_calculator(
+        rt_mod: tvm.runtime.Module,
+        dev: tvm.runtime.Device,  # pylint: disable=unused-argument
+        input_data: Dict[str, NDArray],
+    ) -> List[NDArray]:
+        """Fetch the result of running the given runtime module.
+
+        Parameters
+        ----------
+        rt_mod : Union[tvm.runtime.Module, tvm.runtime.vm.Executable]
+            The runtime module or vm executable.
+        dev : tvm.device
+            The device type to run workload.
+        input_data : Dict[str, np.ndarray]
+            The input data as a dictionary.
+        """
+        try:
+            if backend == "tir":
+                data = [v for _, v in sorted(input_data.items(), key=lambda x: x[0])]
+                rt_mod(*data)
+                return data
+            else:
+                raise ValueError(f"Backend {backend} not supported in f_calculator!")
+
+        except Exception as exc:  # pylint: disable=broad-except
+            print(
+                f"Run module f_calculator via RPC failed, exception: {exc}",
+            )
+            return None
+
+    return f_calculator

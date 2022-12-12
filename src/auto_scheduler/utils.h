@@ -89,7 +89,6 @@ inline int GetIndex(const Array<T>& array, const T& to_locate) {
     }
   }
   LOG(FATAL) << "Cannot find the item";
-  return -1;
 }
 
 /*! \brief Delete the item in a std::vector if it exists. */
@@ -192,7 +191,9 @@ inline bool StrEndsWith(const String& a, const String& b) {
 /*! \brief Get an int value from an Expr */
 inline int64_t GetIntImm(const PrimExpr& expr) {
   auto pint = expr.as<IntImmNode>();
-  ICHECK(pint != nullptr) << "Expect an IntImm but get " << expr;
+  if (pint == nullptr) {
+    return 1;
+  }
   return pint->value;
 }
 

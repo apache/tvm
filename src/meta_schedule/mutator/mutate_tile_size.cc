@@ -63,6 +63,11 @@ class MutateTileSizeNode : public MutatorNode {
   void InitializeWithTuneContext(const TuneContext& context) final {}
   // Inherit from `MutatorNode`
   Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
+  // Inherit from `MutatorNode`
+  Mutator Clone() const final {
+    ObjectPtr<MutateTileSizeNode> n = make_object<MutateTileSizeNode>(*this);
+    return Mutator(n);
+  }
 };
 
 /*!

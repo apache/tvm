@@ -389,6 +389,7 @@ Doc RelayTextPrinter::VisitExpr_(const IfNode* op) {
 
 Doc RelayTextPrinter::VisitExpr_(const LetNode* op) {
   int n = 0;
+  size_t l = doc_stack_.size();
   Expr let = GetRef<Let>(op);
   while (auto let_node = let.as<LetNode>()) {
     Doc doc;
@@ -399,11 +400,15 @@ Doc RelayTextPrinter::VisitExpr_(const LetNode* op) {
     ++n;
   }
   Doc doc = PrintScope(let);
+  Doc doc_last;
   for (int i = 0; i < n; ++i) {
-    doc = doc_stack_.back() << doc;
+    doc_last << doc_stack_[l + i];
+  }
+  doc_last << doc;
+  for (int i = 0; i < n; ++i) {
     doc_stack_.pop_back();
   }
-  return doc;
+  return doc_last;
 }
 
 Doc RelayTextPrinter::PrintFunc(const Doc& prefix, const relay::Function& fn) {

@@ -80,7 +80,7 @@ void CodeGenVivadoHLS::PrintType(DataType t, std::ostream& os) {
   }
 }
 
-void CodeGenVivadoHLS::PrintFuncPrefix() { stream << "extern \"C\" void"; }
+void CodeGenVivadoHLS::PrintFuncPrefix(std::ostream& os) { os << "extern \"C\" void"; }
 
 void CodeGenVivadoHLS::PreFunctionBody(const PrimFunc& f) {
   for (size_t i = 0; i < f->params.size(); ++i) {

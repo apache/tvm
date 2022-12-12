@@ -104,6 +104,17 @@ class VarTableNode : public Object {
   Optional<ExprDoc> GetVarDoc(const ObjectRef& obj, const ObjectPath& object_path) const;
 
   /*!
+   * \brief Get the doc for variable.
+   * \param obj The traced variable object.
+   *
+   * \return The doc for variable, if it exists in the table. Otherwise it returns NullOpt.
+   */
+  template <typename TObjectRef>
+  Optional<ExprDoc> GetVarDoc(const TracedObject<TObjectRef> obj) const {
+    return GetVarDoc(obj.Get(), obj.GetPath());
+  }
+
+  /*!
    * \brief Check if a variable exists in the table.
    * \param obj The variable object.
    *

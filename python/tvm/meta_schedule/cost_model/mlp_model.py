@@ -19,7 +19,6 @@
 Segment Sum MLP cost model
 """
 import glob
-import logging
 import math
 import os
 import random
@@ -38,14 +37,13 @@ from ...target import Target
 from ..cost_model import PyCostModel
 from ..database import JSONDatabase
 from ..feature_extractor import FeatureExtractor, PerStoreFeature
+from ..logging import get_logger
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
 from ..tune_context import TuneContext
 from ..utils import derived_object, shash2hex
 
-logging.basicConfig()
-logger = logging.getLogger("mlp_model")  # pylint: disable=invalid-name
-logger.setLevel(logging.INFO)
+logger = get_logger("mlp_model")  # pylint: disable=invalid-name
 
 # pylint: disable=no-member,import-outside-toplevel
 

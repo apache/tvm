@@ -27,10 +27,13 @@ class SpaceGeneratorUnionNode : public SpaceGeneratorNode {
   /*! \brief The array of design space generators unioned, could be recursive. */
   Array<SpaceGenerator> space_generators;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("space_generators", &space_generators); }
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    SpaceGeneratorNode::VisitAttrs(v);
+    v->Visit("space_generators", &space_generators);
+  }
 
   void InitializeWithTuneContext(const TuneContext& context) final {
-    // Initialize each space generator.
+    SpaceGeneratorNode::InitializeWithTuneContext(context);
     for (const SpaceGenerator& space_generator : space_generators) {
       space_generator->InitializeWithTuneContext(context);
     }
@@ -47,6 +50,16 @@ class SpaceGeneratorUnionNode : public SpaceGeneratorNode {
     return design_spaces;
   }
 
+  SpaceGenerator Clone() const final {
+    ObjectPtr<SpaceGeneratorUnionNode> n = make_object<SpaceGeneratorUnionNode>(*this);
+    n->space_generators = Array<SpaceGenerator>();
+    for (const SpaceGenerator& space_generator : this->space_generators) {
+      n->space_generators.push_back(space_generator->Clone());
+    }
+    CloneRules(this, n.get());
+    return SpaceGenerator(n);
+  }
+
   static constexpr const char* _type_key = "meta_schedule.SpaceGeneratorUnion";
   TVM_DECLARE_FINAL_OBJECT_INFO(SpaceGeneratorUnionNode, SpaceGeneratorNode);
 };
@@ -56,8 +69,14 @@ class SpaceGeneratorUnionNode : public SpaceGeneratorNode {
  * \param space_generators Array of the design space generators to be unioned.
  * \return The design space generator created.
  */
-SpaceGenerator SpaceGenerator::SpaceGeneratorUnion(Array<SpaceGenerator> space_generators) {
+SpaceGenerator SpaceGenerator::SpaceGeneratorUnion(Array<SpaceGenerator> space_generators,
+                                                   Optional<Array<ScheduleRule>> sch_rules,
+                                                   Optional<Array<Postproc>> postprocs,
+                                                   Optional<Map<Mutator, FloatImm>> mutator_probs) {
   ObjectPtr<SpaceGeneratorUnionNode> n = make_object<SpaceGeneratorUnionNode>();
+  n->sch_rules = std::move(sch_rules);
+  n->postprocs = std::move(postprocs);
+  n->mutator_probs = std::move(mutator_probs);
   n->space_generators = std::move(space_generators);
   return SpaceGenerator(n);
 }

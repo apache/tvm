@@ -37,11 +37,11 @@ namespace tvm {
 class MemoryInfoNode : public Object {
  public:
   /*! \brief The addressable unit */
-  int unit_bits;
+  int64_t unit_bits;
   /*! \brief Maximum number of bits supported in the memory */
-  int max_num_bits;
+  int64_t max_num_bits;
   /*! \brief maximum number of bits to be used in simd op */
-  int max_simd_bits;
+  int64_t max_simd_bits;
   /*!
    * \brief head address of the buffer, if visible to CPU
    *  This address can be None.

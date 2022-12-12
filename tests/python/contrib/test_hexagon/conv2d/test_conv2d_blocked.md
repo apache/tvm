@@ -44,7 +44,7 @@ pytest -sv "tests/python/contrib/test_hexagon/test_conv2d_blocked.py::TestConv2d
 ## To Do
 
 * n/a
-  
+
 ## Annotated TIR
 
 ```
@@ -68,7 +68,7 @@ primfn(input_handle: handle, filter_handle: handle, output_handle: handle) -> ()
           for (hi: int32, 0, 8) {
             for (wi: int32, 0, 8) {
               for (ci: int32, 0, 32) {
-                input.cache[(((((wo*4096) + (co*2048)) + (hi*256)) + (wi*32)) + ci)] = 
+                input.cache[(((((wo*4096) + (co*2048)) + (hi*256)) + (wi*32)) + ci)] =
                   (float32*)input_pointer[((((((ho.outer*32768) + (hi*4096)) + (wo*512)) + (wi*64)) + (co*32)) + ci)]
               }
             }
@@ -81,7 +81,7 @@ primfn(input_handle: handle, filter_handle: handle, output_handle: handle) -> ()
         for (ci8: int32, 0, 8) {
           for (ki: int32, 0, 32) {
             for (ci4: int32, 0, 4) {
-              filter.cache[((((co*1024) + (ci8*128)) + (ki*4)) + ci4)] = 
+              filter.cache[((((co*1024) + (ci8*128)) + (ki*4)) + ci4)] =
                 (float32*)filter_pointer[(((((ko.outer*2048) + (co*1024)) + (ci8*128)) + (ki*4)) + ci4)]
             }
           }
@@ -106,9 +106,9 @@ primfn(input_handle: handle, filter_handle: handle, output_handle: handle) -> ()
             for (wi.c: int32, 0, 8) {
               for (ki.c: int32, 0, 32) {
                 for (rc.inner: int32, 0, 32) {
-                  output.cache[((((wo.c*2048) + (hi.c*256)) + (wi.c*32)) + ki.c)] = 
+                  output.cache[((((wo.c*2048) + (hi.c*256)) + (wi.c*32)) + ki.c)] =
                   (
-                    (float32*)output.cache[((((wo.c*2048) + (hi.c*256)) + (wi.c*32)) + ki.c)] + 
+                    (float32*)output.cache[((((wo.c*2048) + (hi.c*256)) + (wi.c*32)) + ki.c)] +
                     (
                       (float32*)input.cache[(((((wo.c*4096) + (rc.outer*2048)) + (hi.c*256)) + (wi.c*32)) + rc.inner)] *
                       (float32*)filter.cache[((((rc.outer*1024) + (floordiv(rc.inner, 4)*128)) + (ki.c*4)) + floormod(rc.inner, 4))]
@@ -126,7 +126,7 @@ primfn(input_handle: handle, filter_handle: handle, output_handle: handle) -> ()
         for (hi: int32, 0, 8) {
           for (wi: int32, 0, 8) {
             for (ki: int32, 0, 32) {
-              output_pointer[((((((ho.outer*65536) + (wo*8192)) + (ko.outer*2048)) + (hi*256)) + (wi*32)) + ki)] = 
+              output_pointer[((((((ho.outer*65536) + (wo*8192)) + (ko.outer*2048)) + (hi*256)) + (wi*32)) + ki)] =
                 (float32*)output.cache[((((wo*2048) + (hi*256)) + (wi*32)) + ki)]
             }
           }
@@ -215,7 +215,7 @@ primfn(input_handle: handle, filter_handle: handle, output_handle: handle) -> ()
 
   // output cache grows by factor of h_split * k_split = 4
   allocate(output.cache: Pointer(global float32), float32, [65536]), storage_scope = global;
-  
+
   // ko.outer = outer loop split on ko using k_split factor
   for (ko.outer: int32, 0, 2) {
     // ho.outer = outer loop split on ho using h_split factor
@@ -229,7 +229,7 @@ primfn(input_handle: handle, filter_handle: handle, output_handle: handle) -> ()
             for (hi: int32, 0, 8) {
               for (wi: int32, 0, 8) {
                 for (ci: int32, 0, 32) {
-                  input.cache[((((((ho.inner*32768) + (wo*4096)) + (co*2048)) + (hi*256)) + (wi*32)) + ci)] = 
+                  input.cache[((((((ho.inner*32768) + (wo*4096)) + (co*2048)) + (hi*256)) + (wi*32)) + ci)] =
                     (float32*)input_pointer[(((((((ho.outer*65536) + (ho.inner*32768)) + (hi*4096)) + (wo*512)) + (wi*64)) + (co*32)) + ci)]
                 }
               }
@@ -244,7 +244,7 @@ primfn(input_handle: handle, filter_handle: handle, output_handle: handle) -> ()
           for (ci8: int32, 0, 8) {
             for (ki: int32, 0, 32) {
               for (ci4: int32, 0, 4) {
-                filter.cache[(((((ko.inner*2048) + (co*1024)) + (ci8*128)) + (ki*4)) + ci4)] = 
+                filter.cache[(((((ko.inner*2048) + (co*1024)) + (ci8*128)) + (ki*4)) + ci4)] =
                   (float32*)filter_pointer[((((((ko.outer*4096) + (ko.inner*2048)) + (co*1024)) + (ci8*128)) + (ki*4)) + ci4)]
               }
             }
@@ -272,9 +272,9 @@ primfn(input_handle: handle, filter_handle: handle, output_handle: handle) -> ()
                 for (wi.c: int32, 0, 8) {
                   for (ki.c: int32, 0, 32) {
                     for (rc.inner: int32, 0, 32) {
-                      output.cache[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] = 
+                      output.cache[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] =
                       (
-                        (float32*)output.cache[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] + 
+                        (float32*)output.cache[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] +
                         (
                           (float32*)input.cache[((((((ho.c.inner*32768) + (wo.c*4096)) + (rc.outer*2048)) + (hi.c*256)) + (wi.c*32)) + rc.inner)] *
                           (float32*)filter.cache[(((((ko.c.inner*2048) + (rc.outer*1024)) + (floordiv(rc.inner, 4)*128)) + (ki.c*4)) + floormod(rc.inner, 4))]
@@ -296,7 +296,7 @@ primfn(input_handle: handle, filter_handle: handle, output_handle: handle) -> ()
             for (hi: int32, 0, 8) {
               for (wi: int32, 0, 8) {
                 for (ki: int32, 0, 32) {
-                  output_pointer[((((((((ho.outer*131072) + (ho.inner*65536)) + (wo*8192)) + (ko.outer*4096)) + (ko.inner*2048)) + (hi*256)) + (wi*32)) + ki)] = 
+                  output_pointer[((((((((ho.outer*131072) + (ho.inner*65536)) + (wo*8192)) + (ko.outer*4096)) + (ko.inner*2048)) + (hi*256)) + (wi*32)) + ki)] =
                     (float32*)output.cache[((((((ho.inner*32768) + (wo*4096)) + (ko.inner*2048)) + (hi*256)) + (wi*32)) + ki)]
                 }
               }
@@ -414,7 +414,7 @@ primfn(input_handle: handle, filter_handle: handle, output_handle: handle) -> ()
               for (hi: int32, 0, 8) {
                 for (wi: int32, 0, 8) {
                   for (ci: int32, 0, 32) {
-                    input.cache[((((((ho.inner*32768) + (wo*4096)) + (co*2048)) + (hi*256)) + (wi*32)) + ci)] = 
+                    input.cache[((((((ho.inner*32768) + (wo*4096)) + (co*2048)) + (hi*256)) + (wi*32)) + ci)] =
                       (float32*)input_pointer[(((((((ho.outer*65536) + (ho.inner*32768)) + (hi*4096)) + (wo*512)) + (wi*64)) + (co*32)) + ci)]
                   }
                 }
@@ -431,7 +431,7 @@ primfn(input_handle: handle, filter_handle: handle, output_handle: handle) -> ()
               for (ci8: int32, 0, 8) {
                 for (ki: int32, 0, 32) {
                   for (ci4: int32, 0, 4) {
-                    filter.cache[(((((((ko.inner*18432) + (co*9216)) + (rh*3072)) + (rw*1024)) + (ci8*128)) + (ki*4)) + ci4)] = 
+                    filter.cache[(((((((ko.inner*18432) + (co*9216)) + (rh*3072)) + (rw*1024)) + (ci8*128)) + (ki*4)) + ci4)] =
                       (float32*)filter_pointer[((((((((ko.outer*36864) + (ko.inner*18432)) + (co*9216)) + (rh*3072)) + (rw*1024)) + (ci8*128)) + (ki*4)) + ci4)]
                   }
                 }
@@ -457,9 +457,9 @@ primfn(input_handle: handle, filter_handle: handle, output_handle: handle) -> ()
                     for (rw: int32, 0, 3) {
                       for (ki.c: int32, 0, 32) {
                         for (rc.inner: int32, 0, 32) {
-                          output.cache[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] = 
+                          output.cache[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] =
                           (
-                            (float32*)output.cache[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] + 
+                            (float32*)output.cache[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] +
                             (
                               (float32*)input.cache[((((((((floordiv((hi.c + rh), 8)*32768) + (ho.c.inner*32768)) + (floordiv((wi.c + rw), 8)*4096)) + (wo.c*4096)) + (rc.outer*2048)) + (floormod((hi.c + rh), 8)*256)) + (floormod((wi.c + rw), 8)*32)) + rc.inner)] *
                               (float32*)filter.cache[(((((((ko.c.inner*18432) + (rc.outer*9216)) + (rh*3072)) + (rw*1024)) + (floordiv(rc.inner, 4)*128)) + (ki.c*4)) + floormod(rc.inner, 4))]
@@ -481,13 +481,13 @@ primfn(input_handle: handle, filter_handle: handle, output_handle: handle) -> ()
             for (hi: int32, 0, 8) {
               for (wi: int32, 0, 8) {
                 for (ki: int32, 0, 32) {
-                  output_pointer[((((((((ho.outer*131072) + (ho.inner*65536)) + (wo*8192)) + (ko.outer*4096)) + (ko.inner*2048)) + (hi*256)) + (wi*32)) + ki)] = 
+                  output_pointer[((((((((ho.outer*131072) + (ho.inner*65536)) + (wo*8192)) + (ko.outer*4096)) + (ko.inner*2048)) + (hi*256)) + (wi*32)) + ki)] =
                     (float32*)output.cache[((((((ho.inner*32768) + (wo*4096)) + (ko.inner*2048)) + (hi*256)) + (wi*32)) + ki)]
                 }
               }
             }
           }
-        } // end ho.inner 
+        } // end ho.inner
       } // end ko.inner
     } // end ho.outer
   } // end ko.outer

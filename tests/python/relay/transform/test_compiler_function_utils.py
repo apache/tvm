@@ -125,7 +125,7 @@ def expected_outlined_mod():
           %3 = %2(%x3, meta[relay.Constant][2]);
           (%1, %3)
         }
-        
+
         def @tvmgen_default_cutlass_main_0(%y_0_i0: Tensor[(1600, 768), float16], %y_0_i1: Tensor[(2304, 768), float16], %y_0_i2: Tensor[(2304), float16],
                   Inline=1, Compiler="cutlass", global_symbol="tvmgen_default_cutlass_main_0", Primitive=1) -> Tensor[(1600, 2304), float16] {
           %4 = fn (%FunctionVar_0_0: Tensor[(1600, 768), float16], %FunctionVar_0_1: Tensor[(2304, 768), float16], %FunctionVar_0_2: Tensor[(2304), float16],
@@ -159,7 +159,7 @@ def expected_extern_mod():
           %3 = %2(%x3, meta[relay.Constant][2]);
           (%1, %3)
         }
-        
+
         def @tvmgen_default_cutlass_main_0(%y_0_i0: Tensor[(1600, 768), float16], %y_0_i1: Tensor[(2304, 768), float16], %y_0_i2: Tensor[(2304), float16],
                   Extern=1) -> Tensor[(1600, 2304), float16] {
           %4 = fn (%FunctionVar_0_0: Tensor[(1600, 768), float16], %FunctionVar_0_1: Tensor[(2304, 768), float16], %FunctionVar_0_2: Tensor[(2304), float16],

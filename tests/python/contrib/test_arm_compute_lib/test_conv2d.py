@@ -17,11 +17,14 @@
 """Arm Compute Library integration conv2d tests."""
 
 import numpy as np
+import pytest
 
 import tvm
 from tvm import relay
 
 from test_arm_compute_lib.infrastructure import (
+    QNN_DTYPES,
+    get_low_high_atol_rtol,
     skip_runtime_test,
     skip_codegen_test,
     build_and_run,
@@ -130,6 +133,8 @@ def _get_qnn_model(
     has_pad=False,
 ):
     """Return a model and any parameters it may have."""
+    low, high, _, _ = get_low_high_atol_rtol(dtype)
+
     a = relay.var(next(var_names), shape=shape, dtype=dtype)
     if has_pad:
         p = ((0, 0), (padding[0], padding[0]), (padding[1], padding[1]), (0, 0))
@@ -145,7 +150,7 @@ def _get_qnn_model(
         weight_shape = (kernel_h, kernel_w, shape[3] // groups, channels)
     else:
         weight_shape = (kernel_h, kernel_w, channels, shape[3] // groups)
-    w = tvm.nd.array(np.random.uniform(0, 255, weight_shape).astype(dtype))
+    w = tvm.nd.array(np.random.uniform(low, high, weight_shape).astype(dtype))
     weights = relay.const(w, dtype)
     out = relay.qnn.op.conv2d(
         a,
@@ -179,7 +184,7 @@ def _get_qnn_model(
         relay.const(0, "int32"),  # input zero point
         relay.const(output_sc, "float32"),  # output scale
         relay.const(output_zp, "int32"),  # output zero point
-        out_dtype="uint8",
+        out_dtype=dtype,
     )
     return req, params
 
@@ -202,7 +207,7 @@ def _get_expected_codegen(
     output_height = ((shape[1] - kernel_h + padding[0] + padding[2]) / strides[0]) + 1
     output_width = ((shape[2] - kernel_w + padding[1] + padding[3]) / strides[1]) + 1
     output_shape = (1, int(output_height), int(output_width), channels)
-    out_dtype = "int32" if dtype == "uint8" else "float32"
+    out_dtype = "int32" if dtype in QNN_DTYPES else "float32"
     is_depthwise = shape[3] == channels == groups
     weight_format = "IHWO" if is_depthwise else "OHWI"
     if weight_format == "IHWO":
@@ -248,7 +253,7 @@ def _get_expected_codegen(
     ]
 
     # qnn.conv2d params, input and kernel
-    if dtype == "uint8":
+    if dtype in QNN_DTYPES:
         node["name"] = "qnn." + node["name"].split(".")[1]
         for param_dtype in ["int32", "float32"]:
             for _ in range(2):
@@ -261,7 +266,7 @@ def _get_expected_codegen(
                 )
 
     if has_bias:
-        bias_dtype = "int32" if dtype == "uint8" else "float32"
+        bias_dtype = "int32" if dtype in QNN_DTYPES else "float32"
         inputs.append(
             {
                 "op": "const",
@@ -274,7 +279,7 @@ def _get_expected_codegen(
         )
 
     # qnn.conv2d params, output
-    if dtype == "uint8":
+    if dtype in QNN_DTYPES:
         for param_dtype in ["float32", "int32"]:
             inputs.append(
                 {"op": "const", "name": "", "attrs": {"shape": [[[]]], "dtype": [[param_dtype]]}}
@@ -429,7 +434,8 @@ def test_codegen_conv2d():
         verify_codegen(func, exp_codegen, 1)
 
 
-def test_qnn_conv2d():
+@pytest.mark.parametrize("dtype", QNN_DTYPES)
+def test_qnn_conv2d(dtype):
     Device.load("test_config.json")
 
     if skip_runtime_test():
@@ -438,7 +444,6 @@ def test_qnn_conv2d():
     device = Device()
     np.random.seed(0)
 
-    dtype = "uint8"
     trials = [
         # Normal convolution
         [2, 2, (1, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, False, False), False],
@@ -531,11 +536,11 @@ def test_qnn_conv2d():
         verify(outputs, atol=atol, rtol=0, config=config, verify_saturation=True)
 
 
-def test_codegen_qnn_conv2d():
+@pytest.mark.parametrize("dtype", QNN_DTYPES)
+def test_codegen_qnn_conv2d(dtype):
     if skip_codegen_test():
         return
 
-    dtype = "uint8"
     trials = [
         # Normal convolution
         [2, 2, (1, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, False, False), False],

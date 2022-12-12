@@ -19,8 +19,7 @@ import operator
 from functools import reduce
 from typing import List
 
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.mutator import MutateTileSize, Mutator
+from tvm import meta_schedule as ms
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir import Schedule
@@ -67,13 +66,17 @@ def _sch(decisions: List[List[int]]) -> Schedule:
     return sch
 
 
-def _make_mutator(target: Target) -> Mutator:
-    ctx = TuneContext(
+def _make_mutator(target: Target) -> ms.Mutator:
+    ctx = ms.TuneContext(
         mod=matmul,
         target=target,
-        mutator_probs={MutateTileSize(): 1.0},
+        space_generator=ms.space_generator.PostOrderApply(
+            sch_rules=[],
+            postprocs=[],
+            mutator_probs={ms.mutator.MutateTileSize(): 1.0},
+        ),
     )
-    return list(ctx.mutator_probs.keys())[0]
+    return list(ctx.space_generator.mutator_probs.keys())[0]
 
 
 def test_mutate_tile_size_matmul():

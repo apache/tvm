@@ -21,6 +21,9 @@ from __future__ import absolute_import, print_function
 from hashlib import md5
 from itertools import zip_longest, combinations
 import os
+from typing import Tuple
+import math
+
 import numpy as np
 from PIL import Image
 
@@ -28,6 +31,8 @@ import tvm
 from tvm import relay
 from tvm.contrib import utils, graph_executor, download
 from tvm.relay.op.contrib import partition_for_ethosn
+from tvm.driver.tvmc.target import parse_target
+
 from . import _infrastructure
 
 
@@ -67,7 +72,8 @@ def assert_lib_hash(lib, golden):
     for mod in lib.imported_modules:
         if mod.type_key == "ethos-n":
             mod.save(path)
-            lib_hash = md5(open(path, "rb").read()).hexdigest()
+            with open(path, "rb") as compiled_model:
+                lib_hash = md5(compiled_model.read()).hexdigest()
             hash_set.add(lib_hash)
 
     assert hash_set == golden, "Expected hash: {} Got hash: {}".format(golden, hash_set)
@@ -138,7 +144,9 @@ def get_host_op_count(mod):
     return c.count
 
 
-def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
+def build(
+    mod, params, npu=True, expected_host_ops=0, npu_partitions=1, additional_config_args=None
+):
     """Build a network with or without Ethos-N offloading.
 
     Parameters
@@ -153,14 +161,18 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
         The number of ops expected to remain on the host.
     npu_partitions : int, optional
         The number of Ethos-N partitions expected.
+    additional_config_args : dict, optional
+        Additional compiler config options for the NPU.
     """
     relay.backend.te_compiler.get().clear()
-    with tvm.transform.PassContext(
-        opt_level=3, config={"relay.ext.ethos-n.options": {"variant": get_ethosn_variant()}}
-    ):
+    if not additional_config_args:
+        additional_config_args = {}
+    npu_config = {**get_ethosn_device_options(), **additional_config_args}
+    print(npu_config)
+    with tvm.transform.PassContext(opt_level=3, config={"relay.ext.ethos-n.options": npu_config}):
         with tvm.target.Target("llvm"):
             if npu:
-                mod = partition_for_ethosn(mod, params, variant="n78")
+                mod = partition_for_ethosn(mod, params)
                 host_op_count = get_host_op_count(mod)
                 assert (
                     host_op_count == expected_host_ops
@@ -223,8 +235,20 @@ def run(lib, inputs, outputs, npu=True):
     return out
 
 
-def build_and_run(mod, inputs, outputs, params, npu=True, expected_host_ops=0, npu_partitions=1):
-    lib = build(mod, params, npu, expected_host_ops, npu_partitions)
+def build_and_run(
+    mod,
+    inputs,
+    outputs,
+    params,
+    npu=True,
+    expected_host_ops=0,
+    npu_partitions=1,
+    additional_config_args=None,
+):
+    """
+    Convenient wrapper for building and running a module on the NPU.
+    """
+    lib = build(mod, params, npu, expected_host_ops, npu_partitions, additional_config_args)
     return run(lib, inputs, outputs, npu)
 
 
@@ -260,7 +284,7 @@ def test_error(mod, params, err_msg):
 
     caught = None
     with tvm.transform.PassContext(
-        opt_level=3, config={"relay.ext.ethos-n.options": {"variant": get_ethosn_variant()}}
+        opt_level=3, config={"relay.ext.ethos-n.options": get_ethosn_device_options()}
     ):
         with tvm.target.Target("llvm"):
             try:
@@ -339,5 +363,48 @@ def get_conv2d_qnn_params(
     return output_zp, output_sc
 
 
-def get_ethosn_variant():
-    return os.getenv("ETHOSN_VARIANT_CONFIG", default="Ethos-N78_1TOPS_2PLE_RATIO")
+def get_same_padding(
+    data: Tuple[int, int],
+    kernel: Tuple[int, int],
+    dilation: Tuple[int, int],
+    stride: Tuple[int, int],
+) -> Tuple[int, int, int, int]:
+    """
+    Get the padding values required for 'SAME' padding.
+
+    Parameters
+    ----------
+    data : Tuple[int, int]
+        The height and width of the data respectively.
+    kernel : Tuple[int, int]
+        The height and width of the kernel respectively.
+    dilation : Tuple[int, int]
+        The dilation of the kernel.
+    stride : Tuple[int, int]
+        The stride of the kernel.
+
+    Returns
+    -------
+    Tuple[int, int, int, int]
+        The padding values for top, left, bottom and right respectively.
+    """
+    dilated_kernel_h = dilation[0] * (kernel[0] - 1) + 1
+    dilated_kernel_w = dilation[1] * (kernel[1] - 1) + 1
+    out = int(math.ceil(float(data[0]) / float(stride[0])))
+    pad = max(0, (out - 1) * stride[0] + dilated_kernel_h - data[0])
+    pad_top = pad // 2
+    pad_bottom = pad - pad_top
+
+    out = int(math.ceil(float(data[1]) / float(stride[1])))
+    pad = max(0, (out - 1) * stride[1] + dilated_kernel_w - data[1])
+    pad_left = pad // 2
+    pad_right = pad - pad_left
+    return (pad_top, pad_left, pad_bottom, pad_right)
+
+
+def get_ethosn_device_options():
+    """Determine the NPU configuration used for testing."""
+    default_target_string = "ethos-n -variant=n78 -tops=1 -ple_ratio=2"
+    target_string = os.getenv("ETHOSN_TEST_TARGET_CONFIG", default_target_string)
+    target = parse_target(target_string)
+    return target[0]["opts"]

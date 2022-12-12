@@ -384,6 +384,12 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
     return true;
   }
 
+  Postproc Clone() const {
+    ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
+        make_object<RewriteParallelVectorizeUnrollNode>(*this);
+    return Postproc(n);
+  }
+
   static constexpr const char* _type_key = "meta_schedule.RewriteParallelVectorizeUnroll";
   TVM_DECLARE_FINAL_OBJECT_INFO(RewriteParallelVectorizeUnrollNode, PostprocNode);
 };

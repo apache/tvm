@@ -32,6 +32,7 @@ from .utils import (
     assert_partitioned_function,
     assert_no_external_function,
     create_test_runner,
+    get_kernel_bias_dtype,
 )
 
 
@@ -46,6 +47,7 @@ def make_model(
     output_scale,
     dtype,
     kernel_dtype,
+    bias_dtype,
     out_channels,
     enable_bias,
     relu_type="NONE",
@@ -70,11 +72,11 @@ def make_model(
         input_scale=relay.const(input_scale, "float32"),
         kernel_scale=relay.const(kernel_scale, "float32"),
         units=out_channels,
-        out_dtype="int32",
+        out_dtype=bias_dtype,
     )
 
-    bias = tvm.nd.array(rng.integers(0, high=10, size=(out_channels,), dtype="int32"))
-    bias_const = relay.const(bias, "int32")
+    bias = tvm.nd.array(rng.integers(0, high=10, size=(out_channels,), dtype=bias_dtype))
+    bias_const = relay.const(bias, bias_dtype)
     last_op = relay.nn.bias_add(dense, bias_const) if enable_bias else dense
     requant_input_sc = input_scale * kernel_scale
     last_op = relay.qnn.op.requantize(
@@ -91,6 +93,7 @@ def make_model(
 
 
 @tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("dtype", ["int8", "int16"])
 @pytest.mark.parametrize("in_shape", [(2, 28), (1, 64)])
 @pytest.mark.parametrize("out_channels", [12, 128])
 @pytest.mark.parametrize("enable_bias", [False, True])
@@ -101,7 +104,8 @@ def make_model(
 @pytest.mark.parametrize(
     "compiler_cpu, cpu_flags", [("cortex-m55", "+nomve"), ("cortex-m55", ""), ("cortex-m7", "")]
 )
-def test_op_int8(
+def test_ops(
+    dtype,
     in_shape,
     enable_bias,
     input_zero_point,
@@ -115,7 +119,7 @@ def test_op_int8(
     interface_api = "c"
     use_unpacked_api = True
 
-    dtype = "int8"
+    kernel_dtype, bias_dtype = get_kernel_bias_dtype(dtype)
     kernel_zero_point = 0
     kernel_shape = [out_channels, in_shape[1]]
     conv2d_kernel_shape = (1, 1, kernel_shape[0], kernel_shape[1])
@@ -140,7 +144,8 @@ def test_op_int8(
         output_zero_point,
         output_scale,
         dtype,
-        dtype,
+        kernel_dtype,
+        bias_dtype,
         out_channels,
         enable_bias,
     )
@@ -170,13 +175,15 @@ def test_op_int8(
 
 def parameterize_for_invalid_model(test):
     """Generates parameters for non int8 inputs to fully connected layer"""
-    in_dtype = ["uint8", "int8"]
+    in_dtype = ["uint8", "int8", "int16"]
     kernel_dtype = ["uint8", "int8"]
     kernel_zero_point = [-33, 10, 0]
     all_combinations = itertools.product(in_dtype, kernel_dtype, kernel_zero_point)
     all_combinations = filter(
         lambda parameters: not (
-            parameters[0] == "int8" and parameters[1] == "int8" and parameters[2] == 0
+            (parameters[0] == "int8" or parameters[0] == "int16")
+            and parameters[1] == "int8"
+            and parameters[2] == 0
         ),
         all_combinations,
     )
@@ -199,6 +206,7 @@ def test_invalid_parameters(
     input_scale = 1
     input_zero_point = 24
     kernel_scale = [0.11, 0.0237]
+    _, bias_dtype = get_kernel_bias_dtype(in_dtype)
 
     kernel_shape = [out_channels, in_shape[1]]
     conv2d_kernel_shape = [1, 1, kernel_shape[0], kernel_shape[1]]
@@ -223,6 +231,7 @@ def test_invalid_parameters(
         output_scale=output_scale,
         dtype=in_dtype,
         kernel_dtype=kernel_dtype,
+        bias_dtype=bias_dtype,
         out_channels=out_channels,
         enable_bias=True,
     )

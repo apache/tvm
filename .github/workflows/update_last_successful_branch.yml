@@ -41,4 +41,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eux
-          python ci/scripts/update_branch.py || echo step failed
+          python ci/scripts/github/update_branch.py || echo step failed

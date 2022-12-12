@@ -207,6 +207,28 @@ def make_conv_bias_sum_relu_pattern(conv_type, has_relu=True):
     return out
 
 
+def make_dense_bias_sum_pattern():
+    """Create patterns with sum op.
+
+    Parameters
+    ----------
+    N/A
+
+    Returns
+    -------
+    out : CallPattern
+        Call node sequence.
+    """
+    data1 = wildcard()
+    weight = wildcard()
+    bias = wildcard()
+    data2 = wildcard()
+    out = is_op("nn.dense")(data1, weight)
+    out = is_op("add")(out, bias)
+    out = is_op("add")(out, data2)
+    return "dnnl.dense_bias_sum", out
+
+
 def get_op_name(expr):
     """Get the operator name from an expression."""
     if isinstance(expr, Op):
@@ -438,6 +460,7 @@ def pattern_table():
     dnnl_patterns = list()
     dnnl_patterns.append(make_qnn_conv2d_pattern())
     dnnl_patterns.append(make_qnn_dense_pattern())
+    dnnl_patterns.append(make_dense_bias_sum_pattern())
     dnnl_patterns.append(
         (
             "dnnl.conv2d_bias_sum_relu",

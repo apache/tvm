@@ -18,6 +18,11 @@
 
 set -euxo pipefail
 
+if [ -z "${TVM_VENV+x}" ]; then
+    echo "ERROR: expect TVM_VENV env var to be set"
+    exit 2
+fi
+
 apt-get update --fix-missing
 
 # # Install dependencies
@@ -60,4 +65,5 @@ cd / && rm -rf /caffe_src
 
 PYCAFFE_ROOT=${CAFFE_HOME}/python
 echo "${CAFFE_HOME}/lib" >> /etc/ld.so.conf.d/caffe.conf && ldconfig
-ln -s ${PYCAFFE_ROOT}/caffe /usr/local/lib/python3.7/dist-packages/caffe
+site_packages=$("${TVM_VENV}/bin/python3" -c 'import site; print(site.getsitepackages()[0])')
+ln -s ${PYCAFFE_ROOT}/caffe "${site_packages}/caffe"

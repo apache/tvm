@@ -97,14 +97,3 @@ def prefix_generated_name(names: Union[List[str], str]):
     """
 
     return _backend.PrefixGeneratedName(_preprocess_names(names))
-
-
-def sanitize_name(original_name: str):
-    """Sanitize name for output into compiler artifacts
-
-    Parameters
-    ----------
-    original_name : str
-        Original name to sanitize
-    """
-    return _backend.SanitizeName(original_name)

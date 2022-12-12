@@ -143,8 +143,16 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       } else {
         auto it = inputs_.find(func_name);
         ICHECK(it != inputs_.end()) << "Input has not been set for function " << func_name;
-        const std::vector<ObjectRef>& func_args = it->second;
-        *rv = Invoke(func, func_args);
+        const std::vector<ObjectRef>& input_args = it->second;
+        if (set_outputs_enabled_.count(func_name) && set_outputs_enabled_[func_name]) {
+          ICHECK(outputs_.count(func_name))
+              << "Outputs have not been set for function " << func_name;
+          *rv = Invoke(func, input_args, outputs_[func_name]);
+          outputs_[func_name].clear();
+          set_outputs_enabled_[func_name] = false;
+        } else {
+          *rv = Invoke(func, input_args);
+        }
       }
     });
   } else if (name == "invoke_stateful") {
@@ -224,6 +232,9 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
                                 << "(func_name, index or name, tensor)";
       SetOneInput(args[0], args[1], args[2]);
     });
+  } else if (name == "set_outputs") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetOutputs(args[0], args); });
   } else if (name == "load_late_bound_consts") {
     return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.size(), 1);
@@ -232,7 +243,6 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
-    return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
   }
 }
 
@@ -270,6 +280,62 @@ void VirtualMachine::SetOneInput(std::string func_name, const TVMArgValue& tag,
   CreateInputsOrCheckSize(func_name, params_num);
   Device dev = GetDevice(vm_func.param_device_indexes[inp_index]);
   SetInputTensorWithIndex(inputs_[func_name], tensor, inp_index, dev);
+}
+
+void VirtualMachine::SetOutputs(std::string func_name, TVMArgs args) {
+  set_outputs_enabled_[func_name] = true;
+  size_t outputs_size = args.size();
+  // First args is func_name
+  ICHECK_GT(outputs_size, 1) << "There is no output arguments set";
+
+  std::vector<ObjectRef> func_args(outputs_size - 1);
+  for (size_t i = 1; i < outputs_size; ++i) {
+    // TODO(vvchernov): device?
+    func_args[i - 1] = TensorFromTVMArgValueToObjectRef(args[i]);
+  }
+  outputs_.erase(func_name);
+  outputs_.emplace(func_name, func_args);
+}
+
+void VirtualMachine::PrintInfoAndSetInputArgs(const VMFunction& func,
+                                              const std::vector<ObjectRef>& args) {
+  VLOG(2) << "Executing Function: " << std::endl << func;
+  for (int i = 0; i < static_cast<int>(devices_.size()); ++i) {
+    VLOG(2) << "Device " << i << " has device type " << devices_[i].device_type << " and device id "
+            << devices_[i].device_id
+            << (i == exec_->host_device_index ? " (using as host device)" : "");
+  }
+
+  InvokeGlobal(func, args);
+}
+
+void VirtualMachine::SetOutputTensorsToRegister(const std::string& func_name,
+                                                const std::vector<ObjectRef>& outputs) {
+  size_t size = outputs.size();
+
+  if (output_tensor_reg_indices_[func_name].empty()) {
+    output_tensor_reg_indices_[func_name] = GetOutputTensorRegIndices();
+  }
+  auto& reg_indices = output_tensor_reg_indices_[func_name];
+  ICHECK_EQ(reg_indices.size(), size)
+      << "Number of outside output tensors should be equal to model outputs number";
+  size_t i = 0;
+  for (auto it = reg_indices.begin(); it != reg_indices.end(); ++it, ++i) {
+    WriteRegister(*it, outputs[i]);
+  }
+}
+
+ObjectRef VirtualMachine::TensorFromTVMArgValueToObjectRef(const TVMArgValue& output_tensor) const {
+  if (output_tensor.type_code() == kTVMDLTensorHandle) {
+    DLTensor* dl_tensor = output_tensor;
+    return NDArray::FromExternalDLTensor(*dl_tensor);
+  } else if (output_tensor.type_code() == kTVMNDArrayHandle) {
+    return output_tensor.AsObjectRef<tvm::runtime::NDArray>();
+  } else {
+    LOG(FATAL) << "It supports tensor of DLTensor or NDArray type only! Given type is "
+               << output_tensor.type_code();
+  }
+  return ObjectRef();
 }
 
 int64_t VirtualMachine::GetInputIndexFromVMFunction(const std::string& func_name,
@@ -359,14 +425,7 @@ void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<Obje
 }
 
 ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<ObjectRef>& args) {
-  VLOG(2) << "Executing Function: " << std::endl << func;
-  for (int i = 0; i < static_cast<int>(devices_.size()); ++i) {
-    VLOG(2) << "Device " << i << " has device type " << devices_[i].device_type << " and device id "
-            << devices_[i].device_id
-            << (i == exec_->host_device_index ? " (using as host device)" : "");
-  }
-
-  InvokeGlobal(func, args);
+  PrintInfoAndSetInputArgs(func, args);
   RunLoop();
   return return_register_;
 }
@@ -378,6 +437,14 @@ ObjectRef VirtualMachine::Invoke(const std::string& name, const std::vector<Obje
   Index func_index = it->second;
   VLOG(2) << "Invoke Global " << name << " at index " << func_index;
   return Invoke(exec_->functions[func_index], args);
+}
+
+ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<ObjectRef>& input_args,
+                                 const std::vector<ObjectRef>& output_args) {
+  PrintInfoAndSetInputArgs(func, input_args);
+  SetOutputTensorsToRegister(func.name, output_args);
+  RunLoop(output_tensor_reg_indices_[func.name]);
+  return return_register_;
 }
 
 void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
@@ -518,7 +585,45 @@ int64_t VirtualMachine::LoadScalarInt(Index r) const {
   return result;
 }
 
-void VirtualMachine::RunLoop() {
+Index VirtualMachine::GetResultRegisterIndex() const {
+  Index op_index = 0;
+  while (code_[op_index].op != Opcode::Ret) {
+    ++op_index;
+  }
+
+  return code_[op_index].result;
+}
+
+void VirtualMachine::CalculatePreResultOpIndex(Index res_index) {
+  if (preresult_op_index_ == -1) {
+    preresult_op_index_ = 0;
+    while (code_[preresult_op_index_].dst != res_index) {
+      ++preresult_op_index_;
+    }
+  }
+}
+
+std::vector<Index> VirtualMachine::GetOutputTensorRegIndices() {
+  std::vector<Index> reg_indices;
+  Index res_index = GetResultRegisterIndex();
+  CalculatePreResultOpIndex(res_index);
+  auto& preres_instr = code_[preresult_op_index_];
+  auto op_code = preres_instr.op;
+  if (op_code == Opcode::AllocTensor) {
+    reg_indices.emplace_back(res_index);
+  } else if (op_code == Opcode::AllocADT) {
+    for (Index i = 0; i < preres_instr.num_fields; ++i) {
+      reg_indices.push_back(preres_instr.datatype_fields[i]);
+    }
+  } else if (op_code == Opcode::ReshapeTensor) {
+    reg_indices.push_back(preres_instr.reshape_tensor.tensor);
+  } else {
+    LOG(FATAL) << "Operation " << size_t(op_code) << " is not supported for set_outputs method";
+  }
+  return reg_indices;
+}
+
+void VirtualMachine::RunLoop(const std::vector<Index>& output_tensor_reg_indices) {
   ICHECK(this->exec_);
   ICHECK(this->code_);
   pc_ = 0;
@@ -666,21 +771,11 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::AllocTensor: {
         OpStartHook(instr);
-        auto shape = std::vector<int64_t>(instr.alloc_tensor.ndim);
-
-        for (uint32_t i = 0; i < instr.alloc_tensor.ndim; ++i) {
-          shape[i] = instr.alloc_tensor.shape[i];
+        if (!output_tensor_reg_indices.empty() && FindIndex(output_tensor_reg_indices, instr.dst)) {
+          WriteAllocatedTensorFromOutside(instr);
+        } else {
+          WriteAllocatedTensor(instr);
         }
-
-        auto storage_obj = ReadRegister(instr.alloc_tensor.storage);
-        auto offset = LoadScalarInt(instr.alloc_tensor.offset);
-        auto storage = Downcast<Storage>(storage_obj);
-        auto obj = storage->AllocNDArray(offset, shape, instr.alloc_tensor.dtype);
-        VLOG(2) << "allocated "
-                << RuntimeObject2String(obj, GetDevice(exec_->host_device_index),
-                                        /*show_contents=*/false);
-
-        WriteRegister(instr.dst, obj);
         OpStopHook();
         pc_++;
         goto main_loop;
@@ -823,6 +918,75 @@ void VirtualMachine::RunLoop() {
         LOG(FATAL) << "Unknown instruction opcode: " << int(instr.op);
     }
   }
+}
+
+void VirtualMachine::WriteAllocatedTensor(const Instruction& instr) {
+  auto shape = std::vector<int64_t>(instr.alloc_tensor.ndim);
+
+  for (uint32_t i = 0; i < instr.alloc_tensor.ndim; ++i) {
+    shape[i] = instr.alloc_tensor.shape[i];
+  }
+
+  auto storage_obj = ReadRegister(instr.alloc_tensor.storage);
+  auto offset = LoadScalarInt(instr.alloc_tensor.offset);
+  auto storage = Downcast<Storage>(storage_obj);
+  auto obj = storage->AllocNDArray(offset, shape, instr.alloc_tensor.dtype);
+  VLOG(2) << "allocated "
+          << RuntimeObject2String(obj, GetDevice(exec_->host_device_index),
+                                  /*show_contents=*/false);
+
+  WriteRegister(instr.dst, obj);
+}
+
+void VirtualMachine::WriteAllocatedTensorFromOutside(const Instruction& instr) {
+  // External tensor(s) has been already written to the register (instr.dst)
+  auto ex_arr = Downcast<NDArray>(ReadRegister(instr.dst));
+  auto ex_shape = ex_arr.Shape();
+  auto ex_size = ex_shape.size();
+  auto ex_dtype = ex_arr->dtype;
+
+  auto in_size = instr.alloc_tensor.ndim;
+  auto in_dtype = instr.alloc_tensor.dtype;
+  ICHECK_EQ(TypeEqual(in_dtype, ex_dtype), true)
+      << "Data types mismatching for internal and external output tensors";
+
+  bool size_check = false;
+  if (ex_size != in_size) {
+    size_check = true;
+  } else {
+    for (size_t i = 0; i < in_size; ++i) {
+      if (ex_shape[i] != instr.alloc_tensor.shape[i]) {
+        size_check = true;
+        break;
+      }
+    }
+  }
+
+  if (size_check) {
+    // Match element number
+    size_t in_el_num = 1, ex_el_num = 1;
+    for (size_t i = 0; i < ex_size; ++i) {
+      ex_el_num *= ex_shape[i];
+    }
+    for (size_t i = 0; i < in_size; ++i) {
+      in_el_num *= instr.alloc_tensor.shape[i];
+    }
+    ICHECK_EQ(in_el_num, ex_el_num)
+        << "Element number mismatching of internal and external output tensors";
+    if (code_[preresult_op_index_].op == Opcode::ReshapeTensor) {
+      int64_t* dims = instr.alloc_tensor.shape;
+      std::vector<int64_t> ref_shape(dims, dims + int64_t(in_size));
+      auto reshaped_tensor = ex_arr.CreateView(ref_shape, ex_dtype);
+      WriteRegister(instr.dst, reshaped_tensor);
+    } else {
+      LOG(FATAL) << "Internal and external output tensor shapes are mismatched";
+    }
+  }
+}
+
+bool VirtualMachine::FindIndex(const std::vector<Index>& indices, Index val) const {
+  auto it = std::find(indices.begin(), indices.end(), val);
+  return it != indices.end();
 }
 
 runtime::Module CreateVirtualMachine(Executable* exec) {

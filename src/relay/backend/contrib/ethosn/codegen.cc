@@ -125,6 +125,10 @@ void InferTensorsVisitor::InferCall(const CallNode* cn) {
     LeakyReLUParams params;
     err += EthosnAPI::LeakyReLU(cn->op.as<FunctionNode>()->body, &params);
     tensor_table_[cn->args[0]] = {params.input_info};
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_conv2d_transpose")) {
+    QnnConv2dTransposeParams params;
+    err += EthosnAPI::QnnConv2dTranspose(cn->op.as<FunctionNode>()->body, &params);
+    tensor_table_[cn->args[0]] = {params.input_info};
   } else if (IsEthosnOp(call, "qnn.concatenate")) {
     ConcatenateParams params;
     err = EthosnAPI::Concatenate(call, &params);
@@ -147,6 +151,10 @@ void InferTensorsVisitor::InferCall(const CallNode* cn) {
   } else if (IsEthosnFunc(call, "ethos-n.qnn_requantize")) {
     RequantizeParams params;
     err += EthosnAPI::Requantize(cn->op.as<FunctionNode>()->body, &params);
+    tensor_table_[cn->args[0]] = {params.input_info};
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_reinterpret_quantize")) {
+    ReinterpretQuantizationParams params;
+    err += EthosnAPI::ReinterpretQuantize(cn->op.as<FunctionNode>()->body, &params);
     tensor_table_[cn->args[0]] = {params.input_info};
   } else if (IsEthosnFunc(call, "ethos-n.qnn_resize")) {
     ResizeParams params;
@@ -218,36 +226,27 @@ sl::TensorsAndId MakeOps(const sl::TensorAndId<sl::Operand>& op) {
   return ops;
 }
 
-String MakeVariant(Optional<EthosnCompilerConfig> configuration) {
-  String variant = configuration.value()->variant;
-  // Transform variant string to lowercase for comparison
-  std::string variant_string = variant.c_str();
+sl::EthosNVariant MakeVariant(EthosnCompilerConfig configuration) {
+  String variant = configuration->variant;
+  String tops = configuration->tops;
+  String ple_ratio = configuration->ple_ratio;
 
-  // Checking deprecated variant format. Support for specifying
-  // the variant in this way only remains for backwards compatibility
-  // and will be removed in a later release of TVM.
-  std::string deprecated_variant_string = variant_string;
-  std::transform(deprecated_variant_string.begin(), deprecated_variant_string.end(),
-                 deprecated_variant_string.begin(), ::tolower);
-  if (variant_string == "n78" || deprecated_variant_string == "ethos-n78") {
-    String tops = configuration.value()->tops;
-    String ple_ratio = configuration.value()->ple_ratio;
-    variant = "Ethos-N78_" + tops + "TOPS_" + ple_ratio + "PLE_RATIO";
-  }
-  return variant;
+  std::string capitalized_variant = variant;
+  std::transform(capitalized_variant.begin(), capitalized_variant.end(),
+                 capitalized_variant.begin(), ::toupper);
+  std::string sl_variant_string =
+      "Ethos-" + capitalized_variant + "_" + tops + "TOPS_" + ple_ratio + "PLE_RATIO";
+  return sl::EthosNVariantFromString(sl_variant_string.c_str());
 }
 
 NetworkWithIDs ConstructNetworkVisitor::Construct(const Function& func) {
   // Initialise everything
-  auto ctx = transform::PassContext::Current();
-  auto cfg = ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options");
-  if (!cfg.defined()) {
-    cfg = AttrsWithDefaultValues<EthosnCompilerConfig>();
-  }
+  EthosnCompilerConfig cfg = GetCompilerAttrs();
+  sl::EthosNVariant variant = MakeVariant(cfg);
+
   NetworkWithIDs network_with_ids;
   network_ = sl::CreateNetwork(
-      sl::GetFwAndHwCapabilities(sl::EthosNVariantFromString(MakeVariant(cfg).c_str()),
-                                 static_cast<uint32_t>(std::stoul(cfg.value()->sram_size))));
+      sl::GetFwAndHwCapabilities(variant, static_cast<uint32_t>(std::stoul(cfg->sram_size))));
   network_with_ids.network = network_;
   operand_table_.clear();
 
@@ -311,6 +310,9 @@ sl::TensorsAndId ConstructNetworkVisitor::HandleCall(const CallNode* cn) {
   } else if (IsEthosnFunc(call, "ethos-n.qnn_leaky_relu")) {
     if ((err = MakeLeakyReLULayer(call, &tensor))) ReportFatalError(call, err);
     return MakeOps(tensor);
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_conv2d_transpose")) {
+    if ((err = MakeConv2DTransposeLayer(call, &tensor))) ReportFatalError(call, err);
+    return MakeOps(tensor);
   } else if (IsEthosnOp(call, "qnn.concatenate")) {
     if ((err = MakeConcatenateLayer(call, &tensor))) ReportFatalError(call, err);
     return MakeOps(tensor);
@@ -325,6 +327,9 @@ sl::TensorsAndId ConstructNetworkVisitor::HandleCall(const CallNode* cn) {
     return MakeOps(tensor);
   } else if (IsEthosnFunc(call, "ethos-n.qnn_requantize")) {
     if ((err = MakeRequantizeLayer(call, &tensor))) ReportFatalError(call, err);
+    return MakeOps(tensor);
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_reinterpret_quantize")) {
+    if ((err = MakeReinterpretQuantizeLayer(call, &tensor))) ReportFatalError(call, err);
     return MakeOps(tensor);
   } else if (IsEthosnFunc(call, "ethos-n.qnn_resize")) {
     if ((err = MakeResizeLayer(call, &tensor))) ReportFatalError(call, err);
@@ -398,8 +403,8 @@ EthosnError ConstructNetworkVisitor::MakeFullyConnectedLayer(const Call& call,
     return err;
   }
 
-  auto weights = AddConstant(network_, params.weights_info, params.raw_weights).tensor;
-  auto bias = AddConstant(network_, params.bias_info, params.raw_bias).tensor;
+  auto weights = AddConstant(network_, params.weights_info, params.raw_weights->data).tensor;
+  auto bias = AddConstant(network_, params.bias_info, params.raw_bias->data).tensor;
   try {
     auto input =
         AddReshape(network_, *operand_table_[call->args[0]][0], params.input_info.m_Dimensions)
@@ -537,6 +542,24 @@ EthosnError ConstructNetworkVisitor::MakeLeakyReLULayer(const Call& call,
   return EthosnError();
 }
 
+EthosnError ConstructNetworkVisitor::MakeConv2DTransposeLayer(const Call& call,
+                                                              sl::TensorAndId<sl::Operand>* out) {
+  QnnConv2dTransposeParams params;
+  if (auto err = EthosnAPI::QnnConv2dTranspose(call->op.as<FunctionNode>()->body, &params)) {
+    return err;
+  }
+
+  auto activation = operand_table_[call->args[0]][0];
+  auto weights = AddConstant(network_, params.weights_info, params.raw_weights->data).tensor;
+  auto bias = AddConstant(network_, params.bias_info, params.raw_bias->data).tensor;
+  try {
+    *out = AddTransposeConvolution(network_, *activation, *bias, *weights, params.conv_info);
+  } catch (const sl::NotSupportedException& e) {
+    return EthosnError(e.what());
+  }
+  return EthosnError();
+}
+
 EthosnError ConstructNetworkVisitor::MakeConcatenateLayer(const Call& call,
                                                           sl::TensorAndId<sl::Operand>* out) {
   ConcatenateParams params;
@@ -629,6 +652,24 @@ EthosnError ConstructNetworkVisitor::MakeRequantizeLayer(const Call& call,
   return EthosnError();
 }
 
+EthosnError ConstructNetworkVisitor::MakeReinterpretQuantizeLayer(
+    const Call& call, sl::TensorAndId<sl::Operand>* out) {
+  ReinterpretQuantizationParams params;
+  params.input_info = GetTensorInfo(tensor_table_, call);
+  if (auto err = EthosnAPI::ReinterpretQuantize(call->op.as<FunctionNode>()->body, &params)) {
+    return err;
+  }
+
+  auto input = operand_table_[call->args[0]][0];
+
+  try {
+    *out = AddReinterpretQuantization(network_, *input, params.reinterpret_quantize_info);
+  } catch (const sl::NotSupportedException& e) {
+    return EthosnError(e.what());
+  }
+  return EthosnError();
+}
+
 EthosnError ConstructNetworkVisitor::MakeResizeLayer(const Call& call,
                                                      sl::TensorAndId<sl::Operand>* out) {
   ResizeParams params;
@@ -694,28 +735,24 @@ runtime::ethosn::OrderedCompiledNetwork EthosnCompiler::CompileEthosnFunc(const 
 }
 
 sl::CompilationOptions EthosnCompiler::CreateOptions() {
-  auto ctx = transform::PassContext::Current();
-  auto cfg = ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options");
-  if (!cfg.defined()) {
-    cfg = AttrsWithDefaultValues<EthosnCompilerConfig>();
-  }
+  EthosnCompilerConfig cfg = GetCompilerAttrs();
 
   sl::CompilationOptions options;
-  options.m_Strategy0 = cfg.value()->strategy0;
-  options.m_Strategy1 = cfg.value()->strategy1;
-  options.m_Strategy3 = cfg.value()->strategy3;
-  options.m_Strategy4 = cfg.value()->strategy4;
-  options.m_Strategy6 = cfg.value()->strategy6;
-  options.m_Strategy7 = cfg.value()->strategy7;
-  options.m_DebugInfo.m_DumpRam = cfg.value()->dump_ram;
-  options.m_DebugInfo.m_InitialSramDump = cfg.value()->initial_sram_dump;
-  options.m_BlockConfig16x16 = cfg.value()->block_config_16x16;
-  options.m_BlockConfig32x8 = cfg.value()->block_config_32x8;
-  options.m_BlockConfig8x32 = cfg.value()->block_config_8x32;
-  options.m_BlockConfig8x8 = cfg.value()->block_config_8x8;
-  options.m_EnableIntermediateCompression = cfg.value()->enable_intermediate_compression;
-  options.m_DisableWinograd = cfg.value()->disable_winograd;
-  options.m_DebugInfo.m_DebugDir = cfg.value()->debug_dir;
+  options.m_Strategy0 = cfg->strategy0;
+  options.m_Strategy1 = cfg->strategy1;
+  options.m_Strategy3 = cfg->strategy3;
+  options.m_Strategy4 = cfg->strategy4;
+  options.m_Strategy6 = cfg->strategy6;
+  options.m_Strategy7 = cfg->strategy7;
+  options.m_DebugInfo.m_DumpRam = cfg->dump_ram;
+  options.m_DebugInfo.m_InitialSramDump = cfg->initial_sram_dump;
+  options.m_BlockConfig16x16 = cfg->block_config_16x16;
+  options.m_BlockConfig32x8 = cfg->block_config_32x8;
+  options.m_BlockConfig8x32 = cfg->block_config_8x32;
+  options.m_BlockConfig8x8 = cfg->block_config_8x8;
+  options.m_EnableIntermediateCompression = cfg->enable_intermediate_compression;
+  options.m_DisableWinograd = cfg->disable_winograd;
+  options.m_DebugInfo.m_DebugDir = cfg->debug_dir;
   return options;
 }
 
@@ -756,12 +793,10 @@ std::unique_ptr<sl::SupportQueries> EthosnCompiler::m_Queries;
 
 EthosnError EthosnCompiler::SupportedSetup() {
   if (m_Queries == nullptr) {
-    auto ctx = transform::PassContext::Current();
-    auto cfg = ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options").defined()
-                   ? ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options")
-                   : AttrsWithDefaultValues<EthosnCompilerConfig>();
-    m_Queries = std::make_unique<sl::SupportQueries>(sl::GetFwAndHwCapabilities(
-        sl::EthosNVariantFromString(MakeVariant(cfg).c_str()), std::stoul(cfg.value()->sram_size)));
+    EthosnCompilerConfig cfg = GetCompilerAttrs();
+    sl::EthosNVariant variant = MakeVariant(cfg);
+    m_Queries = std::make_unique<sl::SupportQueries>(
+        sl::GetFwAndHwCapabilities(variant, std::stoul(cfg->sram_size)));
     if (m_Queries == nullptr) {
       return EthosnError("Could not initialise Arm(R) Ethos(TM)-N compiler isSupported");
     }
@@ -913,6 +948,20 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.leaky_relu")
       err += EthosnError(reason);
     });
 
+TVM_REGISTER_GLOBAL("relay.ethos-n.support.conv2d_transpose")
+    .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
+      Call call = args[0];
+      QnnConv2dTransposeParams params;
+      auto err = EthosnAPI::QnnConv2dTranspose(call, &params);
+      err += EthosnCompiler::SupportedSetup();
+      char reason[kReasonMaxLength];
+      reason[0] = '\0';
+      *rv = !err && EthosnCompiler::GetSupported()->IsTransposeConvolutionSupported(
+                        params.bias_info, params.weights_info, params.conv_info, params.input_info,
+                        &params.output_info, reason, sizeof(reason));
+      err += EthosnError(reason);
+    });
+
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.concatenate")
     .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
       Call call = args[0];
@@ -980,6 +1029,20 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.requantize")
       *rv = !err && EthosnCompiler::GetSupported()->IsRequantizeSupported(
                         params.requantize_info, params.input_info, &params.output_info, reason,
                         sizeof(reason));
+      err += EthosnError(reason);
+    });
+
+TVM_REGISTER_GLOBAL("relay.ethos-n.support.reinterpret_quantize")
+    .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
+      Call call = args[0];
+      ReinterpretQuantizationParams params;
+      auto err = EthosnAPI::ReinterpretQuantize(call, &params);
+      err += EthosnCompiler::SupportedSetup();
+      char reason[kReasonMaxLength];
+      reason[0] = '\0';
+      *rv = !err && EthosnCompiler::GetSupported()->IsReinterpretQuantizationSupported(
+                        params.reinterpret_quantize_info, params.input_info, &params.output_info,
+                        reason, sizeof(reason));
       err += EthosnError(reason);
     });
 

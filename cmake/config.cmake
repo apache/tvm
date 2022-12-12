@@ -65,7 +65,8 @@ set(USE_AOCL OFF)
 # Whether enable OpenCL runtime
 #
 # Possible values:
-# - ON: enable OpenCL with cmake's auto search
+# - ON: enable OpenCL with OpenCL wrapper to remove dependency during build
+#       time and trigger dynamic search and loading of OpenCL in runtime
 # - OFF: disable OpenCL
 # - /path/to/opencl-sdk: use specific path to opencl-sdk
 set(USE_OPENCL OFF)
@@ -340,6 +341,10 @@ set(USE_BNNS OFF)
 # - OFF: disable libbacktrace
 set(USE_LIBBACKTRACE AUTO)
 
+# Whether to install a signal handler to print a backtrace on segfault. This
+# may replace existing signal handlers specified by other libraries.
+set(BACKTRACE_ON_SEGFAULT OFF)
+
 # Whether to build static libtvm_runtime.a, the default is to build the dynamic
 # version: libtvm_runtime.so.
 #
@@ -351,6 +356,17 @@ set(USE_LIBBACKTRACE AUTO)
 # not be included in the final executable. This would make the corresponding
 # runtime functions to be unavailable to the program.
 set(BUILD_STATIC_RUNTIME OFF)
+
+# Caches the build so that building is faster when switching between branches.
+# If you switch branches, build and then encounter a linking error, you may
+# need to regenerate the build tree through "make .." (the cache will
+# still provide significant speedups).
+# Possible values:
+# - AUTO: search for path to ccache, disable if not found.
+# - ON: enable ccache by searching for the path to ccache, report an error if not found
+# - OFF: disable ccache
+# - /path/to/ccache: use specific path to ccache
+set(USE_CCACHE AUTO)
 
 # Whether to enable PAPI support in profiling. PAPI provides access to hardware
 # counters while profiling.
@@ -386,3 +402,6 @@ set(USE_LIBTORCH OFF)
 
 # Whether to use the Universal Modular Accelerator Interface
 set(USE_UMA OFF)
+
+# Set custom Alloc Alignment for device allocated memory ndarray points to
+set(USE_KALLOC_ALIGNMENT 64)

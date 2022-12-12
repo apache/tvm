@@ -473,11 +473,19 @@ def test_batch_matmul(executor_kind):
     verify_batch_matmul_with_inputs(executor_kind, x, x, x_np, x_np, (10, 27, 27))
 
 
-@pytest.mark.skip("Requires cascadelake")
-def test_batch_matmul_vnni():
-    x_shape = (16, 32, 96)
-    y_shape = (16, 128, 96)
-    z_shape = (16, 32, 128)
+@tvm.testing.requires_cascadelake
+@pytest.mark.parametrize(
+    "b,m,n,k",
+    [
+        (16, 32, 128, 96),
+        (16, 32, 128, 97),
+        (16, 32, 129, 96),
+    ],
+)
+def test_batch_matmul_vnni(b, m, n, k):
+    x_shape = (b, m, k)
+    y_shape = (b, n, k)
+    z_shape = (b, m, n)
 
     for lhs_dtype in ["uint8", "int8"]:
         x = relay.var("x", shape=x_shape, dtype=lhs_dtype)

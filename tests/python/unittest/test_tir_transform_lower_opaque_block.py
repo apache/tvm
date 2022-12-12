@@ -54,8 +54,7 @@ def transformed_elementwise_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
     for i in T.serial(0, 16):
-        B_new_data = T.allocate([1, 16], "float32", "global")
-        B_new = T.buffer_decl(shape=[1, 16], dtype="float32", data=B_new_data)
+        B_new = T.decl_buffer(shape=[1, 16], dtype="float32")
         for j in T.serial(0, 16):
             B_new[0, j] = A[i, j] + 1.0
         for j in T.serial(0, 16):
@@ -97,8 +96,7 @@ def transformed_gpu_func(a: T.handle, c: T.handle) -> None:
     T.launch_thread(i0, 4)
     T.launch_thread(i1, 2)
     T.launch_thread(i2, 2)
-    B_data = T.allocate([1, 16], "float32", "local")
-    B = T.buffer_decl(shape=[1, 16], dtype="float32", scope="local", data=B_data)
+    B = T.decl_buffer(shape=[1, 16], dtype="float32", scope="local")
     for j in range(0, 16):
         B[0, j] = A[i0 * 4 + i1 * 2 + i2, j] + 1.0
     for j in range(0, 16):
@@ -133,8 +131,7 @@ def transformed_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) 
     C = T.match_buffer(c, (n, m), "float32")
 
     for i in range(0, n):
-        B_data = T.allocate([m], "float32", "global")
-        B = T.buffer_decl(shape=[m], dtype="float32", data=B_data)
+        B = T.decl_buffer(shape=[m], dtype="float32")
         for j in range(0, m):
             B[j] = A[i, j] + 1.0
         for j in range(0, m):
@@ -207,10 +204,8 @@ def transformed_multi_alloc_func(a: T.handle, d: T.handle) -> None:
     D = T.match_buffer(d, (32), "float32")
 
     for i in range(0, 32):
-        B_data = T.allocate((32,), "float32", "global")
-        B = T.buffer_decl(shape=(32,), dtype="float32", data=B_data)
-        C_data = T.allocate((32,), "float32", "global")
-        C = T.buffer_decl(shape=(32,), dtype="float32", data=C_data)
+        B = T.decl_buffer(shape=(32,), dtype="float32")
+        C = T.decl_buffer(shape=(32,), dtype="float32")
         B[i] = A[i] + 1.0
         C[i] = A[i] + B[i]
         D[i] = C[i] * 2.0
@@ -246,12 +241,11 @@ def transformed_strided_buffer_func(
     # body
     for i0 in T.serial(4):
         B_data = T.allocate([4, 17], "float32", "global")
-        B = T.buffer_decl(shape=[4, 17], dtype="float32", data=B_data)
-        B_1 = T.buffer_decl([4, 16], dtype="float32", data=B.data, strides=[17, 1])
+        B = T.decl_buffer(shape=[4, 16], dtype="float32", strides=[17, 1], data=B_data)
         for i1, j in T.grid(4, 16):
-            B_1[i1, j] = A[i0 * 4 + i1, j] + T.float32(1)
+            B[i1, j] = A[i0 * 4 + i1, j] + T.float32(1)
         for i1, j in T.grid(4, 16):
-            C[i0 * 4 + i1, j] = B_1[i1, j] * T.float32(2)
+            C[i0 * 4 + i1, j] = B[i1, j] * T.float32(2)
 
 
 @T.prim_func

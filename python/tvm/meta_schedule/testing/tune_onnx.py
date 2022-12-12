@@ -15,18 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
-from distutils.util import strtobool
 import argparse
 import json
 import logging
-import onnx  # type: ignore
+from distutils.util import strtobool
 
+import onnx  # type: ignore
 import tvm
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.relay.frontend import from_onnx
 from tvm.support import describe
-from .tune_utils import generate_input_data, create_timer
+
+from .tune_utils import create_timer, generate_input_data
 
 
 def _parse_args():
@@ -126,7 +127,7 @@ def _parse_args():
 logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
 )
-logging.getLogger("tvm.meta_schedule").setLevel(logging.INFO)
+logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 ARGS = _parse_args()
 
 
@@ -146,33 +147,38 @@ def main():
         item["name"]: generate_input_data(item["shape"], item["dtype"]) for item in ARGS.input_shape
     }
 
-    runner = ms.runner.RPCRunner(
-        rpc_config=ARGS.rpc_config,
-        evaluator_config=ms.runner.EvaluatorConfig(
-            number=ARGS.number,
-            repeat=ARGS.repeat,
-            min_repeat_ms=ARGS.min_repeat_ms,
-            enable_cpu_cache_flush=ARGS.cpu_flush,
-        ),
-        alloc_repeat=1,
-    )
-
     with ms.Profiler() as profiler:
-        lib = ms.tune_relay(
+        database = ms.relay_integration.tune_relay(
             mod=mod,
             target=ARGS.target,
-            config=ms.TuneConfig(
-                strategy="evolutionary",
-                num_trials_per_iter=64,
-                max_trials_per_task=ARGS.num_trials,
-                max_trials_global=ARGS.num_trials,
+            params=params,
+            work_dir=ARGS.work_dir,
+            max_trials_global=ARGS.num_trials,
+            num_trials_per_iter=64,
+            runner=ms.runner.RPCRunner(  # type: ignore
+                rpc_config=ARGS.rpc_config,
+                evaluator_config=ms.runner.EvaluatorConfig(
+                    number=ARGS.number,
+                    repeat=ARGS.repeat,
+                    min_repeat_ms=ARGS.min_repeat_ms,
+                    enable_cpu_cache_flush=ARGS.cpu_flush,
+                ),
+                alloc_repeat=1,
+            ),
+            cost_model=ms.cost_model.XGBModel(  # type: ignore
+                extractor=ms.feature_extractor.PerStoreFeature(),
                 adaptive_training=ARGS.adaptive_training,
             ),
-            runner=runner,  # type: ignore
-            work_dir=ARGS.work_dir,
+            strategy=ms.search_strategy.EvolutionarySearch(),
+        )
+        lib = ms.relay_integration.compile_relay(
+            database=database,
+            mod=mod,
+            target=ARGS.target,
             params=params,
             backend=ARGS.backend,
         )
+
     print("Tuning Time:")
     print(profiler.table())
 

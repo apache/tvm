@@ -150,9 +150,8 @@ def assert_result_dict_holds(result_dict):
         res1 = vmobj_to_list(result_dict[k1])
         res2 = vmobj_to_list(result_dict[k2])
         for r1, r2 in zip(res1, res2):
-            if "bf16" in k1 or "bf16" in k2:
-                np.testing.assert_array_almost_equal(r1, r2, decimal=1)
-            else:
+            # ignore the accuracy checking if only one bf16 result presents
+            if ("bf16" in k1) == ("bf16" in k2):
                 tvm.testing.assert_allclose(r1, r2, rtol=1e-3, atol=1e-3)
 
 
@@ -829,6 +828,32 @@ def test_conv2d_bias_sum_relu(run_module, dtype="float32"):
     conv2d_bn_sum_relu, dic, param_lst = get_conv2d_bn_sum_relu(x_shape, k_shape, dtype=dtype)
     conv2d_bn_sum_relu = tvm.IRModule.from_expr(conv2d_bn_sum_relu)
     config = conv2d_bn_sum_relu, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+
+def test_dense_bias_sum(run_module, dtype="float32"):
+    x_shape = (4, 32)
+    k_shape = (16, 32)
+
+    def get_dense_bias_sum(x_shape, k_shape, dtype="float32"):
+        out, dic, param_lst = get_dense_bias(x_shape=x_shape, k_shape=k_shape, dtype=dtype)
+
+        sum_in = relay.var("sum_in", shape=x_shape, dtype=dtype)
+        ker = relay.var("ker", shape=(k_shape), dtype=dtype)
+        dense_sum = relay.nn.dense(sum_in, ker, units=k_shape[0])
+
+        # sum over two dense outputs to meet inplace condition
+        out = relay.add(out, dense_sum)
+        dic["sum_in"] = x_shape
+        dic["ker"] = k_shape
+        param_lst += ["ker"]
+        return out, dic, param_lst
+
+    dense_bias_sum, dic, param_lst = get_dense_bias_sum(x_shape, k_shape, dtype=dtype)
+    dense_bias_sum = tvm.IRModule.from_expr(dense_bias_sum)
+    print("hebi-dbg:")
+    print(dense_bias_sum)
+    config = dense_bias_sum, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
 

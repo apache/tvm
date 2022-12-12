@@ -214,6 +214,15 @@ def schedule_depthwise_conv2d_NCHWc_KCRSk(cfg, s, output):
     cfg.define_split("tile_rx", rx, num_outputs=2)
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
     cfg.define_knob("unroll_explicit", [0, 1])
+    cfg.multi_filter(
+        filter=lambda entity: (  # pylint: disable=chained-comparison
+            entity["tile_fc"].size[1] * entity["tile_y"].size[1] * entity["tile_x"].size[1]
+        )
+        <= 32
+        and 32
+        <= (entity["tile_fc"].size[2] * entity["tile_y"].size[2] * entity["tile_x"].size[2])
+        < 1024
+    )
 
     if cfg.is_fallback:
         get_default_conv2d_config(cfg, conv.shape[1], conv.shape[2], conv.shape[3])
@@ -245,8 +254,9 @@ def schedule_depthwise_conv2d_NCHWc_KCRSk(cfg, s, output):
         # create cache stage for tuning only or in case of 4d case
         AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
         bind_data_copy(s[AT])
-        WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
-        bind_data_copy(s[WT])
+        if kernel.shape[2] == 1 and kernel.shape[3] == 1:
+            WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
+            bind_data_copy(s[WT])
 
     # tile and bind spatial axes
     n, fc, y, x, fb = s[latest_blocked].op.axis

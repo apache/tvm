@@ -174,7 +174,6 @@ int64_t StackVM::PrintCode(std::ostream& os, int64_t pc) const {
     }
   }
   LOG(FATAL) << "unknown op code " << code[pc].op_code;
-  return 0;
 }
 
 std::ostream& operator<<(std::ostream& os, const StackVM& vm) {  // NOLINT(*)

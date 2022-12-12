@@ -430,7 +430,9 @@ TVM_ALWAYS_INLINE Array<ObjectRef> UnpackedInstTraits<TTraits>::_ConvertOutputs(
 /********** PythonAPICall **********/
 
 inline void PythonAPICall::AsPythonString(const ObjectRef& obj, std::ostream& os) {
-  if (const auto* str = obj.as<runtime::StringObj>()) {
+  if (!obj.defined()) {
+    os << "None";
+  } else if (const auto* str = obj.as<runtime::StringObj>()) {
     os << str->data;
   } else if (const auto* int_imm = obj.as<IntImmNode>()) {
     os << int_imm->value;

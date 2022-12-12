@@ -97,7 +97,9 @@ void GraphExecutor::Init(const std::string& graph_json, tvm::runtime::Module mod
   for (size_t i = 0; i < outputs_.size(); i++) {
     const uint32_t nid = outputs_[i].node_id;
     std::string& name = nodes_[nid].name;
-    output_map_[name] = i;
+    std::stringstream ss;
+    ss << name << ":" << i;
+    output_map_[ss.str()] = i;
   }
 }
 

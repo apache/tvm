@@ -119,7 +119,6 @@ class JacobianMutator : public ExprMutator {
       return FloatImm(expr.dtype(), 0.0);
     } else {
       LOG(FATAL) << "Derivative of this intrinsic is not implemented: " << op->op;
-      return PrimExpr();
     }
   }
 

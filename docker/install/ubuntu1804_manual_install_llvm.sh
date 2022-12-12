@@ -35,4 +35,3 @@ ninja install
 popd
 popd
 rm -rf llvm-project
-

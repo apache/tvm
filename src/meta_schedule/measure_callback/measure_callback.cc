@@ -39,6 +39,14 @@ MeasureCallback MeasureCallback::PyMeasureCallback(PyMeasureCallbackNode::FApply
   return MeasureCallback(n);
 }
 
+Array<MeasureCallback, void> MeasureCallback::Default() {
+  return {
+      MeasureCallback::AddToDatabase(),
+      MeasureCallback::RemoveBuildArtifact(),
+      MeasureCallback::UpdateCostModel(),
+  };
+}
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyMeasureCallbackNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyMeasureCallbackNode>();
@@ -55,6 +63,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackApply")
     .set_body_method<MeasureCallback>(&MeasureCallbackNode::Apply);
 TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackPyMeasureCallback")
     .set_body_typed(MeasureCallback::PyMeasureCallback);
+TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackDefault")
+    .set_body_typed(MeasureCallback::Default);
 
 }  // namespace meta_schedule
 }  // namespace tvm

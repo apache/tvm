@@ -20,6 +20,7 @@
 #include <gtest/gtest.h>
 #include <tvm/runtime/logging.h>
 
+#include "../src/runtime/hexagon/hexagon_device_api.h"
 #include "../src/runtime/hexagon/hexagon_thread_manager.h"
 
 using namespace tvm::runtime;
@@ -28,6 +29,7 @@ using namespace tvm::runtime::hexagon;
 class HexagonThreadManagerTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    // Create with no hardware resources so we don't conflict with session HexagonThreadManager
     htm = new HexagonThreadManager(threads, stack_size, pipe_size);
     streams = htm->GetStreamHandles();
   }
@@ -40,7 +42,7 @@ class HexagonThreadManagerTest : public ::testing::Test {
   const unsigned stack_size{0x4000};  // 16KB
 };
 
-TEST_F(HexagonThreadManagerTest, ctor_errors) {
+TEST_F(HexagonThreadManagerTest, ctor_edge_cases) {
   // zero threads
   ASSERT_THROW(HexagonThreadManager(0, stack_size, pipe_size), InternalError);
   // too many threads
@@ -53,6 +55,18 @@ TEST_F(HexagonThreadManagerTest, ctor_errors) {
   ASSERT_THROW(HexagonThreadManager(6, stack_size, 9), InternalError);
   // pipe too big
   ASSERT_THROW(HexagonThreadManager(6, stack_size, 0x10000000), InternalError);
+  // hw resources count doesn't match thread count
+  ASSERT_THROW(HexagonThreadManager(6, stack_size, pipe_size, {DMA_0}), InternalError);
+  // no more than one of each hw resource may be specified
+  ASSERT_THROW(HexagonThreadManager(4, stack_size, pipe_size, {DMA_0, HTP_0, HVX_0, HVX_0}),
+               InternalError);
+  // no more than one of each hw resource may be specified
+  ASSERT_THROW(
+      HexagonThreadManager(6, stack_size, pipe_size, {DMA_0, HTP_0, HVX_0, HVX_1, HVX_2, DMA_0}),
+      InternalError);
+  // multiple entries for no resource is allowed.
+  HexagonThreadManager* htm_none = new HexagonThreadManager(2, stack_size, pipe_size, {NONE, NONE});
+  delete htm_none;
 }
 
 TEST_F(HexagonThreadManagerTest, init) {
@@ -161,6 +175,7 @@ TEST_F(HexagonThreadManagerTest, pipe_fill) {
   CHECK_EQ(answer, 42);
 }
 
+// TODO(HWE): Create a temporary thread manager with a smaller pipe for this test
 TEST_F(HexagonThreadManagerTest, pipe_overflow) {
   // fill the pipe
   for (int i = 0; i < pipe_size; ++i) {
@@ -321,4 +336,26 @@ TEST_F(HexagonThreadManagerTest, dispatch_writes) {
   for (int i = 0; i < streams.size(); i++) {
     CHECK_EQ(array[i], truth[i]);
   }
+}
+
+// Validate threads created for hw resources on global manager
+TEST_F(HexagonThreadManagerTest, threads_for_resource_types) {
+  HexagonThreadManager* thread_manager = HexagonDeviceAPI::Global()->ThreadManager();
+  TVMStreamHandle thread;
+
+  thread = thread_manager->GetStreamHandleByResourceType(DMA_0);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == DMA_0);
+  thread = thread_manager->GetStreamHandleByResourceType(HTP_0);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HTP_0);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_0);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_0);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_1);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_1);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_2);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_2);
+  thread = thread_manager->GetStreamHandleByResourceType(HVX_3);
+  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_3);
+  EXPECT_THROW(thread_manager->GetStreamHandleByResourceType(NONE), InternalError);
+  thread = reinterpret_cast<TVMStreamHandle>(6);
+  EXPECT_THROW(thread_manager->GetResourceTypeForStreamHandle(thread), InternalError);
 }

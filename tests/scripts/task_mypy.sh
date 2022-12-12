@@ -47,3 +47,6 @@ mypy --disallow-untyped-defs python/tvm/relay/op/contrib/tensorrt.py
 #TODO(@mikepapadim): This is failing atm
 # echo "Checking MyPy Type defs in the tvm.relay.backend.contrib.ethosu package."
 # mypy  --check-untyped-defs python/tvm/relay/backend/contrib/ethosu/
+
+echo "Checking MyPy Type defs in the tvmscript IRBuilder package."
+mypy  --check-untyped-defs python/tvm/script/ir_builder
