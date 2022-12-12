@@ -614,6 +614,14 @@ def shard_run_unittest_GPU_1_of_3() {
               make_standalone_crt(ci_gpu, 'build')
               make_cpp_tests(ci_gpu, 'build')
               cpp_unittest(ci_gpu)
+              sh (
+                script: "${docker_run} ${ci_gpu} python3 ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --cmake-target opencl-cpptest --build-dir build",
+                label: 'Make OpenCL cpp unit tests',
+              )
+              sh (
+                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_opencl_cpp_unittest.sh",
+                label: 'Run OpenCL cpp unit tests',
+              )
               micro_cpp_unittest(ci_gpu)
               sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
