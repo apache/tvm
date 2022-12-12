@@ -1863,6 +1863,13 @@ class PyTorchOpConverter:
 
         return _op.split(data, indeces, axis)
 
+    def baddbmm(self, inputs, _):
+        input = inputs[0]
+        batch1, batch2 = inputs[1:3]
+        beta = _expr.const(float(inputs[3]))
+        alpha = _expr.const(float(inputs[4]))
+        return beta * input + alpha * _op.nn.batch_matmul(batch1, batch2, transpose_b=False)
+
     def matmul(self, inputs, input_types):
 
         inputs_0 = inputs[0]
@@ -2565,7 +2572,14 @@ class PyTorchOpConverter:
         return _op.ndarray_size(inputs[0])
 
     def empty(self, inputs, input_types):
-        shape = inputs[0]
+        shape = []
+        for s in inputs[0]:
+            if isinstance(s, _expr.Constant):
+                shape.append(s.data.numpy().item())
+            else:
+                assert isinstance(s, int)
+                shape.append(s)
+
         return _op.zeros(shape, _convert_dtype_value(inputs[1]))
 
     def empty_like(self, inputs, input_types):
@@ -3621,6 +3635,7 @@ class PyTorchOpConverter:
             "aten::unsafe_chunk": self.chunk,
             "aten::matmul": self.matmul,
             "aten::bmm": self.matmul,
+            "aten::baddbmm": self.baddbmm,
             "aten::expand": self.expand,
             "aten::Int": self.int,
             "prim::NumToTensor": self.numtotensor,
@@ -4587,6 +4602,7 @@ def from_pytorch(
         if inp.type().kind() == "TupleType" or inp.type().kind() == "ListType":
             enable_lower_all_tuples = False
             break
+
     _run_jit_passes(graph, enable_lower_all_tuples)
 
     if custom_convert_map:
