@@ -645,7 +645,7 @@ Map<Expr, Map<Expr, Array<String>>> CollectStorageInfo(const Expr& expr) {
   return storage_info;
 }
 
-Expr AnnotateMemoryScopeExpr(const Expr& expr, const IRModule& mod, CompilationConfig config) {
+Expr AnnotateMemoryScopeExpr(const Expr& expr, const IRModule& mod) {
   auto storage_scope = CollectStorageInfo(expr);
   if (storage_scope.size()) {
     return RewriteVDStorageScopes(storage_scope).Rewrite(expr);
@@ -655,10 +655,10 @@ Expr AnnotateMemoryScopeExpr(const Expr& expr, const IRModule& mod, CompilationC
 }
 
 namespace transform {
-tvm::transform::Pass AnnotateMemoryScope(CompilationConfig config) {
+tvm::transform::Pass AnnotateMemoryScope() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [config = std::move(config)](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(AnnotateMemoryScopeExpr(f, m, config));
+      [](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(AnnotateMemoryScopeExpr(f, m));
       };
   return CreateFunctionPass(pass_func, 2, "AnnotateMemoryScope", {});
 }
