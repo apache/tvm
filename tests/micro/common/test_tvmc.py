@@ -46,7 +46,7 @@ def _run_tvmc(cmd_args: list, *args, **kwargs):
 
 def create_project_command(project_path: str, mlf_path: str, platform: str, board: str) -> list:
     """Returns create project command with tvmc micro."""
-    return [
+    cmd = [
         "micro",
         "create-project",
         project_path,
@@ -54,9 +54,14 @@ def create_project_command(project_path: str, mlf_path: str, platform: str, boar
         platform,
         "--project-option",
         "project_type=host_driven",
-        "config_main_stack_size=4096",
         f"board={board}",
     ]
+
+    if platform == "zephyr":
+        # TODO: 4096 is driven by experiment on nucleo_l4r5zi. We should cleanup this after we have
+        # better memory management.
+        cmd.append("config_main_stack_size=4096")
+    return cmd
 
 
 @tvm.testing.requires_micro
