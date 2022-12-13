@@ -396,9 +396,9 @@ void topk(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, int k, i
 
       // finally sort heap and deliver results
       if (is_ascend) {
-        std::stable_sort(running_heap.begin(), running_heap.end(), CompareDescend<DataType>);
-      } else {
         std::stable_sort(running_heap.begin(), running_heap.end(), CompareAscend<DataType>);
+      } else {
+        std::stable_sort(running_heap.begin(), running_heap.end(), CompareDescend<DataType>);
       }
 
       for (uint32_t kk = 0; kk < running_heap.size(); ++kk) {
