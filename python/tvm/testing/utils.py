@@ -2085,17 +2085,14 @@ class CompareBeforeAfter:
 
 class _control_span_filling:
     def __init__(self, on=True):
-        self._old_state = os.environ["TVM_SPANFILLING"] if "TVM_SPANFILLING" in os.environ else None
         self._on = on
+        self._pass_ctx = tvm.transform.PassContext(config={"relay.frontend.fill_span": self._on})
 
     def __enter__(self):
-        os.environ["TVM_SPANFILLING"] = str(int(self._on))
+        self._pass_ctx.__enter__()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self._old_state:
-            os.environ["TVM_SPANFILLING"] = self._old_state
-        else:
-            del os.environ["TVM_SPANFILLING"]
+        self._pass_ctx.__exit__(exc_type, exc_val, exc_tb)
 
 
 class enable_span_filling(_control_span_filling):

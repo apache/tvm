@@ -16,24 +16,27 @@
 # under the License.
 import tvm
 from tvm import relay, tir
+from tvm.relay import expr as _expr
 from tvm.relay.expr_functor import ExprVisitor
 
 
 def _set_span(expr, src):
-    if isinstance(expr, relay.Call):
-        return relay.Call(expr.op, expr.args, expr.attrs, expr.type_args, _create_span(src))
-    elif isinstance(expr, relay.Var):
-        return relay.var(expr.name_hint, expr.type_annotation, None, None, _create_span(src))
-    elif isinstance(expr, relay.TupleGetItem):
-        return relay.TupleGetItem(expr.tuple_value, expr.index, _create_span(src))
-    elif isinstance(expr, relay.Constant):
-        return relay.Constant(expr.data, _create_span(src))
-    elif isinstance(expr, relay.TupleWrapper):
-        return relay.TupleWrapper(_set_span(expr.tuple_value, src), expr.size)
-    elif isinstance(expr, relay.Tuple):
-        return relay.Tuple(expr.fields, _create_span(src))
-    elif isinstance(expr, tir.AttrStmt):
-        return tir.AttrStmt(expr.node, expr.attr_key, expr.value, expr.body, _create_span(src))
+    if isinstance(expr, _expr.Call):
+        return _expr.CallWithFields(
+            expr, expr.op, expr.args, expr.attrs, expr.type_args, None, _create_span(src)
+        )
+    elif isinstance(expr, _expr.Var):
+        return _expr.VarWithFields(expr, expr.vid, expr.type_annotation, None, _create_span(src))
+    elif isinstance(expr, _expr.TupleGetItem):
+        return _expr.TupleGetItemWithFields(
+            expr, expr.tuple_value, expr.index, None, _create_span(src)
+        )
+    elif isinstance(expr, _expr.Constant):
+        return _expr.ConstantWithFields(expr, expr.data, None, _create_span(src))
+    elif isinstance(expr, _expr.Tuple):
+        return _expr.TupleWithFields(expr, expr.fields, None, _create_span(src))
+    elif isinstance(expr, _expr.TupleWrapper):
+        return _expr.TupleWrapper(_set_span(expr.tuple_value, src), expr.size)
 
     assert False, f"unsupported type {type(expr)}"
 

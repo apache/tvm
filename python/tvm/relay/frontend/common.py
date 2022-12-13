@@ -18,7 +18,6 @@
 """Common utilities"""
 from __future__ import absolute_import as _abs
 import logging
-import os
 import numpy as np
 
 import tvm
@@ -1027,42 +1026,50 @@ class _SpanFiller(ExprMutator):
     def visit_function(self, fn):
         new_params = [self.visit(x) for x in fn.params]
         new_body = self.visit(fn.body)
-        return _function.Function(
-            list(new_params), new_body, fn.ret_type, fn.type_params, fn.attrs, self._span
+        return _function.FunctionWithFields(
+            fn, list(new_params), new_body, fn.ret_type, fn.type_params, fn.attrs, None, self._span
         )
 
     def visit_let(self, let):
         new_variable = self.visit(let.var)
         new_value = self.visit(let.value)
         new_body = self.visit(let.body)
-        return _expr.Let(new_variable, new_value, new_body, self._span)
+        return _expr.LetWithFields(let, new_variable, new_value, new_body, None, self._span)
 
     def visit_call(self, call):
         new_args = [self.visit(arg) for arg in call.args]
         # call.op might be RelayExpr or Op type
         # ExprMutator will return directly if subject belongs to Op type
         new_op = self.visit(call.op)
-        return _expr.Call(new_op, new_args, call.attrs, call.type_args, self._span)
+        return _expr.CallWithFields(
+            call, new_op, new_args, call.attrs, call.type_args, None, self._span
+        )
 
     def visit_var(self, var):
-        return _expr.Var(var.name_hint, var.type_annotation, self._span)
+        return _expr.VarWithFields(var, var.vid, var.type_annotation, None, self._span)
 
     def visit_if(self, ite):
-        return _expr.If(
+        return _expr.IfWithFields(
+            ite,
             self.visit(ite.cond),
             self.visit(ite.true_branch),
             self.visit(ite.false_branch),
+            None,
             self._span,
         )
 
     def visit_tuple(self, tup):
-        return _expr.Tuple([self.visit(field) for field in tup.fields], self._span)
+        return _expr.TupleWithFields(
+            tup, [self.visit(field) for field in tup.fields], None, self._span
+        )
 
     def visit_tuple_getitem(self, op):
-        return _expr.TupleGetItem(self.visit(op.tuple_value), op.index, self._span)
+        return _expr.TupleGetItemWithFields(
+            op, self.visit(op.tuple_value), op.index, None, self._span
+        )
 
     def visit_constant(self, const):
-        return _expr.Constant(const.data, self._span)
+        return _expr.ConstantWithFields(const, const.data, None, self._span)
 
     # TODO: Frontend model translation could not use following relay expressions so far,
     #       enable them when new models/impls leverage these kinds of relay expressions.
@@ -1115,23 +1122,10 @@ class _SpanFiller(ExprMutator):
         raise RuntimeError(f"unsupported type {type(sym)}")
 
 
-def _should_fill_span():
-    should_fill_span = os.environ.get("TVM_SPANFILLING", "1")
-
-    try:
-        should_fill_span = bool(int(should_fill_span))
-    except ValueError:
-        raise ValueError(
-            f"invalid value for TVM_SPANFILLING {should_fill_span}, please set to 0 or 1."
-        )
-
-    return should_fill_span
-
-
 def set_span(sym, span):
     """
     Recursively tag the span to the symbol. Stop when it encounters a span-tagged expr. Disabled
-    when setting the environment variable "TVM_SPANFILLING" as 0.
+    when setting the "relay.frontend.fill_span" as False to the config of PassContext
 
     Parameters
     ----------
@@ -1163,6 +1157,6 @@ def set_span(sym, span):
       #}
     """
 
-    if _should_fill_span():
+    if tvm.transform.PassContext.current().config.get("relay.frontend.fill_span", True):
         return _SpanFiller(span).fill(sym)
     return sym

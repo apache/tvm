@@ -180,6 +180,21 @@ class Constant(ExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.Constant, data, span)
 
 
+@tvm._ffi.register_func("relay.ConstantWithFields")
+def ConstantWithFields(
+    constant,
+    data=None,
+    virtual_device=None,
+    span=None,
+):
+    """
+    Returns constant with the given properties. A None property denotes 'no change'.
+    Returns constant if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.ConstantWithFields(constant, data, virtual_device, span)
+
+
 @tvm._ffi.register_object("relay.Tuple")
 class Tuple(ExprWithOp):
     """Tuple expression that groups several fields together.
@@ -206,6 +221,16 @@ class Tuple(ExprWithOp):
 
     def astype(self, _):
         raise TypeError("astype cannot be used on tuple")
+
+
+@tvm._ffi.register_func("relay.TupleWithFields")
+def TupleWithFields(tup, fields=None, virtual_device=None, span=None):
+    """
+    Returns tuple with the given properties. A None property denotes 'no change'.
+    Returns tuple if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.TupleWithFields(tup, fields, virtual_device, span)
 
 
 @tvm._ffi.register_object("relay.Var")
@@ -237,6 +262,16 @@ class Var(ExprWithOp):
         """Get name hint of the current var."""
         name = str(self.vid.name_hint)
         return name
+
+
+@tvm._ffi.register_func("relay.VarWithFields")
+def VarWithFields(variable, vid=None, type_annotation=None, virtual_device=None, span=None):
+    """
+    Returns var with the given properties. A None property denotes 'no change'.
+    Returns var if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.VarWithFields(variable, vid, type_annotation, virtual_device, span)
 
 
 @tvm._ffi.register_object("relay.Call")
@@ -271,6 +306,18 @@ class Call(ExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.Call, op, args, attrs, type_args, span)
 
 
+@tvm._ffi.register_func("relay.CallWithFields")
+def CallWithFields(
+    call, op=None, args=None, attrs=None, type_args=None, virtual_device=None, span=None
+):
+    """
+    Returns call with the given properties. A None property denotes 'no change'.
+    Returns call if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.CallWithFields(call, op, args, attrs, type_args, virtual_device, span)
+
+
 @tvm._ffi.register_object("relay.Let")
 class Let(ExprWithOp):
     """Let variable binding expression.
@@ -292,6 +339,16 @@ class Let(ExprWithOp):
 
     def __init__(self, variable, value, body, span=None):
         self.__init_handle_by_constructor__(_ffi_api.Let, variable, value, body, span)
+
+
+@tvm._ffi.register_func("relay.LetWithFields")
+def LetWithFields(let, variable=None, value=None, body=None, virtual_device=None, span=None):
+    """
+    Returns let with the given properties. A None property denotes 'no change'.
+    Returns let if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.LetWithFields(let, variable, value, body, virtual_device, span)
 
 
 @tvm._ffi.register_object("relay.If")
@@ -317,6 +374,18 @@ class If(ExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.If, cond, true_branch, false_branch, span)
 
 
+@tvm._ffi.register_func("relay.IfWithFields")
+def IfWithFields(
+    if_expr, cond=None, true_branch=None, false_branch=None, virtual_device=None, span=None
+):
+    """
+    Returns if with the given properties. A None property denotes 'no change'.
+    Returns if if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.IfWithFields(if_expr, cond, true_branch, false_branch, virtual_device, span)
+
+
 @tvm._ffi.register_object("relay.TupleGetItem")
 class TupleGetItem(ExprWithOp):
     """Get index-th item from a tuple.
@@ -337,6 +406,18 @@ class TupleGetItem(ExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index, span)
 
 
+@tvm._ffi.register_func("relay.TupleGetItemWithFields")
+def TupleGetItemWithFields(
+    tuple_get_item, tuple_value=None, index=None, virtual_device=None, span=None
+):
+    """
+    Returns tuple_get_item with the given properties. A None property denotes 'no change'.
+    Returns tuple_get_item if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.TupleGetItemWithFields(tuple_get_item, tuple_value, index, virtual_device, span)
+
+
 @tvm._ffi.register_object("relay.RefCreate")
 class RefCreate(ExprWithOp):
     """Create a new reference from initial value.
@@ -353,6 +434,21 @@ class RefCreate(ExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.RefCreate, value, span)
 
 
+@tvm._ffi.register_func("relay.RefCreateWithFields")
+def RefCreateWithFields(
+    ref_create,
+    value=None,
+    virtual_device=None,
+    span=None,
+):
+    """
+    Returns ref_create with the given properties. A None property denotes 'no change'.
+    Returns ref_create if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.RefCreateWithFields(ref_create, value, virtual_device, span)
+
+
 @tvm._ffi.register_object("relay.RefRead")
 class RefRead(ExprWithOp):
     """Get the value inside the reference.
@@ -367,6 +463,21 @@ class RefRead(ExprWithOp):
 
     def __init__(self, ref, span=None):
         self.__init_handle_by_constructor__(_ffi_api.RefRead, ref, span)
+
+
+@tvm._ffi.register_func("relay.RefReadWithFields")
+def RefReadWithFields(
+    ref_read,
+    ref=None,
+    virtual_device=None,
+    span=None,
+):
+    """
+    Returns ref_read with the given properties. A None property denotes 'no change'.
+    Returns ref_read if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.RefReadWithFields(ref_read, ref, virtual_device, span)
 
 
 @tvm._ffi.register_object("relay.RefWrite")
@@ -388,6 +499,22 @@ class RefWrite(ExprWithOp):
 
     def __init__(self, ref, value, span=None):
         self.__init_handle_by_constructor__(_ffi_api.RefWrite, ref, value, span)
+
+
+@tvm._ffi.register_func("relay.RefWriteWithFields")
+def RefWriteWithFields(
+    ref_write,
+    ref=None,
+    value=None,
+    virtual_device=None,
+    span=None,
+):
+    """
+    Returns ref_write with the given properties. A None property denotes 'no change'.
+    Returns ref_write if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.RefWriteWithFields(ref_write, ref, value, virtual_device, span)
 
 
 class TempExpr(ExprWithOp):
