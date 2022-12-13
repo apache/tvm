@@ -40,29 +40,35 @@ if(MSVC)
 
 else()
 
-  function(create_crt_library CRT_LIBRARY_NAME)
-    set(cmake_crt_lib_name host_standalone_crt_${CRT_LIBRARY_NAME})
+  function(create_crt_library CRT_LIBRARY)
 
+    set(CRT_LIBRARY_NAME host_standalone_crt_${CRT_LIBRARY})
     set(CRT_LIBRARY_SOURCES "")
+
     foreach(FILE_NAME IN LISTS ARGN)
        list(APPEND CRT_LIBRARY_SOURCES ${FILE_NAME})
     endforeach()
 
-    add_library(${cmake_crt_lib_name}
+    add_library(${CRT_LIBRARY_NAME}
                 STATIC
                 ${CRT_LIBRARY_SOURCES})
 
-    set(CMAKE_CRT_LIBRARIES ${CMAKE_CRT_LIBRARIES} ${cmake_crt_lib_name} PARENT_SCOPE)
+    # add this library to the list of CRT libraries
+    set(CRT_LIBRARIES ${CRT_LIBRARIES} ${CRT_LIBRARY_NAME} PARENT_SCOPE)
 
-    set_property(TARGET ${cmake_crt_lib_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+    target_include_directories(${CRT_LIBRARY_NAME}
+                               PUBLIC
+                               "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/micro/"
+                               "${STANDALONE_CRT_BASE}/include")
 
-    target_include_directories(${cmake_crt_lib_name} PUBLIC ${STANDALONE_CRT_INCLUDE_PATH} ${CRT_CONFIG_INCLUDE_PATH})
-
-    set_target_properties(${cmake_crt_lib_name} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${standalone_crt_base}/build)
+    set_target_properties(${CRT_LIBRARY_NAME}
+                          PROPERTIES
+                          ARCHIVE_OUTPUT_DIRECTORY ${STANDALONE_CRT_BASE}/build
+                          POSITION_INDEPENDENT_CODE ON)
 
     # make these libraries dependent on standalone_crt which depends on host_isolated_build_deps to avoid
     # race with the file copy jobs
-    add_dependencies(${cmake_crt_lib_name} standalone_crt)
+    add_dependencies(${CRT_LIBRARY_NAME} standalone_crt)
 
   endfunction()
 
@@ -97,7 +103,7 @@ else()
         "src/runtime/crt crt_config-template.h -> template"
         )
 
-  set(standalone_crt_base "${CMAKE_CURRENT_BINARY_DIR}/standalone_crt")
+  set(STANDALONE_CRT_BASE "${CMAKE_CURRENT_BINARY_DIR}/standalone_crt")
 
   foreach(job_spec IN LISTS CRT_FILE_COPY_JOBS)
     string(REPLACE " " ";" job_spec "${job_spec}")
@@ -123,7 +129,7 @@ else()
         message(FATAL_ERROR "CRT copy job matched 0 files: ${job_src_base}/${copy_pattern} -> ${copy_dest}")
       endif()
       foreach(copy_src IN LISTS copy_files)
-        get_filename_component(dest_path "${standalone_crt_base}/${copy_dest}/${copy_src}" ABSOLUTE)
+        get_filename_component(dest_path "${STANDALONE_CRT_BASE}/${copy_dest}/${copy_src}" ABSOLUTE)
         tvm_micro_add_copy_file(host_isolated_build_deps ${job_src_base}/${copy_src} ${dest_path})
       endforeach()
     endforeach()
@@ -133,38 +139,36 @@ else()
 
   get_filename_component(host_build_dir_abspath "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt" ABSOLUTE)
 
-  set(CRT_CONFIG_INCLUDE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/micro/")
-  set(STANDALONE_CRT_INCLUDE_PATH "${standalone_crt_base}/include")
-  set(CMAKE_CRT_LIBRARIES "")
+  set(CRT_LIBRARIES "")
+  set(RUNTIME_CRT_SOURCE_DIR ${STANDALONE_CRT_BASE}/src/runtime/crt)
 
-  # NOTE: these create_crt_library() targets are in link order and common needs to be last
-
+  # these create_crt_library() targets are in link order and the common library needs to be last
   create_crt_library(graph_executor
-                     ${standalone_crt_base}/src/runtime/crt/graph_executor/graph_executor.c
-                     ${standalone_crt_base}/src/runtime/crt/graph_executor/load_json.c)
+                     ${RUNTIME_CRT_SOURCE_DIR}/graph_executor/graph_executor.c
+                     ${RUNTIME_CRT_SOURCE_DIR}/graph_executor/load_json.c)
 
   create_crt_library(memory
-                     ${standalone_crt_base}/src/runtime/crt/memory/page_allocator.c
-                     ${standalone_crt_base}/src/runtime/crt/memory/stack_allocator.c)
+                     ${RUNTIME_CRT_SOURCE_DIR}/memory/page_allocator.c
+                     ${RUNTIME_CRT_SOURCE_DIR}/memory/stack_allocator.c)
 
   create_crt_library(microtvm_rpc_common
-                     ${standalone_crt_base}/src/runtime/crt/microtvm_rpc_common/crcccitt.c
-                     ${standalone_crt_base}/src/runtime/crt/microtvm_rpc_common/frame_buffer.cc
-                     ${standalone_crt_base}/src/runtime/crt/microtvm_rpc_common/framing.cc
-                     ${standalone_crt_base}/src/runtime/crt/microtvm_rpc_common/session.cc
-                     ${standalone_crt_base}/src/runtime/crt/microtvm_rpc_common/write_stream.cc)
+                     ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_common/crcccitt.c
+                     ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_common/frame_buffer.cc
+                     ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_common/framing.cc
+                     ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_common/session.cc
+                     ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_common/write_stream.cc)
 
   create_crt_library(microtvm_rpc_server
-                     ${standalone_crt_base}/src/runtime/crt/microtvm_rpc_server/rpc_server.cc)
+                     ${RUNTIME_CRT_SOURCE_DIR}/microtvm_rpc_server/rpc_server.cc)
 
   create_crt_library(common
-                     ${standalone_crt_base}/src/runtime/crt/common/crt_backend_api.c
-                     ${standalone_crt_base}/src/runtime/crt/common/crt_runtime_api.c
-                     ${standalone_crt_base}/src/runtime/crt/common/func_registry.c
-                     ${standalone_crt_base}/src/runtime/crt/common/ndarray.c
-                     ${standalone_crt_base}/src/runtime/crt/common/packed_func.c)
+                     ${RUNTIME_CRT_SOURCE_DIR}/common/crt_backend_api.c
+                     ${RUNTIME_CRT_SOURCE_DIR}/common/crt_runtime_api.c
+                     ${RUNTIME_CRT_SOURCE_DIR}/common/func_registry.c
+                     ${RUNTIME_CRT_SOURCE_DIR}/common/ndarray.c
+                     ${RUNTIME_CRT_SOURCE_DIR}/common/packed_func.c)
 
-  add_custom_target(host_standalone_crt DEPENDS ${CMAKE_CRT_LIBRARIES} standalone_crt)
+  add_custom_target(host_standalone_crt DEPENDS ${CRT_LIBRARIES} standalone_crt)
 
   # Create the `crttest` target if we can find GTest.  If not, we create dummy
   # targets that give the user an informative error message.
@@ -172,7 +176,7 @@ else()
     tvm_file_glob(GLOB TEST_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tests/crt/*.cc)
     add_executable(crttest ${TEST_SRCS})
     target_include_directories(crttest SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/micro)
-    target_link_libraries(crttest PRIVATE ${CMAKE_CRT_LIBRARIES} GTest::GTest GTest::Main pthread dl)
+    target_link_libraries(crttest PRIVATE ${CRT_LIBRARIES} GTest::GTest GTest::Main pthread dl)
     set_target_properties(crttest PROPERTIES EXCLUDE_FROM_ALL 1)
     set_target_properties(crttest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
     gtest_discover_tests(crttest)
