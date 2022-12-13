@@ -175,7 +175,7 @@ def _find_board_from_cmake_file(cmake_file: Union[str, pathlib.Path]) -> str:
 
 def _find_platform_from_cmake_file(cmake_file: Union[str, pathlib.Path]) -> str:
     emu_platform = None
-    with open(API_SERVER_DIR / CMAKELIST_FILENAME) as cmake_f:
+    with open(cmake_file) as cmake_f:
         for line in cmake_f:
             set_platform = re.match("set\(EMU_PLATFORM (.*)\)", line)
             if set_platform:
@@ -184,14 +184,14 @@ def _find_platform_from_cmake_file(cmake_file: Union[str, pathlib.Path]) -> str:
     return emu_platform
 
 
-def _get_device_args(options):
+def _get_device_args(serial_number: str = None):
     flash_runner = _get_flash_runner()
 
     if flash_runner == "nrfjprog":
-        return _get_nrf_device_args(options)
+        return _get_nrf_device_args(serial_number)
 
     if flash_runner == "openocd":
-        return _get_openocd_device_args(options)
+        return _get_openocd_device_args(serial_number)
 
     raise BoardError(
         f"Don't know how to find serial terminal for board {_find_board_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME)} with flash "
@@ -199,14 +199,8 @@ def _get_device_args(options):
     )
 
 
-def _get_board_mem_size_bytes(options):
-    board_file_path = (
-        pathlib.Path(get_zephyr_base(options))
-        / "boards"
-        / "arm"
-        / options["board"]
-        / (options["board"] + ".yaml")
-    )
+def _get_board_mem_size_bytes(zephyr_base: str, board: str):
+    board_file_path = pathlib.Path(zephyr_base) / "boards" / "arm" / board / (board + ".yaml")
     try:
         with open(board_file_path) as f:
             board_data = yaml.load(f, Loader=yaml.FullLoader)
@@ -219,14 +213,14 @@ def _get_board_mem_size_bytes(options):
 DEFAULT_HEAP_SIZE_BYTES = 216 * 1024
 
 
-def _get_recommended_heap_size_bytes(options):
-    prop = BOARD_PROPERTIES[options["board"]]
+def _get_recommended_heap_size_bytes(board: str):
+    prop = BOARD_PROPERTIES[board]
     if "recommended_heap_size_bytes" in prop:
         return prop["recommended_heap_size_bytes"]
     return DEFAULT_HEAP_SIZE_BYTES
 
 
-def generic_find_serial_port(serial_number=None):
+def generic_find_serial_port(serial_number: str = None):
     """Find a USB serial port based on its serial number or its VID:PID.
 
     This method finds a USB serial port device path based on the port's serial number (if given) or
@@ -264,12 +258,11 @@ def generic_find_serial_port(serial_number=None):
     return serial_ports[0].device
 
 
-def _get_openocd_device_args(options):
-    serial_number = options.get("serial_number")
+def _get_openocd_device_args(serial_number: str = None):
     return ["--serial", generic_find_serial_port(serial_number)]
 
 
-def _get_nrf_device_args(serial_number: str):
+def _get_nrf_device_args(serial_number: str = None):
     nrfjprog_args = ["nrfjprog", "--ids"]
     nrfjprog_ids = subprocess.check_output(nrfjprog_args, encoding="utf-8")
     if not nrfjprog_ids.strip("\n"):
@@ -367,26 +360,6 @@ PROJECT_OPTIONS = server.default_project_options(
         help="Sets the value for HEAP_SIZE_BYTES passed to K_HEAP_DEFINE() to service TVM memory allocation requests.",
     ),
 ]
-
-
-def get_zephyr_base(options: dict) -> str:
-    """Returns Zephyr base path"""
-    zephyr_base = options.get("zephyr_base", ZEPHYR_BASE)
-    assert zephyr_base, "'zephyr_base' option not passed and not found by default!"
-    return zephyr_base
-
-
-def get_cmsis_path(options: dict) -> pathlib.Path:
-    """Returns CMSIS dependency path"""
-    cmsis_path = options.get("cmsis_path", os.environ.get("CMSIS_PATH", None))
-    if cmsis_path:
-        return pathlib.Path(cmsis_path)
-    return None
-
-
-def get_west_cmd(options: dict) -> str:
-    """Returns west command"""
-    return options.get("west_cmd", WEST_CMD)
 
 
 class Handler(server.ProjectAPIHandler):
@@ -546,23 +519,22 @@ class Handler(server.ProjectAPIHandler):
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         zephyr_board = options["board"]
         project_type = options["project_type"]
+        zephyr_base = options["zephyr_base"]
+        west_cmd = options["west_cmd"]
 
-        zephyr_base = get_zephyr_base(options)
         warning_as_error = options.get("warning_as_error")
         use_fvp = options.get("use_fvp")
-        west_cmd = get_west_cmd(options)
         verbose = options.get("verbose")
 
-        recommended_heap_size = _get_recommended_heap_size_bytes(options)
+        recommended_heap_size = _get_recommended_heap_size_bytes(zephyr_board)
         heap_size_bytes = options.get("heap_size_bytes") or recommended_heap_size
-        board_mem_size = _get_board_mem_size_bytes(options)
+        board_mem_size = _get_board_mem_size_bytes(zephyr_base, zephyr_board)
 
         compile_definitions = options.get("compile_definitions")
         config_main_stack_size = options.get("config_main_stack_size")
 
         extra_files_tar = options.get("extra_files_tar")
-
-        cmsis_path = get_cmsis_path(options)
+        cmsis_path = options.get("cmsis_path")
 
         # Check Zephyr version
         version = self._get_platform_version(zephyr_base)
@@ -679,7 +651,7 @@ class Handler(server.ProjectAPIHandler):
                 tf.extractall(project_dir)
 
     def build(self, options):
-        verbose = options.get("verbose", None)
+        verbose = options.get("verbose")
 
         if BUILD_DIR.exists():
             shutil.rmtree(BUILD_DIR)
@@ -737,7 +709,7 @@ class Handler(server.ProjectAPIHandler):
 
     def flash(self, options):
         serial_number = options.get("serial_number")
-        west_cmd_list = get_west_cmd(options).split(" ")
+        west_cmd_list = options["west_cmd"].split(" ")
 
         if _find_platform_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME):
             return  # NOTE: qemu requires no flash step--it is launched from open_transport.
@@ -766,11 +738,16 @@ class Handler(server.ProjectAPIHandler):
         zephyr_board = _find_board_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME)
         emu_platform = _find_platform_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME)
         if self._is_fvp(zephyr_board, emu_platform == "armfvp"):
-            transport = ZephyrFvpTransport(options)
+            arm_fvp_path = options["arm_fvp_path"]
+            verbose = options.get("verbose")
+            transport = ZephyrFvpTransport(arm_fvp_path, verbose)
         elif self._is_qemu(zephyr_board):
-            transport = ZephyrQemuTransport(options)
+            gdbserver_port = options.get("gdbserver_port")
+            transport = ZephyrQemuTransport(gdbserver_port)
         else:
-            transport = ZephyrSerialTransport(options)
+            zephyr_base = options["zephyr_base"]
+            serial_number = options.get("serial_number")
+            transport = ZephyrSerialTransport(zephyr_base, serial_number)
 
         to_return = transport.open()
         self._transport = transport
@@ -811,14 +788,12 @@ class ZephyrSerialTransport:
     NRF5340_DK_BOARD_VCOM_BY_PRODUCT_ID = {0x1055: "VCOM2", 0x1051: "VCOM1"}
 
     @classmethod
-    def _lookup_baud_rate(cls, options):
+    def _lookup_baud_rate(cls, zephyr_base: str):
         # TODO(mehrdadh): remove this hack once dtlib.py is a standalone project
         # https://github.com/zephyrproject-rtos/zephyr/blob/v2.7-branch/scripts/dts/README.txt
         sys.path.insert(
             0,
-            os.path.join(
-                get_zephyr_base(options), "scripts", "dts", "python-devicetree", "src", "devicetree"
-            ),
+            os.path.join(zephyr_base, "scripts", "dts", "python-devicetree", "src", "devicetree"),
         )
         try:
             import dtlib  # pylint: disable=import-outside-toplevel
@@ -838,9 +813,9 @@ class ZephyrSerialTransport:
         return uart_baud
 
     @classmethod
-    def _find_nrf_serial_port(cls, options):
+    def _find_nrf_serial_port(cls, serial_number: str = None):
         com_ports = subprocess.check_output(
-            ["nrfjprog", "--com"] + _get_device_args(options), encoding="utf-8"
+            ["nrfjprog", "--com"] + _get_device_args(serial_number), encoding="utf-8"
         )
         ports_by_vcom = {}
         for line in com_ports.split("\n")[:-1]:
@@ -860,43 +835,43 @@ class ZephyrSerialTransport:
         return ports_by_vcom[vcom_port]
 
     @classmethod
-    def _find_openocd_serial_port(cls, options):
-        serial_number = options.get("serial_number")
+    def _find_openocd_serial_port(cls, serial_number: str = None):
         return generic_find_serial_port(serial_number)
 
     @classmethod
-    def _find_jlink_serial_port(cls, options):
-        return generic_find_serial_port()
+    def _find_jlink_serial_port(cls, serial_number: str = None):
+        return generic_find_serial_port(serial_number)
 
     @classmethod
-    def _find_stm32cubeprogrammer_serial_port(cls, options):
-        return generic_find_serial_port()
+    def _find_stm32cubeprogrammer_serial_port(cls, serial_number: str = None):
+        return generic_find_serial_port(serial_number)
 
     @classmethod
-    def _find_serial_port(cls, options):
+    def _find_serial_port(cls, serial_number: str = None):
         flash_runner = _get_flash_runner()
 
         if flash_runner == "nrfjprog":
-            return cls._find_nrf_serial_port(options)
+            return cls._find_nrf_serial_port(serial_number)
 
         if flash_runner == "openocd":
-            return cls._find_openocd_serial_port(options)
+            return cls._find_openocd_serial_port(serial_number)
 
         if flash_runner == "jlink":
-            return cls._find_jlink_serial_port(options)
+            return cls._find_jlink_serial_port(serial_number)
 
         if flash_runner == "stm32cubeprogrammer":
-            return cls._find_stm32cubeprogrammer_serial_port(options)
+            return cls._find_stm32cubeprogrammer_serial_port(serial_number)
 
         raise RuntimeError(f"Don't know how to deduce serial port for flash runner {flash_runner}")
 
-    def __init__(self, options):
-        self._options = options
+    def __init__(self, zephyr_base: str, serial_number: str = None):
+        self._zephyr_base = zephyr_base
+        self._serial_number = serial_number
         self._port = None
 
     def open(self):
-        port_path = self._find_serial_port(self._options)
-        self._port = serial.Serial(port_path, baudrate=self._lookup_baud_rate(self._options))
+        port_path = self._find_serial_port(self._serial_number)
+        self._port = serial.Serial(port_path, baudrate=self._lookup_baud_rate(self._zephyr_base))
         return server.TransportTimeouts(
             session_start_retry_timeout_sec=2.0,
             session_start_timeout_sec=5.0,
@@ -933,8 +908,8 @@ class ZephyrQemuMakeResult(enum.Enum):
 class ZephyrQemuTransport:
     """The user-facing Zephyr QEMU transport class."""
 
-    def __init__(self, options):
-        self.options = options
+    def __init__(self, gdbserver_port: int = None):
+        self._gdbserver_port = gdbserver_port
         self.proc = None
         self.pipe_dir = None
         self.read_fd = None
@@ -954,9 +929,9 @@ class ZephyrQemuTransport:
         os.mkfifo(self.read_pipe)
 
         env = None
-        if self.options.get("gdbserver_port"):
+        if self._gdbserver_port:
             env = os.environ.copy()
-            env["TVM_QEMU_GDBSERVER_PORT"] = self.options["gdbserver_port"]
+            env["TVM_QEMU_GDBSERVER_PORT"] = self._gdbserver_port
 
         self.proc = subprocess.Popen(
             ["ninja", "run"],
@@ -1102,20 +1077,18 @@ class BlockingStream:
 class ZephyrFvpTransport:
     """A transport class that communicates with the ARM FVP via Iris server."""
 
-    def __init__(self, options):
-        self.options = options
+    def __init__(self, arm_fvp_path: str, verbose: bool = False):
+        self._arm_fvp_path = arm_fvp_path
+        self._verbose = verbose
         self.proc = None
         self._queue = queue.Queue()
         self._import_iris()
 
     def _import_iris(self):
-        assert "arm_fvp_path" in self.options, "arm_fvp_path is not defined."
+        assert self._arm_fvp_path, "arm_fvp_path is not defined."
         # Location as seen in the FVP_Corstone_SSE-300_11.15_24 tar.
         iris_lib_path = (
-            pathlib.Path(self.options["arm_fvp_path"]).parent.parent.parent
-            / "Iris"
-            / "Python"
-            / "iris"
+            pathlib.Path(self._arm_fvp_path).parent.parent.parent / "Iris" / "Python" / "iris"
         )
 
         sys.path.insert(0, str(iris_lib_path.parent))
@@ -1142,7 +1115,7 @@ class ZephyrFvpTransport:
 
     def open(self):
         args = ["ninja"]
-        if self.options.get("verbose"):
+        if self._verbose:
             args.append("-v")
         args.append("run")
         env = dict(os.environ)

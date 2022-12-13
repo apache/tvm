@@ -121,9 +121,18 @@ class TemplateProject:
                         Here is a list of available options:{list(available_options)}."""
             )
 
+    def _add_unspecified_options(self, options: dict):
+        """Adds default value of project options that are not specified by user."""
+        for option in self._info["project_options"]:
+            name = option["name"]
+            if name not in options.keys():
+                options[name] = option["default"]
+
     def generate_project_from_mlf(self, model_library_format_path, project_dir, options: dict):
         """Generate a project from MLF file."""
         self._check_project_options(options)
+        self._add_unspecified_options(options)
+
         self._api_client.generate_project(
             model_library_format_path=str(model_library_format_path),
             standalone_crt_dir=get_standalone_crt_dir(),
