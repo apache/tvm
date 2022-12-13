@@ -226,7 +226,7 @@ std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompu
 
 /*!
  * \brief Lowers Relay Function to TIR PrimFunc, by composing LowerTECompute and CreatePrimFunc.
- * \param source_func The primitive function to be lowered.
+ * \param relay_func The primitive function to be lowered.
  * \param target The target we want to create schedule for.
  * \param constant_name_supply A name supplier for constants
  *  across different invocations of this function.
