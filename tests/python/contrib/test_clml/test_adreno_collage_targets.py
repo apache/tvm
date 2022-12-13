@@ -17,10 +17,6 @@
 
 """Compares Collage with various other baselines."""
 
-# CAUTION: Requires some changes in python/tvm/autotvm/task/dispatcher.py
-# so that AutoTVM tuning records can be cached between runs and between
-# models. See https://github.com/mbs-octoml/mbs-tvm/tree/mbs-collage-hacks.
-
 import tvm
 import logging
 import tempfile
@@ -42,14 +38,9 @@ logging.basicConfig(level=logging.INFO)
 ########### Configuration ###########
 
 ###
-### Rename to match your hardware, eg ..._vt100...
+### TVM opencl autotvm log file name 
 ###
 TUNING_LOG = ""
-
-###
-### If true, runs final model under nvprof
-###
-PROFILE = True
 
 ###
 ### If true, run all models
