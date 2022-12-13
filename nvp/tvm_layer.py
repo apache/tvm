@@ -255,6 +255,8 @@ def dwconv_k3(data, kernel, stride):
 
     data = tvm.te.placeholder((b, cw, h, w), name="data")
     filter = tvm.te.placeholder((b, 1, kh, kw), name='Filter')
+    bias = tvm.te.placeholder((b, cw, h, w), name="bias")
+    shifter = tvm.te.const(16, "int32")
 
     FReg00, FReg01, FReg02, FReg10, FReg11, FReg12, FReg20, FReg21, FReg22 = tvm.te.compute(
         (b, cw), lambda b, c: (
@@ -272,12 +274,25 @@ def dwconv_k3(data, kernel, stride):
         ), name="Reg"
     )
 
-    output = tvm.te.compute(
+    bReg = tvm.te.compute(
         (b, cw, h, w), lambda b, c, i, j: (
-            Reg00[b, c, i, j] + Reg01[b, c, i, j] + Reg02[b, c, i, j]
+            bias[b, c, i , j]
+        ), name="bReg"
+    )
+
+    vReg = tvm.te.compute(
+        (b, cw, h, w), lambda b, c, i, j: (
+            bReg[b, c, i, j]
+            + Reg00[b, c, i, j] + Reg01[b, c, i, j] + Reg02[b, c, i, j]
             + Reg10[b, c, i, j] + Reg11[b, c, i, j] + Reg12[b, c, i, j]
             + Reg20[b, c, i, j] + Reg21[b, c, i, j] + Reg22[b, c, i, j]
-        ), name = "output"
+        ), name="vReg"
+    )
+
+    output = tvm.te.compute(
+        (b, cw, h, w), lambda b, c, i, j: (
+            (vReg[b, c, i, j].astype("int")>>shifter).astype("float")
+        ), name="output"
     )
 
     s = tvm.te.create_schedule([output.op])
@@ -296,6 +311,7 @@ def dwconv_k3(data, kernel, stride):
     s[FReg21].compute_at(s[output], C)
     s[FReg22].compute_at(s[output], C)
 
+    s[bReg].compute_at(s[output], d3)
     s[Reg00].compute_at(s[output], d3)
     s[Reg01].compute_at(s[output], d3)
     s[Reg02].compute_at(s[output], d3)
@@ -305,9 +321,10 @@ def dwconv_k3(data, kernel, stride):
     s[Reg20].compute_at(s[output], d3)
     s[Reg21].compute_at(s[output], d3)
     s[Reg22].compute_at(s[output], d3)
+    s[vReg].compute_at(s[output], d3)
     s[output].reorder(d0, d1, d2, d3)
 
-    module = tvm.lower(s, [data, filter, output])
+    module = tvm.lower(s, [data, filter, bias, output])
     return module
 
 def eadd(data):
