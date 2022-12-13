@@ -212,9 +212,9 @@ class CCacheValue : public ObjectRef {
 Array<IndexExpr> GetShape(const Array<IndexExpr>& shape);
 
 /*!
- * \brief Lowers Relay primitive Function to TE Compute
+ * \brief Lower Relay primitive Function to TE Compute
  * \param source_func The primitive function to be lowered.
- * \param target The target we want to create schedule for.
+ * \param target The target we want to create a schedule for.
  * \param constant_name_supply A name supplier for constants
  *  across different invocations of this function.
  * \param return_inputs If true, prepend input tensors to the output array of tensors.
@@ -225,9 +225,9 @@ std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompu
     bool return_inputs = true);
 
 /*!
- * \brief Lowers Relay Function to TIR PrimFunc, by composing LowerTECompute and CreatePrimFunc.
+ * \brief Lower Relay Function to TIR PrimFunc, by composing LowerTECompute and CreatePrimFunc.
  * \param relay_func The primitive function to be lowered.
- * \param target The target we want to create schedule for.
+ * \param target The target we want to create a schedule for.
  * \param constant_name_supply A name supplier for constants
  *  across different invocations of this function.
  * \return A pair of the created prim func and the name of the fused function.
@@ -239,7 +239,7 @@ std::pair<Optional<tir::PrimFunc>, std::string> LowerToPrimFunc(const Function& 
 /*!
  * \brief Create schedule for target.
  * \param source_func The primitive function to be lowered.
- * \param target The target we want to create schedule for.
+ * \param target The target we want to create a schedule for.
  * \param global_var_supply A name supplier for global variables.
  * \param constant_name_supply A name supplier for constants.
  * \return Pair of schedule and cache.

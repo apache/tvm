@@ -415,7 +415,7 @@ def get():
 
 
 def lower_to_primfunc(relay_func, target):
-    """Lowers Relay Function to TIR PrimFunc.
+    """Lower Relay Function to TIR PrimFunc.
 
     Parameters
     ----------
@@ -423,7 +423,7 @@ def lower_to_primfunc(relay_func, target):
         The source primitive function, created by FuseOps.
 
     target : Target
-        The target we want to create schedule for.
+        The target we want to create a schedule for.
 
     Returns
     -------

@@ -1099,6 +1099,7 @@ std::pair<Optional<tir::PrimFunc>, std::string> LowerToPrimFunc(const Function& 
 
 tir::PrimFunc LowerToPrimFunc(const Function& relay_func, Target target) {
   auto [f_opt, _] = LowerToPrimFunc(relay_func, target, NameSupply(""));
+  (void)_;  // to suppress -Werror=unused-variable warning
   if (f_opt) {
     return f_opt.value();
   }
