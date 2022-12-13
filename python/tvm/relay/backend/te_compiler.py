@@ -423,7 +423,7 @@ def lower_to_primfunc(relay_func, target):
         The source primitive function, created by FuseOps.
 
     target : Target
-        The target we want to create a schedule for.
+        The compilation target.
 
     Returns
     -------
