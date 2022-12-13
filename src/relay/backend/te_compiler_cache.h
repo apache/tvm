@@ -215,7 +215,7 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape);
  * \brief Lowers Relay primitive Function to TE Compute
  * \param source_func The primitive function to be lowered.
  * \param target The target we want to create schedule for.
- * \param constant_name_supply A name supplier for constants.
+ * \param constant_name_supply A name supplier for constants
  *  across different invocations of this function.
  * \param return_inputs If true, prepend input tensors to the output array of tensors.
  * \return Tuple of the lowered TE compute, constant raw data, and fused function name.
@@ -224,6 +224,14 @@ std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompu
     const Function& source_func, Target target, NameSupply constant_name_supply,
     bool return_inputs = true);
 
+/*!
+ * \brief Lowers Relay Function to TIR PrimFunc, by composing LowerTECompute and CreatePrimFunc.
+ * \param source_func The primitive function to be lowered.
+ * \param target The target we want to create schedule for.
+ * \param constant_name_supply A name supplier for constants
+ *  across different invocations of this function.
+ * \return A pair of the created prim func and the name of the fused function.
+ */
 std::pair<Optional<tir::PrimFunc>, std::string> LowerToPrimFunc(const Function& relay_func,
                                                                 Target target,
                                                                 NameSupply constant_name_supply);
