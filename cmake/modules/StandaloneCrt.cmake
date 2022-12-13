@@ -58,12 +58,12 @@ else()
 
     target_include_directories(${CRT_LIBRARY_NAME}
                                PUBLIC
-                               "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/micro/"
-                               "${STANDALONE_CRT_BASE}/include")
+                               ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/micro/
+                               ${STANDALONE_CRT_BASE}/include)
 
     set_target_properties(${CRT_LIBRARY_NAME}
                           PROPERTIES
-                          ARCHIVE_OUTPUT_DIRECTORY ${STANDALONE_CRT_BASE}/build
+                          ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt
                           POSITION_INDEPENDENT_CODE ON)
 
     # make these libraries dependent on standalone_crt which depends on host_isolated_build_deps to avoid
@@ -103,7 +103,7 @@ else()
         "src/runtime/crt crt_config-template.h -> template"
         )
 
-  set(STANDALONE_CRT_BASE "${CMAKE_CURRENT_BINARY_DIR}/standalone_crt")
+  set(STANDALONE_CRT_BASE ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt)
 
   foreach(job_spec IN LISTS CRT_FILE_COPY_JOBS)
     string(REPLACE " " ";" job_spec "${job_spec}")
@@ -137,15 +137,22 @@ else()
 
   add_custom_target(standalone_crt DEPENDS ${host_isolated_build_deps})
 
-  get_filename_component(host_build_dir_abspath "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt" ABSOLUTE)
-
   set(CRT_LIBRARIES "")
   set(RUNTIME_CRT_SOURCE_DIR ${STANDALONE_CRT_BASE}/src/runtime/crt)
 
   # these create_crt_library() targets are in link order and the common library needs to be last
+  create_crt_library(aot_executor
+                    ${RUNTIME_CRT_SOURCE_DIR}/aot_executor/aot_executor.c)
+
+  create_crt_library(aot_executor_module
+                    ${RUNTIME_CRT_SOURCE_DIR}/aot_executor_module/aot_executor_module.c)
+
   create_crt_library(graph_executor
                      ${RUNTIME_CRT_SOURCE_DIR}/graph_executor/graph_executor.c
                      ${RUNTIME_CRT_SOURCE_DIR}/graph_executor/load_json.c)
+
+  create_crt_library(graph_executor_module
+                     ${RUNTIME_CRT_SOURCE_DIR}/graph_executor_module/graph_executor_module.c)
 
   create_crt_library(memory
                      ${RUNTIME_CRT_SOURCE_DIR}/memory/page_allocator.c
