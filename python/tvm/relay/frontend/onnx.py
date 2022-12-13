@@ -5597,7 +5597,7 @@ class SplitToSequence(OnnxOpConverter):
         if split is None:
             output = _op.split(input_tensor, input_shape[axis], axis=axis)
             # If keepdims is 0, then we need to squeeze off the axis.
-            if keepdims == 0:
+            if not keepdims:
                 output = [_op.squeeze(tensor_slice, axis=[axis]) for tensor_slice in output]
             return _expr.Tuple(list(output))
 
@@ -5621,7 +5621,7 @@ class SplitToSequence(OnnxOpConverter):
 
             # If keepdims is set to 0 remove split axis. Note that this is
             # an inconsistency with the onnx spec but is needed for pytorch compatibility.
-            if keepdims == 0:
+            if not keepdims:
                 output = [_op.squeeze(tensor_slice, axis=[axis]) for tensor_slice in output]
             return _expr.Tuple(list(output))
 
