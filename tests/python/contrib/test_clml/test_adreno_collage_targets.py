@@ -38,7 +38,7 @@ logging.basicConfig(level=logging.INFO)
 ########### Configuration ###########
 
 ###
-### TVM opencl autotvm log file name 
+### TVM opencl autotvm log file name
 ###
 TUNING_LOG = ""
 
