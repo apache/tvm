@@ -4011,18 +4011,19 @@ class If(OnnxOpConverter):
         # Sometimes pytorch to onnx will insert silly if statements that produce dynamic ranks.
         # Often these dont contribute anything. If we see a dynamic rank output, try to unify
         # them so we can continue without breaking.
-        then_shape = infer_shape(then_expr)
-        else_shape = infer_shape(else_expr)
-        if len(then_shape) != len(else_shape):
-            warning_msg = (
-                "If statement produced outputs with different rank. "
-                "Attempting to unify ranks but this may produce incorrect results."
-            )
-            warnings.warn(warning_msg)
-            if len(then_shape) < len(else_shape):
-                then_expr = _op.broadcast_to_like(then_expr, else_expr)
-            else:
-                else_expr = _op.broadcast_to_like(else_expr, then_expr)
+        if not isinstance(then_expr, _expr.Tuple) and not isinstance(else_expr, _expr.Tuple):
+            then_shape = infer_shape(then_expr)
+            else_shape = infer_shape(else_expr)
+            if len(then_shape) != len(else_shape):
+                warning_msg = (
+                    "If statement produced outputs with different rank. "
+                    "Attempting to unify ranks but this may produce incorrect results."
+                )
+                warnings.warn(warning_msg)
+                if len(then_shape) < len(else_shape):
+                    then_expr = _op.broadcast_to_like(then_expr, else_expr)
+                else:
+                    else_expr = _op.broadcast_to_like(else_expr, then_expr)
 
         # Now we can construct the relay if statement and return.
         ret = _expr.If(cond, then_expr, else_expr)
