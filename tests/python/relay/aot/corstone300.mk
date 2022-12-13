@@ -61,7 +61,7 @@ PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${CMSIS_PATH}/CMSIS-NN/Include \
 	-I${CMSIS_PATH}/CMSIS/DSP/Include \
 	-isystem$(STANDALONE_CRT_DIR)/include
-CMAKE_FLAGS = -DCMAKE_TOOLCHAIN_FILE=$(ETHOSU_TEST_ROOT)/arm-none-eabi-gcc.cmake \
+CMAKE_FLAGS = -DCMAKE_TOOLCHAIN_FILE=${TVM_ROOT}/tests/python/contrib/test_ethosu/reference_system/arm-none-eabi-gcc.cmake \
 	-DCMAKE_SYSTEM_PROCESSOR=cortex-m55
 
 PKG_LDFLAGS = -lm -specs=nosys.specs -static -T ${AOT_TEST_ROOT}/corstone300.ld
