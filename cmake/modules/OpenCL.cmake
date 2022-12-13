@@ -59,9 +59,19 @@ if(USE_OPENCL)
   endif()
 
   if(DEFINED USE_OPENCL_GTEST AND EXISTS ${USE_OPENCL_GTEST})
-    file_glob_append(RUNTIME_OPENCL_SRCS
+    include(FetchContent)
+    FetchContent_Declare(googletest SOURCE_DIR "${USE_OPENCL_GTEST}")
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
+    install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
+
+    message(STATUS "Found OpenCL gtest at ${USE_OPENCL_GTEST}")
+
+    tvm_file_glob(GLOB_RECURSE OPENCL_TEST_SRCS
       "${CMAKE_SOURCE_DIR}/tests/cpp-runtime/opencl/*.cc"
     )
+    add_executable(opencl-cpptest ${OPENCL_TEST_SRCS})
+    target_link_libraries(opencl-cpptest PRIVATE gtest_main tvm_runtime)
   endif()
   list(APPEND RUNTIME_SRCS ${RUNTIME_OPENCL_SRCS})
 else()

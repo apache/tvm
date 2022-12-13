@@ -245,11 +245,13 @@ def test_lower_te():
 
 def test_loop_carried_dependency():
     """The buffer allocation should be above opaque iter var's loop scopes
-    such that buffer accesses with loop carried dependencies are covered."""
+    such that buffer accesses with loop carried dependencies are covered,
+    and the allocate buffer should keep the order."""
 
     @T.prim_func
     def before(A: T.Buffer[(8, 8, 8), "int32"], B: T.Buffer[(8, 8, 8), "int32"]):
         C = T.alloc_buffer([8, 8, 8], dtype="int32")
+        D = T.alloc_buffer([8, 8, 8], dtype="int32")
         for i in T.serial(8):
             for j in T.serial(8):
                 for k in T.serial(8):
@@ -258,10 +260,16 @@ def test_loop_carried_dependency():
                         C[vi, vj, vk] = A[vi, vj, vk] + 1
                 for k in T.serial(8):
                     with T.block("b1"):
+                        vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                        D[vi, vj, vk] = A[vi, vj, vk] + 2
+                for k in T.serial(8):
+                    with T.block("b2"):
                         vi, vk = T.axis.remap("SS", [i, k])
                         vj = T.axis.opaque(8, j)
-                        B[vi, vj, vk] = C[vi, vj, vk] + T.if_then_else(
-                            0 < vj, C[vi, vj - 1, vk], 0, dtype="int32"
+                        B[vi, vj, vk] = (
+                            C[vi, vj, vk]
+                            + T.if_then_else(0 < vj, C[vi, vj - 1, vk], 0, dtype="int32")
+                            + D[vi, vj, vk]
                         )
 
     @T.prim_func
@@ -271,6 +279,7 @@ def test_loop_carried_dependency():
                 T.reads(A[i, 0:8, 0:8])
                 T.writes(B[i, 0:8, 0:8])
                 C = T.alloc_buffer([8, 8, 8], dtype="int32")
+                D = T.alloc_buffer([8, 8, 8], dtype="int32")
                 for j in T.serial(8):
                     for k in T.serial(8):
                         with T.block("b0"):
@@ -278,10 +287,16 @@ def test_loop_carried_dependency():
                             C[vi, vj, vk] = A[vi, vj, vk] + 1
                     for k in T.serial(8):
                         with T.block("b1"):
+                            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                            D[vi, vj, vk] = A[vi, vj, vk] + 2
+                    for k in T.serial(8):
+                        with T.block("b2"):
                             vi, vk = T.axis.remap("SS", [i, k])
                             vj = T.axis.opaque(8, j)
-                            B[vi, vj, vk] = C[vi, vj, vk] + T.if_then_else(
-                                0 < vj, C[vi, vj - 1, vk], 0, dtype="int32"
+                            B[vi, vj, vk] = (
+                                C[vi, vj, vk]
+                                + T.if_then_else(0 < vj, C[vi, vj - 1, vk], 0, dtype="int32")
+                                + D[vi, vj, vk]
                             )
 
     _check(before, after)

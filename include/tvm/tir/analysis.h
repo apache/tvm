@@ -170,6 +170,14 @@ TVM_DLL bool VerifyMemory(const PrimFunc& func);
 TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints);
 
 /*!
+ * \brief Verifies that the VTCM usage of the given prim_func is within the provided limit.
+ * \param func The function to be checked.
+ * \param limit The limit to check.
+ * \return true if the VTCM usage is within the provided limit.
+ */
+TVM_DLL bool VerifyVTCMLimit(const PrimFunc& func, Integer limit);
+
+/*!
  * \brief Auto detect the block access region according to its body stmt
  *        It will detect the access region as an array in order of appearance in AST
  * \param block The block to be detected
@@ -216,6 +224,12 @@ TVM_DLL size_t CalculateConstantBytes(const PrimFunc& func, const Integer& const
  */
 TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func,
                                        const Integer& workspace_byte_alignment);
+
+/*!
+ * \brief Calculate the allocated memory per scope in bytes needed inside the TIR PrimFunc
+ * \param func The TIR PrimFunc for which the the allocated memory size to be calculated
+ */
+TVM_DLL tvm::Map<String, Integer> CalculateAllocatedBytes(const PrimFunc& func);
 
 /*!
  * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
@@ -293,6 +307,16 @@ TVM_DLL Pass VerifyMemory();
  * \sa tvm::tir::VerifyGPUCode
  */
 TVM_DLL Pass VerifyGPUCode(Map<String, PrimExpr> constraints);
+
+/*!
+ * \brief Pass to checks if the size of the allocated vtcm memory satisfies the limit
+ *
+ * \param limit The limit to check.
+ *
+ * \returns The pass.
+ * \sa tvm::tir::CalculateAllocatedBytes
+ */
+TVM_DLL Pass VerifyVTCMLimit(const Integer& limit);
 
 /*!
  * \brief Statically check TIR code for out of bounds array access.

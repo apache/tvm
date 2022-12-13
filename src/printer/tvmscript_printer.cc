@@ -756,18 +756,15 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
     return PrintTarget(node.as<TargetNode>());
   } else {
     LOG(FATAL) << "Do not know how to print " << node->GetTypeKey();
-    return Doc();
   }
 }
 
 Doc TVMScriptPrinter::VisitExprDefault_(const Object* op, ExprPrecedence* out_precedence) {
   LOG(FATAL) << "Do not know how to print " << op->GetTypeKey();
-  return Doc();
 }
 
 Doc TVMScriptPrinter::VisitStmtDefault_(const Object* op) {
   LOG(FATAL) << "Do not know how to print " << op->GetTypeKey();
-  return Doc();
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const IntImmNode* op, ExprPrecedence* out_precedence) {

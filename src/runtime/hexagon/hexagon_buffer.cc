@@ -151,7 +151,6 @@ void* HexagonBuffer::GetPointer() {
     return allocations_.data();
   } else {
     LOG(FATAL) << "HexagonBuffer should be either 1-d or 2-d, not " << ndim_ << "-d";
-    return nullptr;
   }
 }
 

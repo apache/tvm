@@ -42,7 +42,7 @@ ETHOSU_PATH=/opt/arm/ethosu
 DRIVER_PATH=${ETHOSU_PATH}/core_driver
 CMSIS_PATH=${ETHOSU_PATH}/cmsis
 PLATFORM_PATH=${ETHOSU_PATH}/core_platform/targets/corstone-300
-PKG_COMPILE_OPTS = -g -Wall -O2 -Wno-incompatible-pointer-types -Wno-format -mcpu=${MCPU}${MCPU_FLAGS} -mthumb -mfloat-abi=${MFLOAT_ABI} -std=gnu99
+PKG_COMPILE_OPTS = -g -Wall -O2 -Wno-incompatible-pointer-types -Wno-format -Werror-implicit-function-declaration -mcpu=${MCPU}${MCPU_FLAGS} -mthumb -mfloat-abi=${MFLOAT_ABI} -std=gnu99
 CMAKE = /opt/arm/cmake/bin/cmake
 CC = arm-none-eabi-gcc
 AR = arm-none-eabi-ar

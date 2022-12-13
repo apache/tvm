@@ -26,7 +26,7 @@ from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
 from tvm.micro.testing.aot_test_utils import AOT_CORSTONE300_RUNNER
 
 
-def _change_ndarray_layout(arr, src_layout, dst_layout):
+def change_ndarray_layout(arr, src_layout, dst_layout):
     """Makes a copy of an ndarray, reshaping it to a new data layout.
 
     Parameter
@@ -96,7 +96,7 @@ class GeneralizedConv2dTests:
 
         ref_relay_op = relay.op.nn.conv2d(
             ref_input_var,
-            relay.const(_change_ndarray_layout(ref_kernel_data, "HWIO", self.ref_kernel_layout)),
+            relay.const(change_ndarray_layout(ref_kernel_data, "HWIO", self.ref_kernel_layout)),
             kernel_size=kernel_size,
             strides=strides,
             padding=padding,
@@ -113,11 +113,11 @@ class GeneralizedConv2dTests:
         # Reshape output dictionary to match out_layout
         assert len(ref_outputs) == 1
         output_tensor_name, output_tensor = next(iter(ref_outputs.items()))
-        ref_outputs[output_tensor_name] = _change_ndarray_layout(output_tensor, "NHWC", out_layout)
+        ref_outputs[output_tensor_name] = change_ndarray_layout(output_tensor, "NHWC", out_layout)
 
-        test_input_data = _change_ndarray_layout(ref_input_data, "NHWC", data_layout)
+        test_input_data = change_ndarray_layout(ref_input_data, "NHWC", data_layout)
         test_input_var = relay.var("input", relay.TensorType(test_input_data.shape, in_dtype))
-        test_kernel_data = _change_ndarray_layout(ref_kernel_data, "HWIO", kernel_layout)
+        test_kernel_data = change_ndarray_layout(ref_kernel_data, "HWIO", kernel_layout)
 
         test_relay_op = relay.op.nn.conv2d(
             test_input_var,

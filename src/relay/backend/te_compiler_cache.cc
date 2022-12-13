@@ -243,7 +243,6 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
 
   Array<te::Tensor> VisitExpr_(const VarNode* op) final {
     LOG(FATAL) << "Unexpected free variable " << PrettyPrint(GetRef<Var>(op));
-    return {};
   }
 
   Array<te::Tensor> VisitExpr_(const ConstantNode* op) final {
@@ -272,7 +271,6 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
               return make_const(dtype, static_cast<const double*>(data)[0]);
             } else {
               LOG(FATAL) << dtype << " not handled";
-              return tvm::PrimExpr();
             }
           },
           "compile_engine_const", topi::kBroadcast);
@@ -351,7 +349,6 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
 
   Array<te::Tensor> VisitExpr_(const FunctionNode* op) final {
     LOG(FATAL) << "Primitive Functions can not contain nested functions.";
-    return Array<te::Tensor>();
   }
 
   Array<te::Tensor> VisitExpr_(const LetNode* op) final {
@@ -877,7 +874,6 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     }
     if (param_states_.find(var) == param_states_.end()) {
       LOG(FATAL) << "Unexpected free variable " << PrettyPrint(var);
-      return {};
     } else {
       ICHECK(data_dependents_per_input_.size());
       auto data_dependent = data_dependents_per_input_.back();
@@ -934,7 +930,6 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
               return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
             } else {
               LOG(FATAL) << "not handled";
-              return tvm::PrimExpr();
             }
           },
           "data_const", topi::kBroadcast);
@@ -1015,7 +1010,6 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
 
   Array<te::Tensor> VisitExpr_(const FunctionNode* op) final {
     LOG(FATAL) << "Nested functions are not allowed to be visited.";
-    return Array<te::Tensor>();
   }
 
   Array<te::Tensor> VisitExpr_(const LetNode* op) final {

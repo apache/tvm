@@ -318,7 +318,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
             else:
                 logger.warning("depthwise_conv2d with layout NHWC is not optimized for arm cpu.")
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
+                    wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc, need_kernel_layout=True),
                     wrap_topi_schedule(conv2d_generic.schedule_depthwise_conv2d_nhwc),
                     name="depthwise_conv2d_nhwc.generic",
                 )

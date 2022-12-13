@@ -244,7 +244,6 @@ class ConstantFolder : public MixedModeMutator {
       return Tuple(fields);
     } else {
       LOG(FATAL) << "Cannot handle " << value->GetTypeKey();
-      return {};
     }
   }
 

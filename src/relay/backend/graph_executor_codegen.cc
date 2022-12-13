@@ -493,15 +493,12 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
 
   std::vector<GraphNodeRef> VisitExpr_(const OpNode* op) override {
     LOG(FATAL) << "All OpNodes should have been expanded";
-    return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const GlobalVarNode* op) override {
     LOG(FATAL) << "All GlobalVarNodes should be removed before graph executor's Codegen is called";
-    return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const IfNode* op) override {
     LOG(FATAL) << "Graph executor does not support control flow (found IfNode)";
-    return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const FunctionNode* op) override {
     ICHECK(op->GetAttr<String>(attr::kCompiler).defined())
@@ -510,23 +507,18 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   }
   std::vector<GraphNodeRef> VisitExpr_(const RefCreateNode* op) override {
     LOG(FATAL) << "Graph executor does not support references (found RefCreateNode)";
-    return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const RefReadNode* op) override {
     LOG(FATAL) << "Graph executor does not support references (found RefReadNode)";
-    return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const RefWriteNode* op) override {
     LOG(FATAL) << "Graph executor does not support references (found RefWriteNode)";
-    return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const ConstructorNode* op) override {
     LOG(FATAL) << "Graph executor does not support ADTs (found ConstructorNode)";
-    return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const MatchNode* op) override {
     LOG(FATAL) << "Graph executor does not support matching (found MatchNode)";
-    return {};
   }
   /*!
    * \brief Generate Graph JSON

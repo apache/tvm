@@ -104,7 +104,6 @@ std::unique_ptr<ModuleEquality> ModuleEquality::Create(const std::string& mod_eq
     return std::make_unique<ModuleEqualityAnchorBlock>();
   }
   LOG(FATAL) << "Unknown module equality " << mod_eq_name;
-  return nullptr;
 }
 
 }  // namespace meta_schedule

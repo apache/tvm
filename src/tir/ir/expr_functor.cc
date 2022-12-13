@@ -127,7 +127,6 @@ PrimExpr ExprMutator::VisitExpr_(const AnyNode* op) { return GetRef<PrimExpr>(op
 
 PrimExpr ExprMutator::VisitExpr_(const LoadNode* op) {
   LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  return PrimExpr();
 }
 
 PrimExpr ExprMutator::VisitExpr_(const BufferLoadNode* op) {

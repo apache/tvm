@@ -128,7 +128,6 @@ std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(LLVMTarget* llvm_target) {
     return std::unique_ptr<CodeGenLLVM>(static_cast<CodeGenLLVM*>(handle));
   } else {
     LOG(FATAL) << "unable to create codegen for target " << target;
-    return nullptr;  // unreachable
   }
 }
 
@@ -347,15 +346,9 @@ void CodeGenLLVM::AddMainFunction(const std::string& entry_func_name) {
   LOG(FATAL) << "not implemented";
 }
 
-llvm::Value* CodeGenLLVM::GetThreadIndex(const IterVar& iv) {
-  LOG(FATAL) << "not implemented";
-  return nullptr;
-}
+llvm::Value* CodeGenLLVM::GetThreadIndex(const IterVar& iv) { LOG(FATAL) << "not implemented"; }
 
-llvm::Value* CodeGenLLVM::CreateStorageSync(const CallNode* op) {
-  LOG(FATAL) << "not implemented";
-  return nullptr;
-}
+llvm::Value* CodeGenLLVM::CreateStorageSync(const CallNode* op) { LOG(FATAL) << "not implemented"; }
 
 #if TVM_LLVM_VERSION >= 160
 
@@ -547,7 +540,6 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
     return t_void_;
   } else {
     LOG(FATAL) << "Type " << type << " does not have a corresponding LLVM Type";
-    return t_void_;
   }
 }
 
@@ -1382,14 +1374,12 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(builtin::atomic_add())) {
     // TODO(masahi): Support atomic for CPU backend
     LOG(FATAL) << "CPU backend does not support atomic add yet.";
-    return nullptr;
   } else if (op->op.same_as(builtin::start_profile_intrinsic()) ||
              op->op.same_as(builtin::end_profile_intrinsic())) {
     LOG(INFO) << "Ignoring profile_intrinsic ... " << op->op;
     return nullptr;
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->op;
-    return nullptr;
   }
 }
 
@@ -1562,7 +1552,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LetNode* op) {
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const LoadNode* op) {
   LOG(FATAL) << "Unexpected deprecated LoadNode.  Use BufferLoadNode instead.";
-  return nullptr;
 }
 
 bool CodeGenLLVM::HasAlignmentPadding(DataType dtype) {
@@ -1721,7 +1710,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
   } else {
     ICHECK(op->op.as<GlobalVarNode>());
     LOG(FATAL) << "Do not yet support cross function call";
-    return nullptr;
   }
 }
 
