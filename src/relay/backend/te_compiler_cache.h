@@ -224,6 +224,10 @@ std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompu
     const Function& source_func, Target target, NameSupply constant_name_supply,
     bool return_inputs = true);
 
+std::pair<Optional<tir::PrimFunc>, std::string> LowerToPrimFunc(const Function& relay_func,
+                                                                Target target,
+                                                                NameSupply constant_name_supply);
+
 /*!
  * \brief Create schedule for target.
  * \param source_func The primitive function to be lowered.
