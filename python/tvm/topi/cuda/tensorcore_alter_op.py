@@ -106,14 +106,18 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
     logger.info("batch_matmul pad_to_tensorcore, extra_flops %s", extra_flops)
 
     if attrs.transpose_a:
-        x_ = relay.nn.pad(x, pad_width=((0, 0), (0, dk), (0, dm))) if dm or dk else x
+        pad_width = ((0, 0), (0, dk), (0, dm))
     else:
-        x_ = relay.nn.pad(x, pad_width=((0, 0), (0, dm), (0, dk))) if dm or dk else x
+        pad_width = ((0, 0), (0, dm), (0, dk))
+
+    x_ = relay.nn.pad(x, pad_width=pad_width) if dm or dk else x
 
     if attrs.transpose_b:
-        y_ = relay.nn.pad(y, pad_width=((0, 0), (0, dn), (0, dk))) if dn or dk else y
+        pad_width = ((0, 0), (0, dn), (0, dk))
     else:
-        y_ = relay.nn.pad(y, pad_width=((0, 0), (0, dk), (0, dn))) if dn or dk else y
+        pad_width = ((0, 0), (0, dk), (0, dn))
+
+    y_ = relay.nn.pad(y, pad_width=pad_width) if dn or dk else y
 
     out_ = relay.nn.batch_matmul(x_, y_, **attrs)
 
