@@ -28,7 +28,7 @@ echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_MICRO ON\) >> config.cmake
 echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
 echo set\(USE_PROFILER ON\) >> config.cmake
-echo set\(USE_LLVM llvm-config-8\) >> config.cmake
+echo set\(USE_LLVM llvm-config\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
 echo set\(USE_VTA_FSIM ON\) >> config.cmake
 echo set\(USE_ARM_COMPUTE_LIB ON\) >> config.cmake
