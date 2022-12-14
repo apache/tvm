@@ -153,11 +153,11 @@ class AsyncDMALowerer : public StmtExprMutator {
 
       // map loop variable to zero for the store index & simplify
       Array<PrimExpr> store_index = bufferstorenode->indices;
-      
+
       // Use DetectIterMap to detect whether store index is non-contiguous.
       arith::Analyzer analyzer;
-      auto store_iter_map =
-          DetectIterMap(store_index, input_iters, 1, arith::IterMapLevel::NoCheck, &analyzer, false);
+      auto store_iter_map = DetectIterMap(store_index, input_iters, 1, arith::IterMapLevel::NoCheck,
+                                          &analyzer, false);
       if (!store_iter_map->errors.empty()) {
         LOG(FATAL) << "Unable to lower async dma for non contiguous memory access with index: "
                    << store_index;
