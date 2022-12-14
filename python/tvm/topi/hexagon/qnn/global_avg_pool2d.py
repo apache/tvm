@@ -82,7 +82,7 @@ def global_avg_pool2d_u8(
     return avg_compute
 
 
-def STIR_global_avg_pool2d_u8_schedule(outs: te.Tensor, ins: te.Tensor, input_layout: str):
+def stir_global_avg_pool2d_u8_schedule(outs: te.Tensor, ins: te.Tensor, input_layout: str):
     """Schedule"""
     func = te.create_prim_func([ins, outs])
     s = tir.Schedule(func)

@@ -114,7 +114,7 @@ class TestGlobalPool2D:
 
         if dtype == "float16":
             m_tensor = sl.global_avg_pool2d(a_tensor)
-            tir_schedule = sl.STIR_global_avg_pool2d_schedule(m_tensor, a_tensor, input_layout)
+            tir_schedule = sl.stir_global_avg_pool2d_schedule(m_tensor, a_tensor, input_layout)
         elif dtype in ["uint8", "int8"]:
             m_tensor = qn.global_avg_pool2d_u8(
                 a_tensor,
@@ -124,7 +124,7 @@ class TestGlobalPool2D:
                 ZERO_POINT_M_VAL,
                 SCALE_M_VAL,
             )
-            tir_schedule = qn.STIR_global_avg_pool2d_u8_schedule(m_tensor, a_tensor, input_layout)
+            tir_schedule = qn.stir_global_avg_pool2d_u8_schedule(m_tensor, a_tensor, input_layout)
 
         sch = tir_schedule.mod
 

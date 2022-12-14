@@ -38,7 +38,7 @@ def global_avg_pool2d(
     return topi.nn.global_pool(data, "avg", "NCHW")
 
 
-def STIR_global_avg_pool2d_schedule(outs: te.Tensor, ins: te.Tensor, input_layout: str):
+def stir_global_avg_pool2d_schedule(outs: te.Tensor, ins: te.Tensor, input_layout: str):
     """Schedule"""
     func = te.create_prim_func([ins, outs])
     s = tir.Schedule(func)
