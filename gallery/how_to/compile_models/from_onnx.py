@@ -21,13 +21,12 @@ Compile ONNX Models
 
 This article is an introductory tutorial to deploy ONNX models with Relay.
 
-For us to begin with, ONNX package must be installed.
-
-A quick solution is to install protobuf compiler, and
+For us to begin with, ONNX package must be installed:
 
 .. code-block:: bash
 
-    pip install --user onnx onnxoptimizer
+    %%shell
+    pip install onnx onnxoptimizer
 
 or please refer to official site.
 https://github.com/onnx/onnx

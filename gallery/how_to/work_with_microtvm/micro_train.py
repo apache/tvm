@@ -60,7 +60,7 @@ deployed to Arduino using TVM.
 #
 #     .. code-block:: bash
 #
-#       %%bash
+#       %%shell
 #       pip install -q tensorflow tflite
 #       pip install -q tlcpack-nightly -f https://tlcpack.ai/wheels
 #       apt-get -qq install imagemagick curl
@@ -504,7 +504,7 @@ arduino_project = tvm.micro.generate_project(
 #
 #     .. code-block:: bash
 #
-#       %%bash
+#       %%shell
 #       mkdir -p ~/tests
 #       curl "https://i.imgur.com/JBbEhxN.png" -o ~/tests/car_224.png
 #       convert ~/tests/car_224.png -resize 64 ~/tests/car_64.png

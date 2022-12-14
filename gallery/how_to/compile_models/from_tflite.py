@@ -25,9 +25,8 @@ To get started, TFLite package needs to be installed as prerequisite.
 
 .. code-block:: bash
 
-    # install tflite
-    pip install tflite==2.1.0 --user
-
+    %%shell
+    pip install tflite==2.1.0
 
 or you could generate TFLite package yourself. The steps are the following:
 

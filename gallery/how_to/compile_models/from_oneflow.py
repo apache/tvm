@@ -27,8 +27,9 @@ A quick solution is to install via pip
 
 .. code-block:: bash
 
+    %%shell
     pip install flowvision==0.1.0
-    python3 -m pip install -f https://release.oneflow.info oneflow==0.7.0+cpu
+    pip install -f https://release.oneflow.info oneflow==0.7.0+cpu
 
 or please refer to official site:
 https://github.com/Oneflow-Inc/oneflow
@@ -113,7 +114,7 @@ mod, params = relay.frontend.from_oneflow(graph, model_dir)
 # Relay Build
 # -----------
 # Compile the graph to llvm target with given input specification.
-target = tvm.target.Target("llvm", host="llvm")
+target = tvm.target.Target("llvm")
 dev = tvm.cpu(0)
 with tvm.transform.PassContext(opt_level=3):
     lib = relay.build(mod, target=target, params=params)
@@ -122,9 +123,8 @@ with tvm.transform.PassContext(opt_level=3):
 # Execute the portable graph on TVM
 # ---------------------------------
 # Now we can try deploying the compiled model on target.
-target = "cuda"
 with tvm.transform.PassContext(opt_level=10):
-    intrp = relay.build_module.create_executor("graph", mod, tvm.cuda(0), target)
+    intrp = relay.build_module.create_executor("graph", mod, tvm.cpu(0), target)
 
 print(type(img))
 print(img.shape)

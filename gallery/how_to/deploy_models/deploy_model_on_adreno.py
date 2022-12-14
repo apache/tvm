@@ -31,6 +31,7 @@ A quick solution is to install it via pip:
 
 .. code-block:: bash
 
+  %%bash
   pip install torch
   pip install torchvision
 

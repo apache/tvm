@@ -19,7 +19,7 @@ Compile Keras Models
 =====================
 **Author**: `Yuwei Hu <https://Huyuwei.github.io/>`_
 
-This article is an introductory tutorial to deploy keras models with Relay.
+This article is an introductory tutorial to deploy Keras models with Relay.
 
 For us to begin with, keras should be installed.
 Tensorflow is also required since it's used as the default backend of keras.
@@ -28,8 +28,8 @@ A quick solution is to install via pip
 
 .. code-block:: bash
 
-    pip install -U keras --user
-    pip install -U tensorflow --user
+    %%shell
+    pip install keras tensorflow
 
 or please refer to official site
 https://keras.io/#installation
@@ -102,8 +102,8 @@ print("input_1", data.shape)
 shape_dict = {"input_1": data.shape}
 mod, params = relay.frontend.from_keras(keras_resnet50, shape_dict)
 # compile the model
-target = "cuda"
-dev = tvm.cuda(0)
+target = "llvm"
+dev = tvm.cpu(0)
 
 # TODO(mbs): opt_level=3 causes nn.contrib_conv2d_winograd_weight_transform
 # to end up in the module which fails memory validation on cuda most likely

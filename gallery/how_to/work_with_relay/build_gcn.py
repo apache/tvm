@@ -25,6 +25,12 @@ In this tutorial, we will run our GCN on Cora dataset to demonstrate.
 Cora dataset is a common benchmark for Graph Neural Networks (GNN) and frameworks that support GNN training and inference.
 We directly load the dataset from DGL library to do the apples to apples comparison against DGL.
 
+.. code-block:: bash
+
+    %%shell
+    pip install torch==1.9.0
+    pip install dgl==v0.7.2 -f https://data.dgl.ai/wheels/repo.html
+
 Please refer to DGL doc for DGL installation at
 https://docs.dgl.ai/install/index.html.
 

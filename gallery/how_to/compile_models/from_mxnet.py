@@ -22,15 +22,12 @@ Compile MXNet Models
 **Author**: `Joshua Z. Zhang <https://zhreshold.github.io/>`_, \
             `Kazutaka Morita <https://github.com/kazum>`_
 
-This article is an introductory tutorial to deploy mxnet models with Relay.
-
-For us to begin with, mxnet module is required to be installed.
-
-A quick solution is
+This article is an introductory tutorial to deploy mxnet models with Relay. To begin, we must install `mxnet`:
 
 .. code-block:: bash
 
-    pip install mxnet --user
+    %%shell
+    pip install mxnet
 
 or please refer to official installation guide.
 https://mxnet.apache.org/versions/master/install/index.html
@@ -102,7 +99,7 @@ func = relay.Function(func.params, relay.nn.softmax(func.body), None, func.type_
 
 ######################################################################
 # now compile the graph
-target = "cuda"
+target = tvm.target.Target("llvm")
 with tvm.transform.PassContext(opt_level=3):
     lib = relay.build(func, target, params=params)
 
@@ -112,7 +109,7 @@ with tvm.transform.PassContext(opt_level=3):
 # Now, we would like to reproduce the same forward computation using TVM.
 from tvm.contrib import graph_executor
 
-dev = tvm.cuda(0)
+dev = tvm.cpu(0)
 dtype = "float32"
 m = graph_executor.GraphModule(lib["default"](dev))
 # set inputs
