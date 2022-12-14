@@ -115,20 +115,36 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         auto sb = B_shape.size();
         if (transpose_a && transpose_b) {
           auto tmp = A_shape[sa - 2];
-          A_shape[sa - 2] = B_shape[sb - 1];
-          B_shape[sb - 1] = tmp;
+          if (A_shape[sa - 2].as<tir::AnyNode>()) {
+            A_shape[sa - 2] = B_shape[sb - 1];
+          }
+          if (B_shape[sb - 1].as<tir::AnyNode>()) {
+            B_shape[sb - 1] = tmp;
+          }
         } else if (transpose_a) {
           auto tmp = A_shape[sa - 2];
-          A_shape[sa - 2] = B_shape[sb - 2];
-          B_shape[sb - 2] = tmp;
+          if (A_shape[sa - 2].as<tir::AnyNode>()) {
+            A_shape[sa - 2] = B_shape[sb - 2];
+          }
+          if (B_shape[sb - 2].as<tir::AnyNode>()) {
+            B_shape[sb - 2] = tmp;
+          }
         } else if (transpose_b) {
           auto tmp = A_shape[sa - 1];
-          A_shape[sa - 1] = B_shape[sb - 1];
-          B_shape[sb - 1] = tmp;
+          if (A_shape[sa - 1].as<tir::AnyNode>()) {
+            A_shape[sa - 1] = B_shape[sb - 1];
+          }
+          if (B_shape[sb - 1].as<tir::AnyNode>()) {
+            B_shape[sb - 1] = tmp;
+          }
         } else {
           auto tmp = A_shape[sa - 1];
-          A_shape[sa - 1] = B_shape[sb - 2];
-          B_shape[sb - 2] = tmp;
+          if (A_shape[sa - 1].as<tir::AnyNode>()) {
+            A_shape[sa - 1] = B_shape[sb - 2];
+          }
+          if (B_shape[sb - 2].as<tir::AnyNode>()) {
+            B_shape[sb - 2] = tmp;
+          }
         }
         reporter->Assign(types[0], TensorType(A_shape, tensor_a->dtype));
         reporter->Assign(types[1], TensorType(B_shape, tensor_b_dtype));
