@@ -123,6 +123,8 @@ class TemplateProject:
 
     def _add_unspecified_options(self, options: dict):
         """Adds default value of project options that are not specified by user."""
+        if not options:
+            options = dict()
         for option in self._info["project_options"]:
             name = option["name"]
             if name not in options.keys():
