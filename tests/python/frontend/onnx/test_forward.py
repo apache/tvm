@@ -7043,7 +7043,7 @@ def test_linear_regressor(target, dev):
 def test_sequence(target, dev):
     """test_sequence"""
 
-    def verify_sequence_ops(tensor_shape, num_tensors, axis=0, position=None, new_axis=None):
+    def verify_sequence_ops(tensor_shape, num_tensors, axis=0, position=0, new_axis=None):
         tensor_shape = list(tensor_shape)
         tensor_values = []
         for i in range(num_tensors):
@@ -7062,20 +7062,30 @@ def test_sequence(target, dev):
             outputs=["sequence"],
         )
 
-        insert_inputs = ["sequence", input_tensor_names[0]]
-        position_node = None
-        if position is not None:
-            insert_inputs.append("position")
-            position_node = make_constant_node("position", TensorProto.INT32, (), [position])
+        position_node = make_constant_node("position", TensorProto.INT32, (), [position])
 
         # Test sequence insertion.
         insert_node = helper.make_node(
-            "SequenceInsert", inputs=insert_inputs, outputs=["inserted_sequence"]
+            "SequenceInsert",
+            inputs=["sequence", input_tensor_names[0], "position"],
+            outputs=["inserted_sequence"],
         )
 
         # Test sequence concatenation.
         concat_node = helper.make_node(
-            "ConcatFromSequence", inputs=["inserted_sequence"], outputs=["output"], axis=axis
+            "ConcatFromSequence",
+            inputs=["inserted_sequence"],
+            outputs=["concat_sequence"],
+            axis=axis,
+        )
+
+        # Test splitting a tensor into a sequence.
+        split_node = helper.make_node(
+            "SplitToSequence", inputs=["concat_sequence"], outputs=["split_sequence"], axis=axis
+        )
+
+        at_node = helper.make_node(
+            "SequenceAt", inputs=["split_sequence", "position"], outputs=["output"]
         )
 
         if new_axis is not None:
@@ -7097,10 +7107,7 @@ def test_sequence(target, dev):
             output_shape[axis] = (num_tensors + 1) * output_shape[axis]
         graph_outputs = [helper.make_tensor_value_info("output", TensorProto.FLOAT, output_shape)]
 
-        graph_nodes = []
-        if position_node is not None:
-            graph_nodes.append(position_node)
-        graph_nodes += [construct_node, insert_node, concat_node]
+        graph_nodes = [position_node, construct_node, insert_node, concat_node, split_node, at_node]
 
         graph = helper.make_graph(
             graph_nodes,

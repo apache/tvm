@@ -228,13 +228,12 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             assert _OIHWio_matcher.match(kernel_layout)  # check if kernel is OIHWio
             return depthwise_conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         elif layout == "NHWC":
-            assert kernel_layout == "HWOI"
             if (not need_auto_scheduler_layout) and (not need_meta_schedule_layout):
                 logger.warning(
                     "depthwise_conv2d NHWC layout is not optimized for x86 with autotvm."
                 )
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
+                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc, need_kernel_layout=True),
                 wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_nhwc),
                 name="depthwise_conv2d_nhwc.generic",
             )

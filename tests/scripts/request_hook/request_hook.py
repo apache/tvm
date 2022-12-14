@@ -25,7 +25,8 @@ from urllib.parse import quote
 LOGGER = None
 
 
-# To update this list, run the workflow <HERE> with the URL to download and the SHA512 of the file
+# To update this list, run https://github.com/apache/tvm/actions/workflows/upload_ci_resource.yml
+# with the URL to download and the SHA-256 hash of the file.
 BASE = "https://tvm-ci-resources.s3.us-west-2.amazonaws.com"
 URL_MAP = {
     "http://data.mxnet.io.s3-website-us-west-1.amazonaws.com/data/val_256_q90.rec": f"{BASE}/mxnet-val_256_q90.rec",
@@ -145,6 +146,7 @@ URL_MAP = {
     "https://github.com/tlc-pack/web-data/raw/967fc387dadb272c5a7f8c3461d34c060100dbf1/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy": f"{BASE}/tlc-pack/web-data/raw/967fc387dadb272c5a7f8c3461d34c060100dbf1/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy",
     "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy": f"{BASE}/tlc-pack/web-data/raw/main/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy",
     "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/model/keyword_spotting_quant.tflite": f"{BASE}/tlc-pack/web-data/raw/main/testdata/microTVM/model/keyword_spotting_quant.tflite",
+    "https://github.com/mlcommons/tiny/raw/v0.7/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite": f"{BASE}/mlcommons/tiny/raw/v0.7/benchmark/training/visual_wake_words/trained_models/vww_96_int8.tflite",
     "https://github.com/uwsampl/web-data/raw/main/vta/models/synset.txt": f"{BASE}/2022-10-05/synset.txt",
     "https://homes.cs.washington.edu/~cyulin/media/gnn_model/gcn_cora.torch": f"{BASE}/gcn_cora.torch",
     "https://homes.cs.washington.edu/~moreau/media/vta/cat.jpg": f"{BASE}/vta_cat.jpg",
@@ -217,8 +219,8 @@ class TvmRequestHook(urllib.request.Request):
             # Dis-allow any accesses that aren't going through S3
             msg = (
                 f"Uncaught URL found in CI: {url}. "
-                "A committer must upload the relevant file to S3 via"
-                "https://github.com/apache/tvm/actions/workflows/upload_ci_resource.yml"
+                "A committer must upload the relevant file to S3 via "
+                "https://github.com/apache/tvm/actions/workflows/upload_ci_resource.yml "
                 "and add it to the mapping in tests/scripts/request_hook/request_hook.py"
             )
             raise RuntimeError(msg)

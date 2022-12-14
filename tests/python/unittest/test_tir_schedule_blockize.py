@@ -20,6 +20,7 @@ import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
+import pytest
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
@@ -247,7 +248,8 @@ def test_blockize_init_loops():
     verify_trace_roundtrip(sch=s, mod=rowsum)
 
 
-def test_blockize_outer_int64_shape():
+@pytest.mark.parametrize("preserve_unit_iters", [True, False])
+def test_blockize_outer_int64_shape(preserve_unit_iters):
     @T.prim_func
     def single_elementwise_int64(
         A: T.Buffer[(T.int64(16), T.int64(128)), "float32"],
@@ -275,10 +277,31 @@ def test_blockize_outer_int64_shape():
                             vi_i, vj_o * T.int64(16) + vj_i
                         ] + T.float32(1)
 
+    @T.prim_func
+    def after_single_elementwise_int64_blockize_preserve_unit_iters(
+        A: T.Buffer[(T.int64(16), T.int64(128)), "float32"],
+        B: T.Buffer[(T.int64(16), T.int64(128)), "float32"],
+    ) -> None:
+        for i0, j0 in T.grid(T.int64(1), T.int64(8)):
+            with T.block("B_o"):
+                vi_o = T.axis.spatial(T.int64(1), i0)
+                vj_o = T.axis.spatial(T.int64(8), j0)
+                for i1, j1 in T.grid(T.int64(16), T.int64(16)):
+                    with T.block("B"):
+                        vi_i, vj_i = T.axis.remap("SS", [i1, j1])
+                        B[vi_i, vj_o * T.int64(16) + vj_i] = A[
+                            vi_i, vj_o * T.int64(16) + vj_i
+                        ] + T.float32(1)
+
     s = tir.Schedule(single_elementwise_int64, debug_mask="all")
     _, _, i1, _ = s.get_loops(s.get_block("B"))
-    s.blockize(i1)
-    tvm.ir.assert_structural_equal(s.mod["main"], after_single_elementwise_int64_blockize)
+    s.blockize(i1, preserve_unit_iters=preserve_unit_iters)
+    expected = (
+        after_single_elementwise_int64_blockize_preserve_unit_iters
+        if preserve_unit_iters
+        else after_single_elementwise_int64_blockize
+    )
+    tvm.ir.assert_structural_equal(s.mod["main"], expected)
     verify_trace_roundtrip(sch=s, mod=single_elementwise_int64)
 
 
