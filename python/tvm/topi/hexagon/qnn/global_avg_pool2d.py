@@ -15,12 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
-from tvm import te
-from tvm import tir
-from ..utils import get_layout_transform_fn, get_fixed_point_value, saturate
-
-
 """
 Assumptions:
 1) The input is in NCHW layout. Squeezenet is the only model that calls
@@ -29,6 +23,10 @@ Assumptions:
    quantization parameter is provided to the op.
 3) Input is assumed to always be multiple of fixed chunk 32c8h8w.
 """
+
+from tvm import te
+from tvm import tir
+from ..utils import get_layout_transform_fn, get_fixed_point_value, saturate
 
 
 def global_avg_pool2d_u8(

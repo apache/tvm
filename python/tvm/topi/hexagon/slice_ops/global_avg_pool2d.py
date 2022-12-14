@@ -15,12 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
-from tvm import te
-from tvm import tir
-from tvm import topi
-from ..utils import get_layout_transform_fn
-
 """
 Assumptions:
 1) The input is in NCHW layout. Squeezenet is the only model that calls
@@ -29,6 +23,11 @@ Assumptions:
 3) Both input and output dtype is float32 and
 4) Input is assumed to always be multiple of fixed chunk 32c8h4w.
 """
+
+from tvm import te
+from tvm import tir
+from tvm import topi
+from ..utils import get_layout_transform_fn
 
 
 def global_avg_pool2d(
