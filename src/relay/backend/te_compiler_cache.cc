@@ -1091,6 +1091,9 @@ std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompu
 std::pair<Optional<tir::PrimFunc>, std::string> LowerToPrimFunc(const Function& relay_func,
                                                                 Target target,
                                                                 NameSupply constant_name_supply) {
+  ICHECK(relay_func->HasNonzeroAttr(attr::kPrimitive))
+      << "The input must be a Relay primitive function.";
+
   auto [inputs_outputs, constants, fused_name] =
       tec::LowerTECompute(relay_func, target, constant_name_supply, /*return_inputs=*/true);
   auto tir_converter = backend::GetTIRConverter();
