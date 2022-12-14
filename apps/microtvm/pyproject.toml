@@ -54,9 +54,6 @@ name = "microtvm"
 version = "0.1.0"
 description = ""
 authors = []
-packages = [
-    { include = "tvm", from = "../../python" },
-]
 
 [tool.poetry.dependencies]
 python = ">=3.7, <3.9"
@@ -69,6 +66,9 @@ tornado = "^6"
 typed_ast = "^1.4"
 pyyaml = "==6.0"
 pyserial = "^3.5"
+
+# TVM
+apache-tvm = "^0.10.0"
 
 # AutoTVM
 xgboost = {version = "^1.1", optional = true}
@@ -104,14 +104,15 @@ torchvision = { version = "==0.12.0", optional = true }
 future = { version = "==*", optional = true }
 
 # Tensorflow frontend
-tensorflow = {version = "^2.1", optional = true}
-tensorflow-estimator = {version = "^2.1", optional = true}
+tensorflow = {version = "^2.1"}
+tensorflow-estimator = {version = "^2.1"}
 
 # TFLite frontend
-tflite = {version = "2.1.0", optional = true}
+tflite = {version = "2.1.0"}
 wheel = "*"
 cloudpickle = "^1.6.0"
 pyusb = "^1.2.1"
+
 
 
 [tool.poetry.extras]
