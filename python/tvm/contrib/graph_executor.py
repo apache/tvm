@@ -212,7 +212,17 @@ class GraphModule(object):
            Additional arguments
         """
         self._set_input_zero_copy(key, value)
-        self.set_input(None, None, **params)
+        if params:
+            # upload big arrays first to avoid memory issue in rpc mode
+            keys = list(params.keys())
+            keys.sort(key=lambda x: -np.prod(params[x].shape))
+            for k in keys:
+                # TODO(zhiics) Skip the weights for submodule in a better way.
+                # We should use ConstLoaderModule for initialization and remove
+                # params from set_input
+                val = self._get_input(k)
+                if val:
+                    self._set_input_zero_copy(k, params[k])
 
     def set_output_zero_copy(self, key, value):
         """Set outputs to the module with zero memory copy
