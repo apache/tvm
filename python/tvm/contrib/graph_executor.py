@@ -206,7 +206,7 @@ class GraphModule(object):
            The input key
 
         value : the input value in DLPack
-           The input key
+           The input value
 
         params : dict of str to NDArray
            Additional arguments
