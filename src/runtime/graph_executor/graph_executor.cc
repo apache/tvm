@@ -161,6 +161,16 @@ void GraphExecutor::SetInput(int index, DLTensor* data_in) {
   data_entry_[eid].CopyFrom(data_in);
 }
 /*!
+ * \brief set index-th output to the graph.
+ * \param index The output index.
+ * \param data_in The output data.
+ */
+void GraphExecutor::SetOutput(int index, DLTensor* data_in) {
+  ICHECK_LT(static_cast<size_t>(index), outputs_.size());
+  uint32_t output_node_eid = this->entry_id(outputs_[index]);
+  data_entry_[output_node_eid].CopyFrom(data_in);
+}
+/*!
  * \brief Check the legality of external DLTensor*.
  * \param external The external DLTensor*.
  * \param eid The data_enrty_ index.
@@ -581,6 +591,15 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
         if (in_idx >= 0) this->SetInput(in_idx, args[1]);
       } else {
         this->SetInput(args[0], args[1]);
+      }
+    });
+  } else if (name == "set_output") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      if (String::CanConvertFrom(args[0])) {
+        int in_idx = this->GetInputIndex(args[0].operator String());
+        if (in_idx >= 0) this->SetOutput(in_idx, args[1]);
+      } else {
+        this->SetOutput(args[0], args[1]);
       }
     });
   } else if (name == "set_input_zero_copy") {

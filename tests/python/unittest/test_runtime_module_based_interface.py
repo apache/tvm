@@ -29,6 +29,10 @@ def input_shape(mod):
     return [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
 
 
+def output_shape(mod):
+    return [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
+
+
 def verify(data):
     if not tvm.runtime.enabled("llvm"):
         print("Skip because llvm is not enabled")
@@ -686,6 +690,41 @@ def test_num_threads():
     else:
         hardware_threads = os.cpu_count()
         assert reported == hardware_threads or reported == hardware_threads // 2
+
+
+@tvm.testing.requires_llvm
+def test_graph_module_zero_copy():
+    mod = tvm.IRModule()
+    params = {}
+    dev = tvm.cpu()
+    x = relay.var("x", shape=(1, 10))
+    y = relay.var("y", shape=(1, 10))
+    z = relay.add(x, y)
+    mod["main"] = relay.Function([x, y], z)
+
+    import torch
+
+    compiled_graph_lib = relay.build(mod, target="llvm", params=params)
+    gm = graph_executor.GraphModule(compiled_graph_lib["default"](dev))
+    x_data = torch.rand((1, 10))
+    y_data = torch.rand((1, 10))
+    z_data = torch.zeros((1, 10))
+    z_torch = x_data + y_data
+    # regular run
+    gm.set_input("x", tvm.nd.array(x_data.numpy()))
+    gm.set_input("y", tvm.nd.array(y_data.numpy()))
+    gm.set_output("z", tvm.nd.array(z_data.numpy()))
+    gm.run()
+
+    tvm.testing.assert_allclose(gm.get_output(0).numpy(), z_torch.numpy())
+
+    # zero copy run
+    gm.set_input_zero_copy("x", tvm.nd.from_dlpack(x_data))
+    gm.set_input_zero_copy("y", tvm.nd.from_dlpack(y_data))
+    gm.set_output_zero_copy("z", tvm.nd.from_dlpack(z_data))
+    gm.run()
+
+    tvm.testing.assert_allclose(z_data.numpy(), z_torch.numpy())
 
 
 if __name__ == "__main__":
