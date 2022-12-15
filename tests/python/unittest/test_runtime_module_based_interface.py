@@ -719,6 +719,7 @@ def test_graph_module_zero_copy():
     gm.set_input_zero_copy("y", tvm.nd.from_dlpack(y_data))
     gm.set_output_zero_copy("z", tvm.nd.from_dlpack(z_data))
     gm.run()
+
     tvm.testing.assert_allclose(z_data.numpy(), z_torch.numpy())
 
 
@@ -733,3 +734,4 @@ if __name__ == "__main__":
     test_cpu_get_graph_json()
     test_cpu_get_graph_params_run()
     test_cpu_get_graph_params_compare()
+    test_graph_module_zero_copy()
