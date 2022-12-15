@@ -25,7 +25,7 @@ from tvm.topi.testing import adaptive_pool
 import tvm.topi.hexagon.qnn as qn
 import tvm.topi.hexagon.slice_ops as sl
 from tvm.contrib.hexagon import allocate_hexagon_array
-from ...infrastructure import transform_numpy, quantize_np
+from ...infrastructure import transform_numpy, quantize_np, get_hexagon_target
 
 
 SCALE_M_VAL = None
@@ -109,7 +109,6 @@ class TestGlobalPool2D:
         quantize_expected_output_np,
         hexagon_session,
     ):
-        target_hexagon = tvm.target.hexagon("v69")
         a_tensor = te.placeholder(input_shape, name="a_tensor", dtype=dtype)
 
         if dtype == "float16":
@@ -132,7 +131,7 @@ class TestGlobalPool2D:
             func = tvm.build(
                 sch,
                 [a_tensor, m_tensor],
-                tvm.target.Target(target_hexagon, host=target_hexagon),
+                get_hexagon_target("v69"),
                 name="global_pool2d",
             )
 
