@@ -1034,11 +1034,13 @@ def _has_slavx512():
     if arch == "x86_64" and sys.platform.startswith("linux"):
         with open("/proc/cpuinfo", "r") as content:
             ctx = content.read()
-            check = ("avx512f" in ctx and
-                    "avx512cd" in ctx and
-                    "avx512bw" in ctx and
-                    "avx512dq" in ctx and
-                    "avx512vl" in ctx)
+            check = (
+                "avx512f" in ctx
+                and "avx512cd" in ctx
+                and "avx512bw" in ctx
+                and "avx512dq" in ctx
+                and "avx512vl" in ctx
+            )
             return check
 
     return False
@@ -1054,7 +1056,9 @@ requires_cascadelake = Feature(
 
 requires_skylake_avx512 = Feature(
     # TODO(vvchernov): check name and long name
-    "skylake", "x86 SkyLake", run_time_check=lambda: _has_slavx512() and _is_intel()
+    "skylake",
+    "x86 SkyLake",
+    run_time_check=lambda: _has_slavx512() and _is_intel(),
 )
 
 

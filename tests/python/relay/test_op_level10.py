@@ -589,7 +589,7 @@ def test_batch_matmul_skylake_avx512(b, m, n, k):
     y_shape = (b, n, k)
     z_shape = (b, m, n)
 
-# TODO(vvchernov): join duplicate code with cascadelake
+    # TODO(vvchernov): join duplicate code with cascadelake
     for lhs_dtype in ["uint8", "int8"]:
         x = relay.var("x", shape=x_shape, dtype=lhs_dtype)
         y = relay.var("y", shape=y_shape, dtype="int8")
