@@ -211,11 +211,12 @@ class GraphModule(object):
         params : dict of str to NDArray
            Additional arguments
         """
-        self._set_input_zero_copy(key, value)
+        if key is not None:
+            self._set_input_zero_copy(key, value)
+
         if params:
-            # upload big arrays first to avoid memory issue in rpc mode
             keys = list(params.keys())
-            keys.sort(key=lambda x: -np.prod(params[x].shape))
+
             for k in keys:
                 # TODO(zhiics) Skip the weights for submodule in a better way.
                 # We should use ConstLoaderModule for initialization and remove
