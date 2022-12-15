@@ -132,6 +132,12 @@ def copy_constants():
     def _planner(cached_func, const_dict, sch):
         planned = set()  # type: ignore
 
+        def _is_matmul(tensor):
+            if tensor.name not in ["ethosu_conv2d"]:
+                return False
+            a, b = tensor.op.input_tensors[0:2]
+            return a.shape[1:3] == [1, 1] and b.shape[1:3] == [1, 1]
+
         def _visit(tensor, reader, lut):
             if tensor not in planned:
                 planned.add(tensor)
@@ -140,7 +146,9 @@ def copy_constants():
                     # ambiguity when encountering a scalar.
                     is_same = [var.same_as(tensor) for var in cached_func.inputs]
                     index = is_same.index(True)
-                    if index in const_dict:
+                    # Along with constants, also skip for FullyConnected to correspond
+                    # with Vela behavior
+                    if index in const_dict and not _is_matmul(reader):
                         sch.cache_read(tensor, "global", [reader])
 
                 elif isinstance(tensor.op, tvm.te.ComputeOp):

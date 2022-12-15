@@ -1088,6 +1088,33 @@ std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompu
   return std::make_tuple(tensor_outs, constants, lower_te_compute.candidate_name_);
 }
 
+std::pair<Optional<tir::PrimFunc>, std::string> LowerToPrimFunc(const Function& relay_func,
+                                                                Target target,
+                                                                NameSupply constant_name_supply) {
+  ICHECK(relay_func->HasNonzeroAttr(attr::kPrimitive))
+      << "The input must be a Relay primitive function.";
+
+  auto [inputs_outputs, constants, fused_name] =
+      tec::LowerTECompute(relay_func, target, constant_name_supply, /*return_inputs=*/true);
+  auto tir_converter = backend::GetTIRConverter();
+  return std::make_pair(tir_converter(inputs_outputs, constants), fused_name);
+}
+
+tir::PrimFunc LowerToPrimFunc(const Function& relay_func, Target target) {
+  auto [f_opt, _] = LowerToPrimFunc(relay_func, target, NameSupply(""));
+  (void)_;  // to suppress -Werror=unused-variable warning
+  if (f_opt) {
+    return f_opt.value();
+  }
+  LOG(FATAL) << "Failed to convert the Relay function: " << AsText(relay_func, false);
+  return PrimFunc();
+}
+
+TVM_REGISTER_GLOBAL("relay.backend.LowerToPrimFunc")
+    .set_body_typed([](Function relay_func, Target target) {
+      return LowerToPrimFunc(relay_func, target);
+    });
+
 TVM_REGISTER_GLOBAL("relay.backend.LowerToTE").set_body_typed([](Function prim_func) {
   auto tgt = tvm::Target("ext_dev");
   LowerToTECompute lower_te_compute(tgt, NameSupply(""));

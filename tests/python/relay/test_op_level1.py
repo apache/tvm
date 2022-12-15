@@ -25,6 +25,7 @@ from tvm.relay.testing import run_infer_type
 import tvm.topi.testing
 from tvm.contrib.nvcc import have_fp16
 import tvm.testing
+from tvm.topi.utils import get_const_tuple
 
 executor_kind = tvm.testing.parameter("graph", "vm")
 
@@ -695,6 +696,8 @@ def test_dense(executor_kind):
         w = relay.var("w", relay.TensorType((k, n), dtype))
         y = relay.nn.dense(x, w)
         yy = run_infer_type(y)
+        # Confirm that input shape has not been rewritten to become dynamic.
+        assert get_const_tuple(yy.type_args[0].shape) == (4, 2)
 
         n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), 2
         x = relay.var("x", relay.TensorType((n, c, h, w), dtype))

@@ -217,5 +217,21 @@ def test_schedule_diamond_graph():
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
 
+def test_copy_constants_fully_connected_weights():
+    """Check that MatMul-like conv2d ops do not copy weights to SRAM."""
+    ifm = relay.var("IFM", shape=(1, 1, 1, 32), dtype="int8")
+    conv = make_ethosu_conv2d(ifm, 32, 8, (1, 1), (0, 0), (1, 1), (1, 1))
+    func = relay.Function(relay.analysis.free_vars(conv), conv)
+    func = run_opt_pass(func, relay.transform.InferType())
+
+    func, const_dict = extract_constants(func)
+    cached_func = lower_to_te(func)
+
+    sch = te.create_schedule([cached_func.outputs[0].op])
+    planner = copy_constants()
+    planner(cached_func, const_dict, sch)
+    assert True not in [".global" in s.op.name for s in sch.stages]
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
