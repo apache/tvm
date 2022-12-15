@@ -698,6 +698,7 @@ def test_graph_module_zero_copy():
     z = relay.add(x, y)
     mod["main"] = relay.Function([x, y], z)
 
+    # need torch to do the from_dlpack trick
     import torch
 
     compiled_graph_lib = relay.build(mod, target="llvm", params=params)
@@ -706,18 +707,20 @@ def test_graph_module_zero_copy():
     y_data = torch.rand((1, 10))
     z_data = torch.zeros((1, 10))
     z_torch = x_data + y_data
+
     # regular run
     gm.set_input("x", tvm.nd.array(x_data.numpy()))
     gm.set_input("y", tvm.nd.array(y_data.numpy()))
-    gm.set_output("z", tvm.nd.array(z_data.numpy()))
+    gm.set_output(0, tvm.nd.array(z_data.numpy()))
     gm.run()
 
     tvm.testing.assert_allclose(gm.get_output(0).numpy(), z_torch.numpy())
 
     # zero copy run
+    assert not np.allclose(z_data.numpy(), z_torch.numpy())
     gm.set_input_zero_copy("x", tvm.nd.from_dlpack(x_data))
     gm.set_input_zero_copy("y", tvm.nd.from_dlpack(y_data))
-    gm.set_output_zero_copy("z", tvm.nd.from_dlpack(z_data))
+    gm.set_output_zero_copy(0, tvm.nd.from_dlpack(z_data))
     gm.run()
 
     tvm.testing.assert_allclose(z_data.numpy(), z_torch.numpy())
