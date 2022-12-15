@@ -36,6 +36,49 @@ from tvm import testing
 testing.utils.install_request_hook(depth=3)
 # sphinx_gallery_end_ignore
 
+
+######################################################################
+# Install the Prerequisites
+# ----------------------------
+#
+#     .. literalinclude:: install_zephyr.py
+#       :language: bash
+#
+
+#############################################
+# Test section
+# ----------------------------
+#
+#      .. blogpost::
+#        :title: Migration to IPython 3.1
+#        :keywords: ipython, migration, jupyter, jenkins, pandoc
+#        :date: 2015-04-16
+#        :categories: ipython, documentation
+#        
+#        Any text this blog could contains and any RST tag::
+#
+#
+
+
+
+######################################################################
+# Install CMSIS-NN
+# ----------------------------
+# 
+#     .. code-block:: bash
+#
+#       %%shell
+#       CMSIS_SHA="51263182d16c92649a48144ba56c0945f9fce60e"
+#       CMSIS_SHASUM="d02573e5a8908c741d8558f01be2939aae6e940933ccb58123fa972864947759eefe5d554688db3910c8ed665a248b477b5e4458e12773385c67f8a2136b3b34"
+#       CMSIS_URL="http://github.com/ARM-software/CMSIS_5/archive/${CMSIS_SHA}.tar.gz"
+#       export CMSIS_PATH=/root/cmsis
+#       DOWNLOAD_PATH="/root/${CMSIS_SHA}.tar.gz"
+#       mkdir ${CMSIS_PATH}
+#       wget ${CMSIS_URL} -O "${DOWNLOAD_PATH}"
+#       tar -xf "${DOWNLOAD_PATH}" -C ${CMSIS_PATH} --strip-components=1
+#       rm ${DOWNLOAD_PATH}
+#
+
 import numpy as np
 import pathlib
 import json
@@ -139,6 +182,8 @@ if use_physical_hw:
         "board": BOARD,
         "serial_number": SERIAL,
         "config_main_stack_size": 4096,
+        "cmsis_path": "/root/cmsis" if os.environ.get("CMSIS_PATH") is None else os.environ.get("CMSIS_PATH"), 
+        "zephyr_base": "/root/zephyrproject/zephyr" if os.environ.get("ZEPHYR_BASE") is None else os.environ.get("ZEPHYR_BASE"),
     }
 
 temp_dir = tvm.contrib.utils.tempdir()
