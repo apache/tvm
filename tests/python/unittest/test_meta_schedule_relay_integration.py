@@ -120,7 +120,8 @@ def test_task_extraction_winograd_tensorcore():
     with tvm.transform.PassContext(opt_level=3):
         mod = seq(mod)
 
-    extracted_tasks = ms.relay_integration.extract_tasks(mod, target="cuda", params=params)
+    target = tvm.target.Target("nvidia/geforce-rtx-3070")
+    extracted_tasks = ms.relay_integration.extract_tasks(mod, target=target, params=params)
 
     assert len([t for t in extracted_tasks if "winograd" in t.task_name]) == 4
 
