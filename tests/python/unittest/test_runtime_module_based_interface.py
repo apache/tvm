@@ -708,14 +708,6 @@ def test_graph_module_zero_copy():
     z_data = torch.zeros((1, 10))
     z_torch = x_data + y_data
 
-    # regular run
-    gm.set_input("x", tvm.nd.array(x_data.numpy()))
-    gm.set_input("y", tvm.nd.array(y_data.numpy()))
-    gm.set_output(0, tvm.nd.array(z_data.numpy()))
-    gm.run()
-
-    tvm.testing.assert_allclose(gm.get_output(0).numpy(), z_torch.numpy())
-
     # zero copy run
     assert not np.allclose(z_data.numpy(), z_torch.numpy())
     gm.set_input_zero_copy("x", tvm.nd.from_dlpack(x_data))

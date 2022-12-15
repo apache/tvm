@@ -154,7 +154,6 @@ class GraphModule(object):
         self.module = module
         self._set_input = module["set_input"]
         self._set_input_zero_copy = module["set_input_zero_copy"]
-        self._set_output = module["set_output"]
         self._set_output_zero_copy = module["set_output_zero_copy"]
         self._run = module["run"]
         self._get_output = module["get_output"]
@@ -197,19 +196,6 @@ class GraphModule(object):
                 val = self._get_input(k)
                 if val:
                     self._get_input(k).copyfrom(params[k])
-
-    def set_output(self, key, value):
-        """Set outputs to the module
-
-        Parameters
-        ----------
-        key : int or str
-           The output key
-
-        value : the output value
-           The output value
-        """
-        self._set_output(key, value)
 
     def set_input_zero_copy(self, key, value, **params):
         """Set inputs to the module via kwargs with zero memory copy
