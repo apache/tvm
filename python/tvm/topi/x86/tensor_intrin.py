@@ -318,6 +318,7 @@ def dot_16x1x16_uint8_int8_int32_cascadelake():
             else:  # Fall back to the normal AVX512
                 vec_a = tvm.tir.call_intrin("int8x64", "tir.reinterpret", vec_ai32)
                 vec_one = tvm.tir.const(1, "int16x32")
+                # TODO(vvchernov): vpmaddwd?
                 pair_reduction = tvm.tir.call_llvm_pure_intrin(
                     "int16x32",
                     "llvm.x86.avx512.pmaddubs.w.512",
@@ -325,6 +326,7 @@ def dot_16x1x16_uint8_int8_int32_cascadelake():
                     vec_a,
                     vec_b,
                 )
+                # TODO(vvchernov): vpaddd?
                 quad_reduction = tvm.tir.call_llvm_pure_intrin(
                     "int32x16",
                     "llvm.x86.avx512.pmaddw.d.512",

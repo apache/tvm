@@ -1691,7 +1691,10 @@ class TestConv2DInt8Intrinsics:
 
     @tvm.testing.fixture
     def fast_int8_intrinsic(self, target):
-        if "nehalem" in target or "core-avx2" in target or "skylake-avx512" in target:
+        if "nehalem" in target or "core-avx2" in target:
+            return "pmaddubs"
+        elif "skylake-avx512" in target:
+            # TODO(vvchernov): vpmaddubsw? vpmaddwd? vpaddd?
             return "pmaddubs"
         elif "cascadelake" in target:
             return "vpdpbusd"
@@ -2217,6 +2220,12 @@ def test_conv2d_int8_alter_dtype_arm():
 @tvm.testing.requires_cascadelake
 def test_conv2d_int8_alter_dtype_vnni():
     _test_conv2d_int8_alter_dtype("int8", "llvm -mcpu=cascadelake", "vpdpbusd")
+
+
+@tvm.testing.requires_skylake_avx512
+def test_conv2d_int8_alter_dtype_vnni():
+    # TODO(vvchernov): Is check of "vpmaddubsw" and "vpmaddwd" needed?
+    _test_conv2d_int8_alter_dtype("int8", "llvm -mcpu=skylake-avx512", "vpaddd")
 
 
 if __name__ == "__main__":
