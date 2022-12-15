@@ -50,3 +50,57 @@ def test_compile_with_unsupported_variant():
 
     with pytest.raises(tvm.TVMError, match=r"Unknown NPU type"):
         tei.build_and_run(mod, inputs, 1, {}, True, additional_config_args=additional_config_args)
+
+
+@requires_ethosn
+def test_experimental_compiler(capfd):
+    """Test compilation with the experimental compiler."""
+    dtype = "int8"
+    input_shape = (1, 2, 2, 2)
+
+    x = relay.var("x", shape=input_shape, dtype=dtype)
+    y = relay.reshape(x, newshape=(1, 1, 1, 8))
+    mod = tei.make_ethosn_partition(y)
+
+    additional_config_args = {
+        "variant": "n78",
+        "experimental_compiler": True,
+        "inline_non_compute_intensive_partitions": False,
+    }
+
+    tei.build(mod, {}, True, additional_config_args=additional_config_args)
+
+    # Check for hints that the experimental compiler was activated.
+    # The support library logs a warning to say the the experimental
+    # compiler is in use. Check that this warning was logged.
+    captured = capfd.readouterr()
+    assert (
+        "WARNING: Experimental Compiler in use." in captured.err
+    ), "Experimental compiler was not activated."
+
+
+@requires_ethosn
+def test_without_experimental_compiler(capfd):
+    """Test compilation when the experimental compiler is not enabled."""
+    dtype = "int8"
+    input_shape = (1, 2, 2, 2)
+
+    x = relay.var("x", shape=input_shape, dtype=dtype)
+    y = relay.reshape(x, newshape=(1, 1, 1, 8))
+    mod = tei.make_ethosn_partition(y)
+
+    additional_config_args = {
+        "variant": "n78",
+        "experimental_compiler": False,
+        "inline_non_compute_intensive_partitions": False,
+    }
+
+    tei.build(mod, {}, True, additional_config_args=additional_config_args)
+
+    # Check for hints that the experimental compiler was activated.
+    # The support library logs a warning to say the the experimental
+    # compiler is in use. Check that this warning was logged.
+    captured = capfd.readouterr()
+    assert (
+        "WARNING: Experimental Compiler in use." not in captured.err
+    ), "Experimental compiler was enabled when it is not expected to be."
