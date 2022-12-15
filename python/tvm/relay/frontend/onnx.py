@@ -3126,8 +3126,7 @@ class RNN(OnnxOpConverter):
         Wp = inputs[1]
         Rp = inputs[2]
         Bp = inputs[3]
-        # Sequence length currently unused as it can be inferred from shapes.
-        # sequence_lens = inputs['sequence_lens']
+        sequence_lens = inputs[4]
         Hp_0 = inputs[5]
 
         num_directions = infer_shape(Wp)[0]
@@ -3158,11 +3157,11 @@ class RNN(OnnxOpConverter):
         Bs = None
         if Bp is not None:
             Bs = _op.split(Bp, num_directions)
-        return X_steps, H_ts, Ws, Rs, Bs, num_directions
+        return X_steps, H_ts, Ws, Rs, Bs, num_directions, sequence_lens
 
     @classmethod
     def _impl_common(cls, inputs, attr, layout):
-        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs, layout)
+        X_steps, H_ts, Ws, Rs, Bs, num_directions, _ = cls._inputs_helper(inputs, layout)
         acts = cls._get_activations(attr, 1, num_directions, "RNN")
 
         weights_dicts = []
@@ -3261,7 +3260,7 @@ class LSTM(RNN):
 
     @classmethod
     def _impl_common(cls, inputs, attr, layout):
-        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs, layout)
+        X_steps, H_ts, Ws, Rs, Bs, num_directions, _ = cls._inputs_helper(inputs, layout)
         acts = cls._get_activations(attr, 3, num_directions, "LSTM")
 
         # cell state
@@ -3346,6 +3345,7 @@ class GRU(RNN):
         input_seqs,
         weight_dicts,
         acts,
+        sequence_lens=None,
     ):
         """
         Bidirectional GRU cell
@@ -3356,6 +3356,7 @@ class GRU(RNN):
             **weight_dicts[0],
             rz_act=acts[0],
             n_act=acts[1],
+            sequence_lens=sequence_lens,
         )
 
         reverse_outputs, rev_H_t = gru_cell(
@@ -3364,6 +3365,7 @@ class GRU(RNN):
             rz_act=acts[2],
             n_act=acts[3],
             backwards=True,
+            sequence_lens=sequence_lens,
         )
 
         final_outputs = []
@@ -3383,7 +3385,9 @@ class GRU(RNN):
 
     @classmethod
     def _impl_common(cls, inputs, attr, layout):
-        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs, layout)
+        X_steps, H_ts, Ws, Rs, Bs, num_directions, sequence_lens = cls._inputs_helper(
+            inputs, layout
+        )
         acts = cls._get_activations(attr, 2, num_directions, "GRU")
         linear_before_reset = attr.get("linear_before_reset", 0)
 
@@ -3412,6 +3416,7 @@ class GRU(RNN):
                 input_seqs=X_steps,
                 weight_dicts=weights_dicts,
                 acts=acts,
+                sequence_lens=sequence_lens,
             )
         else:
             # outputs shape = [seqs_num, (batch_size, hidden_size)]
@@ -3420,6 +3425,7 @@ class GRU(RNN):
                 **weights_dicts[0],
                 rz_act=acts[0],
                 n_act=acts[1],
+                sequence_lens=sequence_lens,
             )
 
             # output shape = (seqs_num, num_directions, batch_size, hidden_size)
