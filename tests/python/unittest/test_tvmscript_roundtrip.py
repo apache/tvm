@@ -3537,6 +3537,19 @@ def nested_boolean_expressions():
         yield generator
 
 
+def multi_env_threads():
+    @T.prim_func
+    def func(A: T.Buffer[128, "float32"], C: T.Buffer[128, "float32"]):
+        B = T.alloc_buffer([128], dtype="float32")
+        for i in T.thread_binding(128, thread="threadIdx.x"):
+            B[i] = A[i] + 1.0
+        for i in T.thread_binding(128, thread="threadIdx.x"):
+            C[i] = B[i] + 2.0
+
+    mod = tvm.tir.transform.LowerOpaqueBlock()(tvm.IRModule.from_expr(func))
+    return mod["main"]
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3593,6 +3606,7 @@ ir_generator = tvm.testing.parameter(
     elif_chain_without_else,
     elif_chain_with_else,
     *nested_boolean_expressions(),
+    multi_env_threads,
 )
 
 
