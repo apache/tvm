@@ -29,10 +29,6 @@ def input_shape(mod):
     return [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
 
 
-def output_shape(mod):
-    return [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
-
-
 def verify(data):
     if not tvm.runtime.enabled("llvm"):
         print("Skip because llvm is not enabled")
@@ -723,7 +719,6 @@ def test_graph_module_zero_copy():
     gm.set_input_zero_copy("y", tvm.nd.from_dlpack(y_data))
     gm.set_output_zero_copy("z", tvm.nd.from_dlpack(z_data))
     gm.run()
-
     tvm.testing.assert_allclose(z_data.numpy(), z_torch.numpy())
 
 
