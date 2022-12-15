@@ -713,9 +713,17 @@ runtime::ethosn::OrderedCompiledNetwork EthosnCompiler::CompileEthosnFunc(const 
   auto network_with_ids = ConstructNetwork(mod, gvar, func);
   // Now set the required build flags
   sl::CompilationOptions options = CreateOptions();
-  // Finally compile the network
+  // Set the experimental compiler if enabled, for now this is not part of the
+  // support library compilation options.
+  bool experimental_compiler = GetCompilerAttrs()->experimental_compiler;
+  if (experimental_compiler) {
+    setenv("FORCE_EXPERIMENTAL_COMPILER", "1", 1);
+  }
   std::vector<std::unique_ptr<sl::CompiledNetwork>> compiled_networks =
       sl::Compile(*network_with_ids.network, options);
+  if (experimental_compiler) {
+    unsetenv("FORCE_EXPERIMENTAL_COMPILER");
+  }
   ICHECK_GE(compiled_networks.size(), 1) << "Ethos-N compiler failed to compile network";
   auto compiled_network = std::move(compiled_networks[0]);
   // Determine the order that the inputs/outputs are in and how that corresponds to the
