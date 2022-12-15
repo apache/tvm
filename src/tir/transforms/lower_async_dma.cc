@@ -159,8 +159,9 @@ class AsyncDMALowerer : public StmtExprMutator {
       auto store_iter_map = DetectIterMap(store_index, input_iters, 1, arith::IterMapLevel::NoCheck,
                                           &analyzer, false);
       if (!store_iter_map->errors.empty()) {
-        LOG(FATAL) << "Unable to lower async dma for non contiguous memory access with store index: "
-                   << store_index;
+        LOG(FATAL)
+            << "Unable to lower async dma for non contiguous memory access with store index: "
+            << store_index;
       }
 
       store_index.MutateByApply([&](PrimExpr expr) {

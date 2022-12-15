@@ -881,6 +881,7 @@ def test_meta(hexagon_session):
         },
     )
 
+
 def test_non_contiguous():
     """Test Non Contiguous memory lowering."""
     sch = tvm.tir.Schedule(conv2d_async_non_contig)
