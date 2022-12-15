@@ -159,7 +159,7 @@ class AsyncDMALowerer : public StmtExprMutator {
       auto store_iter_map = DetectIterMap(store_index, input_iters, 1, arith::IterMapLevel::NoCheck,
                                           &analyzer, false);
       if (!store_iter_map->errors.empty()) {
-        LOG(FATAL) << "Unable to lower async dma for non contiguous memory access with index: "
+        LOG(FATAL) << "Unable to lower async dma for non contiguous memory access with store index: "
                    << store_index;
       }
 
@@ -175,7 +175,7 @@ class AsyncDMALowerer : public StmtExprMutator {
       auto load_iter_map =
           DetectIterMap(load_index, input_iters, 1, arith::IterMapLevel::NoCheck, &analyzer, false);
       if (!load_iter_map->errors.empty()) {
-        LOG(FATAL) << "Unable to lower async dma for non contiguous memory access with index: "
+        LOG(FATAL) << "Unable to lower async dma for non contiguous memory access with load index: "
                    << load_index;
       }
 

@@ -25,7 +25,7 @@ from tvm.script import tir as T
 VRMPY_SIZE_B = 128
 VRMPY_SIZE_INT32 = 32
 
-
+# pylint: disable=invalid-name
 @T.prim_func
 def conv2d_async_non_contig(
     p0: T.Buffer[(T.int64(1), T.int64(1), T.int64(56), T.int64(56), T.int64(4)), "uint8"],
@@ -37,6 +37,8 @@ def conv2d_async_non_contig(
         (T.int64(1), T.int64(1), T.int64(54), T.int64(54), T.int64(32)), "int32"
     ],
 ):
+    """Non contiguous memory access is used in this conv2d taken from MS."""
+    # pylint: disable=no-self-argument
     # function attr dict
     T.func_attr({"tir.noalias": True, "global_symbol": "main"})
     # body
@@ -106,7 +108,6 @@ def conv2d_async_non_contig(
                         v_ow = T.axis.spatial(
                             T.int64(54), ow_0 * T.int64(18) + ow_1 * T.int64(3) + ow_2_init
                         )
-                        v_oc_block_o = T.axis.spatial(T.int64(1), T.int64(0))
                         T.reads()
                         T.writes(
                             conv2d_NCHWc_int8[v_n, v_oc_chunk, v_oh, v_ow, T.int64(0) : T.int64(32)]
@@ -135,11 +136,9 @@ def conv2d_async_non_contig(
                         v_ow = T.axis.spatial(
                             T.int64(54), ow_0 * T.int64(18) + ow_1 * T.int64(3) + ow_2
                         )
-                        v_oc_block_o = T.axis.spatial(T.int64(1), T.int64(0))
                         v_kh, v_kw = T.axis.remap("RR", [kh_1, kw_1])
                         v_ic_outer = T.axis.reduce(T.int64(1), T.int64(0))
                         v_ic_f_inner = T.axis.reduce(T.int64(1), T.int64(0))
-                        v_ic_s_inner_o = T.axis.reduce(T.int64(1), T.int64(0))
                         T.reads(
                             conv2d_NCHWc_int8[
                                 v_n, v_oc_chunk, v_oh, v_ow, T.int64(0) : T.int64(32)
@@ -882,13 +881,13 @@ def test_meta(hexagon_session):
         },
     )
 
-
-@tvm.testing.requires_hexagon
-def test_non_contiguous(hexagon_session):
+def test_non_contiguous():
+    """Test Non Contiguous memory lowering."""
     sch = tvm.tir.Schedule(conv2d_async_non_contig)
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
-    err_rgx = r"Unable to lower async dma for non contiguous memory access with index: "
-    # Currently we do not support non contiguous memory access being lowered to async dma so we throw an error.
+    err_rgx = r"Unable to lower async dma for non contiguous memory access with load index: "
+    # Currently we do not support non contiguous memory access being lowered to
+    # async dma so we throw an error.
     with pytest.raises(tvm.TVMError, match=err_rgx):
         with tvm.transform.PassContext(
             config={
