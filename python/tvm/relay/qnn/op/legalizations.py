@@ -248,7 +248,7 @@ def helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay_op):
     Replacing QA + 128 with QA' and (zp_a + 128) with zp_a'
     We get our new quantized uint8 tensor - scale * (QA' - zp_a')
 
-    Similarly we can convert from int8 to uint8.
+    Similarly we can convert from uint8 to int8.
 
     Parameters
     ----------
