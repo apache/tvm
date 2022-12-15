@@ -362,7 +362,7 @@ void CodeGenLLVM::Optimize() {
 
   llvm::PipelineTuningOptions pto = llvm::PipelineTuningOptions();
   llvm::PassInstrumentationCallbacks pic;
-  llvm::PassBuilder builder(tm, pto, llvm::None, &pic);
+  llvm::PassBuilder builder(tm, pto, std::nullopt, &pic);
 
   llvm::LoopAnalysisManager lam;
   llvm::FunctionAnalysisManager fam;
