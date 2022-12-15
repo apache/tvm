@@ -12,10 +12,11 @@ Though this document will use the TVMScript front end for some examples, specify
 2. [Top-Level Program Organization](#top-level-program-organization-irmodule)
 3. [Values in Relax](#values-in-relax)
 4. [Variable Scoping](#variable-scoping)
-5. [Well-Formedness Criteria](#well-formedness-criteria)
-6. [Types in Relax](#types-in-relax)
-7. [Shapes in Relax](#shapes-in-relax)
-8. [Semantics](#detailed-semantics)
+5. [Normal Form](#normal-form)
+6. [Well-Formedness Criteria](#well-formedness-criteria)
+7. [Types in Relax](#types-in-relax)
+8. [Shapes in Relax](#shapes-in-relax)
+9. [Semantics](#detailed-semantics)
 
 # Overview
 
@@ -229,10 +230,31 @@ def func(x: Tensor) -> Tensor:
     return x
 ```
 
+# Normal Form
+
+To simplify the writing of Relax passes, we define a normal form for Relax programs, based on the [administrative normal form](https://en.wikipedia.org/wiki/A-normal_form) (A-normal form, or ANF). See [this post](https://matt.might.net/articles/a-normalization/) by Matt Might for a discussion of some of the advantages of ANF in traditional compilation; in particular, ANF results in programs without nesting, which is very convenient for writing program transformations. Because the type- and shape-checking rules for operators rely on macros (`FInferType` and `FInferShape`), _this means that the structure of the program can affect type and shape inference_. Putting programs into normal form (and lacking nesting) not only simplifies the writing of these macros but it also ensures that these type- and shape-checking rules will be predictable, hence _it is required to transform programs into normal form_ before applying type- or shape-checking.
+
+The normal form for Relax is very similar to ANF; differences will be noted. Here are the criteria required for a program to be in normal form:
+1. Within a `SeqExpr`, the right-hand side of any binding (the `value` field in the AST) must either be a "leaf expression" or a non-leaf expression where all subexpressions are leaf expressions. Leaf expressions are the following: Variables (`Var`, `DataflowVar`, or `GlobalVar`), `Constant`, `ShapeExpr`, `RuntimeDepShape`, or (_unlike_ ANF) `Tuple`. `Tuple` nodes are considered "leaf" expressions even though they contain nesting purely for convenience in writing passes; many operators rely on grouping arguments using tuples, so that is a form of nesting permitted and expected. Otherwise, non-leaf expressions used as subexpressions must be bound to variables; this includes any non-leaf expressions nested inside a `Tuple`.
+2. `SeqExpr`s may appear only in the following locations:
+    1. In the `body` field of a `Function` node.
+    2. In the `true_branch` and `false_branch` fields of `If` nodes.
+3. In fact, the `body` field of a `Function` node and the `true_branch` and `false_branch` fields of `If` nodes _must_ be `SeqExpr`s. If these fields are not `SeqExpr`s, they must be "wrapped" in a `SeqExpr`.
+4. Within a `SeqExpr`, `BindingBlock`s must be consolidated. For example, if there is a `BindingBlock` that comes after another `BindingBlock`, the two blocks should be combined to form a single `BindingBlock` with all the bindings in the same order. Consecutive `DataflowBlock`s should be consolidated as well. However, a `DataflowBlock` cannot be consolidated with an ordinary `BindingBlock`.
+
+Programs that are parsed should be "normalized" before performing type-checking or shape-checking or before doing any further optimizations. Note that the process of "flattening" `SeqExpr`s and consolidating `BindingBlock`s does increase the visibility of the variables in those `SeqExpr`s and `BindingBlock`s, but this is safe, since it will not cause any variable to be referenced outside of its original scope. The specification does not require any particular method of normalizing a program so long as the final program conforms to the above-listed criteria. Here is a general approach:
+1. For each function in the `IRModule`, ensure that the body is a `SeqExpr`. If the body is not a `SeqExpr`, wrap the function body in a `SeqExpr`, creating a new `BindingBlock` to hold `VarBinding`s for any non-leaf expressions that need to be bound to variables.
+2. If the function body is already a `SeqExpr`, consolidate all `BindingBlock`s, then check if the `body` field of the `SeqExpr` is a leaf expression. If not, bind it to a new var in the final `BindingBlock` and replace the `SeqExpr` body with the new var.
+3. If the function body is not a `SeqExpr`, then recurse down the body's AST, binding any nested non-leaf expressions to a var in the current scope (doing this process in breadth-first order from left to right will respect the evaluation order in the semantics). If the body itself is a non-leaf expression, finally bind it to a var and have the final `SeqExpr` return the new var.
+4. If an `If` node is encountered, ensure the `true_branch` and `false_branch` fields are `SeqExpr`s (consolidate `BindingBlock`s if necessary) or "wrap" them in `SeqExpr`s in the same manner as the function body.
+5. If a `SeqExpr` node is encountered as the `value` node in a binding, "flatten" the `SeqExpr` by adding its bindings to the current scope and replacing the `SeqExpr` with its body. If the `SeqExpr` body is a non-leaf expression, normalize it recursively in the same manner as in step 3 before replacing the binding. Note that if the current scope (the location of the binding) is a `DataflowBlock` and the nested `SeqExpr` contains an ordinary `BindingBlock`, that indicates a malformed program.
+
+
 # Well-Formedness Criteria
 
-Prior to type-checking and shape inference, Relax programs must conform to certain syntactic criteria to be valid.
+Prior to type-checking and shape inference, Relax programs must conform to certain syntactic criteria to be valid, which includes conforming to the expectations of the above-described normal form.
 
+The following criteria apply to all programs (including before normalization):
 1. `DataflowVar`s can be bound only inside `DataflowBlock`s. Additionally, a `DataflowVar` may not be used outside of the `DataflowBlock` in which it is defined.
 2. A `Var` of any kind used in the program must be either a function parameter or appear on the LHS of a binding exactly once. In the binding where a `Var` is defined, the same `Var` is permitted to occur in the RHS of the binding only if the binding is defining a function (i.e., local functions are permitted to be recursive).
 3. A `Var` of any kind may not appear before it is bound. Namely, if a `Var` is bound in a `BindingBlock` in a `SeqExpr`, that `Var` may not appear in bindings that precede the one where it appears on the LHS.
@@ -255,6 +277,8 @@ Prior to type-checking and shape inference, Relax programs must conform to certa
 14. «If a global function has a defined `global_symbol` attribute, the `global_symbol` name must be the same as the `GlobalVar`'s name hint.»
 15. «Any `PackedFunc` or operator called in a shape annotation or `shape_` expression must be pure and be annotated as such.»
 16. The node `RuntimeDepShape` may appear only in shape annotations and `shape_` expressions. It has no defined semantics at run time.
+
+Additionally, the criteria for normal form listed in the previous section must apply to any program that has been normalized.
 
 # Types in Relax
 
