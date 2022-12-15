@@ -131,12 +131,6 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    */
   void SetInput(int index, DLTensor* data_in);
   /*!
-   * \brief set index-th output to the graph.
-   * \param index The input index.
-   * \param data_in The input data.
-   */
-  void SetOutput(int index, DLTensor* data_in);
-  /*!
    * \brief set index-th input to the graph without copying the data
    * \param index The input index.
    * \param data_ref The input data that is referred.
