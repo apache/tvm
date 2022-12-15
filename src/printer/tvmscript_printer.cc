@@ -1045,7 +1045,6 @@ Doc TVMScriptPrinter::VisitStmt_(const AttrStmtNode* op) {
             << ")";
         doc << Doc::NewLine() << PrintBody(op->body);
       }
-      TryDeallocVar(iter_var->var);
       return doc;
     }
   }
