@@ -197,7 +197,7 @@ class GraphModule(object):
                 if val:
                     self._get_input(k).copyfrom(params[k])
 
-    def set_input_zero_copy(self, key, value, **params):
+    def set_input_zero_copy(self, key=None, value=None, **params):
         """Set inputs to the module via kwargs with zero memory copy
 
         Parameters
