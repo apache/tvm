@@ -109,6 +109,24 @@ def test_meta_schedule_integration_extract_from_resnet():
 
 
 @requires_torch
+def test_task_extraction_winograd_tensorcore():
+    mod, params, _ = get_network(name="resnet_50", input_shape=[16, 3, 224, 224])
+    seq = tvm.transform.Sequential(
+        [
+            relay.transform.ToMixedPrecision("float16"),
+            relay.transform.ConvertLayout({"nn.conv2d": ["NHWC", "HWIO"]}),
+        ]
+    )
+    with tvm.transform.PassContext(opt_level=3):
+        mod = seq(mod)
+
+    target = tvm.target.Target("nvidia/geforce-rtx-3070")
+    extracted_tasks = ms.relay_integration.extract_tasks(mod, target=target, params=params)
+
+    assert len([t for t in extracted_tasks if "winograd" in t.task_name]) == 4
+
+
+@requires_torch
 def test_task_extraction_anchor_block():
     mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     extracted_tasks = ms.relay_integration.extract_tasks(
