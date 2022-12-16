@@ -705,7 +705,7 @@ def test_graph_module_zero_copy():
     gm = graph_executor.GraphModule(compiled_graph_lib["default"](dev))
     x_data = torch.rand((1, 10))
     y_data = torch.rand((1, 10))
-    z_data = torch.zeros((1, 10))
+    z_data = torch.rand((1, 10))
     z_torch = x_data + y_data
 
     # zero copy run
@@ -716,6 +716,13 @@ def test_graph_module_zero_copy():
     gm.run()
 
     tvm.testing.assert_allclose(z_data.numpy(), z_torch.numpy())
+
+    # zero input copy with params
+    gm = graph_executor.GraphModule(compiled_graph_lib["default"](dev))
+    gm.set_input_zero_copy(x=tvm.nd.from_dlpack(x_data), y=tvm.nd.from_dlpack(y_data))
+    gm.run()
+
+    tvm.testing.assert_allclose(gm.get_output(0).numpy(), z_torch.numpy())
 
 
 if __name__ == "__main__":
