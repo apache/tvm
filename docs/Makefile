@@ -20,7 +20,7 @@
 
 # You can set these variables from the command line.
 SPHINXOPTS    =
-SPHINXBUILD   = python3.7 -m sphinx
+SPHINXBUILD   = python3 -m sphinx
 PAPER         =
 BUILDDIR      = _build
 STAGINGDIR    = _staging

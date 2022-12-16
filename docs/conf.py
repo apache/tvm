@@ -113,7 +113,7 @@ COLAB_HTML_HEADER = """
 """
 
 COLAB_URL_BASE = (
-    "https://colab.research.google.com/github/apache/tvm-site/blob/asf-site/docs/_downloads/"
+    "https://colab.research.google.com/github/guberti/tvm-site/blob/asf-site/docs/_downloads/"
 )
 
 from sphinx_gallery.gen_rst import save_rst_example as real_save_rst_example
