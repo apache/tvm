@@ -689,19 +689,8 @@ def test_num_threads():
         assert reported == hardware_threads or reported == hardware_threads // 2
 
 
-def _has_torch():
-    import importlib.util  # pylint: disable=unused-import,import-outside-toplevel
-
-    spec = importlib.util.find_spec("torch")
-    return spec is not None
-
-
-# TODO(shingjan): put requires_torch in tvm.testing
-requires_torch = pytest.mark.skipif(not _has_torch(), reason="torch is not installed")
-
-
 @tvm.testing.requires_llvm
-@requires_torch
+@tvm.testing.requires_package("torch")
 def test_graph_module_zero_copy():
     mod = tvm.IRModule()
     params = {}
