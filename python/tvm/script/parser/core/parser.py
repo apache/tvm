@@ -150,7 +150,7 @@ class VarTable:
             The options of whether variable shadowing allwed for this variable.
         """
         # Skip if the key and value are equal to those in the var_table
-        if self.name2value[var] and self.name2value[var][-1] == value:
+        if self.name2value[var] and self.name2value[var][-1] is value:
             return
         if allow_shadowing and var in self.frames[-1].vars:
             # Shadowing
