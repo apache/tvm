@@ -22,6 +22,7 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/arith/iter_affine_map.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -33,6 +34,12 @@ namespace tir {
 class AsyncDMALowerer : public StmtExprMutator {
  public:
   explicit AsyncDMALowerer(bool dma_bypass_cache) : dma_bypass_cache_(dma_bypass_cache) {}
+
+  // Create member statement to track a mapping from iter var to iter range
+  Stmt VisitStmt_(const ForNode* op) final {
+    input_iters.Set(op->loop_var, Range(op->min, op->extent));
+    return StmtExprMutator::VisitStmt_(op);
+  }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     // Convert this, for example:
@@ -146,6 +153,17 @@ class AsyncDMALowerer : public StmtExprMutator {
 
       // map loop variable to zero for the store index & simplify
       Array<PrimExpr> store_index = bufferstorenode->indices;
+
+      // Use DetectIterMap to detect whether store index is non-contiguous.
+      arith::Analyzer analyzer;
+      auto store_iter_map = DetectIterMap(store_index, input_iters, 1, arith::IterMapLevel::NoCheck,
+                                          &analyzer, false);
+      if (!store_iter_map->errors.empty()) {
+        LOG(FATAL)
+            << "Unable to lower async dma for non contiguous memory access with store index: "
+            << store_index;
+      }
+
       store_index.MutateByApply([&](PrimExpr expr) {
         arith::Analyzer analyzer;
         return analyzer.Simplify(Substitute(std::move(expr), loop_var_remap));
@@ -153,6 +171,15 @@ class AsyncDMALowerer : public StmtExprMutator {
 
       // map loop variable to zero for the load index & simplify
       Array<PrimExpr> load_index = bufferloadnode->indices;
+
+      // Use DetectIterMap to detect whether load index is non-contiguous.
+      auto load_iter_map =
+          DetectIterMap(load_index, input_iters, 1, arith::IterMapLevel::NoCheck, &analyzer, false);
+      if (!load_iter_map->errors.empty()) {
+        LOG(FATAL) << "Unable to lower async dma for non contiguous memory access with load index: "
+                   << load_index;
+      }
+
       load_index.MutateByApply([&](PrimExpr expr) {
         arith::Analyzer analyzer;
         return analyzer.Simplify(Substitute(std::move(expr), loop_var_remap));
@@ -176,6 +203,7 @@ class AsyncDMALowerer : public StmtExprMutator {
  private:
   std::set<int> queue_ids_;
   bool dma_bypass_cache_;
+  Map<Var, Range> input_iters = Map<Var, Range>();
 };
 
 namespace transform {
