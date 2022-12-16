@@ -159,13 +159,13 @@ class GraphModule(object):
         try:
             self._set_input_zero_copy = module["set_input_zero_copy"]
         except AttributeError:
-            self._set_input_zero_copy = lambda: (_ for _ in ()).throw(
+            self._set_input_zero_copy = lambda *_: (_ for _ in ()).throw(
                 Exception("set_input_zero_copy is not implemented for C graph executor")
             )
         try:
             self._set_output_zero_copy = module["set_output_zero_copy"]
         except AttributeError:
-            self._set_output_zero_copy = lambda: (_ for _ in ()).throw(
+            self._set_output_zero_copy = lambda *_: (_ for _ in ()).throw(
                 Exception("set_output_zero_copy is not implemented for C graph executor")
             )
         self._run = module["run"]
