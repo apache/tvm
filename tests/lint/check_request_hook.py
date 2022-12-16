@@ -142,7 +142,7 @@ if __name__ == "__main__":
                 else:
                     actual, expected = line_info
                     print(f"{file} (misplaced hook at {actual}, expected at {expected})")
-            #exit(1)
+            # exit(1)
         else:
             print("All files successfully override urllib.request.Request")
             exit(0)

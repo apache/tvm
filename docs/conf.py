@@ -142,7 +142,12 @@ import sphinx_gallery.gen_rst
 sphinx_gallery.gen_rst.save_rst_example = save_rst_example
 
 
-from sphinx_gallery.notebook import rst2md as real_rst2md
+from sphinx_gallery.notebook import (
+    jupyter_notebook_skeleton,
+    add_code_cell,
+    fill_notebook,
+    rst2md as real_rst2md,
+)
 
 
 def rst2md(text, gallery_conf, target_dir, heading_levels):
@@ -150,23 +155,25 @@ def rst2md(text, gallery_conf, target_dir, heading_levels):
     literalinclude_re = re.compile(
         r"\.\. literalinclude::\s*(.+)+\n^(\s+):language:\s*([a-z]+)\n", flags=re.M
     )
+
     def load_literalinclude(match):
         full_path = os.path.join(target_dir, match.group(1))
         with open(full_path) as f:
             lines = f.read()
         indented = textwrap.indent(lines, match.group(2))
         return f".. code-block:: {match.group(3)}\n\n{indented}\n"
+
     text = re.sub(literalinclude_re, load_literalinclude, text)
 
-    include_re = re.compile(
-        r"^([ \t]*)\.\. include::\s*(.+)\n", flags=re.M
-    )
+    include_re = re.compile(r"^([ \t]*)\.\. include::\s*(.+)\n", flags=re.M)
+
     def load_include(match):
         full_path = os.path.join(target_dir, match.group(2))
         with open(full_path) as f:
             lines = f.read()
         indented = textwrap.indent(lines, match.group(1)) + "\n"
         return indented
+
     text = re.sub(include_re, load_include, text)
 
     return real_rst2md(text, gallery_conf, target_dir, heading_levels)
@@ -178,15 +185,51 @@ sphinx_gallery.notebook.rst2md = rst2md
 
 
 # Make the Jupyter notebook cell that will install the correct TVM version
-INSTALL_TVM_DEV = f"""%%shell
+INSTALL_TVM_DEV = f"""%%bash
 # Installs the latest dev build of TVM from PyPI. If you wish to build
 # from source, see https://tvm.apache.org/docs/install/from_source.html
-pip install tlcpack-nightly-cu113 -f https://tlcpack.ai/wheels"""
+pip install apache-tvm --pre"""
 
-INSTALL_TVM_FIXED = f"""%%shell
+INSTALL_TVM_FIXED = f"""%%bash
 # Installs TVM version {version} from PyPI. If you wish to build
 # from source, see https://tvm.apache.org/docs/install/from_source.html
 pip install apache-tvm=={version}"""
+
+INSTALL_TVM_CUDA_DEV = f"""%%bash
+# Installs the latest dev build of TVM from PyPI, with CUDA enabled. To use this,
+# you must request a Google Colab instance with a GPU by going to Runtime ->
+# Change runtime type -> Hardware accelerator -> GPU. If you wish to build from
+# source, see see https://tvm.apache.org/docs/install/from_source.html
+pip install tlcpack-nightly-cu113 --pre -f https://tlcpack.ai/wheels"""
+
+INSTALL_TVM_CUDA_FIXED = f"""%%bash
+# Installs TVM version {version} from PyPI, with CUDA enabled. To use this,
+# you must request a Google Colab instance with a GPU by going to Runtime ->
+# Change runtime type -> Hardware accelerator -> GPU. If you wish to build from
+# source, see see https://tvm.apache.org/docs/install/from_source.html
+pip install apache-tvm-cu113=={version} -f https://tlcpack.ai/wheels"""
+
+
+def jupyter_notebook(script_blocks, gallery_conf, target_dir):
+    requires_cuda = any("cuda" in block[1].lower() for block in script_blocks)
+    if "dev" in version:
+        if requires_cuda:
+            install_block = INSTALL_TVM_CUDA_DEV
+        else:
+            install_block = INSTALL_TVM_DEV
+    else:
+        if requires_cuda:
+            install_block = INSTALL_TVM_CUDA_FIXED
+        else:
+            install_block = INSTALL_TVM_FIXED
+
+    work_notebook = jupyter_notebook_skeleton()
+    add_code_cell(work_notebook, install_block)
+    fill_notebook(work_notebook, script_blocks, gallery_conf, target_dir)
+    return work_notebook
+
+
+sphinx_gallery.gen_rst.jupyter_notebook = jupyter_notebook
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones
@@ -353,77 +396,77 @@ subsection_order = ExplicitOrder(
 # The unlisted files are sorted by filenames.
 # The unlisted files always appear after listed files.
 within_subsection_order = {
-    # "tutorial": [
-    # "introduction.py",
-    # "install.py",
-    # "tvmc_command_line_driver.py",
-    # "tvmc_python.py",
-    # "autotvm_relay_x86.py",
-    # "tensor_expr_get_started.py",
-    # "autotvm_matmul_x86.py",
-    # "auto_scheduler_matmul_x86.py",
-    # "tensor_ir_blitz_course.py",
-    # "topi.pi",
-    # "cross_compilation_and_rpc.py",
-    # "relay_quick_start.py",
-    # "uma.py",
-    # ],
+    "tutorial": [
+        "introduction.py",
+        "install.py",
+        "tvmc_command_line_driver.py",
+        "tvmc_python.py",
+        "autotvm_relay_x86.py",
+        "tensor_expr_get_started.py",
+        "autotvm_matmul_x86.py",
+        "auto_scheduler_matmul_x86.py",
+        "tensor_ir_blitz_course.py",
+        "topi.pi",
+        "cross_compilation_and_rpc.py",
+        "relay_quick_start.py",
+        "uma.py",
+    ],
     "compile_models": [
         "from_pytorch.py",
         "from_tensorflow.py",
-    #     "from_mxnet.py",
-    #     "from_onnx.py",
-    #     "from_keras.py",
-    #     "from_tflite.py",
-    #     "from_coreml.py",
-    #     "from_darknet.py",
-    #     "from_caffe2.py",
-    #     "from_paddle.py",
+        "from_mxnet.py",
+        "from_onnx.py",
+        "from_keras.py",
+        "from_tflite.py",
+        "from_coreml.py",
+        "from_darknet.py",
+        "from_caffe2.py",
+        "from_paddle.py",
     ],
-    # "work_with_schedules": [
-    #     "schedule_primitives.py",
-    #     "reduction.py",
-    #     "intrin_math.py",
-    #     "scan.py",
-    #     "extern_op.py",
-    #     "tensorize.py",
-    #     "tuple_inputs.py",
-    #     "tedd.py",
-    # ],
-    # "optimize_operators": [
-    #     "opt_gemm.py",
-    #     "opt_conv_cuda.py",
-    #     "opt_conv_tensorcore.py",
-    # ],
-    # "tune_with_autotvm": [
-    #     "tune_conv2d_cuda.py",
-    #     "tune_relay_cuda.py",
-    #     "tune_relay_x86.py",
-    #     "tune_relay_arm.py",
-    #     "tune_relay_mobile_gpu.py",
-    # ],
-    # "tune_with_autoscheduler": [
-    #     "tune_matmul_x86.py",
-    #     "tune_conv2d_layer_cuda.py",
-    #     "tune_network_x86.py",
-    #     "tune_network_cuda.py",
-    # ],
-    # "extend_tvm": [
-    #     "low_level_custom_pass.py",
-    #     "use_pass_infra.py",
-    #     "use_pass_instrument.py",
-    #     "bring_your_own_datatypes.py",
-    # ],
-    # "micro": [
-        # "micro_train.py",
-        # "micro_autotune.py",
-        # "micro_reference_vm.py",
-        # "micro_tflite.py",
-        # "micro_ethosu.py",
-        # "micro_tvmc.py",
-        # "micro_aot.py",
-        # "micro_pytorch.py",
-    # ],
+    "work_with_schedules": [
+        "schedule_primitives.py",
+        "reduction.py",
+        "intrin_math.py",
+        "scan.py",
+        "extern_op.py",
+        "tensorize.py",
+        "tuple_inputs.py",
+        "tedd.py",
+    ],
+    "optimize_operators": [
+        "opt_gemm.py",
+        "opt_conv_cuda.py",
+        "opt_conv_tensorcore.py",
+    ],
+    "tune_with_autotvm": [
+        "tune_conv2d_cuda.py",
+        "tune_relay_cuda.py",
+        "tune_relay_x86.py",
+        "tune_relay_arm.py",
+        "tune_relay_mobile_gpu.py",
+    ],
+    "tune_with_autoscheduler": [
+        "tune_matmul_x86.py",
+        "tune_conv2d_layer_cuda.py",
+        "tune_network_x86.py",
+        "tune_network_cuda.py",
+    ],
+    "extend_tvm": [
+        "low_level_custom_pass.py",
+        "use_pass_infra.py",
+        "use_pass_instrument.py",
+        "bring_your_own_datatypes.py",
+    ],
+    "micro": [
+        "micro_train.py",
+        "micro_autotune.py",
+        "micro_reference_vm.py",
+        "micro_tflite.py",
+        "micro_ethosu.py",
+        "micro_tvmc.py",
+        "micro_aot.py",
+        "micro_pytorch.py",
+    ],
 }
 
 
@@ -471,7 +514,6 @@ sphinx_gallery_conf = {
     "expected_failing_examples": [],
     "reset_modules": ("matplotlib", "seaborn", force_gc),
     "promote_jupyter_magic": True,
-    "first_notebook_cell": INSTALL_TVM_DEV if "dev" in version else INSTALL_TVM_FIXED,
 }
 
 autodoc_default_options = {
@@ -611,17 +653,10 @@ def process_docstring(app, what, name, obj, options, lines):
 from legacy_redirect import build_legacy_redirect
 
 
-# def visit_blogpost_node(self, node):
-#     # this function adds "admonition" to the class name of tag div
-#     # it will look like a warning or a note
-#     self.visit_admonition(node)
- 
-# def depart_blogpost_node(self, node):
-#     self.depart_admonition(node)
-
 def strip_ipython_magic(app, docname, source):
     for i in range(len(source)):
         source[i] = re.sub(r"%%.*\n\s*", "", source[i])
+
 
 def setup(app):
     app.connect("source-read", strip_ipython_magic)

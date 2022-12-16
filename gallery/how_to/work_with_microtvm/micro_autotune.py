@@ -27,21 +27,43 @@ Autotuning with microTVM
 This tutorial explains how to autotune a model using the C runtime.
 """
 
+######################################################################
+#
+#     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_dependencies.rst
+#
+
 # sphinx_gallery_start_ignore
 from tvm import testing
 
 testing.utils.install_request_hook(depth=3)
 # sphinx_gallery_end_ignore
 
+# You can skip the following two sections (installing Zephyr and CMSIS-NN) if the following flag is False.
+# Installing Zephyr takes ~20 min.
 import os
+
+use_physical_hw = bool(os.getenv("TVM_MICRO_USE_HW"))
+
+######################################################################
+#
+#     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_zephyr.rst
+#
+
+######################################################################
+#
+#     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_cmsis.rst
+#
+
+######################################################################
+# Import Python dependencies
+# -------------------------------
+#
 import json
 import numpy as np
 import pathlib
 
 import tvm
 from tvm.relay.backend import Runtime
-
-use_physical_hw = bool(os.getenv("TVM_MICRO_USE_HW"))
 
 ####################
 # Defining the model
