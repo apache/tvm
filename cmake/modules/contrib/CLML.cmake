@@ -54,5 +54,7 @@ if(USE_CLML_GRAPH_EXECUTOR)
     file(GLOB RUNTIME_OPENCL_SRCS src/runtime/opencl/*.cc)
     list(APPEND RUNTIME_SRCS ${RUNTIME_OPENCL_SRCS})
     set(USE_OPENCL ON)
-
+    if(USE_OPENCL_ENABLE_HOST_PTR)
+        add_definitions(-DOPENCL_ENABLE_HOST_PTR)
+    endif(USE_OPENCL_ENABLE_HOST_PTR)
 endif()
