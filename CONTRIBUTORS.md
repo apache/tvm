@@ -202,6 +202,7 @@ We do encourage everyone to work anything they are interested in.
 - [Hao Yu](https://github.com/comaniac): @comaniac
 - [Joshua Z. Zhang](https://github.com/zhreshold): @zhreshold
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy
+- [Min Chen](https://github.com/multiverstack-intellif): @multiverstack-intellif
 - [Xiyou Zhou](https://github.com/zxybazh): @zxybazh
 
 ## List of Contributors
