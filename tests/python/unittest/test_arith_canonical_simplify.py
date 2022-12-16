@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 
 
@@ -122,6 +123,22 @@ def test_div_simplify():
     ck.verify(fld(16 + 48 * x, 16), x * 3 + 1)
     ck.verify(fld(17 + 48 * x, 16), x * 3 + 1)
     ck.verify(fld(17 + 47 * x, 16), fld(x * 47 + 17, 16))
+
+
+def test_fp16_const_fold():
+    ck = CanonicalChecker()
+    zero = tvm.tir.const(0, "float16")
+    one = tvm.tir.const(1, "float16")
+    half = tvm.tir.const(0.5, "float16")
+
+    ck.verify(zero + half, half)
+    ck.verify(half - zero, half)
+
+    ck.verify(zero * half, zero)
+    ck.verify(half * one, half)
+
+    ck.verify(half / one, half)
+    ck.verify(zero / half, zero)
 
 
 def test_floormod_simplify():
@@ -356,14 +373,4 @@ def test_simplify_cast():
 
 
 if __name__ == "__main__":
-    test_floormod_simplify()
-    test_mul_sum_simplify()
-    test_simplify_if_then_else()
-    test_div_simplify()
-    test_reduce_simplify()
-    test_reduce_combiner_simplify()
-
-    test_split_index_simplify()
-    test_canonical_mixed()
-    test_complex_cases()
-    test_simplify_cast()
+    tvm.testing.main()
