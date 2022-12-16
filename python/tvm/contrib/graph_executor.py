@@ -153,8 +153,21 @@ class GraphModule(object):
     def __init__(self, module):
         self.module = module
         self._set_input = module["set_input"]
-        self._set_input_zero_copy = module["set_input_zero_copy"]
-        self._set_output_zero_copy = module["set_output_zero_copy"]
+
+        # TODO(shingjan): The graph_executor in C doesn't have
+        # set_input/output_zero_copy implemented.
+        try:
+            self._set_input_zero_copy = module["set_input_zero_copy"]
+        except AttributeError:
+            self._set_input_zero_copy = lambda: (_ for _ in ()).throw(
+                Exception("set_input_zero_copy is not implemented for C graph executor")
+            )
+        try:
+            self._set_output_zero_copy = module["set_output_zero_copy"]
+        except AttributeError:
+            self._set_output_zero_copy = lambda: (_ for _ in ()).throw(
+                Exception("set_output_zero_copy is not implemented for C graph executor")
+            )
         self._run = module["run"]
         self._get_output = module["get_output"]
         self._get_input = module["get_input"]
