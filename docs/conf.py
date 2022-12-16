@@ -112,12 +112,15 @@ COLAB_HTML_HEADER = """
 
 """
 
-COLAB_URL_BASE = "https://colab.research.google.com/github/apache/tvm-site/blob/asf-site/docs/_downloads/"
+COLAB_URL_BASE = (
+    "https://colab.research.google.com/github/apache/tvm-site/blob/asf-site/docs/_downloads/"
+)
 
 from sphinx_gallery.gen_rst import save_rst_example as real_save_rst_example
-def save_rst_example(example_rst, example_file, time_elapsed,
-                     memory_used, gallery_conf):
-    example_fname = os.path.relpath(example_file, gallery_conf['src_dir'])
+
+
+def save_rst_example(example_rst, example_file, time_elapsed, memory_used, gallery_conf):
+    example_fname = os.path.relpath(example_file, gallery_conf["src_dir"])
     ref_fname = example_fname.replace(os.path.sep, "_")
     notebook_path = example_fname[:-2] + "ipynb"
     digest = md5(notebook_path.encode()).hexdigest()
@@ -133,24 +136,44 @@ def save_rst_example(example_rst, example_file, time_elapsed,
     )
     real_save_rst_example(example_rst, example_file, time_elapsed, memory_used, gallery_conf)
 
+
 import sphinx_gallery.gen_rst
+
 sphinx_gallery.gen_rst.save_rst_example = save_rst_example
 
 
 from sphinx_gallery.notebook import rst2md as real_rst2md
+
+
 def rst2md(text, gallery_conf, target_dir, heading_levels):
 
-    include = re.compile(r'\.\. literalinclude::\s*(.+)+\n^(\s+):language:\s*([a-z]+)\n', flags=re.M)
-    def load_literal(match):
+    literalinclude_re = re.compile(
+        r"\.\. literalinclude::\s*(.+)+\n^(\s+):language:\s*([a-z]+)\n", flags=re.M
+    )
+    def load_literalinclude(match):
         full_path = os.path.join(target_dir, match.group(1))
         with open(full_path) as f:
             lines = f.read()
         indented = textwrap.indent(lines, match.group(2))
         return f".. code-block:: {match.group(3)}\n\n{indented}\n"
-    text = re.sub(include, load_literal, text)
+    text = re.sub(literalinclude_re, load_literalinclude, text)
+
+    include_re = re.compile(
+        r"^([ \t]*)\.\. include::\s*(.+)\n", flags=re.M
+    )
+    def load_include(match):
+        full_path = os.path.join(target_dir, match.group(2))
+        with open(full_path) as f:
+            lines = f.read()
+        indented = textwrap.indent(lines, match.group(1)) + "\n"
+        return indented
+    text = re.sub(include_re, load_include, text)
+
     return real_rst2md(text, gallery_conf, target_dir, heading_levels)
 
+
 import sphinx_gallery.notebook
+
 sphinx_gallery.notebook.rst2md = rst2md
 
 
@@ -158,7 +181,7 @@ sphinx_gallery.notebook.rst2md = rst2md
 INSTALL_TVM_DEV = f"""%%shell
 # Installs the latest dev build of TVM from PyPI. If you wish to build
 # from source, see https://tvm.apache.org/docs/install/from_source.html
-pip install apache-tvm --pre"""
+pip install tlcpack-nightly-cu113 -f https://tlcpack.ai/wheels"""
 
 INSTALL_TVM_FIXED = f"""%%shell
 # Installs TVM version {version} from PyPI. If you wish to build
@@ -331,23 +354,23 @@ subsection_order = ExplicitOrder(
 # The unlisted files always appear after listed files.
 within_subsection_order = {
     # "tutorial": [
-        # "introduction.py",
-        # "install.py",
-        # "tvmc_command_line_driver.py",
-        # "tvmc_python.py",
-        # "autotvm_relay_x86.py",
-        # "tensor_expr_get_started.py",
-        # "autotvm_matmul_x86.py",
-        # "auto_scheduler_matmul_x86.py",
-        # "tensor_ir_blitz_course.py",
-        # "topi.pi",
-        # "cross_compilation_and_rpc.py",
-        # "relay_quick_start.py",
-        # "uma.py",
+    # "introduction.py",
+    # "install.py",
+    # "tvmc_command_line_driver.py",
+    # "tvmc_python.py",
+    # "autotvm_relay_x86.py",
+    # "tensor_expr_get_started.py",
+    # "autotvm_matmul_x86.py",
+    # "auto_scheduler_matmul_x86.py",
+    # "tensor_ir_blitz_course.py",
+    # "topi.pi",
+    # "cross_compilation_and_rpc.py",
+    # "relay_quick_start.py",
+    # "uma.py",
     # ],
-    # "compile_models": [
-    #     "from_pytorch.py",
-    #     "from_tensorflow.py",
+    "compile_models": [
+        "from_pytorch.py",
+        "from_tensorflow.py",
     #     "from_mxnet.py",
     #     "from_onnx.py",
     #     "from_keras.py",
@@ -356,7 +379,7 @@ within_subsection_order = {
     #     "from_darknet.py",
     #     "from_caffe2.py",
     #     "from_paddle.py",
-    # ],
+    ],
     # "work_with_schedules": [
     #     "schedule_primitives.py",
     #     "reduction.py",
@@ -391,16 +414,16 @@ within_subsection_order = {
     #     "use_pass_instrument.py",
     #     "bring_your_own_datatypes.py",
     # ],
-    "micro": [
+    # "micro": [
         # "micro_train.py",
         # "micro_autotune.py",
         # "micro_reference_vm.py",
         # "micro_tflite.py",
         # "micro_ethosu.py",
         # "micro_tvmc.py",
-        "micro_aot.py",
+        # "micro_aot.py",
         # "micro_pytorch.py",
-    ],
+    # ],
 }
 
 
@@ -428,6 +451,7 @@ class WithinSubsectionOrder:
 # a gc after each example.
 def force_gc(gallery_conf, fname):
     gc.collect()
+
 
 sphinx_gallery_conf = {
     "backreferences_dir": "gen_modules/backreferences",
@@ -586,12 +610,6 @@ def process_docstring(app, what, name, obj, options, lines):
 
 from legacy_redirect import build_legacy_redirect
 
-# def visit_blogpost_node(self, node):
-#     pass
- 
-# def depart_blogpost_node(self, node):
-#     link = """<p><a class="reference internal" href="something.html" title="a title">a title</a></p>"""
-#     self.body.append(link)
 
 # def visit_blogpost_node(self, node):
 #     # this function adds "admonition" to the class name of tag div
@@ -600,14 +618,12 @@ from legacy_redirect import build_legacy_redirect
  
 # def depart_blogpost_node(self, node):
 #     self.depart_admonition(node)
+
 def strip_ipython_magic(app, docname, source):
     for i in range(len(source)):
-        source[i] = re.sub(r'%%.*\n\s*', "", source[i])
-
+        source[i] = re.sub(r"%%.*\n\s*", "", source[i])
 
 def setup(app):
     app.connect("source-read", strip_ipython_magic)
     app.connect("autodoc-process-docstring", process_docstring)
     app.connect("build-finished", build_legacy_redirect(tvm_path))
-    
-    

@@ -95,8 +95,8 @@ onnxoptimizer = { version = "==0.2.6", optional = true }
 onnxruntime = { version = "==1.9.0", optional = true }
 
 # Pytorch (also used by ONNX)
-torch = { version = "==1.11.0", optional = true }
-torchvision = { version = "==0.12.0", optional = true }
+torch = { version = "==1.11.0" }
+torchvision = { version = "==0.12.0" }
 
 future = { version = "==*", optional = true }
 

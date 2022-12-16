@@ -108,15 +108,15 @@ tomli = {version = ">=2.0.1", markers = "python_version < \"3.11\""}
 
 [[package]]
 name = "autopep8"
-version = "2.0.0"
+version = "2.0.1"
 description = "A tool that automatically formats Python code to conform to the PEP 8 style guide"
 category = "dev"
 optional = false
-python-versions = "*"
+python-versions = ">=3.6"
 
 [package.dependencies]
-pycodestyle = ">=2.9.1"
-tomli = "*"
+pycodestyle = ">=2.10.0"
+tomli = {version = "*", markers = "python_version < \"3.11\""}
 
 [[package]]
 name = "babel"
@@ -1417,7 +1417,7 @@ name = "torch"
 version = "1.11.0"
 description = "Tensors and Dynamic neural networks in Python with strong GPU acceleration"
 category = "main"
-optional = true
+optional = false
 python-versions = ">=3.7.0"
 
 [package.dependencies]
@@ -1428,7 +1428,7 @@ name = "torchvision"
 version = "0.12.0"
 description = "image and video datasets and models for torch deep learning"
 category = "main"
-optional = true
+optional = false
 python-versions = ">=3.7"
 
 [package.dependencies]
@@ -1565,7 +1565,7 @@ xgboost = ["xgboost"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7, <3.9"
-content-hash = "13408e5018fc4dc5708c62e581eb667d7bb53f273c03a149ac420671dccacaf8"
+content-hash = "5fa336843e05320591a7e4f50fd8bfb1a65af0c9d501224072d52813c4fa5086"
 
 [metadata.files]
 absl-py = []

@@ -31,7 +31,7 @@ We directly load the dataset from DGL library to do the apples to apples compari
     pip install torch==1.9.0
     pip install dgl==v0.7.2 -f https://data.dgl.ai/wheels/repo.html
 
-Please refer to DGL doc for DGL installation at
+Please refer to DGL doc for installation at
 https://docs.dgl.ai/install/index.html.
 
 Please refer to PyTorch guide for PyTorch installation at
