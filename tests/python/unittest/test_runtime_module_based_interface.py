@@ -688,6 +688,44 @@ def test_num_threads():
         assert reported == hardware_threads or reported == hardware_threads // 2
 
 
+@tvm.testing.requires_llvm
+@tvm.testing.requires_package("torch")
+def test_graph_module_zero_copy():
+    mod = tvm.IRModule()
+    params = {}
+    dev = tvm.cpu()
+    x = relay.var("x", shape=(1, 10))
+    y = relay.var("y", shape=(1, 10))
+    z = relay.add(x, y)
+    mod["main"] = relay.Function([x, y], z)
+
+    # need torch to do the from_dlpack trick
+    import torch
+
+    compiled_graph_lib = relay.build(mod, target="llvm", params=params)
+    gm = graph_executor.GraphModule(compiled_graph_lib["default"](dev))
+    x_data = torch.rand((1, 10))
+    y_data = torch.rand((1, 10))
+    z_data = torch.rand((1, 10))
+    z_torch = x_data + y_data
+
+    # zero copy run
+    assert not np.allclose(z_data.numpy(), z_torch.numpy())
+    gm.set_input_zero_copy("x", tvm.nd.from_dlpack(x_data))
+    gm.set_input_zero_copy("y", tvm.nd.from_dlpack(y_data))
+    gm.set_output_zero_copy(0, tvm.nd.from_dlpack(z_data))
+    gm.run()
+
+    tvm.testing.assert_allclose(z_data.numpy(), z_torch.numpy())
+
+    # zero input copy with params
+    gm = graph_executor.GraphModule(compiled_graph_lib["default"](dev))
+    gm.set_input_zero_copy(x=tvm.nd.from_dlpack(x_data), y=tvm.nd.from_dlpack(y_data))
+    gm.run()
+
+    tvm.testing.assert_allclose(gm.get_output(0).numpy(), z_torch.numpy())
+
+
 if __name__ == "__main__":
     test_legacy_compatibility()
     test_cpu()
@@ -699,3 +737,4 @@ if __name__ == "__main__":
     test_cpu_get_graph_json()
     test_cpu_get_graph_params_run()
     test_cpu_get_graph_params_compare()
+    test_graph_module_zero_copy()
