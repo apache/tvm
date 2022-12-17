@@ -213,6 +213,9 @@ class HexagonThreadManager {
   //! \brief Semaphores used by `Signal` and `Wait` mapped by ID.
   std::unordered_map<unsigned, qurt_sem_t*> semaphores_;
 
+  //! \brief Protects updates to semaphores_
+  std::mutex semaphores_mutex_;
+
   //! \brief Start semaphore created at time of construction; signled by `Start`.
   qurt_sem_t start_semaphore_;
 
