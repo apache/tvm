@@ -54,16 +54,6 @@ class MockModule:
 # pylint: enable=no-member,line-too-long,too-many-nested-blocks,unbalanced-tuple-unpacking,no-self-argument
 
 
-def _has_torch():
-    import importlib.util  # pylint: disable=unused-import,import-outside-toplevel
-
-    spec = importlib.util.find_spec("torch")
-    return spec is not None
-
-
-requires_torch = pytest.mark.skipif(not _has_torch(), reason="torch is not installed")
-
-
 def test_meta_schedule_dynamic_loop_extent():
     a = relay.var("a", shape=(1, 8, 8, 512), dtype="float32")
     b = relay.nn.adaptive_avg_pool2d(a, (7, 7), "NHWC")
@@ -72,7 +62,7 @@ def test_meta_schedule_dynamic_loop_extent():
     assert not extracted_tasks
 
 
-@requires_torch
+@tvm.testing.requires_package("torch")
 def test_meta_schedule_integration_extract_from_resnet():
     mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     extracted_tasks = ms.relay_integration.extract_tasks(mod, target="llvm", params=params)
@@ -108,7 +98,7 @@ def test_meta_schedule_integration_extract_from_resnet():
         assert t.task_name in expected_task_names, t.task_name
 
 
-@requires_torch
+@tvm.testing.requires_package("torch")
 def test_task_extraction_winograd_tensorcore():
     mod, params, _ = get_network(name="resnet_50", input_shape=[16, 3, 224, 224])
     seq = tvm.transform.Sequential(
@@ -126,7 +116,7 @@ def test_task_extraction_winograd_tensorcore():
     assert len([t for t in extracted_tasks if "winograd" in t.task_name]) == 4
 
 
-@requires_torch
+@tvm.testing.requires_package("torch")
 def test_task_extraction_anchor_block():
     mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     extracted_tasks = ms.relay_integration.extract_tasks(
@@ -161,7 +151,7 @@ def test_task_extraction_anchor_block():
         assert t.task_name in expected_task_names, t.task_name
 
 
-@requires_torch
+@tvm.testing.requires_package("torch")
 def test_meta_schedule_integration_extract_from_bert_base():
     pytest.importorskip(
         "transformers", reason="transformers package is required to import bert_base"
@@ -259,7 +249,7 @@ def test_meta_schedule_integration_extract_from_bert_base():
         assert expected_shape == shape, t.task_name
 
 
-@requires_torch
+@tvm.testing.requires_package("torch")
 def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
     @register_func("relay.backend.tir_converter.remove_purely_spatial", override=True)
     def filter_func(args, _) -> bool:
