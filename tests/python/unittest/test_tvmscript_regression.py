@@ -74,8 +74,8 @@ def test_var_capturing_order():
 
 
 if __name__ == "__main__":
-    b = 1
     a = numpy.zeros((10, 10), dtype="int8")
     test_multi_element_array_in_outmost_namespace()
     test_different_dtype_assignment_to_var()
+    b = 1
     test_var_capturing_order()
