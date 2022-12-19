@@ -28,6 +28,7 @@ from tvm.tir.tensor_intrin.arm_cpu import DP4A_INTRIN
 from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 
+# TODO(vvchernov): check avx512 for skylake?
 def test_vnni_conv2d_nchwc():
     @T.prim_func
     def conv2d_nchwc(

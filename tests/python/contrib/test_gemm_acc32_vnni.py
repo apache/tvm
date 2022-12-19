@@ -21,6 +21,7 @@ import tvm.testing
 from tvm import te
 import numpy as np
 from tvm.topi.x86.tensor_intrin import dot_16x1x16_uint8_int8_int32_cascadelake
+# TODO(vvchernov): construct test here or separetely for avx512 (skylake-avx512)
 from tvm.topi.x86.tensor_intrin import dot_16x1x16_uint8_int8_int32
 import pytest
 

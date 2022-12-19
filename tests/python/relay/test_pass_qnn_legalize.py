@@ -137,6 +137,7 @@ def test_qnn_legalize_qnn_conv2d():
         # Check transformations for platforms with fast Int8 support.
         #############################################################
         # Check that Intel VNNI gets picked up.
+        # TODO(vvchernov): VNNI is not supported by skylake, cascadelake only
         with tvm.target.Target("llvm -mcpu=skylake-avx512"):
             mod = relay.transform.InferType()(mod)
             legalized_mod = relay.qnn.transform.Legalize()(mod)
@@ -230,6 +231,7 @@ def test_qnn_legalize_qnn_dense():
         # Check transformations for platforms with fast Int8 support.
         #############################################################
         # Check that Intel VNNI gets picked up.
+        # TODO(vvchernov): VNNI is not supported by skylake, cascadelake only
         with tvm.target.Target("llvm -mcpu=skylake-avx512"):
             mod = relay.transform.InferType()(mod)
             legalized_mod = relay.qnn.transform.Legalize()(mod)

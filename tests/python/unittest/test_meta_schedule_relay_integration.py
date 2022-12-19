@@ -344,6 +344,7 @@ def extract_task_qbert():
             assert "vnni" in annotations["schedule_rule"]
 
     mod, params, _ = load_quantized_bert_base(batch_size=1, seq_len=128)
+    # TODO(vvchernov): repeat for skylse-avx512?
     _test(mod, params, target="llvm -mcpu=cascadelake")
 
 

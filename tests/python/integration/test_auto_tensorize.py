@@ -284,6 +284,14 @@ def test_vnni_dense():
     )
 
 
+# TODO(vvchernov): need schedule rules and postprocs for avx512
+# @tvm.testing.requires_skylake_avx512
+# def test_avx512_dense():
+#     _test_dense(
+#         "uint8", SCH_RULES_FOR_AVX512, POSTPROCS_FOR_AVX512, "llvm -mcpu=skylake-avx512 -num-cores 4"
+#     )
+
+
 @pytest.mark.skip("Only tested locally on sm_86 (for cuda) which is not supported by CI")
 @tvm.testing.requires_gpu
 def test_dp4a_dense():
@@ -302,6 +310,14 @@ def test_vnni_conv2d():
     _test_conv2d(
         "uint8", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI, "llvm -mcpu=cascadelake -num-cores 4"
     )
+
+
+# TODO(vvchernov): need schedule rules and postprocs for avx512
+# @tvm.testing.requires_skylake_avx512
+# def test_avx512_conv2d():
+#     _test_conv2d(
+#         "uint8", SCH_RULES_FOR_AVX512, POSTPROCS_FOR_AVX512, "llvm -mcpu=skylake-avx512 -num-cores 4"
+#     )
 
 
 @pytest.mark.skip("Only tested locally on sm_86 (for cuda) which is not supported by CI")
@@ -329,6 +345,9 @@ def test_vnni_bert_int8():
         SCH_RULES_FOR_VNNI,
         POSTPROCS_FOR_VNNI,
     )
+
+
+# TODO(vvchernov): check BERT on skylake-avx512?
 
 
 @tvm.testing.requires_gpu

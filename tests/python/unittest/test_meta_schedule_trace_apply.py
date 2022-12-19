@@ -1131,6 +1131,7 @@ class Conv2dInt8_NCHWc_target:
                 T_cast[ax0, ax1, ax2, ax3, ax4] = T.cast(compute_2[ax0, ax1, ax2, ax3, ax4], "int32")
 
 
+# TODO(vvchernov): construct avx512 reference module (without vnni)
 def get_conv2d_vnni_mod(intrin_id):
     @tvm.script.ir_module
     class Conv2dInt8_NCHWc_scheduled:
@@ -2502,6 +2503,7 @@ def test_conv2d_int8_tensorcore():
     verify(Conv2dInt8, apply_trace, Conv2dInt8_target, "cuda", Conv2dInt8_tensorcore_scheduled)
 
 
+# TODO(vvchernov): test int8 conv2d foravx512 without VNNI
 def test_conv2d_int8_vnni():
     def apply_trace(sch):
         b0 = sch.get_block(name="compile_engine_const", func_name="main")
