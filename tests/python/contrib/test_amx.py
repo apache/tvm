@@ -17,6 +17,8 @@
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition
 
 import tvm
+from tvm import relay
+
 from tvm import te
 import tvm.testing
 from tvm.topi.x86.tensor_intrin import dot_32x128x32_u8s8s32_sapphirerapids
@@ -24,25 +26,26 @@ from tvm.topi.x86.tensor_intrin import acc_32x32_int32_sapphirerapids
 import numpy as np
 import pytest
 
+
 @tvm.testing.requires_llvm
-@pytest.mark.skip("skip because AMX feature not avaliable yet")
+@pytest.mark.skip("skip due to AMX feature not avaliable yet")
 def test_amx_u8s8s32_matmul_tensorize():
     m = 1024
     k = 1024
     n = 1024
-    
+
     # --------------------------Config---------------------------
     # Skip this test if "-mcpu=sapphirerapids" not supported by LLVM < 12.0
-    target="llvm -mcpu=sapphirerapids"
+    target = "llvm -mcpu=sapphirerapids"
     dev = tvm.device(target, 0)
     if not tvm.testing.device_enabled(target):
         print("skip because %s is not enabled..." % target)
         return
-    
+
     amx_init = tvm.get_global_func("runtime.amx_init")
     amx_tileconfig = tvm.get_global_func("runtime.amx_tileconfig")
     assert amx_init()
-    assert amx_tileconfig(16, 64) # config tile size to 16 rows by 64 columns.
+    assert amx_tileconfig(16, 64)  # config tile size to 16 rows by 64 columns.
     # --------------------------Compute--------------------------
     X = te.placeholder((m, k), name="X", dtype="uint8")
     ak = te.reduce_axis((0, k), name="k")
@@ -52,7 +55,9 @@ def test_amx_u8s8s32_matmul_tensorize():
         (m, n),
         lambda i, j: te.sum(
             X[i, ak].astype("int32")
-            * packedW[tvm.tir.indexdiv(j, 16), tvm.tir.indexdiv(ak, 4), j % 16, ak % 4].astype("int32"),
+            * packedW[tvm.tir.indexdiv(j, 16), tvm.tir.indexdiv(ak, 4), j % 16, ak % 4].astype(
+                "int32"
+            ),
             axis=ak,
         ),
         name="F",
@@ -69,14 +74,13 @@ def test_amx_u8s8s32_matmul_tensorize():
     s[C].reorder(a_xo, a_yo, a_xi, a_yi)
 
     s[CF].compute_at(s[C], a_yo)
-    (a_k_f,)  = CF.op.reduce_axis
+    (a_k_f,) = CF.op.reduce_axis
     a_x_f, a_y_f = CF.op.axis
 
     a_xo_f, a_xi_f = s[CF].split(a_x_f, factor=32)
     a_yo_f, a_yi_f = s[CF].split(a_y_f, factor=32)
     a_ko_f, a_ki_f = s[CF].split(a_k_f, factor=128)
-    s[CF].reorder(a_ko_f, a_xo_f, a_yo_f,
-                  a_ki_f, a_xi_f, a_yi_f)
+    s[CF].reorder(a_ko_f, a_xo_f, a_yo_f, a_ki_f, a_xi_f, a_yi_f)
 
     s[CF].tensorize(a_ki_f, dot_32x128x32_u8s8s32_sapphirerapids(LDA=k))
     s[C].tensorize(a_xi, acc_32x32_int32_sapphirerapids(LDC=n))
@@ -87,7 +91,7 @@ def test_amx_u8s8s32_matmul_tensorize():
     assert "tileloaddt1" in asm
     assert "tdpbusd" in asm
     assert "tilestored" in asm
-    
+
     # ----------------------- verify correctness --------------------------------
     # generate the plain data
     a = np.random.uniform(1, 10, size=(m, k)).astype("uint8")
@@ -98,7 +102,7 @@ def test_amx_u8s8s32_matmul_tensorize():
     # from plain data to blocked data(NC16n4c)
     for i_n in range(n):
         for i_k in range(k):
-                packW[i_n//16][i_k//4][i_n%16][i_k%4] = b[i_n][i_k]
+            packW[i_n // 16][i_k // 4][i_n % 16][i_k % 4] = b[i_n][i_k]
 
     x = tvm.nd.array(a, dev)
     w = tvm.nd.array(packW, dev)
@@ -107,14 +111,16 @@ def test_amx_u8s8s32_matmul_tensorize():
     result = t_evaluator(x, w, y)
     print(result)
     tvm.testing.assert_allclose(y.numpy(), np.dot(a.astype("int32"), b.T.astype("int32")), rtol=0)
-    print("[TEST PASS ! ! ! ]")
 
+
+@tvm.testing.requires_llvm
+@pytest.mark.skip("skip due to AMX feature not avaliable yet")
 def test_amx_check_support():
     amx_init = tvm.get_global_func("runtime.amx_init")
     amx_tileconfig = tvm.get_global_func("runtime.amx_tileconfig")
     assert amx_init()
     assert amx_tileconfig(16, 64)
 
+
 if __name__ == "__main__":
-    test_amx_check_support()
-    test_amx_u8s8s32_matmul_tensorize()
+    pytest.main([__file__])
