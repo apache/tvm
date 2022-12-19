@@ -766,6 +766,11 @@ def test_dense_vnni(m, n, k):
     data_shape = (m, k)
     weight_shape = (n, k)
 
+    amx_init = tvm.get_global_func("runtime.amx_init")
+    amx_tileconfig = tvm.get_global_func("runtime.amx_tileconfig")
+    assert amx_init()
+    assert amx_tileconfig(16, 64)  # config tile size to 16 rows by 64 columns.
+
     for data_dtype in ["uint8", "int8"]:
         data = relay.var("data", shape=data_shape, dtype=data_dtype)
         weight = relay.var("weight", shape=weight_shape, dtype="int8")
