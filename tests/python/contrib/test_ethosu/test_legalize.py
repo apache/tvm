@@ -901,6 +901,11 @@ def test_tflite_binary_elemwise_legalize(
         pattern_table = [
             (
                 ethosu.MinParams.composite_name,
+                ethosu.minimum_clip_requantize_pattern(),
+                lambda pat: ethosu.MinParams(pat).is_valid(),
+            ),
+            (
+                ethosu.MinParams.composite_name,
                 ethosu.minimum_pattern(),
                 lambda pat: ethosu.MinParams(pat).is_valid(),
             ),
@@ -908,6 +913,11 @@ def test_tflite_binary_elemwise_legalize(
     elif operator_type == "MAX":
         rewriter = legalize.MaxRewriter()
         pattern_table = [
+            (
+                ethosu.MaxParams.composite_name,
+                ethosu.maximum_clip_requantize_pattern(),
+                lambda pat: ethosu.MaxParams(pat).is_valid(),
+            ),
             (
                 ethosu.MaxParams.composite_name,
                 ethosu.maximum_pattern(),

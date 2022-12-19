@@ -37,6 +37,16 @@ from . import infra
 ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32", "ethos-u65-256"]
 
 
+def relu_n1_to_1(x):
+    """
+    The specific pattern will be replaced into RELU_N1_TO_1 by tflite.
+    """
+    return tf.math.maximum(-1.0, tf.math.minimum(x, 1.0))
+
+
+ACTIVATIONS = [None, tf.nn.relu, tf.nn.relu6, relu_n1_to_1]
+
+
 def is_u55_accel_type(accel_type):
     return "u55" in accel_type
 
@@ -46,7 +56,7 @@ def is_u55_accel_type(accel_type):
 @pytest.mark.parametrize("kernel_shape", [(3, 2), (1, 3)])
 @pytest.mark.parametrize("strides, dilation", [((1, 1), (2, 1)), ((3, 2), (1, 1))])
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
-@pytest.mark.parametrize("activation", ["NONE", "RELU"])
+@pytest.mark.parametrize("activation", ACTIVATIONS)
 def test_ethosu_conv2d_single(
     ifm_shape,
     kernel_shape,
@@ -72,8 +82,8 @@ def test_ethosu_conv2d_single(
             padding=padding,
             dilations=dilation,
         )
-        if activation == "RELU":
-            op = tf.nn.relu(op)
+        if activation:
+            op = activation(op)
         return op
 
     infra.compare_tvm_with_tflite(conv2d, [ifm_shape], accel_type)
@@ -114,7 +124,7 @@ def test_tflite_conv2d_with_separate_pad():
 @pytest.mark.parametrize("strides, dilation", [((1, 1), (2, 1)), ((3, 2), (1, 1))])
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES + ["ethos-u65-512"])
-@pytest.mark.parametrize("activation", ["NONE", "RELU"])
+@pytest.mark.parametrize("activation", ACTIVATIONS)
 def test_ethosu_conv2d_double(
     ifm_shape,
     kernel_shape,
@@ -150,22 +160,28 @@ def test_ethosu_conv2d_double(
             padding=padding,
             dilations=dilation,
         )
-        if activation == "RELU":
-            op2 = tf.nn.relu(op2)
+        if activation:
+            op2 = activation(op2)
         return op2
 
     infra.compare_tvm_with_tflite(conv2d_double, [ifm_shape], accel_type)
 
 
 @pytest.mark.parametrize("weight_min, weight_max", [(0.0, 1e-11), (-1e10, 1e10)])
-def test_out_of_range_scaling(weight_min, weight_max):
+# relu6 and relu_n1_to_1 operations are excluded from activations since tflite results are different.
+# In the tflite model, a rather large scale is generated, so in some cases in tflite result is -128 in ethosu 127.
+@pytest.mark.parametrize("activation", [None, tf.nn.relu])
+def test_out_of_range_scaling(
+    weight_min,
+    weight_max,
+    activation,
+):
     np.random.seed(0)
     ifm_shape = (1, 6, 6, 2)
     strides = (1, 1)
     kernel_shape = (1, 1)
     dilation = (1, 1)
     padding = "SAME"
-    activation = "RELU"
     accel_type = "ethos-u55-128"
 
     @tf.function
@@ -186,8 +202,8 @@ def test_out_of_range_scaling(weight_min, weight_max):
             padding=padding,
             dilations=dilation,
         )
-        if activation == "RELU":
-            op = tf.nn.relu(op)
+        if activation:
+            op = activation(op)
         return op
 
     infra.compare_tvm_with_tflite(conv_invalid_scale, [ifm_shape], accel_type)
@@ -196,11 +212,12 @@ def test_out_of_range_scaling(weight_min, weight_max):
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3), (1, 23, 32, 7)])
 @pytest.mark.parametrize(
-    "kernel_shape, activation_function",
-    [((3, 3), "RELU"), ((1, 2), "NONE")],
+    "kernel_shape",
+    [(3, 3), (1, 2)],
 )
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
 @pytest.mark.parametrize("strides, dilation", [((1, 1), (2, 2)), ((3, 2), (1, 1))])
+@pytest.mark.parametrize("activation", ACTIVATIONS)
 def test_tflite_depthwise_conv2d(
     accel_type,
     ifm_shape,
@@ -208,7 +225,7 @@ def test_tflite_depthwise_conv2d(
     padding,
     strides,
     dilation,
-    activation_function,
+    activation,
 ):
     np.random.seed(0)
 
@@ -221,8 +238,8 @@ def test_tflite_depthwise_conv2d(
         op = tf.nn.depthwise_conv2d(
             x, weight, strides=tf_strides, padding=padding, dilations=dilation
         )
-        if activation_function == "RELU":
-            op = tf.nn.relu(op)
+        if activation:
+            op = activation(op)
         return op
 
     infra.compare_tvm_with_tflite(depthwise_conv2d, [ifm_shape], accel_type)
@@ -265,17 +282,18 @@ def test_tflite_depthwise_conv2d_with_separate_pad():
 @pytest.mark.parametrize("pooling_type", ["MAX", "AVG"])
 @pytest.mark.parametrize("ifm_shape", [[1, 3, 4, 3], [1, 4, 5, 2]])
 @pytest.mark.parametrize(
-    "pool_shape, strides, activation_function, padding",
-    [([1, 2], [1, 2], "NONE", "SAME"), ([2, 3], [2, 3], "RELU", "VALID")],
+    "pool_shape, strides, padding",
+    [([1, 2], [1, 2], "SAME"), ([2, 3], [2, 3], "VALID")],
 )
+@pytest.mark.parametrize("activation", ACTIVATIONS)
 def test_ethosu_pooling(
     accel_type,
     ifm_shape,
     pooling_type,
     strides,
     pool_shape,
-    activation_function,
     padding,
+    activation,
 ):
     np.random.seed(0)
 
@@ -285,8 +303,8 @@ def test_ethosu_pooling(
             op = tf.nn.max_pool(x, pool_shape, strides, padding)
         elif pooling_type == "AVG":
             op = tf.nn.avg_pool(x, pool_shape, strides, padding)
-        if activation_function == "RELU":
-            op = tf.nn.relu(op)
+        if activation:
+            op = activation(op)
         return op
 
     infra.compare_tvm_with_tflite(pooling, [ifm_shape], accel_type)
@@ -303,13 +321,13 @@ def test_ethosu_pooling(
         ([1, 4, 4], [4, 1]),
     ],
 )
-@pytest.mark.parametrize("activation_function", ["NONE", "RELU"])
+@pytest.mark.parametrize("activation", ACTIVATIONS)
 def test_ethosu_binary_elementwise(
     accel_type,
     operator_type,
     ifm_shape,
     ifm2_shape,
-    activation_function,
+    activation,
 ):
     np.random.seed(0)
 
@@ -325,8 +343,8 @@ def test_ethosu_binary_elementwise(
             op = tf.math.minimum(lhs, rhs)
         elif operator_type == "MAX":
             op = tf.math.maximum(lhs, rhs)
-        if activation_function == "RELU":
-            op = tf.nn.relu(op)
+        if activation:
+            op = activation(op)
         return op
 
     infra.compare_tvm_with_tflite(
@@ -1113,13 +1131,13 @@ def test_tflite_leaky_relu(accel_type, ifm_shape, alpha):
 @pytest.mark.parametrize("ifm_shape", [(1, 14), (1, 151)])
 @pytest.mark.parametrize("ofm_channels", [32, 64])
 @pytest.mark.parametrize("use_bias", [True, False])
-@pytest.mark.parametrize("activation_function", ["RELU", "NONE"])
+@pytest.mark.parametrize("activation", ACTIVATIONS)
 def test_tflite_fully_connected(
     accel_type,
     ifm_shape,
     ofm_channels,
     use_bias,
-    activation_function,
+    activation,
 ):
     np.random.seed(0)
 
@@ -1134,8 +1152,8 @@ def test_tflite_fully_connected(
         x = tf.matmul(x, w)
         if use_bias:
             x = tf.nn.bias_add(x, bias)
-        if activation_function:
-            x = tf.nn.relu(x)
+        if activation:
+            x = activation(x)
         return x
 
     infra.compare_tvm_with_tflite(
