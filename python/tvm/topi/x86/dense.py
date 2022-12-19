@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,too-many-locals,unused-variable
-# pylint: disable=no-value-for-parameter
+# pylint: disable=invalid-name,too-many-locals,unused-argument
+# pylint: disable=no-value-for-parameter,unused-variable
 """x86 dense operators"""
 from __future__ import absolute_import as _abs
 

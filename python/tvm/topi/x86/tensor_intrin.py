@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Core kernel of dot product of 4 Int8 operations"""
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,unused-variable
 import tvm
 from tvm import te
 import tvm.target.codegen
@@ -409,7 +409,7 @@ def dot_32x128x32_u8s8s32_sapphirerapids(LDA):
         C.shape, C.dtype, offset_factor=1, strides=[te.var("ldw"), 1], name="BC", scope="amx.tmm"
     )
 
-    def intrin_func(ins, outs):
+    def intrin_func(ins, outs):  # pylint: disable=unused-variable
         bufA = ins[0]
         bufB = ins[1]
         bufC = outs[0]
@@ -552,7 +552,7 @@ def acc_32x32_int32_sapphirerapids(LDC):
     assert LDC
     _strides_C = tvm.tir.const(4 * LDC, dtype="uint64")
 
-    def intrin_func(ins, outs):
+    def intrin_func(ins, outs):  # pylint: disable=unused-variable
         ib = tvm.tir.ir_builder.create()
         bufA = ins[0]
         bufC = outs[0]
