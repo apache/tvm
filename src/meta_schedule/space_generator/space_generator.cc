@@ -23,6 +23,7 @@ namespace meta_schedule {
 
 String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "llvm") {
+    // TODO(vvchernov): possibly need check target_has_avx512
     static const PackedFunc* f_check_vnni =
         runtime::Registry::Get("tvm.topi.x86.utils.target_has_vnni");
     ICHECK(f_check_vnni != nullptr) << "The `target_has_vnni` func is not in tvm registry.";
@@ -73,6 +74,8 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
     Array<ScheduleRule> default_sch_rules;
     Array<Postproc> default_postprocs;
     Map<Mutator, FloatImm> default_mutator_probs;
+    // TODO(vvchernov): check if need separated ScheduleRule, Postproc, Mutator
+    // for target with skylake-avx512
     if (kind == "llvm") {
       default_sch_rules = ScheduleRule::DefaultLLVM();
       default_postprocs = Postproc::DefaultLLVM();
