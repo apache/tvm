@@ -274,7 +274,6 @@ def docs(
         requirements = [
             "Sphinx==4.2.0",
             "tlcpack-sphinx-addon==0.2.1",
-            "synr==0.5.0",
             "image==1.5.33",
             # Temporary git link until a release is published
             "git+https://github.com/sphinx-gallery/sphinx-gallery.git@6142f1791151849b5bec4bf3959f75697ba226cd",
