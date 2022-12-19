@@ -488,9 +488,8 @@ def dense_amx_int8_schedule(cfg, s, C, O, do_parallel=True):
 
         s[O].reorder(a_y3, a_x3, a_y2, a_x2, a_y1, a_x1, a_yr, a_xr, a_yi, a_xi)
         s[O].vectorize(a_xi)
-        s[C].compute_at(s[O], a_y2)
 
-        fused = s[O].fuse(a_y3, a_x3)
+        fused = s[O].fuse(a_x3, a_y3)
 
     if do_parallel:
         s[O].parallel(fused)
