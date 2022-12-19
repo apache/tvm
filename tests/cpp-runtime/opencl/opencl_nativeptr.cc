@@ -30,7 +30,7 @@ TEST(OpenCLNDArray, native_ptr) {
   OpenCLWorkspace* workspace = OpenCLWorkspace::Global();
 
   auto A = tvm::runtime::NDArray::Empty({128, 128}, {kDLFloat, 32, 1}, {kDLOpenCL, 0});
-  void *nptr = workspace->GetNativePtr(A);
-  memset(nptr, 0x0, 128*128*4);
+  void* nptr = workspace->GetNativePtr(A);
+  memset(nptr, 0x0, 128 * 128 * 4);
 }
 #endif

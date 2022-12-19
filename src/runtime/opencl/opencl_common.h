@@ -291,7 +291,7 @@ class OpenCLWorkspace : public DeviceAPI {
   void* AllocDataSpace(Device dev, size_t size, size_t alignment, DLDataType type_hint) final;
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                        Optional<String> mem_scope = NullOpt) final;
-  void* GetNativePtr(tvm::runtime::NDArray &narr);
+  void* GetNativePtr(const tvm::runtime::NDArray& narr);
   void FreeDataSpace(Device dev, void* ptr) final;
   void StreamSync(Device dev, TVMStreamHandle stream) final;
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
@@ -312,7 +312,7 @@ class OpenCLWorkspace : public DeviceAPI {
 
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
 
-  void* CreateHostPtrIfEnabled(BufferDescriptor *desc, Device dev, size_t size);
+  void* CreateHostPtrIfEnabled(BufferDescriptor* desc, Device dev, size_t size);
 
  private:
   std::string GetError() {

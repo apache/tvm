@@ -243,7 +243,7 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape
   return desc;
 }
 
-void* OpenCLWorkspace::GetNativePtr(tvm::runtime::NDArray &narr) {
+void* OpenCLWorkspace::GetNativePtr(const tvm::runtime::NDArray& narr) {
   cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(narr.operator->()->data);
   return desc->host_ptr;
 }
