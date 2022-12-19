@@ -115,5 +115,5 @@ if __name__ == "__main__":
     # The test requires Cascade Lake and newer Intel machines to generate the
     # correct AVX512 VNNI instruction. So, disabling the test.
 
-    # test_fc_int8_acc32()
+    # test_fc_int8_acc32()``
     pass
