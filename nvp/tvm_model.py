@@ -71,7 +71,7 @@ class VectorProcessor():
         if self.debug: print('> Run')
         self.analyze_graph()
         self.estimate_cycles(swp)
-        return self.estimated_cycles
+        return self.run_time
 
     ### Secondary Functions
     def color_graph(self):
@@ -308,16 +308,16 @@ class VectorProcessor():
             raise RuntimeError("Error!!: 'name', 'depth', 'extent', 'scalar_time', 'duration' must have same length!!")
 
         cycles = []
-        self.estimated_cycles = self.bias # bias_cycle=56
+        self.run_time = self.bias # bias_cycle=56
         for i in range(0, len(name)):
             cycles.append("%s*max(%s, %s)"%(extent[i], scalar_time[i], duration[i]))
             if isinstance(extent[i], tuple) and isinstance(duration[i], tuple):
                 for j in range(0, len(extent[i])):
-                    self.estimated_cycles += extent[i][j]*max(scalar_time[i], duration[i][j])
+                    self.run_time += extent[i][j]*max(scalar_time[i], duration[i][j])
             else:
-                self.estimated_cycles += extent[i]*max(scalar_time[i], duration[i])
+                self.run_time += extent[i]*max(scalar_time[i], duration[i])
         if self.debug:
-            print(">> Total Cycles: %s <- %s"%(self.estimated_cycles, cycles))
+            print(">> Total Cycles: %s <- %s"%(self.run_time, cycles))
 
     ### Tertiary Functions
     def get_nodes(self, attr, str):

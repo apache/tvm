@@ -42,7 +42,7 @@ def main():
     print('{message: <39}'.format(message='# Stride:  %s'%(str(args.stride))), end=''), print("#")
     print('{message: <39}'.format(message='# Cluster: %s'%(str(args.cluster))), end=''), print("#")
     print('{message: <39}'.format(message='# SWP:     %s'%('ON' if args.swp==True else 'OFF')), end=''), print("#")
-    print('{message: <39}'.format(message='# >> Cycle:  %s'%(str(Model.estimated_cycles))), end=''), print("#")
+    print('{message: <39}'.format(message='# >> Cycle:  %s'%(str(Model.run_time))), end=''), print("#")
     print("#"*40)
 
 if __name__ == '__main__':
