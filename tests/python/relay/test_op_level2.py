@@ -1690,7 +1690,7 @@ class TestConv2DInt8Intrinsics:
     )
 
     @tvm.testing.fixture
-    def fast_int8_intrinsic(self, target):
+    def fast_int8_intrinsics(self, target):
         if "nehalem" in target or "core-avx2" in target:
             return ["pmaddubs"]
         elif "skylake-avx512" in target:
