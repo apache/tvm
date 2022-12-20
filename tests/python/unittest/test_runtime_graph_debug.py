@@ -269,7 +269,7 @@ def test_run_single_node(graph, n, A, myadd):
     assert elapsed_time_in_seconds_with_rep_2 >= 2 and (
         elapsed_time_in_seconds_with_rep_2 < elapsed_time_in_seconds_with_def_rep
     )
-
+    # todo add max_repeat_ms
     # Going out of bounds of node index throws a tvm error
     with pytest.raises(TVMError):
         mod.run_individual_node(2)

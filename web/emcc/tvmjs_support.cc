@@ -169,7 +169,7 @@ class AsyncLocalSession : public LocalSession {
       try {
         TVMArgs args(arg_values, arg_type_codes, num_args);
         PackedFunc retfunc = this->GetTimeEvaluator(args[0], args[1], args[2], args[3], args[4],
-                                                    args[5], args[6], args[7], args[8], args[9]);
+                                                    args[5], args[6], args[7], args[8], args[9], args[10]);
         TVMRetValue rv;
         rv = retfunc;
         this->EncodeReturn(std::move(rv), [&](TVMArgs encoded_args) {
@@ -251,7 +251,7 @@ class AsyncLocalSession : public LocalSession {
 
   // time evaluator
   PackedFunc GetTimeEvaluator(Optional<Module> opt_mod, std::string name, int device_type,
-                              int device_id, int number, int repeat, int min_repeat_ms,
+                              int device_id, int number, int repeat, int min_repeat_ms, int max_repeat_ms,
                               int limit_zero_time_iterations, int cooldown_interval_ms,
                               int repeats_to_cooldown) {
     Device dev;
@@ -261,13 +261,13 @@ class AsyncLocalSession : public LocalSession {
     if (opt_mod.defined()) {
       Module m = opt_mod.value();
       std::string tkey = m->type_key();
-      return WrapWasmTimeEvaluator(m.GetFunction(name, false), dev, number, repeat, min_repeat_ms,
+      return WrapWasmTimeEvaluator(m.GetFunction(name, false), dev, number, repeat, min_repeat_ms, max_repeat_ms,
                                    limit_zero_time_iterations, cooldown_interval_ms,
                                    repeats_to_cooldown);
     } else {
       auto* pf = runtime::Registry::Get(name);
       CHECK(pf != nullptr) << "Cannot find " << name << " in the global function";
-      return WrapWasmTimeEvaluator(*pf, dev, number, repeat, min_repeat_ms,
+      return WrapWasmTimeEvaluator(*pf, dev, number, repeat, min_repeat_ms, max_repeat_ms,
                                    limit_zero_time_iterations, cooldown_interval_ms,
                                    repeats_to_cooldown);
     }
@@ -275,7 +275,7 @@ class AsyncLocalSession : public LocalSession {
 
   // time evaluator
   PackedFunc WrapWasmTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat,
-                                   int min_repeat_ms, int limit_zero_time_iterations,
+                                   int min_repeat_ms, int max_repeat_ms, int limit_zero_time_iterations,
                                    int cooldown_interval_ms, int repeats_to_cooldown) {
     auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
                    cooldown_interval_ms, repeats_to_cooldown](TVMArgs args, TVMRetValue* rv) {
@@ -295,7 +295,7 @@ class AsyncLocalSession : public LocalSession {
       };
       auto* time_exec = runtime::Registry::Get("__async.wasm.TimeExecution");
       CHECK(time_exec != nullptr) << "Cannot find wasm.GetTimer in the global function";
-      (*time_exec)(TypedPackedFunc<void(int)>(finvoke), dev, number, repeat, min_repeat_ms,
+      (*time_exec)(TypedPackedFunc<void(int)>(finvoke), dev, number, repeat, min_repeat_ms, max_repeat_ms,
                    limit_zero_time_iterations, cooldown_interval_ms, repeats_to_cooldown,
                    on_complete);
     };
