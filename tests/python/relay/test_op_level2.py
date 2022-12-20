@@ -1690,16 +1690,13 @@ class TestConv2DInt8Intrinsics:
     )
 
     @tvm.testing.fixture
-    def fast_int8_intrinsics(self, target):
-        if "nehalem" in target or "core-avx2" in target:
-            return ["pmaddubs"]
-        elif "skylake-avx512" in target:
-            # TODO(vvchernov): vpmaddubsw? vpmaddwd? vpaddd?
-            return ["pmaddubs", "pmaddw"]
+    def fast_int8_intrinsic(self, target):
+        if "nehalem" in target or "core-avx2" in target or "skylake-avx512" in target:
+            return "pmaddubs"
         elif "cascadelake" in target:
-            return ["vpdpbusd"]
+            return "vpdpbusd"
         else:
-            assert False, "Target should be Skylake or Cascadelake"
+            assert False, "Target should be Nehalem or core-avx2 or Skylake or Cascadelake"
 
     @tvm.testing.fixture
     def assembly(
@@ -1772,11 +1769,10 @@ class TestConv2DInt8Intrinsics:
     )
     def test_uses_intrinsic(
         self,
-        fast_int8_intrinsics,
+        fast_int8_intrinsic,
         assembly,
     ):
-        for fast_int8_intrinsic in fast_int8_intrinsics:
-            assert fast_int8_intrinsic in assembly
+        assert fast_int8_intrinsic in assembly
 
     # For datatypes that don't have HW support, ensure that code is
     # generated without the fast int8 intrinsic.
@@ -1784,11 +1780,10 @@ class TestConv2DInt8Intrinsics:
     @pytest.mark.parametrize("dtypes", [("uint8", "uint8", "int32")])
     def test_no_intrinsic(
         self,
-        fast_int8_intrinsics,
+        fast_int8_intrinsic,
         assembly,
     ):
-        for fast_int8_intrinsic in fast_int8_intrinsics:
-            assert fast_int8_intrinsic not in assembly
+        assert fast_int8_intrinsic not in assembly
 
     # Check that a vectorized instruction is generated for older Intel
     # generations, because we default to NCHWc layout.
