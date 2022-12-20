@@ -1387,12 +1387,12 @@ class QAttention(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        # *****************
+        # ************************* Read attrs *************************
         num_heads = attr["num_heads"]
         # TODO: support unidirectional
         assert "unidirectional" not in attr, "unidirectional attention not current supported"
 
-        # *************************
+        # ************************* Read inputs *************************
         # (batch, seq, in_hidden)
         input_emb = inputs[0]
 
@@ -1422,112 +1422,141 @@ class QAttention(OnnxOpConverter):
         # (2, batch, num_heads, past_seq, head_size)
         past = inputs[8]
 
-        # **********************************************
+        # ************************* Parse inputs *************************
+        t1 = ["int8", "uint8"]
+        t2 = ["int8", "uint8"]
+        t3 = ["float32", "float16"]
+        t4 = ["int32"]
 
+        # input
+        assert infer_type(input_emb).checked_type.dtype in t1
+        assert len(infer_shape(input_emb)) == 3, \
+            "Input should be 3D tensor with shape (batch_size, sequence_length, input_hidden_size)"
+        (batch_size, seq_len, input_hidden) = infer_shape(input_emb)
 
-        (batch_size, seq_len, _) = infer_shape(input_emb)
-        (out_hidden_x3,) = infer_shape(bias)
-        assert out_hidden_x3 % 3 == 0, "bias shape should be divisible by 3"
+        # weight
+        assert infer_type(weight).checked_type.dtype in t2
+        assert len(infer_shape(weight)) == 2, \
+            "Weight should be 2D input tensor with shape (input_hidden_size, 3 * hidden_size), " \
+            "hidden_size = num_heads * head_size"
+        (input_hidden_weight, out_hidden_x3) = infer_shape(weight)
+        assert input_hidden == input_hidden_weight
+        assert out_hidden_x3 % 3 == 0, "output hidden shape should be divisible by 3: W_Q, W_K, W_V"
         out_hidden = out_hidden_x3 // 3
         assert (
                 out_hidden % num_heads == 0
         ), "output hidden size should be divisible by number of attention heads"
         head_size = out_hidden // num_heads
 
-        # TODO(agladyshev): now QNN Batch Matmul only supports scalar types for scale and zero_point.
+        # bias
+        assert infer_type(bias).checked_type.dtype in t3
+        assert len(infer_shape(bias)) == 1, \
+            "Bias should be 1D input tensor with shape (3 * hidden_size)"
+        (out_hidden_x3_bias,) = infer_shape(bias)
+        assert out_hidden_x3 == out_hidden_x3_bias
+
+        # input_scale
+        assert infer_type(input_scale).checked_type.dtype in t3
         input_scale = get_scalar(input_scale, params, dtype=infer_type(input_scale).checked_type.dtype)
+
+        # weight_scale
+        assert infer_type(weight_scale).checked_type.dtype in t3
+        # TODO(agladyshev): now QNN Batch Matmul only supports scalar types for scale.
         weight_scale = get_scalar(weight_scale, params, dtype=infer_type(weight_scale).checked_type.dtype)
 
-        # input_scale = fold_constant(try_resolve_var_to_const(ensure_scalar_shape(input_scale), params))
-        # weight_scale = fold_constant(try_resolve_var_to_const(ensure_scalar_shape(weight_scale), params))
-
+        # mask_index
         assert (
                 mask_index is not None
         ), "Attention import currently only supports required mask_index"
+        assert infer_type(mask_index).checked_type.dtype in t4
         mask_index_shape = infer_shape(mask_index)
         assert (
                 len(mask_index_shape) == 1
                 and mask_index_shape[0] == batch_size
         ), "mask_index shape should match batch_size"
 
-        # TODO
+        # TODO(agladyshev): int32 required for qnn.batch_matmul (QnnBatchMatmulRel)
+        zero_point_zero = _expr.const(0, "int32")
+
+        # input_zero_point
+        if input_zero_point is None:
+            input_zero_point = zero_point_zero
+        else:
+            assert infer_type(input_zero_point).checked_type.dtype in t1
+            # TODO(agladyshev): int32 required for qnn.batch_matmul (QnnBatchMatmulRel)
+            input_zero_point = get_scalar(input_zero_point, params, dtype="int32")
+
+        # weight_zero_point
+        if weight_zero_point is None:
+            weight_zero_point = zero_point_zero
+        else:
+            assert infer_type(weight_zero_point).checked_type.dtype in t2
+            # TODO(agladyshev): int32 required for qnn.batch_matmul (QnnBatchMatmulRel)
+            weight_zero_point = get_scalar(weight_zero_point, params, dtype="int32")
+
+        # past
         assert past is None, "past K, V state is not currently supported"
 
-        # ************************************
-
-        # prepare default values
-        zero = _expr.const(0, "int32")  # TODO(agladyshev): int32 required for qnn.batch_matmul (QnnBatchMatmulRel)
-
-        input_emb_dtype = infer_type(input_emb).checked_type.dtype
-        input_zero_point = zero if input_zero_point is None else input_zero_point
-        weight_zero_point = zero if weight_zero_point is None else weight_zero_point
-
-        # split weight and biases and do the matmuls
+        # ************************* Create Relay *************************
+        # Add batch dimension for QNN Batch Matmul
         weight = _op.expand_dims(weight, 0, num_newaxis=1)
-        w_Q, w_K, w_V = _op.split(weight, 3, axis=2)
-        # w_Q, w_K, w_V = _op.split(weight, 3, axis=1)
-        b_Q, b_K, b_V = _op.split(bias, 3, axis=0)
+
+        # Split weight and biases and do the Matmul
+        w_Q, w_K, w_V = _op.split(weight, 3, axis=-1)
+        b_Q, b_K, b_V = _op.split(bias, 3, axis=-1)
 
         def qmatmul_and_dequantize(lhs, rhs, lhs_scale, rhs_scale, lhs_zero_point, rhs_zero_point):
-            lhs_scale_scalar = fold_constant(try_resolve_var_to_const(lhs_scale, params))
-            rhs_scale_scalar = fold_constant(try_resolve_var_to_const(rhs_scale, params))
-            result = _qnn.op.batch_matmul(lhs, rhs, lhs_zero_point, rhs_zero_point, lhs_scale, rhs_scale)
+            rhs_transposed = _op.transpose(rhs, axes=[0, 2, 1])     # QNN Batch Matmul do: X * Y^T
+            result = _qnn.op.batch_matmul(lhs, rhs_transposed, lhs_zero_point, rhs_zero_point, lhs_scale, rhs_scale)
             result = _qnn.op.dequantize(
                 result,
-                fold_constant(_op.multiply(lhs_scale_scalar, rhs_scale_scalar)),
-                zero,
-                axis=0,     # TODO(agladyshev): ?
+                _op.multiply(lhs_scale, rhs_scale),
+                zero_point_zero,
+                axis=-1,     # TODO(agladyshev): what is 'axis' parameter for?
             )
+            assert infer_shape(result) == (batch_size, seq_len, out_hidden)
             return result
 
         Q = _op.add(qmatmul_and_dequantize(input_emb, w_Q, input_scale, weight_scale, input_zero_point, weight_zero_point), b_Q)
         K = _op.add(qmatmul_and_dequantize(input_emb, w_K, input_scale, weight_scale, input_zero_point, weight_zero_point), b_K)
         V = _op.add(qmatmul_and_dequantize(input_emb, w_V, input_scale, weight_scale, input_zero_point, weight_zero_point), b_V)
 
-
-        # massage tensors in preparation for batched matmul
-        def massage(tensor):
+        def split_into_heads(tensor):
+            """
+            In the implementation of Multi-head attention we just split the queries, keys, and values
+            we compute for a single-head attention into several parts.
+            """
             tensor = _op.reshape(tensor, (batch_size, seq_len, num_heads, head_size))
 
             # (batch_size, num_heads, seq_len, head_size)
             tensor = _op.transpose(tensor, axes=[0, 2, 1, 3])
 
-            # (batch_size * num_heads, seq_len, head_size)
+            # (batch_size * num_heads, seq_len, head_size), because nn.batch_matmul is expecting 3D tensor
             return _op.reverse_reshape(tensor, (-1, 0, 0))
 
-        Q = massage(Q)
-        K = massage(K)
-        V = massage(V)
+        Q = split_into_heads(Q)
+        K = split_into_heads(K)
+        V = split_into_heads(V)
 
-        # present state for key and value with shape (2, batch_size, num_heads, past_sequence_length + sequence_length, head_size)
+        # Present state for key and value with shape
+        # (2, batch_size, num_heads, past_sequence_length + sequence_length, head_size)
         K_present = _op.reshape(K, (batch_size, num_heads, seq_len, head_size))
         V_present = _op.reshape(V, (batch_size, num_heads, seq_len, head_size))
         present = _op.stack([K_present, V_present], axis=0)
-        print("K_present: ", infer_shape(K_present))
-
 
         att_scores = _op.nn.batch_matmul(Q, K, transpose_a=False, transpose_b=True)
-        print(infer_shape(Q))
-        print(infer_shape(K))
-        print("Score shape: ", infer_shape(att_scores))
         score_dtype = infer_type(att_scores).checked_type.dtype
         att_scores = _op.divide(
             att_scores,
             _op.const(np.sqrt(head_size), dtype=infer_type(att_scores).checked_type.dtype),
         )
         att_scores = _op.reshape(att_scores, (batch_size, num_heads, seq_len, seq_len))
-        print("Score shape: ", infer_shape(att_scores))
 
         # build the attention mask
-        print("mask_index: ", infer_shape(mask_index))
         att_mask = _op.cast(mask_index, score_dtype)
-        print("att_mask: ", infer_shape(att_mask))
-        att_mask = _op.expand_dims(att_mask, 1, num_newaxis=3)
-        print("att_mask: ", infer_shape(att_mask))
-        # att_mask = _op.expand_dims(att_mask, seq_len, num_newaxis=3)
+        att_mask = _op.expand_dims(att_mask, 1, num_newaxis=3)  # Expand to batch dimension
         att_mask = _op.subtract(_op.const(1, dtype=score_dtype), att_mask)
         att_mask = _op.multiply(att_mask, _op.const(-10000, dtype=score_dtype))
-        print("att_mask: ", infer_shape(att_mask))
 
         # apply the mask
         att_scores = _op.add(att_scores, att_mask)
