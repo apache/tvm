@@ -22,11 +22,7 @@ import numpy as np
 from tvm.topi.x86.tensor_intrin import dot_16x1x16_uint8_int8_int32
 
 
-def verify_fc_int8_acc32(
-        m = 1024,
-        n = 1024,
-        k = 1024,
-        target="llvm -mcpu=cascadelake"):
+def verify_fc_int8_acc32(m=1024, n=1024, k=1024, target="llvm -mcpu=cascadelake"):
     X = te.placeholder((m, k), name="X", dtype="uint8")
     # W = te.placeholder((n, k), name="W", dtype="int8")
 
@@ -75,9 +71,7 @@ def verify_fc_int8_acc32(
     for r_idx in range(n // 16):
         for s_idx in range(16 * (k // 4)):
             for t_idx in range(4):
-                packW[r_idx][s_idx][t_idx] = b_[r_idx * 16 + s_idx % 16][
-                    (s_idx // 16) * 4 + t_idx
-                ]
+                packW[r_idx][s_idx][t_idx] = b_[r_idx * 16 + s_idx % 16][(s_idx // 16) * 4 + t_idx]
 
     x = tvm.nd.array(a_, dev)
     w = tvm.nd.array(packW, dev)
@@ -105,12 +99,12 @@ def test_fc_int8_acc32_vnni():
     # For LLVM < 8.0, it shows "'cascadelake' is not a recognized processor for this target
     # (ignoring processor)" error with the following setting. After LLVM 8.0 is enabled in the
     # test, we should use cascadelake setting.
-    verify_fc_int8_acc32(target = "llvm -mcpu=cascadelake")
+    verify_fc_int8_acc32()
 
 
 @tvm.testing.requires_skylake_avx512
 def test_fc_int8_acc32_avx512():
-    verify_fc_int8_acc32(target = "llvm -mcpu=skylake-avx512")
+    verify_fc_int8_acc32(target="llvm -mcpu=skylake-avx512")
 
 
 if __name__ == "__main__":
