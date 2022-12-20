@@ -31,7 +31,10 @@ def verify_fc_int8_acc32(m=1024, n=1024, k=1024, target="llvm -mcpu=cascadelake"
         return
 
     dev = tvm.device(target, 0)
-    pc = dot_16x1x16_uint8_int8_int32()
+    # workaround for Target.current()
+    with tvm.target.Target(target) as target:
+        pc = dot_16x1x16_uint8_int8_int32()
+
     ak = te.reduce_axis((0, k), name="k")
     packedW = te.placeholder((n // 16, 16 * (k // 4), 4), name="packedW", dtype="int8")
 
@@ -91,7 +94,7 @@ def verify_fc_int8_acc32(m=1024, n=1024, k=1024, target="llvm -mcpu=cascadelake"
             result.mean * 1000, gops_per_sec, gops_per_sec / peak
         )
     )
-    t_func.export_library("tensorize_acc32.o")
+    # t_func.export_library("tensorize_acc32.o")
 
 
 @tvm.testing.requires_cascadelake
