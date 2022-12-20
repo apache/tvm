@@ -1055,9 +1055,8 @@ requires_cascadelake = Feature(
 
 
 requires_skylake_avx512 = Feature(
-    # TODO(vvchernov): check name and long name
-    "skylake",
-    "x86 SkyLake",
+    "skylake_avx512",
+    "x86 SkyLake AVX512",
     run_time_check=lambda: _has_slavx512() and _is_intel(),
 )
 
