@@ -865,9 +865,8 @@ def test_dense_skylake_avx512(m, n, k):
             lib = relay.build(mod, target=target)
 
         asm = lib.lib.get_source("asm")
-        assert "vpmaddubsw" in asm
-        assert "vpmaddwd" in asm
-        assert "vpaddd" in asm
+        assert "pmaddubs" in asm
+        assert "pmaddw" in asm
 
         dev = tvm.device(target, 0)
         runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))

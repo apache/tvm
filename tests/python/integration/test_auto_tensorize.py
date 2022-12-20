@@ -179,9 +179,8 @@ def tune_and_test(relay_mod, data_np, weight_np, op_name, target, sch_rules, pos
 
     if "skylake-avx512" in target:
         asm = lib.lib.get_source("asm")
-        assert "vpmaddubsw" in asm
-        assert "vpmaddwd" in asm
-        assert "vpaddd" in asm
+        assert "pmaddubs" in asm
+        assert "pmaddw" in asm
 
     runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
     runtime.set_input("data", data_np)

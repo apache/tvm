@@ -1692,12 +1692,12 @@ class TestConv2DInt8Intrinsics:
     @tvm.testing.fixture
     def fast_int8_intrinsic(self, target):
         if "nehalem" in target or "core-avx2" in target:
-            return "pmaddubs"
+            return ["pmaddubs"]
         elif "skylake-avx512" in target:
             # TODO(vvchernov): vpmaddubsw? vpmaddwd? vpaddd?
-            return "pmaddubs"
+            return ["pmaddubs", "pmaddw"]
         elif "cascadelake" in target:
-            return "vpdpbusd"
+            return ["vpdpbusd"]
         else:
             assert False, "Target should be Skylake or Cascadelake"
 
@@ -1772,10 +1772,11 @@ class TestConv2DInt8Intrinsics:
     )
     def test_uses_intrinsic(
         self,
-        fast_int8_intrinsic,
+        fast_int8_intrinsics,
         assembly,
     ):
-        assert fast_int8_intrinsic in assembly
+        for fast_int8_intrinsic in fast_int8_intrinsics:
+            assert fast_int8_intrinsic in assembly
 
     # For datatypes that don't have HW support, ensure that code is
     # generated without the fast int8 intrinsic.
@@ -1783,10 +1784,11 @@ class TestConv2DInt8Intrinsics:
     @pytest.mark.parametrize("dtypes", [("uint8", "uint8", "int32")])
     def test_no_intrinsic(
         self,
-        fast_int8_intrinsic,
+        fast_int8_intrinsics,
         assembly,
     ):
-        assert fast_int8_intrinsic not in assembly
+        for fast_int8_intrinsic in fast_int8_intrinsics:
+            assert fast_int8_intrinsic not in assembly
 
     # Check that a vectorized instruction is generated for older Intel
     # generations, because we default to NCHWc layout.
@@ -2140,7 +2142,7 @@ def test_conv2d_nhwc_dnnl():
             np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
-def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instr):
+def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
     def get_conv2d_nchw(
         d_shape,
         w_shape,
@@ -2197,7 +2199,8 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instr):
     ):
         lib = relay.build(mod, target=target, params=params)
 
-    assert dot_product_instr in lib.lib.get_source("asm")
+    for dot_product_instr in dot_product_instrs:
+        assert dot_product_instr in lib.lib.get_source("asm")
 
     rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
@@ -2213,19 +2216,18 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instr):
 @tvm.testing.requires_arm_dot
 def test_conv2d_int8_alter_dtype_arm():
     _test_conv2d_int8_alter_dtype(
-        "uint8", "llvm -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod", "sdot"
+        "uint8", "llvm -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod", ["sdot"]
     )
 
 
 @tvm.testing.requires_cascadelake
 def test_conv2d_int8_alter_dtype_vnni():
-    _test_conv2d_int8_alter_dtype("int8", "llvm -mcpu=cascadelake", "vpdpbusd")
+    _test_conv2d_int8_alter_dtype("int8", "llvm -mcpu=cascadelake", ["vpdpbusd"])
 
 
 @tvm.testing.requires_skylake_avx512
 def test_conv2d_int8_alter_dtype_avx512():
-    # TODO(vvchernov): Is check of "vpmaddubsw" and "vpmaddwd" needed?
-    _test_conv2d_int8_alter_dtype("int8", "llvm -mcpu=skylake-avx512", "vpaddd")
+    _test_conv2d_int8_alter_dtype("int8", "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw"])
 
 
 if __name__ == "__main__":
