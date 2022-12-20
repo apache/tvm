@@ -168,22 +168,22 @@ def maxpool_k3(data, kernel, stride):
 
     data = tvm.te.placeholder((b, cw, h, w), name="data")
 
-    Reg00 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+0], name="Reg00")
-    Reg01 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+0], name="Reg01")
-    Reg02 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+0], name="Reg02")
-    Reg10 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+1], name="Reg10")
-    Reg11 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+1], name="Reg11")
-    Reg12 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+1], name="Reg12")
-    Reg20 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+2], name="Reg20")
-    Reg21 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+2], name="Reg21")
-    Reg22 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+2], name="Reg22")
+    Reg00 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h*sh+0, w*sw+0], name="Reg00")
+    Reg01 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h*sh+1, w*sw+0], name="Reg01")
+    Reg02 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h*sh+2, w*sw+0], name="Reg02")
+    Reg10 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h*sh+0, w*sw+1], name="Reg10")
+    Reg11 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h*sh+1, w*sw+1], name="Reg11")
+    Reg12 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h*sh+2, w*sw+1], name="Reg12")
+    Reg20 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h*sh+0, w*sw+2], name="Reg20")
+    Reg21 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h*sh+1, w*sw+2], name="Reg21")
+    Reg22 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h*sh+2, w*sw+2], name="Reg22")
 
     output = tvm.te.compute((b, cw, h, w),
-        lambda b, c, i, j:
+        lambda b, c, h, w:
             tvm.te.max(tvm.te.max(tvm.te.max(tvm.te.max(tvm.te.max(tvm.te.max(tvm.te.max(tvm.te.max(
-                Reg00[b, c, i, j],  Reg01[b, c, i, j]), Reg02[b, c, i, j]),
-                Reg10[b, c, i, j]), Reg11[b, c, i, j]), Reg12[b, c, i, j]),
-                Reg20[b, c, i, j]), Reg21[b, c, i, j]), Reg22[b, c, i, j])
+                Reg00[b, c, h, w],  Reg01[b, c, h, w]), Reg02[b, c, h, w]),
+                Reg10[b, c, h, w]), Reg11[b, c, h, w]), Reg12[b, c, h, w]),
+                Reg20[b, c, h, w]), Reg21[b, c, h, w]), Reg22[b, c, h, w])
         , name="output"
     )
     s = tvm.te.create_schedule([output.op])
@@ -211,23 +211,23 @@ def maxpool_k3s2(data, kernel, stride):
 
     data = tvm.te.placeholder((b, cw, h, w), name="data")
 
-    # Reg00 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+0], name="Reg00")
-    # Reg01 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+0], name="Reg01")
-    # Reg02 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+0], name="Reg02")
-    # max0 = tvm.te.compute((b, cw, h, w), lambda b, c, i ,j: tvm.te.max(tvm.te.max(Reg00, Reg01), Reg02), name="max0")
+    # Reg00 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h*sh+0, w*sw+0], name="Reg00")
+    # Reg01 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h*sh+1, w*sw+0], name="Reg01")
+    # Reg02 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h*sh+2, w*sw+0], name="Reg02")
+    # max0 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: tvm.te.max(tvm.te.max(Reg00, Reg01), Reg02), name="max0")
     max0 = tvm.te.placeholder((b, cw, h, w), name="max0")
 
-    Reg10 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+1], name="Reg10")
-    Reg11 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+1], name="Reg11")
-    Reg12 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+1], name="Reg12")
-    max1 = tvm.te.compute((b, cw, h, w), lambda b, c, i ,j: tvm.te.max(tvm.te.max(Reg10[b, c, i, j], Reg11[b, c, i, j]), Reg12[b, c, i, j]), name="max1")
+    Reg10 = tvm.te.compute((b, cw, h, w), lambda b, c, h, j: data[b, c, h*sh+0, w*sw+1], name="Reg10")
+    Reg11 = tvm.te.compute((b, cw, h, w), lambda b, c, h, j: data[b, c, h*sh+1, w*sw+1], name="Reg11")
+    Reg12 = tvm.te.compute((b, cw, h, w), lambda b, c, h, j: data[b, c, h*sh+2, w*sw+1], name="Reg12")
+    max1 = tvm.te.compute((b, cw, h, w), lambda b, c, h, j: tvm.te.max(tvm.te.max(Reg10[b, c, h, w], Reg11[b, c, h, w]), Reg12[b, c, h, w]), name="max1")
 
-    Reg20 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+0, j*sw+2], name="Reg20")
-    Reg21 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+1, j*sw+2], name="Reg21")
-    Reg22 = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i*sh+2, j*sw+2], name="Reg22")
-    max2 = tvm.te.compute((b, cw, h, w), lambda b, c, i ,j: tvm.te.max(tvm.te.max(Reg20[b, c, i, j], Reg21[b, c, i, j]), Reg22[b, c, i, j]), name="max2")
+    Reg20 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h*sh+0, w*sw+2], name="Reg20")
+    Reg21 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h*sh+1, w*sw+2], name="Reg21")
+    Reg22 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h*sh+2, w*sw+2], name="Reg22")
+    max2 = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: tvm.te.max(tvm.te.max(Reg20[b, c, h, w], Reg21[b, c, h, w]), Reg22[b, c, h, w]), name="max2")
 
-    output = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: tvm.te.max(tvm.te.max(max0[b, c, i, j], max1[b, c, i, j]), max2[b, c, i, j]), name="output")
+    output = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: tvm.te.max(tvm.te.max(max0[b, c, h, w], max1[b, c, h, w]), max2[b, c, h, w]), name="output")
 
     s = tvm.te.create_schedule([output.op])
     # (N, C, H, W) = s[output].op.axis
@@ -267,31 +267,31 @@ def dwconv_k3(data, kernel, stride):
     )
 
     Reg00, Reg01, Reg02, Reg10, Reg11, Reg12, Reg20, Reg21, Reg22 = tvm.te.compute(
-        (b, cw, h, w), lambda b, c, i, j: (
-            data[b, c, i*sh+0, j*sw+0]*FReg00[b, c], data[b, c, i*sh+0, j*sw+1]*FReg01[b, c], data[b, c, i*sh+0, j*sw+2]*FReg02[b, c],
-            data[b, c, i*sh+1, j*sw+0]*FReg10[b, c], data[b, c, i*sh+1, j*sw+1]*FReg11[b, c], data[b, c, i*sh+1, j*sw+2]*FReg12[b, c],
-            data[b, c, i*sh+2, j*sw+0]*FReg20[b, c], data[b, c, i*sh+2, j*sw+1]*FReg21[b, c], data[b, c, i*sh+2, j*sw+2]*FReg22[b, c],
+        (b, cw, h, w), lambda b, c, h, w: (
+            data[b, c, h*sh+0, w*sw+0]*FReg00[b, c], data[b, c, h*sh+0, w*sw+1]*FReg01[b, c], data[b, c, h*sh+0, w*sw+2]*FReg02[b, c],
+            data[b, c, h*sh+1, w*sw+0]*FReg10[b, c], data[b, c, h*sh+1, w*sw+1]*FReg11[b, c], data[b, c, h*sh+1, w*sw+2]*FReg12[b, c],
+            data[b, c, h*sh+2, w*sw+0]*FReg20[b, c], data[b, c, h*sh+2, w*sw+1]*FReg21[b, c], data[b, c, h*sh+2, w*sw+2]*FReg22[b, c],
         ), name="Reg"
     )
 
     bReg = tvm.te.compute(
-        (b, cw, h, w), lambda b, c, i, j: (
-            bias[b, c, i , j]
+        (b, cw, h, w), lambda b, c, h, w: (
+            bias[b, c, h, w]
         ), name="bReg"
     )
 
     vReg = tvm.te.compute(
-        (b, cw, h, w), lambda b, c, i, j: (
-            bReg[b, c, i, j]
-            + Reg00[b, c, i, j] + Reg01[b, c, i, j] + Reg02[b, c, i, j]
-            + Reg10[b, c, i, j] + Reg11[b, c, i, j] + Reg12[b, c, i, j]
-            + Reg20[b, c, i, j] + Reg21[b, c, i, j] + Reg22[b, c, i, j]
+        (b, cw, h, w), lambda b, c, h, w: (
+            bReg[b, c, h, w]
+            + Reg00[b, c, h, w] + Reg01[b, c, h, w] + Reg02[b, c, h, w]
+            + Reg10[b, c, h, w] + Reg11[b, c, h, w] + Reg12[b, c, h, w]
+            + Reg20[b, c, h, w] + Reg21[b, c, h, w] + Reg22[b, c, h, w]
         ), name="vReg"
     )
 
     output = tvm.te.compute(
-        (b, cw, h, w), lambda b, c, i, j: (
-            (vReg[b, c, i, j].astype("int")>>shifter).astype("float")
+        (b, cw, h, w), lambda b, c, h, w: (
+            (vReg[b, c, h, w].astype("int")>>shifter).astype("float")
         ), name="output"
     )
 
@@ -338,10 +338,9 @@ def eadd(data):
     weight1 = tvm.te.placeholder((1, ), name="wReg1")
     bias = tvm.te.placeholder((1, ), name="bReg")
 
-    Reg0 = tvm.te.compute((vcount, vlength), lambda i, j: data0[i, j]*weight0[0] + bias[0], name="Reg0")
-    Reg1 = tvm.te.compute((vcount, vlength), lambda i, j: data1[i, j]*weight1[0] + Reg0[i, j], name="Reg1")
-    output = tvm.te.compute((vcount, vlength), lambda i, j: Reg1[i, j], name="output")
-    # output = tvm.te.compute((vcount, vlength), lambda i, j: data0[i, j]*weight0[0] + data1[i, j]*weight1[0], name="output")
+    Reg0 = tvm.te.compute((vcount, vlength), lambda vc, vl: data0[vc, vl]*weight0[0] + bias[0], name="Reg0")
+    Reg1 = tvm.te.compute((vcount, vlength), lambda vc, vl: data1[vc, vl]*weight1[0] + Reg0[vc, vl], name="Reg1")
+    output = tvm.te.compute((vcount, vlength), lambda vc, vl: Reg1[vc, vl], name="output")
 
     s = tvm.te.create_schedule([output.op])
     (d0, d1) = sort_axis(s[output].op.axis)
@@ -365,8 +364,8 @@ def upsample(data, kernel, layout, method):
         (kh, kw) = kernel
 
         data = tvm.te.placeholder((b, cw, h, w), name="data")
-        Reg = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i, j], name="Reg")
-        output = tvm.te.compute((b, cw, h*kh, w*kw), lambda b, c, i, j: Reg[b, c, i//kh, j//kw], name="output")
+        Reg = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h, w], name="Reg")
+        output = tvm.te.compute((b, cw, h*kh, w*kw), lambda b, c, h, w: Reg[b, c, h//kh, w//kw], name="output")
 
         s = tvm.te.create_schedule([output.op])
         ho, wo, hi, wi = s[output].tile(x_parent=output.op.axis[-2], y_parent=output.op.axis[-1], x_factor=kh, y_factor=kw)
@@ -382,8 +381,8 @@ def upsample_k2(data, kernel, layout, method):
         (kh, kw) = kernel
 
         data = tvm.te.placeholder((b, cw, h, w), name="data")
-        Reg = tvm.te.compute((b, cw, h, w), lambda b, c, i, j: data[b, c, i, j], name="Reg")
-        output = tvm.te.compute((b, cw, h*kh, w*kw), lambda b, c, i, j: Reg[b, c, i//kh, j//kw], name="output")
+        Reg = tvm.te.compute((b, cw, h, w), lambda b, c, h, w: data[b, c, h, w], name="Reg")
+        output = tvm.te.compute((b, cw, h*kh, w*kw), lambda b, c, h, w: Reg[b, c, h//kh, w//kw], name="output")
 
         s = tvm.te.create_schedule([output.op])
         (N, C, H, W) = s[output].op.axis
@@ -522,8 +521,8 @@ def actv(data):
 
     data = tvm.te.placeholder((vcount, vlength), name="data")
 
-    vReg = tvm.te.compute((vcount, vlength), lambda i, j: (tvm.te.sigmoid(data[i, j])), name="vReg")
-    output = tvm.te.compute((vcount, vlength), lambda i, j: vReg[i, j], name="output")
+    vReg = tvm.te.compute((vcount, vlength), lambda vc, vl: (tvm.te.sigmoid(data[vc, vl])), name="vReg")
+    output = tvm.te.compute((vcount, vlength), lambda vc, vl: vReg[vc, vl], name="output")
 
     s = tvm.te.create_schedule([output.op])
     if vlength==8: # fast-path
@@ -543,13 +542,13 @@ def silu(data):
         ), name='wReg'
     )
     vReg = tvm.te.compute(
-        (b, cw, h, w), lambda b, c, i, j: (
-            tvm.te.sigmoid(data[b, c, i, j])
+        (b, cw, h, w), lambda b, c, h, w: (
+            tvm.te.sigmoid(data[b, c, h, w])
         ), name="vReg"
     )
     output = tvm.te.compute(
-        (b, cw, h, w), lambda b, c, i, j: (
-            wReg[b, c] * vReg[b, c, i, j]
+        (b, cw, h, w), lambda b, c, h, w: (
+            wReg[b, c] * vReg[b, c, h, w]
         ), name="output"
     )
 

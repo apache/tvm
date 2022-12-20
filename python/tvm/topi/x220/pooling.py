@@ -81,8 +81,8 @@ def max_pool2d_nchw(Input, Filter, stride, dilation, padding, pool_type, out_dty
     out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
 
     # maxpool stage
-    di = te.reduce_axis((0, filter_h), name="di")
-    dj = te.reduce_axis((0, filter_w), name="dj")
+    kh = te.reduce_axis((0, filter_h), name="kh")
+    kw = te.reduce_axis((0, filter_w), name="kw")
 
     Input = te.compute(
         Input.shape,
@@ -91,16 +91,16 @@ def max_pool2d_nchw(Input, Filter, stride, dilation, padding, pool_type, out_dty
     )
     Reg = te.compute(
         (batch, out_channel, out_height, out_width),
-        lambda b, c, i, j:
+        lambda b, c, h, w:
         te.max(
-            (Input[b, c, i * stride_h + di * dilation_h, j * stride_w + dj * dilation_w,].astype(out_dtype)
-            ), axis=[di, dj],
+            (Input[b, c, h * stride_h + kh * dilation_h, w * stride_w + kw * dilation_w,].astype(out_dtype)
+            ), axis=[kh, kw],
         ), name="Reg", tag="max_pool2d_nchw",
     )
     Output = te.compute(
         (batch, out_channel, out_height, out_width),
-        lambda b, c, i, j:
-            Reg[b, c, i, j]
+        lambda b, c, h, w:
+            Reg[b, c, h, w]
         , name="Output", tag="max_pool2d_nchw",
     )
     return Output
@@ -160,8 +160,8 @@ def avg_pool2d_nchw(Input, Filter, stride, dilation, padding, pool_type, out_dty
     out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
 
     # avgpool stage
-    di = te.reduce_axis((0, filter_h), name="di")
-    dj = te.reduce_axis((0, filter_w), name="dj")
+    kh = te.reduce_axis((0, filter_h), name="kh")
+    kw = te.reduce_axis((0, filter_w), name="kw")
 
     multiplier = tvm.te.const(1, "float")
     Multiplier = tvm.te.compute((batch, ), lambda b: multiplier, name="Multiplier")
@@ -172,17 +172,17 @@ def avg_pool2d_nchw(Input, Filter, stride, dilation, padding, pool_type, out_dty
     )
     Reg = te.compute(
         (batch, out_channel, out_height, out_width),
-        lambda b, c, i, j:
+        lambda b, c, h, w:
         te.sum(
-            (Input[b, c, i * stride_h + di * dilation_h, j * stride_w + dj * dilation_w,].astype(out_dtype)
+            (Input[b, c, h * stride_h + kh * dilation_h, w * stride_w + kw * dilation_w,].astype(out_dtype)
                 * Multiplier[b].astype(out_dtype)
-            ), axis=[di, dj],
+            ), axis=[kh, kw],
         ), name="Reg", tag="avg_pool2d_nchw",
     )
     Output = te.compute(
         (batch, out_channel, out_height, out_width),
-        lambda b, c, i, j:
-        (Reg[b, c, i, j].astype("int")>>(dilated_kernel_h*dilated_kernel_w)).astype(out_dtype)
+        lambda b, c, h, w:
+        (Reg[b, c, h, w].astype("int")>>(dilated_kernel_h*dilated_kernel_w)).astype(out_dtype)
         , name="Output", tag="avg_pool2d_nchw",
     )
     return Output

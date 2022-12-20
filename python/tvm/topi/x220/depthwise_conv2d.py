@@ -170,8 +170,8 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
     # depthconv stage
     idxdiv = tvm.tir.indexdiv # floor(a/b)
     idxmod = tvm.tir.indexmod # remainder of indexdiv
-    di = te.reduce_axis((0, filter_height), name="di")
-    dj = te.reduce_axis((0, filter_width), name="dj")
+    kh = te.reduce_axis((0, filter_height), name="kh")
+    kw = te.reduce_axis((0, filter_width), name="kw")
 
     # Input = te.compute(
     #     Input.shape,
@@ -185,17 +185,17 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
     )
     Reg = te.compute(
         (batch, out_channel, out_height, out_width),
-        lambda b, c, i, j:
+        lambda b, c, h, w:
         te.sum(
-            (Input[b, idxdiv(c, channel_multiplier), i * stride_h + di * dilation_h, j * stride_w + dj * dilation_w,].astype(out_dtype)
-                * Filter[idxdiv(c, channel_multiplier), idxmod(c, channel_multiplier), di, dj].astype(out_dtype)
-            ), axis=[di, dj],
+            (Input[b, idxdiv(c, channel_multiplier), h * stride_h + kh * dilation_h, w * stride_w + kw * dilation_w,].astype(out_dtype)
+                * Filter[idxdiv(c, channel_multiplier), idxmod(c, channel_multiplier), kh, kw].astype(out_dtype)
+            ), axis=[kh, kw],
         ), name="Reg", tag="depthwise_conv2d_nchw",
     )
     Output = te.compute(
         (batch, out_channel, out_height, out_width),
-        lambda b, c, i, j:
-            Reg[b, c, i, j]
+        lambda b, c, h, w:
+            Reg[b, c, h, w]
         , name="Output", tag="depthwise_conv2d_nchw",
     )
     return Output
@@ -262,23 +262,23 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
     idxdiv = tvm.tir.indexdiv
     idxmod = tvm.tir.indexmod
 
-    di = te.reduce_axis((0, filter_height), name="di")
-    dj = te.reduce_axis((0, filter_width), name="dj")
+    kh = te.reduce_axis((0, filter_height), name="kh")
+    kw = te.reduce_axis((0, filter_width), name="kw")
     Output = te.compute(
         (batch, out_height, out_width, out_channel),
-        lambda b, i, j, c: te.sum(
+        lambda b, h, w, c: te.sum(
             (
                 PaddedInput[
                     b,
-                    i * stride_h + di * dilation_h,
-                    j * stride_w + dj * dilation_w,
+                    h * stride_h + kh * dilation_h,
+                    w * stride_w + kw * dilation_w,
                     idxdiv(c, channel_multiplier),
                 ].astype(out_dtype)
                 * Filter[
-                    di, dj, idxdiv(c, channel_multiplier), idxmod(c, channel_multiplier)
+                    kh, kw, idxdiv(c, channel_multiplier), idxmod(c, channel_multiplier)
                 ].astype(out_dtype)
             ),
-            axis=[di, dj],
+            axis=[kh, kw],
         ),
         name="DepthwiseConv2d",
         tag="depthwise_conv2d_nhwc",
