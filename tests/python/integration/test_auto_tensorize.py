@@ -288,7 +288,10 @@ def test_vnni_dense():
 # @tvm.testing.requires_skylake_avx512
 # def test_avx512_dense():
 #     _test_dense(
-#         "uint8", SCH_RULES_FOR_AVX512, POSTPROCS_FOR_AVX512, "llvm -mcpu=skylake-avx512 -num-cores 4"
+#         "uint8",
+#         SCH_RULES_FOR_AVX512,
+#         POSTPROCS_FOR_AVX512,
+#         "llvm -mcpu=skylake-avx512 -num-cores 4"
 #     )
 
 
@@ -316,7 +319,10 @@ def test_vnni_conv2d():
 # @tvm.testing.requires_skylake_avx512
 # def test_avx512_conv2d():
 #     _test_conv2d(
-#         "uint8", SCH_RULES_FOR_AVX512, POSTPROCS_FOR_AVX512, "llvm -mcpu=skylake-avx512 -num-cores 4"
+#         "uint8",
+#         SCH_RULES_FOR_AVX512,
+#         POSTPROCS_FOR_AVX512,
+#         "llvm -mcpu=skylake-avx512 -num-cores 4"
 #     )
 
 
