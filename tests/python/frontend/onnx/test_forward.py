@@ -5886,6 +5886,73 @@ def test_attention(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_qattention(target, dev):
+    """test_qattention"""
+
+    def verify_attention(input_, weight, bias, input_scale, weight_scale, mask_index, num_heads):
+        node = onnx.helper.make_node(
+            "QAttention",
+            inputs=["input", "weight", "bias", "input_scale", "weight_scale", "mask_index"],
+            outputs=["output", "present"],
+            domain="com.microsoft",
+            num_heads=num_heads,
+        )
+
+        present_output_shape = (2, batch_size, num_heads, sequence_length, head_size)
+
+        graph = helper.make_graph(
+            [node],
+            "qattention_test",
+            inputs=[
+                helper.make_tensor_value_info("input", TensorProto.UINT8, list(input_.shape)),
+                helper.make_tensor_value_info("weight", TensorProto.UINT8, list(weight.shape)),
+                helper.make_tensor_value_info("bias", TensorProto.FLOAT, list(bias.shape)),
+                helper.make_tensor_value_info("input_scale", mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype("float32")], ()),
+                helper.make_tensor_value_info("weight_scale", mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype("float32")], ()),
+                helper.make_tensor_value_info(
+                    "mask_index", TensorProto.INT32, list(mask_index.shape)
+                ),
+            ],
+            outputs=[
+                helper.make_tensor_value_info("output", TensorProto.FLOAT, list(input_.shape)),
+                helper.make_tensor_value_info(
+                    "present", TensorProto.FLOAT, list(present_output_shape)
+                ),
+            ],
+        )
+
+        model = helper.make_model(graph, producer_name="qattention_test")
+
+        # "present" output should be nullptr when the "past" input isn't included,
+        # but ort requires an output shape to be specified?
+        verify_with_ort_with_inputs(
+            model,
+            [input_, weight, bias, input_scale, weight_scale, mask_index],
+            [input_.shape, present_output_shape],
+            target=target,
+            dev=dev,
+            rtol=1e-4,
+            atol=1e-4,
+        )
+
+    input_hidden_size = 147
+    weight_hidden_size = 481
+    batch_size = 11
+    sequence_length = 7
+    num_heads = 13
+    head_size = 37
+
+    input_array = np.random.randint(0, 255, (batch_size, sequence_length, input_hidden_size)).astype("uint8")
+    weight = np.random.randint(0, 255, (input_hidden_size, 3 * weight_hidden_size)).astype("uint8")
+    bias = np.random.randn(3 * weight_hidden_size).astype("float32")
+    input_scale = np.random.random(1).astype("float32")
+    weight_scale = np.random.random(1).astype("float32")
+    mask_index = np.random.randint(0, 2, (batch_size,)).astype("int32")
+
+    verify_attention(input_array, weight, bias, input_scale, weight_scale, mask_index, num_heads)
+
+
+@tvm.testing.parametrize_targets
 def test_skiplayernormalization(target, dev):
     """test_skiplayernormalization"""
 
