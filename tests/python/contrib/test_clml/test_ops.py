@@ -45,7 +45,7 @@ def _get_conv_model(
     a = relay.var(next(iter(var)), shape=shape, dtype=dtype)
     input_arr = var[next(iter(var))]
     if has_pad:
-        p = ((0, 0), (padding[0], padding[0]), (padding[1], padding[1]), (0, 0))
+        p = ((0, 0), (0, 0), (padding[0], padding[0]), (padding[1], padding[1]))
         a = relay.nn.pad(a, pad_width=p)
         padding = (0, 0, 0, 0)
     else:
