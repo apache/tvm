@@ -114,9 +114,6 @@ Module EthosnModule::LoadFromBinary(void* strm) {
   cmms.resize(func_count);
   for (unsigned int i = 0; i < func_count; i++) {
     OrderedCompiledNetwork& compiled = cmms[i];
-#ifdef _ETHOSN_API_VERSION_3_2_0
-    compiled.proc_mem_alloc = std::make_unique<dl::ProcMemAllocator>();
-#endif
     std::string ext_symbol;
     std::string cmm;
     uint64_t input_size;
@@ -130,6 +127,7 @@ Module EthosnModule::LoadFromBinary(void* strm) {
     // If hardware unavaiable use the mock inference functionality. If hardware is
     // avaiable, deserialize the compiled graph.
 #ifdef _ETHOSN_API_VERSION_3_2_0
+    compiled.proc_mem_alloc = std::make_unique<dl::ProcMemAllocator>();
     compiled.runtime_cmm = std::make_unique<dl::Network>(
         compiled.proc_mem_alloc->CreateNetwork(cmm.c_str(), cmm.size()));
 #else

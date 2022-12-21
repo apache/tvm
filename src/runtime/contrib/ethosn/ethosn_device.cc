@@ -272,7 +272,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.test.infra.inference_result")
 // Allow the ethos-n support code to be tested without a device
 bool Inference(tvm::runtime::TVMArgs args,
 #ifdef _ETHOSN_API_VERSION_3_2_0
-               dl::ProcMemAllocator* proc_mem_alloc,
+               dl::ProcMemAllocator* /*proc_mem_alloc*/,
 #endif
                dl::Network* /* npu */, const std::vector<uint32_t>& input_order,
                const std::vector<uint32_t>& output_order, const std::vector<uint32_t>& input_sizes,
