@@ -224,9 +224,9 @@ def clml_pattern_table():
             return False
 
         if(
-           (isinstance(args[0], (Var, Constant)) == False)
-           and (args[0].op.name == "nn.pad")
-           and (len(args[0].attrs["pad_width"]) != 4)
+            (not isinstance(args[0], (Var, Constant)))
+            and (args[0].op.name == "nn.pad")
+            and (len(args[0].attrs["pad_width"]) != 4)
         ):
             return False
 
