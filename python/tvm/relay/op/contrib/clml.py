@@ -22,7 +22,7 @@ from tvm import relay
 from tvm._ffi import register_func
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
-from tvm.relay.expr import Call, Var, Constant
+from tvm.relay.expr import Var, Constant
 
 from ...dataflow_pattern import wildcard, is_op, is_constant, is_tuple_get_item, is_tuple
 from .register import register_pattern_table
@@ -223,7 +223,7 @@ def clml_pattern_table():
         if attrs.data_layout != "NCHW":
             return False
 
-        if(
+        if (
             (not isinstance(args[0], (Var, Constant)))
             and (args[0].op.name == "nn.pad")
             and (len(args[0].attrs["pad_width"]) != 4)
