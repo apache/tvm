@@ -24,12 +24,11 @@ import pytest
 import tvm.testing
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
-from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
+from tvm.testing.aot import get_dtype_range, AOTTestModel, compile_and_run, generate_ref_data
 
 from .utils import (
     skip_if_no_reference_system,
     make_module,
-    get_range_for_dtype_str,
     assert_partitioned_function,
     assert_no_external_function,
     create_test_runner,
@@ -78,7 +77,7 @@ def test_op_int8(zero_point, scale, compiler_cpu, cpu_flags):
     assert_partitioned_function(orig_mod, cmsisnn_mod)
 
     # validate the output
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
     np.random.seed(0)
     input_data = np.random.randint(in_min, high=in_max, size=shape, dtype=dtype)
     inputs = {"in0": input_data}
