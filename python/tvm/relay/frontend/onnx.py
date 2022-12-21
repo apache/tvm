@@ -1389,8 +1389,9 @@ class QAttention(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         # ************************* Read attrs *************************
         num_heads = attr["num_heads"]
+        unidirectional = attr["unidirectional"]
         # TODO: support unidirectional
-        assert "unidirectional" not in attr, "unidirectional attention not current supported"
+        assert unidirectional == 0, "unidirectional attention not current supported"
 
         # ************************* Read inputs *************************
         # (batch, seq, in_hidden)
@@ -1409,7 +1410,10 @@ class QAttention(OnnxOpConverter):
         # Its size should be 3 * out_hidden if it is per-column quantization
         weight_scale = inputs[4]
 
-        # (batch,)
+        # TODO(agladyshev):
+        #  ORT documentation says that shape is (batch,).
+        #  However, in practice, for GPT-2 there shape is (batch, total_sequence_length).
+        # Currently only (batch, total_sequence_length) shape is supported.
         mask_index = inputs[5]
 
         # Scalar, which means a per-tensor/layer quantization
@@ -1471,9 +1475,10 @@ class QAttention(OnnxOpConverter):
         assert infer_type(mask_index).checked_type.dtype in t4
         mask_index_shape = infer_shape(mask_index)
         assert (
-                len(mask_index_shape) == 1
+                len(mask_index_shape) == 2
                 and mask_index_shape[0] == batch_size
-        ), "mask_index shape should match batch_size"
+                and mask_index_shape[1] == seq_len
+        ), "currently only support (batch_size, sequence_length) mask index"
 
         # TODO(agladyshev): int32 required for qnn.batch_matmul (QnnBatchMatmulRel)
         zero_point_zero = _expr.const(0, "int32")
@@ -1552,13 +1557,18 @@ class QAttention(OnnxOpConverter):
         )
         att_scores = _op.reshape(att_scores, (batch_size, num_heads, seq_len, seq_len))
 
-        # build the attention mask
+        # Build the attention mask
         att_mask = _op.cast(mask_index, score_dtype)
-        att_mask = _op.expand_dims(att_mask, 1, num_newaxis=3)  # Expand to batch dimension
+        # Attention mask has value 0 or 1. Here we convert 0 to -10000, and 1 to 0.
         att_mask = _op.subtract(_op.const(1, dtype=score_dtype), att_mask)
         att_mask = _op.multiply(att_mask, _op.const(-10000, dtype=score_dtype))
+        if unidirectional:
+            pass
 
-        # apply the mask
+        # Expand to (batch_size, 1, 1, seq_len) for att_scores broadcast
+        att_mask = _op.expand_dims(att_mask, 1, num_newaxis=2)
+
+        # Apply the mask
         att_scores = _op.add(att_scores, att_mask)
         att_scores = _op.reshape(att_scores, (batch_size * num_heads, seq_len, seq_len))
 
