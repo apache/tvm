@@ -5889,10 +5889,18 @@ def test_attention(target, dev):
 def test_qattention(target, dev):
     """test_qattention"""
 
-    def verify_attention(input_, weight, bias, input_scale, weight_scale, mask_index, num_heads):
+    def verify_attention(_input, _weight, _bias, _input_scale, _weight_scale, _mask_index=None, _input_zero_point=None, _weight_zero_point=None):
+        input_names = ["input", "weight", "bias", "input_scale", "weight_scale"]
+        if _mask_index is not None:
+            input_names.append("mask_index")
+        if _input_zero_point is not None:
+            input_names.append("input_zero_point")
+        if _weight_zero_point is not None:
+            input_names.append("weight_zero_point")
+
         node = onnx.helper.make_node(
             "QAttention",
-            inputs=["input", "weight", "bias", "input_scale", "weight_scale", "mask_index"],
+            inputs=input_names,
             outputs=["output", "present"],
             domain="com.microsoft",
             num_heads=num_heads,
@@ -5900,21 +5908,34 @@ def test_qattention(target, dev):
 
         present_output_shape = (2, batch_size, num_heads, sequence_length, head_size)
 
+        inputs_info = [
+            helper.make_tensor_value_info("input", TensorProto.UINT8, list(_input.shape)),
+            helper.make_tensor_value_info("weight", TensorProto.UINT8, list(_weight.shape)),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, list(_bias.shape)),
+            helper.make_tensor_value_info("input_scale", TensorProto.FLOAT, ()),
+            helper.make_tensor_value_info("weight_scale", TensorProto.FLOAT, ()),
+        ]
+        if _mask_index is not None:
+            inputs_info.append(
+                helper.make_tensor_value_info(
+                    "mask_index", TensorProto.INT32, list(_mask_index.shape)
+                )
+            )
+        if _input_zero_point is not None:
+            inputs_info.append(
+                helper.make_tensor_value_info("input_zero_point", TensorProto.UINT8, ())
+            )
+        if _weight_zero_point is not None:
+            inputs_info.append(
+                helper.make_tensor_value_info("weight_zero_point", TensorProto.UINT8, ())
+            )
+
         graph = helper.make_graph(
             [node],
             "qattention_test",
-            inputs=[
-                helper.make_tensor_value_info("input", TensorProto.UINT8, list(input_.shape)),
-                helper.make_tensor_value_info("weight", TensorProto.UINT8, list(weight.shape)),
-                helper.make_tensor_value_info("bias", TensorProto.FLOAT, list(bias.shape)),
-                helper.make_tensor_value_info("input_scale", mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype("float32")], ()),
-                helper.make_tensor_value_info("weight_scale", mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype("float32")], ()),
-                helper.make_tensor_value_info(
-                    "mask_index", TensorProto.INT32, list(mask_index.shape)
-                ),
-            ],
+            inputs=inputs_info,
             outputs=[
-                helper.make_tensor_value_info("output", TensorProto.FLOAT, list(input_.shape)),
+                helper.make_tensor_value_info("output", TensorProto.FLOAT, list(_input.shape)),
                 helper.make_tensor_value_info(
                     "present", TensorProto.FLOAT, list(present_output_shape)
                 ),
@@ -5923,12 +5944,18 @@ def test_qattention(target, dev):
 
         model = helper.make_model(graph, producer_name="qattention_test")
 
-        # "present" output should be nullptr when the "past" input isn't included,
-        # but ort requires an output shape to be specified?
+        inputs = [_input, _weight, _bias, _input_scale, _weight_scale]
+        if _mask_index is not None:
+            inputs.append(_mask_index)
+        if _input_zero_point is not None:
+            inputs.append(_input_zero_point)
+        if _weight_zero_point is not None:
+            inputs.append(_weight_zero_point)
+
         verify_with_ort_with_inputs(
             model,
-            [input_, weight, bias, input_scale, weight_scale, mask_index],
-            [input_.shape, present_output_shape],
+            inputs,
+            [_input.shape, present_output_shape],
             target=target,
             dev=dev,
             rtol=1e-4,
@@ -5942,14 +5969,21 @@ def test_qattention(target, dev):
     num_heads = 13
     head_size = 37
 
+    # Required inputs
     input_array = np.random.randint(0, 255, (batch_size, sequence_length, input_hidden_size)).astype("uint8")
     weight = np.random.randint(0, 255, (input_hidden_size, 3 * weight_hidden_size)).astype("uint8")
     bias = np.random.randn(3 * weight_hidden_size).astype("float32")
     input_scale = np.random.random(1).astype("float32")
     weight_scale = np.random.random(1).astype("float32")
-    mask_index = np.random.randint(0, 2, (batch_size,)).astype("int32")
 
-    verify_attention(input_array, weight, bias, input_scale, weight_scale, mask_index, num_heads)
+    # Optional inputs
+    mask_index = np.random.randint(0, 2, (batch_size,)).astype("int32")
+    input_zero_point = np.random.randint(0, 255, 1).astype("uint8")
+    weight_zero_point = np.random.randint(0, 255, 1).astype("uint8")
+
+    verify_attention(input_array, weight, bias, input_scale, weight_scale, mask_index)
+    verify_attention(input_array, weight, bias, input_scale, weight_scale, mask_index, input_zero_point)
+    verify_attention(input_array, weight, bias, input_scale, weight_scale, mask_index, input_zero_point, weight_zero_point)
 
 
 @tvm.testing.parametrize_targets
