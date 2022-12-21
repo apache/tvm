@@ -27,10 +27,10 @@ from ..transform import layout_transform
 from ..utils import get_const_tuple, get_max_power2_factor, traverse_inline
 from .dense import dense_int8_schedule, dense_amx_int8_schedule
 from .injective import schedule_injective_from_existing
-from .utils import target_has_vnni, target_has_amx
+from .utils import target_has_avx512, target_has_amx
 
 
-@autotvm.register_topi_compute("batch_matmul_vnni.x86")
+@autotvm.register_topi_compute("batch_matmul_int8.x86")
 def batch_matmul_int8_compute(cfg, x, y, *_):
     """Compute for uint8 x int8 -> int32 batch_matmul"""
     batch, m, k = x.shape
@@ -39,8 +39,8 @@ def batch_matmul_int8_compute(cfg, x, y, *_):
     _, n_o, _, n_i, _ = packed_y.shape
     ak = te.reduce_axis((0, k), name="k")
     mcpu = tvm.target.Target.current().mcpu
-    if target_has_vnni(mcpu):
-        attrs_info = {"schedule_rule": "batch_matmul_vnni"}
+    if target_has_avx512(mcpu):
+        attrs_info = {"schedule_rule": "batch_matmul_int8"}
     else:
         attrs_info = None
 
@@ -60,8 +60,9 @@ def batch_matmul_int8_compute(cfg, x, y, *_):
     return z
 
 
-def batch_matmul_vnni_schedule(cfg, s, C, O, layout_trans):
-    """Schedule batch_matmul compute using VNNI vpdpbusd instruction"""
+def batch_matmul_int8_schedule(cfg, s, C, O, layout_trans):
+    """Schedule batch_matmul compute using avx512 or lower instructions
+    including VNNI vpdpbusd instruction if possible"""
     # C: The output of batched GEMM
     # O: The output of the fused op
 
@@ -228,9 +229,9 @@ def schedule_batch_matmul(cfg, outs):
     return s
 
 
-@autotvm.register_topi_schedule("batch_matmul_vnni.x86")
+@autotvm.register_topi_schedule("batch_matmul_int8.x86")
 def schedule_batch_matmul_int8(cfg, outs):
-    """Schedule for batch_matmul_vnni"""
+    """Schedule for batch_matmul_int8"""
     s = te.create_schedule([x.op for x in outs])
     mcpu = tvm.target.Target.current().mcpu
 
@@ -239,8 +240,8 @@ def schedule_batch_matmul_int8(cfg, outs):
             layout_trans = op.input_tensors[1]
             if target_has_amx(mcpu):
                 batch_matmul_amx_schedule(cfg, s, op.output(0), outs[0], layout_trans)
-            elif target_has_vnni(mcpu):
-                batch_matmul_vnni_schedule(cfg, s, op.output(0), outs[0], layout_trans)
+            elif target_has_avx512(mcpu):
+                batch_matmul_int8_schedule(cfg, s, op.output(0), outs[0], layout_trans)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
