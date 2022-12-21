@@ -29,7 +29,7 @@ from ..utils import get_const_tuple, traverse_inline
 from .tensor_intrin import dot_16x1x16_uint8_int8_int32
 from .tensor_intrin import dot_32x128x32_u8s8s32_sapphirerapids
 from .tensor_intrin import acc_32x32_int32_sapphirerapids
-from .utils import get_simd_32bit_lanes, target_has_vnni, target_has_amx
+from .utils import get_simd_32bit_lanes, target_has_avx512, target_has_amx
 
 
 def _schedule_dense_pack_template(cfg, s, C, O):
@@ -302,8 +302,8 @@ def schedule_dense_int8(cfg, outs):
         if "dense_int8" in op.tag:
             if target_has_amx(mcpu):
                 dense_amx_int8_schedule(cfg, s, op.output(0), outs[0])
-            elif target_has_vnni(mcpu):
-                dense_vnni_schedule(cfg, s, op.output(0), outs[0])
+            elif target_has_avx512(mcpu):
+                dense_int8_schedule(cfg, s, op.output(0), outs[0])
 
     traverse_inline(s, outs[0].op, _callback)
     return s
@@ -315,8 +315,8 @@ def dense_int8_compute(cfg, X, packed_w, bias=None):
     n_o, _, n_i, _ = packed_w.shape
     ak = te.reduce_axis((0, k), name="k")
     mcpu = tvm.target.Target.current().mcpu
-    if target_has_vnni(mcpu):
-        target_attr = {"schedule_rule": "meta_schedule.x86.dense_vnni"}
+    if target_has_avx512(mcpu):
+        target_attr = {"schedule_rule": "meta_schedule.x86.dense_int8"}
     else:
         target_attr = None
 
@@ -339,8 +339,9 @@ def dense_int8_compute(cfg, X, packed_w, bias=None):
     return C
 
 
-def dense_vnni_schedule(cfg, s, C, O, do_parallel=True):
-    """Schedule dense compute using VNNI vpdpbusd instruction"""
+def dense_int8_schedule(cfg, s, C, O, do_parallel=True):
+    """Schedule dense compute using avx512 or lower instructions
+    including VNNI vpdpbusd instruction if possible"""
     # C: The output of GEMM
     # O: The output of the fused op
     def split_y(out):

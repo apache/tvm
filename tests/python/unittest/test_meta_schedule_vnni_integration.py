@@ -47,7 +47,7 @@ def _schedule_dense(m: Optional[int], do_tune: bool):
         if dense_block is None:
             assert has_block(sch, "compute")
             dense_block = sch.get_block("compute")
-            assert "dense_vnni" in sch.get(dense_block).annotations["schedule_rule"]
+            assert "dense_int8" in sch.get(dense_block).annotations["schedule_rule"]
 
         post_blocks = sch.get_consumers(dense_block)
         if len(post_blocks) > 0:

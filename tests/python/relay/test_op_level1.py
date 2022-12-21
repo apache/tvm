@@ -846,6 +846,7 @@ def test_dense_amx_int8():
         np.testing.assert_equal(out, ref)
 
 
+# TODO(vvchernov): join duplicated test code for cascadelake and skylake
 @tvm.testing.requires_skylake_avx512
 @pytest.mark.parametrize("m,n,k", [(32, 128, 96), (32, 128, 97)])
 def test_dense_skylake_avx512(m, n, k):

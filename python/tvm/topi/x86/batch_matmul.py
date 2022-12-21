@@ -25,7 +25,7 @@ from tvm.contrib import cblas, mkl
 from .. import generic, nn
 from ..transform import layout_transform
 from ..utils import get_const_tuple, get_max_power2_factor, traverse_inline
-from .dense import dense_vnni_schedule, dense_amx_int8_schedule
+from .dense import dense_int8_schedule, dense_amx_int8_schedule
 from .injective import schedule_injective_from_existing
 from .utils import target_has_vnni, target_has_amx
 
@@ -66,7 +66,7 @@ def batch_matmul_vnni_schedule(cfg, s, C, O, layout_trans):
     # O: The output of the fused op
 
     # Schedule the GEMM part
-    s, fused_inner = dense_vnni_schedule(cfg, s, C, O, do_parallel=False)
+    s, fused_inner = dense_int8_schedule(cfg, s, C, O, do_parallel=False)
     # Parallelize over batch
     fused = s[O].fuse(O.op.axis[0], fused_inner)
     s[O].parallel(fused)
