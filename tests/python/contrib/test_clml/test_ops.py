@@ -97,7 +97,7 @@ def test_conv2d(device, dtype):
     trials = [
         # Normal convolution
         [3, 3, (1, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, False, False)],
-        [2, 1, (2, 2), (1, 1), (1, 1), 7, (15, 16, 12), (False, False, True)],
+        [2, 1, (2, 2), (1, 1), (1, 1), 7, (15, 16, 12), (True, False, True)],
         [3, 3, (2, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, False)],
         [3, 3, (2, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, True)],
         # Normal convolution
