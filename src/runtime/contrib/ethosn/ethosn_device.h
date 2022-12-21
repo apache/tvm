@@ -38,10 +38,15 @@ namespace dl = ::ethosn::driver_library;
 
 using tvm::runtime::TVMArgs;
 
+#ifdef _ETHOSN_API_VERSION_3_2_0
+bool Inference(tvm::runtime::TVMArgs args, dl::ProcMemAllocator* proc_mem_alloc, dl::Network* npu,
+               const std::vector<uint32_t>& input_order, const std::vector<uint32_t>& output_order,
+               const std::vector<uint32_t>& input_sizes, const std::vector<uint32_t>& output_sizes);
+#else
 bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
                const std::vector<uint32_t>& input_order, const std::vector<uint32_t>& output_order,
                const std::vector<uint32_t>& input_sizes, const std::vector<uint32_t>& output_sizes);
-
+#endif
 }  // namespace ethosn
 }  // namespace runtime
 }  // namespace tvm
