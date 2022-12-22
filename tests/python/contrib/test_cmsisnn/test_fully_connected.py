@@ -54,7 +54,7 @@ def make_model(
     """Return a model and any parameters it may have"""
     input_ = relay.var("input", shape=in_shape, dtype=dtype)
     rng = np.random.default_rng(12321)
-    kmin, kmax = get_dtype_range(dtype)
+    kmin, kmax = get_dtype_range(kernel_dtype)
     weight = tvm.nd.array(
         rng.integers(
             kmin,
