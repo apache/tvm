@@ -292,6 +292,8 @@ class ScheduleRule : public runtime::ObjectRef {
   TVM_DLL static Array<ScheduleRule, void> DefaultLLVM();
   /*! \brief Create default schedule rules for x86 VNNI */
   TVM_DLL static Array<ScheduleRule, void> DefaultVNNI();
+  /*! \brief Create default schedule rules for x86 AVX512 */
+  TVM_DLL static Array<ScheduleRule, void> DefaultAVX512();
   /*! \brief Create default schedule rules for CUDA */
   TVM_DLL static Array<ScheduleRule, void> DefaultCUDA();
   /*! \brief Create default postprocessors for CUDA with TensorCore */
