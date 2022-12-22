@@ -103,7 +103,7 @@ def dot_product_16x4_u8i8i32_avx512(
             dtype="int16x32",
         )
 
-        One = T.const(1, "int16x32")
+        One = T.allocate_const([1], "int16x32", [1])
 
         C[T.ramp(T.int32(0), 1, 16)] += T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.x86.avx512.pmaddw.d.512"),
