@@ -90,14 +90,6 @@ TVM_REGISTER_GLOBAL("runtime.amx_tileconfig").set_body([](TVMArgs args, TVMRetVa
 
 // register a global packed function in c++，to init the system for AMX config
 TVM_REGISTER_GLOBAL("runtime.amx_init").set_body([](TVMArgs args, TVMRetValue* rv) {
-  // -----------Enlarge the signal stack in linux----------------------
-  char largestack[15535];  // SIGSTKSZ=8192, MINSIGSTKSZ=2048, 15535
-  stack_t ss;
-  ss.ss_sp = largestack;
-  ss.ss_size = sizeof(largestack);
-  ss.ss_flags = 0;
-  if (sigaltstack(&ss, NULL)) exit(-1);
-
   // -----------Detect and request for AMX control----------------------
   uint64_t bitmask = 0;
   int64_t status = syscall(SYS_arch_prctl, ARCH_GET_XCOMP_PERM, &bitmask);
