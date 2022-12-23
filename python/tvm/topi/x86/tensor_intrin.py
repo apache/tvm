@@ -113,8 +113,7 @@ def dot_16x1x16_uint8_int8_int32_skylake():
 
             a_int8 = ins[0].vload([0], "uint8x4")
             re_int32 = tvm.tir.call_intrin("int32", "tir.reinterpret", a_int8)
-            vec_ai32 = tvm.tir.call_intrin(int_32xl, "tir.broadcast", re_int32, int32_lanes)
-            # vec_ai32 = re_int32.astype(int_32xl)
+            vec_ai32 = re_int32.astype(int_32xl)
             vec_a = tvm.tir.call_intrin(int_8xl, "tir.reinterpret", vec_ai32)
             vec_b = ins[1].vload([0, 0], int_8xl)
             vec_one = tvm.tir.const(1, int_lx32)
