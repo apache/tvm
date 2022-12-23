@@ -86,7 +86,7 @@ def dot_product_16x4_u8i8i32_avx512(
 
         Red = T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.x86.avx512.pmaddubs.w.512"),
-            T.uint32(0),
+            T.uint32(2),
             A_u8x64,
             B_i8x64,
             dtype="int16x32",
@@ -97,7 +97,7 @@ def dot_product_16x4_u8i8i32_avx512(
 
         C[T.ramp(T.int32(0), 1, 16)] += T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.x86.avx512.pmaddw.d.512"),
-            T.uint32(0),
+            T.uint32(2),
             Red,
             One_int16x32,
             dtype="int32x16",
