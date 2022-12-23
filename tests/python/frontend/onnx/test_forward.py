@@ -5889,7 +5889,7 @@ def test_attention(target, dev):
 def test_qattention(target, dev):
     """test_qattention"""
 
-    def verify_attention(_input, _weight, _bias, _input_scale, _weight_scale, _mask_index=None, _input_zero_point=None, _weight_zero_point=None):
+    def verify_attention(_unidirectional, _input, _weight, _bias, _input_scale, _weight_scale, _mask_index=None, _input_zero_point=None, _weight_zero_point=None, _past=None):
         input_names = ["input", "weight", "bias", "input_scale", "weight_scale"]
         if _mask_index is not None:
             input_names.append("mask_index")
@@ -5897,6 +5897,8 @@ def test_qattention(target, dev):
             input_names.append("input_zero_point")
         if _weight_zero_point is not None:
             input_names.append("weight_zero_point")
+        if _past is not None:
+            input_names.append("past")
 
         node = onnx.helper.make_node(
             "QAttention",
@@ -5904,9 +5906,11 @@ def test_qattention(target, dev):
             outputs=["output", "present"],
             domain="com.microsoft",
             num_heads=num_heads,
+            unidirectional=_unidirectional,
         )
 
-        present_output_shape = (2, batch_size, num_heads, sequence_length, head_size)
+        past_shape = (2, batch_size, num_heads, past_sequence_length, head_size)
+        present_output_shape = (2, batch_size, num_heads, past_sequence_length + sequence_length, head_size)
 
         inputs_info = [
             helper.make_tensor_value_info("input", TensorProto.UINT8, list(_input.shape)),
@@ -5928,6 +5932,10 @@ def test_qattention(target, dev):
         if _weight_zero_point is not None:
             inputs_info.append(
                 helper.make_tensor_value_info("weight_zero_point", TensorProto.UINT8, ())
+            )
+        if _past is not None:
+            inputs_info.append(
+                helper.make_tensor_value_info("past", TensorProto.FLOAT, list(past_shape))
             )
 
         graph = helper.make_graph(
@@ -5951,6 +5959,8 @@ def test_qattention(target, dev):
             inputs.append(_input_zero_point)
         if _weight_zero_point is not None:
             inputs.append(_weight_zero_point)
+        if _past is not None:
+            inputs.append(_past)
 
         verify_with_ort_with_inputs(
             model,
@@ -5962,12 +5972,15 @@ def test_qattention(target, dev):
             atol=1e-4,
         )
 
-    input_hidden_size = 147
-    weight_hidden_size = 481
     batch_size = 11
-    sequence_length = 7
     num_heads = 13
     head_size = 37
+    sequence_length = 7
+    input_hidden_size = 147
+    weight_hidden_size = num_heads * head_size
+    past_sequence_length = 17
+
+    total_sequence_length = past_sequence_length + sequence_length
 
     # Required inputs
     input_array = np.random.randint(0, 255, (batch_size, sequence_length, input_hidden_size)).astype("uint8")
@@ -5977,13 +5990,22 @@ def test_qattention(target, dev):
     weight_scale = np.random.random(1).astype("float32")
 
     # Optional inputs
-    mask_index = np.random.randint(0, 2, (batch_size,)).astype("int32")
     input_zero_point = np.random.randint(0, 255, 1).astype("uint8")
     weight_zero_point = np.random.randint(0, 255, 1).astype("uint8")
+    past = np.random.random((2, batch_size, num_heads, past_sequence_length, head_size)).astype("float32")
 
-    verify_attention(input_array, weight, bias, input_scale, weight_scale, mask_index)
-    verify_attention(input_array, weight, bias, input_scale, weight_scale, mask_index, input_zero_point)
-    verify_attention(input_array, weight, bias, input_scale, weight_scale, mask_index, input_zero_point, weight_zero_point)
+    for unidirectional in [0, 1]:
+        for have_past in [False, True]:
+            if not have_past:
+                mask_index = np.random.randint(0, 2, (batch_size, sequence_length)).astype("int32")
+
+                verify_attention(unidirectional, input_array, weight, bias, input_scale, weight_scale, mask_index)
+                verify_attention(unidirectional, input_array, weight, bias, input_scale, weight_scale, mask_index, input_zero_point)
+                verify_attention(unidirectional, input_array, weight, bias, input_scale, weight_scale, mask_index, input_zero_point, weight_zero_point)
+            else:
+                mask_index = np.random.randint(0, 2, (batch_size, total_sequence_length)).astype("int32")
+
+                verify_attention(unidirectional, input_array, weight, bias, input_scale, weight_scale, mask_index, input_zero_point, weight_zero_point, past)
 
 
 @tvm.testing.parametrize_targets
