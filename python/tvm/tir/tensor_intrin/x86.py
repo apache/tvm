@@ -103,9 +103,8 @@ def dot_product_16x4_u8i8i32_avx512(
             dtype="int16x32",
         )
 
-        One = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-                               "int16", [32])
+        data = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        One = T.allocate_const(data, "int16", [32])
         One_int16x32 = T.reinterpret(One, dtype="int16x32")
 
         C[T.ramp(T.int32(0), 1, 16)] += T.call_llvm_pure_intrin(
