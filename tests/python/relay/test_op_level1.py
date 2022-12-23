@@ -865,7 +865,7 @@ def test_dense_skylake_avx512(m, n, k):
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target=target)
 
-        if n%16 == 0 and k%4 == 0:
+        if n % 16 == 0 and k % 4 == 0:
             asm = lib.lib.get_source("asm")
             assert "pmaddubs" in asm
             assert "pmaddw" in asm
