@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring
 """Intrinsics for x86 tensorization."""
-import tvm
 from tvm.script import tir as T
 from .. import TensorIntrin
 
