@@ -1390,8 +1390,6 @@ class QAttention(OnnxOpConverter):
         # ************************* Read attrs *************************
         num_heads = attr["num_heads"]
         unidirectional = attr["unidirectional"]
-        # TODO: support unidirectional
-        assert unidirectional == 0, "unidirectional attention not current supported"
 
         # ************************* Read inputs *************************
         # (batch, seq, in_hidden)
@@ -1411,8 +1409,13 @@ class QAttention(OnnxOpConverter):
         weight_scale = inputs[4]
 
         # TODO(agladyshev):
-        #  ORT documentation says that shape is (batch,).
-        #  However, in practice, for GPT-2 there shape is (batch, past_seq_length + seq_length).
+        #  ORT documentation says that shape is (batch,), but in ORT source code we have following comment:
+        #       1. (batch_size)
+        #       2. (2 * batch_size)
+        #       3. (batch_size, 1)
+        #       4. (1, 1)
+        #       5. (batch_size, past_sequence_length + sequence_length)
+        #  In practice, for GPT-2 there shape is (batch, past_seq_length + seq_length).
         #  Currently only (batch, past_seq_length + seq_length) shape is supported.
         mask_index = inputs[5]
 
@@ -1437,6 +1440,10 @@ class QAttention(OnnxOpConverter):
         assert len(infer_shape(input_emb)) == 3, \
             "Input should be 3D tensor with shape (batch_size, sequence_length, input_hidden_size)"
         (batch_size, seq_len, input_hidden) = infer_shape(input_emb)
+        assert input_hidden > 0, "The weight tensor has (input_hidden_size, 3 * output_hidden_size) shape," \
+                                 f" so it doesn't make sense to have ({input_hidden}, 3 * output_hidden_size) weight tensor."
+        assert seq_len > 0, "The output tensor has (batch_size, sequence_length, hidden_size) shape," \
+                            f" so it doesn't make sense to have (batch_size, {seq_len}, hidden_size) output."
 
         # weight
         assert infer_type(weight).checked_type.dtype in t2
@@ -1465,7 +1472,7 @@ class QAttention(OnnxOpConverter):
 
         # weight_scale
         assert infer_type(weight_scale).checked_type.dtype in t3
-        # TODO(agladyshev): now QNN Batch Matmul only supports scalar types for scale.
+        # TODO(agladyshev): now QNN Batch Matmul only supports scalar types for scale and zero_point.
         weight_scale = get_scalar(weight_scale, params, dtype=infer_type(weight_scale).checked_type.dtype)
 
         # mask_index
@@ -1557,10 +1564,10 @@ class QAttention(OnnxOpConverter):
 
         # Concatenate (past_K, past_V) with (K, V) by sequence axis:
         # (batch_size, num_heads, past_sequence_length + sequence_length, head_size)
-        if past is not None:
+        if past is not None and past_seq_len > 0:
             K_past, V_past = _op.split(past, 2, axis=0)
-            K = _op.concatenate([_op.squeeze(K_past), K], axis=2)
-            V = _op.concatenate([_op.squeeze(V_past), V], axis=2)
+            K = _op.concatenate([_op.squeeze(K_past, axis=[0]), K], axis=2)
+            V = _op.concatenate([_op.squeeze(V_past, axis=[0]), V], axis=2)
 
         # Prepare present state for Key and Value with shape
         # (2, batch_size, num_heads, past_sequence_length + sequence_length, head_size)
@@ -1590,18 +1597,38 @@ class QAttention(OnnxOpConverter):
         # Attention mask has value 0 or 1. Here we convert 0 to -10000, and 1 to 0.
         att_mask = _op.subtract(_op.const(1, dtype=score_dtype), att_mask)
         att_mask = _op.multiply(att_mask, _op.const(-10000, dtype=score_dtype))
-        if unidirectional:
-            pass
-
-        # Expand to (batch_size, 1, 1, seq_len) for att_scores broadcast
+        # Expand for att_scores broadcast
+        # (batch_size, past_seq_len + seq_len) -> (batch_size, 1, seq_len, past_seq_len + seq_len)
         att_mask = _op.expand_dims(att_mask, 1, num_newaxis=2)
+        att_mask = _op.concatenate([att_mask] * seq_len, axis=2)
+
+        def create_unidirectional_mask(left_value, right_value):
+            numpy_unidirectional_mask = np.array(
+                [
+                    np.concatenate([np.full(past_seq_len + s_i + 1, left_value), np.full(seq_len - s_i - 1, right_value)]) for s_i in range(seq_len)
+                ]
+            )
+            unidirectional_mask = _op.const(numpy_unidirectional_mask, dtype=score_dtype)
+            unidirectional_mask = _op.expand_dims(unidirectional_mask, 0, num_newaxis=2)
+
+            return unidirectional_mask
+
+        if unidirectional:
+            att_mask = _op.add(att_mask, create_unidirectional_mask(0, -10000))
 
         # Apply the mask
         att_scores = _op.add(att_scores, att_mask)
-        att_scores = _op.reshape(att_scores, (batch_size * num_heads, seq_len, past_seq_len + seq_len))
+        # TODO(agladyshev): comment from ORT source code (onnxruntime/contrib_ops/cpu/bert/attention_cpu_base.h):
+        #   "Fix unidirectional mask to be parity with huggingface implementation"
+        if unidirectional:
+            att_scores = _op.multiply(att_scores, create_unidirectional_mask(1, 0))
+            att_scores = _op.add(att_scores, create_unidirectional_mask(0, -10000))
 
+        # Compute Softmax
+        att_scores = _op.reshape(att_scores, (batch_size * num_heads, seq_len, past_seq_len + seq_len))
         att_probs = _op.nn.softmax(att_scores, axis=-1)
 
+        # Compute output
         output = _op.nn.batch_matmul(att_probs, V, transpose_a=False, transpose_b=False)
         output = _op.reverse_reshape(output, (-1, num_heads, 0, 0))
         output = _op.transpose(output, axes=[0, 2, 1, 3])
