@@ -1437,54 +1437,65 @@ class QAttention(OnnxOpConverter):
 
         # input
         assert infer_type(input_emb).checked_type.dtype in t1
-        assert len(infer_shape(input_emb)) == 3, \
-            "Input should be 3D tensor with shape (batch_size, sequence_length, input_hidden_size)"
+        assert (
+            len(infer_shape(input_emb)) == 3
+        ), "Input should be 3D tensor with shape (batch_size, sequence_length, input_hidden_size)"
         (batch_size, seq_len, input_hidden) = infer_shape(input_emb)
-        assert input_hidden > 0, "The weight tensor has (input_hidden_size, 3 * output_hidden_size) shape," \
-                                 f" so it doesn't make sense to have ({input_hidden}, 3 * output_hidden_size) weight tensor."
-        assert seq_len > 0, "The output tensor has (batch_size, sequence_length, hidden_size) shape," \
-                            f" so it doesn't make sense to have (batch_size, {seq_len}, hidden_size) output."
+        assert input_hidden > 0, (
+            "The weight tensor has (input_hidden_size, 3 * output_hidden_size) shape,"
+            f" so it doesn't make sense to have ({input_hidden}, 3 * output_hidden_size) weight tensor."
+        )
+        assert seq_len > 0, (
+            "The output tensor has (batch_size, sequence_length, hidden_size) shape,"
+            f" so it doesn't make sense to have (batch_size, {seq_len}, hidden_size) output."
+        )
 
         # weight
         assert infer_type(weight).checked_type.dtype in t2
-        assert len(infer_shape(weight)) == 2, \
-            "Weight should be 2D input tensor with shape (input_hidden_size, 3 * hidden_size), " \
+        assert len(infer_shape(weight)) == 2, (
+            "Weight should be 2D input tensor with shape (input_hidden_size, 3 * hidden_size), "
             "hidden_size = num_heads * head_size"
+        )
         (input_hidden_weight, out_hidden_x3) = infer_shape(weight)
         assert input_hidden == input_hidden_weight
         assert out_hidden_x3 % 3 == 0, "output hidden shape should be divisible by 3: W_Q, W_K, W_V"
         out_hidden = out_hidden_x3 // 3
         assert (
-                out_hidden % num_heads == 0
+            out_hidden % num_heads == 0
         ), "output hidden size should be divisible by number of attention heads"
         head_size = out_hidden // num_heads
 
         # bias
         assert infer_type(bias).checked_type.dtype in t3
-        assert len(infer_shape(bias)) == 1, \
-            "Bias should be 1D input tensor with shape (3 * hidden_size)"
+        assert (
+            len(infer_shape(bias)) == 1
+        ), "Bias should be 1D input tensor with shape (3 * hidden_size)"
         (out_hidden_x3_bias,) = infer_shape(bias)
         assert out_hidden_x3 == out_hidden_x3_bias
 
         # input_scale
         assert infer_type(input_scale).checked_type.dtype in t3
-        input_scale = get_scalar(input_scale, params, dtype=infer_type(input_scale).checked_type.dtype)
+        input_scale = get_scalar(
+            input_scale, params, dtype=infer_type(input_scale).checked_type.dtype
+        )
 
         # weight_scale
         assert infer_type(weight_scale).checked_type.dtype in t3
         # TODO(agladyshev): now QNN Batch Matmul only supports scalar types for scale and zero_point.
-        weight_scale = get_scalar(weight_scale, params, dtype=infer_type(weight_scale).checked_type.dtype)
+        weight_scale = get_scalar(
+            weight_scale, params, dtype=infer_type(weight_scale).checked_type.dtype
+        )
 
         # mask_index
         assert (
-                mask_index is not None
+            mask_index is not None
         ), "Attention import currently only supports required mask_index"
         assert infer_type(mask_index).checked_type.dtype in t4
         mask_index_shape = infer_shape(mask_index)
         assert (
-                len(mask_index_shape) == 2
-                and mask_index_shape[0] == batch_size
-                and mask_index_shape[1] >= seq_len
+            len(mask_index_shape) == 2
+            and mask_index_shape[0] == batch_size
+            and mask_index_shape[1] >= seq_len
         ), "currently only support (batch_size, sequence_length) mask index"
 
         # TODO(agladyshev): int32 required for qnn.batch_matmul (QnnBatchMatmulRel)
@@ -1513,11 +1524,11 @@ class QAttention(OnnxOpConverter):
             past_shape = infer_shape(past)
             assert len(past_shape) == 5, "past should be 5D tensor"
             assert (
-                    past_shape[0] == 2 and
-                    past_shape[1] == batch_size and
-                    past_shape[2] == num_heads and
-                    past_shape[3] + seq_len == mask_index_shape[1] and
-                    past_shape[4] == head_size
+                past_shape[0] == 2
+                and past_shape[1] == batch_size
+                and past_shape[2] == num_heads
+                and past_shape[3] + seq_len == mask_index_shape[1]
+                and past_shape[4] == head_size
             )
             past_seq_len = past_shape[3]
 
@@ -1529,21 +1540,31 @@ class QAttention(OnnxOpConverter):
         w_Q, w_K, w_V = _op.split(weight, 3, axis=-1)
         b_Q, b_K, b_V = _op.split(bias, 3, axis=-1)
 
-        def qmatmul_and_dequantize(lhs, rhs, lhs_scale, rhs_scale, lhs_zero_point, rhs_zero_point):
-            rhs_transposed = _op.transpose(rhs, axes=[0, 2, 1])     # QNN Batch Matmul do: X * Y^T
-            result = _qnn.op.batch_matmul(lhs, rhs_transposed, lhs_zero_point, rhs_zero_point, lhs_scale, rhs_scale)
+        def qmatmul_dequantize_bias(
+            lhs, rhs, lhs_scale, rhs_scale, lhs_zero_point, rhs_zero_point, bias
+        ):
+            rhs_transposed = _op.transpose(rhs, axes=[0, 2, 1])  # QNN Batch Matmul do: X * Y^T
+            result = _qnn.op.batch_matmul(
+                lhs, rhs_transposed, lhs_zero_point, rhs_zero_point, lhs_scale, rhs_scale
+            )
             result = _qnn.op.dequantize(
                 result,
                 _op.multiply(lhs_scale, rhs_scale),
                 zero_point_zero,
-                axis=-1,     # TODO(agladyshev): what is 'axis' parameter for?
+                axis=-1,  # TODO(agladyshev): what is 'axis' parameter for?
             )
-            assert infer_shape(result) == (batch_size, seq_len, out_hidden)
+            result = _op.add(result, bias)
             return result
 
-        Q = _op.add(qmatmul_and_dequantize(input_emb, w_Q, input_scale, weight_scale, input_zero_point, weight_zero_point), b_Q)
-        K = _op.add(qmatmul_and_dequantize(input_emb, w_K, input_scale, weight_scale, input_zero_point, weight_zero_point), b_K)
-        V = _op.add(qmatmul_and_dequantize(input_emb, w_V, input_scale, weight_scale, input_zero_point, weight_zero_point), b_V)
+        Q = qmatmul_dequantize_bias(
+            input_emb, w_Q, input_scale, weight_scale, input_zero_point, weight_zero_point, b_Q
+        )
+        K = qmatmul_dequantize_bias(
+            input_emb, w_K, input_scale, weight_scale, input_zero_point, weight_zero_point, b_K
+        )
+        V = qmatmul_dequantize_bias(
+            input_emb, w_V, input_scale, weight_scale, input_zero_point, weight_zero_point, b_V
+        )
 
         def split_into_heads(tensor):
             """
@@ -1590,7 +1611,9 @@ class QAttention(OnnxOpConverter):
             att_scores,
             _op.const(np.sqrt(head_size), dtype=infer_type(att_scores).checked_type.dtype),
         )
-        att_scores = _op.reshape(att_scores, (batch_size, num_heads, seq_len, past_seq_len + seq_len))
+        att_scores = _op.reshape(
+            att_scores, (batch_size, num_heads, seq_len, past_seq_len + seq_len)
+        )
 
         # Build the attention mask
         att_mask = _op.cast(mask_index, score_dtype)
@@ -1605,7 +1628,13 @@ class QAttention(OnnxOpConverter):
         def create_unidirectional_mask(left_value, right_value):
             numpy_unidirectional_mask = np.array(
                 [
-                    np.concatenate([np.full(past_seq_len + s_i + 1, left_value), np.full(seq_len - s_i - 1, right_value)]) for s_i in range(seq_len)
+                    np.concatenate(
+                        [
+                            np.full(past_seq_len + s_i + 1, left_value),
+                            np.full(seq_len - s_i - 1, right_value),
+                        ]
+                    )
+                    for s_i in range(seq_len)
                 ]
             )
             unidirectional_mask = _op.const(numpy_unidirectional_mask, dtype=score_dtype)
@@ -1625,7 +1654,9 @@ class QAttention(OnnxOpConverter):
             att_scores = _op.add(att_scores, create_unidirectional_mask(0, -10000))
 
         # Compute Softmax
-        att_scores = _op.reshape(att_scores, (batch_size * num_heads, seq_len, past_seq_len + seq_len))
+        att_scores = _op.reshape(
+            att_scores, (batch_size * num_heads, seq_len, past_seq_len + seq_len)
+        )
         att_probs = _op.nn.softmax(att_scores, axis=-1)
 
         # Compute output
