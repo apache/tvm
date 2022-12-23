@@ -1409,7 +1409,8 @@ class QAttention(OnnxOpConverter):
         weight_scale = inputs[4]
 
         # TODO(agladyshev):
-        #  ORT documentation says that shape is (batch,), but in ORT source code we have following comment:
+        #  ORT documentation says that shape is (batch,),
+        #  but in ORT source code we have following comment:
         #       1. (batch_size)
         #       2. (2 * batch_size)
         #       3. (batch_size, 1)
@@ -1442,8 +1443,8 @@ class QAttention(OnnxOpConverter):
         ), "Input should be 3D tensor with shape (batch_size, sequence_length, input_hidden_size)"
         (batch_size, seq_len, input_hidden) = infer_shape(input_emb)
         assert input_hidden > 0, (
-            "The weight tensor has (input_hidden_size, 3 * output_hidden_size) shape,"
-            f" so it doesn't make sense to have ({input_hidden}, 3 * output_hidden_size) weight tensor."
+            "The weight tensor has (input_hidden_size, 3 * output_hidden_size) shape, so it doesn't"
+            f" make sense to have ({input_hidden}, 3 * output_hidden_size) weight tensor."
         )
         assert seq_len > 0, (
             "The output tensor has (batch_size, sequence_length, hidden_size) shape,"
@@ -1481,7 +1482,7 @@ class QAttention(OnnxOpConverter):
 
         # weight_scale
         assert infer_type(weight_scale).checked_type.dtype in t3
-        # TODO(agladyshev): now QNN Batch Matmul only supports scalar types for scale and zero_point.
+        # TODO(agladyshev): now QNN Batch Matmul only supports scalar types for scale and zero_point
         weight_scale = get_scalar(
             weight_scale, params, dtype=infer_type(weight_scale).checked_type.dtype
         )
@@ -1568,7 +1569,7 @@ class QAttention(OnnxOpConverter):
 
         def split_into_heads(tensor):
             """
-            In the implementation of Multi-head attention we just split the queries, keys, and values
+            In the implementation of Multi-head attention we just split queries, keys, and values
             we compute for a single-head attention into several parts:
             (batch_size, num_heads, seq_len, head_size)
             """
@@ -1647,7 +1648,8 @@ class QAttention(OnnxOpConverter):
 
         # Apply the mask
         att_scores = _op.add(att_scores, att_mask)
-        # TODO(agladyshev): comment from ORT source code (onnxruntime/contrib_ops/cpu/bert/attention_cpu_base.h):
+        # TODO(agladyshev):
+        #   Comment from ORT source code (onnxruntime/contrib_ops/cpu/bert/attention_cpu_base.h):
         #   "Fix unidirectional mask to be parity with huggingface implementation"
         if unidirectional:
             att_scores = _op.multiply(att_scores, create_unidirectional_mask(1, 0))
