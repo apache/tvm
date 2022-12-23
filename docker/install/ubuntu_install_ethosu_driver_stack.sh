@@ -78,6 +78,17 @@ mkdir -p "${ethosu_dir}"
 cd "${ethosu_dir}"
 git clone --branch ${ethosu_driver_ver} "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-driver" core_driver
 git clone --branch ${ethosu_driver_ver} "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-platform" core_platform
+# Prepare docker image for driver updates
+git clone --branch 22.08 "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-driver" core_driver_22_08
+git clone --branch 22.08 "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-platform" core_platform_22_08
+
+NPU_VARIANTS=("u55" "u65")
+for i in ${NPU_VARIANTS[*]}
+do
+    mkdir ${ethosu_dir}/core_driver_22_08/build_${i} && cd ${ethosu_dir}/core_driver_22_08/build_${i}
+    cmake -DCMAKE_TOOLCHAIN_FILE=${ethosu_dir}/core_platform/cmake/toolchain/arm-none-eabi-gcc.cmake -DETHOSU_LOG_SEVERITY=debug -DTARGET_CPU=cortex-m55 -DETHOSU_TARGET_NPU_CONFIG=ethos-${i}-128 ..
+    make
+done
 
 # Build Driver
 mkdir ${ethosu_dir}/core_driver/build && cd ${ethosu_dir}/core_driver/build
