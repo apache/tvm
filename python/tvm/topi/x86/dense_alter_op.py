@@ -31,9 +31,9 @@ from .. import nn
 
 def check_inst_applicable(x, y, allow_padding=False):
     mcpu = tvm.target.Target.current().mcpu
-    cpu_avai = target_has_vnni(mcpu) or target_has_amx(mcpu)
+    simd_avai = target_has_vnni(mcpu) or target_has_amx(mcpu)
     return (
-        cpu_avai
+        simd_avai
         and "int8" in x.dtype
         and "int8" in y.dtype
         and (allow_padding or (y.shape[-2] % 16 == 0 and y.shape[-1] % 4 == 0))
