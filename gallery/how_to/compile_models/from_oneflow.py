@@ -114,7 +114,7 @@ mod, params = relay.frontend.from_oneflow(graph, model_dir)
 # Relay Build
 # -----------
 # Compile the graph to llvm target with given input specification.
-target = tvm.target.Target("llvm")
+target = tvm.target.Target("llvm", host="llvm")
 dev = tvm.cpu(0)
 with tvm.transform.PassContext(opt_level=3):
     lib = relay.build(mod, target=target, params=params)
@@ -123,8 +123,9 @@ with tvm.transform.PassContext(opt_level=3):
 # Execute the portable graph on TVM
 # ---------------------------------
 # Now we can try deploying the compiled model on target.
+target = "cuda"
 with tvm.transform.PassContext(opt_level=10):
-    intrp = relay.build_module.create_executor("graph", mod, tvm.cpu(0), target)
+    intrp = relay.build_module.create_executor("graph", mod, tvm.cuda(0), target)
 
 print(type(img))
 print(img.shape)

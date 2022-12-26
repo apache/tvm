@@ -26,8 +26,8 @@ To follow this tutorial, PyTorch, as well as TorchVision, should be installed:
 .. code-block:: bash
 
     %%shell
-    pip install torch==1.7.0
-    pip install torchvision==0.8.1
+    pip install torch
+    pip install torchvision
 
 """
 

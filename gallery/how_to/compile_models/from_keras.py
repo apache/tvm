@@ -102,8 +102,8 @@ print("input_1", data.shape)
 shape_dict = {"input_1": data.shape}
 mod, params = relay.frontend.from_keras(keras_resnet50, shape_dict)
 # compile the model
-target = "llvm"
-dev = tvm.cpu(0)
+target = "cuda"
+dev = tvm.cuda(0)
 
 # TODO(mbs): opt_level=3 causes nn.contrib_conv2d_winograd_weight_transform
 # to end up in the module which fails memory validation on cuda most likely

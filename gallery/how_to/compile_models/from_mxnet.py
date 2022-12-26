@@ -99,7 +99,7 @@ func = relay.Function(func.params, relay.nn.softmax(func.body), None, func.type_
 
 ######################################################################
 # now compile the graph
-target = tvm.target.Target("llvm")
+target = "cuda"
 with tvm.transform.PassContext(opt_level=3):
     lib = relay.build(func, target, params=params)
 
@@ -109,7 +109,7 @@ with tvm.transform.PassContext(opt_level=3):
 # Now, we would like to reproduce the same forward computation using TVM.
 from tvm.contrib import graph_executor
 
-dev = tvm.cpu(0)
+dev = tvm.cuda(0)
 dtype = "float32"
 m = graph_executor.GraphModule(lib["default"](dev))
 # set inputs

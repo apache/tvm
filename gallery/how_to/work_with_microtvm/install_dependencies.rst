@@ -6,21 +6,25 @@
     "License"); you may not use this file except in compliance
     with the License.  You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+..    http://www.apache.org/licenses/LICENSE-2.0
 
-    Unless required by applicable law or agreed to in writing,
+..  Unless required by applicable law or agreed to in writing,
     software distributed under the License is distributed on an
     "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
     KIND, either express or implied.  See the License for the
     specific language governing permissions and limitations
     under the License.
 
-Install Python dependencies
-----------------------------
+..  Boilerplate script for installing Zephyr in the microTVM
+    tutorials that use it. Does not show up as a separate file
+    on the documentation website.
+
+
+Install microTVM Python dependencies
+------------------------------------
 
     .. code-block:: bash
 
-        %%bash
-        cd /content
+        %%shell
         wget https://github.com/guberti/tvm/raw/hackathon/tutorials/apps/microtvm/requirements.txt
-        python3 -m pip install -r requirements.txt
+        pip install -r requirements.txt

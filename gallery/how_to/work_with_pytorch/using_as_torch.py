@@ -27,7 +27,7 @@ To follow the tutorial, PyTorch should be installed:
 .. code-block:: bash
 
     %%shell
-    pip install torch==1.7.0
+    pip install torch
 
 """
 
