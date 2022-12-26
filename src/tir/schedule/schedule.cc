@@ -65,15 +65,17 @@ TVM_REGISTER_GLOBAL("tir.schedule.BlockRV").set_body_typed([]() { return BlockRV
 TVM_REGISTER_GLOBAL("tir.schedule.LoopRV").set_body_typed([]() { return LoopRV(); });
 TVM_REGISTER_GLOBAL("tir.schedule.ConcreteSchedule")
     .set_body_typed([](IRModule mod, support::LinearCongruentialEngine::TRandState seed,
-                       int debug_mask, int error_render_level) -> Schedule {
+                       int debug_mask, int error_render_level, bool enable_check) -> Schedule {
       return Schedule::Concrete(mod, debug_mask, seed,
-                                static_cast<ScheduleErrorRenderLevel>(error_render_level));
+                                static_cast<ScheduleErrorRenderLevel>(error_render_level),
+                                enable_check);
     });
 TVM_REGISTER_GLOBAL("tir.schedule.TracedSchedule")
     .set_body_typed([](IRModule mod, support::LinearCongruentialEngine::TRandState seed,
-                       int debug_mask, int error_render_level) -> Schedule {
+                       int debug_mask, int error_render_level, bool enable_check) -> Schedule {
       return Schedule::Traced(mod, seed, debug_mask,
-                              static_cast<ScheduleErrorRenderLevel>(error_render_level));
+                              static_cast<ScheduleErrorRenderLevel>(error_render_level),
+                              enable_check);
     });
 
 /******** (FFI) Lookup random variables ********/

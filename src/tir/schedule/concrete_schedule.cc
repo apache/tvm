@@ -24,9 +24,10 @@ namespace tvm {
 namespace tir {
 
 Schedule Schedule::Concrete(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
-                            int debug_mask, ScheduleErrorRenderLevel error_render_level) {
+                            int debug_mask, ScheduleErrorRenderLevel error_render_level,
+                            bool enable_check) {
   ObjectPtr<ConcreteScheduleNode> n = make_object<ConcreteScheduleNode>();
-  n->state_ = ScheduleState(mod, debug_mask);
+  n->state_ = ScheduleState(mod, debug_mask, enable_check);
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();
@@ -60,6 +61,7 @@ class ScheduleCopier {
     n->block_info = copier.Copy(src_state->block_info);
     n->stmt2ref = copier.Copy(src_state->stmt2ref);
     n->debug_mask = src_state->debug_mask;
+    n->enable_check = src_state->enable_check;
     *new_state = ScheduleState(std::move(n));
     *new_symbol_table = copier.Copy(self->symbol_table_);
   }

@@ -779,6 +779,7 @@ class Schedule : public runtime::ObjectRef {
    * \param debug_mask Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
    * \param error_render_level The level of error rendering
+   * \param enable_check Whether to enable prequisite checks for schedule primitives.
    * \return The concrete schedule created
    * \sa ScheduleDebugMask
    * \note The checks performed includes:
@@ -786,7 +787,8 @@ class Schedule : public runtime::ObjectRef {
    * 2) VerifyCachedFlags
    */
   TVM_DLL static Schedule Concrete(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
-                                   int debug_mask, ScheduleErrorRenderLevel error_render_level);
+                                   int debug_mask, ScheduleErrorRenderLevel error_render_level,
+                                   bool enable_check = true);
   /*!
    * \brief Construct a traced concrete TensorIR schedule from an IRModule
    * \param mod The IRModule to be scheduled
@@ -794,6 +796,7 @@ class Schedule : public runtime::ObjectRef {
    * \param debug_mask Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
    * \param error_render_level The level of error rendering
+   * \param enable_check Whether to enable prequisite checks for schedule primitives.
    * \return The concrete schedule created
    * \sa ScheduleDebugMask
    * \note The checks performed include:
@@ -801,7 +804,8 @@ class Schedule : public runtime::ObjectRef {
    * 2) VerifyCachedFlags
    */
   TVM_DLL static Schedule Traced(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
-                                 int debug_mask, ScheduleErrorRenderLevel error_render_level);
+                                 int debug_mask, ScheduleErrorRenderLevel error_render_level,
+                                 bool enable_check = true);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Schedule, runtime::ObjectRef, ScheduleNode);
 };
 
