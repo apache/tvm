@@ -58,7 +58,6 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/MDBuilder.h>
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
@@ -66,6 +65,14 @@
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Linker/Linker.h>
 #include <llvm/Pass.h>
+#if TVM_LLVM_VERSION >= 160
+#include <llvm/IR/Verifier.h>  // For VerifierPass
+#include <llvm/Passes/PassBuilder.h>
+#include <llvm/Passes/StandardInstrumentations.h>
+#else
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#endif
 #if TVM_LLVM_VERSION >= 100
 #include <llvm/Support/Alignment.h>
 #include <llvm/Support/TypeSize.h>
@@ -75,7 +82,6 @@
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/IPO.h>
-#include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/error_codes.h>
@@ -122,7 +128,6 @@ std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(LLVMTarget* llvm_target) {
     return std::unique_ptr<CodeGenLLVM>(static_cast<CodeGenLLVM*>(handle));
   } else {
     LOG(FATAL) << "unable to create codegen for target " << target;
-    return nullptr;  // unreachable
   }
 }
 
@@ -341,15 +346,67 @@ void CodeGenLLVM::AddMainFunction(const std::string& entry_func_name) {
   LOG(FATAL) << "not implemented";
 }
 
-llvm::Value* CodeGenLLVM::GetThreadIndex(const IterVar& iv) {
-  LOG(FATAL) << "not implemented";
-  return nullptr;
+llvm::Value* CodeGenLLVM::GetThreadIndex(const IterVar& iv) { LOG(FATAL) << "not implemented"; }
+
+llvm::Value* CodeGenLLVM::CreateStorageSync(const CallNode* op) { LOG(FATAL) << "not implemented"; }
+
+#if TVM_LLVM_VERSION >= 160
+
+// Use new pass manager
+
+void CodeGenLLVM::Optimize() {
+  llvm::TargetMachine* tm = llvm_target_->GetOrCreateTargetMachine();
+
+  bool debug_logging = false;
+  bool verify_each = false;
+
+  llvm::PipelineTuningOptions pto = llvm::PipelineTuningOptions();
+  llvm::PassInstrumentationCallbacks pic;
+  llvm::PassBuilder builder(tm, pto, std::nullopt, &pic);
+
+  llvm::LoopAnalysisManager lam;
+  llvm::FunctionAnalysisManager fam;
+  llvm::CGSCCAnalysisManager cgam;
+  llvm::ModuleAnalysisManager mam;
+  builder.registerLoopAnalyses(lam);
+  builder.registerFunctionAnalyses(fam);
+  builder.registerCGSCCAnalyses(cgam);
+  builder.registerModuleAnalyses(mam);
+  builder.crossRegisterProxies(lam, fam, cgam, mam);
+
+  // Construct the default pass pipeline depending on the opt level.
+  std::string pipeline;
+  switch (llvm_target_->GetOptLevel()) {
+    case llvm::CodeGenOpt::Level::None:
+      pipeline = "default<O0>";
+      break;
+    case llvm::CodeGenOpt::Level::Less:
+      pipeline = "default<O1>";
+      break;
+    case llvm::CodeGenOpt::Level::Default:
+      pipeline = "default<O2>";
+      break;
+    default:
+      // CodeGenOpt::Level::Aggressive
+      pipeline = "default<O3>";
+      break;
+  }
+
+  llvm::StandardInstrumentations si(*llvm_target_->GetContext(), debug_logging, verify_each);
+  si.registerCallbacks(pic, &fam);
+  llvm::ModulePassManager mpass;
+  if (verify_each) {
+    mpass.addPass(llvm::VerifierPass());
+  }
+  if (auto err = builder.parsePassPipeline(mpass, pipeline)) {
+    LOG(FATAL) << "error parsing pass pipeline '" << pipeline
+               << "':" << llvm::toString(std::move(err)) << '\n';
+  }
+
+  mpass.run(*module_, mam);
 }
 
-llvm::Value* CodeGenLLVM::CreateStorageSync(const CallNode* op) {
-  LOG(FATAL) << "not implemented";
-  return nullptr;
-}
+#else  // TVM_LLVM_VERSION
 
 class FPassManager : public llvm::legacy::FunctionPassManager {
  public:
@@ -420,6 +477,7 @@ void CodeGenLLVM::Optimize() {
   fpass.doFinalization();
   mpass.run(*module_);
 }
+#endif  // TVM_LLVM_VERSION
 
 int CodeGenLLVM::NativeVectorBits(const runtime::StorageScope& storage_scope) const {
   return native_vector_bits_;
@@ -482,7 +540,6 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
     return t_void_;
   } else {
     LOG(FATAL) << "Type " << type << " does not have a corresponding LLVM Type";
-    return t_void_;
   }
 }
 
@@ -1317,14 +1374,12 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(builtin::atomic_add())) {
     // TODO(masahi): Support atomic for CPU backend
     LOG(FATAL) << "CPU backend does not support atomic add yet.";
-    return nullptr;
   } else if (op->op.same_as(builtin::start_profile_intrinsic()) ||
              op->op.same_as(builtin::end_profile_intrinsic())) {
     LOG(INFO) << "Ignoring profile_intrinsic ... " << op->op;
     return nullptr;
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->op;
-    return nullptr;
   }
 }
 
@@ -1497,7 +1552,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LetNode* op) {
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const LoadNode* op) {
   LOG(FATAL) << "Unexpected deprecated LoadNode.  Use BufferLoadNode instead.";
-  return nullptr;
 }
 
 bool CodeGenLLVM::HasAlignmentPadding(DataType dtype) {
@@ -1656,7 +1710,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
   } else {
     ICHECK(op->op.as<GlobalVarNode>());
     LOG(FATAL) << "Do not yet support cross function call";
-    return nullptr;
   }
 }
 

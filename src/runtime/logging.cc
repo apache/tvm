@@ -281,7 +281,6 @@ TvmLogDebugSettings TvmLogDebugSettings::ParseSpec(const char* opt_spec) {
     }
     if (name.empty()) {
       LOG(FATAL) << "TVM_LOG_DEBUG ill-formed at position " << tell_pos(name) << ": empty filename";
-      return settings;
     }
 
     name = FileToVLogMapKey(name);

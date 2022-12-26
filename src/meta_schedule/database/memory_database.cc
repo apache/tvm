@@ -61,8 +61,12 @@ class MemoryDatabaseNode : public DatabaseNode {
   void CommitTuningRecord(const TuningRecord& record) final { records.push_back(record); }
 
   Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
+    CHECK_GE(top_k, 0) << "ValueError: top_k must be non-negative";
+    if (top_k == 0) {
+      return {};
+    }
     std::vector<std::pair<double, TuningRecord>> results;
-    results.reserve(this->records.size());
+    results.reserve(records.size());
     for (const TuningRecord& record : records) {
       if (!record->run_secs.defined()) {
         continue;
@@ -83,7 +87,7 @@ class MemoryDatabaseNode : public DatabaseNode {
     std::sort(results.begin(), results.end());
     auto begin = results.begin();
     auto end = results.end();
-    if (static_cast<int>(results.size()) > top_k) {
+    if (results.size() > static_cast<size_t>(top_k)) {
       end = begin + top_k;
     }
     Array<TuningRecord> ret;
@@ -91,6 +95,10 @@ class MemoryDatabaseNode : public DatabaseNode {
     while (begin != end) {
       ret.push_back(begin->second);
       ++begin;
+    }
+    if (ret.size() < static_cast<size_t>(top_k)) {
+      LOG(WARNING) << "The size of the GetTopK result is smaller than requested. There are not "
+                      "enough valid records in the database for this workload.";
     }
     return ret;
   }

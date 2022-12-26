@@ -32,8 +32,12 @@ RUN bash /install/ubuntu_install_core.sh
 COPY install/ubuntu_install_vitis_ai_core.sh /install/ubuntu_install_vitis_ai_core.sh
 RUN bash /install/ubuntu_install_vitis_ai_core.sh
 
+ENV TVM_VENV /venv/apache-tvm-py3.7
+COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
 RUN bash /install/ubuntu_install_python.sh
+ENV PATH ${TVM_VENV}/bin:$PATH
+ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh

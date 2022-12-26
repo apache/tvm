@@ -36,6 +36,14 @@
 #include "ethosn_driver_library/Network.hpp"
 #include "ethosn_support_library/Support.hpp"
 
+#if ETHOSN_SUPPORT_LIBRARY_VERSION_MAJOR == 3 && ETHOSN_SUPPORT_LIBRARY_VERSION_MINOR == 2 && \
+    ETHOSN_SUPPORT_LIBRARY_VERSION_PATCH == 0
+#define _ETHOSN_API_VERSION_3_2_0
+#endif
+#ifdef _ETHOSN_API_VERSION_3_2_0
+#include "ethosn_driver_library/ProcMemAllocator.hpp"
+#endif
+
 namespace tvm {
 namespace runtime {
 namespace ethosn {
@@ -46,6 +54,9 @@ namespace dl = ::ethosn::driver_library;
 struct OrderedCompiledNetwork {
   std::unique_ptr<sl::CompiledNetwork> compiled_cmm;
   std::unique_ptr<dl::Network> runtime_cmm;
+#ifdef _ETHOSN_API_VERSION_3_2_0
+  std::unique_ptr<dl::ProcMemAllocator> proc_mem_alloc;
+#endif
   std::string name;
   std::vector<uint32_t> inputs;
   std::vector<uint32_t> outputs;

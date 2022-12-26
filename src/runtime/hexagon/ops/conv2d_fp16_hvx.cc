@@ -27,7 +27,7 @@
 #include <cassert>
 #include <cinttypes>
 
-#include "tvm/runtime/hexagon/ops/conv2d.h"
+#include "conv2d.h"
 
 // Current limitations:
 // - N in NHWC must be 1
@@ -68,7 +68,7 @@ namespace hexagon {
  */
 static inline uint16_t* getElementPtr(int block_out_y, int block_out_x, int block_out_c, int yi,
                                       int xio, int ci, int xii, const DLTensor& tensor) {
-  auto block_ptr = nhwc_at(tensor, 0, block_out_y, block_out_x, block_out_c);
+  auto block_ptr = conv_utils::nhwc_at(tensor, 0, block_out_y, block_out_x, block_out_c);
   auto block_offset = yi * 128 + xio * 64 + ci * 2 + xii;
   auto first_element_ptr = reinterpret_cast<uint16_t*>(block_ptr);
   return first_element_ptr + block_offset;
@@ -279,10 +279,10 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
         }
         int fx = (fw < wgt_chunk_thin_width) ? fw : ((fw - wgt_chunk_thin_width) % 4);
         int fy = fh % 8;
-        for (int c = 0; c < round_up(filt_idepth, 2); c += 2) {
+        for (int c = 0; c < conv_utils::round_up(filt_idepth, 2); c += 2) {
           int out_act_cc = c / 32;
           int ci = c % 32;
-          auto wgt_chunk = hwio_at(cr_filt, fch, fcw, out_act_cc, out_c);
+          auto wgt_chunk = conv_utils::hwio_at(cr_filt, fch, fcw, out_act_cc, out_c);
 
           // Find weight chunk offset ptr
           int max_x = (fcw == 0) ? wgt_chunk_thin_width : 4;
@@ -306,7 +306,7 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
                                                true_wo, ci, true_wi, cr_act);
           HVX_Vector act_vec = getInputVector(act_element_ptr);
 
-          auto wgt_chunk_offset = hwio_to_sm_16b(max_x, fy, fx, ci, 0);
+          auto wgt_chunk_offset = conv_utils::hwio_to_sm_16b(max_x, fy, fx, ci, 0);
           auto base_chunk_ptr = reinterpret_cast<uint16_t*>(wgt_chunk);
           auto chunk_ptr = base_chunk_ptr + wgt_chunk_offset;
 
@@ -404,7 +404,7 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
 
 int conv2d_packed_fp16(TVMValue* args, int* type_codes, int num_args, TVMValue* out_val,
                        int out_code, void* res_handle) {
-  namespace hexagonrt = tvm::runtime::hexagon;
+  namespace conv_utils = tvm::runtime::hexagon::conv_utils;
   ICHECK_EQ(num_args, 7) << "Unexpected number of arguments";
   ICHECK_EQ(type_codes[0], kTVMDLTensorHandle)
       << "First argument is expected to be the input tensor";  // Input activations
@@ -440,50 +440,55 @@ int conv2d_packed_fp16(TVMValue* args, int* type_codes, int num_args, TVMValue* 
            << wgt_flat->shape[2] << "x" << wgt_flat->shape[3] << ", pad_top=" << pad_top
            << ", pad_left=" << pad_left;
 
-  auto* device_api = tvm::runtime::DeviceAPI::Get(hexagonrt::hexagon_device, false);
+  auto* device_api = tvm::runtime::DeviceAPI::Get(conv_utils::hexagon_device, false);
   ICHECK(device_api != nullptr);
   tvm::runtime::String vtcm_scope = "global.vtcm";
 
-  auto act_vtcm = hexagonrt::prepare_nhwc(device_api, act_flat, /*copy_data=*/true);
+  auto act_vtcm =
+      conv_utils::prepare_nhwc<uint16_t, 8, 4, 32>(device_api, act_flat, /*copy_data=*/true);
 
   ICHECK_NE(wgt_flat->shape[0], 0) << "Weights height should not be zero";
   ICHECK_NE(wgt_flat->shape[1], 0) << "Weights width should not be zero";
   ICHECK_NE(wgt_flat->shape[2], 0) << "Weights input channels should not be zero";
   ICHECK_NE(wgt_flat->shape[3], 0) << "Weights output channels should not be zero";
-  int num_wgt_chunks = hexagonrt::calculate_num_weight_chunks(wgt_flat->shape);
+  int num_wgt_chunks = conv_utils::calculate_num_weight_chunks(
+      wgt_flat->shape, /* chunk_height */ 8, /* chunk_width */ 4, /* chunk_in_channel */ 32,
+      /* chunk_out_channel */ 32);
+
   LOG_INFO << "num_wgt_chunks: " << num_wgt_chunks;
   auto wgt_ptr_table =
       reinterpret_cast<void**>(__builtin_alloca(num_wgt_chunks * sizeof(uintptr_t)));
-  auto wgt_vtcm = hexagonrt::prepare_hwio(device_api, wgt_flat, num_wgt_chunks, wgt_ptr_table);
+  auto wgt_vtcm = conv_utils::prepare_hwio(device_api, wgt_flat, num_wgt_chunks, wgt_ptr_table);
 
-  auto out_vtcm = hexagonrt::prepare_nhwc(device_api, out_flat, /*copy_data=*/false);
+  auto out_vtcm =
+      conv_utils::prepare_nhwc<uint16_t, 8, 4, 32>(device_api, out_flat, /*copy_data=*/false);
 
   // Prepare zero_block
   int64_t block_nbytes = 2048;
-  void* zero_block = device_api->AllocDataSpace(hexagonrt::hexagon_device, 1, &block_nbytes,
+  void* zero_block = device_api->AllocDataSpace(conv_utils::hexagon_device, 1, &block_nbytes,
                                                 tvm::runtime::DataType::UInt(8), vtcm_scope);
   memset(zero_block, 0, 2048);
 
   // FIXME: Setting bias to zero_block: this works for up to 256 output channels.
   auto bias_flat =
-      hexagonrt::SDLTensor<1>(zero_block, wgt_flat->dtype, zero_block, &wgt_flat->shape[3]);
-  auto act_shape = hexagonrt::SDLTensor<4>(nullptr, act_flat->dtype, nullptr, act_flat->shape);
-  auto filt_shape = hexagonrt::SDLTensor<4>(nullptr, wgt_flat->dtype, nullptr, wgt_flat->shape);
-  auto pad_shape = hexagonrt::SDLTensor<2>(nullptr, act_flat->dtype, nullptr, {pad_top, pad_left});
-  auto out_shape = hexagonrt::SDLTensor<4>(nullptr, out_flat->dtype, nullptr, out_flat->shape);
+      conv_utils::SDLTensor<1>(zero_block, wgt_flat->dtype, zero_block, &wgt_flat->shape[3]);
+  auto act_shape = conv_utils::SDLTensor<4>(nullptr, act_flat->dtype, nullptr, act_flat->shape);
+  auto filt_shape = conv_utils::SDLTensor<4>(nullptr, wgt_flat->dtype, nullptr, wgt_flat->shape);
+  auto pad_shape = conv_utils::SDLTensor<2>(nullptr, act_flat->dtype, nullptr, {pad_top, pad_left});
+  auto out_shape = conv_utils::SDLTensor<4>(nullptr, out_flat->dtype, nullptr, out_flat->shape);
   bool relu = false;
 
-  hexagonrt::conv_layer_fp16_hvx(out_vtcm, act_vtcm, wgt_vtcm, out_shape, act_shape, bias_flat,
-                                 filt_shape, pad_shape, relu, stride_h, stride_w,
-                                 hexagonrt::to_uint(zero_block));
+  tvm::runtime::hexagon::conv_layer_fp16_hvx(out_vtcm, act_vtcm, wgt_vtcm, out_shape, act_shape,
+                                             bias_flat, filt_shape, pad_shape, relu, stride_h,
+                                             stride_w, conv_utils::to_uint(zero_block));
 
-  hexagonrt::deblockize_hwc_16b(out_flat->data, out_vtcm.data, out_flat->shape[1],
-                                out_flat->shape[2], out_flat->shape[3]);
+  conv_utils::deblockize_hwc<uint16_t, 8, 4, 32>(out_flat->data, out_vtcm.data, out_flat->shape[1],
+                                                 out_flat->shape[2], out_flat->shape[3]);
 
-  device_api->FreeDataSpace(hexagonrt::hexagon_device, zero_block);
-  hexagonrt::release(device_api, out_vtcm);
-  hexagonrt::release(device_api, wgt_vtcm);
-  hexagonrt::release(device_api, act_vtcm);
+  device_api->FreeDataSpace(conv_utils::hexagon_device, zero_block);
+  conv_utils::release(device_api, out_vtcm);
+  conv_utils::release(device_api, wgt_vtcm);
+  conv_utils::release(device_api, act_vtcm);
 
   return 0;
 }

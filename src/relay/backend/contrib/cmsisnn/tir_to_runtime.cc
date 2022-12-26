@@ -35,10 +35,10 @@ namespace cmsisnn {
 
 class CodeGenCMSISNN : public codegen::CodeGenCHost {
  public:
-  void Init(bool output_ssa, bool emit_asserts, std::string target_str) {
+  void Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_decl, std::string target_str) {
     std::unordered_set<std::string> devices;
     devices.insert("cmsis-nn");
-    CodeGenCHost::Init(output_ssa, emit_asserts, target_str, devices);
+    CodeGenCHost::Init(output_ssa, emit_asserts, emit_fwd_func_decl, target_str, devices);
   }
 
   /*!
@@ -115,9 +115,11 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
                cmsis_func_name == "arm_depthwise_conv_wrapper_s8" ||
                cmsis_func_name == "arm_depthwise_conv_wrapper_s16") {
       EmitConv2D(op);
-    } else if (cmsis_func_name == "arm_fully_connected_s8") {
+    } else if (cmsis_func_name == "arm_fully_connected_s8" ||
+               cmsis_func_name == "arm_fully_connected_s16") {
       EmitFullyConnected(op);
-    } else if (cmsis_func_name == "arm_avgpool_s8" || cmsis_func_name == "arm_max_pool_s8") {
+    } else if (cmsis_func_name == "arm_avgpool_s8" || cmsis_func_name == "arm_avgpool_s16" ||
+               cmsis_func_name == "arm_max_pool_s8" || cmsis_func_name == "arm_max_pool_s16") {
       EmitPool2D(op);
     }
     return;
@@ -489,9 +491,10 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
 runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
+  bool emit_fwd_func_decl = false;
   CodeGenCMSISNN codegen;
   Array<String> function_names;
-  codegen.Init(output_ssa, emit_asserts, target->str());
+  codegen.Init(output_ssa, emit_asserts, emit_fwd_func_decl, target->str());
 
   std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> funcs;
   for (auto kv : mod->functions) {

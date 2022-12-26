@@ -228,13 +228,12 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             assert _OIHWio_matcher.match(kernel_layout)  # check if kernel is OIHWio
             return depthwise_conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         elif layout == "NHWC":
-            assert kernel_layout == "HWOI"
             if (not need_auto_scheduler_layout) and (not need_meta_schedule_layout):
                 logger.warning(
                     "depthwise_conv2d NHWC layout is not optimized for x86 with autotvm."
                 )
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
+                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc, need_kernel_layout=True),
                 wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_nhwc),
                 name="depthwise_conv2d_nhwc.generic",
             )
@@ -507,10 +506,6 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
     return strategy
 
 
-def is_dynamic_shape(shape):
-    return any([isinstance(x, (tir.Any, tir.SizeVar)) for x in shape])
-
-
 @dense_strategy.register("cpu")
 def dense_strategy_cpu(attrs, inputs, out_type, target):
     """dense x86 strategy"""
@@ -520,7 +515,10 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
     if (
         isinstance(inputs[0].shape[0], (int, tir.IntImm))
         and inputs[0].shape[0] == 1
-        and (is_dynamic_shape(inputs[0].shape) or is_dynamic_shape(inputs[1].shape))
+        and (
+            topi.utils.is_dynamic_shape(inputs[0].shape)
+            or topi.utils.is_dynamic_shape(inputs[1].shape)
+        )
     ):
         strategy.add_implementation(
             wrap_compute_dense(topi.x86.dense_dynamic),

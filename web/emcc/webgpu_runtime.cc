@@ -105,27 +105,17 @@ class WebGPUDeviceAPI : public DeviceAPI {
   }
 
  public:
-  TVMStreamHandle CreateStream(Device dev) final {
-    LOG(FATAL) << "Not implemented";
-    return nullptr;
-  }
+  TVMStreamHandle CreateStream(Device dev) final { LOG(FATAL) << "Not implemented"; }
 
-  void FreeStream(Device dev, TVMStreamHandle stream) final {
-    LOG(FATAL) << "Not implemented";
-    return;
-  }
+  void FreeStream(Device dev, TVMStreamHandle stream) final { LOG(FATAL) << "Not implemented"; }
 
   void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
     LOG(FATAL) << "Not implemented";
-    return;
   }
 
   void StreamSync(Device dev, TVMStreamHandle stream) final { LOG(FATAL) << "Not implemented"; }
 
-  void SetStream(Device dev, TVMStreamHandle stream) final {
-    LOG(FATAL) << "Not implemented";
-    return;
-  }
+  void SetStream(Device dev, TVMStreamHandle stream) final { LOG(FATAL) << "Not implemented"; }
 
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
     return WebGPUThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);

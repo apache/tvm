@@ -576,7 +576,7 @@ def test_residual_block(remote, target, dtype):
     }
     if dtype == "float16":
         static_memory_scope = [
-            "global",
+            "",
             "global.texture",
             "global.texture-weight",
             "global.texture-weight",
@@ -590,14 +590,14 @@ def test_residual_block(remote, target, dtype):
         ]
     else:
         static_memory_scope = [
+            "",
+            "global.texture",
             "global",
-            "global.texture",
-            "global.texture-weight",
             "global.texture-weight",
             "global.texture",
             "global.texture-weight",
             "global.texture",
-            "global.texture-weight",
+            "global",
             "",
             "",
         ]
@@ -829,16 +829,16 @@ def test_pooling_branching_texture_params(remote, target, dtype):
     }
 
     static_memory_scope = [
+        "",
+        "global.texture",
+        "global.texture-weight",
+        "global.texture",
+        "global.texture",
         "global",
-        "global.texture",
-        "global.texture-weight",
-        "global.texture",
-        "global.texture",
-        "global.texture-weight",
         "global.texture-weight",
         "global.texture-weight",
         "global.texture",
-        "global.texture-weight",
+        "global",
         "global.texture",
         "",
         "",
@@ -956,15 +956,15 @@ def test_branching_texture_params(remote, target, dtype):
     }
 
     static_memory_scope = [
+        "",
+        "global.texture",
+        "global.texture-weight",
+        "global.texture",
         "global",
-        "global.texture",
-        "global.texture-weight",
-        "global.texture",
-        "global.texture-weight",
         "global.texture-weight",
         "global.texture-weight",
         "global.texture",
-        "global.texture-weight",
+        "global",
         "global.texture",
         "",
         "",
@@ -1045,7 +1045,7 @@ def test_conv2d_different_lowering_same_op(remote, target, dtype):
     }
 
     static_memory_scope = [
-        "global",
+        "",
         "global.texture",
         "global.texture-weight",
         "global.texture",
@@ -1177,11 +1177,11 @@ def test_injective_nwo_inputs1(remote, target, dtype):
     }
 
     static_memory_scope = [
+        "",
+        "global.texture",
         "global",
         "global.texture",
-        "global.texture-nhwc",
-        "global.texture",
-        "global.texture-nhwc",
+        "global",
         "global.texture",
         "global",
         "global",
@@ -1275,12 +1275,12 @@ def test_injective_nwo_inputs2(remote, target, dtype):
     }
 
     static_memory_scope = [
-        "global",
-        "global.texture",
-        "global.texture-nhwc",
+        "",
         "global.texture",
         "global",
-        "global.texture-nhwc",
+        "global.texture",
+        "global",
+        "global",
         "global.texture",
         "global",
     ]

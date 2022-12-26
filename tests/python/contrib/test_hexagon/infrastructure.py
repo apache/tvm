@@ -277,6 +277,19 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
 
         raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
 
+    if current_layout == "nchw":
+        if new_layout in ["nchw-32c8h8w-2d", "nchw-32c8h8w-1d"]:
+            n, c, h, w = arr_np.shape
+            return arr_np.reshape([n, c // 32, 32, h // 8, 8, w // 8, 8]).transpose(
+                0, 1, 3, 5, 2, 4, 6
+            )
+        if new_layout in ["nchw-32c8h4w-2d", "nchw-32c8h4w-1d"]:
+            n, c, h, w = arr_np.shape
+            return arr_np.reshape([n, c // 32, 32, h // 8, 8, w // 4, 4]).transpose(
+                0, 1, 3, 5, 2, 4, 6
+            )
+        raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
+
     raise RuntimeError(f"Unexpected current_layout '{current_layout}'")
 
 
@@ -320,11 +333,11 @@ def quantize_np(arr_np: numpy.ndarray, dtype: str):
 
     scale = (fmax - fmin) / (qmax - qmin)
     zero_point = numpy.rint((fmax * qmin - fmin * qmax) / (fmax - fmin)).astype("int32")
-    quant_np = (arr_np / scale + zero_point).astype(dtype)
+    quant_np = numpy.clip(((arr_np / scale).round() + zero_point), qmin, qmax).astype(dtype)
     return quant_np, scale, zero_point
 
 
-def get_hexagon_target(cpu_ver: str) -> tvm.target.Target:
+def get_hexagon_target(cpu_ver: str, **kwargs) -> tvm.target.Target:
     """Creates a Hexagon target"""
-    target = tvm.target.hexagon(cpu_ver)
+    target = tvm.target.hexagon(cpu_ver, **kwargs)
     return tvm.target.Target(target, host=target)

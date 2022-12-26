@@ -148,7 +148,6 @@ Layout TryTransformLike(const Layout& old, const Layout& ref_old, const Layout& 
     for (int i = 0; i < 26; ++i)
       if (!used[i]) return 'A' + i;
     LOG(FATAL) << "All letters are used";
-    return 0;
   };
 
   for (int j = old->axes.size() - 1, i = ref_old->axes.size() - 1; j >= 0; --i, --j) {

@@ -20,17 +20,19 @@ import datetime
 import json
 import logging
 import urllib.error
-from pathlib import Path
+import configparser
 
+from pathlib import Path
 from typing import Dict, Any
 
-
 from http_utils import get
-from cmd_utils import init_log
+from cmd_utils import init_log, REPO_ROOT
 
 DOCKER_API_BASE = "https://hub.docker.com/v2/"
 PAGE_SIZE = 25
 TEST_DATA = None
+IMAGE_TAGS_FILE = REPO_ROOT / "ci" / "jenkins" / "docker-images.ini"
+TVM_CI_ECR = "477529581014.dkr.ecr.us-west-2.amazonaws.com"
 
 
 def docker_api(url: str, use_pagination: bool = False) -> Dict[str, Any]:
@@ -78,6 +80,10 @@ if __name__ == "__main__":
         help="(testing only) JSON data to mock response from Docker Hub API",
     )
     parser.add_argument(
+        "--testing-images-data",
+        help=f"(testing only) JSON data to mock contents of {IMAGE_TAGS_FILE}",
+    )
+    parser.add_argument(
         "--base-dir",
         default=".docker-image-names",
         help="(testing only) Folder to write image names to",
@@ -85,10 +91,18 @@ if __name__ == "__main__":
     args, other = parser.parse_known_args()
     name_dir = Path(args.base_dir)
 
+    if args.testing_images_data:
+        repo_image_tags = json.loads(args.testing_images_data)
+    else:
+        config = configparser.ConfigParser()
+        config.read(IMAGE_TAGS_FILE)
+        repo_image_tags = {}
+        for name in other:
+            repo_image_tags[name] = config.get("jenkins", name)
+
     images = {}
-    for item in other:
-        name, tag = item.split("=")
-        images[name] = tag
+    for name in other:
+        images[name] = repo_image_tags[name]
 
     if args.testing_docker_data is not None:
         TEST_DATA = json.loads(args.testing_docker_data)
@@ -98,7 +112,10 @@ if __name__ == "__main__":
     name_dir.mkdir(exist_ok=True)
     images_to_use = {}
     for filename, spec in images.items():
-        if image_exists(spec):
+        if spec.startswith(TVM_CI_ECR):
+            logging.info(f"{spec} is from ECR")
+            images_to_use[filename] = spec
+        elif image_exists(spec):
             logging.info(f"{spec} found in tlcpack")
             images_to_use[filename] = spec
         else:

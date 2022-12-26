@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name, unused-argument
+# pylint: disable=import-self, invalid-name, unused-argument, missing-function-docstring
 """Unit tests for various models and operators"""
 import os
 import platform
@@ -5060,6 +5060,20 @@ def test_weight_norm():
     linear_wn = torch.nn.utils.weight_norm(torch.nn.Linear(in_channels, out_channels))
     input_data_linear = torch.rand((128, in_channels)).float()
     verify_model(linear_wn.eval().float(), input_data_linear)
+
+
+@tvm.testing.uses_gpu
+def test_baddbmm():
+    def test_fn(alpha, beta):
+        return lambda inp, batch1, batch2: torch.baddbmm(
+            inp, batch1, batch2, beta=beta, alpha=alpha
+        )
+
+    M = torch.randn(10, 3, 5)
+    batch1 = torch.randn(10, 3, 4)
+    batch2 = torch.randn(10, 4, 5)
+
+    verify_model(test_fn(0.5, 1.0), [M, batch1, batch2])
 
 
 if __name__ == "__main__":

@@ -541,7 +541,6 @@ class Parser {
       return support::FloatImmToNDArray(Downcast<tvm::FloatImm>(token->data));
     } else {
       LOG(FATAL) << "internal error: should only call this function on numeric tokens";
-      return {};
     }
   }
 

@@ -242,7 +242,7 @@ def arm_compute_lib_pattern_table(disabled_ops=["concatenate"]):
 
     def check_qnn_conv(extract):
         """Check qnn conv pattern is supported by ACL."""
-        if extract.attrs.out_dtype != "uint8":
+        if extract.attrs.out_dtype not in ("uint8", "int8"):
             return False
         call = extract
         while call.op.name != "qnn.conv2d":
@@ -258,7 +258,7 @@ def arm_compute_lib_pattern_table(disabled_ops=["concatenate"]):
 
     def check_qnn_dense(extract):
         """Check qnn conv pattern is supported by ACL."""
-        if extract.attrs.out_dtype != "uint8":
+        if extract.attrs.out_dtype not in ("uint8", "int8"):
             return False
         call = extract
         while call.op.name != "qnn.dense":
@@ -267,7 +267,7 @@ def arm_compute_lib_pattern_table(disabled_ops=["concatenate"]):
 
     def check_avg_pool2d(extract):
         """Check average pool2d pattern is supported by ACL."""
-        if extract.attrs.dtype != "uint8":
+        if extract.attrs.dtype not in ("uint8", "int8"):
             return False
         pool = extract.args[0]
         if pool.args[0].attrs.dtype != "int32":
@@ -285,7 +285,7 @@ def arm_compute_lib_pattern_table(disabled_ops=["concatenate"]):
             return False
         attrs, type_args = expr.attrs, expr.type_args
         for idx in range(len(type_args[0].fields)):
-            if type_args[0].fields[idx].dtype not in ["float32", "uint8"]:
+            if type_args[0].fields[idx].dtype not in ["float32", "uint8", "int8"]:
                 return False
         # ACL concatenate only supports maximum 4 dimensions input tensor
         if attrs.axis not in [-4, -3, -2, -1, 0, 1, 2, 3]:
@@ -347,16 +347,17 @@ def conv2d(expr):
 def qnn_conv2d(expr):
     """Check if the external ACL codegen for qnn.conv2d should be used."""
     attrs, args = expr.attrs, expr.args
+    qnn_dtypes = ("uint8", "int8")
 
     if attrs.data_layout != "NHWC":
         return False
     if attrs.out_dtype != "int32" and attrs.out_dtype != "":
         return False
     data_typ = args[0].checked_type
-    if len(data_typ.shape) != 4 or data_typ.shape[0] != 1 or data_typ.dtype != "uint8":
+    if len(data_typ.shape) != 4 or data_typ.shape[0] != 1 or data_typ.dtype not in qnn_dtypes:
         return False
     kernel_typ = args[1].checked_type
-    if len(kernel_typ.shape) != 4 or kernel_typ.dtype != "uint8":
+    if len(kernel_typ.shape) != 4 or kernel_typ.dtype not in qnn_dtypes:
         return False
     is_depthwise = is_depthwise_conv2d(
         data_typ.shape,
@@ -414,10 +415,10 @@ def qnn_dense(expr):
     """Check if the external ACL codegen for qnn.dense should be used."""
     attrs, args = expr.attrs, expr.args
     data_typ = args[0].checked_type
-    if data_typ.dtype != "uint8":
+    if data_typ.dtype not in ("uint8", "int8"):
         return False
     kernel_typ = args[1].checked_type
-    if len(kernel_typ.shape) != 2 or kernel_typ.dtype != "uint8":
+    if len(kernel_typ.shape) != 2 or kernel_typ.dtype not in ("uint8", "int8"):
         return False
     if attrs.out_dtype != "int32":
         return False
@@ -439,7 +440,7 @@ def max_pool2d(expr):
     if attrs.layout != "NHWC":
         return False
     typ = args[0].checked_type
-    if typ.dtype not in ["float32", "uint8"]:
+    if typ.dtype not in ["float32", "uint8", "int8"]:
         return False
     return check_dilation(attrs)
 
@@ -467,7 +468,7 @@ def global_max_pool2d(expr):
     """Check if the external ACL codegen for gloval_maxpool2d should be used."""
     attrs, args = expr.attrs, expr.args
     typ = args[0].checked_type
-    if typ.dtype not in ["float32", "uint8"]:
+    if typ.dtype not in ["float32", "uint8", "int8"]:
         return False
     if attrs.layout != "NHWC":
         return False

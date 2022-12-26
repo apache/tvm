@@ -756,18 +756,15 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
     return PrintTarget(node.as<TargetNode>());
   } else {
     LOG(FATAL) << "Do not know how to print " << node->GetTypeKey();
-    return Doc();
   }
 }
 
 Doc TVMScriptPrinter::VisitExprDefault_(const Object* op, ExprPrecedence* out_precedence) {
   LOG(FATAL) << "Do not know how to print " << op->GetTypeKey();
-  return Doc();
 }
 
 Doc TVMScriptPrinter::VisitStmtDefault_(const Object* op) {
   LOG(FATAL) << "Do not know how to print " << op->GetTypeKey();
-  return Doc();
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const IntImmNode* op, ExprPrecedence* out_precedence) {
@@ -823,13 +820,15 @@ bool WillPrintConstScalar(const PrimExpr& expr) {
     ICHECK(rhs_precedence != ExprPrecedence::kUnknown);                                           \
     /* Update out_precedence of current node. */                                                  \
     *out_precedence = OpPrecedence;                                                               \
-    if (lhs_precedence > OpPrecedence) {                                                          \
+    if (lhs_precedence > OpPrecedence ||                                                          \
+        (lhs_precedence == ExprPrecedence::kAnd && OpPrecedence == ExprPrecedence::kOr)) {        \
       doc << "(" << lhs_doc << ")";                                                               \
     } else {                                                                                      \
       doc << lhs_doc;                                                                             \
     }                                                                                             \
     doc << OpString;                                                                              \
-    if (rhs_precedence >= OpPrecedence) {                                                         \
+    if (rhs_precedence >= OpPrecedence ||                                                         \
+        (rhs_precedence == ExprPrecedence::kAnd && OpPrecedence == ExprPrecedence::kOr)) {        \
       doc << "(" << rhs_doc << ")";                                                               \
     } else {                                                                                      \
       doc << rhs_doc;                                                                             \
@@ -1046,7 +1045,6 @@ Doc TVMScriptPrinter::VisitStmt_(const AttrStmtNode* op) {
             << ")";
         doc << Doc::NewLine() << PrintBody(op->body);
       }
-      TryDeallocVar(iter_var->var);
       return doc;
     }
   }

@@ -94,6 +94,7 @@ import argparse
 import contextlib
 import logging
 import os
+import pickle
 import sys
 import warnings
 from collections import defaultdict
@@ -125,28 +126,37 @@ import torchdynamo  # type: ignore  # isort: skip, pylint: disable=wrong-import-
 class RunMode(Enum):
     """
     The running mode of this script. Available values are:
-    - tune: Only tune the model and create the tuning database.
+    - extract: Only import the model and extract tuning tasks from it.
+    - tune: Only tune the tasks and create the tuning database.
     - eval: Only benchmark model using pre-existing tuning database.
     - all: Run both tuning and benchmark
     """
 
     ALL = "all"
+    EXTRACT = "extract"
     TUNE = "tune"
     EVAL = "eval"
 
     @property
+    def should_extract(self):
+        """
+        Returns whether it should extract tuning tasks.
+        """
+        return self in (RunMode.ALL, RunMode.EXTRACT)
+
+    @property
     def should_tune(self):
         """
-        Returns whether it should tune the model.
+        Returns whether it should tune the tasks.
         """
-        return self != RunMode.EVAL
+        return self in (RunMode.ALL, RunMode.TUNE)
 
     @property
     def should_eval(self):
         """
         Returns whether it should actually benchmark the model.
         """
-        return self != RunMode.TUNE
+        return self in (RunMode.ALL, RunMode.EVAL)
 
 
 class ResultComparisonMetric(Enum):
@@ -734,11 +744,19 @@ def main():
         profiler = stack.enter_context(ms.Profiler())
         stack.enter_context(torch.no_grad())
 
-        if ARGS.mode.should_tune:
+        tasks_path = os.path.join(ARGS.work_dir, "extracted_tasks")
+
+        if ARGS.mode.should_extract:
             task_collect_backend, extracted_tasks = create_tvm_task_collection_backend()
             task_collect_ctx = torchdynamo.optimize(task_collect_backend)
             task_collect_ctx(runner.model_iter_fn)(model, example_inputs)
+            with open(tasks_path, "wb") as f:
+                pickle.dump(extracted_tasks, f)
+        else:
+            with open(tasks_path, "rb") as f:
+                extracted_tasks = pickle.load(f)
 
+        if ARGS.mode.should_tune:
             tasks, task_weights = ms.relay_integration.extracted_tasks_to_tune_contexts(
                 extracted_tasks=extracted_tasks,
                 work_dir=ARGS.work_dir,

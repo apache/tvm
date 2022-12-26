@@ -136,7 +136,6 @@ arm_compute::DataType MakeACLDataType(const DLDataType& data_type) {
     return arm_compute::DataType::S32;
   } else {
     LOG(FATAL) << "Datatype " << data_type << " unsupported by ACL runtime";
-    return arm_compute::DataType::UNKNOWN;
   }
 }
 

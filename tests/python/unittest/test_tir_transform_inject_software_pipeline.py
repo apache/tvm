@@ -1507,7 +1507,7 @@ def test_async_pipelined_mma_gemm_simple():
     assert body.block.body.body[1].block.body.body.value == 3
 
     assert epilogue.block.body.body.block.body.body.attr_key == "async_wait_inflight_count"
-    assert str(epilogue.block.body.body.block.body.body.value) == "(2 - i2_0_0: int32)"
+    assert str(epilogue.block.body.body.block.body.body.value) == "(2 - k_0_0: int32)"
 
     build_and_run(sch)
 
@@ -1554,7 +1554,7 @@ def test_async_nested_pipeline_mma_gemm_ideal_annotation():
     assert body.block.body.body[1].block.body.body.attr_key == "async_wait_inflight_count"
     assert body.block.body.body[1].block.body.body.value == 2
 
-    assert str(epilogue.block.body.body[0].block.body.body.value) == "(1 - i2_0_0: int32)"
+    assert str(epilogue.block.body.body[0].block.body.body.value) == "(1 - k_0_0: int32)"
 
     build_and_run(sch)
 

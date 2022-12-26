@@ -303,8 +303,9 @@ def schedule_conv2d_NHWC(cfg, s, output):
     if autotvm.GLOBAL_SCOPE.in_tuning or filter_pack_rt:
         if not autotvm.GLOBAL_SCOPE.in_tuning:
             bind_data_copy(s[kernel])
-        WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
-        bind_data_copy(s[WT])
+        if kernel.shape[0] == 1 and kernel.shape[1] == 1:
+            WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
+            bind_data_copy(s[WT])
 
     s[conv].set_scope("local")
     if latest_blocked == latest and output != latest:
