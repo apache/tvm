@@ -22,7 +22,6 @@ from tvm import relay
 from tvm._ffi import register_func
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
-from tvm.relay.expr import Var, Constant
 
 from ...dataflow_pattern import wildcard, is_op, is_constant, is_tuple_get_item, is_tuple
 from .register import register_pattern_table
