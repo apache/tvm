@@ -1536,6 +1536,7 @@ class QAttention(OnnxOpConverter):
         # ************************* Create Relay *************************
         # Add batch dimension for QNN Batch Matmul
         weight = _op.expand_dims(weight, 0, num_newaxis=1)
+        weight = _op.concatenate([weight] * batch_size, axis=0)
 
         # Split weight and biases and do the Matmul
         w_Q, w_K, w_V = _op.split(weight, 3, axis=-1)
