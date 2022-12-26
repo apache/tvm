@@ -224,13 +224,6 @@ def clml_pattern_table():
             return False
 
         if (
-            (not isinstance(args[0], (Var, Constant)))
-            and (args[0].op.name == "nn.pad")
-            and (len(args[0].attrs["pad_width"]) != 4)
-        ):
-            return False
-
-        if (
             (not clip_found)
             and (attrs.kernel_size[0] == 3)
             and (attrs.dilation[0] != 1)
