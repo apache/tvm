@@ -3514,6 +3514,20 @@ class PyTorchOpConverter:
         _, indices = _expr.TupleWrapper(output, 2)
         return indices
 
+    def weight_norm(self, inputs, input_types):
+        weight_v, weight_g = inputs[0], inputs[1]
+        dim = inputs[2]
+        dtype = input_types[0]
+        order = 2.0
+        reci_order = _expr.const(1.0 / order, dtype=dtype)
+        order = _expr.const(order)
+
+        norm_v = _op.power(
+            _op.reduce.sum(_op.power(_op.abs(weight_v), order), axis=dim, exclude=2, keepdims=True),
+            reci_order,
+        )
+        return weight_g * (weight_v / norm_v)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -3781,6 +3795,7 @@ class PyTorchOpConverter:
             "aten::__lshift__": self.make_elemwise("left_shift"),
             "aten::__rshift__": self.make_elemwise("right_shift"),
             "aten::multinomial": self.multinomial,
+            "aten::_weight_norm": self.weight_norm,
         }
 
     def update_convert_map(self, custom_map):
