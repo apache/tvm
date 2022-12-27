@@ -5038,6 +5038,30 @@ def test_multinomial():
     )
 
 
+def test_weight_norm():
+    """Test for atten::_weight_norm"""
+    in_channels = 32
+    out_channels = 64
+    input_data_conv = torch.rand((1, in_channels, 32, 32)).float()
+
+    conv_wn = torch.nn.utils.weight_norm(torch.nn.Conv2d(in_channels, out_channels, kernel_size=3))
+    verify_model(conv_wn.eval().float(), input_data_conv)
+
+    conv_wn_groups = torch.nn.utils.weight_norm(
+        torch.nn.Conv2d(in_channels, out_channels, kernel_size=3, groups=2)
+    )
+    verify_model(conv_wn_groups.eval().float(), input_data_conv)
+
+    conv_wn = torch.nn.utils.weight_norm(
+        torch.nn.Conv2d(in_channels, out_channels, kernel_size=3), dim=1
+    )
+    verify_model(conv_wn.eval().float(), input_data_conv)
+
+    linear_wn = torch.nn.utils.weight_norm(torch.nn.Linear(in_channels, out_channels))
+    input_data_linear = torch.rand((128, in_channels)).float()
+    verify_model(linear_wn.eval().float(), input_data_linear)
+
+
 @tvm.testing.uses_gpu
 def test_baddbmm():
     def test_fn(alpha, beta):
