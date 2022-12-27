@@ -23,8 +23,6 @@ import logging
 import numpy as np
 import tvm
 from tvm import autotvm, te
-from tvm.auto_scheduler import is_auto_scheduler_enabled
-from tvm.meta_schedule import is_meta_schedule_enabled
 from tvm.runtime import Object
 from tvm.support import libinfo
 from tvm.target import Target
@@ -174,6 +172,11 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     ret : tuple(relay.op.OpImplementation, List[tvm.te.Tensor])
         The best op implementation and the corresponding output tensors.
     """
+    # pylint: disable=import-outside-toplevel
+    from tvm.auto_scheduler import is_auto_scheduler_enabled
+    from tvm.meta_schedule import is_meta_schedule_enabled
+
+    # pylint: enable=import-outside-toplevel
     all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
     if len(all_impls) == 0:
         raise RuntimeError(f"No valid {op} implementations for {target}")
