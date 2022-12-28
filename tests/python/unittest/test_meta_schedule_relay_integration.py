@@ -826,5 +826,50 @@ def test_anchor_tuning_cpu_link_params():
     np.testing.assert_allclose(ref, out, atol=1e-3)
 
 
+@pytest.mark.xfail(raises=tvm.error.TVMError)
+def test_disabled_pass_param():
+    """
+    Check 'disabled_pass' parameter in tune_relay. Should throw exception in
+    case of correct work.
+    """
+    data_shape = [1, 4, 16, 16]
+    weight_shape = [32, 4, 2, 2]
+
+    data = relay.var("data", shape=data_shape, dtype="uint8")
+    weight = relay.var("weight", shape=weight_shape, dtype="int8")
+
+    op = relay.qnn.op.conv2d(
+        data,
+        weight,
+        input_zero_point=relay.const(0),
+        kernel_zero_point=relay.const(0),
+        input_scale=relay.const(0.7),
+        kernel_scale=relay.const(0.3),
+        kernel_size=[2, 2],
+        channels=32,
+    )
+    mod = tvm.IRModule.from_expr(op)
+
+    weight_np = np.random.randint(-10, 10, size=weight_shape).astype("int8")
+    params = {"weight": weight_np}
+
+    executor = relay.backend.Executor("graph", {"link-params": True})
+    mod = mod.with_attr("executor", executor)
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        database = ms.relay_integration.tune_relay(
+            mod=mod,
+            target="llvm --num-cores=4",
+            params=params,
+            work_dir=work_dir,
+            max_trials_global=4,
+            strategy="replay-trace",
+            disabled_pass=["qnn.Legalize"],
+        )
+
+    # Test failed, otherwise we can not reach this point.
+    pytest.fail("'disabled_pass' argument does not work")
+
+
 if __name__ == "__main__":
     tvm.testing.main()
