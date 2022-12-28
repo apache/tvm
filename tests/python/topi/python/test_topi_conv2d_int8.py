@@ -129,7 +129,10 @@ def test_conv2d_NHWC_gemm_int8(params, device):
         failing_cases = [
             (devices[1], (1, 128, 17, 192, 7, 1, "SAME", 2, False, False)),
             (devices[1], (1, 160, 17, 160, 7, 1, "SAME", 1, False, False)),
-            (devices[1], (1, 448, 8, 384, 3, 1, "VALID", 1, False, False)), # this one passes but is just incredibly slow
+            (
+                devices[1],
+                (1, 448, 8, 384, 3, 1, "VALID", 1, False, False),
+            ),  # this one passes but is just incredibly slow
         ]
         if (device, params) in failing_cases:
             return
